@@ -5132,24 +5132,12 @@ fn face_flux_about<T: Decide>(
             closed_form_about(surface, &loops, &held, face.sense(), band, about).map_err(wrap)?
         }
         _ => {
-            let trimmed = loops
-                .iter()
-                .flat_map(|(edges, _)| edges)
-                .any(|e| trims(&e.carrier));
             // Which lanes read a ring: the cone's closed form (every
-            // loop's vector area, whatever trims it), the cylinder's and
-            // the sphere's closed forms and quadrature alike (each a Green
-            // form, or Gauss–Bonnet, summed over every loop), and the
-            // torus's closed form over rims and rulings, and the spiric
-            // lane every loop of a
-            // spiric-bounded plane or torus wall: on a wall, every loop's
-            // spirics, rims and meridians, each ring wound against the
-            // face, and any other edge refuses typed in that lane. No
-            // other kind reads one.
-            let spiric = loops
-                .iter()
-                .flat_map(|(edges, _)| edges)
-                .any(|e| matches!(e.carrier, geom::Curve3::Spiric { .. }));
+            // loop's vector area, whatever trims it), the cylinder's, the
+            // sphere's and the torus's closed forms and quadrature alike
+            // (each a Green form, or Gauss–Bonnet, summed over every
+            // loop), and the spiric lane every loop of a spiric-bounded
+            // plane cap. No other kind reads one.
             let reads_rings = match surface {
                 // A plane reaches this arm only bounded by a spiric or a
                 // rational spline rim, and the plane cap reads every loop
@@ -5157,20 +5145,20 @@ fn face_flux_about<T: Decide>(
                 Surface::Cone { .. }
                 | Surface::Cylinder { .. }
                 | Surface::Plane { .. }
-                | Surface::Sphere { .. } => true,
-                Surface::Torus { .. } => !trimmed || spiric,
+                | Surface::Sphere { .. }
+                | Surface::Torus { .. } => true,
                 _ => false,
             };
             if loops.len() > 1 && !reads_rings {
                 return Err(MassPropsError::RingOnCurvedFace { face: face_key });
             }
             // The S10 sense bit enters the quadrature lane on the sphere
-            // alone: a cylinder's, plane's or torus's Green form is
+            // and the torus alone: a cylinder's or a plane's Green form is
             // winding-derived end to end (the signed UV area IS s_f·|Ω|
-            // through the stored loop traversal), while a sphere loop
-            // bounds a face on each side and the rotational lane reads
-            // the bit to say which (`quad_lane::cut_face_lane`), with no
-            // cross-check against the boundary. An approximating face
+            // through the stored loop traversal), while a loop on a closed
+            // chart bounds a face on each side and the rotational lane
+            // reads the bit to say which (`quad_lane::cut_face_lane`),
+            // with no cross-check against the boundary. An approximating face
             // takes it as its fit's flux, the geometry the face carries.
             let quad_out = if takes_quadrature(
                 surface,

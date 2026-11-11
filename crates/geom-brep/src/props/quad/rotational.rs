@@ -54,6 +54,61 @@
 //! reading is decided ([`require_sphere_sides`]). The flux about the
 //! centre is then `r·s_f·|Ω|`.
 //!
+//! # The torus
+//!
+//! On the ring torus `S(u, v) = o + (R + r·cos v)·(û·cos u + v̂·sin u) +
+//! â·r·sin v`, `v` the tube angle, `0 < r < R`, `dA = r·ρ du dv` with
+//! `ρ = R + r·cos v`, and the flux density about the centre is
+//! `R·cos v + r`, so
+//!
+//! ```text
+//! F(v) = r·((R² + r²)·sin v + ½Rr·sin v·cos v) + κ_F·v,   κ_F = 3/2·R·r²
+//! G(v) = r²·sin v + κ_G·v,                                  κ_G = R·r
+//! ```
+//!
+//! Each is a periodic part, read off `(cos v, sin v)`, plus a slope
+//! times `v` itself.
+//!
+//! **The level on a chord.** The frame point gives the periodic part in
+//! the ring operations and one root, `(cos v, sin v) = (ρ − R, z)/|(ρ −
+//! R, z)|`, but `v` is an `atan2`, which certification arithmetic does
+//! not evaluate (C9). The lane reads it as `v(t) = v(t₀) + ∫v′`, with
+//! `v′ = ((ρ − R)·z′ − z·ρ′)/((ρ − R)² + z²)` algebraic, so `∫v·u′` is an
+//! iterated integral of algebraic functions
+//! ([`crate::props::taylor::primitive_each`]). `v(t₀)` is the image's own
+//! level at the carrier interval's start, read by its evaluator at the
+//! lane scalar and crossed in through `Interval::from_certified`, the
+//! door every edge's ends take into the closure and the connectors; its
+//! distance from the carrier's level is padded ([`torus_edge_terms`]). A
+//! rim reads `F(V)` at its level, and a spiric's exact image
+//! `v = v₀ + σ·t` reads `v` as a polynomial in its own parameter.
+//!
+//! **The lift.** Both chart coordinates are angles, so `v du` is not a
+//! global form on the torus, and `F(v + 2π) = F(v) + 2πκ_F`. Each loop is
+//! read on the chart's continuous lift ([`LoopLift`]):
+//! - every edge is read on its own lift, and carried by `−o·2πκ·Δu`, `o`
+//!   the whole turns the chain's level sits above it there;
+//! - past each edge the chain gains the edge's branch turns, and past
+//!   each junction the level turns the closure takes off it;
+//! - a loop that winds the tube `W_v` times adds `W_v·2πκ·u₀`, `u₀` the
+//!   azimuth its chain starts at: cut along a path to its partner loop,
+//!   the region's lifted boundary carries that path twice, a turn apart.
+//!   Moving the start changes the chain's integral by just as much the
+//!   other way.
+//!
+//! **The face.** A whole turn of a level or of an azimuth anywhere moves
+//! the area by a whole torus `4π²Rr` and the flux by the whole torus's
+//! `6π²Rr²` together. A loop that winds nothing bounds a region on each
+//! side, the face's under its sense `s_f`. So the face's area is its
+//! loops' signed area under the sense up to whole tori, in the window
+//! `(0, 4π²Rr]`, and its reading holds every count of tori that signed
+//! area's enclosure admits ([`torus_face`]): it decides nothing, a later
+//! round narrows it, and a face bounded by its chart's wrap loop reads
+//! whole. The loops that wind the torus are at most two, wound against
+//! each other ([`loop_windings`]), and its rings are read against the
+//! face as the cylinder's are ([`require_holes_wound_against`]). Under a
+//! flipped bit the lane certifies the complement, as on the sphere.
+//!
 //! `v du` because it is a global 1-form on the chart (the azimuth is
 //! periodic, its differential is not), so the form reads a loop that
 //! winds the chart — a seamless band's rim — and a loop whose images
@@ -137,13 +192,15 @@
 //! certificate's: each image tracks its carrier within its envelope `e`
 //! (metres through the map) at every parameter, and the face's true
 //! trim boundary lies within metric distance `e` of its images, the
-//! chart's metric `ds² = r²du² + dv²` on the cylinder and
-//! `r²·(cos²v du² + dv²)` on the sphere.
+//! chart's metric `ds² = r²du² + dv²` on the cylinder,
+//! `r²·(cos²v du² + dv²)` on the sphere and `ρ²du² + r²dv²` on the
+//! torus.
 //!
 //! - **Map residual**: the chart-area defect between the images' region
 //!   and the true one is at most `Σ (metric edge length)·e`, and the flux
-//!   density about the chart origin is `r` per unit area on both charts,
-//!   so `r` times that in flux. Beside each junction's connector lies the
+//!   density about the chart origin is at most `r` per unit area on the
+//!   cylinder and the sphere and `R + r` on the torus, so that times it
+//!   in flux. Beside each junction's connector lies the
 //!   region between it and the true vertex, `2·g·(e_i + e_j + g)`
 //!   ([`connector_terms`]).
 //! - **Endpoint parameter brackets**: a non-thin `t₀/t₁` bracket of a
@@ -172,11 +229,13 @@ use super::run::{Accept, EDGE_INIT_PIECES, FaceCutBounds, LaneRun, RoundWindow, 
 use crate::props::PropsError;
 use crate::props::bracket::{AbsEnclosure, exact_point, mid, pt};
 use crate::props::rational_rim::{
-    RationalEdgeQ, rational_integrals_each, rational_rate_bound, rational_span_pieces,
-    rational_vector_area_each,
+    RationalEdgeQ, RationalJets, rational_integrals_each, rational_primitive_each,
+    rational_rate_bound, rational_span_pieces, rational_vector_area_each,
 };
+use crate::props::spiric::{SpiricEdgeQ, WallImageQ, spiric_length_bound};
 use crate::props::taylor::{
-    Jet, W_SPIRIC, composite_each, pieces_where, rate_bound_over, trig_jets, trig_of, w_rational,
+    Integrand, Jet, PIECE_TURN, Primitive, W_SPIRIC, composite_each, pieces_where, primitive_each,
+    rate_bound_over, trig_jets, trig_of, w_rational,
 };
 use crate::props::trig::{limit, rotate, spread_cos, spread_sin, trig_at, trig_over};
 
@@ -199,7 +258,8 @@ pub(super) fn round_cost(edges: usize, round: usize) -> usize {
 /// [`W_CYLINDER`], a projected carrier's at its piece weight
 /// ([`framed_weight`]) and a rational chart term's at a rational rim's,
 /// each projected or rational carrier at the pieces its [`Schedule`]
-/// reads.
+/// reads, and a spiric edge at [`W_SPIRIC`] a round piece, its chart
+/// term counted with it.
 fn face_cost(
     face: &RotationalFaceQ,
     entries: &[Vec<EdgeEntry>],
@@ -214,6 +274,7 @@ fn face_cost(
         .map(|(e, entry)| match e {
             EdgeTermQ::Harmonic(_) => W_CYLINDER * round_pieces(round),
             EdgeTermQ::Projected(p) => framed_weight(&p.carrier) * entry.schedule.pieces(round),
+            EdgeTermQ::Spiric(_) => W_SPIRIC * round_pieces(round),
         })
         .sum();
     let rationals: usize = face
@@ -262,12 +323,6 @@ impl Schedule {
 /// schedule's round 0 ([`Schedule`]) and its turn ([`entry_turn`]).
 const MOST_SPAN_PIECES: usize = 1024;
 
-/// **The azimuth one round-0 piece may turn through**: a sixteenth of a
-/// turn, what a full-turn harmonic rim's round-0 piece turns
-/// ([`EDGE_INIT_PIECES`]).
-#[allow(clippy::cast_precision_loss)]
-const PIECE_TURN: f64 = core::f64::consts::TAU / EDGE_INIT_PIECES as f64;
-
 /// **A projected edge's schedule**: per span or cut interval, the fewest
 /// pieces ([`pieces_where`], at most [`MOST_SPAN_PIECES`]) on each of
 /// which the azimuth turns through at most [`PIECE_TURN`], read as
@@ -277,16 +332,28 @@ const PIECE_TURN: f64 = core::f64::consts::TAU / EDGE_INIT_PIECES as f64;
 /// remainder, so a span by the axis takes the pieces its turn needs, and
 /// a short span far from it one.
 ///
+/// On the torus the level is an angle too, and a piece fits only where
+/// the tube angle turns through at most [`PIECE_TURN`] as well: a
+/// meridian's azimuth stands still while its level sweeps the tube.
+///
 /// **No piece a round reads turns through more than [`PIECE_TURN`]**,
 /// its pieces only halving round by round, unless its span is still not
 /// read so at [`MOST_SPAN_PIECES`], where the rounds read it as they can
 /// and refuse what they cannot.
-fn span_schedule(p: &ProjectedEdgeQ) -> Schedule {
-    let fits = |at: &FrameJets, h: f64| at.du.0[0].mag() * h <= PIECE_TURN;
+fn span_schedule(p: &ProjectedEdgeQ, chart: RotationalChartQ) -> Schedule {
+    let fits = |at: &FrameJets, h: f64| {
+        at.du.0[0].mag() * h <= PIECE_TURN
+            && match chart {
+                RotationalChartQ::Torus { major, .. } => {
+                    tube_jets(major, at).rate.0[0].mag() * h <= PIECE_TURN
+                }
+                _ => true,
+            }
+    };
     Schedule(match &p.carrier {
-        FramedQ::Net(net) => rational_span_pieces(net, MOST_SPAN_PIECES, |b, db, w, h| {
-            fits(&net_rate(b, db, w), h)
-        }),
+        FramedQ::Net(net) => {
+            rational_span_pieces(net, MOST_SPAN_PIECES, |j, h| fits(&net_rate(j), h))
+        }
         FramedQ::Conic { cuts, .. } | FramedQ::Line { cuts, .. } => cuts
             .windows(2)
             .map(|w| {
@@ -302,11 +369,12 @@ fn span_schedule(p: &ProjectedEdgeQ) -> Schedule {
 }
 
 /// **The length one round-0 piece of a rational chart term may span**:
-/// a sixteenth of the chart's circumference, what a full-turn harmonic
+/// a sixteenth of the chart's widest circumference, what a full-turn harmonic
 /// rim's round-0 piece spans ([`EDGE_INIT_PIECES`]).
 fn piece_reach(chart: RotationalChartQ) -> f64 {
     let radius = match chart {
         RotationalChartQ::Cylinder { radius } | RotationalChartQ::Sphere { radius, .. } => radius,
+        RotationalChartQ::Torus { major, minor, .. } => major + minor,
     };
     radius.hi() * PIECE_TURN
 }
@@ -315,8 +383,9 @@ fn piece_reach(chart: RotationalChartQ) -> f64 {
 /// each of which the carrier `B/w` certifies and its length,
 /// `Σ|B′w − Bw′|/w²` read over the piece, is at most `reach`.
 fn term_schedule(e: &RationalEdgeQ, reach: f64) -> Schedule {
-    Schedule(rational_span_pieces(e, MOST_SPAN_PIECES, |b, db, w, h| {
-        let (w0, dw) = (w.0[0], w.0[1]);
+    Schedule(rational_span_pieces(e, MOST_SPAN_PIECES, |j, h| {
+        let (b, db) = (j.b, j.db);
+        let (w0, dw) = (j.w.0[0], j.w.0[1]);
         let speed = (0..3).fold(Interval::zero(), |acc, c| {
             acc + ((db[c].0[0] * w0 - b[c].0[0] * dw) / w0.sqr()).abs_enclosure()
         });
@@ -436,6 +505,24 @@ pub enum EdgeTermQ {
     Harmonic(TrimEdgeQ),
     /// A projected pcurve.
     Projected(ProjectedEdgeQ),
+    /// A spiric's exact image on its own torus.
+    Spiric(SpiricWallQ),
+}
+
+/// One spiric edge of a torus wall, bracketed by the caller: its carrier
+/// about the torus centre, its exact lifted image (`u = u₀ + σ·atan2(f,
+/// d)`, `v = v₀ + σ·t`, [`crate::SpiricImage::Wall`] on the carrier's own
+/// torus), and the image's chart points at the carrier interval's start
+/// and its end, read by its evaluator.
+#[derive(Clone, Copy, Debug)]
+pub struct SpiricWallQ {
+    /// The carrier, its centre about the torus centre.
+    pub edge: SpiricEdgeQ,
+    /// The image.
+    pub image: WallImageQ,
+    /// The image's chart points `(u, v)` at the carrier interval's start
+    /// and its end, in that order whatever the traversal.
+    pub ends: [(Interval, Interval); 2],
 }
 
 /// The chart a rotational face's Green form runs on: the per-chart
@@ -457,6 +544,19 @@ pub enum RotationalChartQ {
         /// sense bit).
         outward: bool,
     },
+    /// A ring torus of major radius `R` and minor radius `r < R`, `v` the
+    /// tube angle: `F = r·((R² + r²)·sin v + ½Rr·sin v·cos v + 3/2·Rr·v)`,
+    /// `G = r·(R·v + r·sin v)`, the face's region read off its windings
+    /// and its sense (module docs, the torus).
+    Torus {
+        /// `R`.
+        major: Interval,
+        /// `r`.
+        minor: Interval,
+        /// Whether the face's normal is the torus's outward one (its sense
+        /// bit).
+        outward: bool,
+    },
 }
 
 impl RotationalChartQ {
@@ -467,6 +567,7 @@ impl RotationalChartQ {
         match self {
             Self::Cylinder { radius } => radius,
             Self::Sphere { radius, .. } => radius * trig_of(level).0.abs_enclosure(),
+            Self::Torus { major, minor, .. } => major + minor * trig_of(level).0,
         }
     }
 
@@ -475,14 +576,22 @@ impl RotationalChartQ {
         match self {
             Self::Cylinder { .. } => Interval::one(),
             Self::Sphere { radius, .. } => radius,
+            Self::Torus { minor, .. } => minor,
         }
     }
 
-    /// The flux density about the chart origin per unit of metric area:
-    /// the radius on both charts, whose normal is radial.
+    /// Whether the level is periodic: the torus's tube angle.
+    fn level_periodic(self) -> bool {
+        matches!(self, Self::Torus { .. })
+    }
+
+    /// The flux density about the chart origin per unit of metric area,
+    /// from above: the radius on the cylinder and the sphere, whose
+    /// normal is radial, and on the torus `|R·cos v + r| ≤ R + r`.
     fn flux_density(self) -> Interval {
         match self {
             Self::Cylinder { radius } | Self::Sphere { radius, .. } => radius,
+            Self::Torus { major, minor, .. } => major + minor,
         }
     }
 
@@ -503,15 +612,30 @@ impl RotationalChartQ {
                     + (p[0] * d[1] - p[1] * d[0]).abs_enclosure();
                 radius * cross / (p[0].sqr() + p[1].sqr() + p[2].sqr())
             }
+            Self::Torus { major, minor, .. } => {
+                let tube = tube_jets(major, at);
+                chart_speed(
+                    major + minor * tube.cos.0[0],
+                    minor,
+                    at.du.0[0],
+                    tube.rate.0[0],
+                )
+            }
         }
     }
 
-    /// The map-residual pad `[flux, area]` of a chart area `area` (m²) the
-    /// images may move: that area at the flux density's sup.
+    /// The map-residual pad `[flux, area]` of a metric area `area` (m²)
+    /// the images may move ([`residual`]).
     fn residual(self, area: Interval) -> [f64; 2] {
-        let area = area.mag();
-        [(pt(area) * self.flux_density()).mag(), area]
+        residual(area, self.flux_density())
     }
+}
+
+/// The map-residual pad `[flux, area]` of a metric area `area` (m²) the
+/// images may move: that area at the flux density's sup `density`.
+fn residual(area: Interval, density: Interval) -> [f64; 2] {
+    let area = area.mag();
+    [(pt(area) * density).mag(), area]
 }
 
 /// The cylinder's `[F, G] = [r²·(v − v_a), r·(v − v_a)]` at a level.
@@ -555,15 +679,82 @@ fn sphere_area(radius: Interval) -> Interval {
     pt(2.0) * crate::props::bracket::tau_bracket() * radius.sqr()
 }
 
+/// The torus's `[F, G]` at a level (the closed-form lane's
+/// antiderivatives): a rim's terms, and a connector's.
+fn torus_forms(major: Interval, minor: Interval, level: Interval) -> [Interval; 2] {
+    let (c, s) = trig_of(level);
+    let [kf, kg] = torus_slopes(major, minor);
+    [
+        minor * ((major.sqr() + minor.sqr()) * s + pt(0.5) * major * minor * s * c) + kf * level,
+        minor.sqr() * s + kg * level,
+    ]
+}
+
+/// The slopes `[κ_F, κ_G] = [3/2·R·r², R·r]` of the torus's `[F, G]` in
+/// the tube angle past their periodic parts: what one whole turn of the
+/// level adds to each, over `2π` (module docs, the torus).
+fn torus_slopes(major: Interval, minor: Interval) -> [Interval; 2] {
+    [pt(1.5) * major * minor.sqr(), major * minor]
+}
+
+/// What one whole turn of the level adds to the torus's `[F, G]`,
+/// `2π·[κ_F, κ_G]` ([`torus_slopes`]).
+fn torus_turn(major: Interval, minor: Interval) -> [Interval; 2] {
+    torus_slopes(major, minor).map(|k| k * crate::props::bracket::tau_bracket())
+}
+
+/// The torus's area `4π²Rr` and its flux about its centre under the
+/// outward normal, `6π²Rr²`: what one whole turn of a level or of an
+/// azimuth adds, through the slopes ([`torus_slopes`]), to a winding
+/// loop's `[−∮F du, −∮G du]`.
+fn torus_whole(major: Interval, minor: Interval) -> [Interval; 2] {
+    torus_turn(major, minor).map(|k| k * crate::props::bracket::tau_bracket())
+}
+
+/// The tube angle of a projected image's frame point, as jets: its
+/// cosine and sine, and its rate. In homogeneous coordinates the point's
+/// meridian offset from the tube's core is `(X, Z) = (√(B_x² + B_y²) −
+/// R·w, B_z)`, `w` times the frame's `(ρ − R, z)`, so `v = atan2(Z, X)`
+/// (the weight, positive, cancels) and
+/// `v′ = (X·Z′ − Z·X′)/(X² + Z²)`, `X′ = (B_x·B_x′ + B_y·B_y′)/√(B_x² +
+/// B_y²) − R·w′`. Every name of the point shares the cosine and the sine
+/// (the deck map is checked at the image,
+/// [`ProjectedEdgeQ::of_image`]); the rate is every name's.
+struct TubeJets {
+    cos: Jet,
+    sin: Jet,
+    rate: Jet,
+}
+
+fn tube_jets(major: Interval, at: &FrameJets) -> TubeJets {
+    let [bx, by, bz] = at.p;
+    let [dx, dy, dz] = at.dp;
+    let s = bx.sqr().add(by.sqr()).sqrt();
+    let x = s.sub(at.w.scale(major));
+    let dx_ = bx
+        .mul(dx)
+        .add(by.mul(dy))
+        .mul(s.recip())
+        .sub(at.dw.scale(major));
+    let m2 = x.sqr().add(bz.sqr());
+    let inv_m = m2.sqrt().recip();
+    TubeJets {
+        cos: x.mul(inv_m),
+        sin: bz.mul(inv_m),
+        rate: x.mul(dz).sub(bz.mul(dx_)).mul(m2.recip()),
+    }
+}
+
 /// A projected image's frame point over a piece or at a node, as the
 /// chart table reads it: the azimuth's rate `u′`, and the carrier's
-/// homogeneous point `p`, its derivative `p′` and its weight `w` (a
-/// conic's or a line's weight is `1`).
+/// homogeneous point `p`, its derivative `p′`, its weight `w` and the
+/// weight's derivative `w′` (a conic's or a line's weight is `1`).
 struct FrameJets {
     du: Jet,
     p: [Jet; 3],
     dp: [Jet; 3],
     w: Jet,
+    dw: Jet,
 }
 
 impl FrameJets {
@@ -589,6 +780,8 @@ pub struct ChartTermQ {
     pub lever: RVec3,
     /// The rational carriers, about the chart origin.
     pub rationals: Vec<RationalEdgeQ>,
+    /// The spiric carriers, their centres about the chart origin.
+    pub spirics: Vec<SpiricEdgeQ>,
     /// `Σ env·L` over the face's edges, `env` an edge's pcurve
     /// certificate envelope and `L` an upper bound on its carrier's
     /// length (m²): what the carriers' speed adds to the ribbon between
@@ -753,11 +946,12 @@ fn harmonic_metric_length(e: &TrimEdgeQ, chart: RotationalChartQ) -> f64 {
     (speed * pt(b - a)).mag()
 }
 
-/// **A harmonic sphere edge's area term**, `σ·∫ −G du`: a rim (`v = V`,
-/// `u` linear) reads `−G(V)·Δu` exactly, and a meridian (`u` constant)
-/// nothing; the endpoint-bracket pad is the rim's `|G(V)·u′|` times its
-/// brackets' widths. The sphere's harmonic images are those two shapes,
-/// and any other refuses at the edge's entry ([`edge_entry`]).
+/// **A harmonic sphere or torus edge's terms**, `σ·∫ −forms(v) du` and
+/// its turn `σ·Δu`: a rim (`v = V`, `u` linear) reads `−forms(V)·Δu`
+/// exactly, and a meridian (`u` constant) nothing; the endpoint-bracket
+/// pad is the rim's `|forms(V)·u′|` times its brackets' widths. Those two
+/// shapes are the harmonic images these charts read, and any other
+/// refuses at the edge's entry ([`edge_entry`]).
 ///
 /// That pad is sound by slack, and no row isolates it: the part of the
 /// true boundary between a bracket's midpoint and the true end lies on
@@ -766,20 +960,26 @@ fn harmonic_metric_length(e: &TrimEdgeQ, chart: RotationalChartQ) -> f64 {
 /// [`end_slack`]), so the corner pad ([`connector_terms`]) covers that
 /// region before this pad is read. It is kept as the rim's own reading of
 /// its bracket, as the cylinder's harmonic rule keeps its.
-fn sphere_harmonic_area(e: &TrimEdgeQ, radius: Interval) -> Interval {
+fn rim_terms<const K: usize>(
+    e: &TrimEdgeQ,
+    forms: impl Fn(Interval) -> [Interval; K],
+) -> ([Interval; K], Interval) {
     if e.u.is_flat(false) {
-        return Interval::zero();
+        return ([Interval::zero(); K], Interval::zero());
     }
     let (a, b) = e.limits();
-    let g = sphere_g(radius, e.v.c0);
-    let pad = (g * e.u.cl).mag() * (e.t0.width() + e.t1.width());
-    let total = -g * e.u.cl * pt(b - a) + Interval::from_bounds(-pad, pad);
-    if e.forward { total } else { -total }
+    let sign = |x: Interval| if e.forward { x } else { -x };
+    let widths = e.t0.width() + e.t1.width();
+    let terms = forms(e.v.c0).map(|f| {
+        let pad = (f * e.u.cl).mag() * widths;
+        sign(-f * e.u.cl * pt(b - a) + Interval::from_bounds(-pad, pad))
+    });
+    (terms, sign(e.u.cl * pt(b - a)))
 }
 
-/// Whether a harmonic sphere image is one the sphere's arm reads: a
-/// meridian, or a rim.
-fn sphere_harmonic_shape(e: &TrimEdgeQ) -> bool {
+/// Whether a harmonic image is one the sphere's and the torus's arms
+/// read: a meridian, or a rim.
+fn iso_harmonic_shape(e: &TrimEdgeQ) -> bool {
     e.u.is_flat(false) || (e.u.is_flat(true) && e.v.is_flat(false))
 }
 
@@ -797,12 +997,13 @@ fn azimuth_rate(p: &[Jet; 3], dp: &[Jet; 3]) -> Jet {
 }
 
 /// The frame point of a projected net in homogeneous coordinates.
-fn net_rate(b: [Jet; 3], db: [Jet; 3], w: Jet) -> FrameJets {
+fn net_rate(j: &RationalJets) -> FrameJets {
     FrameJets {
-        du: azimuth_rate(&b, &db),
-        p: b,
-        dp: db,
-        w,
+        du: azimuth_rate(&j.b, &j.db),
+        p: j.b,
+        dp: j.db,
+        w: j.w,
+        dw: j.dw,
     }
 }
 
@@ -827,6 +1028,7 @@ fn unit_weight(p: [Jet; 3], dp: [Jet; 3]) -> FrameJets {
         p,
         dp,
         w: Jet::cst(Interval::one()),
+        dw: Jet::cst(Interval::zero()),
     }
 }
 
@@ -847,6 +1049,7 @@ fn analytic_rate(carrier: &FramedQ, t: Interval) -> FrameJets {
                 p: [refused; 3],
                 dp: [refused; 3],
                 w: refused,
+                dw: refused,
             }
         }
     }
@@ -867,9 +1070,7 @@ fn framed_integrals<const N: usize>(
     g: impl Fn(&FrameJets) -> [Jet; N],
 ) -> ([Interval; N], [f64; N]) {
     match carrier {
-        FramedQ::Net(net) => {
-            rational_integrals_each(net, pieces, |b, db, w| g(&net_rate(b, db, w)))
-        }
+        FramedQ::Net(net) => rational_integrals_each(net, pieces, |j| g(&net_rate(j))),
         FramedQ::Conic { cuts, .. } | FramedQ::Line { cuts, .. } => composite_each(
             cut_intervals(cuts)
                 .enumerate()
@@ -898,25 +1099,95 @@ fn projected_integrals<const N: usize>(
 /// [`chart_term_pad`]), so it is read finer than a round-0 piece.
 const PROJECTED_ENTRY_PIECES: usize = 4;
 
-/// A projected edge's turn `Δu`, in its carrier's order, read at its
-/// schedule's round 0 ([`span_schedule`]) and at four times as many
-/// pieces again while its enclosure is wider than an eighth of a turn,
-/// every span at most [`MOST_SPAN_PIECES`]: a chord that passes near the
-/// chart's axis (a sphere's pole) turns fast there, and its turn at the
-/// first count may not tell whole turns apart ([`branch_turns`]). A
-/// reading still that wide at the cap is the one [`branch_turns`]
-/// refuses.
-fn entry_turn(p: &ProjectedEdgeQ, schedule: &Schedule) -> Interval {
+/// A projected edge's turns `[Δu, Δv]`, in its carrier's order, read at
+/// its schedule's round 0 ([`span_schedule`]) and at four times as many
+/// pieces again while either enclosure is wider than an eighth of a
+/// turn, every span at most [`MOST_SPAN_PIECES`]: a chord that passes
+/// near the chart's axis (a sphere's pole) turns fast there, and its turn
+/// at the first count may not tell whole turns apart ([`branch_turns`]).
+/// A reading still that wide at the cap is the one [`branch_turns`]
+/// refuses. `Δv` is read on the torus alone, whose level is an angle;
+/// elsewhere it is `0`.
+fn entry_turn(p: &ProjectedEdgeQ, schedule: &Schedule, chart: RotationalChartQ) -> [Interval; 2] {
+    told_turns(
+        |scale| {
+            let pieces = |i: usize| (schedule.0[i] * scale).min(MOST_SPAN_PIECES);
+            framed_integrals(&p.carrier, pieces, |at| {
+                [
+                    at.du,
+                    match chart {
+                        RotationalChartQ::Torus { major, .. } => tube_jets(major, at).rate,
+                        _ => Jet::cst(Interval::zero()),
+                    },
+                ]
+            })
+            .0
+        },
+        |scale| schedule.0.iter().all(|&n| n * scale >= MOST_SPAN_PIECES),
+    )
+}
+
+/// **The ladder an edge's turns are read on**: `read(scale)` at scale
+/// `1` and at four times as much again until every turn is told to
+/// within an eighth of a turn, or `capped(scale)` says the edge can be
+/// read no finer ([`entry_turn`], and a spiric's at
+/// [`PROJECTED_ENTRY_PIECES`]` · scale` pieces).
+fn told_turns<const N: usize>(
+    read: impl Fn(usize) -> [Interval; N],
+    capped: impl Fn(usize) -> bool,
+) -> [Interval; N] {
     let eighth = core::f64::consts::TAU / 8.0;
+    let told = |t: Interval| t.is_certified() && t.width() < eighth;
     let mut scale = 1;
     loop {
-        let pieces = |i: usize| (schedule.0[i] * scale).min(MOST_SPAN_PIECES);
-        let ([turn], _) = framed_integrals(&p.carrier, pieces, |at| [at.du]);
-        let capped = schedule.0.iter().all(|&n| n * scale >= MOST_SPAN_PIECES);
-        if capped || (turn.is_certified() && turn.width() < eighth) {
-            return turn;
+        let turns = read(scale);
+        if capped(scale) || turns.iter().all(|&t| told(t)) {
+            return turns;
         }
         scale *= 4;
+    }
+}
+
+/// A projected torus edge's `[−∫F du, −∫G du]` in its carrier's
+/// order at `pieces(i)` pieces on span or cut interval `i`. `F` and `G`
+/// are their periodic parts, read off
+/// the tube angle's cosine and sine at the frame point, plus their slopes
+/// times the level `v` ([`torus_slopes`]), which no frame point names: it
+/// is the image's own level at the carrier interval's start (its
+/// evaluator's, crossed in by the caller) plus `∫v′`, the rule's running
+/// primitive ([`primitive_each`]).
+fn torus_projected(
+    e: &ProjectedEdgeQ,
+    major: Interval,
+    minor: Interval,
+    pieces: impl Fn(usize) -> usize,
+) -> Primitive<2> {
+    let [kf, kg] = torus_slopes(major, minor);
+    let neg = -Interval::one();
+    let g = |at: &FrameJets| {
+        let tube = tube_jets(major, at);
+        let fp = tube
+            .sin
+            .scale(minor * (major.sqr() + minor.sqr()))
+            .add(tube.sin.mul(tube.cos).scale(pt(0.5) * major * minor.sqr()));
+        let gp = tube.sin.scale(minor.sqr());
+        Integrand {
+            own: [fp.mul(at.du).scale(neg), gp.mul(at.du).scale(neg)],
+            by: [at.du.scale(-kf), at.du.scale(-kg)],
+            rate: tube.rate,
+        }
+    };
+    let start = e.ends[0].1;
+    match &e.carrier {
+        FramedQ::Net(net) => rational_primitive_each(net, pieces, start, |j| g(&net_rate(j))),
+        FramedQ::Conic { cuts, .. } | FramedQ::Line { cuts, .. } => primitive_each(
+            cut_intervals(cuts)
+                .enumerate()
+                .map(|(i, (a, b, ()))| (a, b, (), pieces(i))),
+            start,
+            |(), _, _| (),
+            |(), t| g(&analytic_rate(&e.carrier, t)),
+        ),
     }
 }
 
@@ -933,9 +1204,9 @@ fn projected_metric_length(e: &ProjectedEdgeQ, chart: RotationalChartQ) -> f64 {
         }
     };
     match &e.carrier {
-        FramedQ::Net(net) => rational_rate_bound(net, PROJECTED_ENTRY_PIECES, |b, db, w| {
-            rate(&net_rate(b, db, w))
-        }),
+        FramedQ::Net(net) => {
+            rational_rate_bound(net, PROJECTED_ENTRY_PIECES, |j| rate(&net_rate(j)))
+        }
         FramedQ::Conic { cuts, .. } | FramedQ::Line { cuts, .. } => rate_bound_over(
             cut_intervals(cuts),
             PROJECTED_ENTRY_PIECES,
@@ -950,11 +1221,13 @@ fn projected_metric_length(e: &ProjectedEdgeQ, chart: RotationalChartQ) -> f64 {
 // ---------------------------------------------------------------------
 
 /// What the lane reads of each edge once, before the rounds: its metric
-/// length, and a projected edge's turn `Δu` in its carrier's order.
+/// length, and a projected or a spiric edge's turns `[Δu, Δv]` in its
+/// carrier's order (`Δv` read on the torus alone).
 struct EdgeEntry {
     length: f64,
-    turn: Option<Interval>,
-    /// A projected edge's pieces per span; empty for a harmonic edge.
+    turn: Option<[Interval; 2]>,
+    /// A projected edge's pieces per span; empty for a harmonic or a
+    /// spiric edge.
     schedule: Schedule,
 }
 
@@ -962,9 +1235,9 @@ struct EdgeEntry {
 fn edge_entry(e: &EdgeTermQ, chart: RotationalChartQ) -> Result<EdgeEntry, PropsError> {
     Ok(match e {
         EdgeTermQ::Harmonic(h) => {
-            if matches!(chart, RotationalChartQ::Sphere { .. }) && !sphere_harmonic_shape(h) {
+            if !matches!(chart, RotationalChartQ::Cylinder { .. }) && !iso_harmonic_shape(h) {
                 return Err(PropsError::QuadratureUnsupported {
-                    what: "a harmonic sphere image that is neither a rim nor a meridian",
+                    what: "a harmonic sphere or torus image that is neither a rim nor a meridian",
                 });
             }
             EdgeEntry {
@@ -975,9 +1248,9 @@ fn edge_entry(e: &EdgeTermQ, chart: RotationalChartQ) -> Result<EdgeEntry, Props
         }
         EdgeTermQ::Projected(p) => {
             let length = projected_metric_length(p, chart);
-            let schedule = span_schedule(p);
-            let turn = entry_turn(p, &schedule);
-            if !(length.is_finite() && turn.is_certified()) {
+            let schedule = span_schedule(p, chart);
+            let turn = entry_turn(p, &schedule, chart);
+            if !(length.is_finite() && turn.iter().all(|t| t.is_certified())) {
                 return Err(PropsError::QuadratureUnsupported {
                     what: "a projected edge whose chart speed or turn reads no enclosure — its \
                            carrier reaches the chart's axis",
@@ -987,6 +1260,42 @@ fn edge_entry(e: &EdgeTermQ, chart: RotationalChartQ) -> Result<EdgeEntry, Props
                 length,
                 turn: Some(turn),
                 schedule,
+            }
+        }
+        EdgeTermQ::Spiric(w) => {
+            let RotationalChartQ::Torus { major, minor, .. } = chart else {
+                return Err(PropsError::QuadratureUnsupported {
+                    what: "a spiric's wall image on a chart other than its torus",
+                });
+            };
+            let Some(length) = spiric_length_bound(&w.edge, crate::props::spiric::LENGTH_PIECES)
+            else {
+                return Err(PropsError::QuadratureUnsupported {
+                    what: "a spiric wall edge whose span's rate window has no certified \
+                           positive f",
+                });
+            };
+            let [du] = told_turns(
+                |scale| {
+                    [crate::props::spiric::wall_turn(
+                        &w.edge,
+                        &w.image,
+                        (major, minor),
+                        PROJECTED_ENTRY_PIECES * scale,
+                    )]
+                },
+                |scale| PROJECTED_ENTRY_PIECES * scale >= MOST_SPAN_PIECES,
+            );
+            if !du.is_certified() {
+                return Err(PropsError::QuadratureUnsupported {
+                    what: "a spiric wall edge whose turn reads no enclosure",
+                });
+            }
+            let dv = pt(w.image.sense) * (w.edge.t1 - w.edge.t0);
+            EdgeEntry {
+                length,
+                turn: Some([du, dv]),
+                schedule: Schedule::default(),
             }
         }
     })
@@ -1020,6 +1329,7 @@ fn cylinder_edge_terms(
             });
             (terms, rf)
         }
+        EdgeTermQ::Spiric(_) => ([Interval::refused(); 2], f64::INFINITY),
     };
     let pad = chart.residual(pt(entry.length) * edge_env(e));
     (
@@ -1039,7 +1349,7 @@ fn sphere_edge_area(
     round: usize,
 ) -> (Interval, f64) {
     let (area, removable) = match e {
-        EdgeTermQ::Harmonic(h) => (sphere_harmonic_area(h, radius), 0.0),
+        EdgeTermQ::Harmonic(h) => (rim_terms(h, |v| [sphere_g(radius, v)]).0[0], 0.0),
         EdgeTermQ::Projected(p) => {
             let ([g], [rg]) = projected_integrals(p, entry.schedule.at(round), |at| {
                 [sphere_projected_g(radius, at)
@@ -1048,13 +1358,71 @@ fn sphere_edge_area(
             });
             (g, rg * radius.mag())
         }
+        EdgeTermQ::Spiric(_) => (Interval::refused(), f64::INFINITY),
     };
-    let pad = RotationalChartQ::Sphere {
-        radius,
-        outward: true,
-    }
-    .residual(pt(entry.length) * edge_env(e))[1];
+    let pad = residual(pt(entry.length) * edge_env(e), radius)[1];
     (area + Interval::from_bounds(-pad, pad), removable)
+}
+
+/// One torus edge's `[−∫F du, −∫G du]` at `round`, traversal and
+/// the pads folded in, read on the edge's own lift: a rim's level, a
+/// spiric's `v₀ + σ·t`, and a projected image's level from its own start
+/// ([`torus_projected`]); the lane carries each onto the chain's
+/// ([`LoopLift`]). And the part of its flux width a later round removes.
+///
+/// **The level anchor's pad.** A projected edge's slope part reads
+/// `κ·v` from its image's level at the carrier's start, and the image
+/// stands within `e` of its carrier there, `r·δv ≤ e`; the deck map
+/// may sit a rounding `ε_d` off a whole turn ([`ProjectedEdgeQ::of_image`]'s
+/// tolerance, `1e-12·(1 + |k|)` turns). So the anchor may read `δ = e/r
+/// + ε_d` off the carrier's level, which moves the edge's terms by
+/// `κ·δ·|Δu|`, paid here. The map residual pays the strip beside the
+/// image at `ρ ≤ R + r` per unit length, which on the inner side is less
+/// than the anchor's `R`.
+fn torus_edge_terms(
+    e: &EdgeTermQ,
+    entry: &EdgeEntry,
+    chart: RotationalChartQ,
+    round: usize,
+) -> ([Interval; 2], f64) {
+    let RotationalChartQ::Torus { major, minor, .. } = chart else {
+        return ([Interval::refused(); 2], f64::INFINITY);
+    };
+    let sign = |forward: bool, t: [Interval; 2]| if forward { t } else { t.map(|x| -x) };
+    let (terms, removable) = match e {
+        EdgeTermQ::Harmonic(h) => (rim_terms(h, |v| torus_forms(major, minor, v)).0, 0.0),
+        EdgeTermQ::Projected(p) => {
+            let run = torus_projected(p, major, minor, entry.schedule.at(round));
+            (sign(p.forward, run.total), run.removable[0])
+        }
+        EdgeTermQ::Spiric(w) => {
+            let ([f, g, _], rem) = crate::props::spiric::wall_terms(
+                &w.edge,
+                &w.image,
+                (major, minor),
+                round_pieces(round),
+            );
+            (sign(w.edge.forward, [f, g]), rem)
+        }
+    };
+    let residual = chart.residual(pt(entry.length) * edge_env(e));
+    let anchor = match (e, entry.turn) {
+        (EdgeTermQ::Projected(p), Some([du, _])) => {
+            let tau = crate::props::bracket::tau_bracket();
+            let k = (mid(p.v_off) / mid(tau)).round().abs();
+            let deck = pt(1e-12 * (1.0 + k)) * tau;
+            let off = pt(p.env.mag()) / minor + deck;
+            torus_slopes(major, minor).map(|kappa| (kappa * off * pt(du.mag())).mag())
+        }
+        _ => [0.0; 2],
+    };
+    (
+        [0, 1].map(|k| {
+            let pad = residual[k] + anchor[k];
+            terms[k] + Interval::from_bounds(-pad, pad)
+        }),
+        removable,
+    )
 }
 
 /// One junction of a loop: the edge before and its entry, the edge
@@ -1088,6 +1456,31 @@ impl Junction<'_> {
         pt(self.slack() + crate::props::closure::VERTEX_SLACK * band.zero())
     }
 
+    /// **The whole turns `[m_u, m_v]` the junction's gaps are taken
+    /// less**, read once per junction ([`loop_windings`]) and handed to
+    /// the closure, the connectors and the lift alike: the turns nearest
+    /// each gap ([`crate::props::closure::nearest_turns`]), the level's on
+    /// the torus alone, whose level is an angle.
+    fn turns(&self, chart: RotationalChartQ) -> [f64; 2] {
+        let [(u1, v1), (u0, v0)] = self.ends();
+        let nearest = crate::props::closure::nearest_turns;
+        [
+            nearest(u1 - u0),
+            if chart.level_periodic() {
+                nearest(v1 - v0)
+            } else {
+                0.0
+            },
+        ]
+    }
+
+    /// The levels the connector runs between: the hull of the two ends'
+    /// levels, the edge after's start carried by the level's turns `m_v`.
+    fn levels(&self, [_, m]: [f64; 2]) -> Interval {
+        let [(_, v1), (_, v0)] = self.ends();
+        Interval::hull(v1, v0 + pt(m) * crate::props::bracket::tau_bracket())
+    }
+
     /// The metric area beside the connector, between it and the true
     /// vertex, that no image's strip covers ([`connector_terms`]).
     fn corner(&self, band: Band) -> Interval {
@@ -1116,7 +1509,7 @@ fn junctions<'a>(
 /// within its slack, so the image chain is closed on the chart only by a
 /// connector between them: from the edge before's end to the edge
 /// after's start, a chart displacement of `−(Δu − m·τ)` in the azimuth,
-/// `m` the closure's whole turns ([`junction_gap`]), at levels between
+/// `m` the closure's whole turns ([`Junction::turns`]), at levels between
 /// the two ends'. Its term is `forms(v)·(Δu − m·τ)` for some such level
 /// `v`, read over their hull. At a sphere's pole, where the azimuth lever
 /// vanishes and the two ends' azimuths differ by the face's angle there,
@@ -1143,19 +1536,23 @@ fn junctions<'a>(
 /// the images are the map-residual pad's.
 fn connector_terms<const K: usize>(
     face: &RotationalFaceQ,
-    entries: &[Vec<EdgeEntry>],
+    (entries, counts): (&[Vec<EdgeEntry>], &[Vec<[f64; 2]>]),
     band: Band,
-    forms: impl Fn(Interval) -> [Interval; K],
+    forms: impl Fn(usize, usize, Interval) -> [Interval; K],
     density: [Interval; K],
 ) -> Vec<[Interval; K]> {
     face.loops
         .iter()
         .zip(entries)
-        .map(|(edges, entries)| {
+        .zip(counts)
+        .enumerate()
+        .map(|(l, ((edges, entries), counts))| {
+            let mut i = 0;
             junctions(edges, entries).fold([Interval::zero(); K], |acc, j| {
-                let [(u1, v1), (u0, v0)] = j.ends();
-                let du = junction_gap(u1 - u0);
-                let forms = forms(Interval::hull(v1, v0));
+                let [(u1, _), (u0, _)] = j.ends();
+                let du = u1 - u0 - pt(counts[i][0]) * crate::props::bracket::tau_bracket();
+                let forms = forms(l, i, j.levels(counts[i]));
+                i += 1;
                 let corner = j.corner(band);
                 core::array::from_fn(|k| {
                     let pad = (corner * density[k]).mag();
@@ -1166,19 +1563,21 @@ fn connector_terms<const K: usize>(
         .collect()
 }
 
-/// A junction's azimuth gap `Δu` (the edge before's end less the edge
-/// after's start) less the whole turns the closure takes off it
-/// ([`crate::props::closure::nearest_turns`]): what is left for its
-/// connector.
-fn junction_gap(delta: Interval) -> Interval {
-    delta - pt(crate::props::closure::nearest_turns(delta)) * crate::props::bracket::tau_bracket()
-}
-
 /// An edge's pcurve certificate envelope.
 fn edge_env(e: &EdgeTermQ) -> Interval {
     match e {
         EdgeTermQ::Harmonic(h) => h.env,
         EdgeTermQ::Projected(p) => p.env,
+        EdgeTermQ::Spiric(w) => w.image.env,
+    }
+}
+
+/// Whether an edge is traversed in its carrier's order.
+fn traversal(e: &EdgeTermQ) -> bool {
+    match e {
+        EdgeTermQ::Harmonic(h) => h.forward,
+        EdgeTermQ::Projected(p) => p.forward,
+        EdgeTermQ::Spiric(w) => w.edge.forward,
     }
 }
 
@@ -1225,17 +1624,27 @@ fn chart_term_pad(face: &RotationalFaceQ, entries: &[Vec<EdgeEntry>], band: Band
 }
 
 /// The face's chart term at `round`, each rational at its schedule
-/// ([`term_schedule`]), and the part of its width a later round removes.
+/// ([`term_schedule`]) and each spiric at a round's pieces, and the part
+/// of its width a later round removes: each carrier's vector area
+/// through the lever.
 fn chart_term_at(term: &ChartTermQ, schedules: &[Schedule], round: usize) -> (Interval, f64) {
-    term.rationals
-        .iter()
-        .zip(schedules)
-        .fold((term.closed, 0.0), |(acc, removable), (e, s)| {
-            let (va, rem) = rational_vector_area_each(e, s.at(round));
-            let flux = (0..3).fold(acc, |a, k| a + term.lever[k] * va[k]);
-            let rem: f64 = (0..3).map(|k| term.lever[k].mag() * rem[k]).sum();
-            (flux, removable + rem)
-        })
+    let (mut flux, mut removable) = (term.closed, 0.0);
+    for (e, s) in term.rationals.iter().zip(schedules) {
+        let (va, rem) = rational_vector_area_each(e, s.at(round));
+        flux = (0..3).fold(flux, |a, k| a + term.lever[k] * va[k]);
+        removable += (0..3).map(|k| term.lever[k].mag() * rem[k]).sum::<f64>();
+    }
+    for e in &term.spirics {
+        let (va, rem) = crate::props::spiric::vector_area_split(e, round_pieces(round));
+        flux = (0..3).fold(flux, |a, k| a + term.lever[k] * va[k]);
+        // The term carries its moment `J` as `n·r·J`.
+        removable += (0..3)
+            .map(|k| (term.lever[k] * e.normal[k]).mag())
+            .sum::<f64>()
+            * e.minor.mag()
+            * rem;
+    }
+    (flux, removable)
 }
 
 // ---------------------------------------------------------------------
@@ -1261,10 +1670,11 @@ fn chart_term_at(term: &ChartTermQ, schedules: &[Schedule], round: usize) -> (In
 /// decision, a degenerate face, a projected edge whose chart speed reads
 /// no enclosure, a loop that winds the chart by no whole number of
 /// turns, or loops that wind it together
-/// ([`PropsError::LoopsWindChart`]), a ring wound with its face at the
-/// round the call ends ([`PropsError::RingWoundWithFace`]), one wholly
-/// inside the band, or one still straddling it there (an accepted round
-/// whose ring straddles refines on, [`Run::ringed`]).
+/// ([`PropsError::LoopsWindChart`]), a torus that is not a ring torus, a
+/// ring wound with its face at the round the call ends
+/// ([`PropsError::RingWoundWithFace`]), one wholly inside the band, or
+/// one still straddling it there (an accepted round whose ring straddles
+/// refines on, [`Run::ringed`]).
 pub fn rotational_cut_face_rounds<T: Decide>(
     face: &RotationalFaceQ,
     band: Band,
@@ -1272,12 +1682,21 @@ pub fn rotational_cut_face_rounds<T: Decide>(
     accept: &mut Accept<'_>,
 ) -> Result<LaneRun, PropsError> {
     let chart = face.chart;
+    if let RotationalChartQ::Torus { major, minor, .. } = chart {
+        let floor = (major - minor).lo().min(minor.lo());
+        if !(major.is_certified() && minor.is_certified()) || floor.is_nan() || floor <= 0.0 {
+            return Err(PropsError::QuadratureUnsupported {
+                what: "a torus face whose radii are refused brackets or not a ring torus's \
+                       (0 < r < R)",
+            });
+        }
+    }
     let entries: Vec<Vec<EdgeEntry>> = face
         .loops
         .iter()
         .map(|edges| edges.iter().map(|e| edge_entry(e, chart)).collect())
         .collect::<Result<_, _>>()?;
-    let turns = loop_windings::<T>(face, &entries, band)?;
+    let (turns, counts) = loop_windings::<T>(face, &entries, band)?;
     let term_pad = chart_term_pad(face, &entries, band);
     if !term_pad.is_finite() {
         return Err(PropsError::QuadratureUnsupported {
@@ -1292,9 +1711,9 @@ pub fn rotational_cut_face_rounds<T: Decide>(
                 anchor,
                 connectors: connector_terms(
                     face,
-                    &entries,
+                    (&entries, &counts),
                     band,
-                    |v| cylinder_forms(radius, v, anchor),
+                    |_, _, v| cylinder_forms(radius, v, anchor),
                     [radius, Interval::one()],
                 ),
             }
@@ -1304,12 +1723,37 @@ pub fn rotational_cut_face_rounds<T: Decide>(
             outward,
             connectors: connector_terms(
                 face,
-                &entries,
+                (&entries, &counts),
                 band,
-                |v| [sphere_g(radius, v)],
+                |_, _, v| [sphere_g(radius, v)],
                 [Interval::one()],
             ),
         },
+        RotationalChartQ::Torus {
+            major,
+            minor,
+            outward,
+        } => {
+            let lifts = loop_lifts(face, &entries, &counts)?;
+            let turn = torus_turn(major, minor);
+            let connectors = connector_terms(
+                face,
+                (&entries, &counts),
+                band,
+                |l, j, v| {
+                    let up = pt(lift_turns(lifts[l].ends[j]));
+                    let forms = torus_forms(major, minor, v);
+                    [0, 1].map(|k| forms[k] + up * turn[k])
+                },
+                [major + minor, Interval::one()],
+            );
+            Reading::Torus {
+                radii: (major, minor),
+                outward,
+                lifts,
+                connectors,
+            }
+        }
     };
     let reach = piece_reach(chart);
     let term_schedules: Vec<Schedule> = face
@@ -1326,7 +1770,8 @@ pub fn rotational_cut_face_rounds<T: Decide>(
         let (term, term_rem) = chart_term_at(&face.chart_term, &term_schedules, round);
         let term = term + Interval::from_bounds(-term_pad, term_pad);
         // Per loop at this resolution, its connectors included: the
-        // cylinder's [−∮F du, −∮G du], the sphere's −∮G du.
+        // cylinder's and the torus's [−∮F du, −∮G du], the sphere's
+        // −∮G du.
         let (flux, signed, area, areas) = match &reading {
             Reading::Cylinder {
                 radius,
@@ -1380,10 +1825,44 @@ pub fn rotational_cut_face_rounds<T: Decide>(
                 let signed = if *outward { area } else { -area };
                 (term + *radius * signed, signed, area, areas)
             }
+            Reading::Torus {
+                radii,
+                outward,
+                lifts,
+                connectors,
+            } => {
+                let per_loop: Vec<[Interval; 2]> = face
+                    .loops
+                    .iter()
+                    .zip(&entries)
+                    .zip(connectors)
+                    .zip(lifts)
+                    .zip(&turns)
+                    .map(|((((edges, entries), &connectors), lift), w)| {
+                        torus_loop(
+                            chart,
+                            *radii,
+                            (edges, entries),
+                            (connectors, lift, w[1]),
+                            round,
+                            &mut removable,
+                        )
+                    })
+                    .collect();
+                let reading = torus_face(*radii, *outward, &per_loop);
+                let signed = if *outward {
+                    reading.area
+                } else {
+                    -reading.area
+                };
+                let areas = per_loop.iter().map(|l| l[1]).collect();
+                (term + reading.flux, signed, reading.area, areas)
+            }
         };
         // The area's magnitude: the face's own, signed on the cylinder by
-        // its loops' traversal, and on the sphere by nothing, read where
-        // a loop wound with its face makes it negative.
+        // its loops' traversal, and on the sphere and the torus by
+        // nothing, read where a loop wound with its face makes it
+        // negative.
         let bounds = FaceCutBounds {
             flux,
             area: area.abs_enclosure(),
@@ -1394,12 +1873,25 @@ pub fn rotational_cut_face_rounds<T: Decide>(
         })?;
         if let Some(out) = run.ringed(round, stop, accepted, bounds, || match &reading {
             Reading::Cylinder { .. } => {
-                let winds: Vec<bool> = turns.iter().map(|&k| k != 0).collect();
+                let winds: Vec<bool> = turns.iter().map(|&[k, _]| k != 0).collect();
                 require_holes_wound_against(&entries, &areas, &winds, signed, band)
             }
             Reading::Sphere {
                 radius, outward, ..
-            } => require_sphere_sides(*radius, *outward, &entries, &areas, &turns, area, band),
+            } => {
+                let sphere = sphere_area(*radius);
+                let outsides: Vec<Interval> = areas
+                    .iter()
+                    .zip(&turns)
+                    .map(|(&l, &[k, _])| sphere_outside(*radius, *outward, l, k))
+                    .collect();
+                let lengths: Vec<Interval> = entries.iter().map(|e| loop_length(e)).collect();
+                require_sphere_sides(sphere, &outsides, &lengths, area, band)
+            }
+            Reading::Torus { .. } => {
+                let winds: Vec<bool> = turns.iter().map(|&k| k != [0, 0]).collect();
+                require_holes_wound_against(&entries, &areas, &winds, signed, band)
+            }
         })? {
             return Ok(out);
         }
@@ -1422,6 +1914,121 @@ enum Reading {
         outward: bool,
         connectors: Vec<[Interval; 1]>,
     },
+    /// The torus `(R, r)`, under its face's sense, each loop's chain on
+    /// the chart's lift.
+    Torus {
+        radii: (Interval, Interval),
+        outward: bool,
+        lifts: Vec<LoopLift>,
+        connectors: Vec<[Interval; 2]>,
+    },
+}
+
+/// A whole number of turns as an `f64`, exact for any count a loop
+/// reaches.
+#[allow(clippy::cast_precision_loss)]
+fn lift_turns(k: i64) -> f64 {
+    k as f64
+}
+
+/// **One torus loop's `[−∮F du, −∮G du]` on the chart's lift** (module
+/// docs, the torus): each edge's terms on its own lift carried onto the
+/// chain's, `−o·κτ·Δu` for its anchor's `o` whole turns
+/// ([`LoopLift`]), its junctions' connectors, and for a loop that winds
+/// the tube `W_v` times, `W_v·κτ·u₀` at its chain's start `u₀`: the
+/// seam the chain crosses, read where it starts.
+fn torus_loop(
+    chart: RotationalChartQ,
+    radii: (Interval, Interval),
+    (edges, entries): (&[EdgeTermQ], &[EdgeEntry]),
+    (connectors, lift, winds): ([Interval; 2], &LoopLift, i64),
+    round: usize,
+    removable: &mut f64,
+) -> [Interval; 2] {
+    let turn = torus_turn(radii.0, radii.1);
+    let mut acc = connectors;
+    for (((e, entry), &o), &du) in edges
+        .iter()
+        .zip(entries)
+        .zip(&lift.anchors)
+        .zip(&lift.turns)
+    {
+        let (t, rem) = torus_edge_terms(e, entry, chart, round);
+        *removable += rem;
+        let o = pt(lift_turns(o));
+        acc = [0, 1].map(|k| acc[k] + t[k] - o * turn[k] * du);
+    }
+    if winds != 0 {
+        let w = pt(lift_turns(winds));
+        acc = [0, 1].map(|k| acc[k] + w * turn[k] * lift.start);
+    }
+    acc
+}
+
+/// A torus face's reading off its loops' `[−∮F du, −∮G du]`: its area
+/// `|Ω|` and its flux about the centre.
+struct TorusFace {
+    area: Interval,
+    flux: Interval,
+}
+
+/// **A torus face's area and flux about its centre from its loops**
+/// (module docs, the torus): every count `N` of whole tori its signed
+/// area `X = s_f·ΣA` admits, held together.
+fn torus_face(radii: (Interval, Interval), outward: bool, per_loop: &[[Interval; 2]]) -> TorusFace {
+    let [flux_whole, area_whole] = torus_whole(radii.0, radii.1);
+    let sense = pt(if outward { 1.0 } else { -1.0 });
+    let flux = per_loop.iter().fold(Interval::zero(), |f, l| f + l[0]);
+    let x = sense * per_loop.iter().fold(Interval::zero(), |a, l| a + l[1]);
+    let refused = TorusFace {
+        area: Interval::refused(),
+        flux: Interval::refused(),
+    };
+    // A count `f64` holds exactly, so the ends below move by one.
+    const COUNTS: f64 = 4_503_599_627_370_496.0;
+    if !(x.is_certified() && area_whole.is_certified() && area_whole.lo() > 0.0)
+        || x.mag() / area_whole.lo() >= COUNTS
+    {
+        return refused;
+    }
+    // `−X/A < N ≤ 1 − X/A`, over-counted at the ends of `A`'s bracket and
+    // moved in past the counts that miss the window.
+    let meets = |n: f64| {
+        let area = x + pt(n) * area_whole;
+        area.hi() > 0.0 && area.lo() <= area_whole.hi()
+    };
+    let mut lo = (-x.hi() / area_whole.lo())
+        .min(-x.hi() / area_whole.hi())
+        .floor();
+    let mut hi = (1.0 - x.lo() / area_whole.lo())
+        .max(1.0 - x.lo() / area_whole.hi())
+        .ceil();
+    if !(lo.is_finite() && hi.is_finite()) {
+        return refused;
+    }
+    while lo <= hi && !meets(lo) {
+        lo += 1.0;
+    }
+    while hi >= lo && !meets(hi) {
+        hi -= 1.0;
+    }
+    if lo > hi {
+        return refused;
+    }
+    // Two counts or more cover the window: the lowest's value reaches
+    // below `0` and the highest's above `A`.
+    let window = Interval::from_bounds(0.0, area_whole.hi());
+    TorusFace {
+        area: if lo == hi {
+            (x + pt(lo) * area_whole).meet(window)
+        } else {
+            window
+        },
+        flux: Interval::hull(
+            flux + sense * pt(lo) * flux_whole,
+            flux + sense * pt(hi) * flux_whole,
+        ),
+    }
 }
 
 /// **A sphere loop's side away from its face**: the metric area to the
@@ -1446,14 +2053,19 @@ fn sphere_face_area(
     radius: Interval,
     outward: bool,
     areas: &[Interval],
-    turns: &[i64],
+    turns: &[[i64; 2]],
 ) -> Interval {
     areas
         .iter()
         .zip(turns)
-        .fold(sphere_area(radius), |a, (&l, &k)| {
+        .fold(sphere_area(radius), |a, (&l, &[k, _])| {
             a - sphere_outside(radius, outward, l, k)
         })
+}
+
+/// A loop's metric length from above.
+fn loop_length(entries: &[EdgeEntry]) -> Interval {
+    pt(entries.iter().map(|e| e.length).sum::<f64>())
 }
 
 /// **Every loop of a sphere face leaves area outside it, and the face
@@ -1463,35 +2075,28 @@ fn sphere_face_area(
 /// each loop's outside ([`sphere_outside`]) as a ring's hole
 /// (`props_ring_winding`), and the face's own area `face` as its whole
 /// (`props_chart_area_side`), each against its boundary's length. A
-/// loop's outside read in `(0, 4πr²)` and the face's area positive say
+/// loop's outside read in `(0, whole)` and the face's area positive say
 /// the whole spheres each was read with are the true ones. One whose
-/// enclosure straddles a sphere's multiple escalates, and a later round
+/// enclosure straddles a chart's multiple escalates, and a later round
 /// narrows it ([`super::run::Run::ringed`]); a face whose area reads
 /// negative has a loop wound with it ([`PropsError::RingWoundWithFace`]),
 /// and one of no area is degenerate.
 fn require_sphere_sides(
-    radius: Interval,
-    outward: bool,
-    entries: &[Vec<EdgeEntry>],
-    areas: &[Interval],
-    turns: &[i64],
+    whole: Interval,
+    outsides: &[Interval],
+    lengths: &[Interval],
     face: Interval,
     band: Band,
 ) -> Result<(), PropsError> {
-    let sphere = sphere_area(radius);
-    let length = |entries: &[EdgeEntry]| pt(entries.iter().map(|e| e.length).sum::<f64>());
-    let whole = entries
-        .iter()
-        .fold(Interval::zero(), |l, edges| l + length(edges));
-    let mut holes = Vec::with_capacity(2 * areas.len());
-    for ((&l, &k), edges) in areas.iter().zip(turns).zip(entries) {
-        let outside = sphere_outside(radius, outward, l, k);
-        holes.push((-outside, length(edges)));
-        holes.push((outside - sphere, length(edges)));
+    let total = lengths.iter().fold(Interval::zero(), |l, &x| l + x);
+    let mut holes = Vec::with_capacity(2 * outsides.len());
+    for (&outside, &length) in outsides.iter().zip(lengths) {
+        holes.push((-outside, length));
+        holes.push((outside - whole, length));
     }
     crate::props::curved::require_holes_wound_against(
         "props_chart_area_side",
-        (face, whole),
+        (face, total),
         &holes,
         band,
     )
@@ -1514,6 +2119,7 @@ fn chart_end(e: &EdgeTermQ, end: bool) -> (Interval, Interval) {
             )
         }
         EdgeTermQ::Projected(p) => p.ends[usize::from(end == p.forward)],
+        EdgeTermQ::Spiric(w) => w.ends[usize::from(end == w.edge.forward)],
     }
 }
 
@@ -1534,75 +2140,108 @@ fn end_slack(e: &EdgeTermQ, entry: &EdgeEntry, end: bool) -> f64 {
             (e.env, speed * bracket.width() * 0.5)
         }
         EdgeTermQ::Projected(p) => (p.env, 0.0),
+        EdgeTermQ::Spiric(w) => (w.image.env, 0.0),
     };
     (1.5 * certified_hi(env) + bracket) * (1.0 + 1e-12)
 }
+
+/// Per loop its turns `[W_u, W_v]`, and per loop each junction's whole
+/// turns ([`loop_windings`]).
+type LoopWindings = (Vec<[i64; 2]>, Vec<Vec<[f64; 2]>>);
 
 /// **Every junction of every loop closes on the chart, and the loops
 /// wind it as a face's boundary does** — the periodic-chart closure
 /// decision ([`crate::props::closure`]) on the lane's chart images.
 ///
 /// Each junction's gap is read off the two ends' chart images
-/// ([`chart_end`]): the azimuth metered at the chart's lever, the level
-/// bare, and the slack the two ends' [`end_slack`]
-/// ([`crate::props::closure::interval_loop_turns`]). A projected edge's
-/// ends are its image's evaluator's and its turn `Δu` the rule's, so it
-/// adds the whole turns by which the two disagree ([`branch_turns`]), and
-/// the loop's turns count as the integral reads them.
+/// ([`chart_end`]): the azimuth metered at the chart's lever over the
+/// connector's levels ([`Junction::levels`]), the level at its own, and
+/// the slack the two ends' [`end_slack`]
+/// ([`crate::props::closure::interval_loop_turns`]); the level is
+/// periodic on the torus alone. A projected or a spiric edge's ends are
+/// its image's evaluator's and its turns the rule's, so it adds the
+/// whole turns by which the two disagree ([`edge_branch`]), and the
+/// loop's turns count as the integral reads them.
 ///
-/// Returns, per loop, its turns. On the cylinder the loops wind as a
-/// face's boundary does ([`crate::props::closure::require_boundary_windings`]).
-/// On the sphere any turns are read: the poles' terms take the face's
-/// winding with its sense, whatever the junctions at a pole took off
+/// Returns, per loop, its turns `[W_u, W_v]` and each junction's whole
+/// turns ([`Junction::turns`]). On the cylinder and the
+/// torus the loops wind as a face's boundary does
+/// ([`crate::props::closure::require_boundary_windings`]). On the sphere
+/// any azimuth turns are read: the poles' terms take the face's winding
+/// with its sense, whatever the junctions at a pole took off
 /// ([`sphere_outside`]).
 fn loop_windings<T: Decide>(
     face: &RotationalFaceQ,
     entries: &[Vec<EdgeEntry>],
     band: Band,
-) -> Result<Vec<i64>, PropsError> {
+) -> Result<LoopWindings, PropsError> {
     let chart = face.chart;
     let mut windings = Vec::with_capacity(face.loops.len());
+    let mut counts = Vec::with_capacity(face.loops.len());
     for (edges, entries) in face.loops.iter().zip(entries) {
-        let readings = junctions(edges, entries).map(|j| {
+        let turns: Vec<[f64; 2]> = junctions(edges, entries).map(|j| j.turns(chart)).collect();
+        let readings = junctions(edges, entries).zip(&turns).map(|(j, &m)| {
             let [(u1, v1), (u0, v0)] = j.ends();
             crate::props::closure::IntervalJunction {
                 delta: [u1 - u0, v1 - v0],
-                lever: [
-                    chart.azimuth_lever(Interval::hull(v1, v0)),
-                    chart.level_lever(),
-                ],
+                lever: [chart.azimuth_lever(j.levels(m)), chart.level_lever()],
+                turns: m,
                 slack: j.slack(),
             }
         });
-        let [k, _] =
-            crate::props::closure::interval_loop_turns::<T, 2>(readings, [true, false], band)?;
-        let mut k = k;
+        let mut k = crate::props::closure::interval_loop_turns::<T, 2>(readings, band)?;
+        counts.push(turns);
         for (e, entry) in edges.iter().zip(entries) {
-            if let (EdgeTermQ::Projected(p), Some(turn)) = (e, entry.turn) {
-                let turns = branch_turns(p, turn)?;
-                k = k.saturating_add(if p.forward { turns } else { -turns });
-            }
+            let b = edge_branch(e, entry, chart)?;
+            k = [0, 1].map(|c| k[c].saturating_add(b[c]));
         }
-        windings.push([k]);
+        windings.push(k);
     }
-    if let RotationalChartQ::Cylinder { .. } = chart {
+    if !matches!(chart, RotationalChartQ::Sphere { .. }) {
         crate::props::closure::require_boundary_windings(&windings)?;
     }
-    Ok(windings.iter().map(|&[k]| k).collect())
+    Ok((windings, counts))
 }
 
-/// **The whole turns a projected edge's turn makes past its ends'
-/// difference**, in its carrier's order: `(Δu − (u₁ − u₀))/2π`, the ends
-/// read by the image's evaluator, which places each on its piece's
-/// branch, and the turn by the rule ([`entry_turn`]). The two differ by
-/// whole turns where the image's branches meet as its sectors say, so
-/// the enclosure must lie within a quarter turn of one whole number;
-/// anything else is an image whose evaluator and integral disagree, and
-/// refuses, as does a turn [`entry_turn`]'s finest reading leaves wider
-/// than that.
-fn branch_turns(p: &ProjectedEdgeQ, turn: Interval) -> Result<i64, PropsError> {
+/// **The whole turns `[k_u, k_v]` an edge's turns make past its ends'
+/// differences**, in its traversal ([`branch_turns`]): a projected or a
+/// spiric edge's, the level's on the torus alone; a harmonic edge's ends
+/// and terms read one channel, and make none.
+fn edge_branch(
+    e: &EdgeTermQ,
+    entry: &EdgeEntry,
+    chart: RotationalChartQ,
+) -> Result<[i64; 2], PropsError> {
+    let (Some([du, dv]), ends) = (
+        entry.turn,
+        match e {
+            EdgeTermQ::Harmonic(_) => return Ok([0, 0]),
+            EdgeTermQ::Projected(p) => p.ends,
+            EdgeTermQ::Spiric(w) => w.ends,
+        },
+    ) else {
+        return Ok([0, 0]);
+    };
+    let ku = branch_turns(ends[1].0 - ends[0].0, du)?;
+    let kv = if chart.level_periodic() {
+        branch_turns(ends[1].1 - ends[0].1, dv)?
+    } else {
+        0
+    };
+    Ok(if traversal(e) { [ku, kv] } else { [-ku, -kv] })
+}
+
+/// **The whole turns a turn makes past its ends' difference**, in its
+/// carrier's order: `(Δ − (x₁ − x₀))/2π`, the ends read by the image's
+/// evaluator, which places each on its piece's branch, and the turn `Δ`
+/// by the rule ([`entry_turn`]). The two differ by whole turns where the
+/// image's branches meet as its sectors say, so the enclosure must lie
+/// within a quarter turn of one whole number; anything else is an image
+/// whose evaluator and integral disagree, and refuses, as does a turn
+/// [`entry_turn`]'s finest reading leaves wider than that.
+fn branch_turns(ends: Interval, turn: Interval) -> Result<i64, PropsError> {
     let tau = crate::props::bracket::tau_bracket();
-    let gap = (turn - (p.ends[1].0 - p.ends[0].0)) / tau;
+    let gap = (turn - ends) / tau;
     let k = mid(gap).round();
     let off = (gap - pt(k)).abs_enclosure();
     if !(off.is_certified() && off.hi() < 0.25) {
@@ -1615,6 +2254,65 @@ fn branch_turns(p: &ProjectedEdgeQ, turn: Interval) -> Result<i64, PropsError> {
     // saturates.
     #[allow(clippy::cast_possible_truncation)]
     Ok(k as i64)
+}
+
+/// **One torus loop's chain on the chart's continuous lift** (module
+/// docs, the torus): per edge in traversal order, the whole turns `o` by
+/// which the chain's level sits above the edge's own lift where the
+/// edge's terms anchor it (its carrier interval's start), and per
+/// junction those at the edge before's end; per edge its turn `Δu`, its
+/// ends' azimuths apart plus its branch turns, which the evaluator's
+/// ends read thin where the rule's turn is wide on a coarse round; and
+/// the azimuth where the chain starts, the first edge's traversal start.
+/// The chain starts on
+/// the first edge's own lift; past each edge it gains the edge's branch
+/// turns ([`edge_branch`]), and past each junction the whole turns the
+/// closure took off its level gap, so it ends `W_v` turns up.
+struct LoopLift {
+    anchors: Vec<i64>,
+    ends: Vec<i64>,
+    turns: Vec<Interval>,
+    start: Interval,
+}
+
+fn loop_lifts(
+    face: &RotationalFaceQ,
+    entries: &[Vec<EdgeEntry>],
+    counts: &[Vec<[f64; 2]>],
+) -> Result<Vec<LoopLift>, PropsError> {
+    face.loops
+        .iter()
+        .zip(entries)
+        .zip(counts)
+        .map(|((edges, entries), counts)| {
+            let (mut anchors, mut ends, mut turns) = (Vec::new(), Vec::new(), Vec::new());
+            let mut c = 0i64;
+            for (j, &[_, m]) in junctions(edges, entries).zip(counts) {
+                let (e, entry) = j.before;
+                let [bu, b] = edge_branch(e, entry, face.chart)?;
+                turns.push(
+                    chart_end(e, true).0 - chart_end(e, false).0
+                        + pt(lift_turns(bu)) * crate::props::bracket::tau_bracket(),
+                );
+                anchors.push(if traversal(e) { c } else { c + b });
+                ends.push(c + b);
+                // Finite: the closure decided every junction. The cast
+                // saturates.
+                #[allow(clippy::cast_possible_truncation)]
+                let m = m as i64;
+                c = c.saturating_add(b).saturating_add(m);
+            }
+            let start = edges
+                .first()
+                .map_or_else(Interval::refused, |e| chart_end(e, false).0);
+            Ok(LoopLift {
+                anchors,
+                ends,
+                turns,
+                start,
+            })
+        })
+        .collect()
 }
 
 /// The level the Green form is taken about: the middle of the levels
@@ -1715,6 +2413,7 @@ mod tests {
                 closed: Interval::zero(),
                 lever: [Interval::zero(); 3],
                 rationals: Vec::new(),
+                spirics: Vec::new(),
                 ribbon: 0.0,
             },
             loops: loops

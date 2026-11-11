@@ -65,7 +65,7 @@ measured (the v6 dual's R1 NOTE-5 and R2 N-1, converged).
 
 The pcurve mint now images a bending carrier (a circle no row holds, an
 ellipse) on a spline wall at degree 5, through up to 257 feet, broken at
-the wall's knot lines (`edge_nurbs::curved_chart_image`). An at-rest body
+the wall's knot lines (`edge_nurbs::general_chart_image`). An at-rest body
 carrying such a row: `crates/topo/tests/a_bending_carrier_on_a_spline_wall_takes_the_general_lane.rs`
 mints one for a circle and an ellipse on a rational ring wall
 (`topo::test_support::cyl_wall_sheet_tilted`). That sheet is a candidate

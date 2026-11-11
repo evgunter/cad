@@ -195,12 +195,141 @@ pub(super) fn composite_each<S, C, const N: usize>(
     (total, removable)
 }
 
+/// One integrand of [`primitive_each`] at a node or over a piece:
+/// `own + y·by` for each of `N` outputs, and the rate `y′`, each as jets.
+pub(super) struct Integrand<const N: usize> {
+    pub(super) own: [Jet; N],
+    pub(super) by: [Jet; N],
+    pub(super) rate: Jet,
+}
+
+/// What [`primitive_each`] reads: per output its enclosure and the part
+/// of its width a later round removes.
+pub(super) struct Primitive<const N: usize> {
+    pub(super) total: [Interval; N],
+    pub(super) removable: [f64; N],
+}
+
+/// **The rule with a running primitive**: `∫ (own + y·by) dt` over
+/// consecutive intervals `(a, b, item, pieces)`, each at its own piece
+/// count, where `y` is not handed
+/// as a jet but integrated from its rate, `y(t) = start + ∫ y′` from the
+/// first interval's start, so an integrand that holds a function known
+/// only through its derivative (an angle along a chord) is read in the
+/// ring operations alone.
+///
+/// Per piece `[p, q]` about its node `x`: `y(x) = y(p) + ∫_p^x y′` by the
+/// rule's own Taylor reading of `y′` (its degree-3 part exact against
+/// `∫_p^x (t − x)ᵏ`, its degree-4 coefficient over the piece the
+/// remainder, `[p, x] ⊆ [p, q]`); `y`'s jet at `x` is `y(x)` and
+/// `y′`'s coefficients, `yₖ = y′ₖ₋₁/k`; over the piece its value is
+/// `y(x) + y′([p, q])·(t − x)` and its other coefficients `y′`'s over the
+/// piece. The integrand's jets are then the rule's as in
+/// [`composite_by`], and `y(q) = y(p) + ∫_p^q y′` carries to the next
+/// piece. Every enclosure holds its exact counterpart, so the bracket is
+/// sound at every resolution; `y`'s own remainders accumulate along the
+/// edge at `h⁵` a piece, and the removable width counts them at the
+/// `by` they meet. Every interval end is an exact `f64`.
+pub(super) fn primitive_each<S, C, const N: usize>(
+    intervals: impl IntoIterator<Item = (f64, f64, S, usize)>,
+    start: Interval,
+    prepare: impl Fn(&S, f64, f64) -> C,
+    g: impl Fn(&C, Interval) -> Integrand<N>,
+) -> Primitive<N> {
+    let refused = || Primitive {
+        total: [Interval::refused(); N],
+        removable: [f64::INFINITY; N],
+    };
+    if !start.is_certified() {
+        return refused();
+    }
+    let mut total = [Interval::zero(); N];
+    let mut removable = [0.0_f64; N];
+    let mut y = start;
+    // The width `y` has gathered from its own remainders: a later round
+    // removes it.
+    let mut y_removable = 0.0_f64;
+    for (a, b, item, pieces) in intervals {
+        if pieces == 0 || !(a.is_finite() && b.is_finite() && a <= b) {
+            return refused();
+        }
+        for i in 0..pieces {
+            let (p, q) = (node(a, b, pieces, i), node(a, b, pieces, i + 1));
+            let x = geom::bracket_mid((p, q));
+            let (ri, le) = (pt(q) - pt(x), pt(p) - pt(x));
+            let moment =
+                |e: i32, hi: Interval, lo: Interval| (hi.powi(e) - lo.powi(e)) / pt(f64::from(e));
+            // `∫_p^q (t − x)ᵏ dt` and `∫_p^x (t − x)ᵏ dt`, `k = 0..=4`.
+            #[allow(clippy::cast_possible_truncation, clippy::cast_possible_wrap)]
+            let weight: [Interval; ORDER] = core::array::from_fn(|k| moment(k as i32 + 1, ri, le));
+            #[allow(clippy::cast_possible_truncation, clippy::cast_possible_wrap)]
+            let left: [Interval; ORDER] =
+                core::array::from_fn(|k| moment(k as i32 + 1, Interval::zero(), le));
+            let ctx = prepare(&item, p, q);
+            let at = g(&ctx, pt(x));
+            let over = g(&ctx, Interval::from_bounds(p, q));
+            let integral = |w: &[Interval; ORDER]| {
+                (0..ORDER - 1).fold(Interval::zero(), |acc, j| acc + at.rate.0[j] * w[j])
+                    + over.rate.0[ORDER - 1] * w[ORDER - 1]
+            };
+            let y_x = y + integral(&left);
+            #[allow(clippy::cast_precision_loss)]
+            let tail = |rate: &Jet| -> [Interval; ORDER - 1] {
+                core::array::from_fn(|k| rate.0[k] / pt((k + 1) as f64))
+            };
+            let jet = |value: Interval, rate: &Jet| {
+                let t = tail(rate);
+                Jet([value, t[0], t[1], t[2], t[3]])
+            };
+            let y_at = jet(y_x, &at.rate);
+            // `y`'s value over the piece is the remainder's premise. No row
+            // can drop it and go red: in the degree-4 coefficient it meets
+            // `by₄` at `|y′|·h/2`, while `y₁·by₃` over the same piece reads
+            // `by₃` spread by `4·|by₄|·h/2` against `y₁ = y′`, which covers
+            // it for any integrand whose `by` is a function of `t`.
+            let y_over = jet(y_x + over.rate.0[0] * Interval::hull(le, ri), &over.rate);
+            let h = (pt(q) - pt(p)).hi();
+            for k in 0..N {
+                let g_at = at.own[k].add(y_at.mul(at.by[k]));
+                let g_over = over.own[k].add(y_over.mul(over.by[k]));
+                let exact =
+                    (0..ORDER - 1).fold(Interval::zero(), |acc, j| acc + g_at.0[j] * weight[j]);
+                let remainder = g_over.0[ORDER - 1] * weight[ORDER - 1];
+                removable[k] += remainder.width() + y_removable * over.by[k].0[0].mag() * h;
+                total[k] = total[k] + exact + remainder;
+            }
+            y_removable += (over.rate.0[ORDER - 1] * weight[ORDER - 1]).width();
+            y = y + integral(&weight);
+        }
+    }
+    Primitive { total, removable }
+}
+
+/// **How far one piece of a span may reach about a chart's axis**, as
+/// a fraction of its distance from it: a sixteenth of a turn. Each of
+/// its two readers needs a piece small against that distance, since
+/// both read something that degrades as a piece nears the axis:
+/// - the rotational volume lane reads the azimuth's rate times the
+///   piece's length, and the rate's reciprocal is the distance from the
+///   axis, so a piece within it keeps its Taylor remainder finite and
+///   small;
+/// - the incidence read of a net's twin (`crate::pcurve_cache::Parts::ByTurn`)
+///   reads the diagonal of the piece's control box over the box's least
+///   distance from the axis, so the floors its metre conversion divides
+///   by (that distance, the cone's lever) stay within a fixed fraction
+///   of the piece's own.
+///
+/// Its own value, not either lane's round count: changing it
+/// re-schedules both readers.
+pub(crate) const PIECE_TURN: f64 = core::f64::consts::TAU / 16.0;
+
 /// **The fewest equal pieces `[a, b]` is read in**, a power of two up
 /// to `most`, for which `fits(ctx, piece, h)` holds on every piece (the
 /// context prepared over it, the piece's enclosure, its length): `most`
 /// where none does. Each count is tried in full, so the reading is a
-/// function of the interval and `fits` alone.
-pub(super) fn pieces_where<C>(
+/// function of the interval and `fits` alone: the one home of how many
+/// pieces a span needs, each reader passing its own `fits`.
+pub(crate) fn pieces_where<C>(
     (a, b): (f64, f64),
     most: usize,
     prepare: impl Fn(f64, f64) -> C,

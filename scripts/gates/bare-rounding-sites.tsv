@@ -39,7 +39,7 @@ crates/geom-brep/src/intersect.rs	prod	6	re-pose
 crates/geom-brep/src/intersect.rs	test	1	oracle
 crates/geom-brep/src/pair_section/gap.rs	prod	9	re-pose
 crates/geom-brep/src/pair_section/ruling.rs	prod	5	re-pose
-crates/geom-brep/src/pair_section/spline_implicit.rs	prod	2	re-pose
+crates/geom-brep/src/pair_section/spline_implicit.rs	prod	1	re-pose
 crates/geom-brep/src/pair_section/torus.rs	prod	2	re-pose
 crates/geom-brep/src/pair_section/torus_arms.rs	prod	2	re-pose
 crates/geom-brep/src/pcurve_cache.rs	prod	13	re-pose
@@ -61,6 +61,7 @@ crates/geom-brep/src/pcurve_cache/spline_incidence.rs	prod	5	re-pose
 crates/geom-brep/src/pcurve_cache/spline_incidence/rows.rs	test	1	oracle
 crates/geom-brep/src/props/curved.rs	prod	4	re-pose
 crates/geom-brep/src/props/loop_area.rs	test	1	oracle
+crates/geom-brep/src/props/quad/rotational/swap_rows/torus.rs	test	1	oracle
 crates/geom-brep/src/props/quad/trimmed.rs	test	1	oracle
 crates/geom-brep/src/props/spiric.rs	test	1	oracle
 crates/geom-brep/src/recourse.rs	prod	1	re-pose

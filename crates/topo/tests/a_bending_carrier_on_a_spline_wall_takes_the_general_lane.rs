@@ -61,9 +61,16 @@ fn in_band_push() -> f64 {
 /// `(2/3)·push / (1 + cos(TURN/4))` at that sub-arc's middle, and the top
 /// rim's row is the circle's.
 fn ring(push: f64) -> NurbsSurface<f64> {
+    ring_split_at(push, 0.5)
+}
+
+/// [`ring`]`(push)` with its sub-arcs' shared knot at `knot`: the same
+/// wall, each sub-arc's span moved affinely, so a point of the wall
+/// reads at another `u`.
+fn ring_split_at(push: f64, knot: f64) -> NurbsSurface<f64> {
     let h = TURN / 2.0;
     let mut ku = vec![0.0; 3];
-    ku.extend([0.5; 2]);
+    ku.extend([knot; 2]);
     ku.extend([1.0; 3]);
     let (mut control, mut weights) = (Vec::new(), Vec::new());
     for j in 0..=4 {
@@ -367,11 +374,26 @@ fn a_stored_row_off_its_wall_keeps_its_term_at_interval() {
     a_stored_row_off_its_wall_keeps_its_term::<geom_core::Interval>();
 }
 
-/// A construction's STATED `General` row of a bending rim, wrong by
-/// `1e-4` m in `v` at one control point whose basis vanishes at every
-/// sample of check 3: the mint reads it off the description and derives
-/// nothing, so the hull's refusal is the row's own term, never the lane's
-/// gap.
+/// A construction's STATED `General` row of a bending rim that is wrong
+/// for its wall keeps its own term wherever it is read, never the lane's
+/// gap: nothing derived it.
+///
+/// - **At a build**: wrong by `1e-4` m in `v` at one control point whose
+///   basis vanishes at every sample of check 3, the edge door certifies
+///   it over its span and refuses it as the description's own image,
+///   `ChartImageUnavailable`, before it is stored.
+/// - **At rest**: the true row, stated and certified, then its wall
+///   re-parametrized under it ([`ring_split_at`]), so the carrier still
+///   lies on the wall and the row maps it elsewhere. The mint reads the
+///   row off the description and derives nothing, so its certificate's
+///   refusal stands.
+///
+/// `a_stated_wrong_general_row_keeps_its_term_at_f64` runs on every pull
+/// request; `a_stated_wrong_general_row_keeps_its_term_at_interval` is in
+/// the slow set, so a pull request runs it only where its added lines
+/// name it: a change to the edge door's stated route
+/// (`geom_brep::certify`) or the mint's relabel sites (`topo::pcurves`)
+/// should.
 fn a_stated_wrong_general_row_keeps_its_term<T: AtRestPolicy + geom_core::Bounds>() {
     for rim in [Rim::Circle, Rim::Ellipse] {
         let (_, _, got) = minted::<T>(rim, 0.0);
@@ -417,25 +439,59 @@ fn a_stated_wrong_general_row_keeps_its_term<T: AtRestPolicy + geom_core::Bounds
                 })
             })
             .expect("a control point whose basis vanishes at every sample");
-        let (mut body, wall, bottom) = sheet::<T>(rim, 0.0);
-        let (edge, curve) = bottom_curve(&body, bottom);
-        let key = body.get_face(wall).unwrap().surface;
-        let (t0, t1) = curve.params();
-        let spec = EdgeCurveSpec {
-            description: geom_brep::EdgeDescriptionSpec::chart_image(
-                key,
-                Pcurve::General(Arc::new(bumped(at))),
-            ),
-            carrier: curve.carrier().clone(),
-            param_start: t0,
-            param_end: t1,
+        let state = |body: &mut Body<T>, wall: FaceKey, image: &Arc<geom::NurbsCurve2<T>>| {
+            let (edge, curve) = bottom_curve(body, bottom_rim(body, wall));
+            let (t0, t1) = curve.params();
+            let key = body.get_face(wall).unwrap().surface;
+            let spec = EdgeCurveSpec {
+                description: geom_brep::EdgeDescriptionSpec::chart_image(
+                    key,
+                    Pcurve::General(Arc::clone(image)),
+                ),
+                carrier: curve.carrier().clone(),
+                param_start: t0,
+                param_end: t1,
+            };
+            body.set_edge_curve(edge, spec, tol())
+                .map(|_| curve.carrier().kind())
+                .map_err(|e| (e, curve.carrier().kind()))
         };
-        body.set_edge_curve(edge, spec, tol())
-            .expect("the rim restates as its chart image");
+
+        let (mut body, wall, _) = sheet::<T>(rim, 0.0);
+        let stated = state(&mut body, wall, &Arc::new(bumped(at)));
+        let Err((topo::EulerOpError::Certification { error }, carrier)) = &stated else {
+            panic!(
+                "{rim:?}: the edge door refuses the wrong stated row, at {}: {stated:?}",
+                T::NAME
+            )
+        };
+        assert_eq!(
+            *error,
+            geom_brep::CertifyError::ChartImageUnavailable {
+                chart: geom::SurfaceKind::Nurbs,
+                carrier: *carrier,
+            },
+            "{rim:?}: a stated row is refused as its own image, at {}",
+            T::NAME
+        );
+        let ending = error
+            .ending(geom_brep::recourse::Reading::Build)
+            .expect("the image's refusal is decided");
+        assert!(
+            !ending.contains(geom_core::NOT_YET_ENDING),
+            "{rim:?}: the stated row's refusal is not the lane's gap, at {}: {ending}",
+            T::NAME
+        );
+
+        let (mut body, wall, bottom) = sheet::<T>(rim, 0.0);
+        state(&mut body, wall, image).expect("the true row states");
+        let key = body.get_face(wall).unwrap().surface;
+        let split = Surface::Nurbs(Arc::new(ring_split_at(0.0, 0.4).map_scalar(T::from_f64)));
+        let mut body = body.with_surface_moved_for_tests(key, split).unwrap();
         let got = topo::mint_pcurves_of(&mut body, &[wall], tol());
         let Err(topo::PcurveMintError::Certify { half_edge, error }) = got else {
             panic!(
-                "{rim:?}: the wrong stated row refuses, at {}: {got:?}",
+                "{rim:?}: the stated row refuses at rest, at {}: {got:?}",
                 T::NAME
             )
         };
@@ -443,12 +499,13 @@ fn a_stated_wrong_general_row_keeps_its_term<T: AtRestPolicy + geom_core::Bounds
         assert!(
             matches!(
                 error,
-                PcurveCertifyError::FittedLimb {
-                    limb: geom_brep::SsiLimb::HullValueChart,
+                PcurveCertifyError::ResidualExceeded {
+                    check: geom_brep::PcurveCheck::MapResidual,
                     ..
                 }
             ) && !is_the_lanes_gap(&error),
-            "{rim:?}: a stated row keeps its own term, the hull's value limb, at {}: {error:?}",
+            "{rim:?}: a stated row keeps its own term at rest, check 3's map residual, at {}: \
+             {error:?}",
             T::NAME
         );
     }
