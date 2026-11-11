@@ -62,9 +62,10 @@
 //! `topo::coherence`'s `MeridianClosure` rather than here.
 //!
 //! Pole handling (chart singularities; the surface's `normal` is never
-//! sampled): a pole/apex is always an edge **endpoint** (valence 2),
-//! the endpoint of a meridian. That is a premise about the loop, and
-//! how much of it is checked, and where, is three different answers:
+//! sampled): a pole/apex is always an edge **endpoint**, the endpoint
+//! of a meridian: of two (valence 2), or of one wrap edge, whose tip it
+//! is (valence 1). That is a premise about the loop, and how much of it
+//! is checked, and where, has these answers:
 //!
 //! - **a loop with no meridian at all** — a rim circle around a pole or
 //!   apex lying in the face's interior — is refused in every profile,
@@ -948,6 +949,10 @@ fn wrap_strip(
     ) else {
         return Ok(None);
     };
+    // Two tips on one singular point are two declared vertices within
+    // the band of each other, D2 addendum row 5's state, which the
+    // declared-vertex guard in `loop_polygon` re-derives; no strip is
+    // read off it.
     let (near, far, far_tip) = match travs[0].start {
         _ if on_a == on_b => return Ok(None),
         t if t == a => (on_a, on_b, b),
@@ -1086,7 +1091,9 @@ pub(crate) fn loop_polygon(
         None
     };
     // The strip's far side opens at its far tip, read off the tip and not
-    // off the junction's radial band.
+    // off the junction's radial band. A tip read on its pole is within the
+    // band of the axis, so `iso_side_starts` already opens there on every
+    // body; this states the opening without resting on that agreement.
     if let Some(strip) = strip {
         for (opens, t) in starts.iter_mut().zip(&travs) {
             *opens |= t.start == strip.far;

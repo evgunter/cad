@@ -28,7 +28,7 @@
 //! Two members are NOT refused by the guard, and each is rowed for what
 //! answers instead: a slit bounded by two COINCIDENT edges satisfies the
 //! premise and still walks to zero width
-//! (`work/tess/two-coincident-edges-open-two-columns-that-are-one.md`),
+//! (`work/tesswalk/two-coincident-edges-open-two-columns-that-are-one.md`),
 //! and the sphere cut along a whole great circle is taken by a door in
 //! front of the walk. The second one first:
 //!
@@ -341,18 +341,24 @@ fn a_rim_free_loop_that_turns_at_a_pole_along_its_own_edge_refuses_single_column
     assert_refuses_single_column("one-seam cone", &body, SurfaceKind::Cone, 0.05);
 }
 
-/// **The one-seam sphere is the one-face ball** with its edge's
-/// description left unwritten: tier 2 reads its two ends as strut tips,
-/// but the walk reads no description. Its chart image is empty and its
-/// tips are the two poles, so the walk places the edge's two traversals
-/// a period apart, the wrap strip (`the_one_face_ball.rs`), and it meshes
-/// as the unit ball.
+/// **The one-seam sphere meshes as the wrap strip**: a record of what
+/// `tessellate` does today with a body outside its contract, not a
+/// guarantee. The body is the one-face ball with its edge's description
+/// left unwritten, so it is not tier-2 valid: the edge is no wrap edge,
+/// and its two valence-1 ends are strut tips
+/// (`ScaffoldingStrutVertex`). The walk reads no description; the loop's
+/// chart image is empty and its tips are the two poles, so the walk
+/// places the edge's two traversals a period apart
+/// (`the_one_face_ball.rs`) and the body meshes as the unit ball.
 #[test]
 fn the_one_seam_sphere_meshes_as_the_wrap_strip() {
     let body = one_seam_sphere();
+    let tier_2 = topo::validate_closed(&body);
     assert!(
-        not_valid_but_for_joins(&body),
-        "the one-seam sphere is not tier-3 valid"
+        tier_2.as_ref().is_err_and(|errors| errors
+            .iter()
+            .all(|e| matches!(e, topo::ValidationError::ScaffoldingStrutVertex { .. }))),
+        "the one-seam sphere's ends are strut tips at tier 2: {tier_2:?}"
     );
     common::check_mesh_acceptance(&body, 0.05, Some((4.0 * PI / 3.0, 4.0 * PI)));
 }
@@ -373,7 +379,7 @@ fn the_one_seam_sphere_meshes_as_the_wrap_strip() {
 /// `u_raw` bitwise would do it and would need no ε, but it is a
 /// coordinate comparison and not the loop's incidence, so it is not this
 /// guard's shape. Rowed and filed:
-/// `work/tess/two-coincident-edges-open-two-columns-that-are-one.md`.
+/// `work/tesswalk/two-coincident-edges-open-two-columns-that-are-one.md`.
 ///
 /// The cylinder twin is NOT in this state: with no pole, both junctions
 /// are continuations, the loop opens one iso side, and the guard refuses

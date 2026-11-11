@@ -505,7 +505,7 @@ pub enum TessellateError {
     /// width. Two DISTINCT edges sharing one carrier state one column
     /// too, and such a body is reachable through the Euler doors; that
     /// residue, and the rung above edge identity it wants, are
-    /// `work/tess/two-coincident-edges-open-two-columns-that-are-one.md`.
+    /// `work/tesswalk/two-coincident-edges-open-two-columns-that-are-one.md`.
     ///
     /// Not [`Self::MeridianFreeCurvedFace`]: that arm is the same lane's
     /// mirror question — whether a meridian exists at all — and its
