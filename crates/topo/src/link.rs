@@ -4740,8 +4740,14 @@ pub(crate) mod rest {
         let arm = link
             .lobes
             .iter()
-            .flat_map(|a| a.ends.map(|(d, _)| geom_brep::ExtentBall::point(p + d).lever_from(p)))
-            .fold(geom_brep::ExtentBall::point(p + lobe.ends[0].0).lever_from(p), geom_core::Lever::min);
+            .flat_map(|a| {
+                a.ends
+                    .map(|(d, _)| geom_brep::ExtentBall::point(p + d).lever_from(p))
+            })
+            .fold(
+                geom_brep::ExtentBall::point(p + lobe.ends[0].0).lever_from(p),
+                geom_core::Lever::min,
+            );
         let l = arm.length();
         let cone = lobe.cone;
         // The nappe's unit axis, toward the rulings, and the circle the
@@ -5373,6 +5379,8 @@ mod oracle_rows;
 #[cfg(test)]
 mod round_rows;
 
+#[cfg(test)]
+mod apex_rows;
 #[cfg(test)]
 mod chord_rows;
 #[cfg(test)]
