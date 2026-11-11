@@ -2,7 +2,7 @@
 id: shared-vertex-crossings-that-tie-or-interleave-are-unprobed
 kind: issue
 title: "SharedVertexCrossings: the fan-interleave arm is reached by no witness; the one-arc strut arm is its own row"
-status: open
+status: dispatched
 opened: 2026-10-03
 priority: P1
 cost: M
@@ -106,3 +106,14 @@ reconcile arm: four cubes touching at `notch343`'s corner reach it.
 Which of this row's two shapes (one arc, or interleave) each line is
 was not read. Replay: `cargo test -p sweep --release --test all
 four_pairs_battery -- --ignored --nocapture`.
+
+## Dispatch
+
+2026-11-11, GAUGE orchestrator. One implementer, lane `gauge-svc`, branch `gauge/shared-vertex-crossings`. The lane will:
+- re-measure the `four_pairs_battery`'s `SharedVertexCrossings` lines on main;
+- classify each by shape: one arc, interleave, or neither;
+- read a representative of each class in the model;
+- decide by meaning whether each refusal is honest (pin it typed) or a pose the reconcile should build (fix at the source);
+- stop on a design question.
+
+Review tier: a single full review if kernel code changes; the orchestrator's read if the outcome is pins only.
