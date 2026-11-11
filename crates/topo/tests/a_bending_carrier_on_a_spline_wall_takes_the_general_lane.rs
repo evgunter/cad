@@ -388,11 +388,12 @@ fn a_stored_row_off_its_wall_keeps_its_term_at_interval() {
 ///   row off the description and derives nothing, so its certificate's
 ///   refusal stands.
 ///
-/// Its rows, `a_stated_wrong_general_row_keeps_its_term_at_f64` and
-/// `a_stated_wrong_general_row_keeps_its_term_at_interval`, are in the
-/// slow set, so a pull request runs them only where its added lines name
-/// them: a change to the edge door's stated route (`geom_brep::certify`)
-/// or the mint's relabel sites (`topo::pcurves`) should.
+/// `a_stated_wrong_general_row_keeps_its_term_at_f64` runs on every pull
+/// request; `a_stated_wrong_general_row_keeps_its_term_at_interval` is in
+/// the slow set, so a pull request runs it only where its added lines
+/// name it: a change to the edge door's stated route
+/// (`geom_brep::certify`) or the mint's relabel sites (`topo::pcurves`)
+/// should.
 fn a_stated_wrong_general_row_keeps_its_term<T: AtRestPolicy + geom_core::Bounds>() {
     for rim in [Rim::Circle, Rim::Ellipse] {
         let (_, _, got) = minted::<T>(rim, 0.0);

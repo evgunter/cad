@@ -71,9 +71,14 @@ it ends; nothing in `src/` changed.
   mint ends that in check 3's own `ResidualExceeded { MapResidual }`.
 - 6532's M5 (the provenance gate dropped, applied at both relabel
   sites) reds both rows with `NoGeneralLane { gap: Image }`.
-- **They stay in the slow set**: 0.8–1.7 s at ε 1e-9 and 1e-6, and up
-  to 5.7 s at 1e-12. The guard's gap is noted on
+- **The f64 row leaves the slow set; the Interval row stays.** On
+  hosted CI (run 43022130783, default ε) they took 0.352 s and 0.467 s.
+  The f64 row clears the 0.5 s bar for a named test, so it now runs on
+  every PR whose closure reaches topo, and M5 reds it. The Interval row
+  sits within runner noise of that bar, so it stays in the slow set.
+  Locally both cost more (0.8–1.7 s at ε 1e-9 and 1e-6, up to 5.7 s at
+  1e-12), but the bar is the hosted default-ε reading. The Interval
+  row's gap is noted on
   `a-minted-refusals-provenance-is-guarded-only-by-its-doc`, and the
   case is evidence on green's
   `a-src-change-that-moves-a-decide-site-skips-its-crates-recourse-roster`.
-

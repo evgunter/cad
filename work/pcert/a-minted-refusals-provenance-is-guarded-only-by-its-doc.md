@@ -98,9 +98,8 @@ nightly showed it. They now reach the mint's relabel sites at rest: the
 true row is stated, then its wall is re-parametrized under it. M5 reds
 them again.
 
-They cost 0.8–5.7 s, so they stay in the slow set. **This guard runs
-only in the nightly**: a PR that moves the relabel sites in
-`topo::pcurves`, or the edge door's stated route in
-`geom_brep::certify`, without naming these rows, passes its gate with
-the guard unrun.
-
+The f64 row now runs on the PR gate (0.352 s hosted), so the gate runs
+M5's guard on every PR whose closure reaches topo. **The Interval row
+(0.467 s hosted, within noise of the 0.5 s bar) stays in the slow set and
+runs only in the nightly**, or on a PR whose added lines name it. A
+change that reds the gate at Interval alone waits for the nightly.

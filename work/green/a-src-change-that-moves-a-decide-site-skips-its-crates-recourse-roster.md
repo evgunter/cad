@@ -44,14 +44,16 @@ Have `scripts/ci-filter.py` select a crate's roster row whenever the diff touche
 The same gap reaches rows that are not censuses.
 `a_bending_carrier_on_a_spline_wall_takes_the_general_lane::a_stated_wrong_general_row_keeps_its_term_{f64,interval}`
 guard PCERT's `a-minted-refusals-provenance-is-guarded-only-by-its-doc`
-and sit in the slow set (0.8–5.7 s). PR 6815 changed
+and sat in the slow set. PR 6815 changed
 `geom_brep::certify`'s stated-image route, never named them, and
 turned them red on main; only the nightly saw it (filed and fixed as
 PCERT's `main-red-the-stated-wrong-general-rows-refuse-chart-image-unavailable-in-the-slow-set`).
 This row's fix would not have run them either: 6815 touched
 geom-brep's `src/`, and the rows are topo's, a downstream crate's. A
 behaviour row in the slow set that guards an upstream crate's change
-needs selecting by the paths it guards, not by its own crate.
+needs selecting by the paths it guards, not by its own crate. (The fix
+moved the f64 row to the fast set, 0.352 s hosted; the Interval row,
+0.467 s, stays slow.)
 
 
 The same PR showed a second hole in "the PR that edits a slow test runs
