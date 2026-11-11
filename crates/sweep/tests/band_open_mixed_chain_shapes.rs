@@ -753,3 +753,33 @@ fn assert_contact_escalation(what: &str, e: &BlendError) {
         "{what}: at Interval at ε 1e-12 a turned run's contact edge stalls, got {e:?}"
     );
 }
+
+/// **A straight link too short for its ends refuses before any
+/// mutation**: the L-plate's run whose arm along `x = 2` is `0.09` long
+/// and ends at a wall leaning back at 45°, so the cut-off's foot on the
+/// top stands `r` behind the corner, behind the junction's foot
+/// (`junction::feet_clear`).
+#[test]
+fn a_short_link_leaning_back_refuses_as_its_feet_cross() {
+    let l = 0.09;
+    let o: Vec<V> = vec![
+        (0.0, 0.0, 0.0),
+        (2.0 - R, 0.0, q(FRAC_PI_2)),
+        (2.0, R, 0.0),
+        (2.0, R + l, 0.0),
+        (1.85, R + l - 0.15, 0.0),
+        (1.85, 2.0, 0.0),
+        (0.0, 2.0, 0.0),
+    ];
+    let body = outline::<f64>(&o, 0.0, 0.5);
+    let run = edges_at(&body, 0.5, |x, y| {
+        y.abs() < 1e-9 || (x > 1.95 && y < R + l - 1e-9) || (x > 1.7 && y < R + 1e-9 && y > 1e-9)
+    });
+    assert_eq!(run.len(), 3, "line, arc, short line");
+    let got = fillet_edges(&at_rest(&body, tol()), &run, 0.1, tol()).map_err(|r| r.error);
+    assert!(
+        matches!(&got, Err(BlendError::UnsupportedRunOut { detail, .. })
+            if detail.contains("between a junction and its other end")),
+        "the short arm's feet cross, got {got:?}"
+    );
+}

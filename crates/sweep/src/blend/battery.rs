@@ -3609,6 +3609,10 @@ fn consumption_sweep<T: Decide + Bounds>(
 /// tori would take this argument's margin away. The argument reads only
 /// the links between the pair, so it holds on an open chain as on a
 /// closed one: where the chain ends is no part of it.
+// Premise, enforced upstream: every arc of radius `ρ` carries a ball of
+// radius `r < ρ/2` (predicate 3, spine regularity), so each link's band
+// stays inside its own window and no spindle torus reaches back across
+// its wedge's planes.
 fn chain_apart<T: Decide + Bounds>(
     body: &Body<T>,
     chains: &[Chain<T>],

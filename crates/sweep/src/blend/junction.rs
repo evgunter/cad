@@ -468,14 +468,14 @@ pub(super) const JUNCTION_FEET_CROSS: &str = "a straight link between a junction
 /// link the two would cross. A torus link's chords run between two
 /// junctions' feet, its own trim's window ends, so it is not read here.
 ///
-/// **Real geometry is refused before it reaches this meter**, and it
-/// stays as the closed form behind a sampled screen. Feet that cross
-/// put the far end's foot behind the junction's, inside the strip of
-/// the link on the junction's other side, and the end face's rim, which
-/// passes through that foot, then runs within a setback of that link:
-/// predicate 2's support screen reads that pair and refuses
-/// (`FaceClearanceUncertified`) on every prism tried. What reaches here
-/// is a crossing the screen's samples miss.
+/// **It is what refuses a link too short for its ends.** Feet that
+/// cross put the far end's foot behind the junction's, so the end face's
+/// rim, which passes through that foot, runs within a setback of the
+/// link on the junction's other side. Predicate 2's support screen does
+/// not read that pair: the edge sits at the chain's end and is exempt
+/// there, being metered in closed form by the plan (`battery::chain_apart`).
+/// This meter is the plan's reading of it
+/// (`band_open_mixed_chain_shapes::a_short_link_leaning_back_refuses_as_its_feet_cross`).
 ///
 /// The two feet-order readings stay two: here the span is a distance
 /// along a trimline, a line the plan holds; on a shared rim it is a

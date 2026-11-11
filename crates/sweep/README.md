@@ -619,7 +619,13 @@ under a half turn), by the support-boundary meter and
 by the reach; and two links of one chain, closed or open, joined along it by
 links turning less than a half turn are not a clearance pair of the
 battery's support screen, their windows lying on either side of that
-run. A convex rim removes, and a concave
+run (which holds while every arc's radius exceeds twice the ball's, the
+spine bound predicate 3 enforces). On an open chain, an edge at either
+end that the chain does not hold (an end face's rim) is no screen pair
+either with each link the run to that end turns less than a half turn
+from: the plan meters it against those links' strips in closed form,
+each within its own window (arms (d) and (e) of the ring carry-through
+pass). A convex rim removes, and a concave
 one adds, the section `r²(1 − π/4)` along the path its centroid takes
 (`band_closed_mixed_chain`). A run of two links on one support pair
 inside such a chain and a chain sharing no one face refuse
