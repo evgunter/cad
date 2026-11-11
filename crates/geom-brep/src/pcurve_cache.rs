@@ -10166,13 +10166,16 @@ fn net_bound_refusal<T: Decide>(
     band: Band,
 ) -> PcurveCertifyError {
     use crate::edge_nurbs::AnalyticRung3Refusal as R;
-    const NAME: &str = "pcurve_net_bound_straddle";
     // Limb 2 reads its limit only on a bound it did not decide zero, so
     // the bound decides positive or escalates.
-    let straddle = |bound: f64| {
-        let decided = |x: T| geom_core::k_stats::decide_reported(NAME, Margin::of(x), band);
+    let unshown = |bound: f64| {
+        let decided = |x: T| {
+            geom_core::k_stats::decide_reported("pcurve_net_bound_straddle", Margin::of(x), band)
+        };
         match (decided(T::zero()), decided(T::from_computed(bound))) {
-            (Ok(lower), Ok(upper)) => geom_core::k_stats::straddle(NAME, lower, upper, band),
+            (Ok(lower), Ok(upper)) => {
+                geom_core::k_stats::straddle("pcurve_net_bound_straddle", lower, upper, band)
+            }
             (Err(cause), _) | (_, Err(cause)) => cause,
         }
     };
@@ -10184,8 +10187,8 @@ fn net_bound_refusal<T: Decide>(
             .with_margin(OffMargin::Past(margin), surface, carrier);
         }
         R::Stalled { cause, .. } | R::Escalated { cause, .. } => cause,
-        R::KernelLimit { bound, .. } => straddle(bound),
-        R::NoOffsetBound { .. } => straddle(f64::INFINITY),
+        R::KernelLimit { bound, .. } => unshown(bound),
+        R::NoOffsetBound { .. } => unshown(f64::INFINITY),
         R::CarrierEnclosure(_)
         | R::NoTubeEnclosure { .. }
         | R::TubeStraddles { .. }
