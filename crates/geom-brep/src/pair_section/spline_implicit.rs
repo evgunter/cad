@@ -1039,7 +1039,7 @@ fn listed(
                         (b.params.1, -1.0)
                     };
                     let d = b.carrier.ders1(t).1 * sense;
-                    ends.push((components.len(), start, d * (1.0 / d.norm())));
+                    ends.push((components.len(), start, d.normalize()));
                 }
                 open(side(from).or(side(to)))
             }

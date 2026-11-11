@@ -473,10 +473,7 @@ fn node_frame(
     };
     let along = sign(phi.gradient(phi.framed(box3)).dot(n))?;
     let point = geom_core::Point3::new(mid(jet.point.x), mid(jet.point.y), mid(jet.point.z));
-    let f64_unit = |w: Vec3<Interval>| {
-        let v = Vec3::new(mid(w.x), mid(w.y), mid(w.z));
-        v * (1.0 / v.norm())
-    };
+    let f64_unit = |w: Vec3<Interval>| Vec3::new(mid(w.x), mid(w.y), mid(w.z)).normalize();
     Some(NodeFrame {
         point,
         normal: f64_unit(n),

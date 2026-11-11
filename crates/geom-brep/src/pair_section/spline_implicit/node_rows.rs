@@ -514,12 +514,12 @@ fn an_end_between_two_rays_names_neither() {
         Vec3::new(-1.0, 0.0, 0.0),
         Vec3::new(0.0, -1.0, 0.0),
     ];
-    let extent = geom_core::Lever::of_consumed_extent(geom_core::Interval::from_certified(1.0));
+    let extent = geom_core::test_support::fixture_lever(geom_core::Interval::from_certified(1.0));
     let between = Vec3::new(1.0, 1.0, 0.0) * core::f64::consts::FRAC_1_SQRT_2;
     assert!(super::ray_of(between, rays, extent, band()).is_err());
     assert_eq!(super::ray_of(Vec3::unit_y(), rays, extent, band()), Ok(1));
     let near = Vec3::new(0.9, 0.1, 0.0);
-    let near = near * (1.0 / near.norm());
+    let near = near.normalize();
     assert_eq!(super::ray_of(near, rays, extent, band()), Ok(0));
     // 50° off the x axis, out of the plane of the rays: past the floor.
     let (c, s) = (50f64.to_radians().cos(), 50f64.to_radians().sin());
