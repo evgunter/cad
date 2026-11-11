@@ -55,7 +55,11 @@ fn a_ranges_stretches_are_the_scans() {
             continue;
         };
         let got = projected::span_stretches(&kv, range);
-        assert_eq!(got, stretches_by_scan(&kv, range), "stretches of [{a}, {b}]");
+        assert_eq!(
+            got,
+            stretches_by_scan(&kv, range),
+            "stretches of [{a}, {b}]"
+        );
         read += 1;
     }
     assert!(read > 80, "the table read {read} ranges");
@@ -76,9 +80,16 @@ fn a_parts_holding_span_is_the_scans() {
     let distinct: Vec<f64> = kv.breakpoints().collect();
     let mut found = 0;
     for breaks in [distinct.as_slice(), kv.knots()] {
-        for range in ranges().into_iter().chain([(f64::NAN, 0.5), (0.25, f64::NAN)]) {
+        for range in ranges()
+            .into_iter()
+            .chain([(f64::NAN, 0.5), (0.25, f64::NAN)])
+        {
             let got = holding_span(breaks, range);
-            assert_eq!(got, holding_by_scan(breaks, range), "the span holding {range:?}");
+            assert_eq!(
+                got,
+                holding_by_scan(breaks, range),
+                "the span holding {range:?}"
+            );
             found += usize::from(got.is_some());
         }
     }
