@@ -707,16 +707,32 @@ fn the_toruss_arm_refuses_what_it_cannot_read() {
         "a spindle torus: {spindle:?}"
     );
     // A ring torus's radii must be certified brackets: a refused one is no
-    // ring torus, whatever its endpoints say.
-    face.chart = RotationalChartQ::Torus {
-        major: Interval::refused(),
+    // ring torus, whatever its endpoints say. Its endpoints here are a
+    // ring torus's (`R = 1.3`), and the face is all harmonic, so no
+    // image's radius check reads the bracket first: the gate refuses it,
+    // and says so.
+    let refused = pt(1.3) + Interval::from_bounds(-1.0, 0.0).sqrt();
+    assert!(!refused.is_certified() && refused.lo() == 1.3 && refused.hi() == 1.3);
+    let mut harmonic = torus_face(
+        d,
+        true,
+        &patch(d, (0.3, 1.9), (-0.7, 1.1), true, [false; 4]),
+        about,
+    )
+    .unwrap();
+    harmonic.chart = RotationalChartQ::Torus {
+        major: refused,
         minor: pt(0.45),
         outward: true,
     };
-    let unread =
-        rotational_cut_face_rounds::<f64>(&face, band, RoundWindow::SCHEDULE, &mut to_target(1e-9));
+    let unread = rotational_cut_face_rounds::<f64>(
+        &harmonic,
+        band,
+        RoundWindow::SCHEDULE,
+        &mut to_target(1e-9),
+    );
     assert!(
-        matches!(unread, Err(PropsError::QuadratureUnsupported { .. })),
+        matches!(unread, Err(PropsError::QuadratureUnsupported { what }) if what.contains("refused brackets")),
         "a refused major radius: {unread:?}"
     );
     // A harmonic torus image is a rim or a meridian, and any other refuses.
