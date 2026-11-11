@@ -37,8 +37,11 @@ fn level(h: f64) -> Surface<f64> {
     }
 }
 
-/// Binomial coefficient.
+/// Binomial coefficient, `0` where `k > n`.
 fn choose(n: usize, k: usize) -> f64 {
+    if k > n {
+        return 0.0;
+    }
     (0..k).fold(1.0, |acc, i| acc * (n - i) as f64 / (i + 1) as f64)
 }
 
