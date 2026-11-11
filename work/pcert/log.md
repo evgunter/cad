@@ -1213,3 +1213,23 @@ E1c waits on the answer.
   - Filed:
     - P1 `a-stated-image-on-an-analytic-chart-is-metered-against-its-carrier-at-nine-samples`, the image's fidelity, reproduced 8/8, next;
     - P3 `an-on-chart-net-through-a-double-cones-apex-ends-in-the-lever`.
+- 2026-11-11 — **Nightly 42965378060's slow-set reds, triaged** (PR 6831). There were ~37 distinct reds across programs, each bisected to its first-parent culprit (the table is in the PR body).
+  - PCERT's:
+    - `bounds_census`'s `knot_lines` (PR 6532; tint's 6818 had landed its line, and its "bending carrier" disposition is corrected to `general_chart_image`'s climb);
+    - `certified_endpoint_census` (`pcurve_cache.rs` 2 → 7 reads: PR 6827's `Parts::of` and spiricarm 6521's spindle grading, both argued schedule reads; `projected_edge.rs` and `rotational.rs` rows added).
+  - No PCERT merge moved a golden or digest: 6528 bisected clean; seat4, seat7, filleted_die and mass_props are identical on the previous nightly.
+  - Other programs' new reds, filed on their slates: sectarms 6518 (the 1e-6 TubeStraddles cluster, plus a 1e-12 cylinder × sphere row from 99 s to >400 s), spiricarm 6509 and 6806, onecopy 6735, 6757 and 6752, 6555, onehome 6717, and tcost's revalue flips.
+  - Ruled: sectarms 6811's six unasked reads in `critical.rs` stay theirs (P1 on their slate). This PR merges with that one census row red, as on main.
+  - Class evidence (six slow-set census reds the PR gate never selects) added to green's recourse-roster class row.
+  - Review tier: orchestrator's read (census tables and work files).
+- 2026-11-11 — **Main red `main-red-the-stated-wrong-general-rows-refuse-chart-image-unavailable-in-the-slow-set` closed** (PR 6833; filed by RESTREAD). Bisected to PR 6815's merge: a wrong STATED General row on a spline wall is now certified at the build's edge door through the same pcurve door the mint uses. It is refused there as the description's own image, `ChartImageUnavailable`, decided and not the lane's gap. That is the E1d ending for a caller's wrong row at a build, and the code is right.
+  - The rows were re-pinned to it exactly. An at-rest half (the wall re-parametrized under a true stated row) keeps 6532's provenance guard reachable: M5 still reds it, and the mint ends it in check 3's own term.
+  - The f64 row left the slow set, so the PR gate runs it. Evidence was added to green's slow-set class row.
+  - Review tier: orchestrator's read (tests and work files; no `src/` change).
+
+- 2026-11-11 — **Two unattributed main reds triaged** (orchestrator; PR 6836's lane met them in the slow set).
+  - sweep `a_sheath_on_its_blade_stops_where_its_walls_touch_on_the_rim` (66 against 62) is ours. Bisected to PR 6815's merge (`cbc0d3817d` 62, `dcffc3874e` 66): the edge certificate now derives a stated spline image's certificate through the mint's door, and the four extra on-row `Zero`s are that second derivation, already filed P3 as `a-stated-spline-image-is-certified-twice-by-the-edge-certificate-and-the-mint`. Re-pinned at 66 with a note naming the row; the row's fix moves it back.
+  - topo `face_normal::no_source_file_folds_the_bit_by_hand` is not ours: mesh/walk.rs:964's `if rising == sense { -TAU } else { TAU }`, from tesswalk's PR 6823. Filed P1 on tesswalk as `main-red-the-wrap-strip-folds-its-period-by-the-sense-bit`.
+  - Both rows sit in the slow set, which is the P4 class `a-src-change-that-moves-a-decide-site-skips-its-crates-recourse-roster` already names for the roster.
+
+- 2026-11-11 — **Main red filed on spiricarm** (orchestrator; PR 6836's lane met it after a main merge): geom-core `certified_endpoint_census` moved in four props files. Bisected to PR 6808's merge (`e916e99ad6`; its first parent passes). Filed P1 as `spiricarm/main-red-the-endpoint-census-moved-in-four-props-files-since-6808`. Not PCERT's, so 6836 merges over it.

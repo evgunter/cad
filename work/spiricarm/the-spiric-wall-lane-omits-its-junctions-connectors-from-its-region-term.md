@@ -2,10 +2,12 @@
 id: the-spiric-wall-lane-omits-its-junctions-connectors-from-its-region-term
 kind: issue
 title: The spiric torus-wall lane accepts junctions whose images' ends sit up to their envelopes apart and integrates each image alone, so the connectors closing its chain are in no term or pad
-status: open
+status: closed
 opened: 2026-11-04
 priority: P2
 cost: M
+closed: 2026-11-11
+pr: 6808
 ---
 
 
@@ -40,3 +42,7 @@ rotational lane's `a_tall_face_whose_images_stop_short_holds_its_closed_form`
 and `images_short_of_their_pieces_and_moved_out_hold_the_square` are
 the shape). The torus stage of the rotational lane (stage 3) may take
 the spiric wall in as one more edge term, which would close this.
+
+## Closed (2026-11-11)
+
+PR 6808: the rotational lane reads the torus chart; the spiric wall is an arm of the lane, its junctions read through the lane's connectors; the torus doors, radial hole and spiric round trip build at independently sliced volumes. Dual review `docs/dual-review-log/rows/PR-6808.md`.

@@ -373,6 +373,7 @@ fn sphere_face(
             closed: dot(closed),
             lever,
             rationals,
+            spirics: Vec::new(),
             ribbon,
         },
         loops: terms,
