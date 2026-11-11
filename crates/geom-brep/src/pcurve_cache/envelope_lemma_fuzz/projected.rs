@@ -697,22 +697,48 @@ fn a_spindle_toruss_bound_asks_its_lever_positive() {
     );
 }
 
-/// `f = (m² − r²)(M² − r²)` in a sheet's meridian half-plane.
+/// An upper bound on `|f|`, `f = (m² − r²)(M² − r²)`, at a point of a
+/// sheet's meridian half-plane: each factor `ρ(ρ ∓ 2R) + z² + (R − r)(R + r)`
+/// enclosed in `Interval`, so the bound holds beside a horn's cusp, where
+/// the `f64` form cancels below the true value.
 fn sheet_form(major: f64, minor: f64, rho: f64, z: f64) -> f64 {
-    let r2 = minor * minor;
-    ((rho - major).powi(2) + z * z - r2) * ((rho + major).powi(2) + z * z - r2)
+    let pt = |x: f64| Interval::from_bounds(x, x);
+    let (big, r, rho, z) = (pt(major), pt(minor), pt(rho), pt(z));
+    let k = (big - r) * (big + r);
+    let near = rho * (rho - big - big) + z.powi(2) + k;
+    let far = rho * (rho + big + big) + z.powi(2) + k;
+    (near * far).abs().hi()
+}
+
+/// The fuzzes' allowance for the `f64` oracle's own rounding: relative
+/// to the bound, and absolute at the scale of the point's coordinates and
+/// the apexes' height, which beside a horn's cusp is far below `1e-15`.
+fn oracle_slack(bound: f64, rho: f64, z: f64, h: f64) -> f64 {
+    bound * 1e-9 + 8.0 * f64::EPSILON * (rho.abs() + z.abs() + h)
 }
 
 /// The exact distance in the meridian half-plane from `(ρ, z)` to the
 /// sheet `{(R + r cos v, r sin v) : |v| ≤ v*}`: the circle's nearest
 /// point where that lies at `ρ ≥ 0`, else the nearer apex (the arc's
-/// ends, `(0, ±√(r² − R²))`).
+/// ends, `(0, ±h)`, `h = √(r² − R²)`). The nearest point's `ρ` is
+/// `R + r(ρ − R)/m`; squaring `R·m ≥ r(R − ρ)` with
+/// `m² = (ρ − R)² + z²` gives the condition without `m`: on an apple or
+/// a horn `ρ ≥ R` or `R|z| ≥ h(R − ρ)`, on a lemon `|R||z| ≤ h(ρ − R)`,
+/// so a horn's foot is always on it. `m − r` is formed as
+/// `(ρ(ρ − 2R) + z² + (R − r)(R + r))/(m + r)`, which keeps its digits
+/// beside a horn's cusp.
 fn sheet_distance(major: f64, minor: f64, rho: f64, z: f64) -> f64 {
-    let m = ((rho - major).powi(2) + z * z).sqrt();
-    if major + minor * (rho - major) / m >= 0.0 {
-        (m - minor).abs()
+    let h = ((minor - major) * (minor + major)).max(0.0).sqrt();
+    let on_arc = if major > 0.0 {
+        rho >= major || major * z.abs() >= h * (major - rho)
     } else {
-        let h = geom::sheet_apex(major, minor).height;
+        major.abs() * z.abs() <= h * (rho - major)
+    };
+    if on_arc {
+        let m = ((rho - major).powi(2) + z * z).sqrt();
+        ((rho * (rho - 2.0 * major) + z * z + (major - minor) * (major + minor)) / (m + minor))
+            .abs()
+    } else {
         (rho * rho + (z - h).powi(2))
             .sqrt()
             .min((rho * rho + (z + h).powi(2)).sqrt())
@@ -721,10 +747,11 @@ fn sheet_distance(major: f64, minor: f64, rho: f64, z: f64) -> f64 {
 
 /// **A spindle sheet's bound is this sheet's distance**: wherever
 /// [`Meters::certified`] reads a box in a sheet's meridian half-plane
-/// ([`Meters::over`], or the apex reading where that refuses), the
-/// distance of every point of the box from THIS sheet (not the torus's
-/// other sheet, and not its circle past the apexes) is at most the
-/// bound. Lemons and apples of every proportion, the box seeded on the
+/// (the least of [`Meters::over`], the reading at the box's height and
+/// the apex reading), the distance of every point of the box from THIS
+/// sheet (not the torus's other sheet, and not its circle past the
+/// apexes) is at most the bound. Lemons, apples of every proportion and
+/// the horn (one draw in eight), the box seeded on the
 /// sheet, on the other sheet, at an apex, on the axis or anywhere near,
 /// at scales from `1e-9` to `1e-1`, as a point or a small box; `|f|`'s
 /// sup is read on a grid of the box and doubled, so a miss is the
@@ -751,6 +778,10 @@ fn a_spindle_bound_is_this_sheets_distance() {
         let mut u = s.range(-0.98, 0.98);
         if u.abs() < 0.02 {
             u = 0.5;
+        }
+        // One draw in eight is the horn.
+        if s.unit() < 0.125 {
+            u = 1.0;
         }
         let major = minor * u;
         let h = (minor * minor - major * major).sqrt();
@@ -795,7 +826,7 @@ fn a_spindle_bound_is_this_sheets_distance() {
                 };
                 let rho = rho_lo + (rho_hi - rho_lo) * at(a);
                 let z = z_lo + (z_hi - z_lo) * at(b);
-                f_sup = f_sup.max(sheet_form(major, minor, rho, z).abs());
+                f_sup = f_sup.max(sheet_form(major, minor, rho, z));
                 far = far.max(sheet_distance(major, minor, rho, z));
             }
         }
@@ -808,7 +839,7 @@ fn a_spindle_bound_is_this_sheets_distance() {
         );
         if let Some(bound) = read {
             assert!(
-                far <= bound * (1.0 + 1e-9) + 1e-15,
+                far <= bound + oracle_slack(bound, rho_hi, z_lo.abs().max(z_hi.abs()), h),
                 "draw {i}: R {major} r {minor}, box ρ [{rho_lo}, {rho_hi}] z [{z_lo}, {z_hi}]: \
                  a point {far} from the sheet past the bound {bound}; {}",
                 fuzz::replay()
@@ -821,7 +852,8 @@ fn a_spindle_bound_is_this_sheets_distance() {
 /// apexes**, as `spans_of` reads it (each lever certified positive when
 /// its enclosure's lower end is): boxes seeded on this sheet, on the
 /// other, or at an apex, at scales `1e-12` to `1e-3`, on sheets from a
-/// fat lemon or apple to within `1e-9` of the horn. The bound's upper
+/// fat lemon or apple to within `1e-9` of the horn, and on the horn
+/// itself (one draw in eight), beside its cusp. The bound's upper
 /// end bounds every sampled point's distance from this sheet.
 #[test]
 fn a_spindle_bound_is_this_sheets_distance_at_interval() {
@@ -829,8 +861,15 @@ fn a_spindle_bound_is_this_sheets_distance_at_interval() {
     let mut s = fuzz::start("a_spindle_bound_is_this_sheets_distance_at_interval");
     for i in 0..fuzz::scaled(60_000) {
         let minor = s.range(0.2, 2.0);
-        let gap = s.log_uniform(1e-9, 0.9);
-        let sign = if s.unit() < 0.5 { -1.0 } else { 1.0 };
+        // One draw in eight is the horn, its apexes one cusp.
+        let (gap, sign) = if s.unit() < 0.125 {
+            (0.0, 1.0)
+        } else {
+            (
+                s.log_uniform(1e-9, 0.9),
+                if s.unit() < 0.5 { -1.0 } else { 1.0 },
+            )
+        };
         let major = sign * minor * (1.0 - gap);
         let h = geom::sheet_apex(major, minor).height;
         let apex = if s.unit() < 0.5 { h } else { -h };
@@ -872,7 +911,7 @@ fn a_spindle_bound_is_this_sheets_distance_at_interval() {
                 };
                 let rho = rho_lo + (rho_hi - rho_lo) * at(a);
                 let z = z_lo + (z_hi - z_lo) * at(b);
-                f_sup = f_sup.max(sheet_form(major, minor, rho, z).abs());
+                f_sup = f_sup.max(sheet_form(major, minor, rho, z));
                 far = far.max(sheet_distance(major, minor, rho, z));
             }
         }
@@ -892,12 +931,99 @@ fn a_spindle_bound_is_this_sheets_distance_at_interval() {
             )
         };
         assert!(
-            far <= bound.hi() * (1.0 + 1e-9) + 1e-15,
+            far <= bound.hi() + oracle_slack(bound.hi(), rho_hi, z_lo.abs().max(z_hi.abs()), h),
             "draw {i}: R {major} r {minor}, box ρ [{rho_lo}, {rho_hi}] z [{z_lo}, {z_hi}]: \
              a point {far} from the sheet past {}; {}",
             bound.hi(),
             fuzz::replay()
         );
+    }
+}
+
+/// **A part beside a horn's cusp is read at its own height**: the horn
+/// `R = r = 1` and the box `ρ ∈ [0, 4.4·10⁻¹⁶]`, `z ∈ [7, 9]·10⁻¹¹`, a
+/// stretch of its meridian a net with `f64` rounding encloses (the sheet
+/// runs at `ρ ≈ z²/2 ≈ 3·10⁻²¹` there). The lever `(ρ + R)² + z² − r²`
+/// is only `z² ≈ 5·10⁻²¹` at the box's least, so `|f|` over it reads
+/// about `10⁻¹⁰` where the side check lets it read at all; the sheet's
+/// point at each height, `ρ_s(z)`, puts every
+/// point of the box within its width, `4.4·10⁻¹⁶`, which is what
+/// [`Meters::certified`] reads.
+///
+/// [`Meters::certified`]: super::super::projected::Meters::certified
+#[test]
+fn a_part_beside_a_horns_cusp_is_read_at_its_own_height() {
+    use super::super::projected::Meters;
+    let (major, minor) = (1.0_f64, 1.0_f64);
+    let (rho, z) = ((0.0, 4.4e-16), (7e-11, 9e-11));
+    let mut f_sup = 0.0_f64;
+    for (a, b) in [(rho.0, z.0), (rho.0, z.1), (rho.1, z.0), (rho.1, z.1)] {
+        f_sup = f_sup.max(sheet_form(major, minor, a, b));
+    }
+    let f_sup = 2.0 * f_sup;
+    let positive = |x: f64, _| if x > 0.0 { Ok(x) } else { Err(()) };
+    let lever = Meters::Spindle { major, minor }.over(f_sup, rho, z, positive);
+    assert!(
+        !lever.is_ok_and(|d| d <= 1e-11),
+        "the lever's reading is refused or the rounding over z²: {lever:?}"
+    );
+    let pt = |x: f64| Interval::from_bounds(x, x);
+    let read = Meters::Spindle {
+        major: pt(major),
+        minor: pt(minor),
+    }
+    .certified(pt(f_sup), (pt(rho.0), pt(rho.1)), z, |l| {
+        l.is_certified() && l.lo() > 0.0
+    });
+    let Some(read) = read else {
+        panic!("a part beside the cusp reads")
+    };
+    assert!(
+        read.hi() <= 1e-15,
+        "the height reading is the box's width: {}",
+        read.hi()
+    );
+    for (a, b) in [(rho.0, z.0), (rho.0, z.1), (rho.1, z.0), (rho.1, z.1)] {
+        let d = sheet_distance(major, minor, a, b);
+        assert!(
+            d <= read.hi(),
+            "({a}, {b}) is {d} from the horn, past {}",
+            read.hi()
+        );
+    }
+}
+
+/// **A sheet's reading is the least that reads**: on the horn
+/// `R = r = 1`, the box `ρ ∈ [0.04, 0.06]`, `z ∈ [0.3, 0.3001]` across
+/// the sheet (at `ρ_s(0.3) ≈ 0.046`). The lever and the side check both
+/// clear, and `|f|` over the lever reads about `0.017`; the sheet's point
+/// at the box's height reads `0.014`, which [`Meters::certified`] takes.
+///
+/// [`Meters::certified`]: super::super::projected::Meters::certified
+#[test]
+fn a_sheets_reading_is_the_least_that_reads() {
+    use super::super::projected::Meters;
+    let (major, minor) = (1.0_f64, 1.0_f64);
+    let (rho, z) = ((0.04, 0.06), (0.3, 0.3001));
+    let mut f_sup = 0.0_f64;
+    for (a, b) in [(rho.0, z.0), (rho.0, z.1), (rho.1, z.0), (rho.1, z.1)] {
+        f_sup = f_sup.max(sheet_form(major, minor, a, b));
+    }
+    let meters = Meters::Spindle { major, minor };
+    let positive = |x: f64, _| if x > 0.0 { Ok(x) } else { Err(()) };
+    let Ok(over) = meters.over(f_sup, rho, z, positive) else {
+        panic!("the lever and the side check clear")
+    };
+    let Some(read) = meters.certified(f_sup, rho, z, |x| x > 0.0) else {
+        panic!("the part reads")
+    };
+    assert!(
+        read < 0.015 && read < over,
+        "{read} is not the least of {over} and the height's"
+    );
+    for (a, b) in [(rho.0, z.0), (rho.0, z.1), (rho.1, z.0), (rho.1, z.1)] {
+        let d = sheet_distance(major, minor, a, b);
+        assert!(d <= read, "({a}, {b}) is {d} from the horn, past {read}");
     }
 }
 
@@ -927,7 +1053,7 @@ fn a_parts_past_a_sheets_apex_is_refused_by_the_side_check() {
         "the circle's distance {whole} under-reads the sheet's {own}"
     );
     assert!(whole * major.abs() > minor * rho, "the side check fails");
-    let f = sheet_form(major, minor, rho, z).abs();
+    let f = sheet_form(major, minor, rho, z);
     let positive = |x: f64, which| if x > 0.0 { Ok(x) } else { Err(which) };
     let got = Meters::Spindle { major, minor }.over(f, (rho, rho), (z, z), positive);
     assert_eq!(got, Err(Lever::Side), "the side check refuses");
@@ -1979,7 +2105,7 @@ fn moved_stored_scalars_are_dominated() {
     let sphere = unit_sphere();
     let c = tilted_on(1.0, 0.7, 0.3);
     let mut image = project(&c, Some((0.3, 2.1)), &sphere, b).unwrap();
-    if let FramedCarrier::Circle { ref mut centre, .. } = image.carrier {
+    if let FramedCarrier::Conic { ref mut centre, .. } = image.carrier {
         *centre = *centre + Vec3::new(eta, -eta, eta);
     }
     check("the circle's stored centre", image, &c, &sphere, 0.3, 2.1);

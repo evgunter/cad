@@ -84,15 +84,15 @@
 //!   other refuses.
 //! - **Projected** ([`ProjectedEdgeQ`]): the chart's inverse applied to
 //!   the carrier written in the chart's frame (`Pcurve::Projected`), a
-//!   rational net ([`FramedQ::Net`]), a circle ([`FramedQ::Circle`]) or a
-//!   line ([`FramedQ::Line`]).
+//!   rational net ([`FramedQ::Net`]), a circle's or an ellipse's harmonic
+//!   form ([`FramedQ::Conic`]) or a line ([`FramedQ::Line`]).
 //!   At the frame point `(x, y, z)` the azimuth's rate is
 //!   `u′ = (x·y′ − y·x′)/(x² + y²)`, which reads no branch, and the
 //!   cylinder's level is `v = v_off + v_sign·z` (the image's deck map).
 //!   On a net `P = B/w`, `u′ = (B_x·B_y′ − B_y·B_x′)/(B_x² + B_y²)` (the
 //!   weight cancels) and `z = B_z/w`. Both read through the curved rims'
 //!   Taylor rule ([`crate::props::taylor`]; a net span by span,
-//!   [`crate::props::rational_rim`]), with every span, and the circle's
+//!   [`crate::props::rational_rim`]), with every span, and the conic's
 //!   interval, cut at the image's sector breaks. On the cylinder those
 //!   cuts guard no soundness: a break is where the image's evaluator
 //!   changes branch, and the rule's integrand reads no branch, so it is
@@ -104,7 +104,7 @@
 //!   rule's, and the closure reads the two against each other, so an
 //!   image whose evaluator reads a branch its integral does not is
 //!   caught rather than integrated through. Each span or interval is
-//!   read in the pieces its own turn and length need ([`span_schedule`]),
+//!   read in the pieces its own turn needs ([`span_schedule`]),
 //!   doubling per round, so a chord of many short spans reads one piece
 //!   a span and a span by the axis as many as its turn needs.
 //!
@@ -228,12 +228,12 @@ fn face_cost(
 
 /// One piece's weight on a projected carrier: a net's at a rational
 /// rim's ([`w_rational`]: the same piece forms, read by Horner), a
-/// circle's at a spiric's ([`W_SPIRIC`]: the same trig jets and one
+/// conic's at a spiric's ([`W_SPIRIC`]: the same trig jets and one
 /// reciprocal), and a line's at a degree-1 rim's.
 fn framed_weight(carrier: &FramedQ) -> usize {
     match carrier {
         FramedQ::Net(net) => w_rational(net.degree()),
-        FramedQ::Circle { .. } => W_SPIRIC,
+        FramedQ::Conic { .. } => W_SPIRIC,
         FramedQ::Line { .. } => w_rational(1),
     }
 }
@@ -287,7 +287,7 @@ fn span_schedule(p: &ProjectedEdgeQ) -> Schedule {
         FramedQ::Net(net) => rational_span_pieces(net, MOST_SPAN_PIECES, |b, db, w, h| {
             fits(&net_rate(b, db, w), h)
         }),
-        FramedQ::Circle { cuts, .. } | FramedQ::Line { cuts, .. } => cuts
+        FramedQ::Conic { cuts, .. } | FramedQ::Line { cuts, .. } => cuts
             .windows(2)
             .map(|w| {
                 pieces_where(
@@ -385,10 +385,10 @@ pub enum FramedQ {
     /// ([`crate::props::rational_rim::rational_edge_q_split`], built
     /// forward: the edge's traversal is [`ProjectedEdgeQ::forward`]).
     Net(RationalEdgeQ),
-    /// A circle `centre + a·cos t + b·sin t`, read over `cuts`: the
+    /// A circle or an ellipse `centre + a·cos t + b·sin t`, read over `cuts`: the
     /// edge's carrier interval, its ends and the image's sector breaks
     /// inside it, increasing, each an exact parameter.
-    Circle {
+    Conic {
         /// The centre.
         centre: RVec3,
         /// The `cos t` coefficient.
@@ -398,7 +398,7 @@ pub enum FramedQ {
         /// The interval's ends and the breaks between them.
         cuts: Vec<f64>,
     },
-    /// A line `point + dir·t`, read over `cuts` as a circle is.
+    /// A line `point + dir·t`, read over `cuts` as a conic is.
     Line {
         /// The point at `t = 0`.
         point: RVec3,
@@ -558,7 +558,7 @@ fn sphere_area(radius: Interval) -> Interval {
 /// A projected image's frame point over a piece or at a node, as the
 /// chart table reads it: the azimuth's rate `u′`, and the carrier's
 /// homogeneous point `p`, its derivative `p′` and its weight `w` (a
-/// circle's or a line's weight is `1`).
+/// conic's or a line's weight is `1`).
 struct FrameJets {
     du: Jet,
     p: [Jet; 3],
@@ -806,9 +806,9 @@ fn net_rate(b: [Jet; 3], db: [Jet; 3], w: Jet) -> FrameJets {
     }
 }
 
-/// The frame point of a projected circle at the trig jets `c`, `s` of
+/// The frame point of a projected conic at the trig jets `c`, `s` of
 /// its parameter.
-fn circle_rate(centre: RVec3, a: RVec3, b: RVec3, c: Jet, s: Jet) -> FrameJets {
+fn conic_rate(centre: RVec3, a: RVec3, b: RVec3, c: Jet, s: Jet) -> FrameJets {
     let p = [0, 1, 2].map(|k| Jet::cst(centre[k]).add(c.scale(a[k])).add(s.scale(b[k])));
     let dp = [0, 1, 2].map(|k| c.scale(b[k]).sub(s.scale(a[k])));
     unit_weight(p, dp)
@@ -830,14 +830,14 @@ fn unit_weight(p: [Jet; 3], dp: [Jet; 3]) -> FrameJets {
     }
 }
 
-/// The frame point of a projected circle or line at `t`, a circle's
+/// The frame point of a projected conic or line at `t`, a conic's
 /// through the trig jets of `t`. A net has none here: its spans are read
 /// through [`rational_integrals_each`], and its reading is refused.
 fn analytic_rate(carrier: &FramedQ, t: Interval) -> FrameJets {
     match carrier {
-        FramedQ::Circle { centre, a, b, .. } => {
+        FramedQ::Conic { centre, a, b, .. } => {
             let (_, cj, sj) = trig_jets(t);
-            circle_rate(*centre, *a, *b, cj, sj)
+            conic_rate(*centre, *a, *b, cj, sj)
         }
         FramedQ::Line { point, dir, .. } => line_rate(*point, *dir, Jet::var(t)),
         FramedQ::Net(_) => {
@@ -852,14 +852,14 @@ fn analytic_rate(carrier: &FramedQ, t: Interval) -> FrameJets {
     }
 }
 
-/// A circle's or a line's cut intervals, as the rule reads intervals.
+/// A conic's or a line's cut intervals, as the rule reads intervals.
 fn cut_intervals(cuts: &[f64]) -> impl Iterator<Item = (f64, f64, ())> + '_ {
     cuts.windows(2).map(|w| (w[0], w[1], ()))
 }
 
 /// `∫ g(frame point) dt` of a projected edge in its carrier's own order
 /// at `pieces(i)` pieces on span or cut interval `i`, with the part of each width a
-/// later round removes: a net span by span, a circle or a line over its
+/// later round removes: a net span by span, a conic or a line over its
 /// cuts.
 fn framed_integrals<const N: usize>(
     carrier: &FramedQ,
@@ -870,7 +870,7 @@ fn framed_integrals<const N: usize>(
         FramedQ::Net(net) => {
             rational_integrals_each(net, pieces, |b, db, w| g(&net_rate(b, db, w)))
         }
-        FramedQ::Circle { cuts, .. } | FramedQ::Line { cuts, .. } => composite_each(
+        FramedQ::Conic { cuts, .. } | FramedQ::Line { cuts, .. } => composite_each(
             cut_intervals(cuts)
                 .enumerate()
                 .map(|(i, (a, b, ()))| (a, b, (), pieces(i))),
@@ -936,7 +936,7 @@ fn projected_metric_length(e: &ProjectedEdgeQ, chart: RotationalChartQ) -> f64 {
         FramedQ::Net(net) => rational_rate_bound(net, PROJECTED_ENTRY_PIECES, |b, db, w| {
             rate(&net_rate(b, db, w))
         }),
-        FramedQ::Circle { cuts, .. } | FramedQ::Line { cuts, .. } => rate_bound_over(
+        FramedQ::Conic { cuts, .. } | FramedQ::Line { cuts, .. } => rate_bound_over(
             cut_intervals(cuts),
             PROJECTED_ENTRY_PIECES,
             |(), _, _| (),
