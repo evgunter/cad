@@ -7,7 +7,7 @@ opened: 2026-11-02
 priority: P1
 cost: H
 refs: [tier-3-prime-reads-no-side-where-a-solid-touches-itself-at-a-point-on-a-curved-face]
-pr: PRNUM
+pr: 6816
 branch: restread/self-touch-lunes
 ---
 
