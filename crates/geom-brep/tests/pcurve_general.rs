@@ -740,3 +740,177 @@ fn kinds_are(
 ) -> bool {
     kinds.is_some_and(|(c, k)| chart.is_none_or(|x| x == c) && carrier.is_none_or(|x| x == k))
 }
+
+// ---------------- review 6532 delta probes ----------------
+
+/// The ring of `ring_wall`, its `v` direction split at `z = 0` by a knot at
+/// `v = 0.3`, degree 1: `v(z)` kinks there, so the foot path kinks too.
+fn review_ring_v() -> NurbsSurface<f64> {
+    let h = 0.6_f64;
+    let mut ku = vec![0.0; 3];
+    ku.extend([0.5; 2]);
+    ku.extend([1.0; 3]);
+    let (mut control, mut weights) = (Vec::new(), Vec::new());
+    for j in 0..=4 {
+        let theta = f64::from(j) * h / 2.0;
+        let (reach, w) = if j % 2 == 1 {
+            (1.0 / (h / 2.0).cos(), (h / 2.0).cos())
+        } else {
+            (1.0, 1.0)
+        };
+        for z in [-0.5, 0.0, 0.5] {
+            control.push(Point3::new(reach * theta.cos(), reach * theta.sin(), z));
+            weights.push(w);
+        }
+    }
+    NurbsSurface::new(
+        KnotVector::clamped(ku, 2).unwrap(),
+        KnotVector::clamped(vec![0.0, 0.0, 0.3, 1.0, 1.0], 1).unwrap(),
+        control,
+        weights,
+    )
+    .unwrap()
+}
+
+/// The ellipse the unit cylinder is cut in by `z = z0 + k·(x cos φ + y sin φ)`,
+/// parametrized so its point at `t` is at azimuth `t + φ`.
+fn review_ellipse_dir(k: f64, z0: f64, phi: f64) -> Curve3<f64> {
+    let s = (1.0 + k * k).sqrt();
+    let (c, sn) = (phi.cos(), phi.sin());
+    Curve3::Ellipse(geom::Ellipse::new(
+        geom::Frame::new(
+            Point3::new(0.0, 0.0, z0),
+            Vec3::new(-k * c / s, -k * sn / s, 1.0 / s),
+            Vec3::new(c / s, sn / s, k / s),
+        ),
+        s,
+        1.0,
+    ))
+}
+fn review_route<T: geom_core::Decide + geom_core::CertifiedBounds>(
+    name: &str,
+    carrier: &Curve3<f64>,
+    span: (f64, f64),
+    wall: &NurbsSurface<f64>,
+) {
+    let lane = FittedLane::<T>::certified();
+    let lift = |x: f64| T::from_f64(x);
+    let carrier = carrier.map_scalar(lift);
+    let wall = wall.map_scalar(lift);
+    let wall2 = wall.clone();
+    let (t0, t1) = (lift(span.0), lift(span.1));
+    let start = std::time::Instant::now();
+    let image = lane.general_image(&carrier, (t0, t1), &wall, band());
+    let t_img = start.elapsed();
+    let Ok(image) = image else {
+        println!("PROBE {name} at {}: image refused {:?} ({t_img:?})", T::NAME, image.err());
+        return;
+    };
+    let ctl = image.control().len();
+    let img = Arc::new(image);
+    let start = std::time::Instant::now();
+    let got = PcurveCache::certify_general(
+        Arc::clone(&img),
+        t0,
+        t1,
+        &carrier,
+        &Surface::Nurbs(Arc::new(wall)),
+        band(),
+        Some(lane),
+    );
+    let t_cert = start.elapsed();
+    if let Err(e) = &got {
+        let m = geom_brep::minted_refusal(
+            e.clone(),
+            &Pcurve::General(Arc::clone(&img)),
+            &carrier,
+            &Surface::Nurbs(Arc::new(wall2.clone())),
+        );
+        println!("PROBE {name} at {}: minted ending: {:?} :: {}", T::NAME, m, m.ending(Reading::Build));
+    }
+    println!(
+        "PROBE {name} at {}: control={ctl} image {t_img:?} cert {t_cert:?}: {:?}",
+        T::NAME,
+        got.as_ref().map(|r| r.certificate().envelope).map_err(|e| e.clone())
+    );
+}
+
+fn review_delta<T: geom_core::Decide + geom_core::CertifiedBounds>() {
+    let w = review_ring_v();
+    let c6 = 0.6_f64.cos();
+    // sanity: the carrier lies on the wall where z = z0 + k cos(t) (φ = 0).
+    // Through the corner (u = ½, v = 0.3): both lines crossed at one t.
+    for (name, span) in [("corner, at a foot", (0.0, 1.2)), ("corner, between feet", (0.05, 1.15))] {
+        review_route::<T>(name, &review_ellipse_dir(0.4, -0.4 * c6, 0.0), span, &w);
+    }
+    // Near the corner: the two crossings apart by roughly dz / slope.
+    for dz in [1e-12, 1e-9, 1e-6, 1e-3] {
+        review_route::<T>(
+            &format!("near corner dz={dz:e}"),
+            &review_ellipse_dir(0.4, -0.4 * c6 + dz, 0.0),
+            (0.05, 1.15),
+            &w,
+        );
+    }
+    // A shallow crossing of the v line.
+    for k in [1e-2, 1e-3] {
+        review_route::<T>(
+            &format!("shallow k={k:e}"),
+            &review_ellipse_dir(k, -k * c6, 0.0),
+            (0.05, 1.15),
+            &w,
+        );
+    }
+    // Two crossings of the v line within one first-rung step (the
+    // documented blind spot), and a touch at the top.
+    for (name, delta) in [("double in one step", 1e-5), ("double in three steps", 3e-4), ("tangent touch", 0.0)] {
+        review_route::<T>(
+            name,
+            &review_ellipse_dir(0.1, -0.1 + delta, 0.6),
+            (-0.55, 0.55),
+            &w,
+        );
+    }
+}
+
+#[test]
+fn review_6532_delta_at_f64() {
+    review_delta::<f64>();
+}
+
+#[test]
+fn review_6532_delta_at_interval() {
+    review_delta::<geom_core::Interval>();
+}
+
+#[test]
+fn review_6532_corner_knots() {
+    let w = review_ring_v();
+    let c6 = 0.6_f64.cos();
+    let lane = FittedLane::<f64>::certified();
+    for span in [(0.0, 1.2), (0.05, 1.15)] {
+        let e = review_ellipse_dir(0.4, -0.4 * c6, 0.0);
+        let image = lane.general_image(&e, span, &w, band()).unwrap();
+        let ks: Vec<(f64, usize)> = image.knot_values().runs().filter(|(k, _)| (k - 0.6).abs() < 0.05).collect();
+        println!("CORNER {span:?}: knots near 0.6: {ks:?}");
+        for (k, _) in &ks {
+            println!("   {k:.20}");
+        }
+    }
+}
+
+#[test]
+fn review_6532_crossing_cost() {
+    let ring = ring_wall();
+    for (name, span) in [
+        ("at a foot", (0.0, 1.2)),
+        ("between", (0.013, 1.2)),
+        ("between short", (0.0, 1.19)),
+        ("between both", (0.05, 1.17)),
+        ("near start", (0.57, 1.2)),
+        ("past foot 3e-5", (0.0, 0.6 / (0.5 + 3e-5 / 32.0))),
+    ] {
+        review_route::<f64>(&format!("COST {name}"), &circle(0.0), span, &ring);
+        review_route::<geom_core::Interval>(&format!("COST {name}"), &circle(0.0), span, &ring);
+    }
+}
