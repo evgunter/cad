@@ -1179,3 +1179,58 @@ fn the_wrap_loop_bounds_the_whole_torus() {
         );
     }
 }
+
+/// **The count window holds every count its reading admits**: a face's
+/// signed area `X`, read wide, is its area up to whole tori, so the
+/// reading must hold `X + N·4π²Rr` clipped to `(0, 4π²Rr]` for every `N`
+/// whose value meets that window, and the flux at each such `N`. An
+/// enumeration of the reading's cases on the torus `(1.3, 0.45)`: `X`
+/// straddling `0` (counts `0` and `1`), straddling a whole torus (counts
+/// `−1` and `0`), wider than a torus (four counts, the whole window), and
+/// narrow (one count), each against every admissible count's area and
+/// flux, computed here from `A = 4π²Rr` and `Φ = 6π²Rr²` alone.
+#[test]
+fn the_count_window_holds_every_admissible_count() {
+    let (big, r) = (1.3_f64, 0.45_f64);
+    let whole = 4.0 * PI * PI * big * r;
+    let whole_flux = 6.0 * PI * PI * big * r * r;
+    let flux = 0.25;
+    for (x, counts) in [
+        ((-0.5, 0.7), vec![0.0, 1.0]),
+        ((whole - 0.3, whole + 0.2), vec![-1.0, 0.0]),
+        ((-whole - 1.0, whole + 1.0), vec![-1.0, 0.0, 1.0, 2.0]),
+        ((5.0, 6.0), vec![0.0]),
+    ] {
+        let face = super::super::torus_face(
+            (pt(big), pt(r)),
+            true,
+            &[[pt(flux), Interval::from_bounds(x.0, x.1)]],
+        );
+        for &n in &counts {
+            let (lo, hi) = ((x.0 + n * whole).max(0.0), (x.1 + n * whole).min(whole));
+            let label = format!("X {x:?}, count {n}");
+            for a in [lo, hi, 0.5 * (lo + hi)] {
+                assert!(
+                    face.area.lo() <= a && a <= face.area.hi(),
+                    "{label}: the area {a} escapes {:?}",
+                    face.area
+                );
+            }
+            let f = flux + n * whole_flux;
+            assert!(
+                face.flux.lo() <= f && f <= face.flux.hi(),
+                "{label}: the flux {f} escapes {:?}",
+                face.flux
+            );
+        }
+        // No count outside those admitted widens the reading.
+        let n_lo = counts[0];
+        let n_hi = counts[counts.len() - 1];
+        assert!(
+            face.flux.lo() >= flux + n_lo * whole_flux - 1e-9
+                && face.flux.hi() <= flux + n_hi * whole_flux + 1e-9,
+            "X {x:?}: the flux {:?} reads a count outside {counts:?}",
+            face.flux
+        );
+    }
+}

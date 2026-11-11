@@ -1840,13 +1840,14 @@ fn torus_face(radii: (Interval, Interval), outward: bool, per_loop: &[[Interval;
     if lo > hi {
         return refused;
     }
+    // Two counts or more read the whole window: the lowest's value
+    // reaches below `0` and the highest's above `A`, one torus apart.
     let window = Interval::from_bounds(0.0, area_whole.hi());
-    let at = |n: f64| (x + pt(n) * area_whole).meet(window);
     TorusFace {
-        area: if hi - lo >= 2.0 {
-            window
+        area: if lo == hi {
+            (x + pt(lo) * area_whole).meet(window)
         } else {
-            Interval::hull(at(lo), at(hi))
+            window
         },
         flux: Interval::hull(
             flux + sense * pt(lo) * flux_whole,
