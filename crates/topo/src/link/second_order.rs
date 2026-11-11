@@ -4,8 +4,9 @@
 //! where every sheet is a horn, the thorn they bound ([`thorns`]); and a
 //! ray where sheets' bounds or planes meet without an edge they share,
 //! whether the sheets part across it ([`parts`]); and two sheets on one
-//! wedge, bounded by the same two edges, which side of the other each
-//! bends to ([`lenses`]).
+//! wedge, pinched at its ends by edges both faces hold, capped by a horn
+//! or open where one runs on, which side of the other each bends to
+//! ([`lenses`]: lenses and lunes).
 //!
 //! The picture these read, the cut square to the tied ray scaled by
 //! `2/s²`, and why a sign read at the arm with the first order's residue
@@ -435,7 +436,7 @@ fn misses<T: Decide>(
     }
 }
 
-/// What a lens holds between its two sheets ([`lenses`]).
+/// What a lens or a lune holds between its two sheets ([`lenses`]).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(super) enum Lens {
     /// Void: each sheet stands on the other's outward side.
@@ -444,72 +445,31 @@ pub(super) enum Lens {
     Sliver,
 }
 
-/// **The link's lenses, one order down**: pairs of sectors bounded at
-/// the point by the same two edges, each one's first edge the other's
-/// last, on each other to first order ([`on_each_other`]) and not both
-/// planes (two planes on each other are a slit,
-/// [`super::rest::one_material`]'s to refuse). Each pair's kind is the
-/// sign of its sheets' second-order gap at the wedge's middle
-/// ([`lens`]). A candidate pair that does not read, or a sector in two
-/// pairs, is [`crate::CurvedUnread::Unreadable`]. The argument:
+/// **The link's lenses and lunes, one order down**: pairs of sectors on
+/// one wedge `W`, `W` the whole of one of them, `j`, and the first or
+/// last wedge of the other, `i`, taken the other way round, each end of
+/// `W` closing ([`Close`]), and not both planes (two planes on each other
+/// are a slit, [`super::rest::one_material`]'s to refuse). Both ends
+/// pinches is a **lens**; a cap or a mouth at either end, a **lune**.
+/// Each pair's kind is read by [`kind`]. A candidate pair that does not
+/// read, or a sector in two pairs, is
+/// [`crate::CurvedUnread::Unreadable`]; a pair whose ends do not close is
+/// none, and its sheets stay on each other. The argument:
 /// `crates/topo/README.md`, beside the first-order one.
-///
-/// Then the **lunes**: a pair `(i, j)` on one wedge `W`, `j`'s one wedge
-/// and `i`'s first or last, not both planes and on each other to first
-/// order, whose ends ([`Close`]) are not both pinches, read by
-/// [`lune`]. A lune whose sector is in another pair is
-/// [`crate::CurvedUnread::Unreadable`]; a pair whose ends do not close
-/// is no lune, and its sheets stay on each other.
 pub(super) fn lenses<T: Decide>(
     link: &Link<T>,
     rd: Reading<T>,
 ) -> Result<Vec<OneWedge<T>>, TouchUnread> {
     let n = link.cone.sectors.len();
-    let tangent = |k: usize| link.faces[k].tangent;
     let unread = TouchUnread::Curved(CurvedUnread::Unreadable);
     let mut out: Vec<OneWedge<T>> = Vec::new();
-    for i in 0..n {
-        for j in i + 1..n {
-            let (Some(ti), Some(tj)) = (tangent(i), tangent(j)) else {
-                continue;
-            };
-            let (Some([i0, i1]), Some([j0, j1])) = (ti.bounds, tj.bounds) else {
-                continue;
-            };
-            if i0.edge != j1.edge || i1.edge != j0.edge || i0.edge == i1.edge {
-                continue;
-            }
-            if (super::rest::planar(link, i) && super::rest::planar(link, j))
-                || !on_each_other(link, [i, j], rd)
-            {
-                continue;
-            }
-            if out
-                .iter()
-                .any(|w| w.pair.contains(&i) || w.pair.contains(&j))
-            {
-                return Err(unread);
-            }
-            let Some(&wedge) = link.cone.sectors[i].wedges.first() else {
-                return Err(unread);
-            };
-            out.push(OneWedge {
-                pair: [i, j],
-                wedge,
-                kind: lens(link, [i, j], rd).ok_or(unread)?,
-                caps: Vec::new(),
-                rest: None,
-            });
-        }
-    }
-    let lenses = out.len();
     for j in 0..n {
         for i in (0..n).filter(|&i| i != j) {
-            let Some(found) = lune(link, [i, j], rd) else {
+            let Some(found) = pair(link, [i, j], rd) else {
                 continue;
             };
-            // Two sectors of one wedge each are one lune either way round.
-            if out[lenses..].iter().any(|w| w.pair == [j, i]) {
+            // Two sectors of one wedge each are one pair either way round.
+            if out.iter().any(|w| w.pair == [j, i]) {
                 continue;
             }
             if out
@@ -525,61 +485,40 @@ pub(super) fn lenses<T: Decide>(
 }
 
 /// **Two sectors on one wedge, read one order down** ([`lenses`]): the
-/// pair, sector `j`'s one wedge `wedge` (the first's sector, whose one
-/// wedge it is, for a lens), what lies between their sheets, the horns
-/// that close it (`(horn, a point of its ray)`), and, where the first
-/// runs on past the wedge, that sector less it, bounded at the mouth by
-/// the second's edge there.
+/// pair `[i, j]`, `j`'s one wedge `wedge` and `j` itself as `own`, what
+/// lies between their sheets, the horns that cap it
+/// (`(horn, a point of its ray)`), and, where `i` runs on past the wedge
+/// (a mouth), `i` less it, bounded at the mouth by `j`'s edge there.
 pub(super) struct OneWedge<T: Decide> {
     pub(super) pair: [usize; 2],
     pub(super) wedge: Segment<T>,
+    pub(super) own: usize,
     pub(super) kind: Lens,
     pub(super) caps: Vec<(usize, Point3<T>)>,
     pub(super) rest: Option<FaceSector<T>>,
 }
 
-/// How a lune's sheets meet at one end of its wedge ([`lune`]).
+/// How a pair's sheets meet at one end of its wedge ([`pair`]).
 #[derive(Clone, Copy)]
 enum Close {
-    /// Both sectors bounded there by one edge, or by two lines: both
-    /// faces hold the curve, and their sheets meet along it.
-    Pinch,
+    /// Both sectors bounded there as their faces keep it
+    /// ([`Bound::kept_with`]): one edge, or two lines on one line, which
+    /// both faces hold. `straight` where the edges are lines.
+    Pinch { straight: bool },
     /// Both bounded there by the two edges of the horn with this index,
     /// which spans the gap between the sheets.
     Cap(usize),
-    /// The first sector runs on past the end, which is a ray of its fan.
+    /// `i` runs on past the end, which is a ray of its fan.
     Mouth,
 }
 
-/// Whether `x` lies on the ray through `r`, both on the plane through `p`
-/// of normal `m`.
-fn same_ray<T: Decide>(
-    p: Point3<T>,
-    m: Vec3<T>,
-    r: Point3<T>,
-    x: Point3<T>,
-    rd: Reading<T>,
-) -> bool {
-    wedge_side(p, m, r, x, rd) == Some(Sign::Zero) && ahead(p, r, x, rd) == Some(Sign::Positive)
-}
-
-/// **The pair `(i, j)` as a lune** ([`lenses`]): `None` where it is no
-/// candidate — `j` not one wedge, `W`, `i` not holding `W` reversed as its
-/// first or last wedge, both planes, not on each other, both ends
-/// pinches (a lens, or two lines at each end), or an end that does not
-/// close ([`Close`]); `Some(None)` where it is one and does not read.
-///
-/// Along `W` from `u₀` to `u₁`, the second sheet past the first along the
-/// first's outward `m` is the quadratic form
-/// `q((1 − t)u₀ + t·u₁) = b₀(1 − t)² + 2b₁t(1 − t) + b₂t²`, `b₀ = q(u₀)`,
-/// `b₂ = q(u₁)`, `b₁` its polar value. A pinch reads its `b` Zero; a cap or
-/// a mouth reads its `b` decided, one sign `σ` for all of them, with the
-/// two planes' parting along that ray charged; `b₁` reads Zero or `σ`,
-/// with the parting at the middle charged. `σ` positive is a void, each
-/// sheet on the other's outward side, and a cap's horn must face into
-/// `W` for a void and out of it for a sliver. The argument:
-/// `crates/topo/README.md`, beside the lens's.
-fn lune<T: Decide>(
+/// **The pair `(i, j)` on one wedge** ([`lenses`]): `None` where it is no
+/// candidate — `j` not one wedge, `W`, `i` not holding `W` the other way
+/// round as its first or last wedge, both planes, not on each other, both
+/// ends pinches by `i`'s one edge, or an end that does not close
+/// ([`Close`]); `Some(None)` where it is one and does not read
+/// ([`kind`]).
+fn pair<T: Decide>(
     link: &Link<T>,
     [i, j]: [usize; 2],
     rd: Reading<T>,
@@ -598,8 +537,9 @@ fn lune<T: Decide>(
     {
         return None;
     }
-    let along =
-        |(a, b): Segment<T>| same_ray(p, s.outward, a, d, rd) && same_ray(p, s.outward, b, c, rd);
+    let along = |(a, b): Segment<T>| {
+        super::on_ray(p, s.outward, a, d, rd) && super::on_ray(p, s.outward, b, c, rd)
+    };
     let (&first, &last) = (s.wedges.first()?, s.wedges.last()?);
     let at_first = along(first);
     if !at_first && !along(last) {
@@ -608,37 +548,42 @@ fn lune<T: Decide>(
     // `W` as `i` holds it, from its ray at `d` to its ray at `c`.
     let (x, y) = if at_first { first } else { last };
     let only = s.wedges.len() == 1;
+    // A horn's two edges leave its vertex along one ray (`corner_fan`'s
+    // cusp), so its edge out is read on the ray and stands for both.
     let close = |ei: Option<Bound<T>>, ej: Bound<T>, ray: Point3<T>| match ei {
         None => Some(Close::Mouth),
-        Some(ei) if ei.edge == ej.edge || (ei.line && ej.line) => Some(Close::Pinch),
+        Some(ei) if ei.kept_with(ej) => Some(Close::Pinch {
+            straight: ei.line && ej.line,
+        }),
         Some(ei) => link
             .horns
             .iter()
             .position(|h| {
-                let [(e0, b0), (e1, b1)] = h.ends;
+                let [(e0, b0), (_, b1)] = h.ends;
                 ((b0.edge, b1.edge) == (ei.edge, ej.edge)
                     || (b0.edge, b1.edge) == (ej.edge, ei.edge))
-                    && same_ray(p, s.outward, ray, h.apex + e0, rd)
-                    && same_ray(p, s.outward, ray, h.apex + e1, rd)
+                    && super::on_ray(p, s.outward, ray, h.apex + e0, rd)
             })
             .map(Close::Cap),
     };
     let at_d = close(at_first.then_some(i0), j1, x)?;
     let at_y = close((!at_first || only).then_some(i1), j0, y)?;
-    if matches!((at_d, at_y), (Close::Pinch, Close::Pinch)) {
+    // A sector bounded both ways by one closed edge is no lens.
+    if matches!((at_d, at_y), (Close::Pinch { .. }, Close::Pinch { .. })) && i0.edge == i1.edge {
         return None;
     }
     let ends = [(y, at_y), (x, at_d)];
-    let rest = match ends.iter().find(|(_, e)| matches!(e, Close::Mouth)) {
-        None => None,
-        Some(_) => {
+    let rest = ends
+        .iter()
+        .any(|(_, e)| matches!(e, Close::Mouth))
+        .then(|| {
             let n = s.wedges.len();
             let (wedges, bounds) = if at_first {
                 (s.wedges[1..].to_vec(), [j0, i1])
             } else {
                 (s.wedges[..n - 1].to_vec(), [i0, j1])
             };
-            Some(FaceSector {
+            FaceSector {
                 sector: Sector {
                     outward: s.outward,
                     apex: s.apex,
@@ -652,29 +597,49 @@ fn lune<T: Decide>(
                     }),
                     ..link.faces[i].clone()
                 },
-            })
-        }
-    };
+            }
+        });
     let caps = ends
         .iter()
         .filter_map(|&(r, e)| match e {
             Close::Cap(h) => Some((h, r)),
-            Close::Pinch | Close::Mouth => None,
+            Close::Pinch { .. } | Close::Mouth => None,
         })
         .collect();
-    Some(lune_kind(link, [i, j], ends, rd).map(|kind| OneWedge {
+    Some(kind(link, [i, j], ends, rd).map(|kind| OneWedge {
         pair: [i, j],
         wedge: (c, d),
+        own: j,
         kind,
         caps,
         rest,
     }))
 }
 
-/// **A lune's kind** ([`lune`]): the sign `σ` its open ends read, each
-/// pinch read Zero and the polar value `b₁` Zero or `σ`, each cap's horn
-/// facing as `σ` says; `None` where any of these does not hold.
-fn lune_kind<T: Decide>(
+/// Whether sector `k`'s face is developable: a plane, a cylinder or a
+/// cone, whose tangent plane is one along each line it holds.
+fn developable<T: Decide>(link: &Link<T>, k: usize) -> bool {
+    matches!(
+        link.faces[k].surface,
+        geom::Surface::Plane { .. } | geom::Surface::Cylinder { .. } | geom::Surface::Cone { .. }
+    )
+}
+
+/// **A pair's kind** ([`pair`]). Along `W` from `u₀` to `u₁`, the second
+/// sheet past the first along the first's outward `m` is the quadratic
+/// form `q((1 − t)u₀ + t·u₁) = b₀(1 − t)² + 2b₁t(1 − t) + b₂t²`, `b₀ = q(u₀)`,
+/// `b₂ = q(u₁)`, `b₁` its polar value
+/// ([`crate::bound_side::FaceBend::section`], polarised). A pinch reads
+/// its `b` Zero; a cap or a mouth reads its `b` decided, one sign `σ` for
+/// all of them; `b₁` reads `σ`, or Zero where every pinch is two lines on
+/// developable faces ([`developable`]); where no end is open, `b₁` alone
+/// decides `σ` (a lens). Each sign is read at the arm with the two planes'
+/// parting along its ray charged. `σ` positive is a void, each sheet on
+/// the other's outward side, and a cap's horn must face into `W` for a
+/// void and out of it for a sliver. `None` where any of these does not
+/// hold or a face has no certified bend. The argument:
+/// `crates/topo/README.md`, beside the first-order one.
+fn kind<T: Decide>(
     link: &Link<T>,
     [i, j]: [usize; 2],
     ends: [(Point3<T>, Close); 2],
@@ -701,22 +666,25 @@ fn lune_kind<T: Decide>(
     let gap = |r: T| Distance::departure(Departure::Parted(m * r), m, arm);
     // The two planes' parting along the unit `u`: its distance off each,
     // whichever sector's rays it was read from.
-    let parting = |rd: Reading<T>, u: Vec3<T>| {
+    let parting = |u: Vec3<T>| {
         rd.charged(Distance::of(p + u * l, p, s.outward))
             .charged(Distance::of(p + u * l, p, t.outward))
     };
     let [u0, u1] = ends.map(|(q, _)| (q - p).normalize());
     let mut sigma: Option<Sign> = None;
+    let (mut pinched, mut straight) = (false, true);
     for (u, close) in [(u0, ends[0].1), (u1, ends[1].1)] {
         let b = gap(rise(u)?);
         match close {
-            Close::Pinch => {
+            Close::Pinch { straight: line } => {
+                pinched = true;
+                straight &= line;
                 if metric::sign_as(LINK_SECOND_ORDER, b, rd.band) != Some(Sign::Zero) {
                     return None;
                 }
             }
             Close::Cap(_) | Close::Mouth => {
-                match metric::settle_as(LINK_SECOND_ORDER, b, parting(rd, u)) {
+                match metric::settle_as(LINK_SECOND_ORDER, b, parting(u)) {
                     Ok(g @ (Sign::Positive | Sign::Negative)) if sigma.is_none_or(|x| x == g) => {
                         sigma = Some(g);
                     }
@@ -725,14 +693,24 @@ fn lune_kind<T: Decide>(
             }
         }
     }
-    let sigma = sigma?;
+    // At a pinch `b₀` is zero, and `b₁` Zero leaves the sheets' parting
+    // beside it to third order: two curves on both faces may leave the
+    // pinch's ray there, one of them inside `W`. Two developable faces
+    // holding one line are tangent along all of it, so their parting is
+    // `t²` times a function `b₂`'s sign holds near it. With no pinch the
+    // form is `b₀(1 − t)² + b₂t²` there, of one sign.
+    let flat = !pinched || (straight && developable(link, i) && developable(link, j));
     let mid = (u0 + u1).normalize();
     let polar = (rise(u0 + u1)? - rise(u0)? - rise(u1)?) * T::from_f64(0.5);
-    match metric::settle_as(LINK_SECOND_ORDER, gap(polar), parting(rd, mid)) {
-        Ok(Sign::Zero) => {}
-        Ok(g) if g == sigma => {}
+    let sigma = match (
+        metric::settle_as(LINK_SECOND_ORDER, gap(polar), parting(mid)),
+        sigma,
+    ) {
+        (Ok(Sign::Zero), Some(g)) if flat => g,
+        (Ok(g @ (Sign::Positive | Sign::Negative)), None) => g,
+        (Ok(g), Some(e)) if g == e => g,
         _ => return None,
-    }
+    };
     for (_, close) in ends {
         if let Close::Cap(h) = close
             && toward(p, l, mid, link.horns[h].outward, rd) != Some(sigma)
@@ -759,50 +737,4 @@ fn on_each_other<T: Decide>(link: &Link<T>, [i, j]: [usize; 2], rd: Reading<T>) 
     };
     toward(p, reach(p, a - p).length(), t.outward, s.outward, rd) == Some(Sign::Negative)
         && super::rest::in_plane_of(link, i, j, rd)
-}
-
-/// **One pair's lens** ([`lenses`]): the second sheet's height past the
-/// first's along the first's outward normal, one order down
-/// ([`crate::bound_side::FaceBend::section`]), Zero at both bounds and
-/// decided at the wedge's middle at the arm with the second plane's
-/// parting there charged ([`Reading::charged`]): positive a void,
-/// negative a sliver. `None` where a sector is more than one wedge, a
-/// face has no certified bend, a bound does not read Zero, or the middle
-/// does not decide.
-fn lens<T: Decide>(link: &Link<T>, [i, j]: [usize; 2], rd: Reading<T>) -> Option<Lens> {
-    let p = link.cone.p;
-    let (s, t) = (&link.cone.sectors[i], &link.cone.sectors[j]);
-    let (&[(a, b)], &[(c, d)]) = (s.wedges.as_slice(), t.wedges.as_slice()) else {
-        return None;
-    };
-    let m = s.outward;
-    let arm = [a, b, c, d]
-        .into_iter()
-        .map(|q| reach(p, q - p))
-        .fold(reach(p, a - p), Lever::min);
-    let l = arm.length();
-    let bend = |k: usize| {
-        let face = &link.faces[k];
-        crate::bound_side::FaceBend::at(&face.surface, face.sense, link.cone.sectors[k].apex)
-    };
-    let (first, second) = (bend(i), bend(j));
-    // The second sheet past the first along `m` at the arm, one order
-    // down along the unit `u`.
-    let gap = |u: Vec3<T>| -> Option<Distance<T>> {
-        let rise = second.section(u, m)? - first.section(u, m)?;
-        Some(Distance::departure(Departure::Parted(m * rise), m, arm))
-    };
-    let (u0, u1) = ((a - p).normalize(), (b - p).normalize());
-    for u in [u0, u1] {
-        if metric::sign_as(LINK_SECOND_ORDER, gap(u)?, rd.band) != Some(Sign::Zero) {
-            return None;
-        }
-    }
-    let mid = (u0 + u1).normalize();
-    let residue = Distance::of(p + mid * l, p, t.outward);
-    match metric::settle_as(LINK_SECOND_ORDER, gap(mid)?, rd.charged(residue)) {
-        Ok(Sign::Positive) => Some(Lens::Void),
-        Ok(Sign::Negative) => Some(Lens::Sliver),
-        Ok(Sign::Zero) | Err(_) => None,
-    }
 }

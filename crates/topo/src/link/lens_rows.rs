@@ -1436,3 +1436,95 @@ fn a_crescents_slivers_open_into_the_material_at_its_rim_f64() {
 fn a_crescents_slivers_open_into_the_material_at_its_rim_interval() {
     a_crescents_slivers_open_into_the_material_at_its_rim::<Interval>();
 }
+
+/// `(x, y, z)` as a vector, unturned.
+fn raw<T: Real>(x: f64, y: f64, z: f64) -> Vec3<T> {
+    Vec3::new(T::from_f64(x), T::from_f64(y), T::from_f64(z))
+}
+
+/// **A tacnode at a curved pinch**: the torus `R = 2`, `r = 1` at meridian
+/// angle 120° through `p`, and the cylinder through `p` of radius `1/k₁`
+/// (`k₁` the torus's curvature along its parallel there) about the line
+/// along the meridian's tangent through the parallel's centre of
+/// curvature. They are tangent at `p` and their form's kernel is the
+/// parallel's direction `e_p`: by mirror symmetry the polar value on
+/// `e_p` and the meridian's tangent `t_m` is zero, and the cylinder
+/// stands `½` behind the torus along `t_m`. At third order they meet in
+/// two curves tangent to `e_p`, `y = 0.19x²` and `y = 0.58x²`. Read as a
+/// void lune pinched by the first along `−e_p` and capped along `t_m` by
+/// a floor square to `e_p` facing `floor`.
+fn tacnode<T: Decide>(
+    p: Point3<T>,
+    floor: f64,
+    senses: (bool, bool),
+    k: [EdgeKey; 3],
+) -> Vec<TangentPiece<T>> {
+    let (rr, r) = (2.0, 1.0);
+    let a = 120f64.to_radians();
+    let n = raw::<T>(a.cos(), 0.0, a.sin());
+    let ep = raw::<T>(0.0, 1.0, 0.0);
+    let tm = raw::<T>(-a.sin(), 0.0, a.cos());
+    let torus = geom::Surface::Torus {
+        center: p - raw::<T>(rr + r * a.cos(), 0.0, r * a.sin()),
+        axis: raw(0.0, 0.0, 1.0),
+        major_radius: T::from_f64(rr),
+        minor_radius: T::from_f64(r),
+        u_ref: raw(1.0, 0.0, 0.0),
+    };
+    let k1 = a.cos() / (rr + r * a.cos());
+    let cylinder = geom::Surface::Cylinder {
+        origin: p - n * T::from_f64(1.0 / k1),
+        axis: tm,
+        radius: T::from_f64((1.0 / k1).abs()),
+        u_ref: n,
+    };
+    let pinch = curve(k[0], n * T::from_f64(k1) + tm * T::from_f64(0.385));
+    let arc = curve(k[1], -n);
+    let rim = line::<T>(k[2]);
+    let (u1, z) = (tm * T::from_f64(2.0), ep * T::from_f64(-2.0));
+    let m = ep * T::from_f64(-floor);
+    let ends = if floor > 0.0 { [rim, arc] } else { [arc, rim] };
+    vec![
+        corner_along(p, (torus, senses.0), n, (u1, z), [arc, pinch]),
+        corner_along(p, (cylinder, senses.1), -n, (z, u1), [pinch, rim]),
+        corner_along(p, (plane(p, m), true), m, (u1, u1), ends),
+    ]
+}
+
+/// **A curved pinch whose polar value reads zero is not read**: the torus
+/// and the cylinder of [`tacnode`] cross inside the wedge at third order,
+/// along a second curve tangent to the pinch's, and the lune they make is
+/// not read under any face sense or floor. Two developable faces pinched
+/// on one line are tangent along all of it, and their lune, its polar
+/// value zero too, rests ([`lune`]). Red where a zero polar value is taken
+/// beside a curved pinch, or refused beside a straight one.
+fn a_curved_pinch_whose_polar_value_reads_zero_is_not_read<T: Decide>() {
+    for p in apexes::<T>() {
+        let k = edges(3);
+        let k = [k[0], k[1], k[2]];
+        for floor in [1.0, -1.0] {
+            for senses in [(true, true), (true, false), (false, true), (false, false)] {
+                let got = read(p, tacnode(p, floor, senses, k));
+                assert!(
+                    !matches!(got, TouchVerdict::Rest(_)),
+                    "a tacnode at {p:?}, floor {floor}, senses {senses:?}: {got:?}"
+                );
+            }
+        }
+        let got = read(p, lune(p, [1.0, 2.0], 1.0, true, k));
+        assert!(
+            matches!(got, TouchVerdict::Rest(_)),
+            "a lune pinched on a line at {p:?}: {got:?}"
+        );
+    }
+}
+
+#[test]
+fn a_curved_pinch_whose_polar_value_reads_zero_is_not_read_f64() {
+    a_curved_pinch_whose_polar_value_reads_zero_is_not_read::<f64>();
+}
+
+#[test]
+fn a_curved_pinch_whose_polar_value_reads_zero_is_not_read_interval() {
+    a_curved_pinch_whose_polar_value_reads_zero_is_not_read::<Interval>();
+}

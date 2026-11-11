@@ -838,6 +838,14 @@ pub(crate) struct Bound<T: Real> {
     pub(crate) bend: Vec3<T>,
 }
 
+impl<T: Real> Bound<T> {
+    /// Whether two bounds along one ray lie there as their faces keep
+    /// them: one edge, or two lines on one line.
+    pub(crate) fn kept_with(self, other: Self) -> bool {
+        self.edge == other.edge || (self.line && other.line)
+    }
+}
+
 /// **Where a face meets the point, to first order** — the shape
 /// [`FaceSector::tangent`] builds its sector in: rays from the apex in
 /// the face's tangent plane, each a direction scaled to the reach it is
@@ -4522,7 +4530,7 @@ pub(crate) mod rest {
     fn kept_bound<T: Decide>(
         link: &Link<T>,
         j: usize,
-        super::Bound { edge, line, .. }: super::Bound<T>,
+        bound: super::Bound<T>,
         r: Point3<T>,
         rd: Reading<T>,
     ) -> bool {
@@ -4534,7 +4542,7 @@ pub(crate) mod rest {
         tags.into_iter().zip(rays).any(|(tag, b)| {
             wedge_side(p, t.outward, b, r, rd) == Some(Sign::Zero)
                 && ahead(p, b, r, rd) == Some(Sign::Positive)
-                && (tag.edge == edge || (tag.line && line))
+                && tag.kept_with(bound)
         })
     }
 
@@ -4709,9 +4717,9 @@ pub(crate) mod rest {
     /// The link is first held to close ([`Cone::closes`]); a tangent link
     /// with two planar faces on each other refuses then ([`slit`]), and
     /// is otherwise held to its first order ([`first_order`]); one whose
-    /// sheets pair into lenses is read over the rest of it, horns and all
-    /// ([`lensed`]), and any other holds its horns to the thorns they
-    /// bound.
+    /// sheets pair into lenses or lunes is read over the rest of it, its
+    /// horns but the lunes' caps among it ([`lensed`]), and any other
+    /// holds its horns to the thorns they bound.
     pub(crate) fn one_material<T: Decide>(link: &Link<T>, band: Band) -> TouchVerdict {
         // The link is read against its own planes and rays: the reading
         // over the pair it makes with itself.
@@ -4725,8 +4733,8 @@ pub(crate) mod rest {
         if let Some(why) = first_order(link, rd) {
             return TouchVerdict::Unread(why);
         }
-        // A link with lenses reads its horns against its remainder, which
-        // its lenses' doubled sheets do not cloud.
+        // A link with lenses or lunes reads its horns against its
+        // remainder, which their doubled sheets do not cloud.
         match super::second_order::lenses(link, rd) {
             Ok(lenses) if lenses.is_empty() => {}
             Ok(lenses) => return lensed(link, &lenses, band, rd),
@@ -5031,8 +5039,7 @@ pub(crate) mod rest {
         let mut notes = Notes::default();
         for w in lenses {
             let ([i, j], (a, b)) = (w.pair, w.wedge);
-            // The wedge as the sector whose one wedge it is.
-            let s = &sectors[if w.rest.is_some() { j } else { i }];
+            let s = &sectors[w.own];
             let others: Vec<usize> = (0..sectors.len()).filter(|&k| k != i && k != j).collect();
             if crosses_in_ball(link, &others, &rays, (a, b), rd, &mut notes) {
                 return TouchVerdict::Crossing;
@@ -5052,17 +5059,21 @@ pub(crate) mod rest {
             // (`parts`); so is a sheet in the lens plane holding the whole
             // wedge, the wedge's bounds lying inside it. A lune's own caps
             // close it; at a cap's ray `parts` reads the sheets but not the
-            // cap between them, so no other sector may reach that ray.
+            // cap between them, so no other sheet may reach that ray.
             let reaches = (0..link.horns.len())
                 .filter(|&h| !w.caps.iter().any(|&(c, _)| c == h))
                 .any(|h| {
                     let h = &link.horns[h];
                     on_sector(&link.cone, s, h.apex + h.ends[0].0, rd) != Some(false)
                 });
+            // The sector that runs on past a mouth is no other sector, but
+            // its fan past the wedge may come round to the cap's ray.
             let crowded = w.caps.iter().any(|&(_, r)| {
                 others
                     .iter()
-                    .any(|&k| on_sector(&link.cone, &sectors[k], r, rd) != Some(false))
+                    .map(|&k| &sectors[k])
+                    .chain(w.rest.as_ref().map(|f| &f.sector))
+                    .any(|t| on_sector(&link.cone, t, r, rd) != Some(false))
             });
             if reaches || crowded {
                 notes.in_band = true;
