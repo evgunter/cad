@@ -154,7 +154,9 @@ pub(crate) fn decided_glue<'d, T: Decide + Bounds>(
     let declared = |fa, fb| decls.pairs.iter().any(|d| d.a == fa && d.b == fb);
     // Each pair is read over its two faces first: which pairs are one
     // carrier is what says which faces the glue decides.
-    let mut found = Vec::new();
+    // Each pair's slot, in enumeration order: a tangency or nothing now,
+    // a one-carrier pair once its census is read.
+    let mut found: Vec<Option<GluedPair<T>>> = Vec::new();
     let mut ones = Vec::new();
     for (fa, fb) in overlapping_pairs(a, b, |_| true, band)? {
         if declared(fa, fb) {
@@ -162,10 +164,11 @@ pub(crate) fn decided_glue<'d, T: Decide + Bounds>(
         }
         match carrier_pair_decided(a, fa, b, fb, band) {
             Ok(Ok(CarrierVerdict::One { relation, margin })) => {
-                ones.push((fa, fb, relation, margin));
+                ones.push((found.len(), fa, fb, relation, margin));
+                found.push(None);
             }
             Ok(Ok(CarrierVerdict::Apart(_) | CarrierVerdict::TwoKinds))
-            | Err(PairUnread::OutsideInventory) => found.extend(
+            | Err(PairUnread::OutsideInventory) => found.push(
                 tangency(a, fa, b, fb, band)?.map(|tangency| GluedPair::tangent(fa, fb, tangency)),
             ),
             // In band, or unread: left to the stage that meets the pair
@@ -174,14 +177,14 @@ pub(crate) fn decided_glue<'d, T: Decide + Bounds>(
         }
     }
     let mut decided = decls.one_carrier_faces();
-    for &(fa, fb, ..) in &ones {
+    for &(_, fa, fb, ..) in &ones {
         decided[0].insert(fa);
         decided[1].insert(fb);
     }
     // A one-carrier pair's verdict is the one read over every face it
     // moves: the pair's own where it moves its decided face alone, read
     // again over the closure where that moves more.
-    for (fa, fb, relation, margin) in ones {
+    for (slot, fa, fb, relation, margin) in ones {
         let census = GlueCensus::of((a, fa), (b, fb), &decided, None);
         let verdict =
             if census.moved.len() == 1 && census.moved.contains(&census.decided_face((fa, fb))) {
@@ -201,10 +204,11 @@ pub(crate) fn decided_glue<'d, T: Decide + Bounds>(
                     _ => None,
                 }
             };
-        found.extend(verdict.and_then(|(relation, margin)| {
+        found[slot] = verdict.and_then(|(relation, margin)| {
             GluedPair::one_carrier(fa, fb, relation, margin, census.kept)
-        }));
+        });
     }
+    let found: Vec<GluedPair<T>> = found.into_iter().flatten().collect();
     if found.is_empty() {
         return Ok(Cow::Borrowed(decls));
     }
