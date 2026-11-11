@@ -385,8 +385,19 @@ fn torus_holds(
         .any(|e| e.harmonic.as_ref().is_some_and(|h| h.env.hi() > 0.0));
     let got = torus_run(d, outward, loops, about, floor)
         .unwrap_or_else(|e| panic!("{label}: the lane refused: {e:?}"));
-    encloses(got.flux, flux, &format!("{label} flux"));
-    encloses(got.area, region[0], &format!("{label} area"));
+    holds(got.flux, flux, &format!("{label} flux"));
+    holds(got.area, region[0], &format!("{label} area"));
+}
+
+/// **`x` holds `truth` to the oracle's own rounding**: the fixtures'
+/// Simpson sums and closed forms round in `f64`, a few ulps at the
+/// value's scale, which a thin enclosure would otherwise be held to.
+fn holds(x: Interval, truth: f64, label: &str) {
+    let slack = 8.0 * f64::EPSILON * truth.abs().max(1.0);
+    assert!(
+        x.lo() - slack <= truth && truth <= x.hi() + slack,
+        "{label}: the closed form {truth} escapes the certified enclosure {x:?}"
+    );
 }
 
 /// The whole torus less `region`.
@@ -662,8 +673,10 @@ fn a_far_torus_holds_its_closed_forms() {
     );
 }
 
-/// **Refusals**: a torus that is not a ring torus, and a projected image
-/// whose deck level is no name of the tube angle.
+/// **Refusals**: a torus that is not a ring torus, or whose radii are
+/// refused brackets; a harmonic image that is neither a rim nor a
+/// meridian; and a projected image whose deck level is no name of the
+/// tube angle, or whose inverse reads another torus's core.
 #[test]
 fn the_toruss_arm_refuses_what_it_cannot_read() {
     let d = Donut::tilted(Point3::new(0.4, -0.2, 0.3), 1.3, 0.45);
@@ -692,6 +705,41 @@ fn the_toruss_arm_refuses_what_it_cannot_read() {
     assert!(
         matches!(spindle, Err(PropsError::QuadratureUnsupported { .. })),
         "a spindle torus: {spindle:?}"
+    );
+    // A ring torus's radii must be certified brackets: a refused one is no
+    // ring torus, whatever its endpoints say.
+    face.chart = RotationalChartQ::Torus {
+        major: Interval::refused(),
+        minor: pt(0.45),
+        outward: true,
+    };
+    let unread =
+        rotational_cut_face_rounds::<f64>(&face, band, RoundWindow::SCHEDULE, &mut to_target(1e-9));
+    assert!(
+        matches!(unread, Err(PropsError::QuadratureUnsupported { .. })),
+        "a refused major radius: {unread:?}"
+    );
+    // A harmonic torus image is a rim or a meridian, and any other refuses.
+    let mut slanted = torus_face(
+        d,
+        true,
+        &patch(d, (0.3, 1.9), (-0.7, 1.1), true, [false; 4]),
+        about,
+    )
+    .unwrap();
+    if let EdgeTermQ::Harmonic(h) = &mut slanted.loops[0][0] {
+        h.v.ca = pt(0.1);
+    }
+    let slanted = rotational_cut_face_rounds::<f64>(
+        &slanted,
+        band,
+        RoundWindow::SCHEDULE,
+        &mut to_target(1e-9),
+    );
+    assert!(
+        matches!(slanted, Err(PropsError::QuadratureUnsupported { what })
+            if what.contains("neither a rim nor a meridian")),
+        "a harmonic image neither a rim nor a meridian: {slanted:?}"
     );
     let surface = d.surface();
     let arc = Arc::rim(d, 0.3, (0.0, 1.0), true);
@@ -770,8 +818,8 @@ fn an_image_whose_end_is_named_a_turn_up_holds_its_closed_form() {
         .flatten()
         .fold(Vec3::zero(), |va, e| va + e.arc.vector_area(d.c));
     let [area, flux] = d.rectangle(us, vs);
-    encloses(got.area, area, "area");
-    encloses(got.flux, flux + (d.c - about).dot(va), "flux");
+    holds(got.area, area, "area");
+    holds(got.flux, flux + (d.c - about).dot(va), "flux");
 }
 
 // ---------------------------------------------------------------------
@@ -1088,7 +1136,7 @@ fn the_spiric_arms_residual_pad_pays_the_area_the_envelope_moves() {
         );
         let chart = face.chart;
         let entry = edge_entry(&face.loops[0][0], chart).unwrap();
-        let (t, _) = torus_edge_terms(&face.loops[0][0], &entry, (pt(big), pt(r)), 2);
+        let (t, _) = torus_edge_terms(&face.loops[0][0], &entry, face.chart, 2);
         (t[0].width(), t[1].width())
     };
     let ((f1, a1), (f0, a0)) = (widths(env), widths(0.0));
@@ -1167,12 +1215,12 @@ fn the_wrap_loop_bounds_the_whole_torus() {
         let [area, flux] = d.whole();
         let got = torus_run(d, true, &loops, about, true)
             .unwrap_or_else(|e| panic!("swapped {swap:?}: the lane refused: {e:?}"));
-        encloses(
+        holds(
             got.area,
             area,
             &format!("the whole torus (swapped {swap:?}) area"),
         );
-        encloses(
+        holds(
             got.flux,
             flux + (d.c - about).dot(va),
             &format!("the whole torus (swapped {swap:?}) flux"),
@@ -1233,4 +1281,277 @@ fn the_count_window_holds_every_admissible_count() {
             face.flux
         );
     }
+}
+
+/// A loop's every edge split in two at `0.37·a + 0.63·b`, traversal kept:
+/// a rim at level `at` or a meridian at azimuth `at`.
+fn split(
+    d: Donut,
+    e: &TorusEdge,
+    rim_at: Option<f64>,
+    at: f64,
+    (a, b): (f64, f64),
+) -> Vec<TorusEdge> {
+    let m = 0.37 * a + 0.63 * b;
+    let fw = e.arc.forward;
+    let mk = |s: (f64, f64)| match rim_at {
+        Some(level) => rim(d, level, s, fw, e.swap),
+        None => meridian(d, at, s, fw, e.swap),
+    };
+    let mut v = vec![mk((a, m)), mk((m, b))];
+    if !fw {
+        v.reverse();
+    }
+    v
+}
+
+/// **An all-harmonic sector between two meridians, whole and split**:
+/// loops that wind the tube with no image swapped, read to the oracle's
+/// rounding ([`holds`]), each meridian whole and in two.
+#[test]
+fn an_all_harmonic_sector_holds_its_closed_form_whole_and_split() {
+    let d = Donut::tilted(Point3::new(0.4, -0.2, 0.3), 1.3, 0.45);
+    let about = Point3::new(0.1, 0.5, -0.2);
+    let (u0, u1) = (0.4, 2.1);
+    let sector = d.rectangle((u0, u1), (0.0, TAU));
+    let whole = vec![
+        vec![meridian(d, u1, (-PI, PI), true, false)],
+        vec![meridian(d, u0, (-PI, PI), false, false)],
+    ];
+    torus_holds("the sector, whole", d, true, &whole, sector, about);
+    let parts: Vec<Vec<TorusEdge>> = whole
+        .iter()
+        .map(|l| {
+            let at = if l[0].arc.forward { u1 } else { u0 };
+            split(d, &l[0], None, at, (-PI, PI))
+        })
+        .collect();
+    torus_holds("the sector, split", d, true, &parts, sector, about);
+}
+
+/// **A band whose images stand off their carriers in the level**: an
+/// inner- and an outer-equator band, both rims swapped, each image's ends
+/// read `δ` off its carrier's level outward (`r·δ` its envelope), on three
+/// tori. The level anchor reads the image's own level at the carrier's
+/// start, so the band's terms move by `κ·δ·Δu`, which the anchor's pad
+/// pays ([`torus_edge_terms`]); on the inner side the map residual's
+/// `ρ < R` alone does not.
+#[test]
+fn a_band_whose_images_stand_off_in_the_level_holds_its_closed_form() {
+    let band = Band::linear(Tol::witness()).unwrap();
+    for (big, r) in [(1.3, 0.45), (1.0, 0.8), (1.0, 0.95)] {
+        let d = Donut::tilted(Point3::new(0.4, -0.2, 0.3), big, r);
+        for (side, low, high) in [("inner", PI - 0.05, PI + 0.05), ("outer", -0.05, 0.05)] {
+            for delta in [1e-7, 1e-6, 1e-5] {
+                let loops = vec![
+                    vec![rim(d, low, (0.0, TAU), true, true)],
+                    vec![rim(d, high, (0.0, TAU), false, true)],
+                ];
+                let mut face = torus_face(d, true, &loops, d.c).unwrap();
+                for (i, l) in face.loops.iter_mut().enumerate() {
+                    for edge in l {
+                        if let EdgeTermQ::Projected(p) = edge {
+                            let s = if i == 0 { -1.0 } else { 1.0 };
+                            for end in &mut p.ends {
+                                end.1 = end.1 + pt(s * delta);
+                            }
+                            p.env = pt(delta * r);
+                        }
+                    }
+                }
+                let label = format!("R {big}, r {r}, the {side} band, δ {delta:e}");
+                let got = rotational_cut_face_rounds::<f64>(
+                    &face,
+                    band,
+                    RoundWindow::SCHEDULE,
+                    &mut to_target(1e-15),
+                )
+                .unwrap_or_else(|e| panic!("{label}: {e:?}"))
+                .bounds;
+                let [area, flux] = d.rectangle((0.0, TAU), (low, high));
+                holds(got.area, area, &format!("{label} area"));
+                holds(got.flux, flux, &format!("{label} flux"));
+            }
+        }
+    }
+}
+
+/// **A connector after a branch turn reads the lift at the edge before's
+/// end**: the image-end-turn-up patch (its swapped top rim's end named
+/// `2π` up, a level branch turn of `+1`) with its left meridian standing
+/// `0.9e-6` m off in `u`, so the junction after the top rim leaves a
+/// connector read where the chain has gained that branch turn
+/// ([`LoopLift`]'s `ends`).
+#[test]
+fn a_connector_after_a_branch_turn_reads_the_lift_at_its_edges_end() {
+    let d = Donut::tilted(Point3::new(0.4, -0.2, 0.3), 1.3, 0.45);
+    let about = Point3::new(0.1, 0.5, -0.2);
+    let (us, vs) = ((0.3, 1.9), (-0.7, 1.1));
+    let rho = d.big + d.r;
+    let mut loops = patch(d, us, vs, true, [false, false, true, false]);
+    {
+        let left = loops[0][3].harmonic.as_mut().unwrap();
+        left.u.c0 = left.u.c0 + pt(0.9e-6 / rho);
+        left.env = pt(1e-6);
+    }
+    let mut face = torus_face(d, true, &loops, about).unwrap();
+    let EdgeTermQ::Projected(top) = &mut face.loops[0][2] else {
+        panic!("the top rim is swapped")
+    };
+    top.ends[1].1 = top.ends[1].1 + pt(TAU);
+    let got = rotational_cut_face_rounds::<f64>(
+        &face,
+        Band::linear(Tol::witness()).unwrap(),
+        RoundWindow::SCHEDULE,
+        &mut to_target(1e-9),
+    )
+    .unwrap_or_else(|e| panic!("the lane refused: {e:?}"))
+    .bounds;
+    let va = loops
+        .iter()
+        .flatten()
+        .fold(Vec3::zero(), |va, e| va + e.arc.vector_area(d.c));
+    let [area, flux] = d.rectangle(us, vs);
+    holds(got.area, area, "area");
+    holds(got.flux, flux + (d.c - about).dot(va), "flux");
+}
+
+/// **A hole stored before its band is read against it**: the outer band
+/// with a patch inside it, the patch stored first. Wound against the face
+/// it holds the band less the patch; wound with it, it refuses
+/// [`PropsError::RingWoundWithFace`] rather than read band and patch
+/// together: with a winding pair every loop that winds nothing is a hole,
+/// wherever it is stored.
+#[test]
+fn a_hole_stored_before_its_band_is_read_against_it() {
+    let d = Donut::tilted(Point3::new(0.4, -0.2, 0.3), 1.3, 0.45);
+    let about = Point3::new(0.1, 0.5, -0.2);
+    let (low, high) = (-0.6, 0.5);
+    let band = d.rectangle((0.0, TAU), (low, high));
+    let (us, vs) = ((0.5, 1.4), (-0.3, 0.2));
+    let hole = d.rectangle(us, vs);
+    for swap in [[false, false], [true, true]] {
+        let rims = || {
+            vec![
+                vec![rim(d, low, (0.0, TAU), true, swap[0])],
+                vec![rim(d, high, (0.0, TAU), false, swap[1])],
+            ]
+        };
+        let mut loops = patch(d, us, vs, false, [swap[0], false, false, swap[1]]);
+        loops.extend(rims());
+        torus_holds(
+            &format!("the band less a hole stored first (swapped {swap:?})"),
+            d,
+            true,
+            &loops,
+            [band[0] - hole[0], band[1] - hole[1]],
+            about,
+        );
+        let mut loops = patch(d, us, vs, true, [swap[0], false, false, swap[1]]);
+        loops.extend(rims());
+        let got = rotational_cut_face_rounds::<f64>(
+            &torus_face(d, true, &loops, about).unwrap(),
+            Band::linear(Tol::witness()).unwrap(),
+            RoundWindow::SCHEDULE,
+            &mut to_target(1e-9),
+        );
+        assert!(
+            matches!(got, Err(PropsError::RingWoundWithFace)),
+            "a hole stored first wound with its band (swapped {swap:?}): {:?}",
+            got.map(|r| r.bounds)
+        );
+    }
+}
+
+/// **A spiric loop whose image stops short of its vertices**: the
+/// spiric loop lifted `100` turns up the tube angle (every name of the
+/// chart's points, harmonic and spiric, a whole number of turns up), its
+/// spiric edge read over `[t₀ + η, t₁ − η]` (its envelope `0.3·η`, past
+/// the gap's metric length `|P′|·η`). The chain is open at both of the
+/// spiric's junctions, and their connectors carry `G(v)·Δu` there with
+/// `G`'s slope term `κ_G·v ≈ 170` at that lift, about `2e-4` against
+/// pads of about `2e-5`: the face holds its region only with the
+/// connectors read.
+#[test]
+#[allow(clippy::cast_precision_loss)]
+fn a_spiric_loop_whose_images_stop_short_holds_its_region() {
+    let (big, r, d, t0, t1, um) = (1.2_f64, 0.225_f64, 0.05_f64, 0.3_f64, 2.1_f64, -0.5_f64);
+    let lift = 100.0 * TAU;
+    let eta = 1e-4;
+    let f = |t: f64| ((big + r * t.cos()).powi(2) - d * d).sqrt();
+    let u = |t: f64| f(t).atan2(d);
+    let n = 100_000;
+    let h = (t1 - t0) / n as f64;
+    let (mut area, mut flux) = (0.0, 0.0);
+    for i in 0..n {
+        let t = t0 + h * (i as f64 + 0.5);
+        let rho = big + r * t.cos();
+        let width = u(t) - um;
+        area += r * rho * width * h;
+        flux += r * rho * (big * t.cos() + r) * width * h;
+    }
+    let EdgeTermQ::Spiric(mut w) = spiric_arm(
+        spiric(big, r, d, (t0 + eta, t1 - eta), true),
+        1.0,
+        0.0,
+        0.3 * eta,
+    ) else {
+        unreachable!("the arm is a spiric")
+    };
+    w.image.v0 = pt(lift);
+    for end in &mut w.ends {
+        end.1 = end.1 + pt(lift);
+    }
+    let loops = vec![vec![
+        EdgeTermQ::Spiric(w),
+        EdgeTermQ::Harmonic(harmonic(
+            chan(u(t1), um - u(t1)),
+            chan(lift + t1, 0.0),
+            (0.0, 1.0),
+            true,
+        )),
+        EdgeTermQ::Harmonic(harmonic(
+            chan(um, 0.0),
+            chan(lift + t1, t0 - t1),
+            (0.0, 1.0),
+            true,
+        )),
+        EdgeTermQ::Harmonic(harmonic(
+            chan(um, u(t0) - um),
+            chan(lift + t0, 0.0),
+            (0.0, 1.0),
+            true,
+        )),
+    ]];
+    let got = rotational_cut_face_rounds::<f64>(
+        &spiric_face(big, r, true, loops),
+        Band::linear(Tol::witness()).unwrap(),
+        RoundWindow::SCHEDULE,
+        &mut to_target(1e-9),
+    )
+    .unwrap_or_else(|e| panic!("the lane refused: {e:?}"))
+    .bounds;
+    let near = |x: Interval, w: f64| x.lo() - 1e-8 <= w && w <= x.hi() + 1e-8;
+    assert!(near(got.area, area), "area {:?} vs {area}", got.area);
+    assert!(near(got.flux, flux), "flux {:?} vs {flux}", got.flux);
+}
+
+/// **A count past what `f64` counts exactly refuses**: a signed area
+/// `2⁵³` tori wide reads no count, rather than a loop that moves by no
+/// whole number.
+#[test]
+fn a_count_past_exact_f64_counts_refuses() {
+    let (big, r) = (1.3_f64, 0.45_f64);
+    let whole = 4.0 * PI * PI * big * r;
+    let x = 9.1e15 * whole;
+    let face = super::super::torus_face(
+        (pt(big), pt(r)),
+        true,
+        &[[pt(0.0), Interval::from_bounds(-x, x)]],
+    );
+    assert!(
+        !face.area.is_certified() && !face.flux.is_certified(),
+        "a count past 2^52 reads {:?}",
+        face.area
+    );
 }

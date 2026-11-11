@@ -1,6 +1,6 @@
 //! **A donut against a rod whose section the section value carries**:
 //! the symmetric cylinder × torus poses whose components the value lists
-//! and tells apart (a rod parallel to the torus axis, and a square rod
+//! and tells apart (a rod parallel to the torus axis, and a rod square to the axis
 //! crossing the outer equator in one loop), which the door marches.
 //! Each passes the join and builds, its torus face measured through the
 //! rotational lane, at the volume the donut sliced against the rod
@@ -146,17 +146,17 @@ fn a_rod_across_the_inner_bound_builds_at_its_volume() {
     at_its_volume("the rod across the inner bound", got, Op::Intersect, rod);
 }
 
-/// **A square rod straddling the outer equator**: its one loop carries;
+/// **A rod along `y` across the outer equator**: its one loop carries;
 /// ∖ builds at its volume. The rod along `y` through `(2.45, 0, 0)` is,
 /// turned a quarter about the donut's axis, the oracle's rod along `x`
 /// through `y = 2.45`.
 #[test]
-fn a_square_rod_on_the_outer_equator_builds_at_its_volume() {
+fn a_rod_across_the_outer_equator_builds_at_its_volume() {
     let got = topo::subtract(&donut(), &rod_y(2.45, 0.1), Tol::witness());
     let rod = Rod::AlongX {
         x: (-1.0, 1.0),
         at: (2.45, 0.0),
         rc: 0.1,
     };
-    at_its_volume("the square rod", got, Op::Subtract, rod);
+    at_its_volume("the rod across the outer equator", got, Op::Subtract, rod);
 }

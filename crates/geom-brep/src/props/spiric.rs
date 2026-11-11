@@ -322,16 +322,13 @@ pub(super) fn wall_terms(
     (big, r): (Interval, Interval),
     pieces: usize,
 ) -> ([Interval; 3], f64) {
-    let d = e.offset;
     let sigma = pt(w.sense);
-    let k = sigma * d * r;
     let rr = big.sqr() + r.sqr();
     let three_half = pt(1.5) * big * r;
     let half_br = pt(0.5) * big * r;
     let v0 = w.v0;
     let ([flux, area, du], [removable, _, _]) = composite(e.t0, e.t1, pieces, |t, c, s| {
-        let (rho, f) = rho_f(big, r, d, c);
-        let wgt = s.mul(rho.mul(f).recip()).scale(k);
+        let wgt = wall_weight(e, w, (big, r), c, s);
         let v = Jet::cst(v0).add(t.scale(sigma));
         let ff = s
             .scale(sigma * rr)
@@ -342,6 +339,33 @@ pub(super) fn wall_terms(
         [ff.mul(wgt), gg.mul(wgt), wgt.scale(-Interval::one())]
     });
     ([flux, area, du], removable)
+}
+
+/// `−u′ = σ·d·r·sin t/(ρ·f)` of a spiric's wall image at the trig jets
+/// of `t`: the weight its wall terms read `F` and `G` at.
+fn wall_weight(
+    e: &SpiricEdgeQ,
+    w: &WallImageQ,
+    (big, r): (Interval, Interval),
+    c: Jet,
+    s: Jet,
+) -> Jet {
+    let (rho, f) = rho_f(big, r, e.offset, c);
+    s.mul(rho.mul(f).recip()).scale(pt(w.sense) * e.offset * r)
+}
+
+/// **One spiric wall edge's turn `Δu`** on its lift, in its carrier's
+/// order, at `pieces`: its wall terms' third alone ([`wall_terms`]).
+pub(super) fn wall_turn(
+    e: &SpiricEdgeQ,
+    w: &WallImageQ,
+    radii: (Interval, Interval),
+    pieces: usize,
+) -> Interval {
+    composite(e.t0, e.t1, pieces, |_, c, s| {
+        [wall_weight(e, w, radii, c, s).scale(-Interval::one())]
+    })
+    .0[0]
 }
 
 /// How a cap's area reads its vector area `A⃗`: `‖A⃗‖` on a plane, and

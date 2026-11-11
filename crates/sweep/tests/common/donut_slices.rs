@@ -7,7 +7,11 @@
 //! donut's: `z` its axis. Each line integral is cut wherever its measure
 //! has a corner (the circles' and the rod's edges, and where they cross),
 //! and each piece runs under `x = m + h·sin θ`, which reads a square-root
-//! edge at its ends as smooth, by the 7–15 panel halved to `1e-13`.
+//! edge at its ends as smooth, by the 7–15 panel halved to `1e-13`, and
+//! a panel that halves forty times without meeting its share refuses
+//! loud. Along the axis, a rod along `x` is cut at its own extent and the
+//! tube's; where its band's edge crosses a tube circle the slice's area
+//! has a corner the cuts do not name, which the halving meets.
 
 use crate::common::quadrature::gk15;
 use core::f64::consts::FRAC_PI_2;
@@ -39,9 +43,13 @@ pub enum Rod {
 
 fn adapt(f: &dyn Fn(f64) -> f64, a: f64, b: f64, tol: f64, depth: u32) -> f64 {
     let (k, e) = gk15(f, a, b);
-    if e <= tol || depth >= 40 {
+    if e <= tol {
         return k;
     }
+    assert!(
+        depth < 40,
+        "the slicing oracle's panel [{a}, {b}] reads error {e:e} past {tol:e} at depth 40"
+    );
     let m = 0.5 * (a + b);
     adapt(f, a, m, 0.5 * tol, depth + 1) + adapt(f, m, b, 0.5 * tol, depth + 1)
 }

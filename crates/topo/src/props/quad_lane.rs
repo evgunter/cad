@@ -1544,6 +1544,129 @@ fn about(control: Vec<quad::RVec3>, centre: Option<Point3<Interval>>) -> Vec<qua
 
 #[cfg(test)]
 mod tests {
+    /// **The spiric arm's builder refuses what its terms cannot read**
+    /// ([`super::spiric_wall_edge`]), each guard alone: a chart that is
+    /// not a torus, a carrier that is no spiric, a carrier's or an image's
+    /// radii not exactly the torus's, an image on the carrier's mirror
+    /// torus, and an image whose sense is not exactly `±1`. The unrefused
+    /// reading beside them builds.
+    #[allow(clippy::unwrap_used, clippy::panic)]
+    mod spiric_wall_edge_rows {
+        use geom::Curve3;
+        use geom_brep::WallTorus;
+        use geom_brep::props::quad::RotationalChartQ;
+        use geom_brep::props::{LoopEdge, PropsError};
+        use geom_core::interval::certification::Certification as _;
+        use geom_core::{Interval, Point3, Vec3};
+
+        use super::super::spiric_wall_edge;
+
+        fn iv(x: f64) -> Interval {
+            Interval::point(x)
+        }
+
+        fn spiric(major: f64, minor: f64) -> LoopEdge<Interval> {
+            LoopEdge::hand_built(
+                Curve3::Spiric {
+                    center: Point3::new(iv(0.0), iv(0.0), iv(0.0)),
+                    axis: Vec3::new(iv(0.0), iv(0.0), iv(1.0)),
+                    u_ref: Vec3::new(iv(1.0), iv(0.0), iv(0.0)),
+                    major_radius: iv(major),
+                    minor_radius: iv(minor),
+                    offset: iv(0.05),
+                },
+                iv(0.3),
+                iv(2.1),
+                true,
+                0,
+                1,
+            )
+        }
+
+        fn torus() -> RotationalChartQ {
+            RotationalChartQ::Torus {
+                major: iv(1.2),
+                minor: iv(0.225),
+                outward: true,
+            }
+        }
+
+        fn read(
+            le: &LoopEdge<Interval>,
+            chart: RotationalChartQ,
+            image: (f64, f64),
+            (sense, torus): (f64, WallTorus),
+        ) -> Result<(), PropsError> {
+            spiric_wall_edge(
+                le,
+                chart,
+                (iv(image.0), iv(image.1)),
+                (iv(0.0), iv(sense), torus),
+                [(iv(0.0), iv(0.3)), (iv(0.0), iv(2.1))],
+                Interval::zero(),
+                Point3::new(iv(0.0), iv(0.0), iv(0.0)),
+            )
+            .map(|_| ())
+        }
+
+        #[test]
+        fn the_spiric_arms_builder_refuses_each_unread_image() {
+            let own = (1.0, WallTorus::Own);
+            let good = spiric(1.2, 0.225);
+            assert!(
+                read(&good, torus(), (1.2, 0.225), own).is_ok(),
+                "the premise: an own-torus spiric builds"
+            );
+            let line = LoopEdge::hand_built(
+                Curve3::line(
+                    Point3::new(iv(0.0), iv(0.0), iv(0.0)),
+                    Vec3::new(iv(1.0), iv(0.0), iv(0.0)),
+                ),
+                iv(0.0),
+                iv(1.0),
+                true,
+                0,
+                1,
+            );
+            for (what, got) in [
+                (
+                    "a chart that is not a torus",
+                    read(
+                        &good,
+                        RotationalChartQ::Cylinder { radius: iv(1.0) },
+                        (1.2, 0.225),
+                        own,
+                    ),
+                ),
+                (
+                    "a carrier that is no spiric",
+                    read(&line, torus(), (1.2, 0.225), own),
+                ),
+                (
+                    "a carrier's radius off the torus's",
+                    read(&spiric(1.25, 0.225), torus(), (1.2, 0.225), own),
+                ),
+                (
+                    "an image's radius off the torus's",
+                    read(&good, torus(), (1.2, 0.2), own),
+                ),
+                (
+                    "an image on the mirror torus",
+                    read(&good, torus(), (1.2, 0.225), (1.0, WallTorus::Mirror)),
+                ),
+                (
+                    "a sense not ±1",
+                    read(&good, torus(), (1.2, 0.225), (0.5, WallTorus::Own)),
+                ),
+            ] {
+                assert!(
+                    matches!(got, Err(PropsError::QuadratureUnsupported { .. })),
+                    "{what}: {got:?}"
+                );
+            }
+        }
+    }
+
     /// The plane cap ([`super::plane_cap`]) over hand-built loops: a rim
     /// whose kinds mix, and the length bound's spline arm.
     #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]

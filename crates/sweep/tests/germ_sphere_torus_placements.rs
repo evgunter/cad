@@ -124,7 +124,7 @@ fn a_ball_against_a_donut_carries_onto_the_torus_and_builds() {
         0.9,
         Vec3::new(0.05, 0.1, 0.02),
     );
-    let got: Vec<(&str, String)> = [
+    let got: Vec<(&str, String, Option<String>)> = [
         (
             "a carried chord closing a ring on a torus face",
             &ball0,
@@ -135,9 +135,17 @@ fn a_ball_against_a_donut_carries_onto_the_torus_and_builds() {
         ("two curves about the axis, donut ∪ ball", &about, &ball0),
     ]
     .into_iter()
-    .map(|(what, x, y)| (what, outcome(&topo::union(x, y, tol))))
+    .map(|(what, x, y)| {
+        let r = topo::union(x, y, tol);
+        (
+            what,
+            outcome(&r),
+            crate::germ_torus_components::union_floor(&r, x, y),
+        )
+    })
     .collect();
-    for (what, end) in &got {
+    for (what, end, floor) in &got {
         assert_eq!(end, "builds", "{what}: {got:#?}");
+        assert!(floor.is_none(), "{what}: {floor:?}");
     }
 }

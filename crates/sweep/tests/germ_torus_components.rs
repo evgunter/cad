@@ -187,8 +187,42 @@ fn row(
         if marches != [1, 1] {
             off.push(format!("placement {i}: marches by op {marches:?}"));
         }
+        for (order, r) in [("A ∪ B", &ab), ("B ∪ A", &ba)] {
+            if let Some(why) = union_floor(r, &a, &b) {
+                off.push(format!("placement {i}, {order}: {why}"));
+            }
+        }
     }
     assert!(off.is_empty(), "{off:#?}");
+}
+
+/// **A union that builds lies between its operands' volumes**:
+/// `max(V_a, V_b) ≤ V ≤ V_a + V_b`, each certified volume's pad held
+/// against the bound. A sanity floor, not a truth: these poses have no
+/// independent volume
+/// (`work/spiricarm/the-general-pose-torus-germ-unions-that-build-have-no-volume-truth.md`).
+pub(crate) fn union_floor(
+    r: &Result<BooleanResult<f64>, BooleanError>,
+    a: &AtRestBody<f64>,
+    b: &AtRestBody<f64>,
+) -> Option<String> {
+    let tol = Tol::witness();
+    let body = r.as_ref().ok()?.body()?;
+    let settle = || topo::test_support::pinned_resolution(tol);
+    let v = topo::mass_properties(&body.body, tol, settle())
+        .ok()?
+        .enclosure;
+    let va = a.measure(settle()).ok()?.enclosure;
+    let vb = b.measure(settle()).ok()?.enclosure;
+    let (lo, hi) = (v.volume - v.volume_pad, v.volume + v.volume_pad);
+    let floor = (va.volume - va.volume_pad).max(vb.volume - vb.volume_pad);
+    let ceiling = va.volume + va.volume_pad + vb.volume + vb.volume_pad;
+    (hi < floor || lo > ceiling).then(|| {
+        format!(
+            "the union's volume {} ± {} lies outside [{floor}, {ceiling}]",
+            v.volume, v.volume_pad
+        )
+    })
 }
 
 /// **A drum against a moved donut passes the germ mint at every
