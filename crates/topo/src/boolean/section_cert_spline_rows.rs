@@ -612,3 +612,22 @@ fn a_spline_wall_touching_a_sphere_is_read_as_a_touch() {
         "the touch at the dome's top: {t:?}"
     );
 }
+
+/// **A spline node reads as a tangency until its arcs are carried.**
+/// The cross saddle `z = 4(x − ½)(y − ½)` against `z = 0`: the value lists
+/// the node at the centre and its four arcs (C5), but no component of a
+/// spline × implicit section is carried yet
+/// (`work/sectarms/the-join-reads-a-spline-implicit-section.md`), so the
+/// certificate reads the tangency the node was decided by, R-tan, rather
+/// than components it cannot chord. Red against a node read as crossed
+/// while its carriers are unminted (the certificate would clear arcs the
+/// join cannot build).
+#[test]
+fn a_spline_node_reads_as_a_tangency_until_carried() {
+    let a = [-0.5, 0.0, 0.5];
+    let s = read(&level(0.0), &net(&|i, j| 4.0 * a[i] * a[j]));
+    assert!(
+        matches!(s, Section::Tangent("spline_critical_value")),
+        "{s:?}"
+    );
+}

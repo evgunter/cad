@@ -788,7 +788,7 @@ impl Section<'_> {
         let seeds = exhaust::seed_pair(&pair, seed_floor)?;
         #[allow(clippy::cast_possible_truncation)]
         let seed_count = seeds.len() as u32;
-        self.banked.closed_loops(&ends, seeds, &pass.cells)?;
+        self.banked.closed_loops(&ends, seeds, &pass.cells, &[])?;
 
         let exhaustiveness = lane.account(&self.banked.tubes, &pass.cells)?;
         Ok(PairReading {
