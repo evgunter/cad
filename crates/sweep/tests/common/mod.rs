@@ -304,6 +304,10 @@ pub mod touch_union;
 /// The 7–15 Gauss–Kronrod panel the volume oracles integrate with.
 pub mod quadrature;
 
+/// The volume of a boolean of the donut and a straight rod, sliced along
+/// the donut's axis: a truth that reads no kernel code.
+pub mod donut_slices;
+
 /// The volume of a boolean of two crossed finite cylinders, sliced
 /// parallel to both axes: a truth that reads no kernel code.
 pub mod crossed_cylinders;

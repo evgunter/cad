@@ -97,6 +97,7 @@ fn off_surface_face(delta: f64, lever: f64) -> (RotationalFaceQ, f64) {
             closed: pt(lever) * pt(va_z),
             lever: [Interval::zero(), Interval::zero(), pt(lever)],
             rationals: Vec::new(),
+            spirics: Vec::new(),
             ribbon,
         },
         loops: vec![vec![
@@ -274,6 +275,7 @@ fn a_pcurve_off_its_carrier_is_paid_for_by_the_map_residual() {
                 closed: Interval::zero(),
                 lever: [Interval::zero(); 3],
                 rationals: Vec::new(),
+                spirics: Vec::new(),
                 ribbon: 0.0,
             },
             loops: vec![loops],

@@ -2,12 +2,13 @@
 id: the-rotational-lane-reads-the-torus-chart
 kind: unit
 title: The rotational-chart Green lane, stage 3: the torus chart (the spiric wall onto the lane, projected chords and rims on any trimmed torus wall, rings)
-status: dispatched
+status: closed
 opened: 2026-11-10
 priority: P0
 cost: H
-branch: spiricarm/rotational-lane-torus
 refs: [a-torus-wall-trimmed-by-a-spline-rim-has-no-volume-lane, a-torus-wall-holding-a-spiric-beside-a-spline-chord-has-no-volume-lane, the-spiric-wall-lane-omits-its-junctions-connectors-from-its-region-term, the-rotational-lane-reads-the-sphere-chart]
+closed: 2026-11-11
+pr: 6808
 ---
 
 
@@ -61,3 +62,7 @@ Verify it, or find the right route. If no transcendental-free enclosure exists, 
 - A disclosed gap becomes an issue file.
 
 **Review tier:** dual.
+
+## Closed (2026-11-11)
+
+PR 6808: the rotational lane reads the torus chart; the spiric wall is an arm of the lane, its junctions read through the lane's connectors; the torus doors, radial hole and spiric round trip build at independently sliced volumes. Dual review `docs/dual-review-log/rows/PR-6808.md`.
