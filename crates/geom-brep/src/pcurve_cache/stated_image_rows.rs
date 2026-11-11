@@ -360,8 +360,9 @@ fn a_carrier_on_its_wall_certifies_at_interval() {
 
 /// **Counterexample search** (shape 1): bumps of every degree, place and
 /// width on both walls, checked against the oracle's distance. A bump the
-/// oracle puts past the band never certifies, and one past a micrometre
-/// ends read off; a flat one (height zero) never reads off.
+/// oracle puts past the band never certifies, and one ten times past it
+/// ends read off; a flat one (height zero) never reads off. Every height
+/// is the band's, so the row reads alike at every ε.
 #[test]
 fn no_bump_certifies_past_the_band() {
     let b = band();
@@ -378,16 +379,16 @@ fn no_bump_certifies_past_the_band() {
             degree: 1 + rng.below(3),
             peak: rng.range(2.0 * width, 1.0 - 2.0 * width),
             width,
-            height: [0.0, 1e-3, 1e-6, 4.0 * b.escalate()][rng.below(4)],
+            height: [0.0, 1e3, 30.0, 4.0][rng.below(4)] * b.escalate(),
         };
         let miss = bump.miss(wall);
         let got = edge_f64(wall, bump.carrier(wall), Stated::General);
         let wrong = if bump.height == 0.0 {
             is_off(&got)
-        } else if miss > 1e-6 {
+        } else if miss > 10.0 * b.escalate() {
             !is_off(&got)
         } else {
-            miss > 2.0 * b.escalate() && got.is_ok()
+            miss > b.escalate() && got.is_ok()
         };
         if wrong {
             bad.push(format!("{wall:?} {bump:?} (oracle miss {miss:e}): {got:?}"));
