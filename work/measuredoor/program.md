@@ -2,7 +2,7 @@
 id: measuredoor
 kind: program
 title: MEASUREDOOR — the measurement door and tier 3 around it: the backstop's main red, verdicts dropped and paid twice, and the seam-region reads
-status: active
+status: ready
 opened: 2026-10-27
 group: kernel/props
 prefix: measuredoor/

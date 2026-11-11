@@ -91,7 +91,7 @@ PR 5842, under `[ev]` PR 5780 (the boolean's volume relations are a test oracle,
 
 ## 2026-11-11 — the sidecar is red again on main
 
-On main `5e01d02d2a6`, `step-export` `kernel_sidecars::kernel_sidecar_fields_match_live_kernel` fails at the default ε. It is in the fast set:
+On main `5e01d02d2a6`, `step-export` `kernel_sidecars::kernel_sidecar_fields_match_live_kernel` fails at the default ε. It is in the `ci` profile's slow set; the dispatch first called it fast-set, which the lane corrected:
 
     cut_cylinder: want KERNEL_VOLUME_PAD_MM3=1022.370482199146, sidecar has ["1022.3704888604841"]
 
