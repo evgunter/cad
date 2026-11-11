@@ -434,7 +434,12 @@ const ROSTER: &[(&str, usize, usize, &str)] = &[
          constructor, fills with `pt` of a weight it has checked finite: a point bracket that \
          certifies, whose `lo` IS the weight",
     ),
-    ("crates/geom-brep/src/props/quad/projected_edge.rs", 1, 1, ""),
+    (
+        "crates/geom-brep/src/props/quad/projected_edge.rs",
+        1,
+        1,
+        "",
+    ),
     (
         "crates/geom-brep/src/props/quad/rational.rs",
         3,
