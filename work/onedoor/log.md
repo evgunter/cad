@@ -265,3 +265,27 @@ second site needs to ask the question at all. (ONEDOOR orchestrator)
 - The cylcyl crossing-pose probe takes 2056 s alone on main, so the branch did not make it slower.
 - **Single FULL review dispatched on frozen head `feba4ef25d`** (brief `onedoor-onerec-fix2-review-brief.md`). It has claims on extent, keys at rest, the kept rule, certification and one measure reading, regressions against main (the digests at three ε values, probe 3), and README accuracy.
 - (ONEDOOR orchestrator)
+
+## 2026-11-11 — #6505 rv3 review in; fix pass 3 dispatched
+
+- The rv3 full review (on `feba4ef25d`) is MERGEABLE-WITH-FIXES with no MAJOR. Report: `onedoor-briefs/reports/PR-6505-rv3.md`.
+- **Adjudication:**
+  - every MINOR (m1–m7) is taken;
+  - style S1–S14 is taken, except S5, which is taken if it falls out of S3 and filed otherwise;
+  - the two-formula planar reading (n5) is filed, not built.
+- **Rulings:**
+  - one order-free anchor function for every planar reader;
+  - re-bless the moved digests only after a document dump confirms that only edge descriptions moved;
+  - "decided" means the pairs the glue leaves on one record after the second reading, with one kept function, and `share_points`/`kept_copy` follow it;
+  - `one_record_across` takes a verdict that only topo can mint;
+  - the cylinder re-anchoring gets a witness or is removed;
+  - ring-crossed gets per-row bounds;
+  - `charts_agree` gets one home;
+  - one moved set, lowered, with the result closure demoted to a loud check;
+  - the merge's act failure is typed as a defect.
+- **Classes logged:**
+  - *A guard posed at the point its subject uses cannot see that subject regress.* The sliding guard turned records about the anchor it tested, and covered only planes while the clause claimed cylinders too (m5).
+  - *A fix closing a duplication minted another copy* (S1: the anchor spelled three times; S3: `charts_agree` spelled four ways). This is the style brief's known trap, caught again only by the reviewer.
+  - *Point-only fence digests are blind to record and edge-description state* (m2). The fix pass files it against the fence's owner.
+- Fix pass 3 dispatched (brief `onedoor-onerec-fix3-brief.md`). Merge path: the orchestrator reads the delta, CI goes green, #6511 merges first, then the state sync and the dual-review row.
+- (ONEDOOR orchestrator)
