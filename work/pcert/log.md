@@ -1203,3 +1203,13 @@ E1c waits on the answer.
   - Review tier: single FULL. APPROVE-WITH-FIXES, 0 MAJOR. Executed: 14,303 parts and 6,960 limb-2 readings with no wrong clear; identical verdicts to base on 3,480 cases; green merged with PR 6826. Fix list PP was read by the orchestrator: the rounds-start row (M3 now red), cone and torus rows, PIECE_TURN's own definition, docs.
   - Filed: P2 `check-4s-projected-door-reads-every-span-of-a-chord-in-eight-parts`.
   - SPIRICARM's P1 `a-carried-cylinder-pair-marches-for-minutes-before-the-volume-lane-refuses` is unparked here with a dated re-measurement, since lint refuses a closed blocker. A note is on their log.
+- 2026-11-11 — **`a-net-carrier-stated-on-an-analytic-chart-is-certified-by-a-sampled-meter` closed** (PR 6826). At the edge certificate, a spline net stated on a plane, cylinder, cone, sphere or torus is bounded over its span: `read_net_bound` takes the sampled read first (a definite miss at a sample ends there), then limb 2's sup (`limb2_offset_sup`, decided by `edge_nurbs::limb2`).
+  - Endings: a measured miss → `Incidence(Off)`; in band, a stall or no bound → `Incidence(Undecided)`, the lever.
+  - "No bound" reads as `f64::MAX`, finite at Interval, so it never poisons a margin.
+  - The mint and tier 3 keep the sampled lower bound, renamed `net_sampled_incidence`. `projected.rs`'s envelope still composes its own hull: fewer homes, not one.
+  - Review tier: single FULL, soundness-led. APPROVE-WITH-FIXES, 1 MAJOR, executed: at Interval, `NoOffsetBound` minted a poisoned margin, so a net ON a cone through its apex ended "kernel defect".
+  - Fix list OO, delta verified: 15,000 reads with 0 unsound, 0 false Off, 0 poisoned. Re-run clean on the head merged with PR 6827.
+  - Cost: release cold reads 0.10–0.48 ms, 15–50× the sampled read; 1 product sweep row reaches it.
+  - Filed:
+    - P1 `a-stated-image-on-an-analytic-chart-is-metered-against-its-carrier-at-nine-samples`, the image's fidelity, reproduced 8/8, next;
+    - P3 `an-on-chart-net-through-a-double-cones-apex-ends-in-the-lever`.
