@@ -29,6 +29,10 @@ Reported again by a ONECOPY lane at `f8419853`, with the message above unchanged
 
 At `seal/corner-sectors` the test still fails at `shell_role_reader.rs:648` with the same `Containment` at `bool_contact_vertex`, margin `6.000000011551611e-9`. That PR deletes `bool_sector_coplanar`, so the expected arm now reads `bool_sector_within` or `Coincide::CornerBound` (a flat sector's bound tie). It was not set to the `Containment` this head yields, because that is this row's red.
 
+## Dispatch
+
+2026-11-10, FLUSH orchestrator. One implementer, lane `flush-needle`, branch `flush/needle-12eps`. The lane will reproduce the red, then bisect the commit where the 12ε case stopped refusing on the sector question. It will read the 6.0e-9 containment margin in the model, and decide by meaning whether the new refusal is honest (a stale expectation) or a bad upstream reading (a kernel fix). A precedence question stops the lane and comes back as a design question.
+
 ## Closed
 
 Closed by PR 6812 (2026-11-11). The kernel was wrong; the expectation's arm was a guess SEAL could not observe.

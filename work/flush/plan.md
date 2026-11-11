@@ -14,6 +14,8 @@ Ev approved the plan in chat on 2026-10-10). Every row here moved from
 
 | pri | item | cost | title |
 |---|---|---|---|
+| P0 | `main-red-the-lattice-discard-pin-moved-where-pred-5724-met-flush-5706` | M | dispatched: the lattice discard pin moved where PR 5724 met PR 5706 |
+| P1 | `main-red-a-needle-cavity-12eps-channel-escalates-at-bool-contact-vertex` | M | dispatched: main red (slow set): the 12ε needle channel escalates at `bool_contact_vertex` |
 | P3 | `a-fallback-cut-refuses-beside-a-ring-a-seam-or-a-pinch` | H | PR 5706's residue |
 
 Nothing in flight. Both P1s closed on 2026-11-01: the partial-torus rim ray with PR 6168, and the aimed ray's reach with PR 6174. FLUSH is handed back `ready`. The P0s are parked on REACHHOLD, and the rest is tail for a successor.
