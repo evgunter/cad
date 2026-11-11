@@ -12982,6 +12982,9 @@ mod general_climb_rows;
 #[allow(clippy::unwrap_used, clippy::panic)]
 mod harmonic_sup_rows;
 #[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::panic, clippy::cast_precision_loss)]
+mod review_6819_probes;
+#[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod iso_arc_weight_rows;
 #[cfg(test)]
