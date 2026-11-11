@@ -194,7 +194,8 @@ pub use names::{
     SegTag, SelectRefusal, Selector, Sense, ShortTie, Side, SplitHalf, StableName, SurfaceKindSet,
     TagPat, UnionNameShape, WayShape, all_bodies, all_edges, all_faces, all_vertices, attribute,
     band, band_pi, band_rim, band_rim_pi, carried, denotation, edge_carrier_kind, edge_frame,
-    face_carrier_kind, face_frame, leaf_role, meridian_vertex, role_leaf, select, select_where,
+    face_carrier_kind, face_frame, family_entity, leaf_role, member_entity, member_table,
+    meridian_vertex, one_body, role_leaf, select, select_member, select_where, select_where_member,
     vertex_position,
 };
 pub use node::{

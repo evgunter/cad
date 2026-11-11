@@ -547,3 +547,105 @@ fn a_thin_torus_circle_refuses_as_the_kernel_limit_of_its_composite() {
         "{ending:?}"
     );
 }
+
+/// The lemon sheet `R = −½, r = 1` about `z` through the origin, its
+/// apexes at `(0, 0, ±√3/2)`, and the plane `y = 0` through its axis.
+fn lemon_and_its_meridian_plane() -> (Surface<f64>, Surface<f64>) {
+    let sheet = Surface::Spindle {
+        center: Point3::origin(),
+        axis: Vec3::unit_z(),
+        major_radius: -0.5,
+        minor_radius: 1.0,
+        u_ref: Vec3::unit_x(),
+    };
+    let plane = Surface::Plane {
+        origin: Point3::origin(),
+        normal: Vec3::unit_y(),
+        u_ref: Vec3::unit_x(),
+    };
+    (sheet, plane)
+}
+
+/// The unit circle about `(c, 0, 0)` in `y = 0`, from `+x` toward `+z`.
+fn meridian(c: f64) -> Curve3<f64> {
+    Curve3::Circle(geom::Circle {
+        frame: geom::Frame::new(Point3::new(c, 0.0, 0.0), -Vec3::unit_y(), Vec3::unit_x()),
+        radius: 1.0,
+    })
+}
+
+/// **Limb 2 against a sheet reads that sheet up to its apexes.** The
+/// lemon's meridian from one apex to the other (the arc of the circle
+/// about `(−½, 0, 0)` with `|t| ≤ π/3`) certifies, its parts at the
+/// apexes read by their distance from the apex. The other sheet's
+/// meridian through the same two apexes (the circle about `(½, 0, 0)`,
+/// `|t| ≤ 2π/3`), and its last micro-radian before the upper apex, lie
+/// on the torus's implicit form, where `|f|` reads zero; limb 2 refuses
+/// them against the sheet, its bound the distance from an apex. It
+/// reads no floor, as its floors are the implicit form's. Reading `|f|` at the apexes, as the cone's
+/// reading does, passes both.
+#[test]
+fn limb_2_against_a_sheet_reads_that_sheet_up_to_its_apexes() {
+    let (sheet, plane) = lemon_and_its_meridian_plane();
+    let third = PI / 3.0;
+    let limbs =
+        |c: f64, span| geom_brep::analytic_edge_limbs(&meridian(c), span, &sheet, &plane, band());
+    let own = limbs(-0.5, (-third, third));
+    assert!(own.is_ok(), "the lemon's own meridian: {own:?}");
+    for (what, span) in [
+        ("the other sheet's meridian", (-2.0 * third, 2.0 * third)),
+        ("its last micro-radian", (2.0 * third - 1e-6, 2.0 * third)),
+    ] {
+        let got = limbs(0.5, span);
+        assert!(
+            matches!(
+                got,
+                Err(AnalyticRung3Refusal::KernelLimit {
+                    operand: geom::SurfaceKind::Spindle,
+                    ..
+                })
+            ),
+            "{what}: {got:?}"
+        );
+    }
+}
+
+/// **Past a thin lemon's apex, limb 2 reads the sheet, not its circle.**
+/// The lemon `R = −0.999, r = 1` (apexes at `z = ±h`, `h ≈ 0.0447`), and
+/// a segment of the line `x = 3·10⁻⁵, y = 0` from `z = h + 5·10⁻⁴` up
+/// `10⁻⁵`, above the upper apex beside the axis. The lever is positive
+/// there and the meridian circle passes within `6·10⁻⁵` of every point,
+/// but the circle's nearest points lie across the axis, past the apex;
+/// the sheet's nearest point is the apex itself, `5·10⁻⁴` away. At a band
+/// whose zero is `10⁻⁴` and whose threshold is `3·10⁻⁴`, the side check
+/// (`|m − r|·|R| ≤ r·ρ`) is what refuses it: without it, the circle's
+/// distance would clear the band.
+#[test]
+fn past_a_thin_lemons_apex_limb_2_reads_the_sheet_not_its_circle() {
+    let (major, minor) = (-0.999_f64, 1.0_f64);
+    let h = geom::sheet_apex(major, minor).height;
+    let sheet = Surface::Spindle {
+        center: Point3::origin(),
+        axis: Vec3::unit_z(),
+        major_radius: major,
+        minor_radius: minor,
+        u_ref: Vec3::unit_x(),
+    };
+    let (_, plane) = lemon_and_its_meridian_plane();
+    let line = Curve3::Line(geom::Line {
+        origin: Point3::new(3e-5, 0.0, h + 5e-4),
+        dir: Vec3::unit_z(),
+    });
+    let band = Band::new(1e-4, 3e-4).unwrap();
+    let got = geom_brep::analytic_edge_limbs(&line, (0.0, 1e-5), &sheet, &plane, band);
+    assert!(
+        matches!(
+            got,
+            Err(AnalyticRung3Refusal::KernelLimit {
+                operand: geom::SurfaceKind::Spindle,
+                ..
+            })
+        ),
+        "{got:?}"
+    );
+}

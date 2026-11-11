@@ -58,3 +58,17 @@ Three more slow-set reds of this class on main (~`c80a1e8c`), reported by anothe
 
 Bisected (ONECOPY, `onecopy/main-reds-triage`, 2026-11-09), first-parent at ε 1e-9: `m10_bulge_interval` ×2 and `sym11_the_exact_channel_never_contradicts_past_the_ceiling` all first move at PR 6504 (`pcert/one-ruling-reading`, `143d99ec29`), the same merge that moved the plate. sym11 fails from that merge on, on `r2_link` and `r2_filleted_bracket` at 1e-9; its later count moves were not bisected. The m10_bulge pair's bisect is on `work/scalar/main-red-m10-bulge-d-tab-radial-moving-pcurve-chart-moved.md`. That makes four rows this one merge moved, none disclosed and none run by its PR gate.
 The `loop-boundary-discards.sh --selftest` case above passes on main (merged 2026-11-09).
+
+## Evidence: a discard-recording diff moved a slow-set count (2026-11-10, FLUSH)
+
+PR 5706 (`flush/fallback-partial-rows`) changed what the containment
+fallback records as discards (`boolean/ops.rs` `fallback_fates`). That
+moved `topo` `fused_into_live_cells::every_fused_vertex_of_the_lattice_corpus_settles_on_a_live_cell`
+from `(25 512, 1392)` to `(26 292, 2004)` bordered stretches, at its own
+head `4536e387`. Its gate selected no slow row, and its local run was
+the `ci` profile. The nightly found it after 5724 merged, and the
+bisect blamed the merge
+(`work/flush/main-red-the-lattice-discard-pin-moved-where-pred-5724-met-flush-5706.md`,
+`## Closed`). So a diff to how a boolean records its naming rows
+(`boolean/discard.rs`, `fate.rs`, `ops.rs`) should select the slow
+rows that count them, by the same mechanism this row asks for ids.

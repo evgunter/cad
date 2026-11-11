@@ -39,13 +39,15 @@ pub enum Operand {
     /// A variable, by name.
     Name(VarName),
     /// **A selection authored at this seat** (D10): the entities `names`
-    /// names of the body `body` reads. The door mints one anonymous
-    /// selection variable of the seat's kind ([`crate::VarDef::Select`])
-    /// and the seat reads it, so a selection authored at two seats is
-    /// two variables; a seat shares one by reading it by id or name.
+    /// names of the body `body` reads — a body, or one member of a
+    /// family, `xs[i]`, whose names are the member's own. The door
+    /// mints one anonymous selection variable of the seat's kind
+    /// ([`crate::VarDef::Select`]) and the seat reads it, so a selection
+    /// authored at two seats is two variables; a seat shares one by
+    /// reading it by id or name.
     Select {
         /// The body read.
-        body: Box<Operand>,
+        body: Box<BodyRead<crate::Formula>>,
         /// The entities, by name.
         names: Vec<crate::names::StableName>,
     },
@@ -98,7 +100,7 @@ impl Operand {
     pub fn selected_names(&self) -> Vec<&crate::names::StableName> {
         match self {
             Self::Select { body, names } => {
-                let mut held = body.selected_names();
+                let mut held = body.read.selected_names();
                 held.extend(names);
                 held
             }
@@ -121,9 +123,13 @@ impl Operand {
         }
     }
 
-    /// The selection of `names` in the body `body` reads.
+    /// The selection of `names` in the body `body` reads: a plain read,
+    /// or one member of a family ([`BodyRead::indexed`]).
     #[must_use]
-    pub fn select(body: impl Into<Operand>, names: Vec<crate::names::StableName>) -> Self {
+    pub fn select(
+        body: impl Into<BodyRead<crate::Formula>>,
+        names: Vec<crate::names::StableName>,
+    ) -> Self {
         Self::Select {
             body: Box::new(body.into()),
             names,
@@ -138,9 +144,15 @@ impl core::fmt::Display for Operand {
             Self::Output { node, port } => write!(f, "port {port} of node {node}"),
             Self::Var(var) => write!(f, "{var}"),
             Self::Name(name) => write!(f, "{name}"),
-            Self::Select { body, names } => {
-                write!(f, "the selection of {} names in {body}", names.len())
-            }
+            Self::Select { body, names } => match body.at.len() {
+                0 => write!(f, "the selection of {} names in {}", names.len(), body.read),
+                _ => write!(
+                    f,
+                    "the selection of {} names in a member of {}",
+                    names.len(),
+                    body.read
+                ),
+            },
             Self::Pick { placement, of } => match of.as_slice() {
                 [piece] => write!(f, "the pick of {piece} in {placement}"),
                 _ => write!(f, "the pick of a {}-step path in {placement}", of.len()),
@@ -437,10 +449,11 @@ impl core::fmt::Display for SlotKind {
 }
 
 /// A mate side as its seat reads it: the `Face` selection of its name
-/// in `at`'s body.
+/// in `at`'s body, or in the member of it the side reads
+/// ([`BodyRead::member`]).
 impl From<crate::SitedFace> for Operand {
     fn from(r: crate::SitedFace) -> Self {
-        Self::select(r.at, vec![r.name.into_name()])
+        Self::select(BodyRead::member(r.at, &r.member), vec![r.name.into_name()])
     }
 }
 
@@ -611,6 +624,37 @@ impl<S: crate::expr::Slot> BodyRead<S> {
         })
     }
 }
+
+impl BodyRead<crate::Formula> {
+    /// **One member of the family `read`, at the index values `member`**
+    /// written as counts (`xs[i]`); the plain read where `member` is
+    /// empty. The one spelling of a member read at known values.
+    #[must_use]
+    pub fn member(read: impl Into<Operand>, member: &[u32]) -> Self {
+        Self::indexed(
+            read,
+            member
+                .iter()
+                .map(|&value| crate::Formula::count(i64::from(value)))
+                .collect(),
+        )
+    }
+
+    /// **The index values this read writes as counts `doc` holds**, one
+    /// per index: `Some(vec![])` for a plain read, `None` where an index
+    /// is an expression an evaluation would value, or a count no `u32`
+    /// holds. One rule with a stored read's ([`crate::edit::written_index`]):
+    /// a count literal, or a read of a free count.
+    #[must_use]
+    pub fn written_member<P>(&self, doc: &crate::doc::Doc<P>) -> Option<Vec<u32>> {
+        self.at
+            .iter()
+            .map(|index| crate::edit::written_index(doc, index))
+            .collect()
+    }
+}
+
+impl<S: crate::expr::Slot + Eq> Eq for BodyRead<S> where S::Read: Eq {}
 
 impl<S: crate::expr::Slot> core::fmt::Debug for BodyRead<S> {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {

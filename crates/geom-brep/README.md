@@ -1376,25 +1376,29 @@ equal spheres over a circle or a line spine); a cone belongs to the
 variable-radius family.
 Trimlines are stored as `TangentIntersection`. Scope: a straight band
 (plane–plane, or the ruled band about a straight spine) ends at a
-trivalent vertex of one convexity between planes as the request decides
-— by how many of the vertex's three edges it names. All three: the
-corner patch (the sphere octant; the chamfer's plane through the three
-feet). One: the cut-off — the band ends in the end face's plane section
+trivalent vertex between planes as the request decides — by how many of
+the vertex's three edges it names. All three: the corner patch (the
+sphere octant; the chamfer's plane through the three feet), where the
+three edges round one way. One: the cut-off — the band ends in the end face's plane section
 of it, a chord for a chamfer, and for a fillet a circle where the end
 face is perpendicular to the edge and an ellipse otherwise
 (`CornerConfig::EndFace`, `RunOutPolicy::CutOffAtEndFace`;
 `fillet3_cap_transverse` picks the kind). Two: the mitre — each band is
 cut off by the other's support, so the two meet along their
 intersection, a line for a chamfer and a planar ellipse for a fillet
-(`CornerConfig::Turn`, `RunOutPolicy::Mitre`). Chain G1 classifies a
+(`CornerConfig::Turn`, `RunOutPolicy::Mitre`); where the shared face's
+sector is reflex the mitre joins over the wedge the two bands'
+extensions overlap in. At a vertex whose edges mix convexity, one edge
+and the two that round alike end so too. Chain G1 classifies a
 junction of two plane–plane links rather than refusing it: Zero, one
 band runs through a joint; definite, the chain breaks into two ends at
 a turn; the sliver band escalates. It still refuses at a junction that
 involves a curved link. Every other end refuses — a curved end face, a
 foot landing inside a support rather than on a rim edge, an end vertex
-of valence other than three, mixed convexity — with a `CornerConfig`
-tag and the `RunOutPolicy` that would handle it, refusal-payload names
-only. A
+of valence other than three, a mixed-convexity vertex whose odd edge
+(the one rounding unlike the other two) is requested with another of
+its edges — with a `CornerConfig` tag and the `RunOutPolicy` that would
+handle it where one would, refusal-payload names only. A
 spine that is neither line nor circle refuses `SpineUnsupported`: the
 canal-surface blend, an approximating surface per O2, is not
 implemented.
@@ -1491,7 +1495,11 @@ closed form keeps its typed refusal for a door with no quadrature lane. A sphere
 by circle arcs — rims, meridians and sections tilted against its chart
 alike, holes included — has no conic or spline trim and is on the
 closed-form lane, measured by Gauss–Bonnet over all its loops
-(`props/curved.rs`, `sphere_face`). A chart
+(`props/curved.rs`, `sphere_face`). A cylinder or sphere face bounded by
+a spline chord, its pcurve the chord's projected image, takes the
+rotational-chart Green lane (`props/quad/rotational.rs`), every loop
+read: on the sphere the poles' terms come off the face's winding and
+its sense bit, which says which side of its loops the face is. A chart
 singularity in a face's closure is a vertex of it. STEP import reads
 where it lies off the face's region (`chart_singularity.rs`, `locate`);
 tier 3 places it on the boundary by the same reading

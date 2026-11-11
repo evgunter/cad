@@ -91,6 +91,7 @@ fn kinds() -> Vec<(&'static str, Pcurve<f64>, f64, f64)> {
                 t0: 0.25,
                 angle: 1.5,
                 breaks: kv(vec![0.0, 0.0, 0.5, 1.0, 1.0], 1),
+                ends: Box::default(),
             },
             0.25,
             1.75,
