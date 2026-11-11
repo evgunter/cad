@@ -16,3 +16,7 @@ Green in the 11-03 nightly (run 41583529337), red in the 11-07 one (run 42342466
 ## Bisected (ONECOPY, `onecopy/main-reds-triage`, 2026-11-09)
 
 Both rows move at PR 6504 (`pcert/one-ruling-reading`, merge `143d99ec29`, 2026-11-04), first-parent at ε 1e-9. They pass at `143d99ec29^1` and read `pcurve_chart_radial_moving [22, 20] -> [18, 24]` from `143d99ec29` on. PR 6504's description does not disclose it. The same merge moved `sym11_the_exact_channel_never_contradicts_past_the_ceiling` and the plate's walk ledger (`m10_sym_profile_interval`, re-pinned in PR 6663). The harness asks "if a rule took them, re-pin and say which". Whether the one ruling reading is the rule that took them is PCERT's to answer before re-pinning.
+
+## Under ONEHOME stage 1 (PR 6717, 2026-11-10)
+
+PR 6717 removes the seven `transform_rigid_*` rows (`[1, 0]` each) from both d_tab tables and the boss's: the placement's rigidity is decided at the `f64` it was written in (`RigidMotion::check_rigid`), and those rows log nothing at the box scalar. `pcurve_chart_radial_moving` is left at its pinned `[22, 20]`, so both d_tab rows stay red with this row's reading and no other.

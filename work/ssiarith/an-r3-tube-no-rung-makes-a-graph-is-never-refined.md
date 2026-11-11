@@ -14,7 +14,7 @@ Filed by SECT's `sect-onesix` lane (the PR closing
 
 ## Measured
 
-`geom-brep` `pair_section::wiring::close_rings_carry_counted_and_marched`
+`geom-brep` `pair_section::wiring::close_rings_carry_counted`
 (`crates/geom-brep/src/pair_section.rs`): the wall of radius 1/2
 against a ball at `(0.1, 0, 0.2)` of radius `0.6 + δ`, whose two rings
 come within `δ` of each other at the far ruling. At ε 1e-6 and

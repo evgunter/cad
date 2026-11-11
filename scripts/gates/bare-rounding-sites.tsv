@@ -45,7 +45,9 @@ crates/geom-brep/src/pair_section/torus_arms.rs	prod	2	re-pose
 crates/geom-brep/src/pcurve_cache.rs	prod	13	re-pose
 crates/geom-brep/src/pcurve_cache.rs	test	1	oracle
 crates/geom-brep/src/pcurve_cache/circle_lane_rows.rs	test	8	oracle
+crates/geom-brep/src/pcurve_cache/ellipse_lane_rows.rs	test	1	oracle
 crates/geom-brep/src/pcurve_cache/cone_line_rows.rs	test	3	oracle
+crates/geom-brep/src/pcurve_cache/iso_arc_weight_rows.rs	test	1	oracle
 crates/geom-brep/src/pcurve_cache/cylinder_line_rows.rs	test	2	oracle
 crates/geom-brep/src/pcurve_cache/envelope_lemma_fuzz.rs	test	10	oracle
 crates/geom-brep/src/pcurve_cache/envelope_lemma_fuzz/projected.rs	test	1	oracle
@@ -137,6 +139,7 @@ crates/profile/tests/review_fillet_stored_tangency_r1_probes.rs	test	1	oracle
 crates/profile/tests/review_s2.rs	test	5	oracle
 crates/profile/tests/table_arcs_inside_scene_resolution.rs	test	1	oracle
 crates/profile/tests/tangent_arc_near_a_full_turn.rs	test	1	oracle
+crates/step-import/tests/a_step_placement_is_built_by_its_axes_and_a_move_beyond_rounding_reported.rs	test	1	oracle
 crates/step-import/tests/freecad.rs	test	1	oracle
 crates/step-import/tests/parser.rs	test	2	oracle
 crates/step-import/tests/wild.rs	test	1	oracle
@@ -145,6 +148,8 @@ crates/sweep/examples/near_tangent_census_probe.rs	test	1	oracle
 crates/sweep/examples/split_near_tangent_census_probe.rs	test	1	oracle
 crates/sweep/src/blend/reach.rs	test	4	oracle
 crates/sweep/src/swept.rs	test	1	oracle
+crates/sweep/tests/a_cylinder_split_just_off_its_rim_vertex.rs	test	1	oracle
+crates/sweep/tests/a_frame_within_its_rounding_is_kept_and_one_beyond_it_refuses.rs	test	1	oracle
 crates/sweep/tests/a_keel_on_a_bores_ruling.rs	test	1	oracle
 crates/sweep/tests/a_slit_tip_on_a_curved_face_reads_its_full_turn.rs	test	1	oracle
 crates/sweep/tests/a_thin_cap_keeps_its_digits.rs	test	2	oracle
@@ -173,7 +178,6 @@ crates/sweep/tests/split_through_a_ruling.rs	test	2	oracle
 crates/sweep/tests/the_football_revolves.rs	test	1	oracle
 crates/sweep/tests/torax_axial.rs	test	1	oracle
 crates/sweep/tests/vrev_acceptance_set.rs	test	1	oracle
-crates/topo/src/boxes.rs	test	9	oracle
 crates/topo/src/boolean/conic_quadric/circle_sphere_rows.rs	test	1	oracle
 crates/topo/src/boolean/conic_quadric/circle_wall_rows.rs	test	1	oracle
 crates/topo/src/boolean/conic_quadric/cone_rows.rs	test	2	oracle
@@ -189,11 +193,11 @@ crates/topo/src/boolean/section_cert/cone_search.rs	test	1	oracle
 crates/topo/src/boolean/section_cert/ruling.rs	prod	25	re-pose
 crates/topo/src/boolean/section_cert/square_search.rs	test	2	oracle
 crates/topo/src/boolean/section_cert_rows.rs	test	3	oracle
-crates/topo/src/separating.rs	test	1	oracle
 crates/topo/src/boolean/solid_contain.rs	prod	10	re-pose
 crates/topo/src/boolean/spline_region.rs	prod	8	re-pose
 crates/topo/src/boolean/spline_region_rows.rs	test	1	oracle
 crates/topo/src/boolean/vtxfac.rs	test	1	oracle
+crates/topo/src/boxes.rs	test	9	oracle
 crates/topo/src/census.rs	prod	8	re-pose
 crates/topo/src/census/pierce_fuzz.rs	test	2	oracle
 crates/topo/src/census/segment_fuzz.rs	test	2	oracle
@@ -209,6 +213,7 @@ crates/topo/src/props/quad_lane.rs	test	2	oracle
 crates/topo/src/ring_path.rs	prod	2	far-centre
 crates/topo/src/ring_path.rs	test	3	oracle
 crates/topo/src/ring_path/graze_rows.rs	test	4	oracle
+crates/topo/src/separating.rs	test	1	oracle
 crates/topo/src/separation.rs	prod	1	re-pose
 crates/topo/src/splitting/section_loops.rs	prod	1	re-pose
 crates/topo/src/test_support_samples.rs	test	1	oracle
@@ -219,6 +224,7 @@ crates/topo/tests/join_star_fixture.rs	test	1	oracle
 crates/topo/tests/m3_pr3_split.rs	test	1	oracle
 crates/topo/tests/mesh12_parse_vs_certification.rs	test	1	oracle
 crates/topo/tests/review_m3_pr1.rs	test	3	oracle
+crates/topo/tests/review_m4_pr2_transform.rs	test	1	oracle
 crates/topo/tests/rigid_map_near_eps_plane_nurbs.rs	test	1	oracle
 crates/topo/tests/tangent_touch_charges_both_sags.rs	test	1	oracle
 demos/tour/src/assembly.rs	test	1	oracle

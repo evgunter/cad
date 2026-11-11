@@ -9,7 +9,6 @@ crates/editor-core/src/eval/mod.rs	1	constant	v[2]	a computing twist's stated pa
 crates/editor-core/src/eval/mod.rs	1	constant	self.angle	a computing twist's stated angle (EvalOptions::computing_twist, test-facing), written in f64 by its caller
 crates/editor-core/src/expr.rs	1	constant	f64::from(small)	a count read as a scalar
 crates/editor-core/src/expr.rs	1	constant	q.value	an authored quantity literal
-crates/editor-core/src/placement.rs	1	constant	<fn>	a frame's stored coordinates, carried exactly (f64 by type in the document)
 crates/editor-core/src/ratio.rs	1	constant	self.den as f64	an authored ratio's denominator
 crates/editor-core/src/ratio.rs	1	constant	self.num as f64	an authored ratio's numerator
 crates/geom-brep/src/carrier_net.rs	1	constant	a	a span's start break, f64 structure, entered at the concrete Interval (never Sym)
@@ -43,6 +42,7 @@ crates/geom-brep/src/half_angle.rs	2	constant	share	a fixed split fraction (SPLI
 crates/geom-brep/src/half_angle.rs	3	constant	f64::from(k)	a subdivision index
 crates/geom-brep/src/implicit.rs	1	constant	k as f64	a sample index
 crates/geom-brep/src/newell.rs	1	constant	points.len() as f64	a point count
+crates/geom-brep/src/pair_section.rs	1	constant	64.0 * band.escalate()	the band's escalation width times the cylinder × sphere sweep ball's floor of 64 widths, a tolerance
 crates/geom-brep/src/pair_section/gap.rs	1	constant	k as f64	the index of a cell of the critical gap's first cut of the turn
 crates/geom-brep/src/pair_section/torus_arms.rs	1	constant	band.escalate()	the band's escalation width, a tolerance (the parallel-tori arm's level-row width)
 crates/geom-brep/src/pair_section/torus_arms.rs	1	constant	n as f64	a strand count along a loop of the parallel-tori arm's matching curve

@@ -225,7 +225,7 @@ fn an_instances_copy_taken_over_with_a_lateral_face_held() {
         .vars()
         .values()
         .filter_map(|v| v.def().select())
-        .find(|s| s.body == copy_out)
+        .find(|s| s.body.read == copy_out)
         .expect("the shell's selection");
     assert_eq!(
         held.names,
@@ -351,7 +351,7 @@ fn a_reader_of_a_copy_of_the_copy_is_rebound() {
         .vars()
         .values()
         .filter_map(|v| v.def().select())
-        .find(|s| s.body == copy2_out)
+        .find(|s| s.body.read == copy2_out)
         .expect("the shell's selection");
     let table = ev.table(copy2_out).expect("the second copy evaluates");
     assert!(
@@ -438,7 +438,7 @@ fn a_reader_down_a_link(
         .vars()
         .values()
         .filter_map(|v| v.def().select())
-        .find(|s| s.body == l_out)
+        .find(|s| s.body.read == l_out)
         .expect("the shell's selection");
     let resolves = held
         .names
@@ -630,7 +630,7 @@ fn a_deep_chain_ends_and_rebinds_each_site_once() {
         .vars()
         .values()
         .filter_map(|v| v.def().select())
-        .find(|s| s.body == m2_out)
+        .find(|s| s.body.read == m2_out)
         .expect("the deep reader's selection");
     let t2 = ev.table(m2_out).expect("m2 evaluates after");
     assert!(
@@ -709,7 +709,7 @@ fn a_reader_downstream_of_a_feature_of_the_copy_is_rebound() {
         .vars()
         .values()
         .filter_map(|v| v.def().select())
-        .find(|s| s.body == fillet_out)
+        .find(|s| s.body.read == fillet_out)
         .expect("the shell's selection");
     assert!(
         held.names

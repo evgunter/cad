@@ -235,8 +235,9 @@ pub use pcurve_cache::{
     PcurveCertificate, PcurveCertifyError, PcurveCheck, PcurveKind, Period, ProjectedChart,
     ProjectedImage, Ruling, SectorChannel, SpiricImage, WalkStop, WallTorus, angle_rate,
     chart_iso_family, chart_pcurve, chart_pcurve_over, chart_stretch_inf, chart_stretch_sup,
-    chart_stretch_sup_v, chart_sup_arms_at, harmonic_form_of, iso_arc_spans, minted_refusal,
-    read_edge_incidence, read_incidence, read_point_incidence, ruling_miss,
+    chart_stretch_sup_v, chart_sup_arms_at, harmonic_form_of, incidence_ended_unwitnessed,
+    iso_arc_skew, iso_arc_spans, minted_refusal, read_edge_incidence, read_incidence,
+    read_point_incidence, ruling_miss,
 };
 pub use props::{
     FaceContribution, LoopEdge, PropsError, curved_face, planar_face, require_iso_rectangle,
@@ -250,9 +251,8 @@ pub use ssi::{
     SettlingRefusal, SsiBoundaryContact, SsiBranch, SsiCertificate, SsiDecision, SsiDomain,
     SsiError, SsiLimb, SsiOperand, SsiOutcome, SsiTube, StepFault, StepperMode, TangentPair,
     TorusPair, TraceDecision, TubeDegeneracy, boundary_section, certify_rung3, cylinder_sphere_ssi,
-    cylinder_torus_ssi, idealized_trace_r3, march_cylinder_sphere, march_cylinder_torus,
-    march_torus_torus, plane_nurbs_ssi, sphere_torus_ssi, torus_torus_ssi,
-    trace_plane_nurbs_uncertified,
+    cylinder_torus_ssi, idealized_trace_r3, march_cylinder_torus, march_torus_torus,
+    plane_nurbs_ssi, sphere_torus_ssi, torus_torus_ssi, trace_plane_nurbs_uncertified,
 };
 #[cfg(any(test, feature = "test-support"))]
 #[doc(hidden)]

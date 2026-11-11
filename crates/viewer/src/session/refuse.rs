@@ -310,6 +310,13 @@ pub enum Refusal {
         /// The read, as the session op held it.
         read: Box<Operand>,
     },
+    /// Entities picked on a drawn family are read in no one member of
+    /// it: a selection reads one body (REFERENCES DM3), and the picks lie
+    /// in two members, or in none the landed evaluation finds.
+    PickedMember {
+        /// The family, as the document held it at the refusal.
+        node: SpokenNode,
+    },
     /// The step that clears a body could not be measured — its input's
     /// landed value is not one body with a width
     /// ([`combine::StepClearFault`]).
@@ -506,6 +513,7 @@ impl Refusal {
                 node: again(node),
                 wanted,
             },
+            Self::PickedMember { node } => Self::PickedMember { node: again(node) },
             Self::ProfileEditStale { node } => Self::ProfileEditStale { node: again(node) },
             Self::BundleStale { node } => Self::BundleStale { node: again(node) },
             Self::PlaceOnACopy { copy } => Self::PlaceOnACopy { copy: again(copy) },
@@ -582,6 +590,7 @@ impl Refusal {
             | Self::OfferIsNamed(_)
             | Self::EmptyName
             | Self::WrongNodeKind { .. }
+            | Self::PickedMember { .. }
             | Self::NotABodyRead { .. }
             | Self::StepClear(_)
             | Self::Frame(_)
@@ -636,6 +645,7 @@ impl Refusal {
             | Self::OfferIsNamed(_)
             | Self::EmptyName
             | Self::WrongNodeKind { .. }
+            | Self::PickedMember { .. }
             | Self::NotABodyRead { .. }
             | Self::StepClear(_)
             | Self::Frame(_)
@@ -940,6 +950,11 @@ impl Refusal {
             Self::WrongNodeKind { node, wanted } => {
                 write!(f, "{node} is not {} in this document", wanted.name())
             }
+            Self::PickedMember { node } => write!(
+                f,
+                "{node} is a family, and a selection reads one body: pick on one drawn member \
+                 of it, once the document has landed"
+            ),
             Self::NotABodyRead { read } => match &**read {
                 Operand::Name(name) => write!(f, "no variable is named {name} in this document"),
                 _ => f.write_str(

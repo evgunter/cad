@@ -504,8 +504,8 @@ pub(super) fn exact_polygon_volume(polygons: &[Vec<Vec<Point3<Interval>>>]) -> O
 /// the face walk routes it to its closed form
 /// ([`geom_brep::props::cone_face_closed_form`]). A plane or torus face
 /// reaches this lane only with a spiric on its boundary
-/// ([`rim_face`]); a sphere chart mints stored pcurves but has no
-/// flux lane here, and refuses typed.
+/// ([`rim_face`]); a cylinder or sphere face takes the rotational lane
+/// (`geom_brep::props::quad::rotational_cut_face_rounds`).
 ///
 /// The tolerance is the hook's ([`super::QuadLane`]): no lane here reads
 /// it, since each trim end's trig is formed at its parameter, not off its
@@ -514,6 +514,7 @@ pub(super) fn exact_polygon_volume(polygons: &[Vec<Vec<Point3<Interval>>>]) -> O
 pub(super) fn cut_face_rounds<T: Decide + Bounds + CertifiedEnclosure>(
     body: &Body<T>,
     surface: &Surface<T>,
+    sense: bool,
     loops: &[super::FlatLoop<T>],
     band: Band,
     _tol: Tol,
@@ -525,13 +526,24 @@ pub(super) fn cut_face_rounds<T: Decide + Bounds + CertifiedEnclosure>(
         None => Ok(false),
         Some(len) => Ok(quad::mean_boundary_displacement(bounds.flux, bounds.area)? <= len),
     };
-    cut_face_lane(body, surface, loops, band, window, centre, &mut accept)
+    cut_face_lane(
+        body,
+        surface,
+        sense,
+        loops,
+        band,
+        window,
+        centre,
+        &mut accept,
+    )
 }
 
 /// [`cut_face_rounds`]' lanes, asking `accept` of every round.
+#[allow(clippy::too_many_arguments)]
 fn cut_face_lane<T: Decide + Bounds + CertifiedEnclosure>(
     body: &Body<T>,
     surface: &Surface<T>,
+    sense: bool,
     loops: &[super::FlatLoop<T>],
     band: Band,
     window: RoundWindow,
@@ -572,14 +584,29 @@ fn cut_face_lane<T: Decide + Bounds + CertifiedEnclosure>(
     {
         return rim_face(body, surface, loops, band, window, centre, accept);
     }
-    let Surface::Cylinder { origin, radius, .. } = surface else {
-        return Err(PropsError::QuadratureUnsupported {
-            what: "a trimmed face with no volume lane on its chart — a cone face takes \
-                   its closed form before this lane (`cone_face_closed_form`), and the \
-                   rotational lane's chart table holds the cylinder",
-        });
-    };
     let iv = Interval::from_certified;
+    let (origin, chart) = match surface {
+        Surface::Cylinder { origin, radius, .. } => (
+            origin,
+            quad::RotationalChartQ::Cylinder {
+                radius: iv(*radius),
+            },
+        ),
+        Surface::Sphere { center, radius, .. } => (
+            center,
+            quad::RotationalChartQ::Sphere {
+                radius: iv(*radius),
+                outward: sense,
+            },
+        ),
+        _ => {
+            return Err(PropsError::QuadratureUnsupported {
+                what: "a trimmed face with no volume lane on its chart — a cone face takes \
+                       its closed form before this lane (`cone_face_closed_form`), and the \
+                       rotational lane's chart table holds the cylinder and the sphere",
+            });
+        }
+    };
     let lift = |p: Point3<T>| Point3::new(iv(p.x), iv(p.y), iv(p.z));
     // The chart term `o·A⃗`: each closed-form edge's vector area about the
     // chart's own origin at the caller's scalar, and each rational
@@ -674,6 +701,7 @@ fn cut_face_lane<T: Decide + Bounds + CertifiedEnclosure>(
             let pair = |p: geom_core::Point2<T>| (iv(p.x), iv(p.y));
             edges.push(quad::EdgeTermQ::Projected(quad::ProjectedEdgeQ::of_image(
                 projected,
+                chart,
                 (iv(t0), iv(t1)),
                 le.forward,
                 // The ends through the image's own evaluator, on the lane,
@@ -686,9 +714,7 @@ fn cut_face_lane<T: Decide + Bounds + CertifiedEnclosure>(
         terms.push(edges);
     }
     let face = quad::RotationalFaceQ {
-        chart: quad::RotationalChartQ::Cylinder {
-            radius: iv(*radius),
-        },
+        chart,
         chart_term: quad::ChartTermQ {
             closed,
             lever: rv(lever),
@@ -1335,16 +1361,29 @@ type SegmentSlack = ((f64, f64), (f64, f64));
 /// images, per chart axis, from what it is computed from: an `IsoLine`
 /// is `p₀ + l·t`, two roundings of those terms; an `IsoArc` is
 /// `p₀ + d·g` with `g ∈ [0, 1]` read through the arc's tangent identity,
-/// which rounds `g` itself by a few ulps of one. NaN for any other kind,
+/// which rounds `g` itself by a few ulps of one, and through each
+/// sub-arc's Möbius change where its row's end weights differ
+/// (`ends`), which scales that rounding near the sub-arc's ends by up to
+/// `max(λ, 1/λ)` and adds its own division's. NaN for any other kind,
 /// which joins nothing. `m` reads a scalar's magnitude, upward.
 fn end_slack<T: Decide>(image: &Pcurve<T>, t: T, m: impl Fn(T) -> f64) -> (f64, f64) {
     let ulps = |x: f64| 4.0 * f64::EPSILON * x;
     match image {
         Pcurve::IsoLine { p0, pl } => (ulps(m(p0.x) + m(pl.x * t)), ulps(m(p0.y) + m(pl.y * t))),
-        Pcurve::IsoArc { p0, pd, .. } => (
-            ulps(m(p0.x) + m(pd.x)) + 4.0 * ulps(m(pd.x)),
-            ulps(m(p0.y) + m(pd.y)) + 4.0 * ulps(m(pd.y)),
-        ),
+        Pcurve::IsoArc { p0, pd, ends, .. } => {
+            let skew = ends
+                .windows(2)
+                .map(|e| {
+                    let lambda = geom_brep::iso_arc_skew(e[0], e[1]);
+                    m(lambda).max(m(T::one() / lambda))
+                })
+                .fold(1.0_f64, f64::max);
+            let g = 4.0 * (skew + 1.0);
+            (
+                ulps(m(p0.x) + m(pd.x)) + g * ulps(m(pd.x)),
+                ulps(m(p0.y) + m(pd.y)) + g * ulps(m(pd.y)),
+            )
+        }
         _ => (f64::NAN, f64::NAN),
     }
 }
