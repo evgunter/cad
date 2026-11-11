@@ -1234,3 +1234,206 @@ fn the_count_window_holds_every_admissible_count() {
         );
     }
 }
+
+// ---- reviewer r2 probes (PR 6808), not for merge ----
+
+/// Split a loop's every harmonic edge at its middle, preserving traversal.
+fn r2_split(d: Donut, e: &TorusEdge, kind: char, at: f64, (a, b): (f64, f64)) -> Vec<TorusEdge> {
+    let m = 0.37 * a + 0.63 * b;
+    let fw = e.arc.forward;
+    let mk = |s: (f64, f64)| match kind {
+        'r' => rim(d, at, s, fw, e.swap),
+        _ => meridian(d, at, s, fw, e.swap),
+    };
+    let mut v = vec![mk((a, m)), mk((m, b))];
+    if !fw {
+        v.reverse();
+    }
+    v
+}
+
+fn r2_name_up(e: &mut TorusEdge, du: f64, dv: f64) {
+    let h = e.harmonic.as_mut().unwrap();
+    h.u.c0 = h.u.c0 + pt(du);
+    h.v.c0 = h.v.c0 + pt(dv);
+}
+
+/// Claim 2: a sector's (W_v = ±1) and a band's (W_u = ±1) loops split in
+/// two, each loop's chain started at each edge, and edges named a turn up
+/// in u and in v.
+#[test]
+fn r2_winding_loops_read_independent_of_start_and_branch() {
+    let d = Donut::tilted(Point3::new(0.4, -0.2, 0.3), 1.3, 0.45);
+    let about = Point3::new(0.1, 0.5, -0.2);
+    let (u0, u1) = (0.4, 2.1);
+    let sector = d.rectangle((u0, u1), (0.0, TAU));
+    let (low, high) = (-0.6, 0.5);
+    let band = d.rectangle((0.0, TAU), (low, high));
+    let names: [(usize, f64, f64); 7] = [
+        (9, 0.0, 0.0),
+        (0, TAU, 0.0),
+        (1, TAU, 0.0),
+        (0, 0.0, TAU),
+        (1, 0.0, TAU),
+        (1, -TAU, TAU),
+        (0, 0.0, -TAU),
+    ];
+    for swap in [[true, false], [false, true]] {
+        for rot in [0usize, 1] {
+            for &(which, du, dv) in &names {
+                for (what, region, mk) in [
+                    ("sector", sector, 's'),
+                    ("band", band, 'b'),
+                ] {
+                    for forward in [true, false] {
+                        let mut loops: Vec<Vec<TorusEdge>> = if mk == 's' {
+                            vec![
+                                r2_split(d, &meridian(d, u1, (-PI, PI), forward, swap[0]), 'm', u1, (-PI, PI)),
+                                r2_split(d, &meridian(d, u0, (-PI, PI), !forward, swap[1]), 'm', u0, (-PI, PI)),
+                            ]
+                        } else {
+                            vec![
+                                r2_split(d, &rim(d, low, (0.0, TAU), forward, swap[0]), 'r', low, (0.0, TAU)),
+                                r2_split(d, &rim(d, high, (0.0, TAU), !forward, swap[1]), 'r', high, (0.0, TAU)),
+                            ]
+                        };
+                        // Name an edge of the harmonic loop (the one not swapped) a turn off.
+                        let l = if swap[0] { 1 } else { 0 };
+                        if which < 2 {
+                            r2_name_up(&mut loops[l][which], du, dv);
+                        }
+                        for lp in &mut loops {
+                            lp.rotate_left(rot);
+                        }
+                        let region = if forward { region } else { complement(d, region) };
+                        torus_holds(
+                            &format!("{what} fw {forward} swap {swap:?} rot {rot} name ({which},{du},{dv})"),
+                            d,
+                            true,
+                            &loops,
+                            region,
+                            about,
+                        );
+                    }
+                }
+            }
+        }
+    }
+}
+
+#[test]
+fn r2_unsplit_all_harmonic_sector() {
+    let d = Donut::tilted(Point3::new(0.4, -0.2, 0.3), 1.3, 0.45);
+    let about = Point3::new(0.1, 0.5, -0.2);
+    let (u0, u1) = (0.4, 2.1);
+    let sector = d.rectangle((u0, u1), (0.0, TAU));
+    let loops = vec![
+        vec![meridian(d, u1, (-PI, PI), true, false)],
+        vec![meridian(d, u0, (-PI, PI), false, false)],
+    ];
+    let got = torus_run(d, true, &loops, about, false).unwrap();
+    let va = loops.iter().flatten().fold(Vec3::zero(), |va, e| va + e.arc.vector_area(d.c));
+    eprintln!("unsplit: flux {:?} truth {} area {:?} truth {}", got.flux, sector[1] + (d.c - about).dot(va), got.area, sector[0]);
+    let split: Vec<Vec<TorusEdge>> = loops.iter().map(|l| {
+        let e = &l[0];
+        let at = if e.arc.forward { u1 } else { u0 };
+        r2_split(d, e, 'm', at, (-PI, PI))
+    }).collect();
+    let got = torus_run(d, true, &split, about, false).unwrap();
+    let va = split.iter().flatten().fold(Vec3::zero(), |va, e| va + e.arc.vector_area(d.c));
+    eprintln!("split: flux {:?} truth {} area {:?}", got.flux, sector[1] + (d.c - about).dot(va), got.area);
+}
+
+/// The torus anchors a projected edge's level at its IMAGE's start
+/// (`e.ends[0].1`) and integrates `v′` along the CARRIER, so an image
+/// that stands `δ` off its carrier in the level (metric `r·δ ≤ e`) moves
+/// the slope part by `κ·δ·Δu`. Area: `R·r·δ·Δu = R·e·Δu` against the
+/// residual pad `L·e ≥ ρ·Δu·e`. On the inner side `ρ < R`.
+#[test]
+fn r2_an_image_standing_off_in_the_level_on_the_inner_side() {
+    let d = Donut::tilted(Point3::new(0.4, -0.2, 0.3), 1.3, 0.45);
+    let about = d.c;
+    let band = Band::linear(Tol::witness()).unwrap();
+    for (label, us, vs) in [
+        ("inner", (0.3, 2.9), (PI - 0.05, PI + 0.05)),
+        ("outer", (0.3, 2.9), (-0.05, 0.05)),
+    ] {
+        for delta in [1e-7, 1e-6] {
+            let loops = patch(d, us, vs, true, [true, false, true, false]);
+            let mut face = torus_face(d, true, &loops, about).unwrap();
+            let e = delta * d.r;
+            for edge in face.loops.iter_mut().flatten() {
+                if let EdgeTermQ::Projected(p) = edge {
+                    // Bottom rim off downward, top rim off upward: both
+                    // move the slope term the same way (outward of the
+                    // region), each image within `e` of its carrier.
+                    let s = if mid(p.ends[0].1) < PI && label == "inner" || mid(p.ends[0].1) < 0.0 { -1.0 } else { 1.0 };
+                    for end in &mut p.ends {
+                        end.1 = end.1 + pt(s * delta);
+                    }
+                    p.env = pt(e);
+                }
+            }
+            let truth = d.rectangle(us, vs);
+            let va = loops.iter().flatten().fold(Vec3::zero(), |va, e| va + e.arc.vector_area(d.c));
+            let run = rotational_cut_face_rounds::<f64>(&face, band, RoundWindow::SCHEDULE, &mut to_target(1e-15));
+            match run {
+                Ok(r) => {
+                    let b = r.bounds;
+                    let flux = truth[1] + (d.c - about).dot(va);
+                    eprintln!(
+                        "{label} δ {delta:e}: area {:?} truth {} in {} | flux {:?} truth {} in {}",
+                        b.area, truth[0], b.area.lo() <= truth[0] && truth[0] <= b.area.hi(),
+                        b.flux, flux, b.flux.lo() <= flux && flux <= b.flux.hi()
+                    );
+                }
+                Err(err) => eprintln!("{label} δ {delta:e}: refused {err:?}"),
+            }
+        }
+    }
+}
+
+#[test]
+fn r2_a_band_whose_images_stand_off_in_the_level() {
+    let d = Donut::tilted(Point3::new(0.4, -0.2, 0.3), 1.3, 0.45);
+    let about = d.c;
+    let band = Band::linear(Tol::witness()).unwrap();
+    for (big, r) in [(1.3, 0.45), (1.0, 0.8), (1.0, 0.95)] {
+        let d = Donut { big, r, ..d };
+        for (label, low, high) in [("inner", PI - 0.05, PI + 0.05), ("outer", -0.05, 0.05)] {
+            for delta in [1e-7, 1e-6, 1e-5] {
+                let loops = vec![
+                    vec![rim(d, low, (0.0, TAU), true, true)],
+                    vec![rim(d, high, (0.0, TAU), false, true)],
+                ];
+                let mut face = torus_face(d, true, &loops, about).unwrap();
+                let e = delta * d.r;
+                for (i, l) in face.loops.iter_mut().enumerate() {
+                    for edge in l {
+                        if let EdgeTermQ::Projected(p) = edge {
+                            let s = if i == 0 { -1.0 } else { 1.0 };
+                            for end in &mut p.ends {
+                                end.1 = end.1 + pt(s * delta);
+                            }
+                            p.env = pt(e);
+                        }
+                    }
+                }
+                let truth = d.rectangle((0.0, TAU), (low, high));
+                let run = rotational_cut_face_rounds::<f64>(&face, band, RoundWindow::SCHEDULE, &mut to_target(1e-15));
+                match run {
+                    Ok(rr) => {
+                        let b = rr.bounds;
+                        let ok = b.area.lo() <= truth[0] && truth[0] <= b.area.hi();
+                        let okf = b.flux.lo() <= truth[1] && truth[1] <= b.flux.hi();
+                        eprintln!(
+                            "R {big} r {r} {label} δ {delta:e}: area {:?} truth {} in {ok} miss {:e} | flux {:?} truth {} in {okf}",
+                            b.area, truth[0], (truth[0] - b.area.lo()).min(b.area.hi() - truth[0]), b.flux, truth[1]
+                        );
+                    }
+                    Err(err) => eprintln!("R {big} r {r} {label} δ {delta:e}: refused {err:?}"),
+                }
+            }
+        }
+    }
+}

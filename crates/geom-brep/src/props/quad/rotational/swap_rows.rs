@@ -661,3 +661,4 @@ mod framed;
 mod pads;
 mod sphere;
 mod torus;
+mod r2_probes;

@@ -267,3 +267,18 @@ fn the_slicing_oracle_agrees_with_the_disc_reading_off_the_axis_line() {
         "sliced {sliced} vs the disc's {disc}"
     );
 }
+
+/// r2 probe: print the oracle's values for the PR's rows.
+#[test]
+fn r2_print_oracle_values() {
+    let rods = [
+        ("square", Op::Subtract, Rod::AlongX { x: (-1.0, 1.0), at: (2.45, 0.0), rc: 0.1 }),
+        ("square_int", Op::Intersect, Rod::AlongX { x: (-1.0, 1.0), at: (2.45, 0.0), rc: 0.1 }),
+        ("offaxis", Op::Intersect, Rod::AlongZ { at: (1.9, 0.5), rc: 0.2 }),
+        ("across", Op::Intersect, Rod::AlongZ { at: (2.0, 0.0), rc: 0.7 }),
+        ("inner", Op::Intersect, Rod::AlongZ { at: (1.5, 0.0), rc: 0.2 }),
+    ];
+    for (n, op, rod) in rods {
+        eprintln!("ORACLE {n} {:.17e}", volume(op, rod));
+    }
+}
