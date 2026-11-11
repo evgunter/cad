@@ -20,3 +20,7 @@ Found by PCERT's nightly-reds lane (`pcert/nightly-slowset-reds`) on merging mai
   - make `width` NaN unless all three coordinates are certified, which already reads `Pinched`, so the change can only refuse more.
 
 PCERT's lane left this row alone (it is sectarms' ground and a soundness call). The census stays red on main, and on every PR that edits the census file, until it is dispositioned.
+
+**Proposed fix** (PCERT's lane; sectarms owes the decision): in `node_frame`, read `width` as NaN unless `jet.point.x`, `.y` and `.z` each answer `is_certified()`. `listed` already refuses a NaN width as `Pinched { NODE_BOX }`, so the change can only refuse more, never place a node it would not place now. With it, `node_frame` asks by name and the census counts its 2 reads as asking. `grown`'s 4 then take the seed disposition above, and the row reads 37 / 28.
+
+PCERT's PR 6831 lands with this row red: the red is inherited from main, where main's own tree `c43415ae` fails the census on `critical.rs` at 37 / 26 against the table's 31 / 26.
