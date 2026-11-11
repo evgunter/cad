@@ -3,7 +3,7 @@
 //! ([`ApexLobe`]) against whole planes and half-planes through it, and a
 //! boss resting on its own plate's hole, the two rims one circle through
 //! the point. Each row near the origin and a kilometre off it, in `f64`
-//! and in `Interval`, its directions in the frame [`v`] turns.
+//! and in `Interval`, its directions in the frames [`v`] and [`w`] name.
 
 #![allow(clippy::expect_used, clippy::panic, clippy::unwrap_used)]
 
@@ -15,9 +15,19 @@ fn band() -> Band {
     Band::linear(Tol::witness()).expect("the witness tolerance is a band")
 }
 
-/// `(x, y, z)` in the rows' frame, turned a third of a turn about
-/// `(1, 1, 1)` to `(z, x, y)`, as `lens_rows` turns its own.
+/// `(x, y, z)` in the rows' frame, the world's own: the planes the
+/// nappe rests on, square to `y`, then span the apex's `x` and `z`. One
+/// spanning its `x` and `y` (a kilometre and two off) reads its own rays
+/// against its own wedges in band on `Interval` at the finest band (as
+/// `lens_rows::v` finds).
 fn v<T: Real>(x: f64, y: f64, z: f64) -> Vec3<T> {
+    Vec3::new(T::from_f64(x), T::from_f64(y), T::from_f64(z))
+}
+
+/// `(x, y, z)` turned a third of a turn about `(1, 1, 1)` to `(z, x, y)`,
+/// as `lens_rows::v` turns its own: the boss's floor and the plate's top,
+/// square to `z` here, then span the apex's `y` and `z`.
+fn w<T: Real>(x: f64, y: f64, z: f64) -> Vec3<T> {
     Vec3::new(T::from_f64(z), T::from_f64(x), T::from_f64(y))
 }
 
@@ -122,11 +132,27 @@ fn whole<T: Decide>(p: Point3<T>, m: Vec3<T>) -> TangentPiece<T> {
     FaceSector::tangent(surface, true, m, p, fan, band()).expect("a whole plane")
 }
 
-/// The unit normal tilted `beta` off `+y` toward `−x`: its plane holds
-/// the nappe below it, its nearest ruling `cos(α + β)` under it a unit
-/// out.
-fn tilted<T: Real>(beta: f64) -> Vec3<T> {
-    v(-beta.sin(), beta.cos(), 0.0)
+/// A needle whole, its nappe's axis turned `gamma` off `−y` toward `+x`:
+/// under the plane `y = 0` its nearest ruling stands `cos(α + γ)` below
+/// a unit out.
+fn tipped<T: Real>(p: Point3<T>, gamma: f64) -> TangentPiece<T> {
+    let (e, k) = (edges(1)[0], carriers(1)[0]);
+    let axis = v::<T>(gamma.sin(), -gamma.cos(), 0.0);
+    let (s, c) = ALPHA.sin_cos();
+    let along = axis * T::from_f64(c) + v::<T>(0.0, 0.0, s);
+    TangentPiece::Apex(ApexLobe {
+        cone: crate::sector_face::ConeApex {
+            apex: p,
+            axis,
+            half_angle: T::from_f64(ALPHA),
+            u_ref: v(0.0, 0.0, 1.0),
+            sense: false,
+        },
+        carrier: k,
+        vertex: p,
+        ends: [(along, e), (along, e)],
+        spur: true,
+    })
 }
 
 fn read<T: Decide>(p: Point3<T>, pieces: Vec<TangentPiece<T>>) -> TouchVerdict {
@@ -230,9 +256,9 @@ fn a_nappe_off_every_plane_is_the_thorn_or_needle_it_bounds<T: Decide>() {
 
 /// **A plane the nappe does not keep off crosses it or refuses.** A whole
 /// plane holding the cone's axis crosses the nappe; one tangent to it
-/// along a ruling, or tilted so the nearest ruling stands in band of it
-/// at the arm, refuses in band, and the same tilt past the escalation
-/// rests. A half-plane whose plane cuts the nappe but whose sector stands
+/// along a ruling, or with the cone tipped so its nearest ruling stands
+/// in band of the plane at the arm, refuses in band, and the same tip
+/// past the escalation rests. A half-plane whose plane cuts the nappe but whose sector stands
 /// above it is not read. Red where a plane's side is read uncharged by
 /// the rulings' spread, a decided straddle is taken for either side, or a
 /// half-plane is taken for its whole plane.
@@ -244,16 +270,17 @@ fn a_plane_the_nappe_does_not_keep_off_crosses_it_or_refuses<T: Decide>() {
             TouchVerdict::Crossing,
             "a plane through the axis at {p:?}"
         );
-        let beta = core::f64::consts::FRAC_PI_2 - ALPHA;
+        let up = v::<T>(0.0, 1.0, 0.0);
+        let gamma = core::f64::consts::FRAC_PI_2 - ALPHA;
         assert_eq!(
-            read(p, vec![spur(p, false), whole(p, tilted(beta))]),
+            read(p, vec![tipped(p, gamma), whole(p, up)]),
             TouchVerdict::Unread(TouchUnread::InBand),
             "a plane tangent along a ruling at {p:?}"
         );
         // The nearest ruling `sin δ` under the plane a unit out.
         for (frac, rests) in [(0.5, false), (2.0, true)] {
             let delta = (frac * e).asin();
-            let got = read(p, vec![spur(p, false), whole(p, tilted(beta - delta))]);
+            let got = read(p, vec![tipped(p, gamma - delta), whole(p, up)]);
             if rests {
                 assert!(
                     matches!(got, TouchVerdict::Rest(_)),
@@ -313,22 +340,22 @@ fn boss_on_hole<T: Decide>(p: Point3<T>, hole: f64, circle: bool) -> Vec<Tangent
     let (seam, rim_out, rim_in, rim) = (k[0], k[1], k[2], k[3]);
     let r = 0.3;
     let wall = geom::Surface::Cylinder {
-        origin: p - v::<T>(r, 0.0, 0.0),
-        axis: v(0.0, 0.0, 1.0),
+        origin: p - w::<T>(r, 0.0, 0.0),
+        axis: w(0.0, 0.0, 1.0),
         radius: T::from_f64(r),
-        u_ref: v(1.0, 0.0, 0.0),
+        u_ref: w(1.0, 0.0, 0.0),
     };
     let bore = geom::Surface::Cylinder {
-        origin: p - v::<T>(r, 0.0, 0.5),
-        axis: v(0.0, 0.0, -1.0),
+        origin: p - w::<T>(r, 0.0, 0.5),
+        axis: w(0.0, 0.0, -1.0),
         radius: T::from_f64(r),
-        u_ref: v(1.0, 0.0, 0.0),
+        u_ref: w(1.0, 0.0, 0.0),
     };
     let arc = |edge, bend: f64, circle| Bound {
         edge,
         line: false,
         circle,
-        bend: v(bend, 0.0, 0.0),
+        bend: w(bend, 0.0, 0.0),
     };
     let boss = arc(rim_out, -1.0 / r, true);
     let boss_in = arc(rim_in, -1.0 / r, true);
@@ -360,10 +387,10 @@ fn boss_on_hole<T: Decide>(p: Point3<T>, hole: f64, circle: bool) -> Vec<Tangent
     let plane = |m: Vec3<T>| geom::Surface::Plane {
         origin: p,
         normal: m,
-        u_ref: v(1.0, 0.0, 0.0),
+        u_ref: w(1.0, 0.0, 0.0),
     };
-    let x = v::<T>(1.0, 0.0, 0.0);
-    let (y, z) = (v::<T>(0.0, 1.0, 0.0), v::<T>(0.0, 0.0, 1.0));
+    let x = w::<T>(1.0, 0.0, 0.0);
+    let (y, z) = (w::<T>(0.0, 1.0, 0.0), w::<T>(0.0, 0.0, 1.0));
     vec![
         corner(wall.clone(), x, (z, -y), [line, boss]),
         corner(wall, x, (y, z), [boss_in, line]),
