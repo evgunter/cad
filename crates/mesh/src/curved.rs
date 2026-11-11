@@ -1291,8 +1291,8 @@ mod tests {
             let Some(chart) = Chart::of(body.face_surface(fk).unwrap()) else {
                 continue;
             };
-            let walk =
-                loop_polygon(body, &chart, &chords, &positions, fk, face.outer, eps, band).map(|poly| {
+            let walk = loop_polygon(body, &chart, &chords, &positions, fk, face.outer, eps, band)
+                .map(|poly| {
                     // The same lever arms `tessellate_curved` builds.
                     let levers = poly
                         .iter()
