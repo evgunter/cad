@@ -19,6 +19,22 @@ On 2026-11-10/11 this happened three times:
 - geom-brep, after PR 6755's forwarder rule: PCERT's PR 6531 (`spline_incidence_as` forwarding to a new helper) and sectarms' PR 6518 (a pose test's `decide(x, …)`). Fixed by PR 6809.
 - geom-core: onehome's 6717 (the rigidity loop moved from `check_rigid` into `admitted_for_a_suite`). Fixed by PCERT's geom-core roster PR.
 
+## Evidence: nightly 42965378060 (main `b2916558d9`), the same class beyond the rosters
+
+Six more tree-wide source censuses in the slow set went red on main since nightly 42761779270 (`50cfcf499d`), each moved by a PR that never touched the census file. The shape is the same as the rosters': the census reads a crate's or the tree's `src/`, and the gate selects it only when the diff names it. `work/ciw/tree-wide-source-censuses-in-the-slow-set-run-on-no-pr-that-moves-a-site.md` covers geom-core's; these reach editor-core and pncad-py too.
+
+- geom-core `bounds_census`: PCERT's PR 6532 (`edge_nurbs.rs`'s `knot_lines`, a new sole `T: Bounds` door). Fixed by tint's PR 6818.
+- geom-core `certified_endpoint_census`, three sites:
+  - spiricarm's PR 6521 (`pcurve_cache.rs`'s `limb2_offset_sup` spindle grading, 2 reads);
+  - spiricarm's PR 6509 (`props/quad/projected_edge.rs`, 1 asking read);
+  - after the nightly, spiricarm's PR 6805 (`props/quad/rotational.rs`'s `piece_reach`).
+  Dispositioned by PCERT's `pcert/nightly-slowset-reds`.
+- geom-core `sym_rule_f_rows`: spiricarm's PR 6806 (a copysign mint site in `crates/mesh/src/walk.rs`, 0 → 1 between `eb319b9d^1` and `eb319b9d`).
+- editor-core `node_standing`: onecopy's PR 6735 (`eval/mod.rs` 33 → 35 and `eval/parts.rs` 1 → 2 node-result reads, between `1ed46561^1` and `1ed46561`).
+- pncad-py `prose_census` (`no_raise_site_composes_a_debug_rendering_into_its_message`): reads' PR 6555 (`crates/pncad-py/src/py/select.rs`'s `message`, a `Debug` rendering, at `a5e6a785`).
+
+The fix above generalises: select every slow-set census whose walk reads a crate's `src/` when the diff touches that `src/`, not only the rosters.
+
 ## Fix
 
 Have `scripts/ci-filter.py` select a crate's roster row whenever the diff touches that crate's `src/`. Each roster takes 2–8 s, so this costs one test per touched crate. The alternative is to move the rosters into the fast set if they can be made to fit the bar.
