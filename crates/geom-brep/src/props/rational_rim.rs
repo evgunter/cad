@@ -321,44 +321,69 @@ pub(super) struct RationalJets {
     pub(super) dw: Jet,
 }
 
-/// **`∫ g(B, B′, w) dt` over the edge's carrier interval**, span by
-/// span at `pieces` per span ([`super::taylor::composite_over`]), for `N` integrands of
-/// the carrier's homogeneous point ([`RationalJets`]); with per integrand
-/// the part of its width a later round removes. The traversal is NOT
-/// folded in.
-pub(super) fn rational_integrals<const N: usize>(
+/// **`∫ g(B, B′, w, w′) dt` over the edge's carrier interval**, span by
+/// span at `pieces(i)` pieces on span `i` ([`super::taylor::composite_each`]), for `N` integrands of
+/// the carrier's homogeneous numerator `B`, its derivative and its
+/// weight `w`, each handed as jets; with per integrand the part of its
+/// width a later round removes. The traversal is NOT folded in.
+pub(super) fn rational_integrals_each<const N: usize>(
     e: &RationalEdgeQ,
-    pieces: usize,
+    pieces: impl Fn(usize) -> usize,
     g: impl Fn(&RationalJets) -> [Jet; N],
 ) -> ([Interval; N], [f64; N]) {
-    super::taylor::composite_over(
-        e.spans.iter().map(|s| (s.a, s.b, s)),
-        pieces,
+    super::taylor::composite_each(
+        e.spans
+            .iter()
+            .enumerate()
+            .map(|(i, s)| (s.a, s.b, s, pieces(i))),
         |s, p, q| piece_form(s, p, q),
         |f, t| g(&piece_jets(f, t)),
     )
 }
 
-/// **[`super::taylor::primitive_over`] over the edge's spans**: the rule
+/// **[`super::taylor::primitive_each`] over the edge's spans**: the rule
 /// with a running primitive `y`, from `start` at the carrier interval's
-/// start, read span by span at `pieces` per span. The traversal is NOT
-/// folded in.
-pub(super) fn rational_primitive<const N: usize>(
+/// start, at `pieces(i)` pieces on span `i`. The traversal is NOT folded
+/// in.
+pub(super) fn rational_primitive_each<const N: usize>(
     e: &RationalEdgeQ,
-    pieces: usize,
+    pieces: impl Fn(usize) -> usize,
     start: Interval,
     g: impl Fn(&RationalJets) -> super::taylor::Integrand<N>,
 ) -> super::taylor::Primitive<N> {
-    super::taylor::primitive_over(
-        e.spans.iter().map(|s| (s.a, s.b, s)),
-        pieces,
+    super::taylor::primitive_each(
+        e.spans
+            .iter()
+            .enumerate()
+            .map(|(i, s)| (s.a, s.b, s, pieces(i))),
         start,
         |s, p, q| piece_form(s, p, q),
         |f, t| g(&piece_jets(f, t)),
     )
 }
 
-/// **`Σ h·bound(B, B′, w)` over the edge's pieces**, `pieces` per span
+/// Per span, the fewest pieces (a power of two up to `most`) on each of
+/// which `fits(B, B′, w, w′, h)` holds, the jets enclosing the piece
+/// ([`super::taylor::pieces_where`]).
+pub(super) fn rational_span_pieces(
+    e: &RationalEdgeQ,
+    most: usize,
+    fits: impl Fn(&RationalJets, f64) -> bool,
+) -> Vec<usize> {
+    e.spans
+        .iter()
+        .map(|s| {
+            super::taylor::pieces_where(
+                (s.a, s.b),
+                most,
+                |p, q| piece_form(s, p, q),
+                |f, t, h| fits(&piece_jets(f, t), h),
+            )
+        })
+        .collect()
+}
+
+/// **`Σ h·bound(B, B′, w, w′)` over the edge's pieces**, `pieces` per span
 /// ([`super::taylor::rate_bound_over`]): `bound` reads the jets enclosing
 /// the piece and answers an upper bound of a nonnegative rate over it.
 pub(super) fn rational_rate_bound(
@@ -379,7 +404,15 @@ pub(super) fn rational_rate_bound(
 /// its width a later round removes.
 #[must_use]
 pub fn rational_vector_area_split(e: &RationalEdgeQ, pieces: usize) -> (RVec3, [f64; 3]) {
-    let (va, removable) = rational_integrals(e, pieces, |j| {
+    rational_vector_area_each(e, |_| pieces)
+}
+
+/// [`rational_vector_area_split`] at `pieces(i)` pieces on span `i`.
+pub(super) fn rational_vector_area_each(
+    e: &RationalEdgeQ,
+    pieces: impl Fn(usize) -> usize,
+) -> (RVec3, [f64; 3]) {
+    let (va, removable) = rational_integrals_each(e, pieces, |j| {
         let (b, db) = (j.b, j.db);
         let scale = j.w.sqr().recip().scale(pt(0.5));
         [

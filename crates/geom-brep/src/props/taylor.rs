@@ -174,19 +174,18 @@ pub(super) fn composite_by<const N: usize, C>(
 }
 
 /// **The rule over consecutive intervals**: [`composite_by`] over each
-/// `(a, b, item)` of `intervals` (an edge's Bézier spans, or its carrier
-/// interval cut at breaks), `pieces` pieces each, summed with their
+/// `(a, b, item, pieces)` of `intervals` (an edge's Bézier spans, or its carrier
+/// interval cut at breaks), each at its own piece count, summed with their
 /// removable widths; `prepare` reads the interval's item. The one home of
 /// the per-interval accumulator every curved-rim lane cuts an edge by.
-pub(super) fn composite_over<S, C, const N: usize>(
-    intervals: impl IntoIterator<Item = (f64, f64, S)>,
-    pieces: usize,
+pub(super) fn composite_each<S, C, const N: usize>(
+    intervals: impl IntoIterator<Item = (f64, f64, S, usize)>,
     prepare: impl Fn(&S, f64, f64) -> C,
     g: impl Fn(&C, Interval) -> [Jet; N],
 ) -> ([Interval; N], [f64; N]) {
     let mut total = [Interval::zero(); N];
     let mut removable = [0.0_f64; N];
-    for (a, b, item) in intervals {
+    for (a, b, item, pieces) in intervals {
         let (part, rem) = composite_by(pt(a), pt(b), pieces, |p, q| prepare(&item, p, q), &g);
         for k in 0..N {
             total[k] = total[k] + part[k];
@@ -196,7 +195,7 @@ pub(super) fn composite_over<S, C, const N: usize>(
     (total, removable)
 }
 
-/// One integrand of [`primitive_over`] at a node or over a piece:
+/// One integrand of [`primitive_each`] at a node or over a piece:
 /// `own + y·by` for each of `N` outputs, and the rate `y′`, each as jets.
 pub(super) struct Integrand<const N: usize> {
     pub(super) own: [Jet; N],
@@ -204,7 +203,7 @@ pub(super) struct Integrand<const N: usize> {
     pub(super) rate: Jet,
 }
 
-/// What [`primitive_over`] reads: per output its enclosure and the part
+/// What [`primitive_each`] reads: per output its enclosure and the part
 /// of its width a later round removes.
 pub(super) struct Primitive<const N: usize> {
     pub(super) total: [Interval; N],
@@ -212,7 +211,8 @@ pub(super) struct Primitive<const N: usize> {
 }
 
 /// **The rule with a running primitive**: `∫ (own + y·by) dt` over
-/// consecutive intervals, `pieces` pieces each, where `y` is not handed
+/// consecutive intervals `(a, b, item, pieces)`, each at its own piece
+/// count, where `y` is not handed
 /// as a jet but integrated from its rate, `y(t) = start + ∫ y′` from the
 /// first interval's start, so an integrand that holds a function known
 /// only through its derivative (an angle along a chord) is read in the
@@ -230,9 +230,8 @@ pub(super) struct Primitive<const N: usize> {
 /// sound at every resolution; `y`'s own remainders accumulate along the
 /// edge at `h⁵` a piece, and the removable width counts them at the
 /// `by` they meet. Every interval end is an exact `f64`.
-pub(super) fn primitive_over<S, C, const N: usize>(
-    intervals: impl IntoIterator<Item = (f64, f64, S)>,
-    pieces: usize,
+pub(super) fn primitive_each<S, C, const N: usize>(
+    intervals: impl IntoIterator<Item = (f64, f64, S, usize)>,
     start: Interval,
     prepare: impl Fn(&S, f64, f64) -> C,
     g: impl Fn(&C, Interval) -> Integrand<N>,
@@ -241,7 +240,7 @@ pub(super) fn primitive_over<S, C, const N: usize>(
         total: [Interval::refused(); N],
         removable: [f64::INFINITY; N],
     };
-    if pieces == 0 || !start.is_certified() {
+    if !start.is_certified() {
         return refused();
     }
     let mut total = [Interval::zero(); N];
@@ -250,8 +249,8 @@ pub(super) fn primitive_over<S, C, const N: usize>(
     // The width `y` has gathered from its own remainders: a later round
     // removes it.
     let mut y_removable = 0.0_f64;
-    for (a, b, item) in intervals {
-        if !(a.is_finite() && b.is_finite() && a <= b) {
+    for (a, b, item, pieces) in intervals {
+        if pieces == 0 || !(a.is_finite() && b.is_finite() && a <= b) {
             return refused();
         }
         for i in 0..pieces {
@@ -301,8 +300,31 @@ pub(super) fn primitive_over<S, C, const N: usize>(
     Primitive { total, removable }
 }
 
+/// **The fewest equal pieces `[a, b]` is read in**, a power of two up
+/// to `most`, for which `fits(ctx, piece, h)` holds on every piece (the
+/// context prepared over it, the piece's enclosure, its length): `most`
+/// where none does. Each count is tried in full, so the reading is a
+/// function of the interval and `fits` alone.
+pub(super) fn pieces_where<C>(
+    (a, b): (f64, f64),
+    most: usize,
+    prepare: impl Fn(f64, f64) -> C,
+    fits: impl Fn(&C, Interval, f64) -> bool,
+) -> usize {
+    let mut pieces = 1;
+    while pieces < most
+        && !(0..pieces).all(|i| {
+            let (p, q) = (node(a, b, pieces, i), node(a, b, pieces, i + 1));
+            fits(&prepare(p, q), Interval::from_bounds(p, q), q - p)
+        })
+    {
+        pieces *= 2;
+    }
+    pieces
+}
+
 /// **`Σ h·bound` over the pieces of consecutive intervals**, as
-/// [`composite_over`] cuts them: `bound` reads the jets enclosing a piece
+/// [`composite_each`] cuts them: `bound` reads the jets enclosing a piece
 /// and answers an upper bound of a nonnegative rate over it, so the sum
 /// bounds that rate's integral from above (a length, where the rate is a
 /// speed).

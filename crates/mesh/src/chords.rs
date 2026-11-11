@@ -892,7 +892,8 @@ mod tests {
         }
     }
 
-    /// A degree-1 chart image, the shape this head's producer mints
+    /// A degree-1 chart image, the shape this head's producer mints for
+    /// a carrier whose feet run straight in the chart
     /// (`edge_nurbs::PXN_IMAGE_DEGREE = 1`, 33 interpolated feet): a
     /// polyline whose per-span speed IS a difference coefficient, so
     /// the hull bound is the sup exactly and any slack is a defect.

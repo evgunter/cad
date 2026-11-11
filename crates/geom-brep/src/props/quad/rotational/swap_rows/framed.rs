@@ -212,18 +212,49 @@ fn section_net(
     net(knots, 2, control, weights)
 }
 
-/// **A swapped plane section, whose level and azimuth both move, holds
-/// the closed form**: `F(v)·u′` read as a product neither of whose
-/// factors is constant.
-#[test]
-fn a_swapped_plane_section_holds_the_closed_form() {
-    let chart = Chart::tilted(Point3::new(0.4, -0.2, 0.3), 0.8);
-    for (label, (u0, u1), (c, k), v0, segs) in [
-        ("short", (0.3, 1.4), (1.1, 0.6), 0.1, 1),
-        ("past a quarter turn", (0.2, 2.9), (1.4, 0.7), -0.2, 2),
-        ("across the seam", (-1.0, 0.8), (1.3, -0.5), 0.0, 2),
-        ("winding most of a turn", (-2.8, 2.8), (2.0, 0.9), 0.0, 3),
-    ] {
+/// A face between the level `v0` and the plane section
+/// `v = c + k·r·cos u` over `us`, the section swapped onto a net of
+/// `segments`.
+#[derive(Clone, Copy)]
+struct Section {
+    label: &'static str,
+    us: (f64, f64),
+    plane: (f64, f64),
+    v0: f64,
+    segments: usize,
+}
+
+impl Section {
+    const fn new(
+        label: &'static str,
+        us: (f64, f64),
+        plane: (f64, f64),
+        v0: f64,
+        segments: usize,
+    ) -> Self {
+        Self {
+            label,
+            us,
+            plane,
+            v0,
+            segments,
+        }
+    }
+
+    /// The face's harmonic and swapped readings about `about`, and its
+    /// closed forms `(flux, area)` there: `r²·A + (o − about)·A⃗` and
+    /// `r·|A|`, `A⃗` the harmonic channels' own.
+    fn faces(
+        self,
+        chart: Chart,
+        about: Point3<f64>,
+    ) -> ((RotationalFaceQ, RotationalFaceQ), f64, f64) {
+        let Self {
+            us: (u0, u1),
+            plane: (c, k),
+            v0,
+            ..
+        } = self;
         let r = chart.r;
         let v_at = |u: f64| c + k * r * u.cos();
         let top_harmonic = TrimEdgeQ {
@@ -252,20 +283,40 @@ fn a_swapped_plane_section_holds_the_closed_form() {
             },
             Edge {
                 harmonic: top_harmonic,
-                swap: Some(section_net(chart, (c, k), (u0, u1), segs)),
+                swap: Some(section_net(chart, (c, k), (u0, u1), self.segments)),
             },
             Edge {
                 harmonic: harmonic(chan(u0, 0.0), chan(0.0, 1.0), (v0, v_at(u0)), false),
                 swap: None,
             },
         ];
+        let va = edges.iter().fold(Vec3::zero(), |s, e| {
+            s + channel_vector_area(chart, &e.harmonic)
+        });
         let a = (c - v0) * (u1 - u0) + k * r * (u1.sin() - u0.sin());
-        holds(
-            label,
-            &face(chart, &[edges], Vec3::zero(), chart.o, Deck::AsMinted),
-            r * r * a,
+        let flux = r * r * a + (chart.o - about).dot(va);
+        (
+            face(chart, &[edges], va, about, Deck::AsMinted),
+            flux,
             r * a.abs(),
-        );
+        )
+    }
+}
+
+/// **A swapped plane section, whose level and azimuth both move, holds
+/// the closed form**: `F(v)·u′` read as a product neither of whose
+/// factors is constant.
+#[test]
+fn a_swapped_plane_section_holds_the_closed_form() {
+    let chart = Chart::tilted(Point3::new(0.4, -0.2, 0.3), 0.8);
+    for section in [
+        Section::new("short", (0.3, 1.4), (1.1, 0.6), 0.1, 1),
+        Section::new("past a quarter turn", (0.2, 2.9), (1.4, 0.7), -0.2, 2),
+        Section::new("across the seam", (-1.0, 0.8), (1.3, -0.5), 0.0, 2),
+        Section::new("winding most of a turn", (-2.8, 2.8), (2.0, 0.9), 0.0, 3),
+    ] {
+        let (faces, flux, area) = section.faces(chart, chart.o);
+        holds(section.label, &faces, flux, area);
     }
 }
 
@@ -389,15 +440,191 @@ fn projected_integrals_hold_high_precision_truths() {
             ends: [(pt(0.0), pt(0.0)); 2],
             env: Interval::zero(),
         };
-        for pieces in [8, 128] {
-            let (got, _) = projected_integrals(&e, pieces, |at| {
-                let [f, g] = cylinder_projected_forms(radius, &e, at, 0.25);
-                let minus = -Interval::one();
-                [f.mul(at.du).scale(minus), g.mul(at.du).scale(minus), at.du]
-            });
+        for pieces in [1, 2, 3, 8, 128] {
+            let (got, _) = projected_integrals(
+                &e,
+                |_| pieces,
+                |at| {
+                    let [f, g] = cylinder_projected_forms(radius, &e, at, 0.25);
+                    let minus = -Interval::one();
+                    [f.mul(at.du).scale(minus), g.mul(at.du).scale(minus), at.du]
+                },
+            );
             for k in 0..3 {
                 encloses(got[k], truth[k], &format!("{label} @{pieces} [{k}]"));
             }
         }
+    }
+}
+
+/// One round of `face` exactly, taken whatever its width.
+fn at_round(face: &RotationalFaceQ, round: usize) -> FaceCutBounds {
+    let band = Band::linear(Tol::witness()).unwrap();
+    rotational_cut_face_rounds::<f64>(face, band, RoundWindow::at(round), &mut to_target(1e6))
+        .unwrap_or_else(|e| panic!("round {round}: refused {e:?}"))
+        .bounds
+}
+
+/// **Many-span sections hold at every round about a point off the
+/// chart**, so the chart term's rationals are read through a nonzero
+/// lever: rounds 0 to 3, each taken whatever its width.
+#[test]
+fn many_span_sections_hold_at_every_round_about_a_point_off_the_chart() {
+    let chart = Chart::tilted(Point3::new(0.4, -0.2, 0.3), 0.8);
+    let about = Point3::new(1.1, 0.5, -0.7);
+    for (label, us, plane, v0) in [
+        ("winding most of a turn", (-2.8, 2.8), (2.0, 0.9), 0.0),
+        ("across the seam", (-1.0, 0.8), (1.3, -0.5), 0.0),
+        ("past a quarter turn", (0.2, 2.9), (1.4, 0.7), -0.2),
+        ("steep and nearly a turn", (-3.1, 3.1), (0.0, 3.0), -3.0),
+    ] {
+        for segments in [16, 23, 64] {
+            let section = Section::new(label, us, plane, v0, segments);
+            let ((_, swapped), flux, area) = section.faces(chart, about);
+            for round in 0..4 {
+                let got = at_round(&swapped, round);
+                let tag = format!("{label}, {segments} segments, round {round}");
+                encloses(got.flux, flux, &format!("{tag}: flux"));
+                encloses(got.area, area, &format!("{tag}: area"));
+            }
+        }
+    }
+}
+
+/// **A circle cut into many intervals holds at every round**: one of
+/// its 17 intervals most of the arc (5.4 rad), and the arc cut evenly
+/// into 40; each interval is read in the pieces its own turn and length
+/// need ([`span_schedule`]).
+#[test]
+fn a_circle_of_many_cuts_holds_at_every_round() {
+    let chart = Chart::tilted(Point3::new(0.4, -0.2, 0.3), 0.8);
+    let (us, vs) = ((-2.8, 2.8), (0.2, 1.1));
+    let uneven: Vec<f64> = (0..=16)
+        .map(|i| us.0 + 0.2 * f64::from(i) / 16.0)
+        .chain([us.1])
+        .collect();
+    let even: Vec<f64> = (0..=40)
+        .map(|i| us.0 + (us.1 - us.0) * f64::from(i) / 40.0)
+        .collect();
+    let (flux, area, _) = rectangle_truth(chart, us, vs, chart.o, 1.0);
+    for (label, cuts) in [("uneven", uneven), ("even", even)] {
+        let circle = rim_circle(
+            chart,
+            vs.0,
+            (0.0, 1.0),
+            cuts,
+            true,
+            [(us.0, vs.0), (us.1, vs.0)],
+        );
+        let mut loops: Vec<EdgeTermQ> = rectangle(chart, us, vs, &[])
+            .into_iter()
+            .map(|e| EdgeTermQ::Harmonic(e.harmonic))
+            .collect();
+        loops[0] = circle;
+        let face = RotationalFaceQ {
+            chart: RotationalChartQ::Cylinder {
+                radius: pt(chart.r),
+            },
+            chart_term: ChartTermQ {
+                closed: Interval::zero(),
+                lever: [Interval::zero(); 3],
+                rationals: Vec::new(),
+                spirics: Vec::new(),
+                ribbon: 0.0,
+            },
+            loops: vec![loops],
+        };
+        for round in 0..3 {
+            let got = at_round(&face, round);
+            encloses(got.flux, flux, &format!("circle {label} r{round}: flux"));
+            encloses(got.area, area, &format!("circle {label} r{round}: area"));
+        }
+        framed_holds(
+            chart,
+            us,
+            vs,
+            0,
+            face.loops[0][0].clone(),
+            &format!("circle {label} to target"),
+        );
+    }
+}
+
+/// The plane section `v = c + k·r·cos u` over `[−2.8, 2.8]` on a chart
+/// whose frame is the world's, as a projected edge over its carrier
+/// interval `ts`.
+fn frame_section(segments: usize, ts: (f64, f64)) -> ProjectedEdgeQ {
+    let chart = Chart {
+        o: Point3::origin(),
+        axis: Vec3::new(0.0, 0.0, 1.0),
+        u_ref: Vec3::new(1.0, 0.0, 0.0),
+        r: 0.8,
+    };
+    let n = section_net(chart, (2.0, 0.9), (-2.8, 2.8), segments);
+    let q = rational_edge_q_split(
+        &n.map_scalar(Interval::from_certified),
+        (pt(ts.0), pt(ts.1)),
+        true,
+        Point3::new(pt(0.0), pt(0.0), pt(0.0)),
+        &[],
+    )
+    .unwrap();
+    ProjectedEdgeQ {
+        carrier: FramedQ::Net(q),
+        v_off: Interval::zero(),
+        v_sign: 1.0,
+        forward: true,
+        ends: [(pt(0.0), pt(0.0)); 2],
+        env: Interval::zero(),
+    }
+}
+
+/// **A boundary reads the same pieces however it is cut into edges**: a
+/// 20-span section read as one edge and as its two 10-span halves, cut
+/// at a knot, schedules each span alike ([`span_schedule`]).
+#[test]
+fn a_chord_read_as_one_edge_or_two_schedules_each_span_alike() {
+    let whole = span_schedule(&frame_section(20, (0.0, 1.0))).0;
+    let halves: Vec<usize> = [(0.0, 0.5), (0.5, 1.0)]
+        .into_iter()
+        .flat_map(|ts| span_schedule(&frame_section(20, ts)).0)
+        .collect();
+    assert_eq!(whole.len(), 20, "the section's spans");
+    assert_eq!(whole, halves, "one edge against its two halves");
+}
+
+/// **A face's work is the pieces its rounds read**: a harmonic edge's
+/// [`EDGE_INIT_PIECES`] and a 40-span chord's one piece a span (each
+/// span turning through a fraction of [`PIECE_TURN`]), both doubling per
+/// round.
+#[test]
+fn a_faces_work_is_the_pieces_its_rounds_read() {
+    let chart = RotationalChartQ::Cylinder { radius: pt(0.8) };
+    let chord = EdgeTermQ::Projected(frame_section(40, (0.0, 1.0)));
+    let rim = EdgeTermQ::Harmonic(harmonic(chan(0.0, 1.0), chan(0.0, 0.0), (0.0, 1.0), true));
+    let face = RotationalFaceQ {
+        chart,
+        chart_term: ChartTermQ {
+            closed: Interval::zero(),
+            lever: [Interval::zero(); 3],
+            rationals: Vec::new(),
+            spirics: Vec::new(),
+            ribbon: 0.0,
+        },
+        loops: vec![vec![rim, chord]],
+    };
+    let entries = vec![
+        face.loops[0]
+            .iter()
+            .map(|e| edge_entry(e, chart).unwrap())
+            .collect::<Vec<_>>(),
+    ];
+    assert_eq!(entries[0][1].schedule.0, vec![1; 40], "one piece a span");
+    for round in 0..4 {
+        assert_eq!(
+            face_cost(&face, &entries, &[], round),
+            (W_CYLINDER * EDGE_INIT_PIECES + w_rational(2) * 40) << round,
+            "round {round}"
+        );
     }
 }

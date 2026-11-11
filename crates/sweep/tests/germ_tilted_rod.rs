@@ -325,10 +325,8 @@ const STEEP_TILT: f64 = 0.7;
 /// donut's torus wall, spiric and chords alike, measured through the
 /// rotational lane, and stops at the crossings path's interior-loop
 /// guard on the torus wall × the rod's wall, whose section certificate
-/// refuses the pair.
-const STEEP_UNION_STOP: &str = "Some(CurvedPairUnsupported { op: Some(Union), site: \
-     InteriorLoopGuard, operand: A, face: FaceKey(3v1), kind: Torus, other_face: FaceKey(4v1), \
-     other_kind: Cylinder })";
+/// refuses the pair: the two faces it names.
+const STEEP_UNION_STOP: (&str, &str) = ("FaceKey(3v1)", "FaceKey(4v1)");
 
 /// **The other spins, and the steeper tilts, refuse typed** on every
 /// op, each at its pinned door ([`OTHER_SPINS_STOPS`]): each wall germ
@@ -384,15 +382,25 @@ fn the_steeper_tilts_union_stops_by_identity() {
     let h = half_donut();
     let eps = Tol::witness().eps();
     for spin in [0.0, FRAC_PI_2] {
-        let stop = format!(
-            "{:?}",
-            topo::union(&h, &rod(STEEP_TILT, spin), Tol::witness())
-                .as_ref()
-                .err()
-        );
+        let at = format!("h ∪ c at β {STEEP_TILT}, spin {spin}, ε {eps:e}");
+        let r = topo::union(&h, &rod(STEEP_TILT, spin), Tol::witness());
+        let Err(BooleanError::CurvedPairUnsupported {
+            op: Some(topo::BooleanOp::Union),
+            site: topo::PairRefusalSite::InteriorLoopGuard,
+            operand: topo::Operand::A,
+            face,
+            kind: SurfaceKind::Torus,
+            other_face,
+            other_kind: SurfaceKind::Cylinder,
+        }) = &r
+        else {
+            panic!("{at}: {}", outcome(&r));
+        };
+        let (face, other_face) = (format!("{face:?}"), format!("{other_face:?}"));
         assert_eq!(
-            stop, STEEP_UNION_STOP,
-            "h ∪ c at β {STEEP_TILT}, spin {spin}, ε {eps:e}"
+            (face.as_str(), other_face.as_str()),
+            STEEP_UNION_STOP,
+            "{at}"
         );
     }
 }

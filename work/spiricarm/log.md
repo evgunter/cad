@@ -181,3 +181,37 @@
   - The row is `docs/dual-review-log/rows/PR-6509.md` (a fair pair, with R2's reading shortfall noted).
   - **Stage 2 is closed.** The P0 projected-boundary row closes with the volume lane in. Its operand half now stands at INSIDE's P0.
   - **Next:** stage 3, the torus chart, which closes `a-torus-wall-trimmed-by-a-spline-rim-has-no-volume-lane` (P0) and teapot wall 2's stop.
+- 2026-11-10 — **PR 6509 merged.** The sphere chart is in, the P0 projected-boundary row closes, and the operand half stands at INSIDE's P0. **Dispatched stage 3**, `the-rotational-lane-reads-the-torus-chart` (H, dual). It opens with a decide on the torus's `∮v du` under C9, and if no algebraic route exists it is an Ev fork.
+- 2026-11-10 — **The cylinder-pair cost is up as PR 6805** (head `c2b6282453`, CI green).
+  - **Phase 0 split** (release, perf): march and carry ≈ 0.7 s; edge certification 5–6 s; island winding up to 2.8 s; result gate 4.7–5.9 s; volume read 4–5 s.
+  - **On our ground the volume lane dominated:** 600-span chords read at 16 pieces a span.
+  - **The fix:** `span_pieces` spreads a round's pieces over a carrier's spans. No bound changed. The gate went from about 5 s to about 2 s; volumes are identical to 12 digits.
+  - **Still 12–15 s per op**, on other programs' ground. Filed:
+    - `pcert/a-chorded-edges-certification-hulls-every-span-of-a-625-span-chord` (P1);
+    - `onehome/the-chord-joins-island-winding-crosses-every-span-of-a-chord` (P2);
+    - two SPIRICARM P3s.
+  - The P1 unit stays open until its remaining cost centres move; it is the PCERT row that holds them.
+  - **Review tier: single FULL**, set at dispatch. One cloud reviewer (`spiricarm/review-6805-brief`).
+  - The lane reported a red nightly row (`germ_tilted_rod::the_steeper_tilts_union_stops_by_identity`, ONEHOME's `NotFinished` shape). It is already filed as `tint/main-red-steeper-tilts-union-stops-by-identity-reads-the-wrong-refusal-shape`.
+- 2026-11-10 — **The horn cusp is up as PR 6806** (head `0c3420d4cb`, CI green).
+  - **Phase 0** traced limb 2 before building. No reading built on `|f|` reaches the band beside a tangency, so a part is read at its own height instead: ρ_s(z) = R − √(r² − z²), in a cancellation-free form, giving `Meters::at_height`.
+  - **No fork:** no ratified clause governs it.
+  - **On a sheet,** `certified` now takes the least of `over`, `at_height` and `apex_root`.
+  - **A sheet's `v` is read about zero.** This fixes `a-wide-apples-tube-angle-passes-the-latitude-windows-cut`, whose done-when is now met.
+  - **The mesh walk** names a cusp reached from below at −π.
+  - **Mutants:** all red except the R > 0 guard, which the lane proved equivalent. The reviewers are asked to run that mutant over every row of the subject.
+  - **Dual dispatched** as two cloud sessions (`spiricarm/review-6806-brief`, sha256 `71709f98…`).
+- 2026-11-10 — **PR 6805's single FULL review: NOT-MERGEABLE-AS-IS** (1 MAJOR / 3 MINOR / 4 NOTE).
+  - **MAJOR (executed):** `span_pieces` reads one piece a span whatever the span's extent. A long or near-pole span refuses its reciprocal, the round's flux goes non-finite, and `accept` ends the call. Faces main measures now refuse: a 17-cut rim with a 5.4 rad cut, and a 16-span disc 1e-3 from a pole. The PR body had said "costs work, not soundness".
+  - **Also:** the schedule now depends on how a boundary is cut into edges, against the spirit of [tolerance.measure], DR-400's ruling for the rectangle lanes. The cost and chart-term halves are unwitnessed (three mutants survive); one cost row is circular.
+  - **Fix pass sent:** a schedule read from each span's geometry, which answers the MAJOR and the [tolerance.measure] concern together. Plus a decision, argued in the PR body, on whether a non-finite round should refine rather than end.
+  - **Class (logged at adjudication):** a speed change swept only for cost misses the refusal class: a coarser piece can refuse where a finer one read. The PCERT cost row's suggested spread meets the same class.
+
+## 2026-11-11 00:58 — PR 6806 dual review adjudicated
+Both reports in (R1 `0d673a3182`, R2 `ce84744f1d`, frozen head `0c3420d4cb`), both APPROVE-WITH-FIXES, no MAJOR, no unsound reading (R1 121,508 and R2 60,000 Interval readings against independent 60-digit oracles, 0 misses; MG equivalent over every geom-brep/sweep row in both). Blinding byte 28 (even, R1 = A); dual row dr 461 at merge. Accepted: R1 MINOR 1 (sheet `v` placed in the latitude window by `pcurve_cache` `Along::Latitude`, executed; the PR's sweep missed it); R2 MINOR-1 + R1 NOTE 1 (the limb-2 horn row's off half refused by the floor first; ×16 invisible); R2 MINOR-2 (the fuzz's `f_sup` not an enclosure beside the cusp, slack at the cusp's scale); R2 NOTE-4 (`near` vs `principal_in`, undisclosed); style bilateral: horn-ness spelled twice (one a float coincidence), z straddle ×2–3, the Option-seeded fold, stale `certified`/`apex_root` docs. Residue to file: `net_incidence`'s order (R1 NOTE 2), `implicit.rs` 227, the cusp-`v` Interval guard. Fix pass sent to the horn lane (a4f2bcdc9f9628bf0). Classes: a fix whose sweep keyed on one spelling of a class with two homes; a row whose off half is refused by an earlier gate (second sighting of the wrong-X-witness class); a fuzz whose reference is not an enclosure where the new code works.
+
+## 2026-11-11 03:40 — PR 6806 fix pass read; state sync
+The horn lane's fix pass (head `d266661e57`, run 42952045062 green) took every accepted item; the orchestrator read `azimuth.rs`, `chart.rs` and `walk.rs` (one `Window::Sheet`, `Chart::is_horn`, the band and log kept). Dual row written. Closed `a-horns-cusp-revolved-part-way-refuses-at-its-cap-meridians-certificate` and `a-wide-apples-tube-angle-passes-the-latitude-windows-cut`; residue filed by the lane at P4. Merging on green.
+
+## 2026-11-11 04:50 — PR 6805 fix pass read; state sync
+The cost lane's fix pass (head `6b75e1d9da`, run 42961306586 green) answers the MAJOR at its root: `span_schedule` gives each span the fewest pieces on which the azimuth turns through at most τ/16, so a span's count reads that span's geometry alone. That also meets [tolerance.measure]: `a_chord_read_as_one_edge_or_two_schedules_each_span_alike` pins it. On the reviewer's full sphere probe, the 56 to-target outcomes are identical to main's, and of the 336 single-round readings, none refuses where main answers. Both reviewer fixtures are adopted as rows. Mutants M1–M7 are red; M8 and M9 survived and their checks were deleted as redundant. A non-finite round still ends the call, argued in the body. The orchestrator read `span_schedule` and `term_schedule`. One out-of-scope move, read and accepted: two `step-export` `m7_swept_elbow` rows went to the slow set after crossing the 1.0 s bar (2.7–3.0 s in debug on main and head alike; the lane does not read spline walls). The P1 row is parked on PCERT's certification row. The volume read fell to 0.4–0.8 s, and the ops are still 11.5–13.5 s on PCERT's and ONEHOME's ground.
