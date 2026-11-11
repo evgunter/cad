@@ -12,19 +12,26 @@ refs: [a-carried-cylinder-pair-marches-for-minutes-before-the-volume-lane-refuse
 ## What
 
 Filed by the cylinder-pair cost lane (branch
-`spiricarm/cylinder-pair-cost`, 2026-11-10). Its fix spreads a round's
-pieces over a projected carrier's spans
-(`geom_brep::props::quad::rotational::span_pieces`), so a 625-span chord's
-round 0 takes 27–120 ms where it took 1.2–3.1 s. What the lane reads of
-each projected edge before its rounds (`edge_entry`) still reads
-`PROJECTED_ENTRY_PIECES` = 4 pieces a span: the metric length
-(`projected_metric_length`, `rational_rate_bound`) and the turn
-(`framed_integrals`, `du` alone). On the fenced cylinder pair those reads
-are now most of a face's call, 0.2–0.7 s against a 30–120 ms round
-(release), and the tier 3 gate is 1.8–2.3 s of the operation.
+`spiricarm/cylinder-pair-cost`, 2026-11-10; rewritten in its fix pass,
+2026-11-11). The lane's rounds now read each span of a projected
+carrier in the pieces its own turn and length need
+(`geom_brep::props::quad::rotational::span_schedule`), so a 625-span
+chord's round 0 is one piece a span. Two entry reads remain before the
+rounds (`edge_entry`):
 
-Spreading them as the rounds are is not free: a coarser length bound
-widens the map-residual and chart-term pads, and a coarser turn reads
-wider in `branch_turns`, whose quarter-turn test refuses. PR 6509
-(the sphere stage) rewrites the turn read (`entry_turn`, adaptive from
-`PROJECTED_ENTRY_PIECES`), so this waits on it.
+- **The metric length** (`projected_metric_length`) still reads
+  `PROJECTED_ENTRY_PIECES` = 4 pieces a span, whatever the schedule: an
+  upper bound at any count, but it pads every round
+  (`RotationalChartQ::residual`, `chart_term_pad`), so a coarser read
+  widens every enclosure. On a 625-span chord it is 2,500 rate reads.
+- **The turn** (`entry_turn`) starts at the schedule and multiplies
+  every span's pieces by four while the turn's enclosure is an eighth of
+  a turn wide or more, to at most `MOST_SPAN_PIECES` = 1024 a span. A
+  chord that passes by the axis can therefore read up to 1024 pieces on
+  every span, the short ones included, since the factor is the edge's.
+
+The question for each: read it per span (the length to the schedule's
+pieces, with a row that the pads do not widen past what the rounds
+remove; the turn refining only the spans whose own turn is wide), and
+measure what that saves on the fenced cylinder pair, where these reads
+were 0.2–0.7 s of a face's call before the schedule.

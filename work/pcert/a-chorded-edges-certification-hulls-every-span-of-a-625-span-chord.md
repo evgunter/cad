@@ -46,6 +46,14 @@ can do the same (its spans are already 1/625 of the chord) is the
 question this row asks, measured against the 0.3% check of
 `projected-check4-incidence-can-falsely-refuse-in-the-sliver-below-the-band`.
 
+**A coarser piece can refuse where a finer one read.** The rotational
+lane's first cut at this (PR 6805) spread its pieces as a share of the
+span count, and its review found the class: a long span, or one passing
+the chart's axis or a pole, read in one piece refused at round 0 where 16
+pieces had read. So a cut that spreads `INCIDENCE_CUTS` should be read
+off each span's own geometry (its turn, its distance from the axis),
+not a share of a count, with rows on a long span and one by the axis.
+
 ## Why it matters
 
 The P1 row's operations take 7–17 s each in release; this step is

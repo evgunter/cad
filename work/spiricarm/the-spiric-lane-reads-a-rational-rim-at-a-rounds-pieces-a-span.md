@@ -4,7 +4,7 @@ kind: issue
 title: The spiric lane reads each rational rim at a round's full piece count per span, as the rotational lane did
 status: open
 opened: 2026-11-10
-priority: P3
+priority: P4
 cost: E
 refs: [a-carried-cylinder-pair-marches-for-minutes-before-the-volume-lane-refuses]
 ---
@@ -19,9 +19,15 @@ that reads a round's whole piece count on every span of a net.
 `rational_rim::rational_vector_area_split(e, pieces)` at the round's
 `EDGE_INIT_PIECES << round` pieces per span, and `spiric::round_cost`
 prices it so (`w_rational · span_count` per piece). The rotational lane
-did the same until its rounds spread the count over the spans
-(`rotational::span_pieces`): a 625-span chord read 10,000 pieces at round
-0 and floored with a removable part ten orders below its width. No
+did the same until its rounds read each span off its own geometry
+(`rotational::span_schedule`): a 625-span chord read 10,000 pieces at
+round 0 and floored with a removable part ten orders below its width. No
 fixture here puts a many-span rim on a plane cap or a torus wall, so the
 cost is unmeasured on this lane; a loft or sweep edge on a cap would be
 the case to measure before changing the schedule.
+
+P4 while it stays unmeasured: no fixture reaches the shape. Reading it
+by the span's geometry (`taylor::pieces_where`, as the rotational lane
+does) is the shape a fix would take; a fixed share of a count would not
+do, since a coarser piece can refuse where a finer one read (PR 6805's
+review, MAJOR-1).
