@@ -27,3 +27,13 @@ Each designer was shown the other's round-1 report. The positions crossed:
 The positions moved but did not meet. Round 3 asks the question beneath them: is the log split held by a type or by a door, and does a delegating `Real` without `Decide` reopen PR 2701's ruling?
 
 Totals after round 2: A 229,240; B 218,397.
+
+## Round 3 (2026-11-11)
+
+Each designer was shown the other's round-2 report and asked about PR 2701's reach, whether the door can be bypassed, and the type's cost.
+- **B** found PR 2701's letter does not reach a delegating wrapper, but its spirit leans against one. The door cannot be bypassed for the fault it fixes: the shell's miss would have been caught, since the shell calls `lane.sweep`. The type costs a fifth `Real` kept in step by hand, a change to `[scalars]`, wrapping at every seam, and an unwrap escape hatch. B recommends the door, with the type as the alternative, and can live with either.
+- **A** found the type sits closer to what PR 2701 retired than `RingInterval` did, since it must be a full `Real`. The type would also leave F28's region readings logging, which makes it incomplete. A recommends the door, with the type as the alternative.
+
+**Converged.** The recommendation is changes 1–4: one crossing door held by the lane; no second reading, with equalities taken from topology or tier 3; each refusal names its width; and the engine's entry points own the unlogged scope. Plus the `[topology.tiers]` rewording. The alternative is a delegating `CellBound` with no `Decide`.
+
+Totals after round 3: A recorded at PR time; B 228,963.
