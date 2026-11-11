@@ -4510,7 +4510,14 @@ pub(crate) fn fitted_lane<T: Decide + geom_core::Bounds + geom_core::CertifiedEn
         )?;
         (&analytic.0, &analytic.1, &analytic.2[..], &analytic.3[..])
     };
-    let grid = chart_grid(carrier, image.knots_f64_interim());
+    // A patch is the chart exactly, so a spline carrier's composite
+    // against it needs no grid beyond the two curves' own knots: the
+    // rounds cut where the bound does not clear. A closed-form carrier's
+    // Taylor net takes the grid wherever it is read.
+    let grid = match (spline, carrier) {
+        (None, Curve3::Nurbs(_)) => Vec::new(),
+        _ => chart_grid(carrier, image.knots_f64_interim()),
+    };
     let stopped = crate::ssi::certify::subdivide(
         |cuts: &[f64]| carrier_chart_round(carrier, pimage, schart, &grid, cuts),
         band,
