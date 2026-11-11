@@ -398,7 +398,18 @@ const ROSTER: &[(&str, usize, usize, &str)] = &[
          answers `0` for a non-finite mean, so a refused input still yields a finite centre and \
          the reach about it reports the trouble",
     ),
-    ("crates/geom-brep/src/pcurve_cache.rs", 2, 2, ""),
+    (
+        "crates/geom-brep/src/pcurve_cache.rs",
+        4,
+        2,
+        "`certified_lower`/`certified_upper`'s 2 read only after asking by name. The remainder is \
+         `limb2_offset_sup`'s 2, its spindle `mid`: the squared distance of a window end from \
+         the axis, read at its bracket midpoint only to choose whether that end's grid is graded \
+         toward the apex (`apex_grading`). The grid is only breaks of the carrier's enclosing net, \
+         which encloses over any breaks, and every span hull of it reads its ends through the \
+         two asking reads above; so a refused bracket moves where the net is cut, never what a \
+         span certifies, and a NaN reading compares false and grades nothing",
+    ),
     ("crates/geom-brep/src/pcurve_cache/projected.rs", 2, 2, ""),
     ("crates/geom-brep/src/props/bracket.rs", 8, 8, ""),
     (
@@ -419,6 +430,7 @@ const ROSTER: &[(&str, usize, usize, &str)] = &[
          constructor, fills with `pt` of a weight it has checked finite: a point bracket that \
          certifies, whose `lo` IS the weight",
     ),
+    ("crates/geom-brep/src/props/quad/projected_edge.rs", 1, 1, ""),
     (
         "crates/geom-brep/src/props/quad/rational.rs",
         3,
