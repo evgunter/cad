@@ -22,7 +22,7 @@ use std::sync::Arc;
 
 use geom::{Curve3, NurbsCurve2, NurbsCurve3, NurbsSurface, Surface};
 use geom_core::spline::KnotVector;
-use geom_core::{CertifiedBounds, Decide, Interval, Point3, Vec3};
+use geom_core::{Decide, Interval, Point3, Vec3};
 
 use super::spline_door_rows::band;
 use super::{LaneGap, Pcurve, PcurveCache, PcurveCertifyError, minted_refusal};
@@ -128,13 +128,13 @@ struct Minted<T: geom_core::Real> {
     certified: Result<(), PcurveCertifyError>,
 }
 
-fn mint<T: Decide + CertifiedBounds>(
+fn mint<T: Decide>(
+    lane: FittedLane<T>,
     carrier: &Curve3<f64>,
     span: (f64, f64),
     wall: &NurbsSurface<f64>,
 ) -> Minted<T> {
     let lift = |x: f64| T::from_f64(x);
-    let lane = FittedLane::<T>::certified();
     let carrier = carrier.map_scalar(lift);
     let wall = wall.map_scalar(lift);
     let (t0, t1) = (lift(span.0), lift(span.1));
@@ -172,7 +172,7 @@ fn degree_one<T: geom_core::Real>(image: &NurbsCurve2<T>) -> bool {
 /// Where `certifies`, the climbed image certifies; anywhere else its
 /// refusal ends the lane's gap, "not yet" ([`LaneGap::Image`], or the
 /// same check escalated in band), never a tolerance offer.
-fn bends_and_climbs<T: Decide + CertifiedBounds>(name: &str, minted: &Minted<T>, certifies: bool) {
+fn bends_and_climbs<T: Decide>(name: &str, minted: &Minted<T>, certifies: bool) {
     if let Err(got) = &minted.certified {
         let ending = got.ending(Reading::Build);
         assert!(
@@ -207,10 +207,10 @@ fn bends_and_climbs<T: Decide + CertifiedBounds>(name: &str, minted: &Minted<T>,
     );
 }
 
-fn the_bending_carriers_climb<T: Decide + CertifiedBounds>() {
+fn the_bending_carriers_climb<T: Decide>(lane: FittedLane<T>) {
     bends_and_climbs(
         "the ring's spline arc",
-        &mint::<T>(&ring_arc(), (0.0, 1.0), &ring_wall()),
+        &mint::<T>(lane, &ring_arc(), (0.0, 1.0), &ring_wall()),
         true,
     );
     // Below `ε = 1e-10` the hull over-reads the climbed image's miss on
@@ -218,24 +218,24 @@ fn the_bending_carriers_climb<T: Decide + CertifiedBounds>() {
     // reads-its-hull-wide-at-fine-eps`), which ends the lane's gap.
     bends_and_climbs(
         "a line on the uneven wall",
-        &mint::<T>(&uneven_line(), (0.0, 1.2), &uneven_wall()),
+        &mint::<T>(lane, &uneven_line(), (0.0, 1.2), &uneven_wall()),
         band().zero() >= 1e-10,
     );
 }
 
 #[test]
 fn the_bending_carriers_climb_at_f64() {
-    the_bending_carriers_climb::<f64>();
+    the_bending_carriers_climb(FittedLane::<f64>::certified());
 }
 
 #[test]
 fn the_bending_carriers_climb_at_interval() {
-    the_bending_carriers_climb::<Interval>();
+    the_bending_carriers_climb(FittedLane::<Interval>::certified());
 }
 
 /// A carrier whose degree-1 image follows it keeps that image, the one
 /// its edge certificate reads, and certifies.
-fn straight_feet_keep_degree_one<T: Decide + CertifiedBounds>() {
+fn straight_feet_keep_degree_one<T: Decide>(lane: FittedLane<T>) {
     let line = Curve3::line(Point3::new(0.1, 0.0, 0.2), Vec3::new(0.6, 0.0, 0.8));
     let spline = Curve3::Nurbs(Arc::new(
         NurbsCurve3::new(
@@ -246,7 +246,7 @@ fn straight_feet_keep_degree_one<T: Decide + CertifiedBounds>() {
         .unwrap(),
     ));
     for (name, carrier) in [("the line", line), ("the degree-1 spline", spline)] {
-        let minted = mint::<T>(&carrier, (0.0, 1.0), &flat_wall());
+        let minted = mint::<T>(lane, &carrier, (0.0, 1.0), &flat_wall());
         assert!(
             degree_one(&minted.image) && minted.certified.is_ok(),
             "{name} at {}: the degree-1 image, certified (degree {}, {} control points): {:?}",
@@ -260,7 +260,7 @@ fn straight_feet_keep_degree_one<T: Decide + CertifiedBounds>() {
     // its image is the degree-1 one.
     let standoff = 3.0 * band().zero();
     let off = Curve3::line(Point3::new(0.1, standoff, 0.2), Vec3::new(0.6, 0.0, 0.8));
-    let image = FittedLane::<T>::certified()
+    let image = lane
         .general_image(
             &off.map_scalar(|x: f64| T::from_f64(x)),
             (T::from_f64(0.0), T::from_f64(1.0)),
@@ -280,10 +280,10 @@ fn straight_feet_keep_degree_one<T: Decide + CertifiedBounds>() {
 
 #[test]
 fn straight_feet_keep_degree_one_at_f64() {
-    straight_feet_keep_degree_one::<f64>();
+    straight_feet_keep_degree_one(FittedLane::<f64>::certified());
 }
 
 #[test]
 fn straight_feet_keep_degree_one_at_interval() {
-    straight_feet_keep_degree_one::<Interval>();
+    straight_feet_keep_degree_one(FittedLane::<Interval>::certified());
 }

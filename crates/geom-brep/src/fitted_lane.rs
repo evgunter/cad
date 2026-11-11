@@ -174,7 +174,7 @@ impl<T: Real> FittedLane<T> {
     ///
     /// The producer is `edge_nurbs`'s: foot points at the D9-fixed
     /// schedule, interpolated on the carrier's own parameter
-    /// (`edge_nurbs::general_chart_image`). The image is the degree-1 one
+    /// (`pcurve_cache::general_image_lane`). The image is the degree-1 one
     /// the edge certificate reads (`edge_nurbs::chart_image`) where its
     /// miss between feet is within its share of `band`, and climbs
     /// `edge_nurbs::curved_chart_image`'s rungs where the foot path bends

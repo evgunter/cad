@@ -377,10 +377,10 @@ pub(super) fn arc_rim_tangent_under() -> bool {
     on("arc-rim-tangent-under")
 }
 
-/// The mint's `General` image climbed on its carrier's class rather than
-/// its measured miss: `Some(true)` for a curved carrier with no net,
-/// which climbs, and `Some(false)` for any other, which takes the
-/// degree-1 image and whose refusal keeps its own term (its rows are
+/// The mint's `General` image keyed on its carrier's class rather than
+/// its measured miss: `Some(false)` for a carrier that is straight or a
+/// spline, which takes the degree-1 image unclimbed and whose refusal
+/// keeps its own term, and `Some(true)` for any other (its rows are
 /// `general_climb_rows`).
 pub(crate) fn general_image_class_gate<T: Real>(carrier: &geom::Curve3<T>) -> Option<bool> {
     on("general-image-class-gate")
