@@ -6,9 +6,10 @@
 //! never reaches the span check's unminted side at a build, which
 //! panics. One row per door and per way a caller's input reaches the
 //! span: a reversed or empty `param_start … param_end`, a chord between
-//! coincident points, a carrier of no positive radius or minor
-//! semi-axis, and an arc past a full turn. Red the day a door lets one
-//! through to the certify check again.
+//! coincident points, a circle of zero radius, and an arc past a full
+//! turn. A negative radius or semi-axis is refused as what it is
+//! (`CertifyError::SemiAxisNegative`), in its own lever. Red the day a
+//! door lets one through to the certify check again.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom::Curve3;
@@ -98,16 +99,6 @@ fn every_door_refuses_a_callers_interval_typed() {
             not_forward,
         ),
         (
-            "mev, a circle of negative radius",
-            mev(arc(-1.0, 1.0), p(-1.0, 0.0), "negative radius"),
-            not_forward,
-        ),
-        (
-            "mev, an ellipse of negative minor semi-axis",
-            mev(ellipse, b, "negative minor"),
-            not_forward,
-        ),
-        (
             "mev, an arc past a full turn",
             mev(arc(1.0, 1.5 * TAU), p(-1.0, 0.0), "past a turn"),
             SpanDecision::Winding,
@@ -115,6 +106,36 @@ fn every_door_refuses_a_callers_interval_typed() {
     ];
     for (row, got, want) in rows {
         assert_eq!(got, want, "{row}");
+    }
+
+    // A caller's negative semi-axis is no span: it is refused as what it
+    // is, in its own lever at a build, the caller's input.
+    for (row, spec, to) in [
+        (
+            "mev, a circle of negative radius",
+            arc(-1.0, 1.0),
+            p(-1.0, 0.0),
+        ),
+        ("mev, an ellipse of negative minor semi-axis", ellipse, b),
+    ] {
+        let mut body = Body::<f64>::new();
+        let seed = body.mvfs(p(1.0, 0.0), true).unwrap();
+        let r#loop = seed.r#loop;
+        let error = body
+            .mev(MevSite::Lone { r#loop }, to, spec, Tol::witness())
+            .expect_err(row);
+        let EulerOpError::Certification {
+            error: CertifyError::SemiAxisNegative { .. },
+        } = &error
+        else {
+            panic!("{row}: not a negative semi-axis: {error:?}");
+        };
+        let text = error.render(geom_brep::recourse::Reading::Build);
+        assert!(
+            text.contains("Recourse: store each semi-axis as its finite, positive length")
+                && !text.contains("defect"),
+            "{row}: {text}"
+        );
     }
 
     // `mev_line` to the point it starts from.
