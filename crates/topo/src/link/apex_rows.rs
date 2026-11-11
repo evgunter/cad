@@ -733,6 +733,53 @@ fn a_nappe_is_read_at_its_shortest_ruling_about_its_apexs_tie<T: Decide>() {
     }
 }
 
+/// **A nappe its rulings leave in band of its own axis's plane refuses
+/// in band.** A needle whose half-angle is half the band's zero short of
+/// a quarter turn (`1e-10` at the default band), under a whole plane: its rulings stand in band of the plane
+/// square to its axis, whole as one spur or as two halves. Read there,
+/// not left unread as no nappe. Red where a ruling in band is taken for
+/// one on the other nappe.
+fn a_nappe_near_flat_refuses_in_band<T: Decide>() {
+    let alpha = core::f64::consts::FRAC_PI_2 - 0.5 * band().zero();
+    let (s, c) = alpha.sin_cos();
+    let at = |phi: f64| v::<T>(s * phi.cos(), -c, s * phi.sin());
+    let in_band = TouchVerdict::Unread(TouchUnread::InBand);
+    for p in apexes::<T>() {
+        let (k, e) = (carriers(1)[0], edges(2));
+        let lobe = |ends, spur| {
+            TangentPiece::Apex(ApexLobe {
+                cone: crate::sector_face::ConeApex {
+                    half_angle: T::from_f64(alpha),
+                    ..cone(p, false)
+                },
+                carrier: k,
+                vertex: p,
+                ends,
+                spur,
+            })
+        };
+        let up = v::<T>(0.0, 1.0, 0.0);
+        let (a, b) = (at(0.0), at(core::f64::consts::PI));
+        assert_eq!(
+            read(p, vec![lobe([(a, e[0]), (a, e[0])], true), whole(p, up)]),
+            in_band,
+            "a near-flat spur at {p:?}"
+        );
+        assert_eq!(
+            read(
+                p,
+                vec![
+                    lobe([(a, e[0]), (b, e[1])], false),
+                    lobe([(b, e[1]), (a, e[0])], false),
+                    whole(p, up),
+                ]
+            ),
+            in_band,
+            "near-flat halves at {p:?}"
+        );
+    }
+}
+
 #[test]
 fn a_nappe_off_every_plane_is_the_thorn_or_needle_it_bounds_f64() {
     a_nappe_off_every_plane_is_the_thorn_or_needle_it_bounds::<f64>();
@@ -801,4 +848,14 @@ fn a_nappe_is_read_at_its_shortest_ruling_about_its_apexs_tie_f64() {
 #[test]
 fn a_nappe_is_read_at_its_shortest_ruling_about_its_apexs_tie_interval() {
     a_nappe_is_read_at_its_shortest_ruling_about_its_apexs_tie::<Interval>();
+}
+
+#[test]
+fn a_nappe_near_flat_refuses_in_band_f64() {
+    a_nappe_near_flat_refuses_in_band::<f64>();
+}
+
+#[test]
+fn a_nappe_near_flat_refuses_in_band_interval() {
+    a_nappe_near_flat_refuses_in_band::<Interval>();
 }

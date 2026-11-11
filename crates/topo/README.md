@@ -1449,8 +1449,9 @@ corner whose loop leaves back along the half-edge it came in by (a spur,
 the whole turn), or two corners on one carrier and of one sense, each
 bounded by the other's two edges, whose rulings are decidedly apart, so
 that each turns under a whole turn and the two together exactly one; and
-every ruling of every corner decidedly on the one nappe, ahead of the
-plane through `p` square to the axis. The census reads bodies that may be
+every ruling of every corner, at the arm, decidedly on the one nappe,
+ahead of the plane through `p` square to the axis (one in band of that
+plane refuses in band). The census reads bodies that may be
 bad, so a corner with a ruling on each nappe, which no valid body's edges
 make, is read here rather than assumed away. The
 nappe bounds the solid cone `C` of its rulings, convex since its

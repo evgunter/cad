@@ -4746,19 +4746,13 @@ pub(crate) mod rest {
     fn at_apex<T: Decide>(link: &Link<T>, band: Band, rd: Reading<T>) -> TouchVerdict {
         let unread = TouchVerdict::Unread(TouchUnread::Curved(CurvedUnread::NoTangentPlane));
         let p = link.cone.p;
-        let Some((lobe, axis)) = whole_nappe(link, rd) else {
-            return unread;
+        let (lobe, axis, l) = match whole_nappe(link, rd) {
+            Ok(nappe) => nappe,
+            Err(why) => return why,
         };
         if !link.horns.is_empty() {
             return unread;
         }
-        let reach = |d| super::second_order::reach(p, d);
-        let arm = link
-            .lobes
-            .iter()
-            .flat_map(|a| a.ends.map(|(d, _)| reach(d)))
-            .fold(reach(lobe.ends[0].0), geom_core::Lever::min);
-        let l = arm.length();
         let cone = lobe.cone;
         // The circle the rulings meet at the arm about the nappe's unit
         // axis: its centre `c` and radius `rho`.
@@ -4832,35 +4826,23 @@ pub(crate) mod rest {
         }
     }
 
-    /// **The link's lobes as one whole nappe** ([`at_apex`]): one lobe
-    /// whose corner is a spur, the whole turn; or two of one carrier and
-    /// one sense, neither a spur, each one's edge out the other's edge
-    /// back in, whose two rulings stand decidedly apart, so each turns
-    /// under a whole turn and the two together exactly one. Every ruling
-    /// of every lobe must stand decidedly on the nappe the first one
-    /// leaves along, a unit along it reading ahead of the plane through
-    /// `p` square to the axis: a lobe's two rulings on two nappes bound
-    /// no sector of one. A lobe of it and the nappe's unit axis, or `None`
-    /// where they make no such nappe.
+    /// **The link's lobes as one whole nappe** ([`at_apex`]): one spur
+    /// corner, or two of one carrier and sense, each bounded by the other's
+    /// two edges, their rulings decidedly apart; and every lobe's ruling
+    /// at the arm (their least reach) decidedly ahead of the plane through
+    /// `p` square to the first ruling's nappe axis. A lobe, the axis and
+    /// the arm's length; a ruling in band of that plane is
+    /// [`TouchUnread::InBand`], anything else no nappe
+    /// ([`crate::CurvedUnread::NoTangentPlane`]).
     fn whole_nappe<T: Decide>(
         link: &Link<T>,
         rd: Reading<T>,
-    ) -> Option<(super::ApexLobe<T>, super::Vec3<T>)> {
+    ) -> Result<(super::ApexLobe<T>, super::Vec3<T>, T), TouchVerdict> {
+        let unread = TouchVerdict::Unread(TouchUnread::Curved(CurvedUnread::NoTangentPlane));
         let p = link.cone.p;
-        let first = link.lobes.first()?;
-        let axis = first.cone.nappe_axis(first.ends[0].0);
-        let one_nappe = link.lobes.iter().flat_map(|a| a.ends).all(|(d, _)| {
-            metric::sign_as(
-                LINK_PLANE,
-                Distance::of(p + d.normalize(), p, axis),
-                rd.band,
-            ) == Some(Sign::Positive)
-        });
-        if !one_nappe {
-            return None;
-        }
+        let reach = |d| super::second_order::reach(p, d);
         let lobe = match link.lobes.as_slice() {
-            [a] if a.spur => Some(*a),
+            [a] if a.spur => *a,
             [a, b]
                 if !a.spur
                     && !b.spur
@@ -4870,15 +4852,41 @@ pub(crate) mod rest {
                     && a.ends[1].1 == b.ends[0].1 =>
             {
                 let [(d0, _), (d1, _)] = a.ends;
-                let reach = |d| super::second_order::reach(p, d);
                 let l = reach(d0).min(reach(d1)).length();
                 let apart = Distance::apart(p + d0.normalize() * l, p + d1.normalize() * l);
-                (metric::sign_as(super::LINK_TIE, apart, rd.band) == Some(Sign::Positive))
-                    .then_some(*a)
+                if metric::sign_as(super::LINK_TIE, apart, rd.band) != Some(Sign::Positive) {
+                    return Err(unread);
+                }
+                *a
             }
-            _ => None,
-        }?;
-        Some((lobe, axis))
+            _ => return Err(unread),
+        };
+        let l = link
+            .lobes
+            .iter()
+            .flat_map(|a| a.ends.map(|(d, _)| reach(d)))
+            .fold(reach(lobe.ends[0].0), geom_core::Lever::min)
+            .length();
+        let axis = lobe.cone.nappe_axis(lobe.ends[0].0);
+        let sides: Vec<Option<Sign>> = link
+            .lobes
+            .iter()
+            .flat_map(|a| a.ends)
+            .map(|(d, _)| {
+                metric::sign_as(
+                    LINK_PLANE,
+                    Distance::of(p + d.normalize() * l, p, axis),
+                    rd.band,
+                )
+            })
+            .collect();
+        if sides.contains(&Some(Sign::Negative)) {
+            return Err(unread);
+        }
+        if sides.iter().any(|s| *s != Some(Sign::Positive)) {
+            return Err(TouchVerdict::Unread(TouchUnread::InBand));
+        }
+        Ok((lobe, axis, l))
     }
 
     /// **Whether one solid's link at a point where it touches itself
