@@ -2,7 +2,7 @@
 id: tesswalk
 kind: program
 title: TESSWALK — what the walk and the lanes decide: structural premises without a body-level witness, and readings taken off undecided numbers
-status: ready
+status: active
 opened: 2026-10-28
 group: kernel/mesh
 prefix: tesswalk/
