@@ -289,3 +289,28 @@ second site needs to ask the question at all. (ONEDOOR orchestrator)
   - *Point-only fence digests are blind to record and edge-description state* (m2). The fix pass files it against the fence's owner.
 - Fix pass 3 dispatched (brief `onedoor-onerec-fix3-brief.md`). Merge path: the orchestrator reads the delta, CI goes green, #6511 merges first, then the state sync and the dual-review row.
 - (ONEDOOR orchestrator)
+
+## 2026-11-11 — #6505 fix pass 3 in; main's python teapot red fixed in #6844
+
+- **Fix pass 3** is done at head `a4856ec9f24`, with origin/main merged in. Locally, all gates, fmt, clippy, rustdoc and the python suite pass. There are 14170 rows in topo, sweep, editor-core, geom-brep, step-export and step-import, counting the slow set. 12 of the 15 reds are main's own at merge base `865e27e41b`; the other three are branch reds, fixed in the last commit.
+- **Orchestrator's read of the delta:**
+  - `geom_brep::props::face_anchor` is one function of the vertex set alone: the lever is the least corner of the vertices' box and the point is their mean. The lane rejected two alternatives, with evidence: the plain mean reddened `review_m3_pr55`, and the box centre widened the spiric pads.
+  - `SmoothAcross` can be minted only by `Body::dihedral_across`. A compile-fail doctest is the row.
+  - The cylinder re-anchoring is witnessed, at 2.9e-10 against a 1e-12 bound, with the guard turned about a non-anchor point.
+  - The digests were re-blessed after a key-masked dump showed the arena matches main line for line. Only arena key slots moved.
+- **Rulings with no witness**, accepted as such:
+  - 3, the survivor census against the first-pass census;
+  - 8, truncating the lowering.
+  
+  No row in the suites has a pair the second pass drops, or a moved face that the lineage lowers to several fragments. The reviewer found none either.
+- **Pins that moved:** the spiric pad ratios were re-pinned with headroom, plus a pin on the widest pad that the first-point anchor exceeds. `boss_union.expect` and PINNED `skew` each moved by one ulp.
+- **S13 is not followed, with a reason.** Lump, seam and shared-point copies choose copies of cells, which no pair owns. `KEPT` is renamed `FIRST_WRITTEN`.
+- **Filed:**
+  - scalar's fence blindness;
+  - onedoor's two-formula planar reading (P2);
+  - onedoor's revert-by-hand in chart agreement;
+  - a note on green's seat7 drift.
+- **Main red found and fixed outside the program's diff.** `test_north_star` TestTeapot had been red on main since `f1f3a9a8dc`, which retired the Rust scene's wall 2. Main's push CI skips the python suite, so only PR CI met it. #6844 moves the row so the handle join builds, validates, and has a bracketed volume. It merged as `0c50251cb1`.
+- **Class:** *a path-filtered CI on main lets a suite's red sit unseen until an unrelated PR meets it.* Here, a Rust-side retirement left its python twin behind. Logged here only; the scene's owner moving both twins is the fix, not a new gate.
+- **Merge path:** CI green on `a4856ec9f24`, then #6511 (still waiting on Ev), then #6505, then the state sync and the dual-review row.
+- (ONEDOOR orchestrator)
