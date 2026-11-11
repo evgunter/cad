@@ -1163,3 +1163,14 @@ E1c waits on the answer.
   - Fix list II was read by the orchestrator: the non-finite ending, a straddle to the lever, one sign→count home, the invariant's one statement.
   - Slow set: the lune fillets' lattice row, which is main's drift (0.419 s on main, 0.410 s on the branch).
   - The lane found main's `recourse_roster` red, fixed by PR 6809.
+- 2026-11-11 — **`a-curved-carriers-degree-one-general-image-ends-as-a-kernel-bug` closed** (PR 6532). A curved carrier on a spline chart takes the `General` image climbed to the structure its bend asks for (`edge_nurbs::curved_chart_image`, the pcurve mint's sibling of `chart_image`), not a degree-1 image that refused with a tolerance offer and a kernel-bug ending.
+  - The image's feet cross the wall's knot lines between stations. Those crossings are solved once, by halving on the first rung's schedule, and are nodes on every rung; a short piece takes its own uniform nodes.
+  - Provenance is data (`ChartImage::Stated` vs `ChartImage::Image`): only a derived image is relabelled the lane's gap. A stated or stored row keeps its own term.
+  - Endings: an image certificate that refuses on a rim the wall holds ends "not yet" (`LaneGap::Image`). A rim in band of its wall ends in its incidence read's lever: main's `incidence_ended` (PR 6531) runs first, and E1d gives a read in band the lever. The rows were re-pinned to it, not "any Err".
+  - Bounds allowlist: `edge_nurbs.rs` goes 14 → 16 compound-bound sites, `curved_chart_image` at `chart_image`'s bound. The necessity argument is in `real.rs`'s ledger (PR 6532, under the M7-8 / C2 precedent). It is put to Ev for retroactive review in the PR body.
+  - Review tier: single FULL. Fix list FF, delta verified and executed (APPROVE-WITH-FIXES, 0 MAJOR). Fix list KK was read by the orchestrator: the stated row's term pinned, the relabel guarded at every ε, the docs, the bounds argument.
+  - Filed:
+    - P1 `a-curved-spline-carrier-or-a-non-affine-line-ends-its-general-image-as-a-kernel-bug`;
+    - P2 `a-path-through-a-knot-line-corner-leaves-a-hair-piece-the-interval-certificate-reads-wide`, the review's N1, Interval-only, an honest "not yet";
+    - P3 `two-homes-cut-a-chart-path-at-the-walls-knot-lines`.
+  - Slow set: the spheres-crossing row (0.408 s on the branch, 0.430 s on main).
