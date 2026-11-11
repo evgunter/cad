@@ -8,7 +8,7 @@ priority: P1
 cost: M
 closed: 2026-11-11
 branch: measuredoor/sliver-bracket-close
-pr: PRNUM
+pr: 6817
 ---
 
 
