@@ -140,8 +140,9 @@ impl<T: Decide> PcurveCache<T> {
     /// On a patch, the fitted lane's checks 3 and 4: the schedule, then
     /// the composite's sup against the patch, which agrees with the chart
     /// wherever the image runs, so the sup bounds the image's miss with no
-    /// remainder. An iso line enters as the degree-1 curve in UV over
-    /// `outer`, the same map. The carrier's incidence is the caller's to
+    /// remainder. An iso line enters as the degree-1 curve in UV, the
+    /// same map, over a spline carrier's knot domain or else `outer`. The
+    /// carrier's incidence is the caller's to
     /// read first: this door reads the image against the carrier, not the
     /// carrier against the chart.
     ///
@@ -178,7 +179,16 @@ impl<T: Decide> PcurveCache<T> {
             StatedDoor::Patch(class) => class,
         };
         let net = match image {
-            Pcurve::IsoLine { p0, pl } => iso_net(*p0, *pl, outer)?,
+            // A spline carrier pairs with the curve in UV on its own knot
+            // domain (the composite's one parameter), any other on the
+            // span's outer ends.
+            Pcurve::IsoLine { p0, pl } => {
+                let domain = match carrier {
+                    Curve3::Nurbs(net) => net.domain(),
+                    _ => outer,
+                };
+                iso_net(*p0, *pl, domain)?
+            }
             Pcurve::General(net) | Pcurve::Fitted(net) => Arc::clone(net),
             Pcurve::Harmonic { .. }
             | Pcurve::FocalSection(_)

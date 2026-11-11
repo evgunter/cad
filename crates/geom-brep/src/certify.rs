@@ -1308,6 +1308,13 @@ enum Ending {
     /// ([`CertifyError::ending`]); the check alone reads it back off the
     /// arm ([`crate::IncidenceRead::arm_ending`]).
     Incidence,
+    /// A stated chart image's miss from its carrier
+    /// ([`CertCheck::StatedImage`]): a definite miss ends as its decision's
+    /// refused side gives (at a build its lever, past one the door's
+    /// culprit); a read in band shows neither a miss nor none and ends in
+    /// the lever at every door, as an incidence read in band does. Its
+    /// decision passes zero alone, so no arm offers a tolerance.
+    Stated(SizedDecision),
 }
 
 /// **What a span check refused of a door's input**
@@ -1674,7 +1681,7 @@ impl CertCheck {
             | Self::TangentGap
             | Self::MappedSource
             | Self::ChartResidual => Ending::Residual(Unsized::Defect),
-            Self::StatedImage => Ending::Sized(SizedDecision {
+            Self::StatedImage => Ending::Stated(SizedDecision {
                 lever: geom_core::move_lever!(
                     "so the chart image this edge states follows its carrier"
                 ),
@@ -1832,6 +1839,12 @@ impl DoorCheck for CertCheck {
             (Ending::Undefined(recourse), _) => geom_core::lever_recourse(recourse, None),
             (Ending::NotYet, at) => crate::recourse::not_yet(arm, at),
             (Ending::Incidence, at) => crate::IncidenceRead::arm_ending(arm, at),
+            (Ending::Stated(sized), at) => match arm {
+                RefusedArm::SignCertain(_) => sized.recourse(arm, at),
+                RefusedArm::Zero(_) | RefusedArm::Undecided(_) | RefusedArm::Straddle => {
+                    crate::recourse::LeverOnly { lever: sized.lever }.recourse(arm, at)
+                }
+            },
         }
     }
 }
@@ -10221,6 +10234,9 @@ mod tests {
         /// Ended by its read ([`Ending::Incidence`]): a definite miss by
         /// the door, a read in band by its lever.
         Incidence,
+        /// A stated image's miss ([`Ending::Stated`]): definite by its
+        /// side, in band by its lever.
+        Stated(SizedPass, RefusedSide),
     }
 
     /// **Every decision's class, written out by hand** in taxonomy
@@ -10270,7 +10286,7 @@ mod tests {
             (CertCheck::TangentTube, Class::Sized(Positive, Lever)),
             (CertCheck::MappedSource, Miss(Unsized::Defect)),
             (CertCheck::ChartResidual, Miss(Unsized::Defect)),
-            (CertCheck::StatedImage, Class::Sized(SizedPass::Zero, StoredContradiction)),
+            (CertCheck::StatedImage, Class::Stated(SizedPass::Zero, StoredContradiction)),
             (CertCheck::ChartImage, NoSize(Unsized::Defect)),
             (CertCheck::ChartClass, NotYet),
             (CertCheck::GeneralLane, NotYet),
@@ -10319,6 +10335,7 @@ mod tests {
                 Ending::Undefined(_) => Undefined,
                 Ending::NotYet => NotYet,
                 Ending::Incidence => Class::Incidence,
+                Ending::Stated(sized) => Class::Stated(sized.passes, sized.side),
             };
             assert_eq!(&got, want, "{check:?}");
             // A lever is named exactly where the decision is sized. An
@@ -10328,7 +10345,11 @@ mod tests {
                 _ => check.recourse(RefusedArm::SignCertain(None), Reading::Build),
             };
             let named = at_build.starts_with(geom_core::MOVE_RECOURSE);
-            assert_eq!(named, matches!(want, Class::Sized(..)), "{check:?}");
+            assert_eq!(
+                named,
+                matches!(want, Class::Sized(..) | Class::Stated(..)),
+                "{check:?}"
+            );
         }
     }
 }

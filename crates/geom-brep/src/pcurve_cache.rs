@@ -13204,6 +13204,9 @@ fn channels_of<T: Real>(image: &Pcurve<T>) -> (Channel<T>, Channel<T>) {
 
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::panic)]
+mod analytic_image_rows;
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::panic)]
 mod analytic_net_rows;
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::panic)]
