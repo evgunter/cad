@@ -494,11 +494,18 @@ pub enum TessellateError {
     /// singularity for a meridian to end on, so no meridian pair bounds
     /// anything there and the face needs a RIM.
     ///
+    /// **The one-face ball is not in the class.** Its loop walks one
+    /// wrap edge from pole to pole and back, so it opens both its sides
+    /// on one edge, but its chart image is empty and its tips are the
+    /// chart's two singular points: it is the whole sphere, the edge the
+    /// chart's cut, and the walk places the edge's two sides a period
+    /// apart (`walk::wrap_strip`) rather than ask this premise.
+    ///
     /// **What it does NOT claim.** That an admitted rim-free loop has
     /// width. Two DISTINCT edges sharing one carrier state one column
     /// too, and such a body is reachable through the Euler doors; that
     /// residue, and the rung above edge identity it wants, are
-    /// `work/tess/two-coincident-edges-open-two-columns-that-are-one.md`.
+    /// `work/tesswalk/two-coincident-edges-open-two-columns-that-are-one.md`.
     ///
     /// Not [`Self::MeridianFreeCurvedFace`]: that arm is the same lane's
     /// mirror question — whether a meridian exists at all — and its

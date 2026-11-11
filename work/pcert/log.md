@@ -1174,3 +1174,42 @@ E1c waits on the answer.
     - P2 `a-path-through-a-knot-line-corner-leaves-a-hair-piece-the-interval-certificate-reads-wide`, the review's N1, Interval-only, an honest "not yet";
     - P3 `two-homes-cut-a-chart-path-at-the-walls-knot-lines`.
   - Slow set: the spheres-crossing row (0.408 s on the branch, 0.430 s on main).
+- 2026-11-11 — **`a-stated-chart-image-on-a-spline-face-is-certified-by-a-sampled-meter` closed** (PR 6815). On a spline chart the edge certificate bounds a stated image over its whole span, not at its 9 samples.
+  - `certify.rs` `stated_bound` certifies the image through `PcurveCache::certify_stated_image` (topo's `restate` moved home; routed by `Pcurve::certifying_door`, no wildcard) and folds that certificate's envelope, a sup, into the residual.
+  - Where an image is stated is decided once (`StatedChart`). The spline chart's incidence read also samples a spline carrier's own breakpoints and Greville abscissae (`own_fractions`), so the review's R2 ends `Incidence(Off)` (`CarrierOffChart`), not `ChartImageUnavailable`.
+  - Disclosed: a carrier on its wall outside the stated iso column's spline space now refuses at the edge certificate, as it did at the mint. No product path newly refuses; only where the refusal surfaces moves.
+  - Review tier: single FULL, soundness-led. APPROVE-WITH-FIXES with 1 MAJOR, which was for the band, not this diff: the analytic remainder (a net carrier stated on a plane, cylinder or cone) still certifies 1 mm off through `EdgeCurve::certify`, 12 certificates executed. Ruled out of this PR (routing analytic charts through the pcurve doors refused ~70 product rows) and filed P1.
+  - Fix list LL, delta verified and executed (0 MAJOR). Fix list MM, read by the orchestrator: cost rows, the PR body, the P1's citation. The optional MM4 (topo `certify_walked` calling `certify_stated_image` directly, three exhaustive layers into one) was not taken.
+  - Filed:
+    - P1 `a-net-carrier-stated-on-an-analytic-chart-is-certified-by-a-sampled-meter`;
+    - P3 `a-narrow-wall-feature-under-a-carrier-ends-as-its-images-refusal-not-off`;
+    - P3 `a-stated-spline-image-is-certified-twice-by-the-edge-certificate-and-the-mint`;
+    - P3 `a-carrier-at-the-bands-zero-edge-of-a-spline-wall-costs-seconds-per-certify`, seconds per call at the zero edge on main too, and 1.4–1.5× on knot-rich nets here.
+  - Cost: 1.025× end to end on ten loft and spline rows.
+- 2026-11-11 — **`a-curved-spline-carrier-or-a-non-affine-line-ends-its-general-image-as-a-kernel-bug` closed** (PR 6819). The mint's General image climbs where its measured miss asks, not where the carrier's class says it bends. `edge_nurbs::general_chart_image` (renamed from `curved_chart_image`) is the one General image for every carrier. Its first rung is `chart_image`'s degree-1 image, byte-identical, so the edge certificate's reading does not move. It climbs degree-5 rungs where the miss midway between feet, net of the carrier's standoff as a vector, exceeds `band.zero()/16`.
+  - `bends` is gone. `minted_refusal` relabels any minted General image's refusal as "not yet"; `incidence_ended` pre-empts it with a definite miss or the in-band lever, and a stated row keeps its own term.
+  - The climb sits inside `general_chart_image`, holding edge_nurbs at its ratified 16 compound-bound sites. The review judged this legitimate: the reads are the ones PR 6532's ledger entry argues.
+  - A refused climb now keeps the degree-1 image, and its certificate's refusal ends "not yet" where the foot's own refusal ended unsettled. Both are "not yet", and the doc says so.
+  - Review tier: single FULL. APPROVE-WITH-FIXES, 0 MAJOR. Soundness was executed (bumps on feet and midpoints, δ from 0.5ε to 1e6ε; nothing past escalate certified). Fix list NN was read by the orchestrator: the rename and text, the feet reused, a threshold-pinning row, the vector standoff with a row, one miss fold, Option-shaped climb.
+  - Filed:
+    - P3 `a-climbed-general-image-on-a-stretched-chart-reads-its-hull-wide-at-fine-eps`;
+    - P3 `a-general-images-climb-reads-only-midpoints-between-feet`, the review's missed climb between a foot and a midpoint, an honest "not yet".
+  - Cost: 678 s against 686 s over 88 slow spline rows. The in-band rim row at Interval drops from 2.5 s to 0.9 s.
+- 2026-11-11 — **Main red: three `m8_f67_r1_probes` rows, fixed** (nightly 42965378060, `--all-features`; the probe suite runs only nightly). Since PR 6531, a refused certificate on a spline chart ends by its carrier's incidence read. The iso- and fitted-lane probes stated the wall's `u = 0` ruling as their image but ran an axis carrier 0.707 m off the wall, so they now ended `Incidence(Off)` before the meter or span refusal they test. Their carriers now sit on that ruling (`ruling_segment_f64`, `degenerate_net_on_the_wall`), and the certify-gate probes keep the axis carrier. 8/8 green with `--features probe`. Review tier: orchestrator's read (fixtures only). The nightly's editor-core `assemble_one_local_battery` red predates this sitting's merges (red at 50cfcf499d), and is not PCERT's.
+- 2026-11-11 — **`a-chorded-edges-certification-hulls-every-span-of-a-625-span-chord` closed** (PR 6827; the row was filed by SPIRICARM). Limb 2 (`limb2_offset_sup`) reads a net first with each knot span in the fewest parts its own geometry needs: `Parts::ByTurn`, through `props::taylor::pieces_where`, at most `INCIDENCE_CUTS` = 8, each part's control-box diagonal within `PIECE_TURN` (τ/16) of its least distance from the chart's axis. A plane takes 1, and a poisoned or axis-touching box takes 8.
+  - A first reading that clears decides. Anything else falls to the rounds at 8 parts a span, pinned by a row, so every refusal is main's.
+  - The cylinder pair's `certify_edge_spec`: 5.4–6.3 s → 2.2–3.2 s per op (release), volumes identical. The fenced and drum-wall slow rows are 9–21% faster.
+  - `PIECE_TURN` is now its own value beside `pieces_where`, read by both SPIRICARM's rotational volume lane and limb 2.
+  - Review tier: single FULL. APPROVE-WITH-FIXES, 0 MAJOR. Executed: 14,303 parts and 6,960 limb-2 readings with no wrong clear; identical verdicts to base on 3,480 cases; green merged with PR 6826. Fix list PP was read by the orchestrator: the rounds-start row (M3 now red), cone and torus rows, PIECE_TURN's own definition, docs.
+  - Filed: P2 `check-4s-projected-door-reads-every-span-of-a-chord-in-eight-parts`.
+  - SPIRICARM's P1 `a-carried-cylinder-pair-marches-for-minutes-before-the-volume-lane-refuses` is unparked here with a dated re-measurement, since lint refuses a closed blocker. A note is on their log.
+- 2026-11-11 — **`a-net-carrier-stated-on-an-analytic-chart-is-certified-by-a-sampled-meter` closed** (PR 6826). At the edge certificate, a spline net stated on a plane, cylinder, cone, sphere or torus is bounded over its span: `read_net_bound` takes the sampled read first (a definite miss at a sample ends there), then limb 2's sup (`limb2_offset_sup`, decided by `edge_nurbs::limb2`).
+  - Endings: a measured miss → `Incidence(Off)`; in band, a stall or no bound → `Incidence(Undecided)`, the lever.
+  - "No bound" reads as `f64::MAX`, finite at Interval, so it never poisons a margin.
+  - The mint and tier 3 keep the sampled lower bound, renamed `net_sampled_incidence`. `projected.rs`'s envelope still composes its own hull: fewer homes, not one.
+  - Review tier: single FULL, soundness-led. APPROVE-WITH-FIXES, 1 MAJOR, executed: at Interval, `NoOffsetBound` minted a poisoned margin, so a net ON a cone through its apex ended "kernel defect".
+  - Fix list OO, delta verified: 15,000 reads with 0 unsound, 0 false Off, 0 poisoned. Re-run clean on the head merged with PR 6827.
+  - Cost: release cold reads 0.10–0.48 ms, 15–50× the sampled read; 1 product sweep row reaches it.
+  - Filed:
+    - P1 `a-stated-image-on-an-analytic-chart-is-metered-against-its-carrier-at-nine-samples`, the image's fidelity, reproduced 8/8, next;
+    - P3 `an-on-chart-net-through-a-double-cones-apex-ends-in-the-lever`.

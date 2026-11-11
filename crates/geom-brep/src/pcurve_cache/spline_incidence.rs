@@ -87,7 +87,7 @@
 //! placement past the zero band. That ends the read as not shown off, a
 //! lane gap and never a false `Off`.
 
-use geom::NurbsSurface;
+use geom::{Curve3, NurbsSurface};
 use geom_core::k_stats::{decide, decide_reported, straddle};
 use geom_core::spline::{Knots, SpanLocate};
 use geom_core::{
@@ -121,10 +121,11 @@ const DEPTH_HEADROOM: f64 = 8.0;
 /// The kept cells one sample's walk may visit.
 const CELL_VISITS: usize = 1 << 12;
 
-/// **The spline chart's incidence test of the carrier `at` over
-/// `[t0, t1]`** (module docs), at [`INCIDENCE_SAMPLES`] + 1 evenly
-/// spaced parameters, its ends included. A chart patch is bounded, so
-/// the read is always the edge's span, never a closed conic's turn.
+/// **The spline chart's incidence test of `carrier` over `[t0, t1]`**
+/// (module docs), at [`INCIDENCE_SAMPLES`] + 1 evenly spaced parameters,
+/// its ends included, and at a spline carrier's own parameters inside the
+/// span ([`own_fractions`]). A chart patch is bounded, so the read is
+/// always the edge's span, never a closed conic's turn.
 ///
 /// # Errors
 ///
@@ -136,14 +137,58 @@ const CELL_VISITS: usize = 1 << 12;
 pub(super) fn spline_incidence_as<T: Decide>(
     name: &'static str,
     chart: &NurbsSurface<T>,
+    carrier: &Curve3<T>,
     (t0, t1): (T, T),
-    at: impl Fn(T) -> Point3<T>,
     band: Band,
 ) -> Result<Incidence, PcurveCertifyError> {
     let n = f64::from(INCIDENCE_SAMPLES);
-    let samples =
-        (0..=INCIDENCE_SAMPLES).map(|i| at(t0 + (t1 - t0) * T::from_f64(f64::from(i) / n)));
+    // Each fraction with the even schedule's index, or none where it is
+    // the carrier's own, read in order so each sample's foot starts from
+    // the last.
+    let mut fractions: Vec<(f64, Option<u32>)> = (0..=INCIDENCE_SAMPLES)
+        .map(|i| (f64::from(i) / n, Some(i)))
+        .chain(
+            own_fractions(carrier, (t0, t1))
+                .into_iter()
+                .map(|f| (f, None)),
+        )
+        .collect();
+    fractions.sort_by(|a, b| a.0.total_cmp(&b.0));
+    fractions.dedup_by(|a, b| a.0 == b.0);
+    let samples = fractions.into_iter().map(|(f, schedule)| {
+        let f = match schedule {
+            Some(i) => T::from_f64(f64::from(i) / n),
+            None => T::from_computed(f),
+        };
+        carrier.eval(t0 + (t1 - t0) * f)
+    });
     read_samples_as(name, chart, samples, band)
+}
+
+/// **Where a spline carrier's own shape is set**, as fractions strictly
+/// inside `[t0, t1]`: its breakpoints and its control points' Greville
+/// abscissae. A feature of the carrier narrower than the even schedule's
+/// step is made by control points close together, and peaks near their
+/// abscissae, so the read takes its samples there too. They place
+/// samples and decide nothing (each is read as any sample is), so they
+/// are taken on the brackets' middles. Empty for any other carrier.
+fn own_fractions<T: Decide>(carrier: &Curve3<T>, (t0, t1): (T, T)) -> Vec<f64> {
+    let Curve3::Nurbs(net) = carrier else {
+        return Vec::new();
+    };
+    let knots = net.knot_values();
+    let values: Vec<f64> = knots.values().iter().map(|&k| middle(k)).collect();
+    let p = knots.degree();
+    let greville = (0..values.len().saturating_sub(p + 1))
+        .map(|i| values[i + 1..=i + p].iter().sum::<f64>() / p as f64);
+    let (a, b) = (middle(t0), middle(t1));
+    values
+        .iter()
+        .copied()
+        .chain(greville)
+        .map(|t| (t - a) / (b - a))
+        .filter(|f| *f > 0.0 && *f < 1.0)
+        .collect()
 }
 
 /// **The spline chart's incidence test of one point**: [`spline_incidence_as`]
@@ -206,7 +251,7 @@ fn keep(pending: &mut Option<Indeterminate>, cause: Indeterminate) {
 
 /// The escalation of a floor that could not be read at all: the poison,
 /// decided.
-fn unreadable(band: Band) -> Indeterminate {
+pub(super) fn unreadable(band: Band) -> Indeterminate {
     match decide(HULL, Margin::of(f64::NAN), band) {
         Err(cause) => cause,
         Ok(_) => unreachable!("unreadable: the poison decides no sign"),

@@ -1291,10 +1291,10 @@ impl RowSpace {
 ///   column is the executed case (#498), an off-iso straight edge
 ///   another, and an ellipse — takes U2's `General`
 ///   curve-in-UV arm at the honest Fitted grade, derived from the
-///   wall's own foot schedule: at degree 1 for a line or a spline,
-///   finer for a carrier that bends the foot path. Where its
-///   certificate refuses a bending carrier's image, the refusal is the
-///   lane's gap, "not yet".
+///   wall's own foot schedule: at degree 1 where that image's measured
+///   miss is within its share of the band, finer where the foot path
+///   bends past it. Where its certificate refuses the image, the
+///   refusal is the lane's gap, "not yet".
 /// - Everything else on a NURBS chart refuses typed with the class
 ///   named.
 fn nurbs_iso_derive<T: AtRestPolicy>(
@@ -1333,14 +1333,13 @@ fn nurbs_iso_derive<T: AtRestPolicy>(
     // alone), a DIAGONAL locus (an off-iso straight edge among them) has
     // none, and a circle no row holds, an ellipse or any other curved
     // carrier has none on a spline chart. Its image is the one
-    // `FittedLane::general_image` derives: a spline's or a line's the
-    // degree-1 image its edge certificate reads, a bending carrier's the
-    // finer one `edge_nurbs::curved_chart_image` climbs to. It is a lane
+    // `FittedLane::general_image` derives: the degree-1 image the edge
+    // certificate reads, climbed where its measured miss asks. It is a lane
     // choice (D3), reached only behind the chart's incidence read: a
     // carrier shown off the wall ends as that read. A read not shown off,
     // in band included, goes on to the general image, whose certificate
     // reads the carrier against its wall itself (the subsumption
-    // principle); a bending carrier's refusal there is the image's gap
+    // principle); a refusal there is the image's gap
     // (`geom_brep::minted_refusal`).
     let general = || -> Result<ChartImage<T>, PcurveMintError> {
         let Some(wall) = surface.spline_chart() else {
@@ -1659,10 +1658,9 @@ fn nurbs_iso_derive<T: AtRestPolicy>(
 /// spline chart over the edge's interval `params` — U2's `General`
 /// arm, at the honest Fitted grade.
 ///
-/// The producer is [`geom_brep::FittedLane::general_image`]: a line's or
-/// a spline's image is the degree-1 one the plane × NURBS edge
-/// certificate reads at adopt time, and a bending carrier's the finer
-/// one `edge_nurbs::curved_chart_image` climbs to. Nothing is certified here: this returns EVIDENCE,
+/// The producer is [`geom_brep::FittedLane::general_image`]: the degree-1
+/// image the plane × NURBS edge certificate reads at adopt time, climbed
+/// to a finer one where its measured miss asks. Nothing is certified here: this returns EVIDENCE,
 /// and the mint's next move is `PcurveCache::certify_general`, which
 /// bounds `sup_t |S(P(t)) − C(t)|` over the whole span against the
 /// chart.
@@ -2715,7 +2713,7 @@ pub(crate) enum SplitRefusal {
 /// projected image is derived there ([`geom_brep::chart_pcurve_over`]),
 /// and a fitted or general image, which has no angular placement, is
 /// the parent's restricted to the sub-interval. Each is certified
-/// through the image's own door ([`restate`], with the scalar's
+/// through the image's own door ([`PcurveCache::certify_stated_image`], with the scalar's
 /// [`crate::AtRestPolicy::fitted_lane`] for a projected row's hull
 /// terms and a fitted-grade row's check 4). Children placed again can
 /// sit whole turns from each other and from the parent's image, so the
@@ -2821,7 +2819,15 @@ pub(crate) fn split_cache<T: AtRestPolicy>(
             refusal: SplitRefusal::Certify(error),
         };
         let certify = |a: T, b: T, image: Pcurve<T>| {
-            restate(&image, (a, b), &carrier, &surface, band, T::fitted_lane()).map_err(refused)
+            PcurveCache::certify_stated_image(
+                &image,
+                (a, b),
+                &carrier,
+                &surface,
+                band,
+                T::fitted_lane(),
+            )
+            .map_err(refused)
         };
         let Some(chart) = DescribedChart::of(&surface) else {
             unreachable!(
@@ -3129,7 +3135,7 @@ fn carry_rows<T: AtRestPolicy>(
         // refuses here, not later at tier 3.
         row_interval(body, he, row, &carrier, band)?;
         let (t0, t1) = row.params();
-        let restated = restate(
+        let restated = PcurveCache::certify_stated_image(
             row.pcurve(),
             (t0, t1),
             &carrier,
@@ -3144,63 +3150,6 @@ fn carry_rows<T: AtRestPolicy>(
         carried.push((he, restated, body.joint(he)));
     }
     Ok(carried)
-}
-
-/// A stored chart image re-certified over `[t0, t1]` through its own
-/// door: the closed-form door for every image it covers, the fitted
-/// door (`fitted`, the scalar's [`crate::AtRestPolicy::fitted_lane`])
-/// for a `Fitted`, `General` or `Projected` one.
-fn restate<T: Decide>(
-    image: &Pcurve<T>,
-    (t0, t1): (T, T),
-    carrier: &geom::Curve3<T>,
-    surface: &Surface<T>,
-    band: Band,
-    fitted: Option<geom_brep::FittedLane<T>>,
-) -> Result<PcurveCache<T>, PcurveCertifyError> {
-    match image {
-        Pcurve::Fitted(image) => match fitted {
-            Some(lane) => PcurveCache::certify_fitted(
-                std::sync::Arc::clone(image),
-                t0,
-                t1,
-                carrier,
-                surface,
-                band,
-                lane,
-            ),
-            // No door, so the image refuses, and the carrier's incidence
-            // read ends that refusal as at every certificate door.
-            None => geom_brep::incidence_ended_unwitnessed(
-                carrier,
-                (t0, t1),
-                (t0, t1),
-                surface,
-                band,
-                |read| read,
-                || Err(PcurveCertifyError::FittedLaneUnsupported { scalar: T::NAME }),
-            ),
-        },
-        Pcurve::General(image) => PcurveCache::certify_general(
-            std::sync::Arc::clone(image),
-            t0,
-            t1,
-            carrier,
-            surface,
-            band,
-            fitted,
-        ),
-        Pcurve::Projected(image) => PcurveCache::certify_projected(
-            (**image).clone(),
-            t0,
-            t1,
-            carrier,
-            surface,
-            band,
-            fitted,
-        ),
-        image => PcurveCache::certify(image.clone(), t0, t1, carrier, surface, band),
-    }
 }
 
 /// **Whether a face's refusal means its rows are not owed**: the one
@@ -3266,7 +3215,7 @@ fn derive_face<T: AtRestPolicy>(
     // included, and an absent door refuses at check 4, so an image that
     // fails checks 1–3 draws those checks' verdict at every scalar.
     let fitted = |w: &Walked<T>| match w.pcurve().certifying_door() {
-        CertifyingDoor::Fitted | CertifyingDoor::Either => restate(
+        CertifyingDoor::Fitted | CertifyingDoor::Either => PcurveCache::certify_stated_image(
             w.pcurve(),
             w.window(),
             &w.carrier,

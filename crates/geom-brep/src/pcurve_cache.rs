@@ -179,6 +179,7 @@ use geom::{Curve3, NurbsCurve2, NurbsCurve3};
 use geom::{NurbsSurface, Surface};
 use geom_core::k_stats::decide;
 use geom_core::predicate::{Band, BandError};
+use geom_core::spline::compose::CanonicalSurface;
 use geom_core::spline::{Built, KnotVector, SpanLocate, SplineError};
 use geom_core::{
     Decide, Decided, Indeterminate, InfSpeed, Margin, Point2, Point3, Real, Sign, SupSpeed, Vec2,
@@ -3081,9 +3082,9 @@ impl<T: Real> PcurveCertificate<T> {
 ///
 /// The `edge_nurbs` schedule with no per-sample hook: the transversality
 /// sweep the adopt path runs there is a statement about the PLANE
-/// operand, which is the edge certificate's and not the row's. A carrier
-/// whose foot path [`bends`] climbs `edge_nurbs::curved_chart_image`'s
-/// rungs; any other takes the degree-1 image its edge certificate reads.
+/// operand, which is the edge certificate's and not the row's. The image
+/// is `edge_nurbs::general_chart_image`'s: the degree-1 image the edge
+/// certificate reads, climbed where its measured miss asks.
 pub(crate) fn general_image_lane<T: Decide + geom_core::Bounds + geom_core::CertifiedEnclosure>(
     carrier: &Curve3<T>,
     params: (T, T),
@@ -3103,11 +3104,11 @@ pub(crate) fn general_image_lane<T: Decide + geom_core::Bounds + geom_core::Cert
         magnitude: None,
         ending,
     };
-    let bending = bends(carrier);
-    let image = if bending {
-        crate::edge_nurbs::curved_chart_image(schedule, wall, band)
-    } else {
-        crate::edge_nurbs::chart_image(schedule, wall, |_, _| Ok(()))
+    let image = crate::edge_nurbs::general_chart_image(schedule, wall, band);
+    #[cfg(test)]
+    let image = match mutants::general_image_class_gate(carrier) {
+        Some(false) => crate::edge_nurbs::chart_image(schedule, wall, |_, _| Ok(())),
+        Some(true) | None => image,
     };
     image.map_err(|e| match e {
         P::FootPointInconclusive {
@@ -3130,19 +3131,10 @@ pub(crate) fn general_image_lane<T: Decide + geom_core::Bounds + geom_core::Cert
             }),
             ending: FittedEnding::FootUnsettled,
         },
-        // A bending carrier's image is its lane's own structure, so a fit
-        // that will not solve is the lane's gap (unhit, not unreachable:
-        // breaks are kept clear of the domain's ends, not of each other);
-        // a line's or a spline's degree-1 fit through distinct feet always
+        // Only the degree-1 rung's fit reaches here (a climb that refuses
+        // keeps it), and a degree-1 fit at distinct parameters always
         // solves.
-        P::PcurveFit => certificate(
-            crate::edge_nurbs::PCURVE_FIT_REFUSAL,
-            if bending {
-                FittedEnding::NotYet
-            } else {
-                FittedEnding::Defect
-            },
-        ),
+        P::PcurveFit => certificate(crate::edge_nurbs::PCURVE_FIT_REFUSAL, FittedEnding::Defect),
         P::CarrierDomain(refusal) => PcurveCertifyError::CarrierDomain(refusal),
         // The wall this door was handed, as the foot producer refuses it
         // (`chart_foot_lane`): one lever at both doors.
@@ -3165,15 +3157,6 @@ pub(crate) fn general_image_lane<T: Decide + geom_core::Bounds + geom_core::Cert
              the mint passes a no-op hook and runs no certificate: {other:?}"
         ),
     })
-}
-
-/// Whether `carrier`'s foot path on a spline chart bends, so that the
-/// mint images it at `edge_nurbs::curved_chart_image`'s rungs: a curved
-/// carrier with no net. A line's path is straight wherever the chart is
-/// flat, and a spline's image is the degree-1 one its edge certificate
-/// reads (`edge_nurbs::chart_image`).
-pub(crate) fn bends<T: Real>(carrier: &Curve3<T>) -> bool {
-    carrier.is_curved() && !matches!(carrier, Curve3::Nurbs(_))
 }
 
 /// The foot producer's body, shared by every certifying scalar
@@ -3283,7 +3266,7 @@ pub(crate) fn projected_hull_lane<T: Decide + geom_core::Bounds + geom_core::Cer
         &lift(twin_net),
         twin,
         image.chart.nappe(),
-        projected::INCIDENCE_CUTS,
+        Parts::Each(projected::INCIDENCE_CUTS),
         cuts,
     )?;
     Ok(ProjectedHull { pieces, spans })
@@ -3330,12 +3313,88 @@ fn uncertified_over(n: &NurbsCurve3<geom_core::Interval>, (a, b): (f64, f64)) ->
     })
 }
 
+/// How many equal parts [`twin_span_hulls`] cuts each knot span of a
+/// twin net into.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum Parts {
+    /// The same count on every span.
+    Each(usize),
+    /// **Per span, the parts its own geometry needs**: the fewest, a
+    /// power of two up to [`projected::INCIDENCE_CUTS`]
+    /// ([`crate::props::taylor::pieces_where`]), on each of which the
+    /// diagonal of the part's control box is at most
+    /// [`crate::props::taylor::PIECE_TURN`] times the box's least
+    /// distance from the chart's axis, on which the cone's apex and the
+    /// sphere's poles lie. That is a chord over a radius, not a turn
+    /// about the axis: the box's extent along the axis counts too. A
+    /// short span far from the axis reads one part, and a long span or
+    /// one by the axis the parts that ratio needs. On the plane, which
+    /// has no axis, one. A span's count is read off that span's controls
+    /// alone, so a chord reads the same parts however it is cut into
+    /// spans or edges. The count is a schedule, compared in `f64` on the
+    /// ends of the controls' brackets; each part's hull bounds `|f|`
+    /// over that part at any count.
+    ByTurn,
+}
+
+impl Parts {
+    /// The memo keys' one spelling of the rule.
+    fn key(self) -> u64 {
+        match self {
+            Self::Each(n) => u64::try_from(n).unwrap_or(u64::MAX - 1),
+            Self::ByTurn => u64::MAX,
+        }
+    }
+
+    /// The parts of the knot span `(a, b)` of `net` on a chart of `form`.
+    fn of(
+        self,
+        net: &NurbsCurve3<geom_core::Interval>,
+        form: &CanonicalSurface,
+        (a, b): (f64, f64),
+    ) -> usize {
+        use geom_core::Bounds;
+        let most = projected::INCIDENCE_CUTS;
+        match (self, form) {
+            (Self::Each(n), _) => n,
+            (Self::ByTurn, CanonicalSurface::Plane) => 1,
+            (Self::ByTurn, _) => crate::props::taylor::pieces_where(
+                (a, b),
+                most,
+                |p, q| {
+                    geom_core::spline::ParamRange::new(p, q)
+                        .map(|piece| projected::piece_controls(net, piece))
+                },
+                |controls, _, _| {
+                    let Some(controls) = controls.as_ref().filter(|c| !c.is_empty()) else {
+                        return false;
+                    };
+                    let (axis, ..) = projected::part_floors(controls);
+                    let extent =
+                        |at: fn(&geom_core::Vec3<geom_core::Interval>) -> geom_core::Interval| {
+                            let (lo, hi) = controls
+                                .iter()
+                                .fold((f64::INFINITY, f64::NEG_INFINITY), |(lo, hi), (c, _)| {
+                                    (lo.min(at(c).lo()), hi.max(at(c).hi()))
+                                });
+                            hi - lo
+                        };
+                    let size = extent(|c| c.x)
+                        .hypot(extent(|c| c.y))
+                        .hypot(extent(|c| c.z));
+                    size <= crate::props::taylor::PIECE_TURN * axis.lo()
+                },
+            ),
+        }
+    }
+}
+
 /// The parts of a carrier's twin net in certification arithmetic: the
 /// chart's canonical implicit form composed along `twin_net` (the
 /// carrier written in the frame of `twin`, the chart's orthonormal
-/// twin), each knot span cut into `per_span` equal parts and at `cuts`,
-/// with each part's bound of `|f|`, the floors its metre conversion
-/// reads, and its metre readings.
+/// twin), each knot span cut into the equal parts `parts` reads it in
+/// and at `cuts`, with each part's bound of `|f|`, the floors its metre
+/// conversion reads, and its metre readings.
 ///
 /// # Errors
 ///
@@ -3346,10 +3405,9 @@ fn twin_span_hulls<T: geom_core::CertifiedBounds>(
     twin_net: &NurbsCurve3<geom_core::Interval>,
     twin: &Surface<T>,
     nappe: Option<crate::offset::Nappe>,
-    per_span: usize,
+    parts: Parts,
     cuts: &[f64],
 ) -> Result<Vec<projected::SpanHull>, PcurveCertifyError> {
-    use geom_core::spline::compose::CanonicalSurface;
     let cross = geom_core::Interval::from_certified;
     let form = match *twin {
         Surface::Plane { .. } => CanonicalSurface::Plane,
@@ -3399,7 +3457,7 @@ fn twin_span_hulls<T: geom_core::CertifiedBounds>(
         twin_net: &twin_net,
         form: &form,
         meters,
-        per_span,
+        parts,
         cuts,
     };
     span_memo::read(&input, (knots, weights), || {
@@ -3417,7 +3475,7 @@ fn spans_of(
         twin_net,
         form,
         meters,
-        per_span,
+        parts,
         cuts,
     } = *input;
     use geom_core::spline::compose::{CurveCertData, canonical_composite};
@@ -3454,6 +3512,7 @@ fn spans_of(
     let mut all_cuts: Vec<f64> = runs
         .windows(2)
         .flat_map(|w| {
+            let per_span = parts.of(twin_net, form, (w[0], w[1]));
             (1..per_span).map(move |j| {
                 #[allow(clippy::cast_precision_loss)]
                 let f = j as f64 / per_span as f64;
@@ -3604,7 +3663,7 @@ mod span_memo {
         pub(super) twin_net: &'a NurbsCurve3<Interval>,
         pub(super) form: &'a CanonicalSurface,
         pub(super) meters: projected::Meters<Interval>,
-        pub(super) per_span: usize,
+        pub(super) parts: super::Parts,
         pub(super) cuts: &'a [f64],
     }
 
@@ -3661,7 +3720,7 @@ mod span_memo {
             // The sign of `major` names the sheet.
             Meters::Spindle { major, minor, .. } => scalars(&mut k, 6, &[major, minor]),
         }
-        k.extend([len(input.per_span), len(knots.degree())]);
+        k.extend([input.parts.key(), len(knots.degree())]);
         floats(&mut k, 6, knots.knots());
         floats(&mut k, 7, weights);
         k.push(len(input.twin_net.control().len()));
@@ -3701,7 +3760,14 @@ mod span_memo {
 /// reach past the window's ends (a bound over a span holding a piece of
 /// the window bounds that piece); that reading passes only on cleared
 /// parts that cover the window's outer ends with no gap, and hands
-/// anything else to the rounds, so every refusal is the rounds'.
+/// anything else to the rounds, so every refusal is the rounds'. A net
+/// is read first with each knot span in the parts its own geometry
+/// needs ([`Parts::ByTurn`]); that reading is the limb's where it
+/// clears the band, and anything else goes to the rounds, every span in
+/// [`projected::INCIDENCE_CUTS`] parts. A first reading of either kind
+/// that clears but whose decision on the parts then escalates or
+/// refuses is set aside for the rounds: the decisions it took stay on
+/// the trail, and the rounds take them again.
 ///
 /// The reading carries the size of the net it stopped on
 /// ([`projected::NetSize`]): the carrier's own enclosure width there,
@@ -3734,10 +3800,14 @@ pub(crate) fn limb2_offset_sup<T: Decide + geom_core::Bounds + geom_core::Certif
     };
     let frame = crate::carrier_net::Frame::of(o, te);
     let (domain, mut grid, per_span) = match carrier {
-        Curve3::Nurbs(net) => (net.domain(), Vec::new(), projected::INCIDENCE_CUTS),
+        Curve3::Nurbs(net) => (
+            net.domain(),
+            Vec::new(),
+            Parts::Each(projected::INCIDENCE_CUTS),
+        ),
         _ => {
             let (lo, hi) = crate::carrier_net::outer_ends(window);
-            ((lo, hi), closed_form_grid(carrier, lo, hi), 1)
+            ((lo, hi), closed_form_grid(carrier, lo, hi), Parts::Each(1))
         }
     };
     // On a sheet, an end within `10⁻⁶ r` of the axis (read in `f64`, a
@@ -3762,7 +3832,8 @@ pub(crate) fn limb2_offset_sup<T: Decide + geom_core::Bounds + geom_core::Certif
     }
     let round_over =
         |grid: &[f64],
-         cuts: &[f64]|
+         cuts: &[f64],
+         parts: Parts|
          -> Result<(projected::ProjectedHull, projected::NetSize), PcurveCertifyError> {
             let mut breaks: Vec<f64> = grid.iter().chain(cuts).copied().collect();
             breaks.sort_by(f64::total_cmp);
@@ -3780,11 +3851,13 @@ pub(crate) fn limb2_offset_sup<T: Decide + geom_core::Bounds + geom_core::Certif
             };
             let hull = projected::ProjectedHull {
                 pieces: Vec::new(),
-                spans: twin_span_hulls(&curve, &twin, nappe, per_span, net.cuts())?,
+                spans: twin_span_hulls(&curve, &twin, nappe, parts, net.cuts())?,
             };
             Ok((hull, size))
         };
-    let round_hull = |cuts: &[f64]| round_over(&grid, cuts);
+    let round_hull = |cuts: &[f64]| round_over(&grid, cuts, per_span);
+    let key = limb2_memo::Key::of(carrier, window, surface, band);
+    let rounds_key = key.with(per_span);
     // A curved closed form is read first on its dyadic spans, each
     // enclosed alone (`limb2_quick`); a reading that clears is the
     // limb's, and anything else goes to the rounds below. Its parts
@@ -3792,24 +3865,35 @@ pub(crate) fn limb2_offset_sup<T: Decide + geom_core::Bounds + geom_core::Certif
     // located, a cone's or torus's lever per part) are taken only on a
     // reading about to pass; where a lever then refuses, the rounds
     // take those decisions again, so the trail shows them twice.
+    let cleared = |(hull, size)| {
+        projected::offset_cleared(hull, size, window, nappe, &twin, band)
+            .ok()
+            .flatten()
+    };
     let quick = if limb2_quick::enabled() {
-        limb2_quick::read(carrier, domain, surface, &frame, &twin, nappe, band).and_then(
-            |(hull, size)| {
-                projected::offset_cleared(hull, size, window, nappe, &twin, band)
-                    .ok()
-                    .flatten()
-            },
-        )
+        limb2_quick::read(carrier, domain, surface, &frame, &twin, nappe, band).and_then(cleared)
     } else {
         None
     };
+    // A net is read first with each span in the parts its own geometry
+    // needs (`Parts::ByTurn`); a reading that clears is the limb's, and
+    // anything else goes to the rounds below, every span in
+    // `INCIDENCE_CUTS` parts, so every refusal is the rounds'.
+    let quick = quick.or_else(|| match carrier {
+        Curve3::Nurbs(_) => limb2_memo::read(&key.with(Parts::ByTurn), &[], || {
+            round_over(&grid, &[], Parts::ByTurn)
+        })
+        .ok()
+        .and_then(cleared),
+        _ => None,
+    });
     let mut read = match quick {
         Some(read) => read,
         None => {
             // The rounds read through limb 2's memo (`limb2_memo`): a
-            // round is a pure function of the key's inputs and its cuts.
-            let key = limb2_memo::Key::of(carrier, window, surface, band);
-            let hull = |cuts: &[f64]| limb2_memo::read(&key, cuts, || round_hull(cuts));
+            // round is a pure function of the key's inputs, its parts and
+            // its cuts.
+            let hull = |cuts: &[f64]| limb2_memo::read(&rounds_key, cuts, || round_hull(cuts));
             projected::offset_rounds(hull, window, nappe, &twin, band)?
         }
     };
@@ -3879,6 +3963,11 @@ mod limb2_memo {
                 band.zero().to_bits(),
                 band.escalate().to_bits(),
             ))
+        }
+
+        /// The key of the same inputs read with each span in `parts`.
+        pub(super) fn with(&self, parts: super::Parts) -> Self {
+            Self(format!("{}|{:x}", self.0, parts.key()))
         }
     }
 
@@ -4188,7 +4277,7 @@ mod limb2_quick {
         let compute = |range: (f64, f64)| -> Option<Part> {
             let net = crate::carrier_net::framed_span_net(carrier, range, frame, ORDER).ok()?;
             let curve = net.curve()?;
-            let hull = match twin_span_hulls(&curve, twin, nappe, 1, &[])
+            let hull = match twin_span_hulls(&curve, twin, nappe, super::Parts::Each(1), &[])
                 .ok()?
                 .as_slice()
             {
@@ -9558,7 +9647,7 @@ fn chart_image<T: Decide>(
                 chart: surface.kind(),
             });
         }
-        if let Incidence::Off(margin) = net_incidence(net, span, surface, band)? {
+        if let Incidence::Off(margin) = net_sampled_incidence(net, span, surface, band)? {
             return Err(
                 OffChart("the spline carrier does not lie on the chart").with_margin(
                     OffMargin::Past(margin),
@@ -9607,9 +9696,10 @@ fn chart_image<T: Decide>(
 ///
 /// - a conic's or a line's projected image ([`chart_pcurve_over`]), on
 ///   its sector, its metre conversion's lever or its envelope;
-/// - a bending carrier's `General` image on a spline chart (`topo`'s
-///   mint, at `edge_nurbs::curved_chart_image`'s finest rung), on any
-///   bound of its miss ([`LaneImage::General`]).
+/// - a `General` image on a spline chart (`topo`'s mint, at
+///   `general_image_lane`'s rung: the degree-1 image, or the
+///   finer one its measured miss climbed to), on any bound of its miss
+///   ([`LaneImage::General`]).
 ///
 /// Read by the doors that certify an image they just derived (the
 /// mint's walk, `topo::pcurves`), never by one that re-certifies a
@@ -9633,9 +9723,13 @@ pub fn minted_refusal<T: Real>(
         {
             LaneImage::Projected
         }
-        Pcurve::General(_) if bends(carrier) => LaneImage::General,
+        Pcurve::General(_) => LaneImage::General,
         _ => return refused,
     };
+    #[cfg(test)]
+    if lane == LaneImage::General && mutants::general_image_class_gate(carrier) == Some(false) {
+        return refused;
+    }
     #[cfg(test)]
     if mutants::lane_envelope_bound() {
         return refused;
@@ -9689,9 +9783,10 @@ pub enum LaneGap {
     /// the miss, refused it ([`ENVELOPE_LEVER`]).
     Envelope,
     /// A spline chart's lane images this carrier, but its `General`
-    /// image, fitted through the carrier's feet at its finest structure,
-    /// does not follow the carrier inside the band: the certificate's
-    /// bound on the image's miss refused it ([`IMAGE_LEVER`]).
+    /// image, fitted through the carrier's feet at the structure their
+    /// measured miss asked for, does not follow the carrier inside the
+    /// band: the certificate's bound on the image's miss refused it
+    /// ([`IMAGE_LEVER`]).
     Image,
 }
 
@@ -9705,9 +9800,9 @@ pub(crate) const ENVELOPE_LEVER: &str = "the general image's certificate bounds 
 /// The lever of a [`LaneGap::Image`]: the one sentence both
 /// [`PcurveCertifyError::NoGeneralLane`]'s and
 /// [`crate::CertifyError::NoGeneralLane`]'s Display give it.
-pub(crate) const IMAGE_LEVER: &str = "the general image of a curved carrier on a spline chart \
-     is fitted through the carrier's feet, and over this edge its finest fit does not follow \
-     the carrier inside the band; a shorter edge reads a finer one";
+pub(crate) const IMAGE_LEVER: &str = "the general image of a carrier on a spline chart is \
+     fitted through the carrier's feet, and over this edge its fit does not follow the carrier \
+     inside the band; a shorter edge reads a finer one";
 
 /// **The general lane's refusal at the mint**: the one place a
 /// general-lane refusal is relabelled, read from both of `chart_image`'s
@@ -9738,7 +9833,7 @@ pub(crate) const IMAGE_LEVER: &str = "the general image of a curved carrier on a
 /// before the call: for the projected image by [`projected::has_lane`],
 /// and for the `General` image by its producer, which images on a spline
 /// chart alone (`general_image_lane`), and by [`minted_refusal`], which
-/// hands this a bending carrier's image alone.
+/// hands this a minted image alone.
 fn general_lane_refusal<T: Real>(
     refused: PcurveCertifyError,
     lane: LaneImage,
@@ -9907,7 +10002,7 @@ fn read_shown<T: Decide>(
         return read_edge_incidence(carrier, t0, t1, surface, band).map(|()| None);
     }
     if let Curve3::Nurbs(net) = carrier {
-        return match net_incidence(net, Some((t0, t1)), surface, band)? {
+        return match net_sampled_incidence(net, Some((t0, t1)), surface, band)? {
             Incidence::Off(margin) => Err(OffChart("the spline carrier does not lie on the chart")
                 .with_margin(OffMargin::Past(margin), surface, carrier)),
             Incidence::On(_) => Ok(None),
@@ -9938,15 +10033,11 @@ fn read_shown<T: Decide>(
 ///   anywhere else the read is taken over `asked`, whatever the door
 ///   answered.
 ///
-/// That skip is sound for the pcurve certificate doors (`certify`,
-/// `recertify`, `certify_fitted`, `certify_general`), whose certificate
-/// that holds bounds the carrier within the band of the wall over
-/// `certified`: its envelope is a sup over the span. It is not for a
-/// door whose meter is sampled, such as the edge certificate's stated
-/// image ([`incidence_ended_unwitnessed`] from `certify.rs`
-/// `stated_door`), where a carrier off its wall only between both sets of
-/// samples passes
-/// (`work/pcert/a-stated-chart-image-on-a-spline-face-is-certified-by-a-sampled-meter.md`).
+/// That skip is sound for a door whose certificate that holds bounds the
+/// carrier within the band of the wall over `certified`, as the pcurve
+/// certificate doors' envelopes do (a sup over the span); a door whose
+/// meter is sampled bounds nothing between its samples, so it holds no
+/// certificate this rule may take as it stands.
 ///
 /// `refused` carries the read's refusal into the door's own vocabulary.
 fn incidence_ended<T: Decide, R, E>(
@@ -9973,9 +10064,8 @@ fn incidence_ended<T: Decide, R, E>(
 /// for a door that takes no witness: the one home's rule
 /// (`incidence_ended`), which reads an analytic chart before `door` and a
 /// spline chart where `door` refuses or where `certified` is not shown to
-/// cover `asked`. Its callers are the edge certificate's stated chart image
-/// (`certify.rs` `stated_door`), whose meter is sampled, and `topo`'s
-/// restatement of a stored fitted image at a scalar with no fitted door.
+/// cover `asked`. Its caller is a stored fitted image restated at a
+/// scalar with no fitted door ([`PcurveCache::certify_stated_image`]).
 ///
 /// # Errors
 ///
@@ -10084,11 +10174,13 @@ pub fn read_point_incidence<T: Decide>(
     }
 }
 
-/// The incidence test of a spline carrier: [`chart_incidence`]'s, at
-/// [`INCIDENCE_SAMPLES`] points of the edge's interval `span`, or of
+/// The sampled incidence test of a spline carrier: [`chart_incidence`]'s,
+/// at [`INCIDENCE_SAMPLES`] points of the edge's interval `span`, or of
 /// the knot domain where none is given: the net past the edge's ends is
-/// not the edge's.
-fn net_incidence<T: Decide>(
+/// not the edge's. A lower bound on the net's distance from the chart,
+/// so its `Off` is definite and its `On` shows only that no sample is
+/// off; the bound over the span is [`read_net_bound`].
+fn net_sampled_incidence<T: Decide>(
     net: &NurbsCurve3<T>,
     span: Option<(T, T)>,
     surface: &Surface<T>,
@@ -10103,6 +10195,116 @@ fn net_incidence<T: Decide>(
         T::zero(),
         band,
     )
+}
+
+/// **A spline net's incidence on an analytic chart, bounded over the
+/// span** (D3): the sampled read ([`read_incidence`]), whose definite
+/// miss at a sample ends as it does at every door (its reading in band,
+/// a lower bound or an enclosure that does not decide, shows neither
+/// side), then limb 2's reading of the net's distance from the chart
+/// over `[t0, t1]`
+/// ([`limb2_offset_sup`]: the chart's canonical composite along the net,
+/// a bound per part converted to metres, the parts halved where the bound
+/// does not clear), decided as the edge certificate decides limb 2
+/// ([`crate::edge_nurbs::limb2`]). So a net off its chart between every
+/// sample does not read on. `offset` is that reader at the certifying
+/// scalar ([`limb2_offset_sup`] itself), handed in by the certificate's
+/// engine, which holds the scalar's bracket bound; it is read over
+/// `window` only where the sampled read showed no miss.
+///
+/// - The bound within the band: on.
+/// - A measured miss past the band at a break: off
+///   ([`IncidenceRead::Off`]).
+/// - Anything else (a floor or a bound in the band, an enclosure that
+///   neither clears nor misses, a composite with no certified bound):
+///   in band ([`IncidenceRead::Undecided`]), the read's lever. An upper
+///   bound past the band shows no miss, so it never reads off.
+///
+/// # Errors
+///
+/// [`PcurveCertifyError::Incidence`], read off or in band as above.
+pub(crate) fn read_net_bound<T: Decide>(
+    carrier: &Curve3<T>,
+    window: (T, T),
+    surface: &Surface<T>,
+    band: Band,
+    offset: impl FnOnce(
+        &Curve3<T>,
+        (T, T),
+        &Surface<T>,
+        Band,
+    ) -> Result<projected::OffsetRead<T>, PcurveCertifyError>,
+) -> Result<(), PcurveCertifyError> {
+    debug_assert!(
+        surface.spline_chart().is_none() && carrier.kind() == geom::CurveKind::Nurbs,
+        "read_net_bound reads a spline net on an analytic chart"
+    );
+    let sampled = read_incidence(carrier, window.0, window.1, surface, band);
+    #[cfg(test)]
+    if mutants::net_bound_sampled() {
+        return sampled;
+    }
+    if let Err(sampled) = sampled
+        && !matches!(&sampled, PcurveCertifyError::Incidence(r) if !r.read().is_definite())
+    {
+        return Err(sampled);
+    }
+    let read = offset(carrier, window, surface, band);
+    crate::edge_nurbs::limb2(carrier, window, surface, read, None, band)
+        .map_err(|refusal| net_bound_refusal::<T>(refusal, surface, carrier, band))
+}
+
+/// **What [`read_net_bound`] ends a refusal of limb 2 as**: a measured
+/// miss off the chart; anything limb 2 decided in band, its escalation;
+/// an upper bound that does not clear, or no certified bound at all, a
+/// straddle of the band (`pcurve_net_bound_straddle`), since an upper
+/// bound shows no miss and the sampled read showed none; a carrier with
+/// no certified net (its data not finite), unreadable. "No bound" is
+/// read as the largest finite bound, so the straddle's margin is a
+/// reading at every scalar (`+∞` is no interval, and its poisoned margin
+/// would end as a defect).
+fn net_bound_refusal<T: Decide>(
+    refusal: crate::edge_nurbs::AnalyticRung3Refusal,
+    surface: &Surface<T>,
+    carrier: &Curve3<T>,
+    band: Band,
+) -> PcurveCertifyError {
+    use crate::edge_nurbs::AnalyticRung3Refusal as R;
+    // Limb 2 reads its limit only on a bound it did not decide zero, so
+    // the bound decides positive or escalates.
+    let unshown = |bound: f64| {
+        let bound = if bound.is_finite() { bound } else { f64::MAX };
+        let decided = |x: T| {
+            geom_core::k_stats::decide_reported("pcurve_net_bound_straddle", Margin::of(x), band)
+        };
+        match (decided(T::zero()), decided(T::from_computed(bound))) {
+            (Ok(lower), Ok(upper)) => {
+                geom_core::k_stats::straddle("pcurve_net_bound_straddle", lower, upper, band)
+            }
+            (Err(cause), _) | (_, Err(cause)) => cause,
+        }
+    };
+    incidence_escalated(match refusal {
+        R::Limb { margin, .. } => {
+            return OffChart(
+                "the spline carrier's distance from the chart is past the band over its span",
+            )
+            .with_margin(OffMargin::Past(margin), surface, carrier);
+        }
+        R::Stalled { cause, .. } | R::Escalated { cause, .. } => cause,
+        R::KernelLimit { bound, .. } => unshown(bound),
+        R::NoOffsetBound { .. } => unshown(f64::MAX),
+        R::CarrierEnclosure(_) => spline_incidence::unreadable(band),
+        R::NoTubeEnclosure { .. }
+        | R::TubeStraddles { .. }
+        | R::TubeNotOneArc { .. }
+        | R::Unsupported { .. }
+        | R::Tube(_)
+        | R::OutsideVocabulary => unreachable!(
+            "net_bound_refusal: limb 2 against one operand refuses its bound, its miss or its \
+             net, never the tube's or the pair's: {refusal:?}"
+        ),
+    })
 }
 
 /// The two iso families of an analytic chart: `U` the `u = const`
@@ -12508,11 +12710,7 @@ mod incidence {
                 _ => "pcurve_nurbs_chart_incident",
             };
             return match super::spline_incidence::spline_incidence_as(
-                name,
-                chart,
-                place.span,
-                |t| carrier.eval(t),
-                band,
+                name, chart, carrier, place.span, band,
             )? {
                 Incidence::On(margin) => Ok(tested(margin)),
                 Incidence::Off(margin) => Err(OffChart(
@@ -12570,7 +12768,7 @@ mod incidence {
             }
             _ => unreachable!(
                 "incident: a spline carrier on an analytic chart takes its own test \
-                 (`net_incidence`)"
+                 (`net_sampled_incidence`)"
             ),
         };
         // A sheet's meridian circle leaves the sheet past its apexes, so
@@ -12959,6 +13157,7 @@ fn spiric_off_own_chart(why: &'static str) -> OffChart {
 // test gate can skip the sweep without skipping the deterministic rows.
 pub mod projected;
 mod spline_incidence;
+mod stated;
 pub use projected::{FramedCarrier, ProjectedChart, ProjectedImage, SectorChannel};
 
 #[cfg(test)]
@@ -12977,6 +13176,12 @@ fn channels_of<T: Real>(image: &Pcurve<T>) -> (Channel<T>, Channel<T>) {
 
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::panic)]
+mod analytic_net_rows;
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::panic)]
+mod by_turn_rows;
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::panic)]
 mod circle_lane_rows;
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::panic)]
@@ -12987,6 +13192,9 @@ mod cylinder_line_rows;
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::panic)]
 mod ellipse_lane_rows;
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::panic)]
+mod general_climb_rows;
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::panic)]
 mod harmonic_sup_rows;
@@ -13014,6 +13222,9 @@ mod ruling_reading_rows;
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 pub(crate) mod spline_door_rows;
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod stated_image_rows;
 
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
@@ -15747,7 +15958,7 @@ mod check_4_class_rows {
 #[cfg(test)]
 #[allow(clippy::unwrap_used)]
 mod limb2_memo_rows {
-    use super::{PcurveCertifyError, limb2_memo, limb2_offset_sup, span_memo};
+    use super::{Parts, PcurveCertifyError, limb2_memo, limb2_offset_sup, span_memo};
     use geom::{Curve3, Surface};
     use geom_core::{Band, Point3, Real, Vec3};
 
@@ -15836,8 +16047,12 @@ mod limb2_memo_rows {
         };
         let base = |lift: &dyn Fn(f64) -> Interval| net(0.5, 1.0, false, 1.3, lift);
         let (_, wall) = rim(1.25);
-        let parts =
-            |n: &NurbsCurve3<Interval>| format!("{:?}", twin_span_hulls(n, &wall, None, 4, &[0.5]));
+        let parts = |n: &NurbsCurve3<Interval>| {
+            format!(
+                "{:?}",
+                twin_span_hulls(n, &wall, None, Parts::Each(4), &[0.5])
+            )
+        };
         let first = parts(&base(&Interval::from_f64));
         let (h2, m2) = span_memo::counts();
         assert_eq!(
@@ -15862,13 +16077,13 @@ mod limb2_memo_rows {
         let ask = |n: &NurbsCurve3<Interval>,
                    form: &CanonicalSurface,
                    meters: Meters<Interval>,
-                   per_span: usize,
+                   parts: Parts,
                    cuts: &[f64]| {
             let input = span_memo::Input {
                 twin_net: n,
                 form,
                 meters,
-                per_span,
+                parts,
                 cuts,
             };
             let knots = n.knot_values().runs().flat_map(|(k, m)| {
@@ -15889,10 +16104,13 @@ mod limb2_memo_rows {
             computed.get()
         };
         assert!(
-            ask(&base_net, &form, meters, 4, &[0.5]),
+            ask(&base_net, &form, meters, Parts::Each(4), &[0.5]),
             "the base misses first"
         );
-        assert!(!ask(&base_net, &form, meters, 4, &[0.5]), "and then hits");
+        assert!(
+            !ask(&base_net, &form, meters, Parts::Each(4), &[0.5]),
+            "and then hits"
+        );
         let wider = def(1.25f64.next_up());
         let uncertified = |x: f64| {
             let y = Interval::from_bounds(-1.0, x * x).sqrt().clip_to(x, x);
@@ -15906,7 +16124,7 @@ mod limb2_memo_rows {
                     &base_net,
                     &CanonicalSurface::Cylinder { radius: wider },
                     meters,
-                    4,
+                    Parts::Each(4),
                     &[0.5],
                 ),
             ),
@@ -15916,7 +16134,7 @@ mod limb2_memo_rows {
                     &base_net,
                     &form,
                     Meters::Cylinder { radius: wider },
-                    4,
+                    Parts::Each(4),
                     &[0.5],
                 ),
             ),
@@ -15926,7 +16144,7 @@ mod limb2_memo_rows {
                     &cross(net(0.6, 1.0, false, 1.3, &Interval::from_f64)),
                     &form,
                     meters,
-                    4,
+                    Parts::Each(4),
                     &[0.5],
                 ),
             ),
@@ -15936,7 +16154,7 @@ mod limb2_memo_rows {
                     &cross(net(0.5, 2.0, false, 1.3, &Interval::from_f64)),
                     &form,
                     meters,
-                    4,
+                    Parts::Each(4),
                     &[0.5],
                 ),
             ),
@@ -15946,19 +16164,29 @@ mod limb2_memo_rows {
                     &cross(net(0.5, 1.0, true, 1.3, &Interval::from_f64)),
                     &form,
                     meters,
-                    4,
+                    Parts::Each(4),
                     &[0.5],
                 ),
             ),
-            ("parts per span", ask(&base_net, &form, meters, 3, &[0.5])),
-            ("cuts", ask(&base_net, &form, meters, 4, &[0.6])),
+            (
+                "parts per span",
+                ask(&base_net, &form, meters, Parts::Each(3), &[0.5]),
+            ),
+            (
+                "parts by turn",
+                ask(&base_net, &form, meters, Parts::ByTurn, &[0.5]),
+            ),
+            (
+                "cuts",
+                ask(&base_net, &form, meters, Parts::Each(4), &[0.6]),
+            ),
             (
                 "control",
                 ask(
                     &cross(net(0.5, 1.0, false, 1.3f64.next_up(), &Interval::from_f64)),
                     &form,
                     meters,
-                    4,
+                    Parts::Each(4),
                     &[0.5],
                 ),
             ),
@@ -15968,7 +16196,7 @@ mod limb2_memo_rows {
                     &cross(net(0.5, 1.0, false, 1.3, &uncertified)),
                     &form,
                     meters,
-                    4,
+                    Parts::Each(4),
                     &[0.5],
                 ),
             ),

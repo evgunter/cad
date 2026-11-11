@@ -174,19 +174,18 @@ pub(super) fn composite_by<const N: usize, C>(
 }
 
 /// **The rule over consecutive intervals**: [`composite_by`] over each
-/// `(a, b, item)` of `intervals` (an edge's Bézier spans, or its carrier
-/// interval cut at breaks), `pieces` pieces each, summed with their
+/// `(a, b, item, pieces)` of `intervals` (an edge's Bézier spans, or its carrier
+/// interval cut at breaks), each at its own piece count, summed with their
 /// removable widths; `prepare` reads the interval's item. The one home of
 /// the per-interval accumulator every curved-rim lane cuts an edge by.
-pub(super) fn composite_over<S, C, const N: usize>(
-    intervals: impl IntoIterator<Item = (f64, f64, S)>,
-    pieces: usize,
+pub(super) fn composite_each<S, C, const N: usize>(
+    intervals: impl IntoIterator<Item = (f64, f64, S, usize)>,
     prepare: impl Fn(&S, f64, f64) -> C,
     g: impl Fn(&C, Interval) -> [Jet; N],
 ) -> ([Interval; N], [f64; N]) {
     let mut total = [Interval::zero(); N];
     let mut removable = [0.0_f64; N];
-    for (a, b, item) in intervals {
+    for (a, b, item, pieces) in intervals {
         let (part, rem) = composite_by(pt(a), pt(b), pieces, |p, q| prepare(&item, p, q), &g);
         for k in 0..N {
             total[k] = total[k] + part[k];
@@ -196,8 +195,50 @@ pub(super) fn composite_over<S, C, const N: usize>(
     (total, removable)
 }
 
+/// **How far one piece of a span may reach about a chart's axis**, as
+/// a fraction of its distance from it: a sixteenth of a turn. Each of
+/// its two readers needs a piece small against that distance, since
+/// both read something that degrades as a piece nears the axis:
+/// - the rotational volume lane reads the azimuth's rate times the
+///   piece's length, and the rate's reciprocal is the distance from the
+///   axis, so a piece within it keeps its Taylor remainder finite and
+///   small;
+/// - the incidence read of a net's twin (`crate::pcurve_cache::Parts::ByTurn`)
+///   reads the diagonal of the piece's control box over the box's least
+///   distance from the axis, so the floors its metre conversion divides
+///   by (that distance, the cone's lever) stay within a fixed fraction
+///   of the piece's own.
+///
+/// Its own value, not either lane's round count: changing it
+/// re-schedules both readers.
+pub(crate) const PIECE_TURN: f64 = core::f64::consts::TAU / 16.0;
+
+/// **The fewest equal pieces `[a, b]` is read in**, a power of two up
+/// to `most`, for which `fits(ctx, piece, h)` holds on every piece (the
+/// context prepared over it, the piece's enclosure, its length): `most`
+/// where none does. Each count is tried in full, so the reading is a
+/// function of the interval and `fits` alone: the one home of how many
+/// pieces a span needs, each reader passing its own `fits`.
+pub(crate) fn pieces_where<C>(
+    (a, b): (f64, f64),
+    most: usize,
+    prepare: impl Fn(f64, f64) -> C,
+    fits: impl Fn(&C, Interval, f64) -> bool,
+) -> usize {
+    let mut pieces = 1;
+    while pieces < most
+        && !(0..pieces).all(|i| {
+            let (p, q) = (node(a, b, pieces, i), node(a, b, pieces, i + 1));
+            fits(&prepare(p, q), Interval::from_bounds(p, q), q - p)
+        })
+    {
+        pieces *= 2;
+    }
+    pieces
+}
+
 /// **`Σ h·bound` over the pieces of consecutive intervals**, as
-/// [`composite_over`] cuts them: `bound` reads the jets enclosing a piece
+/// [`composite_each`] cuts them: `bound` reads the jets enclosing a piece
 /// and answers an upper bound of a nonnegative rate over it, so the sum
 /// bounds that rate's integral from above (a length, where the rate is a
 /// speed).

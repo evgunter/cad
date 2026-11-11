@@ -24,7 +24,7 @@ const NAME: Option<&str> = option_env!("PCERT_RADIAL_PAIR_MUTANT");
 
 /// Every site this crate's hooks name. topo's `chord_join` declares its
 /// own one (`topo-v-var`) under the same variable.
-pub(super) const SITES: [&str; 40] = [
+pub(super) const SITES: [&str; 43] = [
     "class-circle",
     "zero-winding",
     "torus-parallel",
@@ -65,6 +65,9 @@ pub(super) const SITES: [&str; 40] = [
     "arc-rim-weight-unpaid",
     "arc-rim-span-unpaid",
     "arc-rim-tangent-under",
+    "stated-image-sampled",
+    "net-bound-sampled",
+    "general-image-class-gate",
 ];
 
 fn on(site: &str) -> bool {
@@ -316,6 +319,20 @@ pub(super) fn form_uncharged<T: Real>(harmonics: T) -> Option<T> {
     on("form-uncharged").then_some(harmonics)
 }
 
+/// The edge certificate's stated chart image metered at its schedule's
+/// samples again rather than bounded over the span through its pcurve
+/// certificate (its rows are `pcurve_cache::stated_image_rows`).
+pub(crate) fn stated_image_sampled() -> bool {
+    on("stated-image-sampled")
+}
+
+/// A spline net stated on an analytic chart read at its samples alone
+/// again, not bounded over the span (its rows are
+/// `pcurve_cache::analytic_net_rows`).
+pub(super) fn net_bound_sampled() -> bool {
+    on("net-bound-sampled")
+}
+
 /// A lane choice's envelope refusal left as the envelope's own (a bound
 /// on a miss, a tolerance offer) rather than the lane's gap (its rows
 /// are `circle_lane_rows`).
@@ -374,4 +391,14 @@ pub(super) fn arc_rim_span_unpaid() -> bool {
 /// `iso_arc_weight_rows::a_short_sub_arc_pays_its_tangential_miss`).
 pub(super) fn arc_rim_tangent_under() -> bool {
     on("arc-rim-tangent-under")
+}
+
+/// The mint's `General` image keyed on its carrier's class rather than
+/// its measured miss: `Some(false)` for a carrier that is straight or a
+/// spline, which takes the degree-1 image unclimbed and whose refusal
+/// keeps its own term, and `Some(true)` for any other (its rows are
+/// `general_climb_rows`).
+pub(crate) fn general_image_class_gate<T: Real>(carrier: &geom::Curve3<T>) -> Option<bool> {
+    on("general-image-class-gate")
+        .then(|| carrier.is_curved() && !matches!(carrier, geom::Curve3::Nurbs(_)))
 }

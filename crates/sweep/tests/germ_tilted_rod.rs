@@ -364,11 +364,13 @@ const STEEP_TILT: f64 = 0.7;
 /// degree (`topo::boolean::slit`'s spiric × quadric arm), so the slit
 /// pass reads no rider there, and the union goes on to the result
 /// gate's volume on the half donut's torus wall, face `3v1` of the
-/// result.
-const STEEP_UNION_STOP: &str = "Some(ResultInvalid { errors: [VolumeUncomputable { \
-     solid: SolidKey(1v1), source: Face { face: FaceKey(3v1), source: \
-     QuadratureUnsupported { what: \"a torus wall edge beside a spiric whose lifted image is \
-     neither a spiric wall image nor a harmonic rim or meridian\" } } }] })";
+/// result: its one finding's solid, face and quadrature cause.
+const STEEP_UNION_STOP: (&str, &str, &str) = (
+    "SolidKey(1v1)",
+    "FaceKey(3v1)",
+    "a torus wall edge beside a spiric whose lifted image is \
+     neither a spiric wall image nor a harmonic rim or meridian",
+);
 
 /// **The other spins, and the steeper tilts, refuse typed** before any
 /// body is built, on every op, each at its pinned door
@@ -424,18 +426,34 @@ fn other_spins_and_steeper_tilts_refuse_at_their_germs() {
 /// whole table is too costly ([`OTHER_SPINS_STOPS`] names it by word).
 #[test]
 fn the_steeper_tilts_union_stops_by_identity() {
+    use geom_brep::PropsError;
+    use topo::{MassPropsError, ValidationError};
     let h = half_donut();
     let eps = Tol::witness().eps();
     for spin in [0.0, FRAC_PI_2] {
-        let stop = format!(
-            "{:?}",
-            topo::union(&h, &rod(STEEP_TILT, spin), Tol::witness())
-                .as_ref()
-                .err()
-        );
+        let at = format!("h ∪ c at β {STEEP_TILT}, spin {spin}, ε {eps:e}");
+        let r = topo::union(&h, &rod(STEEP_TILT, spin), Tol::witness());
+        let Err(BooleanError::ResultInvalid { findings }) = &r else {
+            panic!("{at}: {}", outcome(&r));
+        };
+        let [
+            ValidationError::VolumeUncomputable {
+                solid,
+                source:
+                    MassPropsError::Face {
+                        face,
+                        source: PropsError::QuadratureUnsupported { what },
+                    },
+            },
+        ] = findings.as_slice()
+        else {
+            panic!("{at}: {findings:?}");
+        };
+        let (solid, face) = (format!("{solid:?}"), format!("{face:?}"));
         assert_eq!(
-            stop, STEEP_UNION_STOP,
-            "h ∪ c at β {STEEP_TILT}, spin {spin}, ε {eps:e}"
+            (solid.as_str(), face.as_str(), *what),
+            STEEP_UNION_STOP,
+            "{at}"
         );
     }
 }
