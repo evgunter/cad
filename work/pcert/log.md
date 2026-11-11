@@ -1226,3 +1226,8 @@ E1c waits on the answer.
   - The rows were re-pinned to it exactly. An at-rest half (the wall re-parametrized under a true stated row) keeps 6532's provenance guard reachable: M5 still reds it, and the mint ends it in check 3's own term.
   - The f64 row left the slow set, so the PR gate runs it. Evidence was added to green's slow-set class row.
   - Review tier: orchestrator's read (tests and work files; no `src/` change).
+
+- 2026-11-11 — **Two unattributed main reds triaged** (orchestrator; PR 6836's lane met them in the slow set).
+  - sweep `a_sheath_on_its_blade_stops_where_its_walls_touch_on_the_rim` (66 against 62) is ours. Bisected to PR 6815's merge (`cbc0d3817d` 62, `dcffc3874e` 66): the edge certificate now derives a stated spline image's certificate through the mint's door, and the four extra on-row `Zero`s are that second derivation, already filed P3 as `a-stated-spline-image-is-certified-twice-by-the-edge-certificate-and-the-mint`. Re-pinned at 66 with a note naming the row; the row's fix moves it back.
+  - topo `face_normal::no_source_file_folds_the_bit_by_hand` is not ours: mesh/walk.rs:964's `if rising == sense { -TAU } else { TAU }`, from tesswalk's PR 6823. Filed P1 on tesswalk as `main-red-the-wrap-strip-folds-its-period-by-the-sense-bit`.
+  - Both rows sit in the slow set, which is the P4 class `a-src-change-that-moves-a-decide-site-skips-its-crates-recourse-roster` already names for the roster.
