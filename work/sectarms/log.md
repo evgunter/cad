@@ -622,3 +622,11 @@ Both reds were found by PCERT's nightly lane and trace to SECTARMS merges.
 - **Census row:** 37 / 28.
 - **A second unlisted site:** `implicit_chart.rs`'s `pass_key`, reading the lift's ends (2 / 0), from 179e0cc798. The lane dispositioned it as an identity, not a bound. Accepted: the key only names the pass, and the lift certifies by construction.
 - **Merge:** 2ad4a0be. Tier E, no row.
+
+## 2026-11-11 16:40 — PR 6837 merged (1e-6 TubeStraddles red)
+
+- **Cause, ruled (b): the seed.** PR 6518 seeds the march from the ruling sweep's witnesses. `cut_loop`'s median put a closed loop's witness, and so the fit's seam, at the far branch point or the far ruling. At ε 1e-6 the fat free-end spans there straddle a graph margin of 0.
+- **Fix.** A closed loop is now witnessed at its arc middle, and a whole-turn loop at φ = 0. A new row fails on the old median. Cylinder × cylinder loops move the same way.
+- **Reviewed by me.** `cut_loop`'s new index fails loud (Inconsistent) when no point is read there. Merged as 19eb4541 (tier M).
+- **The 1e-12 slowdown is not this PR's.** The parent's quick end was the row stopping on VolumeUncomputable. The cost is in topo's boolean pipeline over 6365-span carriers. Filed as `cylinder-sphere-frame-rows-take-twenty-minutes-a-boolean-at-1e-12` (P1); it needs a bisect from 50cfcf499d.
+- **Deeper root, on ssiarith.** A non-graph end span of a closed fit is never refined. Recorded on the ssiarith row.
