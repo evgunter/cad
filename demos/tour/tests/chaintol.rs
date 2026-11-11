@@ -28,6 +28,19 @@ mod tests {
         }
     }
 
+    /// **The drive over the whole study splits as the header's table
+    /// says, at two to four links** ([`DRIVE_AT_THE_STUDY`], asserted at
+    /// the default ε inside [`drive_and_report`]). Minutes per link
+    /// count, so it runs in the nightly; the cell runs the one-link
+    /// drive.
+    #[test]
+    fn the_drive_over_the_whole_study_splits_as_pinned() {
+        let tol = Tol::witness();
+        for links in 2..=LINKS {
+            drive_and_report(links, tol);
+        }
+    }
+
     /// **The tip's certified enclosure over the whole study is the
     /// worst-case lever sum, and past the 1 mm band**: across the chain
     /// the pins run `1 : 3 : 6 : 10` to first order, and the tip's half-width is wider

@@ -12,6 +12,7 @@ fail-fast = false
 default-filter = """
 not (
   binary_id(demo-tour::all) & (
+    test(=chaintol::tests::the_drive_over_the_whole_study_splits_as_pinned) |
     test(=eps_regression::tour_runs_green_at_default_eps) |
     test(=eps_regression::tour_runs_green_at_eps_1e_6) |
     test(=gallery::tests::the_die_document_produces_one_die) |

@@ -47,7 +47,9 @@
 //! The split moves with ε — at `1e-6`, measured, two links are 35
 //! leaves (31 hold, 4 violated), three are 18 (15, 3), four alike — so
 //! [`DRIVE_AT_THE_STUDY`] is pinned at the default ε only, and another ε
-//! row prints its own.
+//! row prints its own. The cell runs the one-link drive; the two- to
+//! four-link drives cost minutes each and run in the nightly
+//! (`tests/chaintol.rs`, outside the per-PR `ci` profile).
 //!
 //! **The VIOLATED leaves are the study's answer, not a defect.** Over
 //! `±3σ` per joint the tip's certified enclosure across the chain grows
@@ -260,10 +262,15 @@ pub fn narration(tol: Tol) {
     }
 
     // The whole study certifies, so the drive is over the study itself,
-    // and its subject is the tip assertion.
-    for links in 1..=LINKS {
-        drive_and_report(links, tol);
-    }
+    // and its subject is the tip assertion. The one-link drive runs here;
+    // the two- to four-link drives cost minutes each and run in the
+    // nightly (`tests/chaintol.rs`'s
+    // `the_drive_over_the_whole_study_splits_as_pinned`, outside the
+    // per-PR `ci` profile in `.config/nextest.toml`).
+    drive_and_report(1, tol);
+    println!(
+        "   the drives at 2-{LINKS} links over the whole study run in the nightly          (tests/chaintol.rs); their split is the module header's table"
+    );
 
     println!(
         "   the certified enclosure of each joint pin's centre over the WHOLE study, about \
@@ -329,7 +336,7 @@ fn assert_pin_boxes_are_published(measured: &[(f64, f64)]) {
 /// The drive over a chain's whole study, with the tip assertion read
 /// off each certified leaf — the verdict a CI row gates on, printed, and
 /// at the default ε asserted against [`DRIVE_AT_THE_STUDY`].
-fn drive_and_report(links: usize, tol: Tol) {
+pub fn drive_and_report(links: usize, tol: Tol) {
     let built = study(links, tol);
     let analyzed = analyzed_box(&built.doc, &AnalysisPolicy::default());
     let config = DriveConfig {
