@@ -38,3 +38,18 @@ The fix above generalises: select every slow-set census whose walk reads a crate
 ## Fix
 
 Have `scripts/ci-filter.py` select a crate's roster row whenever the diff touches that crate's `src/`. Each roster takes 2–8 s, so this costs one test per touched crate. The alternative is to move the rosters into the fast set if they can be made to fit the bar.
+
+## Evidence: a slow-set behaviour row that guards another program's change (PCERT, 2026-11-11)
+
+The same gap reaches rows that are not censuses.
+`a_bending_carrier_on_a_spline_wall_takes_the_general_lane::a_stated_wrong_general_row_keeps_its_term_{f64,interval}`
+guard PCERT's `a-minted-refusals-provenance-is-guarded-only-by-its-doc`
+and sit in the slow set (0.8–5.7 s). PR 6815 changed
+`geom_brep::certify`'s stated-image route, never named them, and
+turned them red on main; only the nightly saw it (filed and fixed as
+PCERT's `main-red-the-stated-wrong-general-rows-refuse-chart-image-unavailable-in-the-slow-set`).
+This row's fix would not have run them either: 6815 touched
+geom-brep's `src/`, and the rows are topo's, a downstream crate's. A
+behaviour row in the slow set that guards an upstream crate's change
+needs selecting by the paths it guards, not by its own crate.
+

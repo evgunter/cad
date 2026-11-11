@@ -2,8 +2,10 @@
 id: main-red-the-stated-wrong-general-rows-refuse-chart-image-unavailable-in-the-slow-set
 kind: issue
 title: Main red: the two stated-wrong-general rows refuse ChartImageUnavailable, and only the slow set runs them
-status: open
+status: closed
 opened: 2026-11-11
+branch: pcert/stated-wrong-general-ending
+closed: 2026-11-11
 priority: P1
 cost: E
 ---
@@ -41,3 +43,36 @@ not held.
 Decide whether the rows or the code is wrong: the row says a `Stated`
 image keeps its term, and the certification ends instead in
 `ChartImageUnavailable`. Then make both green in the default profile.
+
+## Closed
+
+Bisected to PR 6815's merge `dcffc387` (its first parent `cbc0d381`
+is green). The rows were right about the code and wrong about where
+it ends; nothing in `src/` changed.
+
+- **At a build, `ChartImageUnavailable` is the stated row's own term.**
+  Since 6815 the edge door certifies a stated image on a spline chart
+  through `certify_stated_image`, the door the mint certifies it
+  through, and `mint_refusal` reports that certificate's
+  `FittedLimb { HullValueChart }` in the edge door's vocabulary. It is
+  the refusal of the description's own image, decided, never "not
+  yet", and it comes before anything is stored. Nothing was pre-empted:
+  the limb refusal the rows were written to see is the same
+  certificate's, read one door earlier.
+- **So the mint's provenance gate is reachable only at rest.** The
+  edge door and the mint certify a stated image through one door at
+  one band, so a stated row the build admits, the mint admits too. A
+  `Stated` image reaches the mint's relabel sites only once something
+  moved under it. The rows now witness both: the build pins
+  `ChartImageUnavailable` exactly, and at rest the true row is stated,
+  then its wall is re-parametrized under it (`ring_split_at`: the same
+  wall, the interior knot moved, so the carrier still lies on it). The
+  mint ends that in check 3's own `ResidualExceeded { MapResidual }`.
+- 6532's M5 (the provenance gate dropped, applied at both relabel
+  sites) reds both rows with `NoGeneralLane { gap: Image }`.
+- **They stay in the slow set**: 0.8–1.7 s at ε 1e-9 and 1e-6, and up
+  to 5.7 s at 1e-12. The guard's gap is noted on
+  `a-minted-refusals-provenance-is-guarded-only-by-its-doc`, and the
+  case is evidence on green's
+  `a-src-change-that-moves-a-decide-site-skips-its-crates-recourse-roster`.
+

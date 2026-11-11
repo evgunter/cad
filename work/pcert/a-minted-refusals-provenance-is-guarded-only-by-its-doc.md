@@ -87,3 +87,20 @@ The mutant that relabels a `Stated` image reds them.
 `Pcurve`, so a caller outside the walk can still hand it a stored row.
 The type-level fix this row names (`minted_refusal` taking the walked
 row, or a `ChartImage`) remains.
+
+## 2026-11-11 — the witnesses moved, and only the nightly runs them
+
+PR 6815 made the edge door certify a stated image on a spline chart
+through the mint's own door, so a wrong stated `General` row is now
+refused at the build (`ChartImageUnavailable`), before the mint can
+read it. The rows above were red on main for that reason, and only the
+nightly showed it. They now reach the mint's relabel sites at rest: the
+true row is stated, then its wall is re-parametrized under it. M5 reds
+them again.
+
+They cost 0.8–5.7 s, so they stay in the slow set. **This guard runs
+only in the nightly**: a PR that moves the relabel sites in
+`topo::pcurves`, or the edge door's stated route in
+`geom_brep::certify`, without naming these rows, passes its gate with
+the guard unrun.
+
