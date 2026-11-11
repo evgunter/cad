@@ -1233,3 +1233,5 @@ E1c waits on the answer.
   - Both rows sit in the slow set, which is the P4 class `a-src-change-that-moves-a-decide-site-skips-its-crates-recourse-roster` already names for the roster.
 
 - 2026-11-11 — **Main red filed on spiricarm** (orchestrator; PR 6836's lane met it after a main merge): geom-core `certified_endpoint_census` moved in four props files. Bisected to PR 6808's merge (`e916e99ad6`; its first parent passes). Filed P1 as `spiricarm/main-red-the-endpoint-census-moved-in-four-props-files-since-6808`. Not PCERT's, so 6836 merges over it.
+
+- 2026-11-11 — **geom-brep `recourse_roster` red on main mended** (orchestrator; PR 6836's lane met it). sectarms' f0f80143 added the test `a_loop_is_witnessed_at_the_near_ruling`, which reads an operand surface `x` beside `CylinderSpherePose::decide`. The roster now lists it as `NOT_A_NAME`, like its sibling `a_spheres_discriminant_extremes_are_the_poses_reaches: x`. Same class as the P4 `a-src-change-that-moves-a-decide-site-skips-its-crates-recourse-roster`.
