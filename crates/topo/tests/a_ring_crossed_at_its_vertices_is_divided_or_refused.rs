@@ -79,11 +79,14 @@ fn a_ring_crossed_at_its_vertices_is_divided_or_refused() {
     let plate = diamond_plate(tol);
     let whole = volume(&plate, tol);
     assert!((whole - 34.0).abs() < 1e-12, "the plate: {whole}");
-    for (what, d, divides) in [
-        ("on the corners", 0.0, true),
-        ("in the zero band", 0.5 * band.zero(), true),
-        ("in the band", 3.0 * band.zero(), false),
-        ("past the band", 3.0 * band.escalate(), true),
+    // Each row: the offset, whether the ring divides, and whether the
+    // cut is identified with the ring's corners (decided Zero) rather
+    // than dividing its edges where they are.
+    for (what, d, divides, identified) in [
+        ("on the corners", 0.0, true, true),
+        ("in the zero band", 0.5 * band.zero(), true, true),
+        ("in the band", 3.0 * band.zero(), false, false),
+        ("past the band", 3.0 * band.escalate(), true, false),
     ] {
         let tool = finished(
             "the prism x ≥ d",
@@ -109,10 +112,11 @@ fn a_ring_crossed_at_its_vertices_is_divided_or_refused() {
                 other => panic!("{what}: {:?}", other.map(|_| ())),
             };
             let (kept, taken) = (body("subtract", sub), body("intersect", int));
-            // The offset's sliver: the strip `d` wide across the plate's
-            // 6 m section, which the corners identified at `x = 0` leave
-            // the cut face's fan to read either side of.
-            let sliver = 6.0 * d;
+            // An identified cut's sliver: the strip `d` wide across the
+            // plate's 6 m section, which the corners identified at `x = 0`
+            // leave the cut face's fan to read either side of. A cut past
+            // the band divides the ring's edges exactly and has none.
+            let sliver = if identified { 6.0 * d } else { 0.0 };
             assert!(
                 (taken - half(d)).abs() < 1e-9 + sliver && (kept + taken - whole).abs() < 1e-9,
                 "{what}: intersect {taken} is the half at x ≥ d, subtract {kept} the rest"

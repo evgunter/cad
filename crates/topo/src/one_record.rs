@@ -190,6 +190,14 @@ pub enum DihedralAcross {
 /// Only that reading constructs one ([`Body::dihedral_across`]), and only
 /// the act consumes it ([`Body::one_record_across`]): no caller states a
 /// coincidence from an edge and a face.
+///
+/// ```compile_fail,E0451
+/// let _ = topo::SmoothAcross {
+///     edge: Default::default(),
+///     faces: Default::default(),
+///     margin: unimplemented!(),
+/// };
+/// ```
 #[derive(Debug)]
 #[must_use]
 pub struct SmoothAcross {
@@ -353,7 +361,7 @@ impl<T: Decide + crate::props::AtRestPolicy> Body<T> {
         );
         self.one_record(crate::policy_lane::KernelSite::OneRecord, &token, tol)?;
         Ok(Some(crate::Coincidence {
-            cells: [first, second].map(crate::RowCell::result_face),
+            cells: [first, second].map(crate::census::result_face),
             more: [None; 3],
             relation: crate::Relation::SameOriented,
             site: crate::DecisionSite::SmoothJoin,

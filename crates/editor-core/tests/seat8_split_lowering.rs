@@ -431,13 +431,20 @@ fn a_split_document_read_by_port_round_trips_byte_identical() {
 /// faces' surface keys and senses feed the digest. The same value at all
 /// three ε rows; `m10_p_fence`'s f64 row and its ids-masked geometry row
 /// held, so no point moved.
+///
+/// RE-BLESSED, `kitchen_sink`, for a verdict whose census is taken over the
+/// faces it leaves on one record and whose moved set is its operand
+/// closure lowered: with every arena key masked (curve, surface, face,
+/// edge and point), each document's dump is main's line for line — the
+/// same surfaces, senses, points, curves and descriptions — and only the
+/// keys the arenas hand out moved, which the digest feeds.
 #[test]
 fn the_split_documents_evaluate_to_their_committed_digests() {
     let mut moved: Vec<String> = Vec::new();
     for (name, want) in [
         ("cut_cylinder", 0x2e84_77bc_7b57_1d78_u64),
         ("part_select", 0x125f_3f25_817d_7cf5),
-        ("kitchen_sink", 0x9c8b_db43_4b3c_bb02),
+        ("kitchen_sink", 0x33f5_17f1_f2a9_621a),
     ] {
         assert!(SPLIT_DOCUMENTS.contains(&name));
         let doc = corpus::documents()

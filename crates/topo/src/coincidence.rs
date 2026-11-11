@@ -54,14 +54,6 @@ pub enum RowCell {
 }
 
 impl RowCell {
-    /// A face of the result.
-    #[must_use]
-    pub const fn result_face(face: crate::FaceKey) -> Self {
-        Self::Result {
-            cell: Cell::Face(face),
-        }
-    }
-
     /// A face of input `input`.
     #[must_use]
     pub const fn face(input: Operand, face: crate::FaceKey) -> Self {

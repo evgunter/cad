@@ -102,7 +102,7 @@ names-boolean               9  cover.rs  # work/boxes/the-face-covers-sphere-arm
 names-boolean               1  attach.rs
 names-boolean               3  bound_side.rs
 names-boolean              14  cell_region.rs  # work/boxes/the-face-covers-sphere-arm-reads-the-booleans-chart-trim-and-face-placement
-names-boolean             409  census.rs  # work/onecopy/the-census-sort-of-a-boolean-refusal-has-no-legal-home-under-topo-homes
+names-boolean             410  census.rs  # work/onecopy/the-census-sort-of-a-boolean-refusal-has-no-legal-home-under-topo-homes
 names-boolean               1  census/curved.rs
 names-boolean               7  census/in_plane.rs
 names-boolean               1  census/pierce_fuzz.rs
@@ -114,7 +114,7 @@ names-boolean              21  chord_join.rs
 names-boolean               7  chord_join/island_rows.rs  # work/boxes/the-face-covers-sphere-arm-reads-the-booleans-chart-trim-and-face-placement
 names-boolean               1  chord_join/sphere_island_rows.rs
 names-boolean               9  clearance.rs
-names-boolean              15  coincidence.rs
+names-boolean              14  coincidence.rs
 names-boolean              10  construction.rs
 names-boolean               3  contact.rs
 names-boolean               1  euler.rs

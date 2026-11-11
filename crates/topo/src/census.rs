@@ -11667,13 +11667,20 @@ pub fn census_rest_decision<T: Decide>(
         return Ok(None);
     };
     Ok(Some(crate::Coincidence {
-        cells: [face_a, face_b].map(crate::RowCell::result_face),
+        cells: [face_a, face_b].map(result_face),
         more: [None; 3],
         relation: crate::Relation::SameOpposite,
         site: crate::DecisionSite::CensusAtRest,
         margin,
         discharge: crate::Discharge::of(margin),
     }))
+}
+
+/// A face of the result as a row's cell.
+pub(crate) const fn result_face(face: FaceKey) -> crate::RowCell {
+    crate::RowCell::Result {
+        cell: crate::Cell::Face(face),
+    }
 }
 
 /// **What the census recorded over one body at rest**
@@ -12019,7 +12026,7 @@ fn flush_pairs<T: Decide>(
             match reading {
                 Ok(true) => {}
                 Ok(false) => out.rows.push(crate::Coincidence {
-                    cells: [fa, fb].map(crate::RowCell::result_face),
+                    cells: [fa, fb].map(result_face),
                     more: [None; 3],
                     relation: crate::Relation::SameOriented,
                     site: crate::DecisionSite::CensusAtRest,

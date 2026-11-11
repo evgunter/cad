@@ -600,11 +600,18 @@ fn a_boolean_document_round_trips_byte_identical() {
 /// senses feed the digest. The same value at all three ε rows;
 /// `m10_p_fence`'s f64 row and its ids-masked geometry row held, so no
 /// point moved.
+///
+/// RE-BLESSED, `crossing_slots`, for a verdict whose census is taken over the
+/// faces it leaves on one record and whose moved set is its operand
+/// closure lowered: with every arena key masked (curve, surface, face,
+/// edge and point), each document's dump is main's line for line — the
+/// same surfaces, senses, points, curves and descriptions — and only the
+/// keys the arenas hand out moved, which the digest feeds.
 #[test]
 fn the_boolean_documents_evaluate_to_their_committed_digests() {
     let mut moved: Vec<String> = Vec::new();
     for (name, want) in [
-        ("crossing_slots", 0x93e3_a7be_c495_d72f_u64),
+        ("crossing_slots", 0xd2ff_8e75_2da6_a0fb_u64),
         ("heat_sink", 0x4010_8826_71c7_f1f3),
         ("kiss_carry", 0xc72b_0f2e_7ec6_8bd7),
     ] {

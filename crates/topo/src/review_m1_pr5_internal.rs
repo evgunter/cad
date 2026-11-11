@@ -336,7 +336,7 @@ pub(crate) const ALLOWED: &[(&str, &str)] = &[
     ),
     (
         "one_record_across",
-        "reads the edge's two faces' keys and writes only through `one_record`, whose \
+        "reads its verdict's edge and two faces' keys and writes only through `one_record`, whose \
          re-chart (`set_face_surfaces_certifying`, `set_face_surfaces_describing`'s body) \
          declares the tier-1 postcondition",
     ),
