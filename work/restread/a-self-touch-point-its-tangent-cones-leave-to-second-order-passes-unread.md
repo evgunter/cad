@@ -2,13 +2,11 @@
 id: a-self-touch-point-its-tangent-cones-leave-to-second-order-passes-unread
 kind: issue
 title: A self-touch point whose curved faces' tangent cones leave it to second order passes unread
-status: review
+status: open
 opened: 2026-11-02
 priority: P1
 cost: H
 refs: [tier-3-prime-reads-no-side-where-a-solid-touches-itself-at-a-point-on-a-curved-face]
-pr: 6816
-branch: restread/self-touch-lunes
 ---
 
 
@@ -288,3 +286,15 @@ sweep rows red: `a_hole_sharing_…` and the cone apex. Both
 `two_wedge_ends_on_one_line` rows and `a_rim_flush_…` now read whole.
 Whether the remainder refuses is still Ev's call.
 
+
+## After PR 6816
+
+PR 6816 (`restread/self-touch-lunes`) merged on 2026-11-11 with the
+reading above, so this row is open again for the 5 triples still
+skipped: a bound on a bound whose bends are equal (`a_hole_sharing_…`,
+third order), the cone apex (2), a foot normal and a `resolve` refusal.
+Refusing them turns 2 sweep rows red. Also skipped, and reached by no
+measured body: a curved pinch whose polar value reads zero (third
+order), a pair whose other sector runs on past both ends, and a mouth
+inside a wedge of the running-on sector (the pose dependence above).
+Whether the remainder refuses is still Ev's call.
