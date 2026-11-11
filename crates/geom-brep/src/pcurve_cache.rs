@@ -13218,6 +13218,9 @@ mod placement_rows;
 mod radial_pair_rows;
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::panic)]
+mod review_6826_probes;
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::panic)]
 mod ruling_reading_rows;
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
