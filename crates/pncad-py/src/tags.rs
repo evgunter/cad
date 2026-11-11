@@ -3114,6 +3114,8 @@ pub fn validation_error_tag(err: &ValidationError) -> &'static str {
         ValidationError::UnrepresentableSurfaceDatum { .. } => "unrepresentable_surface_datum",
         ValidationError::PoisonedCurveDatum { .. } => "poisoned_curve_datum",
         ValidationError::UnrepresentableCurveDatum { .. } => "unrepresentable_curve_datum",
+        ValidationError::SurfaceDatumUndecided { .. } => "surface_datum_undecided",
+        ValidationError::CurveDatumUndecided { .. } => "curve_datum_undecided",
         ValidationError::EdgeCertification { .. } => "edge_certification",
         ValidationError::DescriptionNotAdjacent { .. } => "description_not_adjacent",
         ValidationError::PlanarFaceResidual { .. } => "planar_face_residual",

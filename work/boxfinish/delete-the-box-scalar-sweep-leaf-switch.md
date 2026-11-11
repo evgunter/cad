@@ -27,11 +27,12 @@ this final state, but … keep it disabled/selectively disabled for now".
   builders (`crates/sweep/src/loft.rs`, `crates/sweep/src/revolve/mod.rs`),
   which become the doors' finish;
 - `sweep::test_support::taken`;
-- `LeafBody::moved`'s re-finish at f64 goes with the switch. It is
-  the switch's measured price (ONEHOME stage 2,
-  `crates/editor-core/tests/corpus_finish_count.rs`): the corpus runs
-  662 finishes with it, 389 with the move and no f64 leaf re-finish,
-  and 505 on main before a move carried its verdict;
+- no move re-finish is left to go: a leaf is finished in its own
+  frame and then moved (`editor_core::Held::moved_by`, ONEHOME fork
+  259), so `LeafBody::moved` and its `f64` re-finish are gone and the
+  corpus runs 443 finishes
+  (`crates/editor-core/tests/corpus_finish_count.rs`). The switch's 662
+  motive is gone with them;
 - the `⊔` graft's `T::leaf` end, which becomes `T::finish`
   (`crates/editor-core/src/eval/wire.rs`); the twist and the mirror move
   what a value holds (`Held::moved`) and end in no gate;

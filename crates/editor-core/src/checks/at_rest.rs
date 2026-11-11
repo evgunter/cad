@@ -1397,6 +1397,8 @@ pub(crate) fn finding_solids<T: Decide>(
         | E::UnrepresentableSurfaceDatum { .. }
         | E::PoisonedCurveDatum { .. }
         | E::UnrepresentableCurveDatum { .. }
+        | E::SurfaceDatumUndecided { .. }
+        | E::CurveDatumUndecided { .. }
         | E::EdgeCertification { .. }
         | E::DescriptionNotAdjacent { .. }
         | E::PlanarFaceResidual { .. }

@@ -115,3 +115,21 @@ and `0.98` (rational), all of it the fundamental forms' boxes
 (`cell_curvature`). The rational headroom moved by `0.98` before the sup
 side changed as well, so the meters' half of item 1 is now the floor
 and the forms, not the sups.
+
+## Re-scoped (ONEHOME fork 259, 2026-11-11)
+
+A move no longer re-certifies: a finished body's move carries its
+certificates and verdict (`topo::FinishedBody::moved`, PR 6820), so
+`map_approx` no longer re-fits a moved face. What is left of this row
+is the certifier's own: a later finish re-derives every certificate
+from scratch, and the offset certifier's lower bounds, widths, floors
+and forms are read in the ambient frame, so they move under a rotation.
+A near-ε offset face rotated and then finished afresh fails
+`certify_offset_over`, where main re-fitted it and built
+(`crates/topo/tests/rigid_map_near_eps_approx.rs`, which records
+`refused > 0` as it stands).
+
+The fix the fork chose is the offset fit's bounds in norm/ball form,
+which no rotation moves. It widens `[tolerance.residuals]`, so it waits
+on Ev (`[ev]` PR 6824). Once it is built, the moved face re-certifies at
+a later finish, that test asserts it, and this row closes.

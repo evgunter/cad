@@ -3980,6 +3980,8 @@ MEMBERS_BOUND_AS = {
     "ValidationError::OutsideSessionBox": "ValidationFinding.variant",
     "ValidationError::Band": "ValidationFinding.variant",
     "ValidationError::Unmovable": "ValidationFinding.variant",
+    "ValidationError::SurfaceDatumUndecided": "ValidationFinding.variant",
+    "ValidationError::CurveDatumUndecided": "ValidationFinding.variant",
     "ValidationError::DanglingDescription": "ValidationFinding.variant",
     "ValidationError::UncertifiableSurface": "ValidationFinding.variant",
     "ValidationError::PoisonedSurfaceDescription": "ValidationFinding.variant",

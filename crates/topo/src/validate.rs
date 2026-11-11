@@ -1333,6 +1333,24 @@ pub enum ValidationError {
         /// a cone opened to a plane.
         end: geom::ConventionEnd,
     },
+    /// Tier 3: whether a datum a face's surface stores lies inside its
+    /// convention is undecided — its margin's bracket straddles zero
+    /// ([`analytic_datum_verdicts`]). Reported as undecided, not as
+    /// outside.
+    SurfaceDatumUndecided {
+        /// The face whose surface stores the datum.
+        face: FaceKey,
+        /// The surface kind.
+        kind: geom::SurfaceKind,
+        /// The datum.
+        datum: geom::SurfaceDatum,
+        /// Which quantity of it was read.
+        measure: geom::ConventionMeasure,
+        /// Which end of the convention it may fail.
+        end: geom::ConventionEnd,
+        /// The reading.
+        verdict: geom_core::Indeterminate,
+    },
     /// Tier 3: an edge's carrier stores a datum that is not a finite
     /// number — a `Nurbs` carrier's control net included — or a
     /// direction (`dir`, `axis`, `u_ref`) that is the zero vector — the
@@ -1375,6 +1393,24 @@ pub enum ValidationError {
         measure: geom::ConventionMeasure,
         /// Which end of the convention it fails.
         end: geom::ConventionEnd,
+    },
+    /// Tier 3: whether a datum an edge's carrier stores lies inside its
+    /// convention is undecided — its margin's bracket straddles zero
+    /// ([`analytic_datum_verdicts`]). Reported as undecided, not as
+    /// outside.
+    CurveDatumUndecided {
+        /// The edge whose carrier stores the datum.
+        edge: EdgeKey,
+        /// The carrier kind.
+        kind: geom::CurveKind,
+        /// The datum.
+        datum: geom::CurveDatum,
+        /// Which quantity of it was read.
+        measure: geom::ConventionMeasure,
+        /// Which end of the convention it may fail.
+        end: geom::ConventionEnd,
+        /// The reading.
+        verdict: geom_core::Indeterminate,
     },
     /// Tier 3: an edge's carrier re-certification failed at rest — the
     /// stored cache no longer satisfies D4 ¶2's `residual ≤ ε` against
@@ -3351,6 +3387,34 @@ pub(crate) fn with_article(words: &str) -> String {
     format!("{article} {words}")
 }
 
+/// What a datum's undecided convention reading is, as the clause after
+/// "whether": its value inside its range, a frame direction unit length,
+/// or square to the axis.
+fn convention_question(field: &'static str, measure: geom::ConventionMeasure) -> String {
+    let words = datum_words(field);
+    match measure {
+        geom::ConventionMeasure::Value => format!("its {words} lies inside the range it allows"),
+        geom::ConventionMeasure::Length => format!("its {words} is unit length"),
+        geom::ConventionMeasure::Tilt => format!("its {words} is perpendicular to the axis"),
+    }
+}
+
+/// **The recourse of a reading left undecided, where the decision has no
+/// lever of its own** ([`ValidationError::SurfaceDatumUndecided`],
+/// [`ValidationError::PinchCornerEscalated`]): the scalar's own, never the
+/// defect ending, which is for a stored contradiction (an undecided
+/// reading may be on either side). Read over a box, a narrower box or the
+/// symbolic scalar decides it ([`geom_brep::recourse::BOX_SCALAR_RECOURSE`]);
+/// read at a point, in the band, the last resort.
+fn undecided_scalar_recourse(margin: &geom_core::MarginDiag) -> &'static str {
+    match margin.kind() {
+        geom_core::MarginKind::Enclosure => geom_brep::recourse::BOX_SCALAR_RECOURSE,
+        geom_core::MarginKind::Value | geom_core::MarginKind::Invalid => {
+            geom_core::KERNEL_LIMIT_RECOURSE
+        }
+    }
+}
+
 /// What is wrong with a stored datum that fails its convention, as the
 /// object of "stores …": its value out of range, a frame direction's
 /// length, or its tilt off the axis.
@@ -3381,7 +3445,7 @@ fn convention_recourse(field: &'static str, measure: geom::ConventionMeasure) ->
             format!("Recourse: give the {words} a value inside its range")
         }
         geom::ConventionMeasure::Length => {
-            format!("Recourse: store {}", with_article(&format!("unit {words}")))
+            format!("Recourse: store a unit {words}")
         }
         geom::ConventionMeasure::Tilt => {
             format!(
@@ -4672,6 +4736,34 @@ impl ValidationError {
                 convention_breach(datum.name(), *measure, *end),
                 convention_recourse(datum.name(), *measure),
             ),
+            Self::SurfaceDatumUndecided {
+                kind,
+                datum,
+                measure,
+                verdict,
+                ..
+            } => write!(
+                f,
+                "{} face's surface stores {}, and whether {} is undecided at this scalar. {}",
+                with_article(kind.adjective()),
+                with_article(&datum_words(datum.name())),
+                convention_question(datum.name(), *measure),
+                undecided_scalar_recourse(&verdict.margin),
+            ),
+            Self::CurveDatumUndecided {
+                kind,
+                datum,
+                measure,
+                verdict,
+                ..
+            } => write!(
+                f,
+                "{} edge's curve stores {}, and whether {} is undecided at this scalar. {}",
+                with_article(kind.adjective()),
+                with_article(&datum_words(datum.name())),
+                convention_question(datum.name(), *measure),
+                undecided_scalar_recourse(&verdict.margin),
+            ),
             Self::PoisonedCurveDatum { kind, datum, .. } => write!(
                 f,
                 "{} edge's curve stores {} that is {}, so it describes no curve",
@@ -4994,7 +5086,7 @@ impl ValidationError {
                     ),
                     ". {}"
                 ),
-                own_close(&source.margin, DEFECT)
+                own_close(&source.margin, undecided_scalar_recourse(&source.margin))
             ),
             Self::RingNestingUndecided { source, .. } => {
                 let (why, recourse) = classify_contain(source);
@@ -7248,8 +7340,12 @@ pub(crate) enum PlusVCheck<T: geom_core::Decide> {
 ///    ([`geom::Surface::representability_margins`] or
 ///    [`geom::Curve3::representability_margins`]) must be definitely
 ///    positive. A datum outside its variant's convention describes no
-///    locus of the kind its variant names. The first failing margin is
-///    named, with the end of the convention it fails. Why this is a
+///    locus of the kind its variant names. The first margin definitely
+///    outside (its bracket at or below zero) is named, with the end of the
+///    convention it fails. A bracket that straddles zero is undecided,
+///    and is reported as undecided (Ev, fork 144): the datum may lie
+///    inside its convention, so it is not named as outside it. At `f64` a
+///    margin is a point and never straddles. Why this is a
 ///    bracket read that decides nothing, unmetered: the `Bounds` scope
 ///    rule's entry for this file (`geom_core::real`, `bounds_allowlist`,
 ///    the 2026-09-02 certified at-rest entry) — one home, not restated
@@ -7260,19 +7356,39 @@ pub(crate) enum PlusVCheck<T: geom_core::Decide> {
 pub(crate) fn analytic_datum_verdicts<T: geom_core::Bounds, D: Copy>(
     poisoned: Vec<D>,
     margins: Vec<geom::RepresentabilityMargin<T, D>>,
+    band: Band,
 ) -> Option<DatumVerdict<D>> {
     if !poisoned.is_empty() {
         return Some(DatumVerdict::Poisoned(poisoned));
     }
-    margins
-        .into_iter()
-        .find(|m| {
-            !matches!(
-                geom_core::Bounds::lo(m.margin).partial_cmp(&0.0),
-                Some(core::cmp::Ordering::Greater)
-            )
-        })
-        .map(|m| DatumVerdict::Unrepresentable(m.datum, m.measure, m.end))
+    let above = |x: f64| matches!(x.partial_cmp(&0.0), Some(core::cmp::Ordering::Greater));
+    let mut undecided = None;
+    for m in margins {
+        let (lo, hi) = (
+            geom_core::Bounds::lo(m.margin),
+            geom_core::Bounds::hi(m.margin),
+        );
+        if above(lo) {
+            continue;
+        }
+        if !above(hi) {
+            return Some(DatumVerdict::Unrepresentable(m.datum, m.measure, m.end));
+        }
+        // The bracket straddles zero: reported as read, in the refusal
+        // and nothing else.
+        undecided.get_or_insert(DatumVerdict::Undecided(
+            m.datum,
+            m.measure,
+            m.end,
+            geom_core::Indeterminate {
+                margin: geom_core::MarginDiag::enclosure(lo, hi),
+                band,
+                predicate: None,
+                terminal_sliver: false,
+            },
+        ));
+    }
+    undecided
 }
 
 /// What [`analytic_datum_verdicts`] found, before the caller names the
@@ -7284,6 +7400,15 @@ pub(crate) enum DatumVerdict<D> {
     /// The first datum outside its convention: the datum, the quantity
     /// of it that is out, and the end it fails.
     Unrepresentable(D, geom::ConventionMeasure, geom::ConventionEnd),
+    /// No datum definitely outside, and the first whose margin straddles
+    /// zero: the datum, the quantity, the end it may fail, and the
+    /// reading.
+    Undecided(
+        D,
+        geom::ConventionMeasure,
+        geom::ConventionEnd,
+        geom_core::Indeterminate,
+    ),
 }
 
 impl<D> DatumVerdict<D> {
@@ -7294,12 +7419,21 @@ impl<D> DatumVerdict<D> {
         verdict: Option<Self>,
         poisoned: impl Fn(D) -> ValidationError,
         unrepresentable: impl Fn(D, geom::ConventionMeasure, geom::ConventionEnd) -> ValidationError,
+        undecided: impl Fn(
+            D,
+            geom::ConventionMeasure,
+            geom::ConventionEnd,
+            geom_core::Indeterminate,
+        ) -> ValidationError,
     ) -> Vec<ValidationError> {
         match verdict {
             None => Vec::new(),
             Some(Self::Poisoned(datums)) => datums.into_iter().map(poisoned).collect(),
             Some(Self::Unrepresentable(datum, measure, end)) => {
                 vec![unrepresentable(datum, measure, end)]
+            }
+            Some(Self::Undecided(datum, measure, end, verdict)) => {
+                vec![undecided(datum, measure, end, verdict)]
             }
         }
     }
@@ -7450,6 +7584,7 @@ pub(crate) fn surface_datum_errors<T: geom_core::Bounds>(
         analytic_datum_verdicts(
             poisoned_datums(surface),
             surface.representability_margins(band),
+            band,
         ),
         |datum| ValidationError::PoisonedSurfaceDatum { face, kind, datum },
         |datum, measure, end| ValidationError::UnrepresentableSurfaceDatum {
@@ -7458,6 +7593,14 @@ pub(crate) fn surface_datum_errors<T: geom_core::Bounds>(
             datum,
             measure,
             end,
+        },
+        |datum, measure, end, verdict| ValidationError::SurfaceDatumUndecided {
+            face,
+            kind,
+            datum,
+            measure,
+            end,
+            verdict,
         },
     )
 }
@@ -7474,6 +7617,7 @@ pub(crate) fn curve_datum_errors<T: geom_core::Bounds>(
         analytic_datum_verdicts(
             poisoned_curve_datums(carrier),
             carrier.representability_margins(band),
+            band,
         ),
         |datum| ValidationError::PoisonedCurveDatum { edge, kind, datum },
         |datum, measure, end| ValidationError::UnrepresentableCurveDatum {
@@ -7482,6 +7626,14 @@ pub(crate) fn curve_datum_errors<T: geom_core::Bounds>(
             datum,
             measure,
             end,
+        },
+        |datum, measure, end, verdict| ValidationError::CurveDatumUndecided {
+            edge,
+            kind,
+            datum,
+            measure,
+            end,
+            verdict,
         },
     )
 }

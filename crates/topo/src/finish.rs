@@ -288,50 +288,6 @@ pub trait LeafBody:
     /// The body, construction state again.
     #[must_use]
     fn into_body(self) -> Body<Self::Scalar>;
-
-    /// **This leaf under an isometry**, a leaf of the same kind: the
-    /// image's leaf at `f64` and `Probe` ([`AtRestPolicy::leaf`] of the
-    /// moved body, its finish held off the log), [`Replay::moved_by`] where
-    /// it is a replay. While the box-scalar switch lives a leaf's held
-    /// record must be what the box lane's taker decides of the same body,
-    /// and that taker runs tier 3 on the image, so a moved leaf is
-    /// finished again on its image; that re-finish goes with the switch,
-    /// and a finished value's move ([`FinishedBody::moved`]) runs none.
-    ///
-    /// # Errors
-    ///
-    /// [`MoveError::Map`] where the data map refuses ([`moved_body`]);
-    /// [`MoveError::NotFinished`] holding the image's leaf's findings,
-    /// the session box among them.
-    fn moved_by(&self, iso: &crate::Isometry<Self::Scalar>, tol: Tol) -> Result<Self, MoveError>;
-
-    /// **This leaf under a rigid motion** ([`Self::moved_by`]).
-    ///
-    /// # Errors
-    ///
-    /// [`NotFinished`]: the image's leaf's findings, and a motion's map
-    /// refusal as [`MoveError::under_a_motion`] states it.
-    fn moved(
-        &self,
-        motion: &geom_core::RigidMotion<Self::Scalar>,
-        tol: Tol,
-    ) -> Result<Self, NotFinished> {
-        self.moved_by(&crate::Isometry::Proper(*motion), tol)
-            .map_err(MoveError::under_a_motion)
-    }
-
-    /// **This leaf's mirror image** ([`Self::moved_by`]).
-    ///
-    /// # Errors
-    ///
-    /// As [`Self::moved_by`].
-    fn mirrored(
-        &self,
-        reflection: &crate::Reflection<Self::Scalar>,
-        tol: Tol,
-    ) -> Result<Self, MoveError> {
-        self.moved_by(&crate::Isometry::Improper(*reflection), tol)
-    }
 }
 
 impl<T: AtRestPolicy<Leaf = Self>> LeafBody for AtRestBody<T> {
@@ -340,11 +296,6 @@ impl<T: AtRestPolicy<Leaf = Self>> LeafBody for AtRestBody<T> {
     fn into_body(self) -> Body<T> {
         AtRestBody::into_body(self)
     }
-
-    fn moved_by(&self, iso: &crate::Isometry<T>, tol: Tol) -> Result<Self, MoveError> {
-        T::leaf(moved_body(self, iso, tol).map_err(MoveError::Map)?, tol)
-            .map_err(MoveError::NotFinished)
-    }
 }
 
 impl<T: AtRestPolicy<Leaf = Self>> LeafBody for Replay<T> {
@@ -352,10 +303,6 @@ impl<T: AtRestPolicy<Leaf = Self>> LeafBody for Replay<T> {
 
     fn into_body(self) -> Body<T> {
         Replay::into_body(self)
-    }
-
-    fn moved_by(&self, iso: &crate::Isometry<T>, tol: Tol) -> Result<Self, MoveError> {
-        Replay::moved_by(self, iso, tol)
     }
 }
 
@@ -786,6 +733,8 @@ impl ValidationError {
             | Self::TransverseNotIntrinsic { .. }
             | Self::TangentNotIntrinsic { .. } => F::Description,
             Self::UnrepresentableSurfaceDatum { .. }
+            | Self::SurfaceDatumUndecided { .. }
+            | Self::CurveDatumUndecided { .. }
             | Self::DegenerateTorus { .. }
             | Self::DegenerateSpindle { .. }
             | Self::DegenerateTorusEscalated { .. } => F::Convention,

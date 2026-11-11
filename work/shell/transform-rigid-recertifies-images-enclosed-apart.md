@@ -94,3 +94,18 @@ SHELL, whose `program.md` paths hold `crates/topo/src/transform.rs`.
 Filed by SYM-15, from the chain item it re-homes.
 
 - 2026-11-02 — moved from SHELF to SHELL by `git mv` when SHELF merged into SHELL, id and body unchanged (the track budget now counts only P0, P1 and unbanded rows, and SHELF had fallen far under it).
+
+## Re-scoped (ONEHOME fork 259, 2026-11-11)
+
+A move no longer re-certifies its images: a finished body's move
+carries its certificates and verdict (`topo::FinishedBody::moved`,
+PR 6820), and a leaf is finished in its own frame before it is moved.
+So the failure this row names is now a later finish's: construction
+state moved over a boxed motion and finished afresh re-derives every
+certificate from images enclosed apart, and the readings straddle. They
+are reported as undecided, ending in the box scalars' recourse, not as
+a kernel defect or a definite convention breach
+(`crates/sweep/tests/a_boxed_motion_moves_a_finished_body.rs`,
+`a_later_finish_of_a_boxed_move_reports_only_undecided_findings`).
+Deciding them at a later finish still needs the correlation the
+candidates below carry.

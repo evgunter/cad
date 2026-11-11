@@ -157,24 +157,24 @@ impl<T: topo::AtRestPolicy> Held<T> {
         }
     }
 
-    /// **What it holds under an isometry**, of the same kind
-    /// ([`topo::FinishedBody::moved_by`], [`topo::LeafBody::moved_by`]):
-    /// the verdict carried and the session box asked again.
+    /// **What it holds under an isometry**, finished
+    /// ([`topo::FinishedBody::moved_by`]): a finished body is moved, its
+    /// verdict carried and the session box asked again. A leaf is
+    /// finished first, in its own frame ([`topo::take`]), and then moved:
+    /// at `f64` and `Probe` a leaf is a finished body already, and at the
+    /// box scalars its finish is the taker's, run once on the body the
+    /// leaf's door built.
     ///
     /// # Errors
     ///
-    /// [`topo::MoveError::Map`] where the data map refuses (under a
-    /// reflection, a re-minted row); [`topo::MoveError::NotFinished`]
-    /// where the image reaches past the session box, or a leaf's image
-    /// does not finish.
+    /// [`topo::MoveError::NotFinished`] where a leaf does not finish, or
+    /// the image reaches past the session box; [`topo::MoveError::Map`]
+    /// where the data map refuses (under a reflection, a re-minted row).
     pub fn moved_by(&self, iso: &topo::Isometry<T>, tol: Tol) -> Result<Self, topo::MoveError> {
-        use topo::{FinishedBody, LeafBody};
-        Ok(match self {
-            Self::Finished(body) => {
-                Self::Finished(Arc::new(FinishedBody::moved_by(&**body, iso, tol)?))
-            }
-            Self::Leaf(body) => Self::Leaf(Arc::new(LeafBody::moved_by(&**body, iso, tol)?)),
-        })
+        let finished = self.finished(tol).map_err(topo::MoveError::NotFinished)?;
+        Ok(Self::Finished(Arc::new(topo::FinishedBody::moved_by(
+            &*finished, iso, tol,
+        )?)))
     }
 
     /// **What it holds under a rigid motion** ([`Self::moved_by`]).
@@ -182,9 +182,7 @@ impl<T: topo::AtRestPolicy> Held<T> {
     /// # Errors
     ///
     /// The move's [`topo::NotFinished`] ([`topo::MoveError::under_a_motion`]):
-    /// the image reaches past the session box, or, where it holds a
-    /// leaf, the leaf's image does not finish (at `f64` and `Probe`, where
-    /// a leaf is finished on its image while the box-scalar switch lives).
+    /// a leaf that does not finish, or an image past the session box.
     pub fn moved(&self, motion: &RigidMotion<T>, tol: Tol) -> Result<Self, topo::NotFinished> {
         self.moved_by(&topo::Isometry::Proper(*motion), tol)
             .map_err(topo::MoveError::under_a_motion)

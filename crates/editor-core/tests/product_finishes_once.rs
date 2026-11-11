@@ -44,12 +44,12 @@ fn block(doc: ProfileDoc) -> (ProfileDoc, RecipeNodeId) {
 }
 
 /// **Three copies of a block in the world, each under its own frame,
-/// gathered: three finishes.** The gather computes in the first copy's
-/// frame and moves the other two into it. The block is a sweep's leaf,
-/// and a moved leaf is finished on its image while the box-scalar switch
-/// lives (`topo::LeafBody::moved`), so each mapped source runs one; the
+/// gathered: one finish.** The gather computes in the first copy's frame
+/// and moves the other two into it. The block is a sweep's leaf, a
+/// finished body already at `f64`, and a leaf is finished in its own
+/// frame and then moved (`Held::moved_by`), so a move runs none; the
 /// aggregate finishes once. Red if a source is finished again where it
-/// is taken.
+/// is taken, or on its image.
 #[cfg(debug_assertions)]
 #[test]
 fn a_gather_over_mapped_sources_finishes_once() {
@@ -84,9 +84,9 @@ fn a_gather_over_mapped_sources_finishes_once() {
     assert_eq!(product.copies.len(), 3, "the three copies gather");
     assert_eq!(mapped, 2, "the second and third copies are mapped in");
     assert_eq!(
-        finishes, 3,
-        "one finish of the aggregate, and one of each mapped source: a moved \
-         leaf is finished on its image while the box-scalar switch lives"
+        finishes, 1,
+        "one finish of the aggregate, and none of a mapped source: a leaf is \
+         finished in its own frame, then moved"
     );
 }
 
@@ -234,8 +234,8 @@ fn mirrored(doc: &ProfileDoc, node: RecipeNodeId) -> ProfileDoc {
 /// **A mirror and the computing frame's twist of a finished value run no
 /// finish**: each moves what its source holds, its verdict carried. Two
 /// blocks' union is the finished value; the blocks are sweeps' leaves,
-/// whose moves run one each ([`a_moved_leaf_runs_one_finish`]), so under
-/// the twist the document runs the blocks' two and no more.
+/// whose moves run none ([`a_moved_leaf_runs_no_finish`]), so under the
+/// twist the document runs no more than it does plain.
 #[cfg(debug_assertions)]
 #[test]
 fn a_mirror_and_a_twist_of_a_finished_value_run_no_finish() {
@@ -250,31 +250,31 @@ fn a_mirror_and_a_twist_of_a_finished_value_run_no_finish() {
     );
     assert_eq!(
         finishes_evaluating(&doc, &twisted()),
-        plain + 2,
-        "the twist runs each block leaf's one finish and none for the union"
+        plain,
+        "the twist runs no finish of a block leaf or of the union"
     );
 }
 
-/// **A moved leaf runs exactly one finish, until the box-scalar switch is
-/// deleted** (`topo::LeafBody::moved`): a sweep's leaf moved at `f64` is
-/// finished again on its image, so its held record is what the box
-/// lane's taker decides of the same body.
+/// **A moved leaf runs no finish** (ONEHOME fork 259): a leaf is finished
+/// in its own frame and then moved (`Held::moved_by`), and at `f64` a
+/// sweep's leaf is a finished body already, so neither its mirror nor its
+/// twist finishes again on the image.
 #[cfg(debug_assertions)]
 #[test]
-fn a_moved_leaf_runs_one_finish() {
+fn a_moved_leaf_runs_no_finish() {
     let tol = Tol::witness();
     let doc = ProfileDoc::empty(DocumentId::derive("a-moved-leaf-finishes-once"), tol);
     let (doc, source) = block(doc);
     let plain = finishes_evaluating(&doc, &EvalOptions::default());
     assert_eq!(
         finishes_evaluating(&mirrored(&doc, source), &EvalOptions::default()),
-        plain + 1,
-        "the mirror of a leaf runs one finish"
+        plain,
+        "the mirror of a leaf runs no finish"
     );
     assert_eq!(
         finishes_evaluating(&doc, &twisted()),
-        plain + 1,
-        "the twist of a leaf runs one finish"
+        plain,
+        "the twist of a leaf runs no finish"
     );
 }
 

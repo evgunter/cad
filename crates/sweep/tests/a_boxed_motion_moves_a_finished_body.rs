@@ -52,17 +52,18 @@ fn cylinder() -> topo::AtRestBody<Interval> {
     topo::test_support::finished("the Interval cylinder", body, tol())
 }
 
-/// **A leaf at the box scalars asks the session box when it moves**
-/// (`topo::Replay::moved_by`): every move asks it, whatever it moves, so
-/// a replay moved past the box refuses there, typed, and is not handed
-/// on for a later taker to find.
+/// **A leaf at the box scalars is finished in its own frame, then moved**:
+/// the taker's finish (`topo::take`) runs on the body the sweep door
+/// built, and the finished body's move asks the session box of its image,
+/// so a copy moved past the box refuses there, typed.
 #[test]
-fn a_box_scalar_leaf_moved_past_the_box_refuses_at_the_box() {
-    use topo::LeafBody as _;
+fn a_box_scalar_leaf_is_taken_then_moved_and_refuses_past_the_box() {
+    let leaf = std::sync::Arc::new(cylinder_leaf());
+    let finished = topo::take::<Interval>(&leaf, tol()).expect("the leaf finishes where it stands");
     let far = RigidMotion::translation(Vec3::new(iv(2000.0), iv(0.0), iv(0.0))).unwrap();
-    let refusal = cylinder_leaf()
+    let refusal = finished
         .moved(&far, tol())
-        .expect_err("a leaf moved past the session box refuses");
+        .expect_err("a body moved past the session box refuses");
     let shown = refusal.to_string();
     assert!(
         matches!(
@@ -99,6 +100,54 @@ fn a_boxed_translation_and_a_boxed_turn_move_a_finished_cylinder() {
             assert!(
                 contains(q.x, want.x) && contains(q.y, want.y) && contains(q.z, want.z),
                 "{what}: vertex {k:?} moved to {q:?}, not the motion's image {want:?}"
+            );
+        }
+    }
+}
+
+/// **A later finish of a boxed move reports undecided as undecided**
+/// (ONEHOME fork 259, Ev's fork-144 sentence): the moved cylinder's
+/// construction state, finished afresh over the boxed motion, reads its
+/// readings over the box. Each finding it makes is an undecided one,
+/// none says a datum is outside its
+/// convention, and none reads as a kernel defect. A certificate's
+/// undecided reading ends in the box scalars' recourse; a decision with
+/// its own lever (the dihedral's) ends in that.
+#[test]
+fn a_later_finish_of_a_boxed_move_reports_only_undecided_findings() {
+    let source = cylinder();
+    let band = geom_core::Band::linear(tol()).unwrap();
+    let axis = UnitVec3::new(Vec3::new(iv(1.0), iv(0.0), iv(0.0)), "a boxed turn", band).unwrap();
+    let turn = RigidMotion::rotation(axis, Interval::from_bounds(0.3, 0.31)).unwrap();
+    let half = 0.25;
+    let shift = RigidMotion::translation(Vec3::new(
+        Interval::from_bounds(2.0 - half, 2.0 + half),
+        iv(0.0),
+        iv(0.0),
+    ))
+    .unwrap();
+    for (what, motion) in [("the boxed translation", shift), ("the boxed turn", turn)] {
+        let moved = source.moved(&motion, tol()).unwrap();
+        let Err(refused) = topo::finish(moved.into_body(), tol()) else {
+            continue;
+        };
+        for finding in refused.into_findings() {
+            let text = finding.to_string();
+            assert!(
+                !text.contains("report it"),
+                "{what}: an undecided reading reads as a kernel defect: {text}"
+            );
+            assert!(
+                !matches!(
+                    finding,
+                    topo::ValidationError::UnrepresentableSurfaceDatum { .. }
+                        | topo::ValidationError::UnrepresentableCurveDatum { .. }
+                ),
+                "{what}: an undecided convention reading reads as definite: {text}"
+            );
+            assert!(
+                text.contains("undecided"),
+                "{what}: a later finish of a boxed move makes a definite finding: {text}"
             );
         }
     }

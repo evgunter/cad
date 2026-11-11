@@ -1050,7 +1050,11 @@ fn the_carrier_datum_read_names_every_datum_that_describes_no_curve() {
     };
     let band = geom_core::Band::linear(Tol::witness()).unwrap();
     let verdict = |c: &Curve3<f64>| {
-        analytic_datum_verdicts(poisoned_curve_datums(c), c.representability_margins(band))
+        analytic_datum_verdicts(
+            poisoned_curve_datums(c),
+            c.representability_margins(band),
+            band,
+        )
     };
     type Row = (&'static str, Curve3<f64>, Option<V<D>>);
     let cases: Vec<Row> = vec![
@@ -1142,7 +1146,8 @@ fn the_carrier_datum_read_names_every_datum_that_describes_no_curve() {
         assert_eq!(
             analytic_datum_verdicts(
                 poisoned_curve_datums(&lifted),
-                lifted.representability_margins(band)
+                lifted.representability_margins(band),
+                band,
             ),
             expected,
             "{name}, at Interval"
@@ -1251,10 +1256,12 @@ fn the_frame_lever_is_the_kinds_radius() {
             at(crate::validate::analytic_datum_verdicts(
                 crate::validate::poisoned_datums(s),
                 s.representability_margins(band),
+                band,
             )),
             at(crate::validate::analytic_datum_verdicts(
                 crate::validate::poisoned_datums(&lifted),
                 lifted.representability_margins(band),
+                band,
             )),
         )
     };
@@ -1264,10 +1271,12 @@ fn the_frame_lever_is_the_kinds_radius() {
             crate::validate::analytic_datum_verdicts(
                 crate::validate::poisoned_curve_datums(c),
                 c.representability_margins(band),
+                band,
             ),
             crate::validate::analytic_datum_verdicts(
                 crate::validate::poisoned_curve_datums(&lifted),
                 lifted.representability_margins(band),
+                band,
             ),
         )
     };
