@@ -5,6 +5,7 @@ title: Main red: the two stated-wrong-general rows refuse ChartImageUnavailable,
 status: closed
 opened: 2026-11-11
 branch: pcert/stated-wrong-general-ending
+pr: 6833
 closed: 2026-11-11
 priority: P1
 cost: E
