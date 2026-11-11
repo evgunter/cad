@@ -13246,8 +13246,8 @@ mod tests {
     #[test]
     fn a_pcurve_escalation_renders_at_its_door() {
         use geom_core::{
-            DAMAGED_FILE_ENDING, FileCoincidence, KERNEL_DEFECT_ENDING,
-            KERNEL_OR_FILE_DEFECT_ENDING, MarginDiag,
+            DAMAGED_FILE_ENDING, FileCoincidence, KERNEL_DEFECT_ENDING, KERNEL_LIMIT_RECOURSE,
+            MarginDiag,
         };
 
         let error = PcurveCertifyError::Escalated {
@@ -13271,7 +13271,7 @@ mod tests {
             (ReadAt::Run(Reading::Build), KERNEL_DEFECT_ENDING),
             // Read at rest and not decided, it is reported as undecided
             // (ONEHOME fork 259): at a point, the last resort.
-            (ReadAt::Run(Reading::AtRest), geom_core::KERNEL_LIMIT_RECOURSE),
+            (ReadAt::Run(Reading::AtRest), KERNEL_LIMIT_RECOURSE),
             (
                 ReadAt::File(FileCoincidence::new(1e-6)),
                 DAMAGED_FILE_ENDING,
