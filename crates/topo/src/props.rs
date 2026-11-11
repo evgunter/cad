@@ -1920,12 +1920,14 @@ impl Rederived {
 ///
 /// Any fixed point is a sound centre for a closed surface; this is the
 /// same point for one stored body every time (D9), and two bodies
-/// storing one boundary in different orders take different vertices. The
-/// value about it also reads a plane's flux from its loop's first point,
-/// and where a loop's points stand off their plane two such bodies
-/// re-derive values that differ by up to `Σ_f δ_f·(Σ|T^a| + Σ|T^b|)` over
-/// those faces, `|T^a|` and `|T^b|` the unsigned areas of face `f`'s fan
-/// triangles from either first point. On the polygon route
+/// storing one boundary in different orders take different vertices. A
+/// plane's flux about it is read from its face's anchor, which no
+/// storage order moves ([`geom_brep::props::face_anchor`]), and where a
+/// loop's points stand off their plane two such bodies re-derive values
+/// that differ by up to `|c^a − c^b|·Σ_f |A⃗⊥_f|`, the two centres' gap
+/// times each face's vector area across its plane: the faces' vector
+/// areas sum to zero over a closed shell, so only the parts the plane's
+/// normal drops are levered by the centre. On the polygon route
 /// ([`shell_polygons`]) that is the whole difference; on the fan route
 /// the loops' gaps at their carrier ends add their own
 /// (`work/tally/a-fan-over-carrier-ends-reads-an-ulp-gap-at-the-faces-length-times-its-lever`).
@@ -4078,12 +4080,12 @@ fn closed_form_of<U: Decide>(
 }
 
 /// **`surface` re-anchored at its face** ([`geom_brep::surface_anchored_at`]),
-/// at the first point of `loops`: the face's measure reads no datum its
-/// kind forgets at a lever beyond the face (`[tolerance.epsilon]`).
-/// Unmoved where the face has no loop point.
+/// at its mean vertex ([`geom_brep::props::loops_anchor`]): the face's
+/// measure reads no datum its kind forgets at a lever beyond the face
+/// (`[tolerance.epsilon]`). Unmoved where the face has no loop point.
 fn face_anchored<U: Decide>(surface: &Surface<U>, loops: &[Vec<LoopEdge<U>>]) -> Surface<U> {
-    match loops.first().and_then(|edges| edges.first()) {
-        Some(e) => geom_brep::surface_anchored_at(surface, e.carrier.eval(e.t0)),
+    match geom_brep::props::loops_anchor(loops) {
+        Some(anchor) => geom_brep::surface_anchored_at(surface, anchor.at),
         None => surface.clone(),
     }
 }
@@ -8245,20 +8247,41 @@ mod face_list_door_tests {
         ]
     }
 
+    /// A cylinder wall patch about an axis turned off every coordinate
+    /// axis, its record alone on its key: the corpus's curved face.
+    fn tilted_wall() -> (Body<f64>, FaceKey) {
+        use crate::test_support_fixtures::{CylFrame, CylKey, cyl_wall_sheet_keyed};
+        let tol = Tol::witness();
+        let mut frame = CylFrame::tilted(0.8, 0.4);
+        frame.origin = Point3::new(0.3, -0.7, 1.1);
+        let mut body = Body::new();
+        let (face, _) =
+            cyl_wall_sheet_keyed(&mut body, frame, CylKey::Bare, (0.2, 1.9), (0.1, 1.4), tol);
+        crate::pcurves::mint_pcurves(&mut body, tol).unwrap();
+        (body, face)
+    }
+
     /// **A reading of a face takes no datum its record's kind forgets**
     /// (`[tolerance.epsilon]`): sliding every plane record's origin far
-    /// along its plane changes no closed-form volume beyond rounding.
-    /// Each record is first turned `1e-9` about its face's first point,
-    /// so its loops stand off it as a face moved onto a record in band of
-    /// its own does: a reading that took the stored origin would move by
-    /// the face's area times that lean times the slide.
+    /// along its plane, and every cylinder record's far along its axis,
+    /// changes no closed-form volume beyond rounding. Each plane record
+    /// is first turned `1e-9` about a corner of its face, which is not
+    /// the point the face is read about, so its loops stand off it as a
+    /// face moved onto a record in band of its own does: a reading that
+    /// took the stored origin would move by the face's area times that
+    /// lean times the slide. A cylinder's term reads its datum on the
+    /// axis at the lever its rounding is taken at: unanchored, the slide
+    /// rounds the term at its length squared.
     #[test]
     fn sliding_every_record_along_its_symmetry_moves_no_reading() {
         let tol = Tol::witness();
         let band = Band::linear(tol).unwrap();
         let lean = 1e-9;
         let slide = 1e4;
-        for (name, mut body) in corpus() {
+        let (wall, _) = tilted_wall();
+        let mut bodies = corpus();
+        bodies.push(("tilted wall", wall));
+        for (name, mut body) in bodies {
             let faces: Vec<FaceKey> = body.faces().map(|(k, _)| k).collect();
             for &f in &faces {
                 let at = face_start(&body, f);
@@ -8271,39 +8294,52 @@ mod face_list_door_tests {
                 else {
                     continue;
                 };
-                // Turned about `u_ref` through `at`.
+                // Turned about `u_ref` through a corner.
                 let v = normal.cross(*u_ref);
                 let turned = (*normal + v * lean).normalize();
                 *origin = at;
                 *normal = turned;
             }
             let read = |body: &Body<f64>| {
+                let faces: Vec<FaceKey> = body
+                    .faces()
+                    .filter(|&(_, face)| {
+                        matches!(
+                            body.surfaces.get(face.surface),
+                            Some(Surface::Plane { .. } | Surface::Cylinder { .. })
+                        )
+                    })
+                    .map(|(k, _)| k)
+                    .collect();
                 mass_properties_closed_form_of(body, &faces, band, tol)
                     .unwrap()
                     .volume
             };
             let before = read(&body);
             for (_, surface) in body.surfaces.iter_mut() {
-                if let Surface::Plane { origin, u_ref, .. } = surface {
-                    *origin = *origin + *u_ref * slide;
+                match surface {
+                    Surface::Plane { origin, u_ref, .. } => *origin = *origin + *u_ref * slide,
+                    Surface::Cylinder { origin, axis, .. } => *origin = *origin + *axis * slide,
+                    _ => {}
                 }
             }
             let after = read(&body);
             assert!(
                 (after - before).abs() <= 1e-12,
-                "{name}: sliding every record {slide} along its plane moved the volume from \
+                "{name}: sliding every record {slide} along its symmetry moved the volume from \
                  {before} to {after}"
             );
         }
     }
 
     /// The whole-body closed-form door's bits on the corpus, each plane
-    /// face's term its boundary's flux about a point of the face
-    /// (`geom_brep::props::planar_face`): the door is the face-list door
-    /// handed the arena, and these are what say it changes no number.
+    /// face's term its boundary's flux about its anchor
+    /// (`geom_brep::props::planar_face`). The door is the face-list door
+    /// handed the arena, bit for bit; the pins are the bits a face's
+    /// reading gives today, so a change to that reading moves them.
     const PINNED: [(&str, u64, u64); 5] = [
         ("unit", 0x3ff0_0000_0000_0000, 0x4018_0000_0000_0000),
-        ("skew", 0x4001_0d4f_df3b_645a, 0x4026_2907_4669_5750),
+        ("skew", 0x4001_0d4f_df3b_6459, 0x4026_2907_4669_5750),
         ("tall", 0x3ff0_0000_0000_0000, 0x4021_0000_0000_0000),
         ("pair", 0x4000_0000_0000_0000, 0x402d_0000_0000_0000),
         ("trio", 0x4010_86a7_ef9d_b22d, 0x4039_9483_a334_aba8),

@@ -236,6 +236,12 @@ impl<T: SpanLocate> LoopEdge<T> {
         self.carrier.eval(self.t1)
     }
 
+    /// The carrier point the edge's traversal starts at: `p0` forward,
+    /// `p1` reversed.
+    pub fn traversal_start(&self) -> Point3<T> {
+        if self.forward { self.p0() } else { self.p1() }
+    }
+
     /// The carrier points at the edge's TRAVERSAL ends, in traversal
     /// order — `(p0, p1)` forward, swapped otherwise, the geometric
     /// twin of the `(start, end)` tag pair.
@@ -821,19 +827,82 @@ crate::ended_by_write!(PropsError);
 
 impl std::error::Error for PropsError {}
 
+/// **Where a face's measure is read from** ([`face_anchor`]): two points
+/// of the face that its storage does not move.
+#[derive(Clone, Copy, Debug)]
+pub struct FaceAnchor<T: Real> {
+    /// The mean of the face's vertices: the point its flux is read
+    /// about. A convex combination of its boundary points, it lies on
+    /// the face's plane to within their stand-off from it.
+    pub at: Point3<T>,
+    /// The centre of the box of the face's vertices: the point its
+    /// vector area is summed about, which a closed loop's does not
+    /// depend on. Its differences with the vertices are the
+    /// coordinates' own wherever they lie on a grid, so a face of such
+    /// points reads its vector area exactly.
+    pub lever: Point3<T>,
+}
+
+/// **Where a face's measure is read from**, out of its boundary's
+/// `vertices`: the start point of each edge in traversal
+/// ([`LoopEdge::traversal_start`]) or each point of a vertex polygon's
+/// rings, every loop's ([`FaceAnchor`]). Both points are functions of
+/// the vertex set alone: no loop order, no traversal start and no
+/// carrier direction moves them, so a face reads the same however an
+/// operation happened to write its loops. Both lie within the box of
+/// its vertices, so the lever of every term its reading sums is the
+/// face's own extent. The mean is taken as the box centre plus the mean
+/// offset from it, so a face whose vertices share a coordinate reads
+/// that coordinate exactly at both points. It reads only the stored
+/// boundary, so both scalars take it before either reads the face.
+/// `None` where there is no vertex.
+pub fn face_anchor<T: Real>(
+    vertices: impl IntoIterator<Item = Point3<T>>,
+) -> Option<FaceAnchor<T>> {
+    let points: Vec<Point3<T>> = vertices.into_iter().collect();
+    let (&first, rest) = points.split_first()?;
+    let (lo, hi) = rest.iter().fold((first, first), |(lo, hi), p| {
+        (
+            Point3::new(lo.x.min(p.x), lo.y.min(p.y), lo.z.min(p.z)),
+            Point3::new(hi.x.max(p.x), hi.y.max(p.y), hi.z.max(p.z)),
+        )
+    });
+    let half = T::from_f64(0.5);
+    let lever = Point3::new(
+        (lo.x + hi.x) * half,
+        (lo.y + hi.y) * half,
+        (lo.z + hi.z) * half,
+    );
+    let offset = points
+        .iter()
+        .fold(Vec3::zero(), |sum, &p| sum + (p - lever));
+    #[allow(clippy::cast_precision_loss)] // a face's vertex count.
+    let n = T::from_f64(points.len() as f64);
+    Some(FaceAnchor {
+        at: lever + offset * (T::one() / n),
+        lever,
+    })
+}
+
+/// [`face_anchor`] of a face's loops.
+pub fn loops_anchor<T: SpanLocate>(loops: &[Vec<LoopEdge<T>>]) -> Option<FaceAnchor<T>> {
+    face_anchor(loops.iter().flatten().map(LoopEdge::traversal_start))
+}
+
 /// The flux and area of a **planar** face from its loops (outer +
-/// rings, all traversed as stored), read at the face: its boundary's
-/// flux about `a`, the first point of its loops — the vector area `A⃗ =
-/// Σ_loops (1/2)∮(p−a)×dp` about `a`, and `flux = a·A⃗`, the fan from a
-/// point of the face. `area = ‖A⃗‖` (rings subtract via their stored
-/// opposite winding; the loop orientation convention points `A⃗` along
-/// the face's outward normal). The surface's origin is never read: the
-/// term is the face's own wherever its record is anchored
+/// rings, all traversed as stored), read at the face ([`face_anchor`]):
+/// its boundary's flux about `a`, the mean of its vertices — the vector
+/// area `A⃗ = Σ_loops (1/2)∮(p−l)×dp`, summed about `l`, the centre of
+/// their box (a closed loop's does not depend on it), and `flux = a·A⃗`,
+/// the fan from a point of the face. `area = ‖A⃗‖` (rings subtract via their
+/// stored opposite winding; the loop orientation convention points `A⃗`
+/// along the face's outward normal). The surface's origin is never
+/// read: the term is the face's own wherever its record is anchored
 /// (`[tolerance.epsilon]`), and a face whose loops stand off its record
 /// — a face moved onto a record in band of its own — reads the fan its
 /// own boundary spans. Over a closed shell the fans meet at the shared
 /// points, so the sum is the volume they bound, about any point. The
-/// interval lane encloses this same flux at the face
+/// interval lane encloses this same flux about the same anchor
 /// (`topo`'s `props::quad_lane::planar_face_about`: the part along the
 /// normal and a slack for the part across it).
 ///
@@ -857,17 +926,13 @@ impl std::error::Error for PropsError {}
 pub fn planar_face<T: SpanLocate>(
     loops: &[Vec<LoopEdge<T>>],
 ) -> Result<FaceContribution<T>, PropsError> {
-    let anchor = loops
-        .first()
-        .and_then(|edges| edges.first())
-        .map(|e| e.carrier.eval(e.t0))
-        .ok_or(PropsError::DegenerateFace)?;
+    let anchor = loops_anchor(loops).ok_or(PropsError::DegenerateFace)?;
     let mut va = Vec3::zero();
     for lp in loops {
-        va = va + loop_vector_area(lp, anchor)?;
+        va = va + loop_vector_area(lp, anchor.lever)?;
     }
     Ok(FaceContribution {
-        flux: (anchor - Point3::origin()).dot(va),
+        flux: (anchor.at - Point3::origin()).dot(va),
         area: va.norm(),
     })
 }

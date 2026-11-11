@@ -208,19 +208,18 @@ pub(super) fn moved_by<U: Decide>(
     Some((translated_surface(surface, by)?, loops))
 }
 
-/// A face's vector area `A⃗ = ∫ n dA`, from its loops, each summed about
-/// a point of its own (a closed loop's does not depend on it). A
+/// A face's vector area `A⃗ = ∫ n dA`, from its loops, summed about the
+/// face's lever point ([`loops_anchor`]; a closed loop's does not depend
+/// on it). A
 /// spiric-bounded face has no closed form here and refuses; such a face
 /// is measured by its own lane, about the centre, and is never carried.
 fn loops_vector_area(
     loops: &[Vec<LoopEdge<Interval>>],
 ) -> Result<geom_core::Vec3<Interval>, PropsError> {
+    let anchor = loops_anchor(loops)?;
     let mut va = geom_core::Vec3::zero();
     for edges in loops {
-        let Some(anchor) = edges.first().map(|e| e.carrier.eval(e.t0)) else {
-            return Err(PropsError::DegenerateFace);
-        };
-        va = va + loop_vector_area(edges, anchor)?;
+        va = va + loop_vector_area(edges, anchor.lever)?;
     }
     Ok(va)
 }
@@ -348,9 +347,10 @@ pub(super) fn translated_curve<T: Decide>(curve: &Curve3<T>, by: Point3<T>) -> O
 
 /// A planar face's flux about `centre` and its area, at the interval
 /// scalar: its plane's signed distance from `centre` times its own
-/// signed area ([`plane_flux`]), with `A⃗` the face's vector area summed
-/// about `anchor`, the first point of its loops, and the distance taken
-/// from `anchor` along the stored plane's `normal`.
+/// signed area ([`plane_flux`]), at the face's anchor ([`loops_anchor`]):
+/// `A⃗` the face's vector area summed about its lever point, and the
+/// distance taken from its mean vertex along the stored plane's
+/// `normal`.
 ///
 /// `(anchor − centre)·A⃗`, the fan's own flux, reads the same value to
 /// first order, but at the width of `A⃗`'s every component times the
@@ -375,10 +375,11 @@ fn planar_face_about(
     let anchor = loops_anchor(loops)?;
     let mut va = geom_core::Vec3::zero();
     for edges in loops {
-        va = va + loop_vector_area(edges, anchor)?;
+        va = va + loop_vector_area(edges, anchor.lever)?;
     }
+    let lever = anchor.at - centre;
     Ok(FaceContribution {
-        flux: plane_flux(anchor - centre, va, normal) + tilt_slack(anchor - centre, va, normal),
+        flux: plane_flux(lever, va, normal) + tilt_slack(lever, va, normal),
         area: va.norm(),
     })
 }
@@ -425,7 +426,9 @@ fn plane_flux(
 /// its flux about `centre` and its area, at the interval scalar, the
 /// plane's distance from `centre` times the rings' signed area
 /// ([`plane_flux`], as [`planar_face_about`] reads a face), with `A⃗`
-/// the rings fanned from `anchor`, the first point of the first ring.
+/// the rings fanned from their points' anchor
+/// ([`geom_brep::props::face_anchor`], the one [`planar_face_about`]
+/// takes of the same face's loops).
 ///
 /// Over a shell every face of which is read this way, neighbouring
 /// faces' rings meet at the same points. A vertex point is a point
@@ -436,18 +439,20 @@ pub(super) fn polygon_face_about(
     normal: geom_core::Vec3<Interval>,
     centre: Point3<Interval>,
 ) -> Result<FaceContribution<Interval>, PropsError> {
-    let Some(&anchor) = rings.first().and_then(|ring| ring.first()) else {
+    let Some(anchor) = geom_brep::props::face_anchor(rings.iter().flatten().copied()) else {
         return Err(PropsError::DegenerateFace);
     };
+    let l = anchor.lever;
     let mut va = geom_core::Vec3::zero();
     for ring in rings {
         for (i, &p) in ring.iter().enumerate() {
             let q = ring[(i + 1) % ring.len()];
-            va = va + (p - anchor).cross(q - anchor) * Interval::point(0.5);
+            va = va + (p - l).cross(q - l) * Interval::point(0.5);
         }
     }
+    let lever = anchor.at - centre;
     Ok(FaceContribution {
-        flux: plane_flux(anchor - centre, va, normal) + tilt_slack(anchor - centre, va, normal),
+        flux: plane_flux(lever, va, normal) + tilt_slack(lever, va, normal),
         area: va.norm(),
     })
 }
@@ -876,7 +881,7 @@ fn rim_face<T: Decide + geom_core::CertifiedBounds>(
             let axis = axis / (axis.x.sqr() + axis.y.sqr() + axis.z.sqr()).sqrt();
             // Lane evaluation at `T`, crossed in through its bracket.
             let sin_a = iv(half_angle.sin());
-            let face = cap_about(&loops, apex, centre)?;
+            let face = cap_about(&loops, (apex, apex), centre)?;
             return spiric::cone_cap_rounds::<T>(&face, (rv(axis), sin_a), band, window, accept);
         }
         Surface::Torus {
@@ -947,15 +952,12 @@ fn rim_face<T: Decide + geom_core::CertifiedBounds>(
     spiric::rim_face_rounds::<T>(&face, band, window, accept)
 }
 
-/// A loop set's anchor: the first carrier's start point — the convention
-/// [`planar_face_about`] and [`plane_cap`] share, so a plane's flux
-/// lever is a point of the face whichever lane reads it.
-fn loops_anchor(loops: &[Vec<LoopEdge<Interval>>]) -> Result<Point3<Interval>, PropsError> {
-    loops
-        .first()
-        .and_then(|edges| edges.first())
-        .map(|e| e.carrier.eval(e.t0))
-        .ok_or(PropsError::DegenerateFace)
+/// A loop set's anchor ([`geom_brep::props::loops_anchor`]), the point
+/// every lane reads a plane face's flux about.
+fn loops_anchor(
+    loops: &[Vec<LoopEdge<Interval>>],
+) -> Result<geom_brep::props::FaceAnchor<Interval>, PropsError> {
+    geom_brep::props::loops_anchor(loops).ok_or(PropsError::DegenerateFace)
 }
 
 /// A plane cap bounded by a spiric or a rational spline rim: every loop
@@ -967,15 +969,17 @@ fn plane_cap(
     loops: &[Vec<LoopEdge<Interval>>],
     centre: Point3<Interval>,
 ) -> Result<spiric::RimFaceQ, PropsError> {
-    cap_about(loops, loops_anchor(loops)?, centre)
+    let anchor = loops_anchor(loops)?;
+    cap_about(loops, (anchor.lever, anchor.at), centre)
 }
 
-/// A cap's loops read about `anchor`: [`plane_cap`]'s reading, taken
-/// about a point of a plane, or about a cone's apex for
-/// [`spiric::cone_cap_rounds`].
+/// A cap's loops read about `(anchor, at)`: their vector area summed
+/// about `anchor` and the flux taken about `at`. [`plane_cap`]'s reading
+/// takes the face's anchor ([`loops_anchor`]); [`spiric::cone_cap_rounds`]
+/// reads both about a cone's apex.
 fn cap_about(
     loops: &[Vec<LoopEdge<Interval>>],
-    anchor: Point3<Interval>,
+    (anchor, at): (Point3<Interval>, Point3<Interval>),
     centre: Point3<Interval>,
 ) -> Result<spiric::RimFaceQ, PropsError> {
     let mut closed_va = [Interval::zero(); 3];
@@ -1001,7 +1005,7 @@ fn cap_about(
         rationals,
         closed_va,
         spirics,
-        lever: rv(anchor - centre),
+        lever: rv(at - centre),
         perimeter,
         wall: None,
     })
