@@ -2718,7 +2718,7 @@ pub(crate) enum SplitRefusal {
 /// projected image is derived there ([`geom_brep::chart_pcurve_over`]),
 /// and a fitted or general image, which has no angular placement, is
 /// the parent's restricted to the sub-interval. Each is certified
-/// through the image's own door ([`restate`], with the scalar's
+/// through the image's own door ([`PcurveCache::certify_stated`], with the scalar's
 /// [`crate::AtRestPolicy::fitted_lane`] for a projected row's hull
 /// terms and a fitted-grade row's check 4). Children placed again can
 /// sit whole turns from each other and from the parent's image, so the
@@ -2824,7 +2824,8 @@ pub(crate) fn split_cache<T: AtRestPolicy>(
             refusal: SplitRefusal::Certify(error),
         };
         let certify = |a: T, b: T, image: Pcurve<T>| {
-            restate(&image, (a, b), &carrier, &surface, band, T::fitted_lane()).map_err(refused)
+            PcurveCache::certify_stated(&image, (a, b), &carrier, &surface, band, T::fitted_lane())
+                .map_err(refused)
         };
         let Some(chart) = DescribedChart::of(&surface) else {
             unreachable!(
@@ -3132,7 +3133,7 @@ fn carry_rows<T: AtRestPolicy>(
         // refuses here, not later at tier 3.
         row_interval(body, he, row, &carrier, band)?;
         let (t0, t1) = row.params();
-        let restated = restate(
+        let restated = PcurveCache::certify_stated(
             row.pcurve(),
             (t0, t1),
             &carrier,
@@ -3147,63 +3148,6 @@ fn carry_rows<T: AtRestPolicy>(
         carried.push((he, restated, body.joint(he)));
     }
     Ok(carried)
-}
-
-/// A stored chart image re-certified over `[t0, t1]` through its own
-/// door: the closed-form door for every image it covers, the fitted
-/// door (`fitted`, the scalar's [`crate::AtRestPolicy::fitted_lane`])
-/// for a `Fitted`, `General` or `Projected` one.
-fn restate<T: Decide>(
-    image: &Pcurve<T>,
-    (t0, t1): (T, T),
-    carrier: &geom::Curve3<T>,
-    surface: &Surface<T>,
-    band: Band,
-    fitted: Option<geom_brep::FittedLane<T>>,
-) -> Result<PcurveCache<T>, PcurveCertifyError> {
-    match image {
-        Pcurve::Fitted(image) => match fitted {
-            Some(lane) => PcurveCache::certify_fitted(
-                std::sync::Arc::clone(image),
-                t0,
-                t1,
-                carrier,
-                surface,
-                band,
-                lane,
-            ),
-            // No door, so the image refuses, and the carrier's incidence
-            // read ends that refusal as at every certificate door.
-            None => geom_brep::incidence_ended_unwitnessed(
-                carrier,
-                (t0, t1),
-                (t0, t1),
-                surface,
-                band,
-                |read| read,
-                || Err(PcurveCertifyError::FittedLaneUnsupported { scalar: T::NAME }),
-            ),
-        },
-        Pcurve::General(image) => PcurveCache::certify_general(
-            std::sync::Arc::clone(image),
-            t0,
-            t1,
-            carrier,
-            surface,
-            band,
-            fitted,
-        ),
-        Pcurve::Projected(image) => PcurveCache::certify_projected(
-            (**image).clone(),
-            t0,
-            t1,
-            carrier,
-            surface,
-            band,
-            fitted,
-        ),
-        image => PcurveCache::certify(image.clone(), t0, t1, carrier, surface, band),
-    }
 }
 
 /// **Whether a face's refusal means its rows are not owed**: the one
@@ -3269,7 +3213,7 @@ fn derive_face<T: AtRestPolicy>(
     // included, and an absent door refuses at check 4, so an image that
     // fails checks 1–3 draws those checks' verdict at every scalar.
     let fitted = |w: &Walked<T>| match w.pcurve().certifying_door() {
-        CertifyingDoor::Fitted | CertifyingDoor::Either => restate(
+        CertifyingDoor::Fitted | CertifyingDoor::Either => PcurveCache::certify_stated(
             w.pcurve(),
             w.window(),
             &w.carrier,
