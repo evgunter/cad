@@ -377,7 +377,7 @@ fn planar_face_about(
     for edges in loops {
         va = va + loop_vector_area(edges, anchor.lever)?;
     }
-    let lever = anchor.at - centre;
+    let lever = anchor.from(centre);
     Ok(FaceContribution {
         flux: plane_flux(lever, va, normal) + tilt_slack(lever, va, normal),
         area: va.norm(),
@@ -450,7 +450,7 @@ pub(super) fn polygon_face_about(
             va = va + (p - l).cross(q - l) * Interval::point(0.5);
         }
     }
-    let lever = anchor.at - centre;
+    let lever = anchor.from(centre);
     Ok(FaceContribution {
         flux: plane_flux(lever, va, normal) + tilt_slack(lever, va, normal),
         area: va.norm(),
@@ -947,7 +947,7 @@ fn rim_face<T: Decide + geom_core::CertifiedBounds>(
             let axis = axis / (axis.x.sqr() + axis.y.sqr() + axis.z.sqr()).sqrt();
             // Lane evaluation at `T`, crossed in through its bracket.
             let sin_a = iv(half_angle.sin());
-            let face = cap_about(&loops, (apex, apex), centre)?;
+            let face = cap_about(&loops, apex, apex - centre)?;
             return spiric::cone_cap_rounds::<T>(&face, (rv(axis), sin_a), band, window, accept);
         }
         _ => {
@@ -977,17 +977,18 @@ fn plane_cap(
     centre: Point3<Interval>,
 ) -> Result<spiric::RimFaceQ, PropsError> {
     let anchor = loops_anchor(loops)?;
-    cap_about(loops, (anchor.lever, anchor.at), centre)
+    cap_about(loops, anchor.lever, anchor.from(centre))
 }
 
-/// A cap's loops read about `(anchor, at)`: their vector area summed
-/// about `anchor` and the flux taken about `at`. [`plane_cap`]'s reading
-/// takes the face's anchor ([`loops_anchor`]); [`spiric::cone_cap_rounds`]
-/// reads both about a cone's apex.
+/// A cap's loops read about `anchor`, their vector area summed about it
+/// and the flux levered by `lever`, the offset of the point it is read
+/// about from the centre. [`plane_cap`]'s reading takes the face's anchor
+/// ([`loops_anchor`]); [`spiric::cone_cap_rounds`] reads both about a
+/// cone's apex.
 fn cap_about(
     loops: &[Vec<LoopEdge<Interval>>],
-    (anchor, at): (Point3<Interval>, Point3<Interval>),
-    centre: Point3<Interval>,
+    anchor: Point3<Interval>,
+    lever: geom_core::Vec3<Interval>,
 ) -> Result<spiric::RimFaceQ, PropsError> {
     let mut closed_va = [Interval::zero(); 3];
     let mut spirics = Vec::new();
@@ -1012,7 +1013,7 @@ fn cap_about(
         rationals,
         closed_va,
         spirics,
-        lever: rv(at - centre),
+        lever: rv(lever),
         perimeter,
     })
 }

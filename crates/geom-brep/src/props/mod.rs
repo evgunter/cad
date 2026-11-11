@@ -827,61 +827,69 @@ crate::ended_by_write!(PropsError);
 
 impl std::error::Error for PropsError {}
 
-/// **Where a face's measure is read from** ([`face_anchor`]): two points
-/// of the face that its storage does not move.
+/// **Where a face's measure is read from** ([`face_anchor`]), out of
+/// its vertices alone.
 #[derive(Clone, Copy, Debug)]
 pub struct FaceAnchor<T: Real> {
-    /// The mean of the face's vertices: the point its flux is read
-    /// about. A convex combination of its boundary points, it lies on
-    /// the face's plane to within their stand-off from it.
-    pub at: Point3<T>,
-    /// The centre of the box of the face's vertices: the point its
-    /// vector area is summed about, which a closed loop's does not
-    /// depend on. Its differences with the vertices are the
-    /// coordinates' own wherever they lie on a grid, so a face of such
-    /// points reads its vector area exactly.
+    /// The least corner of the box of the face's vertices, each
+    /// coordinate one of theirs: the point its vector area is summed
+    /// about, which a closed loop's does not depend on. Read with no
+    /// arithmetic, it is as exact as the vertices are, so a face of
+    /// grid points reads its vector area exactly, and a face far from
+    /// the origin rounds no coordinate taking it.
     pub lever: Point3<T>,
+    /// The mean of the vertices' offsets from `lever`: `lever + offset`
+    /// ([`Self::at`]) is the mean of the vertices, a convex combination
+    /// of boundary points, on the face's plane to within their stand-off
+    /// from it. Kept as an offset so a reading levered from another
+    /// point takes the difference of two stored points and this, never
+    /// a rounded absolute coordinate.
+    pub offset: Vec3<T>,
+}
+
+impl<T: Real> FaceAnchor<T> {
+    /// The mean of the face's vertices: the point its flux is read about.
+    #[must_use]
+    pub fn at(&self) -> Point3<T> {
+        self.lever + self.offset
+    }
+
+    /// The offset of [`Self::at`] from `from`, taken as `(lever − from) +
+    /// offset`.
+    #[must_use]
+    pub fn from(&self, from: Point3<T>) -> Vec3<T> {
+        (self.lever - from) + self.offset
+    }
 }
 
 /// **Where a face's measure is read from**, out of its boundary's
 /// `vertices`: the start point of each edge in traversal
 /// ([`LoopEdge::traversal_start`]) or each point of a vertex polygon's
-/// rings, every loop's ([`FaceAnchor`]). Both points are functions of
-/// the vertex set alone: no loop order, no traversal start and no
-/// carrier direction moves them, so a face reads the same however an
-/// operation happened to write its loops. Both lie within the box of
-/// its vertices, so the lever of every term its reading sums is the
-/// face's own extent. The mean is taken as the box centre plus the mean
-/// offset from it, so a face whose vertices share a coordinate reads
-/// that coordinate exactly at both points. It reads only the stored
-/// boundary, so both scalars take it before either reads the face.
-/// `None` where there is no vertex.
+/// rings, every loop's ([`FaceAnchor`]). Both are functions of the vertex
+/// set alone: no loop order, no traversal start and no carrier direction
+/// moves them, so a face reads the same however an operation happened to
+/// write its loops. Both lie within the box of its vertices, so the lever
+/// of every term its reading sums is the face's own extent; a face whose
+/// vertices share a coordinate reads that coordinate exactly at both. It
+/// reads only the stored boundary, so both scalars take it before either
+/// reads the face. `None` where there is no vertex.
 pub fn face_anchor<T: Real>(
     vertices: impl IntoIterator<Item = Point3<T>>,
 ) -> Option<FaceAnchor<T>> {
     let points: Vec<Point3<T>> = vertices.into_iter().collect();
     let (&first, rest) = points.split_first()?;
-    let (lo, hi) = rest.iter().fold((first, first), |(lo, hi), p| {
-        (
-            Point3::new(lo.x.min(p.x), lo.y.min(p.y), lo.z.min(p.z)),
-            Point3::new(hi.x.max(p.x), hi.y.max(p.y), hi.z.max(p.z)),
-        )
+    let lever = rest.iter().fold(first, |lo, p| {
+        Point3::new(lo.x.min(p.x), lo.y.min(p.y), lo.z.min(p.z))
     });
-    let half = T::from_f64(0.5);
-    let lever = Point3::new(
-        (lo.x + hi.x) * half,
-        (lo.y + hi.y) * half,
-        (lo.z + hi.z) * half,
-    );
     // The count kept in `T`, one per vertex: an exact small integer.
-    let (offset, n) = points
+    let (sum, n) = points
         .iter()
         .fold((Vec3::zero(), T::zero()), |(sum, n), &p| {
             (sum + (p - lever), n + T::one())
         });
     Some(FaceAnchor {
-        at: lever + offset * (T::one() / n),
         lever,
+        offset: sum * (T::one() / n),
     })
 }
 
@@ -893,8 +901,8 @@ pub fn loops_anchor<T: SpanLocate>(loops: &[Vec<LoopEdge<T>>]) -> Option<FaceAnc
 /// The flux and area of a **planar** face from its loops (outer +
 /// rings, all traversed as stored), read at the face ([`face_anchor`]):
 /// its boundary's flux about `a`, the mean of its vertices — the vector
-/// area `A⃗ = Σ_loops (1/2)∮(p−l)×dp`, summed about `l`, the centre of
-/// their box (a closed loop's does not depend on it), and `flux = a·A⃗`,
+/// area `A⃗ = Σ_loops (1/2)∮(p−l)×dp`, summed about `l`, the least corner
+/// of their box (a closed loop's does not depend on it), and `flux = a·A⃗`,
 /// the fan from a point of the face. `area = ‖A⃗‖` (rings subtract via their
 /// stored opposite winding; the loop orientation convention points `A⃗`
 /// along the face's outward normal). The surface's origin is never
@@ -933,7 +941,7 @@ pub fn planar_face<T: SpanLocate>(
         va = va + loop_vector_area(lp, anchor.lever)?;
     }
     Ok(FaceContribution {
-        flux: (anchor.at - Point3::origin()).dot(va),
+        flux: anchor.from(Point3::origin()).dot(va),
         area: va.norm(),
     })
 }

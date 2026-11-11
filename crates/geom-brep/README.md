@@ -1561,14 +1561,16 @@ enters a face's term at a lever beyond the face.
 - **`[geom-brep.face-anchored.anchor]` One anchor.**
   `props::face_anchor` reads, from a face's vertices alone, where its
   measure is read from: `at`, the mean of the vertices, and `lever`,
-  the centre of their box. No loop order, traversal start or carrier
+  the least corner of their box (each coordinate one of theirs). No loop order, traversal start or carrier
   direction moves either, so a face reads the same however an
   operation wrote its loops, and both lie within the vertices' box,
   so every term's lever is the face's own extent. The mean is a convex
   combination of boundary points, so it lies on the face's plane to
-  within their stand-off; the box centre's differences with the
-  vertices are the coordinates' own on a grid, so a face of grid points
-  reads its vector area exactly. Every planar reader takes it:
+  within their stand-off; the corner is read with no arithmetic, so a
+  face of grid points reads its vector area exactly and a face far from
+  the origin rounds no coordinate taking it. `at` is kept as the
+  corner plus an offset, so a reading levered from another point takes
+  `(lever − from) + offset`, never a rounded absolute coordinate. Every planar reader takes it:
   `props::planar_face`, and `topo`'s `props::face_anchored`,
   `props::quad_lane::planar_face_about`, `plane_cap`,
   `polygon_face_about` and the carried faces' vector area.

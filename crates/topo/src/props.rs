@@ -4085,7 +4085,7 @@ fn closed_form_of<U: Decide>(
 /// (`[tolerance.epsilon]`). Unmoved where the face has no loop point.
 fn face_anchored<U: Decide>(surface: &Surface<U>, loops: &[Vec<LoopEdge<U>>]) -> Surface<U> {
     match geom_brep::props::loops_anchor(loops) {
-        Some(anchor) => geom_brep::surface_anchored_at(surface, anchor.at),
+        Some(anchor) => geom_brep::surface_anchored_at(surface, anchor.at()),
         None => surface.clone(),
     }
 }
