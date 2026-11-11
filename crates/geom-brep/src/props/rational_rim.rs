@@ -305,24 +305,50 @@ fn piece_jets(f: &PieceForm, t: Interval) -> ([Jet; 3], [Jet; 3], Jet) {
 }
 
 /// **`∫ g(B, B′, w) dt` over the edge's carrier interval**, span by
-/// span at `pieces` per span ([`super::taylor::composite_over`]), for `N` integrands of
+/// span at `pieces(i)` pieces on span `i` ([`super::taylor::composite_each`]), for `N` integrands of
 /// the carrier's homogeneous numerator `B`, its derivative and its
 /// weight `w`, each handed as jets; with per integrand the part of its
 /// width a later round removes. The traversal is NOT folded in.
-pub(super) fn rational_integrals<const N: usize>(
+pub(super) fn rational_integrals_each<const N: usize>(
     e: &RationalEdgeQ,
-    pieces: usize,
+    pieces: impl Fn(usize) -> usize,
     g: impl Fn([Jet; 3], [Jet; 3], Jet) -> [Jet; N],
 ) -> ([Interval; N], [f64; N]) {
-    super::taylor::composite_over(
-        e.spans.iter().map(|s| (s.a, s.b, s)),
-        pieces,
+    super::taylor::composite_each(
+        e.spans
+            .iter()
+            .enumerate()
+            .map(|(i, s)| (s.a, s.b, s, pieces(i))),
         |s, p, q| piece_form(s, p, q),
         |f, t| {
             let (b, db, w) = piece_jets(f, t);
             g(b, db, w)
         },
     )
+}
+
+/// Per span, the fewest pieces (a power of two up to `most`) on each of
+/// which `fits(B, B′, w, h)` holds, the jets enclosing the piece
+/// ([`super::taylor::pieces_where`]).
+pub(super) fn rational_span_pieces(
+    e: &RationalEdgeQ,
+    most: usize,
+    fits: impl Fn([Jet; 3], [Jet; 3], Jet, f64) -> bool,
+) -> Vec<usize> {
+    e.spans
+        .iter()
+        .map(|s| {
+            super::taylor::pieces_where(
+                (s.a, s.b),
+                most,
+                |p, q| piece_form(s, p, q),
+                |f, t, h| {
+                    let (b, db, w) = piece_jets(f, t);
+                    fits(b, db, w, h)
+                },
+            )
+        })
+        .collect()
 }
 
 /// **`Σ h·bound(B, B′, w)` over the edge's pieces**, `pieces` per span
@@ -349,7 +375,15 @@ pub(super) fn rational_rate_bound(
 /// its width a later round removes.
 #[must_use]
 pub fn rational_vector_area_split(e: &RationalEdgeQ, pieces: usize) -> (RVec3, [f64; 3]) {
-    let (va, removable) = rational_integrals(e, pieces, |b, db, w| {
+    rational_vector_area_each(e, |_| pieces)
+}
+
+/// [`rational_vector_area_split`] at `pieces(i)` pieces on span `i`.
+pub(super) fn rational_vector_area_each(
+    e: &RationalEdgeQ,
+    pieces: impl Fn(usize) -> usize,
+) -> (RVec3, [f64; 3]) {
+    let (va, removable) = rational_integrals_each(e, pieces, |b, db, w| {
         let scale = w.sqr().recip().scale(pt(0.5));
         [
             b[1].mul(db[2]).sub(b[2].mul(db[1])),
