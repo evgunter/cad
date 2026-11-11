@@ -2,7 +2,7 @@
 id: the-mesh-walk-places-a-one-face-ball
 kind: issue
 title: the mesh walk places a one-face ball (one wrap meridian pole to pole) as the two sides of its wrap, not a zero-width column
-status: open
+status: dispatched
 opened: 2026-10-29
 priority: P1
 cost: E
@@ -26,3 +26,12 @@ Re-parked on `sphere-faces-take-a-per-face-chart-or-pole-vertices` (a ruling ope
 ## Released (2026-10-31)
 
 Ev ruled on `[ev]` PR 6085, decision 3 (fork-log row 222): keep the wrap tip. A tip is any valence-1 end of a wrap edge, and the wrap edge is the face's seam kept to its end. A chart reader reads a tip as the seam, through the lift's reset at the singular vertex. A chart-free reader drops it, keeping the singular vertex as the side's datum. The hold is lifted. (RESTCURVE orchestrator)
+
+## Dispatch
+
+2026-11-11, TESSWALK orchestrator. One implementer, lane `tesswalk-ball`, branch `tesswalk/one-face-ball`. The lane will:
+- reproduce the one-face ball's `SingleColumnCurvedFace` on main;
+- port the probe's E7 (`probe/foreign-wraptip`) onto `mesh::walk::loop_polygon`, reading the tip through `Body::both_sides_face`'s `chart_image` view as RESTCURVE's release says, never by a turn of its own;
+- pin the ball watertight with its signed volume.
+
+Review tier: a single style review, since the change sits in the shared mesh walk and must read the tip through the one structural predicate.
