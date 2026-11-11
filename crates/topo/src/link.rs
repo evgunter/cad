@@ -836,7 +836,7 @@ pub(crate) struct Bound<T: Real> {
     pub(crate) edge: EdgeKey,
     pub(crate) line: bool,
     /// The edge is a circle's arc, which its point, its tangent and its
-    /// curvature vector fix ([`rest::kept_bound`]).
+    /// curvature vector fix (`rest::kept_bound`).
     pub(crate) circle: bool,
     pub(crate) bend: Vec3<T>,
 }

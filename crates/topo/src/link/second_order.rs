@@ -235,7 +235,7 @@ fn beside<T: Decide>(
     .ok()
 }
 
-/// **Two circles' arcs along one ray, on one circle** ([`super::rest::kept_bound`]):
+/// **Two circles' arcs along one ray, on one circle** (`rest::kept_bound`):
 /// the edges `a` and `c` leaving `p` along the rays through `qa` and
 /// `qc`, read on one ray in a sector's plane of outward unit `m`, both
 /// circles' arcs, whose curvature vectors read Zero apart one order down
