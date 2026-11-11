@@ -48,13 +48,8 @@ crates/topo/src/boolean/edge_join.rs 3
 crates/topo/src/boolean/factored_crossing.rs 1
 # fate: places' corner and place's reading, the side a corner holds: WHICH.
 crates/topo/src/boolean/fate.rs 2
-# insert: walk_order's comparison (a sort) and reconcile_pass's cuts (every
-# run's): NOT A SEARCH. reconcile_pass's held_cut call, which chooses the
-# way round a run is minted: WHICH. (held_cut climbs, Any: QML T5.)
-# reconcile_shared's fixpoint (`reconcile_pass(..)?` until a pass turns
-# nothing, then `return hang_at_shared(..)`): every pass is needed, so
-# NOT A SEARCH.
-crates/topo/src/boolean/insert.rs 4
+# insert: walk_order's comparison (a sort): NOT A SEARCH.
+crates/topo/src/boolean/insert.rs 1
 # join: bool_connect's partners, every segment's: NOT A SEARCH.
 crates/topo/src/boolean/join.rs 1
 # boolean mod: vertex_at, which vertex is at the point: WHICH.
