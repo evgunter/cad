@@ -3,10 +3,11 @@
 //! `stated::StatedDoor`): a carrier that lies on its plane, or on its
 //! cylinder's or cone's ruling, and leaves its stated image between the
 //! samples does not get an edge certificate. Its miss ends as the stated
-//! image's ([`CertCheck::StatedImage`]): at a build in its lever, at rest
-//! the stored culprit, at the import door the damaged file, never with a
-//! tolerance; in band, the lever at every door. A carrier on its image
-//! still certifies.
+//! image's ([`CertifyError::StatedImageMissed`], D4 ¶1 (iv)): at a build
+//! the kernel's defect, at rest the stored culprit, at the import door the
+//! damaged file, never with a tolerance; in band
+//! ([`CertCheck::StatedImage`]), the lever at every door. A carrier on its
+//! image still certifies.
 //!
 //! The carrier is a net whose controls are the chart's points at the
 //! ruling's image at their Greville abscissae, so at height zero it is
@@ -33,8 +34,8 @@ use std::sync::Arc;
 use geom::{Curve3, NurbsCurve2, NurbsCurve3, Surface};
 use geom_core::spline::KnotVector;
 use geom_core::{
-    DAMAGED_FILE_ENDING, FileCoincidence, Interval, KERNEL_OR_FILE_DEFECT_ENDING, Point2, Point3,
-    Real, Vec3,
+    DAMAGED_FILE_ENDING, FileCoincidence, Interval, KERNEL_DEFECT_ENDING,
+    KERNEL_OR_FILE_DEFECT_ENDING, Point2, Point3, Real, Vec3,
 };
 use test_utils::fuzz;
 
@@ -311,10 +312,7 @@ enum Ended {
 fn ended(got: &Result<(), CertifyError>) -> Ended {
     match got {
         Ok(()) => Ended::Certified,
-        Err(CertifyError::ResidualExceeded {
-            check: CertCheck::StatedImage,
-            ..
-        }) => Ended::Missed,
+        Err(CertifyError::StatedImageMissed { .. }) => Ended::Missed,
         Err(CertifyError::Escalated {
             check: CertCheck::StatedImage,
             ..
@@ -364,10 +362,10 @@ fn a_net_on_its_plane_a_millimetre_off_its_image_between_the_samples_ends_as_its
     the_witness(INTERVAL);
 }
 
-/// **The witness's refusal ends as a stated image's**: at a build in its
-/// lever, at rest the kernel's or the file's defect, at the import door
-/// the damaged file; read in band, the lever at every door. No ending
-/// offers a tolerance.
+/// **The witness's refusal ends as a stated image's** (D4 ¶1 (iv)): at a
+/// build the kernel's defect, at rest the kernel's or the file's, at the
+/// import door the damaged file; read in band, the lever at every door.
+/// No ending offers a tolerance.
 #[test]
 fn a_stated_images_miss_ends_by_its_door_and_offers_no_tolerance() {
     let file = FileCoincidence::new(band().zero() * 1e-3);
@@ -381,29 +379,13 @@ fn a_stated_images_miss_ends_by_its_door_and_offers_no_tolerance() {
             let past = door.net(Chart::Plane, &witness(1e-3), stated).unwrap_err();
             let lever = "so the chart image this edge states follows its carrier";
             let want = [
-                None,
-                Some(KERNEL_OR_FILE_DEFECT_ENDING),
-                Some(DAMAGED_FILE_ENDING),
+                KERNEL_DEFECT_ENDING,
+                KERNEL_OR_FILE_DEFECT_ENDING,
+                DAMAGED_FILE_ENDING,
             ];
             for (at, want) in doors.into_iter().zip(want) {
                 let ending = past.ending(at).unwrap();
-                match want {
-                    None => assert!(
-                        ending.contains(lever),
-                        "{stated:?} at {}, {at:?}: {ending}",
-                        door.name
-                    ),
-                    Some(want) => assert!(
-                        ending.contains(want),
-                        "{stated:?} at {}, {at:?}: {ending}",
-                        door.name
-                    ),
-                }
-                assert!(
-                    !ending.contains("tolerance"),
-                    "{stated:?} at {}, {at:?}: {ending}",
-                    door.name
-                );
+                assert_eq!(ending, want, "{stated:?} at {}, {at:?}", door.name);
             }
             let in_band = door
                 .net(Chart::Plane, &witness(0.0).missing(in_band()), stated)
@@ -583,4 +565,296 @@ fn a_stated_image_on_its_carrier_certifies() {
             }
         }
     }
+}
+
+/// A cylinder off the origin and off the axes.
+fn tilted_cylinder() -> Surface<f64> {
+    let axis = Vec3::new(0.2, 0.3, 0.9).normalize();
+    Surface::Cylinder {
+        origin: Point3::new(1.0, 2.0, 3.0),
+        axis,
+        radius: 2.5,
+        u_ref: (Vec3::unit_x() - axis * axis.x).normalize(),
+    }
+}
+
+/// A polyline under the image `uv(t)` on `surface`: its controls the
+/// chart's points at the image's controls, with knots clustered about
+/// `t = 3/16` (between the samples `1/8` and `2/8`), the control nearest
+/// it moved `bump` in `(u, v)`. Returns the image as a curve in UV and
+/// the carrier.
+fn polyline_under(
+    surface: &Surface<f64>,
+    uv: impl Fn(f64) -> [f64; 2],
+    bump: [f64; 2],
+) -> (NurbsCurve2<f64>, Curve3<f64>) {
+    let knots = vec![
+        0.0, 0.0, 0.05, 0.17, 0.18, 0.1875, 0.195, 0.205, 0.5, 0.7, 1.0, 1.0,
+    ];
+    let at: Vec<f64> = knots[1..knots.len() - 1].to_vec();
+    let bumped = at
+        .iter()
+        .enumerate()
+        .min_by(|a, b| (a.1 - 0.1875).abs().total_cmp(&(b.1 - 0.1875).abs()))
+        .map(|(i, _)| i)
+        .unwrap();
+    let image: Vec<Point2<f64>> = at
+        .iter()
+        .map(|&t| {
+            let [u, v] = uv(t);
+            Point2::new(u, v)
+        })
+        .collect();
+    let net: Vec<Point3<f64>> = image
+        .iter()
+        .enumerate()
+        .map(|(i, p)| {
+            let d = if i == bumped { bump } else { [0.0, 0.0] };
+            surface.eval(p.x + d[0], p.y + d[1])
+        })
+        .collect();
+    let count = at.len();
+    let kv = KnotVector::clamped(knots, 1).unwrap();
+    (
+        NurbsCurve2::new(kv.clone(), image, vec![1.0; count]).unwrap(),
+        Curve3::Nurbs(Arc::new(
+            NurbsCurve3::new(kv, net, vec![1.0; count]).unwrap(),
+        )),
+    )
+}
+
+/// The edge certificate of `image` (at `f64`, and `image_i` at
+/// `Interval`) against `carrier` on `surface` over `[0, 1]`.
+fn certify_both(
+    surface: &Surface<f64>,
+    image: Pcurve<f64>,
+    image_i: Pcurve<Interval>,
+    carrier: &Curve3<f64>,
+) -> [Result<(), CertifyError>; 2] {
+    macro_rules! at {
+        ($t:ty, $image:expr) => {{
+            let c = <$t as Real>::from_f64;
+            let mut table: slotmap::SlotMap<SurfaceKey, Surface<$t>> = slotmap::SlotMap::with_key();
+            let key = table.insert(surface.map_scalar(c));
+            let carrier = carrier.map_scalar(c);
+            let (start, end) = (carrier.eval(c(0.0)), carrier.eval(c(1.0)));
+            EdgeCurve::certify(
+                EdgeCurveSpec {
+                    description: EdgeDescriptionSpec::chart_image(key, $image),
+                    carrier,
+                    param_start: c(0.0),
+                    param_end: c(1.0),
+                },
+                start,
+                end,
+                |k| table.get(k).cloned(),
+                geom_core::test_support::fixture_lever(<$t as Real>::one()),
+                band(),
+                NurbsLane::certified(),
+            )
+            .map(|_| ())
+        }};
+    }
+    [at!(f64, image), at!(Interval, image_i)]
+}
+
+/// **A wrong image through its own pcurve door ends as the stated
+/// image's miss, as the patch's does**: a projected image of a ruling on
+/// a cylinder against a carrier moved a millimetre ALONG the ruling (so
+/// it stays on the chart, and only the image's fidelity sees it); an iso
+/// line and a curve in UV on a spline chart (a bilinear wall) against a
+/// carrier moved a millimetre along the line. Each certifies on its
+/// carrier.
+#[test]
+fn a_wrong_image_through_its_pcurve_door_ends_as_its_miss() {
+    let fi = Interval::from_f64;
+    let cylinder = tilted_cylinder();
+    let ruling = |t: f64| [0.1, -1.0 + 2.5 * t];
+    for (h, want) in [(1e-3, Ended::Missed), (0.0, Ended::Certified)] {
+        let (_, on) = polyline_under(&cylinder, ruling, [0.0, 0.0]);
+        let (_, carrier) = polyline_under(&cylinder, ruling, [0.0, h]);
+        let image = super::projected::project(&on, Some((0.0, 1.0)), &cylinder, band()).unwrap();
+        let interval = super::projected::project(
+            &on.map_scalar(fi),
+            Some((fi(0.0), fi(1.0))),
+            &cylinder.map_scalar(fi),
+            band(),
+        )
+        .unwrap();
+        let got = certify_both(
+            &cylinder,
+            Pcurve::Projected(Box::new(image)),
+            Pcurve::Projected(Box::new(interval)),
+            &carrier,
+        );
+        for got in &got {
+            assert_eq!(ended(got), want, "projected ruling, h = {h}: {got:?}");
+        }
+    }
+    let (o, a, b) = (
+        Point3::origin(),
+        Vec3::new(2.0, 0.0, 0.0),
+        Vec3::new(0.0, 3.0, 0.5),
+    );
+    let kv = || KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
+    let wall = Surface::Nurbs(Arc::new(
+        geom::NurbsSurface::new(kv(), kv(), vec![o, o + b, o + a, o + a + b], vec![1.0; 4])
+            .unwrap(),
+    ));
+    // The iso lane reads a carrier in its column's own spline space (a
+    // polyline under it refuses as the lane's gap), so its wrong image is
+    // a column beside the carrier's: `u` off by `du`, a miss of `2·du`.
+    let column = |u: f64| {
+        Curve3::Nurbs(Arc::new(
+            NurbsCurve3::new(kv(), vec![o + a * u, o + a * u + b], vec![1.0; 2]).unwrap(),
+        ))
+    };
+    for (du, want) in [(5e-4, Ended::Missed), (0.0, Ended::Certified)] {
+        let iso = Image::Iso([0.3 + du, 0.0], [0.0, 1.0]);
+        let got = certify_both(&wall, iso.at(), iso.at(), &column(0.3));
+        for got in &got {
+            assert_eq!(ended(got), want, "spline wall iso line, du = {du}: {got:?}");
+        }
+    }
+    for (h, want) in [(1e-3, Ended::Missed), (0.0, Ended::Certified)] {
+        let (net, carrier) = polyline_under(&wall, |t| [0.3, 0.1 + 0.8 * t], [0.0, h]);
+        let net = Arc::new(net);
+        let got = certify_both(
+            &wall,
+            Pcurve::General(Arc::clone(&net)),
+            Pcurve::General(Arc::new(net.map_scalar(fi))),
+            &carrier,
+        );
+        for got in &got {
+            assert_eq!(ended(got), want, "spline wall General, h = {h}: {got:?}");
+        }
+    }
+}
+
+/// **A correct image far from the origin certifies or ends in the
+/// lever**: on a tilted plane and on a cylinder's ruling, from 100 m to
+/// 10 km out, an iso line and a curve in UV stated against their own
+/// polyline (and, on the plane, against the line they are), at both
+/// scalars. The patch's corners and the composite carry the coordinates'
+/// rounding, which past some distance outgrows a fine band (as the
+/// endpoint pins' and the net's incidence read's rounding do): the stated
+/// image then reads in band, its lever, never a miss
+/// (`work/pcert/a-correct-stated-image-far-from-the-origin-reads-in-band-at-a-fine-band.md`).
+#[test]
+fn a_correct_image_far_out_certifies_or_ends_in_its_lever() {
+    let fi = Interval::from_f64;
+    let n = Vec3::new(0.3, -0.5, 0.8).normalize();
+    let u = (Vec3::new(1.0, 0.2, 0.0) - n * Vec3::new(1.0, 0.2, 0.0).dot(n)).normalize();
+    let mut levers = 0usize;
+    for far in [1e2, 1e3, 1e4] {
+        let plane = Surface::Plane {
+            origin: Point3::new(far, -far, 0.7 * far),
+            normal: n,
+            u_ref: u,
+        };
+        let (p0, pl) = ([0.37 * far, -0.21 * far], [0.6e-2 * far, 0.8e-2 * far]);
+        let (net, polyline) = polyline_under(
+            &plane,
+            |t| [p0[0] + pl[0] * t, p0[1] + pl[1] * t],
+            [0.0, 0.0],
+        );
+        let o = plane.eval(p0[0], p0[1]);
+        let line = Curve3::line(o, plane.eval(p0[0] + pl[0], p0[1] + pl[1]) - o);
+        let cylinder = Surface::Cylinder {
+            origin: Point3::new(far, far, -far),
+            axis: n,
+            radius: 0.5 * far,
+            u_ref: u,
+        };
+        let (cnet, cpolyline) = polyline_under(
+            &cylinder,
+            |t| [1.3, -0.2 * far + 1e-2 * far * t],
+            [0.0, 0.0],
+        );
+        let rows = [
+            (&plane, [p0, pl], &net, &polyline, "plane, polyline"),
+            (&plane, [p0, pl], &net, &line, "plane, line"),
+            (
+                &cylinder,
+                [[1.3, -0.2 * far], [0.0, 1e-2 * far]],
+                &cnet,
+                &cpolyline,
+                "cylinder",
+            ),
+        ];
+        for (surface, [p0, pl], net, carrier, name) in rows {
+            let iso = Image::Iso(p0, pl);
+            let got = [
+                certify_both(surface, iso.at(), iso.at(), carrier),
+                certify_both(
+                    surface,
+                    Pcurve::General(Arc::new(net.clone())),
+                    Pcurve::General(Arc::new(net.map_scalar(fi))),
+                    carrier,
+                ),
+            ];
+            for got in got.iter().flatten() {
+                // The stated image's own reading: never a miss, and in band
+                // its lever. (Far out, the endpoint pins and the net's
+                // incidence read meet their own rounding first.)
+                let e = ended(got);
+                levers += usize::from(e == Ended::InBand);
+                assert!(
+                    e != Ended::Missed,
+                    "{name} {far:e} m out, a correct image: {got:?}"
+                );
+                if let Err(
+                    e @ CertifyError::Escalated {
+                        check: CertCheck::StatedImage,
+                        ..
+                    },
+                ) = got
+                {
+                    let ending = e.ending(Reading::Build).unwrap();
+                    assert!(
+                        ending.starts_with(geom_core::MOVE_RECOURSE),
+                        "{name} {far:e} m out, in band: {ending}"
+                    );
+                }
+            }
+        }
+    }
+    eprintln!(
+        "a correct image far out: {levers} read in band at ε {:e}",
+        band().zero()
+    );
+}
+
+/// **A route decided once** (the review's interval iso line): an iso
+/// line at `Interval` whose `u` is an enclosure, not a point, but does
+/// not move, routes to the ruling's patch and certifies there against
+/// its carrier on the ruling; its patch reads the enclosure as the
+/// ruling's `u`.
+#[test]
+fn an_iso_line_whose_u_is_an_enclosure_certifies_on_its_ruling() {
+    let cylinder = tilted_cylinder();
+    let (_, carrier) = polyline_under(&cylinder, |t| [0.1, -1.0 + 2.5 * t], [0.0, 0.0]);
+    let fi = Interval::from_f64;
+    let image: Pcurve<Interval> = Pcurve::IsoLine {
+        p0: Point2::new(Interval::from_bounds(0.1, 0.1 + 1e-15), fi(-1.0)),
+        pl: geom_core::Vec2::new(fi(0.0), fi(2.5)),
+    };
+    let surface = cylinder.map_scalar(fi);
+    assert!(
+        matches!(
+            super::StatedDoor::of(&surface, &image),
+            Some(super::StatedDoor::Patch { .. })
+        ),
+        "the iso line routes to the ruling's patch"
+    );
+    let [_, got] = certify_both(
+        &cylinder,
+        Pcurve::IsoLine {
+            p0: Point2::new(0.1, -1.0),
+            pl: geom_core::Vec2::new(0.0, 2.5),
+        },
+        image,
+        &carrier,
+    );
+    assert!(got.is_ok(), "the iso line certifies on its ruling: {got:?}");
 }

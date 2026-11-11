@@ -689,7 +689,7 @@ mod tests {
         use crate::construction::{FaceSurface, MevSite};
         use geom::{Curve3, Surface};
         use geom_brep::EdgeCurveSpec;
-        use geom_brep::certify::{CertCheck, CertifyError};
+        use geom_brep::certify::CertifyError;
         use geom_core::{Band, Point3, Vec3};
 
         let tol = Tol::witness();
@@ -781,11 +781,7 @@ mod tests {
                     band,
                     geom_brep::NurbsLane::certified()
                 ),
-                Err(CertifyError::ResidualExceeded {
-                    check: CertCheck::StatedImage,
-                    sample: 1,
-                    ..
-                })
+                Err(CertifyError::StatedImageMissed { sample: 1, .. })
             ),
             "the source's image is wrong on the reverted plane"
         );

@@ -31,7 +31,7 @@ use topo::construction::Construct;
 
 use geom::{Curve3, NurbsCurve2, Surface};
 use geom_brep::{
-    CertCheck, CertifyError, EdgeCurve, EdgeCurveSpec, EdgeDescriptionSpec, Pcurve, PcurveCache,
+    CertifyError, EdgeCurve, EdgeCurveSpec, EdgeDescriptionSpec, Pcurve, PcurveCache,
     PcurveCertifyError, PcurveCheck,
 };
 use geom_core::spline::KnotVector;
@@ -384,11 +384,7 @@ fn a_plane_face_with_an_iso_line_or_nurbs_image_reverts_and_recertifies() {
         assert!(
             matches!(
                 control,
-                Err(CertifyError::ResidualExceeded {
-                    check: CertCheck::StatedImage,
-                    sample: 1,
-                    ..
-                })
+                Err(CertifyError::StatedImageMissed { sample: 1, .. })
             ),
             "{label}: the source's image on the reverted plane: {control:?}"
         );

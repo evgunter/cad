@@ -22,8 +22,8 @@ use std::sync::Arc;
 
 use geom::{Curve3, NurbsCurve2, Surface};
 use geom_brep::{
-    CertCheck, CertifyError, EdgeCurve, EdgeCurveSpec, EdgeDescriptionSpec, FocalImage, Pcurve,
-    Period, SpiricImage, SurfaceKey, SurfacePair, WallTorus,
+    CertifyError, EdgeCurve, EdgeCurveSpec, EdgeDescriptionSpec, FocalImage, Pcurve, Period,
+    SpiricImage, SurfaceKey, SurfacePair, WallTorus,
 };
 use geom_core::spline::KnotVector;
 use geom_core::{Band, Point2, Point3, Tol, Vec2, Vec3};
@@ -519,11 +519,7 @@ fn mirrored_chart_images_recertify_on_the_reverted_plane_with_the_same_certifica
         assert!(
             matches!(
                 stale,
-                Err(CertifyError::ResidualExceeded {
-                    check: CertCheck::StatedImage,
-                    sample: 0,
-                    ..
-                })
+                Err(CertifyError::StatedImageMissed { sample: 0, .. })
             ),
             "{name}: the stored image on the reverted plane: {stale:?}"
         );

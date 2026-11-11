@@ -3453,6 +3453,9 @@ fn classify_certify(e: &CertifyError) -> (&'static str, Cow<'static, str>) {
             }))
             .0
         }
+        CertifyError::StatedImageMissed { .. } => {
+            "the chart image it states does not follow its carrier"
+        }
         CertifyError::ChartImageUnavailable { .. }
         | CertifyError::UnresolvedSurface { .. }
         | CertifyError::IntersectionSameSurface { .. }
@@ -3647,6 +3650,7 @@ fn classify_certify(e: &CertifyError) -> (&'static str, Cow<'static, str>) {
             | CertifyError::TangentCertificateUnsupported => NOT_YET_ENDING,
             CertifyError::Band(_) => TOLERANCE,
             CertifyError::ChartImageUnavailable { .. }
+            | CertifyError::StatedImageMissed { .. }
             | CertifyError::NoGeneralLane { .. }
             | CertifyError::Incidence(_)
             | CertifyError::ResidualExceeded { .. }
