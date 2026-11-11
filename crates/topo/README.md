@@ -1218,13 +1218,13 @@ curved edge held at its corner, a planar face with a spline edge, or a
 point tied inside a curved edge read as its faces' tangent cones
 (`FaceSector::tangent`) where their first order decides, one order
 down where it ties at a cusp corner or along a ray
-(`link::second_order`), two sheets on one wedge read as the lens their
-bends make, two planar faces on each other refused as the planar link
+(`link::second_order`), two sheets on one wedge read as the lens or
+lune their bends make, two planar faces on each other refused as the planar link
 refuses them, and left unread where none of these decides
 (`census::SelfTouch::SecondOrder`: a cone's apex, a horn beside a sheet
 along its ray, sheets the bends do not part, a face whose tangent
 reading does not build, or tangent sectors lying on each other that no
-lens reads). Every other use of a face's normal in the coincidence
+lens or lune reads). Every other use of a face's normal in the coincidence
 sweeps is sense-invariant.
 
 The tangent reading is the germ's (`rest::first_order`). Under the
@@ -1296,33 +1296,39 @@ inside the band. Left unread:
 
 - a sign the charge leaves in band;
 - a picture whose sheets meet;
-- a horn beside a sector along its ray;
+- a horn beside a sector along its ray, but a lune's cap (below);
 - a thorn the cone round it reaches (the ray not decidedly outside the
   cone's material for a thorn, inside it for a needle), which may be a
   real overlap;
 - a curved sheet holding a tied ray inside it whose face has no
   certified bend.
 
-Two sectors bounded at the point by the same two edges, of opposed
-outward normals and not both planes, are one wedge to first order: a
-**lens** (`second_order::lenses`). One order down each is its face's
-graph over the wedge, `h(u)·s²/2` along the first's outward normal `m`
-at distance `s` along the unit `u`, `h` the face's normal section's
-acceleration (`bound_side::FaceBend::section`). Both faces hold both
-edges, so each edge's curvature vector along `m` is both faces' normal
-section along it (Meusnier), and `q = h₂ − h₁`, a quadratic form on the
-plane, vanishes along both bounds `u₀`, `u₁`: it is a multiple of
-`(u × u₀)·(u × u₁)` along `m`, of one sign across a wedge under half a
-turn. That sign, read at the wedge's middle at the arm with the second
-plane's parting from the first there charged, is the lens's: positive,
-each sheet on the other's outward side, a void between them; negative,
-a sliver of material. Each bound must read `q` Zero. Read along the
-wedge, `q((1 − t)u₀ + t·u₁) = b₀(1 − t)² + 2b₁t(1 − t) + b₂t²` with the
-bounds' `|b₀|, |b₂|` within the band's zero `z` at the arm, so a sign
-other than the middle's `q` takes by at most `z`: there the sheets lie
-within the band of each other, beside the edges they share. A face with
-no certified bend, a sector of more than one wedge, a middle in band,
-normals not decidedly opposed, or a sector in two pairs is left unread.
+Two sectors of one wedge each, lying on each other the other way round
+(each one's rays on the other's, on its plane, so their outward normals
+are opposed), not both planes, and bounded at both ends as their faces
+keep it (by one edge, or by two lines on one line), are one wedge to
+first order: a **lens** (`second_order::lenses`). One order down each is
+its face's graph over the wedge, `h(u)·s²/2` along the first's outward
+normal `m` at distance `s` along the unit `u`, `h` the face's normal
+section's acceleration (`bound_side::FaceBend::section`). Both faces
+hold both bounds' curves, so each curve's curvature vector along `m` is
+both faces' normal section along it (Meusnier), and `q = h₂ − h₁`, a
+quadratic form on the plane, vanishes along both bounds `u₀`, `u₁`: it
+is a multiple of `(u × u₀)·(u × u₁)` along `m`, of one sign across a
+wedge under half a turn. Read along the wedge,
+`q((1 − t)u₀ + t·u₁) = b₀(1 − t)² + 2b₁t(1 − t) + b₂t²`; each bound must
+read its `b` Zero, and the lens's sign is the polar value `b₁` read as
+the gap it makes along the unit middle, `b₁/(1 + cos φ)` (`φ` the
+wedge's angle; the middle direction `(u₀ + u₁)/2` is shorter than a
+unit), at the arm with the two planes' parting at the middle charged:
+positive, each sheet on the other's outward side, a void between them;
+negative, a sliver of material. With `|b₀|, |b₂|` within the band's
+zero `z` at the arm, a sign other than the middle's takes by at most
+`z`: there the sheets lie within the band of each other, beside the
+edges they share. A face with no certified bend, a bound not read Zero,
+a middle in band, or a sector in two pairs is left unread; a pair one
+of whose sectors runs on past the wedge, or is capped by a horn, is a
+lune (below).
 
 A link with lenses is read as its remainder, its other sectors and its
 horns (the horns read as thorns against the remainder's cone, which the
@@ -1345,6 +1351,69 @@ in one region of the remainder, and cutting it out or adding it moves
 that region's winding one step toward the other value: the windings
 stay two consecutive values. A lens of the wrong kind for its region is
 left unread.
+
+A pair need not be bounded by one edge at both ends. Two sectors on one
+wedge `W`, from `u₀` to `u₁`, of opposed outward normals and not both
+planes, `W` the whole of one of them and the first or last wedge of the
+other, are a **lune** (`second_order::lenses`) where each end of `W`
+closes in one of three ways:
+
+- a **pinch**: both sectors bounded there, by one edge or by two lines
+  on one line. Both faces hold the curve, so `q` vanishes along it
+  (Meusnier), and reads Zero;
+- a **cap**: both bounded there by the two edges of one horn along that
+  ray (`link::Horn`). In the cut there the horn is the segment between
+  the two sheets' points, and it closes the region between them; its
+  outward normal must face into `W` for a void and out of it for a
+  sliver;
+- a **mouth**: the other sector runs on past the end, a ray of its fan.
+
+A lens is the pair with both ends pinched; one reader takes both
+(`second_order::kind`). Along `W`,
+`q((1 − t)u₀ + t·u₁) = b₀(1 − t)² + 2b₁t(1 − t) + b₂t²`, with
+`b₀ = q(u₀)`, `b₂ = q(u₁)` and `b₁` the form's polar value on `u₀` and
+`u₁`. A pinch reads its `b` Zero; a cap or a mouth reads its `b` decided,
+one sign `σ` for both, at the arm with the two planes' parting along
+that ray charged (the ray's distance off each); and `b₁`, read as the
+gap `b₁/(1 + cos φ)` it makes along the unit middle, reads `σ` with the
+parting at the wedge's middle charged, deciding `σ` where no end is
+open. That gap bounds the dip `b₁` can make anywhere along `W`. Then `σ·q` falls below zero by at most the band's zero `z` at the
+arm, and only beside a pinch, so the sheets do not cross over `W` to
+second order: positive `σ` is a void between them, negative a sliver.
+Reading the ends alone would not do: a form positive at both ends of a
+wedge can be negative inside it, and `b₁` is what rules that out.
+
+Beside a pinch, where `b₀` vanishes, `b₁` must be decided: with `b₁`
+zero too, the sheets' parting near the pinch's ray is left to third
+order, and two curves on both faces may leave the point along that ray,
+the pinch's edge and another inside `W`, where the sheets cross (a torus
+and a cylinder tangent along a curve can meet so). Such a pair is left
+unread, skipped as a second-order point is: no reading here decides it,
+crossing or rest, and the band has not been reached. Two exceptions
+keep `b₁` Zero: a lune with no pinch, whose form is
+`b₀(1 − t)² + b₂t²` of one sign over all of `W`; and one whose every pinch
+is two lines on developable faces (planes, cylinders, cones). Such a
+face's tangent plane is one along each line it holds, so the two faces
+are tangent along all of the pinch's line, their parting `t²` times a
+function whose value at the point is `b₂`'s sign.
+
+A lune is read with the lenses (`rest::lensed`), the remainder holding
+its pair less `W`: the sector that runs on past a mouth, cut short there
+and bounded by the other sector's edge along that ray, and neither sheet
+over `W`. Crossing both sheets over `W` changes no winding, so off the
+lune the link's windings are the remainder's. At a mouth the sheets'
+tie is read in the cut by `second_order::parts`, so the lune opens there
+into the region the remainder gives it. `parts` does not read the horn
+between a cap's two sheets, so a cap whose ray another sheet reaches
+(the sector that runs on past a mouth included) refuses in band,
+whether or not that sheet enters the lune. Each lune's middle then
+reads as a lens's does, against the remainder's material.
+
+A lune is found only where the sector that runs on past a mouth has a
+ray of its fan at the mouth. A face's corner fan turns at quarter turns
+from its edge out (`link::corner_fan`), so with that sector's edge
+turned off a quarter from the other's the mouth falls inside a wedge,
+and the pair stays unread: conservative, a skip.
 
 Two planar sectors on one plane holding a common area, a slit or a
 sheet doubled, are the faces' own geometry and no tie: two planes are

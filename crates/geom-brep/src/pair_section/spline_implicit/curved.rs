@@ -65,6 +65,8 @@ pub(super) fn whole(
             form: &form,
         },
         out,
+        None,
+        band,
     )
 }
 
@@ -120,12 +122,30 @@ pub(super) fn section(
                     form: &form,
                 },
                 out,
+                None,
+                band,
             )
+        }
+        Sweep::Enclosing { decided } => {
+            let (out, listing) = super::read_listing(reading, &decided)?;
+            let partner = Bracketed {
+                surface: &partner,
+                form: &form,
+            };
+            listed(pose, partner, out, Some(&listing.of(&decided)), band)
+        }
+        Sweep::LoopFree(decided) if super::crosses(&decided, reach) => {
+            let (out, listing) = super::read_listing(reading, &decided)?;
+            let partner = Bracketed {
+                surface: &partner,
+                form: &form,
+            };
+            listed(pose, partner, out, Some(&listing.of(&decided)), band)
         }
         Sweep::LoopFree(decided) => {
             let witnesses = super::witnesses(reading.boxes(), &decided);
             drop(reading);
-            super::loop_free(pose, reach, &decided, &witnesses)
+            Ok(super::loop_free(pose, reach, &decided, &witnesses))
         }
     }
 }

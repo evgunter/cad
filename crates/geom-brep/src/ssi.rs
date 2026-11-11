@@ -148,7 +148,7 @@ pub(crate) use four::{RowCrossing, RowUnreadable, row_crossing, row_piece};
 pub(crate) use implicit_chart::PassKey;
 pub use implicit_chart::{ImplicitSection, SectionReading};
 pub use march::{
-    BranchEnd, ReachBound, SSI_IDEALIZED_STEP, SSI_NEWTON_ITERS, SSI_NEWTON_TOL,
+    BranchEnd, BranchTip, ReachBound, SSI_IDEALIZED_STEP, SSI_NEWTON_ITERS, SSI_NEWTON_TOL,
     SSI_QUADRIC_NOISE_ULPS, SSI_SETTLE_MAX, SSI_SPLINE_NOISE_ULPS, SSI_STEP_DEVIATION,
     STEP_BOUND_MINORITY, SettlingRefusal, StepBound, StepCap, StepFault, StepperMode,
 };
@@ -3698,7 +3698,7 @@ fn trace_plane_nurbs_within(
     // certifies, as every plane × NURBS branch does.
     let pass = read.pass(&form)?;
     let wall_op = SsiOperand::Nurbs(read.charted().clone());
-    let ends = ends::Ends::implicit(&sys, ctx, &wall_op, band);
+    let ends = ends::Ends::implicit(&sys, ctx, &wall_op, band, &[]);
     let (states, _) = ends.through_seed([seed_uv.0, seed_uv.1], &pass.crossings)?;
     // The last triple the certificate refused; the verdict is the
     // certifying door's to report, not this one's.

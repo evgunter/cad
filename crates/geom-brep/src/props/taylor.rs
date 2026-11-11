@@ -195,12 +195,31 @@ pub(super) fn composite_each<S, C, const N: usize>(
     (total, removable)
 }
 
+/// **How far one piece of a span may reach about a chart's axis**, as
+/// a fraction of its distance from it: a sixteenth of a turn. Each of
+/// its two readers needs a piece small against that distance, since
+/// both read something that degrades as a piece nears the axis:
+/// - the rotational volume lane reads the azimuth's rate times the
+///   piece's length, and the rate's reciprocal is the distance from the
+///   axis, so a piece within it keeps its Taylor remainder finite and
+///   small;
+/// - the incidence read of a net's twin (`crate::pcurve_cache::Parts::ByTurn`)
+///   reads the diagonal of the piece's control box over the box's least
+///   distance from the axis, so the floors its metre conversion divides
+///   by (that distance, the cone's lever) stay within a fixed fraction
+///   of the piece's own.
+///
+/// Its own value, not either lane's round count: changing it
+/// re-schedules both readers.
+pub(crate) const PIECE_TURN: f64 = core::f64::consts::TAU / 16.0;
+
 /// **The fewest equal pieces `[a, b]` is read in**, a power of two up
 /// to `most`, for which `fits(ctx, piece, h)` holds on every piece (the
 /// context prepared over it, the piece's enclosure, its length): `most`
 /// where none does. Each count is tried in full, so the reading is a
-/// function of the interval and `fits` alone.
-pub(super) fn pieces_where<C>(
+/// function of the interval and `fits` alone: the one home of how many
+/// pieces a span needs, each reader passing its own `fits`.
+pub(crate) fn pieces_where<C>(
     (a, b): (f64, f64),
     most: usize,
     prepare: impl Fn(f64, f64) -> C,
