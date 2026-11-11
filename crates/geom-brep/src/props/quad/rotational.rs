@@ -268,43 +268,21 @@ const MOST_SPAN_PIECES: usize = 1024;
 #[allow(clippy::cast_precision_loss)]
 const PIECE_TURN: f64 = core::f64::consts::TAU / EDGE_INIT_PIECES as f64;
 
-/// **The metric length one round-0 piece may span on `chart`**: a
-/// sixteenth of the chart's circumference, what a full-turn harmonic
-/// rim's round-0 piece spans ([`EDGE_INIT_PIECES`]).
-fn piece_reach(chart: RotationalChartQ) -> f64 {
-    let radius = match chart {
-        RotationalChartQ::Cylinder { radius } | RotationalChartQ::Sphere { radius, .. } => radius,
-    };
-    radius.hi() * PIECE_TURN
-}
-
 /// **A projected edge's schedule**: per span or cut interval, the fewest
 /// pieces ([`pieces_where`], at most [`MOST_SPAN_PIECES`]) on each of
-/// which the frame jets certify, the azimuth turns through at most
-/// [`PIECE_TURN`] (`sup|u′|·h`) and the metric length is at most
-/// [`piece_reach`]. The azimuth rate's reciprocal reads the chart's axis
-/// or a pole: a piece that sweeps past it refuses, and one that turns
-/// fast by it reads a wide remainder, so a span by the axis takes the
-/// pieces its turn needs and a short span far from it one.
+/// which the azimuth turns through at most [`PIECE_TURN`], read as
+/// `sup|u′|·h` over the piece. The azimuth rate's reciprocal reads the
+/// chart's axis or a pole: a piece that sweeps past it reads no rate
+/// (and fits nowhere), and one that turns fast by it reads a wide
+/// remainder, so a span by the axis takes the pieces its turn needs, and
+/// a short span far from it one.
 ///
-/// **No piece a round reads is uncertified, turns through more than
-/// [`PIECE_TURN`] or is longer than [`piece_reach`]**, its pieces only
-/// halving round by round, unless its span is still not read so at
-/// [`MOST_SPAN_PIECES`], where the rounds read it as they can and refuse
-/// what they cannot.
-fn span_schedule(p: &ProjectedEdgeQ, chart: RotationalChartQ) -> Schedule {
-    let reach = piece_reach(chart);
-    let fits = |at: &FrameJets, h: f64| {
-        let speed = chart.projected_speed(at);
-        at.du
-            .0
-            .iter()
-            .chain(&at.height().0)
-            .all(|c| c.is_certified())
-            && speed.is_certified()
-            && speed.hi() * h <= reach
-            && at.du.0[0].mag() * h <= PIECE_TURN
-    };
+/// **No piece a round reads turns through more than [`PIECE_TURN`]**,
+/// its pieces only halving round by round, unless its span is still not
+/// read so at [`MOST_SPAN_PIECES`], where the rounds read it as they can
+/// and refuse what they cannot.
+fn span_schedule(p: &ProjectedEdgeQ) -> Schedule {
+    let fits = |at: &FrameJets, h: f64| at.du.0[0].mag() * h <= PIECE_TURN;
     Schedule(match &p.carrier {
         FramedQ::Net(net) => rational_span_pieces(net, MOST_SPAN_PIECES, |b, db, w, h| {
             fits(&net_rate(b, db, w), h)
@@ -321,6 +299,16 @@ fn span_schedule(p: &ProjectedEdgeQ, chart: RotationalChartQ) -> Schedule {
             })
             .collect(),
     })
+}
+
+/// **The length one round-0 piece of a rational chart term may span**:
+/// a sixteenth of the chart's circumference, what a full-turn harmonic
+/// rim's round-0 piece spans ([`EDGE_INIT_PIECES`]).
+fn piece_reach(chart: RotationalChartQ) -> f64 {
+    let radius = match chart {
+        RotationalChartQ::Cylinder { radius } | RotationalChartQ::Sphere { radius, .. } => radius,
+    };
+    radius.hi() * PIECE_TURN
 }
 
 /// **A rational chart term's schedule**: per span, the fewest pieces on
@@ -987,7 +975,7 @@ fn edge_entry(e: &EdgeTermQ, chart: RotationalChartQ) -> Result<EdgeEntry, Props
         }
         EdgeTermQ::Projected(p) => {
             let length = projected_metric_length(p, chart);
-            let schedule = span_schedule(p, chart);
+            let schedule = span_schedule(p);
             let turn = entry_turn(p, &schedule);
             if !(length.is_finite() && turn.is_certified()) {
                 return Err(PropsError::QuadratureUnsupported {

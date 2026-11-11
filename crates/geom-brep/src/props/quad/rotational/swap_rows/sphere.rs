@@ -1134,18 +1134,19 @@ fn with_arc_segments<R>(segments: usize, run: impl FnOnce() -> R) -> R {
     out
 }
 
-/// **A disc by the pole on a many-span net measures**: the cap circle
-/// missing the pole by `1e-3` and by `0.02`, on
-/// 16 and 64 spans (most of them short, those by the pole turning fast),
-/// at every one of rounds 0 to 2 that answers and to the target, under
-/// both names; the face and its complement.
+/// **A disc by the pole measures at every round, on one span or many**:
+/// the cap circle missing the pole by `1e-3` and by `0.02`, on its own
+/// net and on 16 and 64 spans (most of them short, those by the pole
+/// turning fast), each of rounds 0 to 2 taken whatever its width but
+/// through the face-extent gate, under both names, and to the target;
+/// the face and its complement.
 #[test]
-fn a_disc_by_the_pole_on_a_many_span_net_measures() {
+fn a_disc_by_the_pole_measures_at_every_round_on_one_span_or_many() {
     let ball = Ball::tilted(Point3::new(0.4, -0.2, 0.3), 0.7);
     let about = Point3::new(0.1, 0.5, -0.2);
     let theta = 0.4;
     let band = Band::linear(Tol::witness()).unwrap();
-    for segments in [16, 64] {
+    for segments in [1, 16, 64] {
         for miss in [0.02, 1e-3] {
             let at = (0.7, FRAC_PI_2 - theta - miss);
             for (inside, area) in [
@@ -1158,19 +1159,19 @@ fn a_disc_by_the_pole_on_a_many_span_net_measures() {
                 let held = with_arc_segments(segments, || {
                     for name in [Name::Own, Name::Twin] {
                         for round in 0..3 {
-                            let got = sphere_face(ball, true, &loops, about, name).and_then(|f| {
-                                rotational_cut_face_rounds::<f64>(
-                                    &f,
-                                    band,
-                                    RoundWindow::at(round),
-                                    &mut |_, _| Ok(false),
-                                )
-                            });
-                            if let Ok(got) = got {
-                                let what = format!("{tag}, twin {}, round {round}", name.twin());
-                                encloses(got.bounds.flux, flux, &format!("{what}: flux"));
-                                encloses(got.bounds.area, truth, &format!("{what}: area"));
-                            }
+                            let what = format!("{tag}, twin {}, round {round}", name.twin());
+                            let got = sphere_face(ball, true, &loops, about, name)
+                                .and_then(|f| {
+                                    rotational_cut_face_rounds::<f64>(
+                                        &f,
+                                        band,
+                                        RoundWindow::at(round),
+                                        &mut to_target(1e6),
+                                    )
+                                })
+                                .unwrap_or_else(|e| panic!("{what}: refused {e:?}"));
+                            encloses(got.bounds.flux, flux, &format!("{what}: flux"));
+                            encloses(got.bounds.area, truth, &format!("{what}: area"));
                         }
                     }
                     holds_or_refuses(&tag, ball, true, &loops, area, about)

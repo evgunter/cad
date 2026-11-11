@@ -582,11 +582,10 @@ fn frame_section(segments: usize, ts: (f64, f64)) -> ProjectedEdgeQ {
 /// at a knot, schedules each span alike ([`span_schedule`]).
 #[test]
 fn a_chord_read_as_one_edge_or_two_schedules_each_span_alike() {
-    let chart = RotationalChartQ::Cylinder { radius: pt(0.8) };
-    let whole = span_schedule(&frame_section(20, (0.0, 1.0)), chart).0;
+    let whole = span_schedule(&frame_section(20, (0.0, 1.0))).0;
     let halves: Vec<usize> = [(0.0, 0.5), (0.5, 1.0)]
         .into_iter()
-        .flat_map(|ts| span_schedule(&frame_section(20, ts), chart).0)
+        .flat_map(|ts| span_schedule(&frame_section(20, ts)).0)
         .collect();
     assert_eq!(whole.len(), 20, "the section's spans");
     assert_eq!(whole, halves, "one edge against its two halves");
@@ -594,7 +593,8 @@ fn a_chord_read_as_one_edge_or_two_schedules_each_span_alike() {
 
 /// **A face's work is the pieces its rounds read**: a harmonic edge's
 /// [`EDGE_INIT_PIECES`] and a 40-span chord's one piece a span (each
-/// span a fraction of the chart's sixteenth), both doubling per round.
+/// span turning through a fraction of [`PIECE_TURN`]), both doubling per
+/// round.
 #[test]
 fn a_faces_work_is_the_pieces_its_rounds_read() {
     let chart = RotationalChartQ::Cylinder { radius: pt(0.8) };
