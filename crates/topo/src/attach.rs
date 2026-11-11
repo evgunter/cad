@@ -1872,7 +1872,7 @@ fn rekeyed<T: geom_core::Real>(
         }
         EdgeDescriptionSpec::OnPair { pair: p, declared } => Some(EdgeDescriptionSpec::OnPair {
             pair: pair(*p),
-            declared: declared.clone(),
+            declared: *declared,
         }),
         EdgeDescriptionSpec::Chart { .. } | EdgeDescriptionSpec::Scaffold(_) => None,
     }
