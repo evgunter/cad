@@ -10137,8 +10137,53 @@ pub(crate) fn read_net_bound<T: Decide>(
     {
         return Err(sampled);
     }
-    crate::edge_nurbs::limb2(carrier, (t0, t1), surface, offset(), None, band)
-        .map_err(|refusal| net_bound_refusal::<T>(refusal, surface, carrier, band))
+    #[cfg(test)]
+    let review_mut = std::env::var("REVIEW6826_MUT").unwrap_or_default();
+    #[cfg(test)]
+    let offset = || {
+        // Review mutant `overread`: the bound read eight times too wide
+        // and taken as a measured miss.
+        let read = offset();
+        if review_mut != "overread" {
+            return read;
+        }
+        read.map(|mut r| {
+            if let projected::Offset::Bound(b) = &r.offset {
+                let b8 = *b * T::from_f64(8.0);
+                r.offset = projected::Offset::Miss {
+                    floor: b8,
+                    bound: Ok(b8),
+                };
+                r.floor = 8.0 * r.upper;
+                r.upper *= 8.0;
+            } else if let projected::Offset::Miss { floor, bound } = &r.offset {
+                let e8 = T::from_f64(8.0);
+                r.offset = projected::Offset::Miss {
+                    floor: *floor * e8,
+                    bound: bound.clone().map(|b| b * e8),
+                };
+                r.floor *= 8.0;
+                r.upper *= 8.0;
+            }
+            r
+        })
+    };
+    let got = crate::edge_nurbs::limb2(carrier, (t0, t1), surface, offset(), None, band);
+    #[cfg(test)]
+    if review_mut == "loseband" {
+        // Review mutant `loseband`: limb 2's in-band side read on.
+        use crate::edge_nurbs::AnalyticRung3Refusal as R;
+        if let Err(
+            R::Stalled { .. }
+            | R::Escalated { .. }
+            | R::KernelLimit { .. }
+            | R::NoOffsetBound { .. },
+        ) = &got
+        {
+            return Ok(());
+        }
+    }
+    got.map_err(|refusal| net_bound_refusal::<T>(refusal, surface, carrier, band))
 }
 
 /// **What [`read_net_bound`] ends a refusal of limb 2 as**: a measured
@@ -13093,6 +13138,9 @@ mod placement_rows;
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::panic)]
 mod radial_pair_rows;
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::panic)]
+mod review_6826_probes;
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::panic)]
 mod ruling_reading_rows;
