@@ -2302,11 +2302,11 @@ impl<T: Decide + geom_core::CertifiedBounds> EdgeCurve<T> {
     ///      `TangentIntersection`'s second-order arm folds the same
     ///      `reach`.
     ///    - `Scaffold` (a mapped source): `|carrier(t_i) − description(i/8)|`.
-    ///    - `Chart`: `|C(t_i) − S(P(t_i))|` for a derived image. A stated
-    ///      image is bounded over the whole span before the schedule, through
-    ///      its pcurve certificate's door
-    ///      ([`crate::PcurveCache::certify_stated`]), whose envelope is a sup,
-    ///      and its refusal ends by the carrier's incidence read.
+    ///    - `Chart`: `|C(t_i) − S(P(t_i))|`, but for a stated image on a
+    ///      spline chart, which is bounded over the whole span before the
+    ///      schedule, through its pcurve certificate's door
+    ///      ([`crate::PcurveCache::certify_stated`]), whose envelope is a
+    ///      sup, and its refusal ends by the carrier's incidence read.
     /// 5. `Intersection`: the witness's implicit residuals vs both
     ///    surfaces, then the **mid-parameter pin**
     ///    `|carrier.mid_point(t₀, t₁) − witness| ≤ ε`
@@ -4200,10 +4200,11 @@ fn canonical_of<T: Decide>(
 
 /// **The mint's stated chart image, ended by the carrier's incidence
 /// read** (D3, `pcurve_cache::incidence_ended_unwitnessed`): `door` is the
-/// mint's canonical description, and a spec that states no chart image
-/// runs it as it stands. So a carrier off its analytic face ends as the
-/// read ([`mint_refusal`]). The certification bounds a stated image over
-/// its span instead ([`stated_bound`]).
+/// mint's canonical description, or nothing at the certification, and a
+/// spec that states no chart image runs it as it stands. So a carrier off
+/// its analytic face ends as the read ([`mint_refusal`]); on a spline
+/// chart the certification bounds a stated image over its span
+/// ([`stated_bound`]).
 fn stated_door<T: Decide, R>(
     spec: &EdgeCurveSpec<T>,
     resolved: &Resolved<T>,
@@ -4230,14 +4231,16 @@ fn stated_door<T: Decide, R>(
     )
 }
 
-/// **A stated chart image's bound over the span** (D4 ¶2): the image a
-/// construction states is certified through its pcurve certificate's
-/// door ([`crate::PcurveCache::certify_stated`], the mint's), whose
-/// envelope bounds `|C(t) − S(P(t))|` over the whole span, so a carrier
-/// off its chart between any samples does not certify. A refusal is
-/// ended by the carrier's incidence read there, and carried into this
-/// door's vocabulary by [`mint_refusal`]. `None` for any other
-/// description.
+/// **A stated chart image's bound over the span on a spline chart** (D4
+/// ¶2): the image a construction states is certified through its pcurve
+/// certificate's door ([`crate::PcurveCache::certify_stated`], the
+/// mint's), whose envelope bounds `|C(t) − S(P(t))|` over the whole span,
+/// so a carrier off its wall between any samples does not certify. A
+/// refusal is ended by the carrier's incidence read there, and carried
+/// into this door's vocabulary by [`mint_refusal`]. `None` for any other
+/// description, and on an analytic chart, whose stated image is read
+/// first ([`stated_door`]) and metered at the schedule
+/// (`work/pcert/a-closed-conics-and-a-spline-nets-incidence-on-an-analytic-chart-is-sampled.md`).
 fn stated_bound<T: Decide + geom_core::CertifiedBounds>(
     spec: &EdgeCurveSpec<T>,
     resolved: &Resolved<T>,
@@ -4251,6 +4254,9 @@ fn stated_bound<T: Decide + geom_core::CertifiedBounds>(
     else {
         return Ok(None);
     };
+    if surface.spline_chart().is_none() {
+        return Ok(None);
+    }
     #[cfg(test)]
     if crate::pcurve_cache::mutants::stated_image_sampled() {
         return Ok(None);
@@ -4428,9 +4434,11 @@ fn run_checks<T: Decide + geom_core::CertifiedBounds>(
         &mut max_residual,
     )?;
 
-    // From the canonical description on: a stated image's bound over the
-    // span, the description's sampled checks and C2's limbs.
+    // From the canonical description on: a stated image's read on an
+    // analytic chart or bound over the span on a spline chart, the
+    // description's sampled checks and C2's limbs.
     let resolved = &resolved;
+    stated_door(spec, resolved, band, || Ok(()))?;
     let canonical = canonical_of(spec, resolved, band)?;
     if let Some(bound) = stated_bound(spec, resolved, band)? {
         max_residual = max_residual.max(bound);
@@ -4691,15 +4699,15 @@ fn run_checks<T: Decide + geom_core::CertifiedBounds>(
                     return Err(CertifyError::Unimplemented);
                 };
                 let p = spec.carrier.eval(t);
-                // A stated image is bounded over the span above
-                // (`stated_bound`).
+                // A stated image on a spline chart is bounded over
+                // the span above (`stated_bound`).
                 #[cfg(test)]
                 let image = if crate::pcurve_cache::mutants::stated_image_sampled() {
                     &None
                 } else {
                     image
                 };
-                if image.is_none() {
+                if image.is_none() || surface.spline_chart().is_none() {
                     let q = chart.pcurve.eval(t);
                     check_residual(
                         "pcurve_map_residual",

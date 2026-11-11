@@ -53,3 +53,38 @@ cell, subdivided where it does not decide.
 Rows: a circle on an apple spindle passing an apex `30·zero` to the
 side ends `CarrierOffChart` at both scalars; a net through a cone's
 apex the same.
+
+## Evidence: the edge certificate's derived chart image and two-surface `OnPair` inherit the sampled read
+
+Added by `pcert/stated-image-bounded` (the row
+`a-stated-chart-image-on-a-spline-face-is-certified-by-a-sampled-meter`).
+That PR bounds a STATED chart image over its span through its pcurve
+certificate (`certify.rs` `stated_bound`), and gives the spline chart's
+read a spline carrier's own breakpoints and Greville abscissae
+(`spline_incidence::own_fractions`). Two edge-certificate arms still
+bound nothing between samples where this row's read does not:
+
+- `certify.rs` `run_checks`, the `Resolved::Chart` arm on an analytic
+  chart, a derived image or a stated one: `pcurve_map_residual` at the
+  nine `CERT_SAMPLES`, after the read (`stated_door`). A stated image
+  there is not routed through `PcurveCache::certify_stated` as on a spline
+  chart: the stated images producers hand an analytic chart (an iso line
+  on a plane, a harmonic image restated on a reverted or mirrored chart, a
+  restriction placed in another window) are not all ones a pcurve door
+  certifies, and about seventy rows across topo and sweep refuse
+  `ChartImageUnavailable` when they are. Where
+  the read is a supremum (a line's critical points) the residual's foot
+  images inherit it; where the read is sampled (the table above: a conic
+  on a spindle, a net on any analytic chart) neither the read nor the
+  residual bounds the carrier between samples. The pcurve certificate the
+  mint stores (`PcurveCache::certify`) carries an envelope, but the edge
+  certificate is issued before it, and pncad re-exports
+  `geom_brep::EdgeCurve::certify`.
+- `run_checks`, the `Resolved::OnPair` arm on two analytic surfaces:
+  `carrier_on_surface_1`/`_2` implicit residuals at the nine samples and
+  nothing over the span (a spline carrier is refused there). A line on a
+  plane is linear and the ends bound it; the conic rows of the table
+  apply to the rest.
+
+The fix this row names (a read that is a supremum) closes both, since
+the derived image is the foot image of a carrier the read shows on.
