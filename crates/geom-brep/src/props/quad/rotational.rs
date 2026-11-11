@@ -296,7 +296,11 @@ fn span_schedule(p: &ProjectedEdgeQ, chart: RotationalChartQ) -> Schedule {
     let reach = piece_reach(chart);
     let fits = |at: &FrameJets, h: f64| {
         let speed = chart.projected_speed(at);
-        at.du.0.iter().chain(&at.height().0).all(|c| c.is_certified())
+        at.du
+            .0
+            .iter()
+            .chain(&at.height().0)
+            .all(|c| c.is_certified())
             && speed.is_certified()
             && speed.hi() * h <= reach
             && at.du.0[0].mag() * h <= PIECE_TURN

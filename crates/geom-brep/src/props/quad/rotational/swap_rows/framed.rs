@@ -289,9 +289,9 @@ impl Section {
                 swap: None,
             },
         ];
-        let va = edges
-            .iter()
-            .fold(Vec3::zero(), |s, e| s + channel_vector_area(chart, &e.harmonic));
+        let va = edges.iter().fold(Vec3::zero(), |s, e| {
+            s + channel_vector_area(chart, &e.harmonic)
+        });
         let a = (c - v0) * (u1 - u0) + k * r * (u1.sin() - u0.sin());
         let flux = r * r * a + (chart.o - about).dot(va);
         (
@@ -440,11 +440,15 @@ fn projected_integrals_hold_high_precision_truths() {
             env: Interval::zero(),
         };
         for pieces in [1, 2, 3, 8, 128] {
-            let (got, _) = projected_integrals(&e, |_| pieces, |at| {
-                let [f, g] = cylinder_projected_forms(radius, &e, at, 0.25);
-                let minus = -Interval::one();
-                [f.mul(at.du).scale(minus), g.mul(at.du).scale(minus), at.du]
-            });
+            let (got, _) = projected_integrals(
+                &e,
+                |_| pieces,
+                |at| {
+                    let [f, g] = cylinder_projected_forms(radius, &e, at, 0.25);
+                    let minus = -Interval::one();
+                    [f.mul(at.du).scale(minus), g.mul(at.du).scale(minus), at.du]
+                },
+            );
             for k in 0..3 {
                 encloses(got[k], truth[k], &format!("{label} @{pieces} [{k}]"));
             }
@@ -517,7 +521,9 @@ fn a_circle_of_many_cuts_holds_at_every_round() {
             .collect();
         loops[0] = circle;
         let face = RotationalFaceQ {
-            chart: RotationalChartQ::Cylinder { radius: pt(chart.r) },
+            chart: RotationalChartQ::Cylinder {
+                radius: pt(chart.r),
+            },
             chart_term: ChartTermQ {
                 closed: Interval::zero(),
                 lever: [Interval::zero(); 3],
@@ -531,7 +537,14 @@ fn a_circle_of_many_cuts_holds_at_every_round() {
             encloses(got.flux, flux, &format!("circle {label} r{round}: flux"));
             encloses(got.area, area, &format!("circle {label} r{round}: area"));
         }
-        framed_holds(chart, us, vs, 0, face.loops[0][0].clone(), &format!("circle {label} to target"));
+        framed_holds(
+            chart,
+            us,
+            vs,
+            0,
+            face.loops[0][0].clone(),
+            &format!("circle {label} to target"),
+        );
     }
 }
 
