@@ -4,6 +4,7 @@ kind: issue
 title: The mesh walk's pole_index and coherence's pole exemption each decide a vertex at a pole by their own distance, kept equal by hand, apart from the kernel's one incidence reading
 status: open
 opened: 2026-10-31
+priority: P2
 ---
 
 
@@ -15,13 +16,17 @@ apex, at the caller's band). The loop walk's reset joint
 and the wrap-tip rule all read it (PR 6097). Two readers outside topo's
 validator decide the same fact by their own distance:
 
-- `mesh::walk::loop_polygon`'s `pole_at` (`crates/mesh/src/walk.rs`,
-  near line 1044). A junction is identified with `Chart::poles()`'s point
+- `mesh::walk::loop_polygon`'s `pole_index` (`crates/mesh/src/walk.rs`,
+  near line 1165). A junction is identified with `Chart::poles()`'s point
   where `Eps::coincident(|p − pole|)` holds. That is the mesh's own
   inclusive threshold, not the band's three-way decision.
-  The wrap strip reads its tips through the same find
-  (`mesh::walk::wrap_strip`, `pole_at`), so the one-face ball's two
-  tips are a third consumer of the walk's own distance.
+  The wrap strip (`mesh::walk::wrap_strip`, PR 6823) reads its tips by
+  the one reading, `vertex_at_singular_point` at the run's band, and
+  opens its far side off the tip. The strip's pole ENTRIES are still
+  emitted where `pole_v` (this find) identifies the junction, so on the
+  one-face ball the two readings meet at one vertex and agree only
+  because a tip read on decides its distance under ε, which is this
+  find's band.
 - `topo::coherence::loop_findings`'s pole exemption
   (`crates/topo/src/coherence.rs`, near line 605):
   `(p − pp).norm() <= eps`. Its comment says it is inclusive *because*
