@@ -1683,12 +1683,16 @@ pub fn rotational_cut_face_rounds<T: Decide>(
 ) -> Result<LaneRun, PropsError> {
     let chart = face.chart;
     if let RotationalChartQ::Torus { major, minor, .. } = chart {
+        let unsupported = || PropsError::QuadratureUnsupported {
+            what: "a torus face whose radii are refused brackets or not a ring torus's \
+                   (0 < r < R)",
+        };
+        if !(major.is_certified() && minor.is_certified()) {
+            return Err(unsupported());
+        }
         let floor = (major - minor).lo().min(minor.lo());
-        if !(major.is_certified() && minor.is_certified()) || floor.is_nan() || floor <= 0.0 {
-            return Err(PropsError::QuadratureUnsupported {
-                what: "a torus face whose radii are refused brackets or not a ring torus's \
-                       (0 < r < R)",
-            });
+        if floor.is_nan() || floor <= 0.0 {
+            return Err(unsupported());
         }
     }
     let entries: Vec<Vec<EdgeEntry>> = face

@@ -455,8 +455,7 @@ const ROSTER: &[(&str, usize, usize, &str)] = &[
         20,
         19,
         "19 read after asking by name. `rotational_cut_face_rounds`' 2 are the ring torus's \
-         floor, `(R − r).lo()` and `r.lo()`, bound on the line whose condition refuses unless \
-         both radii certify; `torus_face`'s 14 are its count window, every one past a refusal \
+         floor, `(R − r).lo()` and `r.lo()`; `torus_face`'s 14 are its count window, every one past a refusal \
          unless `x` and `A` both certify with `A.lo() > 0`, so `x + n·A` at the finite count `n` \
          certifies too. The remainder is `piece_reach`'s 1, the chart radius's \
          upper end scaled to the length a rational chart term's round-0 piece may span: a \
@@ -489,8 +488,9 @@ const ROSTER: &[(&str, usize, usize, &str)] = &[
          brackets: `q − p` of two finite nodes, and the rate the caller's own `f64` upper bound, \
          `NaN` where it reads none, which the sum carries. `primitive_each`'s 1 is counted \
          asking, but its `is_certified()` is `start`'s: the read is a piece's length `h`, the \
-         `hi` of `q − p` of two nodes of an interval it has checked finite, and it scales only \
-         `removable`, the width a later round removes, never `total`. Every other read sits in a function \
+         `hi` of `q − p`. A node is `NaN` where `b − a` overflows, and then `pt` of it is NaI, \
+         so `total` refuses; `h` scales only `removable`, the width a later round removes, \
+         whose `NaN` makes `Run::stop`'s floor comparison false. Every other read sits in a function \
          that refuses a refused input by name (`composite_by`, 10; `trig_of`, 2), and the \
          integrands' trig jets read through `trig_of` (`trig_jets`)",
     ),
