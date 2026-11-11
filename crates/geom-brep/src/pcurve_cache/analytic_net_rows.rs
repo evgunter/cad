@@ -255,6 +255,12 @@ struct Door {
     name: &'static str,
     certify: fn(Ruled, &Net, Stated) -> Result<(), CertifyError>,
     read: Read,
+    /// The stated-image edge certificate of a net on a sphere or torus
+    /// over a window, stated by the projected image the mint derives for
+    /// its on-chart twin; `None` where the mint does not image the twin.
+    certify_round: fn(&Round, f64) -> Option<Result<(), CertifyError>>,
+    /// `net_bound_refusal` on a witness net on the plane.
+    refusal: fn(crate::edge_nurbs::AnalyticRung3Refusal) -> PcurveCertifyError,
 }
 
 macro_rules! door_at {
@@ -282,11 +288,48 @@ macro_rules! door_at {
             read: |surface, net, (t0, t1)| {
                 let c = <$t as Real>::from_f64;
                 let carrier = Curve3::Nurbs(Arc::new(net.map_scalar(c)));
-                let surface = surface.map_scalar(c);
-                let span = (c(t0), c(t1));
-                super::read_net_bound(&carrier, span, &surface, band(), || {
-                    super::limb2_offset_sup(&carrier, span, &surface, band())
-                })
+                super::read_net_bound(
+                    &carrier,
+                    (c(t0), c(t1)),
+                    &surface.map_scalar(c),
+                    band(),
+                    super::limb2_offset_sup,
+                )
+            },
+            certify_round: |round, miss| {
+                let c = <$t as Real>::from_f64;
+                let (t0, t1) = round.window;
+                let surface = round.surface().map_scalar(c);
+                let on = Curve3::Nurbs(Arc::new(round.net(0.0).map_scalar(c)));
+                let image = crate::chart_pcurve_over(&on, c(t0), c(t1), &surface, band()).ok()?;
+                let carrier = Curve3::Nurbs(Arc::new(round.net(miss).map_scalar(c)));
+                let mut table: slotmap::SlotMap<SurfaceKey, Surface<$t>> =
+                    slotmap::SlotMap::with_key();
+                let key = table.insert(surface);
+                let (start, end) = (carrier.eval(c(t0)), carrier.eval(c(t1)));
+                EdgeCurve::certify(
+                    EdgeCurveSpec {
+                        description: EdgeDescriptionSpec::chart_image(key, image),
+                        carrier,
+                        param_start: c(t0),
+                        param_end: c(t1),
+                    },
+                    start,
+                    end,
+                    |k| table.get(k).cloned(),
+                    geom_core::test_support::fixture_lever(<$t as Real>::one()),
+                    band(),
+                    NurbsLane::certified(),
+                )
+                .map(|_| ())
+                .into()
+            },
+            refusal: |refusal| {
+                let c = <$t as Real>::from_f64;
+                let surface = Ruled::Plane.surface::<$t>();
+                let carrier =
+                    Curve3::Nurbs(Arc::new(witness(0.0).curve(Ruled::Plane).map_scalar(c)));
+                super::net_bound_refusal(refusal, &surface, &carrier, band())
             },
         }
     };
@@ -402,6 +445,20 @@ impl Height {
     /// on certifies, in the band ends in the lever (its supremum is past
     /// the zero and short of the escalation, so neither on nor off can be
     /// shown), off ends off.
+    /// [`Self::ends`], save that on the chart a refusal of a check after
+    /// the read is admitted where it reads neither off nor definite: at
+    /// `Interval` and ε 1e-12 the schedule's residual on a sphere of
+    /// radius 2 can escalate on its enclosure's width.
+    fn admits(self, got: &Result<(), CertifyError>, read: Option<IncidenceRead>) -> bool {
+        match self {
+            Self::On => {
+                got.is_ok()
+                    || !matches!(read, Some(r) if r.is_definite() || matches!(r, IncidenceRead::Off(_)))
+            }
+            _ => self.ends(got, read),
+        }
+    }
+
     fn ends<E: std::fmt::Debug>(self, got: &Result<(), E>, read: Option<IncidenceRead>) -> bool {
         match self {
             Self::On => got.is_ok(),
@@ -431,80 +488,105 @@ fn draw_ruled(g: &mut fuzz::Rng) -> Net {
 
 /// A circle a uniform `miss` off a sphere or a torus, as a rational
 /// quadratic net (four quarter arcs) refined at random knots, read over a
-/// random window: on the sphere a great circle of radius `R + miss`, on
-/// the torus a tube circle of radius `r + miss` about the core.
-fn draw_round(
-    g: &mut fuzz::Rng,
+/// random window: on the sphere a great circle tilted `tilt` from the
+/// equator (clear of the poles, where the projected image has no
+/// azimuth) of radius `R + miss`, on the torus a tube circle of radius `r + miss`
+/// about the core. Its distance from the chart is `|miss|` everywhere.
+#[derive(Clone, Debug)]
+struct Round {
     torus: bool,
-    miss: f64,
-) -> (Surface<f64>, NurbsCurve3<f64>, (f64, f64)) {
-    let (big, small) = (2.0, 0.5);
-    let phi = g.range(0.0, std::f64::consts::TAU);
-    let radial = Vec3::new(phi.cos(), phi.sin(), 0.0);
-    let (surface, center, a, radius) = if torus {
-        (
+    phi: f64,
+    tilt: f64,
+    add: Vec<f64>,
+    window: (f64, f64),
+}
+
+const BIG: f64 = 2.0;
+const SMALL: f64 = 0.5;
+
+impl Round {
+    fn draw(g: &mut fuzz::Rng, torus: bool) -> Self {
+        let phi = g.range(0.0, std::f64::consts::TAU);
+        let tilt = g.range(0.2, 1.2);
+        let mut add: Vec<f64> = (0..g.below(30))
+            .map(|_| g.range(1e-6, 1.0 - 1e-6))
+            .collect();
+        add.sort_by(f64::total_cmp);
+        let (x, y) = (g.unit(), g.unit());
+        let window = (x.min(y), x.max(y).max(x.min(y) + 1e-3).min(1.0));
+        Self {
+            torus,
+            phi,
+            tilt,
+            add,
+            window,
+        }
+    }
+
+    fn surface(&self) -> Surface<f64> {
+        if self.torus {
             Surface::Torus {
                 center: Point3::origin(),
                 axis: Vec3::unit_z(),
-                major_radius: big,
-                minor_radius: small,
+                major_radius: BIG,
+                minor_radius: SMALL,
                 u_ref: Vec3::unit_x(),
-            },
-            Point3::origin() + radial * big,
-            radial,
-            small + miss,
-        )
-    } else {
-        (
+            }
+        } else {
             Surface::Sphere {
                 center: Point3::origin(),
                 axis: Vec3::unit_z(),
-                radius: big,
+                radius: BIG,
                 u_ref: Vec3::unit_x(),
-            },
-            Point3::origin(),
-            radial,
-            big + miss,
+            }
+        }
+    }
+
+    fn net(&self, miss: f64) -> NurbsCurve3<f64> {
+        let a = Vec3::new(self.phi.cos(), self.phi.sin(), 0.0);
+        let (center, radius, b) = if self.torus {
+            (Point3::origin() + a * BIG, SMALL + miss, Vec3::unit_z())
+        } else {
+            let across = Vec3::new(-self.phi.sin(), self.phi.cos(), 0.0);
+            let b = across * self.tilt.cos() + Vec3::unit_z() * self.tilt.sin();
+            (Point3::origin(), BIG + miss, b)
+        };
+        let w = std::f64::consts::FRAC_1_SQRT_2;
+        let corners = [
+            (1.0, 0.0),
+            (1.0, 1.0),
+            (0.0, 1.0),
+            (-1.0, 1.0),
+            (-1.0, 0.0),
+            (-1.0, -1.0),
+            (0.0, -1.0),
+            (1.0, -1.0),
+            (1.0, 0.0),
+        ];
+        let control = corners
+            .iter()
+            .map(|&(x, y)| center + a * (radius * x) + b * (radius * y))
+            .collect();
+        let weights = (0..9).map(|i| if i % 2 == 0 { 1.0 } else { w }).collect();
+        NurbsCurve3::new(
+            KnotVector::clamped(
+                vec![
+                    0.0, 0.0, 0.0, 0.25, 0.25, 0.5, 0.5, 0.75, 0.75, 1.0, 1.0, 1.0,
+                ],
+                2,
+            )
+            .unwrap(),
+            control,
+            weights,
         )
-    };
-    let b = Vec3::unit_z();
-    let w = std::f64::consts::FRAC_1_SQRT_2;
-    let corners = [
-        (1.0, 0.0),
-        (1.0, 1.0),
-        (0.0, 1.0),
-        (-1.0, 1.0),
-        (-1.0, 0.0),
-        (-1.0, -1.0),
-        (0.0, -1.0),
-        (1.0, -1.0),
-        (1.0, 0.0),
-    ];
-    let control = corners
-        .iter()
-        .map(|&(x, y)| center + a * (radius * x) + b * (radius * y))
-        .collect();
-    let weights = (0..9).map(|i| if i % 2 == 0 { 1.0 } else { w }).collect();
-    let circle = NurbsCurve3::new(
-        KnotVector::clamped(
-            vec![
-                0.0, 0.0, 0.0, 0.25, 0.25, 0.5, 0.5, 0.75, 0.75, 1.0, 1.0, 1.0,
-            ],
-            2,
-        )
-        .unwrap(),
-        control,
-        weights,
-    )
-    .unwrap();
-    let mut add: Vec<f64> = (0..g.below(30))
-        .map(|_| g.range(1e-6, 1.0 - 1e-6))
-        .collect();
-    add.sort_by(f64::total_cmp);
-    let net = circle.refine_knots(&add).unwrap();
-    let (x, y) = (g.unit(), g.unit());
-    let window = (x.min(y), x.max(y).max(x.min(y) + 1e-3).min(1.0));
-    (surface, net, window)
+        .unwrap()
+        .refine_knots(&self.add)
+        .unwrap()
+    }
+
+    fn name(&self) -> &'static str {
+        if self.torus { "torus" } else { "sphere" }
+    }
 }
 
 fn incidence(got: &Result<(), PcurveCertifyError>) -> Option<IncidenceRead> {
@@ -514,16 +596,28 @@ fn incidence(got: &Result<(), PcurveCertifyError>) -> Option<IncidenceRead> {
     }
 }
 
-/// **No false Off, and every height ends by its supremum** (shape 1): a
-/// knot-rich net on its plane, cylinder or cone, through the edge
-/// certificate, or a refined circle on its sphere or torus, through the
-/// bounded read, at a supremum of zero, in the band or four times the
-/// escalation, ends as that supremum says ([`Height::ends`]) at `f64`
-/// and at `Interval`.
+/// **No false Off, and every height ends by its supremum** (shape 1),
+/// through the edge certificate: a knot-rich net along a ruling of its
+/// plane, cylinder or cone, stated by the ruling's image, and a refined
+/// circle on its sphere or torus, stated by the projected image the mint
+/// derives for its on-chart twin, at a supremum of zero, in the band or
+/// four times the escalation, ends as that supremum says
+/// ([`Height::ends`]) at `f64` and at `Interval`; the circle through the
+/// bounded read alone as well.
+///
+/// The oracle: a circle's distance is its offset, the same at every
+/// parameter. A ruled net's is `|h|` times its pushed control's basis
+/// function, whose peak is found by a dense walk ([`Net::peak`]): the
+/// basis is a smooth piecewise polynomial, so the walk is within its
+/// spacing squared of the peak, far inside the factors between the
+/// heights and the band's edges. It is no oracle where the distance has
+/// a kink (beside a cone's apex, the ruled nets stay on slant `[1, 2]`);
+/// the apex rows are [`beside_the_apex`] and [`through_the_apex`].
 #[test]
 fn a_nets_read_on_an_analytic_chart_ends_by_its_supremum() {
     let mut g = fuzz::start("analytic_net_supremum");
-    for _ in 0..fuzz::scaled(12) {
+    let mut unimaged = 0usize;
+    for _ in 0..fuzz::scaled(16) {
         let net = draw_ruled(&mut g);
         let chart = Ruled::ALL[g.below(3)];
         let stated = if g.below(2) == 0 {
@@ -531,35 +625,44 @@ fn a_nets_read_on_an_analytic_chart_ends_by_its_supremum() {
         } else {
             Stated::General
         };
+        let torus = g.below(2) == 0;
+        let round = Round::draw(&mut g, torus);
         for height in Height::ALL {
-            let net = net.clone().missing(height.miss());
-            for (scalar, got) in [
-                (F64.name, (F64.certify)(chart, &net, stated)),
-                (INTERVAL.name, (INTERVAL.certify)(chart, &net, stated)),
-            ] {
+            let miss = height.miss();
+            let net = net.clone().missing(miss);
+            let surface = round.surface();
+            let circle = round.net(miss);
+            for door in [F64, INTERVAL] {
+                let got = (door.certify)(chart, &net, stated);
                 assert!(
                     height.ends(&got, read(&got)),
-                    "{chart:?} {stated:?} {height:?} at {scalar}: {got:?} ({net:?}); {}",
+                    "{chart:?} {stated:?} {height:?} at {}: {got:?} ({net:?}); {}",
+                    door.name,
                     fuzz::replay()
                 );
-            }
-        }
-        let torus = g.below(2) == 0;
-        for height in Height::ALL {
-            let (surface, round, window) = draw_round(&mut g, torus, height.miss());
-            for (scalar, got) in [
-                (F64.name, (F64.read)(&surface, &round, window)),
-                (INTERVAL.name, (INTERVAL.read)(&surface, &round, window)),
-            ] {
+                let got = (door.read)(&surface, &circle, round.window);
                 assert!(
                     height.ends(&got, incidence(&got)),
-                    "{} {height:?} at {scalar} over {window:?}: {got:?}; {}",
-                    if torus { "torus" } else { "sphere" },
+                    "{} read {height:?} at {}: {got:?} ({round:?}); {}",
+                    round.name(),
+                    door.name,
+                    fuzz::replay()
+                );
+                let Some(got) = (door.certify_round)(&round, miss) else {
+                    unimaged += 1;
+                    continue;
+                };
+                assert!(
+                    height.admits(&got, read(&got)),
+                    "{} certified {height:?} at {}: {got:?} ({round:?}); {}",
+                    round.name(),
+                    door.name,
                     fuzz::replay()
                 );
             }
         }
     }
+    eprintln!("analytic_net_supremum: {unimaged} circle certificates the mint gave no twin image");
 }
 
 /// How a net beside a cone's apex ends.
@@ -633,33 +736,77 @@ fn a_net_beside_a_cones_apex_ends_off_interval() {
 /// **A bound limb 2 cannot read ends in the lever** (`net_bound_refusal`):
 /// an upper bound past the band with no miss, or no certified bound at
 /// all, is a straddle read in band with a margin, never a poisoned read
-/// (which ends as a defect) and never off.
-#[test]
-fn a_bound_that_does_not_read_ends_in_the_lever() {
+/// (which ends as a defect) and never off, at every scalar.
+fn a_bound_that_does_not_read(door: Door) {
     use crate::edge_nurbs::AnalyticRung3Refusal as R;
-    let surface = Ruled::Plane.surface::<f64>();
-    let carrier = Curve3::Nurbs(Arc::new(witness(0.0).curve(Ruled::Plane)));
     let b = band();
     let limit = R::KernelLimit {
-        operand: surface.kind(),
+        operand: geom::SurfaceKind::Plane,
         bound: 4.0 * b.escalate(),
         margin: geom_core::MarginDiag::value(4.0 * b.escalate()),
         width: 0.0,
         extent: 1.0,
     };
     let unbounded = R::NoOffsetBound {
-        operand: surface.kind(),
+        operand: geom::SurfaceKind::Plane,
         why: "a row's",
     };
     for refusal in [limit, unbounded] {
-        let got = super::net_bound_refusal(refusal, &surface, &carrier, b);
+        let got = (door.refusal)(refusal);
         let read = match &got {
             PcurveCertifyError::Incidence(r) => Some(r.read()),
             _ => None,
         };
         assert!(
             matches!(read, Some(IncidenceRead::Undecided(c)) if !c.margin.is_invalid()),
-            "{refusal:?} ends in the lever with a margin: {got:?}"
+            "{refusal:?} at {} ends in the lever with a margin: {got:?}",
+            door.name
         );
     }
+}
+
+#[test]
+fn a_bound_that_does_not_read_ends_in_the_lever_f64() {
+    a_bound_that_does_not_read(F64);
+}
+
+#[test]
+fn a_bound_that_does_not_read_ends_in_the_lever_interval() {
+    a_bound_that_does_not_read(INTERVAL);
+}
+
+/// **A ruling of the double cone through its apex** (the review's probe
+/// of PR 6826): on the chart, crossing from one nappe to the other, the
+/// composite has no bound on the nappe it does not read, and the read
+/// ends in the lever with a margin, never a defect and never off. That
+/// it does not certify is a completeness hole, filed
+/// (`work/pcert/an-on-chart-net-through-a-double-cones-apex-ends-in-the-lever.md`).
+fn through_the_apex(door: Door) {
+    let (s, c) = ALPHA.sin_cos();
+    for (lo, hi) in [(-1.0, 1.0), (-0.2, 1.0), (-1.0, 0.2)] {
+        let at = |t: f64| Point3::new(s * t, 0.0, c * t);
+        let net = NurbsCurve3::new(
+            KnotVector::clamped(vec![lo, lo, hi, hi], 1).unwrap(),
+            vec![at(lo), at(hi)],
+            vec![1.0, 1.0],
+        )
+        .unwrap();
+        let got = (door.read)(&Ruled::Cone.surface(), &net, (lo, hi));
+        assert!(
+            got.is_ok()
+                || matches!(incidence(&got), Some(IncidenceRead::Undecided(c)) if !c.margin.is_invalid()),
+            "at {}, the ruling through the apex over [{lo}, {hi}] is on or in the lever: {got:?}",
+            door.name
+        );
+    }
+}
+
+#[test]
+fn a_ruling_through_a_cones_apex_is_never_a_defect_f64() {
+    through_the_apex(F64);
+}
+
+#[test]
+fn a_ruling_through_a_cones_apex_is_never_a_defect_interval() {
+    through_the_apex(INTERVAL);
 }

@@ -4402,7 +4402,13 @@ fn stated_analytic_bound<T: Decide>(
     spec: &EdgeCurveSpec<T>,
     surface: &Surface<T>,
     band: Band,
-    offset: impl FnOnce() -> Result<crate::pcurve_cache::projected::OffsetRead<T>, PcurveCertifyError>,
+    offset: impl FnOnce(
+        &Curve3<T>,
+        (T, T),
+        &Surface<T>,
+        Band,
+    )
+        -> Result<crate::pcurve_cache::projected::OffsetRead<T>, PcurveCertifyError>,
 ) -> Result<(), CertifyError> {
     if spec.carrier.kind() != geom::CurveKind::Nurbs {
         return stated_analytic_read(spec, surface, band);
@@ -4588,9 +4594,9 @@ fn run_checks<T: Decide + geom_core::CertifiedBounds>(
             let bound = stated_bound(spec, (surface, image), band, crate::FittedLane::certified())?;
             max_residual = max_residual.max(bound);
         }
-        StatedChart::Analytic(surface) => stated_analytic_bound(spec, surface, band, || {
-            crate::pcurve_cache::limb2_offset_sup(&spec.carrier, (t0, t1), surface, band)
-        })?,
+        StatedChart::Analytic(surface) => {
+            stated_analytic_bound(spec, surface, band, crate::pcurve_cache::limb2_offset_sup)?
+        }
         StatedChart::None => {}
     }
     let canonical = canonical_of(spec, resolved, band)?;

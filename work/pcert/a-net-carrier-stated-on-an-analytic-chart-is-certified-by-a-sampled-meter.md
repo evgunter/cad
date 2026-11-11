@@ -86,12 +86,15 @@ of the net's distance from the chart over `[t0, t1]`
 (`limb2_offset_sup`: the chart's canonical composite along the net, a
 bound per part, the parts halved where the bound does not clear). The
 bound is decided by the edge certificate's own limb-2 decider
-(`edge_nurbs::limb2`), so there is one home for "a net's distance from
-an analytic chart over a span", and `projected.rs`'s hull-composite
-`net_incidence` is its per-part metre conversion. The sampled read is
-renamed `net_sampled_incidence`: it is a lower bound, kept for the mint's
-and the lane choices' reads, whose images are then bounded by their
-pcurve certificates.
+(`edge_nurbs::limb2`): the edge certificate and C2's `Intersection`
+edges read the distance through one reader, whose per-part metre
+conversion is `projected.rs`'s hull-composite `net_incidence`. It is
+not the only home: the pcurve door's projected envelope
+(`projected.rs`, its check 4) composes its own hull of the same distance
+through the same `net_incidence`, and the mint, the lane choices and
+topo's tier 3 keep the sampled lower bound. That sampled read is renamed
+`net_sampled_incidence` (`projected.rs`'s `net_incidence` keeps its name),
+so no two functions of opposite natures share one.
 
 Endings:
 - a measured miss past the band ends `Incidence(Off)` (`CarrierOffChart`);
@@ -102,11 +105,24 @@ Endings:
 - a net with no certified enclosing net (its data not finite) ends
   unreadable, as the spline chart's cell read does.
 
+"No certified bound" is read as the largest finite bound, so the
+straddle's margin is a reading at every scalar (fix OO1: read as `+∞`
+at `Interval`, it poisoned, and an on-chart ruling through a cone's apex
+ended as a defect).
+
 Rows (`pcurve_cache/analytic_net_rows.rs`):
 - the witness, three charts × two images × two scalars;
 - the bump narrowed toward the band;
 - a net beside a cone's apex (the P2's row);
-- the no-false-Off search against an exact supremum, on all five charts.
+- a ruling through a cone's apex, never a defect (filed P3
+  `an-on-chart-net-through-a-double-cones-apex-ends-in-the-lever`: it
+  ends in the lever, not certified);
+- a bound limb 2 cannot read ends in the lever with a margin, at both
+  scalars;
+- the no-false-Off search, on all five charts through the edge
+  certificate (the sphere and torus stated by the mint's projected image
+  of their on-chart twin), against the circles' constant offset and the
+  ruled nets' densely walked basis peak.
 
 The mutant `net-bound-sampled` turns the witness and the narrowed bump red.
 

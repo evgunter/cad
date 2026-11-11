@@ -10101,9 +10101,9 @@ fn net_sampled_incidence<T: Decide>(
 /// does not clear), decided as the edge certificate decides limb 2
 /// ([`crate::edge_nurbs::limb2`]). So a net off its chart between every
 /// sample does not read on. `offset` is that reader at the certifying
-/// scalar, handed in by the certificate's engine, which holds the
-/// scalar's bracket bound; it is read only where the sampled read showed
-/// no miss.
+/// scalar ([`limb2_offset_sup`] itself), handed in by the certificate's
+/// engine, which holds the scalar's bracket bound; it is read over
+/// `window` only where the sampled read showed no miss.
 ///
 /// - The bound within the band: on.
 /// - A measured miss past the band at a break: off
@@ -10118,16 +10118,21 @@ fn net_sampled_incidence<T: Decide>(
 /// [`PcurveCertifyError::Incidence`], read off or in band as above.
 pub(crate) fn read_net_bound<T: Decide>(
     carrier: &Curve3<T>,
-    (t0, t1): (T, T),
+    window: (T, T),
     surface: &Surface<T>,
     band: Band,
-    offset: impl FnOnce() -> Result<projected::OffsetRead<T>, PcurveCertifyError>,
+    offset: impl FnOnce(
+        &Curve3<T>,
+        (T, T),
+        &Surface<T>,
+        Band,
+    ) -> Result<projected::OffsetRead<T>, PcurveCertifyError>,
 ) -> Result<(), PcurveCertifyError> {
     debug_assert!(
         surface.spline_chart().is_none() && carrier.kind() == geom::CurveKind::Nurbs,
         "read_net_bound reads a spline net on an analytic chart"
     );
-    let sampled = read_incidence(carrier, t0, t1, surface, band);
+    let sampled = read_incidence(carrier, window.0, window.1, surface, band);
     #[cfg(test)]
     if mutants::net_bound_sampled() {
         return sampled;
@@ -10137,16 +10142,20 @@ pub(crate) fn read_net_bound<T: Decide>(
     {
         return Err(sampled);
     }
-    crate::edge_nurbs::limb2(carrier, (t0, t1), surface, offset(), None, band)
+    let read = offset(carrier, window, surface, band);
+    crate::edge_nurbs::limb2(carrier, window, surface, read, None, band)
         .map_err(|refusal| net_bound_refusal::<T>(refusal, surface, carrier, band))
 }
 
 /// **What [`read_net_bound`] ends a refusal of limb 2 as**: a measured
 /// miss off the chart; anything limb 2 decided in band, its escalation;
-/// an upper bound that does not clear, or no certified bound at all
-/// (`+∞`), a straddle of the band (`pcurve_net_bound_straddle`), since an
-/// upper bound shows no miss and the sampled read showed none; a carrier
-/// with no certified net (its data not finite), unreadable.
+/// an upper bound that does not clear, or no certified bound at all, a
+/// straddle of the band (`pcurve_net_bound_straddle`), since an upper
+/// bound shows no miss and the sampled read showed none; a carrier with
+/// no certified net (its data not finite), unreadable. "No bound" is
+/// read as the largest finite bound, so the straddle's margin is a
+/// reading at every scalar (`+∞` is no interval, and its poisoned margin
+/// would end as a defect).
 fn net_bound_refusal<T: Decide>(
     refusal: crate::edge_nurbs::AnalyticRung3Refusal,
     surface: &Surface<T>,
@@ -10157,6 +10166,7 @@ fn net_bound_refusal<T: Decide>(
     // Limb 2 reads its limit only on a bound it did not decide zero, so
     // the bound decides positive or escalates.
     let unshown = |bound: f64| {
+        let bound = if bound.is_finite() { bound } else { f64::MAX };
         let decided = |x: T| {
             geom_core::k_stats::decide_reported("pcurve_net_bound_straddle", Margin::of(x), band)
         };
@@ -10176,14 +10186,17 @@ fn net_bound_refusal<T: Decide>(
         }
         R::Stalled { cause, .. } | R::Escalated { cause, .. } => cause,
         R::KernelLimit { bound, .. } => unshown(bound),
-        R::NoOffsetBound { .. } => unshown(f64::INFINITY),
-        R::CarrierEnclosure(_)
-        | R::NoTubeEnclosure { .. }
+        R::NoOffsetBound { .. } => unshown(f64::MAX),
+        R::CarrierEnclosure(_) => spline_incidence::unreadable(band),
+        R::NoTubeEnclosure { .. }
         | R::TubeStraddles { .. }
         | R::TubeNotOneArc { .. }
         | R::Unsupported { .. }
         | R::Tube(_)
-        | R::OutsideVocabulary => spline_incidence::unreadable(band),
+        | R::OutsideVocabulary => unreachable!(
+            "net_bound_refusal: limb 2 against one operand refuses its bound, its miss or its \
+             net, never the tube's or the pair's: {refusal:?}"
+        ),
     })
 }
 
