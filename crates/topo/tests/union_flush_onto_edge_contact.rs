@@ -2454,7 +2454,11 @@ fn three_corners_alternating_round_the_cube_build_every_op() {
     for (what, got, want) in [
         ("y ∪ cube", volumes["y ∪ cube"], volumes["cube ∪ y"]),
         ("y ∩ cube", volumes["y ∩ cube"], volumes["cube ∩ y"]),
-        ("cube ∖ y + ∩", volumes["cube ∖ y"] + volumes["cube ∩ y"], 1.0),
+        (
+            "cube ∖ y + ∩",
+            volumes["cube ∖ y"] + volumes["cube ∩ y"],
+            1.0,
+        ),
         (
             "y ∖ cube + ∩",
             volumes["y ∖ cube"] + volumes["cube ∩ y"],

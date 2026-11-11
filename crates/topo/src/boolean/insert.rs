@@ -77,8 +77,7 @@ use geom_core::{Band, Decide, Margin, Sign, Vec3};
 
 use super::sectors::{BoolSector, Leaned, PairRecord, leaned_lever};
 use super::{
-    BoolNullEdgeRecord, BooleanError, NullEdgePairRecord, Operand, PairSite, SideCode,
-    VvContact,
+    BoolNullEdgeRecord, BooleanError, NullEdgePairRecord, Operand, PairSite, SideCode, VvContact,
 };
 use super::{BooleanDecision, Coincide, DeclarationRead, SelfCheck};
 use crate::body::{Body, WALKS_CLOSE};
@@ -726,7 +725,8 @@ pub(super) fn pairing_leads(contacts: &[VvContact], crossing: &[bool]) -> Vec<Op
     };
     (0..contacts.len())
         .map(|i| {
-            let b_only = crossing[i] && shared(i, |c, d| c.b == d.b) && !shared(i, |c, d| c.a == d.a);
+            let b_only =
+                crossing[i] && shared(i, |c, d| c.b == d.b) && !shared(i, |c, d| c.a == d.a);
             if b_only { Operand::B } else { Operand::A }
         })
         .collect()
