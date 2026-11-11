@@ -2,10 +2,12 @@
 id: a-stated-chart-image-on-a-spline-face-is-certified-by-a-sampled-meter
 kind: issue
 title: A stated chart image on a spline face is certified by a sampled meter, so a carrier off its wall between the samples gets an edge certificate
-status: open
+status: closed
 opened: 2026-11-04
 priority: P1
 cost: M
+pr: 6815
+closed: 2026-11-11
 ---
 
 Filed by `pcert/spline-certificate-door` (PR 6531, review fix GG2).
@@ -82,3 +84,30 @@ pcurve certificate (`PcurveCache::certify` of the stated image, whose
 envelope is a sup), as the mint does, or the read could bound the carrier
 between its samples. Then a carrier off its wall anywhere on the span ends
 by the read or the envelope, and the probe is a row.
+
+## Closed (PR 6815, 2026-11-11)
+
+The edge certificate bounds a stated chart image on a spline chart over its
+span through its pcurve certificate: `certify.rs` `stated_bound` certifies
+it through `PcurveCache::certify_stated`, the mint's own door (`topo`'s
+`restate`, moved home), whose envelope is a sup, and folds the certificate
+into `max_residual`. The schedule's `pcurve_map_residual` no longer meters
+it. `certify_stated` and `recertify_stated` run the same engine. A refusal
+ends by the carrier's incidence read (`incidence_ended`) and `mint_refusal`.
+
+The spline chart's read also samples a spline carrier's breakpoints and
+Greville abscissae (`spline_incidence::own_fractions`), so R2 ends
+`Incidence(Off)` (`CarrierOffChart`) at `f64` and `Interval`, through the
+iso and the general image alike. Without them it ends
+`ChartImageUnavailable`: sound, but not the definite ending. That sampling
+decides only the ending; the envelope certifies.
+
+A stated image on an analytic chart keeps its read first and the sampled
+meter: routing it through the pcurve doors refused about seventy product
+rows. The analytic remainder (a derived or stated image whose read is
+sampled, and the two-surface `OnPair`) is evidence on
+`a-closed-conics-and-a-spline-nets-incidence-on-an-analytic-chart-is-sampled`.
+The double certification per build is
+`a-stated-spline-image-is-certified-twice-by-the-edge-certificate-and-the-mint` (P3).
+Rows: `geom-brep` `pcurve_cache::stated_image_rows`, red under the
+`stated-image-sampled` mutant.
