@@ -1231,7 +1231,7 @@ fn the_cylinder_sphere_value_reads_either_order() {
 }
 
 /// **The route note names the section value**: what is classified, by
-/// which margin, and what still marches.
+/// which margin, what counts the rest, and what marches.
 #[test]
 fn the_cylinder_sphere_route_note_names_the_coaxial_arm() {
     for pair in [
@@ -1241,7 +1241,8 @@ fn the_cylinder_sphere_route_note_names_the_coaxial_arm() {
         let note = route(pair.0, pair.1).note;
         assert!(note.contains("decided Zero by its"), "{note}");
         assert!(note.contains("pair_section"), "{note}");
-        assert!(note.contains("still marches"), "{note}");
+        assert!(note.contains("ruling sweep"), "{note}");
+        assert!(note.contains("marched in ℝ³"), "{note}");
     }
 }
 

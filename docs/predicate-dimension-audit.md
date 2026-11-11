@@ -91,8 +91,8 @@ comparand this ledger FLAGS as not-a-length are carried through the
 seam by `geom_core::k_stats::decide_flagged(name, margin, band, row)`
 — the finding lane: no `Margin` is constructed, the row id is a
 compile-time argument at the site, and grepping `decide_flagged`
-enumerates the clause-(i) debt exactly (F10 ×1 — one loop over seven
-rigidity residuals — F13 ×1, F14 ×1, F16 ×1, F22 ×1 — 5 shipped sites, tracked as issue #214 and pinned by
+enumerates the clause-(i) debt exactly (F13 ×1, F14 ×1, F16 ×1, F22 ×1 —
+4 shipped sites, tracked as issue #214 and pinned by
 `geom-core/tests/flagged_census.rs`: no new site ships without a row
 here, and the count only moves together with this section).
 
@@ -523,7 +523,6 @@ which is what actually moves the number.
 | props/quad/run.rs | props_quad_face_extent | area/perimeter (mean width) | m | OK |
 | props/quad/rotational.rs (`loop_windings`, per junction of every loop of a rotational quadrature face, through `closure::interval_loop_turns`) | props_chart_junction_closed | `excess(hi(G), S)` — `G = R·\|Δu − 2πm\| + \|Δv\|`, the chart gap between one edge's end and the next edge's start (each read through its own vertex's trig bracket), a whole number `m` of azimuth turns taken off, its UPPER bound in excess of the slack `S` (the two ends' `end_slack`: `3/2·env` plus the parameter bracket's half-width times the edge's speed bound; and `3ε` for the two carriers' ends about their vertex); `0` within it | m | OK (Zero, an excess under ε: every gap the enclosure admits is within `S + ε`, and the junction closes. In band escalates. Positive asks `props_chart_junction_open` below. The `3ε` vertex term is measured necessary: at ε = 1e-12 on the geom-brep, topo and sweep suites, 3428 real junctions read up to 1.99ε beyond their end slack alone, and none reads beyond `S + ε`. The loop's turns are then the integer `Σm`; `\|turns\| ≤ 1` and `Σ turns = 0` over the face are integer facts that decide nothing, refused `LoopsWindChart`) |
 | props/quad/rotational.rs (`loop_windings`, a junction whose upper excess is definitely positive) | props_chart_junction_open | `excess(lo(G), S)` — the same gap's LOWER bound in excess of the same slack, through `decide_positive` | m | OK (only a definite Positive refuses `ChartLoopOpen`: no gap the enclosure admits is within `S + Kε`. Zero or in band escalates, so a junction the enclosure cannot decide is never measured) |
-| props/spiric.rs (`wall_windings`, per junction of a spiric torus wall's loop on its lifted images, through `closure::interval_loop_turns`) | props_chart_junction_closed / props_chart_junction_open | `excess(hi(G), S)` / `excess(lo(G), S)` — `G` the chart gap less whole turns in `u` and `v`, the azimuth's levered at the junction's own distance from the axis, `ρ = R + r·cos v` enclosed over the after edge's start, the tube angle's at `r`; `S` the two images' certificate envelopes and `3ε` | m | OK (the quadrature's rule on the torus chart. A wall carries one loop, so its turns `Σm` per direction must be `0`, refused `LoopsWindChart`) |
 | props/quad/trimmed.rs (`piece_monotone`, asked once per trim piece by `trim_cells`) | props_trim_piece_monotone | `Margin::metered(span, rate)` — `span` is the control polygon's LEAST advance along the unit chord direction, a chart-parameter length (a convexity fact on the Bézier differences, which are the derivative's own coefficients up to the positive `p/h`); `rate` is the chart's metric rate along that same direction, `|S_u·ĉ_u + S_v·ĉ_v|` bounded BELOW over the piece box | m | OK (added with the trimmed-region quadrature, TRIM-2 PR-1. Clause (iii)'s metric door: a parameter-space span crosses to model space through a per-kind rate, and the rate here is the chart's own directional derivative rather than a carrier speed. Both factors round toward REFUSING — the span is the `lo()` of the bracketed dot product, and a derivative hull that straddles zero in every component answers rate `0`, hence margin `0`, hence Zero. Only a definite `Positive` admits the piece; `Zero` and the ambiguity band alike bisect the piece and re-ask, to `TRIM_MONOTONE_DEPTH`, and then refuse `QuadratureUnsupported` naming this row — the lane never pads a piece it cannot certify is a graph over its chord. **The margin carries the ROUND's lever as well as the image's, and a reader of this row has to know it**: `span` is the REFINED block's least advance, so it halves with every uniform cut and every bisection AND scales with the face. Measured (the v6 dual, both arms independently): the same smooth parabolic arc certifies at every round on a 10 µm face, refuses at round 4 on a 1 µm face, and refuses at every round on a 0.1 µm face — that is the lane's resolution speaking, not the image's shape, which is why the refusal names an UNRESOLVED margin rather than a cusp. Nothing on today's corpus is near the band (the fixture's scale is 1e-3 and round 0 is decades clear). An in-band verdict ESCALATES, as it does from every other lane in this file: bisection halves the very span the margin meters, so it cannot resolve one. Pinned by `geom-brep`'s `q5_a_fold_over_its_chord_refuses_typed` (a fold that survives every bisection) and `q5b_a_piece_that_only_looks_folded_resolves_by_bisection` (the curvature artefact the ladder is FOR — a refusal is cheap to get right by refusing everything).) |
 | ssi/certify.rs (`analytic_limbs`, `nurbs_limbs`) | ssi_on_locus / hull_sup / foot / chart | residuals, /2R linearizations, foot distances | m | OK |
 | ssi/certify.rs (`tube_transversality`) | ssi_tube_transversality | sin (unit triple product) × arm | m | OK |
@@ -698,7 +697,7 @@ which is what actually moves the number.
 | pair_section/spline_implicit/sweep/critical.rs (`decide`, a critical point of `φ`, C5 stage 3) | spline_critical_value | `φ` over the Krawczyk box of `∇φ`'s one zero: on the plane its height, on a curved partner a ceiling in metres on its distance, `Meters::over` at the box's least radial reach (`decide_magnitude`) | m | OK (a distance bound in metres, read on a ceiling, so Zero is a point within the band of the partner) |
 | pair_section/spline_implicit/sweep/critical.rs (`decide`, the critical point's kind) | (no funnel: the raw sign of a certified interval) | the determinant `φ_uu·φ_vv − φ_uv²` of `φ`'s Hessian over the Krawczyk box, enclosed: `lo > 0` a touch, `hi < 0` a node, a straddle declines. It is a sign, not a margin against the band: the Krawczyk test's success already makes every Hessian in the box invertible, so the enclosure decides definiteness or declines, and no ε enters | m⁻² (the Hessian of a metre-scaled `φ` over chart units², squared) | OK (a certified sign of an enclosure, which does not funnel through `decide`) |
 | split.rs (`split_edge`'s interiority) | (`curve_pair::Span::place_param_read`'s rows) | the split point's chord to each end, then its parameter side at the carrier's sup speed | m | OK (the span's one reading; an inf-metered Zero read an arc up to the speeds' ratio of the band) |
-| `geom-core` `linalg/rigid_motion.rs` (`RigidMotion::check_rigid`, the decided door a raw map is admitted at; a motion minted by construction asks none; the translation's finiteness is `Real::is_bounded`, as at the mints, and not a band decision) | transform_rigid_* (7 residuals) | unit-column/orthogonality/det residuals, no arm | dimensionless | FLAG F10 |
+| `geom-core` `linalg/rigid_motion.rs` (`RigidMotion::check_rigid`, the `f64` door a raw map is admitted at; a motion minted by construction asks none; the translation's finiteness is `Real::is_bounded`, as at the mints, and not a band decision) | transform_rigid_* (7 residuals) | unit-column/orthogonality/det residuals, at `f64` alone: within their own rounding (`rounding_charge` of the term bound, the admission floor's statement) the map is admitted as given, and beyond it refused; nothing is decided against any band, and no box scalar has the door (fork 258) | — | OK (no band; F10 retired) |
 | validate.rs:1662/1847 | planar_face/boundary_residual | plane residuals | m | OK |
 | validate.rs:1795 | tangent_second_order | κ_rel × arm²/2 | m | OK |
 | validate.rs:2030 | bool_ring_run_winding | (outward · Newell sum) / loop perimeter | m | FIXED (F4) |
@@ -1102,12 +1101,9 @@ Flagged, NOT fixed here (dispositions):
 - **F9** `ssi_closure_tangent` (march.rs:484): cos × whole-branch arc
   length — an unbounded arm (nothing folds in `ctx.extent`).
   Arm-policy question for the design conversation.
-- **F10** `transform_rigid_*` (`RigidMotion::check_rigid`): dimensionless
-  rigidity residuals of the linear map against the metre band; the
-  natural arm is the model/session-box extent. (The transform.rs
-  collision claim is STALE as of the F3+F4 unit — the loft-assembly
-  lane merged. Deferred on the arm question alone, which is a design
-  input, not a conflict.)
+- **F10** `transform_rigid_*` (`RigidMotion::check_rigid`): RETIRED.
+  The seven dimensionless rigidity residuals are levered by the session
+  box, and the door re-mints what it admits (fork 256, PR 6589).
 - **F11** `tangent_sector_osculation` (rules.rs `apply_rule_a`) and
   `wall_bend_order2` (rules.rs `apply_rule_a`, through
   `geom_brep::bends_into_material`): sagitta model κ·L²/2 metered at
@@ -1339,7 +1335,7 @@ Flagged, NOT fixed here (dispositions):
   `a + b` it carries `a` onto `b` to a few ulps at every margin the
   band decides positive (the residue `(|a| − |b|)²/(2|a × b|)` is of
   order `u²/√ε`), so rigidity and carry are rounding-level wherever the
-  turn builds. Same arm question as F10; one site,
+  turn builds. The arm is the open question; one site,
   `LEDGER_FLAGGED_SITES` 5 → 6.
 
 - **F23** (added by FLUSH's edge-meeting ray, PR 5422)
@@ -1886,12 +1882,15 @@ Flagged, NOT fixed here (dispositions):
   second axis's offset from the first, crossed with its unit direction
   (`(ob − oa) × db`), and the radius differences (a rim's radius less its
   cylinder's, and the two cylinders'). `replay_one_cylinder_axis` takes
-  the axes' cross product `da × db`, a sine of two unit directions,
-  **dimensionless**, through `Margin::levered` at `Lever::unsourced(1 m)`.
-  That is bit-identical to the raw read, which held the sine against the
-  band as though it were a length. **FLAG**: the lever has no source.
-  `work/onecopy/the-replays-cylinder-axis-is-levered-at-an-unsourced-metre.md`
-  carries the real one, with its candidates and a measurement plan.
+  the axes' tilt `|da × db|`, a sine of two unit directions,
+  **dimensionless**, through `Margin::levered` at the arm the kernel's
+  pair door levers the same datum at (`topo::boolean::carrier_pair_arm`:
+  the reach of the ball enclosing both faces from the foot of its centre
+  on the second axis, as `carrier_eq`'s `carrier_cyl_axis_parallel`).
+  Until `work/onecopy/the-replays-cylinder-axis-is-levered-at-an-unsourced-metre.md`
+  it read each component of the cross product apart at
+  `Lever::unsourced(1 m)`, the raw read's own scale. Every sine the door
+  read on the replay's corpus was exactly zero, so no decision moved.
 
 **Every `props/curved.rs` row above is cited BY TARGET NAME, not by
 line** (S176(a)). The line numbers they carried were written against a

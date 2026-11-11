@@ -74,6 +74,7 @@ const CARRIERS: &[NameCarrier] = &[
     NameCarrier::Call("run_spiric_checks_as"),
     NameCarrier::Call("signs"),
     NameCarrier::Call("spline_incidence_as"),
+    NameCarrier::Call("spline_point_incidence_as"),
     NameCarrier::Call("spread_readings"),
     NameCarrier::Call("torus_lift_as"),
     NameCarrier::Call("within_as"),
@@ -153,6 +154,7 @@ const CARRIERS: &[NameCarrier] = &[
     NameCarrier::Call("positive_as"),
     NameCarrier::Call("radius_guard"),
     NameCarrier::Call("read_as"),
+    NameCarrier::Call("read_samples_as"),
     NameCarrier::Call("section_of"),
     NameCarrier::Call("sign_as"),
     NameCarrier::Call("spread_signs"),
@@ -379,7 +381,15 @@ const INDIRECT: &[(&str, &str)] = &[
         CLOSED_TYPE,
     ),
     ("pair_section/ruling.rs: positive: row.name()", CLOSED_TYPE),
+    (
+        "pair_section/ruling.rs: a_spheres_discriminant_extremes_are_the_poses_reaches: x",
+        NOT_A_NAME,
+    ),
     ("pair_section/ruling.rs: ruled: a", NOT_A_NAME),
+    (
+        "pair_section/spline_implicit.rs: ray_of: name",
+        CLOSURE_FORWARDS,
+    ),
     (
         "pair_section/spline_implicit/sweep.rs: sweep: jets",
         NOT_A_NAME,
@@ -497,7 +507,15 @@ const INDIRECT: &[(&str, &str)] = &[
         FORWARDS,
     ),
     (
+        "pcurve_cache/spline_incidence.rs: read_samples_as: name",
+        FORWARDS,
+    ),
+    (
         "pcurve_cache/spline_incidence.rs: spline_incidence_as: name",
+        FORWARDS,
+    ),
+    (
+        "pcurve_cache/spline_incidence.rs: spline_point_incidence_as: name",
         FORWARDS,
     ),
     ("props/closure.rs: loop_turns: name", CLOSURE_FORWARDS),

@@ -1413,6 +1413,44 @@ pub(crate) struct Evaluation {
 }
 
 impl Evaluation {
+    /// **The table a name door reads `name` in, and the name there**: a
+    /// node or a variable as itself; one member of a family, `xs[i]`, by
+    /// the member's own name, read at the family as the family's table
+    /// names that entity ([`pncad::select::family_entity`]). A name no
+    /// entity of the member answers to raises `ReadbackError`
+    /// `no_such_name`.
+    fn named_at(
+        &self,
+        py: Python<'_>,
+        node: super::doc::SelectAt,
+        name: &str,
+    ) -> PyResult<(pncad::select::At, pncad::prelude::StableName)> {
+        let name = super::doc::name_from_text(name)?;
+        match node {
+            super::doc::SelectAt::Plain(at) => Ok((at.at(), name)),
+            super::doc::SelectAt::Member(read) => {
+                let (at, member) = read.member(&self.doc)?;
+                let whole = pncad::select::family_entity(&self.inner, at, &member, &name)
+                    .ok_or_else(|| {
+                        super::readback::readback_err(
+                            py,
+                            &pncad::select::InterrogateError::NoSuchName,
+                            &self.doc,
+                        )
+                    })?;
+                Ok((at, whole))
+            }
+        }
+    }
+
+    /// **`at` read as one body**: a selector reads one body, and a
+    /// family read whole raises `SelectRefusal` (`reason="family"`),
+    /// naming the member read to write, `xs[i]`.
+    fn one_body(&self, py: Python<'_>, at: pncad::select::At) -> PyResult<()> {
+        pncad::select::one_body(&self.inner, at)
+            .map_err(|refusal| super::select::select_refusal(py, &refusal, &self.doc, &self.inner))
+    }
+
     /// The stop the run was evaluated under ([`Self::stop`]).
     pub(crate) fn stop(&self) -> &d::Stop {
         &self.stop
@@ -1657,13 +1695,23 @@ impl Evaluation {
     fn select(
         &self,
         py: Python<'_>,
-        node: super::doc::AtArg,
+        node: super::doc::SelectAt,
         selector: &super::select::Selector,
     ) -> PyResult<Vec<String>> {
-        names(
-            py,
-            pncad::select::select(&self.inner, node.at(), &selector.0),
-        )
+        let found = match node {
+            super::doc::SelectAt::Member(read) => {
+                let (at, member) = read.member(&self.doc)?;
+                pncad::select::select_member(&self.inner, at, &member, &selector.0).map_err(
+                    |refusal| super::select::select_refusal(py, &refusal, &self.doc, &self.inner),
+                )?
+            }
+            super::doc::SelectAt::Plain(at) => {
+                let at = at.at();
+                self.one_body(py, at)?;
+                pncad::select::select(&self.inner, at, &selector.0)
+            }
+        };
+        names(py, found)
     }
 
     /// **Materialize a selection narrowed by GEOMETRY**: `selector`
@@ -1693,20 +1741,31 @@ impl Evaluation {
     fn select_where(
         &self,
         py: Python<'_>,
-        node: super::doc::AtArg,
+        node: super::doc::SelectAt,
         selector: &super::select::Selector,
         geom: Vec<super::select::GeomPred>,
     ) -> PyResult<Vec<String>> {
         let tol = Tol::witness();
         let atoms: Vec<pncad::select::GeomPred> = geom.into_iter().map(|g| g.0).collect();
-        match pncad::select::select_where(
-            &self.inner,
-            node.at(),
-            &selector.0,
-            &atoms,
-            &self.params,
-            tol,
-        ) {
+        let found = match node {
+            super::doc::SelectAt::Member(read) => {
+                let (at, member) = read.member(&self.doc)?;
+                pncad::select::select_where_member(
+                    &self.inner,
+                    at,
+                    &member,
+                    &selector.0,
+                    &atoms,
+                    (&self.params, tol),
+                )
+            }
+            super::doc::SelectAt::Plain(at) => {
+                let at = at.at();
+                self.one_body(py, at)?;
+                pncad::select::select_where(&self.inner, at, &selector.0, &atoms, &self.params, tol)
+            }
+        };
+        match found {
             Ok(found) => names(py, found),
             Err(refusal) => Err(super::select::select_refusal(
                 py,
@@ -1739,11 +1798,11 @@ impl Evaluation {
     fn face_frame(
         &self,
         py: Python<'_>,
-        node: super::doc::AtArg,
+        node: super::doc::SelectAt,
         name: &str,
     ) -> PyResult<super::readback::Pose> {
-        let name = super::doc::name_from_text(name)?;
-        pncad::select::face_frame(&self.inner, node.at(), &name)
+        let (at, name) = self.named_at(py, node, name)?;
+        pncad::select::face_frame(&self.inner, at, &name)
             .map(super::readback::Pose)
             .map_err(|err| super::readback::readback_err(py, &err, &self.doc))
     }
@@ -1762,10 +1821,10 @@ impl Evaluation {
     /// or has no vertex off the axis.
     fn traced_frame(
         &self,
-        plane: (super::doc::OperandArg, String),
-        traced: (super::doc::OperandArg, String),
+        plane: (super::doc::BodyArg, String),
+        traced: (super::doc::BodyArg, String),
     ) -> PyResult<super::pose::PoseDef> {
-        let face = |(body, name): (super::doc::OperandArg, String)| {
+        let face = |(body, name): (super::doc::BodyArg, String)| {
             Ok::<_, PyErr>(d::Operand::select(
                 body.read(),
                 vec![super::doc::name_from_text(&name)?],
@@ -1865,11 +1924,11 @@ impl Evaluation {
     fn denotation(
         &self,
         py: Python<'_>,
-        node: super::doc::AtArg,
+        node: super::doc::SelectAt,
         name: &str,
     ) -> PyResult<super::readback::Denotation> {
-        let name = super::doc::name_from_text(name)?;
-        pncad::select::denotation(&self.inner, node.at(), &name)
+        let (at, name) = self.named_at(py, node, name)?;
+        pncad::select::denotation(&self.inner, at, &name)
             .map(super::readback::Denotation)
             .map_err(|err| super::readback::readback_err(py, &err, &self.doc))
     }
@@ -2216,8 +2275,12 @@ impl FaceCensus {
 /// of each arm that carries one arrives beside it, `None` on the
 /// others: `promoted_to` is which analytic surface kind certified and
 /// `residual` is the certified deviation that let it
-/// (`surface_promotion`), and `singularity` is where the file put the
-/// pole or apex import made a vertex (`chart_singularity_vertex`).
+/// (`surface_promotion`), `singularity` is where the file put the
+/// pole or apex import made a vertex (`chart_singularity_vertex`), and
+/// `transform` and `moved_by` are the assembly placement whose frames the
+/// import built by their axes and how far that moved a point of the
+/// session box (`placement_re_minted`, whose `face` is the
+/// transformation's entity id).
 /// Present on every row, so a read never raises and a caller never has
 /// to branch on `kind` first.
 #[pyclass(frozen, module = "pncad", skip_from_py_object)]
@@ -2226,7 +2289,9 @@ pub(crate) struct StructureNormalization(pncad::step_import::StructureNormalizat
 
 #[pymethods]
 impl StructureNormalization {
-    /// The `ADVANCED_FACE` entity instance the file states.
+    /// The `ADVANCED_FACE` entity instance the file states, or on
+    /// `placement_re_minted` the `ITEM_DEFINED_TRANSFORMATION`'s, the row
+    /// naming no face.
     #[getter]
     fn face(&self) -> u64 {
         self.0.face
@@ -2270,6 +2335,30 @@ impl StructureNormalization {
         match &self.0.kind {
             pncad::step_import::NormalizationKind::ChartSingularityVertex { found } => {
                 Some(singularity_found_tag(found))
+            }
+            _ => None,
+        }
+    }
+
+    /// The `ITEM_DEFINED_TRANSFORMATION` whose frames the import built by
+    /// their axes — on `placement_re_minted` alone.
+    #[getter]
+    fn transform(&self) -> Option<u64> {
+        match &self.0.kind {
+            pncad::step_import::NormalizationKind::PlacementReMinted { transform, .. } => {
+                Some(*transform)
+            }
+            _ => None,
+        }
+    }
+
+    /// How far building the frames moved a point of the session box
+    /// (metres) — on `placement_re_minted` alone.
+    #[getter]
+    fn moved_by(&self) -> Option<f64> {
+        match &self.0.kind {
+            pncad::step_import::NormalizationKind::PlacementReMinted { moved_by, .. } => {
+                Some(*moved_by)
             }
             _ => None,
         }

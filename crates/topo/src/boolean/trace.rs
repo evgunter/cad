@@ -106,6 +106,10 @@ pub enum TraceFault {
     /// count the residual cannot have), and no line or circle in a
     /// sketch plane against a closed-form carrier lands on one.
     Unsettled(Unsettled),
+    /// A torus carrier outside its ring convention, the convention's
+    /// refusal carried whole ([`geom_brep::TorusRefusal`]): its root doors
+    /// read only a ring.
+    Torus(geom_brep::TorusRefusal),
 }
 
 impl core::fmt::Display for TraceFault {
@@ -133,6 +137,7 @@ impl core::fmt::Display for TraceFault {
                 "a root count the door cannot certify ({})",
                 why.sentence()
             ),
+            Self::Torus(refusal) => f.write_str(&refusal.said("the carrier's", None)),
         }
     }
 }
@@ -153,6 +158,7 @@ fn door_refusal(refusal: geom_brep::curve_face::circle_roots::DoorRefusal) -> Tr
     match refusal {
         DoorRefusal::Escalated(diag) => TraceFault::Escalated(diag),
         DoorRefusal::Invariant(what) => unreachable!("a root door's invariant: {what}"),
+        DoorRefusal::Torus(refusal) => TraceFault::Torus(refusal),
     }
 }
 

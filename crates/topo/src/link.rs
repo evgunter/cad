@@ -754,6 +754,7 @@ pub(crate) enum Hold {
 /// apex, each a triangle `(apex, a, b)` under half a turn, in turn
 /// counterclockwise about the outward normal, consecutive wedges on one
 /// ray. Each ray is fixed by its point `a` or `b`, at the ray's reach.
+#[derive(Clone)]
 pub(crate) struct Sector<T: Real> {
     /// The outward unit normal.
     pub(crate) outward: Vec3<T>,
@@ -793,6 +794,7 @@ pub(crate) struct FaceSector<T: Real> {
 /// **What a link holds of a sector's face** beyond the cone: its surface
 /// and sense, which a coplanar pair of faces is read by ([`pairing`]),
 /// and how far its wedges are the face's own.
+#[derive(Clone)]
 pub(crate) struct LinkFace<T: Real> {
     surface: geom::Surface<T>,
     /// `Face::sense`, the bit [`geom_brep::classify_material_pairing_as`]
@@ -834,6 +836,14 @@ pub(crate) struct Bound<T: Real> {
     pub(crate) edge: EdgeKey,
     pub(crate) line: bool,
     pub(crate) bend: Vec3<T>,
+}
+
+impl<T: Real> Bound<T> {
+    /// Whether two bounds along one ray lie there as their faces keep
+    /// them: one edge, or two lines on one line.
+    pub(crate) fn kept_with(self, other: Self) -> bool {
+        self.edge == other.edge || (self.line && other.line)
+    }
 }
 
 /// **Where a face meets the point, to first order** — the shape
@@ -4131,6 +4141,9 @@ pub(crate) mod rest {
     struct Notes {
         in_band: bool,
         degenerate: bool,
+        /// Two sectors of a tangent link on each other where one is no
+        /// plane: its face meets the other only to first order.
+        coincident: bool,
     }
 
     /// **The one test of two polygonal cones** at a touch point `p`,
@@ -4385,6 +4398,7 @@ pub(crate) mod rest {
         let notes = Notes {
             in_band: false,
             degenerate: true,
+            coincident: false,
         };
         assert!(
             matches!(
@@ -4516,7 +4530,7 @@ pub(crate) mod rest {
     fn kept_bound<T: Decide>(
         link: &Link<T>,
         j: usize,
-        super::Bound { edge, line, .. }: super::Bound<T>,
+        bound: super::Bound<T>,
         r: Point3<T>,
         rd: Reading<T>,
     ) -> bool {
@@ -4528,7 +4542,7 @@ pub(crate) mod rest {
         tags.into_iter().zip(rays).any(|(tag, b)| {
             wedge_side(p, t.outward, b, r, rd) == Some(Sign::Zero)
                 && ahead(p, b, r, rd) == Some(Sign::Positive)
-                && (tag.edge == edge || (tag.line && line))
+                && tag.kept_with(bound)
         })
     }
 
@@ -4696,9 +4710,16 @@ pub(crate) mod rest {
     /// there by this reading; how their wedges pair is the line rule's.
     ///
     /// A probe on another sector of the link (a slit, or a sheet doubled)
-    /// refuses [`TouchUnread::Degenerate`]; a reading in band, or a probe
-    /// no decided reading ties to the others, [`TouchUnread::InBand`].
-    /// The link is first held to close ([`Cone::closes`]).
+    /// refuses [`TouchUnread::Degenerate`], or, in a tangent link where
+    /// either sector is no plane, [`crate::CurvedUnread::Unreadable`]: such
+    /// sectors meet only to first order. A reading in band, or a probe no
+    /// decided reading ties to the others, refuses [`TouchUnread::InBand`].
+    /// The link is first held to close ([`Cone::closes`]); a tangent link
+    /// with two planar faces on each other refuses then ([`slit`]), and
+    /// is otherwise held to its first order ([`first_order`]); one whose
+    /// sheets pair into lenses or lunes is read over the rest of it, its
+    /// horns but the lunes' caps among it ([`lensed`]), and any other
+    /// holds its horns to the thorns they bound.
     pub(crate) fn one_material<T: Decide>(link: &Link<T>, band: Band) -> TouchVerdict {
         // The link is read against its own planes and rays: the reading
         // over the pair it makes with itself.
@@ -4706,8 +4727,18 @@ pub(crate) mod rest {
         if let Some(open) = held_closed(&[link], rd) {
             return open;
         }
+        if link.tangent() && slit(link, rd) {
+            return TouchVerdict::Unread(TouchUnread::Degenerate);
+        }
         if let Some(why) = first_order(link, rd) {
             return TouchVerdict::Unread(why);
+        }
+        // A link with lenses or lunes reads its horns against its
+        // remainder, which their doubled sheets do not cloud.
+        match super::second_order::lenses(link, rd) {
+            Ok(lenses) if lenses.is_empty() => {}
+            Ok(lenses) => return lensed(link, &lenses, band, rd),
+            Err(why) => return TouchVerdict::Unread(why),
         }
         if let Err(why) = super::second_order::thorns(link, rd) {
             return TouchVerdict::Unread(why);
@@ -4727,19 +4758,8 @@ pub(crate) mod rest {
             };
             let others: Vec<usize> = (0..link.cone.sectors.len()).filter(|&j| j != k).collect();
             for (c0, c1) in pieces {
-                if crosses(&link.cone, &others, &rays, (c0, c1), rd, &mut notes) {
-                    let mut scratch = Notes::default();
-                    if crosses(
-                        &link.cone,
-                        &others,
-                        &rays,
-                        (near(c0), near(c1)),
-                        rd,
-                        &mut scratch,
-                    ) {
-                        return TouchVerdict::Crossing;
-                    }
-                    notes.in_band = true;
+                if crosses_in_ball(link, &others, &rays, (c0, c1), rd, &mut notes) {
+                    return TouchVerdict::Crossing;
                 }
                 let probe = c0.mid(c1);
                 for &j in &others {
@@ -4747,9 +4767,12 @@ pub(crate) mod rest {
                     if link.cone.side(t, probe, rd) != Some(Sign::Zero) {
                         continue;
                     }
-                    match t.place(link.cone.p, probe, rd).ok() {
-                        Some(Place::Outside) => {}
-                        Some(Place::Inside | Place::Bound) => notes.degenerate = true,
+                    match on_sector(&link.cone, t, probe, rd) {
+                        Some(false) => {}
+                        Some(true) if planar(link, k) && planar(link, j) => {
+                            notes.degenerate = true;
+                        }
+                        Some(true) => notes.coincident = true,
                         None => notes.in_band = true,
                     }
                 }
@@ -4758,6 +4781,9 @@ pub(crate) mod rest {
         }
         if notes.degenerate {
             return TouchVerdict::Unread(TouchUnread::Degenerate);
+        }
+        if notes.coincident {
+            return TouchVerdict::Unread(TouchUnread::Curved(CurvedUnread::Unreadable));
         }
         // Two sheets crossing along a ray of the link: every ray a wedge
         // of any sector ends on (a sector's bound, so a cut, or a ray two
@@ -4851,6 +4877,221 @@ pub(crate) mod rest {
             }
         }
         if notes.in_band || tied.contains(&false) {
+            TouchVerdict::Unread(TouchUnread::InBand)
+        } else {
+            TouchVerdict::Rest(Rest { _sealed: () })
+        }
+    }
+
+    /// **Whether sector `k` is a plane its face lies in**: a planar face's
+    /// tangent sector, or a sector that is no tangent cone at all (a planar
+    /// face's piece, a cleared disc, or a ruled face's chord, which
+    /// [`super::LinkFace::tangent`] says every planar reader takes as
+    /// one). The one reading of "a plane" for two sectors on each other.
+    pub(super) fn planar<T: Decide>(link: &Link<T>, k: usize) -> bool {
+        link.faces[k].tangent.is_none_or(|t| t.plane_exact)
+    }
+
+    /// **Whether sector `k` lies in sector `j`'s plane**: every ray of
+    /// its fan reads on that plane. The first-order half of two planar
+    /// sectors lying on each other ([`slit`]).
+    fn in_plane_of<T: Decide>(link: &Link<T>, k: usize, j: usize, rd: Reading<T>) -> bool {
+        let t = &link.cone.sectors[j];
+        link.cone.sectors[k].wedges.iter().all(|&(a, b)| {
+            [a, b]
+                .into_iter()
+                .all(|q| link.cone.side(t, q, rd) == Some(Sign::Zero))
+        })
+    }
+
+    /// **Whether `q` lies on sector `t`**: on its plane, inside it or on
+    /// its bound (`Some(true)`); decidedly off the plane or outside the
+    /// sector (`Some(false)`); `None` where either reading is in band.
+    fn on_sector<T: Decide>(
+        cone: &Cone<T>,
+        t: &super::Sector<T>,
+        q: Point3<T>,
+        rd: Reading<T>,
+    ) -> Option<bool> {
+        match cone.side(t, q, rd)? {
+            Sign::Positive | Sign::Negative => Some(false),
+            Sign::Zero => Some(t.place(cone.p, q, rd).ok()? != Place::Outside),
+        }
+    }
+
+    /// **Whether the segment `seg` crosses a sector of `others`, confirmed
+    /// in the link's ball** ([`crosses`], read again with the segment's
+    /// points drawn in): a crossing read only further out notes the
+    /// reading in band.
+    fn crosses_in_ball<T: Decide>(
+        link: &Link<T>,
+        others: &[usize],
+        rays: &[Point3<T>],
+        (c0, c1): Segment<T>,
+        rd: Reading<T>,
+        notes: &mut Notes,
+    ) -> bool {
+        if !crosses(&link.cone, others, rays, (c0, c1), rd, notes) {
+            return false;
+        }
+        let near = |q| within(link.cone.p, q, link.ball);
+        let mut scratch = Notes::default();
+        if crosses(
+            &link.cone,
+            others,
+            rays,
+            (near(c0), near(c1)),
+            rd,
+            &mut scratch,
+        ) {
+            return true;
+        }
+        notes.in_band = true;
+        false
+    }
+
+    /// **Whether two planar sectors of a tangent link lie on each other**
+    /// over an area: one in the other's plane ([`in_plane_of`]) with a ray
+    /// strictly inside the other or a wedge's middle inside it, read
+    /// either way round. The faces then hold that area (`crates/topo/README.md`),
+    /// which the planar link refuses as [`TouchUnread::Degenerate`], and so
+    /// does this one, before its first order, horns or lenses are read.
+    fn slit<T: Decide>(link: &Link<T>, rd: Reading<T>) -> bool {
+        let (p, sectors) = (link.cone.p, &link.cone.sectors);
+        (0..sectors.len()).filter(|&k| planar(link, k)).any(|k| {
+            (0..sectors.len())
+                .filter(|&j| j != k && planar(link, j) && in_plane_of(link, k, j, rd))
+                .any(|j| {
+                    let inside = |q| sectors[j].place(p, q, rd).ok() == Some(Place::Inside);
+                    sectors[k]
+                        .wedges
+                        .iter()
+                        .any(|&(a, b)| inside(a) || inside(b) || inside(a.mid(b)))
+                })
+        })
+    }
+
+    /// **A tangent link whose lenses and lunes one order down are read**
+    /// ([`super::second_order::lenses`]) over its remainder: its other
+    /// sectors, each sector a lune's wedge ends inside cut short there,
+    /// and its horns but the lunes' caps, each lens or lune cut out of the
+    /// remainder's material (a void) or added to it (a sliver). The link
+    /// rests where no other sector crosses a pair's wedge (a crossing,
+    /// confirmed in the ball), no other horn's ray lies on its closed
+    /// wedge, no other sector reaches a cap's ray, the remainder rests
+    /// ([`one_material`]), and each pair's middle reads decidedly inside
+    /// the remainder's material for a void and outside it for a sliver; a
+    /// remainder of no sector and no horn has no material, and its pairs
+    /// are then all one kind. The argument: `crates/topo/README.md`,
+    /// beside the first-order one. A pair of the wrong kind for its region
+    /// is [`crate::CurvedUnread::Unreadable`]; a horn or sector reaching
+    /// it as above, or a reading in band, is [`TouchUnread::InBand`].
+    fn lensed<T: Decide>(
+        link: &Link<T>,
+        lenses: &[super::second_order::OneWedge<T>],
+        band: Band,
+        rd: Reading<T>,
+    ) -> TouchVerdict {
+        use super::second_order::Lens;
+        let (p, sectors) = (link.cone.p, &link.cone.sectors);
+        let unread = TouchVerdict::Unread(TouchUnread::Curved(CurvedUnread::Unreadable));
+        let paired = |k: usize| lenses.iter().any(|w| w.pair.contains(&k));
+        let capped = |h: usize| lenses.iter().any(|w| w.caps.iter().any(|&(c, _)| c == h));
+        let pieces: Vec<_> = (0..sectors.len())
+            .filter(|&k| !paired(k))
+            .map(|k| super::FaceSector {
+                sector: sectors[k].clone(),
+                face: link.faces[k].clone(),
+            })
+            .chain(lenses.iter().filter_map(|w| {
+                w.rest.as_ref().map(|f| super::FaceSector {
+                    sector: f.sector.clone(),
+                    face: f.face.clone(),
+                })
+            }))
+            .map(super::TangentPiece::Sector)
+            .chain(
+                (0..link.horns.len())
+                    .filter(|&h| !capped(h))
+                    .map(|h| super::TangentPiece::Horn(link.horns[h])),
+            )
+            .collect();
+        let remainder = if pieces.is_empty() {
+            None
+        } else {
+            match Link::of_tangent(p, pieces) {
+                Ok(r) => Some(r),
+                Err(why) => return TouchVerdict::Unread(why),
+            }
+        };
+        if let Some(r) = &remainder {
+            match one_material(r, band) {
+                TouchVerdict::Rest(_) => {}
+                other => return other,
+            }
+        }
+        let rays = link.cone.rays();
+        let mut notes = Notes::default();
+        for w in lenses {
+            let ([i, j], (a, b)) = (w.pair, w.wedge);
+            let s = &sectors[w.own];
+            let others: Vec<usize> = (0..sectors.len()).filter(|&k| k != i && k != j).collect();
+            if crosses_in_ball(link, &others, &rays, (a, b), rd, &mut notes) {
+                return TouchVerdict::Crossing;
+            }
+            // A horn whose ray reaches the closed wedge, or is read in band
+            // of it, may enter the lens one order down, which nothing here
+            // reads: refused in band. Another sector's ray needs no such
+            // read. Strictly inside the wedge, some sector bounded along it
+            // leaves the lens plane (the link closes there), and `crosses`
+            // notes in band where the wedge meets it on that bound; sectors
+            // bounded along it in the plane close into a sheet holding the
+            // middle, which the remainder reads on, or a pair on each other,
+            // refused as a slit, as coincident, or, a lens, where first order
+            // reads its bound inside this one and its sheets fold. On the
+            // wedge's bound it is a tie first order reads one order down,
+            // where this lens's two sheets fold along their shared edge
+            // (`parts`); so is a sheet in the lens plane holding the whole
+            // wedge, the wedge's bounds lying inside it. A lune's own caps
+            // close it; at a cap's ray `parts` reads the sheets but not the
+            // cap between them, so no other sheet may reach that ray.
+            let reaches = (0..link.horns.len())
+                .filter(|&h| !w.caps.iter().any(|&(c, _)| c == h))
+                .any(|h| {
+                    let h = &link.horns[h];
+                    on_sector(&link.cone, s, h.apex + h.ends[0].0, rd) != Some(false)
+                });
+            // The sector that runs on past a mouth is no other sector, but
+            // its fan past the wedge may come round to the cap's ray.
+            let crowded = w.caps.iter().any(|&(_, r)| {
+                others
+                    .iter()
+                    .map(|&k| &sectors[k])
+                    .chain(w.rest.as_ref().map(|f| &f.sector))
+                    .any(|t| on_sector(&link.cone, t, r, rd) != Some(false))
+            });
+            if reaches || crowded {
+                notes.in_band = true;
+            }
+            let probe = a.mid(b);
+            let around = match &remainder {
+                // A remainder of horns alone is thorns of material.
+                Some(r) if r.cone.sectors.is_empty() => Some(Material::Out),
+                Some(r) => r.cone.reads_over(probe, rd),
+                None => Some(match lenses[0].kind {
+                    Lens::Void => Material::In,
+                    Lens::Sliver => Material::Out,
+                }),
+            };
+            match (w.kind, around) {
+                (Lens::Void, Some(Material::In)) | (Lens::Sliver, Some(Material::Out)) => {}
+                // Belt and braces, reached by no row: an undecided reading
+                // refuses rather than passes.
+                (_, None) => notes.in_band = true,
+                _ => return unread,
+            }
+        }
+        if notes.in_band {
             TouchVerdict::Unread(TouchUnread::InBand)
         } else {
             TouchVerdict::Rest(Rest { _sealed: () })
@@ -4964,6 +5205,8 @@ mod round_rows;
 mod chord_rows;
 #[cfg(test)]
 mod cleared_rows;
+#[cfg(test)]
+mod lens_rows;
 mod second_order;
 #[cfg(test)]
 mod second_order_rows;

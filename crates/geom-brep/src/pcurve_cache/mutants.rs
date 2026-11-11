@@ -23,8 +23,8 @@ use crate::pcurve_cache::FidelityLegs;
 const NAME: Option<&str> = option_env!("PCERT_RADIAL_PAIR_MUTANT");
 
 /// Every site this crate's hooks name. topo's `chord_join` declares its
-/// own two (`topo-gate`, `topo-v-var`) under the same variable.
-pub(super) const SITES: [&str; 33] = [
+/// own one (`topo-v-var`) under the same variable.
+pub(super) const SITES: [&str; 43] = [
     "class-circle",
     "zero-winding",
     "torus-parallel",
@@ -47,6 +47,9 @@ pub(super) const SITES: [&str; 33] = [
     "form-uncharged",
     "lane-envelope-bound",
     "cone-terms-unprojected",
+    "semi-axis-unchecked",
+    "charge-circular",
+    "ellipse-term-dropped",
     "ruling-per-parameter",
     "cone-ruling-gate",
     "ruling-unplaced",
@@ -57,7 +60,14 @@ pub(super) const SITES: [&str; 33] = [
     "spline-bound-undercut",
     "spline-on-cut-short",
     "spline-product-uncharged",
+    "spline-shown-unread",
     "sampled-line-incidence",
+    "arc-rim-weight-unpaid",
+    "arc-rim-span-unpaid",
+    "arc-rim-tangent-under",
+    "stated-image-sampled",
+    "net-bound-sampled",
+    "general-image-class-gate",
 ];
 
 fn on(site: &str) -> bool {
@@ -241,6 +251,13 @@ pub(super) fn spline_on_cut_short() -> bool {
     on("spline-on-cut-short")
 }
 
+/// `read_shown`'s spline arm, and the point read's, passing every
+/// carrier and point unread: a carrier off its wall ends as its image's
+/// bound at the certificate doors (its rows are `spline_door_rows`).
+pub(super) fn spline_shown_unread() -> bool {
+    on("spline-shown-unread")
+}
+
 /// The cylinder arm's ruling reading folded again: an in-band reading
 /// takes the meridian form rather than the general lane (its rows are
 /// `cylinder_line_rows`).
@@ -302,6 +319,20 @@ pub(super) fn form_uncharged<T: Real>(harmonics: T) -> Option<T> {
     on("form-uncharged").then_some(harmonics)
 }
 
+/// The edge certificate's stated chart image metered at its schedule's
+/// samples again rather than bounded over the span through its pcurve
+/// certificate (its rows are `pcurve_cache::stated_image_rows`).
+pub(crate) fn stated_image_sampled() -> bool {
+    on("stated-image-sampled")
+}
+
+/// A spline net stated on an analytic chart read at its samples alone
+/// again, not bounded over the span (its rows are
+/// `pcurve_cache::analytic_net_rows`).
+pub(super) fn net_bound_sampled() -> bool {
+    on("net-bound-sampled")
+}
+
 /// A lane choice's envelope refusal left as the envelope's own (a bound
 /// on a miss, a tolerance offer) rather than the lane's gap (its rows
 /// are `circle_lane_rows`).
@@ -315,4 +346,59 @@ pub(crate) fn lane_envelope_bound() -> bool {
 /// `circle_lane_rows`).
 pub(crate) fn cone_terms_unprojected() -> bool {
     on("cone-terms-unprojected")
+}
+
+/// The edge certificate's semi-axis checks skipped: a conic stored with
+/// a negative or non-finite semi-axis reaches the span meter, which
+/// ends it as something else (its rows are
+/// `ellipse_lane_rows::a_conic_stored_with_a_negative_semi_axis_refuses_typed`
+/// and `..._with_a_semi_axis_not_finite_refuses_as_that`).
+pub(crate) fn semi_axis_unchecked() -> bool {
+    on("semi-axis-unchecked")
+}
+
+/// A conic's charge read as a circle's, `|a| = |b|`: the reach and the
+/// cone's levers read the first semi-axis for both, so an ellipse whose
+/// second is the larger is under-charged (its rows are
+/// `ellipse_lane_rows`).
+pub(crate) fn charge_circular() -> bool {
+    on("charge-circular")
+}
+
+/// The second harmonic's cosine coefficient read as a circle's, the
+/// ellipse's `(a² − b²)` part dropped: the form's bound misses an
+/// eccentric ellipse's (its rows are `ellipse_lane_rows`).
+pub(crate) fn ellipse_term_dropped() -> bool {
+    on("ellipse-term-dropped")
+}
+
+/// An arc rim's decided weight margins left out of its envelope: the
+/// envelope misses a column whose weight is off `cos(h/2)` inside the
+/// band (its rows are `iso_arc_weight_miss` and its search).
+pub(super) fn arc_rim_weight_unpaid() -> bool {
+    on("arc-rim-weight-unpaid")
+}
+
+/// An arc rim's in-band overshoot past its image's arc left out of its
+/// envelope: the envelope misses the chord the clamped map leaves (its
+/// row is `iso_arc_weight_rows::a_span_past_the_arc_pays_its_overshoot`).
+pub(super) fn arc_rim_span_unpaid() -> bool {
+    on("arc-rim-span-unpaid")
+}
+
+/// An arc rim's weight lever read with `12/27` for `16/27`, under-reading
+/// the tangential miss a short sub-arc's weight costs (its row is
+/// `iso_arc_weight_rows::a_short_sub_arc_pays_its_tangential_miss`).
+pub(super) fn arc_rim_tangent_under() -> bool {
+    on("arc-rim-tangent-under")
+}
+
+/// The mint's `General` image keyed on its carrier's class rather than
+/// its measured miss: `Some(false)` for a carrier that is straight or a
+/// spline, which takes the degree-1 image unclimbed and whose refusal
+/// keeps its own term, and `Some(true)` for any other (its rows are
+/// `general_climb_rows`).
+pub(crate) fn general_image_class_gate<T: Real>(carrier: &geom::Curve3<T>) -> Option<bool> {
+    on("general-image-class-gate")
+        .then(|| carrier.is_curved() && !matches!(carrier, geom::Curve3::Nurbs(_)))
 }
