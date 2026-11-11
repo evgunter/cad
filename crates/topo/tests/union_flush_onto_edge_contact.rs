@@ -2378,16 +2378,15 @@ fn a_corner_crossing_the_cubes_four_times_builds_every_op() {
 /// that meets the cube's corner's boundary in two dangling segments
 /// and the other two in the gaps between, so the pieces' cuts
 /// alternate round the corner. The band's pair crosses the cube's
-/// corner four times; it pairs along the cube's arcs inside the band
-/// (`insert::in_arc_pairs`), which no other corner's cut lies on, so
-/// the shared corner's runs are clear in every op. Every op builds,
+/// corner four times. Where its start on the side the op keeps lays it
+/// along the cube's arcs outside the band, which the other corners' cuts
+/// lie on, it takes the other start (`insert::reconcile_shared`), so the
+/// shared corner's runs are clear in every op. Every op builds,
 /// passes tier 2, 3′ and the certificate, and measures `cube ∪ y` =
 /// 1.0336378, `cube ∩ y` = 0.0285733 and `cube ∖ y` = 0.9714267, with
 /// each op the same in both operand orders and `y ∖ cube + ∩` = `y`.
-/// Red as `ClassificationInvariant` ("a run at a shared vertex holds
-/// another pair's cut") where the band pairs along the cube's arcs
-/// outside it, from the op's kept side of A or from the Out arcs, and
-/// as `JoinDesync` in `y ∩ cube` and `y ∪ cube` where the finish
+/// Red as `SharedVertexCrossings` where a blocked pair keeps its kept
+/// start, and as `JoinDesync` in `y ∩ cube` and `y ∪ cube` where the finish
 /// refuses a kept vertex that corresponds to two vertices of the other
 /// operand. It holds again with every reduction taking its vertex
 /// pairs and their records in reverse

@@ -3560,18 +3560,18 @@ pub enum BooleanError {
         b_vertex: VertexKey,
     },
     /// Two vertex-vertex coincidences that share a vertex both cross
-    /// there, in a way the corner's reading cannot place: an operand
-    /// holds several vertices at one point (its own contact's) and the
-    /// other operand's vertex there crosses into more than one of their
-    /// neighborhoods. Each pair runs along its piece's In arcs there,
-    /// which the other pieces' cuts never lie on, so the runs are
-    /// disjoint; but two pairs' runs whose ends tie along one direction
-    /// at both ends, with nothing reading the ties apart, are one arc as
-    /// far as the corner reads, and refuse (`insert::reconcile_shared`,
-    /// `insert::tied_held`). No known pose reaches it. A dangling null
-    /// edge whose segment holds another's whole builds: the inner hangs
-    /// at its tip, and of two with one segment the Out one holds
-    /// (`insert::holds_whole`). Emitted by the insertion only.
+    /// there, in a way the insertion cannot place: an operand holds
+    /// several vertices at one point (its own contact's) and the other
+    /// operand's vertex there crosses into more than one of their
+    /// neighborhoods, and no choice of the pairs' starts leaves every
+    /// run in the shared vertex's orbit clear of the other pairs' cuts
+    /// (`insert::reconcile_shared`). That needs a pair's curve with
+    /// other curves on both of its sides: three nested cones of one
+    /// operand at an apex, or a shell beside a separate piece. No known
+    /// pose reaches it. A dangling null edge whose segment holds
+    /// another's whole builds: the inner hangs at its tip, and of two
+    /// with one segment the Out one holds (`insert::holds_whole`).
+    /// Emitted by the insertion only.
     ///
     /// A limit: an insertion not built (row 2).
     SharedVertexCrossings {
@@ -7201,7 +7201,8 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
         .zip(leads)
         .map(|((c, a_sectors, b_sectors, records, raw, _), lead)| {
             insert::plan_null_pairs(
-                &a, &b, *c, a_sectors, b_sectors, records, raw, &declared, &contacts, lead, band,
+                &a, &b, *c, a_sectors, b_sectors, records, raw, &declared, &contacts, op, lead,
+                band,
             )
         })
         .collect::<Result<Vec<_>, _>>()?;
