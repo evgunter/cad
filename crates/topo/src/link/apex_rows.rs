@@ -628,3 +628,88 @@ fn two_arcs_of_one_circle_are_kept_as_one_f64() {
 fn two_arcs_of_one_circle_are_kept_as_one_interval() {
     two_arcs_of_one_circle_are_kept_as_one::<Interval>();
 }
+
+// ---- r6835b probes (reviewer, not for merge) ----
+
+fn probe_lobe<T: Real>(p: Point3<T>, alpha: f64, sense: bool, scale: f64, axis: Vec3<T>, side: Vec3<T>) -> TangentPiece<T> {
+    let (e, k) = (edges(1)[0], carriers(1)[0]);
+    let (s, c) = alpha.sin_cos();
+    let along = (axis * T::from_f64(c) + side * T::from_f64(s)) * T::from_f64(scale);
+    TangentPiece::Apex(ApexLobe {
+        cone: crate::sector_face::ConeApex {
+            apex: p,
+            axis,
+            half_angle: T::from_f64(alpha),
+            u_ref: side,
+            sense,
+        },
+        carrier: k,
+        vertex: p,
+        ends: [(along, e), (along, e)],
+        spur: true,
+    })
+}
+
+fn probe_report<T: Decide>() {
+    let e = band().escalate();
+    let up = v::<T>(0.0, 1.0, 0.0);
+    for p in apexes::<T>() {
+        // 1. two lobes, crosswise, one ruling on each nappe.
+        let k = carriers(1)[0];
+        let ed = edges(2);
+        let a = ruling::<T>(0.0);
+        let opp = -ruling::<T>(core::f64::consts::PI);
+        let mk = |ends| TangentPiece::Apex(ApexLobe { cone: cone(p, false), carrier: k, vertex: p, ends, spur: false });
+        let got = read(p, vec![mk([(a, ed[0]), (opp, ed[1])]), mk([(opp, ed[1]), (a, ed[0])]), whole(p, up)]);
+        eprintln!("PROBE cross-nappe lobes at {p:?}: {got:?}");
+        // 2. short arm: the tipped needle 2x escalation under at a unit arm, rulings scaled to `sc`.
+        let gamma = core::f64::consts::FRAC_PI_2 - ALPHA;
+        for sc in [1.0, 0.01] {
+            let delta = (2.0 * e).asin();
+            let g = gamma - delta;
+            let axis = v::<T>(g.sin(), -g.cos(), 0.0);
+            let got = read(p, vec![probe_lobe(p, ALPHA, false, sc, axis, v(0.0, 0.0, 1.0)), whole(p, up)]);
+            eprintln!("PROBE tipped 2e at scale {sc} at {p:?}: {got:?}");
+            if sc < 1.0 { assert_eq!(got, TouchVerdict::Unread(TouchUnread::InBand), "PROBE short arm at {p:?}"); }
+        }
+        // 4. half-angle extremes.
+        for alpha in [0.01, core::f64::consts::FRAC_PI_2 - 0.01] {
+            let got = read(p, vec![probe_lobe(p, alpha, false, 1.0, -up, v(1.0, 0.0, 0.0)), whole(p, up)]);
+            eprintln!("PROBE alpha {alpha} needle under plane at {p:?}: {got:?}");
+            let got = read(p, vec![probe_lobe(p, alpha, true, 1.0, -up, v(1.0, 0.0, 0.0)), whole(p, -up)]);
+            eprintln!("PROBE alpha {alpha} thorn under material at {p:?}: {got:?}");
+            let t = 0.02f64;
+            let got = read(p, vec![probe_lobe(p, alpha, false, 1.0, -up, v(1.0, 0.0, 0.0)), whole(p, v(t.sin(), t.cos(), 0.0))]);
+            eprintln!("PROBE alpha {alpha} needle plane tilted 0.02 at {p:?}: {got:?}");
+        }
+        // 5. apex on a slit: two whole planes on one plane, materials both sides.
+        let got = read(p, vec![spur(p, false), whole(p, up), whole(p, -up)]);
+        eprintln!("PROBE needle on a slit at {p:?}: {got:?}");
+        let got = read(p, vec![spur(p, true), whole(p, up), whole(p, -up)]);
+        eprintln!("PROBE thorn on a slit at {p:?}: {got:?}");
+        // 6. circles: the boss on its hole, with the plate's top turned onto the floor's side.
+        for flip in [false, true] {
+            for circle in [true, false] {
+                let got = read(p, boss_probe(p, -1.0 / 0.3, circle, flip));
+                eprintln!("PROBE boss flip={flip} circle={circle} at {p:?}: {got:?}");
+            }
+        }
+    }
+}
+
+fn boss_probe<T: Decide>(p: Point3<T>, hole: f64, circle: bool, flip: bool) -> Vec<TangentPiece<T>> {
+    let mut out = boss_on_hole(p, hole, circle);
+    if flip {
+        let lip = Bound { edge: edges(4)[3], line: false, circle, bend: w(hole, 0.0, 0.0) };
+        let z = w::<T>(0.0, 0.0, 1.0);
+        let surf = geom::Surface::Plane { origin: p, normal: z, u_ref: w(1.0, 0.0, 0.0) };
+        let fan = TangentFan::Edge { along: w(0.0, 1.0, 0.0), reach: T::from_f64(0.2), edge: lip };
+        out[3] = FaceSector::tangent(surf, true, z, p, fan, band()).expect("a half-plane");
+    }
+    out
+}
+
+#[test]
+fn probe_report_f64() { probe_report::<f64>(); }
+#[test]
+fn probe_report_interval() { probe_report::<Interval>(); }
