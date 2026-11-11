@@ -1186,3 +1186,12 @@ E1c waits on the answer.
     - P3 `a-stated-spline-image-is-certified-twice-by-the-edge-certificate-and-the-mint`;
     - P3 `a-carrier-at-the-bands-zero-edge-of-a-spline-wall-costs-seconds-per-certify`, seconds per call at the zero edge on main too, and 1.4–1.5× on knot-rich nets here.
   - Cost: 1.025× end to end on ten loft and spline rows.
+- 2026-11-11 — **`a-curved-spline-carrier-or-a-non-affine-line-ends-its-general-image-as-a-kernel-bug` closed** (PR 6819). The mint's General image climbs where its measured miss asks, not where the carrier's class says it bends. `edge_nurbs::general_chart_image` (renamed from `curved_chart_image`) is the one General image for every carrier. Its first rung is `chart_image`'s degree-1 image, byte-identical, so the edge certificate's reading does not move. It climbs degree-5 rungs where the miss midway between feet, net of the carrier's standoff as a vector, exceeds `band.zero()/16`.
+  - `bends` is gone. `minted_refusal` relabels any minted General image's refusal as "not yet"; `incidence_ended` pre-empts it with a definite miss or the in-band lever, and a stated row keeps its own term.
+  - The climb sits inside `general_chart_image`, holding edge_nurbs at its ratified 16 compound-bound sites. The review judged this legitimate: the reads are the ones PR 6532's ledger entry argues.
+  - A refused climb now keeps the degree-1 image, and its certificate's refusal ends "not yet" where the foot's own refusal ended unsettled. Both are "not yet", and the doc says so.
+  - Review tier: single FULL. APPROVE-WITH-FIXES, 0 MAJOR. Soundness was executed (bumps on feet and midpoints, δ from 0.5ε to 1e6ε; nothing past escalate certified). Fix list NN was read by the orchestrator: the rename and text, the feet reused, a threshold-pinning row, the vector standoff with a row, one miss fold, Option-shaped climb.
+  - Filed:
+    - P3 `a-climbed-general-image-on-a-stretched-chart-reads-its-hull-wide-at-fine-eps`;
+    - P3 `a-general-images-climb-reads-only-midpoints-between-feet`, the review's missed climb between a foot and a midpoint, an honest "not yet".
+  - Cost: 678 s against 686 s over 88 slow spline rows. The in-band rim row at Interval drops from 2.5 s to 0.9 s.
