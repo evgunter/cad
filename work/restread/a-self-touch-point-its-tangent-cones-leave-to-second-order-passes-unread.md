@@ -2,11 +2,13 @@
 id: a-self-touch-point-its-tangent-cones-leave-to-second-order-passes-unread
 kind: issue
 title: A self-touch point whose curved faces' tangent cones leave it to second order passes unread
-status: open
+status: review
 opened: 2026-11-02
 priority: P1
 cost: H
 refs: [tier-3-prime-reads-no-side-where-a-solid-touches-itself-at-a-point-on-a-curved-face]
+pr: PRNUM
+branch: restread/self-touch-lunes
 ---
 
 
@@ -222,3 +224,53 @@ apex, a foot normal and a `resolve` refusal. Refusing them turns 5
 sweep rows red. The next unit is the lunes and the tangent-inside
 cylinders. Whether the remainder refuses in the meantime is still Ev's
 call.
+
+## Lunes (branch `restread/self-touch-lunes`)
+
+Tier: **dual (class H): a GRANT in the self-touch reading.**
+
+`second_order::lenses` now also reads a **lune**: two sectors on one
+wedge `W` of opposed normals, `W` one sector's whole fan and the
+other's first or last wedge, each end of `W` a pinch (one edge, or two
+lines on one line), a cap (a horn whose two edges are the sectors'
+bounds there) or a mouth (the other sector runs on past it). The form
+`q` is read in Bernstein form along `W`: a pinch reads Zero, a cap or
+mouth reads one decided sign `σ` with both planes' parting there
+charged, and the polar value `b₁` reads Zero or `σ`. `rest::lensed`
+reads lunes with the lenses, the remainder holding the mouth's sector
+cut short at the mouth (bounded by the other sector's edge there) and
+without the caps; a cap whose ray another sector reaches refuses in
+band. The argument is in `crates/topo/README.md` beside the lens's.
+
+What the real bodies hold: the lune cavities' points are two lunes
+(a horn of the floor capping two cylinder sectors pinched along their
+shared cusp line); `a_rim_flush_…`'s point is two lunes with mouths
+(`B`'s wall runs on past the rim, `A`'s seam and `B`'s split line two
+lines on the pinch).
+
+**Measured at head `4a2c743e4e`** against merge base `ea1c8517ce`,
+same instrument (key: test, `census::witness`, verdict; topo plus the
+nine sweep families `a_closed_conic_in_the_partners_face`,
+`a_cone_apex_on_a_plane_through_it`, `a_split_through_a_wrap_edges_vertex`,
+`bisector_nodes`, `split_across_a_revolve_seam`,
+`two_wedge_ends_on_one_line`, `review_6020_seam_probes`,
+`review_5956_r2_probes`, `reach_wall_chord_rows`, default ε). 478
+triples both sides. Skipped at the base: 11, as above. At head 6 read
+`Rest` (the four lune triples, both `a_rim_flush_…` triples) and 5
+stay skipped:
+
+| class still skipped | triples |
+|---|---|
+| a bound on a bound whose bends are equal (`a_hole_sharing_…`): the cut's anchors coincide, third order | 1 |
+| a cone's apex | 2 |
+| a foot normal | 1 |
+| a `resolve` refusal | 1 |
+
+No other triple changes verdict, and the head reaches no point the base
+does not.
+
+**Refusing what is left** (local variant, never committed) turns 2
+sweep rows red: `a_hole_sharing_…` and the cone apex. Both
+`two_wedge_ends_on_one_line` rows and `a_rim_flush_…` now read whole.
+Whether the remainder refuses is still Ev's call.
+

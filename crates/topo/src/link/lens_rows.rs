@@ -934,9 +934,14 @@ fn curve<T: Real>(edge: EdgeKey, bend: Vec3<T>) -> Bound<T> {
 /// The upright cylinder of radius `r` through `p`, its axis `r` behind
 /// `p` along `turn·x` (`turn` ±1).
 fn upright<T: Real>(p: Point3<T>, r: f64, turn: f64) -> geom::Surface<T> {
+    upright_along(p, r, turn, v(0.0, 0.0, 1.0))
+}
+
+/// [`upright`] about the unit `axis`, square to `x`.
+fn upright_along<T: Real>(p: Point3<T>, r: f64, turn: f64, axis: Vec3<T>) -> geom::Surface<T> {
     geom::Surface::Cylinder {
         origin: p - v::<T>(turn * r, 0.0, 0.0),
-        axis: v(0.0, 0.0, 1.0),
+        axis,
         radius: T::from_f64(r),
         u_ref: v(turn, 0.0, 0.0),
     }
@@ -954,13 +959,28 @@ fn upright<T: Real>(p: Point3<T>, r: f64, turn: f64) -> geom::Surface<T> {
 /// sliver, pinched along the cusp line.
 fn lune<T: Decide>(
     p: Point3<T>,
-    [r1, r2]: [f64; 2],
+    radii: [f64; 2],
     turn: f64,
     void: bool,
     k: [EdgeKey; 3],
 ) -> Vec<TangentPiece<T>> {
-    let y = v::<T>(0.0, 2.0 * turn, 0.0);
-    let z = v::<T>(0.0, 0.0, 2.0);
+    lune_at(p, radii, turn, void, k, 0.0)
+}
+
+/// [`lune`] turned by `phi` about `x`.
+fn lune_at<T: Decide>(
+    p: Point3<T>,
+    [r1, r2]: [f64; 2],
+    turn: f64,
+    void: bool,
+    k: [EdgeKey; 3],
+    phi: f64,
+) -> Vec<TangentPiece<T>> {
+    let (c, s) = (phi.cos(), phi.sin());
+    let y = v::<T>(0.0, 2.0 * turn * c, 2.0 * turn * s);
+    let up = v::<T>(0.0, -s, c);
+    let z = up * T::from_f64(2.0);
+    let upright = |p, r, turn| upright_along(p, r, turn, up);
     let x = |a: f64| v::<T>(turn * a, 0.0, 0.0);
     let (a1, a2) = (curve(k[1], x(-1.0 / r1)), curve(k[2], x(-1.0 / r2)));
     if void {
@@ -979,13 +999,7 @@ fn lune<T: Decide>(
                 (z, y),
                 [line(k[0]), a2],
             ),
-            corner_along(
-                p,
-                (plane(p, v(0.0, 0.0, 1.0)), true),
-                v(0.0, 0.0, 1.0),
-                (y, y),
-                [a2, a1],
-            ),
+            corner_along(p, (plane(p, up), true), up, (y, y), [a2, a1]),
         ]
     } else {
         vec![
@@ -1003,13 +1017,7 @@ fn lune<T: Decide>(
                 (y, z),
                 [a2, line(k[0])],
             ),
-            corner_along(
-                p,
-                (plane(p, v(0.0, 0.0, -1.0)), true),
-                v(0.0, 0.0, -1.0),
-                (y, y),
-                [a1, a2],
-            ),
+            corner_along(p, (plane(p, -up), true), -up, (y, y), [a1, a2]),
         ]
     }
 }
@@ -1019,7 +1027,7 @@ fn lune<T: Decide>(
 /// capped by a horn of the floor between their arcs. A void alone, two
 /// voids kissing at their cusps (the two lune cavities' link), and a
 /// sliver alone rest. Read against a whole plane through `p` that misses
-/// the quarter, a void inside the plane's material and a sliver outside it
+/// the quarter (the lune turned 10° off it), a void inside the plane's material and a sliver outside it
 /// rest, the other two are refused; a plane through the lune's middle
 /// crosses it; a cap turned over, its normal out of a void, refuses; and
 /// a horn of the arcs' edges along another ray caps no lune. Red where a
@@ -1040,16 +1048,18 @@ fn a_lune_is_the_void_or_the_sliver_its_cap_closes<T: Decide>() {
         assert!(rests(&got), "two void lunes kissing at {p:?}: {got:?}");
         let got = read(p, lune(p, [1.0, 2.0], 1.0, false, one));
         assert!(rests(&got), "a sliver lune at {p:?}: {got:?}");
-        // The plane y + z = 0 meets the lune's plane along `±(0, 1, −1)`,
-        // off the quarter; the lune's middle lies on its `+` side.
-        let n = |s: f64| v::<T>(0.0, s, s) * T::from_f64(core::f64::consts::FRAC_1_SQRT_2);
+        // The lune turned 10° about `x`, off the plane z = 0, which spans
+        // the apex's `y` and `z` as [`v`] needs a whole plane to; the
+        // lune's middle lies on its `+` side.
+        let tilt = 10f64.to_radians();
+        let n = |s: f64| v::<T>(0.0, 0.0, s);
         for (what, void, front, rests_there) in [
             ("a void in the plane's material", true, false, true),
             ("a void outside it", true, true, false),
             ("a sliver outside it", false, true, true),
             ("a sliver in its material", false, false, false),
         ] {
-            let mut pieces = lune(p, [1.0, 2.0], 1.0, void, one);
+            let mut pieces = lune_at(p, [1.0, 2.0], 1.0, void, one, tilt);
             pieces.push(whole(p, n(if front { 1.0 } else { -1.0 })));
             let got = read(p, pieces);
             if rests_there {
