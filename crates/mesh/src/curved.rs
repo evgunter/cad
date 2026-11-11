@@ -206,7 +206,9 @@ pub(crate) fn tessellate_curved(
     let chart = Chart::of(surface).ok_or(TessellateError::MissingEntity {
         what: "curved chart",
     })?;
-    let polygon = loop_polygon(body, &chart, chords, shared, fk, face.outer, tol.eps)?;
+    let polygon = loop_polygon(
+        body, &chart, chords, shared, fk, face.outer, tol.eps, tol.band,
+    )?;
     // A COUNT, and only a count. Every loop measured into this line came
     // from a state questions 3 and 4 now refuse on their own terms first
     // — a one-generator cylinder face counted two entries — so this is
@@ -1264,6 +1266,7 @@ mod tests {
     /// answer, for a row whose subject is a walk that refuses.
     fn curved_walk_results(body: &Body<f64>) -> Vec<(FaceKey, Result<WalkOf, TessellateError>)> {
         let eps = Eps::at(Tol::witness());
+        let band = Band::linear(Tol::witness()).unwrap();
         let mut positions = Vec::new();
         let mut vids = HashMap::new();
         for (vk, p) in body.vertex_points() {
@@ -1289,7 +1292,7 @@ mod tests {
                 continue;
             };
             let walk =
-                loop_polygon(body, &chart, &chords, &positions, fk, face.outer, eps).map(|poly| {
+                loop_polygon(body, &chart, &chords, &positions, fk, face.outer, eps, band).map(|poly| {
                     // The same lever arms `tessellate_curved` builds.
                     let levers = poly
                         .iter()
