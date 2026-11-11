@@ -614,3 +614,11 @@ Both reds were found by PCERT's nightly lane and trace to SECTARMS merges.
   - `grown`'s four reads take the seed disposition.
   - Lane on branch `sectarms/critical-census-disposition`.
 - **TubeStraddles at ε 1e-6, from PR 6518, plus the 1e-12 slowdown.** The lane decides from the mechanism between pinning the stop (the honest march) and fixing the sweep, and stops if that needs a design ruling. Lane on branch `sectarms/ruling-sweep-straddle-1e-6`.
+
+## 2026-11-11 14:30 — PR 6834 merged (census red)
+
+- **`node_frame`:** fails closed, so `width` is NaN unless the point certifies. The lane checked that `listed` refuses a NaN width, and the old `fold(f64::max)` would have dropped one. `a_node_not_placed_within_the_band_refuses` now also pins the NaN case.
+- **`grown`:** its four reads carry the seed note.
+- **Census row:** 37 / 28.
+- **A second unlisted site:** `implicit_chart.rs`'s `pass_key`, reading the lift's ends (2 / 0), from 179e0cc798. The lane dispositioned it as an identity, not a bound. Accepted: the key only names the pass, and the lift certifies by construction.
+- **Merge:** 2ad4a0be. Tier E, no row.
