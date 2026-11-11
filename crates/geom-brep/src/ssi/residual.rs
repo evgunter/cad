@@ -194,19 +194,18 @@ impl ImplicitForm {
         })
     }
 
-    /// **The plane read at a pivot, its stored plane's height kept**: the
-    /// same form, with `lift` the stored plane's height of this one's
-    /// origin, so that `f + lift` is the stored plane's `f`. A decision
-    /// on `φ`'s exact sign, the exact empty answer, reads the stored plane
-    /// through it ([`ImplicitForm::stored`]); a distance read against the
-    /// band reads this one, its band padded by the shift.
+    /// **The plane read at a pivot, lifted onto its stored plane**: the
+    /// same form, with `lift` the stored plane's `f` at this one's
+    /// origin, so that `f + lift` is the stored plane's `f`
+    /// ([`ImplicitForm::plus_lift`]).
     pub(crate) fn lifted(self, lift: Interval) -> Self {
         Self { lift, ..self }
     }
 
-    /// The stored surface's `f`, from this form's `f`, an enclosure
-    /// whose exact sign a decision reads ([`ImplicitForm::lifted`]).
-    pub(crate) fn stored(&self, f: Interval) -> Interval {
+    /// The stored surface's `f`, from this form's `f`: the value an
+    /// exact empty answer reads the sign of. A distance read against the
+    /// band reads this form's own `f`, its band padded by the lift.
+    pub(crate) fn plus_lift(&self, f: Interval) -> Interval {
         f + self.lift
     }
 

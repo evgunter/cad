@@ -149,6 +149,10 @@ struct Pieces {
     /// for a plane read by its origin and normal ([`boundary_section`]),
     /// whose `φ` is its distance.
     scale: Option<Scale>,
+    /// The stored partner's `φ` less the one read: a lifted form's lift
+    /// ([`ImplicitForm::lifted`]), and zero for a plane read by its own
+    /// origin and normal, which is the stored one.
+    lift: Interval,
 }
 
 /// **A partner's `φ` in metres along a curve, read by its form**: `φ` is the
@@ -239,6 +243,7 @@ impl Pieces {
                 form: form.clone(),
                 hull,
             }),
+            lift: form.lift(),
         })
     }
 
@@ -307,6 +312,7 @@ impl Pieces {
         Some(Self {
             pieces,
             scale: None,
+            lift: Interval::point(0.0),
         })
     }
 
@@ -321,17 +327,9 @@ impl Pieces {
     fn sign(&self, budget: &mut usize) -> Result<Option<bool>, SignBudget> {
         stored_sign(
             self.pieces.iter().map(|(_, hc, wc)| (hc, wc)),
-            self.lift(),
+            self.lift,
             budget,
         )
-    }
-
-    /// The stored partner's `f` less the form's ([`ImplicitForm::lifted`]):
-    /// zero on a plane read by its origin and normal.
-    fn lift(&self) -> Interval {
-        self.scale
-            .as_ref()
-            .map_or(Interval::point(0.0), |s| s.form.lift())
     }
 
     /// Each piece overlapping `[a, b]`, with the overlap.
@@ -505,7 +503,7 @@ impl SectionReader {
     pub(crate) fn stretch(&self, (a, b): (f64, f64)) -> Stretch {
         Stretch {
             pieces: self.pieces.over(a, b),
-            lift: self.pieces.lift(),
+            lift: self.pieces.lift,
         }
     }
 
@@ -520,7 +518,7 @@ impl SectionReader {
 /// over its pieces cut to it ([`SectionReader::stretch`]).
 pub(crate) struct Stretch {
     pieces: Vec<(Vec<Interval>, Vec<Interval>)>,
-    /// The stored partner's `f` less the form's ([`Pieces::lift`]).
+    /// The stored partner's `φ` less the one read ([`Pieces`]'s).
     lift: Interval,
 }
 

@@ -354,7 +354,11 @@ impl<T: Decide> SplineImplicitPose<T> {
         })
     }
 
-    /// The height of `p` over the plane, in metres.
+    /// The height of `p` over the plane, in metres, read about the
+    /// stored origin in the scalar's own arithmetic: the hull and door
+    /// read at every scalar, and the pivot's lift is an `f64` reading's
+    /// alone (its rounding uncharged far out:
+    /// `work/sectarms/a-wall-row-in-an-oblique-plane-reads-empty-by-where-the-planes-origin-is-stored.md`).
     fn height(&self, p: Point3<T>) -> T {
         let Surface::Plane { origin, normal, .. } = self.partner else {
             unreachable!("the pose holds a plane")
@@ -364,17 +368,12 @@ impl<T: Decide> SplineImplicitPose<T> {
 }
 
 impl SplineImplicitPose<f64> {
-    /// **The plane read at its pivot**, with what moving its origin
-    /// cost: the same carrier, its origin moved to the foot on it of the
-    /// wall's ball's centre, so its frame stands where the wall is
-    /// wherever the plane's stored origin lies (as an angular datum is
-    /// read at its pivot, `section_cert`'s lever and pivot). The foot is
-    /// found in `f64`, so the plane read stands off the stored one by up
-    /// to [`Pivot::shift`], which the reading's band is charged; the
-    /// witness's bracket and the pass's exact empty answers read the
-    /// stored plane through the foot's height over it. A plane pose's
-    /// alone: the classification reads it only where the partner is a
-    /// plane.
+    /// **The plane read at its pivot** (module docs): the same
+    /// carrier, its origin moved to the foot on it of the wall's ball's
+    /// centre (as an angular datum is read at its pivot, `section_cert`'s
+    /// lever and pivot), and the foot's certified height over the stored
+    /// plane. A plane pose's alone: the classification reads it only
+    /// where the partner is a plane.
     fn pivot(&self) -> Pivot {
         let Surface::Plane {
             origin,
@@ -392,22 +391,14 @@ impl SplineImplicitPose<f64> {
             origin.map(Interval::from_certified),
             normal.map(Interval::from_certified),
         );
-        let lift = (a.x - o.x) * m.x + (a.y - o.y) * m.y + (a.z - o.z) * m.z;
         let norm = (m.x.powi(2) + m.y.powi(2) + m.z.powi(2)).sqrt();
-        let stored = lift / norm;
         Pivot {
             plane: Surface::Plane {
                 origin: foot,
                 normal,
                 u_ref,
             },
-            heights: Heights {
-                origin: foot,
-                normal,
-                lift,
-            },
-            stored,
-            shift: stored.abs().hi(),
+            lift: ((a.x - o.x) * m.x + (a.y - o.y) * m.y + (a.z - o.z) * m.z) / norm,
         }
     }
 
@@ -428,24 +419,17 @@ impl SplineImplicitPose<f64> {
 struct Pivot {
     /// The plane, its origin at the foot.
     plane: Surface<f64>,
-    /// The stored plane's heights, read from the foot.
-    heights: Heights,
-    /// The foot's certified height over the stored plane along its unit
-    /// normal: the stored plane's `φ` less the read plane's.
-    stored: Interval,
-    /// How far the plane read may stand off the stored one, in metres:
-    /// the foot's certified height over the stored plane. Every distance
-    /// to the plane moves by at most this, so the reading's band is
-    /// padded by it.
-    shift: f64,
+    /// The foot's certified height over the stored plane, along its unit
+    /// normal: the stored plane's `φ` less the read plane's, the one
+    /// quantity the pass's exact empty answers and the witness's bracket
+    /// read the stored plane through ([`ImplicitForm::lifted`]).
+    lift: Interval,
 }
 
 impl Pivot {
     /// **The section read at the pivot**, at the padded band
-    /// ([`Pivot::band`]), its exact empty answers the stored plane's
-    /// ([`crate::ImplicitSection::lifted`]): where the stored origin lies
-    /// moves no corner or side the stored plane passes through to the
-    /// clear side.
+    /// ([`Pivot::band`]), its form lifted onto the stored plane
+    /// ([`crate::ImplicitSection::lifted`]).
     ///
     /// # Errors
     ///
@@ -458,7 +442,14 @@ impl Pivot {
         let read_band = self.band(band)?;
         let reading = crate::ImplicitSection::of(&self.plane, pose.net(), pose.domain(), read_band)
             .map_err(super::whole_reading_refused)?;
-        Ok((reading.lifted(self.stored), read_band))
+        Ok((reading.lifted(self.lift), read_band))
+    }
+
+    /// How far the plane read may stand off the stored one, in metres:
+    /// every distance to the plane moves by at most this, so the
+    /// reading's band is padded by it.
+    fn shift(&self) -> f64 {
+        self.lift.abs().hi()
     }
 
     /// The reading's band: `band` padded by the shift.
@@ -467,94 +458,47 @@ impl Pivot {
     ///
     /// [`SectionError::Unaccounted`] where the shift pads no band.
     fn band(&self, band: Band) -> Result<Band, SectionError> {
-        band.padded(self.shift)
+        band.padded(self.shift())
             .map_err(|e| SectionError::Unaccounted {
                 cause: format!(
                     "the plane read at its pivot stands {:e} m off the stored one, which pads \
                      no band: {e}",
-                    self.shift
+                    self.shift()
                 ),
             })
     }
 }
 
-/// **The stored plane's height over a point**, read from the foot:
-/// `(S − origin)·normal + lift`, where `origin` is the foot and `lift`
-/// the foot's certified height over the stored plane, so the height is
-/// the stored plane's however far its origin lies.
+/// **The partner a branch's witness is bracketed against**: the surface
+/// read, whose linearized residual selects the bracket's direction and
+/// step, and its form, the stored surface's certified sign deciding it
+/// ([`ImplicitForm::plus_lift`]).
 #[derive(Clone, Copy)]
-struct Heights {
-    /// The foot.
-    origin: Point3<f64>,
-    /// The plane's normal, as stored.
-    normal: Vec3<f64>,
-    /// The foot's height over the stored plane, `(foot − origin)·normal`.
-    lift: Interval,
-}
-
-impl Heights {
-    /// The height over `s`, an enclosure of a point.
-    fn over(self, s: Box3) -> Interval {
-        let (o, m) = (
-            self.origin.map(Interval::from_certified),
-            self.normal.map(Interval::from_certified),
-        );
-        (s.x - o.x) * m.x + (s.y - o.y) * m.y + (s.z - o.z) * m.z + self.lift
-    }
-}
-
-/// **The partner a branch's witness is bracketed against**: the stored
-/// plane's heights, or a curved partner's form.
-#[derive(Clone, Copy)]
-enum Bracketed<'a> {
-    /// The stored plane, read from the foot.
-    Plane(Heights),
-    /// A cylinder, sphere or torus: the surface, whose linearized
-    /// residual selects the bracket's direction and step, and its form,
-    /// whose certified sign decides it.
-    Curved(&'a Surface<f64>, &'a ImplicitForm),
-}
-
-impl From<Heights> for Bracketed<'_> {
-    fn from(heights: Heights) -> Self {
-        Self::Plane(heights)
-    }
+struct Bracketed<'a> {
+    surface: &'a Surface<f64>,
+    form: &'a ImplicitForm,
 }
 
 impl Bracketed<'_> {
-    /// The certified sign of `φ` over `s`, an enclosure of a point:
-    /// `Some(true)` on the positive side.
+    /// The certified sign of the stored surface's `φ` over `s`, an
+    /// enclosure of a point: `Some(true)` on the positive side.
     fn sign(self, s: Box3) -> Option<bool> {
-        crate::ssi::section::sign(match self {
-            Self::Plane(heights) => heights.over(s),
-            Self::Curved(_, form) => form.value(form.framed(s)),
-        })
+        let form = self.form;
+        crate::ssi::section::sign(form.plus_lift(form.value(form.framed(s))))
     }
 
-    /// At the wall's point `p`: `φ`'s value in metres there, the
-    /// gradient whose chart image the bracket steps along, and the
-    /// least step's floor, in metres, below which `φ` reads as no
-    /// distance: the rounding of the coordinates `φ` is read in, about
-    /// the plane's origin or the partner's centre or axis.
+    /// At the wall's point `p`: the stored surface's `φ` in metres there,
+    /// bounded above, the gradient whose chart image the bracket steps
+    /// along, and the least step's floor, in metres, below which `φ`
+    /// reads as no distance: the rounding of the coordinates `φ` is read
+    /// in, about the plane's origin or the partner's centre or axis.
     fn at(self, p: Point3<f64>) -> (f64, Vec3<f64>, f64) {
-        match self {
-            Self::Plane(heights) => {
-                let m = heights.normal;
-                (
-                    (p - heights.origin).dot(m).abs() + heights.lift.abs().hi(),
-                    m,
-                    f64::EPSILON * (p - heights.origin).norm() * m.norm(),
-                )
-            }
-            Self::Curved(surface, form) => {
-                let q = form.framed_point(p);
-                (
-                    crate::implicit_residual(surface, p).abs(),
-                    crate::implicit_gradient(surface, p),
-                    f64::EPSILON * geom_core::interval::norm_sup(&[q.x, q.y, q.z]),
-                )
-            }
-        }
+        let q = self.form.framed_point(p);
+        (
+            crate::implicit_residual(self.surface, p).abs() + self.form.lift().abs().hi(),
+            crate::implicit_gradient(self.surface, p),
+            f64::EPSILON * geom_core::interval::norm_sup(&[q.x, q.y, q.z]),
+        )
     }
 }
 
@@ -599,7 +543,7 @@ const BRACKET_HALVINGS: u32 = 64;
 ///
 /// The segment through `at` along the plane height's chart gradient
 /// is doubled from the height's own step until the stored plane's
-/// height ([`Heights`]) is certified negative at one end and positive
+/// height ([`Bracketed::sign`]) is certified negative at one end and positive
 /// at the other (the wall's certified box at a point), then halved
 /// about the sign change for as long as the height's sign at the middle
 /// is certified: a zero of the height, a point of the section, lies
@@ -612,13 +556,12 @@ const BRACKET_HALVINGS: u32 = 64;
 /// 3 proves the section one arc: so the zero is the branch's. A segment
 /// that leaves the window or the wall's rectangle, or a gradient that
 /// is not a direction, is no bracket.
-fn bracket<'p>(
+fn bracket(
     net: &NurbsSurface<f64>,
-    partner: impl Into<Bracketed<'p>>,
+    partner: Bracketed<'_>,
     at: (f64, f64),
     window: UvRect,
 ) -> Option<(Point3<f64>, f64)> {
-    let partner = partner.into();
     let jet = net.ders(at.0, at.1);
     let (phi, m, least) = partner.at(jet.point);
     let (gu, gv) = (m.dot(jet.du), m.dot(jet.dv));
@@ -752,8 +695,16 @@ pub(super) fn section(
         pose.ball().certified_diameter(),
     ) {
         sweep::Sweep::Declined(_) => {
+            let form = reading.form().clone();
             let out = reading.all().map_err(super::whole_reading_refused)?;
-            return listed(pose, Bracketed::Plane(pivot.heights), out);
+            return listed(
+                pose,
+                Bracketed {
+                    surface: &pivot.plane,
+                    form: &form,
+                },
+                out,
+            );
         }
         sweep::Sweep::LoopFree(decided) => decided,
     };
@@ -862,10 +813,15 @@ pub(super) fn whole(
             .map_err(super::whole_reading_refused)?,
         None => reading,
     };
+    let form = reading.form().clone();
+    let out = reading.all().map_err(super::whole_reading_refused)?;
     listed(
         pose.clone(),
-        Bracketed::Plane(pivot.heights),
-        reading.all().map_err(super::whole_reading_refused)?,
+        Bracketed {
+            surface: &pivot.plane,
+            form: &form,
+        },
+        out,
     )
 }
 
@@ -940,15 +896,38 @@ mod tests {
 
     use geom_core::Interval;
 
-    use super::{Heights, bracket};
+    use super::{Bracketed, bracket};
     use crate::ssi::exhaust::UvRect;
+    use crate::ssi::residual::ImplicitForm;
+
+    /// The plane read through `origin` with `normal`, lifted by `lift`
+    /// onto the stored plane.
+    type Read = (geom::Surface<f64>, ImplicitForm);
 
     /// The plane through `origin` with `normal`, stored where it is read.
-    fn plane((origin, normal): (Point3<f64>, Vec3<f64>)) -> Heights {
-        Heights {
+    fn plane(at: (Point3<f64>, Vec3<f64>)) -> Read {
+        lifted(at, 0.0)
+    }
+
+    /// The plane through `origin` with `normal`, `lift` its height over
+    /// the stored plane.
+    fn lifted((origin, normal): (Point3<f64>, Vec3<f64>), lift: f64) -> Read {
+        let surface = geom::Surface::Plane {
             origin,
             normal,
-            lift: Interval::from_certified(0.0),
+            u_ref: Vec3::new(1.0, 0.0, 0.0),
+        };
+        let form = ImplicitForm::of(&surface)
+            .unwrap()
+            .lifted(Interval::from_certified(lift));
+        (surface, form)
+    }
+
+    /// The bracket's partner for a read plane.
+    fn on(read: &Read) -> Bracketed<'_> {
+        Bracketed {
+            surface: &read.0,
+            form: &read.1,
         }
     }
 
@@ -992,7 +971,7 @@ mod tests {
         let dz = 1e-6;
         let (q, pad) = bracket(
             &stretched_ramp(),
-            plane(below(dz)),
+            on(&plane(below(dz))),
             (0.25, 0.5),
             everywhere(),
         )
@@ -1031,7 +1010,7 @@ mod tests {
         let at = Point3::new(0.0, 0.0, 0.08);
         let (_, pad) = bracket(
             &quickening_ramp(),
-            plane((at, Vec3::new(0.0, 0.0, 1.0))),
+            on(&plane((at, Vec3::new(0.0, 0.0, 1.0)))),
             (0.3, 0.5),
             everywhere(),
         )
@@ -1050,12 +1029,11 @@ mod tests {
     /// nearer).
     #[test]
     fn the_bracket_reads_the_stored_plane_through_its_lift() {
-        let foot = Heights {
-            origin: Point3::new(0.0, 0.0, 0.07),
-            normal: Vec3::new(0.0, 0.0, 1.0),
-            lift: Interval::from_certified(-0.01),
-        };
-        let (_, pad) = bracket(&quickening_ramp(), foot, (0.3, 0.5), everywhere())
+        let foot = lifted(
+            (Point3::new(0.0, 0.0, 0.07), Vec3::new(0.0, 0.0, 1.0)),
+            -0.01,
+        );
+        let (_, pad) = bracket(&quickening_ramp(), on(&foot), (0.3, 0.5), everywhere())
             .expect("the plane crosses the wall beside the point");
         let off = 0.07 * 1.25_f64.sqrt();
         assert!(
@@ -1074,7 +1052,15 @@ mod tests {
             u: (0.25 - 1e-9, 0.25 + 1e-9),
             v: (0.5 - 1e-9, 0.5 + 1e-9),
         };
-        assert!(bracket(&stretched_ramp(), plane(below(1e-6)), (0.25, 0.5), hair).is_none());
+        assert!(
+            bracket(
+                &stretched_ramp(),
+                on(&plane(below(1e-6))),
+                (0.25, 0.5),
+                hair
+            )
+            .is_none()
+        );
     }
 
     /// The dome `z = −(x − ½)² − (y − ½)²` over `[0, 1]²`, its top `z = 0`
@@ -1100,6 +1086,6 @@ mod tests {
     #[test]
     fn a_height_of_one_sign_is_no_bracket() {
         let above = (Point3::new(0.5, 0.5, 1e-3), Vec3::new(0.0, 0.0, 1.0));
-        assert!(bracket(&dome(), plane(above), (0.45, 0.5), everywhere()).is_none());
+        assert!(bracket(&dome(), on(&plane(above)), (0.45, 0.5), everywhere()).is_none());
     }
 }

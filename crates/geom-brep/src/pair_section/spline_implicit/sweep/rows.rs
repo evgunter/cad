@@ -461,9 +461,10 @@ fn the_corners_exact_empty_answer_is_the_stored_planes() {
 /// its origin is stored `far` along `u_ref`. The plane read at its pivot
 /// stands a rounding off the stored one, which put the row on the clear
 /// side of it at most offsets. Red against the side's sign read on the
-/// plane at its pivot (`Counted([])` from 10 m out). Further out, at a
-/// band the shift outgrows, the side's cover is read on the plane at its
-/// pivot and misses the band
+/// plane at its pivot (`Counted([])` from 10 m out). At a band the shift
+/// outgrows (ε 1e-12, from about 1e4 m out) the side's cover is read on
+/// the plane at its pivot and the pose reads otherwise, so there the
+/// offsets stop at 1e3 m
 /// (`work/sectarms/a-wall-row-in-an-oblique-plane-reads-empty-by-where-the-planes-origin-is-stored.md`).
 #[test]
 fn a_side_in_an_oblique_plane_reads_alike_wherever_the_planes_origin_is_stored() {
@@ -474,7 +475,12 @@ fn a_side_in_an_oblique_plane_reads_alike_wherever_the_planes_origin_is_stored()
         &[pt(0.0, 0.0, 0.0), pt(1.0, 0.0, 0.0)],
         &[top(0.0), top(1.0)],
     );
-    for far in [0.0, 1.0, 10.0, 100.0, 1e3, 1e5] {
+    let offsets: &[f64] = if band().zero() < 1e-11 {
+        &[0.0, 1.0, 10.0, 100.0, 1e3]
+    } else {
+        &[0.0, 1.0, 10.0, 100.0, 1e3, 1e5, 1e7]
+    };
+    for &far in offsets {
         let p = Surface::Plane {
             origin: Point3::origin() + u * far,
             normal: n,

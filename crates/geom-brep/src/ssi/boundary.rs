@@ -249,8 +249,8 @@ pub(crate) trait Partner {
     fn at_point(&self, p: Point3<f64>) -> (Interval, f64);
 
     /// The stored partner's `φ` from this one's, whose exact sign the
-    /// exact empty answer reads ([`ImplicitForm::stored`]).
-    fn stored(&self, phi: Interval) -> Interval;
+    /// exact empty answer reads ([`ImplicitForm::plus_lift`]).
+    fn plus_lift(&self, phi: Interval) -> Interval;
 
     /// The least sine of the angle between the wall and the partner
     /// across a strip `r`, from `inf`, the least `|φ⊥|` over it, and
@@ -408,8 +408,8 @@ impl Partner for &ImplicitForm {
         (phi, floor)
     }
 
-    fn stored(&self, phi: Interval) -> Interval {
-        ImplicitForm::stored(self, phi)
+    fn plus_lift(&self, phi: Interval) -> Interval {
+        ImplicitForm::plus_lift(self, phi)
     }
 
     fn sine(&self, boxes: &NurbsBoxes<'_, f64>, r: UvRect, inf: f64, speed: f64) -> f64 {
@@ -820,7 +820,7 @@ impl<P: Partner> Pass<'_, P> {
         // Both inward partials carry φ away from the corner's value with
         // sign `su`: a stored partner's corner distance of that sign keeps
         // the cell clear.
-        if sign(self.partner.stored(phi)) == Some(su) {
+        if sign(self.partner.plus_lift(phi)) == Some(su) {
             return Ok(CornerClass::Empty { cell });
         }
         let ((u0, u1), (v0, v1)) = self.domain();
