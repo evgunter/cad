@@ -3724,6 +3724,9 @@ fn certify_undecided(check: CertCheck) -> &'static str {
         CertCheck::GeneralLane => {
             geom_core::undecided!("whether its face's general image covers it")
         }
+        CertCheck::StatedImage => {
+            geom_core::undecided!("whether the chart image it states follows it")
+        }
         CertCheck::EndpointStart
         | CertCheck::EndpointEnd
         | CertCheck::SurfaceResidual { .. }

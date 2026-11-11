@@ -328,7 +328,7 @@ fn image_of(c: &EdgeCurve<f64>) -> Pcurve<f64> {
 /// 60° (so `v ≠ 0`) on a plane face: after `revert` the image keeps
 /// its kind and is the stored one with `v` negated at nine samples,
 /// the SOURCE curve re-certified on the reverted plane refuses
-/// `ChartResidual` at sample 1 (the control), the mirrored curve's
+/// `StatedImage` at sample 1 (the control), the mirrored curve's
 /// fresh certificate is the one it carries, and `revert ∘ revert`
 /// restores the body. `IsoArc` has no plane producer and no plane
 /// carrier — its parameter map is a rational-quadratic Bézier's,
@@ -385,7 +385,7 @@ fn a_plane_face_with_an_iso_line_or_nurbs_image_reverts_and_recertifies() {
             matches!(
                 control,
                 Err(CertifyError::ResidualExceeded {
-                    check: CertCheck::ChartResidual,
+                    check: CertCheck::StatedImage,
                     sample: 1,
                     ..
                 })

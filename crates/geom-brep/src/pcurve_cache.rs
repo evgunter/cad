@@ -4428,17 +4428,18 @@ pub(crate) fn fitted_lane<T: Decide + geom_core::Bounds + geom_core::CertifiedEn
     (t0, t1): (T, T),
     band: Band,
 ) -> Result<T, PcurveCertifyError> {
-    let chart = match surface {
-        Surface::Nurbs(n) => n,
-        Surface::Approx(a) => a.fit(),
+    // A spline chart is its own operand; an analytic one enters as the
+    // bilinear patch that agrees with it where the image runs
+    // (`patch::PatchClass`), which the stated route admits alone.
+    let spline = match surface {
+        Surface::Nurbs(n) => Some(&**n),
+        Surface::Approx(a) => Some(a.fit()),
         Surface::Plane { .. }
         | Surface::Cylinder { .. }
         | Surface::Cone { .. }
         | Surface::Sphere { .. }
         | Surface::Torus { .. }
-        | Surface::Spindle { .. } => {
-            unreachable!("fitted_lane: `run_fitted_checks` admits only a spline chart at check 1")
-        }
+        | Surface::Spindle { .. } => None,
     };
     // The bound is over the image's domain, so the edge's interval must
     // lie inside it, for every carrier kind. Nothing upstream says so of
@@ -4467,18 +4468,43 @@ pub(crate) fn fitted_lane<T: Decide + geom_core::Bounds + geom_core::CertifiedEn
     // through the carrier-enclosure door over the image's domain, cut at
     // `cuts` besides the round's grid: a halving shrinks a closed form's
     // remainder too.
-    let (pcoords, scoords) = (image.certified_coords(), chart.certified_coords());
+    let pcoords = image.certified_coords();
     let pimage = (
         image.knots_f64_interim(),
         image.weights_f64_interim(),
         &pcoords[..],
     );
-    let schart = (
-        chart.knots_u_f64_interim(),
-        chart.knots_v_f64_interim(),
-        chart.weights_f64_interim(),
-        &scoords[..],
-    );
+    let (scoords, analytic);
+    let schart = if let Some(chart) = spline {
+        scoords = chart.certified_coords();
+        (
+            chart.knots_u_f64_interim(),
+            chart.knots_v_f64_interim(),
+            chart.weights_f64_interim(),
+            &scoords[..],
+        )
+    } else {
+        let window = |lane: &[geom_core::Interval]| {
+            lane.iter().fold((f64::INFINITY, f64::NEG_INFINITY), |(lo, hi), c| {
+                (lo.min(geom_core::Bounds::lo(*c)), hi.max(geom_core::Bounds::hi(*c)))
+            })
+        };
+        let not_affine = PcurveCertifyError::ImageMismatch {
+            image: PcurveKind::General,
+            why: "an analytic chart holds no fitted-grade image but along a plane or a ruling, \
+                  where it is affine",
+        };
+        let class = patch::PatchClass::of_net(surface, image).ok_or(not_affine)?;
+        let chart = surface.map_scalar(geom_core::Interval::from_certified);
+        analytic = patch::patch(class, &chart, (window(&pcoords[0]), window(&pcoords[1])))
+            .ok_or(PcurveCertifyError::FittedCertificate {
+                limb: Some(SsiLimb::HullSupChart),
+                what: "the image's control coordinates are no numbers, so no window holds it",
+                magnitude: None,
+                ending: FittedEnding::Defect,
+            })?;
+        (&analytic.0, &analytic.1, &analytic.2[..], &analytic.3[..])
+    };
     let grid = chart_grid(carrier, image.knots_f64_interim());
     let stopped = crate::ssi::certify::subdivide(
         |cuts: &[f64]| carrier_chart_round(carrier, pimage, schart, &grid, cuts),
@@ -13155,9 +13181,11 @@ fn spiric_off_own_chart(why: &'static str) -> OffChart {
 
 // Check 4's per-arm lemma, swept, in a module of its own so the per-file
 // test gate can skip the sweep without skipping the deterministic rows.
+pub(crate) mod patch;
 pub mod projected;
 mod spline_incidence;
 mod stated;
+pub(crate) use stated::StatedDoor;
 pub use projected::{FramedCarrier, ProjectedChart, ProjectedImage, SectorChannel};
 
 #[cfg(test)]

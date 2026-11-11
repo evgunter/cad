@@ -447,7 +447,7 @@ fn chart_edge(
 
 /// At the `EdgeCurve` door: a chart image on a plane whose normal is
 /// then negated (what `Body::revert` does). The image as stored
-/// refuses `ChartResidual` on the reverted plane at sample 0 (each
+/// refuses `StatedImage` on the reverted plane at sample 0 (each
 /// image here starts off the `u_ref` axis, so its first sample already
 /// has a `v` channel to get wrong); the
 /// mirrored image certifies there with a certificate `Debug`-identical
@@ -519,7 +519,7 @@ fn mirrored_chart_images_recertify_on_the_reverted_plane_with_the_same_certifica
             matches!(
                 stale,
                 Err(CertifyError::ResidualExceeded {
-                    check: CertCheck::ChartResidual,
+                    check: CertCheck::StatedImage,
                     sample: 0,
                     ..
                 })

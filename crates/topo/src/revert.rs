@@ -680,7 +680,7 @@ mod tests {
     /// reversal used to leave pointing the wrong way. After `revert`
     /// the image is the stored one with `v` negated coefficient for
     /// coefficient; the SOURCE's curve re-certified against the
-    /// reverted surfaces refuses `ChartResidual` at sample 1 (the
+    /// reverted surfaces refuses `StatedImage` at sample 1 (the
     /// merge-base shape of the defect, kept as the control), the
     /// reverted curve re-certified there yields the certificate it
     /// carries, byte for byte, and the involution restores the bits.
@@ -782,7 +782,7 @@ mod tests {
                     geom_brep::NurbsLane::certified()
                 ),
                 Err(CertifyError::ResidualExceeded {
-                    check: CertCheck::ChartResidual,
+                    check: CertCheck::StatedImage,
                     sample: 1,
                     ..
                 })

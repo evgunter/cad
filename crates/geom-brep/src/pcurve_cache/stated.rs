@@ -3,13 +3,57 @@
 //! restated at rest) through the pcurve certificate door its kind names
 //! ([`Pcurve::certifying_door`]), so its miss is bounded over the span by
 //! that door's envelope, a sup, wherever it is read.
+//!
+//! The edge certificate reaches a stated image's bound through
+//! [`StatedDoor`]: the door that certifies the image's class on its
+//! chart, or none, where the class has no door yet.
 
 use std::sync::Arc;
 
-use geom::{Curve3, Surface};
-use geom_core::{Band, Decide};
+use geom::{Curve3, NurbsCurve2, Surface};
+use geom_core::spline::{Knots, SpanLocate};
+use geom_core::{Band, Decide, Point2, Real};
 
-use super::{CertifyingDoor, Pcurve, PcurveCache, PcurveCertifyError};
+use super::patch::PatchClass;
+use super::{
+    CertifyingDoor, EnvelopeStatement, Pcurve, PcurveCache, PcurveCertificate, PcurveCertifyError,
+    PcurveCheck, PcurveKind, Record,
+};
+use crate::certify::CERT_SAMPLES;
+
+/// **The door that bounds a stated image's miss from its carrier over
+/// the span**, by the image's class on its chart: decided by structure
+/// (the chart's kind, the image's kind and shape), so a class is routed
+/// the same way at every scalar and every band.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum StatedDoor {
+    /// The image's own pcurve door ([`PcurveCache::certify_stated_image`]):
+    /// every image on a spline chart, and a projected image on an
+    /// analytic one, which is that door's class there.
+    Pcurve,
+    /// The fitted door's composite against the bilinear patch that agrees
+    /// with an analytic chart along the image ([`PatchClass`]): an iso line
+    /// or a curve in UV on a plane, or on a cylinder's or cone's ruling.
+    Patch(PatchClass),
+}
+
+impl StatedDoor {
+    /// The door of `image` stated on `surface`, or `None` where no door
+    /// certifies its class: a closed-form image (harmonic, spiric, focal
+    /// section, iso arc) on an analytic chart, and a curve in UV on a
+    /// curved analytic chart off one ruling. Those are metered at the
+    /// edge certificate's samples
+    /// (`work/pcert/a-closed-form-image-stated-on-an-analytic-chart-is-metered-at-nine-samples.md`).
+    pub(crate) fn of<T: Real>(surface: &Surface<T>, image: &Pcurve<T>) -> Option<Self> {
+        if surface.spline_chart().is_some() {
+            return Some(Self::Pcurve);
+        }
+        if let Pcurve::Projected(_) = image {
+            return Some(Self::Pcurve);
+        }
+        PatchClass::of(surface, image).map(Self::Patch)
+    }
+}
 
 impl<T: Decide> PcurveCache<T> {
     /// Certifies `image`, a chart image of `carrier` on `surface` that a
@@ -87,4 +131,99 @@ impl<T: Decide> PcurveCache<T> {
             }
         }
     }
+
+    /// **A stated image's certificate through the door its class names**
+    /// ([`StatedDoor`]), over `[t0, t1]`, whose outer ends are `outer`
+    /// (the span's `f64` structure, C6): the certificate's envelope bounds
+    /// `|C(t) − S(P(t))|` over the whole span.
+    ///
+    /// On a patch, the fitted lane's checks 3 and 4: the schedule, then
+    /// the composite's sup against the patch, which agrees with the chart
+    /// wherever the image runs, so the sup bounds the image's miss with no
+    /// remainder. An iso line enters as the degree-1 curve in UV over
+    /// `outer`, the same map. The carrier's incidence is the caller's to
+    /// read first: this door reads the image against the carrier, not the
+    /// carrier against the chart.
+    ///
+    /// # Errors
+    ///
+    /// The door's refusal: [`PcurveCertifyError::ResidualExceeded`] or
+    /// [`PcurveCertifyError::Escalated`] at a sample, the composite's
+    /// ([`PcurveCertifyError::FittedLimb`],
+    /// [`PcurveCertifyError::FittedEscalated`], and its structural
+    /// refusals) over the span.
+    #[allow(clippy::too_many_arguments)] // one parameter per named quantity
+    pub(crate) fn certify_stated_bound(
+        door: StatedDoor,
+        image: &Pcurve<T>,
+        (t0, t1): (T, T),
+        outer: (f64, f64),
+        carrier: &Curve3<T>,
+        surface: &Surface<T>,
+        band: Band,
+        lane: crate::FittedLane<T>,
+    ) -> Result<PcurveCertificate<T>, PcurveCertifyError> {
+        let class = match door {
+            StatedDoor::Pcurve => {
+                return Self::certify_stated_image(
+                    image,
+                    (t0, t1),
+                    carrier,
+                    surface,
+                    band,
+                    Some(lane),
+                )
+                .map(|cache| cache.certificate);
+            }
+            StatedDoor::Patch(class) => class,
+        };
+        let net = match image {
+            Pcurve::IsoLine { p0, pl } => iso_net(*p0, *pl, outer)?,
+            Pcurve::General(net) | Pcurve::Fitted(net) => Arc::clone(net),
+            Pcurve::Harmonic { .. }
+            | Pcurve::FocalSection(_)
+            | Pcurve::Spiric { .. }
+            | Pcurve::IsoArc { .. }
+            | Pcurve::Projected(_) => unreachable!(
+                "certify_stated_bound: the patch door admits no {:?} image ({class:?})",
+                PcurveKind::of(image)
+            ),
+        };
+        let mut max_residual = T::zero();
+        super::schedule_residuals(
+            Record::Verdict,
+            image,
+            t0,
+            t1,
+            carrier,
+            surface,
+            band,
+            &mut max_residual,
+        )?;
+        let sup = lane.fitted_certificate(carrier, &net, surface, (t0, t1), band)?;
+        super::envelope_verdict(sup, band, || PcurveCheck::Envelope)?;
+        Ok(PcurveCertificate::closed(
+            CERT_SAMPLES,
+            max_residual,
+            sup,
+            EnvelopeStatement::MapResidualComposite,
+        ))
+    }
+}
+
+/// **An iso line as a curve in UV**: `p0 + pl·t` over `[lo, hi]`, the
+/// degree-1 curve through its values at the two ends, which is the same
+/// map on the same parameter.
+fn iso_net<T: SpanLocate>(
+    p0: Point2<T>,
+    pl: geom_core::Vec2<T>,
+    (lo, hi): (f64, f64),
+) -> Result<Arc<NurbsCurve2<T>>, PcurveCertifyError> {
+    let at = |t: f64| p0 + pl * T::from_f64(t);
+    let two = std::num::NonZeroUsize::new(2).expect("two is not zero");
+    let knots = Knots::new(vec![(T::from_f64(lo), two), (T::from_f64(hi), two)], 1)
+        .map_err(|_| PcurveCertifyError::IntervalNotForward)?;
+    NurbsCurve2::new(knots, vec![at(lo), at(hi)], vec![T::one(), T::one()])
+        .map(Arc::new)
+        .map_err(|_| PcurveCertifyError::IntervalNotForward)
 }
