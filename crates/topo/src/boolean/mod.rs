@@ -2398,17 +2398,6 @@ impl<T: Real> BooleanReduction<T> {
             .iter()
             .position(|r| r.operand == pierced && r.pierces.contains(&vertex))
     }
-
-    /// Whether two pierce sites are served by one ring
-    /// ([`PierceRingRecord::pierces`]).
-    pub(crate) fn one_ring(&self, a: PairSite, b: PairSite) -> bool {
-        let ring = |site| match site {
-            PairSite::VertexAOnFaceB(c) => self.ring_of(Operand::B, c.vertex),
-            PairSite::VertexBOnFaceA(c) => self.ring_of(Operand::A, c.vertex),
-            _ => None,
-        };
-        ring(a).is_some_and(|r| ring(b) == Some(r))
-    }
 }
 
 /// **Whether two points are one vertex** (`bool_contact_vertex`, the
@@ -3557,9 +3546,9 @@ pub enum BooleanError {
         /// What was wrong.
         what: &'static str,
     },
-    /// The 15.11 consecutive-pairing invariant failed: two of A's
-    /// consecutive crossing-record pairs cross in B's walk order, or a
-    /// run's codes disagree at its two ends — readings no two simple
+    /// The 15.11 consecutive-pairing invariant failed: two of the
+    /// lead's consecutive crossing-record pairs cross in a solid's walk
+    /// order, or a run's codes disagree at its two ends — readings no two simple
     /// links round one point give (F12's guarded refusal — see
     /// `insert`).
     ///
@@ -3571,21 +3560,18 @@ pub enum BooleanError {
         b_vertex: VertexKey,
     },
     /// Two vertex-vertex coincidences that share a vertex both cross
-    /// there, in a way the insertion cannot place: an operand holds
-    /// several vertices at one point (its own contact's) and the other
-    /// operand's vertex there crosses into more than one of their
-    /// neighborhoods, and one pair has no run in the shared vertex's
-    /// orbit that holds none of another pair's cuts: a null edge both
-    /// of whose ways round hold one (`insert::reconcile_shared`). A
-    /// dangling null edge whose segment holds another's whole builds:
-    /// the inner hangs at its tip, and of two with one segment the Out
-    /// one holds (`insert::holds_whole`).
-    /// It also refuses where a run the shared vertex turned and a run of
-    /// its own pair that held it would together cover the orbit, so
-    /// neither can hang from the other (`insert::arc_holders`): a
-    /// backstop no known pose reaches. Emitted
-    /// by the insertion only: `insert::reconcile_pass` and
-    /// `insert::hang_at_shared`.
+    /// there, in a way the corner's reading cannot place: an operand
+    /// holds several vertices at one point (its own contact's) and the
+    /// other operand's vertex there crosses into more than one of their
+    /// neighborhoods. Each pair runs along its piece's In arcs there,
+    /// which the other pieces' cuts never lie on, so the runs are
+    /// disjoint; but two pairs' runs whose ends tie along one direction
+    /// at both ends, with nothing reading the ties apart, are one arc as
+    /// far as the corner reads, and refuse (`insert::reconcile_shared`,
+    /// `insert::tied_held`). No known pose reaches it. A dangling null
+    /// edge whose segment holds another's whole builds: the inner hangs
+    /// at its tip, and of two with one segment the Out one holds
+    /// (`insert::holds_whole`). Emitted by the insertion only.
     ///
     /// A limit: an insertion not built (row 2).
     SharedVertexCrossings {
@@ -7202,11 +7188,20 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
             });
         }
     }
+    let crossing: Vec<bool> = classified
+        .iter()
+        .map(|(_, _, _, records, ..)| records.iter().any(sectors::PairRecord::survives))
+        .collect();
+    let leads = insert::pairing_leads(
+        &classified.iter().map(|(c, ..)| *c).collect::<Vec<_>>(),
+        &crossing,
+    );
     let mut plans = classified
         .iter()
-        .map(|(c, a_sectors, b_sectors, records, raw, _)| {
+        .zip(leads)
+        .map(|((c, a_sectors, b_sectors, records, raw, _), lead)| {
             insert::plan_null_pairs(
-                &a, &b, *c, a_sectors, b_sectors, records, raw, &declared, &contacts, op, band,
+                &a, &b, *c, a_sectors, b_sectors, records, raw, &declared, &contacts, lead, band,
             )
         })
         .collect::<Result<Vec<_>, _>>()?;
