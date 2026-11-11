@@ -2813,6 +2813,21 @@ impl<'a, T: geom_core::Real> Schedule<'a, T> {
         let d = Vec3::new(mid(gap.x), mid(gap.y), mid(gap.z)).norm();
         if d.is_nan() { f64::INFINITY } else { d }
     }
+
+    /// An image's miss midway between two of its feet `a` and `b`, in
+    /// excess of the carrier's standoff there: the [`Self::miss`] at the
+    /// middle, less the mean of the two feet's own. A foot is the wall's
+    /// nearest point, so its miss is the carrier's distance from the
+    /// wall, which no finer image can lower; what is left is the image's
+    /// departure from the path its feet trace.
+    fn excess(&self, wall: &NurbsSurface<T>, a: PathFoot, b: PathFoot, p: Point2<f64>) -> f64
+    where
+        T: Bounds + SpanLocate,
+    {
+        let at = 0.5 * (a.at + b.at);
+        let standoff = 0.5 * (self.miss(wall, a.at, a.foot) + self.miss(wall, b.at, b.foot));
+        (self.miss(wall, at, p) - standoff).max(0.0)
+    }
 }
 
 /// **The degree-1 chart image of a declared carrier on a NURBS wall**:
@@ -2966,8 +2981,9 @@ where
 /// A degree-1 image misses a foot path that bends in the chart between
 /// feet by `O(h²·κ)`. This image climbs
 /// [`CURVED_IMAGE_FEET`] at degree [`CURVED_IMAGE_DEGREE`], and stops at
-/// the first rung whose miss, sampled midway between each pair of nodes,
-/// is within [`CURVED_IMAGE_MISS`] of `band.zero()`, and otherwise keeps
+/// the first rung whose miss, sampled midway between each pair of nodes
+/// in excess of the carrier's standoff there ([`Schedule::excess`]), is
+/// within [`CURVED_IMAGE_MISS`] of `band.zero()`, and otherwise keeps
 /// its finest.
 ///
 /// **Broken where the path crosses a knot line.** Across an interior knot
@@ -3036,7 +3052,7 @@ where
                 .flat_map(|piece| piece.windows(2))
                 .map(|pair| {
                     let at = 0.5 * (pair[0].at + pair[1].at);
-                    schedule.miss(wall, at, image.eval(at))
+                    schedule.excess(wall, pair[0], pair[1], image.eval(at))
                 })
                 .fold(0.0_f64, f64::max);
             Ok((image, worst))
@@ -3059,7 +3075,9 @@ where
 
 /// **The pcurve mint's chart image of a carrier on a NURBS wall**: the
 /// degree-1 [`chart_image`] where its miss, sampled midway between each
-/// pair of feet, is within [`CURVED_IMAGE_MISS`] of `band.zero()`, and
+/// pair of feet in excess of the carrier's standoff there
+/// ([`Schedule::excess`]), is within [`CURVED_IMAGE_MISS`] of
+/// `band.zero()`, and
 /// [`curved_chart_image`]'s rungs where it is not.
 ///
 /// The climb reads the path the carrier's feet trace on this wall, not
@@ -3088,20 +3106,29 @@ where
     Ok(curved_chart_image(schedule, wall, band).unwrap_or(image))
 }
 
-/// The degree-1 [`chart_image`]'s miss: the largest of
-/// [`Schedule::miss`] midway between each pair of its feet.
+/// The degree-1 [`chart_image`]'s miss: the largest
+/// [`Schedule::excess`] midway between each pair of its feet, the image
+/// read at each.
 fn chord_miss<T: Bounds + SpanLocate>(
     schedule: &Schedule<'_, T>,
     wall: &NurbsSurface<T>,
     image: &NurbsCurve2<T>,
 ) -> f64 {
     let mid = |x: T| geom::mid_param(x.lo(), x.hi());
-    let steps = f64::from(PXN_FIT_SAMPLES - 1);
-    (0..PXN_FIT_SAMPLES - 1)
+    let read = |at: f64| {
+        let p = image.eval(schedule.station(at));
+        Point2::new(mid(p.x), mid(p.y))
+    };
+    let feet: Vec<PathFoot> = (0..PXN_FIT_SAMPLES)
         .map(|i| {
-            let at = (f64::from(i) + 0.5) / steps;
-            let p = image.eval(schedule.station(at));
-            schedule.miss(wall, at, Point2::new(mid(p.x), mid(p.y)))
+            let at = schedule_fraction(i, PXN_FIT_SAMPLES);
+            PathFoot { at, foot: read(at) }
+        })
+        .collect();
+    feet.windows(2)
+        .map(|pair| {
+            let at = 0.5 * (pair[0].at + pair[1].at);
+            schedule.excess(wall, pair[0], pair[1], read(at))
         })
         .fold(0.0_f64, f64::max)
 }
