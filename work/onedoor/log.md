@@ -252,3 +252,16 @@ second site needs to ask the question at all. (ONEDOOR orchestrator)
   - #6505 does not merge before #6511.
   - **Review tier after part 2:** a single full review. This is a restructure the dual review did not see; the alternative, a second dual review, is not needed, because the design was weighed by designers.
 - (ONEDOOR orchestrator)
+
+## 2026-11-11 — #6505 fix part 2 reported; single full review dispatched
+
+- Part 2 landed at `feba4ef25d` (origin/main `92e3ad097a` merged). Token, one act, no `Vouch`, no record-level union-find, `rest_locus` by key in geom-brep, the face-anchored measure, and the README sections `[topo.one-record.*]` / `[geom-brep.face-anchored.*]`. Every acceptance row passes. The seat row and the nearpoint and anchor rows are closed.
+- **Deviation taken, pending review:** the kept-record rule's "decided" set is the faces of every one-carrier pair in the glue. The designers' per-side closure rule refused the peg-first order, and a per-token set fails on a revolved peg's two-face wall. It still reads keys only. The review is asked whether it is right and matches #6511's text.
+- **Red on the branch only, not re-baselined:**
+  - sweep ring-on-cone enclosure width (1.013e-10 against 1e-10, from summing about a loop corner);
+  - editor-core seat4 boolean and seat8 split digests;
+  - seat7's digests also move.
+- **Open:** a half revolve's caps unioned with a block refuse `NonMaximalFaces`, not compared with main. Filed: `a-merge-run-is-left-on-one-record-on-its-pairwise-verdicts` and restfront's `the-lane-free-sign-guard-has-no-witness-of-a-misrounded-sum`.
+- The cylcyl crossing-pose probe takes 2056 s alone on main, so the branch did not make it slower.
+- **Single FULL review dispatched on frozen head `feba4ef25d`** (brief `onedoor-onerec-fix2-review-brief.md`). It has claims on extent, keys at rest, the kept rule, certification and one measure reading, regressions against main (the digests at three ε values, probe 3), and README accuracy.
+- (ONEDOOR orchestrator)
