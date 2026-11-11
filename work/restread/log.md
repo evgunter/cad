@@ -215,3 +215,14 @@ crossing lane and the edge-on-face lane (plan.md, Order).
   - **Tier:** dual, arm concurrent (class H). R1 APPROVE-WITH-FIXES with no MAJOR; R2 NOT-MERGEABLE-AS-IS on a tacnode false `Rest` beside a curved pinch (executed). R1 had the same mechanism as an unsure NOTE, so the coder (byte 83) codes it bilateral: FAIR, +0/+0, major true.
   - **Fix pass:** the curved-pinch rule above, with the tacnode a row; the lens folded into the lune reader. Verifier: VERIFIED-WITH-NITS, with one MINOR (the lens's sign read on the raw polar value overstated a narrow lens's middle gap up to 2×, so in-band lenses read `Rest`), fixed with a row in a follow-up push.
   - **Class finding:** a gate that excludes the slow set hides a red there until the nightly. Instance filed: `pcert/main-red-the-stated-wrong-general-rows-refuse-chart-image-unavailable-in-the-slow-set` (P1). The other reds the lanes saw are already tracked (needle cavity, `offer_rows`, `bisector_nodes` at 1e-12, cone-fuzz seeds). — (RESTREAD orchestrator)
+- 2026-11-11 — PR 6835 (`restread/self-touch-apex`) merges. It advances `a-self-touch-point-its-tangent-cones-leave-to-second-order-passes-unread` (P1, open again for 2 triples).
+  - **What it reads:**
+    - A cone's apex: a cone is its own tangent cone there, so a nappe held whole (one spur corner, or two corners of one carrier, closing round one nappe) rests when every other plane holds it to one side and the rest of the link reads one material round its axis (`rest::at_apex`).
+    - Two circle edges on one ray with equal curvature vectors are one bound (`second_order::one_circle`).
+  - **Results:** of 5 skipped triples, the apex, the pit and `a_hole_sharing_…` read `Rest`. The 2 left are NURBS faces. Exact at `d44b40b182` against `c43415ae04`, and no other verdict moves. Refusing the 2 turns no sweep row red. Whether the remainder refuses is still Ev's call.
+  - **Correction:** PR 6816 guessed third order would decide `a_hole_sharing_…`; it would not. The two rims are one circle, so they agree at every order.
+  - **Tier:** dual, arm concurrent (class H). Both reviews were APPROVE-WITH-FIXES with no MAJOR. Coded FAIR (byte 117), +0/+0.
+  - **Disagreement:** the reviewers disagreed on whether two lobes on opposite nappes could pass. One reviewer's hand-built probe did pass, as `Rest`.
+  - **Fix pass:** the one-nappe check, with that probe as a row; rows for each guard the reviewers found unpinned; the thorn/needle material read shared.
+  - **Verifier:** VERIFIED-WITH-NITS. It found that a near-flat nappe in band now skipped instead of refusing. A follow-up push made it refuse `InBand`, with a row.
+  - **Main reds:** filed `pcert/main-red-a-fan-mev-plane-x-nurbs-row-escalates-its-general-lane-at-1e-12` (P2). `face_normal`'s `walk.rs` hit is already `tesswalk/main-red-the-wrap-strip-folds-its-period-by-the-sense-bit`. — (RESTREAD orchestrator)

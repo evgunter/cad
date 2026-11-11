@@ -2,13 +2,11 @@
 id: a-self-touch-point-its-tangent-cones-leave-to-second-order-passes-unread
 kind: issue
 title: A self-touch point whose curved faces' tangent cones leave it to second order passes unread
-status: review
+status: open
 opened: 2026-11-02
 priority: P1
 cost: H
 refs: [tier-3-prime-reads-no-side-where-a-solid-touches-itself-at-a-point-on-a-curved-face]
-pr: 6835
-branch: restread/self-touch-apex
 ---
 
 
@@ -359,3 +357,27 @@ Not reached by any measured body, and skipped: a second apex in one link,
 a horn beside a nappe, a nappe of more than two corners, and a
 half-plane cutting a nappe. Whether the remainder refuses is still Ev's
 call.
+
+## After PR 6835
+
+PR 6835 (`restread/self-touch-apex`) merged on 2026-11-11 with the
+reading above, so this row is open again for the 2 triples still
+skipped. Both are NURBS faces: one has no carrier frame, and
+`sector_face::resolve` refuses the other's corner (`NoSectorArm`).
+Refusing them turns no sweep row red.
+
+The review's fix pass added to the reading:
+- a nappe's rulings are read against the plane square to its axis, so
+  two lobes on opposite nappes are not a nappe, and a ruling in band of
+  that plane refuses `InBand`;
+- the thorn/needle material read is shared (`Cone::material_round`).
+
+Also skipped, and reached by no measured body:
+- a second apex in one link;
+- a horn beside a nappe;
+- a nappe of more than two corners;
+- a half-plane cutting a nappe;
+- the axis decided on the wrong side of the rest's material, an overlap
+  read but skipped, as `thorns` skips it.
+
+Whether the remainder refuses is still Ev's call.
