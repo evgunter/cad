@@ -4246,10 +4246,31 @@ mod end_at_rows {
             );
         }
         assert!(matches!(c.end_at(1, None), Err(SiteRefusal::Desync(_))));
-        let mut one = c;
+        // The arc's end alone at the node, and its start alone.
+        let mut one = loop_at_node();
         if let ComponentShape::Open { ends } = &mut one.shape {
             ends.nodes.start = None;
         }
+        let mut first = loop_at_node();
+        if let ComponentShape::Open { ends } = &mut first.shape {
+            ends.nodes.end = None;
+        }
+        for ray in [None, Some((NodeLine::First, RaySense::Along))] {
+            assert!(
+                matches!(
+                    first.end_at(0, ray),
+                    Ok(ArcPlace::AtEnd {
+                        end: SpanEnd::Start,
+                        ..
+                    })
+                ),
+                "{ray:?}"
+            );
+        }
+        assert!(matches!(
+            first.end_at(0, Some((NodeLine::First, RaySense::Against))),
+            Err(SiteRefusal::Desync(_))
+        ));
         for ray in [None, Some((NodeLine::Second, RaySense::Along))] {
             assert!(
                 matches!(
