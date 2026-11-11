@@ -4310,8 +4310,9 @@ fn canonical_of<T: Decide>(
 /// **Where a description states its chart image**, decided once: on a
 /// spline chart, which the certification bounds over the span
 /// ([`stated_bound`]); on an analytic chart, whose carrier is read first
-/// ([`stated_analytic_read`]); or not at all (a derived image, or any
-/// other description).
+/// ([`stated_analytic_read`], and at the certificate a net bounded over
+/// the span, [`stated_analytic_bound`]); or not at all (a derived image,
+/// or any other description).
 enum StatedChart<'a, T: Real> {
     Spline(&'a Surface<T>, &'a Pcurve<T>),
     Analytic(&'a Surface<T>),
@@ -4394,10 +4395,14 @@ fn stated_analytic_read<T: Decide>(
 /// certificate** (D3): [`stated_analytic_read`], save that a spline net
 /// is read bounded over the span ([`crate::pcurve_cache::read_net_bound`]),
 /// since the schedule's residual meters the image at its samples only.
-fn stated_analytic_bound<T: Decide + geom_core::CertifiedBounds>(
+///
+/// `offset` is limb 2's reader at the certifying scalar
+/// ([`crate::pcurve_cache::limb2_offset_sup`]), handed in by the engine.
+fn stated_analytic_bound<T: Decide>(
     spec: &EdgeCurveSpec<T>,
     surface: &Surface<T>,
     band: Band,
+    offset: impl FnOnce() -> Result<crate::pcurve_cache::projected::OffsetRead<T>, PcurveCertifyError>,
 ) -> Result<(), CertifyError> {
     if spec.carrier.kind() != geom::CurveKind::Nurbs {
         return stated_analytic_read(spec, surface, band);
@@ -4407,6 +4412,7 @@ fn stated_analytic_bound<T: Decide + geom_core::CertifiedBounds>(
         (spec.param_start, spec.param_end),
         surface,
         band,
+        offset,
     )
     .map_err(|e| mint_refusal(e, surface, &spec.carrier))
 }
@@ -4582,7 +4588,9 @@ fn run_checks<T: Decide + geom_core::CertifiedBounds>(
             let bound = stated_bound(spec, (surface, image), band, crate::FittedLane::certified())?;
             max_residual = max_residual.max(bound);
         }
-        StatedChart::Analytic(surface) => stated_analytic_bound(spec, surface, band)?,
+        StatedChart::Analytic(surface) => stated_analytic_bound(spec, surface, band, || {
+            crate::pcurve_cache::limb2_offset_sup(&spec.carrier, (t0, t1), surface, band)
+        })?,
         StatedChart::None => {}
     }
     let canonical = canonical_of(spec, resolved, band)?;

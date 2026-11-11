@@ -28,7 +28,7 @@ use std::sync::Arc;
 
 use geom::{Curve3, NurbsCurve2, NurbsCurve3, Surface};
 use geom_core::spline::KnotVector;
-use geom_core::{Decide, Interval, Point2, Point3, Real, Vec2, Vec3};
+use geom_core::{Interval, Point2, Point3, Real, Vec2, Vec3};
 use test_utils::fuzz;
 
 use super::Pcurve;
@@ -77,7 +77,7 @@ impl Ruled {
 
     /// The ruling `foot + dir·t`, `t ∈ [0, 1]`, its unit normal to the
     /// chart, and its chart image's ends.
-    fn ruling(self) -> ([f64; 3], [f64; 3], [f64; 3], [f64; 2], [f64; 2]) {
+    fn ruling(self) -> Ruling {
         let (s, c) = ALPHA.sin_cos();
         match self {
             Self::Plane => (
@@ -106,6 +106,10 @@ impl Ruled {
         }
     }
 }
+
+/// A ruling's foot, direction and unit normal, and its chart image's
+/// ends.
+type Ruling = ([f64; 3], [f64; 3], [f64; 3], [f64; 2], [f64; 2]);
 
 /// A net along a ruling: degree `degree`, interior knots `interior`,
 /// its controls on the ruling at their Greville abscissae, the one at
@@ -239,29 +243,54 @@ fn spec_of<T: Real>(
     }
 }
 
-/// The edge certificate of `net` along `chart`'s ruling, stated by its
-/// image, at `T`.
-fn certify<T: Decide + geom_core::CertifiedBounds>(
-    chart: Ruled,
-    net: &Net,
-    stated: Stated,
-) -> Result<(), CertifyError> {
-    let c = T::from_f64;
-    let mut table: slotmap::SlotMap<SurfaceKey, Surface<T>> = slotmap::SlotMap::with_key();
-    let key = table.insert(chart.surface::<T>());
-    let carrier = Curve3::Nurbs(Arc::new(net.curve(chart).map_scalar(T::from_f64)));
-    let (start, end) = (carrier.eval(c(0.0)), carrier.eval(c(1.0)));
-    EdgeCurve::certify(
-        spec_of(key, chart, stated, carrier),
-        start,
-        end,
-        |k| table.get(k).cloned(),
-        geom_core::test_support::fixture_lever(T::one()),
-        band(),
-        NurbsLane::certified(),
-    )
-    .map(|_| ())
+/// One certifying scalar's doors, instantiated per scalar by name (so
+/// the rows hold no compound scalar bound): the edge certificate of a
+/// net along a chart's ruling stated by its image, and the bounded read
+/// of a net on a chart over a window.
+#[derive(Clone, Copy)]
+struct Door {
+    name: &'static str,
+    certify: fn(Ruled, &Net, Stated) -> Result<(), CertifyError>,
+    read: fn(&Surface<f64>, &NurbsCurve3<f64>, (f64, f64)) -> Result<(), PcurveCertifyError>,
 }
+
+macro_rules! door_at {
+    ($t:ty) => {
+        Door {
+            name: <$t as Real>::NAME,
+            certify: |chart, net, stated| {
+                let c = <$t as Real>::from_f64;
+                let mut table: slotmap::SlotMap<SurfaceKey, Surface<$t>> =
+                    slotmap::SlotMap::with_key();
+                let key = table.insert(chart.surface::<$t>());
+                let carrier = Curve3::Nurbs(Arc::new(net.curve(chart).map_scalar(c)));
+                let (start, end) = (carrier.eval(c(0.0)), carrier.eval(c(1.0)));
+                EdgeCurve::certify(
+                    spec_of(key, chart, stated, carrier),
+                    start,
+                    end,
+                    |k| table.get(k).cloned(),
+                    geom_core::test_support::fixture_lever(<$t as Real>::one()),
+                    band(),
+                    NurbsLane::certified(),
+                )
+                .map(|_| ())
+            },
+            read: |surface, net, (t0, t1)| {
+                let c = <$t as Real>::from_f64;
+                let carrier = Curve3::Nurbs(Arc::new(net.map_scalar(c)));
+                let surface = surface.map_scalar(c);
+                let span = (c(t0), c(t1));
+                super::read_net_bound(&carrier, span, &surface, band(), || {
+                    super::limb2_offset_sup(&carrier, span, &surface, band())
+                })
+            },
+        }
+    };
+}
+
+const F64: Door = door_at!(f64);
+const INTERVAL: Door = door_at!(Interval);
 
 /// What a refusal read: off, in band, or not an incidence read at all.
 fn read(got: &Result<(), CertifyError>) -> Option<IncidenceRead> {
@@ -279,21 +308,21 @@ fn is_lever(got: &Result<(), CertifyError>) -> bool {
 /// **The witness**: a net a millimetre off its plane, cylinder or cone
 /// between both sample sets, stated as an iso line or a degree-1 curve in
 /// UV, ends read off the chart; the same net on its chart certifies.
-fn the_witness<T: Decide + geom_core::CertifiedBounds>() {
+fn the_witness(door: Door) {
     for chart in Ruled::ALL {
         for stated in [Stated::Iso, Stated::General] {
-            let got = certify::<T>(chart, &witness(1e-3), stated);
+            let got = (door.certify)(chart, &witness(1e-3), stated);
             assert!(
                 is_off(&got),
                 "{chart:?} {stated:?} at {}: a net a millimetre off its chart between the \
                  samples ends off the chart: {got:?}",
-                T::NAME
+                door.name
             );
-            let on = certify::<T>(chart, &witness(0.0), stated);
+            let on = (door.certify)(chart, &witness(0.0), stated);
             assert!(
                 on.is_ok(),
                 "{chart:?} {stated:?} at {}: the net on its chart certifies: {on:?}",
-                T::NAME
+                door.name
             );
         }
     }
@@ -301,49 +330,49 @@ fn the_witness<T: Decide + geom_core::CertifiedBounds>() {
 
 #[test]
 fn a_net_a_millimetre_off_its_analytic_chart_between_the_samples_ends_off_f64() {
-    the_witness::<f64>();
+    the_witness(F64);
 }
 
 #[test]
 fn a_net_a_millimetre_off_its_analytic_chart_between_the_samples_ends_off_interval() {
-    the_witness::<Interval>();
+    the_witness(INTERVAL);
 }
 
 /// **The bump narrowed toward the band**: at four times the band's
 /// escalation it ends off; in the band it ends in the lever, neither off
 /// nor certified; under half the band's zero it certifies.
-fn narrowed<T: Decide + geom_core::CertifiedBounds>() {
+fn narrowed(door: Door) {
     let b = band();
     for chart in Ruled::ALL {
-        let off = certify::<T>(chart, &witness(4.0 * b.escalate()), Stated::Iso);
+        let off = (door.certify)(chart, &witness(4.0 * b.escalate()), Stated::Iso);
         assert!(
             is_off(&off),
             "{chart:?} at {}: a bump four times the band's escalation ends off: {off:?}",
-            T::NAME
+            door.name
         );
-        let lever = certify::<T>(chart, &witness(in_band()), Stated::Iso);
+        let lever = (door.certify)(chart, &witness(in_band()), Stated::Iso);
         assert!(
             is_lever(&lever),
             "{chart:?} at {}: a bump in the band ends in the lever: {lever:?}",
-            T::NAME
+            door.name
         );
-        let on = certify::<T>(chart, &witness(0.5 * b.zero()), Stated::Iso);
+        let on = (door.certify)(chart, &witness(0.5 * b.zero()), Stated::Iso);
         assert!(
             on.is_ok(),
             "{chart:?} at {}: a bump under the band's zero certifies: {on:?}",
-            T::NAME
+            door.name
         );
     }
 }
 
 #[test]
 fn a_bump_narrowed_toward_the_band_ends_by_its_height_f64() {
-    narrowed::<f64>();
+    narrowed(F64);
 }
 
 #[test]
 fn a_bump_narrowed_toward_the_band_ends_by_its_height_interval() {
-    narrowed::<Interval>();
+    narrowed(INTERVAL);
 }
 
 /// A height relative to the band: on the chart, in the band, or four
@@ -475,21 +504,6 @@ fn draw_round(
     (surface, net, window)
 }
 
-/// The bounded read of `net` on `surface` over `window` at `T`.
-fn read_round<T: Decide + geom_core::CertifiedBounds>(
-    surface: &Surface<f64>,
-    net: &NurbsCurve3<f64>,
-    (t0, t1): (f64, f64),
-) -> Result<(), PcurveCertifyError> {
-    let carrier = Curve3::Nurbs(Arc::new(net.map_scalar(T::from_f64)));
-    super::read_net_bound(
-        &carrier,
-        (T::from_f64(t0), T::from_f64(t1)),
-        &surface.map_scalar(T::from_f64),
-        band(),
-    )
-}
-
 fn incidence(got: &Result<(), PcurveCertifyError>) -> Option<IncidenceRead> {
     match got {
         Err(PcurveCertifyError::Incidence(refusal)) => Some(refusal.read()),
@@ -517,8 +531,8 @@ fn a_nets_read_on_an_analytic_chart_ends_by_its_supremum() {
         for height in Height::ALL {
             let net = net.clone().missing(height.miss());
             for (scalar, got) in [
-                ("f64", certify::<f64>(chart, &net, stated)),
-                ("interval", certify::<Interval>(chart, &net, stated)),
+                (F64.name, (F64.certify)(chart, &net, stated)),
+                (INTERVAL.name, (INTERVAL.certify)(chart, &net, stated)),
             ] {
                 assert!(
                     height.ends(&got, read(&got)),
@@ -531,8 +545,8 @@ fn a_nets_read_on_an_analytic_chart_ends_by_its_supremum() {
         for height in Height::ALL {
             let (surface, round, window) = draw_round(&mut g, torus, height.miss());
             for (scalar, got) in [
-                ("f64", read_round::<f64>(&surface, &round, window)),
-                ("interval", read_round::<Interval>(&surface, &round, window)),
+                (F64.name, (F64.read)(&surface, &round, window)),
+                (INTERVAL.name, (INTERVAL.read)(&surface, &round, window)),
             ] {
                 assert!(
                     height.ends(&got, incidence(&got)),
@@ -559,7 +573,7 @@ enum Apex {
 /// as one span it ends in the lever (the parts' floors beside the apex
 /// read no lever, so the rounds measure no miss), never certified. The
 /// ruling itself, read from the apex along either nappe, is on.
-fn beside_the_apex<T: Decide + geom_core::CertifiedBounds>() {
+fn beside_the_apex(door: Door) {
     let zero = band().zero();
     let (s, c) = ALPHA.sin_cos();
     // The apex's parameter, between the sampled read's samples.
@@ -587,7 +601,7 @@ fn beside_the_apex<T: Decide + geom_core::CertifiedBounds>() {
             vec![1.0; ts.len()],
         )
         .unwrap();
-        let got = read_round::<T>(&Ruled::Cone.surface(), &net, (lo, hi));
+        let got = (door.read)(&Ruled::Cone.surface(), &net, (lo, hi));
         let read = incidence(&got);
         assert!(
             match ends {
@@ -598,19 +612,19 @@ fn beside_the_apex<T: Decide + geom_core::CertifiedBounds>() {
             },
             "at {}, {shift:e} beside the apex over [{lo}, {hi}] (a knot there: {knot}) ends \
              {ends:?}: {got:?}",
-            T::NAME
+            door.name
         );
     }
 }
 
 #[test]
 fn a_net_beside_a_cones_apex_ends_off_f64() {
-    beside_the_apex::<f64>();
+    beside_the_apex(F64);
 }
 
 #[test]
 fn a_net_beside_a_cones_apex_ends_off_interval() {
-    beside_the_apex::<Interval>();
+    beside_the_apex(INTERVAL);
 }
 
 /// **A bound limb 2 cannot read ends in the lever** (`net_bound_refusal`):

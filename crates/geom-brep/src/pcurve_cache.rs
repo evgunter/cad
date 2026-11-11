@@ -10112,7 +10112,10 @@ fn net_sampled_incidence<T: Decide>(
 /// a bound per part converted to metres, the parts halved where the bound
 /// does not clear), decided as the edge certificate decides limb 2
 /// ([`crate::edge_nurbs::limb2`]). So a net off its chart between every
-/// sample does not read on.
+/// sample does not read on. `offset` is that reader at the certifying
+/// scalar, handed in by the certificate's engine, which holds the
+/// scalar's bracket bound; it is read only where the sampled read showed
+/// no miss.
 ///
 /// - The bound within the band: on.
 /// - A measured miss past the band at a break: off
@@ -10125,11 +10128,12 @@ fn net_sampled_incidence<T: Decide>(
 /// # Errors
 ///
 /// [`PcurveCertifyError::Incidence`], read off or in band as above.
-pub(crate) fn read_net_bound<T: Decide + geom_core::CertifiedBounds>(
+pub(crate) fn read_net_bound<T: Decide>(
     carrier: &Curve3<T>,
     (t0, t1): (T, T),
     surface: &Surface<T>,
     band: Band,
+    offset: impl FnOnce() -> Result<projected::OffsetRead<T>, PcurveCertifyError>,
 ) -> Result<(), PcurveCertifyError> {
     debug_assert!(
         surface.spline_chart().is_none() && carrier.kind() == geom::CurveKind::Nurbs,
@@ -10145,8 +10149,7 @@ pub(crate) fn read_net_bound<T: Decide + geom_core::CertifiedBounds>(
     {
         return Err(sampled);
     }
-    let read = limb2_offset_sup(carrier, (t0, t1), surface, band);
-    crate::edge_nurbs::limb2(carrier, (t0, t1), surface, read, None, band)
+    crate::edge_nurbs::limb2(carrier, (t0, t1), surface, offset(), None, band)
         .map_err(|refusal| net_bound_refusal::<T>(refusal, surface, carrier, band))
 }
 
@@ -10167,9 +10170,8 @@ fn net_bound_refusal<T: Decide>(
     // Limb 2 reads its limit only on a bound it did not decide zero, so
     // the bound decides positive or escalates.
     let straddle = |bound: f64| {
-        let decided =
-            |x: f64| geom_core::k_stats::decide_reported(NAME, Margin::of(T::from_f64(x)), band);
-        match (decided(0.0), decided(bound)) {
+        let decided = |x: T| geom_core::k_stats::decide_reported(NAME, Margin::of(x), band);
+        match (decided(T::zero()), decided(T::from_computed(bound))) {
             (Ok(lower), Ok(upper)) => geom_core::k_stats::straddle(NAME, lower, upper, band),
             (Err(cause), _) | (_, Err(cause)) => cause,
         }
