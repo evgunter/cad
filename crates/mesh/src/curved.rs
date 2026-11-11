@@ -53,7 +53,10 @@
 //!    loop's extent comes from the distinct EDGES that open its iso
 //!    sides, so the question is whether two of those exist. Both doors
 //!    above admit the members; the branch door (question 2) takes the
-//!    one member whose meridian carries a pole mid-edge.
+//!    one member whose meridian carries a pole mid-edge. The one-face
+//!    ball's loop, one wrap edge from pole to pole and back, is not
+//!    asked: the walk places its two sides a period apart
+//!    (`walk::wrap_strip`).
 //! 5. **WALK CONSISTENCY** — *did the walk trace that rectangle?*
 //!    Asked after, on the polygon, BANDED in metres
 //!    ([`require_swept_rectangle`], refusing

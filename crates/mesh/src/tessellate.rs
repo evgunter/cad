@@ -667,11 +667,10 @@ fn tessellate_impl(
 /// **An open body is not the only input that reaches it.** A CLOSED
 /// body one of whose curved faces walks to a zero-width domain emits
 /// nothing for that face and fires this census: a torus face bounded by
-/// one meridian circle, and the one-face sphere whose loop is a single
-/// seam walked both ways (`mesh/tests/loops_the_meridian_guard_admits.rs`;
+/// one meridian circle (`mesh/tests/loops_with_no_rim.rs`;
 /// `work/tess/rim-free-loop-on-a-poleless-chart-meshes-as-a-hole.md`).
-/// Neither passes tier 3, so both are outside the closed-VALID input
-/// `tessellate` is specified on, but they are input and not defect.
+/// It does not pass tier 3, so it is outside the closed-VALID input
+/// `tessellate` is specified on, but it is input and not defect.
 ///
 /// **The route is documented, not demonstrated, and the difference is
 /// recorded rather than glossed.** A reviewer's probe

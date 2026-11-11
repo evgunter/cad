@@ -13,11 +13,13 @@
 //!   bounded by one meridian circle, and a cylinder face bounded by one
 //!   generator. Neither chart has a pole for a meridian to end on;
 //!   nothing can move the column, and the loop is a single iso side.
-//! * **one edge's openings, however many** — the one-face sphere whose
-//!   loop is a single seam walked both ways (two openings, one at each
-//!   pole) and the one-face cone whose loop is a single generator from
-//!   the apex (one opening). Every opening states that edge's column,
-//!   bitwise.
+//! * **one edge's openings** — the one-face cone whose loop is a single
+//!   generator from the apex (one opening), which states that edge's
+//!   column, bitwise. The one-face sphere whose loop is a single seam
+//!   walked both ways is not in the class: its two ends are the chart's
+//!   poles, so its chart image is empty and the walk places the seam's
+//!   two traversals a period apart, the one-face ball
+//!   (`the_one_face_ball.rs`).
 //! * **the positive controls**, which must still mesh: the ball's two
 //!   pole-to-pole bands and the rimless lune, whose two openings stand on
 //!   two edges, and the spur-wearing cap in
@@ -323,22 +325,36 @@ fn a_rim_free_loop_on_a_chart_with_no_pole_refuses_single_column() {
     }
 }
 
-/// **One edge's column, wherever the loop turns: the one-seam sphere and
-/// the one-seam cone.** The sphere opens two iso sides, one at each pole.
-/// The cone opens ONE: its apex is the start of `travs[0]`, which opens
+/// **One edge's column, turning at the apex: the one-seam cone.** It
+/// opens ONE iso side: its apex is the start of `travs[0]`, which opens
 /// whatever the run rule says, and its far junction is off the axis and
-/// continues. Either way every opening states the same edge's column, and
-/// that is the whole reason both refuse. The sphere is the member the row
-/// said "no rim and no pole" would not close.
+/// continues. Its loop is all spurs, but its far tip is no singular
+/// point of the chart, so it is no wrap strip, and its one opening states
+/// the edge's column.
 #[test]
 fn a_rim_free_loop_that_turns_at_a_pole_along_its_own_edge_refuses_single_column() {
-    for (name, body, kind) in [
-        ("one-seam sphere", one_seam_sphere(), SurfaceKind::Sphere),
-        ("one-seam cone", one_seam_cone(), SurfaceKind::Cone),
-    ] {
-        assert!(not_valid_but_for_joins(&body), "{name} is not tier-3 valid");
-        assert_refuses_single_column(name, &body, kind, 0.05);
-    }
+    let body = one_seam_cone();
+    assert!(
+        not_valid_but_for_joins(&body),
+        "the one-seam cone is not tier-3 valid"
+    );
+    assert_refuses_single_column("one-seam cone", &body, SurfaceKind::Cone, 0.05);
+}
+
+/// **The one-seam sphere is the one-face ball** with its edge's
+/// description left unwritten: tier 2 reads its two ends as strut tips,
+/// but the walk reads no description. Its chart image is empty and its
+/// tips are the two poles, so the walk places the edge's two traversals
+/// a period apart, the wrap strip (`the_one_face_ball.rs`), and it meshes
+/// as the unit ball.
+#[test]
+fn the_one_seam_sphere_meshes_as_the_wrap_strip() {
+    let body = one_seam_sphere();
+    assert!(
+        not_valid_but_for_joins(&body),
+        "the one-seam sphere is not tier-3 valid"
+    );
+    common::check_mesh_acceptance(&body, 0.05, Some((4.0 * PI / 3.0, 4.0 * PI)));
 }
 
 /// **The sphere slit bounded by two COINCIDENT edges**, and what answers

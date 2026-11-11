@@ -76,7 +76,9 @@
 //! - **a rim-free loop whose iso sides all open on one edge** is
 //!   refused in every profile by [`require_two_columns`], before the
 //!   band arm below runs
-//!   ([`TessellateError::SingleColumnCurvedFace`] carries the argument);
+//!   ([`TessellateError::SingleColumnCurvedFace`] carries the argument),
+//!   except the one-face ball's: one wrap edge walked from pole to pole
+//!   and back, whose two sides [`wrap_strip`] places a period apart;
 //! - **a meridian that stops short of the pole** — a spur into a face
 //!   whose pole is still interior — is not checked here at all. The
 //!   walk traces the spur as a column, and the face is refused
@@ -106,7 +108,9 @@
 //!   nearest `atan2(A·v_ref, A·u_ref)`.
 //!
 //!   `A` disambiguates the BRANCH; it says nothing about the extent,
-//!   which is [`require_two_columns`]' premise instead.
+//!   which is [`require_two_columns`]' premise instead. The wrap strip
+//!   walks one edge both ways and has no area; its columns are
+//!   [`wrap_strip`]'s.
 //!
 //!   Only `A`'s DIRECTION is read, and that direction is the band's own
 //!   only because the fold is anchored on the loop rather than on the
@@ -980,11 +984,13 @@ fn strip_columns(travs: &[Trav], starts: &[bool], period: f64) -> Vec<f64> {
 ///    meridian. `starts[0]` is then forced `true`.
 /// 4. [`closing_side`] — the opening index of the LAST iso side, which
 ///    is what the closure rule and the pole-band seed key on.
-/// 5. [`require_two_columns`] — the rim-free arm's extent premise, on
-///    the openings step 2 computed. Ahead of the two D2-row-5
-///    re-derivations, which presuppose a walkable loop.
+/// 5. [`wrap_strip`], and [`require_two_columns`] on any other rimless
+///    loop — the rim-free arm's extent premise, on the openings step 2
+///    computed. Ahead of the two D2-row-5 re-derivations, which
+///    presuppose a walkable loop.
 /// 6. `band_u` — for a rimless pole-to-pole band only, every column
-///    precomputed from the loop's 3-D area vector.
+///    precomputed: the wrap strip's from its period, any other band's
+///    from the loop's 3-D area vector.
 /// 7. the emission loop — per traversal, take the run's coordinate (a
 ///    continuation repeats it bitwise, discarding its own) and unwrap
 ///    the other axis by continuity.

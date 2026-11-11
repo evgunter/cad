@@ -14,6 +14,7 @@ use crate::common;
 use core::f64::consts::PI;
 use geom_brep::EdgeDescriptionSpec;
 use geom_core::{Band, Point2, Point3, Tol};
+use mesh::validate::{check_volume, signed_volume};
 use sweep::Revolution;
 use sweep::test_support::revolved_about_y;
 use topo::construction::Construct;
@@ -75,29 +76,52 @@ fn two_band_ball() -> Body<f64> {
 }
 
 /// **The one-face ball meshes watertight and encloses the ball.** It is
-/// tier-3 valid, and its mesh passes the acceptance battery with the
-/// unit ball's volume and area, as the two-band ball's does.
+/// tier-3 valid; its mesh passes the acceptance battery, and its volume
+/// is the unit ball's to within the chordal deficit, as the two-band
+/// ball's is. Reverted, it meshes as the void the reversal makes: the
+/// period between its sides is signed by the face's sense, and a strip
+/// wound against it would mesh inside out.
 #[test]
 fn the_one_face_ball_meshes_watertight_with_the_balls_volume() {
     let ball = one_wrap_edge(two_band_ball(), false);
-    assert_eq!(ball.faces().count(), 1, "one face");
-    assert_eq!(ball.edges().count(), 1, "one edge");
+    assert_eq!(
+        (ball.faces().count(), ball.edges().count()),
+        (1, 1),
+        "one face, one edge"
+    );
     assert_eq!(
         topo::validate_geometric(&ball, tol()),
         Ok(()),
         "the one-face ball is tier-3 valid"
     );
-    let exact = Some((4.0 * PI / 3.0, 4.0 * PI));
-    let one = common::check_mesh_acceptance(&ball, DELTA, exact);
-    let two = common::check_mesh_acceptance(&two_band_ball(), DELTA, exact);
-    let (v1, v2) = (
-        mesh::validate::signed_volume(&one),
-        mesh::validate::signed_volume(&two),
+    let (volume, area) = (4.0 * PI / 3.0, 4.0 * PI);
+    let one = common::check_mesh_acceptance(&ball, DELTA, Some((volume, area)));
+    let two = common::check_mesh_acceptance(&two_band_ball(), DELTA, Some((volume, area)));
+    for (name, m) in [("one-face", &one), ("two-band", &two)] {
+        assert_eq!(
+            check_volume(m, volume, area, DELTA),
+            Ok(()),
+            "the {name} ball encloses the unit ball"
+        );
+    }
+    let two_band = signed_volume(&two);
+    assert_eq!(
+        check_volume(&one, two_band, area, DELTA),
+        Ok(()),
+        "the one-face ball encloses the two-band ball's volume"
     );
-    eprintln!(
-        "one-face ball: {} triangles, volume {v1}; two-band ball: {} triangles, volume {v2}",
-        mesh::validate::triangle_count(&one),
-        mesh::validate::triangle_count(&two),
+
+    let void = ball.revert().expect("the one-face ball reverts");
+    let inside_out = mesh::tessellate(&void, DELTA, tol()).expect("the reverted ball meshes");
+    assert_eq!(
+        mesh::validate::check_mesh(&inside_out),
+        Ok(()),
+        "the reverted ball: watertight"
+    );
+    assert_eq!(
+        check_volume(&inside_out, -volume, area, DELTA),
+        Ok(()),
+        "the reverted ball encloses the void"
     );
 }
 
@@ -127,9 +151,9 @@ fn cone() -> Body<f64> {
     )
 }
 
-/// **A wrap-tip cap meshes as it did**: the hemisphere's and the cone's
-/// curved face, its pole or apex reached by one wrap edge off a rim,
-/// carries a rim, so its walk never reaches the rimless arm.
+/// **A wrap-tip cap meshes off its rim**: the hemisphere's and the cone's
+/// curved face, its pole or apex reached by one wrap edge from its rim,
+/// carries a rim, so its walk never reaches the wrap strip.
 #[test]
 fn a_wrap_tip_cap_meshes_off_its_rim() {
     for (name, body, exact) in [
@@ -150,12 +174,26 @@ fn a_wrap_tip_cap_meshes_off_its_rim() {
             "the {name} cap is tier-3 valid"
         );
         let m = common::check_mesh_acceptance(&body, DELTA, Some(exact));
-        let d = common::dump(&m);
-        let mut h: u64 = 0xcbf2_9ce4_8422_2325;
-        for b in d.bytes() {
-            h ^= u64::from(b);
-            h = h.wrapping_mul(0x100_0000_01b3);
-        }
-        eprintln!("{name}: {} triangles, digest {h:016x}", mesh::validate::triangle_count(&m));
+        assert_eq!(
+            check_volume(&m, exact.0, exact.1, DELTA),
+            Ok(()),
+            "the {name} cap encloses its solid"
+        );
     }
+}
+
+/// **A wrap edge carried by two edges is one strip.** The one-face ball
+/// with its wrap edge split off the poles: its loop walks two edges down
+/// and back, its chart image is still empty and its tips are still the
+/// poles, so each side is one column across the split (#653's runs) and
+/// the strip meshes as the ball. The split vertex is joinable at rest,
+/// which tier 3 refuses and `tessellate` does not re-validate.
+#[test]
+fn a_split_wrap_edge_is_one_strip() {
+    let mut ball = one_wrap_edge(two_band_ball(), false);
+    let wraps = ball.edges().map(|(e, _)| e).next().expect("the wrap edge");
+    ball.split_edge(wraps, 0.7, tol())
+        .expect("split the wrap edge off the poles");
+    assert_eq!(ball.edges().count(), 2, "two edges");
+    common::check_mesh_acceptance(&ball, DELTA, Some((4.0 * PI / 3.0, 4.0 * PI)));
 }
