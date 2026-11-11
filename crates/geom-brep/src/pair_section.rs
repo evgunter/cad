@@ -785,6 +785,15 @@ impl<T: Real> SectionNode<T> {
             .unwrap_or_else(|| unreachable!("every line and sense is a ray"))
     }
 
+    /// **The ray nearest a direction**, by index in [`Self::RAYS`], from
+    /// its dots with the four rays: the largest, the first of equals
+    /// (D9). The one home of the rule; what decides its lead is the
+    /// caller's.
+    #[must_use]
+    pub fn nearest_ray(dots: [f64; 4]) -> usize {
+        (1..4).fold(0, |best, i| if dots[i] > dots[best] { i } else { best })
+    }
+
     /// The four rays, unit, in their turn ([`Self::RAYS`]).
     #[must_use]
     pub fn rays(&self) -> [Vec3<T>; 4] {
@@ -2916,15 +2925,18 @@ impl<T: Decide> CarriedComponent<T> {
         }
     }
 
-    /// **This component's end at the node `n`** ([`ArcPlace::AtEnd`]):
-    /// its one end there, or, for an arc with both ends at one node, the
-    /// end leaving along `ray`, the line and sense the germ reading it
-    /// names ([`NodeEnd`]).
+    /// **This component's end at the node `n`** ([`ArcPlace::AtEnd`]),
+    /// the one leaving along `ray` where the germ reading it names one
+    /// (its line and sense, [`NodeEnd`]): an arc with both ends at one
+    /// node is read at it by the end its germ leaves along, and a germ
+    /// naming a ray reads an arc's one end there only where it is that
+    /// end's own.
     ///
     /// # Errors
     ///
-    /// [`SiteRefusal::Desync`] where it has no end at `n`, and where both
-    /// are at `n` and `ray` names neither, or none is named.
+    /// [`SiteRefusal::Desync`] where it has no end at `n`; where both are
+    /// at `n` and `ray` names neither, or none is named; and where `ray`
+    /// is named and the one end at `n` leaves along another.
     pub fn end_at(
         &self,
         n: usize,
@@ -2954,8 +2966,11 @@ impl<T: Decide> CarriedComponent<T> {
                      leaves along, and the germ names neither",
                 )),
             },
-            (Some(_), None) => Ok(start),
-            (None, Some(_)) => Ok(finish),
+            (Some(a), None) if named(a) => Ok(start),
+            (None, Some(b)) if named(b) => Ok(finish),
+            (Some(_), None) | (None, Some(_)) => Err(SiteRefusal::Desync(
+                "a site at a node is read off the end its germ does not leave along",
+            )),
             (None, None) => Err(SiteRefusal::Desync(
                 "a site at a node lies on a component with no end there",
             )),
@@ -3249,16 +3264,18 @@ impl<T: Decide> CarriedSection<T> {
     }
 
     /// **The ray of node `n` a germ leaving along `dir` names**, by its
-    /// line and sense ([`SectionNode::RAYS`]): the ray nearest `dir`, as
-    /// a germ minted from an arc end there leaves along that end's ray.
-    /// `None` for a node not in the section.
+    /// line and sense ([`SectionNode::RAYS`]): the ray nearest `dir`
+    /// ([`SectionNode::nearest_ray`]), as a germ minted from an arc end
+    /// there leaves along that end's ray, exactly. `None` for a node not
+    /// in the section, and where a dot is not a point the scalar holds: a
+    /// germ whose ray is not read names none, and [`Self::end_at`] reads
+    /// it so.
     pub fn ray_along(&self, n: usize, dir: Vec3<T>) -> Option<(NodeLine, RaySense)> {
         let node = self.nodes.get(n)?;
-        let dots = node
-            .rays()
-            .map(|r| dir.dot(r).point_value().unwrap_or(f64::NEG_INFINITY));
-        let best = (0..4).max_by(|&i, &j| dots[i].total_cmp(&dots[j]))?;
-        Some(SectionNode::<T>::RAYS[best])
+        let rays = node.rays();
+        let dots = [0, 1, 2, 3].map(|i| dir.dot(rays[i]).point_value());
+        let dots = [dots[0]?, dots[1]?, dots[2]?, dots[3]?];
+        Some(SectionNode::<T>::RAYS[SectionNode::<T>::nearest_ray(dots)])
     }
 }
 
@@ -4202,8 +4219,9 @@ mod end_at_rows {
     /// **An arc with both ends at one node is read by the end its germ
     /// names** (D2): the ray `(First, Along)` reads the start, `(Second,
     /// Along)` the end, no ray or another ray neither; an arc with one end
-    /// there is read at it whatever the ray. Red against the start read
-    /// whatever the ray.
+    /// there is read at it with no ray named or its own, and refused on
+    /// another. Red against the start read whatever the ray, and against
+    /// a single end read whatever the ray.
     #[test]
     fn an_arc_with_both_ends_at_one_node_is_read_by_its_ray() {
         let c = loop_at_node();
@@ -4232,7 +4250,7 @@ mod end_at_rows {
         if let ComponentShape::Open { ends } = &mut one.shape {
             ends.nodes.start = None;
         }
-        for ray in [None, Some((NodeLine::First, RaySense::Along))] {
+        for ray in [None, Some((NodeLine::Second, RaySense::Along))] {
             assert!(
                 matches!(
                     one.end_at(0, ray),
@@ -4241,6 +4259,15 @@ mod end_at_rows {
                         ..
                     })
                 ),
+                "{ray:?}"
+            );
+        }
+        for ray in [
+            Some((NodeLine::Second, RaySense::Against)),
+            Some((NodeLine::First, RaySense::Along)),
+        ] {
+            assert!(
+                matches!(one.end_at(0, ray), Err(SiteRefusal::Desync(_))),
                 "{ray:?}"
             );
         }

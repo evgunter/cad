@@ -300,13 +300,14 @@ fn an_oblique_nodes_lines_are_its_null_lines() {
 /// from its seeds.
 #[test]
 fn a_loop_through_a_node_names_both_its_ends() {
-    // Pinned red at 1e-12: the chart accounting runs out of cells
+    // Pinned red at 1e-12: the chart accounting runs out of cells, which
+    // a reading with its node handed in refuses as the node's tangency
     // (`work/sectarms/the-lemniscate-node-row-exceeds-the-accounting-budget-at-1e-12.md`).
     test_utils::pinned_red::row(
         Tol::witness().eps(),
         &[1e-12],
         "the lemniscate's node",
-        &["the exhaustiveness subdivision exceeded its 200000-cell budget"],
+        &["Pinched { predicate: \"spline_critical_unread\" }"],
         a_loop_through_a_node_names_both_its_ends_row,
     );
 }
@@ -345,6 +346,24 @@ fn a_loop_through_a_node_names_both_its_ends_row() {
     rays.sort_unstable();
     assert_eq!(rays, [0, 1, 2, 3]);
     assert_eq!(s.node_sets().len(), 1);
+    witnessed_rays(&s, node);
+}
+
+/// Each arc end at `node` names the ray toward its own arc: the arc's
+/// witness lies on that ray's side of the node. Red against an end's
+/// sense read the other way (a start read as an end), where a loop's two
+/// ends trade rays.
+fn witnessed_rays(s: &PairSection<f64>, node: &SectionNode<f64>) {
+    let Components::Counted(c) = s.components() else {
+        panic!("a counted section: {:?}", s.components());
+    };
+    for (k, l, sense) in ends_at(s, 0) {
+        let toward = c[k].witness.unwrap() - node.point;
+        assert!(
+            toward.dot(node.ray(l, sense)) > 0.0,
+            "arc {k}'s end names the ray ({l:?}, {sense:?}) away from its witness {toward:?}"
+        );
+    }
 }
 
 /// **The touch-and-arc wall**: `z = k(A(x) + B(y))` over `[0, 1]²`,
@@ -445,7 +464,7 @@ fn listing(
         decided,
         witnesses: &none,
     };
-    super::listed(pose, Bracketed::Plane(heights), out, &[listing], band())
+    super::listed(pose, Bracketed::Plane(heights), out, Some(&listing), band())
 }
 
 /// **A node not placed within the band refuses by name.** The cross
@@ -524,6 +543,14 @@ fn an_end_between_two_rays_names_neither() {
     // 50° off the x axis, out of the plane of the rays: past the floor.
     let (c, s) = (50f64.to_radians().cos(), 50f64.to_radians().sin());
     assert!(super::ray_of(Vec3::new(c, 0.0, s), rays, extent, band()).is_err());
+    // Lines 30° apart: an end at 15°, between the two rays, is within 45°
+    // of both, so the floor passes it and the lead alone refuses it; one
+    // at 5° leads at 0, one at 25° at 1.
+    let at = |deg: f64| Vec3::new(deg.to_radians().cos(), deg.to_radians().sin(), 0.0);
+    let narrow = [at(0.0), at(30.0), -at(0.0), -at(30.0)];
+    assert!(super::ray_of(at(15.0), narrow, extent, band()).is_err());
+    assert_eq!(super::ray_of(at(5.0), narrow, extent, band()), Ok(0));
+    assert_eq!(super::ray_of(at(25.0), narrow, extent, band()), Ok(1));
 }
 
 /// **A touch beside components that reach a side crosses them.** The
@@ -570,4 +597,162 @@ fn a_touch_beside_reaching_components_crosses_them() {
             );
         }
     }
+}
+
+/// **A biquadratic wall over a linear chart**: `z = Σ m[k][l] u^k v^l`
+/// over `[0, 1]²`, at `(x, y) = chart(u, v)`, which is affine, so the
+/// control points' `(x, y)` are the chart at the Greville abscissae.
+fn biquad(m: [[f64; 3]; 3], chart: impl Fn(f64, f64) -> (f64, f64)) -> Surface<f64> {
+    let k = KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap();
+    // The Bernstein coefficient (i, j) of u^k v^l: (C(i,k)/C(2,k))·(C(j,l)/C(2,l)).
+    let w = |i: usize, k: usize| choose(i, k) / choose(2, k);
+    let control = (0..9)
+        .map(|n| {
+            let (i, j) = (n / 3, n % 3);
+            let z = (0..3)
+                .flat_map(|k| (0..3).map(move |l| (k, l)))
+                .map(|(k, l)| w(i, k) * w(j, l) * m[k][l])
+                .sum();
+            #[allow(clippy::cast_precision_loss)]
+            let (x, y) = chart(0.5 * i as f64, 0.5 * j as f64);
+            pt(x, y, z)
+        })
+        .collect();
+    Surface::Nurbs(std::sync::Arc::new(
+        NurbsSurface::new(k.clone(), k, control, vec![1.0; 9]).unwrap(),
+    ))
+}
+
+/// The monomial coefficients in `(u, v)` of `k·(α₁X + β₁Y)(α₂X + β₂Y)`,
+/// `X = u − ½ + s(v − ½)`, `Y = v − ½`: a node at the centre on the lines
+/// `αX + βY = 0`, over a chart sheared by `s`.
+fn two_lines(k: f64, [(a1, b1), (a2, b2)]: [(f64, f64); 2], s: f64) -> [[f64; 3]; 3] {
+    // A linear form αX + βY in (u, v): constant, u and v coefficients.
+    let line = |a: f64, b: f64| {
+        [
+            [a * (-0.5 - 0.5 * s) - 0.5 * b, a * s + b, 0.0],
+            [a, 0.0, 0.0],
+            [0.0; 3],
+        ]
+    };
+    let (p, q) = (line(a1, b1), line(a2, b2));
+    let mut out = [[0.0; 3]; 3];
+    for i in 0..2 {
+        for j in 0..2 {
+            for k2 in 0..2 {
+                for l in 0..2 {
+                    out[i + k2][j + l] += k * p[i][j] * q[k2][l];
+                }
+            }
+        }
+    }
+    out
+}
+
+/// **A generic node is listed.** Nodes whose lines are not the chart's
+/// axes nor symmetric about them, at the run's ε: `2(Y − 1.5X)(Y + 1.5X)`
+/// and `2(Y − 1.5X)(Y + 0.4X)`, the cross saddle `4XY` over a chart
+/// sheared by `0.2` (`x = u + 0.2(v − ½)`), and the first under a sphere
+/// of radius 100 resting on the node. Each lists one node and its four
+/// arcs, every ray claimed once, each end naming the ray toward its own
+/// arc. Red against the node ends' spans left ungraded (`Ends::graded`):
+/// one span from the side to the node's box straddles in limb 3's tube.
+#[test]
+fn a_generic_node_is_listed() {
+    let plain = |u: f64, v: f64| (u, v);
+    let crossing = biquad(two_lines(2.0, [(-1.5, 1.0), (1.5, 1.0)], 0.0), plain);
+    let leaning = biquad(two_lines(2.0, [(-1.5, 1.0), (0.4, 1.0)], 0.0), plain);
+    let sheared = biquad(two_lines(4.0, [(1.0, 0.0), (0.0, 1.0)], 0.2), |u, v| {
+        (u + 0.2 * (v - 0.5), v)
+    });
+    let ball = Surface::Sphere {
+        center: pt(0.5, 0.5, 100.0),
+        radius: 100.0,
+        axis: Vec3::unit_z(),
+        u_ref: Vec3::unit_x(),
+    };
+    for (what, partner, wall) in [
+        ("lines at ±1.5", level(0.0), &crossing),
+        ("lines at 1.5 and −0.4", level(0.0), &leaning),
+        ("a sheared chart", level(0.0), &sheared),
+        ("under a sphere", ball, &crossing),
+    ] {
+        let s = built(&partner, wall).unwrap_or_else(|e| panic!("{what}: {e:?}"));
+        let [node] = s.nodes() else {
+            panic!("{what}: one node: {:?}", s.nodes());
+        };
+        let mut rays: Vec<usize> = ends_at(&s, 0)
+            .iter()
+            .map(|&(_, l, sense)| SectionNode::<f64>::ray_index(l, sense))
+            .collect();
+        rays.sort_unstable();
+        assert_eq!(rays, [0, 1, 2, 3], "{what}: each ray claimed once");
+        witnessed_rays(&s, node);
+    }
+}
+
+/// **A node the reading cannot account for reads as a tangency.** Lines
+/// 45° apart in the chart (`4Y(Y − X)`): the sweep decides the node, but
+/// the accounting about it runs out of cells, so the section refuses as
+/// the pinch topo reads as a tangency (`spline_critical_unread`), never
+/// as an unaccounted pair
+/// (`work/sectarms/a-spline-node-the-reading-cannot-account-for-reads-as-a-tangency.md`).
+/// Red against an unaccounted reading at a decided node left
+/// unaccounted.
+#[test]
+fn a_node_the_reading_cannot_account_for_reads_as_a_tangency() {
+    let wall = biquad(two_lines(4.0, [(0.0, 1.0), (-1.0, 1.0)], 0.0), |u, v| {
+        (u, v)
+    });
+    assert!(
+        matches!(
+            built(&level(0.0), &wall),
+            Err(SectionError::Pinched {
+                predicate: super::CRITICAL_UNREAD
+            })
+        ),
+        "{:?}",
+        built(&level(0.0), &wall).map(|s| s.nodes().len())
+    );
+}
+
+/// **Two decided points whose boxes meet decline the sweep**
+/// ([`sweep::overlapping`]): the bowl's touch beside a copy of it moved
+/// half its box's width, and a copy moved clear of it. Red against the
+/// overlap left undeclined.
+#[test]
+fn two_decided_boxes_that_meet_decline() {
+    let bowl = separable(
+        &[-0.5, 2.0, -2.0],
+        (0.0, 1.0),
+        &[-0.5, 2.0, -2.0],
+        (0.0, 1.0),
+    );
+    let p = level(0.0);
+    let pose = SplineImplicitPose::of(&p, &bowl).unwrap();
+    let reading = crate::ImplicitSection::of(&p, pose.net(), pose.domain(), band()).unwrap();
+    let Sweep::LoopFree(decided) = sweep::sweep(
+        reading.boxes(),
+        reading.form(),
+        reading.account_floor(),
+        band(),
+        pose.ball().certified_diameter(),
+    ) else {
+        panic!("the bowl is swept loop-free");
+    };
+    let [top] = decided.as_slice() else {
+        panic!("{decided:?}");
+    };
+    let moved = |by: f64| sweep::Critical {
+        at: (top.at.0 + by, top.at.1),
+        region: crate::ssi::exhaust::UvRect {
+            u: (top.region.u.0 + by, top.region.u.1 + by),
+            v: top.region.v,
+        },
+        ..*top
+    };
+    let width = top.region.u.1 - top.region.u.0;
+    let near = moved(0.5 * width);
+    assert_eq!(sweep::overlapping(&[*top, near]), Some(near.at));
+    assert_eq!(sweep::overlapping(&[*top, moved(2.0 * width)]), None);
 }

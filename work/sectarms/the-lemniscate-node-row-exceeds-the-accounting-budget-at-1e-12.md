@@ -24,7 +24,9 @@ for the cross and oblique saddles). At ε 1e-12 the whole reading refuses
 200000-cell budget — refused rather than truncated" }`: the chart
 accounting (`exhaust::account_chart_partner`, called from
 `ImplicitSection::all` in `crates/geom-brep/src/ssi/implicit_chart.rs`)
-runs out of cells. The row is pinned red at 1e-12 on that refusal.
+runs out of cells. A reading with its node handed in refuses that as
+the node's tangency (`Pinched { predicate: "spline_critical_unread" }`,
+`read_crossing`), and the row is pinned red at 1e-12 on that refusal.
 
 The cross and oblique saddles, whose arcs are short and reach the sides,
 account at 1e-12 once the node box grows to its cap at every ε

@@ -40,7 +40,7 @@ use geom_core::{Band, Point3};
 use super::boundary::BoundaryPass;
 use super::enclose::ChartPhi;
 use super::ends::Ends;
-use super::exhaust::{self, FloorKind, SweepFloor, UvRect};
+use super::exhaust::{self, FloorKind, SweepCell, SweepFloor, UvRect};
 use super::handle::{Banked, TubeCell, foot, passed};
 use super::march::MarchContext;
 use super::residual::{ImplicitForm, ImplicitWall};
@@ -103,7 +103,7 @@ struct Lane<'a> {
     seed_floor: SweepFloor<UvRect>,
     /// The node boxes a march ends on entering, by node
     /// ([`ImplicitSection::with_criticals`]).
-    nodes: Vec<[[f64; 2]; 2]>,
+    nodes: Vec<UvRect>,
     /// The boxes of the decided critical points, nodes' and touches':
     /// each proved to hold the one zero of `∇φ` in it, claimed as
     /// regions by seeding and accounting.
@@ -341,10 +341,7 @@ impl<'a> ImplicitSection<'a> {
     /// box, nodes' and touches', each holding the one zero of `∇φ` in
     /// it, which seeding skips and accounting reads as a region.
     pub(crate) fn with_criticals(mut self, nodes: &[UvRect], claimed: &[UvRect]) -> Self {
-        self.lane.nodes = nodes
-            .iter()
-            .map(|r| [[r.u.0, r.u.1], [r.v.0, r.v.1]])
-            .collect();
+        self.lane.nodes = nodes.to_vec();
         self.lane.claimed = claimed.to_vec();
         self
     }
@@ -414,13 +411,11 @@ impl<'a> ImplicitSection<'a> {
         let ends = lane.ends()?;
         let pass = passed(&self.pass, || lane.wall.pass(&lane.form))?;
         // A cell inside a decided point's box is that point's: no seed.
-        let claims = |cell: UvRect| {
-            lane.claimed.iter().any(|r| {
-                r.u.0 <= cell.u.0 && cell.u.1 <= r.u.1 && r.v.0 <= cell.v.0 && cell.v.1 <= r.v.1
-            })
-        };
+        // A cost guard and nothing depends on it: a seed in a node's box
+        // is off the domain ([`RectExit::holds_domain`]), and none in a
+        // touch's box settles, so the section is the same without it.
         let seeds = exhaust::seed_chart_partner(lane.seed_floor, |cell| {
-            Ok(claims(cell) || lane.excluded(cell)?)
+            Ok(cell.covered_by(&lane.claimed) || lane.excluded(cell)?)
         })?;
         #[allow(clippy::cast_possible_truncation)]
         let seed_count = seeds.len() as u32;

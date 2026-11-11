@@ -105,14 +105,13 @@ pub(super) enum Sweep {
     /// The sweep proves nothing: the pose is read whole.
     Declined(Declined),
     /// Every critical point decided, and the section's components may
-    /// close about a point the sweep excludes ([`Declined::Enclosed`],
-    /// its box `at`): the pose is read whole with the decided points
-    /// handed in, as a loop through a node is.
+    /// close about a point the sweep excludes ([`Declined::Enclosed`]):
+    /// the pose is read whole with the decided points handed in, as a
+    /// loop through a node is. Where the enclosed point lies is not
+    /// kept: the whole reading finds every loop wherever it lies.
     Enclosing {
         /// The critical points of `φ` within the band, each decided Zero.
         decided: Vec<Critical>,
-        /// The box of the enclosed point.
-        at: [f64; 4],
     },
 }
 
@@ -137,6 +136,10 @@ pub(super) enum Declined {
     Enclosed([f64; 4]),
     /// The rectangle has no domain, or an enclosure refused.
     Unread,
+    /// Two decided critical points' boxes meet, the second at this
+    /// point: a march entering the overlap would enter both, so neither
+    /// is a node end the reading can name.
+    Overlap((f64, f64)),
 }
 
 /// An excluded cell: the side of the plane it lies on (`true` above),
@@ -408,22 +411,30 @@ pub(super) fn sweep(
             }
         }
     }
-    // Two decided points' boxes overlapping would leave a march entering
-    // the overlap at either: the sweep declines.
-    let meets =
-        |a: UvRect, b: UvRect| a.u.0 <= b.u.1 && b.u.0 <= a.u.1 && a.v.0 <= b.v.1 && b.v.0 <= a.v.1;
-    for (i, a) in decided.iter().enumerate() {
-        if let Some(b) = decided[i + 1..].iter().find(|b| meets(a.region, b.region)) {
-            return Sweep::Declined(Declined::Floor(b.at));
-        }
+    if let Some(at) = overlapping(&decided) {
+        return Sweep::Declined(Declined::Overlap(at));
     }
     match joined(&excluded.into_inner(), root) {
         Sweep::LoopFree(_) => Sweep::LoopFree(decided),
-        Sweep::Declined(Declined::Enclosed(at)) if !decided.is_empty() => {
-            Sweep::Enclosing { decided, at }
+        Sweep::Declined(Declined::Enclosed(_)) if !decided.is_empty() => {
+            Sweep::Enclosing { decided }
         }
         declined => declined,
     }
+}
+
+/// **Where two decided points' boxes meet**, the later point's chart
+/// point, if anywhere: a march entering the overlap would enter both, so
+/// the sweep declines ([`Declined::Overlap`]). Two points that close make
+/// the survivor cap decline first on every wall the rows build, so the
+/// rule is rowed on its own.
+pub(super) fn overlapping(decided: &[Critical]) -> Option<(f64, f64)> {
+    decided.iter().enumerate().find_map(|(i, a)| {
+        decided[i + 1..]
+            .iter()
+            .find(|b| a.region.meets(b.region))
+            .map(|b| b.at)
+    })
 }
 
 /// **The wall's slope off the partner along a direction `d`**, a sine:
@@ -531,8 +542,7 @@ fn find(parent: &mut [usize], mut i: usize) -> usize {
 /// union-find over the cells that meet (module docs).
 fn joined(cells: &[Excluded], root: UvRect) -> Sweep {
     let mut parent: Vec<usize> = (0..cells.len()).collect();
-    let meets =
-        |a: UvRect, b: UvRect| a.u.0 <= b.u.1 && b.u.0 <= a.u.1 && a.v.0 <= b.v.1 && b.v.0 <= a.v.1;
+    let meets = UvRect::meets;
     let mut order: Vec<usize> = (0..cells.len()).collect();
     order.sort_by(|&a, &b| cells[a].cell.u.0.total_cmp(&cells[b].cell.u.0));
     for (k, &i) in order.iter().enumerate() {

@@ -3632,9 +3632,13 @@ fn carried_seats<T: Decide>(
         };
         let section = germ_section(red, &seg.germ)?.ok_or_else(unheld_section)?;
         for (r, slot) in seg.ends {
+            // The germ at this end: the segment's own germ is its entry
+            // end's, and an end at a node is read by the ray its own germ
+            // leaves the node along.
+            let here = &open[r].a[slot].0;
             let site = red
                 .a
-                .half_edge_start_point(open[r].a[slot].0.he)
+                .half_edge_start_point(here.he)
                 .ok_or(desync("germ site has no point"))?;
             let t = match section.site(site, band).map_err(site_refusal)? {
                 geom_brep::SiteReading::OnArc(foot) if foot.component == k => foot.t,
@@ -3646,7 +3650,7 @@ fn carried_seats<T: Decide>(
                 }
                 // A site at a node stands at its arc's end there.
                 geom_brep::SiteReading::AtNode(n) => {
-                    match section.end_at(k, n, section.ray_along(n, seg.germ.dir)) {
+                    match section.end_at(k, n, section.ray_along(n, here.dir)) {
                         Ok(geom_brep::ArcPlace::AtEnd { t, .. }) => t,
                         Ok(geom_brep::ArcPlace::At(_)) => {
                             return Err(desync("a site at a node read off its arc's end"));

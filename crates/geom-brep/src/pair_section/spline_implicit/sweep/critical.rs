@@ -44,6 +44,7 @@ use geom_core::{Band, Bounds, Interval, Margin, MarginDiag, Vec3};
 
 use super::Phi;
 use crate::ssi::exhaust::UvRect;
+use crate::ssi::section::sign;
 
 /// The most times a box `K` does not fit is cut to `K ∩ X` and read
 /// again (D9, a fixed rule).
@@ -372,14 +373,16 @@ pub(super) fn decide(
 /// with it.
 const GROW_ROUNDS: u32 = 64;
 
-/// The widest a proved box grows, as a fraction of its piece's narrower
-/// side, so the boxes of two points in one piece stay apart.
+/// The widest a proved box's half-width grows, as a fraction of its
+/// piece's narrower side (so the box is at most a sixteenth of it wide),
+/// so the boxes of two points in one piece stay apart unless the points
+/// are that close, where the sweep declines ([`super::Declined::Overlap`]).
 const GROW_SHARE: f64 = 1.0 / 32.0;
 
 /// **The widest box about `b` the Krawczyk operator proves holds one
 /// zero of `∇φ`** (`K` strictly inside it): `b` doubled about its middle
-/// while the doubled box lies strictly inside `piece`, no wider than
-/// [`GROW_SHARE`] of the piece, and is proved. A march from the arcs
+/// while the doubled box lies strictly inside `piece`, its half-width no
+/// more than [`GROW_SHARE`] of the piece's narrower side, and is proved. A march from the arcs
 /// ends on entering it, so it is grown past where the arcs' slopes read
 /// in the band; every box it passes through is proved, so the zero it
 /// holds is still the only one.
@@ -409,21 +412,6 @@ fn grown(jets: &Jets, phi: Phi<'_>, b: [Interval; 2], piece: UvRect) -> [Interva
         }
     }
     best
-}
-
-/// The certified sign of an enclosure: `Some(true)` positive, `None`
-/// where it straddles zero or is refused.
-fn sign(i: Interval) -> Option<bool> {
-    if !i.is_certified() {
-        return None;
-    }
-    if i.lo() > 0.0 {
-        Some(true)
-    } else if i.hi() < 0.0 {
-        Some(false)
-    } else {
-        None
-    }
 }
 
 /// **A node's frame** ([`NodeFrame`]) over the final box `b`, from the

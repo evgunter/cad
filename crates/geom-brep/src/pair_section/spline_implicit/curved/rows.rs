@@ -666,8 +666,9 @@ fn dome() -> Surface<f64> {
 /// Hessian definite and its value zero, so the sweep decides a touch and
 /// the pass finds no end. The section is that touch, one point
 /// component witnessed at the top, a tangency decided Zero. Red against
-/// the Hessian's sign read the other way (a node pinches), and against a
-/// decided touch left to the general rung.
+/// the Hessian's sign read the other way (a node, read whole, which the
+/// touch's lone point is not), and against a decided touch left to the
+/// general rung.
 #[test]
 fn a_dome_touching_a_sphere_is_one_touch() {
     let got = section(&dome(), &sphere(pt(0.5, 0.5, 1.0), 1.0));
@@ -719,7 +720,7 @@ fn a_top_in_band_of_a_sphere_is_not_decided() {
 /// chart's axes, and the four arcs, each ending at it and naming one of its
 /// four rays, every ray claimed once and the four one node-joined set.
 /// Red against a node's arcs read as the pass's reach (`Reaching`, which
-/// the guard would clear), and against the node left to pinch.
+/// the guard would clear), and against the node's arcs left unlisted.
 #[test]
 fn a_saddle_under_a_sphere_lists_its_node_and_arcs() {
     let a = [-0.5, 0.0, 0.5];
@@ -899,8 +900,8 @@ fn touch(a: &Surface<f64>, b: &Surface<f64>) -> Result<Point3<f64>, String> {
 /// there, the partner's own Hessian `∇²f` read along the saddle's
 /// tangents plus `∇f` against the saddle's second partials, is definite:
 /// a touch. Without the partner's `∇²f` only the saddle's curvature is
-/// read, the Hessian is indefinite, and the point reads a node, which
-/// pinches. The same holds for a cylinder of that radius lying along `y`,
+/// read, the Hessian is indefinite, and the point reads a node, read
+/// whole with arcs where there are none. The same holds for a cylinder of that radius lying along `y`,
 /// and for a ring torus about the `x` axis whose tube, of that radius,
 /// rests on the centre at its outer equator, its core circle of radius 1
 /// standing up in the plane `x = ½`. Red against each form's

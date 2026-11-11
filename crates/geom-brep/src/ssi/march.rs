@@ -737,7 +737,7 @@ pub(crate) struct RectExit<'a> {
     /// The node boxes, over the bounded coordinates `first` and
     /// `first + 1`: a march ends on entering one ([`RectEnd::Node`]),
     /// and no state inside one is in the domain.
-    pub(crate) nodes: &'a [[[f64; 2]; 2]],
+    pub(crate) nodes: &'a [UvRect],
 }
 
 /// How a march bounded by knot rectangles ended.
@@ -776,7 +776,7 @@ impl RectExit<'static> {
 impl<'a> RectExit<'a> {
     /// The 1×2 residual × chart lane's exit: the wall's rectangle, the
     /// state's only two coordinates, and the node boxes `nodes`.
-    pub(crate) const fn chart_with(nodes: &'a [[[f64; 2]; 2]]) -> Self {
+    pub(crate) const fn chart_with(nodes: &'a [UvRect]) -> Self {
         Self { first: 0, nodes }
     }
 
@@ -786,10 +786,8 @@ impl<'a> RectExit<'a> {
         if self.first + 1 >= N {
             return None;
         }
-        let (u, v) = (x[self.first], x[self.first + 1]);
-        self.nodes
-            .iter()
-            .position(|[bu, bv]| u >= bu[0] && u <= bu[1] && v >= bv[0] && v <= bv[1])
+        let at = (x[self.first], x[self.first + 1]);
+        self.nodes.iter().position(|r| r.holds(at))
     }
 
     /// The first node whose box the chord from `a` to `b` meets, over the
@@ -812,10 +810,10 @@ impl<'a> RectExit<'a> {
         }
         let (i, j) = (self.first, self.first + 1);
         let at = |t: f64| core::array::from_fn::<f64, N, _>(|k| a[k] + (b[k] - a[k]) * t);
-        self.nodes.iter().enumerate().find_map(|(n, [bu, bv])| {
+        self.nodes.iter().enumerate().find_map(|(n, r)| {
             // Liang–Barsky: the chord's parameter interval inside the box.
             let (mut lo, mut hi) = (0.0_f64, 1.0_f64);
-            for (k, [b0, b1]) in [(i, *bu), (j, *bv)] {
+            for (k, (b0, b1)) in [(i, r.u), (j, r.v)] {
                 let d = b[k] - a[k];
                 if d == 0.0 {
                     if a[k] < b0 || a[k] > b1 {
@@ -905,6 +903,11 @@ impl<const M: usize, const N: usize, S: SectionSystem<M, N>> Exit<M, N, S> for R
         self.holds_domain(x, ctx)
     }
 
+    /// An accuracy guard, and nothing depends on it: without it the same
+    /// step's chord still meets the box in `after_step`, the march ends
+    /// there, and [`super::ends::Ends`] settles the chord's entry point.
+    /// With it the march halves to the box, so the entry is read off a
+    /// short chord rather than a long one.
     fn passes(&self, a: &[f64; N], b: &[f64; N]) -> bool {
         self.node_on(a, b).is_some() && self.node_at(b).is_none()
     }
