@@ -1340,8 +1340,9 @@ fn choose_starts<T: Decide>(
     Err(refuse(first_blocker, plans))
 }
 
-/// The first plan among `members` one of whose runs at the vertex holds
-/// another member's cut ([`held_cut`]): the cut's owner.
+/// Whether a run at the vertex of one of `members` holds another
+/// member's cut ([`held_cut`]): a held cut's owner. Any run that holds
+/// one answers, whatever another read ([`climb`], [`Answering::Any`]).
 fn blocked<T: Decide>(
     plans: &[NullPlan<T>],
     members: &[usize],
@@ -1349,6 +1350,7 @@ fn blocked<T: Decide>(
     slot: usize,
     band: Band,
 ) -> Result<Option<usize>, BooleanError> {
+    let mut reads: Vec<(SideRun<T>, Vec<OtherCut<T>>)> = Vec::new();
     for &i in members {
         let mut cuts: Vec<OtherCut<T>> = Vec::new();
         for &j in members.iter().filter(|&&j| j != i) {
@@ -1356,13 +1358,13 @@ fn blocked<T: Decide>(
                 cuts.extend(run_cuts(secs, r[slot], j, band)?);
             }
         }
-        for r in &plans[i].runs {
-            if let Some(owner) = held_cut(secs, r[slot], &cuts, band)? {
-                return Ok(Some(owner));
-            }
-        }
+        reads.extend(plans[i].runs.iter().map(|r| (r[slot], cuts.clone())));
     }
-    Ok(None)
+    climb(Answering::Any, reads, |(run, cuts)| {
+        Rung::answers(held_cut(secs, run, &cuts, band), BooleanError::refusal)
+    })
+    .into_reading()
+    .and_then(Option::transpose)
 }
 
 /// Contact `c`'s two vertices as solid `slot` reads it: its own, then
