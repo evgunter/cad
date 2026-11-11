@@ -4337,10 +4337,11 @@ fn stated_door<T: Decide, R>(
 /// description, and on an analytic chart, whose stated image is read
 /// first ([`stated_door`]) and metered at the schedule
 /// (`work/pcert/a-closed-conics-and-a-spline-nets-incidence-on-an-analytic-chart-is-sampled.md`).
-fn stated_bound<T: Decide + geom_core::CertifiedBounds>(
+fn stated_bound<T: Decide>(
     spec: &EdgeCurveSpec<T>,
     resolved: &Resolved<T>,
     band: Band,
+    fitted: crate::FittedLane<T>,
 ) -> Result<Option<T>, CertifyError> {
     let Resolved::Chart {
         surface,
@@ -4363,7 +4364,7 @@ fn stated_bound<T: Decide + geom_core::CertifiedBounds>(
         &spec.carrier,
         surface,
         band,
-        Some(crate::FittedLane::certified()),
+        Some(fitted),
     )
     .map_err(|e| mint_refusal(e, surface, &spec.carrier))?;
     let c = cache.certificate();
@@ -4536,7 +4537,7 @@ fn run_checks<T: Decide + geom_core::CertifiedBounds>(
     let resolved = &resolved;
     stated_door(spec, resolved, band, || Ok(()))?;
     let canonical = canonical_of(spec, resolved, band)?;
-    if let Some(bound) = stated_bound(spec, resolved, band)? {
+    if let Some(bound) = stated_bound(spec, resolved, band, crate::FittedLane::certified())? {
         max_residual = max_residual.max(bound);
     }
 

@@ -142,15 +142,26 @@ pub(super) fn spline_incidence_as<T: Decide>(
     band: Band,
 ) -> Result<Incidence, PcurveCertifyError> {
     let n = f64::from(INCIDENCE_SAMPLES);
-    let mut fractions: Vec<f64> = (0..=INCIDENCE_SAMPLES)
-        .map(|i| f64::from(i) / n)
-        .chain(own_fractions(carrier, (t0, t1)))
+    // Each fraction with the even schedule's index, or none where it is
+    // the carrier's own, read in order so each sample's foot starts from
+    // the last.
+    let mut fractions: Vec<(f64, Option<u32>)> = (0..=INCIDENCE_SAMPLES)
+        .map(|i| (f64::from(i) / n, Some(i)))
+        .chain(
+            own_fractions(carrier, (t0, t1))
+                .into_iter()
+                .map(|f| (f, None)),
+        )
         .collect();
-    fractions.sort_by(f64::total_cmp);
-    fractions.dedup();
-    let samples = fractions
-        .into_iter()
-        .map(|f| carrier.eval(t0 + (t1 - t0) * T::from_f64(f)));
+    fractions.sort_by(|a, b| a.0.total_cmp(&b.0));
+    fractions.dedup_by(|a, b| a.0 == b.0);
+    let samples = fractions.into_iter().map(|(f, schedule)| {
+        let f = match schedule {
+            Some(i) => T::from_f64(f64::from(i) / n),
+            None => T::from_computed(f),
+        };
+        carrier.eval(t0 + (t1 - t0) * f)
+    });
     read_samples_as(name, chart, samples, band)
 }
 

@@ -215,33 +215,38 @@ impl Stated {
     }
 }
 
-/// The edge certificate of `carrier` on `wall`, described by `stated`.
-fn edge<T: Decide + geom_core::CertifiedBounds>(
-    wall: Wall,
-    carrier: Curve3<T>,
-    stated: Stated,
-) -> Result<(), CertifyError> {
-    let c = T::from_f64;
-    let mut table: slotmap::SlotMap<SurfaceKey, Surface<T>> = slotmap::SlotMap::with_key();
-    let key = table.insert(wall.surface::<T>());
-    let (start, end) = (carrier.eval(c(0.0)), carrier.eval(c(1.0)));
-    let spec = EdgeCurveSpec {
-        description: EdgeDescriptionSpec::chart_image(key, stated.image()),
-        carrier,
-        param_start: c(0.0),
-        param_end: c(1.0),
+/// The edge certificate of a carrier on a wall, described by a stated
+/// image, at one scalar that may certify.
+type Edge<T> = fn(Wall, Curve3<T>, Stated) -> Result<(), CertifyError>;
+
+macro_rules! edge_at {
+    ($name:ident, $t:ty) => {
+        fn $name(wall: Wall, carrier: Curve3<$t>, stated: Stated) -> Result<(), CertifyError> {
+            let c = <$t as geom_core::Real>::from_f64;
+            let mut table: slotmap::SlotMap<SurfaceKey, Surface<$t>> = slotmap::SlotMap::with_key();
+            let key = table.insert(wall.surface::<$t>());
+            let (start, end) = (carrier.eval(c(0.0)), carrier.eval(c(1.0)));
+            let spec = EdgeCurveSpec {
+                description: EdgeDescriptionSpec::chart_image(key, stated.image()),
+                carrier,
+                param_start: c(0.0),
+                param_end: c(1.0),
+            };
+            EdgeCurve::certify(
+                spec,
+                start,
+                end,
+                |k| table.get(k).cloned(),
+                geom_core::test_support::fixture_lever(<$t as geom_core::Real>::one()),
+                band(),
+                NurbsLane::certified(),
+            )
+            .map(|_| ())
+        }
     };
-    EdgeCurve::certify(
-        spec,
-        start,
-        end,
-        |k| table.get(k).cloned(),
-        geom_core::test_support::fixture_lever(T::one()),
-        band(),
-        NurbsLane::certified(),
-    )
-    .map(|_| ())
 }
+edge_at!(edge_f64, f64);
+edge_at!(edge_interval, Interval);
 
 fn read(got: &Result<(), CertifyError>) -> Option<IncidenceRead> {
     got.as_ref().err().and_then(CertifyError::incidence_read)
@@ -253,9 +258,9 @@ fn is_off(got: &Result<(), CertifyError>) -> bool {
 
 /// **R2**: the bump between both sample sets ends read off the chart at
 /// both scalars and through both stated images, never certified.
-fn r2<T: Decide + geom_core::CertifiedBounds>() {
+fn r2<T: Decide>(edge: Edge<T>) {
     for stated in [Stated::Iso, Stated::General] {
-        let got = edge::<T>(Wall::Ring, Bump::R2.carrier(Wall::Ring), stated);
+        let got = edge(Wall::Ring, Bump::R2.carrier(Wall::Ring), stated);
         assert!(
             is_off(&got),
             "R2 ({stated:?}, at {}): a carrier a millimetre off its wall between the samples \
@@ -267,22 +272,22 @@ fn r2<T: Decide + geom_core::CertifiedBounds>() {
 
 #[test]
 fn r2_a_bump_between_the_samples_ends_off_at_f64() {
-    r2::<f64>();
+    r2::<f64>(edge_f64);
 }
 
 #[test]
 fn r2_a_bump_between_the_samples_ends_off_at_interval() {
-    r2::<Interval>();
+    r2::<Interval>(edge_interval);
 }
 
 /// **A bump narrowed toward the band**: in band of the wall it ends in
 /// the read's lever ([`IncidenceRead::Undecided`]); just past the band,
 /// read off. Neither certifies.
-fn toward_the_band<T: Decide + geom_core::CertifiedBounds>() {
+fn toward_the_band<T: Decide>(edge: Edge<T>) {
     let b = band();
     for (height, want_off) in [(in_band(), false), (4.0 * b.escalate(), true)] {
         let bump = Bump { height, ..Bump::R2 };
-        let got = edge::<T>(Wall::Ring, bump.carrier(Wall::Ring), Stated::General);
+        let got = edge(Wall::Ring, bump.carrier(Wall::Ring), Stated::General);
         let ok = if want_off {
             is_off(&got)
         } else {
@@ -300,12 +305,12 @@ fn toward_the_band<T: Decide + geom_core::CertifiedBounds>() {
 
 #[test]
 fn a_bump_toward_the_band_is_read_at_f64() {
-    toward_the_band::<f64>();
+    toward_the_band::<f64>(edge_f64);
 }
 
 #[test]
 fn a_bump_toward_the_band_is_read_at_interval() {
-    toward_the_band::<Interval>();
+    toward_the_band::<Interval>(edge_interval);
 }
 
 /// **A carrier on its wall still certifies**, on the rational ring and
@@ -313,7 +318,7 @@ fn a_bump_toward_the_band_is_read_at_interval() {
 /// column, and as a polyline with extra knots (whose structure is not
 /// the column's, so the iso lane does not hold it) stated by its curve
 /// in UV.
-fn on_the_wall<T: Decide + geom_core::CertifiedBounds>() {
+fn on_the_wall<T: Decide>(edge: Edge<T>) {
     let mut misread = Vec::new();
     for wall in [Wall::Ring, Wall::Parabola] {
         let (foot, _) = wall.column_at();
@@ -329,7 +334,7 @@ fn on_the_wall<T: Decide + geom_core::CertifiedBounds>() {
             ("line", line, Stated::Iso),
             ("polyline", flat.carrier::<T>(wall), Stated::General),
         ] {
-            let got = edge::<T>(wall, carrier, stated);
+            let got = edge(wall, carrier, stated);
             if got.is_err() {
                 misread.push(format!("{wall:?} {what} ({stated:?}): {got:?}"));
             }
@@ -345,12 +350,12 @@ fn on_the_wall<T: Decide + geom_core::CertifiedBounds>() {
 
 #[test]
 fn a_carrier_on_its_wall_certifies_at_f64() {
-    on_the_wall::<f64>();
+    on_the_wall::<f64>(edge_f64);
 }
 
 #[test]
 fn a_carrier_on_its_wall_certifies_at_interval() {
-    on_the_wall::<Interval>();
+    on_the_wall::<Interval>(edge_interval);
 }
 
 /// **Counterexample search** (shape 1): bumps of every degree, place and
@@ -376,7 +381,7 @@ fn no_bump_certifies_past_the_band() {
             height: [0.0, 1e-3, 1e-6, 4.0 * b.escalate()][rng.below(4)],
         };
         let miss = bump.miss(wall);
-        let got = edge::<f64>(wall, bump.carrier(wall), Stated::General);
+        let got = edge_f64(wall, bump.carrier(wall), Stated::General);
         let wrong = if bump.height == 0.0 {
             is_off(&got)
         } else if miss > 1e-6 {
