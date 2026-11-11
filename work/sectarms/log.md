@@ -557,3 +557,11 @@ and bodies unchanged. No orchestrator yet.
   - **Guard:** a counted-work row checks that one plane reading reads one window, with a cylinder control reading 64.
   - **Filed** on SPLICE: an `ellipse_torus` fuzz seed fails on main.
   - **Review:** single full review dispatched.
+- 2026-11-11 02:45 — **PR 6811 dual review is in:** R1 and R2 both APPROVE-WITH-FIXES, no MAJOR. Fix pass sent, sessions archived, blind coding running.
+  - **Node frame:** held against independent oracles (72 and 9 cases).
+  - **Executed findings:**
+    - **Generic nodes regress (R2):** nodes whose lines are not symmetric about the chart axes, or on a sheared chart, now refuse `Unaccounted` (the tube's crossing-angle bound is 0), which topo reads as Intractable/Reach where main gave Tangent. This falsifies the "listed instead of pinched" claim, with no row or disclosure. To be fixed, or else refused under a tangency name, with rows.
+    - **Cylinder germ sense inverted on line Second (R2):** a latent bug from 6466, masked by the tolerant single-end `end_at`; a strict check reds 5 `bisector_nodes` rows. To be fixed at the root, with `end_at` made strict.
+    - **Start-sense mutant survives (R1).**
+    - **Two unrowed guards (R2):** the lead check and the overlapping-box decline.
+  - **Fix-or-file:** `ray_of` should decide on the node→entry chord; `ray_along` should be fail-loud; `Ends::enter` should be fail-loud; plus duplicates and stale prose.
