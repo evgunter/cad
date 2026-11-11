@@ -58,7 +58,13 @@ pub(super) fn whole(
         .map_err(super::super::whole_reading_refused)?;
     let form = reading.form().clone();
     let out = reading.all().map_err(super::super::whole_reading_refused)?;
-    listed(pose.clone(), Bracketed::Curved(&partner, &form), out)
+    listed(
+        pose.clone(),
+        Bracketed::Curved(&partner, &form),
+        out,
+        None,
+        band,
+    )
 }
 
 /// **The pair's classification, the march door's arm for a curved
@@ -106,12 +112,22 @@ pub(super) fn section(
     ) {
         Sweep::Declined(_) => {
             let out = reading.all().map_err(super::super::whole_reading_refused)?;
-            listed(pose, Bracketed::Curved(&partner, &form), out)
+            listed(pose, Bracketed::Curved(&partner, &form), out, None, band)
+        }
+        Sweep::Enclosing { decided } => {
+            let (out, listing) = super::read_listing(reading, &decided)?;
+            let partner = Bracketed::Curved(&partner, &form);
+            listed(pose, partner, out, Some(&listing.of(&decided)), band)
+        }
+        Sweep::LoopFree(decided) if super::crosses(&decided, reach) => {
+            let (out, listing) = super::read_listing(reading, &decided)?;
+            let partner = Bracketed::Curved(&partner, &form);
+            listed(pose, partner, out, Some(&listing.of(&decided)), band)
         }
         Sweep::LoopFree(decided) => {
             let witnesses = super::witnesses(reading.boxes(), &decided);
             drop(reading);
-            super::loop_free(pose, reach, &decided, &witnesses)
+            Ok(super::loop_free(pose, reach, &decided, &witnesses))
         }
     }
 }

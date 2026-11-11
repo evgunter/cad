@@ -143,7 +143,7 @@ non-row section.
 
 The pcurve mint's `General` image of a curved carrier with no net (a
 circle no row holds, an ellipse) is no longer `edge_nurbs::chart_image`'s
-degree-1 interpolant. It is `edge_nurbs::curved_chart_image`: degree 5
+degree-1 interpolant. It is `edge_nurbs::general_chart_image`: degree 5
 through 33, 65, 129 or 257 feet of the same uniform schedule, stopping at
 the first rung whose miss sampled between feet is within `band.zero()/16`,
 and broken at full multiplicity wherever the foot path crosses one of the

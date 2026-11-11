@@ -15,7 +15,7 @@ Filed by `pcert/curved-general-image` (the row
 ## What
 
 The pcurve mint now images a circle no row holds, and an ellipse, on a
-spline chart as a `General` row (`edge_nurbs::curved_chart_image`), so a
+spline chart as a `General` row (`edge_nurbs::general_chart_image`), so a
 face on a RATIONAL spline chart can now carry a `General` row at rest.
 Its volume reaches `props::quad::trimmed` `trimmed_patch_face_rounds`
 (near :1515), which refuses any rational net:
