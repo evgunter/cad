@@ -24,7 +24,7 @@ const NAME: Option<&str> = option_env!("PCERT_RADIAL_PAIR_MUTANT");
 
 /// Every site this crate's hooks name. topo's `chord_join` declares its
 /// own one (`topo-v-var`) under the same variable.
-pub(super) const SITES: [&str; 41] = [
+pub(super) const SITES: [&str; 42] = [
     "class-circle",
     "zero-winding",
     "torus-parallel",
@@ -66,6 +66,7 @@ pub(super) const SITES: [&str; 41] = [
     "arc-rim-span-unpaid",
     "arc-rim-tangent-under",
     "stated-image-sampled",
+    "net-bound-sampled",
 ];
 
 fn on(site: &str) -> bool {
@@ -322,6 +323,13 @@ pub(super) fn form_uncharged<T: Real>(harmonics: T) -> Option<T> {
 /// certificate (its rows are `pcurve_cache::stated_image_rows`).
 pub(crate) fn stated_image_sampled() -> bool {
     on("stated-image-sampled")
+}
+
+/// A spline net stated on an analytic chart read at its samples alone
+/// again, not bounded over the span (its rows are
+/// `pcurve_cache::analytic_net_rows`).
+pub(super) fn net_bound_sampled() -> bool {
+    on("net-bound-sampled")
 }
 
 /// A lane choice's envelope refusal left as the envelope's own (a bound

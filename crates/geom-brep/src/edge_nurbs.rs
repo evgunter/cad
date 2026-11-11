@@ -2015,7 +2015,7 @@ pub fn analytic_edge_limbs<T: Decide + Bounds + geom_core::CertifiedEnclosure>(
 /// An end whose enclosure reaches zero and passes ε is only an upper
 /// bound, which says nothing about the input, so the composite's stall
 /// stands.
-fn limb2<T: Decide>(
+pub(crate) fn limb2<T: Decide>(
     carrier: &Curve3<T>,
     params: (T, T),
     operand: &Surface<T>,

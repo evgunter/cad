@@ -9558,7 +9558,7 @@ fn chart_image<T: Decide>(
                 chart: surface.kind(),
             });
         }
-        if let Incidence::Off(margin) = net_incidence(net, span, surface, band)? {
+        if let Incidence::Off(margin) = net_sampled_incidence(net, span, surface, band)? {
             return Err(
                 OffChart("the spline carrier does not lie on the chart").with_margin(
                     OffMargin::Past(margin),
@@ -9907,7 +9907,7 @@ fn read_shown<T: Decide>(
         return read_edge_incidence(carrier, t0, t1, surface, band).map(|()| None);
     }
     if let Curve3::Nurbs(net) = carrier {
-        return match net_incidence(net, Some((t0, t1)), surface, band)? {
+        return match net_sampled_incidence(net, Some((t0, t1)), surface, band)? {
             Incidence::Off(margin) => Err(OffChart("the spline carrier does not lie on the chart")
                 .with_margin(OffMargin::Past(margin), surface, carrier)),
             Incidence::On(_) => Ok(None),
@@ -10079,11 +10079,13 @@ pub fn read_point_incidence<T: Decide>(
     }
 }
 
-/// The incidence test of a spline carrier: [`chart_incidence`]'s, at
-/// [`INCIDENCE_SAMPLES`] points of the edge's interval `span`, or of
+/// The sampled incidence test of a spline carrier: [`chart_incidence`]'s,
+/// at [`INCIDENCE_SAMPLES`] points of the edge's interval `span`, or of
 /// the knot domain where none is given: the net past the edge's ends is
-/// not the edge's.
-fn net_incidence<T: Decide>(
+/// not the edge's. A lower bound on the net's distance from the chart,
+/// so its `Off` is definite and its `On` shows only that no sample is
+/// off; the bound over the span is [`read_net_bound`].
+fn net_sampled_incidence<T: Decide>(
     net: &NurbsCurve3<T>,
     span: Option<(T, T)>,
     surface: &Surface<T>,
@@ -10098,6 +10100,73 @@ fn net_incidence<T: Decide>(
         T::zero(),
         band,
     )
+}
+
+/// **A spline net's incidence on an analytic chart, bounded over the
+/// span** (D3): the sampled read ([`read_incidence`]), whose definite
+/// miss at a sample ends as it does at every door (its reading in band,
+/// a lower bound or an enclosure that does not decide, shows neither
+/// side), then limb 2's reading of the net's distance from the chart
+/// over `[t0, t1]`
+/// ([`limb2_offset_sup`]: the chart's canonical composite along the net,
+/// a bound per part converted to metres, the parts halved where the bound
+/// does not clear), decided as the edge certificate decides limb 2
+/// ([`crate::edge_nurbs::limb2`]). So a net off its chart between every
+/// sample does not read on.
+///
+/// - The bound within the band: on.
+/// - A measured miss past the band at a break: off
+///   ([`IncidenceRead::Off`]).
+/// - Anything else (a floor or a bound in the band, an enclosure that
+///   neither clears nor misses, a composite with no certified bound):
+///   in band ([`IncidenceRead::Undecided`]), the read's lever. An upper
+///   bound past the band shows no miss, so it never reads off.
+///
+/// # Errors
+///
+/// [`PcurveCertifyError::Incidence`], read off or in band as above.
+pub(crate) fn read_net_bound<T: Decide + geom_core::CertifiedBounds>(
+    carrier: &Curve3<T>,
+    (t0, t1): (T, T),
+    surface: &Surface<T>,
+    band: Band,
+) -> Result<(), PcurveCertifyError> {
+    debug_assert!(
+        surface.spline_chart().is_none() && carrier.kind() == geom::CurveKind::Nurbs,
+        "read_net_bound reads a spline net on an analytic chart"
+    );
+    let sampled = read_incidence(carrier, t0, t1, surface, band);
+    #[cfg(test)]
+    if mutants::net_bound_sampled() {
+        return sampled;
+    }
+    if let Err(sampled) = sampled
+        && !matches!(&sampled, PcurveCertifyError::Incidence(r) if !r.read().is_definite())
+    {
+        return Err(sampled);
+    }
+    let read = limb2_offset_sup(carrier, (t0, t1), surface, band);
+    crate::edge_nurbs::limb2(carrier, (t0, t1), surface, read, None, band).map_err(|refusal| {
+        use crate::edge_nurbs::AnalyticRung3Refusal as R;
+        let cause = match refusal {
+            R::Limb { margin, .. } => {
+                return OffChart(
+                    "the spline carrier's distance from the chart is past the band between its \
+                     samples",
+                )
+                .with_margin(OffMargin::Past(margin), surface, carrier);
+            }
+            R::Stalled { cause, .. } | R::Escalated { cause, .. } => cause,
+            R::KernelLimit { margin, .. } => Indeterminate {
+                margin,
+                terminal_sliver: false,
+                band,
+                predicate: Some("ssi_hull_sup"),
+            },
+            _ => spline_incidence::unreadable(band),
+        };
+        incidence_escalated(cause)
+    })
 }
 
 /// The two iso families of an analytic chart: `U` the `u = const`
@@ -12561,7 +12630,7 @@ mod incidence {
             }
             _ => unreachable!(
                 "incident: a spline carrier on an analytic chart takes its own test \
-                 (`net_incidence`)"
+                 (`net_sampled_incidence`)"
             ),
         };
         // A sheet's meridian circle leaves the sheet past its apexes, so
@@ -12967,6 +13036,9 @@ fn channels_of<T: Real>(image: &Pcurve<T>) -> (Channel<T>, Channel<T>) {
     }
 }
 
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::panic)]
+mod analytic_net_rows;
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::panic)]
 mod circle_lane_rows;

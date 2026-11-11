@@ -4390,6 +4390,27 @@ fn stated_analytic_read<T: Decide>(
     .map_err(|e| mint_refusal(e, surface, &spec.carrier))
 }
 
+/// **A stated chart image's read on an analytic chart, at the
+/// certificate** (D3): [`stated_analytic_read`], save that a spline net
+/// is read bounded over the span ([`crate::pcurve_cache::read_net_bound`]),
+/// since the schedule's residual meters the image at its samples only.
+fn stated_analytic_bound<T: Decide + geom_core::CertifiedBounds>(
+    spec: &EdgeCurveSpec<T>,
+    surface: &Surface<T>,
+    band: Band,
+) -> Result<(), CertifyError> {
+    if spec.carrier.kind() != geom::CurveKind::Nurbs {
+        return stated_analytic_read(spec, surface, band);
+    }
+    crate::pcurve_cache::read_net_bound(
+        &spec.carrier,
+        (spec.param_start, spec.param_end),
+        surface,
+        band,
+    )
+    .map_err(|e| mint_refusal(e, surface, &spec.carrier))
+}
+
 /// **A chart image's refusal, as the edge certificate's**: an incidence
 /// read ended by its read (D3), decided or in band; a class reading or
 /// the general lane's own, "not yet"; any other, the pair having no
@@ -4561,7 +4582,7 @@ fn run_checks<T: Decide + geom_core::CertifiedBounds>(
             let bound = stated_bound(spec, (surface, image), band, crate::FittedLane::certified())?;
             max_residual = max_residual.max(bound);
         }
-        StatedChart::Analytic(surface) => stated_analytic_read(spec, surface, band)?,
+        StatedChart::Analytic(surface) => stated_analytic_bound(spec, surface, band)?,
         StatedChart::None => {}
     }
     let canonical = canonical_of(spec, resolved, band)?;
