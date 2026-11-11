@@ -239,7 +239,19 @@ moved across onto the side, lands on its stretch at a point the
 boundary pass reads within ε of the plane and not clear. So the arc
 spans the carrier (chart edges walked in runs of one sign or monotone,
 ℝ³ faces by Krawczyk). A
-rung whose chain is a graph but not one arc gives way to a narrower one.
+rung whose chain is a graph but not one arc gives way to a narrower one. A
+chain may end at a node of the section (C5). Its radius is then read
+box by box, narrowing in proportion to the box's distance from the
+node, and the pad a site reads is the radius of the box it lies in. Its
+last box holds the node, and the claim over that box is the node's own
+reading: `∇φ`'s one zero there by the Krawczyk operator, its Hessian
+indefinite and its value decided Zero, re-read about the edge's end
+vertex at rest and stored nowhere. The chain stops where a box no
+longer holds one arc, about `√(εR)` from the node, `R` the surfaces'
+relative curvature radius: a site there and not at the node is
+assigned to no arc and escalates. The ray the arc's end names (C5) is
+the null ray of the node's Hessian whose sector holds the chain's last
+boxes, and it is the carrier's end tangent; a mismatch refuses.
 With none certified, the narrowest rung probed speaks: its band verdict
 where it straddled, `SsiError::TubeNotOneArc` with what it found where
 it was a graph but not one arc. For
@@ -988,11 +1000,13 @@ and a march ends on entering a node's box. The node is listed with its
 point (its enclosure within the band, else `spline_node_box`), the
 wall's normal, the two null lines of `φ`'s Hessian carried to the wall's
 tangent plane and the sector side, each read off the Hessian enclosure
-that decided it; each arc end there names the ray nearest the arc's
-direction at its end, by a decided lead and a 45° floor, every ray
-claimed once (else `spline_node_ray`); a touch beside arcs is a point
-component with them. Its carriers are not minted: no component of a
-spline × implicit section is carried.
+that decided it; each arc end there names the ray whose sector holds
+its tube's last boxes (C2), every ray claimed once (else
+`spline_node_ray`); a touch beside arcs is a point component with them.
+Each arc is carried on to its node: its carrier is fitted through the
+march's states and through samples inside the box settled onto the
+section, its span ending at the node's point with the named ray as its
+end tangent, and C2's tube certifies it to the node.
 The boolean reads the rung-3 arms cylinder×sphere and the three torus
 pairs through the section value (`pair_section`), classified, then
 carried: the classification decides the pair's pose once and, where a
@@ -1039,8 +1053,9 @@ at it reads as the node. The value lists each node with `S`'s normal,
 the Hessian's two null lines and the side of each other the surfaces
 lie on in the sectors between them. A definite Hessian is a touch, an
 isolated point of the section; a degenerate one refuses, except a
-plane holding a cone's ruling, whose section is that line. Each arc end at a node names its line and the sense it
-leaves along. A germ leaving a node is minted from its arc end, and no
+plane holding a cone's ruling, whose section is that line. Each arc is its own listed component with its own carrier,
+whose span ends at the node's point, and its end there names its line
+and the sense it leaves along: that carrier's direction there. A germ leaving a node is minted from its arc end, and no
 reading of a site names an arc there.
 Arcs that share nodes are one node-joined set (`NodeSet`), the
 connected component: the set claims its winding about each surface,

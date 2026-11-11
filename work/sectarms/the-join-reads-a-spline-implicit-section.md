@@ -22,28 +22,33 @@ Once `a-nurbs-face-against-a-cone-or-sphere-has-no-section-arm` lands its whole 
 
 This is what makes teapot wall 3 join once SPLICE clears its seam split. Tier: dual.
 
-## Open design questions (from NURBS stage 3b, 2026-11-04)
+## The node stretch
 
-Stage 3b lists a NURBS × implicit section's nodes. Each arc ends on
-entering its node's Krawczyk box (`RectEnd::Node` in the march), and
-names at listing the ray it leaves the node along. Its carrier is still
-unminted. Carrying such an arc, so that a chord from a node vertex has a
-carrier reaching it, leaves two questions open for this unit:
+Stage 3b (PR 6811) ends each arc's march on entering its node's grown
+Krawczyk box (`Critical::region`, up to 1/16 of the patch wide) and names
+the ray it leaves along. This unit carries every such arc on to its node,
+as `crates/geom-brep/README.md` C2 (limb 3 at a node end) and C5 (the
+spline × implicit node listing) state:
 
-1. **The carrier's end at the node.** The marched states stop at the box
-   entry, not at the node. One option is to fit the carrier with its end
-   point pinned to the node and its end tangent to the named ray's
-   chart direction (a Hermite end condition, as at a rim). The other is
-   to carry the arc only to the box and leave the node unreached.
-2. **What certifies the stretch from the box entry to the node.**
-   Limb 3's chart tube cannot read it, because `∇φ` tends to zero at the
-   node. One option is the node box's own claim: Krawczyk uniqueness of
-   `∇φ`'s zero, `det H < 0` over the box, and the node's point enclosure
-   within the band. The other is for the arc to stop at the box, so that
-   no carrier stretch inside it needs a certificate.
+- the carrier's span ends at the node's point, with the named ray as
+  its end tangent; samples inside the box are settled onto the section;
+- limb 3's chart tube reads its radius per box, narrowing toward the
+  node; its last box holds the node, with the node's own reading as
+  its claim, re-read about the edge's end vertex at rest;
+- the ray is the sector holding the chain's last boxes, checked against
+  the end tangent, so `ray_of`'s chord-and-45° pick retires;
+- the pad a site reads is per box; a site within about `√(εR)` of the
+  node, and not at it, escalates.
 
-Both are written neutrally on purpose: neither option is recommended
-here.
+Known costs: `chart_tube_windows` takes one uniform pad and `one_arc` has
+no end arm for a chain ending at a node box; the per-box pad reaches
+`SsiTube`, `Tube::of` and `CarriedComponent::pad`, and so the cylinder
+and torus carried lanes' types. Add a named row for a nearly osculating
+node (a 1 m sphere against a wall whose curvatures at the node are within
+1% of the sphere's). If it fails on enclosure width, the remedy is `∇φ`
+read through φ's Hessian (as `sweep/critical.rs::read` forms it) inside
+the same test. Rows for `two-node-reading-arms-no-row-reaches.md` land
+with this unit.
 
 ## Done when
 
