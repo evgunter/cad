@@ -282,6 +282,11 @@ pub(super) fn primitive_each<S, C, const N: usize>(
                 Jet([value, t[0], t[1], t[2], t[3]])
             };
             let y_at = jet(y_x, &at.rate);
+            // `y`'s value over the piece is the remainder's premise. No row
+            // can drop it and go red: in the degree-4 coefficient it meets
+            // `by₄` at `|y′|·h/2`, while `y₁·by₃` over the same piece reads
+            // `by₃` spread by `4·|by₄|·h/2` against `y₁ = y′`, which covers
+            // it for any integrand whose `by` is a function of `t`.
             let y_over = jet(y_x + over.rate.0[0] * Interval::hull(le, ri), &over.rate);
             let h = (pt(q) - pt(p)).hi();
             for k in 0..N {
