@@ -112,8 +112,13 @@ pub const FITTED_DOOR_HOLDERS: &[&str] = &[
 #[allow(clippy::type_complexity)]
 pub struct FittedLane<T: Real> {
     /// [`FittedLane::fitted_certificate`]'s body.
-    fitted_lane:
-        fn(&Curve3<T>, &NurbsCurve2<T>, &Surface<T>, (T, T), Band) -> Result<T, PcurveCertifyError>,
+    fitted_lane: fn(
+        &Curve3<T>,
+        &NurbsCurve2<T>,
+        crate::pcurve_cache::FittedChart<'_, T>,
+        (T, T),
+        Band,
+    ) -> Result<T, PcurveCertifyError>,
     /// [`FittedLane::general_image`]'s body.
     general_image_lane: fn(
         &Curve3<T>,
@@ -153,7 +158,9 @@ impl<T: Real> FittedLane<T> {
     /// check 4 of the fitted lane's four checks, reached only from
     /// inside this crate's fitted doors: a certified bound on
     /// `sup |S(P(t)) − C(t)|` over the image's domain, which covers the
-    /// edge's interval `params`.
+    /// edge's interval `params`. `chart` is a spline chart, or an
+    /// analytic one with the class of the patch that agrees with it along
+    /// the image ([`crate::pcurve_cache::FittedChart`]).
     ///
     /// # Errors
     ///
@@ -163,11 +170,11 @@ impl<T: Real> FittedLane<T> {
         self,
         carrier: &Curve3<T>,
         image: &NurbsCurve2<T>,
-        surface: &Surface<T>,
+        chart: crate::pcurve_cache::FittedChart<'_, T>,
         params: (T, T),
         band: Band,
     ) -> Result<T, PcurveCertifyError> {
-        (self.fitted_lane)(carrier, image, surface, params, band)
+        (self.fitted_lane)(carrier, image, chart, params, band)
     }
 
     /// **The chart image of a carrier on a NURBS wall.**
