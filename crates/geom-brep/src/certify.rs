@@ -482,12 +482,19 @@ pub enum CertifyError {
     /// at rest, the damaged file at the import door. A read in band is
     /// [`CertifyError::Escalated`] under the same check, its lever.
     StatedImageMissed {
-        /// The schedule sample, or [`NOT_A_SAMPLE`] for a point the
-        /// bound over the span located.
+        /// The schedule sample, or [`NOT_A_SAMPLE`] for a miss read over
+        /// the span (a located point, a fidelity term).
         sample: u32,
         /// What the door saw of the miss, where it kept a number.
         margin: Option<MarginDiag>,
     },
+    /// **A stated chart image whose bound over the span exceeds the
+    /// band, with no miss located** ([`CertCheck::StatedImage`]): the
+    /// door's envelope is an upper bound on `|C(t) − S(P(t))|` that may
+    /// exceed where the miss is small, so the reading shows neither a miss
+    /// nor none, and ends in the lever at every door, as a read in band
+    /// does.
+    StatedImageUnsettled,
     /// The carrier is not shown off the chart and no closed form images
     /// it, and its general image is not available
     /// ([`PcurveCertifyError::NoGeneralLane`]), for the reason `gap` names:
@@ -893,6 +900,12 @@ impl core::fmt::Display for CertifyError {
                     None => Ok(()),
                 }
             }
+            Self::StatedImageUnsettled => write!(
+                f,
+                "{} (not a sampled check): the bound over the span exceeds the tolerance band \
+                 and locates no miss",
+                CertCheck::StatedImage
+            ),
             Self::ChartImageUnavailable { chart, carrier } => write!(
                 f,
                 "a conventional description on a {} chart has no \
@@ -1170,6 +1183,7 @@ impl CertifyError {
             Self::StatedImageMissed { margin, .. } => {
                 (CertCheck::StatedImage, RefusedArm::SignCertain(*margin))
             }
+            Self::StatedImageUnsettled => (CertCheck::StatedImage, RefusedArm::Straddle),
             Self::NoGeneralLane {
                 gap: crate::LaneGap::Unwritten,
                 ..
@@ -4477,34 +4491,38 @@ fn stated_bound<T: Decide>(
 /// readings, each with its one ending.
 ///
 /// - **The image misses its carrier**, shown: a sample of the door's
-///   schedule past the band, a located point of the composite
-///   (`HullValueChart`, `ImageMiss`), a closed form's or projected
-///   image's fidelity term (the stated coefficients against the image
-///   re-derived from the carrier), and the image's own structure read
-///   wrong (windings, channel kinds, its placement past a period, its
-///   copied data, its domain short of the edge, its sector).
-///   [`CertifyError::StatedImageMissed`]: D4 ¶1 (iv)'s culprit by door.
-/// - **In band**: any reading of the image the band could not decide.
-///   [`CertifyError::Escalated`] under [`CertCheck::StatedImage`], the
-///   lever at every door.
-/// - **The carrier is not shown on its chart**: the incidence read, and
-///   a closed form's incidence term, ended by [`mint_refusal`] as the
-///   read or the class reading gives.
-/// - **The lane's gap**: a bound over the span that cannot clear the
-///   band with no miss located (the composite's sup, the closed-form
-///   envelope as a whole), and a lane the door does not write for this
+///   schedule past the band (at that sample), a located point of the
+///   composite (`HullValueChart`, `ImageMiss`), a closed form's or
+///   projected image's fidelity term (the stated coefficients against the
+///   image re-derived from the carrier; read over the span, so at no
+///   sample). [`CertifyError::StatedImageMissed`]: D4 ¶1 (iv)'s culprit by
+///   door.
+/// - **Neither shown nor ruled out**: any reading of the image the band
+///   could not decide ([`CertifyError::Escalated`] under
+///   [`CertCheck::StatedImage`]), and a closed-form door's envelope past
+///   the band with no miss located
+///   ([`CertifyError::StatedImageUnsettled`]): the envelope is a sum of
+///   upper bounds (an iso line's is its control-difference hull plus its
+///   snap slacks), which can exceed where the miss is small. Its
+///   incidence terms take the same arms: the door has read the carrier
+///   onto its chart first, so a term past the band is the bound's, not a
+///   shown miss. Both end in the lever at every door.
+/// - **The carrier is not shown on its chart**: the incidence read, ended
+///   by [`mint_refusal`] as the read gives.
+/// - **The lane's gap**: the composite's sup that cannot clear the band
+///   with no miss located, and a lane the door does not write for this
 ///   image. [`CertifyError::NoGeneralLane`], "not yet".
-/// - **Not the image's**: the carrier's own domain or enclosure, and
-///   refusals the route's own structure rules out before the door runs
-///   (the band, a placeholder chart, the edge's span, an image kind the
-///   door does not take, a row the door does not build), ended by
-///   [`mint_refusal`].
+/// - **Not a miss**: the image's structure read wrong (its windings,
+///   channel kinds, placement past a period, copied data, sector, a
+///   domain short of the edge, a patch window the coordinates leave no
+///   width for), the carrier's own domain or enclosure, and refusals the
+///   route's structure rules out before the door runs: their own defect
+///   ending ([`mint_refusal`]).
 fn stated_refusal<T: Real>(
     e: PcurveCertifyError,
     surface: &Surface<T>,
     carrier: &Curve3<T>,
 ) -> CertifyError {
-    use crate::pcurve_cache::FittedEnding;
     use crate::ssi::{SsiDecision, SsiLimb};
     use crate::{EnvelopeTerm as Term, LaneGap};
     let missed = |sample, margin| CertifyError::StatedImageMissed { sample, margin };
@@ -4520,22 +4538,24 @@ fn stated_refusal<T: Real>(
     };
     match e {
         PcurveCertifyError::ResidualExceeded { check, sample } => match check {
-            PcurveCheck::MapResidual
-            | PcurveCheck::EnvelopeTerm(Term::FidelityU | Term::FidelityV | Term::Fidelity)
-            | PcurveCheck::ChartWinding
-            | PcurveCheck::AzimuthPeriod
-            | PcurveCheck::TubePeriod
-            | PcurveCheck::ImageIdentity
-            | PcurveCheck::Sector => missed(sample, None),
-            PcurveCheck::Envelope => gap(LaneGap::Envelope),
-            PcurveCheck::EnvelopeTerm(
-                Term::Centre
+            PcurveCheck::MapResidual => missed(sample, None),
+            PcurveCheck::EnvelopeTerm(Term::FidelityU | Term::FidelityV | Term::Fidelity) => {
+                missed(NOT_A_SAMPLE, None)
+            }
+            PcurveCheck::Envelope
+            | PcurveCheck::EnvelopeTerm(
+                Term::Frame
+                | Term::Centre
                 | Term::Radius
                 | Term::Line
                 | Term::Drift
-                | Term::Frame
                 | Term::Incidence,
-            )
+            ) => CertifyError::StatedImageUnsettled,
+            PcurveCheck::ChartWinding
+            | PcurveCheck::AzimuthPeriod
+            | PcurveCheck::TubePeriod
+            | PcurveCheck::ImageIdentity
+            | PcurveCheck::Sector
             | PcurveCheck::ChartIncidence
             | PcurveCheck::ChartClass
             | PcurveCheck::GeneralLane
@@ -4546,26 +4566,17 @@ fn stated_refusal<T: Real>(
             sample,
             cause,
         } => match check {
-            PcurveCheck::MapResidual
-            | PcurveCheck::Envelope
-            | PcurveCheck::EnvelopeTerm(_)
-            | PcurveCheck::ChartWinding
+            PcurveCheck::MapResidual => in_band(sample, cause),
+            PcurveCheck::Envelope | PcurveCheck::EnvelopeTerm(_) => in_band(NOT_A_SAMPLE, cause),
+            PcurveCheck::ChartWinding
             | PcurveCheck::AzimuthPeriod
             | PcurveCheck::TubePeriod
             | PcurveCheck::ImageIdentity
-            | PcurveCheck::Sector => in_band(sample, cause),
-            PcurveCheck::ChartIncidence
+            | PcurveCheck::Sector
+            | PcurveCheck::ChartIncidence
             | PcurveCheck::ChartClass
             | PcurveCheck::GeneralLane
-            | PcurveCheck::ParamSpan => mint_refusal(
-                PcurveCertifyError::Escalated {
-                    check,
-                    sample,
-                    cause,
-                },
-                surface,
-                carrier,
-            ),
+            | PcurveCheck::ParamSpan => mint_refusal(e, surface, carrier),
         },
         PcurveCertifyError::FittedLimb { limb, margin } => match limb {
             SsiLimb::HullValueChart | SsiLimb::ImageMiss => missed(NOT_A_SAMPLE, Some(margin)),
@@ -4576,14 +4587,10 @@ fn stated_refusal<T: Real>(
             cause,
         } => in_band(NOT_A_SAMPLE, cause),
         PcurveCertifyError::FittedCertificate { ending, .. } => match ending {
-            FittedEnding::Defect => missed(NOT_A_SAMPLE, None),
-            FittedEnding::NotYet | FittedEnding::FootUnsettled => gap(LaneGap::Envelope),
+            crate::pcurve_cache::FittedEnding::NotYet
+            | crate::pcurve_cache::FittedEnding::FootUnsettled => gap(LaneGap::Envelope),
+            crate::pcurve_cache::FittedEnding::Defect => mint_refusal(e, surface, carrier),
         },
-        PcurveCertifyError::WindingMismatch { .. }
-        | PcurveCertifyError::ChannelKindMismatch { .. }
-        | PcurveCertifyError::AzimuthPeriodExceeded
-        | PcurveCertifyError::PlacementTurnsExceeded
-        | PcurveCertifyError::TubePeriodExceeded => missed(NOT_A_SAMPLE, None),
         PcurveCertifyError::SectorRefused { piece, channel } => {
             gap(LaneGap::Pose { piece, channel })
         }
@@ -4591,7 +4598,12 @@ fn stated_refusal<T: Real>(
         | PcurveCertifyError::IsoUnsupported { .. }
         | PcurveCertifyError::FittedLaneUnsupported { .. }
         | PcurveCertifyError::ChartWindingUnsupported => gap(LaneGap::Unwritten),
-        PcurveCertifyError::Incidence(_)
+        PcurveCertifyError::WindingMismatch { .. }
+        | PcurveCertifyError::ChannelKindMismatch { .. }
+        | PcurveCertifyError::AzimuthPeriodExceeded
+        | PcurveCertifyError::PlacementTurnsExceeded
+        | PcurveCertifyError::TubePeriodExceeded
+        | PcurveCertifyError::Incidence(_)
         | PcurveCertifyError::NoGeneralLane { .. }
         | PcurveCertifyError::CarrierDomain(_)
         | PcurveCertifyError::CarrierEnclosure(_)

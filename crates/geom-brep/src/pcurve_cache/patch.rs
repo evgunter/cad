@@ -100,7 +100,11 @@ pub(crate) type Patch = (KnotVector, KnotVector, Vec<f64>, Vec<Vec<Interval>>);
 /// the image's convex hull lies inside it. On a ruling the `u` window is
 /// read for its value `u` (one value, a point or an enclosure of it).
 ///
-/// `None` for a window that is no number.
+/// `None` for a window that is no number, or one that widening by one
+/// cannot open (a coordinate past `2^53`, where `x ± 1` rounds to `x`).
+/// That is the stated image's structure, not a miss: the edge certificate
+/// ends it in the defect ending (`certify.rs` `stated_refusal`), and no
+/// chart a construction mints holds such coordinates.
 pub(crate) fn patch(
     class: PatchClass,
     chart: &Surface<Interval>,
