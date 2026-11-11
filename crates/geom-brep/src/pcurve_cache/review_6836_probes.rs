@@ -436,8 +436,49 @@ fn probe_far_raw() {
         let g = Pcurve::General(Arc::new(img));
         for (name, im, c) in [("iso/net", &iso, &net), ("iso/line", &iso, &line), ("general/net", &g, &net), ("general/line", &g, &line)] {
             let door = crate::pcurve_cache::StatedDoor::of(&plane, im).unwrap();
-            let raw = super::PcurveCache::<f64>::certify_stated_bound(door, im, (0.0, 1.0), (0.0, 1.0), c, &plane, band(), crate::FittedLane::certified());
+            let raw = super::PcurveCache::<f64>::certify_stated_bound(door, crate::pcurve_cache::EdgeSpan { params: (0.0, 1.0), outer: (0.0, 1.0) }, c, &plane, band(), crate::FittedLane::certified());
             println!("[probe] raw far {far:e} {name}: {:?}", raw.err());
+        }
+    }
+}
+
+/// Delta: an iso line on a spline wall whose carrier IS in the column's
+/// spline space (the wall's v knots), wiggled along the column.
+#[test]
+fn probe_delta_spline_column_iso() {
+    let kv_knots = knots(1);
+    let gv = greville(&kv_knots, 1);
+    let m = mid(&gv);
+    let a = Vec3::new(2.0, 0.0, 0.0);
+    let b = Vec3::new(0.0, 3.0, 0.5);
+    let o = Point3::new(0.0, 0.0, 0.0);
+    let ku = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
+    let kv = KnotVector::clamped(kv_knots.clone(), 1).unwrap();
+    // u-major and v-major both affine: controls o + a·u_i + b·v_j.
+    let mut ctrl = Vec::new();
+    for ui in [0.0, 1.0] {
+        for &vj in &gv {
+            ctrl.push(o + a * ui + b * vj);
+        }
+    }
+    let n = ctrl.len();
+    let ns = geom::NurbsSurface::new(ku, kv.clone(), ctrl, vec![1.0; n]).unwrap();
+    let sp = Surface::Nurbs(Arc::new(ns));
+    for u0 in [0.0, 0.3] {
+        for h in [1e-3, 0.0] {
+            let net: Vec<Point3<f64>> = gv
+                .iter()
+                .enumerate()
+                .map(|(j, &v)| sp.eval(u0, v + if j == m { h } else { 0.0 }))
+                .collect();
+            let carrier = Curve3::Nurbs(Arc::new(NurbsCurve3::new(kv.clone(), net, vec![1.0; gv.len()]).unwrap()));
+            let iso = Pcurve::IsoLine { p0: Point2::new(u0, 0.0), pl: Vec2::new(0.0, 1.0) };
+            let r = both(&format!("spline column iso u0={u0} h={h}"), &sp, &iso, lift(&iso), &carrier, (0.0, 1.0));
+            if let Err(e) = &r.0 {
+                println!("   ending build: {:?}", e.ending(crate::recourse::Reading::Build));
+                let raw = super::PcurveCache::<f64>::certify_stated_image(&iso, (0.0, 1.0), &carrier, &sp, band(), Some(crate::FittedLane::certified())).err();
+                println!("   raw: {raw:?}");
+            }
         }
     }
 }
