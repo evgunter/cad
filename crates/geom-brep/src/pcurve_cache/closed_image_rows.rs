@@ -40,9 +40,7 @@ use geom_core::{
 use test_utils::fuzz;
 
 use super::spline_door_rows::{band, in_band};
-use super::{
-    AxisMap, Channel, ChartMap, FocalImage, Pcurve, SpiricImage, WallTorus, chart_pcurve_over,
-};
+use super::{AxisMap, Channel, ChartMap, FocalImage, Pcurve, SpiricImage, chart_pcurve_over};
 use crate::recourse::{ReadAt, Reading};
 use crate::{
     CertCheck, CertifyError, EdgeCurve, EdgeCurveSpec, EdgeDescriptionSpec, NurbsLane, SurfaceKey,
@@ -173,6 +171,9 @@ enum Ended {
     Missed,
     InBand,
     Unsettled,
+    /// The fitted composite's sup that clears neither way with no miss
+    /// located (`LaneGap::Envelope`).
+    EnvelopeGap,
     Other,
 }
 
@@ -185,6 +186,10 @@ fn ended(got: &Result<(), CertifyError>) -> Ended {
             check: CertCheck::StatedImage,
             ..
         }) => Ended::InBand,
+        Err(CertifyError::NoGeneralLane {
+            gap: crate::LaneGap::Envelope,
+            ..
+        }) => Ended::EnvelopeGap,
         Err(_) => Ended::Other,
     }
 }
@@ -224,7 +229,11 @@ impl Door {
 /// micrometre; on its line it certifies. Red on main, where both
 /// certified.
 fn the_harmonic_witness(door: Door) {
-    for b in [1e-3, 1e-6] {
+    // A micrometre where it is past the band (every row but `1e-6`'s).
+    for b in [1e-3, 1e-6]
+        .into_iter()
+        .filter(|&b| b > 4.0 * band().escalate())
+    {
         let got = door.harmonic(b);
         assert_eq!(
             ended(&got),
@@ -862,7 +871,10 @@ impl Door {
 /// micrometre; on the rim it certifies. Red on main, where both
 /// certified.
 fn the_uv_witness(door: Door) {
-    for du in [1e-3, 1e-6] {
+    for du in [1e-3, 1e-6]
+        .into_iter()
+        .filter(|&b| b > 4.0 * band().escalate())
+    {
         let got = door.uv(du);
         assert_eq!(
             ended(&got),
@@ -920,4 +932,384 @@ fn a_curve_in_uv_bump_narrowed_toward_the_band_ends_by_its_height_f64() {
 #[test]
 fn a_curve_in_uv_bump_narrowed_toward_the_band_ends_by_its_height_interval() {
     uv_narrowed(INTERVAL);
+}
+
+/// Certifies `image` on every door, or names the read that refused. At
+/// a band finer than `1e-10` a correct image of metres' extent may read in
+/// band, its rounding there the band's size
+/// (`work/pcert/a-correct-stated-image-far-from-the-origin-reads-in-band-at-a-fine-band.md`):
+/// it ends in its lever, or as the fitted composite's gap, never as a
+/// miss.
+fn certifies_everywhere(
+    what: &str,
+    surface: &Surface<f64>,
+    carrier: &Curve3<f64>,
+    span: (f64, f64),
+    image: &Pcurve<f64>,
+) {
+    for door in DOORS {
+        let got = (door.certify)(surface, image, carrier, span);
+        let fine = band().zero() < 1e-10;
+        assert!(
+            got.is_ok()
+                || (fine
+                    && matches!(
+                        ended(&got),
+                        Ended::InBand | Ended::Unsettled | Ended::EnvelopeGap
+                    )),
+            "{what} at {}: {image:?} on {carrier:?} over {span:?}: {got:?} ({})",
+            door.name,
+            fuzz::replay()
+        );
+        if got.is_err() {
+            println!("{what} at {}: in band at a fine band: {got:?}", door.name);
+        }
+    }
+}
+
+/// A spiric oval on a random ring torus, and the three charts that hold
+/// it: its torus, the torus's mirror through the cutting plane, and the
+/// plane.
+fn spiric(g: &mut fuzz::Rng) -> (Curve3<f64>, [Surface<f64>; 3]) {
+    let (o, axis, _) = frame(g);
+    let n = perpendicular(g, axis);
+    let minor = g.range(0.1, 1.0);
+    let major = minor * g.range(1.5, 4.0);
+    let offset = sign(g) * (major - minor) * g.range(0.1, 0.9);
+    let carrier = Curve3::spiric(o, axis, n, major, minor, offset, band()).unwrap();
+    let mut torus = |center| Surface::Torus {
+        center,
+        axis: axis * sign(g),
+        major_radius: major,
+        minor_radius: minor,
+        u_ref: perpendicular(g, axis),
+    };
+    let own = torus(o);
+    let mirror = torus(o + n * (2.0 * offset));
+    let normal = n * sign(g);
+    let plane = Surface::Plane {
+        origin: o + n * offset + axis * g.range(-1.0, 1.0),
+        normal,
+        u_ref: perpendicular(g, normal),
+    };
+    (carrier, [own, mirror, plane])
+}
+
+/// **No spiric or focal-section image on its carrier is refused**
+/// (shape 1): a spiric oval stated on its torus, its mirror torus and its
+/// plane; a cone's tilted section on its cone; a Villarceau circle on its
+/// torus. Each by its derived image, and shifted a whole period on each
+/// angle channel, certifies at both scalars.
+#[test]
+fn a_spiric_or_focal_section_on_its_carrier_certifies() {
+    let mut g = fuzz::start("spiric_focal_on_its_carrier");
+    let mut read = [0usize; 2];
+    for _ in 0..fuzz::scaled(16) {
+        let mut cases = Vec::new();
+        let (oval, charts) = spiric(&mut g);
+        for chart in charts {
+            cases.push(("spiric", chart, oval.clone()));
+        }
+        if let Some((cone, ellipse)) = super::envelope_lemma_fuzz::cone_section(&mut g) {
+            cases.push(("cone section", cone, ellipse));
+        }
+        let (torus, circle) = super::envelope_lemma_fuzz::villarceau(&mut g);
+        cases.push(("villarceau", torus, circle));
+        for (what, surface, carrier) in cases {
+            let t0 = g.range(-7.0, 7.0);
+            let span = (
+                t0,
+                t0 + if g.below(4) == 0 {
+                    TAU
+                } else {
+                    g.range(0.2, 6.0)
+                },
+            );
+            let Ok(image) = chart_pcurve_over(&carrier, span.0, span.1, &surface, band()) else {
+                continue;
+            };
+            let slot = match image {
+                Pcurve::Spiric { .. } => 0,
+                Pcurve::FocalSection(_) => 1,
+                _ => continue,
+            };
+            let periods = surface.angle_periods().unwrap();
+            let whole = |g: &mut fuzz::Rng, p: Option<_>| match p {
+                Some(_) => AxisMap::shift(TAU * f64::from(i32::try_from(g.below(7)).unwrap() - 3)),
+                None => AxisMap::identity(),
+            };
+            let shift = ChartMap {
+                u: whole(&mut g, periods.0),
+                v: whole(&mut g, periods.1),
+            };
+            certifies_everywhere(what, &surface, &carrier, span, &image);
+            if let Ok(shifted) = image.map_affine(shift) {
+                certifies_everywhere(what, &surface, &carrier, span, &shifted);
+            }
+            read[slot] += 1;
+        }
+    }
+    println!(
+        "read {} spiric and {} focal-section images",
+        read[0], read[1]
+    );
+    assert!(
+        read.iter().all(|&n| n > 0),
+        "the sweep reads both kinds: {read:?} ({})",
+        fuzz::replay()
+    );
+}
+
+/// **No curve in UV on its carrier is refused on a curved chart**
+/// (shape 1): a chart's own circle or line whose derived image is linear
+/// in its parameter (a rim, a parallel, a meridian, a ruling), stated as
+/// an iso line and as a degree-1 curve in UV with random breakpoints,
+/// certifies at both scalars through the enclosing patch, or the ruling's;
+/// with one control moved, it is never certified past its dense miss.
+#[test]
+fn a_curve_in_uv_on_its_carrier_certifies_on_a_curved_chart() {
+    let mut g = fuzz::start("curve_in_uv_on_its_carrier");
+    let mut read = 0usize;
+    for _ in 0..fuzz::scaled(2) {
+        for kind in &KINDS[1..] {
+            let (surface, carrier, span) = drawn(&mut g, *kind);
+            let Ok(image) = chart_pcurve_over(&carrier, span.0, span.1, &surface, band()) else {
+                continue;
+            };
+            let Some((p0, pa, pb, pl)) = image.harmonic_form() else {
+                continue;
+            };
+            if [pa.x, pa.y, pb.x, pb.y].iter().any(|&x| x != 0.0) {
+                continue;
+            }
+            let iso = Pcurve::IsoLine { p0, pl };
+            let mut breaks: Vec<f64> = (0..g.below(5))
+                .map(|_| span.0 + (span.1 - span.0) * g.range(0.05, 0.95))
+                .collect();
+            breaks.sort_by(f64::total_cmp);
+            breaks.dedup_by(|a, b| (*a - *b).abs() < 1e-3);
+            let mut at = vec![span.0];
+            at.extend(&breaks);
+            at.push(span.1);
+            let mut knots = vec![span.0];
+            knots.extend(&at);
+            knots.push(span.1);
+            let control: Vec<Point2<f64>> = at.iter().map(|&t| p0 + pl * t).collect();
+            let count = control.len();
+            let general = Pcurve::General(Arc::new(
+                NurbsCurve2::new(
+                    KnotVector::clamped(knots, 1).unwrap(),
+                    control,
+                    vec![1.0; count],
+                )
+                .unwrap(),
+            ));
+            for (what, image) in [("iso line", iso), ("curve in UV", general.clone())] {
+                certifies_everywhere(
+                    &format!("{kind:?} {what}"),
+                    &surface,
+                    &carrier,
+                    span,
+                    &image,
+                );
+                read += 1;
+            }
+            // The curve in UV with one control moved: never certified past
+            // its dense miss.
+            let Pcurve::General(net) = &general else {
+                unreachable!("built above")
+            };
+            let b = band();
+            let delta = (b.zero() * 1e-2) * (1e5 * b.escalate() / b.zero()).powf(g.range(0.0, 1.0));
+            let mut control = net.control().to_vec();
+            let i = g.below(control.len());
+            if g.below(2) == 0 {
+                control[i].x += delta;
+            } else {
+                control[i].y += delta;
+            }
+            let wrong = Pcurve::General(Arc::new(
+                NurbsCurve2::new(
+                    net.knots_f64_interim().clone(),
+                    control,
+                    net.weights().to_vec(),
+                )
+                .unwrap(),
+            ));
+            let miss = dense_miss(&surface, &wrong, &carrier, span);
+            for door in DOORS {
+                let got = (door.certify)(&surface, &wrong, &carrier, span);
+                assert!(
+                    got.is_err() || miss <= b.zero() * (1.0 + 1e-6),
+                    "{kind:?} at {}: a curve in UV certified with a dense miss of {miss:e}: \
+                     {wrong:?} on {carrier:?} over {span:?} ({})",
+                    door.name,
+                    fuzz::replay()
+                );
+            }
+        }
+    }
+    println!("read {read} curves in UV");
+}
+
+/// `sup |C(t) − S(P(t))|` over the span, read densely: `4096` even points,
+/// then a golden-section refinement about the largest. A lower bound on
+/// the miss, short of it by `O(h²)` at the refined peak: far below the
+/// band at these spans.
+fn dense_miss(
+    surface: &Surface<f64>,
+    image: &Pcurve<f64>,
+    carrier: &Curve3<f64>,
+    (t0, t1): (f64, f64),
+) -> f64 {
+    let miss = |t: f64| {
+        let p = image.eval(t);
+        carrier.eval(t).distance(surface.eval(p.x, p.y))
+    };
+    let n = 4096;
+    let at = |i: usize| {
+        t0 + (t1 - t0)
+            * (f64::from(u32::try_from(i).unwrap()) / f64::from(u32::try_from(n).unwrap()))
+    };
+    let (mut best, mut arg) = (0.0, t0);
+    for i in 0..=n {
+        let m = miss(at(i));
+        if m > best {
+            (best, arg) = (m, at(i));
+        }
+    }
+    let step = (t1 - t0) / f64::from(u32::try_from(n).unwrap());
+    let (mut a, mut b) = ((arg - step).max(t0), (arg + step).min(t1));
+    let phi = 0.5 * (5f64.sqrt() - 1.0);
+    for _ in 0..60 {
+        let (c, d) = (b - phi * (b - a), a + phi * (b - a));
+        if miss(c) > miss(d) {
+            b = d;
+        } else {
+            a = c;
+        }
+    }
+    best.max(miss(0.5 * (a + b)))
+}
+
+/// One of a closed form's numbers moved by `delta`.
+fn nudged(image: &Pcurve<f64>, which: usize, delta: f64) -> Pcurve<f64> {
+    let mut image = image.clone();
+    let nudge = |ch: &mut Channel<f64>, k: usize| match ch {
+        Channel::Angle { phase, .. } => *phase += delta,
+        Channel::Free { c, a, b, l } => *[c, a, b, l][k % 4] += delta,
+    };
+    match &mut image {
+        Pcurve::Harmonic { u, v } => {
+            if which % 2 == 0 {
+                nudge(u, which / 2);
+            } else {
+                nudge(v, which / 2);
+            }
+        }
+        Pcurve::Spiric { image, .. } => match image {
+            SpiricImage::Cap { p0, pm, pa } => {
+                *[
+                    &mut p0.x, &mut p0.y, &mut pm.x, &mut pm.y, &mut pa.x, &mut pa.y,
+                ][which % 6] += delta;
+            }
+            SpiricImage::Wall { u0, v0, .. } => *[u0, v0][which % 2] += delta,
+        },
+        Pcurve::FocalSection(f) => {
+            *[
+                &mut f.u0,
+                &mut f.v0,
+                &mut f.va,
+                &mut f.vb,
+                &mut f.vl,
+                &mut f.beta,
+            ][which % 6] += delta;
+        }
+        _ => unreachable!("the search nudges closed forms"),
+    }
+    image
+}
+
+/// **No image is certified past its miss** (shape 1, a counterexample
+/// search): a chart's own curve of every kind, a spiric oval and a focal
+/// section, stated by its derived image with one number moved by
+/// `δ ∈ [10⁻²·zero, 10³·escalate]` (log-uniform). Whatever the door
+/// answers, a certificate stands only where the dense miss is within the
+/// zero, and a dense miss past twice the escalation ends as the image's
+/// miss, located, or as its structure's refusal where the number moved
+/// is one its structure fixes.
+#[test]
+fn no_closed_form_is_certified_past_its_miss() {
+    let mut g = fuzz::start("closed_form_past_its_miss");
+    let b = band();
+    let mut tally = [0usize; 3];
+    for _ in 0..fuzz::scaled(24) {
+        let mut cases: Vec<(String, Surface<f64>, Curve3<f64>, (f64, f64))> = KINDS
+            .iter()
+            .map(|&kind| {
+                let (s, c, span) = drawn(&mut g, kind);
+                (format!("{kind:?}"), s, c, span)
+            })
+            .collect();
+        let (oval, charts) = spiric(&mut g);
+        let turn = |g: &mut fuzz::Rng| {
+            let t0 = g.range(-7.0, 7.0);
+            (t0, t0 + g.range(0.2, TAU))
+        };
+        for chart in charts {
+            cases.push(("spiric".into(), chart, oval.clone(), turn(&mut g)));
+        }
+        if let Some((cone, ellipse)) = super::envelope_lemma_fuzz::cone_section(&mut g) {
+            cases.push(("cone section".into(), cone, ellipse, turn(&mut g)));
+        }
+        let (torus, circle) = super::envelope_lemma_fuzz::villarceau(&mut g);
+        cases.push(("villarceau".into(), torus, circle, turn(&mut g)));
+        for (what, surface, carrier, span) in cases {
+            let Ok(image) = chart_pcurve_over(&carrier, span.0, span.1, &surface, band()) else {
+                continue;
+            };
+            if !matches!(
+                image,
+                Pcurve::Harmonic { .. } | Pcurve::Spiric { .. } | Pcurve::FocalSection(_)
+            ) {
+                continue;
+            }
+            let delta = (b.zero() * 1e-2)
+                * (1e5 * b.escalate() / b.zero()).powf(g.range(0.0, 1.0))
+                * sign(&mut g);
+            let wrong = nudged(&image, g.below(8), delta);
+            let miss = dense_miss(&surface, &wrong, &carrier, span);
+            for door in DOORS {
+                let got = (door.certify)(&surface, &wrong, &carrier, span);
+                let end = ended(&got);
+                assert!(
+                    end != Ended::Certified || miss <= b.zero() * (1.0 + 1e-6),
+                    "{what} at {}: certified with a dense miss of {miss:e} (δ {delta:e}): {wrong:?} \
+                     on {carrier:?} over {span:?} ({})",
+                    door.name,
+                    fuzz::replay()
+                );
+                // A number the image's structure fixes (a whole winding,
+                // a unit sense) moved off it ends as that structure's
+                // refusal, its own defect ending.
+                let structural = matches!(got, Err(CertifyError::ChartImageUnavailable { .. }));
+                assert!(
+                    miss <= 2.0 * b.escalate() || end == Ended::Missed || structural,
+                    "{what} at {}: a dense miss of {miss:e} (δ {delta:e}) ends {end:?}, not as its \
+                     miss: {got:?} ({})",
+                    door.name,
+                    fuzz::replay()
+                );
+                tally[match end {
+                    Ended::Certified => 0,
+                    Ended::Missed => 1,
+                    _ => 2,
+                }] += 1;
+            }
+        }
+    }
+    println!(
+        "certified {}, missed {}, otherwise {}",
+        tally[0], tally[1], tally[2]
+    );
 }

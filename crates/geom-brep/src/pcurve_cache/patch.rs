@@ -182,10 +182,10 @@ pub(crate) fn patch(
 }
 
 /// The degree an enclosing patch reads each angle at.
-pub(crate) const DEGREE: usize = 10;
+pub(crate) const DEGREE: usize = 6;
 
 /// The most pieces an enclosing patch cuts one angle's window into.
-pub(crate) const MAX_PIECES: usize = 64;
+pub(crate) const MAX_PIECES: usize = 256;
 
 /// One angle's window cut into pieces, with the cosine and sine of the
 /// angle enclosed on each by its Bernstein controls: `cos[i]`, `sin[i]`
@@ -223,11 +223,16 @@ impl Angle {
     /// whose remainder, scaled by `arm` (the most the chart moves per unit
     /// of the cosine or sine), stays at `target`.
     fn over((lo, hi): (f64, f64), arm: f64, target: f64) -> Result<Self, PatchRefusal> {
-        let p = DEGREE;
-        // `arm · d^(p+1)/(p+1)! ≤ target`.
-        let half =
-            (target * factorial(p + 1) / arm.max(f64::MIN_POSITIVE)).powf(1.0 / (p + 1) as f64);
-        let pieces = ((hi - lo) / (2.0 * half)).ceil();
+        // `arm · d^(p+1)/(p+1)! ≤ target` for a piece of half-width `d`:
+        // the least degree that holds the window in one piece, else
+        // [`DEGREE`] in pieces. A low degree keeps the composite's low.
+        let half_at = |p: usize| {
+            (target * factorial(p + 1) / arm.max(f64::MIN_POSITIVE)).powf(1.0 / (p + 1) as f64)
+        };
+        let p = (1..DEGREE)
+            .find(|&p| hi - lo <= 2.0 * half_at(p))
+            .unwrap_or(DEGREE);
+        let pieces = ((hi - lo) / (2.0 * half_at(p))).ceil();
         if !(pieces.is_finite() && pieces <= MAX_PIECES as f64) {
             return Err(PatchRefusal::Pieces);
         }
@@ -292,10 +297,12 @@ impl Angle {
 }
 
 /// The Bernstein controls on `[m − d, m + d]` of the degree-`p` Taylor
-/// polynomial `Σ f⁽ᵏ⁾(m)/k!·(x − m)ᵏ`, `deriv(k) = f⁽ᵏ⁾(m)`: with
-/// `x = m + d·(2s − 1)`, the power coefficients in `s` are
-/// `c_j = Σ_{k≥j} a_k·dᵏ·C(k, j)·2ʲ·(−1)^(k−j)`, and the Bernstein ones
-/// `b_i = Σ_{j≤i} C(i, j)/C(p, j)·c_j`.
+/// polynomial `Σ aₖ·xᵏ`, `aₖ = f⁽ᵏ⁾(m)·dᵏ/k!`, `x = 2s − 1 ∈ [−1, 1]`,
+/// `deriv(k) = f⁽ᵏ⁾(m)`. The Bernstein coefficients of `xᵏ` are its
+/// blossom at `p − i` arguments `−1` and `i` arguments `+1`,
+/// `βₖᵢ = Σⱼ C(i, j)·C(p − i, k − j)·(−1)^(k−j) / C(p, k)`, each of
+/// magnitude at most one, so `bᵢ = Σₖ aₖ·βₖᵢ` loses no more than the
+/// terms' own rounding.
 fn bernstein(p: usize, dd: Interval, deriv: impl Fn(usize) -> Interval) -> Vec<Interval> {
     let point = |x: f64| Interval::from_bounds(x, x);
     let mut a = Vec::with_capacity(p + 1);
@@ -304,18 +311,17 @@ fn bernstein(p: usize, dd: Interval, deriv: impl Fn(usize) -> Interval) -> Vec<I
         a.push(deriv(k) * power / point(factorial(k)));
         power = power * dd;
     }
-    let c: Vec<Interval> = (0..=p)
-        .map(|j| {
-            (j..=p).fold(point(0.0), |acc, k| {
-                let sign = if (k - j) % 2 == 0 { 1.0 } else { -1.0 };
-                acc + a[k] * point(binomial(k, j) * 2f64.powi(i32::try_from(j).unwrap_or(0)) * sign)
-            })
-        })
-        .collect();
     (0..=p)
         .map(|i| {
-            (0..=i).fold(point(0.0), |acc, j| {
-                acc + c[j] * point(binomial(i, j)) / point(binomial(p, j))
+            (0..=p).fold(point(0.0), |acc, k| {
+                // An integer of at most `C(p, k)·2^p`, exact in `f64`.
+                let numerator: f64 = (k.saturating_sub(p - i)..=k.min(i))
+                    .map(|j| {
+                        let sign = if (k - j) % 2 == 0 { 1.0 } else { -1.0 };
+                        sign * binomial(i, j) * binomial(p - i, k - j)
+                    })
+                    .sum();
+                acc + a[k] * point(numerator) / point(binomial(p, k))
             })
         })
         .collect()
