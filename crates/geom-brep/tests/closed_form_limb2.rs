@@ -702,7 +702,7 @@ fn a_wide_apples_pcurves_name_v_as_its_chart_does() {
     };
     let band = Band::new(1e-9, 3e-9).unwrap();
     let at = |v: f64| Point3::new(major + minor * v.cos(), 0.0, minor * v.sin());
-    for v in [-2.45, -2.4, -2.2, -2.0, -1.0, 1.0, 2.2, 2.4, 2.45] {
+    for v in [-2.45_f64, -2.4, -2.2, -2.0, -1.0, 1.0, 2.2, 2.4, 2.45] {
         let parallel = Curve3::circle(
             Point3::new(0.0, 0.0, minor * v.sin()),
             Vec3::unit_z(),

@@ -826,7 +826,7 @@ mod tests {
     /// `±(π − δ)`, never a turn off or across the cut.
     #[test]
     fn a_horns_cusp_and_its_neighbours_read_their_own_side_at_interval() {
-        use geom_core::Interval;
+        use geom_core::{Bounds, Interval};
         let iv = Interval::from_f64;
         let horn = Surface::Spindle {
             center: Point3::new(iv(0.0), iv(0.0), iv(0.0)),

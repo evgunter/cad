@@ -719,18 +719,26 @@ fn oracle_slack(bound: f64, rho: f64, z: f64, h: f64) -> f64 {
 
 /// The exact distance in the meridian half-plane from `(ρ, z)` to the
 /// sheet `{(R + r cos v, r sin v) : |v| ≤ v*}`: the circle's nearest
-/// point where that lies at `ρ ≥ 0` (its `ρ` is `R + r(ρ − R)/m`, so
-/// where `r·ρ + R·(m − r) ≥ 0`), else the nearer apex (the arc's ends,
-/// `(0, ±√(r² − R²))`). `m − r` is formed as
+/// point where that lies at `ρ ≥ 0`, else the nearer apex (the arc's
+/// ends, `(0, ±h)`, `h = √(r² − R²)`). The nearest point's `ρ` is
+/// `R + r(ρ − R)/m`; squaring `R·m ≥ r(R − ρ)` with
+/// `m² = (ρ − R)² + z²` gives the condition without `m`: on an apple or
+/// a horn `ρ ≥ R` or `R|z| ≥ h(R − ρ)`, on a lemon `|R||z| ≤ h(ρ − R)`,
+/// so a horn's foot is always on it. `m − r` is formed as
 /// `(ρ(ρ − 2R) + z² + (R − r)(R + r))/(m + r)`, which keeps its digits
 /// beside a horn's cusp.
 fn sheet_distance(major: f64, minor: f64, rho: f64, z: f64) -> f64 {
-    let m = ((rho - major).powi(2) + z * z).sqrt();
-    let off = (rho * (rho - 2.0 * major) + z * z + (major - minor) * (major + minor)) / (m + minor);
-    if minor * rho + major * off >= 0.0 {
-        off.abs()
+    let h = ((minor - major) * (minor + major)).max(0.0).sqrt();
+    let on_arc = if major > 0.0 {
+        rho >= major || major * z.abs() >= h * (major - rho)
     } else {
-        let h = geom::sheet_apex(major, minor).height;
+        major.abs() * z.abs() <= h * (rho - major)
+    };
+    if on_arc {
+        let m = ((rho - major).powi(2) + z * z).sqrt();
+        ((rho * (rho - 2.0 * major) + z * z + (major - minor) * (major + minor)) / (m + minor))
+            .abs()
+    } else {
         (rho * rho + (z - h).powi(2))
             .sqrt()
             .min((rho * rho + (z + h).powi(2)).sqrt())
