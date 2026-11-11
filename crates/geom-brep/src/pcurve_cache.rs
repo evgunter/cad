@@ -179,6 +179,7 @@ use geom::{Curve3, NurbsCurve2, NurbsCurve3};
 use geom::{NurbsSurface, Surface};
 use geom_core::k_stats::decide;
 use geom_core::predicate::{Band, BandError};
+use geom_core::spline::compose::CanonicalSurface;
 use geom_core::spline::{Built, KnotVector, SpanLocate, SplineError};
 use geom_core::{
     Decide, Decided, Indeterminate, InfSpeed, Margin, Point2, Point3, Real, Sign, SupSpeed, Vec2,
@@ -3265,7 +3266,7 @@ pub(crate) fn projected_hull_lane<T: Decide + geom_core::Bounds + geom_core::Cer
         &lift(twin_net),
         twin,
         image.chart.nappe(),
-        projected::INCIDENCE_CUTS,
+        Parts::Each(projected::INCIDENCE_CUTS),
         cuts,
     )?;
     Ok(ProjectedHull { pieces, spans })
@@ -3312,12 +3313,77 @@ fn uncertified_over(n: &NurbsCurve3<geom_core::Interval>, (a, b): (f64, f64)) ->
     })
 }
 
+/// How many equal parts [`twin_span_hulls`] cuts each knot span of a
+/// twin net into.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum Parts {
+    /// The same count on every span.
+    Each(usize),
+    /// **Per span, the parts its own geometry needs**: the fewest, a
+    /// power of two up to [`projected::INCIDENCE_CUTS`]
+    /// ([`crate::props::taylor::pieces_where`]), on each of which the
+    /// part's control box spans at most
+    /// [`crate::props::taylor::PIECE_TURN`] times its distance from the
+    /// chart's axis, on which the cone's apex and the sphere's poles
+    /// lie: a short span far from the axis reads one part, and a long
+    /// span or one by the axis the parts its turn needs. On the plane,
+    /// which has no axis, one. A span's count is read off that span's
+    /// controls alone, so a chord reads the same parts however it is
+    /// cut into spans or edges. The reading is a schedule, in `f64`:
+    /// each part's hull bounds `|f|` over that part at any count.
+    ByTurn,
+}
+
+impl Parts {
+    /// The parts of the knot span `(a, b)` of `net` on a chart of `form`.
+    fn of(
+        self,
+        net: &NurbsCurve3<geom_core::Interval>,
+        form: &CanonicalSurface,
+        (a, b): (f64, f64),
+    ) -> usize {
+        use geom_core::Bounds;
+        let most = projected::INCIDENCE_CUTS;
+        match (self, form) {
+            (Self::Each(n), _) => n,
+            (Self::ByTurn, CanonicalSurface::Plane) => 1,
+            (Self::ByTurn, _) => crate::props::taylor::pieces_where(
+                (a, b),
+                most,
+                |p, q| {
+                    geom_core::spline::ParamRange::new(p, q)
+                        .map(|piece| projected::piece_controls(net, piece))
+                },
+                |controls, _, _| {
+                    let Some(controls) = controls.as_ref().filter(|c| !c.is_empty()) else {
+                        return false;
+                    };
+                    let (axis, ..) = projected::part_floors(controls);
+                    let extent =
+                        |at: fn(&geom_core::Vec3<geom_core::Interval>) -> geom_core::Interval| {
+                            let (lo, hi) = controls
+                                .iter()
+                                .fold((f64::INFINITY, f64::NEG_INFINITY), |(lo, hi), (c, _)| {
+                                    (lo.min(at(c).lo()), hi.max(at(c).hi()))
+                                });
+                            hi - lo
+                        };
+                    let size = extent(|c| c.x)
+                        .hypot(extent(|c| c.y))
+                        .hypot(extent(|c| c.z));
+                    size <= crate::props::taylor::PIECE_TURN * axis.lo()
+                },
+            ),
+        }
+    }
+}
+
 /// The parts of a carrier's twin net in certification arithmetic: the
 /// chart's canonical implicit form composed along `twin_net` (the
 /// carrier written in the frame of `twin`, the chart's orthonormal
-/// twin), each knot span cut into `per_span` equal parts and at `cuts`,
-/// with each part's bound of `|f|`, the floors its metre conversion
-/// reads, and its metre readings.
+/// twin), each knot span cut into the equal parts `parts` reads it in
+/// and at `cuts`, with each part's bound of `|f|`, the floors its metre
+/// conversion reads, and its metre readings.
 ///
 /// # Errors
 ///
@@ -3328,10 +3394,9 @@ fn twin_span_hulls<T: geom_core::CertifiedBounds>(
     twin_net: &NurbsCurve3<geom_core::Interval>,
     twin: &Surface<T>,
     nappe: Option<crate::offset::Nappe>,
-    per_span: usize,
+    parts: Parts,
     cuts: &[f64],
 ) -> Result<Vec<projected::SpanHull>, PcurveCertifyError> {
-    use geom_core::spline::compose::CanonicalSurface;
     let cross = geom_core::Interval::from_certified;
     let form = match *twin {
         Surface::Plane { .. } => CanonicalSurface::Plane,
@@ -3381,7 +3446,7 @@ fn twin_span_hulls<T: geom_core::CertifiedBounds>(
         twin_net: &twin_net,
         form: &form,
         meters,
-        per_span,
+        parts,
         cuts,
     };
     span_memo::read(&input, (knots, weights), || {
@@ -3399,7 +3464,7 @@ fn spans_of(
         twin_net,
         form,
         meters,
-        per_span,
+        parts,
         cuts,
     } = *input;
     use geom_core::spline::compose::{CurveCertData, canonical_composite};
@@ -3436,6 +3501,7 @@ fn spans_of(
     let mut all_cuts: Vec<f64> = runs
         .windows(2)
         .flat_map(|w| {
+            let per_span = parts.of(twin_net, form, (w[0], w[1]));
             (1..per_span).map(move |j| {
                 #[allow(clippy::cast_precision_loss)]
                 let f = j as f64 / per_span as f64;
@@ -3586,7 +3652,7 @@ mod span_memo {
         pub(super) twin_net: &'a NurbsCurve3<Interval>,
         pub(super) form: &'a CanonicalSurface,
         pub(super) meters: projected::Meters<Interval>,
-        pub(super) per_span: usize,
+        pub(super) parts: super::Parts,
         pub(super) cuts: &'a [f64],
     }
 
@@ -3643,7 +3709,11 @@ mod span_memo {
             // The sign of `major` names the sheet.
             Meters::Spindle { major, minor, .. } => scalars(&mut k, 6, &[major, minor]),
         }
-        k.extend([len(input.per_span), len(knots.degree())]);
+        let parts = match input.parts {
+            super::Parts::Each(n) => len(n),
+            super::Parts::ByTurn => u64::MAX,
+        };
+        k.extend([parts, len(knots.degree())]);
         floats(&mut k, 6, knots.knots());
         floats(&mut k, 7, weights);
         k.push(len(input.twin_net.control().len()));
@@ -3716,10 +3786,14 @@ pub(crate) fn limb2_offset_sup<T: Decide + geom_core::Bounds + geom_core::Certif
     };
     let frame = crate::carrier_net::Frame::of(o, te);
     let (domain, mut grid, per_span) = match carrier {
-        Curve3::Nurbs(net) => (net.domain(), Vec::new(), projected::INCIDENCE_CUTS),
+        Curve3::Nurbs(net) => (
+            net.domain(),
+            Vec::new(),
+            Parts::Each(projected::INCIDENCE_CUTS),
+        ),
         _ => {
             let (lo, hi) = crate::carrier_net::outer_ends(window);
-            ((lo, hi), closed_form_grid(carrier, lo, hi), 1)
+            ((lo, hi), closed_form_grid(carrier, lo, hi), Parts::Each(1))
         }
     };
     // On a sheet, an end within `10⁻⁶ r` of the axis (read in `f64`, a
@@ -3744,7 +3818,8 @@ pub(crate) fn limb2_offset_sup<T: Decide + geom_core::Bounds + geom_core::Certif
     }
     let round_over =
         |grid: &[f64],
-         cuts: &[f64]|
+         cuts: &[f64],
+         parts: Parts|
          -> Result<(projected::ProjectedHull, projected::NetSize), PcurveCertifyError> {
             let mut breaks: Vec<f64> = grid.iter().chain(cuts).copied().collect();
             breaks.sort_by(f64::total_cmp);
@@ -3762,11 +3837,12 @@ pub(crate) fn limb2_offset_sup<T: Decide + geom_core::Bounds + geom_core::Certif
             };
             let hull = projected::ProjectedHull {
                 pieces: Vec::new(),
-                spans: twin_span_hulls(&curve, &twin, nappe, per_span, net.cuts())?,
+                spans: twin_span_hulls(&curve, &twin, nappe, parts, net.cuts())?,
             };
             Ok((hull, size))
         };
-    let round_hull = |cuts: &[f64]| round_over(&grid, cuts);
+    let round_hull = |cuts: &[f64]| round_over(&grid, cuts, per_span);
+    let key = limb2_memo::Key::of(carrier, window, surface, band);
     // A curved closed form is read first on its dyadic spans, each
     // enclosed alone (`limb2_quick`); a reading that clears is the
     // limb's, and anything else goes to the rounds below. Its parts
@@ -3774,23 +3850,33 @@ pub(crate) fn limb2_offset_sup<T: Decide + geom_core::Bounds + geom_core::Certif
     // located, a cone's or torus's lever per part) are taken only on a
     // reading about to pass; where a lever then refuses, the rounds
     // take those decisions again, so the trail shows them twice.
+    let cleared = |(hull, size)| {
+        projected::offset_cleared(hull, size, window, nappe, &twin, band)
+            .ok()
+            .flatten()
+    };
     let quick = if limb2_quick::enabled() {
-        limb2_quick::read(carrier, domain, surface, &frame, &twin, nappe, band).and_then(
-            |(hull, size)| {
-                projected::offset_cleared(hull, size, window, nappe, &twin, band)
-                    .ok()
-                    .flatten()
-            },
-        )
+        limb2_quick::read(carrier, domain, surface, &frame, &twin, nappe, band).and_then(cleared)
     } else {
         None
     };
+    // A net is read first with each span in the parts its own geometry
+    // needs (`Parts::ByTurn`); a reading that clears is the limb's, and
+    // anything else goes to the rounds below, every span in
+    // `INCIDENCE_CUTS` parts, so every refusal is the rounds'.
+    let quick = quick.or_else(|| match carrier {
+        Curve3::Nurbs(_) => limb2_memo::read(&key.by_turn(), &[], || {
+            round_over(&grid, &[], Parts::ByTurn)
+        })
+        .ok()
+        .and_then(cleared),
+        _ => None,
+    });
     let mut read = match quick {
         Some(read) => read,
         None => {
             // The rounds read through limb 2's memo (`limb2_memo`): a
             // round is a pure function of the key's inputs and its cuts.
-            let key = limb2_memo::Key::of(carrier, window, surface, band);
             let hull = |cuts: &[f64]| limb2_memo::read(&key, cuts, || round_hull(cuts));
             projected::offset_rounds(hull, window, nappe, &twin, band)?
         }
@@ -3861,6 +3947,12 @@ mod limb2_memo {
                 band.zero().to_bits(),
                 band.escalate().to_bits(),
             ))
+        }
+
+        /// The key of the same inputs' first reading, its spans in the
+        /// parts their own geometry needs ([`super::Parts::ByTurn`]).
+        pub(super) fn by_turn(&self) -> Self {
+            Self(format!("{}|by-turn", self.0))
         }
     }
 
@@ -4170,7 +4262,7 @@ mod limb2_quick {
         let compute = |range: (f64, f64)| -> Option<Part> {
             let net = crate::carrier_net::framed_span_net(carrier, range, frame, ORDER).ok()?;
             let curve = net.curve()?;
-            let hull = match twin_span_hulls(&curve, twin, nappe, 1, &[])
+            let hull = match twin_span_hulls(&curve, twin, nappe, super::Parts::Each(1), &[])
                 .ok()?
                 .as_slice()
             {
@@ -15733,7 +15825,7 @@ mod check_4_class_rows {
 #[cfg(test)]
 #[allow(clippy::unwrap_used)]
 mod limb2_memo_rows {
-    use super::{PcurveCertifyError, limb2_memo, limb2_offset_sup, span_memo};
+    use super::{Parts, PcurveCertifyError, limb2_memo, limb2_offset_sup, span_memo};
     use geom::{Curve3, Surface};
     use geom_core::{Band, Point3, Real, Vec3};
 
@@ -15822,8 +15914,12 @@ mod limb2_memo_rows {
         };
         let base = |lift: &dyn Fn(f64) -> Interval| net(0.5, 1.0, false, 1.3, lift);
         let (_, wall) = rim(1.25);
-        let parts =
-            |n: &NurbsCurve3<Interval>| format!("{:?}", twin_span_hulls(n, &wall, None, 4, &[0.5]));
+        let parts = |n: &NurbsCurve3<Interval>| {
+            format!(
+                "{:?}",
+                twin_span_hulls(n, &wall, None, Parts::Each(4), &[0.5])
+            )
+        };
         let first = parts(&base(&Interval::from_f64));
         let (h2, m2) = span_memo::counts();
         assert_eq!(
@@ -15848,13 +15944,13 @@ mod limb2_memo_rows {
         let ask = |n: &NurbsCurve3<Interval>,
                    form: &CanonicalSurface,
                    meters: Meters<Interval>,
-                   per_span: usize,
+                   parts: Parts,
                    cuts: &[f64]| {
             let input = span_memo::Input {
                 twin_net: n,
                 form,
                 meters,
-                per_span,
+                parts,
                 cuts,
             };
             let knots = n.knot_values().runs().flat_map(|(k, m)| {
@@ -15875,10 +15971,13 @@ mod limb2_memo_rows {
             computed.get()
         };
         assert!(
-            ask(&base_net, &form, meters, 4, &[0.5]),
+            ask(&base_net, &form, meters, Parts::Each(4), &[0.5]),
             "the base misses first"
         );
-        assert!(!ask(&base_net, &form, meters, 4, &[0.5]), "and then hits");
+        assert!(
+            !ask(&base_net, &form, meters, Parts::Each(4), &[0.5]),
+            "and then hits"
+        );
         let wider = def(1.25f64.next_up());
         let uncertified = |x: f64| {
             let y = Interval::from_bounds(-1.0, x * x).sqrt().clip_to(x, x);
@@ -15892,7 +15991,7 @@ mod limb2_memo_rows {
                     &base_net,
                     &CanonicalSurface::Cylinder { radius: wider },
                     meters,
-                    4,
+                    Parts::Each(4),
                     &[0.5],
                 ),
             ),
@@ -15902,7 +16001,7 @@ mod limb2_memo_rows {
                     &base_net,
                     &form,
                     Meters::Cylinder { radius: wider },
-                    4,
+                    Parts::Each(4),
                     &[0.5],
                 ),
             ),
@@ -15912,7 +16011,7 @@ mod limb2_memo_rows {
                     &cross(net(0.6, 1.0, false, 1.3, &Interval::from_f64)),
                     &form,
                     meters,
-                    4,
+                    Parts::Each(4),
                     &[0.5],
                 ),
             ),
@@ -15922,7 +16021,7 @@ mod limb2_memo_rows {
                     &cross(net(0.5, 2.0, false, 1.3, &Interval::from_f64)),
                     &form,
                     meters,
-                    4,
+                    Parts::Each(4),
                     &[0.5],
                 ),
             ),
@@ -15932,19 +16031,29 @@ mod limb2_memo_rows {
                     &cross(net(0.5, 1.0, true, 1.3, &Interval::from_f64)),
                     &form,
                     meters,
-                    4,
+                    Parts::Each(4),
                     &[0.5],
                 ),
             ),
-            ("parts per span", ask(&base_net, &form, meters, 3, &[0.5])),
-            ("cuts", ask(&base_net, &form, meters, 4, &[0.6])),
+            (
+                "parts per span",
+                ask(&base_net, &form, meters, Parts::Each(3), &[0.5]),
+            ),
+            (
+                "parts by turn",
+                ask(&base_net, &form, meters, Parts::ByTurn, &[0.5]),
+            ),
+            (
+                "cuts",
+                ask(&base_net, &form, meters, Parts::Each(4), &[0.6]),
+            ),
             (
                 "control",
                 ask(
                     &cross(net(0.5, 1.0, false, 1.3f64.next_up(), &Interval::from_f64)),
                     &form,
                     meters,
-                    4,
+                    Parts::Each(4),
                     &[0.5],
                 ),
             ),
@@ -15954,7 +16063,7 @@ mod limb2_memo_rows {
                     &cross(net(0.5, 1.0, false, 1.3, &uncertified)),
                     &form,
                     meters,
-                    4,
+                    Parts::Each(4),
                     &[0.5],
                 ),
             ),

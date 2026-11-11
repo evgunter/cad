@@ -195,12 +195,23 @@ pub(super) fn composite_each<S, C, const N: usize>(
     (total, removable)
 }
 
+/// **The turn one piece of a span may take about a chart's axis**: a
+/// sixteenth of a turn, what a full-turn harmonic rim's round-0 piece
+/// turns ([`super::quad::EDGE_INIT_PIECES`]). The rotational
+/// volume lane reads it as the azimuth's rate times the piece's length,
+/// and the incidence read of a net's twin as its piece's control box
+/// over the box's distance from the axis
+/// (`crate::pcurve_cache::Parts::ByTurn`).
+#[allow(clippy::cast_precision_loss)]
+pub(crate) const PIECE_TURN: f64 = core::f64::consts::TAU / super::quad::EDGE_INIT_PIECES as f64;
+
 /// **The fewest equal pieces `[a, b]` is read in**, a power of two up
 /// to `most`, for which `fits(ctx, piece, h)` holds on every piece (the
 /// context prepared over it, the piece's enclosure, its length): `most`
 /// where none does. Each count is tried in full, so the reading is a
-/// function of the interval and `fits` alone.
-pub(super) fn pieces_where<C>(
+/// function of the interval and `fits` alone: the one home of how many
+/// pieces a span needs, each reader passing its own `fits`.
+pub(crate) fn pieces_where<C>(
     (a, b): (f64, f64),
     most: usize,
     prepare: impl Fn(f64, f64) -> C,
