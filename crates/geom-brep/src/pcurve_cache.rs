@@ -2246,6 +2246,18 @@ impl PcurveCertifyError {
                 carrier.name(),
                 chart.name(),
             ),
+            Self::NoGeneralLane {
+                chart,
+                carrier,
+                gap: LaneGap::Image,
+            } => write!(
+                f,
+                "pcurve certification: the {} carrier is on the {} chart but is none of its own \
+                 curves, and its general image does not yet follow it over this edge. \
+                 Recourse: {IMAGE_LEVER}",
+                carrier.name(),
+                chart.name(),
+            ),
             // The payload says what was read; the ending says what to do,
             // and it is the read's at the door ([`IncidenceRead::ending`]),
             // so no recourse is written here.
@@ -2476,7 +2488,7 @@ impl PcurveCertifyError {
                 ..
             } => Decision::Check(PcurveCheck::ChartClass, definite),
             Self::NoGeneralLane {
-                gap: LaneGap::Pose { .. } | LaneGap::Envelope,
+                gap: LaneGap::Pose { .. } | LaneGap::Envelope | LaneGap::Image,
                 ..
             } => Decision::Check(PcurveCheck::GeneralLane, definite),
             // A stored image's copied structure: its identity, its
@@ -3069,11 +3081,14 @@ impl<T: Real> PcurveCertificate<T> {
 ///
 /// The `edge_nurbs` schedule with no per-sample hook: the transversality
 /// sweep the adopt path runs there is a statement about the PLANE
-/// operand, which is the edge certificate's and not the row's.
+/// operand, which is the edge certificate's and not the row's. A carrier
+/// whose foot path [`bends`] climbs `edge_nurbs::curved_chart_image`'s
+/// rungs; any other takes the degree-1 image its edge certificate reads.
 pub(crate) fn general_image_lane<T: Decide + geom_core::Bounds + geom_core::CertifiedEnclosure>(
     carrier: &Curve3<T>,
     params: (T, T),
     wall: &NurbsSurface<T>,
+    band: Band,
 ) -> Result<NurbsCurve2<T>, PcurveCertifyError> {
     use crate::edge_nurbs::PlaneNurbsRefusal as P;
     // The image spans the carrier's certificate span, the edge
@@ -3088,7 +3103,13 @@ pub(crate) fn general_image_lane<T: Decide + geom_core::Bounds + geom_core::Cert
         magnitude: None,
         ending,
     };
-    crate::edge_nurbs::chart_image(schedule, wall, |_, _| Ok(())).map_err(|e| match e {
+    let bending = bends(carrier);
+    let image = if bending {
+        crate::edge_nurbs::curved_chart_image(schedule, wall, band)
+    } else {
+        crate::edge_nurbs::chart_image(schedule, wall, |_, _| Ok(()))
+    };
+    image.map_err(|e| match e {
         P::FootPointInconclusive {
             sample,
             last_distance,
@@ -3109,7 +3130,19 @@ pub(crate) fn general_image_lane<T: Decide + geom_core::Bounds + geom_core::Cert
             }),
             ending: FittedEnding::FootUnsettled,
         },
-        P::PcurveFit => certificate(crate::edge_nurbs::PCURVE_FIT_REFUSAL, FittedEnding::Defect),
+        // A bending carrier's image is its lane's own structure, so a fit
+        // that will not solve is the lane's gap (unhit, not unreachable:
+        // breaks are kept clear of the domain's ends, not of each other);
+        // a line's or a spline's degree-1 fit through distinct feet always
+        // solves.
+        P::PcurveFit => certificate(
+            crate::edge_nurbs::PCURVE_FIT_REFUSAL,
+            if bending {
+                FittedEnding::NotYet
+            } else {
+                FittedEnding::Defect
+            },
+        ),
         P::CarrierDomain(refusal) => PcurveCertifyError::CarrierDomain(refusal),
         // The wall this door was handed, as the foot producer refuses it
         // (`chart_foot_lane`): one lever at both doors.
@@ -3132,6 +3165,15 @@ pub(crate) fn general_image_lane<T: Decide + geom_core::Bounds + geom_core::Cert
              the mint passes a no-op hook and runs no certificate: {other:?}"
         ),
     })
+}
+
+/// Whether `carrier`'s foot path on a spline chart bends, so that the
+/// mint images it at `edge_nurbs::curved_chart_image`'s rungs: a curved
+/// carrier with no net. A line's path is straight wherever the chart is
+/// flat, and a spline's image is the degree-1 one its edge certificate
+/// reads (`edge_nurbs::chart_image`).
+pub(crate) fn bends<T: Real>(carrier: &Curve3<T>) -> bool {
+    carrier.is_curved() && !matches!(carrier, Curve3::Nurbs(_))
 }
 
 /// The foot producer's body, shared by every certifying scalar
@@ -4491,8 +4533,21 @@ pub enum CertifyingDoor {
 /// beside a certificate that disagrees with it: there is no second copy.
 #[derive(Clone, Debug)]
 pub enum ChartImage<T: Real> {
-    /// The image over the carrier interval `(t0, t1)`, not yet certified.
+    /// The image over the carrier interval `(t0, t1)`, not yet certified,
+    /// as the derivation produced it in this walk: a refusal of its
+    /// certificate may be its lane's gap ([`minted_refusal`]).
     Image {
+        /// The chart image.
+        pcurve: Pcurve<T>,
+        /// The carrier interval's start.
+        t0: T,
+        /// The carrier interval's end.
+        t1: T,
+    },
+    /// The image over `(t0, t1)`, not yet certified, as a description or
+    /// a stored row states it: the derivation read it and produced
+    /// nothing, so a refusal of its certificate is its own term.
+    Stated {
         /// The chart image.
         pcurve: Pcurve<T>,
         /// The carrier interval's start.
@@ -4508,7 +4563,7 @@ impl<T: Real> ChartImage<T> {
     /// The chart image.
     pub fn pcurve(&self) -> &Pcurve<T> {
         match self {
-            Self::Image { pcurve, .. } => pcurve,
+            Self::Image { pcurve, .. } | Self::Stated { pcurve, .. } => pcurve,
             Self::Certified(cache) => cache.pcurve(),
         }
     }
@@ -4516,7 +4571,7 @@ impl<T: Real> ChartImage<T> {
     /// The carrier interval the image is over.
     pub fn window(&self) -> (T, T) {
         match self {
-            Self::Image { t0, t1, .. } => (*t0, *t1),
+            Self::Image { t0, t1, .. } | Self::Stated { t0, t1, .. } => (*t0, *t1),
             Self::Certified(cache) => cache.params(),
         }
     }
@@ -4524,7 +4579,7 @@ impl<T: Real> ChartImage<T> {
     /// The chart image, its certificate dropped.
     pub fn into_pcurve(self) -> Pcurve<T> {
         match self {
-            Self::Image { pcurve, .. } => pcurve,
+            Self::Image { pcurve, .. } | Self::Stated { pcurve, .. } => pcurve,
             Self::Certified(cache) => cache.pcurve,
         }
     }
@@ -9186,8 +9241,10 @@ pub(crate) enum Along {
     Azimuth,
     /// A torus's tube angle, about its core circle.
     Tube,
-    /// A sphere's latitude, and a spindle sheet's tube angle.
+    /// A sphere's latitude.
     Latitude,
+    /// A spindle sheet's tube angle, about its tube circle.
+    Sheet,
 }
 
 /// **The levers a placement's marks are read at**, one per angle, each
@@ -9211,11 +9268,11 @@ pub(crate) enum Along {
 /// apart ([`Placement`], *What holds across scalars*). The lever only
 /// sets how wide the band about each mark reads, and a floor never
 /// decides a mark apart that the span's largest movement would leave in
-/// band. The tube angle at the torus's minor radius; the latitude at the
-/// sphere's radius, or a spindle sheet's minor radius. A chart without
-/// one of those angles carries `1` in its slot, which no arm reads (no
-/// arm places a tube angle off a torus, or a latitude off a sphere or a
-/// sheet).
+/// band. The tube angle at the torus's or the spindle sheet's minor
+/// radius; the latitude at the sphere's radius. A chart without one of
+/// those angles carries `1` in its slot, which no arm reads (no arm
+/// places a tube angle off a torus or a sheet, or a latitude off a
+/// sphere).
 #[derive(Clone, Copy, Debug)]
 struct Levers<T> {
     azimuth: T,
@@ -9229,6 +9286,7 @@ impl Along {
         match self {
             Along::Azimuth | Along::Tube => Window::Angle,
             Along::Latitude => Window::Latitude,
+            Along::Sheet => Window::Sheet,
         }
     }
 }
@@ -9263,9 +9321,10 @@ impl<T: Decide> Placement<T> {
             }
         });
         let (tube, latitude) = match *surface {
-            Surface::Torus { minor_radius, .. } => (minor_radius, T::one()),
+            Surface::Torus { minor_radius, .. } | Surface::Spindle { minor_radius, .. } => {
+                (minor_radius, T::one())
+            }
             Surface::Sphere { radius, .. } => (T::one(), radius),
-            Surface::Spindle { minor_radius, .. } => (T::one(), minor_radius),
             _ => (T::one(), T::one()),
         };
         Self {
@@ -9355,7 +9414,7 @@ impl<T: Decide> Placement<T> {
         let window = along.window();
         let lever = match along {
             Along::Azimuth => self.levers.azimuth,
-            Along::Tube => self.levers.tube,
+            Along::Tube | Along::Sheet => self.levers.tube,
             Along::Latitude => self.levers.latitude,
         };
         // A zero lever (or an enclosure reaching zero, the structure
@@ -9510,7 +9569,9 @@ fn chart_image<T: Decide>(
         }
         return projected::project(carrier, span, surface, band)
             .map(|image| Pcurve::Projected(Box::new(image)))
-            .map_err(|refused| general_lane_refusal(refused, carrier, surface));
+            .map_err(|refused| {
+                general_lane_refusal(refused, LaneImage::Projected, carrier, surface)
+            });
     }
     match derive_class(carrier, surface, place, band) {
         Ok((image, _)) => Ok(image),
@@ -9524,7 +9585,9 @@ fn chart_image<T: Decide>(
             _ if projected::has_lane(carrier, surface) => {
                 projected::project(carrier, span, surface, band)
                     .map(|image| Pcurve::Projected(Box::new(image)))
-                    .map_err(|refused| general_lane_refusal(refused, carrier, surface))
+                    .map_err(|refused| {
+                        general_lane_refusal(refused, LaneImage::Projected, carrier, surface)
+                    })
             }
             Some(cause) => Err(incidence::class_escalated(shown, cause)),
             None => Err(PcurveCertifyError::NoGeneralLane {
@@ -9537,12 +9600,16 @@ fn chart_image<T: Decide>(
 }
 
 /// **The mint's own image refused by its certificate, as the lane's
-/// gap** (D3): a conic or a line takes the projected image because no
-/// class was shown, so where the certificate of that image, just derived
-/// by [`chart_pcurve_over`] for the edge, refuses on its sector, its
-/// metre conversion's lever or its envelope, the lane does not yet
-/// certify the pose, and the refusal ends "not yet" as the lane's other
-/// gaps do ([`general_lane_refusal`], the one place they are relabelled).
+/// gap** (D3): the image a lane choice takes because no class was shown,
+/// just derived for the edge, refused by its certificate where the lane
+/// does not yet certify the pose. It ends "not yet" as the lane's other
+/// gaps do ([`general_lane_refusal`], the one place they are relabelled):
+///
+/// - a conic's or a line's projected image ([`chart_pcurve_over`]), on
+///   its sector, its metre conversion's lever or its envelope;
+/// - a bending carrier's `General` image on a spline chart (`topo`'s
+///   mint, at `edge_nurbs::curved_chart_image`'s finest rung), on any
+///   bound of its miss ([`LaneImage::General`]).
 ///
 /// Read by the doors that certify an image they just derived (the
 /// mint's walk, `topo::pcurves`), never by one that re-certifies a
@@ -9557,19 +9624,39 @@ pub fn minted_refusal<T: Real>(
     carrier: &Curve3<T>,
     surface: &Surface<T>,
 ) -> PcurveCertifyError {
-    if !(matches!(image, Pcurve::Projected(_))
-        && matches!(
-            carrier,
-            Curve3::Circle(..) | Curve3::Ellipse(..) | Curve3::Line(_)
-        ))
-    {
-        return refused;
-    }
+    let lane = match image {
+        Pcurve::Projected(_)
+            if matches!(
+                carrier,
+                Curve3::Circle(..) | Curve3::Ellipse(..) | Curve3::Line(_)
+            ) =>
+        {
+            LaneImage::Projected
+        }
+        Pcurve::General(_) if bends(carrier) => LaneImage::General,
+        _ => return refused,
+    };
     #[cfg(test)]
     if mutants::lane_envelope_bound() {
         return refused;
     }
-    general_lane_refusal(refused, carrier, surface)
+    general_lane_refusal(refused, lane, carrier, surface)
+}
+
+/// Which general image a refusal [`general_lane_refusal`] relabels was
+/// certifying: what its sampled residual reads.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum LaneImage {
+    /// The projected image: its point at a sample is the chart's own
+    /// reading of the carrier's point, so the sampled residual is the
+    /// carrier's distance and stays the carrier's.
+    Projected,
+    /// A `General` image on a spline chart: its point at a sample is a
+    /// foot its producer measured, so the sampled residual, like the
+    /// hull's, bounds the carrier's distance from above, and only the
+    /// chart's incidence read, taken before the image, shows a carrier
+    /// off.
+    General,
 }
 
 /// The lever of a [`LaneGap::Pose`]: the one sentence both
@@ -9585,9 +9672,8 @@ pub(crate) const POSE_LEVER: &str = "a carrier through a pole, the cone's apex o
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum LaneGap {
     /// No general lane is written for this (chart, carrier) pair
-    /// ([`projected::has_lane`] on an analytic chart; on a spline chart,
-    /// a circle the arc rim's row does not hold, which the mint's
-    /// degree-1 `General` image cannot certify).
+    /// ([`projected::has_lane`]); an analytic chart's alone, since a
+    /// spline chart's general lane is its `General` image.
     Unwritten,
     /// The lane is written for the pair but does not image this pose: its
     /// partition found no piece sector ([`projected::SectorChannel`])
@@ -9602,6 +9688,11 @@ pub enum LaneGap {
     /// image's miss inside the band: check 4's envelope, an upper bound on
     /// the miss, refused it ([`ENVELOPE_LEVER`]).
     Envelope,
+    /// A spline chart's lane images this carrier, but its `General`
+    /// image, fitted through the carrier's feet at its finest structure,
+    /// does not follow the carrier inside the band: the certificate's
+    /// bound on the image's miss refused it ([`IMAGE_LEVER`]).
+    Image,
 }
 
 /// The lever of a [`LaneGap::Envelope`]: the one sentence both
@@ -9611,7 +9702,14 @@ pub(crate) const ENVELOPE_LEVER: &str = "the general image's certificate bounds 
      miss from above, and over this edge that bound does not fit inside the band; a shorter \
      edge, away from the chart's singular set, reads a tighter one";
 
-/// **The projected lane's refusal at the mint**: the one place a
+/// The lever of a [`LaneGap::Image`]: the one sentence both
+/// [`PcurveCertifyError::NoGeneralLane`]'s and
+/// [`crate::CertifyError::NoGeneralLane`]'s Display give it.
+pub(crate) const IMAGE_LEVER: &str = "the general image of a curved carrier on a spline chart \
+     is fitted through the carrier's feet, and over this edge its finest fit does not follow \
+     the carrier inside the band; a shorter edge reads a finer one";
+
+/// **The general lane's refusal at the mint**: the one place a
 /// general-lane refusal is relabelled, read from both of `chart_image`'s
 /// calls of the lane (a circle's lane choice and a spline's only image)
 /// and, through [`minted_refusal`], from the mint's certificate of a
@@ -9628,12 +9726,22 @@ pub(crate) const ENVELOPE_LEVER: &str = "the general image's certificate bounds 
 ///   [`PcurveCheck::bounds_a_miss`]), which only the certificate reads: in
 ///   band as the same escalation, decided as [`LaneGap::Envelope`].
 ///
+/// A spline chart's `General` image ([`LaneImage::General`]) is the
+/// lane's own fit, so every bound its certificate reads on the image's
+/// miss ends as that lane's gap: its sampled residual, the hull's two
+/// limbs at their value and their sup, and its envelope, in band as the
+/// same escalation and decided as [`LaneGap::Image`].
+///
 /// Every other refusal stays as it is: the deck's placement
 /// (`Placement::turns`) refuses only a poisoned midpoint or one past every
-/// turn an `i32` counts, and the kind and chart refusals are fenced off by
-/// [`projected::has_lane`] before the call.
+/// turn an `i32` counts, and the kind and chart refusals are fenced off
+/// before the call: for the projected image by [`projected::has_lane`],
+/// and for the `General` image by its producer, which images on a spline
+/// chart alone (`general_image_lane`), and by [`minted_refusal`], which
+/// hands this a bending carrier's image alone.
 fn general_lane_refusal<T: Real>(
     refused: PcurveCertifyError,
+    lane: LaneImage,
     carrier: &Curve3<T>,
     surface: &Surface<T>,
 ) -> PcurveCertifyError {
@@ -9642,7 +9750,31 @@ fn general_lane_refusal<T: Real>(
         carrier: carrier.kind(),
         gap,
     };
+    let general = lane == LaneImage::General;
+    let hull = |limb| matches!(limb, SsiLimb::HullValueChart | SsiLimb::HullSupChart);
     match refused {
+        PcurveCertifyError::Escalated {
+            check: PcurveCheck::MapResidual,
+            sample,
+            cause,
+        } if general => PcurveCertifyError::Escalated {
+            check: PcurveCheck::GeneralLane,
+            sample,
+            cause,
+        },
+        PcurveCertifyError::FittedEscalated {
+            decision: SsiDecision::Limb(limb),
+            cause,
+        } if general && hull(limb) => PcurveCertifyError::Escalated {
+            check: PcurveCheck::GeneralLane,
+            sample: 0,
+            cause,
+        },
+        PcurveCertifyError::ResidualExceeded {
+            check: PcurveCheck::MapResidual,
+            ..
+        } if general => gap(LaneGap::Image),
+        PcurveCertifyError::FittedLimb { limb, .. } if general && hull(limb) => gap(LaneGap::Image),
         PcurveCertifyError::Escalated {
             check: PcurveCheck::Sector,
             sample,
@@ -9667,7 +9799,11 @@ fn general_lane_refusal<T: Real>(
         PcurveCertifyError::ResidualExceeded {
             check: check @ (PcurveCheck::Envelope | PcurveCheck::EnvelopeTerm(_)),
             ..
-        } if check.bounds_a_miss() => gap(LaneGap::Envelope),
+        } if check.bounds_a_miss() => gap(if general {
+            LaneGap::Image
+        } else {
+            LaneGap::Envelope
+        }),
         other => other,
     }
 }
@@ -9802,15 +9938,11 @@ fn read_shown<T: Decide>(
 ///   anywhere else the read is taken over `asked`, whatever the door
 ///   answered.
 ///
-/// That skip is sound for the pcurve certificate doors (`certify`,
-/// `recertify`, `certify_fitted`, `certify_general`), whose certificate
-/// that holds bounds the carrier within the band of the wall over
-/// `certified`: its envelope is a sup over the span. It is not for a
-/// door whose meter is sampled, such as the edge certificate's stated
-/// image ([`incidence_ended_unwitnessed`] from `certify.rs`
-/// `stated_door`), where a carrier off its wall only between both sets of
-/// samples passes
-/// (`work/pcert/a-stated-chart-image-on-a-spline-face-is-certified-by-a-sampled-meter.md`).
+/// That skip is sound for a door whose certificate that holds bounds the
+/// carrier within the band of the wall over `certified`, as the pcurve
+/// certificate doors' envelopes do (a sup over the span); a door whose
+/// meter is sampled bounds nothing between its samples, so it holds no
+/// certificate this rule may take as it stands.
 ///
 /// `refused` carries the read's refusal into the door's own vocabulary.
 fn incidence_ended<T: Decide, R, E>(
@@ -9837,9 +9969,8 @@ fn incidence_ended<T: Decide, R, E>(
 /// for a door that takes no witness: the one home's rule
 /// (`incidence_ended`), which reads an analytic chart before `door` and a
 /// spline chart where `door` refuses or where `certified` is not shown to
-/// cover `asked`. Its callers are the edge certificate's stated chart image
-/// (`certify.rs` `stated_door`), whose meter is sampled, and `topo`'s
-/// restatement of a stored fitted image at a scalar with no fitted door.
+/// cover `asked`. Its caller is a stored fitted image restated at a
+/// scalar with no fitted door ([`PcurveCache::certify_stated_image`]).
 ///
 /// # Errors
 ///
@@ -10109,7 +10240,7 @@ pub fn chart_iso_family<T: Decide>(
 /// Which revolved circle a torus-family chart is: the ring torus or a
 /// spindle sheet. The two share their parametrisation (a signed `R` on
 /// the sheet), so the formulas they share take one arm, and what parts
-/// them (the sheet's tube angle in the latitude window, its meridian
+/// them (the sheet's tube angle in [`Window::Sheet`], its meridian
 /// circle leaving it past its apexes, its oblique circles on the
 /// general lane) reads this, decided once here over every kind.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -10989,8 +11120,8 @@ fn derive_class_zero<T: Decide>(
         // circles, azimuth-non-harmonic, whose image is the
         // [`Pcurve::FocalSection`] (`torus_oblique_circle`). A spindle
         // sheet holds the same parallels and meridians, its tube angle
-        // read in the latitude window, and its oblique circles take
-        // the general lane.
+        // named in [`Window::Sheet`], and its oblique circles take the
+        // general lane.
         Surface::Torus {
             center: t_center,
             axis,
@@ -11009,7 +11140,7 @@ fn derive_class_zero<T: Decide>(
                 unreachable!("the arm matched a torus or a sheet")
             };
             let tube_angle = match tube {
-                RevolvedTube::Sheet => Along::Latitude,
+                RevolvedTube::Sheet => Along::Sheet,
                 RevolvedTube::Ring => Along::Tube,
             };
             let oblique = |shown| match tube {
@@ -12372,11 +12503,7 @@ mod incidence {
                 _ => "pcurve_nurbs_chart_incident",
             };
             return match super::spline_incidence::spline_incidence_as(
-                name,
-                chart,
-                place.span,
-                |t| carrier.eval(t),
-                band,
+                name, chart, carrier, place.span, band,
             )? {
                 Incidence::On(margin) => Ok(tested(margin)),
                 Incidence::Off(margin) => Err(OffChart(
@@ -12823,6 +12950,7 @@ fn spiric_off_own_chart(why: &'static str) -> OffChart {
 // test gate can skip the sweep without skipping the deterministic rows.
 pub mod projected;
 mod spline_incidence;
+mod stated;
 pub use projected::{FramedCarrier, ProjectedChart, ProjectedImage, SectorChannel};
 
 #[cfg(test)]
@@ -12878,6 +13006,9 @@ mod ruling_reading_rows;
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 pub(crate) mod spline_door_rows;
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod stated_image_rows;
 
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
