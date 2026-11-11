@@ -801,8 +801,9 @@ pub fn pcurve_of<T: AtRestPolicy>(
 /// choice read one ([`ChartImage::Certified`]: an arc rim on a spline
 /// chart, certified on the half-edge's own wall over its edge's carrier
 /// and interval at `band`), so a reader that certifies the image takes
-/// that certificate. A stored row is an [`ChartImage::Image`]: its
-/// certificate was read at the band its mint ran at, not `band`.
+/// that certificate. A stored row, or a description's stated image, is a
+/// [`ChartImage::Stated`]: its certificate was read at the band its mint
+/// ran at, not `band`, and a refusal of it keeps its own term.
 pub(crate) fn derived_pcurve_of<T: AtRestPolicy>(
     body: &Body<T>,
     half_edge: HalfEdgeKey,

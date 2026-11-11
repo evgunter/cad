@@ -264,6 +264,79 @@ fn stated_image(carrier: &Curve3<f64>, (t0, t1): (f64, f64)) -> Arc<NurbsCurve2<
     Arc::new(fit.on_domain(t0, t1).expect("on the carrier's interval"))
 }
 
+/// [`stated_image`] under-refined: the carrier's exact chart feet at
+/// `feet` stations, joined at degree 1, the image the mint's producer
+/// gave a bending carrier before it climbed.
+fn chorded_image(carrier: &Curve3<f64>, (t0, t1): (f64, f64), feet: u32) -> Arc<NurbsCurve2<f64>> {
+    let fracs: Vec<f64> = (0..feet)
+        .map(|i| f64::from(i) / f64::from(feet - 1))
+        .collect();
+    let points: Vec<Point2<f64>> = fracs
+        .iter()
+        .map(|f| {
+            let p = carrier.eval(t0 + (t1 - t0) * f);
+            Point2::new(wall_u(p.y.atan2(p.x)), p.z)
+        })
+        .collect();
+    let fit = NurbsCurve2::<f64>::interpolate_with_params(&points, 1, &fracs).expect("the fit");
+    Arc::new(fit.on_domain(t0, t1).expect("on the carrier's interval"))
+}
+
+/// **A bending carrier's minted `General` image its certificate refuses
+/// ends as the lane's gap, at every ε** ([`geom_brep::minted_refusal`]):
+/// a circle's and an ellipse's image on the quarter cylinder, exact at
+/// nine feet and straight between them, misses its path by millimetres,
+/// which every band decides; the mint's door reads that refusal as
+/// `NoGeneralLane { gap: Image }`, ending "not yet" with its own lever,
+/// never a tolerance offer.
+fn a_refused_bending_image_ends_as_the_lanes_gap<
+    T: geom_core::Decide + geom_core::CertifiedBounds,
+>() {
+    let lift = |x: f64| T::from_f64(x);
+    let wall = Surface::Nurbs(Arc::new(fixture::quarter_cylinder_wall().map_scalar(lift)));
+    for (name, carrier) in [("the circle", circle(0.5)), ("the ellipse", ellipse())] {
+        let span = (0.1, 1.4);
+        let image = Arc::new(chorded_image(&carrier, span, 9).map_scalar(lift));
+        let carrier = carrier.map_scalar(lift);
+        let (t0, t1) = (lift(span.0), lift(span.1));
+        let refused = PcurveCache::certify_general(
+            Arc::clone(&image),
+            t0,
+            t1,
+            &carrier,
+            &wall,
+            band(),
+            Some(FittedLane::<T>::certified()),
+        )
+        .map(|_| ())
+        .expect_err("an image millimetres off its path refuses");
+        let got = geom_brep::minted_refusal(refused, &Pcurve::General(image), &carrier, &wall);
+        let ending = got.ending(Reading::Build);
+        assert!(
+            matches!(
+                got,
+                PcurveCertifyError::NoGeneralLane {
+                    gap: geom_brep::LaneGap::Image,
+                    ..
+                }
+            ) && ending.contains(geom_core::NOT_YET_ENDING)
+                && !ending.contains("loosen"),
+            "{name}: the lane's gap at {}: {got:?} :: {ending}",
+            T::NAME
+        );
+    }
+}
+
+#[test]
+fn a_refused_bending_image_ends_as_the_lanes_gap_at_f64() {
+    a_refused_bending_image_ends_as_the_lanes_gap::<f64>();
+}
+
+#[test]
+fn a_refused_bending_image_ends_as_the_lanes_gap_at_interval() {
+    a_refused_bending_image_ends_as_the_lanes_gap::<geom_core::interval::Interval>();
+}
+
 /// A height-`z` circle on the quarter-cylinder wall, `t` its angle.
 fn circle(z: f64) -> Curve3<f64> {
     Curve3::circle(

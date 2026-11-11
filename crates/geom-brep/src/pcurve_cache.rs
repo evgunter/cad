@@ -3131,8 +3131,10 @@ pub(crate) fn general_image_lane<T: Decide + geom_core::Bounds + geom_core::Cert
             ending: FittedEnding::FootUnsettled,
         },
         // A bending carrier's image is its lane's own structure, so a fit
-        // that will not solve is the lane's gap; a line's or a spline's
-        // degree-1 fit through distinct feet always solves.
+        // that will not solve is the lane's gap (unhit, not unreachable:
+        // breaks are kept clear of the domain's ends, not of each other);
+        // a line's or a spline's degree-1 fit through distinct feet always
+        // solves.
         P::PcurveFit => certificate(
             crate::edge_nurbs::PCURVE_FIT_REFUSAL,
             if bending {
@@ -9728,8 +9730,11 @@ pub(crate) const IMAGE_LEVER: &str = "the general image of a curved carrier on a
 ///
 /// Every other refusal stays as it is: the deck's placement
 /// (`Placement::turns`) refuses only a poisoned midpoint or one past every
-/// turn an `i32` counts, and the kind and chart refusals are fenced off by
-/// [`projected::has_lane`] before the call.
+/// turn an `i32` counts, and the kind and chart refusals are fenced off
+/// before the call: for the projected image by [`projected::has_lane`],
+/// and for the `General` image by its producer, which images on a spline
+/// chart alone (`general_image_lane`), and by [`minted_refusal`], which
+/// hands this a bending carrier's image alone.
 fn general_lane_refusal<T: Real>(
     refused: PcurveCertifyError,
     lane: LaneImage,

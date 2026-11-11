@@ -441,8 +441,14 @@ fn a_stated_wrong_general_row_keeps_its_term<T: AtRestPolicy + geom_core::Bounds
         };
         assert_eq!(half_edge, bottom, "{rim:?}: the bottom rim's row refuses");
         assert!(
-            !is_the_lanes_gap(&error),
-            "{rim:?}: a stated row keeps its own term, at {}: {error:?}",
+            matches!(
+                error,
+                PcurveCertifyError::FittedLimb {
+                    limb: geom_brep::SsiLimb::HullValueChart,
+                    ..
+                }
+            ) && !is_the_lanes_gap(&error),
+            "{rim:?}: a stated row keeps its own term, the hull's value limb, at {}: {error:?}",
             T::NAME
         );
     }

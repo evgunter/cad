@@ -1658,10 +1658,19 @@ pub mod bounds_allowlist {
     //! by every carrier) puts a closed-form carrier's limb 2 at the rung-3
     //! limb's own bound, so `geom_brep::edge_nurbs`'s `analytic_edge_limbs`
     //! and `geom_brep::pcurve_cache`'s `limb2_offset_sup` ride the
-    //! M6-2/M7-8 entries above with nothing wider. So does
-    //! `geom_brep::edge_nurbs`'s `curved_chart_image`, the pcurve mint's
-    //! image of a bending carrier: `chart_image`'s sibling producer, on the
-    //! same feet and at the same bound, with nothing wider.
+    //! M6-2/M7-8 entries above with nothing wider.
+    //!
+    //! **2026-11 (PR 6532; under the M7-8 / C2 precedent; retroactive Ev
+    //! review) — `geom_brep::edge_nurbs`'s `curved_chart_image`**, the
+    //! pcurve mint's image of a bending carrier, rides at
+    //! `Decide + `[`Bounds`](super::Bounds)` + `[`CertifiedEnclosure`](super::CertifiedEnclosure),
+    //! `chart_image`'s bound and nothing wider. Necessity: its first rung
+    //! IS `chart_image` at that bound, and its rungs and breaks are
+    //! structure read in `f64` (the wall's held knot lines, the miss at
+    //! the scalar's midpoint), which [`Real`](super::Real) offers no read for
+    //! but `Bounds::lo`/`hi`; drop `Bounds` (the next tighter bound) and
+    //! neither the first rung's call nor those reads compile, and dropping
+    //! `CertifiedEnclosure` fails that call likewise.
     //!
     //! **M9-2 PR-1 (under the PR 11 precedent; retroactive Ev review) —
     //! `topo::chart_region`**, the chart-region overlap predicate: it decides
