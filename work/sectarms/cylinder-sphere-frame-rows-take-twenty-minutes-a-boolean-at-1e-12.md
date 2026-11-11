@@ -123,3 +123,12 @@ curve-pair walk's foot search, which samples the whole 6365-span carrier
 at each of 2435 feet a run asks: filed on CPAIR as
 `a-curve-pair-walk-samples-a-whole-spline-carrier-at-every-foot`. The
 other two read each span of the edge once per call.
+
+**Verified** (local, debug, this box about nine times the nightly
+runner's time): every `cylinder_sphere_frame` row passes at the default
+ε (wall 1141 s, four at a time) and at 1e-6 (274 s), and the four rows
+above pass at 1e-12, four at a time: `in_two_loops_turned` 3303 s,
+`wider_than_the_wall` 3546 s, `in_two_loops` 3734 s, `turned_chart`
+3869 s. The nightly's 1e-12 job is the check of record: at this
+branch's per-run cost the four rows sit at or under their `50cfcf499d`
+times.
