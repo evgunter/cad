@@ -1231,7 +1231,7 @@ impl KeyWriter {
                         self.u8(0);
                         self.nurbs3(net);
                     }
-                    FramedCarrier::Circle {
+                    FramedCarrier::Conic {
                         centre,
                         a,
                         b,
