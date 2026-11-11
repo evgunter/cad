@@ -1506,9 +1506,8 @@ fn a_four_and_a_two_crossing_pair_at_the_notchs_corner_build_every_op() {
 /// the notch's vertex is B's and shared; a fan's run there is weighed
 /// against the other pair's cuts, which lie in its first and last
 /// entries. Every op in both orders builds `SOUND`. Red as
-/// `ClassificationInvariant` ("a vertex at a shared point is the In end
-/// of one null edge and the Out end of another") when the run's cuts are
-/// read from the orbit's first entry instead (`insert::held_cut`).
+/// `ClassificationInvariant` when the run's cuts are read from the
+/// orbit's first entry instead (`insert::held_cut`).
 #[test]
 fn a_shared_vertex_fan_reads_its_cuts_from_its_own_first_entry() {
     let mut bad = Vec::new();

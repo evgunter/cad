@@ -2,12 +2,12 @@
 id: shared-vertex-crossings-that-tie-or-interleave-are-unprobed
 kind: issue
 title: "SharedVertexCrossings: a pair paired along its Out arcs, with other pieces on both ways round, has no run; which pairing a shared vertex takes is open"
-status: dispatched
+status: closed
 opened: 2026-10-03
+closed: 2026-11-11
 priority: P1
 cost: M
-design: true
-pr: 6828
+pr: 6832
 ---
 
 
@@ -262,3 +262,38 @@ Three designers (fork-log row 261) were unanimous on their first reports. No rat
 ## Dispatch (the build, 2026-11-11)
 
 GAUGE orchestrator. One implementer in lane `gauge-svc`, branch `gauge/in-arc-pairing`. Review tier: a single full review. The change deletes mechanism more than it adds, and it is measured over the whole battery, the slow sets and the cleave witness. But it moves the pairing of every `∪` and `∖` vertex pair with four or more crossings, so the review carries correctness claims.
+
+## Closed (GAUGE, lane `gauge-svc`, PR 6832, 2026-11-11)
+
+Built as decided. Each crossing pair pairs along the In arcs of its
+lead vertex's link (`insert::in_arc_pairs`, `insert::pairing_leads`),
+and each solid's runs nest as arcs of its own walk
+(`insert::run_holders`). `pairing_start_turns` retired, and the
+insertion reads no op. `setopfinish`'s vertex-set shape check retired;
+`zip::split_cones` reads the cones.
+
+- **Dead arms, measured.** A local probe counted the reconcile's turns,
+  `hang_at_shared`'s re-read holders and its cover arm over the topo
+  and sweep `ci` profiles (372 shared-vertex readings): none fired. The
+  turning loop and `hang_at_shared` are removed. A run at a shared
+  vertex that holds another pair's cut is now a
+  `ClassificationInvariant` (two pieces of one operand overlap), and
+  `SharedVertexCrossings` is left to two runs on one arc whose ends
+  nothing reads apart (`insert::tied_held`), which no pose reaches.
+- **Battery.** `four_pairs_battery`: 5,190 lines `OK SOUND`, 0 `ERR`
+  (main `da005e4b27`: 4,208 `OK SOUND`, 982 `ERR SharedVertexCrossings`).
+  The 4,208 lines that built before have the same faces, edges,
+  vertices, volumes and one-vertex-per-cone findings, line for line.
+- **The cleave witness builds every op**:
+  `three_corners_alternating_round_the_cube_build_every_op`, at
+  `cube ∪ y` = 1.0336378, `cube ∩ y` = 0.0285733, `cube ∖ y` =
+  0.9714267, tier 2, 3′ and the certificate.
+- **Mutants**, each red on that witness: the op-chosen start, the
+  vertex-set check restored, and Out-arc pairing at a shared vertex.
+- **What the old check caught.** It dates from PR5, when the seam
+  correspondence was a function and the zip could not take a vertex
+  with two correspondents; every recorded firing was a refusal the
+  pre-split zip shared (`Euler(SelfLoopEdge)`), and no test pinned it.
+  No case where it stood before a wrong body was found.
+
+Filed: `a-run-only-struts-hold-has-no-pose-past-the-unit-row` (P3).

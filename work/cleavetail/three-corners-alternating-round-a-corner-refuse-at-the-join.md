@@ -2,11 +2,13 @@
 id: three-corners-alternating-round-a-corner-refuse-at-the-join
 kind: issue
 title: Three corners touching at a point whose cuts alternate round another solid's corner refuse JoinDesync or PinchUncrossed in three ops
-status: parked
+status: closed
 opened: 2026-10-03
+closed: 2026-11-11
 priority: P1
 cost: M
-blocked_on: [shared-vertex-crossings-that-tie-or-interleave-are-unprobed]
+pr: 6832
+refs: [shared-vertex-crossings-that-tie-or-interleave-are-unprobed]
 ---
 
 ## What
@@ -83,3 +85,16 @@ start (a local experiment), `cube ∖ y` builds: volume 0.97142669 =
 refuse `JoinDesync { what: "conflicting seam vertex correspondence" }`.
 Which pairing the shared corner should take is now that row's design
 question.
+
+## Closed (GAUGE, lane `gauge-svc`, PR 6832, 2026-11-11)
+
+Every op builds. The band's pair pairs along the cube's arcs inside the
+band, which no other corner's cut lies on
+(`shared-vertex-crossings-that-tie-or-interleave-are-unprobed`, its
+Decided section), and the finish takes the seam correspondence as the
+pair records give it. The pin is renamed and re-pinned to the bodies:
+`three_corners_alternating_round_the_cube_build_every_op`
+(`crates/topo/tests/union_flush_onto_edge_contact.rs`) asserts every op
+builds and passes tier 2, 3′ and the certificate, at `cube ∪ y` =
+1.0336378, `cube ∩ y` = 0.0285733 and `cube ∖ y` = 0.9714267, each op
+alike in both operand orders, and `y ∖ cube + ∩` = `y`.
