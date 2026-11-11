@@ -236,7 +236,8 @@ lines on one line), a cap (a horn whose two edges are the sectors'
 bounds there) or a mouth (the other sector runs on past it). The form
 `q` is read in Bernstein form along `W`: a pinch reads Zero, a cap or
 mouth reads one decided sign `σ` with both planes' parting there
-charged, and the polar value `b₁` reads `σ`. `b₁` may read Zero only
+charged, and the polar value `b₁`, read as the gap it makes along the
+unit middle (`b₁/(1 + cos φ)`), reads `σ`. `b₁` may read Zero only
 with no pinch, or where every pinch is two lines on developable faces
 (tangent along the whole line): beside a curved pinch a zero `b₁`
 leaves the parting to third order, where the faces may meet in a
@@ -253,9 +254,10 @@ shared cusp line); `a_rim_flush_…`'s point is two lunes with mouths
 (`B`'s wall runs on past the rim, `A`'s seam and `B`'s split line two
 lines on the pinch).
 
-**Measured at head `5f1ddd91bb`** (the fix pass, main merged) against
-merge base `b125b84b30`, the same counts as first measured at
-`4a2c743e4e` against `ea1c8517ce`,
+**Measured at head `1785f0d865`** (the second fix pass, main merged)
+against merge base `4d193f273d`, the same counts as at `5f1ddd91bb`
+against `b125b84b30` and as first measured at `4a2c743e4e` against
+`ea1c8517ce`,
 same instrument (key: test, `census::witness`, verdict; topo plus the
 nine sweep families `a_closed_conic_in_the_partners_face`,
 `a_cone_apex_on_a_plane_through_it`, `a_split_through_a_wrap_edges_vertex`,
