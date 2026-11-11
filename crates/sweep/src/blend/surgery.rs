@@ -3437,18 +3437,19 @@ pub(super) fn arc_pieces<T: Decide + Bounds>(t0: T, t1: T) -> Option<Vec<(T, T)>
     let half_turns = 0.5 * (sweep.lo() + sweep.hi()) / core::f64::consts::PI;
     #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
     let k = half_turns.floor().max(0.0) as usize + 1;
-    #[allow(clippy::cast_precision_loss)]
-    let piece = sweep / T::from_f64(k as f64);
+    let count = (0..k).fold(T::zero(), |n, _| n + T::one());
+    let piece = sweep / count;
     if (piece - T::pi()).hi() >= 0.0 {
         return None;
     }
-    #[allow(clippy::cast_precision_loss)]
-    let at = |i: usize| t0 + piece * T::from_f64(i as f64);
-    Some(
-        (0..k)
-            .map(|i| (at(i), if i + 1 == k { t1 } else { at(i + 1) }))
-            .collect(),
-    )
+    let mut pieces = Vec::with_capacity(k);
+    let mut ta = t0;
+    for i in 0..k {
+        let tb = if i + 1 == k { t1 } else { ta + piece };
+        pieces.push((ta, tb));
+        ta = tb;
+    }
+    Some(pieces)
 }
 
 /// **The strip one band takes off one support, as a level function**
@@ -3626,13 +3627,11 @@ impl<T: Decide + Bounds> StripLevel<T> {
                 hi = hi.min(-a / b);
             }
         }
-        // A clip empty only by rounding is the one point where the line
-        // touches the wedge's boundary; one empty by more misses the
-        // wedge, and keeps the whole reading.
-        let slack = 64.0 * f64::EPSILON * (lo.hi().abs().max(hi.hi().abs()) + 1.0);
-        if (lo - hi).lo() > slack {
-            return whole;
-        }
+        // An empty clip is a line that never enters the wedge's inside:
+        // where it only touches the boundary, by rounding, the window
+        // between the two crossings is that point; where it misses the
+        // wedge, the piece is clear whatever that window reads, so a
+        // positive reading there is no false clearance.
         let (lo, hi) = (lo.min(hi), lo.max(hi));
         match self.level_margin(carrier, (lo, hi)) {
             Some((clipped, _)) => whole.max(outside.map_or(clipped, |w| w.max(clipped))),

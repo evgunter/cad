@@ -703,8 +703,8 @@ fn a_kinked_junction_refuses_chain_not_g1() {
     }
 }
 
-/// The certified scalar on the L-plate's run turned off the axes, where
-/// its sections' shared rows do not admit at the tightest ε.
+/// The certified scalar on the L-plate's run turned off the axes, whose
+/// contact edges stall at the tightest ε.
 #[test]
 fn a_turned_l_plates_run_builds_at_interval() {
     let turn = PI / 6.0;
@@ -736,6 +736,20 @@ fn a_turned_l_plates_run_builds_at_interval() {
         iv(0.1),
         (3, 2),
         (-1.0, l_truth(0.1)),
-        assert_shared_row_unadmitted,
+        assert_contact_escalation,
+    );
+}
+
+/// **A turned run's trimline at `Interval` at the tightest ε**: its
+/// contact edge's certificate stalls on the cylinder's rung-3 reading,
+/// enclosing about `[0, 3e-12]` in that band, before any section is read
+/// (`work/band/every-mixed-rims-section-escalates-its-touch-reading-at-interval-at-eps-1e-12.md`).
+fn assert_contact_escalation(what: &str, e: &BlendError) {
+    let text = format!("{e:?}");
+    assert!(
+        text.contains("surgery contact edge")
+            && text.contains("AnalyticRung3")
+            && text.contains("Indeterminate"),
+        "{what}: at Interval at ε 1e-12 a turned run's contact edge stalls, got {e:?}"
     );
 }
