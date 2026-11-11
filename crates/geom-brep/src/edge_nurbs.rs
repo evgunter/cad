@@ -2015,7 +2015,7 @@ pub fn analytic_edge_limbs<T: Decide + Bounds + geom_core::CertifiedEnclosure>(
 /// An end whose enclosure reaches zero and passes ε is only an upper
 /// bound, which says nothing about the input, so the composite's stall
 /// stands.
-fn limb2<T: Decide>(
+pub(crate) fn limb2<T: Decide>(
     carrier: &Curve3<T>,
     params: (T, T),
     operand: &Surface<T>,
@@ -2559,7 +2559,30 @@ impl AnalyticRung3Refusal {
                 operand,
                 why: channel.describe(),
             },
-            _ => Self::NoOffsetBound {
+            // Every other refusal of the composite or its window: listed
+            // whole, so a refusal the reader gains is placed here by name.
+            crate::PcurveCertifyError::UnsupportedChart { .. }
+            | crate::PcurveCertifyError::ImageMismatch { .. }
+            | crate::PcurveCertifyError::Incidence(_)
+            | crate::PcurveCertifyError::NoGeneralLane { .. }
+            | crate::PcurveCertifyError::FittedGradeAtClosedFormDoor { .. }
+            | crate::PcurveCertifyError::FittedLaneUnsupported { .. }
+            | crate::PcurveCertifyError::IsoUnsupported { .. }
+            | crate::PcurveCertifyError::ChartRow { .. }
+            | crate::PcurveCertifyError::FittedLimb { .. }
+            | crate::PcurveCertifyError::FittedCertificate { .. }
+            | crate::PcurveCertifyError::CarrierDomain(_)
+            | crate::PcurveCertifyError::FittedEscalated { .. }
+            | crate::PcurveCertifyError::IntervalNotForward
+            | crate::PcurveCertifyError::ChartWindingUnsupported
+            | crate::PcurveCertifyError::ChannelKindMismatch { .. }
+            | crate::PcurveCertifyError::WindingMismatch { .. }
+            | crate::PcurveCertifyError::PlaceholderChart
+            | crate::PcurveCertifyError::AzimuthPeriodExceeded
+            | crate::PcurveCertifyError::PlacementTurnsExceeded
+            | crate::PcurveCertifyError::TubePeriodExceeded
+            | crate::PcurveCertifyError::ResidualExceeded { .. }
+            | crate::PcurveCertifyError::Band(_) => Self::NoOffsetBound {
                 operand,
                 why: "the operand's canonical implicit form composed along the carrier has no \
                       certified bound",
