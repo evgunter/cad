@@ -367,27 +367,24 @@ columns would carry that growth as well as the two fixes, and separate
 nothing. How many there are now is the census's, under "The census
 today", and is deliberately not written here.
 
-At that cut: the two columns that are pure OPTIMA over the certified
-ellipse — `opt_cells` and `span_opt_cells` — are schedule-INDEPENDENT,
-and they read within 2.2% and 0.7% of the figures below (93,066
-against 95,090; 44,162 against 44,457) — gaps that also carry the
-meter's OWN resolution, since a finer split scan lowers an optimum
-column without a face moving. The two that describe a shipped schedule
-had moved by ~3.4x. What that separates is a change of SIZING RULE
-from everything else: a re-cut driven by corpus growth, or by a
-certificate change, moves the optima too — `a4eb03ae` (CERT-10) moved
-four faces' bounds and shifted both the optima and the built grid —
-while a schedule change moves only the columns a schedule defines. So
-two columns at 1% was evidence that the 64 faces and their
-certificates were still the ones this block was taken over, and that
-whatever moved was a sizing rule. **It is not by itself evidence that
-the sizing rule was TESS-SPAN and TESS-SPLIT rather than an unrecorded
-drift**, because a re-cut taken after a schedule change looks the same
-either way — it is the same event. What settles that is the dated
-record: the model A/B log's TESS-SPLIT row (`git show
-b5075b345e:docs/MODEL-AB-LOG.md`) says *"tour NURBS cells
-163,182 → 46,102"* at the merge, and `46,102` is what the committed file
-read from that cut onwards.
+At that cut, the two columns that are pure OPTIMA over the certified
+ellipse, `opt_cells` and `span_opt_cells`, read within 2.2% and 0.7%
+of the figures below (93,066 against 95,090; 44,162 against 44,457),
+while the two that describe a shipped schedule moved by about 3.4x.
+The optima are schedule-independent, so a change of sizing rule moves
+only the schedule columns. Corpus growth or a certificate change moves
+the optima as well (`a4eb03ae`, CERT-10, moved four faces' bounds and
+shifted both the optima and the built grid), and so does the meter's
+own resolution, since a finer split scan lowers an optimum column
+without a face moving. Two optima within a few percent therefore say
+that the 64 faces and their certificates are still the block's, and
+that what moved was a sizing rule.
+
+That comparison does not say which sizing rule moved, since a re-cut
+after a schedule change and the change itself are one event. The
+merges do: TESS-SPLIT (PR #951) took the tour's NURBS cells from
+163,182 to 46,102, and 46,102 is what the committed file reads from
+that cut on.
 
 **The premise under the tell is what expired, and it is why the
 comparison is pinned rather than re-taken**: the committed file's
