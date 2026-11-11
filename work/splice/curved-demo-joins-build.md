@@ -6,7 +6,7 @@ status: parked
 opened: 2026-11-03
 priority: P0
 cost: C
-blocked_on: [a-torus-wall-trimmed-by-a-spline-rim-has-no-volume-lane, a-nurbs-face-against-a-cone-or-sphere-has-no-section-arm, c5-plane-torus-cone-cylinder-arms, cone-torus-rung-three-arm-waits-on-the-cone]
+blocked_on: [a-nurbs-face-against-a-cone-or-sphere-has-no-section-arm, c5-plane-torus-cone-cylinder-arms, cone-torus-rung-three-arm-waits-on-the-cone]
 ---
 
 
