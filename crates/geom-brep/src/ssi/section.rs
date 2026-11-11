@@ -316,12 +316,22 @@ impl Pieces {
         ratio_hull(self.pieces.iter().map(|(_, hc, wc)| (hc, wc)))
     }
 
-    /// The sign of `φ` along the whole curve ([`refined_sign`]).
+    /// The sign of the stored partner's `φ` along the whole curve
+    /// ([`stored_sign`]).
     fn sign(&self, budget: &mut usize) -> Result<Option<bool>, SignBudget> {
-        refined_sign(
-            self.pieces.iter().map(|(_, hc, _)| hc.clone()).collect(),
+        stored_sign(
+            self.pieces.iter().map(|(_, hc, wc)| (hc, wc)),
+            self.lift(),
             budget,
         )
+    }
+
+    /// The stored partner's `f` less the form's ([`ImplicitForm::lifted`]):
+    /// zero on a plane read by its origin and normal.
+    fn lift(&self) -> Interval {
+        self.scale
+            .as_ref()
+            .map_or(Interval::point(0.0), |s| s.form.lift())
     }
 
     /// Each piece overlapping `[a, b]`, with the overlap.
@@ -495,6 +505,7 @@ impl SectionReader {
     pub(crate) fn stretch(&self, (a, b): (f64, f64)) -> Stretch {
         Stretch {
             pieces: self.pieces.over(a, b),
+            lift: self.pieces.lift(),
         }
     }
 
@@ -509,6 +520,8 @@ impl SectionReader {
 /// over its pieces cut to it ([`SectionReader::stretch`]).
 pub(crate) struct Stretch {
     pieces: Vec<(Vec<Interval>, Vec<Interval>)>,
+    /// The stored partner's `f` less the form's ([`Pieces::lift`]).
+    lift: Interval,
 }
 
 impl Stretch {
@@ -526,11 +539,29 @@ impl Stretch {
     ///
     /// As [`refined_sign`].
     pub(crate) fn sign(&self, budget: &mut usize) -> Result<Option<bool>, SignBudget> {
-        refined_sign(
-            self.pieces.iter().map(|(hc, _)| hc.clone()).collect(),
+        stored_sign(
+            self.pieces.iter().map(|(hc, wc)| (hc, wc)),
+            self.lift,
             budget,
         )
     }
+}
+
+/// **The sign of the stored partner's `φ = h/W + lift`** over pieces
+/// ([`refined_sign`] of `h + lift·W`, `W`'s coefficients positive): the
+/// exact empty answer read on the stored partner, not on the one read
+/// at its pivot ([`ImplicitForm::lifted`]).
+fn stored_sign<'p>(
+    pieces: impl Iterator<Item = (&'p Vec<Interval>, &'p Vec<Interval>)>,
+    lift: Interval,
+    budget: &mut usize,
+) -> Result<Option<bool>, SignBudget> {
+    refined_sign(
+        pieces
+            .map(|(hc, wc)| hc.iter().zip(wc).map(|(&h, &w)| h + lift * w).collect())
+            .collect(),
+        budget,
+    )
 }
 
 /// The hull of a coefficient list.

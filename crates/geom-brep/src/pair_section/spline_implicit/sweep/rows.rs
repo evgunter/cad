@@ -12,7 +12,7 @@ use geom_core::{Band, Point3, Tol, Vec3};
 
 use super::{Declined, Sweep};
 use crate::pair_section::{ChartReach, Components, SectionRead, SsiLane, pair_section};
-use crate::ssi::{ChartAxis, ChartEnd, ChartSide};
+use crate::ssi::{ChartAxis, ChartCorner, ChartEnd, ChartSide};
 
 fn band() -> Band {
     Band::linear(Tol::witness()).expect("the run's tolerance forms a band")
@@ -185,6 +185,10 @@ enum Want {
     /// band, in band where it is short of the escalation, and otherwise
     /// a `Side` region the sweep proves loop-free.
     Rising(f64),
+    /// A plane through the wall's `(u, v)`-low corner alone, the wall
+    /// leaving it inward to one side of the plane: a `Corner` region
+    /// there.
+    Corner,
     /// A wall 1 km out: refused where the lane cannot settle a state well
     /// inside the band there ([`lane_unreadable_at_1_km`]), and otherwise
     /// as the inner answer.
@@ -266,19 +270,14 @@ fn probe_pairs() -> Vec<(String, Surface<f64>, Surface<f64>, Want)> {
         ),
         Want::Reaching,
     ));
-    let flat = || {
-        ruled(
-            &[pt(0.0, 0.0, 0.0), pt(1.0, 0.0, 0.0)],
-            &[pt(0.0, 0.0, 1.0), pt(1.0, 0.0, 1.0)],
-        )
-    };
-    // A plane through one corner only, the wall leaving it inward on
-    // both sides of its height, meets nothing the pass ends a branch at.
+    // A plane through one corner only, the wall leaving it inward to one
+    // side of it: the locus is coincident with the corner, a `Corner`
+    // region, which the plane read at its pivot reads too.
     for (what, n, want) in [
         (
             "a plane touching one corner",
             Vec3::new(1.0, 0.0, 1.0),
-            Want::Apart,
+            Want::Corner,
         ),
         ("the diagonal", Vec3::new(1.0, 0.0, -1.0), Want::Reaching),
         (
@@ -346,6 +345,12 @@ fn answers(got: &Got, want: &Want) -> bool {
     match want {
         Want::Reaching => matches!(got, Got::Reaching(r) if r.any()),
         Want::Apart => *got == Got::Apart,
+        Want::Corner => {
+            *got == Got::Reaching(ChartReach::corner(ChartCorner {
+                u: ChartEnd::Low,
+                v: ChartEnd::Low,
+            }))
+        }
         Want::Graze => *got == Got::Pinched("ssi_boundary_crossing"),
         Want::Rising(s) if *s <= b.zero() => *got == Got::Coincident,
         Want::Rising(s) if *s < b.escalate() => *got == Got::Escalated,
@@ -390,6 +395,97 @@ fn the_probes_pairs_are_classified_in_c5s_order() {
         Got::Reaching(side(ChartAxis::V, ChartEnd::Low)),
         "the near-graze's short arc ends on the bottom side alone"
     );
+}
+
+/// The unit wall `y = 0`, `x, z ∈ [0, 1]`.
+fn flat() -> Surface<f64> {
+    ruled(
+        &[pt(0.0, 0.0, 0.0), pt(1.0, 0.0, 0.0)],
+        &[pt(0.0, 0.0, 1.0), pt(1.0, 0.0, 1.0)],
+    )
+}
+
+/// **A corner touch reads one verdict wherever the plane's origin is
+/// stored.** The plane `x + z = 0` through the wall's corner, stored at
+/// four origins on it: the plane read at its pivot stands a rounding off
+/// the stored one, to the clear side of the corner from some origins and
+/// onto it from others, and the corner reads the stored plane alike.
+/// Red against the corner's exact empty answer read on the plane at its
+/// pivot.
+#[test]
+fn a_corner_touch_reads_alike_wherever_the_planes_origin_is_stored() {
+    let n = Vec3::new(1.0, 0.0, 1.0);
+    let seen: Vec<String> = [
+        pt(0.0, 0.0, 0.0),
+        pt(0.25, 0.0, -0.25),
+        pt(0.0, 0.7, 0.0),
+        pt(3.0, 2.0, -3.0),
+    ]
+    .into_iter()
+    .map(|o| format!("{:?}", got(&plane(o, n), &flat())))
+    .collect();
+    assert!(
+        seen.windows(2).all(|w| w[0] == w[1]),
+        "the verdict moved with the stored origin: {seen:?}"
+    );
+}
+
+/// **The corner's exact empty answer is the stored plane's.** The same
+/// plane moved `10⁻¹⁷` m along `x` either way, far inside the band: the
+/// one clear of the corner meets the wall nowhere, and the one cutting
+/// it is a `Corner` region. The plane read at its pivot stands off both
+/// by more than they stand off each other. Red against the corner's sign
+/// read on the plane at its pivot (both read alike), and against the
+/// stored plane's clear corner read as a region.
+#[test]
+fn the_corners_exact_empty_answer_is_the_stored_planes() {
+    let n = Vec3::new(1.0, 0.0, 1.0);
+    let corner = Got::Reaching(ChartReach::corner(ChartCorner {
+        u: ChartEnd::Low,
+        v: ChartEnd::Low,
+    }));
+    for (dx, want) in [(-1e-17, Got::Apart), (1e-17, corner)] {
+        let p = plane(pt(dx, 0.0, 0.0), n);
+        for (order, got) in [
+            ("plane first", got(&p, &flat())),
+            ("wall first", got(&flat(), &p)),
+        ] {
+            assert_eq!(got, want, "the plane moved {dx:e} m along x, {order}");
+        }
+    }
+}
+
+/// **A side lying in an oblique plane reads its `Side` region wherever
+/// the plane's origin is stored.** The plane of normal `(0, 0.6, 0.8)`
+/// holds the wall's bottom row, the wall rising off it at 0.3 rad, and
+/// its origin is stored `far` along `u_ref`. The plane read at its pivot
+/// stands a rounding off the stored one, which put the row on the clear
+/// side of it at most offsets. Red against the side's sign read on the
+/// plane at its pivot (`Counted([])` from 10 m out). Further out, at a
+/// band the shift outgrows, the side's cover is read on the plane at its
+/// pivot and misses the band
+/// (`work/sectarms/a-wall-row-in-an-oblique-plane-reads-empty-by-where-the-planes-origin-is-stored.md`).
+#[test]
+fn a_side_in_an_oblique_plane_reads_alike_wherever_the_planes_origin_is_stored() {
+    let (n, u) = (Vec3::new(0.0, 0.6, 0.8), Vec3::new(0.0, 0.8, -0.6));
+    let (s, c) = 0.3_f64.sin_cos();
+    let top = |x: f64| pt(x, 0.0, 0.0) + u * c + n * s;
+    let w = ruled(
+        &[pt(0.0, 0.0, 0.0), pt(1.0, 0.0, 0.0)],
+        &[top(0.0), top(1.0)],
+    );
+    for far in [0.0, 1.0, 10.0, 100.0, 1e3, 1e5] {
+        let p = Surface::Plane {
+            origin: Point3::origin() + u * far,
+            normal: n,
+            u_ref: u,
+        };
+        assert_eq!(
+            got(&p, &w),
+            Got::Reaching(side(ChartAxis::V, ChartEnd::Low)),
+            "the origin stored {far:e} m along the plane"
+        );
+    }
 }
 
 /// **A loop inside the rectangle is never proved away.** The dome cut at

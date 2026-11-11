@@ -51,9 +51,10 @@
 //! wall is wherever its origin is stored. The foot is found in `f64`, so
 //! the plane read may stand off the stored one; that shift is certified
 //! and charged: the reading's band is padded by it, and the witness's
-//! bracket reads the stored plane's height. Charged, the shift still
-//! moves a reading at the band's edge: where the origin is stored can
-//! decide a pose there
+//! bracket and the boundary pass's exact empty answers (a corner or a
+//! side clear of the plane by its distance's sign) read the stored
+//! plane's height. Charged, the shift still moves a reading at the
+//! band's edge: where the origin is stored can decide a pose there
 //! (`work/sectarms/a-plane-at-the-bands-edge-reads-by-where-its-origin-is-stored.md`). Each piece of the section is a component:
 //!
 //! - a closed branch is a [`ComponentShape::Loop`], with its witness;
@@ -369,9 +370,11 @@ impl SplineImplicitPose<f64> {
     /// wherever the plane's stored origin lies (as an angular datum is
     /// read at its pivot, `section_cert`'s lever and pivot). The foot is
     /// found in `f64`, so the plane read stands off the stored one by up
-    /// to [`Pivot::shift`], which the reading's band and the witness's
-    /// bracket are charged. A plane pose's alone: the classification
-    /// reads it only where the partner is a plane.
+    /// to [`Pivot::shift`], which the reading's band is charged; the
+    /// witness's bracket and the pass's exact empty answers read the
+    /// stored plane through the foot's height over it. A plane pose's
+    /// alone: the classification reads it only where the partner is a
+    /// plane.
     fn pivot(&self) -> Pivot {
         let Surface::Plane {
             origin,
@@ -381,13 +384,9 @@ impl SplineImplicitPose<f64> {
         else {
             unreachable!("the pose holds a plane")
         };
-        // The foot on the unit normal, kept inline until the corner-touch
-        // verdict stops moving with the pivot's last bit
-        // (`a-corner-touch-verdict-moves-with-the-planes-stored-origin`);
-        // then it is `Frame::foot`.
-        let n = normal.normalize();
-        let c = self.ball().center();
-        let foot = c - n * (c - origin).dot(n);
+        let Some(foot) = self.partner.foot(self.ball().center()) else {
+            unreachable!("a plane's foot is in closed form")
+        };
         let (a, o, m) = (
             foot.map(Interval::from_certified),
             origin.map(Interval::from_certified),
@@ -395,6 +394,7 @@ impl SplineImplicitPose<f64> {
         );
         let lift = (a.x - o.x) * m.x + (a.y - o.y) * m.y + (a.z - o.z) * m.z;
         let norm = (m.x.powi(2) + m.y.powi(2) + m.z.powi(2)).sqrt();
+        let stored = lift / norm;
         Pivot {
             plane: Surface::Plane {
                 origin: foot,
@@ -406,7 +406,8 @@ impl SplineImplicitPose<f64> {
                 normal,
                 lift,
             },
-            shift: (lift.abs() / norm).hi(),
+            stored,
+            shift: stored.abs().hi(),
         }
     }
 
@@ -429,6 +430,9 @@ struct Pivot {
     plane: Surface<f64>,
     /// The stored plane's heights, read from the foot.
     heights: Heights,
+    /// The foot's certified height over the stored plane along its unit
+    /// normal: the stored plane's `φ` less the read plane's.
+    stored: Interval,
     /// How far the plane read may stand off the stored one, in metres:
     /// the foot's certified height over the stored plane. Every distance
     /// to the plane moves by at most this, so the reading's band is
@@ -437,6 +441,26 @@ struct Pivot {
 }
 
 impl Pivot {
+    /// **The section read at the pivot**, at the padded band
+    /// ([`Pivot::band`]), its exact empty answers the stored plane's
+    /// ([`crate::ImplicitSection::lifted`]): where the stored origin lies
+    /// moves no corner or side the stored plane passes through to the
+    /// clear side.
+    ///
+    /// # Errors
+    ///
+    /// [`Pivot::band`]'s, and the reading's, mapped.
+    fn reading<'a>(
+        &'a self,
+        pose: &'a SplineImplicitPose<f64>,
+        band: Band,
+    ) -> Result<(crate::ImplicitSection<'a>, Band), SectionError> {
+        let read_band = self.band(band)?;
+        let reading = crate::ImplicitSection::of(&self.plane, pose.net(), pose.domain(), read_band)
+            .map_err(super::whole_reading_refused)?;
+        Ok((reading.lifted(self.stored), read_band))
+    }
+
     /// The reading's band: `band` padded by the shift.
     ///
     /// # Errors
@@ -706,9 +730,7 @@ pub(super) fn section(
         return curved::section(pose, band);
     }
     let pivot = pose.pivot();
-    let read_band = pivot.band(band)?;
-    let reading = crate::ImplicitSection::of(&pivot.plane, pose.net(), pose.domain(), read_band)
-        .map_err(super::whole_reading_refused)?;
+    let (reading, read_band) = pivot.reading(&pose, band)?;
     let (reach, pass) = {
         let pass = reading.pass().map_err(super::whole_reading_refused)?;
         let reach = pass
@@ -833,9 +855,7 @@ pub(super) fn whole(
         return curved::whole(pose, band);
     }
     let pivot = pose.pivot();
-    let read_band = pivot.band(band)?;
-    let reading = crate::ImplicitSection::of(&pivot.plane, pose.net(), pose.domain(), read_band)
-        .map_err(super::whole_reading_refused)?;
+    let (reading, _) = pivot.reading(pose, band)?;
     let reading = match &pose.pass {
         Some(carried) => reading
             .with_pass((&carried.0, BoundaryPass::clone(&carried.1)))

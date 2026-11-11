@@ -53,6 +53,9 @@ pub(crate) struct ImplicitForm {
     /// orthogonal to the axis, `e₁ = e₂ × e₀`, `e₂` the axis.
     frame: [Vec3<Interval>; 3],
     form: Form,
+    /// The stored surface's `f` at the frame's origin: zero, except on a
+    /// plane read at a pivot ([`ImplicitForm::lifted`]).
+    lift: Interval,
 }
 
 /// **The four forms**, their scalars as certification enclosures: the
@@ -187,7 +190,29 @@ impl ImplicitForm {
             origin: vector(Vec3::new(origin.x, origin.y, origin.z)),
             frame,
             form,
+            lift: Interval::point(0.0),
         })
+    }
+
+    /// **The plane read at a pivot, its stored plane's height kept**: the
+    /// same form, with `lift` the stored plane's height of this one's
+    /// origin, so that `f + lift` is the stored plane's `f`. A decision
+    /// on `φ`'s exact sign, the exact empty answer, reads the stored plane
+    /// through it ([`ImplicitForm::stored`]); a distance read against the
+    /// band reads this one, its band padded by the shift.
+    pub(crate) fn lifted(self, lift: Interval) -> Self {
+        Self { lift, ..self }
+    }
+
+    /// The stored surface's `f`, from this form's `f`, an enclosure
+    /// whose exact sign a decision reads ([`ImplicitForm::lifted`]).
+    pub(crate) fn stored(&self, f: Interval) -> Interval {
+        f + self.lift
+    }
+
+    /// `lift` ([`ImplicitForm::lifted`]).
+    pub(crate) fn lift(&self) -> Interval {
+        self.lift
     }
 
     /// The form.
