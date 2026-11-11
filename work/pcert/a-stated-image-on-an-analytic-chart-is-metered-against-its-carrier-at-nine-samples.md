@@ -2,10 +2,12 @@
 id: a-stated-image-on-an-analytic-chart-is-metered-against-its-carrier-at-nine-samples
 kind: issue
 title: A stated chart image on an analytic chart is metered against its carrier at the nine samples, so a net on its plane that leaves its image between them gets an edge certificate
-status: open
+status: closed
 opened: 2026-11-11
 priority: P1
 cost: M
+pr: 6836
+closed: 2026-11-11
 ---
 
 

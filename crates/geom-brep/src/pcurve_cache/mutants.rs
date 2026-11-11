@@ -24,7 +24,7 @@ const NAME: Option<&str> = option_env!("PCERT_RADIAL_PAIR_MUTANT");
 
 /// Every site this crate's hooks name. topo's `chord_join` declares its
 /// own one (`topo-v-var`) under the same variable.
-pub(super) const SITES: [&str; 43] = [
+pub(super) const SITES: [&str; 44] = [
     "class-circle",
     "zero-winding",
     "torus-parallel",
@@ -68,6 +68,7 @@ pub(super) const SITES: [&str; 43] = [
     "stated-image-sampled",
     "net-bound-sampled",
     "general-image-class-gate",
+    "analytic-image-sampled",
 ];
 
 fn on(site: &str) -> bool {
@@ -331,6 +332,13 @@ pub(crate) fn stated_image_sampled() -> bool {
 /// `pcurve_cache::analytic_net_rows`).
 pub(super) fn net_bound_sampled() -> bool {
     on("net-bound-sampled")
+}
+
+/// The edge certificate's stated chart image on an analytic chart
+/// metered at its schedule's samples again, whatever its class (its
+/// rows are `pcurve_cache::analytic_image_rows`).
+pub(crate) fn analytic_image_sampled() -> bool {
+    on("analytic-image-sampled")
 }
 
 /// A lane choice's envelope refusal left as the envelope's own (a bound

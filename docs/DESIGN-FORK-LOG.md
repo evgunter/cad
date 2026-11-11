@@ -9,6 +9,21 @@ force lives in `docs/DESIGN-FORK-PROTOCOL.md`.** This log holds the
 rows; each names the protocol it was recorded under by commit hash,
 so `git show <hash>:docs/DESIGN-FORK-PROTOCOL.md` reads that version.
 
+**Instrument note (Ev, in-chat, 2026-11-10): FABLE 5.2 RELEASE
+BOUNDARY.** Fable 5.2 released 2026-11-09. Every row's Fable designer
+before the mark was Fable 5.1; the exact identity (5.1 vs 5.2) of a
+Fable designer dispatched near it is NOT KNOWN unless the row records
+it, and rows recorded from 2026-11-10 on record it (the protocol's
+model-version rule). Any analysis of this log must keep Fable rows
+clearly after the mark SEPARATE from those before, report the eras
+apart, and say so; a fork whose Fable designer (or a further Fable
+designer of its reconciliation) ran across 2026-11-09 SPANS it. Rows
+near the mark, as on main when this note was written: rows 256
+(dated 2026-11-09) and 258 (dated 2026-11-10) are NEAR/SPANNING until
+their analysis-branch records name the version; rows dated
+2026-11-08 and earlier are before. The Opus designers are Opus 5.5
+throughout (the log opened after the 2026-09-22 Opus 5.5 release).
+
 ## Rows
 
 Columns: **protocol** (commit hash of the protocol in force when the
