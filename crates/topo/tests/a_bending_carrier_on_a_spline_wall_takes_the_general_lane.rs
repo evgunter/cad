@@ -380,8 +380,8 @@ fn a_stored_row_off_its_wall_keeps_its_term_at_interval() {
 ///
 /// - **At a build**: wrong by `1e-4` m in `v` at one control point whose
 ///   basis vanishes at every sample of check 3, the edge door certifies
-///   it over its span and refuses it as the description's own image,
-///   `ChartImageUnavailable`, before it is stored.
+///   it over its span and refuses it as the stated image's miss,
+///   `CertCheck::StatedImage`, in its lever, before it is stored.
 /// - **At rest**: the true row, stated and certified, then its wall
 ///   re-parametrized under it ([`ring_split_at`]), so the carrier still
 ///   lies on the wall and the row maps it elsewhere. The mint reads the
@@ -465,21 +465,26 @@ fn a_stated_wrong_general_row_keeps_its_term<T: AtRestPolicy + geom_core::Bounds
                 T::NAME
             )
         };
-        assert_eq!(
-            *error,
-            geom_brep::CertifyError::ChartImageUnavailable {
-                chart: geom::SurfaceKind::Nurbs,
-                carrier: *carrier,
-            },
-            "{rim:?}: a stated row is refused as its own image, at {}",
+        assert!(
+            matches!(
+                error,
+                geom_brep::CertifyError::ResidualExceeded {
+                    check: geom_brep::CertCheck::StatedImage,
+                    ..
+                }
+            ),
+            "{rim:?} ({carrier:?}): a stated row is refused as its own image's miss, at {}: \
+             {error:?}",
             T::NAME
         );
         let ending = error
             .ending(geom_brep::recourse::Reading::Build)
             .expect("the image's refusal is decided");
         assert!(
-            !ending.contains(geom_core::NOT_YET_ENDING),
-            "{rim:?}: the stated row's refusal is not the lane's gap, at {}: {ending}",
+            !ending.contains(geom_core::NOT_YET_ENDING)
+                && ending.contains("so the chart image this edge states follows its carrier"),
+            "{rim:?}: the stated row's refusal is its own lever, not the lane's gap, at {}: \
+             {ending}",
             T::NAME
         );
 
