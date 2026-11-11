@@ -66,8 +66,8 @@ bound nothing between samples where this row's read does not:
 
 - `certify.rs` `run_checks`, the `Resolved::Chart` arm on an analytic
   chart, a derived image or a stated one: `pcurve_map_residual` at the
-  nine `CERT_SAMPLES`, after the read (`stated_door`). A stated image
-  there is not routed through `PcurveCache::certify_stated` as on a spline
+  nine `CERT_SAMPLES`, after the read (`stated_analytic_read`). A stated image
+  there is not routed through `PcurveCache::certify_stated_image` as on a spline
   chart: the stated images producers hand an analytic chart (an iso line
   on a plane, a harmonic image restated on a reverted or mirrored chart, a
   restriction placed in another window) are not all ones a pcurve door
@@ -79,12 +79,15 @@ bound nothing between samples where this row's read does not:
   residual bounds the carrier between samples. The pcurve certificate the
   mint stores (`PcurveCache::certify`) carries an envelope, but the edge
   certificate is issued before it, and pncad re-exports
-  `geom_brep::EdgeCurve::certify`.
+  `geom_brep::EdgeCurve::certify`. For a spline net stated on a plane, a
+  cylinder or a cone this is witnessed, a 1 mm miss certified, and filed
+  at P1: `a-net-carrier-stated-on-an-analytic-chart-is-certified-by-a-sampled-meter`.
 - `run_checks`, the `Resolved::OnPair` arm on two analytic surfaces:
   `carrier_on_surface_1`/`_2` implicit residuals at the nine samples and
-  nothing over the span (a spline carrier is refused there). A line on a
-  plane is linear and the ends bound it; the conic rows of the table
-  apply to the rest.
+  nothing over the span (a spline carrier is refused there). A `Line`
+  carrier on a plane is linear and the ends bound it; the conic rows of
+  the table apply to the rest. (A spline net on a plane is not linear in
+  this sense: it is the P1 row above, on the `Chart` arm.)
 
 The fix this row names (a read that is a supremum) closes both, since
 the derived image is the foot image of a carrier the read shows on.

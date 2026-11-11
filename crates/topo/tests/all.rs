@@ -63,12 +63,14 @@ use topo::test_support as common;
 mod fixture;
 mod probe_support;
 
+#[path = "a_bending_carrier_on_a_spline_wall_takes_the_general_lane.rs"]
+mod a_bending_carrier_on_a_spline_wall_takes_the_general_lane;
 #[path = "a_block_resting_in_the_zero_band_unions.rs"]
 mod a_block_resting_in_the_zero_band_unions;
 #[path = "a_callers_interval_is_refused_at_its_door.rs"]
 mod a_callers_interval_is_refused_at_its_door;
-#[path = "a_circle_not_shown_on_a_spline_row_refuses_alike_in_every_form.rs"]
-mod a_circle_not_shown_on_a_spline_row_refuses_alike_in_every_form;
+#[path = "a_circle_no_row_holds_ends_alike_in_every_form.rs"]
+mod a_circle_no_row_holds_ends_alike_in_every_form;
 #[path = "a_corner_reads_only_its_own_sectors.rs"]
 mod a_corner_reads_only_its_own_sectors;
 #[path = "a_corrupted_row_is_never_read_as_its_carrier_off_the_face.rs"]

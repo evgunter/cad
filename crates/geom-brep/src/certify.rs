@@ -907,6 +907,19 @@ impl core::fmt::Display for CertifyError {
                 chart.name(),
                 crate::pcurve_cache::ENVELOPE_LEVER,
             ),
+            Self::NoGeneralLane {
+                chart,
+                carrier,
+                gap: crate::LaneGap::Image,
+            } => write!(
+                f,
+                "a conventional description's {} carrier is on its {} chart but is none of \
+                 the chart's own curves, and its general image on that chart does not yet \
+                 follow it over this edge. Recourse: {}",
+                carrier.name(),
+                chart.name(),
+                crate::pcurve_cache::IMAGE_LEVER,
+            ),
             Self::Incidence(refusal) => refusal.write_at::<CertCheck>(f),
             Self::Unimplemented => write!(
                 f,
@@ -1127,7 +1140,7 @@ impl CertifyError {
                 ..
             } => (CertCheck::ChartClass, RefusedArm::SignCertain(None)),
             Self::NoGeneralLane {
-                gap: crate::LaneGap::Pose { .. } | crate::LaneGap::Envelope,
+                gap: crate::LaneGap::Pose { .. } | crate::LaneGap::Envelope | crate::LaneGap::Image,
                 ..
             } => (CertCheck::GeneralLane, RefusedArm::SignCertain(None)),
             Self::Incidence(refusal) => (CertCheck::ChartIncidence, refusal.arm()),
@@ -2367,7 +2380,7 @@ impl<T: Decide + geom_core::CertifiedBounds> EdgeCurve<T> {
     ///    - `Chart`: `|C(t_i) − S(P(t_i))|`, but for a stated image on a
     ///      spline chart, which is bounded over the whole span before the
     ///      schedule, through its pcurve certificate's door
-    ///      ([`crate::PcurveCache::certify_stated`]), whose envelope is a
+    ///      ([`crate::PcurveCache::certify_stated_image`]), whose envelope is a
     ///      sup, and its refusal ends by the carrier's incidence read.
     /// 5. `Intersection`: the witness's implicit residuals vs both
     ///    surfaces, then the **mid-parameter pin**
@@ -4271,7 +4284,7 @@ fn canonical_of<T: Decide>(
                 // which is what makes description and cache the same
                 // object.
                 // Whether the carrier lies on the chart is read by the
-                // door that holds this (`stated_door`).
+                // door that holds this (`StatedChart`).
                 Some(p) => p.clone(),
                 // D4, the minted half: an analytic chart's image is
                 // derived from the carrier through the one door that
@@ -4294,71 +4307,57 @@ fn canonical_of<T: Decide>(
     })
 }
 
-/// **The mint's stated chart image, ended by the carrier's incidence
-/// read** (D3, `pcurve_cache::incidence_ended_unwitnessed`): `door` is the
-/// mint's canonical description, or nothing at the certification, and a
-/// spec that states no chart image runs it as it stands. So a carrier off
-/// its analytic face ends as the read ([`mint_refusal`]); on a spline
-/// chart the certification bounds a stated image over its span
-/// ([`stated_bound`]).
-fn stated_door<T: Decide, R>(
-    spec: &EdgeCurveSpec<T>,
-    resolved: &Resolved<T>,
-    band: Band,
-    door: impl FnOnce() -> Result<R, CertifyError>,
-) -> Result<R, CertifyError> {
-    let Resolved::Chart {
-        surface,
-        image: Some(_),
-        ..
-    } = resolved
-    else {
-        return door();
-    };
-    let span = (spec.param_start, spec.param_end);
-    crate::pcurve_cache::incidence_ended_unwitnessed(
-        &spec.carrier,
-        span,
-        span,
-        surface,
-        band,
-        |e| mint_refusal(e, surface, &spec.carrier),
-        door,
-    )
+/// **Where a description states its chart image**, decided once: on a
+/// spline chart, which the certification bounds over the span
+/// ([`stated_bound`]); on an analytic chart, whose carrier is read first
+/// ([`stated_analytic_read`]); or not at all (a derived image, or any
+/// other description).
+enum StatedChart<'a, T: Real> {
+    Spline(&'a Surface<T>, &'a Pcurve<T>),
+    Analytic(&'a Surface<T>),
+    None,
+}
+
+impl<'a, T: Real> StatedChart<'a, T> {
+    fn of(resolved: &'a Resolved<T>) -> Self {
+        let Resolved::Chart {
+            surface,
+            image: Some(image),
+            ..
+        } = resolved
+        else {
+            return Self::None;
+        };
+        if surface.spline_chart().is_none() {
+            return Self::Analytic(surface);
+        }
+        #[cfg(test)]
+        if crate::pcurve_cache::mutants::stated_image_sampled() {
+            return Self::None;
+        }
+        Self::Spline(surface, image)
+    }
 }
 
 /// **A stated chart image's bound over the span on a spline chart** (D4
 /// ¶2): the image a construction states is certified through its pcurve
-/// certificate's door ([`crate::PcurveCache::certify_stated`], the
+/// certificate's door ([`crate::PcurveCache::certify_stated_image`], the
 /// mint's), whose envelope bounds `|C(t) − S(P(t))|` over the whole span,
 /// so a carrier off its wall between any samples does not certify. A
 /// refusal is ended by the carrier's incidence read there, and carried
-/// into this door's vocabulary by [`mint_refusal`]. `None` for any other
-/// description, and on an analytic chart, whose stated image is read
-/// first ([`stated_door`]) and metered at the schedule
-/// (`work/pcert/a-closed-conics-and-a-spline-nets-incidence-on-an-analytic-chart-is-sampled.md`).
+/// into this door's vocabulary by [`mint_refusal`].
+///
+/// `fitted` is the certifying scalar's fitted door. [`crate::FittedLane`]
+/// has the one constructor, so it is the door the mint takes through the
+/// scalar's `AtRestPolicy::fitted_lane` too, and both certify one image
+/// alike.
 fn stated_bound<T: Decide>(
     spec: &EdgeCurveSpec<T>,
-    resolved: &Resolved<T>,
+    (surface, image): (&Surface<T>, &Pcurve<T>),
     band: Band,
     fitted: crate::FittedLane<T>,
-) -> Result<Option<T>, CertifyError> {
-    let Resolved::Chart {
-        surface,
-        image: Some(image),
-        ..
-    } = resolved
-    else {
-        return Ok(None);
-    };
-    if surface.spline_chart().is_none() {
-        return Ok(None);
-    }
-    #[cfg(test)]
-    if crate::pcurve_cache::mutants::stated_image_sampled() {
-        return Ok(None);
-    }
-    let cache = crate::PcurveCache::certify_stated(
+) -> Result<T, CertifyError> {
+    let cache = crate::PcurveCache::certify_stated_image(
         image,
         (spec.param_start, spec.param_end),
         &spec.carrier,
@@ -4368,7 +4367,27 @@ fn stated_bound<T: Decide>(
     )
     .map_err(|e| mint_refusal(e, surface, &spec.carrier))?;
     let c = cache.certificate();
-    Ok(Some(c.max_residual.max(c.envelope)))
+    Ok(c.max_residual.max(c.envelope))
+}
+
+/// **A stated chart image's read on an analytic chart** (D3): the
+/// carrier's incidence read over the span, before the image is used, so
+/// a carrier shown off its face ends as the read ([`mint_refusal`]). How
+/// much of the span the read bounds is its class's
+/// (`work/pcert/a-closed-conics-and-a-spline-nets-incidence-on-an-analytic-chart-is-sampled.md`).
+fn stated_analytic_read<T: Decide>(
+    spec: &EdgeCurveSpec<T>,
+    surface: &Surface<T>,
+    band: Band,
+) -> Result<(), CertifyError> {
+    crate::read_incidence(
+        &spec.carrier,
+        spec.param_start,
+        spec.param_end,
+        surface,
+        band,
+    )
+    .map_err(|e| mint_refusal(e, surface, &spec.carrier))
 }
 
 /// **A chart image's refusal, as the edge certificate's**: an incidence
@@ -4483,9 +4502,10 @@ fn mint_checks<T: Decide>(
 ) -> Result<(EdgeDescription<T>, Option<CertifiedTurn<T>>), CertifyError> {
     let resolved = resolve_spec(spec, surfaces)?;
     let turn = decide_turn(spec, band)?;
-    let canonical = stated_door(spec, &resolved, band, || {
-        canonical_of(spec, &resolved, band)
-    })?;
+    if let StatedChart::Analytic(surface) = StatedChart::of(&resolved) {
+        stated_analytic_read(spec, surface, band)?;
+    }
+    let canonical = canonical_of(spec, &resolved, band)?;
     Ok((canonical, turn))
 }
 
@@ -4535,11 +4555,16 @@ fn run_checks<T: Decide + geom_core::CertifiedBounds>(
     // analytic chart or bound over the span on a spline chart, the
     // description's sampled checks and C2's limbs.
     let resolved = &resolved;
-    stated_door(spec, resolved, band, || Ok(()))?;
-    let canonical = canonical_of(spec, resolved, band)?;
-    if let Some(bound) = stated_bound(spec, resolved, band, crate::FittedLane::certified())? {
-        max_residual = max_residual.max(bound);
+    let chart_stated = StatedChart::of(resolved);
+    match chart_stated {
+        StatedChart::Spline(surface, image) => {
+            let bound = stated_bound(spec, (surface, image), band, crate::FittedLane::certified())?;
+            max_residual = max_residual.max(bound);
+        }
+        StatedChart::Analytic(surface) => stated_analytic_read(spec, surface, band)?,
+        StatedChart::None => {}
     }
+    let canonical = canonical_of(spec, resolved, band)?;
 
     // ---- Check 4: per-sample description residuals. ----
     // Jet-schedule accumulators (TangentIntersection only): the worst
@@ -4787,10 +4812,7 @@ fn run_checks<T: Decide + geom_core::CertifiedBounds>(
             // sphere's and a small-radius cylinder's read within bits
             // of the implicit form (`tests/r2_probes.rs`).
             Resolved::Chart {
-                surface,
-                declared,
-                image,
-                ..
+                surface, declared, ..
             } => {
                 let Some(chart) = canonical.chart() else {
                     return Err(CertifyError::Unimplemented);
@@ -4798,13 +4820,7 @@ fn run_checks<T: Decide + geom_core::CertifiedBounds>(
                 let p = spec.carrier.eval(t);
                 // A stated image on a spline chart is bounded over
                 // the span above (`stated_bound`).
-                #[cfg(test)]
-                let image = if crate::pcurve_cache::mutants::stated_image_sampled() {
-                    &None
-                } else {
-                    image
-                };
-                if image.is_none() || surface.spline_chart().is_none() {
+                if !matches!(chart_stated, StatedChart::Spline(..)) {
                     let q = chart.pcurve.eval(t);
                     check_residual(
                         "pcurve_map_residual",

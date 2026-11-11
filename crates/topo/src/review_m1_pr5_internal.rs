@@ -358,7 +358,7 @@ pub(crate) const ALLOWED: &[(&str, &str)] = &[
     // tier-1 postcondition themselves (`mvfs`, `mev`, `mef`, which are
     // therefore not on this list and cannot be) OR appear on it below
     // for writing fields tier 1 does not constrain — with one
-    // exception, the raw `add_surface` in `cyl_wall_sheet_keyed`,
+    // exception, the raw `add_surface` in `cyl_wall_sheet_tilted`,
     // which that entry carries itself. No one half is true of every
     // entry, and an entry names the doors it composes so a reader can
     // check which half each one lands in. ----
@@ -396,6 +396,10 @@ pub(crate) const ALLOWED: &[(&str, &str)] = &[
     ),
     (
         "cyl_wall_sheet_keyed",
+        "calls `cyl_wall_sheet_tilted` at tilt 0, one entry down, whose argument it is",
+    ),
+    (
+        "cyl_wall_sheet_tilted",
         "grows a cylinder-wall sheet through `mvfs`, `mev`, `mev_line` and `mef` \
          (asserting) and places the cylinder key through `set_face_surface`, on this list \
          below for writing fields tier 1 does not constrain. Its rim planes go in through `add_surface`, which is on \
@@ -407,8 +411,8 @@ pub(crate) const ALLOWED: &[(&str, &str)] = &[
     (
         "cyl_wall_sheet",
         "fixes `cyl_wall_sheet_keyed`'s key placement and then calls `mint_pcurves`, \
-         which does not assert and is on this list below. The Euler sequence is the keyed \
-         door's and so is the argument for it, one entry up",
+         which does not assert and is on this list below. The Euler sequence is \
+         `cyl_wall_sheet_tilted`'s and so is the argument for it, two entries up",
     ),
     // ---- Writes fields tier 1 does not constrain. ----
     (

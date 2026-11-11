@@ -1616,7 +1616,7 @@ pub trait Construct<T: geom_core::Real> {
     /// mint's row, byte for byte); a fitted or general row, which has
     /// no angular placement, is the parent's restricted to the
     /// sub-interval. Either is certified through the door that states
-    /// it (`PcurveCache::certify_stated`: `PcurveCache::certify` for an exact row,
+    /// it (`PcurveCache::certify_stated_image`: `PcurveCache::certify` for an exact row,
     /// `certify_projected`, `certify_fitted` or `certify_general` for
     /// the rest, the last three through the scalar's
     /// [`crate::AtRestPolicy::fitted_lane`]). Both children are

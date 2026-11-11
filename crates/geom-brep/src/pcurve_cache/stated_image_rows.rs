@@ -252,6 +252,10 @@ fn read(got: &Result<(), CertifyError>) -> Option<IncidenceRead> {
     got.as_ref().err().and_then(CertifyError::incidence_read)
 }
 
+fn is_lever(got: &Result<(), CertifyError>) -> bool {
+    matches!(read(got), Some(IncidenceRead::Undecided(_)))
+}
+
 fn is_off(got: &Result<(), CertifyError>) -> bool {
     matches!(read(got), Some(IncidenceRead::Off(_)))
 }
@@ -285,22 +289,32 @@ fn r2_a_bump_between_the_samples_ends_off_at_interval() {
 /// read off. Neither certifies.
 fn toward_the_band<T: Decide>(edge: Edge<T>) {
     let b = band();
-    for (height, want_off) in [(in_band(), false), (4.0 * b.escalate(), true)] {
-        let bump = Bump { height, ..Bump::R2 };
-        let got = edge(Wall::Ring, bump.carrier(Wall::Ring), Stated::General);
-        let ok = if want_off {
-            is_off(&got)
-        } else {
-            matches!(read(&got), Some(IncidenceRead::Undecided(_)))
-        };
-        assert!(
-            ok,
-            "a bump {height:e} off the wall (band {:e}..{:e}), at {}: {got:?}",
-            b.zero(),
-            b.escalate(),
-            T::NAME
-        );
+    let mut misread = Vec::new();
+    for wall in [Wall::Ring, Wall::Parabola] {
+        for stated in [Stated::Iso, Stated::General] {
+            for (height, want_off) in [(in_band(), false), (4.0 * b.escalate(), true)] {
+                let bump = Bump { height, ..Bump::R2 };
+                let got = edge(wall, bump.carrier(wall), stated);
+                let ok = if want_off {
+                    is_off(&got)
+                } else {
+                    is_lever(&got)
+                };
+                if !ok {
+                    misread.push(format!("{wall:?} {stated:?} bump {height:e}: {got:?}"));
+                }
+            }
+        }
     }
+    assert!(
+        misread.is_empty(),
+        "a bump in band of the wall ends in the lever and one past it ends off (band \
+         {:e}..{:e}), at {}:\n{}",
+        b.zero(),
+        b.escalate(),
+        T::NAME,
+        misread.join("\n")
+    );
 }
 
 #[test]
@@ -360,9 +374,10 @@ fn a_carrier_on_its_wall_certifies_at_interval() {
 
 /// **Counterexample search** (shape 1): bumps of every degree, place and
 /// width on both walls, checked against the oracle's distance. A bump the
-/// oracle puts past the band never certifies, and one ten times past it
-/// ends read off; a flat one (height zero) never reads off. Every height
-/// is the band's, so the row reads alike at every ε.
+/// oracle puts past the band never certifies, one ten times past it ends
+/// read off, and one in band of the wall ends in the read's lever; a flat
+/// one (height zero) never reads off. Every height is the band's, so the
+/// row reads alike at every ε, and either stated image is drawn.
 #[test]
 fn no_bump_certifies_past_the_band() {
     let b = band();
@@ -381,22 +396,42 @@ fn no_bump_certifies_past_the_band() {
             width,
             height: [0.0, 1e3, 30.0, 4.0][rng.below(4)] * b.escalate(),
         };
+        // One draw in five is in band of the wall: half way across it.
+        let bump = if rng.below(5) == 0 {
+            Bump {
+                height: in_band(),
+                ..bump
+            }
+        } else {
+            bump
+        };
         let miss = bump.miss(wall);
-        let got = edge_f64(wall, bump.carrier(wall), Stated::General);
+        let stated = if rng.below(2) == 0 {
+            Stated::Iso
+        } else {
+            Stated::General
+        };
+        let got = edge_f64(wall, bump.carrier(wall), stated);
+        let in_band = miss > 1.2 * b.zero() && miss < 0.8 * b.escalate();
         let wrong = if bump.height == 0.0 {
             is_off(&got)
         } else if miss > 10.0 * b.escalate() {
             !is_off(&got)
+        } else if in_band {
+            !is_lever(&got)
         } else {
             miss > b.escalate() && got.is_ok()
         };
         if wrong {
-            bad.push(format!("{wall:?} {bump:?} (oracle miss {miss:e}): {got:?}"));
+            bad.push(format!(
+                "{wall:?} {stated:?} {bump:?} (oracle miss {miss:e}): {got:?}"
+            ));
         }
     }
     assert!(
         bad.is_empty(),
-        "a bump past the band certified, or a flat carrier read off ({}):\n{}",
+        "a bump past the band certified or did not end off, one in band lost its lever, or a \
+         flat carrier read off ({}):\n{}",
         test_utils::fuzz::replay(),
         bad.join("\n")
     );
