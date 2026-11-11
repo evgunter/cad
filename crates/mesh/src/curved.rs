@@ -248,18 +248,19 @@ pub(crate) fn tessellate_curved(
     require_swept_rectangle(fk, &polygon, &levers, (u0, u1, v0, v1), tol.eps)?;
 
     // S10 CATEGORY B — do NOT fold the face's `sense` in.
-    // `area2` is the UV shoelace of the boundary walk, so its sign is
-    // derived entirely from the loop's STORED TRAVERSAL order, which
-    // interior-left already ties to the face's outward normal: the
-    // polygon runs CCW in the chart's UV plane iff the outward normal
-    // agrees with the chart normal, i.e. iff `sense`. A reversed face
-    // therefore lands here with a negative `area2` and flips, which is
-    // exactly right. `revert` reverses the loops AND flips `sense`
-    // together, so multiplying would double-count the reversal and
-    // emit inward-wound triangles. (The one place the sense IS read on
-    // this path is the pole-to-pole band's azimuth in `walk` — that
-    // reads a DIRECTION in the chart frame, not a winding, and the two
-    // reads do not overlap.)
+    // `area2` is the UV shoelace of the boundary walk, which runs CCW in
+    // the chart's UV plane iff the outward normal agrees with the chart
+    // normal, i.e. iff `sense`. A reversed face therefore lands here
+    // with a negative `area2` and flips, which is exactly right. The
+    // walk puts the sense in the polygon: from the loop's STORED
+    // TRAVERSAL order, which interior-left ties to the outward normal,
+    // and on the wrap strip, whose loop walks one edge both ways and so
+    // has no order to read, from the sense itself (`walk::wrap_strip`).
+    // `revert` reverses the loops AND flips `sense` together, so
+    // multiplying here would double-count the reversal and emit
+    // inward-wound triangles. (The pole-to-pole band's azimuth in
+    // `walk` also reads the sense, as a DIRECTION in the chart frame,
+    // not a winding.)
     let flip = area2 < 0.0;
 
     // The walk's chart singularity, as `grid_counts` reads it: whether

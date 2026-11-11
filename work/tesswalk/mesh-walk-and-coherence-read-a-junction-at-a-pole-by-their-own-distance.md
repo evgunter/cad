@@ -15,10 +15,13 @@ apex, at the caller's band). The loop walk's reset joint
 and the wrap-tip rule all read it (PR 6097). Two readers outside topo's
 validator decide the same fact by their own distance:
 
-- `mesh::walk::loop_polygon`'s `pole_index` (`crates/mesh/src/walk.rs`,
-  near line 1002). A junction is identified with `Chart::poles()`'s point
+- `mesh::walk::loop_polygon`'s `pole_at` (`crates/mesh/src/walk.rs`,
+  near line 1044). A junction is identified with `Chart::poles()`'s point
   where `Eps::coincident(|p − pole|)` holds. That is the mesh's own
   inclusive threshold, not the band's three-way decision.
+  The wrap strip reads its tips through the same find
+  (`mesh::walk::wrap_strip`, `pole_at`), so the one-face ball's two
+  tips are a third consumer of the walk's own distance.
 - `topo::coherence::loop_findings`'s pole exemption
   (`crates/topo/src/coherence.rs`, near line 605):
   `(p − pp).norm() <= eps`. Its comment says it is inclusive *because*

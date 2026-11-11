@@ -121,7 +121,8 @@
 //!   That derivation is stated in the outward frame while `u_ref` /
 //!   `v_ref` live in the surface's CHART frame, so since M5 S10 the
 //!   area vector is negated on a `sense: false` face before the
-//!   `atan2` — the one orientation-sense read in this crate. The old
+//!   `atan2`; the walk's other read of the sense is the wrap strip's
+//!   winding ([`wrap_strip`]). The old
 //!   "assumes outward-oriented shells (true of every M2 body)" caveat
 //!   is thereby discharged rather than restated: a reversed face
 //!   stores its loop the other way round, so `A` flips and an
@@ -129,8 +130,6 @@
 //!   branch and meshing the wrong half of the sphere. This is the
 //!   direct analogue of `geom_brep::props::curved`'s rimless-sphere
 //!   `s_f` — the same face kind, the same missing bit, the same fix.
-//!   Every face this build mints has `sense: true`, so the multiply is
-//!   `· 1.0` and bitwise inert today.
 
 use std::collections::HashMap;
 
@@ -1049,7 +1048,15 @@ pub(crate) fn loop_polygon(
     let pole_index = |id: u32| pole_at(positions[id as usize]);
     let pole_v = |id: u32| -> Option<f64> { pole_index(id).map(|ix| poles[ix].1) };
     let strip = if no_rim {
-        wrap_strip(body, face, lk, sense, &poles, pole_index(travs[0].ids[0]), pole_at)?
+        wrap_strip(
+            body,
+            face,
+            lk,
+            sense,
+            &poles,
+            pole_index(travs[0].ids[0]),
+            pole_at,
+        )?
     } else {
         None
     };
