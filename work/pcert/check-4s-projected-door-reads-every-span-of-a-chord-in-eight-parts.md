@@ -4,7 +4,7 @@ kind: issue
 title: Check 4's projected door reads every span of a 625-span chord in eight parts, now the larger part of a cylinder pair's edge certification
 status: open
 opened: 2026-11-11
-priority: P2
+priority: P1
 cost: M
 refs: [a-chorded-edges-certification-hulls-every-span-of-a-625-span-chord, projected-check4-incidence-can-falsely-refuse-in-the-sliver-below-the-band]
 ---
@@ -53,3 +53,6 @@ rounds at `Parts::ByTurn` as limb 2's are. Or read the term first at
 envelope does not clear with it, without taking a verdict on the first
 reading (its terms are summed before one decision). Measure with the
 probe above, and keep the sliver row's census within its 1%.
+
+## Re-banded P1 (2026-11-11)
+By SPIRICARM's orchestrator, under the blocker rule (`work/README.md`, Priority): `spiricarm/a-carried-cylinder-pair-marches-for-minutes-before-the-volume-lane-refuses` (P1, about 10 s per ordinary cylinder boolean in release) is parked on this row and ONEHOME's/PCERT's sibling, which are the remainder of its cost after PCERT's chord hulls (re-measured there).
