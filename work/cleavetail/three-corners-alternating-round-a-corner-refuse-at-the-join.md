@@ -88,13 +88,19 @@ question.
 
 ## Closed (GAUGE, lane `gauge-svc`, PR 6832, 2026-11-11)
 
-Every op builds. The band's pair pairs along the cube's arcs inside the
-band, which no other corner's cut lies on
+Every op builds. Where the band's pair's start on the side the op
+keeps lays it along the cube's arcs outside the band, which the other
+two corners' cuts lie on, the pairs at the cube's corner take the
+start that clears them, chosen together
 (`shared-vertex-crossings-that-tie-or-interleave-are-unprobed`, its
-Decided section), and the finish takes the seam correspondence as the
-pair records give it. The pin is renamed and re-pinned to the bodies:
+`## Decided, revised` section; `insert::reconcile_shared`). The finish
+takes the seam correspondence as the pair records give it. The pin is renamed and re-pinned to the bodies:
 `three_corners_alternating_round_the_cube_build_every_op`
 (`crates/topo/tests/union_flush_onto_edge_contact.rs`) asserts every op
 builds and passes tier 2, 3′ and the certificate, at `cube ∪ y` =
 1.0336378, `cube ∩ y` = 0.0285733 and `cube ∖ y` = 0.9714267, each op
-alike in both operand orders, and `y ∖ cube + ∩` = `y`.
+alike in both operand orders, and `y ∖ cube + ∩` = `y`. It runs again
+with every reduction's vertex pairs reversed
+(`test_support::with_vertex_pairs_reversed`). Red when the other
+start is never taken (`SharedVertexCrossings` in `y ∪ cube`) and when
+the finish's vertex-set check is restored (`JoinDesync`).
