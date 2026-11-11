@@ -482,3 +482,42 @@ fn probe_delta_spline_column_iso() {
         }
     }
 }
+
+/// RR4: the spline-column iso with its carrier bumped OFF the wall (along
+/// the wall's normal) between samples: does the incidence read end it,
+/// or the closed-form door's incidence term (now the lever)?
+#[test]
+fn probe_rr_spline_column_off_wall() {
+    let kv_knots = knots(1);
+    let gv = greville(&kv_knots, 1);
+    let m = mid(&gv);
+    let a = Vec3::new(2.0, 0.0, 0.0);
+    let b = Vec3::new(0.0, 3.0, 0.5);
+    let nrm = a.cross(b).normalize();
+    let o = Point3::new(0.0, 0.0, 0.0);
+    let ku = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
+    let kv = KnotVector::clamped(kv_knots.clone(), 1).unwrap();
+    let mut ctrl = Vec::new();
+    for ui in [0.0, 1.0] {
+        for &vj in &gv {
+            ctrl.push(o + a * ui + b * vj);
+        }
+    }
+    let n = ctrl.len();
+    let sp = Surface::Nurbs(Arc::new(geom::NurbsSurface::new(ku, kv.clone(), ctrl, vec![1.0; n]).unwrap()));
+    for h in [1e-3, 2e-8] {
+        let net: Vec<Point3<f64>> = gv
+            .iter()
+            .enumerate()
+            .map(|(j, &v)| sp.eval(0.3, v) + nrm * if j == m { h } else { 0.0 })
+            .collect();
+        let carrier = Curve3::Nurbs(Arc::new(NurbsCurve3::new(kv.clone(), net, vec![1.0; gv.len()]).unwrap()));
+        let iso = Pcurve::IsoLine { p0: Point2::new(0.3, 0.0), pl: Vec2::new(0.0, 1.0) };
+        let r = both(&format!("spline column iso OFF wall h={h}"), &sp, &iso, lift(&iso), &carrier, (0.0, 1.0));
+        if let Err(e) = &r.0 {
+            println!("   ending build: {:?}", e.ending(crate::recourse::Reading::Build));
+            let raw = super::PcurveCache::<f64>::certify_stated_image(&iso, (0.0, 1.0), &carrier, &sp, band(), Some(crate::FittedLane::certified())).err();
+            println!("   raw: {raw:?}");
+        }
+    }
+}
