@@ -764,7 +764,9 @@ pub(crate) fn edge_on_faces_reading(
             geom::CurveKind::Line,
             geom_brep::CertifyError::Escalated {
                 check:
-                    geom_brep::CertCheck::SurfaceResidual { .. } | geom_brep::CertCheck::ChartResidual,
+                    geom_brep::CertCheck::SurfaceResidual { .. }
+                    | geom_brep::CertCheck::ChartResidual
+                    | geom_brep::CertCheck::StatedImage,
                 cause,
                 ..
             },
