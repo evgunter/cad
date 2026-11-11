@@ -551,3 +551,9 @@ and bodies unchanged. No orchestrator yet.
   - **Mutants:** 12 of 14 are killed. The two survivors are argued redundant: seeding in a claimed box, and stepping through a box.
   - **Filed:** the lemniscate row exceeds the accounting budget at 1e-12 (P2).
   - **Review:** dual review dispatched to two cloud sessions.
+- 2026-11-11 — **The stage 4 slowdown fix is up as PR 6814.**
+  - **Change:** `ImplicitForm::constant_gradient()` makes the boundary pass's partial read `plane_partial` once per window for a plane, inside the one form.
+  - **Timing:** the corner row is back to about 30 s from about 30 min, and 149 pinned plane rows are unchanged at three ε.
+  - **Guard:** a counted-work row checks that one plane reading reads one window, with a cylinder control reading 64.
+  - **Filed** on SPLICE: an `ellipse_torus` fuzz seed fails on main.
+  - **Review:** single full review dispatched.
