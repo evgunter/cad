@@ -1,0 +1,168 @@
+diff --git a/crates/topo/src/boolean/insert.rs b/crates/topo/src/boolean/insert.rs
+index ec1982b8a51..a6d1a594b68 100644
+--- a/crates/topo/src/boolean/insert.rs
++++ b/crates/topo/src/boolean/insert.rs
+@@ -83,6 +83,10 @@ use crate::entity::{EdgeKey, EntityId, FaceKey, HalfEdgeKey, VertexKey};
+ use crate::live::{Proven, linked, proven};
+ use crate::null::NewVertexSide;
+ 
++thread_local! {
++    pub(super) static SVC_B_KEPT: core::cell::Cell<bool> = const { core::cell::Cell::new(false) };
++}
++
+ /// Output of one vertex-pair insertion.
+ #[derive(Debug)]
+ pub(super) struct InsertOut<T: geom_core::Real> {
+@@ -580,7 +584,27 @@ pub(super) fn plan_null_pairs<T: Decide>(
+     };
+     // Pair consecutively in A's walk order, from the start
+     // [`pairing_start_turns`] picks.
+-    if n > 2 && pairing_start_turns(survivors[a_order[0]].sa.0, op) {
++    if n > 2 && SVC_B_KEPT.with(std::cell::Cell::get) {
++        // Probe R: pair along B's kept arcs (consecutive in B's walk).
++        let mut o = b_order.clone();
++        if survivors[o[0]].sb.0 != super::finish::kept_side(op, Operand::B) {
++            o.rotate_left(1);
++        }
++        // Re-express as A-order chunks: pairs are adjacent in A at 4 crossings.
++        let partner = |i: usize| {
++            let p = o.iter().position(|&x| x == i).unwrap_or(0);
++            if p % 2 == 0 { o[p + 1] } else { o[p - 1] }
++        };
++        if partner(a_order[0]) != a_order[1] {
++            a_order.rotate_left(1);
++        }
++        let ok = a_order.chunks(2).all(|c| partner(c[0]) == c[1]);
++        if !ok {
++            eprintln!("SVC-R B-kept pairs are not A-consecutive (n={n})");
++            return Err(BooleanError::ClassificationInvariant { what: "SVC-R probe: B-kept pairs not A-consecutive" });
++        }
++        eprintln!("SVC-R B-kept pairing n={n}");
++    } else if n > 2 && pairing_start_turns(survivors[a_order[0]].sa.0, op) {
+         a_order.rotate_left(1);
+     }
+     let positions = |order: &[usize]| {
+@@ -1369,6 +1393,9 @@ fn reconcile_pass<T: Decide>(
+                         }
+                     }
+                 }
++                if chosen.is_none() && std::env::var_os("GAUGE_SVC_PROBE").is_some() {
++                    gauge_svc_probe(plans, &others, i, k, slot, secs, &cuts, band);
++                }
+                 let chosen = chosen.ok_or_else(|| {
+                     let other = blocker.map_or(partner, |j| key(plans[j].contact).1);
+                     BooleanError::SharedVertexCrossings {
+@@ -1388,6 +1415,85 @@ fn reconcile_pass<T: Decide>(
+     Ok(turned)
+ }
+ 
++#[allow(clippy::too_many_arguments, clippy::unwrap_used)]
++fn gauge_svc_probe<T: Decide>(
++    plans: &[NullPlan<T>],
++    others: &[usize],
++    i: usize,
++    k: usize,
++    slot: usize,
++    secs: &[BoolSector<T>],
++    cuts: &[OtherCut<T>],
++    band: Band,
++) {
++    let code = |c: SideCode| match c {
++        SideCode::In => "I",
++        SideCode::Out => "O",
++        SideCode::On => "N",
++    };
++    let mut labels: Vec<(Cut<T>, String)> = Vec::new();
++    let mut runs_desc = Vec::new();
++    let mut plan_ids: Vec<usize> = vec![i];
++    plan_ids.extend_from_slice(others);
++    for &p in &plan_ids {
++        for (r, run) in plans[p].runs.iter().enumerate() {
++            let run = run[slot];
++            let (lo, hi, c) = segment(secs, run, band).unwrap();
++            let strut = is_strut(secs, run.from.cut.entry, run.to.cut.entry).unwrap();
++            runs_desc.push(format!(
++                "p{p}.{r}:{}{}[{}..{}]{}",
++                if strut { "S" } else { "F" },
++                code(c),
++                lo.entry,
++                hi.entry,
++                if p == i && r == k { "*" } else { "" }
++            ));
++            labels.push((lo, format!("p{p}.{r}<{}", lo.entry)));
++            labels.push((hi, format!("p{p}.{r}>{}", hi.entry)));
++        }
++    }
++    let mut order: Vec<usize> = Vec::new();
++    for x in 0..labels.len() {
++        let mut at = order.len();
++        for (q, &y) in order.iter().enumerate() {
++            if walks_before(secs, labels[x].0, labels[y].0, band).unwrap() == Some(true) {
++                at = q;
++                break;
++            }
++        }
++        order.insert(at, x);
++    }
++    let mut seq = Vec::new();
++    for (q, &x) in order.iter().enumerate() {
++        let tie = q > 0 && walks_before(secs, labels[order[q - 1]].0, labels[x].0, band).unwrap().is_none();
++        seq.push(format!("{}{}", if tie { "=" } else { "" }, labels[x].1));
++    }
++    let current = plans[i].runs[k][slot];
++    let ways: Vec<String> = [current, current.reversed()]
++        .into_iter()
++        .map(|run| {
++            if spelled_reversed(secs, run.from.cut.entry, run.to.cut.entry).unwrap() {
++                return "skip".to_string();
++            }
++            match held_cut(secs, run, cuts, band) {
++                Ok(Some(j)) => format!("p{j}"),
++                Ok(None) => "clear".to_string(),
++                Err(e) => format!("err:{e:?}"),
++            }
++        })
++        .collect();
++    let phys = secs.iter().filter(|s| s.end_edge()).count();
++    eprintln!(
++        "GAUGE-SVC-PROBE slot={slot} plans={} secs={} phys={phys} runs=[{}] ways=[{}] seq=[{}]",
++        plan_ids.len(),
++        secs.len(),
++        runs_desc.join(" "),
++        ways.join(","),
++        seq.join(" ")
++    );
++}
++
++
+ /// `run`'s two cuts, as [`OtherCut`]s of `owner`.
+ fn run_cuts<T: Decide>(
+     secs: &[BoolSector<T>],
+diff --git a/crates/topo/src/boolean/mod.rs b/crates/topo/src/boolean/mod.rs
+index cd2b0382841..73737633e95 100644
+--- a/crates/topo/src/boolean/mod.rs
++++ b/crates/topo/src/boolean/mod.rs
+@@ -7202,9 +7202,22 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
+             });
+         }
+     }
++    let svc_r = std::env::var_os("SVC_R").is_some();
++    let svc_cross: Vec<bool> = classified
++        .iter()
++        .map(|(_, _, _, records, ..)| records.iter().any(sectors::PairRecord::survives))
++        .collect();
++    let svc_cs: Vec<VvContact> = classified.iter().map(|(c, ..)| *c).collect();
+     let mut plans = classified
+         .iter()
+-        .map(|(c, a_sectors, b_sectors, records, raw, _)| {
++        .enumerate()
++        .map(|(ix, (c, a_sectors, b_sectors, records, raw, _))| {
++            let sh = |same: fn(VvContact, VvContact) -> bool| {
++                (0..svc_cs.len()).any(|j| j != ix && svc_cross[j] && same(svc_cs[ix], svc_cs[j]))
++            };
++            insert::SVC_B_KEPT.with(|f| {
++                f.set(svc_r && svc_cross[ix] && sh(|x, y| x.a == y.a) && !sh(|x, y| x.b == y.b))
++            });
+             insert::plan_null_pairs(
+                 &a, &b, *c, a_sectors, b_sectors, records, raw, &declared, &contacts, op, band,
+             )
