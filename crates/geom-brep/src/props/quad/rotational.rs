@@ -2145,6 +2145,10 @@ fn end_slack(e: &EdgeTermQ, entry: &EdgeEntry, end: bool) -> f64 {
     (1.5 * certified_hi(env) + bracket) * (1.0 + 1e-12)
 }
 
+/// Per loop its turns `[W_u, W_v]`, and per loop each junction's whole
+/// turns ([`loop_windings`]).
+type LoopWindings = (Vec<[i64; 2]>, Vec<Vec<[f64; 2]>>);
+
 /// **Every junction of every loop closes on the chart, and the loops
 /// wind it as a face's boundary does** — the periodic-chart closure
 /// decision ([`crate::props::closure`]) on the lane's chart images.
@@ -2170,7 +2174,7 @@ fn loop_windings<T: Decide>(
     face: &RotationalFaceQ,
     entries: &[Vec<EdgeEntry>],
     band: Band,
-) -> Result<(Vec<[i64; 2]>, Vec<Vec<[f64; 2]>>), PropsError> {
+) -> Result<LoopWindings, PropsError> {
     let chart = face.chart;
     let mut windings = Vec::with_capacity(face.loops.len());
     let mut counts = Vec::with_capacity(face.loops.len());

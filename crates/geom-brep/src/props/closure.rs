@@ -172,8 +172,8 @@ pub(super) fn interval_loop_turns<T: Decide, const N: usize>(
     for j in junctions {
         let mut gap = pt(0.0);
         let m = j.turns;
-        for c in 0..N {
-            gap = gap + j.lever[c] * (j.delta[c] - pt(m[c]) * tau).abs_enclosure();
+        for (c, &mc) in m.iter().enumerate() {
+            gap = gap + j.lever[c] * (j.delta[c] - pt(mc) * tau).abs_enclosure();
         }
         let slack = j.slack + VERTEX_SLACK * band.zero();
         require_junction_closed(
