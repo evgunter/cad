@@ -234,8 +234,8 @@ use crate::props::rational_rim::{
 };
 use crate::props::spiric::{SpiricEdgeQ, WallImageQ, spiric_length_bound};
 use crate::props::taylor::{
-    Integrand, Jet, PIECE_TURN, Primitive, W_SPIRIC, composite_each, pieces_where,
-    primitive_each, rate_bound_over, trig_jets, trig_of, w_rational,
+    Integrand, Jet, PIECE_TURN, Primitive, W_SPIRIC, composite_each, pieces_where, primitive_each,
+    rate_bound_over, trig_jets, trig_of, w_rational,
 };
 use crate::props::trig::{limit, rotate, spread_cos, spread_sin, trig_at, trig_over};
 
