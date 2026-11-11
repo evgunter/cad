@@ -55,6 +55,23 @@ so the same certificate is derived twice per stated edge.
   seconds per call are not this PR's: base is as slow, and the cost is
   a carrier at the band's zero edge,
   `a-carrier-at-the-bands-zero-edge-of-a-spline-wall-costs-seconds-per-certify` (P3).
+  The 1.20×/1.12× totals average over every draw; a knot-rich net AT the
+  zero edge is 1.4–1.5× slower since PR 6815 (the review: 1.54× `f64`,
+  1.44× `Interval` for p3 k11), because the read's own samples each walk
+  to the cap there too. The review's timing probe, run here:
+
+  | carrier (`net(p, k, d)`, ring column, curve in UV) | base f64 | head f64 | base Interval | head Interval |
+  |---|---|---|---|---|
+  | on the wall, p3 k11 | 0.38 | 11.1 | 1.02 | 10.3 |
+  | on the wall, p1 k3 | 0.04 | 4.81 | 0.23 | 4.68 |
+  | at the band's zero, p3 k11 | 3876 | 5380 (1.39×) | 17403 | 22612 (1.30×) |
+  | at the band's zero, p1 k3 | 4390 | 4542 (1.03×) | 17427 | 17310 (0.99×) |
+  | ½ band, p3 k11 | 3.11 | 4.01 | 5.33 | 6.69 |
+  | 0.999 escalate, p3 k11 | 3.15 | 3.93 | 5.24 | 6.72 |
+
+  (ms per `EdgeCurve::certify`, debug build, one call at the zero edge and
+  five elsewhere; the review's timing probe `review_6815_timing.rs` at
+  `review/6815-full` `8a152a37`, run here on base `ab4fc6ca` and head.)
 
 ## Fix
 

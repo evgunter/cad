@@ -30,9 +30,9 @@ three charts, through both images, at `f64` and `Interval`, at ε 1e-9 and
   metered by the schedule's `pcurve_map_residual` at the nine
   `CERT_SAMPLES`. PR 6815 bounds a stated image over its span only on a
   spline chart (`StatedChart::Spline` → `stated_bound`).
-- The read of a net on an analytic chart is `net_incidence`
-  (`pcurve_cache/projected.rs`), at the `INCIDENCE_SAMPLES` + 1 (65)
-  even samples. The bump lies between both sample sets. The spline
+- The read of a net on an analytic chart is `pcurve_cache.rs`
+  `net_incidence` (through `read_shown`), at the `INCIDENCE_SAMPLES` + 1
+  (65) even samples of the span. The bump lies between both sample sets. The spline
   chart's read samples a net's own breakpoints and Greville abscissae
   (`spline_incidence::own_fractions`); `net_incidence` does not.
 - The pcurve doors refuse the same image (`PcurveCache::certify_stated_image`,
@@ -65,3 +65,10 @@ image class (a net carrier's `General`/`Fitted`/`IsoLine` images), keeping
 the read-first path for the closed-form restatements the product stores.
 Port the review's three charts × two images × two scalars as rows; a
 carrier on its chart must still certify.
+
+A candidate for the bound already exists: `pcurve_cache/projected.rs` has
+a second, unrelated `net_incidence`, a hull-composite bound over the
+projected image's parts (`ProjectedHull`), which is a sup where the
+sampled read is not. Two same-named functions of opposite natures (one a
+sampled lower bound, one a bound over the span) are worth a rename in the
+fix, whichever it takes.
