@@ -368,7 +368,7 @@ fn map_approx<T: Real>(
         fit: old.fit.map_points(|p| map.transform_point(p)),
         window: old.window,
     };
-    let certificate = a.certificate().clone();
+    let certificate = *a.certificate();
     match geom::ApproxSurface::certify(spec, |_, _, _| {
         Ok::<_, core::convert::Infallible>(certificate)
     }) {
