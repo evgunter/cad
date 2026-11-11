@@ -2718,7 +2718,7 @@ pub(crate) enum SplitRefusal {
 /// projected image is derived there ([`geom_brep::chart_pcurve_over`]),
 /// and a fitted or general image, which has no angular placement, is
 /// the parent's restricted to the sub-interval. Each is certified
-/// through the image's own door ([`PcurveCache::certify_stated`], with the scalar's
+/// through the image's own door ([`PcurveCache::certify_stated_image`], with the scalar's
 /// [`crate::AtRestPolicy::fitted_lane`] for a projected row's hull
 /// terms and a fitted-grade row's check 4). Children placed again can
 /// sit whole turns from each other and from the parent's image, so the
@@ -2824,8 +2824,15 @@ pub(crate) fn split_cache<T: AtRestPolicy>(
             refusal: SplitRefusal::Certify(error),
         };
         let certify = |a: T, b: T, image: Pcurve<T>| {
-            PcurveCache::certify_stated(&image, (a, b), &carrier, &surface, band, T::fitted_lane())
-                .map_err(refused)
+            PcurveCache::certify_stated_image(
+                &image,
+                (a, b),
+                &carrier,
+                &surface,
+                band,
+                T::fitted_lane(),
+            )
+            .map_err(refused)
         };
         let Some(chart) = DescribedChart::of(&surface) else {
             unreachable!(
@@ -3133,7 +3140,7 @@ fn carry_rows<T: AtRestPolicy>(
         // refuses here, not later at tier 3.
         row_interval(body, he, row, &carrier, band)?;
         let (t0, t1) = row.params();
-        let restated = PcurveCache::certify_stated(
+        let restated = PcurveCache::certify_stated_image(
             row.pcurve(),
             (t0, t1),
             &carrier,
@@ -3213,7 +3220,7 @@ fn derive_face<T: AtRestPolicy>(
     // included, and an absent door refuses at check 4, so an image that
     // fails checks 1–3 draws those checks' verdict at every scalar.
     let fitted = |w: &Walked<T>| match w.pcurve().certifying_door() {
-        CertifyingDoor::Fitted | CertifyingDoor::Either => PcurveCache::certify_stated(
+        CertifyingDoor::Fitted | CertifyingDoor::Either => PcurveCache::certify_stated_image(
             w.pcurve(),
             w.window(),
             &w.carrier,

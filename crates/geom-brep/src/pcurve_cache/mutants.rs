@@ -319,7 +319,7 @@ pub(super) fn form_uncharged<T: Real>(harmonics: T) -> Option<T> {
 
 /// The edge certificate's stated chart image metered at its schedule's
 /// samples again rather than bounded over the span through its pcurve
-/// certificate (its rows are `certify::stated_image_rows`).
+/// certificate (its rows are `pcurve_cache::stated_image_rows`).
 pub(crate) fn stated_image_sampled() -> bool {
     on("stated-image-sampled")
 }

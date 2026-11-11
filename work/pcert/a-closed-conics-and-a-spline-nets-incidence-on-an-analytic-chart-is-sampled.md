@@ -67,7 +67,7 @@ bound nothing between samples where this row's read does not:
 - `certify.rs` `run_checks`, the `Resolved::Chart` arm on an analytic
   chart, a derived image or a stated one: `pcurve_map_residual` at the
   nine `CERT_SAMPLES`, after the read (`stated_door`). A stated image
-  there is not routed through `PcurveCache::certify_stated` as on a spline
+  there is not routed through `PcurveCache::certify_stated_image` as on a spline
   chart: the stated images producers hand an analytic chart (an iso line
   on a plane, a harmonic image restated on a reverted or mirrored chart, a
   restriction placed in another window) are not all ones a pcurve door

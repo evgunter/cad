@@ -9837,10 +9837,8 @@ fn incidence_ended<T: Decide, R, E>(
 /// for a door that takes no witness: the one home's rule
 /// (`incidence_ended`), which reads an analytic chart before `door` and a
 /// spline chart where `door` refuses or where `certified` is not shown to
-/// cover `asked`. Its callers are the edge mint's stated chart image
-/// (`certify.rs` `stated_door`), which certifies nothing, and a stored
-/// fitted image restated at a scalar with no fitted door
-/// ([`PcurveCache::certify_stated`]).
+/// cover `asked`. Its caller is a stored fitted image restated at a
+/// scalar with no fitted door ([`PcurveCache::certify_stated_image`]).
 ///
 /// # Errors
 ///

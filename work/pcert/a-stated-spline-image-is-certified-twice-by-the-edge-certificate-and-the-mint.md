@@ -15,7 +15,7 @@ Filed by `pcert/stated-image-bounded` (the row
 
 Since that PR the edge certificate bounds a stated chart image on a
 spline chart through its pcurve certificate (`certify.rs` `stated_bound`
-→ `PcurveCache::certify_stated`) and keeps only the bound
+→ `PcurveCache::certify_stated_image`) and keeps only the bound
 (`Certificate::max_residual`). Every product path then mints the same
 image's row (`topo::mint_pcurves`, `pcurves.rs` through the same door),
 so the same certificate is derived twice per stated edge.

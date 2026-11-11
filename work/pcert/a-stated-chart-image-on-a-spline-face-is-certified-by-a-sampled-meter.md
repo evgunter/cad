@@ -89,7 +89,7 @@ by the read or the envelope, and the probe is a row.
 
 The edge certificate bounds a stated chart image on a spline chart over its
 span through its pcurve certificate: `certify.rs` `stated_bound` certifies
-it through `PcurveCache::certify_stated`, the mint's own door (`topo`'s
+it through `PcurveCache::certify_stated_image`, the mint's own door (`topo`'s
 `restate`, moved home), whose envelope is a sup, and folds the certificate
 into `max_residual`. The schedule's `pcurve_map_residual` no longer meters
 it. `certify_stated` and `recertify_stated` run the same engine. A refusal
