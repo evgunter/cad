@@ -6,7 +6,7 @@
 //!
 //! The edge certificate reaches a stated image's bound through
 //! [`StatedDoor`]: the door that certifies the image's class on its
-//! chart, or none, where the class has no door yet.
+//! chart.
 
 use std::sync::Arc;
 
@@ -160,10 +160,12 @@ impl<T: Decide> PcurveCache<T> {
     /// ([`StatedDoor`]), over `span`: the certificate's envelope bounds
     /// `|C(t) − S(P(t))|` over the whole span.
     ///
-    /// On a patch, the fitted lane's checks 3 and 4: the schedule, then
-    /// the composite's sup against the patch, which agrees with the chart
-    /// wherever the image runs, so the sup bounds the image's miss with no
-    /// remainder. An iso line enters as the degree-1 curve in UV, the
+    /// A closed form: its residual's coefficient bound
+    /// ([`super::closed_bound`]). On a patch, the fitted lane's checks 3
+    /// and 4: the schedule, then the composite's sup against the patch,
+    /// which agrees with the chart wherever the image runs or encloses it
+    /// with its remainder in its controls, so the sup bounds the image's
+    /// miss. An iso line enters as the degree-1 curve in UV, the
     /// same map, over a spline carrier's knot domain or else the span's
     /// outer ends. The carrier's incidence is the caller's to read first:
     /// this door reads the image against the carrier, not the carrier
@@ -172,7 +174,9 @@ impl<T: Decide> PcurveCache<T> {
     /// # Errors
     ///
     /// The door's refusal: [`PcurveCertifyError::ResidualExceeded`] or
-    /// [`PcurveCertifyError::Escalated`] at a sample, the composite's
+    /// [`PcurveCertifyError::Escalated`] at a sample or of a bound,
+    /// [`PcurveCertifyError::MissLocated`] at a located point, the
+    /// composite's
     /// ([`PcurveCertifyError::FittedLimb`],
     /// [`PcurveCertifyError::FittedEscalated`], and its structural
     /// refusals) over the span.
