@@ -119,8 +119,8 @@ use pncad::tolerance::DEFAULT_EPS;
 use pncad::topo::{Body, LoopBoundary};
 
 use crate::chain::{
-    CERTIFIABLE_FRACTION, CERTIFIED_PIN_BOX, Chain, JOINT_SIGMA, LINK_HEIGHT, LINK_LENGTH, LINKS,
-    PIN_RADIUS, POSITION_BOUND, pin_axis, study,
+    CERTIFIED_PIN_BOX, Chain, JOINT_SIGMA, LINK_HEIGHT, LINK_LENGTH, LINKS, PIN_RADIUS,
+    POSITION_BOUND, pin_axis, study,
 };
 
 /// Metres to millimetres, for every printed number.
@@ -175,33 +175,14 @@ fn floored_sides(px_per_m: f64) -> &'static str {
     }
 }
 
-/// How many times the certified box the whole study is, per axis —
-/// the box is [`CERTIFIABLE_FRACTION`] of it — spelled for the legend.
-fn study_over_certified() -> String {
-    let r = 1.0 / CERTIFIABLE_FRACTION;
-    if r < 1.0e3 {
-        format!("{r:.1}")
-    } else {
-        format!("{r:.2e}")
-    }
-}
-
 /// **Does the published certified box apply to THIS run?**
 ///
-/// [`CERTIFIED_PIN_BOX`] and [`CERTIFIABLE_FRACTION`] are measured at
-/// the compiled default ε, and the box MOVES with ε (`1.083e-1` at
-/// `1e-6` against `1.110e-1` at the default, measured) — so at another
-/// ε it is a different box, and `chaintol` says so (`demo-tour certified`).
-/// Why it moves is `chaintol`'s header's ("What sets the wall"). The sheet
-/// has to agree with it: at one ε they are one statement, and a legend
-/// claiming `0.111` certifies while the cell reports a declared
-/// frontier at the same ε is the picture contradicting the report.
+/// [`CERTIFIED_PIN_BOX`] is measured at the compiled default ε and
+/// pinned there (`demo-tour certified`), so the sheet draws it only at
+/// that ε: at another ε it is a measurement this run did not take.
 ///
 /// Answered by the ε and not by the certified lane, because this cell
 /// is the ADVISORY half and draws without driving the certified one.
-/// A run at a non-default ε
-/// where the box happens to certify anyway is therefore under-claimed
-/// rather than over-claimed, which is the direction to be wrong in.
 fn certified_box_applies(tol: Tol) -> bool {
     tol.eps() == DEFAULT_EPS
 }
@@ -772,9 +753,9 @@ impl Panel {
         );
     }
 
-    /// **The CERTIFIED enclosure at one joint**, over the widest box
-    /// that certifies whole — the other half of E11's trade, drawn to
-    /// the same scale as the cloud it sits beside.
+    /// **The CERTIFIED enclosure at one joint**, over the whole study —
+    /// the other half of E11's trade, drawn to the same scale as the
+    /// cloud it sits beside.
     ///
     /// Each side under [`CERTIFIED_MIN_PX`] is drawn at that floor,
     /// centred on the nominal pin, so a box this sheet cannot resolve
@@ -1086,10 +1067,8 @@ fn sheet(
     // about 170 characters, and what runs off is not on the sheet.
     let (teal_bold, teal_notes) = if certified {
         (
-            format!(
-                "teal: the CERTIFIED enclosure per joint \u{2014} exact over a box, and silent outside it. The widest box that certifies THIS chain whole is {:.3} of the study.",
-                CERTIFIABLE_FRACTION
-            ),
+            "teal: the CERTIFIED enclosure per joint \u{2014} exact over the whole study, \u{00b1}3\u{03c3} at every joint, and silent outside it."
+                .to_string(),
             [
                 "\u{2014} across the chain it grows 1 : 3 : 6 : 10, the WORST-CASE lever sum; the advisory \u{03c3} grows 1 : 2.24 : 3.74 : 5.48, the quadrature sum."
                     .to_string(),
@@ -1102,16 +1081,13 @@ fn sheet(
     } else {
         (
             format!(
-                "CERTIFIED: no enclosure is drawn here. The published box ({:.3} of the study) is measured at the default \u{03b5}; this run is at \u{03b5} = {:e}.",
-                CERTIFIABLE_FRACTION,
+                "CERTIFIED: no enclosure is drawn here. The published enclosures are measured at the default \u{03b5}; this run is at \u{03b5} = {:e}.",
                 Tol::witness().eps()
             ),
             [
-                format!(
-                    "\u{2014} the box MOVES with \u{03b5} (1.083e-1 at 1e-6 against {:.3e} at the default, measured), so at another \u{03b5} it is a different box.",
-                    CERTIFIABLE_FRACTION
-                ),
-                "\u{2014} the tour's chaintol cell (demo-tour certified) declares that frontier at the same \u{03b5}; the sheet says what the cell says."
+                "\u{2014} the tour's chaintol cell (demo-tour certified) measures them there and pins them."
+                    .to_string(),
+                "\u{2014} at another \u{03b5} they are a measurement this run did not take."
                     .to_string(),
             ],
         )
@@ -1146,10 +1122,7 @@ fn sheet(
         &format!(
             "ADVISORY: draws from the WHOLE distribution, tail included{}. Its numbers summarize these {} chains \u{2014} which is what the panels are.",
             if certified {
-                format!(
-                    ", which is {} times the certified box",
-                    study_over_certified()
-                )
+                ", past the certified box's \u{00b1}3\u{03c3} per joint".to_string()
             } else {
                 String::new()
             },
@@ -1319,8 +1292,8 @@ fn text_at(svg: &str, x: f64, y: f64) -> Option<&str> {
 }
 
 /// **The certified overlay, read back out of the sheet**: the boxes
-/// [`check_drawn`] leaves alone, and the two places the text restates
-/// [`CERTIFIED_PIN_BOX`] and [`CERTIFIABLE_FRACTION`].
+/// [`check_drawn`] leaves alone, and the table's restatement of
+/// [`CERTIFIED_PIN_BOX`].
 ///
 /// - every pin past the base gets one box per panel that draws it (the
 ///   wide panel all [`LINKS`], the tip panel the tip), and none at all
@@ -1329,9 +1302,7 @@ fn text_at(svg: &str, x: f64, y: f64) -> Option<&str> {
 ///   [`CERTIFIED_MIN_PX`], and a side above the floor is drawn to
 ///   scale — so a box that collapses to a zero-height rect reds here;
 /// - the table's certified column reads back, in metres, as the pinned
-///   half-width to its printed precision, and is never zero;
-/// - the legend's "times the certified box" reads back as
-///   `1 / CERTIFIABLE_FRACTION` to its printed precision.
+///   half-width to its printed precision, and is never zero.
 fn check_certified(svg: &str, wide: &Panel, zoom: &Panel, certified: bool) {
     let stroke = format!(r##"stroke="{CERTIFIED_STROKE}""##);
     let boxes: Vec<&str> = elements(svg, "<rect x=\"")
@@ -1397,21 +1368,4 @@ fn check_certified(svg: &str, wide: &Panel, zoom: &Panel, certified: bool) {
             k + 1
         );
     }
-
-    let lead = ", which is ";
-    let at = svg
-        .find(lead)
-        .expect("the legend says how many times the certified box the study is")
-        + lead.len();
-    let rest = &svg[at..];
-    let printed: f64 = rest[..rest
-        .find(" times the certified box")
-        .expect("the ratio is followed by its unit")]
-        .parse()
-        .expect("the ratio is a number");
-    assert!(
-        (printed * CERTIFIABLE_FRACTION - 1.0).abs() <= 1.0e-2,
-        "the legend calls the study {printed} times the certified box; the box is \
-         {CERTIFIABLE_FRACTION:e} of it"
-    );
 }
