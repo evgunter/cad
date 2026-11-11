@@ -1436,3 +1436,93 @@ fn a_crescents_slivers_open_into_the_material_at_its_rim_f64() {
 fn a_crescents_slivers_open_into_the_material_at_its_rim_interval() {
     a_crescents_slivers_open_into_the_material_at_its_rim::<Interval>();
 }
+
+// ---- r6816b probes (review only, never committed to the PR) ----
+
+fn r6816b_raw(x: f64, y: f64, z: f64) -> Vec3<f64> {
+    Vec3::new(x, y, z)
+}
+
+/// Torus R=2 r=1 at meridian angle `deg`, a cylinder of radius |1/k1|
+/// on the parallel's centre of curvature, axis along the meridian
+/// tangent: tangent at p, Q rank one with kernel the parallel direction.
+/// Returns the pieces of a void lune pinched along `-e_p`, capped along
+/// `t_m` by a floor in the meridian plane, with the floor's normal `fl`.
+fn r6816b_tacnode(deg: f64, fl: f64, torus_sense: bool, cyl_sense: bool) -> Vec<TangentPiece<f64>> {
+    let p = Point3::<f64>::origin();
+    let (rr, r) = (2.0, 1.0);
+    let v_ = deg.to_radians();
+    let n = r6816b_raw(v_.cos(), 0.0, v_.sin());
+    let ep = r6816b_raw(0.0, 1.0, 0.0);
+    let tm = r6816b_raw(-v_.sin(), 0.0, v_.cos());
+    let center = p - r6816b_raw(rr + r * v_.cos(), 0.0, r * v_.sin());
+    let torus = geom::Surface::Torus {
+        center,
+        axis: r6816b_raw(0.0, 0.0, 1.0),
+        major_radius: rr,
+        minor_radius: r,
+        u_ref: r6816b_raw(1.0, 0.0, 0.0),
+    };
+    let k1 = v_.cos() / (rr + r * v_.cos());
+    let rho = 1.0 / k1;
+    let a = p - n * rho;
+    let cyl = geom::Surface::Cylinder {
+        origin: a,
+        axis: tm,
+        radius: rho.abs(),
+        u_ref: n,
+    };
+    let k = edges(3);
+    // pinch: the tacnode's first branch y = 0.19 x^2, bend ~ k1 n + 0.385 t_m
+    let pinch = curve(k[0], n * k1 + tm * 0.385);
+    let arc_t = curve(k[1], -n);
+    let line_c = line::<f64>(k[2]);
+    let (u1, z) = (tm * 2.0, ep * -2.0);
+    vec![
+        corner_along(p, (torus, torus_sense), n, (u1, z), [arc_t, pinch]),
+        corner_along(p, (cyl, cyl_sense), -n, (z, u1), [pinch, line_c]),
+        corner_along(p, (plane(p, ep * -fl), true), ep * -fl, (u1, u1), if fl > 0.0 { [line_c, arc_t] } else { [arc_t, line_c] }),
+    ]
+}
+
+#[test]
+fn r6816b_probe_tacnode() {
+    for deg in [120.0, 60.0] {
+        for fl in [1.0, -1.0] {
+            for ts in [true, false] {
+                for cs in [true, false] {
+                    let got = std::panic::catch_unwind(|| {
+                        let pieces = r6816b_tacnode(deg, fl, ts, cs);
+                        read(Point3::origin(), pieces)
+                    });
+                    eprintln!("R6816B tacnode deg {deg} floor {fl} senses {ts} {cs}: {got:?}");
+                    // At 120° the torus and the cylinder meet in a tacnode:
+                    // two branches y = 0.19x² (the pinch edge) and
+                    // y = 0.58x² (inside W, a crossing). Never a rest.
+                    if deg == 120.0 {
+                        assert!(
+                            !matches!(got, Ok(TouchVerdict::Rest(_))),
+                            "R6816B: a tacnode lune crossing inside W reads Rest"
+                        );
+                    }
+                }
+            }
+        }
+    }
+}
+
+#[test]
+fn r6816b_probe_plane_on_lune() {
+    for p in apexes::<f64>() {
+        let k = edges(3);
+        for void in [true, false] {
+            for mx in [1.0, -1.0] {
+                let mut pieces = lune(p, [1.0, 2.0], 1.0, void, [k[0], k[1], k[2]]);
+                pieces.push(whole(p, v(mx, 0.0, 0.0)));
+                let got = read(p, pieces);
+                eprintln!("R6816B plane x=0 facing {mx} on lune void {void} at {p:?}: {got:?}");
+                assert!(!matches!(got, TouchVerdict::Rest(_)), "plane on lune rests");
+            }
+        }
+    }
+}
