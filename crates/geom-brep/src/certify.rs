@@ -548,6 +548,35 @@ pub enum CertifyError {
         /// The metered length's verdict, with its reporting margin.
         verdict: Refused,
     },
+    /// **A conic carrier stores a negative semi-axis**: a circle's
+    /// radius, or either of an ellipse's semi-axes, below zero. Every door
+    /// builds positive semi-axes, a STEP ellipse's are positive lengths,
+    /// and a signed one reverses the traversal, so the record breaks the
+    /// representation's invariant rather than spelling the same edge. The
+    /// kernel mints none, so at a build it is the caller's input and ends
+    /// in its lever (store the magnitude, flip the frame's normal to
+    /// reverse the traversal); at rest it is the stored culprit's defect,
+    /// and at the import door a damaged file. Decided once, at the head of
+    /// the span check, before any reader of the carrier's speed. Only a
+    /// definite sign is this refusal: an enclosure across zero is read
+    /// by the span check in band, and ends in its lever. A zero
+    /// semi-axis is a collapsed length, read by the span check itself
+    /// ([`CertifyError::StatedInterval`]).
+    SemiAxisNegative {
+        /// The carrier's kind.
+        carrier: geom::CurveKind,
+    },
+    /// **A conic carrier stores a semi-axis that is not a finite number**
+    /// (NaN, or infinite, or an enclosure reaching either): no length at
+    /// all, so no speed reader can meter it. Decided exactly
+    /// ([`Real::is_bounded`]), at the head of the span check beside
+    /// [`CertifyError::SemiAxisNegative`], and ended as it is: the
+    /// caller's input at a build, the stored culprit at rest, a damaged
+    /// file at the import door.
+    SemiAxisNotFinite {
+        /// The carrier's kind.
+        carrier: geom::CurveKind,
+    },
     /// A periodic carrier's stored interval (a circle's, an ellipse's, a
     /// spiric's) spans definitely more than one full period beyond
     /// tolerance. This closes the 9-sample winding alias (M2 PR 3
@@ -568,8 +597,7 @@ pub enum CertifyError {
     /// [`CertCheck::ParamWinding`]), and at a public door
     /// ([`EdgeCurve::certify`], [`EdgeCurve::recertify`] and their `_via`
     /// doors) that is its input — a zero, reversed or past-a-turn
-    /// `param_start … param_end`, a chord between coincident points, a
-    /// circle or ellipse carrier of no positive radius, or a stored arc
+    /// `param_start … param_end`, a chord between coincident points, or a stored arc
     /// re-certified at a band finer than the one it was minted at, where
     /// its headroom read as zero. At a build it ends in the check's
     /// lever; at the import door it ends as any reading of the check's
@@ -879,6 +907,19 @@ impl core::fmt::Display for CertifyError {
                 chart.name(),
                 crate::pcurve_cache::ENVELOPE_LEVER,
             ),
+            Self::NoGeneralLane {
+                chart,
+                carrier,
+                gap: crate::LaneGap::Image,
+            } => write!(
+                f,
+                "a conventional description's {} carrier is on its {} chart but is none of \
+                 the chart's own curves, and its general image on that chart does not yet \
+                 follow it over this edge. Recourse: {}",
+                carrier.name(),
+                chart.name(),
+                crate::pcurve_cache::IMAGE_LEVER,
+            ),
             Self::Incidence(refusal) => refusal.write_at::<CertCheck>(f),
             Self::Unimplemented => write!(
                 f,
@@ -902,6 +943,18 @@ impl core::fmt::Display for CertifyError {
             Self::IntervalNotForward { verdict } => {
                 StatedSpan::Forward(ForwardReading::Decided(*verdict)).tell(STORED_INTERVAL, f)
             }
+            Self::SemiAxisNotFinite { carrier } => write!(
+                f,
+                "the {} carrier stores a semi-axis that is not a finite number, and a conic's \
+                 semi-axes are positive lengths",
+                carrier.name()
+            ),
+            Self::SemiAxisNegative { carrier } => write!(
+                f,
+                "the {} carrier stores a negative semi-axis, and a conic's semi-axes are \
+                 positive lengths",
+                carrier.name()
+            ),
             Self::SpanMeterCollapsed { verdict } => write!(
                 f,
                 "{SPAN_METER} is {} zero (margin {} m), so the stored interval has no proven \
@@ -1087,7 +1140,7 @@ impl CertifyError {
                 ..
             } => (CertCheck::ChartClass, RefusedArm::SignCertain(None)),
             Self::NoGeneralLane {
-                gap: crate::LaneGap::Pose { .. } | crate::LaneGap::Envelope,
+                gap: crate::LaneGap::Pose { .. } | crate::LaneGap::Envelope | crate::LaneGap::Image,
                 ..
             } => (CertCheck::GeneralLane, RefusedArm::SignCertain(None)),
             Self::Incidence(refusal) => (CertCheck::ChartIncidence, refusal.arm()),
@@ -1100,6 +1153,8 @@ impl CertifyError {
             | Self::WrapOnNonPeriodic
             | Self::TangentCertificateUnsupported
             | Self::StatedInterval { .. }
+            | Self::SemiAxisNegative { .. }
+            | Self::SemiAxisNotFinite { .. }
             | Self::Band(_) => return None,
         };
         Some(Decision::Check(check, arm))
@@ -1129,6 +1184,20 @@ impl CertifyError {
     pub(crate) fn own_ending(&self, at: ReadAt) -> Option<String> {
         match self {
             Self::StatedInterval { refused } => Some(refused.ending(at)),
+            // The kernel mints no negative or non-finite semi-axis, so at
+            // a build the record is its caller's input, which the lever
+            // moves; past a build it is the stored culprit's
+            // (`RefusedSide::Unminted`).
+            Self::SemiAxisNegative { .. } | Self::SemiAxisNotFinite { .. } => Some(
+                SizedDecision {
+                    lever: SEMI_AXIS_LEVER,
+                    size: length_noun!(),
+                    passes: SizedPass::Positive,
+                    side: RefusedSide::Unminted,
+                    no_size: None,
+                }
+                .recourse(RefusedArm::SignCertain(None), at),
+            ),
             _ => self.incidence_read().map(|read| read.ending(at)),
         }
     }
@@ -1195,6 +1264,12 @@ const TANGENT_PLANES_UNDEFINED: &str = "a surface's gradient is zero or undefine
 /// a cylinder's axis and at a sphere's centre, and an enclosure reaches one
 /// when the point and the surface's axis are enclosed apart by more
 /// than the radius, as two images of one widened map are.
+/// The lever of a [`CertifyError::SemiAxisNegative`] and a
+/// [`CertifyError::SemiAxisNotFinite`] at a build, where the record is
+/// the caller's input.
+pub(crate) const SEMI_AXIS_LEVER: &str = "store each semi-axis as its finite, positive length, and \
+     reverse the traversal by flipping the frame's normal";
+
 const TANGENT_PLANES_RECOURSE: &str = "keep the edge clear of each surface's axis or centre; over \
      a parameter box, a narrower box encloses the edge and its surfaces closer to where they are";
 
@@ -2065,7 +2140,8 @@ pub struct Certificate<T: Real> {
     /// coincident with zero — the endpoint, surface, mapped-source,
     /// chart and witness residuals, and the tangent lane's parallelism
     /// defect and sag bound — together with the plane × NURBS lane's
-    /// limb-1 on-locus maximum and limb-2 sup bound. Transversality
+    /// limb-1 on-locus maximum and limb-2 sup bound, and a stated chart
+    /// image's pcurve certificate's residual and envelope. Transversality
     /// margins (clearance margins, not residuals) and the analytic
     /// rung-3 limbs are not folded. Certified ≤ ε by construction.
     ///
@@ -2301,6 +2377,11 @@ impl<T: Decide + geom_core::CertifiedBounds> EdgeCurve<T> {
     ///      `TangentIntersection`'s second-order arm folds the same
     ///      `reach`.
     ///    - `Scaffold` (a mapped source): `|carrier(t_i) − description(i/8)|`.
+    ///    - `Chart`: `|C(t_i) − S(P(t_i))|`, but for a stated image on a
+    ///      spline chart, which is bounded over the whole span before the
+    ///      schedule, through its pcurve certificate's door
+    ///      ([`crate::PcurveCache::certify_stated_image`]), whose envelope is a
+    ///      sup, and its refusal ends by the carrier's incidence read.
     /// 5. `Intersection`: the witness's implicit residuals vs both
     ///    surfaces, then the **mid-parameter pin**
     ///    `|carrier.mid_point(t₀, t₁) − witness| ≤ ε`
@@ -3974,13 +4055,47 @@ fn decide_turn<T: Decide>(
             cause: undecided.diag,
         }),
     };
+    // A conic's semi-axes are finite, positive lengths, the invariant
+    // every reader of its speed (`geom::Conic::speed_lo`) states, so a
+    // stored one that is not is refused here, before the first of them:
+    // one not a finite number (`CertifyError::SemiAxisNotFinite`), and
+    // one definitely negative (`CertifyError::SemiAxisNegative`). Both
+    // are exact reads of stored data, not banded decisions. `−x` decides
+    // above zero (`Real::select_le_zero` picks its second candidate)
+    // exactly where `x` is negative at every point; an enclosure across
+    // zero hulls both candidates, so the second read, with the poison
+    // first, tells a decided negative from a straddle, which falls
+    // through to the span meter's reading in band. A zero semi-axis is a
+    // collapsed length, which the span meter reads as the interval it
+    // leaves no length to.
+    if let Some(conic) = spec.carrier.conic() {
+        let (a, b) = conic.semi_axes();
+        let poison = T::from_f64(f64::NAN);
+        let negative = |x: T| {
+            let minus = T::zero() - x;
+            minus.select_le_zero(T::zero(), poison).is_poison()
+                && !minus.select_le_zero(poison, T::zero()).is_poison()
+        };
+        let carrier = spec.carrier.kind();
+        #[cfg(not(test))]
+        let unchecked = false;
+        #[cfg(test)]
+        let unchecked = crate::pcurve_cache::mutants::semi_axis_unchecked();
+        if !unchecked {
+            if !(a.is_bounded() && b.is_bounded()) {
+                return Err(CertifyError::SemiAxisNotFinite { carrier });
+            }
+            if negative(a) || negative(b) {
+                return Err(CertifyError::SemiAxisNegative { carrier });
+            }
+        }
+    }
     // A periodic carrier's span is forward at the carrier's speed floor
     // (`geom::carrier_speed::speed_floor`, the one spelling the conic
     // readers share): a circle's radius; an ellipse's smaller semi-axis
     // (|dP/dθ| ≥ min(a, b), so the span times it is a certified lower
-    // bound on the child's arc length, in either stored order), so a
-    // non-positive semi-axis, either one, is refused as
-    // `IntervalNotForward`, a door's `StatedInterval`; a spiric's MINOR
+    // bound on the child's arc length, in either stored order; both are
+    // positive, decided above); a spiric's MINOR
     // radius (`|dP/dv| ≥ r`). The winding bound is the
     // 8kτ sample-alias argument about the parameter period, which all
     // three share.
@@ -4169,7 +4284,7 @@ fn canonical_of<T: Decide>(
                 // which is what makes description and cache the same
                 // object.
                 // Whether the carrier lies on the chart is read by the
-                // door that holds this (`stated_door`).
+                // door that holds this (`StatedChart`).
                 Some(p) => p.clone(),
                 // D4, the minted half: an analytic chart's image is
                 // derived from the carrier through the one door that
@@ -4192,35 +4307,87 @@ fn canonical_of<T: Decide>(
     })
 }
 
-/// **A stated chart image's door, ended by the carrier's incidence
-/// read** (D3, `pcurve_cache::incidence_ended_unwitnessed`): `door` is the checks
-/// that meter a stated image against its chart, and a spec that states
-/// no chart image runs it as it stands. So a carrier off its face ends as
-/// the read ([`mint_refusal`]), never as the residual's meter.
-fn stated_door<T: Decide, R>(
+/// **Where a description states its chart image**, decided once: on a
+/// spline chart, which the certification bounds over the span
+/// ([`stated_bound`]); on an analytic chart, whose carrier is read first
+/// ([`stated_analytic_read`]); or not at all (a derived image, or any
+/// other description).
+enum StatedChart<'a, T: Real> {
+    Spline(&'a Surface<T>, &'a Pcurve<T>),
+    Analytic(&'a Surface<T>),
+    None,
+}
+
+impl<'a, T: Real> StatedChart<'a, T> {
+    fn of(resolved: &'a Resolved<T>) -> Self {
+        let Resolved::Chart {
+            surface,
+            image: Some(image),
+            ..
+        } = resolved
+        else {
+            return Self::None;
+        };
+        if surface.spline_chart().is_none() {
+            return Self::Analytic(surface);
+        }
+        #[cfg(test)]
+        if crate::pcurve_cache::mutants::stated_image_sampled() {
+            return Self::None;
+        }
+        Self::Spline(surface, image)
+    }
+}
+
+/// **A stated chart image's bound over the span on a spline chart** (D4
+/// ¶2): the image a construction states is certified through its pcurve
+/// certificate's door ([`crate::PcurveCache::certify_stated_image`], the
+/// mint's), whose envelope bounds `|C(t) − S(P(t))|` over the whole span,
+/// so a carrier off its wall between any samples does not certify. A
+/// refusal is ended by the carrier's incidence read there, and carried
+/// into this door's vocabulary by [`mint_refusal`].
+///
+/// `fitted` is the certifying scalar's fitted door. [`crate::FittedLane`]
+/// has the one constructor, so it is the door the mint takes through the
+/// scalar's `AtRestPolicy::fitted_lane` too, and both certify one image
+/// alike.
+fn stated_bound<T: Decide>(
     spec: &EdgeCurveSpec<T>,
-    resolved: &Resolved<T>,
+    (surface, image): (&Surface<T>, &Pcurve<T>),
     band: Band,
-    door: impl FnOnce() -> Result<R, CertifyError>,
-) -> Result<R, CertifyError> {
-    let Resolved::Chart {
-        surface,
-        image: Some(_),
-        ..
-    } = resolved
-    else {
-        return door();
-    };
-    let span = (spec.param_start, spec.param_end);
-    crate::pcurve_cache::incidence_ended_unwitnessed(
+    fitted: crate::FittedLane<T>,
+) -> Result<T, CertifyError> {
+    let cache = crate::PcurveCache::certify_stated_image(
+        image,
+        (spec.param_start, spec.param_end),
         &spec.carrier,
-        span,
-        span,
         surface,
         band,
-        |e| mint_refusal(e, surface, &spec.carrier),
-        door,
+        Some(fitted),
     )
+    .map_err(|e| mint_refusal(e, surface, &spec.carrier))?;
+    let c = cache.certificate();
+    Ok(c.max_residual.max(c.envelope))
+}
+
+/// **A stated chart image's read on an analytic chart** (D3): the
+/// carrier's incidence read over the span, before the image is used, so
+/// a carrier shown off its face ends as the read ([`mint_refusal`]). How
+/// much of the span the read bounds is its class's
+/// (`work/pcert/a-closed-conics-and-a-spline-nets-incidence-on-an-analytic-chart-is-sampled.md`).
+fn stated_analytic_read<T: Decide>(
+    spec: &EdgeCurveSpec<T>,
+    surface: &Surface<T>,
+    band: Band,
+) -> Result<(), CertifyError> {
+    crate::read_incidence(
+        &spec.carrier,
+        spec.param_start,
+        spec.param_end,
+        surface,
+        band,
+    )
+    .map_err(|e| mint_refusal(e, surface, &spec.carrier))
 }
 
 /// **A chart image's refusal, as the edge certificate's**: an incidence
@@ -4335,9 +4502,10 @@ fn mint_checks<T: Decide>(
 ) -> Result<(EdgeDescription<T>, Option<CertifiedTurn<T>>), CertifyError> {
     let resolved = resolve_spec(spec, surfaces)?;
     let turn = decide_turn(spec, band)?;
-    let canonical = stated_door(spec, &resolved, band, || {
-        canonical_of(spec, &resolved, band)
-    })?;
+    if let StatedChart::Analytic(surface) = StatedChart::of(&resolved) {
+        stated_analytic_read(spec, surface, band)?;
+    }
+    let canonical = canonical_of(spec, &resolved, band)?;
     Ok((canonical, turn))
 }
 
@@ -4383,624 +4551,618 @@ fn run_checks<T: Decide + geom_core::CertifiedBounds>(
         &mut max_residual,
     )?;
 
-    // From the canonical description on: the description's sampled
-    // checks and C2's limbs, the stated image's door around them.
+    // From the canonical description on: a stated image's read on an
+    // analytic chart or bound over the span on a spline chart, the
+    // description's sampled checks and C2's limbs.
     let resolved = &resolved;
-    stated_door(
-        spec,
-        resolved,
-        band,
-        || -> Result<Checked<T>, CertifyError> {
-            let canonical = canonical_of(spec, resolved, band)?;
+    let chart_stated = StatedChart::of(resolved);
+    match chart_stated {
+        StatedChart::Spline(surface, image) => {
+            let bound = stated_bound(spec, (surface, image), band, crate::FittedLane::certified())?;
+            max_residual = max_residual.max(bound);
+        }
+        StatedChart::Analytic(surface) => stated_analytic_read(spec, surface, band)?,
+        StatedChart::None => {}
+    }
+    let canonical = canonical_of(spec, resolved, band)?;
 
-            // ---- Check 4: per-sample description residuals. ----
-            // Jet-schedule accumulators (TangentIntersection only): the worst
-            // sampled residual for the C2.2 hull statement, and the weakest
-            // sampled second-order data for the tube statement.
-            let mut tangent_resid_max = T::zero();
-            let mut tangent_gap_max = T::zero();
-            let mut tangent_prev: Option<(T, T, T)> = None;
-            let mut tangent_kappa_min = T::from_f64(f64::MAX);
-            let mut tangent_arm_min = T::from_f64(f64::MAX);
-            for i in 0..CERT_SAMPLES {
-                let t = sample_param(t0, t1, i);
-                // Each arm takes the point through the door it needs: the
-                // `Tangent` arm's interior samples read the tangent too, from
-                // the same jet pass as the point; every other arm, and that
-                // arm's end samples, take the point alone, so no pass computes
-                // a tangent that is then discarded.
-                match &resolved {
-                    Resolved::Intersection {
-                        surfs: [(k1, surf1), (k2, surf2)],
-                        ..
-                    } => {
-                        let p = spec.carrier.eval(t);
-                        check_residual(
-                            "carrier_on_surface_1",
-                            CertCheck::SurfaceResidual { surface: *k1 },
-                            i,
-                            Margin::of(implicit_residual(surf1, p)),
-                            band,
-                            &mut max_residual,
-                        )?;
-                        check_residual(
-                            "carrier_on_surface_2",
-                            CertCheck::SurfaceResidual { surface: *k2 },
-                            i,
-                            Margin::of(implicit_residual(surf2, p)),
-                            band,
-                            &mut max_residual,
-                        )?;
-                        if i > 0 && i < CERT_SAMPLES - 1 {
-                            match wedge_decided(surf1, surf2, p, reach, band) {
-                                Ok((DihedralClass::Transverse, _)) => {}
-                                Ok((DihedralClass::Smooth, margin)) => {
-                                    let verdict = Refused::Zero(Classified { margin, band });
-                                    return Err(CertifyError::NotTransverse {
-                                        sample: i,
-                                        lever: None,
-                                        verdict,
-                                    });
-                                }
-                                Err(FirstOrderEscalation::Lever(escalation)) => {
-                                    if let Some(verdict) = escalation.collapsed_arm() {
-                                        return Err(CertifyError::ArmCollapsed {
-                                            sample: i,
-                                            verdict,
-                                        });
-                                    }
-                                    return Err(CertifyError::Escalated {
-                                        check: match escalation.rung() {
-                                            crate::LeverRung::Arm => CertCheck::TransversalityArm,
-                                            crate::LeverRung::Reading => CertCheck::Transversality,
-                                        },
-                                        sample: i,
-                                        cause: escalation.diag(),
-                                    });
-                                }
-                                Err(FirstOrderEscalation::NoTangentPlane(cause)) => {
-                                    return Err(CertifyError::Escalated {
-                                        check: CertCheck::TangentPlanes,
-                                        sample: i,
-                                        cause,
-                                    });
-                                }
-                            }
-                        }
-                    }
-                    // The C7 jet schedule, per sample: the pair's separation
-                    // along the shared normal within ε (the touch, read before
-                    // the witness), both implicit residuals within ε; at
-                    // interior samples the second-order margin
-                    // definitely positive FIRST (the IFT denominator — and the
-                    // parallelism lever arm's own validity gate), then normal
-                    // parallelism within the derived threshold at lever arm
-                    // r = 1/κ_rel (D2 verbatim, D4 ¶1). A second-order refusal
-                    // is named by a definite parallelism defect at the folded
-                    // arm when there is one, so a definite first-order defect is
-                    // reported as itself whatever the surfaces' order or the
-                    // scalar.
-                    Resolved::Tangent {
-                        surfs: [(k1, surf1), (k2, surf2)],
-                        ..
-                    } => {
-                        let (p, tau) = if i > 0 && i < CERT_SAMPLES - 1 {
-                            let (p, tau) = spec.carrier.ders1(t);
-                            (p, Some(tau))
-                        } else {
-                            (spec.carrier.eval(t), None)
-                        };
-                        let r1 = implicit_residual(surf1, p);
-                        let r2 = implicit_residual(surf2, p);
-                        let sigma = gap_orientation(surf1, surf2, p, reach, i, band)?;
-                        // The span line reads `s` under one σ per span: each end
-                        // under its own σ and under the other end's, so the bound
-                        // holds over the span whichever orientation the shared
-                        // normal has there.
-                        tangent_gap_max = tangent_gap_max.max((r1 - sigma * r2).abs());
-                        if let Some((p1, p2, prev_sigma)) = tangent_prev {
-                            tangent_gap_max = tangent_gap_max
-                                .max((p1 - sigma * p2).abs())
-                                .max((r1 - prev_sigma * r2).abs());
-                        }
-                        tangent_prev = Some((r1, r2, sigma));
-                        tangent_resid_max = tangent_resid_max.max(r1.abs()).max(r2.abs());
-                        check_residual(
-                            "tangent_gap",
-                            CertCheck::TangentGap,
-                            i,
-                            Margin::of(r1 - sigma * r2),
-                            band,
-                            &mut max_residual,
-                        )?;
-                        check_residual(
-                            "tangent_on_surface_1",
-                            CertCheck::SurfaceResidual { surface: *k1 },
-                            i,
-                            Margin::of(r1),
-                            band,
-                            &mut max_residual,
-                        )?;
-                        check_residual(
-                            "tangent_on_surface_2",
-                            CertCheck::SurfaceResidual { surface: *k2 },
-                            i,
-                            Margin::of(r2),
-                            band,
-                            &mut max_residual,
-                        )?;
-                        if let Some(tau) = tau {
-                            // The must-carry rule's one spelling
-                            // (`crate::tangent_second_order`): the constructor
-                            // that stores a `TangentIntersection` and this
-                            // certificate that accepts one must read the same
-                            // sagitta under the same predicate name, or the
-                            // stored set and the certified set are two sets.
-                            //
-                            // The frame's escalation log carries exactly the
-                            // escalation the returned error carries, so both
-                            // readings run detached and two are spliced without
-                            // theirs (`k_stats::splice_superseded`):
-                            // - the naming reading's: it never refuses, it only
-                            //   names a refusal already made;
-                            // - a renamed refusal's second-order one: no sub-box
-                            //   can certify. The defect is definite at the folded
-                            //   arm on every sub-box, and where a sub-box's
-                            //   sagitta resolves, its lever `1/|κ_rel|` is at
-                            //   least half that arm (`|κ_rel| ≤ κ₁ + κ₂`, each
-                            //   `κᵢ ≤ 1/curvature_lever_arm`), so the defect there
-                            //   is above `K/2 · ε > ε`. Two premises are not
-                            //   invariants: K > 2 is the ratified K = 10 (`Tol`
-                            //   asks only K > 1), and `κᵢ ≤ 1/curvature_lever_arm`
-                            //   fails on a fat torus (R < 2r). Where they fail,
-                            //   a sub-box could certify, and the drop is still
-                            //   safe: a failed node with an empty log bisects.
-                            let (so, second_order) = geom_core::k_stats::detached(|| {
-                                crate::tangent_second_order(surf1, surf2, p, tau, reach, band)
+    // ---- Check 4: per-sample description residuals. ----
+    // Jet-schedule accumulators (TangentIntersection only): the worst
+    // sampled residual for the C2.2 hull statement, and the weakest
+    // sampled second-order data for the tube statement.
+    let mut tangent_resid_max = T::zero();
+    let mut tangent_gap_max = T::zero();
+    let mut tangent_prev: Option<(T, T, T)> = None;
+    let mut tangent_kappa_min = T::from_f64(f64::MAX);
+    let mut tangent_arm_min = T::from_f64(f64::MAX);
+    for i in 0..CERT_SAMPLES {
+        let t = sample_param(t0, t1, i);
+        // Each arm takes the point through the door it needs: the
+        // `Tangent` arm's interior samples read the tangent too, from
+        // the same jet pass as the point; every other arm, and that
+        // arm's end samples, take the point alone, so no pass computes
+        // a tangent that is then discarded.
+        match &resolved {
+            Resolved::Intersection {
+                surfs: [(k1, surf1), (k2, surf2)],
+                ..
+            } => {
+                let p = spec.carrier.eval(t);
+                check_residual(
+                    "carrier_on_surface_1",
+                    CertCheck::SurfaceResidual { surface: *k1 },
+                    i,
+                    Margin::of(implicit_residual(surf1, p)),
+                    band,
+                    &mut max_residual,
+                )?;
+                check_residual(
+                    "carrier_on_surface_2",
+                    CertCheck::SurfaceResidual { surface: *k2 },
+                    i,
+                    Margin::of(implicit_residual(surf2, p)),
+                    band,
+                    &mut max_residual,
+                )?;
+                if i > 0 && i < CERT_SAMPLES - 1 {
+                    match wedge_decided(surf1, surf2, p, reach, band) {
+                        Ok((DihedralClass::Transverse, _)) => {}
+                        Ok((DihedralClass::Smooth, margin)) => {
+                            let verdict = Refused::Zero(Classified { margin, band });
+                            return Err(CertifyError::NotTransverse {
+                                sample: i,
+                                lever: None,
+                                verdict,
                             });
-                            let (jet, arm) = (so.jet, so.arm);
-                            let refused = match so.verdict {
-                                Ok(decided) => Refused::of(decided, band).map(Ok),
-                                Err(cause) => Some(Err(cause)),
-                            };
-                            match refused {
-                                None => geom_core::k_stats::splice(second_order),
-                                Some(refused) => {
-                                    // No lever `1/κ_rel` exists, so the
-                                    // parallelism defect is metered at the folded
-                                    // arm the sagitta was read over; a DEFINITE
-                                    // defect there is the refusal's cause (why
-                                    // `κ_rel` alone cannot tell a crossing from an
-                                    // osculating pair: `crate::TangentJet`). An
-                                    // in-band or zero reading is no more definite
-                                    // than the second-order one, which stands.
-                                    let renamed = named_by_parallelism(jet.sin_theta, arm, band);
-                                    if renamed.is_some() {
-                                        geom_core::k_stats::splice_superseded(second_order);
-                                    } else {
-                                        geom_core::k_stats::splice(second_order);
-                                    }
-                                    return Err(match (renamed, refused) {
-                                        (Some(margin), _) => CertifyError::ResidualExceeded {
-                                            check: CertCheck::TangentParallel,
-                                            sample: i,
-                                            margin,
-                                        },
-                                        (None, Err(cause)) => CertifyError::Escalated {
-                                            check: CertCheck::TangentSecondOrder,
-                                            sample: i,
-                                            cause,
-                                        },
-                                        // A magnitude margin (`≥ 0`): Zero is the
-                                        // G2/osculating zero side; Negative is
-                                        // unreachable for a true magnitude.
-                                        (None, Ok(verdict)) => {
-                                            CertifyError::NotSecondOrderSeparated {
-                                                sample: i,
-                                                verdict,
-                                            }
-                                        }
-                                    });
-                                }
+                        }
+                        Err(FirstOrderEscalation::Lever(escalation)) => {
+                            if let Some(verdict) = escalation.collapsed_arm() {
+                                return Err(CertifyError::ArmCollapsed { sample: i, verdict });
                             }
-                            tangent_kappa_min = tangent_kappa_min.min(jet.kappa_rel.abs());
-                            tangent_arm_min = tangent_arm_min.min(arm.length());
-                            check_residual(
-                                "tangent_normal_parallel",
-                                CertCheck::TangentParallel,
-                                i,
-                                Margin::levered_inv(jet.sin_theta, jet.kappa_rel.abs()),
-                                band,
-                                &mut max_residual,
-                            )?;
+                            return Err(CertifyError::Escalated {
+                                check: match escalation.rung() {
+                                    crate::LeverRung::Arm => CertCheck::TransversalityArm,
+                                    crate::LeverRung::Reading => CertCheck::Transversality,
+                                },
+                                sample: i,
+                                cause: escalation.diag(),
+                            });
+                        }
+                        Err(FirstOrderEscalation::NoTangentPlane(cause)) => {
+                            return Err(CertifyError::Escalated {
+                                check: CertCheck::TangentPlanes,
+                                sample: i,
+                                cause,
+                            });
                         }
                     }
-                    // The fenced scaffolding arm (D3): the ONE conventional
-                    // residual with no chart to state itself against, because
-                    // a transient scaffolding edge has no surfaces yet. It
-                    // keeps its own meter for exactly as long as the fence
-                    // keeps it legal.
-                    Resolved::Scaffold(mc) => {
-                        let p = spec.carrier.eval(t);
-                        let s = T::from_f64(schedule_fraction(i, CERT_SAMPLES));
-                        check_residual(
-                            "carrier_matches_mapped_source",
-                            CertCheck::MappedSource,
-                            i,
-                            Margin::of(p.distance(mc.eval(s))),
-                            band,
-                            &mut max_residual,
-                        )?;
-                    }
-                    // **U2's one conventional arm, D1's one meter.**
-                    // `|C(t) − S(P(t))| ≤ ε` (C4 verbatim), on the carrier's
-                    // own parameter — the same statement, the same predicate
-                    // name and the same dimension as every stored pcurve
-                    // cache's schedule (`pcurve_map_residual`), so an edge
-                    // cannot certify as a description and refuse as a cache.
-                    // `S(P(t))` is a point ON the surface, so the meter is never
-                    // under `dist(C, surface)`, with equality where the image
-                    // names the foot point: a cone's ruling and rim images
-                    // project on the generator and read the perpendicular; a
-                    // sphere's and a small-radius cylinder's read within bits
-                    // of the implicit form (`tests/r2_probes.rs`).
-                    Resolved::Chart {
-                        surface, declared, ..
-                    } => {
-                        let Some(chart) = canonical.chart() else {
-                            return Err(CertifyError::Unimplemented);
-                        };
-                        let p = spec.carrier.eval(t);
-                        let q = chart.pcurve.eval(t);
-                        check_residual(
-                            "pcurve_map_residual",
-                            CertCheck::ChartResidual,
-                            i,
-                            Margin::of(p.distance(surface.eval(q.x, q.y))),
-                            band,
-                            &mut max_residual,
-                        )?;
-                        // **The declaration is metered too, or it is not a
-                        // record of anything** (P-1b, reinstated in review).
-                        // A declared locus says a sketch entity under a sweep
-                        // map determined THIS curve; the claim is checkable
-                        // and pre-collapse it was checked on every certify,
-                        // because the pushforward was the description. It is
-                        // the same meter — same name, same `CertCheck`, same
-                        // quantity — applied where the datum went.
-                        //
-                        // Two of this unit's own defects were exactly what it
-                        // catches: a re-anchor that left the datum ending at
-                        // the wall's old radius, and an offset lane that
-                        // dropped it. Both would have been caught here rather
-                        // than by a row someone thought to write.
-                        mapped_source(declared.as_ref(), i, p, band, &mut max_residual)?;
-                    }
-                    // Incidence on both surfaces, as `Intersection` meters it,
-                    // and nothing about how they meet: admissibility is tier
-                    // 3's must-carry predicate.
-                    Resolved::OnPair {
-                        surfs: [(k1, surf1), (k2, surf2)],
-                        declared,
-                    } => {
-                        let p = spec.carrier.eval(t);
-                        check_residual(
-                            "carrier_on_surface_1",
-                            CertCheck::SurfaceResidual { surface: *k1 },
-                            i,
-                            Margin::of(implicit_residual(surf1, p)),
-                            band,
-                            &mut max_residual,
-                        )?;
-                        check_residual(
-                            "carrier_on_surface_2",
-                            CertCheck::SurfaceResidual { surface: *k2 },
-                            i,
-                            Margin::of(implicit_residual(surf2, p)),
-                            band,
-                            &mut max_residual,
-                        )?;
-                        mapped_source(declared.as_ref(), i, p, band, &mut max_residual)?;
-                    }
-                    // Both surfaces are the lane's, after the loop: its limbs
-                    // bound the plane's residual over the whole span as well as
-                    // the wall's. The declaration is metered here.
-                    Resolved::OnPairNurbs { declared, .. } => {
-                        let p = spec.carrier.eval(t);
-                        mapped_source(declared.as_ref(), i, p, band, &mut max_residual)?;
-                    }
-                    // The plane × NURBS lane owns its OWN schedule (denser
-                    // than this one, and shared with the certificate's foot
-                    // points), so it runs once after the loop rather than
-                    // per-sample here — see the block below check 4.
-                    Resolved::PlaneNurbs { .. } | Resolved::PairNurbs { .. } => {}
-                    // Each wall's row certificate owns its own schedule, read
-                    // once after the loop.
-                    Resolved::SharedRow { .. } => {}
                 }
             }
-
-            // ---- TangentIntersection only: the span-wide jet statements
-            // (M5 PR 9). C2.2: the worst sampled residual plus the certified
-            // quadratic sag stays within ε — a SUP bound, not a sampled max.
-            // C2.3-style tube on the jet system: the sampled |κ_rel| minus
-            // its certified drift stays definitely positive over every span,
-            // so second-order separation (local uniqueness of the tangency
-            // locus — the jet system's IFT margin) holds along the whole
-            // edge. Outside the certified span-bound lane: typed refusal,
-            // never a fallback. ----
-            if let Resolved::Tangent {
-                surfs: [(_, surf1), (_, surf2)],
+            // The C7 jet schedule, per sample: the pair's separation
+            // along the shared normal within ε (the touch, read before
+            // the witness), both implicit residuals within ε; at
+            // interior samples the second-order margin
+            // definitely positive FIRST (the IFT denominator — and the
+            // parallelism lever arm's own validity gate), then normal
+            // parallelism within the derived threshold at lever arm
+            // r = 1/κ_rel (D2 verbatim, D4 ¶1). A second-order refusal
+            // is named by a definite parallelism defect at the folded
+            // arm when there is one, so a definite first-order defect is
+            // reported as itself whatever the surfaces' order or the
+            // scalar.
+            Resolved::Tangent {
+                surfs: [(k1, surf1), (k2, surf2)],
                 ..
-            } = &resolved
-            {
-                let Some(bounds) =
-                    crate::tangent::tangent_span_bounds(surf1, surf2, &spec.carrier, t0, t1)
-                else {
-                    return Err(CertifyError::TangentCertificateUnsupported);
+            } => {
+                let (p, tau) = if i > 0 && i < CERT_SAMPLES - 1 {
+                    let (p, tau) = spec.carrier.ders1(t);
+                    (p, Some(tau))
+                } else {
+                    (spec.carrier.eval(t), None)
                 };
+                let r1 = implicit_residual(surf1, p);
+                let r2 = implicit_residual(surf2, p);
+                let sigma = gap_orientation(surf1, surf2, p, reach, i, band)?;
+                // The span line reads `s` under one σ per span: each end
+                // under its own σ and under the other end's, so the bound
+                // holds over the span whichever orientation the shared
+                // normal has there.
+                tangent_gap_max = tangent_gap_max.max((r1 - sigma * r2).abs());
+                if let Some((p1, p2, prev_sigma)) = tangent_prev {
+                    tangent_gap_max = tangent_gap_max
+                        .max((p1 - sigma * p2).abs())
+                        .max((r1 - prev_sigma * r2).abs());
+                }
+                tangent_prev = Some((r1, r2, sigma));
+                tangent_resid_max = tangent_resid_max.max(r1.abs()).max(r2.abs());
                 check_residual(
-                    "tangent_hull_sup",
-                    CertCheck::TangentHull,
-                    NOT_A_SAMPLE,
-                    Margin::of(tangent_resid_max + bounds.residual_sag),
+                    "tangent_gap",
+                    CertCheck::TangentGap,
+                    i,
+                    Margin::of(r1 - sigma * r2),
                     band,
                     &mut max_residual,
                 )?;
                 check_residual(
-                    "tangent_gap_hull_sup",
-                    CertCheck::TangentHull,
-                    NOT_A_SAMPLE,
-                    Margin::of(tangent_gap_max + bounds.gap_sag),
+                    "tangent_on_surface_1",
+                    CertCheck::SurfaceResidual { surface: *k1 },
+                    i,
+                    Margin::of(r1),
                     band,
                     &mut max_residual,
                 )?;
-                tube_separation(tangent_kappa_min, bounds.kappa_drift, tangent_arm_min, band)?;
-            }
-
-            // The spline lanes lever their transversality and size their
-            // uniqueness tube at the edge's own extent, beside the analytic
-            // arms' faces' `reach`.
-            let extent = crate::edge_extent_inf(&spec.carrier, t0, t1, (start, end));
-            // ---- Intersection, plane × NURBS only (M7-8), over a carrier of
-            // any kind: the whole declare-and-check certificate (C2's three
-            // limbs, limbs 1–2 reading the carrier through the
-            // carrier-enclosure door) — the closed-form plane residual,
-            // the certified foot residual on the wall, the between-samples
-            // sup bound, the per-sample transversality and the uniqueness
-            // tube. The lane refuses typed WITH its measured bound; a
-            // transversality failure lands in this module's existing
-            // vocabulary, exactly as the analytic arm's does. ----
-            if let Resolved::PlaneNurbs { plane, wall, .. } = &resolved {
-                // `plane_nurbs_pair` admits only a wall with a chart.
-                let Some(wall) = wall.spline_chart() else {
-                    return Err(CertifyError::Unimplemented);
-                };
-                // The lane decided every residual folded into both limbs at
-                // `band`; they enter the certificate's worst residual and are
-                // not decided again.
-                let limbs = lane
-                    .limbs(&spec.carrier, (t0, t1), plane, wall, extent, band)
-                    .map_err(from_plane_nurbs)?;
-                max_residual = max_residual
-                    .max(limbs.on_locus_max.abs())
-                    .max(limbs.hull_sup.abs());
-            }
-
-            // ---- OnPair, plane × NURBS, over a carrier of any kind: the lane's
-            // incidence on both operands (limbs 1–2), and nothing about how
-            // they meet. The wall side is metered against its spline chart, an
-            // `Approx` wall's fit; incidence on that wall's description adds the
-            // fit's own recorded distance, which this certificate does not
-            // read (`work/tangtail/an-approx-walls-edge-residual-is-recorded-against-its-fit.md`,
-            // the `Intersection` lane's posture too). ----
-            if let Resolved::OnPairNurbs {
-                plane,
-                wall,
-                wall_key,
-                ..
-            } = &resolved
-            {
-                // The wall's image a caller states (the pcurve the mint stored
-                // for this edge on the wall), certified as it stands.
-                let stated = stated.filter(|s| s.surface == *wall_key).map(|s| &s.pcurve);
-                let incidence = lane
-                    .incidence(&spec.carrier, (t0, t1), plane, wall, stated, band)
-                    .map_err(from_plane_nurbs)?;
-                max_residual = max_residual
-                    .max(incidence.on_locus_max.abs())
-                    .max(incidence.hull_sup.abs());
-            }
-
-            // ---- Intersection, NURBS × NURBS, over a carrier of any kind:
-            // the same lane's certificate against both charts, its tube the
-            // two-chart one. ----
-            if let Resolved::PairNurbs { a, b, .. } = &resolved {
-                let (Some(a), Some(b)) = (a.spline_chart(), b.spline_chart()) else {
-                    return Err(CertifyError::Unimplemented);
-                };
-                let limbs = lane
-                    .pair_limbs(&spec.carrier, (t0, t1), a, b, extent, band)
-                    .map_err(from_plane_nurbs)?;
-                max_residual = max_residual
-                    .max(limbs.on_locus_max.abs())
-                    .max(limbs.hull_sup.abs());
-            }
-
-            // ---- Intersection under a shared row (D2's structural selector):
-            // each wall's certificate of its own row image, limbs 1 and 2 on
-            // that chart (C2), and the walls definitely transverse along the
-            // row at the feet it states. No limb 3: the row is the curve. ----
-            if let Resolved::SharedRow { walls } = &resolved {
-                for (key, wall, image) in walls {
-                    let cache = crate::pcurve_cache::PcurveCache::certify(
-                        image.clone(),
-                        t0,
-                        t1,
-                        &spec.carrier,
-                        wall,
-                        band,
-                    )
-                    .map_err(|e| row_image_refusal(*key, e))?;
-                    let (on_locus, hull) = cache.certificate().limbs();
-                    max_residual = max_residual.max(on_locus.abs()).max(hull.abs());
-                }
-                let [(_, a, image_a), (_, b, image_b)] = walls;
-                let (Some(a), Some(b)) = (a.spline_chart(), b.spline_chart()) else {
-                    return Err(CertifyError::Unimplemented);
-                };
-                crate::edge_nurbs::row_transversality(
-                    (t0, t1),
-                    (a, image_a),
-                    (b, image_b),
-                    extent,
+                check_residual(
+                    "tangent_on_surface_2",
+                    CertCheck::SurfaceResidual { surface: *k2 },
+                    i,
+                    Margin::of(r2),
                     band,
-                )
-                .map_err(|e| from_plane_nurbs(e.lane()))?;
-                let span = (t0.lo(), t1.hi());
-                // A row image moves monotonically along one coordinate
-                // (`description::row_of`, the admission guard), so over a piece it
-                // lies in the hull of its two ends' images.
-                let read = |lo: f64, hi: f64| {
-                    let (lo_t, hi_t) = (T::from_computed(lo), T::from_computed(hi));
-                    let bracket = |x: T| (x.lo(), x.hi());
-                    let ends = |image: &Pcurve<T>, k: usize| {
-                        let at = |t: T| {
-                            let p = image.eval(t);
-                            bracket(if k == 0 { p.x } else { p.y })
-                        };
-                        [at(lo_t), at(hi_t)]
+                    &mut max_residual,
+                )?;
+                if let Some(tau) = tau {
+                    // The must-carry rule's one spelling
+                    // (`crate::tangent_second_order`): the constructor
+                    // that stores a `TangentIntersection` and this
+                    // certificate that accepts one must read the same
+                    // sagitta under the same predicate name, or the
+                    // stored set and the certified set are two sets.
+                    //
+                    // The frame's escalation log carries exactly the
+                    // escalation the returned error carries, so both
+                    // readings run detached and two are spliced without
+                    // theirs (`k_stats::splice_superseded`):
+                    // - the naming reading's: it never refuses, it only
+                    //   names a refusal already made;
+                    // - a renamed refusal's second-order one: no sub-box
+                    //   can certify. The defect is definite at the folded
+                    //   arm on every sub-box, and where a sub-box's
+                    //   sagitta resolves, its lever `1/|κ_rel|` is at
+                    //   least half that arm (`|κ_rel| ≤ κ₁ + κ₂`, each
+                    //   `κᵢ ≤ 1/curvature_lever_arm`), so the defect there
+                    //   is above `K/2 · ε > ε`. Two premises are not
+                    //   invariants: K > 2 is the ratified K = 10 (`Tol`
+                    //   asks only K > 1), and `κᵢ ≤ 1/curvature_lever_arm`
+                    //   fails on a fat torus (R < 2r). Where they fail,
+                    //   a sub-box could certify, and the drop is still
+                    //   safe: a failed node with an empty log bisects.
+                    let (so, second_order) = geom_core::k_stats::detached(|| {
+                        crate::tangent_second_order(surf1, surf2, p, tau, reach, band)
+                    });
+                    let (jet, arm) = (so.jet, so.arm);
+                    let refused = match so.verdict {
+                        Ok(decided) => Refused::of(decided, band).map(Ok),
+                        Err(cause) => Some(Err(cause)),
                     };
-                    crate::ssi::row_piece([
-                        ends(image_a, 0),
-                        ends(image_a, 1),
-                        ends(image_b, 0),
-                        ends(image_b, 1),
-                    ])
+                    match refused {
+                        None => geom_core::k_stats::splice(second_order),
+                        Some(refused) => {
+                            // No lever `1/κ_rel` exists, so the
+                            // parallelism defect is metered at the folded
+                            // arm the sagitta was read over; a DEFINITE
+                            // defect there is the refusal's cause (why
+                            // `κ_rel` alone cannot tell a crossing from an
+                            // osculating pair: `crate::TangentJet`). An
+                            // in-band or zero reading is no more definite
+                            // than the second-order one, which stands.
+                            let renamed = named_by_parallelism(jet.sin_theta, arm, band);
+                            if renamed.is_some() {
+                                geom_core::k_stats::splice_superseded(second_order);
+                            } else {
+                                geom_core::k_stats::splice(second_order);
+                            }
+                            return Err(match (renamed, refused) {
+                                (Some(margin), _) => CertifyError::ResidualExceeded {
+                                    check: CertCheck::TangentParallel,
+                                    sample: i,
+                                    margin,
+                                },
+                                (None, Err(cause)) => CertifyError::Escalated {
+                                    check: CertCheck::TangentSecondOrder,
+                                    sample: i,
+                                    cause,
+                                },
+                                // A magnitude margin (`≥ 0`): Zero is the
+                                // G2/osculating zero side; Negative is
+                                // unreachable for a true magnitude.
+                                (None, Ok(verdict)) => {
+                                    CertifyError::NotSecondOrderSeparated { sample: i, verdict }
+                                }
+                            });
+                        }
+                    }
+                    tangent_kappa_min = tangent_kappa_min.min(jet.kappa_rel.abs());
+                    tangent_arm_min = tangent_arm_min.min(arm.length());
+                    check_residual(
+                        "tangent_normal_parallel",
+                        CertCheck::TangentParallel,
+                        i,
+                        Margin::levered_inv(jet.sin_theta, jet.kappa_rel.abs()),
+                        band,
+                        &mut max_residual,
+                    )?;
+                }
+            }
+            // The fenced scaffolding arm (D3): the ONE conventional
+            // residual with no chart to state itself against, because
+            // a transient scaffolding edge has no surfaces yet. It
+            // keeps its own meter for exactly as long as the fence
+            // keeps it legal.
+            Resolved::Scaffold(mc) => {
+                let p = spec.carrier.eval(t);
+                let s = T::from_f64(schedule_fraction(i, CERT_SAMPLES));
+                check_residual(
+                    "carrier_matches_mapped_source",
+                    CertCheck::MappedSource,
+                    i,
+                    Margin::of(p.distance(mc.eval(s))),
+                    band,
+                    &mut max_residual,
+                )?;
+            }
+            // **U2's one conventional arm, D1's one meter.**
+            // `|C(t) − S(P(t))| ≤ ε` (C4 verbatim), on the carrier's
+            // own parameter — the same statement, the same predicate
+            // name and the same dimension as every stored pcurve
+            // cache's schedule (`pcurve_map_residual`), so an edge
+            // cannot certify as a description and refuse as a cache.
+            // `S(P(t))` is a point ON the surface, so the meter is never
+            // under `dist(C, surface)`, with equality where the image
+            // names the foot point: a cone's ruling and rim images
+            // project on the generator and read the perpendicular; a
+            // sphere's and a small-radius cylinder's read within bits
+            // of the implicit form (`tests/r2_probes.rs`).
+            Resolved::Chart {
+                surface, declared, ..
+            } => {
+                let Some(chart) = canonical.chart() else {
+                    return Err(CertifyError::Unimplemented);
                 };
-                let crossing = crate::ssi::row_crossing((a, b), span, read).map_err(
-                    |crate::ssi::RowUnreadable(wall, refusal)| CertifyError::Row {
-                        surface: walls[wall].0,
-                        refusal: RowRefusal::ChartSpeed(refusal),
-                    },
-                )?;
-                row_crossing_verdict(crossing, extent, band)?;
+                let p = spec.carrier.eval(t);
+                // A stated image on a spline chart is bounded over
+                // the span above (`stated_bound`).
+                if !matches!(chart_stated, StatedChart::Spline(..)) {
+                    let q = chart.pcurve.eval(t);
+                    check_residual(
+                        "pcurve_map_residual",
+                        CertCheck::ChartResidual,
+                        i,
+                        Margin::of(p.distance(surface.eval(q.x, q.y))),
+                        band,
+                        &mut max_residual,
+                    )?;
+                }
+                // **The declaration is metered too, or it is not a
+                // record of anything** (P-1b, reinstated in review).
+                // A declared locus says a sketch entity under a sweep
+                // map determined THIS curve; the claim is checkable
+                // and pre-collapse it was checked on every certify,
+                // because the pushforward was the description. It is
+                // the same meter — same name, same `CertCheck`, same
+                // quantity — applied where the datum went.
+                //
+                // Two of this unit's own defects were exactly what it
+                // catches: a re-anchor that left the datum ending at
+                // the wall's old radius, and an offset lane that
+                // dropped it. Both would have been caught here rather
+                // than by a row someone thought to write.
+                mapped_source(declared.as_ref(), i, p, band, &mut max_residual)?;
             }
-
-            // ---- Intersection of two analytic surfaces: C2's limbs, through
-            // the lane, which holds certification arithmetic — the carrier's
-            // distance from each operand over the edge's interval for every
-            // kind, and the uniqueness tube over it for a spline. A spline
-            // operand's pair is the NURBS pairs' lane above, whose limbs are
-            // its own. ----
-            if let Resolved::Intersection {
-                surfs: [(_, surf1), (_, surf2)],
-                ..
-            } = &resolved
-            {
-                lane.analytic_limbs(&spec.carrier, (t0, t1), surf1, surf2, band)
-                    .map_err(CertifyError::AnalyticRung3)?;
-            }
-
-            // ---- Check 5: witness residuals + mid-parameter pin
-            // (Intersection and TangentIntersection; see the check-sequence
-            // docs for the witness contract: the witness IS the edge's
-            // mid-parameter point). ----
-            if let Resolved::Intersection {
+            // Incidence on both surfaces, as `Intersection` meters it,
+            // and nothing about how they meet: admissibility is tier
+            // 3's must-carry predicate.
+            Resolved::OnPair {
                 surfs: [(k1, surf1), (k2, surf2)],
-                witness,
-                ..
+                declared,
+            } => {
+                let p = spec.carrier.eval(t);
+                check_residual(
+                    "carrier_on_surface_1",
+                    CertCheck::SurfaceResidual { surface: *k1 },
+                    i,
+                    Margin::of(implicit_residual(surf1, p)),
+                    band,
+                    &mut max_residual,
+                )?;
+                check_residual(
+                    "carrier_on_surface_2",
+                    CertCheck::SurfaceResidual { surface: *k2 },
+                    i,
+                    Margin::of(implicit_residual(surf2, p)),
+                    band,
+                    &mut max_residual,
+                )?;
+                mapped_source(declared.as_ref(), i, p, band, &mut max_residual)?;
             }
-            | Resolved::Tangent {
-                surfs: [(k1, surf1), (k2, surf2)],
-                witness,
-            } = &resolved
-            {
-                check_residual(
-                    "witness_on_surface_1",
-                    CertCheck::WitnessSurfaceResidual { surface: *k1 },
-                    NOT_A_SAMPLE,
-                    Margin::of(implicit_residual(surf1, *witness)),
-                    band,
-                    &mut max_residual,
-                )?;
-                check_residual(
-                    "witness_on_surface_2",
-                    CertCheck::WitnessSurfaceResidual { surface: *k2 },
-                    NOT_A_SAMPLE,
-                    Margin::of(implicit_residual(surf2, *witness)),
-                    band,
-                    &mut max_residual,
-                )?;
-                let mid = spec.carrier.mid_point(t0, t1);
-                check_residual(
-                    "witness_at_mid_parameter",
-                    CertCheck::WitnessMidpoint,
-                    (CERT_SAMPLES - 1) / 2,
-                    Margin::of(mid.distance(*witness)),
-                    band,
-                    &mut max_residual,
-                )?;
+            // Both surfaces are the lane's, after the loop: its limbs
+            // bound the plane's residual over the whole span as well as
+            // the wall's. The declaration is metered here.
+            Resolved::OnPairNurbs { declared, .. } => {
+                let p = spec.carrier.eval(t);
+                mapped_source(declared.as_ref(), i, p, band, &mut max_residual)?;
             }
+            // The plane × NURBS lane owns its OWN schedule (denser
+            // than this one, and shared with the certificate's foot
+            // points), so it runs once after the loop rather than
+            // per-sample here — see the block below check 4.
+            Resolved::PlaneNurbs { .. } | Resolved::PairNurbs { .. } => {}
+            // Each wall's row certificate owns its own schedule, read
+            // once after the loop.
+            Resolved::SharedRow { .. } => {}
+        }
+    }
 
-            // The plane × NURBS witness (M7-8): the plane side is the same
-            // closed-form residual the analytic arm checks; the wall side is
-            // discharged by the lane's own schedule, which contains the
-            // mid-parameter exactly (`PXN_FIT_SAMPLES` is odd). The
-            // mid-parameter pin is unchanged — the witness contract does not
-            // move at this rung.
-            // Two charts: both sides are discharged by the lane's schedule, and
-            // the mid-parameter pin is the same.
-            if let Resolved::PairNurbs { witness, .. } = &resolved {
-                let mid = spec.carrier.mid_point(t0, t1);
-                check_residual(
-                    "witness_at_mid_parameter",
-                    CertCheck::WitnessMidpoint,
-                    (CERT_SAMPLES - 1) / 2,
-                    Margin::of(mid.distance(*witness)),
-                    band,
-                    &mut max_residual,
-                )?;
-            }
+    // ---- TangentIntersection only: the span-wide jet statements
+    // (M5 PR 9). C2.2: the worst sampled residual plus the certified
+    // quadratic sag stays within ε — a SUP bound, not a sampled max.
+    // C2.3-style tube on the jet system: the sampled |κ_rel| minus
+    // its certified drift stays definitely positive over every span,
+    // so second-order separation (local uniqueness of the tangency
+    // locus — the jet system's IFT margin) holds along the whole
+    // edge. Outside the certified span-bound lane: typed refusal,
+    // never a fallback. ----
+    if let Resolved::Tangent {
+        surfs: [(_, surf1), (_, surf2)],
+        ..
+    } = &resolved
+    {
+        let Some(bounds) = crate::tangent::tangent_span_bounds(surf1, surf2, &spec.carrier, t0, t1)
+        else {
+            return Err(CertifyError::TangentCertificateUnsupported);
+        };
+        check_residual(
+            "tangent_hull_sup",
+            CertCheck::TangentHull,
+            NOT_A_SAMPLE,
+            Margin::of(tangent_resid_max + bounds.residual_sag),
+            band,
+            &mut max_residual,
+        )?;
+        check_residual(
+            "tangent_gap_hull_sup",
+            CertCheck::TangentHull,
+            NOT_A_SAMPLE,
+            Margin::of(tangent_gap_max + bounds.gap_sag),
+            band,
+            &mut max_residual,
+        )?;
+        tube_separation(tangent_kappa_min, bounds.kappa_drift, tangent_arm_min, band)?;
+    }
 
-            if let Resolved::PlaneNurbs {
-                plane_key,
-                plane,
-                witness,
-                ..
-            } = &resolved
-            {
-                check_residual(
-                    "witness_on_surface_1",
-                    CertCheck::WitnessSurfaceResidual {
-                        surface: *plane_key,
-                    },
-                    NOT_A_SAMPLE,
-                    Margin::of(implicit_residual(plane, *witness)),
-                    band,
-                    &mut max_residual,
-                )?;
-                let mid = spec.carrier.mid_point(t0, t1);
-                check_residual(
-                    "witness_at_mid_parameter",
-                    CertCheck::WitnessMidpoint,
-                    (CERT_SAMPLES - 1) / 2,
-                    Margin::of(mid.distance(*witness)),
-                    band,
-                    &mut max_residual,
-                )?;
-            }
+    // The spline lanes lever their transversality and size their
+    // uniqueness tube at the edge's own extent, beside the analytic
+    // arms' faces' `reach`.
+    let extent = crate::edge_extent_inf(&spec.carrier, t0, t1, (start, end));
+    // ---- Intersection, plane × NURBS only (M7-8), over a carrier of
+    // any kind: the whole declare-and-check certificate (C2's three
+    // limbs, limbs 1–2 reading the carrier through the
+    // carrier-enclosure door) — the closed-form plane residual,
+    // the certified foot residual on the wall, the between-samples
+    // sup bound, the per-sample transversality and the uniqueness
+    // tube. The lane refuses typed WITH its measured bound; a
+    // transversality failure lands in this module's existing
+    // vocabulary, exactly as the analytic arm's does. ----
+    if let Resolved::PlaneNurbs { plane, wall, .. } = &resolved {
+        // `plane_nurbs_pair` admits only a wall with a chart.
+        let Some(wall) = wall.spline_chart() else {
+            return Err(CertifyError::Unimplemented);
+        };
+        // The lane decided every residual folded into both limbs at
+        // `band`; they enter the certificate's worst residual and are
+        // not decided again.
+        let limbs = lane
+            .limbs(&spec.carrier, (t0, t1), plane, wall, extent, band)
+            .map_err(from_plane_nurbs)?;
+        max_residual = max_residual
+            .max(limbs.on_locus_max.abs())
+            .max(limbs.hull_sup.abs());
+    }
 
-            Ok((
-                Certificate {
-                    samples: CERT_SAMPLES,
-                    max_residual,
-                },
-                canonical,
-                turn,
-            ))
+    // ---- OnPair, plane × NURBS, over a carrier of any kind: the lane's
+    // incidence on both operands (limbs 1–2), and nothing about how
+    // they meet. The wall side is metered against its spline chart, an
+    // `Approx` wall's fit; incidence on that wall's description adds the
+    // fit's own recorded distance, which this certificate does not
+    // read (`work/tangtail/an-approx-walls-edge-residual-is-recorded-against-its-fit.md`,
+    // the `Intersection` lane's posture too). ----
+    if let Resolved::OnPairNurbs {
+        plane,
+        wall,
+        wall_key,
+        ..
+    } = &resolved
+    {
+        // The wall's image a caller states (the pcurve the mint stored
+        // for this edge on the wall), certified as it stands.
+        let stated = stated.filter(|s| s.surface == *wall_key).map(|s| &s.pcurve);
+        let incidence = lane
+            .incidence(&spec.carrier, (t0, t1), plane, wall, stated, band)
+            .map_err(from_plane_nurbs)?;
+        max_residual = max_residual
+            .max(incidence.on_locus_max.abs())
+            .max(incidence.hull_sup.abs());
+    }
+
+    // ---- Intersection, NURBS × NURBS, over a carrier of any kind:
+    // the same lane's certificate against both charts, its tube the
+    // two-chart one. ----
+    if let Resolved::PairNurbs { a, b, .. } = &resolved {
+        let (Some(a), Some(b)) = (a.spline_chart(), b.spline_chart()) else {
+            return Err(CertifyError::Unimplemented);
+        };
+        let limbs = lane
+            .pair_limbs(&spec.carrier, (t0, t1), a, b, extent, band)
+            .map_err(from_plane_nurbs)?;
+        max_residual = max_residual
+            .max(limbs.on_locus_max.abs())
+            .max(limbs.hull_sup.abs());
+    }
+
+    // ---- Intersection under a shared row (D2's structural selector):
+    // each wall's certificate of its own row image, limbs 1 and 2 on
+    // that chart (C2), and the walls definitely transverse along the
+    // row at the feet it states. No limb 3: the row is the curve. ----
+    if let Resolved::SharedRow { walls } = &resolved {
+        for (key, wall, image) in walls {
+            let cache = crate::pcurve_cache::PcurveCache::certify(
+                image.clone(),
+                t0,
+                t1,
+                &spec.carrier,
+                wall,
+                band,
+            )
+            .map_err(|e| row_image_refusal(*key, e))?;
+            let (on_locus, hull) = cache.certificate().limbs();
+            max_residual = max_residual.max(on_locus.abs()).max(hull.abs());
+        }
+        let [(_, a, image_a), (_, b, image_b)] = walls;
+        let (Some(a), Some(b)) = (a.spline_chart(), b.spline_chart()) else {
+            return Err(CertifyError::Unimplemented);
+        };
+        crate::edge_nurbs::row_transversality((t0, t1), (a, image_a), (b, image_b), extent, band)
+            .map_err(|e| from_plane_nurbs(e.lane()))?;
+        let span = (t0.lo(), t1.hi());
+        // A row image moves monotonically along one coordinate
+        // (`description::row_of`, the admission guard), so over a piece it
+        // lies in the hull of its two ends' images.
+        let read = |lo: f64, hi: f64| {
+            let (lo_t, hi_t) = (T::from_computed(lo), T::from_computed(hi));
+            let bracket = |x: T| (x.lo(), x.hi());
+            let ends = |image: &Pcurve<T>, k: usize| {
+                let at = |t: T| {
+                    let p = image.eval(t);
+                    bracket(if k == 0 { p.x } else { p.y })
+                };
+                [at(lo_t), at(hi_t)]
+            };
+            crate::ssi::row_piece([
+                ends(image_a, 0),
+                ends(image_a, 1),
+                ends(image_b, 0),
+                ends(image_b, 1),
+            ])
+        };
+        let crossing = crate::ssi::row_crossing((a, b), span, read).map_err(
+            |crate::ssi::RowUnreadable(wall, refusal)| CertifyError::Row {
+                surface: walls[wall].0,
+                refusal: RowRefusal::ChartSpeed(refusal),
+            },
+        )?;
+        row_crossing_verdict(crossing, extent, band)?;
+    }
+
+    // ---- Intersection of two analytic surfaces: C2's limbs, through
+    // the lane, which holds certification arithmetic — the carrier's
+    // distance from each operand over the edge's interval for every
+    // kind, and the uniqueness tube over it for a spline. A spline
+    // operand's pair is the NURBS pairs' lane above, whose limbs are
+    // its own. ----
+    if let Resolved::Intersection {
+        surfs: [(_, surf1), (_, surf2)],
+        ..
+    } = &resolved
+    {
+        lane.analytic_limbs(&spec.carrier, (t0, t1), surf1, surf2, band)
+            .map_err(CertifyError::AnalyticRung3)?;
+    }
+
+    // ---- Check 5: witness residuals + mid-parameter pin
+    // (Intersection and TangentIntersection; see the check-sequence
+    // docs for the witness contract: the witness IS the edge's
+    // mid-parameter point). ----
+    if let Resolved::Intersection {
+        surfs: [(k1, surf1), (k2, surf2)],
+        witness,
+        ..
+    }
+    | Resolved::Tangent {
+        surfs: [(k1, surf1), (k2, surf2)],
+        witness,
+    } = &resolved
+    {
+        check_residual(
+            "witness_on_surface_1",
+            CertCheck::WitnessSurfaceResidual { surface: *k1 },
+            NOT_A_SAMPLE,
+            Margin::of(implicit_residual(surf1, *witness)),
+            band,
+            &mut max_residual,
+        )?;
+        check_residual(
+            "witness_on_surface_2",
+            CertCheck::WitnessSurfaceResidual { surface: *k2 },
+            NOT_A_SAMPLE,
+            Margin::of(implicit_residual(surf2, *witness)),
+            band,
+            &mut max_residual,
+        )?;
+        let mid = spec.carrier.mid_point(t0, t1);
+        check_residual(
+            "witness_at_mid_parameter",
+            CertCheck::WitnessMidpoint,
+            (CERT_SAMPLES - 1) / 2,
+            Margin::of(mid.distance(*witness)),
+            band,
+            &mut max_residual,
+        )?;
+    }
+
+    // The plane × NURBS witness (M7-8): the plane side is the same
+    // closed-form residual the analytic arm checks; the wall side is
+    // discharged by the lane's own schedule, which contains the
+    // mid-parameter exactly (`PXN_FIT_SAMPLES` is odd). The
+    // mid-parameter pin is unchanged — the witness contract does not
+    // move at this rung.
+    // Two charts: both sides are discharged by the lane's schedule, and
+    // the mid-parameter pin is the same.
+    if let Resolved::PairNurbs { witness, .. } = &resolved {
+        let mid = spec.carrier.mid_point(t0, t1);
+        check_residual(
+            "witness_at_mid_parameter",
+            CertCheck::WitnessMidpoint,
+            (CERT_SAMPLES - 1) / 2,
+            Margin::of(mid.distance(*witness)),
+            band,
+            &mut max_residual,
+        )?;
+    }
+
+    if let Resolved::PlaneNurbs {
+        plane_key,
+        plane,
+        witness,
+        ..
+    } = &resolved
+    {
+        check_residual(
+            "witness_on_surface_1",
+            CertCheck::WitnessSurfaceResidual {
+                surface: *plane_key,
+            },
+            NOT_A_SAMPLE,
+            Margin::of(implicit_residual(plane, *witness)),
+            band,
+            &mut max_residual,
+        )?;
+        let mid = spec.carrier.mid_point(t0, t1);
+        check_residual(
+            "witness_at_mid_parameter",
+            CertCheck::WitnessMidpoint,
+            (CERT_SAMPLES - 1) / 2,
+            Margin::of(mid.distance(*witness)),
+            band,
+            &mut max_residual,
+        )?;
+    }
+
+    Ok((
+        Certificate {
+            samples: CERT_SAMPLES,
+            max_residual,
         },
-    )
+        canonical,
+        turn,
+    ))
 }
 
 // The pair's two surfaces resolved, in key order: the checks run

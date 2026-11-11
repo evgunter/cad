@@ -643,6 +643,12 @@ fn certify_errors() -> Vec<CertifyError> {
             sample: 4,
             verdict: zero_verdict(5e-10),
         },
+        CertifyError::SemiAxisNegative {
+            carrier: geom::CurveKind::Ellipse,
+        },
+        CertifyError::SemiAxisNotFinite {
+            carrier: geom::CurveKind::Ellipse,
+        },
         CertifyError::SpanMeterCollapsed {
             verdict: zero_verdict(0.0),
         },
@@ -2449,7 +2455,9 @@ mod tests {
             let pose = matches!(
                 e,
                 C::NoGeneralLane {
-                    gap: geom_brep::LaneGap::Pose { .. } | geom_brep::LaneGap::Envelope,
+                    gap: geom_brep::LaneGap::Pose { .. }
+                        | geom_brep::LaneGap::Envelope
+                        | geom_brep::LaneGap::Image,
                     ..
                 }
             );
@@ -2904,6 +2912,7 @@ mod tests {
                 channel: geom_brep::SectorChannel::Azimuth,
             },
             geom_brep::LaneGap::Envelope,
+            geom_brep::LaneGap::Image,
         ] {
             let (chart, carrier) = (geom::SurfaceKind::Sphere, geom::CurveKind::Circle);
             let edge = CertifyError::NoGeneralLane {
