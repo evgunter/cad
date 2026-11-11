@@ -143,7 +143,7 @@ pub(super) fn spline_incidence_as<T: Decide>(
     let n = f64::from(INCIDENCE_SAMPLES);
     let samples =
         (0..=INCIDENCE_SAMPLES).map(|i| at(t0 + (t1 - t0) * T::from_f64(f64::from(i) / n)));
-    read_samples(name, chart, samples, band)
+    read_samples_as(name, chart, samples, band)
 }
 
 /// **The spline chart's incidence test of one point**: [`spline_incidence_as`]
@@ -152,19 +152,19 @@ pub(super) fn spline_incidence_as<T: Decide>(
 /// # Errors
 ///
 /// As [`spline_incidence_as`].
-pub(super) fn spline_point_incidence<T: Decide>(
+pub(super) fn spline_point_incidence_as<T: Decide>(
     name: &'static str,
     chart: &NurbsSurface<T>,
     point: Point3<T>,
     band: Band,
 ) -> Result<Incidence, PcurveCertifyError> {
-    read_samples(name, chart, core::iter::once(point), band)
+    read_samples_as(name, chart, core::iter::once(point), band)
 }
 
 /// Each sample's walk over the chart's cells, cut once: `Off` at the
 /// first sample shown off, else unsettled at the first sample not shown
 /// on, else `On`.
-fn read_samples<T: Decide>(
+fn read_samples_as<T: Decide>(
     name: &'static str,
     chart: &NurbsSurface<T>,
     samples: impl Iterator<Item = Point3<T>>,
