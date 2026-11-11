@@ -2,11 +2,14 @@
 id: main-red-a-needle-cavity-12eps-channel-escalates-at-bool-contact-vertex
 kind: issue
 title: Main red (slow set): the 12ε needle channel escalates at bool_contact_vertex where it must refuse on the sector question
-status: open
+status: closed
 opened: 2026-11-01
+closed: 2026-11-11
 priority: P1
 cost: M
 refs: [a-needle-cavity-refuses-at-the-joins-section-loop-before-any-read]
+pr: 6812
+branch: flush/needle-12eps
 ---
 
 
@@ -25,3 +28,13 @@ Reported again by a ONECOPY lane at `f8419853`, with the message above unchanged
 ## Same reading on SEAL PR 6693 (2026-11-10)
 
 At `seal/corner-sectors` the test still fails at `shell_role_reader.rs:648` with the same `Containment` at `bool_contact_vertex`, margin `6.000000011551611e-9`. That PR deletes `bool_sector_coplanar`, so the expected arm now reads `bool_sector_within` or `Coincide::CornerBound` (a flat sector's bound tie). It was not set to the `Containment` this head yields, because that is this row's red.
+
+## Closed
+
+Closed by PR 6812 (2026-11-11). The kernel was wrong; the expectation's arm was a guess SEAL could not observe.
+
+- **Bisect.** The first bad first-parent commit is `0709e658`, the merge of PR 6225. That PR moved "does this face hold this piece of an edge lying in its plane" from the carry into the reduction (`reduce::settle_in_plane`), ahead of the corner question. The good end was `712dadf2`, PR 6053's merge, where the five runs refused `bool_sector_coplanar`.
+- **The margin is a probe's, not a pair's.** The settle read the midpoint of a 12ε piece of the slab's edge, lying along the fill's end face's boundary. `6.0e-9` is `w/2`, the distance from that midpoint to the piece's own end, the face's corner `(1, 0.8, 0.5 + w)`. No cell of either operand is 6ε from another, so the refusal judged thinness by something other than the pairs (`[coincidence.booleans]`).
+- **Why only turned 12ε.** The pieces are read in-plane only because the glue door reads the two end faces' carrier pair in band (`bool_plane_parallel`, `1.19e-9` and `1.06e-9` against zero `1e-9`) and leaves it unglued. At 10.5 and 15ε turned, and in every aligned and moved pose, the pair glues. The carriers are fitted across `w`: GERM's rounding over `1/w`. GERM's P2 row has the measurement.
+- **The fix.** A piece whose midpoint lies in band of its own ends now reads at an end tied to one corner of the face (`reduce::held_at_corners`). The germ is read against the corner's two boundary lines, levered at the piece. With that, the five runs reach their corner and refuse `Coincidence(CornerCrossing)` at `bool_faces_parallel`, a Zero rejected. That is SEAL's reading of an unglued plane pair at a shared corner, and the test now pins it (`Want::Corner`).
+- **Residue.** The cases the corner read leaves to the midpoint are filed on PARTING: `work/parting/the-in-plane-settle-reads-a-short-piece-by-its-midpoint-where-no-end-reads-at-a-corner.md`.
