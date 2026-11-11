@@ -58,3 +58,25 @@ sweep slow rows by editing their expectation tables
 `OTHER_SPINS_STOPS`, and the asserted `Stop` in `torus_doors_join`). Its
 first gate ran `Starting 0 tests` in the slow-set step and still
 concluded `gate ok`. The fix pass names each row in its pin comment.
+
+## Evidence: PR 6818 (TINT, 2026-11-11)
+
+Two more slow rows show the same blind spot, from both sides.
+
+- **How the red got in.** PR 6371 retyped `BooleanError::ResultInvalid`'s
+  field from `errors` to `findings`. Nothing in that diff spells
+  `germ_tilted_rod::the_steeper_tilts_union_stops_by_identity`, so the
+  test ran on no PR step. It stood red on main from 2026-11-08 until
+  PR 6818.
+- **How the fix goes unchecked.** PR 6818 re-pins that test inside its
+  body and adds a line to
+  `bounds_census::every_sole_bracket_bound_door_is_in_the_roster`'s
+  `ROSTER`. Its head `403e5baf1f` reported, in hosted run 42965866425 (job
+  `test (kernel)`):
+  - `slow set over: package(geom-core)|package(sweep)`, followed by `0 tests run`;
+  - change filter: "1 of its rows are in ci's slow set and skip this step"
+    for `bounds_census.rs`, and "3 of its rows" for `germ_tilted_rod.rs`.
+
+  So neither fix ran hosted at any ε. The PR's evidence for both is a
+  local run.
+
