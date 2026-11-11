@@ -284,27 +284,46 @@ pub(crate) fn plane_partial<T: CertifiedBounds>(
     w: UvWindow,
     along_u: bool,
 ) -> Interval {
+    count_window();
     let b = boxes.deriv_box(w, along_u);
     n[0] * b.x + n[1] * b.y + n[2] * b.z
 }
 
-#[cfg(test)]
+#[cfg(any(test, feature = "test-support"))]
 std::thread_local! {
-    /// The pass's partial readings on this thread, and the windows they
-    /// read the wall's boxes over ([`Partner::partial`]).
-    static PARTIALS: core::cell::Cell<(usize, u64)> = const { core::cell::Cell::new((0, 0)) };
+    static PARTIALS: core::cell::Cell<(usize, usize)> = const { core::cell::Cell::new((0, 0)) };
 }
 
-/// Counts one partial reading over `windows` windows; nothing outside
+/// Test-only: how many partial readings of `φ` across a window this
+/// thread has asked (the pass's [`Partner::partial`] and limb 3's
+/// [`super::enclose::ChartPhi::partial`]), and how many windows they
+/// read the wall's derivative box over. A reading's cost is pinned by
+/// the count, which timing alone would otherwise carry.
+#[cfg(any(test, feature = "test-support"))]
+#[doc(hidden)]
+#[must_use]
+pub fn partial_reads() -> (usize, usize) {
+    PARTIALS.with(core::cell::Cell::get)
+}
+
+/// Counts one partial reading toward [`partial_reads`]; nothing outside
 /// test builds.
-fn count_partial(windows: u32) {
-    #[cfg(test)]
+pub(crate) fn count_reading() {
+    #[cfg(any(test, feature = "test-support"))]
     PARTIALS.with(|c| {
-        let (calls, read) = c.get();
-        c.set((calls + 1, read + u64::from(windows)));
+        let (readings, windows) = c.get();
+        c.set((readings + 1, windows));
     });
-    #[cfg(not(test))]
-    let _ = windows;
+}
+
+/// Counts one window's derivative box read toward [`partial_reads`];
+/// nothing outside test builds.
+fn count_window() {
+    #[cfg(any(test, feature = "test-support"))]
+    PARTIALS.with(|c| {
+        let (readings, windows) = c.get();
+        c.set((readings, windows + 1));
+    });
 }
 
 /// How many pieces a side of a window is cut into where the partner's
@@ -345,12 +364,11 @@ impl Partner for &ImplicitForm {
     /// side's strip part nothing of their correlation, so a side lying on
     /// the partner would read no slope across it one-signed.
     fn partial(&self, boxes: &NurbsBoxes<'_, f64>, w: UvWindow, along_u: bool) -> Interval {
+        count_reading();
         if let Some(g) = self.constant_gradient() {
-            count_partial(1);
             return plane_partial([g.x, g.y, g.z], boxes, w, along_u);
         }
         let n = CURVED_PARTIAL_PIECES;
-        count_partial(n.pow(2));
         let cut = |(a, b): (f64, f64), k: u32| {
             let at = |i: u32| {
                 if i == n {
@@ -370,6 +388,7 @@ impl Partner for &ImplicitForm {
                     return Interval::refused();
                 };
                 let g = self.gradient(self.framed(boxes.rect_box(piece)));
+                count_window();
                 let d = boxes.deriv_box(piece, along_u);
                 let p = g.x * d.x + g.y * d.y + g.z * d.z;
                 out = Some(out.map_or(p, |o| Interval::hull(o, p)));
@@ -1497,40 +1516,34 @@ fn graze(side: ChartSide, bracket: (f64, f64), arm: f64, band: Band) -> SsiError
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
-    use super::{PARTIALS, Partner as _, UvWindow};
+    use super::{Partner as _, UvWindow, partial_reads};
     use crate::ssi::enclose::NurbsBoxes;
+    use crate::ssi::four::tests::bilinear;
     use crate::ssi::residual::ImplicitForm;
     use geom::{NurbsSurface, Surface};
-    use geom_core::spline::KnotVector;
     use geom_core::{Band, Point3, Vec3};
 
     /// A flat wall in `y = 0`, `w` square, its corner at the origin.
     fn flat_wall(w: f64) -> NurbsSurface<f64> {
-        let k = || KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
-        let p = |x: f64, z: f64| Point3::new(x, 0.0, z);
-        NurbsSurface::new(
-            k(),
-            k(),
-            vec![p(0.0, 0.0), p(0.0, w), p(w, 0.0), p(w, w)],
-            vec![1.0; 4],
-        )
-        .unwrap()
+        bilinear(|i, j| [i * w, 0.0, j * w])
     }
 
-    fn reset() -> (usize, u64) {
-        PARTIALS.with(|c| c.replace((0, 0)))
+    /// The readings and windows counted since `before`.
+    fn since(before: (usize, usize)) -> (usize, usize) {
+        let now = partial_reads();
+        (now.0 - before.0, now.1 - before.1)
     }
 
-    /// **A plane's partial reads its window once** (the pass's work on a
-    /// plane partner, counted): over a whole plane × NURBS reading that
-    /// runs the boundary pass, every partial the pass asks of a plane
-    /// reads the wall's boxes over its one window, where a curved
-    /// partner's reads [`super::CURVED_PARTIAL_PIECES`]² sub-windows. The
-    /// gradient is constant on a plane, so the pieces would read nothing
-    /// the window does not; read piecewise, the plane rows ran fifty
-    /// times longer.
+    /// **A plane's partial reads one derivative box per reading** (the
+    /// work, counted where the wall's derivative box is read): over a
+    /// whole plane × NURBS reading that runs the boundary pass, the
+    /// partials asked of a plane read the wall's derivative box once each,
+    /// where a curved partner's reads it over
+    /// [`super::CURVED_PARTIAL_PIECES`]² sub-windows. The gradient is
+    /// constant on a plane, so the pieces would read nothing the window
+    /// does not; read piecewise, the plane rows ran fifty times longer.
     #[test]
-    fn a_planes_partial_reads_its_window_once() {
+    fn a_planes_partial_reads_one_derivative_box_per_reading() {
         // The plane `−a·x + y + a·k·z = 0` meets the wall along `x = k·z`
         // from its corner, its least slope across a side `a·min(1, k)`,
         // a few escalation widths: the pass reads both sides' strips.
@@ -1549,15 +1562,15 @@ mod tests {
             extent: 1.0,
             floor_scale: 1.0,
         };
-        reset();
+        let before = partial_reads();
         let out = crate::ssi::plane_nurbs_ssi(&plane, &wall, domain, band)
             .expect("the plane cuts the wall");
         assert!(!out.branches.is_empty(), "FIXTURE: the plane cuts the wall");
-        let (calls, windows) = reset();
-        assert!(calls > 0, "FIXTURE: the pass read the plane's partial");
+        let (readings, windows) = since(before);
+        assert!(readings > 0, "FIXTURE: the pass read the plane's partial");
         assert_eq!(
-            windows, calls as u64,
-            "a plane's partial reads one window per reading ({calls} readings)"
+            windows, readings,
+            "a plane's partial reads one derivative box per reading ({readings} readings)"
         );
         // The counter counts: a curved partner reads its sub-windows.
         let cylinder = Surface::Cylinder {
@@ -1570,8 +1583,13 @@ mod tests {
         let square = flat_wall(1.0);
         let boxes = NurbsBoxes::new(&square);
         let w = UvWindow::new(0.0, 1.0, 0.0, 1.0).expect("a window");
+        let before = partial_reads();
         let _ = (&form).partial(&boxes, w, true);
-        let pieces = u64::from(super::CURVED_PARTIAL_PIECES).pow(2);
-        assert_eq!(reset(), (1, pieces), "a curved partner reads its pieces");
+        let pieces = usize::try_from(super::CURVED_PARTIAL_PIECES.pow(2)).unwrap();
+        assert_eq!(
+            since(before),
+            (1, pieces),
+            "a curved partner reads its pieces"
+        );
     }
 }

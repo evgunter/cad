@@ -1101,7 +1101,7 @@ fn unreadable(wall: usize, e: super::SsiError) -> RowUnreadable {
 
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used)]
-mod tests {
+pub(in crate::ssi) mod tests {
     use geom::NurbsSurface;
     use geom_core::spline::KnotVector;
     use geom_core::{CertifiedBounds, Interval, Point3, Real};
@@ -1111,7 +1111,7 @@ mod tests {
     use super::{Box4, EXIT_PIECES, PairBoxes, face_roots, narrow, one_arc_pair};
 
     /// The bilinear patch through `corner(i, j)` at `(u, v) = (i, j)`.
-    fn bilinear(corner: impl Fn(f64, f64) -> [f64; 3]) -> NurbsSurface<f64> {
+    pub(in crate::ssi) fn bilinear(corner: impl Fn(f64, f64) -> [f64; 3]) -> NurbsSurface<f64> {
         let k = || KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
         let control = [(0.0, 0.0), (0.0, 1.0), (1.0, 0.0), (1.0, 1.0)]
             .map(|(i, j)| {
