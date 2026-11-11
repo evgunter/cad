@@ -400,10 +400,14 @@ const ROSTER: &[(&str, usize, usize, &str)] = &[
     ),
     (
         "crates/geom-brep/src/pcurve_cache.rs",
-        4,
+        7,
         2,
         "`certified_lower`/`certified_upper`'s 2 read only after asking by name. The remainder is \
-         `limb2_offset_sup`'s 2, its spindle `mid`: the squared distance of a window end from \
+         5 schedule reads. `Parts::of`'s 3 are `ByTurn`'s count of a span's parts: its controls' \
+         extent from their brackets' ends and their least axis distance's `lo`, compared to cut \
+         the span finer. A refused bracket only moves the count (a NaN compares false and cuts \
+         finer, up to the most), and each part's hull bounds `|f|` at any count through the \
+         asking reads. `limb2_offset_sup`'s 2 are its spindle `mid`: the squared distance of a window end from \
          the axis, read at its bracket midpoint only to choose whether that end's grid is graded \
          toward the apex (`apex_grading`). The grid is only breaks of the carrier's enclosing net, \
          which encloses over any breaks, and every span hull of it reads its ends through the \
