@@ -1,0 +1,6 @@
+fork: a-spline-arc-reaches-its-node
+drawn: 2026-11-11
+protocol: 2126b860b6
+bytes: 145 0
+arm: two designers (145 >= 86)
+mapping: A = Opus, B = Fable (second byte 0, even)
