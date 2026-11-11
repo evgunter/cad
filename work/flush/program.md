@@ -2,7 +2,7 @@
 id: flush
 kind: program
 title: FLUSH — planar and declared-contact correctness at the join
-status: active
+status: ready
 opened: 2026-10-10
 group: kernel/boolean/join
 prefix: flush/

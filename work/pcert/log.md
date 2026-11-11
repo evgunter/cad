@@ -1174,3 +1174,15 @@ E1c waits on the answer.
     - P2 `a-path-through-a-knot-line-corner-leaves-a-hair-piece-the-interval-certificate-reads-wide`, the review's N1, Interval-only, an honest "not yet";
     - P3 `two-homes-cut-a-chart-path-at-the-walls-knot-lines`.
   - Slow set: the spheres-crossing row (0.408 s on the branch, 0.430 s on main).
+- 2026-11-11 — **`a-stated-chart-image-on-a-spline-face-is-certified-by-a-sampled-meter` closed** (PR 6815). On a spline chart the edge certificate bounds a stated image over its whole span, not at its 9 samples.
+  - `certify.rs` `stated_bound` certifies the image through `PcurveCache::certify_stated_image` (topo's `restate` moved home; routed by `Pcurve::certifying_door`, no wildcard) and folds that certificate's envelope, a sup, into the residual.
+  - Where an image is stated is decided once (`StatedChart`). The spline chart's incidence read also samples a spline carrier's own breakpoints and Greville abscissae (`own_fractions`), so the review's R2 ends `Incidence(Off)` (`CarrierOffChart`), not `ChartImageUnavailable`.
+  - Disclosed: a carrier on its wall outside the stated iso column's spline space now refuses at the edge certificate, as it did at the mint. No product path newly refuses; only where the refusal surfaces moves.
+  - Review tier: single FULL, soundness-led. APPROVE-WITH-FIXES with 1 MAJOR, which was for the band, not this diff: the analytic remainder (a net carrier stated on a plane, cylinder or cone) still certifies 1 mm off through `EdgeCurve::certify`, 12 certificates executed. Ruled out of this PR (routing analytic charts through the pcurve doors refused ~70 product rows) and filed P1.
+  - Fix list LL, delta verified and executed (0 MAJOR). Fix list MM, read by the orchestrator: cost rows, the PR body, the P1's citation. The optional MM4 (topo `certify_walked` calling `certify_stated_image` directly, three exhaustive layers into one) was not taken.
+  - Filed:
+    - P1 `a-net-carrier-stated-on-an-analytic-chart-is-certified-by-a-sampled-meter`;
+    - P3 `a-narrow-wall-feature-under-a-carrier-ends-as-its-images-refusal-not-off`;
+    - P3 `a-stated-spline-image-is-certified-twice-by-the-edge-certificate-and-the-mint`;
+    - P3 `a-carrier-at-the-bands-zero-edge-of-a-spline-wall-costs-seconds-per-certify`, seconds per call at the zero edge on main too, and 1.4–1.5× on knot-rich nets here.
+  - Cost: 1.025× end to end on ten loft and spline rows.
