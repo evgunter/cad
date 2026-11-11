@@ -438,3 +438,4 @@ and bodies unchanged. No orchestrator yet.
   - The sweep now drops first cuts that decide nowhere, so near-coaxial poses with branch points count.
   - Filed P3: the sweep cannot bracket branch points a band from a node.
   - Closes `cylinder-sphere-reads-its-pose-on-the-ruling-sweep`.
+- 2026-11-10 — (PCERT orchestrator) Main red, fixed in PCERT's roster PR: PR 6518 merged after PR 6755's census rule, and `pair_section/ruling.rs`'s `a_spheres_discriminant_extremes_are_the_poses_reaches` site (`CylinderSpherePose::decide(x, …)`) was unlisted in `crates/geom-brep/tests/recourse_roster.rs`. It is now listed NOT_A_NAME. Nothing is owed.

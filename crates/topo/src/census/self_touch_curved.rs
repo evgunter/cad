@@ -9,7 +9,8 @@
 //! wall's ruling (a line the wall keeps), along an arc's tangent (a
 //! tangency the bends part one order down, [`crate::link::FaceSector::tangent`]'s
 //! second-order reading: off the post or under it a rest, into it
-//! refused), or along the wall's circle's tangent (refused).
+//! refused), or along the wall's circle's tangent (a rest: one order
+//! down the wall bends away under the corner's faces).
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use super::*;
@@ -198,7 +199,7 @@ fn rows_hold(at: Seat) {
             ("straddling", straddle, crossing),
             ("along the ruling", ruling, rest),
             ("along the ruling, into", ruling_into, crossing),
-            ("along the circle", circle, tangency),
+            ("along the circle", circle, rest),
             (
                 "along the circle, off it in band",
                 lift(3.0 * zero),
@@ -255,9 +256,9 @@ fn a_corner_inside_its_own_curved_posts_arc_reads_its_two_half_planes() {
 /// crosses; an edge along the wall's ruling lies in the wall as the
 /// wall keeps it, so the corner reads as its other edges place it; an
 /// edge along the wall's circle leaves the wall only to second order,
-/// which no reading here parts, and refuses. Red where the wall's normal
-/// reads the other way, a crossing reads as a rest, or the tangency
-/// reads at all.
+/// where the wall bends away under the corner's faces: a rest. Red where
+/// the wall's normal reads the other way, a crossing reads as a rest, or
+/// the circle's tangency is kept at first order or read the other way.
 #[test]
 fn a_corner_inside_its_own_curved_posts_wall_reads_its_tangent_plane() {
     rows_hold(Seat::Wall);

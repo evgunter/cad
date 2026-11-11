@@ -47,6 +47,7 @@ crates/geom-brep/src/pcurve_cache.rs	test	1	oracle
 crates/geom-brep/src/pcurve_cache/circle_lane_rows.rs	test	8	oracle
 crates/geom-brep/src/pcurve_cache/ellipse_lane_rows.rs	test	1	oracle
 crates/geom-brep/src/pcurve_cache/cone_line_rows.rs	test	3	oracle
+crates/geom-brep/src/pcurve_cache/iso_arc_weight_rows.rs	test	1	oracle
 crates/geom-brep/src/pcurve_cache/cylinder_line_rows.rs	test	2	oracle
 crates/geom-brep/src/pcurve_cache/envelope_lemma_fuzz.rs	test	10	oracle
 crates/geom-brep/src/pcurve_cache/envelope_lemma_fuzz/projected.rs	test	1	oracle
