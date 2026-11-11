@@ -1234,3 +1234,316 @@ fn the_count_window_holds_every_admissible_count() {
         );
     }
 }
+
+// ---------------------------------------------------------------------
+// R1 probes (review of PR 6808)
+// ---------------------------------------------------------------------
+
+/// R1 probe: every chain start and every whole-turn renaming of a side
+/// holds the patch's, the sector's and the across-±π patch's closed forms.
+#[test]
+fn r1_probe_chain_start_and_renamings() {
+    let d = Donut::tilted(Point3::new(0.4, -0.2, 0.3), 1.3, 0.45);
+    let about = Point3::new(0.1, 0.5, -0.2);
+    let mut cases = 0;
+    for (us, vs) in [((0.3, 1.9), (-0.7, 1.1)), ((-0.4, 0.8), (2.6, 3.9))] {
+        for swap in [[false; 4], [true, false, true, false], [true; 4], [false, true, false, true]] {
+            // (side, du, dv): a harmonic side renamed whole turns.
+            for rename in [
+                None,
+                Some((2usize, 0.0, TAU)),
+                Some((2, 0.0, -TAU)),
+                Some((0, 0.0, -2.0 * TAU)),
+                Some((1, TAU, 0.0)),
+                Some((3, -TAU, 0.0)),
+                Some((1, TAU, TAU)),
+            ] {
+                for forward in [true, false] {
+                    for rot in 0..4 {
+                        let mut loops = patch(d, us, vs, forward, swap);
+                        if let Some((side, du, dv)) = rename {
+                            // `patch` reverses its sides when not forward.
+                            let i = if forward { side } else { 3 - side };
+                            let swapped = loops[0][i].swap;
+                            if let (false, Some(h)) = (swapped, loops[0][i].harmonic.as_mut()) {
+                                h.u.c0 = h.u.c0 + pt(du);
+                                h.v.c0 = h.v.c0 + pt(dv);
+                            }
+                        }
+                        loops[0].rotate_left(rot);
+                        let inside = d.rectangle(us, vs);
+                        for (outward, region) in [
+                            (forward, inside),
+                            (!forward, complement(d, inside)),
+                        ] {
+                            r1_holds(
+                                &format!(
+                                    "R1 patch {us:?}x{vs:?} swap {swap:?} rename {rename:?} fwd {forward} rot {rot} outward {outward}"
+                                ),
+                                d,
+                                outward,
+                                &loops,
+                                region,
+                                about,
+                            );
+                            cases += 1;
+                        }
+                    }
+                }
+            }
+        }
+    }
+    // The sector: meridians renamed a turn of the azimuth and of the level.
+    let (u0, u1) = (0.4, 2.1);
+    let sector = d.rectangle((u0, u1), (0.0, TAU));
+    for swap in [[false, false], [true, false], [false, true], [true, true]] {
+        for (du, dv) in [(0.0, 0.0), (TAU, 0.0), (-TAU, 0.0), (0.0, TAU), (2.0 * TAU, -TAU)] {
+            for which in [0usize, 1] {
+                for forward in [true, false] {
+                    let mut loops = vec![
+                        vec![meridian(d, u1, (-PI, PI), forward, swap[0])],
+                        vec![meridian(d, u0, (-PI, PI), !forward, swap[1])],
+                    ];
+                    if !loops[which][0].swap {
+                        let h = loops[which][0].harmonic.as_mut().unwrap();
+                        h.u.c0 = h.u.c0 + pt(du);
+                        h.v.c0 = h.v.c0 + pt(dv);
+                    }
+                    let region = if forward { sector } else { complement(d, sector) };
+                    r1_holds(
+                        &format!("R1 sector swap {swap:?} rename {which} ({du},{dv}) fwd {forward}"),
+                        d,
+                        true,
+                        &loops,
+                        region,
+                        about,
+                    );
+                    cases += 1;
+                    loops.swap(0, 1);
+                    r1_holds(
+                        &format!("R1 sector loops swapped, swap {swap:?} rename {which} ({du},{dv}) fwd {forward}"),
+                        d,
+                        true,
+                        &loops,
+                        region,
+                        about,
+                    );
+                    cases += 1;
+                }
+            }
+        }
+    }
+    eprintln!("R1 probe: {cases} cases held");
+}
+
+/// R1 probe: a sector whose meridians start at different levels, so
+/// the seam term's `u₀` differs per loop, and a meridian split in two
+/// edges (the chain starting mid-way through the tube).
+#[test]
+fn r1_probe_sector_split_meridian() {
+    let d = Donut::tilted(Point3::new(0.4, -0.2, 0.3), 1.3, 0.45);
+    let about = Point3::new(0.1, 0.5, -0.2);
+    let (u0, u1) = (0.4, 2.1);
+    let sector = d.rectangle((u0, u1), (0.0, TAU));
+    for split in [-2.0_f64, 0.3, 2.9] {
+        for swap in [[false, false], [true, false], [false, true], [true, true]] {
+            for rot in 0..2 {
+                for forward in [true, false] {
+                    let (a, b) = if forward { ((-PI, split), (split, PI)) } else { ((split, PI), (-PI, split)) };
+                    let mut first = vec![
+                        meridian(d, u1, a, forward, swap[0]),
+                        meridian(d, u1, b, forward, swap[1]),
+                    ];
+                    first.rotate_left(rot);
+                    let loops = vec![first, vec![meridian(d, u0, (-PI + 0.7, PI + 0.7), !forward, false)]];
+                    let region = if forward { sector } else { complement(d, sector) };
+                    r1_holds(
+                        &format!("R1 split sector at {split} swap {swap:?} rot {rot} fwd {forward}"),
+                        d,
+                        true,
+                        &loops,
+                        region,
+                        about,
+                    );
+                }
+            }
+        }
+    }
+}
+
+/// R1 probe: `torus_face` holds the true count's area and flux for random
+/// `X`, radii brackets and end cases.
+#[test]
+#[allow(clippy::cast_precision_loss)]
+fn r1_probe_count_window_fuzz() {
+    let mut s = 0x9e37_79b9_7f4a_7c15_u64;
+    let mut rnd = || {
+        s ^= s << 13;
+        s ^= s >> 7;
+        s ^= s << 17;
+        (s >> 11) as f64 / (1u64 << 53) as f64
+    };
+    let mut checked = 0;
+    for i in 0..200_000 {
+        let big = 0.5 + 3.0 * rnd();
+        let r = big * (0.05 + 0.9 * rnd());
+        let wid = if i % 3 == 0 { 0.0 } else { 1e-6 * rnd() };
+        let radii = (
+            Interval::from_bounds(big * (1.0 - wid), big * (1.0 + wid)),
+            Interval::from_bounds(r * (1.0 - wid), r * (1.0 + wid)),
+        );
+        // A true torus within the brackets.
+        let (tb, tr) = (big * (1.0 + wid * (2.0 * rnd() - 1.0)), r * (1.0 + wid * (2.0 * rnd() - 1.0)));
+        let a_t = 4.0 * PI * PI * tb * tr;
+        let phi_t = 6.0 * PI * PI * tb * tr * tr;
+        // The true region's area in (0, A]: ends included.
+        let area_t = match i % 7 {
+            0 => a_t,
+            1 => a_t * 1e-12,
+            _ => a_t * rnd().max(1e-9),
+        };
+        let n_t = (rnd() * 9.0).floor() - 4.0;
+        let x_t = area_t - n_t * a_t;
+        let outward = i % 2 == 0;
+        let sense = if outward { 1.0 } else { -1.0 };
+        let f_t = 10.0 * (rnd() - 0.5);
+        let spread = match i % 5 {
+            0 => 0.0,
+            1 => a_t * 3.0 * rnd(),
+            2 => a_t * rnd(),
+            _ => a_t * 1e-6 * rnd(),
+        };
+        let (l, h) = (spread * rnd(), spread * rnd());
+        // Split X over two loops.
+        let part = x_t * rnd();
+        let loops = [
+            [Interval::from_bounds(f_t - 1e-9, f_t + 1e-9), Interval::from_bounds(sense * part - l * 0.5, sense * part + h * 0.5)],
+            [Interval::zero(), Interval::from_bounds(sense * (x_t - part) - l * 0.5, sense * (x_t - part) + h * 0.5)],
+        ];
+        // The loops' sum must hold `s_f·X_t`; widen by rounding.
+        let face = super::super::torus_face(radii, outward, &loops);
+        let true_flux = f_t + sense * n_t * phi_t;
+        let tol = 1e-9 * (1.0 + a_t.abs() * 10.0);
+        assert!(
+            face.area.lo() <= area_t + tol && area_t - tol <= face.area.hi(),
+            "case {i}: area {area_t} (N {n_t}, X {x_t}) escapes {:?}",
+            face.area
+        );
+        assert!(
+            face.flux.lo() <= true_flux + tol && true_flux - tol <= face.flux.hi(),
+            "case {i}: flux {true_flux} (N {n_t}) escapes {:?}",
+            face.flux
+        );
+        checked += 1;
+    }
+    eprintln!("R1 count fuzz: {checked}");
+}
+
+fn r1_holds(
+    label: &str,
+    d: Donut,
+    outward: bool,
+    loops: &[Vec<TorusEdge>],
+    region: [f64; 2],
+    about: Point3<f64>,
+) {
+    let va = loops
+        .iter()
+        .flatten()
+        .fold(Vec3::zero(), |va, e| va + e.arc.vector_area(d.c));
+    let s = if outward { 1.0 } else { -1.0 };
+    let flux = s * region[1] + (d.c - about).dot(va);
+    let floor = loops
+        .iter()
+        .flatten()
+        .any(|e| e.harmonic.as_ref().is_some_and(|h| h.env.hi() > 0.0));
+    let got = torus_run(d, outward, loops, about, floor)
+        .unwrap_or_else(|e| panic!("{label}: the lane refused: {e:?}"));
+    let near = |i: Interval, x: f64| i.lo() - 1e-12 <= x && x <= i.hi() + 1e-12;
+    assert!(near(got.flux, flux), "{label}: flux {flux} escapes {:?}", got.flux);
+    assert!(near(got.area, region[0]), "{label}: area {} escapes {:?}", region[0], got.area);
+}
+
+/// R1 probe: the image-end-turn-up patch with its left meridian standing
+/// off in `u`, so the junction after the reversed top rim (whose level
+/// branch turn is +1) leaves a connector read on the lift at the edge
+/// before's END. Witness for `LoopLift::ends`.
+#[test]
+fn r1_probe_connector_after_a_branch_turn() {
+    let d = Donut::tilted(Point3::new(0.4, -0.2, 0.3), 1.3, 0.45);
+    let about = Point3::new(0.1, 0.5, -0.2);
+    let (us, vs) = ((0.3, 1.9), (-0.7, 1.1));
+    let rho = d.big + d.r;
+    let mut loops = patch(d, us, vs, true, [false, false, true, false]);
+    {
+        let left = loops[0][3].harmonic.as_mut().unwrap();
+        left.u.c0 = left.u.c0 + pt(0.9e-6 / rho);
+        left.env = pt(1e-6);
+    }
+    let mut face = torus_face(d, true, &loops, about).unwrap();
+    let EdgeTermQ::Projected(top) = &mut face.loops[0][2] else {
+        panic!("the top rim is swapped")
+    };
+    top.ends[1].1 = top.ends[1].1 + pt(TAU);
+    let got = rotational_cut_face_rounds::<f64>(
+        &face,
+        Band::linear(Tol::witness()).unwrap(),
+        RoundWindow::SCHEDULE,
+        &mut to_target(1e-9),
+    )
+    .map(|r| r.bounds)
+    .unwrap_or_else(|e| panic!("the lane refused: {e:?}"));
+    let va = loops
+        .iter()
+        .flatten()
+        .fold(Vec3::zero(), |va, e| va + e.arc.vector_area(d.c));
+    let [area, flux] = d.rectangle(us, vs);
+    encloses(got.area, area, "area");
+    encloses(got.flux, flux + (d.c - about).dot(va), "flux");
+}
+
+/// R1 probe: the outer band with a hole patch inside it, the hole stored
+/// FIRST. Wound against the face it holds band − patch; wound with it it
+/// must refuse (`RingWoundWithFace`), not read band + patch.
+#[test]
+fn r1_probe_band_with_a_hole_stored_first() {
+    let d = Donut::tilted(Point3::new(0.4, -0.2, 0.3), 1.3, 0.45);
+    let about = Point3::new(0.1, 0.5, -0.2);
+    let (low, high) = (-0.6, 0.5);
+    let band = d.rectangle((0.0, TAU), (low, high));
+    let (us, vs) = ((0.5, 1.4), (-0.3, 0.2));
+    let hole = d.rectangle(us, vs);
+    for swap in [[false, false], [true, true]] {
+        let rims = || {
+            vec![
+                vec![rim(d, low, (0.0, TAU), true, swap[0])],
+                vec![rim(d, high, (0.0, TAU), false, swap[1])],
+            ]
+        };
+        // Against: the patch wound backwards.
+        let mut loops = patch(d, us, vs, false, [swap[0], false, false, swap[1]]);
+        loops.extend(rims());
+        r1_holds(
+            &format!("band less a hole stored first (swap {swap:?})"),
+            d,
+            true,
+            &loops,
+            [band[0] - hole[0], band[1] - hole[1]],
+            about,
+        );
+        // With: the patch wound forwards.
+        let mut loops = patch(d, us, vs, true, [swap[0], false, false, swap[1]]);
+        loops.extend(rims());
+        let got = rotational_cut_face_rounds::<f64>(
+            &torus_face(d, true, &loops, about).unwrap(),
+            Band::linear(Tol::witness()).unwrap(),
+            RoundWindow::SCHEDULE,
+            &mut to_target(1e-9),
+        );
+        assert!(
+            matches!(got, Err(PropsError::RingWoundWithFace)),
+            "a hole stored first wound with its band face (swap {swap:?}): {:?}",
+            got.map(|r| r.bounds)
+        );
+    }
+}
