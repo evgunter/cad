@@ -100,3 +100,62 @@ fn the_one_face_ball_meshes_watertight_with_the_balls_volume() {
         mesh::validate::triangle_count(&two),
     );
 }
+
+/// The unit hemisphere `y ≥ 0` on its base disk.
+fn hemisphere() -> Body<f64> {
+    revolved_about_y(
+        vec![
+            (Point2::new(0.0, 0.0), 0.0),
+            (Point2::new(1.0, 0.0), (PI / 8.0).tan()),
+            (Point2::new(0.0, 1.0), 0.0),
+        ],
+        Revolution::Full,
+        tol(),
+    )
+}
+
+/// The cone of radius and height 1 on its base disk, apex at `NORTH`.
+fn cone() -> Body<f64> {
+    revolved_about_y(
+        vec![
+            (Point2::new(0.0, 0.0), 0.0),
+            (Point2::new(1.0, 0.0), 0.0),
+            (Point2::new(0.0, 1.0), 0.0),
+        ],
+        Revolution::Full,
+        tol(),
+    )
+}
+
+/// **A wrap-tip cap meshes as it did**: the hemisphere's and the cone's
+/// curved face, its pole or apex reached by one wrap edge off a rim,
+/// carries a rim, so its walk never reaches the rimless arm.
+#[test]
+fn a_wrap_tip_cap_meshes_off_its_rim() {
+    for (name, body, exact) in [
+        (
+            "hemisphere",
+            one_wrap_edge(hemisphere(), true),
+            (2.0 * PI / 3.0, 3.0 * PI),
+        ),
+        (
+            "cone",
+            one_wrap_edge(cone(), true),
+            (PI / 3.0, PI * (1.0 + 2.0f64.sqrt())),
+        ),
+    ] {
+        assert_eq!(
+            topo::validate_geometric(&body, tol()),
+            Ok(()),
+            "the {name} cap is tier-3 valid"
+        );
+        let m = common::check_mesh_acceptance(&body, DELTA, Some(exact));
+        let d = common::dump(&m);
+        let mut h: u64 = 0xcbf2_9ce4_8422_2325;
+        for b in d.bytes() {
+            h ^= u64::from(b);
+            h = h.wrapping_mul(0x100_0000_01b3);
+        }
+        eprintln!("{name}: {} triangles, digest {h:016x}", mesh::validate::triangle_count(&m));
+    }
+}
