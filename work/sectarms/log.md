@@ -589,3 +589,10 @@ and bodies unchanged. No orchestrator yet.
   - **Siblings:** the P2 issue is partly fixed and stays open (at 1e-12, 1e6 m the side cover doesn't fit the shift-padded band; mechanism recorded). The P3 issue is untouched (a different mechanism).
   - **Mutants:** one survivor, the limb 3 `Stretch` lift.
   - Single full review dispatched to cloud session `session_01VyvYnMAWEzxhwYQJXvXzRk`.
+- **2026-11-11 11:25 — PR 6830 full review in (head 738bdeee): APPROVE-WITH-FIXES.**
+  - **Confirmed:** the lift is certified; the corner verdict is invariant (396/396 per ε, where main split 279/117 at 1e-12); the targeted 188 pass at 1e-12.
+  - **Must fix:**
+    - the P2 record overclaims "1e5 m at every ε": at 1e-12 it reads U-low/U-high at 1.26e4 m and `Apart` from 1.58e5 m. Not a regression; the record and the row offsets are to be narrowed;
+    - the stored plane's height has three homes in two units (`Heights::over` un-normalized, `Pivot::stored` unit, `SplineImplicitPose::height` f64): make one quantity.
+  - **Fix-if-small:** rename `Partner::stored`; `Pieces::lift` fails loud on an unscaled form; one statement of the split; file a P3 for the unpinned `Stretch` lift. The stringly pass key is skipped.
+  - Fix pass sent; review session archived. Tier M, no row.
