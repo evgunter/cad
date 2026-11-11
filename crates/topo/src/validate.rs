@@ -4129,7 +4129,7 @@ fn classify_pcurve(e: &crate::pcurves::PcurveMintError) -> (&'static str, Cow<'s
                 | C::IntervalNotForward
                 | C::AzimuthPeriodExceeded
                 | C::TubePeriodExceeded => WRONG,
-                C::ResidualExceeded { .. } | C::FittedLimb { .. } => {
+                C::ResidualExceeded { .. } | C::MissLocated { .. } | C::FittedLimb { .. } => {
                     if error.refuses_on_a_bound() {
                         BOUND
                     } else {
