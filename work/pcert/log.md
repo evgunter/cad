@@ -1149,3 +1149,4 @@ E1c waits on the answer.
     - the off-arc clamp doc;
     - the weight read once beside its margin.
   - Filed P3 `a-margin-decided-through-a-bool-helper-or-outside-pcurve-cache-is-unswept`: the sweep's blind spot.
+- 2026-11-11 — **Main red: geom-core's `recourse_roster`, fixed** (PR below). Onehome's 6717 moved the rigidity decide loop from `check_rigid` into `admitted_for_a_suite`, and the roster still named the old site. A one-line re-listing, with a note on onehome's log. Review tier: orchestrator's read. Three census reds in a day (6531, 6518, 6717), each green on its own PR because the per-PR gate does not select the census, are a class: filed P4 on green, `a-src-change-that-moves-a-decide-site-skips-its-crates-recourse-roster`.
