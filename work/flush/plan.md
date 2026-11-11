@@ -17,6 +17,7 @@ Ev approved the plan in chat on 2026-10-10). Every row here moved from
 | P0 | `main-red-the-lattice-discard-pin-moved-where-pred-5724-met-flush-5706` | M | closed (PR 6804): the lattice discard pin moved where PR 5724 met PR 5706 |
 | P1 | `main-red-a-needle-cavity-12eps-channel-escalates-at-bool-contact-vertex` | M | closed (PR 6812): main red (slow set): the 12ε needle channel escalates at `bool_contact_vertex` |
 | P3 | `a-fallback-cut-refuses-beside-a-ring-a-seam-or-a-pinch` | H | PR 5706's residue |
+| P3 | `a-dimensionless-reading-is-levered-by-hand-at-the-seam-germ-side` | E | the join's seam-germ side levers a cosine by hand (filed by PR 6812's fix pass) |
 
 Nothing in flight. The two main reds picked up on 2026-11-10 are closed: the lattice discard pin with PR 6804, and the 12ε needle channel with PR 6812. FLUSH is handed back `ready`. The parked P0s wait on REACHHOLD, and the rest is tail for a successor.
 
