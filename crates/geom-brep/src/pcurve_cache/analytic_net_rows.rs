@@ -520,3 +520,70 @@ fn a_nets_read_on_an_analytic_chart_ends_by_its_supremum() {
         }
     }
 }
+
+/// How a net beside a cone's apex ends.
+#[derive(Clone, Copy, Debug)]
+enum Apex {
+    Off,
+    Lever,
+    On,
+}
+
+/// **A net beside a cone's apex** (the P2 row's): a ruling of the double
+/// cone `30·zero` to the side of the apex, read over a span that passes
+/// the apex between the samples. With a knot beside the apex it ends off;
+/// as one span it ends in the lever (the parts' floors beside the apex
+/// read no lever, so the rounds measure no miss), never certified. The
+/// ruling itself, read from the apex along either nappe, is on.
+fn beside_the_apex<T: Decide + geom_core::CertifiedBounds>() {
+    let zero = band().zero();
+    let (s, c) = ALPHA.sin_cos();
+    // The apex's parameter, between the sampled read's samples.
+    let apex = 1.0 / 64.0 + 1.0 / 128.0;
+    let cases = [
+        (30.0 * zero, (-1.0, 1.0), true, Apex::Off),
+        (30.0 * zero, (-0.3, 0.9), true, Apex::Off),
+        (30.0 * zero, (-1.0, 1.0), false, Apex::Lever),
+        (0.0, (apex - 0.5, apex), false, Apex::On),
+        (0.0, (apex, 1.0), false, Apex::On),
+    ];
+    for (shift, (lo, hi), knot, ends) in cases {
+        let at = |t: f64| Point3::new(s * (t - apex), shift, c * (t - apex));
+        let ts: Vec<f64> = if knot {
+            vec![lo, apex, hi]
+        } else {
+            vec![lo, hi]
+        };
+        let mut knots = vec![lo];
+        knots.extend(&ts);
+        knots.push(hi);
+        let net = NurbsCurve3::new(
+            KnotVector::clamped(knots, 1).unwrap(),
+            ts.iter().map(|&t| at(t)).collect(),
+            vec![1.0; ts.len()],
+        )
+        .unwrap();
+        let got = read_round::<T>(&Ruled::Cone.surface(), &net, (lo, hi));
+        let read = incidence(&got);
+        assert!(
+            match ends {
+                Apex::Off => matches!(read, Some(IncidenceRead::Off(_))),
+                Apex::Lever => matches!(read, Some(IncidenceRead::Undecided(c)) if !c.margin.is_invalid()),
+                Apex::On => got.is_ok(),
+            },
+            "at {}, {shift:e} beside the apex over [{lo}, {hi}] (a knot there: {knot}) ends \
+             {ends:?}: {got:?}",
+            T::NAME
+        );
+    }
+}
+
+#[test]
+fn a_net_beside_a_cones_apex_ends_off_f64() {
+    beside_the_apex::<f64>();
+}
+
+#[test]
+fn a_net_beside_a_cones_apex_ends_off_interval() {
+    beside_the_apex::<Interval>();
+}

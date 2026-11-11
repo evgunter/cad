@@ -10151,18 +10151,23 @@ pub(crate) fn read_net_bound<T: Decide + geom_core::CertifiedBounds>(
         let cause = match refusal {
             R::Limb { margin, .. } => {
                 return OffChart(
-                    "the spline carrier's distance from the chart is past the band between its \
-                     samples",
+                    "the spline carrier's distance from the chart is past the band over its span",
                 )
                 .with_margin(OffMargin::Past(margin), surface, carrier);
             }
             R::Stalled { cause, .. } | R::Escalated { cause, .. } => cause,
-            R::KernelLimit { margin, .. } => Indeterminate {
-                margin,
-                terminal_sliver: false,
-                band,
-                predicate: Some("ssi_hull_sup"),
-            },
+            // An upper bound that does not clear shows no miss: the net
+            // is neither shown on nor shown off, a straddle of the band.
+            R::KernelLimit { bound, .. } => {
+                const NAME: &str = "pcurve_net_bound_straddle";
+                let decided = |x: f64| geom_core::k_stats::decide_reported(NAME, Margin::of(T::from_f64(x)), band);
+                // Limb 2 reads its limit only on a bound it did not
+                // decide zero, so the bound decides positive or escalates.
+                match (decided(0.0), decided(bound)) {
+                    (Ok(lower), Ok(upper)) => geom_core::k_stats::straddle(NAME, lower, upper, band),
+                    (Err(cause), _) | (_, Err(cause)) => cause,
+                }
+            }
             _ => spline_incidence::unreadable(band),
         };
         incidence_escalated(cause)
