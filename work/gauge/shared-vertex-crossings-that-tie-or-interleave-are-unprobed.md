@@ -2,7 +2,7 @@
 id: shared-vertex-crossings-that-tie-or-interleave-are-unprobed
 kind: issue
 title: "SharedVertexCrossings: a pair paired along its Out arcs, with other pieces on both ways round, has no run; which pairing a shared vertex takes is open"
-status: open
+status: dispatched
 opened: 2026-10-03
 priority: P1
 cost: M
@@ -243,3 +243,7 @@ way round?** Options, with evidence:
 
 Both 2 and 3 change the insertion contract that the module docs of
 `crates/topo/src/boolean/insert.rs` state, so neither is built here.
+
+## Fork dispatched (2026-11-11)
+
+GAUGE orchestrator. Three designers, A, B and C, weigh the design question under `docs/DESIGN-FORK-PROTOCOL.md` (protocol `2126b860b63`). The arm byte drew three; the draw and labels are on `analysis/design-fork/shared-vertex-pairing`. All three have the same problem statement, and this section's options are given to them as hypotheses, not candidates. The outcome goes to Ev as an `[ev]` PR if it changes ratified text or the designers split. Otherwise the orchestrator decides it and records why.
