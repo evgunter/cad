@@ -596,3 +596,11 @@ and bodies unchanged. No orchestrator yet.
     - the stored plane's height has three homes in two units (`Heights::over` un-normalized, `Pivot::stored` unit, `SplineImplicitPose::height` f64): make one quantity.
   - **Fix-if-small:** rename `Partner::stored`; `Pieces::lift` fails loud on an unscaled form; one statement of the split; file a P3 for the unpinned `Stretch` lift. The stringly pass key is skipped.
   - Fix pass sent; review session archived. Tier M, no row.
+
+## 2026-11-11 13:40 — PR 6830 merged (corner-touch)
+
+- Fix pass came back on head 3b29ec55, CI green and mergeable clean. Checked: `Heights` and `Partner::stored` are gone, `plus_lift` is in, `Pieces` carries its lift by construction, and the P3 `no-row-pins-limb-3s-side-stretch-reading-the-stored-plane` is filed.
+- The P2 record is narrowed: at ε 1e-12 the fix holds to about 1e4 m; the U-low/U-high reading is recorded and not yet traced. The row's 1e-12 offsets stop at 1e3 m.
+- The lane merged main (the stage-3b node listing conflict) and lowered the bare-rounding gate count from 2 to 1. Both are recorded in the PR body.
+- Merged as cde3660b, tier M, so no row.
+- Still open: [ev] PR 6829, waiting on Ev.
