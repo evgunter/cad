@@ -583,3 +583,9 @@ and bodies unchanged. No orchestrator yet.
   - **Text edited:** C2 limb 3; two C5 sentences from 6811; one clarifying sentence on Ev's 6398 node clause; the join unit's options section is replaced by the plan.
   - Fork-log row 260 (recommendation half). Subscribed to the PR for Ev's comments.
   - **Designers' side notes acted on:** the brief's error (no cylinder × sphere carried node arc) is noted. A suggested splitting the node carry out of the join unit, since the sphere × lofted wall likely has no node; that is held until Ev answers.
+- **2026-11-11 10:25 — PR 6830 (corner-touch stored origin) opened by the lane**; CI green on 738bdeee.
+  - **The fix:** the boundary pass's exact-sign decisions (corner `Empty`, side `Clear`, `Pieces::sign`, `Stretch::sign`) read the stored plane's sign through the foot's certified height (the lift on `ImplicitForm`, which is part of the pass key). `pivot` now reads `Surface::foot`.
+  - **Moved row:** the probes row's corner want moved `Apart` → corner region (per the 08:55 ruling).
+  - **Siblings:** the P2 issue is partly fixed and stays open (at 1e-12, 1e6 m the side cover doesn't fit the shift-padded band; mechanism recorded). The P3 issue is untouched (a different mechanism).
+  - **Mutants:** one survivor, the limb 3 `Stretch` lift.
+  - Single full review dispatched to cloud session `session_01VyvYnMAWEzxhwYQJXvXzRk`.
