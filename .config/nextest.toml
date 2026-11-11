@@ -258,7 +258,8 @@ not (
   (binary_id(geom-brep) & (test(=pcurve_cache::ellipse_lane_rows::an_ellipses_projected_envelope_covers_its_residual) | test(=pcurve_cache::ellipse_lane_rows::an_ellipses_coefficients_stay_within_their_charge_on_every_chart))) |
   (binary_id(sweep::all) & test(=a_knife_edge_fillet_builds_where_its_ball_is_defined::the_lune_fillets_place_every_lattice_point)) |
   (binary_id(topo::all) & (test(=a_vertex_through_a_declared_seat::a_cut_or_meet_through_a_seat_builds_on_the_whole_body) | test(=a_vertex_through_a_declared_seat::a_union_bridging_a_seat_touches_itself_and_one_on_a_piece_builds) | test(=a_vertex_through_a_declared_seat::a_cut_across_its_tools_seat_refuses_typed) | test(=a_vertex_through_a_declared_seat::a_tool_touching_its_seat_from_one_piece_is_cut_away) | test(=a_vertex_through_a_declared_seat::a_seat_divided_along_a_ring_or_met_with_a_seat_refuses_at_the_carry))) |
-  (binary_id(geom-brep) & (test(=pcurve_cache::closed_image_rows::a_curve_in_uv_on_its_carrier_certifies_on_a_curved_chart) | test(=pcurve_cache::closed_image_rows::no_closed_form_is_certified_past_its_miss)))
+  (binary_id(geom-brep) & (test(=pcurve_cache::closed_image_rows::a_curve_in_uv_on_its_carrier_certifies_on_a_curved_chart) | test(=pcurve_cache::closed_image_rows::no_closed_form_is_certified_past_its_miss))) |
+  (binary_id(sweep::all) & test(=near_circular_sections::a_near_square_plane_cuts_a_cylinder_in_its_exact_ellipse))
 )
 """
 
