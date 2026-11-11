@@ -1021,10 +1021,11 @@ fn lune<T: Decide>(
 /// sliver alone rest. Read against a whole plane through `p` that misses
 /// the quarter, a void inside the plane's material and a sliver outside it
 /// rest, the other two are refused; a plane through the lune's middle
-/// crosses it; and a cap turned over, its normal out of a void, refuses.
-/// Red where a lune's kind is read the other way round, its cap is left
-/// in the remainder's horns, the region round it is not read, or a sheet
-/// crossing it is passed.
+/// crosses it; a cap turned over, its normal out of a void, refuses; and
+/// a horn of the arcs' edges along another ray caps no lune. Red where a
+/// lune's kind is read the other way round, its cap is left in the
+/// remainder's horns or found off its ray, the region round it is not
+/// read, or a sheet crossing it is passed.
 fn a_lune_is_the_void_or_the_sliver_its_cap_closes<T: Decide>() {
     let unread = TouchVerdict::Unread(TouchUnread::Curved(CurvedUnread::Unreadable));
     let rests = |got: &TouchVerdict| matches!(got, TouchVerdict::Rest(_));
@@ -1085,6 +1086,21 @@ fn a_lune_is_the_void_or_the_sliver_its_cap_closes<T: Decide>() {
             [a1, a2],
         );
         assert_eq!(read(p, over), unread, "a void's cap turned over at {p:?}");
+        // A horn of the two arcs' edges along `−y`, none along `+y`: no
+        // cap, so no lune, and its sheets stay on each other.
+        let mut elsewhere = lune(p, [1.0, 2.0], 1.0, true, one);
+        elsewhere[2] = corner_along(
+            p,
+            (plane(p, v(0.0, 0.0, 1.0)), true),
+            v(0.0, 0.0, 1.0),
+            (-y, -y),
+            [a1, a2],
+        );
+        assert_eq!(
+            read(p, elsewhere),
+            unread,
+            "a horn of the arcs' edges along another ray at {p:?}"
+        );
     }
 }
 
