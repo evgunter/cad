@@ -51,7 +51,7 @@
 //! `|Ω|` lies in `(0, 4πr²]`, a window two of `q`'s steps wide, so it
 //! fixes `q`: per loop, the area outside it is read in `[0, 4πr²)`
 //! ([`sphere_outside`]), the face's is the sphere less those, and the
-//! reading is decided ([`require_compact_sides`]). The flux about the
+//! reading is decided ([`require_sphere_sides`]). The flux about the
 //! centre is then `r·s_f·|Ω|`.
 //!
 //! # The torus
@@ -95,15 +95,18 @@
 //! (moving the start along the loop changes the chain's integral by just
 //! as much the other way). A whole turn of a level or of an azimuth
 //! anywhere in this moves the area by a whole torus `4π²Rr` and the flux
-//! by the whole torus's `6π²Rr²` together, so the face is read as the
-//! sphere's is: a loop that winds nothing bounds a region on each side,
-//! the face's under its sense `s_f`, and its outside is read in
-//! `[0, 4π²Rr)` ([`outside_of`]); the loops that wind the torus (at most
-//! two, wound against each other, [`loop_windings`]) bound one band
-//! together, read the same way as one group; the face is the torus less
-//! its groups' outsides ([`torus_face`]), decided as the sphere's
-//! ([`require_compact_sides`]). Under a flipped bit the lane certifies
-//! the complement, as on the sphere.
+//! by the whole torus's `6π²Rr²` together. A loop that winds nothing
+//! bounds a region on each side, the face's under its sense `s_f`, so
+//! the face is read off its loops' signed area under the sense, carried
+//! into `(0, 4π²Rr]` by whole tori ([`torus_face`]): the face is a region
+//! of the torus, and the window holds the whole torus, so a face bounded
+//! by its chart's wrap loop reads whole. The loops that wind the torus
+//! are at most two, wound against each other ([`loop_windings`]). The
+//! face's area is decided in `(0, 4π²Rr)` and its rings against it as
+//! the cylinder's are ([`require_holes_wound_against`]: every loop that
+//! winds nothing but the first is a hole, and with a winding pair every
+//! one is). Under a flipped bit the lane certifies the complement, as on
+//! the sphere.
 //!
 //! `v du` because it is a global 1-form on the chart (the azimuth is
 //! periodic, its differential is not), so the form reads a loop that
@@ -1682,7 +1685,7 @@ pub fn rotational_cut_face_rounds<T: Decide>(
                         )
                     })
                     .collect();
-                let reading = torus_face(*radii, *outward, &per_loop, &turns);
+                let reading = torus_face(*radii, *outward, &per_loop);
                 let signed = if *outward {
                     reading.area
                 } else {
@@ -1719,13 +1722,21 @@ pub fn rotational_cut_face_rounds<T: Decide>(
                     .map(|(&l, &[k, _])| sphere_outside(*radius, *outward, l, k))
                     .collect();
                 let lengths: Vec<Interval> = entries.iter().map(|e| loop_length(e)).collect();
-                require_compact_sides(sphere, &outsides, &lengths, area, band)
+                require_sphere_sides(sphere, &outsides, &lengths, area, band)
             }
-            Reading::Torus { radii, outward, .. } => {
-                let reading = torus_groups(*radii, *outward, &areas, &turns, &entries);
-                let lengths: Vec<Interval> = reading.groups.iter().map(|g| g.1).collect();
-                let outsides: Vec<Interval> = reading.groups.iter().map(|g| g.0).collect();
-                require_compact_sides(reading.whole, &outsides, &lengths, area, band)
+            Reading::Torus { radii, .. } => {
+                let winds: Vec<bool> = turns.iter().map(|&k| k != [0, 0]).collect();
+                require_holes_wound_against(&entries, &areas, &winds, signed, band)?;
+                let whole = torus_whole(radii.0, radii.1)[1];
+                let length = entries
+                    .iter()
+                    .fold(Interval::zero(), |l, e| l + loop_length(e));
+                crate::props::curved::require_holes_wound_against(
+                    "props_chart_area_side",
+                    (area, length),
+                    &[(area - whole, length)],
+                    band,
+                )
             }
         })? {
             return Ok(out);
@@ -1803,119 +1814,37 @@ struct TorusFace {
 }
 
 /// **A torus face's region from its loops** (module docs, the torus):
-/// the face is the torus less each group's outside ([`torus_groups`]),
-/// `|Ω| = s_f·ΣA + N·4π²Rr` with `N = 1 − Σn`, and its flux about the
+/// its loops' signed area read under the face's sense, `X = s_f·ΣA`,
+/// known up to whole tori, carried into `(0, 4π²Rr]` by the whole number
+/// `N` read at `X`'s midpoint, `|Ω| = X + N·4π²Rr`; and its flux about the
 /// centre `ΣF + s_f·N·6π²Rr²`, the whole torus's flux at the same count.
-fn torus_face(
-    radii: (Interval, Interval),
-    outward: bool,
-    per_loop: &[[Interval; 2]],
-    turns: &[[i64; 2]],
-) -> TorusFace {
-    let areas: Vec<Interval> = per_loop.iter().map(|l| l[1]).collect();
-    let groups = torus_counts(radii, outward, &areas, turns);
+/// The window holds the whole torus, so a face bounded by its chart's
+/// wrap loop is read whole.
+fn torus_face(radii: (Interval, Interval), outward: bool, per_loop: &[[Interval; 2]]) -> TorusFace {
     let [flux_whole, area_whole] = torus_whole(radii.0, radii.1);
-    let n = pt(1.0 - groups.iter().sum::<f64>());
     let sense = pt(if outward { 1.0 } else { -1.0 });
     let flux = per_loop.iter().fold(Interval::zero(), |f, l| f + l[0]);
-    let area = areas.iter().fold(Interval::zero(), |a, &l| a + l);
+    let x = sense * per_loop.iter().fold(Interval::zero(), |a, l| a + l[1]);
+    let n = pt((1.0 - mid(x) / mid(area_whole)).floor());
     TorusFace {
-        area: sense * area + n * area_whole,
+        area: x + n * area_whole,
         flux: flux + sense * n * flux_whole,
     }
 }
 
-/// A torus face's loops in their groups: each loop that winds nothing
-/// alone, and the loops that wind the torus together (at most two,
-/// [`loop_windings`]), each group's signed area read under the face's
-/// sense, `s_f·ΣA`.
-fn torus_group_areas(
-    outward: bool,
-    areas: &[Interval],
-    turns: &[[i64; 2]],
-) -> Vec<(Interval, Vec<usize>)> {
-    let sense = pt(if outward { 1.0 } else { -1.0 });
-    let mut groups: Vec<(Interval, Vec<usize>)> = Vec::new();
-    let mut winding = (Interval::zero(), Vec::new());
-    for (i, (&a, w)) in areas.iter().zip(turns).enumerate() {
-        if *w == [0, 0] {
-            groups.push((sense * a, vec![i]));
-        } else {
-            winding.0 = winding.0 + sense * a;
-            winding.1.push(i);
-        }
-    }
-    if !winding.1.is_empty() {
-        groups.push(winding);
-    }
-    groups
-}
-
-/// The whole number `n` of tori per group ([`torus_group_areas`]) that
-/// leaves its outside, `n·4π²Rr − X`, in `[0, 4π²Rr)` at its signed
-/// area `X`'s midpoint ([`outside_of`]).
-fn torus_counts(
-    radii: (Interval, Interval),
-    outward: bool,
-    areas: &[Interval],
-    turns: &[[i64; 2]],
-) -> Vec<f64> {
-    let whole = torus_whole(radii.0, radii.1)[1];
-    torus_group_areas(outward, areas, turns)
-        .iter()
-        .map(|(x, _)| outside_of(whole, *x).1)
-        .collect()
-}
-
-/// A torus face's groups for the decision ([`require_compact_sides`]):
-/// the torus's area, and each group's outside with its loops' length.
-struct TorusGroups {
-    whole: Interval,
-    groups: Vec<(Interval, Interval)>,
-}
-
-fn torus_groups(
-    radii: (Interval, Interval),
-    outward: bool,
-    areas: &[Interval],
-    turns: &[[i64; 2]],
-    entries: &[Vec<EdgeEntry>],
-) -> TorusGroups {
-    let whole = torus_whole(radii.0, radii.1)[1];
-    TorusGroups {
-        whole,
-        groups: torus_group_areas(outward, areas, turns)
-            .iter()
-            .map(|(x, loops)| {
-                let length = loops
-                    .iter()
-                    .fold(Interval::zero(), |l, &i| l + loop_length(&entries[i]));
-                (outside_of(whole, *x).0, length)
-            })
-            .collect(),
-    }
-}
-
-/// **The region a closed chart leaves outside a reading**: with `whole`
-/// the chart's area and `x` a region's signed area read off its loops,
-/// known up to whole charts, `n·whole − x` with `n` the whole number that
-/// leaves it in `[0, whole)` at `x`'s midpoint; and `n`. The decision
-/// ([`require_compact_sides`]) reads where the midpoint's `n` is not
-/// every point's.
-fn outside_of(whole: Interval, x: Interval) -> (Interval, f64) {
-    let n = (mid(x) / mid(whole)).floor() + 1.0;
-    (pt(n) * whole - x, n)
-}
-
 /// **A sphere loop's side away from its face**: the metric area to the
 /// loop's right under the face's normal, the region the loop alone
-/// leaves outside the face (module docs, the sphere), [`outside_of`] at
-/// `X = s_f·A₀ + 2πr²·W`, its Green form `A₀` read with its winding `W`.
+/// leaves outside the face (module docs, the sphere): `n·4πr² − X`, `X =
+/// s_f·A₀ + 2πr²·W` its Green form `A₀` read with its winding `W`, and
+/// `n` the whole number of spheres that leaves it in `[0, 4πr²)` at `X`'s
+/// midpoint. The loops' decision ([`require_sphere_sides`]) reads where
+/// the midpoint's `n` is not every point's.
 fn sphere_outside(radius: Interval, outward: bool, area: Interval, turns: i64) -> Interval {
     let sphere = sphere_area(radius);
     #[allow(clippy::cast_precision_loss)]
     let x = (if outward { area } else { -area }) + pt(0.5) * sphere * pt(turns as f64);
-    outside_of(sphere, x).0
+    let n = (mid(x) / mid(sphere)).floor() + 1.0;
+    pt(n) * sphere - x
 }
 
 /// **A sphere face's area** `|Ω| = 4πr² − Σ` its loops'
@@ -1940,22 +1869,20 @@ fn loop_length(entries: &[EdgeEntry]) -> Interval {
     pt(entries.iter().map(|e| e.length).sum::<f64>())
 }
 
-/// **Every group of a closed chart's face leaves area outside it, and
-/// the face some inside them all**, decided at the interval scalar
-/// through the closed forms' mean width `2·A/P`
+/// **Every loop of a sphere face leaves area outside it, and the face
+/// some inside them all**, decided at the interval scalar through the
+/// closed forms' mean width `2·A/P`
 /// ([`crate::props::curved::require_holes_wound_against`]'s predicates):
-/// each group's outside as a ring's hole (`props_ring_winding`), and the
-/// face's own area `face` as its whole (`props_chart_area_side`), each
-/// against its boundary's length. A group's outside read in
-/// `(0, whole)` and the face's area positive say the whole charts each
-/// was read with are the true ones. On the sphere each loop is a group
-/// ([`sphere_outside`]); on the torus each loop that winds nothing, and
-/// the winding loops together ([`torus_group_areas`]). One whose
+/// each loop's outside ([`sphere_outside`]) as a ring's hole
+/// (`props_ring_winding`), and the face's own area `face` as its whole
+/// (`props_chart_area_side`), each against its boundary's length. A
+/// loop's outside read in `(0, whole)` and the face's area positive say
+/// the whole spheres each was read with are the true ones. One whose
 /// enclosure straddles a chart's multiple escalates, and a later round
 /// narrows it ([`super::run::Run::ringed`]); a face whose area reads
 /// negative has a loop wound with it ([`PropsError::RingWoundWithFace`]),
 /// and one of no area is degenerate.
-fn require_compact_sides(
+fn require_sphere_sides(
     whole: Interval,
     outsides: &[Interval],
     lengths: &[Interval],
