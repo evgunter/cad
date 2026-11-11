@@ -236,7 +236,12 @@ lines on one line), a cap (a horn whose two edges are the sectors'
 bounds there) or a mouth (the other sector runs on past it). The form
 `q` is read in Bernstein form along `W`: a pinch reads Zero, a cap or
 mouth reads one decided sign `σ` with both planes' parting there
-charged, and the polar value `b₁` reads Zero or `σ`. `rest::lensed`
+charged, and the polar value `b₁` reads `σ`. `b₁` may read Zero only
+with no pinch, or where every pinch is two lines on developable faces
+(tangent along the whole line): beside a curved pinch a zero `b₁`
+leaves the parting to third order, where the faces may meet in a
+tacnode inside `W` (the review's torus and cylinder), so such a pair
+stays skipped. The lens is the two-pinch case of the same reader. `rest::lensed`
 reads lunes with the lenses, the remainder holding the mouth's sector
 cut short at the mouth (bounded by the other sector's edge there) and
 without the caps; a cap whose ray another sector reaches refuses in
@@ -248,7 +253,9 @@ shared cusp line); `a_rim_flush_…`'s point is two lunes with mouths
 (`B`'s wall runs on past the rim, `A`'s seam and `B`'s split line two
 lines on the pinch).
 
-**Measured at head `4a2c743e4e`** against merge base `ea1c8517ce`,
+**Measured at head `5f1ddd91bb`** (the fix pass, main merged) against
+merge base `b125b84b30`, the same counts as first measured at
+`4a2c743e4e` against `ea1c8517ce`,
 same instrument (key: test, `census::witness`, verdict; topo plus the
 nine sweep families `a_closed_conic_in_the_partners_face`,
 `a_cone_apex_on_a_plane_through_it`, `a_split_through_a_wrap_edges_vertex`,
@@ -267,7 +274,12 @@ stay skipped:
 | a `resolve` refusal | 1 |
 
 No other triple changes verdict, and the head reaches no point the base
-does not.
+does not. Not reached by any measured body, and skipped: a curved pinch
+whose polar value reads zero; a pair whose other sector runs on past
+both ends of `W`; and a mouth that falls inside a wedge of the sector
+running on, which happens where that sector's edge is turned off a
+quarter turn from the other's (`corner_fan` splits at quarter turns),
+so `a_rim_flush_…` turned so is skipped again: conservative.
 
 **Refusing what is left** (local variant, never committed) turns 2
 sweep rows red: `a_hole_sharing_…` and the cone apex. Both
