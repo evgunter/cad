@@ -13269,7 +13269,9 @@ mod tests {
         );
         for (at, want) in [
             (ReadAt::Run(Reading::Build), KERNEL_DEFECT_ENDING),
-            (ReadAt::Run(Reading::AtRest), KERNEL_OR_FILE_DEFECT_ENDING),
+            // Read at rest and not decided, it is reported as undecided
+            // (ONEHOME fork 259): at a point, the last resort.
+            (ReadAt::Run(Reading::AtRest), geom_core::KERNEL_LIMIT_RECOURSE),
             (
                 ReadAt::File(FileCoincidence::new(1e-6)),
                 DAMAGED_FILE_ENDING,

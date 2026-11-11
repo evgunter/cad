@@ -1790,7 +1790,8 @@ impl DoorCheck for CertCheck {
     ///   D4 ¶1 (iv)).
     /// - A residual or a form selection has no size. Every arm ends in the
     ///   kernel-defect ending where the kernel built the geometry exactly
-    ///   (the file's too, at rest). Where the kernel
+    ///   (the file's too, at rest), except an undecided arm at rest, which
+    ///   is reported as undecided ([`Unsized::recourse`]). Where the kernel
     ///   approximated, an arm read at a build, and an undecided arm read at
     ///   rest, end in the last resort; a definite arm at rest ends in the
     ///   file's defect ending, since no loosening repairs a stored
@@ -8629,15 +8630,19 @@ mod tests {
                 KERNEL_LIMIT_RECOURSE,
                 KERNEL_LIMIT_RECOURSE,
                 KERNEL_DEFECT_ENDING,
+                KERNEL_DEFECT_ENDING,
             ),
+            // The chart image read at rest and not decided is reported as
+            // undecided (ONEHOME fork 259): at a point, the last resort.
             (
                 Reading::AtRest,
                 KERNEL_OR_FILE_DEFECT_ENDING,
                 KERNEL_LIMIT_RECOURSE,
                 KERNEL_OR_FILE_DEFECT_ENDING,
+                KERNEL_LIMIT_RECOURSE,
             ),
         ];
-        for (reading, definite, undecided, exact) in rows {
+        for (reading, definite, undecided, exact, chart_undecided) in rows {
             assert_eq!(limb.ending(reading), definite, "{reading:?}");
             assert_eq!(
                 P::Escalated {
@@ -8649,7 +8654,11 @@ mod tests {
                 "{reading:?}"
             );
             assert_eq!(unavailable.ending(reading).unwrap(), exact, "{reading:?}");
-            assert_eq!(chart.ending(reading).unwrap(), exact, "{reading:?}");
+            assert_eq!(
+                chart.ending(reading).unwrap(),
+                chart_undecided,
+                "{reading:?}"
+            );
         }
     }
 

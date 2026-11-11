@@ -982,11 +982,12 @@ mod tests {
             }
             .render(crate::recourse::Reading::AtRest)
         };
-        // A premise no valid body violates is a defect however it is
-        // refused, and no tolerance is offered for one.
+        // A premise no valid body violates, read at rest and not decided,
+        // is reported as undecided (ONEHOME fork 259): at a point, the
+        // last resort, and no tolerance below is offered for one.
         let on_surface = under(PropsCheck::Exact);
         assert!(
-            on_surface.ends_with(geom_core::KERNEL_OR_FILE_DEFECT_ENDING),
+            on_surface.ends_with(geom_core::KERNEL_LIMIT_RECOURSE),
             "{on_surface}"
         );
         assert!(!on_surface.contains("tolerance below"), "{on_surface}");
