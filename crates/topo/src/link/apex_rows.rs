@@ -628,3 +628,45 @@ fn two_arcs_of_one_circle_are_kept_as_one_f64() {
 fn two_arcs_of_one_circle_are_kept_as_one_interval() {
     two_arcs_of_one_circle_are_kept_as_one::<Interval>();
 }
+
+/// Reviewer probe: two lobes of one carrier and sense whose edges chain
+/// a -> b but b does not close back on a's first edge: a sliver of the
+/// turn is missing, so no nappe is whole.
+fn probe_a_sliver_missing_is_not_read<T: Decide>() {
+    let unread = TouchVerdict::Unread(TouchUnread::Curved(CurvedUnread::NoTangentPlane));
+    let up = v::<T>(0.0, 1.0, 0.0);
+    for p in apexes::<T>() {
+        let k = carriers(1)[0];
+        let e = edges(3);
+        let lobe = |ends| {
+            TangentPiece::Apex(ApexLobe {
+                cone: cone(p, false),
+                carrier: k,
+                vertex: p,
+                ends,
+                spur: false,
+            })
+        };
+        let (r0, r1, r2) = (
+            ruling::<T>(0.0),
+            ruling::<T>(core::f64::consts::PI),
+            ruling::<T>(1.9 * core::f64::consts::PI),
+        );
+        for (what, pieces) in [
+            ("b short of a", vec![lobe([(r0, e[0]), (r1, e[1])]), lobe([(r1, e[1]), (r2, e[2])]), whole(p, up)]),
+            ("a short of b", vec![lobe([(r2, e[2]), (r1, e[1])]), lobe([(r1, e[1]), (r0, e[0])]), whole(p, up)]),
+        ] {
+            assert_eq!(read(p, pieces), unread, "{what} at {p:?}");
+        }
+    }
+}
+
+#[test]
+fn probe_a_sliver_missing_is_not_read_f64() {
+    probe_a_sliver_missing_is_not_read::<f64>();
+}
+
+#[test]
+fn probe_a_sliver_missing_is_not_read_interval() {
+    probe_a_sliver_missing_is_not_read::<Interval>();
+}
