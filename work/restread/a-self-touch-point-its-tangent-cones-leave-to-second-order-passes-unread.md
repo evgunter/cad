@@ -222,3 +222,79 @@ apex, a foot normal and a `resolve` refusal. Refusing them turns 5
 sweep rows red. The next unit is the lunes and the tangent-inside
 cylinders. Whether the remainder refuses in the meantime is still Ev's
 call.
+
+## Lunes (branch `restread/self-touch-lunes`)
+
+Tier: **dual (class H): a GRANT in the self-touch reading.**
+
+`second_order::lenses` now also reads a **lune**: two sectors on one
+wedge `W` of opposed normals, `W` one sector's whole fan and the
+other's first or last wedge, each end of `W` a pinch (one edge, or two
+lines on one line), a cap (a horn whose two edges are the sectors'
+bounds there) or a mouth (the other sector runs on past it). The form
+`q` is read in Bernstein form along `W`: a pinch reads Zero, a cap or
+mouth reads one decided sign `σ` with both planes' parting there
+charged, and the polar value `b₁`, read as the gap it makes along the
+unit middle (`b₁/(1 + cos φ)`), reads `σ`. `b₁` may read Zero only
+with no pinch, or where every pinch is two lines on developable faces
+(tangent along the whole line): beside a curved pinch a zero `b₁`
+leaves the parting to third order, where the faces may meet in a
+tacnode inside `W` (the review's torus and cylinder), so such a pair
+stays skipped. The lens is the two-pinch case of the same reader. `rest::lensed`
+reads lunes with the lenses, the remainder holding the mouth's sector
+cut short at the mouth (bounded by the other sector's edge there) and
+without the caps; a cap whose ray another sector reaches refuses in
+band. The argument is in `crates/topo/README.md` beside the lens's.
+
+What the real bodies hold: the lune cavities' points are two lunes
+(a horn of the floor capping two cylinder sectors pinched along their
+shared cusp line); `a_rim_flush_…`'s point is two lunes with mouths
+(`B`'s wall runs on past the rim, `A`'s seam and `B`'s split line two
+lines on the pinch).
+
+**Measured at head `1785f0d865`** (the second fix pass, main merged)
+against merge base `4d193f273d`, the same counts as at `5f1ddd91bb`
+against `b125b84b30` and as first measured at `4a2c743e4e` against
+`ea1c8517ce`,
+same instrument (key: test, `census::witness`, verdict; topo plus the
+nine sweep families `a_closed_conic_in_the_partners_face`,
+`a_cone_apex_on_a_plane_through_it`, `a_split_through_a_wrap_edges_vertex`,
+`bisector_nodes`, `split_across_a_revolve_seam`,
+`two_wedge_ends_on_one_line`, `review_6020_seam_probes`,
+`review_5956_r2_probes`, `reach_wall_chord_rows`, default ε). 478
+triples both sides. Skipped at the base: 11, as above. At head 6 read
+`Rest` (the four lune triples, both `a_rim_flush_…` triples) and 5
+stay skipped:
+
+| class still skipped | triples |
+|---|---|
+| a bound on a bound whose bends are equal (`a_hole_sharing_…`): the cut's anchors coincide, third order | 1 |
+| a cone's apex | 2 |
+| a foot normal | 1 |
+| a `resolve` refusal | 1 |
+
+No other triple changes verdict, and the head reaches no point the base
+does not. Not reached by any measured body, and skipped: a curved pinch
+whose polar value reads zero; a pair whose other sector runs on past
+both ends of `W`; and a mouth that falls inside a wedge of the sector
+running on, which happens where that sector's edge is turned off a
+quarter turn from the other's (`corner_fan` splits at quarter turns),
+so `a_rim_flush_…` turned so is skipped again: conservative.
+
+**Refusing what is left** (local variant, never committed) turns 2
+sweep rows red: `a_hole_sharing_…` and the cone apex. Both
+`two_wedge_ends_on_one_line` rows and `a_rim_flush_…` now read whole.
+Whether the remainder refuses is still Ev's call.
+
+
+## After PR 6816
+
+PR 6816 (`restread/self-touch-lunes`) merged on 2026-11-11 with the
+reading above, so this row is open again for the 5 triples still
+skipped: a bound on a bound whose bends are equal (`a_hole_sharing_…`,
+third order), the cone apex (2), a foot normal and a `resolve` refusal.
+Refusing them turns 2 sweep rows red. Also skipped, and reached by no
+measured body: a curved pinch whose polar value reads zero (third
+order), a pair whose other sector runs on past both ends, and a mouth
+inside a wedge of the running-on sector (the pose dependence above).
+Whether the remainder refuses is still Ev's call.
