@@ -1291,10 +1291,10 @@ impl RowSpace {
 ///   column is the executed case (#498), an off-iso straight edge
 ///   another, and an ellipse — takes U2's `General`
 ///   curve-in-UV arm at the honest Fitted grade, derived from the
-///   wall's own foot schedule: at degree 1 for a line or a spline,
-///   finer for a carrier that bends the foot path. Where its
-///   certificate refuses a bending carrier's image, the refusal is the
-///   lane's gap, "not yet".
+///   wall's own foot schedule: at degree 1 where that image's measured
+///   miss is within its share of the band, finer where the foot path
+///   bends past it. Where its certificate refuses the image, the
+///   refusal is the lane's gap, "not yet".
 /// - Everything else on a NURBS chart refuses typed with the class
 ///   named.
 fn nurbs_iso_derive<T: AtRestPolicy>(
@@ -1333,14 +1333,13 @@ fn nurbs_iso_derive<T: AtRestPolicy>(
     // alone), a DIAGONAL locus (an off-iso straight edge among them) has
     // none, and a circle no row holds, an ellipse or any other curved
     // carrier has none on a spline chart. Its image is the one
-    // `FittedLane::general_image` derives: a spline's or a line's the
-    // degree-1 image its edge certificate reads, a bending carrier's the
-    // finer one `edge_nurbs::curved_chart_image` climbs to. It is a lane
+    // `FittedLane::general_image` derives: the degree-1 image the edge
+    // certificate reads, climbed where its measured miss asks. It is a lane
     // choice (D3), reached only behind the chart's incidence read: a
     // carrier shown off the wall ends as that read. A read not shown off,
     // in band included, goes on to the general image, whose certificate
     // reads the carrier against its wall itself (the subsumption
-    // principle); a bending carrier's refusal there is the image's gap
+    // principle); a refusal there is the image's gap
     // (`geom_brep::minted_refusal`).
     let general = || -> Result<ChartImage<T>, PcurveMintError> {
         let Some(wall) = surface.spline_chart() else {
@@ -1659,10 +1658,9 @@ fn nurbs_iso_derive<T: AtRestPolicy>(
 /// spline chart over the edge's interval `params` — U2's `General`
 /// arm, at the honest Fitted grade.
 ///
-/// The producer is [`geom_brep::FittedLane::general_image`]: a line's or
-/// a spline's image is the degree-1 one the plane × NURBS edge
-/// certificate reads at adopt time, and a bending carrier's the finer
-/// one `edge_nurbs::curved_chart_image` climbs to. Nothing is certified here: this returns EVIDENCE,
+/// The producer is [`geom_brep::FittedLane::general_image`]: the degree-1
+/// image the plane × NURBS edge certificate reads at adopt time, climbed
+/// to a finer one where its measured miss asks. Nothing is certified here: this returns EVIDENCE,
 /// and the mint's next move is `PcurveCache::certify_general`, which
 /// bounds `sup_t |S(P(t)) − C(t)|` over the whole span against the
 /// chart.
