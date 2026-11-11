@@ -965,15 +965,51 @@ fn lune<T: Decide>(
     let (a1, a2) = (curve(k[1], x(-1.0 / r1)), curve(k[2], x(-1.0 / r2)));
     if void {
         vec![
-            corner_along(p, (upright(p, r1, turn), true), x(1.0), (y, z), [a1, line(k[0])]),
-            corner_along(p, (upright(p, r2, turn), false), x(-1.0), (z, y), [line(k[0]), a2]),
-            corner_along(p, (plane(p, v(0.0, 0.0, 1.0)), true), v(0.0, 0.0, 1.0), (y, y), [a2, a1]),
+            corner_along(
+                p,
+                (upright(p, r1, turn), true),
+                x(1.0),
+                (y, z),
+                [a1, line(k[0])],
+            ),
+            corner_along(
+                p,
+                (upright(p, r2, turn), false),
+                x(-1.0),
+                (z, y),
+                [line(k[0]), a2],
+            ),
+            corner_along(
+                p,
+                (plane(p, v(0.0, 0.0, 1.0)), true),
+                v(0.0, 0.0, 1.0),
+                (y, y),
+                [a2, a1],
+            ),
         ]
     } else {
         vec![
-            corner_along(p, (upright(p, r1, turn), false), x(-1.0), (z, y), [line(k[0]), a1]),
-            corner_along(p, (upright(p, r2, turn), true), x(1.0), (y, z), [a2, line(k[0])]),
-            corner_along(p, (plane(p, v(0.0, 0.0, -1.0)), true), v(0.0, 0.0, -1.0), (y, y), [a1, a2]),
+            corner_along(
+                p,
+                (upright(p, r1, turn), false),
+                x(-1.0),
+                (z, y),
+                [line(k[0]), a1],
+            ),
+            corner_along(
+                p,
+                (upright(p, r2, turn), true),
+                x(1.0),
+                (y, z),
+                [a2, line(k[0])],
+            ),
+            corner_along(
+                p,
+                (plane(p, v(0.0, 0.0, -1.0)), true),
+                v(0.0, 0.0, -1.0),
+                (y, y),
+                [a1, a2],
+            ),
         ]
     }
 }
@@ -1123,15 +1159,17 @@ fn capped<T: Decide>(
 /// capped along `z` from their curve along `(0, −1, 1)` rest, a void;
 /// capped along `(0, 0.2, −1)` from their curve along `(0, 1, 1)` they
 /// part at both ends the same way but cross inside the wedge (the form's
-/// polar value on its rays has the other sign), and are not read. A lune
+/// polar value on its rays has the other sign), and are not read; so are
+/// they on the quarter from `y` to `z` capped at both ends, parting one
+/// way at one cap and the other way at the other. A lune
 /// whose second sheet does not hold the cusp line (its cylinder turned
 /// 30° off it) is not read. A void just past the escalation at its cap
 /// rests, and with its second plane leaning off the first by nine tenths
 /// of the band's zero there it is not read: the lean is charged. A curved
 /// sheet tangent to the floor along the cap's ray, bending away under it,
 /// refuses in band: the cut there does not read the cap. Red where the
-/// polar value, the pinch or the charge is not read, or another sheet at
-/// a cap's ray is passed.
+/// polar value, the pinch, the caps' agreement or the charge is not read,
+/// or another sheet at a cap's ray is passed.
 fn a_lune_the_bends_do_not_decide_is_not_read<T: Decide>() {
     let unread = TouchVerdict::Unread(TouchUnread::Curved(CurvedUnread::Unreadable));
     let zero = band().zero();
@@ -1152,6 +1190,38 @@ fn a_lune_the_bends_do_not_decide_is_not_read<T: Decide>() {
             unread,
             "sheets crossing inside the wedge at {p:?}"
         );
+        // The rod and the bore on the quarter from `y` to `z`, capped at
+        // both: the bore stands past the rod by `−1` at `y` and `+1` at `z`,
+        // so the sheets cross between them.
+        let (y, z) = (v::<T>(0.0, 2.0, 0.0), v::<T>(0.0, 0.0, 2.0));
+        let k5 = edges(4);
+        let (rod_y, rod_z) = (
+            curve(k5[0], Vec3::zero()),
+            curve(k5[1], v::<T>(-1.0, 0.0, 0.0)),
+        );
+        let (bore_y, bore_z) = (
+            curve(k5[2], v::<T>(-1.0, 0.0, 0.0)),
+            curve(k5[3], Vec3::zero()),
+        );
+        let (rod, bore) = rod_and_bore(p, 1.0);
+        let (up, side) = (v::<T>(0.0, 0.0, 1.0), v::<T>(0.0, 1.0, 0.0));
+        let crossed = vec![
+            corner_along(p, (rod, true), v(1.0, 0.0, 0.0), (y, z), [rod_y, rod_z]),
+            corner_along(
+                p,
+                (bore, false),
+                v(-1.0, 0.0, 0.0),
+                (z, y),
+                [bore_z, bore_y],
+            ),
+            corner_along(p, (plane(p, up), true), up, (y, y), [rod_y, bore_y]),
+            corner_along(p, (plane(p, side), true), side, (z, z), [rod_z, bore_z]),
+        ];
+        assert_eq!(
+            read(p, crossed),
+            unread,
+            "sheets parting each way at two caps at {p:?}"
+        );
         // The second sheet's cylinder turned 30° off the cusp line about
         // `x`: it bends `sin²30°/2` along `z`, its arc `cos²30°/2` along `y`.
         let psi = 30f64.to_radians();
@@ -1162,7 +1232,6 @@ fn a_lune_the_bends_do_not_decide_is_not_read<T: Decide>() {
             u_ref: v(1.0, 0.0, 0.0),
         };
         let mut off = lune(p, [1.0, 2.0], 1.0, true, one);
-        let (y, z) = (v::<T>(0.0, 2.0, 0.0), v::<T>(0.0, 0.0, 2.0));
         let arc = curve(k[2], v::<T>(-psi.cos().powi(2) / 2.0, 0.0, 0.0));
         off[1] = corner_along(
             p,

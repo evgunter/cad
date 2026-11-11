@@ -1367,9 +1367,9 @@ other end leaves the pair unread. Along `W`,
 `q((1 − t)u₀ + t·u₁) = b₀(1 − t)² + 2b₁t(1 − t) + b₂t²`, with
 `b₀ = q(u₀)`, `b₂ = q(u₁)` and `b₁` the form's polar value on `u₀` and
 `u₁`. A pinch reads its `b` Zero; a cap or a mouth reads its `b` decided,
-one sign `σ` for both, at the arm with the second plane's parting along
-that ray charged; and `b₁` reads Zero or `σ`, with the parting at the
-wedge's middle charged. Then `σ·q` falls below zero by at most the band's
+one sign `σ` for both, at the arm with the two planes' parting along
+that ray charged (the ray's distance off each); and `b₁` reads Zero or
+`σ`, with the parting at the wedge's middle charged. Then `σ·q` falls below zero by at most the band's
 zero `z` at the arm, and only beside a pinch, so the sheets do not cross
 over `W`: positive `σ` is a void between them, negative a sliver.
 Reading the ends alone would not do: a form positive at both ends of a

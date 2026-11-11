@@ -505,20 +505,17 @@ pub(super) fn lenses<T: Decide>(
     let lenses = out.len();
     for j in 0..n {
         for i in (0..n).filter(|&i| i != j) {
-            if out[..lenses].iter().any(|w| w.pair.contains(&i) && w.pair.contains(&j)) {
-                continue;
-            }
             let Some(found) = lune(link, [i, j], rd) else {
                 continue;
             };
-            // Two sectors of one wedge each are one pair either way round.
-            if out[lenses..]
-                .iter()
-                .any(|w| w.pair == [j, i] && link.cone.sectors[i].wedges.len() == 1)
-            {
+            // Two sectors of one wedge each are one lune either way round.
+            if out[lenses..].iter().any(|w| w.pair == [j, i]) {
                 continue;
             }
-            if out.iter().any(|w| w.pair.contains(&i) || w.pair.contains(&j)) {
+            if out
+                .iter()
+                .any(|w| w.pair.contains(&i) || w.pair.contains(&j))
+            {
                 return Err(unread);
             }
             out.push(found.ok_or(unread)?);
@@ -556,7 +553,13 @@ enum Close {
 
 /// Whether `x` lies on the ray through `r`, both on the plane through `p`
 /// of normal `m`.
-fn same_ray<T: Decide>(p: Point3<T>, m: Vec3<T>, r: Point3<T>, x: Point3<T>, rd: Reading<T>) -> bool {
+fn same_ray<T: Decide>(
+    p: Point3<T>,
+    m: Vec3<T>,
+    r: Point3<T>,
+    x: Point3<T>,
+    rd: Reading<T>,
+) -> bool {
     wedge_side(p, m, r, x, rd) == Some(Sign::Zero) && ahead(p, r, x, rd) == Some(Sign::Positive)
 }
 
@@ -571,7 +574,7 @@ fn same_ray<T: Decide>(p: Point3<T>, m: Vec3<T>, r: Point3<T>, x: Point3<T>, rd:
 /// `q((1 − t)u₀ + t·u₁) = b₀(1 − t)² + 2b₁t(1 − t) + b₂t²`, `b₀ = q(u₀)`,
 /// `b₂ = q(u₁)`, `b₁` its polar value. A pinch reads its `b` Zero; a cap or
 /// a mouth reads its `b` decided, one sign `σ` for all of them, with the
-/// second plane's parting along that ray charged; `b₁` reads Zero or `σ`,
+/// two planes' parting along that ray charged; `b₁` reads Zero or `σ`,
 /// with the parting at the middle charged. `σ` positive is a void, each
 /// sheet on the other's outward side, and a cap's horn must face into
 /// `W` for a void and out of it for a sliver. The argument:
@@ -595,9 +598,8 @@ fn lune<T: Decide>(
     {
         return None;
     }
-    let along = |(a, b): Segment<T>| {
-        same_ray(p, s.outward, a, d, rd) && same_ray(p, s.outward, b, c, rd)
-    };
+    let along =
+        |(a, b): Segment<T>| same_ray(p, s.outward, a, d, rd) && same_ray(p, s.outward, b, c, rd);
     let (&first, &last) = (s.wedges.first()?, s.wedges.last()?);
     let at_first = along(first);
     if !at_first && !along(last) {
@@ -614,13 +616,14 @@ fn lune<T: Decide>(
             .iter()
             .position(|h| {
                 let [(e0, b0), (e1, b1)] = h.ends;
-                ((b0.edge, b1.edge) == (ei.edge, ej.edge) || (b0.edge, b1.edge) == (ej.edge, ei.edge))
+                ((b0.edge, b1.edge) == (ei.edge, ej.edge)
+                    || (b0.edge, b1.edge) == (ej.edge, ei.edge))
                     && same_ray(p, s.outward, ray, h.apex + e0, rd)
                     && same_ray(p, s.outward, ray, h.apex + e1, rd)
             })
             .map(Close::Cap),
     };
-    let at_d = close((at_first).then_some(i0), j1, x)?;
+    let at_d = close(at_first.then_some(i0), j1, x)?;
     let at_y = close((!at_first || only).then_some(i1), j0, y)?;
     if matches!((at_d, at_y), (Close::Pinch, Close::Pinch)) {
         return None;
