@@ -565,3 +565,8 @@ and bodies unchanged. No orchestrator yet.
     - **Start-sense mutant survives (R1).**
     - **Two unrowed guards (R2):** the lead check and the overlapping-box decline.
   - **Fix-or-file:** `ray_of` should decide on the node→entry chord; `ray_along` should be fail-loud; `Ends::enter` should be fail-loud; plus duplicates and stale prose.
+- **2026-11-11 03:15 — PR 6814 full review in (head 1b01f80b):** APPROVE-WITH-FIXES. Soundness confirmed by construction and by a 146-fixture × 3-ε differential (byte-identical vs pA and vs main); timing confirmed ~55× (release 3.5 s vs 188 s).
+  - **Must fix:** the guard row counts the branch's label, not the windows read (reviewer's fall-through mutant stays green at 133 s). Count at the reads; re-run that mutant, pA/pB and the cylinder mutant.
+  - **Also:** counter to the `cfg(any(test, feature = "test-support"))` precedent if small; PR body narrowed ("one home" holds for the plane only; curved pass-vs-limb-3 split predates, file P2); differential cited.
+  - **Fix-or-skip:** fifth `flat_wall` helper; one spelling of the plane gradient.
+  - Fix pass sent to the plane-partial lane; review session archived. Tier M, no row; merge on green after the fix pass.
