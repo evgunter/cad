@@ -2,8 +2,9 @@
 id: a-declared-seats-two-records-trip-the-one-record-check
 kind: issue
 title: A Boolean on a body whose seat is a declared face-face contact trips the one-record check at the seat's two records
-status: open
+status: closed
 opened: 2026-11-10
+closed: 2026-11-11
 ---
 
 
@@ -28,3 +29,15 @@ so `OneCarrierPairs::unify` never sees it. Either the check exempts a
 pair a body's record holds as contact, or the seat's two faces belong on
 one record too. That is a question about which acts leave two records
 of one carrier, and it waits on the coincidence act's restructure.
+
+## Closed (2026-11-11)
+
+The one-record check is gone: nothing reads values at rest
+(`crates/topo/README.md` `[topo.one-record.rest]`), so a seat's two
+records at rest are two surfaces, as `[coincidence.door]` says, and its
+edges rest on their pair. The three witnesses are green on the branch:
+`a_vertex_through_a_declared_seat`'s
+`a_union_bridging_a_seat_touches_itself_and_one_on_a_piece_builds` and
+`a_cut_across_its_tools_seat_refuses_typed`, and
+`intent_dprime3_assemble_product_slot`'s
+`a_seat_unioned_with_a_bead_keeps_its_pieces_and_a_bridge_touches_itself`.
