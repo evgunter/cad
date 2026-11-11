@@ -106,7 +106,11 @@
 //! branch's `L`, whose own vertex and frame were placed by the same
 //! `δσ` (no measured document reaches either file's sites);
 //! `geom-brep/src/quartic.rs`'s `cbrt` and the Cardano
-//! root's sign transfer from `Q`. That list is not
+//! root's sign transfer from `Q`;
+//! `mesh/src/walk.rs`'s `loop_polygon` at a horn's cusp
+//! (`Chart::is_horn`), the `v = ±π` copy on the side of the leaving
+//! meridian's next vertex (`f64` only: the walk takes `Body<f64>`).
+//! That list is not
 //! prose: `sym_rule_f_rows`'s
 //! `the_copysign_mint_sites_the_tree_holds_are_these` greps the
 //! shipped sources and reds when a site appears or goes, so the day a
