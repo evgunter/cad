@@ -441,12 +441,19 @@ const PLATE_MAX_TERMS: usize = 38;
 /// certified again there. Every walk loses that copy's share: `Plain`
 /// 1189 → 1015 decisions and 824 → 669 assertions, `Early` 412 → 308
 /// and 824 → 669, `Door` 557 → 402. The largest form holds at 38.
+///
+/// **Moved with the move's session-box ask** (`Replay::moved_by`: every
+/// move asks the box of its image): one assertion per walk more, the
+/// box's margin, a form over every vertex's and edge's reach of the
+/// moved hole: `Plain` 669 → 670 assertions (forms 6963 → 9047),
+/// `Early` 669 → 670 (8611 → 10422), `Door` 402 → 403 decisions (9906 →
+/// 11719), and `Plain/Decision`'s digest (forms 42005 → 41501).
 const PLATE_LEDGER: &str = "\
-     Plain/Decision calls 1015 forms 42005 frozen 54 digest dd533786f8876610b7b70ba3ad9eec25\n\
-     Plain/Assertion calls 669 forms 6963 frozen 137 digest 76750018a7ae31c33d5760302449ba22\n\
+     Plain/Decision calls 1015 forms 41501 frozen 54 digest 1b310266a1968c11616d2750affc0dfa\n\
+     Plain/Assertion calls 670 forms 9047 frozen 137 digest ebdae96f526ae41ae0680df5d5bb5545\n\
      Early/Decision calls 308 forms 28904 frozen 0 digest 3352b4ae55ef1b7fc0dd378dde163b3c\n\
-     Early/Assertion calls 669 forms 8611 frozen 0 digest d935f9e202f691ec539619dc4dd3ad5f\n\
-     Door/Decision calls 402 forms 9906 frozen 0 digest c5aa427c2105464b64a07aaf298f8339";
+     Early/Assertion calls 670 forms 10422 frozen 0 digest 78eb95dd6549092cd88f101dfd74c22c\n\
+     Door/Decision calls 403 forms 11719 frozen 0 digest 007b3254e77f798485bfc9cf5c6b9cc3";
 
 /// **What the walks BUILD is pinned, not only what the tier decides.**
 /// For the slab and the plate at their nominals, every (walk, origin)

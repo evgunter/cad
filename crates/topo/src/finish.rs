@@ -210,13 +210,26 @@ impl<T: AtRestPolicy> Replay<T> {
     /// whatever it moves. A replay carries no other verdict and its tier
     /// 2 is topology, which no map moves.
     ///
+    /// The ask is held off this node's verdict log, as the `f64` and
+    /// `Probe` leaf's moved finish is ([`AtRestPolicy::leaf`],
+    /// `docs/predicate-dimension-audit.md` F34): the taker's tier 3 asks
+    /// the box of the same image and logs it there, so both lanes log the
+    /// box once, at the taker, and the witness's verdict vector is the
+    /// box lane's. A refusal has no taker: its record is relogged here.
+    ///
     /// # Errors
     ///
     /// [`MoveError::Map`] where the data map refuses ([`moved_body`]);
     /// [`MoveError::NotFinished`] holding the session box's finding.
     pub fn moved_by(&self, iso: &crate::Isometry<T>, tol: Tol) -> Result<Self, MoveError> {
         let body = moved_body(&self.body, iso, tol).map_err(MoveError::Map)?;
-        asked_after_isometry(&body, tol).map_err(MoveError::NotFinished)?;
+        let scope = geom_core::k_stats::Bracket::open();
+        let asked = asked_after_isometry(&body, tol);
+        let record = scope.finish();
+        if asked.is_err() {
+            geom_core::k_stats::relog(&record);
+        }
+        asked.map_err(MoveError::NotFinished)?;
         Ok(Self { body })
     }
 }
@@ -288,6 +301,50 @@ pub trait LeafBody:
     /// The body, construction state again.
     #[must_use]
     fn into_body(self) -> Body<Self::Scalar>;
+
+    /// **This leaf under an isometry**, a leaf of the same kind: the
+    /// image's leaf at `f64` and `Probe` ([`AtRestPolicy::leaf`] of the
+    /// moved body, its finish held off the log), [`Replay::moved_by`] where
+    /// it is a replay. While the box-scalar switch lives a leaf's held
+    /// record must be what the box lane's taker decides of the same body,
+    /// and that taker runs tier 3 on the image, so a moved leaf is
+    /// finished again on its image; that re-finish goes with the switch,
+    /// and a finished value's move ([`FinishedBody::moved`]) runs none.
+    ///
+    /// # Errors
+    ///
+    /// [`MoveError::Map`] where the data map refuses ([`moved_body`]);
+    /// [`MoveError::NotFinished`] holding the image's leaf's findings,
+    /// the session box among them.
+    fn moved_by(&self, iso: &crate::Isometry<Self::Scalar>, tol: Tol) -> Result<Self, MoveError>;
+
+    /// **This leaf under a rigid motion** ([`Self::moved_by`]).
+    ///
+    /// # Errors
+    ///
+    /// [`NotFinished`]: the image's leaf's findings, and a motion's map
+    /// refusal as [`MoveError::under_a_motion`] states it.
+    fn moved(
+        &self,
+        motion: &geom_core::RigidMotion<Self::Scalar>,
+        tol: Tol,
+    ) -> Result<Self, NotFinished> {
+        self.moved_by(&crate::Isometry::Proper(*motion), tol)
+            .map_err(MoveError::under_a_motion)
+    }
+
+    /// **This leaf's mirror image** ([`Self::moved_by`]).
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::moved_by`].
+    fn mirrored(
+        &self,
+        reflection: &crate::Reflection<Self::Scalar>,
+        tol: Tol,
+    ) -> Result<Self, MoveError> {
+        self.moved_by(&crate::Isometry::Improper(*reflection), tol)
+    }
 }
 
 impl<T: AtRestPolicy<Leaf = Self>> LeafBody for AtRestBody<T> {
@@ -296,6 +353,11 @@ impl<T: AtRestPolicy<Leaf = Self>> LeafBody for AtRestBody<T> {
     fn into_body(self) -> Body<T> {
         AtRestBody::into_body(self)
     }
+
+    fn moved_by(&self, iso: &crate::Isometry<T>, tol: Tol) -> Result<Self, MoveError> {
+        T::leaf(moved_body(self, iso, tol).map_err(MoveError::Map)?, tol)
+            .map_err(MoveError::NotFinished)
+    }
 }
 
 impl<T: AtRestPolicy<Leaf = Self>> LeafBody for Replay<T> {
@@ -303,6 +365,10 @@ impl<T: AtRestPolicy<Leaf = Self>> LeafBody for Replay<T> {
 
     fn into_body(self) -> Body<T> {
         Replay::into_body(self)
+    }
+
+    fn moved_by(&self, iso: &crate::Isometry<T>, tol: Tol) -> Result<Self, MoveError> {
+        Replay::moved_by(self, iso, tol)
     }
 }
 

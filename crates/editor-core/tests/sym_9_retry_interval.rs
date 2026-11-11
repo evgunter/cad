@@ -700,13 +700,14 @@ fn sym_9_the_kept_atom_ladder_recovers_what_phase_1_measured() {
     // move carries its verdict, `Held::moved`): the copy each document
     // reads into its measuring frame is not re-certified or finished
     // again there, 174 to 178 symbolic and 155 numeric fewer both ways,
-    // the retries holding.
+    // the retries holding. Then each move asks the session box of its
+    // image (`Replay::moved_by`): one numeric decision more both ways.
     let expected: [(&str, [u64; 2], [u64; 2], u64); 5] = [
-        ("two_hole_plate", [1015, 669], [1015, 669], 0),
-        ("r1_annulus", [535, 400], [535, 400], 0),
-        ("r1_segment_boss", [506, 384], [506, 384], 0),
-        ("r2_filleted_bracket", [1411, 1000], [1417, 994], 6),
-        ("r2_link", [817, 666], [817, 666], 0),
+        ("two_hole_plate", [1015, 670], [1015, 670], 0),
+        ("r1_annulus", [535, 401], [535, 401], 0),
+        ("r1_segment_boss", [506, 385], [506, 385], 0),
+        ("r2_filleted_bracket", [1411, 1001], [1417, 995], 6),
+        ("r2_link", [817, 667], [817, 667], 0),
     ];
     let mut moved: Vec<String> = Vec::new();
     for (name, want_off, want_on, want_retried) in expected {
@@ -879,9 +880,11 @@ fn sym_9_the_drive_writes_the_ladders_receipt() {
     // re-certified after the transform (`topo::FinishedBody::moved`):
     // [1566, 1500] -> [1392, 1345], the retries holding, the same −174
     // symbolic and −155 numeric `m10_9_pins_interval` reads off the pad.
+    // Then the placement asks the session box of its image
+    // (`Replay::moved_by`): [1392, 1345] -> [1392, 1346].
     assert_eq!(
         [d.symbolic, d.numeric, d.retried],
-        [1392, 1345, 34],
+        [1392, 1346, 34],
         "the shipped ladder's leaf receipt"
     );
     assert!(
@@ -901,8 +904,10 @@ fn sym_9_the_drive_writes_the_ladders_receipt() {
     // segment, as the shipped receipt's: [1495, 1416, 0] -> [1539, 1534, 0].
     // Then ONEHOME's seven rigidity margins, as the shipped receipt's:
     // [1539, 1534, 0] -> [1532, 1534, 0]. Then ONEHOME's moved copy, as the
-    // shipped receipt's: [1532, 1534, 0] -> [1358, 1379, 0].
-    assert_eq!([b.symbolic, b.numeric, b.retried], [1358, 1379, 0]);
+    // shipped receipt's: [1532, 1534, 0] -> [1358, 1379, 0]. Then the
+    // placement's session-box ask, as the shipped receipt's:
+    // [1358, 1379, 0] -> [1358, 1380, 0].
+    assert_eq!([b.symbolic, b.numeric, b.retried], [1358, 1380, 0]);
     assert!(
         !bare.serialize().contains("retried="),
         "no ladder, no column"

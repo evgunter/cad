@@ -52,18 +52,17 @@ fn cylinder() -> topo::AtRestBody<Interval> {
     topo::test_support::finished("the Interval cylinder", body, tol())
 }
 
-/// **A leaf at the box scalars is finished in its own frame, then moved**:
-/// the taker's finish (`topo::take`) runs on the body the sweep door
-/// built, and the finished body's move asks the session box of its image,
-/// so a copy moved past the box refuses there, typed.
+/// **A leaf at the box scalars asks the session box when it moves**
+/// (`topo::Replay::moved_by`): every move asks it, whatever it moves, so
+/// a replay moved past the box refuses there, typed, and is not handed
+/// on for a later taker to find.
 #[test]
-fn a_box_scalar_leaf_is_taken_then_moved_and_refuses_past_the_box() {
-    let leaf = std::sync::Arc::new(cylinder_leaf());
-    let finished = topo::take::<Interval>(&leaf, tol()).expect("the leaf finishes where it stands");
+fn a_box_scalar_leaf_moved_past_the_box_refuses_at_the_box() {
+    use topo::LeafBody as _;
     let far = RigidMotion::translation(Vec3::new(iv(2000.0), iv(0.0), iv(0.0))).unwrap();
-    let refusal = finished
+    let refusal = cylinder_leaf()
         .moved(&far, tol())
-        .expect_err("a body moved past the session box refuses");
+        .expect_err("a leaf moved past the session box refuses");
     let shown = refusal.to_string();
     assert!(
         matches!(

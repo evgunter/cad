@@ -6961,12 +6961,13 @@ pub trait AtRestPolicy: Decide {
     /// The final state is every door finishing its own result
     /// ([`AtRestPolicy::finish`]). The doors behind the switch end in
     /// this leaf instead: the sweep doors (extrude, revolve, loft, sweep,
-    /// the tube) and, in the evaluator, the `⊔` graft. A leaf is not
-    /// moved: it is finished in its own frame, at the taker door
-    /// ([`crate::take`]), and the finished body is moved
-    /// ([`crate::FinishedBody::moved`]), so at `f64` and `Probe`, where
-    /// the leaf is a finished body already, a move runs no finish. At the
-    /// box
+    /// the tube) and, in the evaluator, the `⊔` graft. A move of a leaf
+    /// is a leaf of the same kind ([`crate::LeafBody::moved`]): at `f64`
+    /// and `Probe` the image is finished again, held off the log, so its
+    /// record is what the box lane's taker decides of the same body, and
+    /// that re-finish goes with this switch. A twisted or mirrored
+    /// Boolean result is a finished value and stays finished, with no
+    /// finish. At the box
     /// scalars the leaf is tier 2 alone ([`crate::Replay`]): it does not
     /// run tier 3, and the consumer that takes a finished body runs it
     /// there, at the one taker door ([`crate::take`]): a Boolean's, a

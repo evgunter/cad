@@ -45,14 +45,17 @@ fn the_corpus_runs_its_pinned_count_of_finishes() {
     );
 }
 
-/// The count at the default ε. Measured with this row on an earlier
-/// corpus: main before a finished body's move carried its verdict ran
-/// 505; with the move and no `f64` leaf re-finish, 389; with the
-/// box-scalar switch's price, a sweep leaf moved at `f64` finished again
-/// on its image, 662. A leaf is now finished in its own frame and then
-/// moved (`editor_core::Held::moved_by`, ONEHOME fork 259), so at `f64`,
-/// where a leaf is a finished body already, a move finishes nothing:
-/// 443 on today's corpus, which holds documents the 389 was not measured
-/// over.
+/// The count at the default ε, measured with this row on one corpus:
+/// main before a finished body's move carried its verdict ran 505;
+/// with the move and no f64 leaf re-finish, 389; with the box-scalar
+/// switch's price, a sweep leaf moved at `f64` finished again on its
+/// image (`topo::LeafBody::moved`), 662, re-measured at 662 on the
+/// corpus as merged with main `2f03dde9`. The switch's deletion
+/// (`work/boxfinish/delete-the-box-scalar-sweep-leaf-switch.md`) takes
+/// it back to about 389. ONEHOME fork 259 measured a leaf finished in its
+/// own frame and then moved at 443 on that merged corpus, and reverted it
+/// at the box scalars: a box-scalar leaf's tier 3 alone is not decided
+/// over a box (its orientation, its seams), which is why the switch keeps
+/// it tier 2 there.
 #[cfg(debug_assertions)]
-const PINNED: u64 = 443;
+const PINNED: u64 = 662;

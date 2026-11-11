@@ -332,7 +332,8 @@ pub(crate) fn measured_studies(tol: Tol) -> [Study; 5] {
             // is a norm the tier does not reduce with the door shut, so two
             // `pcurve_chart_radial_moving` decisions it proved are numeric.
             // The shipped count, with the registry, does not move.
-            without_the_registry: Some(((1350, 1071), None)),
+            // +1 numeric: the placement asks the session box of its image.
+            without_the_registry: Some(((1350, 1072), None)),
             // One is the fillet run out read against its arrival carrier
             // (`path_run_out_carrier`), a margin the tier proves zero.
             // How many the tier reaches depends on the order the
@@ -362,7 +363,8 @@ pub(crate) fn measured_studies(tol: Tol) -> [Study; 5] {
             // first parent; the step from (1546, 1260) is not bisected.
             // Then (1660, 1250) -> (1684, 1262) -> (1704, 1368) with
             // PR 6594 and PR 6682 (`symbolic` below).
-            without_the_registry: Some(((1523, 1213), None)),
+            // +1 numeric: the placement asks the session box of its image.
+            without_the_registry: Some(((1523, 1214), None)),
             // Three are the fillet run outs read against their arrival
             // carriers (`path_run_out_carrier`), margins the tier proves
             // zero.
@@ -907,8 +909,10 @@ fn m10_9_the_pad_at_both_rule_f_dials() {
     // seven rigidity margins, which a placement composed as motions decides
     // none of (`mate::solve::admitted` removed): 1704 -> 1697 symbolic.
     // Then ONEHOME's moved copy, its verdict carried and not re-certified:
-    // (1697, 1368, 3751) -> (1523, 1213, 3683).
-    assert_eq!(got[0], (1523, 1213, 3683), "rule F shut: the pad's receipt");
+    // (1697, 1368, 3751) -> (1523, 1213, 3683). Then each move asks the
+    // session box of its image (`Replay::moved_by`): one numeric
+    // decision, (1523, 1214, 3683).
+    assert_eq!(got[0], (1523, 1214, 3683), "rule F shut: the pad's receipt");
     assert_eq!(
         got[1], got[0],
         "rule F moves nothing on the pad: the basis mints no copysign for it to fold"
