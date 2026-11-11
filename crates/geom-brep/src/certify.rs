@@ -2409,11 +2409,15 @@ impl<T: Decide + geom_core::CertifiedBounds> EdgeCurve<T> {
     ///      `TangentIntersection`'s second-order arm folds the same
     ///      `reach`.
     ///    - `Scaffold` (a mapped source): `|carrier(t_i) − description(i/8)|`.
-    ///    - `Chart`: `|C(t_i) − S(P(t_i))|`, but for a stated image on a
-    ///      spline chart, which is bounded over the whole span before the
-    ///      schedule, through its pcurve certificate's door
-    ///      ([`crate::PcurveCache::certify_stated_image`]), whose envelope is a
-    ///      sup, and its refusal ends by the carrier's incidence read.
+    ///    - `Chart`: `|C(t_i) − S(P(t_i))|`, but for a stated image whose
+    ///      class a door certifies ([`crate::PcurveCache::certify_stated_bound`]):
+    ///      every image on a spline chart, and on an analytic chart an iso
+    ///      line or curve in UV on a plane or a cylinder's or cone's ruling,
+    ///      or a projected image. That image is bounded over the whole span
+    ///      before the schedule, by its door's envelope, a sup; its miss ends
+    ///      as [`CertCheck::StatedImage`], and a carrier off its chart by
+    ///      the carrier's incidence read. A stated image no door bounds is
+    ///      metered at the schedule as [`CertCheck::StatedImage`].
     /// 5. `Intersection`: the witness's implicit residuals vs both
     ///    surfaces, then the **mid-parameter pin**
     ///    `|carrier.mid_point(t₀, t₁) − witness| ≤ ε`
@@ -3158,7 +3162,8 @@ impl<T: Real> EdgeCurve<T> {
     /// [`crate::Pcurve::mirror_v`] — the mirrored image on the
     /// mirrored chart evaluates to the same 3-D points, so
     /// `|C(t) − S(P(t))|` at every sample is the number the run
-    /// produced. Whoever negates a chart's frame owes this
+    /// produced, and a bound over the span bounds the same miss (its
+    /// rounding is the source's patch's, not the mirrored one's). Whoever negates a chart's frame owes this
     /// re-statement to every image on it, which is what makes an
     /// orientation reversal a certification-preserving map rather
     /// than a geometry change with a stale certificate beside it.
@@ -10286,7 +10291,10 @@ mod tests {
             (CertCheck::TangentTube, Class::Sized(Positive, Lever)),
             (CertCheck::MappedSource, Miss(Unsized::Defect)),
             (CertCheck::ChartResidual, Miss(Unsized::Defect)),
-            (CertCheck::StatedImage, Class::Stated(SizedPass::Zero, StoredContradiction)),
+            (
+                CertCheck::StatedImage,
+                Class::Stated(SizedPass::Zero, StoredContradiction),
+            ),
             (CertCheck::ChartImage, NoSize(Unsized::Defect)),
             (CertCheck::ChartClass, NotYet),
             (CertCheck::GeneralLane, NotYet),

@@ -58,8 +58,7 @@ impl PatchClass {
     pub(crate) fn of_net<T: Real>(surface: &Surface<T>, net: &NurbsCurve2<T>) -> Option<Self> {
         Self::along(surface, || {
             net.control().split_first().is_none_or(|(first, rest)| {
-                rest.iter()
-                    .all(|p| geom_core::is_exact_zero(p.x - first.x))
+                rest.iter().all(|p| geom_core::is_exact_zero(p.x - first.x))
             })
         })
     }
@@ -69,9 +68,7 @@ impl PatchClass {
     fn along<T: Real>(surface: &Surface<T>, on_ruling: impl FnOnce() -> bool) -> Option<Self> {
         match surface {
             Surface::Plane { .. } => Some(Self::Plane),
-            Surface::Cylinder { .. } | Surface::Cone { .. } => {
-                on_ruling().then_some(Self::Ruling)
-            }
+            Surface::Cylinder { .. } | Surface::Cone { .. } => on_ruling().then_some(Self::Ruling),
             Surface::Sphere { .. }
             | Surface::Torus { .. }
             | Surface::Spindle { .. }
@@ -107,13 +104,13 @@ pub(crate) fn patch(
     let (ku, kv) = (knots(u0, u1)?, knots(v0, v1)?);
     // On a ruling both `u` columns are the ruling itself.
     let column = |at: f64| match class {
-        PatchClass::Plane => Interval::from_f64(at),
+        PatchClass::Plane => Interval::from_bounds(at, at),
         PatchClass::Ruling => Interval::from_bounds(u.0, u.1),
     };
-    let mut coords = vec![Vec::with_capacity(4); 3];
+    let mut coords: Vec<Vec<Interval>> = (0..3).map(|_| Vec::with_capacity(4)).collect();
     for cu in [column(u0), column(u1)] {
         for cv in [v0, v1] {
-            let p = chart.eval(cu, Interval::from_f64(cv));
+            let p = chart.eval(cu, Interval::from_bounds(cv, cv));
             for (lane, c) in coords.iter_mut().zip([p.x, p.y, p.z]) {
                 lane.push(c);
             }

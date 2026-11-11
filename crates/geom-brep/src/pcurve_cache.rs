@@ -4485,9 +4485,13 @@ pub(crate) fn fitted_lane<T: Decide + geom_core::Bounds + geom_core::CertifiedEn
         )
     } else {
         let window = |lane: &[geom_core::Interval]| {
-            lane.iter().fold((f64::INFINITY, f64::NEG_INFINITY), |(lo, hi), c| {
-                (lo.min(geom_core::Bounds::lo(*c)), hi.max(geom_core::Bounds::hi(*c)))
-            })
+            lane.iter()
+                .fold((f64::INFINITY, f64::NEG_INFINITY), |(lo, hi), c| {
+                    (
+                        lo.min(geom_core::Bounds::lo(*c)),
+                        hi.max(geom_core::Bounds::hi(*c)),
+                    )
+                })
         };
         let not_affine = PcurveCertifyError::ImageMismatch {
             image: PcurveKind::General,
@@ -4496,13 +4500,14 @@ pub(crate) fn fitted_lane<T: Decide + geom_core::Bounds + geom_core::CertifiedEn
         };
         let class = patch::PatchClass::of_net(surface, image).ok_or(not_affine)?;
         let chart = surface.map_scalar(geom_core::Interval::from_certified);
-        analytic = patch::patch(class, &chart, (window(&pcoords[0]), window(&pcoords[1])))
-            .ok_or(PcurveCertifyError::FittedCertificate {
+        analytic = patch::patch(class, &chart, (window(&pcoords[0]), window(&pcoords[1]))).ok_or(
+            PcurveCertifyError::FittedCertificate {
                 limb: Some(SsiLimb::HullSupChart),
                 what: "the image's control coordinates are no numbers, so no window holds it",
                 magnitude: None,
                 ending: FittedEnding::Defect,
-            })?;
+            },
+        )?;
         (&analytic.0, &analytic.1, &analytic.2[..], &analytic.3[..])
     };
     let grid = chart_grid(carrier, image.knots_f64_interim());
@@ -13185,8 +13190,8 @@ pub(crate) mod patch;
 pub mod projected;
 mod spline_incidence;
 mod stated;
-pub(crate) use stated::StatedDoor;
 pub use projected::{FramedCarrier, ProjectedChart, ProjectedImage, SectorChannel};
+pub(crate) use stated::StatedDoor;
 
 #[cfg(test)]
 mod envelope_lemma_fuzz;

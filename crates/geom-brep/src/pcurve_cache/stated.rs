@@ -229,9 +229,10 @@ fn iso_net<T: SpanLocate>(
     pl: geom_core::Vec2<T>,
     (lo, hi): (f64, f64),
 ) -> Result<Arc<NurbsCurve2<T>>, PcurveCertifyError> {
-    let at = |t: f64| p0 + pl * T::from_f64(t);
-    let two = std::num::NonZeroUsize::new(2).expect("two is not zero");
-    let knots = Knots::new(vec![(T::from_f64(lo), two), (T::from_f64(hi), two)], 1)
+    let lift = |t: f64| T::from_f64(t);
+    let at = |t: f64| p0 + pl * lift(t);
+    let two = std::num::NonZeroUsize::MIN.saturating_add(1);
+    let knots = Knots::new(vec![(lift(lo), two), (lift(hi), two)], 1)
         .map_err(|_| PcurveCertifyError::IntervalNotForward)?;
     NurbsCurve2::new(knots, vec![at(lo), at(hi)], vec![T::one(), T::one()])
         .map(Arc::new)

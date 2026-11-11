@@ -41,7 +41,9 @@ use test_utils::fuzz;
 use super::Pcurve;
 use super::spline_door_rows::{band, in_band};
 use crate::recourse::{ReadAt, Reading};
-use crate::{CertCheck, CertifyError, EdgeCurve, EdgeCurveSpec, EdgeDescriptionSpec, NurbsLane, SurfaceKey};
+use crate::{
+    CertCheck, CertifyError, EdgeCurve, EdgeCurveSpec, EdgeDescriptionSpec, NurbsLane, SurfaceKey,
+};
 
 /// The cone's half-angle.
 const ALPHA: f64 = 0.3;
@@ -205,7 +207,7 @@ const STATED: [Stated; 2] = [Stated::Iso, Stated::General];
 enum Image {
     /// `p0 + pl·t`.
     Iso([f64; 2], [f64; 2]),
-    General(NurbsCurve2<f64>),
+    General(Arc<NurbsCurve2<f64>>),
 }
 
 impl Image {
@@ -225,7 +227,7 @@ fn image_of(chart: Chart, stated: Stated) -> Image {
     let (p0, pl) = chart.image();
     match stated {
         Stated::Iso => Image::Iso(p0, pl),
-        Stated::General => Image::General(
+        Stated::General => Image::General(Arc::new(
             NurbsCurve2::new(
                 KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap(),
                 vec![
@@ -235,14 +237,13 @@ fn image_of(chart: Chart, stated: Stated) -> Image {
                 vec![1.0, 1.0],
             )
             .unwrap(),
-        ),
+        )),
     }
 }
 
 /// The edge certificate of `carrier` over `[t0, t1]` stated by `image`
 /// on `surface`, at one scalar.
-type Certify =
-    fn(&Surface<f64>, &Image, &NurbsCurve3<f64>, (f64, f64)) -> Result<(), CertifyError>;
+type Certify = fn(&Surface<f64>, &Image, &NurbsCurve3<f64>, (f64, f64)) -> Result<(), CertifyError>;
 
 /// One certifying scalar's door, instantiated per scalar by name.
 #[derive(Clone, Copy)]
@@ -288,7 +289,12 @@ const DOORS: [Door; 2] = [F64, INTERVAL];
 
 impl Door {
     fn net(self, chart: Chart, net: &Net, stated: Stated) -> Result<(), CertifyError> {
-        (self.certify)(&chart.surface(), &image_of(chart, stated), &net.curve(chart), (0.0, 1.0))
+        (self.certify)(
+            &chart.surface(),
+            &image_of(chart, stated),
+            &net.curve(chart),
+            (0.0, 1.0),
+        )
     }
 }
 
@@ -374,19 +380,40 @@ fn a_stated_images_miss_ends_by_its_door_and_offers_no_tolerance() {
         for stated in STATED {
             let past = door.net(Chart::Plane, &witness(1e-3), stated).unwrap_err();
             let lever = "so the chart image this edge states follows its carrier";
-            let want = [None, Some(KERNEL_OR_FILE_DEFECT_ENDING), Some(DAMAGED_FILE_ENDING)];
+            let want = [
+                None,
+                Some(KERNEL_OR_FILE_DEFECT_ENDING),
+                Some(DAMAGED_FILE_ENDING),
+            ];
             for (at, want) in doors.into_iter().zip(want) {
                 let ending = past.ending(at).unwrap();
                 match want {
-                    None => assert!(ending.contains(lever), "{stated:?} at {}, {at:?}: {ending}", door.name),
-                    Some(want) => assert!(ending.contains(want), "{stated:?} at {}, {at:?}: {ending}", door.name),
+                    None => assert!(
+                        ending.contains(lever),
+                        "{stated:?} at {}, {at:?}: {ending}",
+                        door.name
+                    ),
+                    Some(want) => assert!(
+                        ending.contains(want),
+                        "{stated:?} at {}, {at:?}: {ending}",
+                        door.name
+                    ),
                 }
-                assert!(!ending.contains("tolerance"), "{stated:?} at {}, {at:?}: {ending}", door.name);
+                assert!(
+                    !ending.contains("tolerance"),
+                    "{stated:?} at {}, {at:?}: {ending}",
+                    door.name
+                );
             }
             let in_band = door
                 .net(Chart::Plane, &witness(0.0).missing(in_band()), stated)
                 .unwrap_err();
-            assert_eq!(ended(&Err(in_band.clone())), Ended::InBand, "{stated:?} at {}", door.name);
+            assert_eq!(
+                ended(&Err(in_band)),
+                Ended::InBand,
+                "{stated:?} at {}",
+                door.name
+            );
             for at in doors {
                 let ending = in_band.ending(at).unwrap();
                 assert!(
@@ -514,7 +541,9 @@ fn a_stated_image_on_its_carrier_certifies() {
                 along += g.range(0.2, 2.0);
                 across += g.range(-0.1, 0.1);
                 match chart {
-                    Chart::Plane => Point2::new(along * cos - across * sin, along * sin + across * cos),
+                    Chart::Plane => {
+                        Point2::new(along * cos - across * sin, along * sin + across * cos)
+                    }
                     Chart::Cylinder => Point2::new(u0, along),
                     Chart::Cone => Point2::new(u0, 6.0 + along),
                 }
@@ -540,7 +569,7 @@ fn a_stated_image_on_its_carrier_certifies() {
             let (a, b) = (control[0], control[1]);
             Image::Iso([a.x, a.y], [b.x - a.x, b.y - a.y])
         });
-        let images = std::iter::once(Image::General(image)).chain(iso);
+        let images = std::iter::once(Image::General(Arc::new(image))).chain(iso);
         for stated in images {
             for door in DOORS {
                 let got = (door.certify)(&surface, &stated, &net, (t0, t1));
