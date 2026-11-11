@@ -546,3 +546,8 @@ and bodies unchanged. No orchestrator yet.
   - Filed P3: the sweep cannot bracket branch points a band from a node.
   - Closes `cylinder-sphere-reads-its-pose-on-the-ruling-sweep`.
 - 2026-11-10 — (PCERT orchestrator) Main red, fixed in PCERT's roster PR: PR 6518 merged after PR 6755's census rule, and `pair_section/ruling.rs`'s `a_spheres_discriminant_extremes_are_the_poses_reaches` site (`CylinderSpherePose::decide(x, …)`) was unlisted in `crates/geom-brep/tests/recourse_roster.rs`. It is now listed NOT_A_NAME. Nothing is owed.
+- 2026-11-11 01:10 — **NURBS 3b is up as PR 6811** (nodes and `NodeEnds` listed on the whole reading; touch plus arcs listed; the pinch retires; D2's end named by its ray; carriers stay `Unminted`). CI is green.
+  - **Leftover mutant caught:** the uncommitted edit found after the restart was a leftover mutant, and it was reverted, not committed.
+  - **Mutants:** 12 of 14 are killed. The two survivors are argued redundant: seeding in a claimed box, and stepping through a box.
+  - **Filed:** the lemniscate row exceeds the accounting budget at 1e-12 (P2).
+  - **Review:** dual review dispatched to two cloud sessions.
