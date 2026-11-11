@@ -82,7 +82,7 @@ impl<T: Real> Trig<T> {
     /// `θ = φ + w·s` with `φ = phase + w·t_m`, read as an angle, so a phase
     /// a whole period away is the same pair to rounding.
     pub(super) fn angle(phase: T, winding: i32, t_m: T) -> (Self, Self) {
-        let w = T::from_f64(f64::from(winding));
+        let w: T = super::angle_rate(winding);
         let (sin_p, cos_p) = (phase + w * t_m).sin_cos();
         let k = isize::try_from(winding).unwrap_or(isize::MAX);
         let n = k.unsigned_abs() + 1;

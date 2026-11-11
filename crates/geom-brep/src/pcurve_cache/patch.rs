@@ -189,11 +189,10 @@ pub(crate) const MAX_PIECES: usize = 256;
 
 /// One angle's window cut into pieces, with the cosine and sine of the
 /// angle enclosed on each by its Bernstein controls: `cos[i]`, `sin[i]`
-/// for the `i`-th control of the clamped degree-[`DEGREE`] spline on
-/// `knots`, a piece's end control shared with the next (the hull of the
-/// two pieces' enclosures).
+/// for the `i`-th control of the clamped spline on the knots
+/// [`Angle::over`] returns beside it, a piece's end control shared with
+/// the next (the hull of the two pieces' enclosures).
 struct Angle {
-    knots: KnotVector,
     cos: Vec<Interval>,
     sin: Vec<Interval>,
 }
@@ -223,7 +222,11 @@ impl Angle {
     /// The angle over `[lo, hi]`, in pieces of half-width at most the one
     /// whose remainder, scaled by `arm` (the most the chart moves per unit
     /// of the cosine or sine), stays at `target`.
-    fn over((lo, hi): (f64, f64), arm: f64, target: f64) -> Result<Self, PatchRefusal> {
+    fn over(
+        (lo, hi): (f64, f64),
+        arm: f64,
+        target: f64,
+    ) -> Result<(KnotVector, Self), PatchRefusal> {
         // `arm · d^(p+1)/(p+1)! ≤ target` for a piece of half-width `d`:
         // the least degree that holds the window in one piece, else
         // [`DEGREE`] in pieces. A low degree keeps the composite's low.
@@ -290,7 +293,7 @@ impl Angle {
                 }
             }
         }
-        Ok(Self { knots, cos, sin })
+        Ok((knots, Self { cos, sin }))
     }
 }
 
@@ -378,14 +381,14 @@ fn enclosed(
             radius,
             u_ref,
         } => {
-            let a = Angle::over(u, mag(radius), target)?;
+            let (ka, a) = Angle::over(u, mag(radius), target)?;
             let (kv, vs) = linear(v)?;
             let rad = radial(&a, frame(axis, u_ref));
             let controls: Vec<Point3<Interval>> = rad
                 .iter()
                 .flat_map(|&r| vs.map(|w| origin + r * radius + axis * Interval::from_bounds(w, w)))
                 .collect();
-            (a.knots, kv, controls)
+            (ka, kv, controls)
         }
         Surface::Cone {
             apex,
@@ -396,7 +399,7 @@ fn enclosed(
             let (kv, vs) = linear(v)?;
             let (sa, ca) = half_angle.sin_cos();
             let reach = vs[0].abs().max(vs[1].abs());
-            let a = Angle::over(u, reach * mag(sa), target)?;
+            let (ka, a) = Angle::over(u, reach * mag(sa), target)?;
             let rad = radial(&a, frame(axis, u_ref));
             let controls: Vec<Point3<Interval>> = rad
                 .iter()
@@ -407,7 +410,7 @@ fn enclosed(
                     })
                 })
                 .collect();
-            (a.knots, kv, controls)
+            (ka, kv, controls)
         }
         Surface::Sphere {
             center,
@@ -416,7 +419,7 @@ fn enclosed(
             u_ref,
         } => {
             let r = mag(radius);
-            let (a, b) = (
+            let ((ka, a), (kb, b)) = (
                 Angle::over(u, r, target)?,
                 Angle::over(angular(v)?, r, target)?,
             );
@@ -431,7 +434,7 @@ fn enclosed(
                         .collect::<Vec<_>>()
                 })
                 .collect();
-            (a.knots, b.knots, controls)
+            (ka, kb, controls)
         }
         Surface::Torus {
             center,
@@ -448,7 +451,7 @@ fn enclosed(
             u_ref,
         } => {
             let (big, small) = (mag(major_radius), mag(minor_radius));
-            let (a, b) = (
+            let ((ka, a), (kb, b)) = (
                 Angle::over(u, big + small, target)?,
                 Angle::over(angular(v)?, small, target)?,
             );
@@ -467,7 +470,7 @@ fn enclosed(
                         .collect::<Vec<_>>()
                 })
                 .collect();
-            (a.knots, b.knots, controls)
+            (ka, kb, controls)
         }
         Surface::Plane { .. } | Surface::Nurbs(_) | Surface::Approx(_) => {
             unreachable!("an enclosing patch is a curved analytic chart's (`PatchClass::along`)")

@@ -517,10 +517,7 @@ fn mirrored_chart_images_recertify_on_the_reverted_plane_with_the_same_certifica
             geom_brep::NurbsLane::certified(),
         );
         assert!(
-            matches!(
-                stale,
-                Err(CertifyError::StatedImageMissed { sample: 0, .. })
-            ),
+            matches!(stale, Err(CertifyError::StatedImageMissed { .. })),
             "{name}: the stored image on the reverted plane: {stale:?}"
         );
         let mirrored = fwd

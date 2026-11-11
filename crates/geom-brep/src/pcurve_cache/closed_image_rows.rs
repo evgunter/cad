@@ -1096,13 +1096,9 @@ fn a_curve_in_uv_on_its_carrier_certifies_on_a_curved_chart() {
             knots.push(span.1);
             let control: Vec<Point2<f64>> = at.iter().map(|&t| p0 + pl * t).collect();
             let count = control.len();
+            let kv = KnotVector::clamped(knots, 1).unwrap();
             let general = Pcurve::General(Arc::new(
-                NurbsCurve2::new(
-                    KnotVector::clamped(knots, 1).unwrap(),
-                    control,
-                    vec![1.0; count],
-                )
-                .unwrap(),
+                NurbsCurve2::new(kv.clone(), control, vec![1.0; count]).unwrap(),
             ));
             for (what, image) in [("iso line", iso), ("curve in UV", general.clone())] {
                 certifies_everywhere(
@@ -1129,12 +1125,7 @@ fn a_curve_in_uv_on_its_carrier_certifies_on_a_curved_chart() {
                 control[i].y += delta;
             }
             let wrong = Pcurve::General(Arc::new(
-                NurbsCurve2::new(
-                    net.knots_f64_interim().clone(),
-                    control,
-                    net.weights().to_vec(),
-                )
-                .unwrap(),
+                NurbsCurve2::new(kv, control, net.weights().to_vec()).unwrap(),
             ));
             let miss = dense_miss(&surface, &wrong, &carrier, span);
             for door in DOORS {

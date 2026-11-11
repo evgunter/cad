@@ -325,7 +325,7 @@ fn focal_residual<T: Real>(
     // `q²·cos ν`, `q²·sin ν`, `ν = E + 2λ`.
     let n_c = cos_e.times(&c2).minus(&sin_e.times(&s2));
     let n_s = sin_e.times(&c2).plus(&cos_e.times(&s2));
-    let q2 = Trig::constant(T::one() + beta * beta).minus(&cos_e.scaled(beta + beta));
+    let q2 = Trig::constant(T::one() + beta.powi(2)).minus(&cos_e.scaled(beta + beta));
     let carrier = Trig3::harmonic((form.c - origin, form.a, form.b, form.l), t_m).times(&q2);
     let along = |frame: Frame<T>| {
         let (a0, b0) = radial_pair(&frame, image.u0);
@@ -375,7 +375,7 @@ fn focal_residual<T: Real>(
     Ok(Residual {
         plain: carrier.minus(&mapped),
         factors: Vec::new(),
-        floor: gap * gap,
+        floor: gap.powi(2),
         h,
     })
 }
@@ -385,7 +385,7 @@ fn focal_residual<T: Real>(
 /// outer ends, `f64` structure (C6), `h` rounded outward.
 fn centre<T: Real>(span: EdgeSpan<T>) -> (T, T) {
     let (lo, hi) = span.outer;
-    let mid = lo + (hi - lo) * 0.5;
+    let mid = geom_core::bracket_mid((lo, hi));
     let h = (hi - mid).max(mid - lo).next_up();
     (T::from_f64(mid), T::from_f64(h))
 }
