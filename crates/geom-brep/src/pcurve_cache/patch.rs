@@ -17,9 +17,11 @@
 //! evaluation in interval arithmetic, so they enclose the chart the
 //! stored scalars state at every scalar.
 
+use std::sync::Arc;
+
 use geom::{NurbsCurve2, Surface};
 use geom_core::spline::KnotVector;
-use geom_core::{Interval, Real};
+use geom_core::{Interval, Point2, Real, Vec2};
 
 use super::Pcurve;
 
@@ -36,31 +38,40 @@ pub(crate) enum PatchClass {
     Ruling,
 }
 
+/// **A stated image on a patch, as the composite reads it**: an iso
+/// line, or a curve in UV it already is.
+#[derive(Clone, Copy, Debug)]
+pub(crate) enum PatchImage<'a, T: Real> {
+    /// `p0 + pl·t`.
+    Iso(Point2<T>, Vec2<T>),
+    /// A curve in UV (`General` or `Fitted`).
+    Net(&'a Arc<NurbsCurve2<T>>),
+}
+
 impl PatchClass {
-    /// The class of `image` on `surface`, or `None` where no bilinear
-    /// patch agrees with the chart along it: a spline chart (its own
-    /// door's), a closed-form image, and an image on a curved chart
-    /// that leaves its ruling.
-    pub(crate) fn of<T: Real>(surface: &Surface<T>, image: &Pcurve<T>) -> Option<Self> {
+    /// The class of `image` on `surface`, with the image's form, or
+    /// `None` where no bilinear patch agrees with the chart along it: a
+    /// spline chart (its own door's), a closed-form image, and an image
+    /// on a curved chart that leaves its ruling.
+    pub(crate) fn of<'a, T: Real>(
+        surface: &Surface<T>,
+        image: &'a Pcurve<T>,
+    ) -> Option<(Self, PatchImage<'a, T>)> {
         match image {
-            Pcurve::IsoLine { pl, .. } => Self::along(surface, || geom_core::is_exact_zero(pl.x)),
-            Pcurve::General(net) | Pcurve::Fitted(net) => Self::of_net(surface, net),
+            Pcurve::IsoLine { p0, pl } => Self::along(surface, || geom_core::is_exact_zero(pl.x))
+                .map(|class| (class, PatchImage::Iso(*p0, *pl))),
+            Pcurve::General(net) | Pcurve::Fitted(net) => Self::along(surface, || {
+                net.control().split_first().is_none_or(|(first, rest)| {
+                    rest.iter().all(|p| geom_core::is_exact_zero(p.x - first.x))
+                })
+            })
+            .map(|class| (class, PatchImage::Net(net))),
             Pcurve::Harmonic { .. }
             | Pcurve::FocalSection(_)
             | Pcurve::Spiric { .. }
             | Pcurve::IsoArc { .. }
             | Pcurve::Projected(_) => None,
         }
-    }
-
-    /// The class of a curve in UV on `surface`: on a ruling where its
-    /// controls share their `u`, so the curve does.
-    pub(crate) fn of_net<T: Real>(surface: &Surface<T>, net: &NurbsCurve2<T>) -> Option<Self> {
-        Self::along(surface, || {
-            net.control().split_first().is_none_or(|(first, rest)| {
-                rest.iter().all(|p| geom_core::is_exact_zero(p.x - first.x))
-            })
-        })
     }
 
     /// The class on `surface` of an image that runs on one ruling where
