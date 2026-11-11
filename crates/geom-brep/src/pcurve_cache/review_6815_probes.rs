@@ -257,7 +257,7 @@ fn analytic_pcurve_door<T: Decide + geom_core::CertifiedBounds>() -> Vec<String>
             else {
                 continue;
             };
-            let got = super::PcurveCache::certify_stated(
+            let got = super::PcurveCache::certify_stated_image(
                 image,
                 (T::zero(), T::one()),
                 &carrier,
