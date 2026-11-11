@@ -346,6 +346,7 @@ fn face(
             closed: whole,
             lever: [Interval::zero(); 3],
             rationals: Vec::new(),
+            spirics: Vec::new(),
             ribbon: 0.0,
         },
         loops: loops
@@ -364,6 +365,7 @@ fn face(
             closed,
             lever,
             rationals,
+            spirics: Vec::new(),
             ribbon,
         },
         loops: swapped,
@@ -563,6 +565,7 @@ fn with_framed(
             closed: Interval::zero(),
             lever: [Interval::zero(); 3],
             rationals: Vec::new(),
+            spirics: Vec::new(),
             ribbon: 0.0,
         },
         loops: vec![loops],
@@ -657,3 +660,4 @@ fn a_projected_line_holds_the_closed_form() {
 mod framed;
 mod pads;
 mod sphere;
+mod torus;
