@@ -3542,10 +3542,7 @@ fn spans_of(
         .enumerate()
         .map(|(j, part)| {
             let range = (breaks[j], breaks[j + 1]);
-            let whole = whole_breaks
-                .windows(2)
-                .position(|w| w[0] <= range.0 && range.1 <= w[1])
-                .map_or(f64::NAN, |i| whole_sup[i]);
+            let whole = holding_span(&whole_breaks, range).map_or(f64::NAN, |i| whole_sup[i]);
             // The breaks are a knot vector's, so a part's ends are
             // ordered numbers; a pair that is not names no part, and its
             // hull is the uncertified one.
@@ -3614,6 +3611,22 @@ fn spans_of(
         })
         .collect();
     Ok(spans)
+}
+
+/// **The first span of `breaks` holding `range`**: the least `i` with
+/// `breaks[i] ≤ range.0` and `range.1 ≤ breaks[i + 1]`, or `None`. Over
+/// ascending breaks the second clause holds from the first `i` it holds
+/// at onward and the first clause up to the last, so the least `i` is
+/// the first of the second clause's, found by bisection, if the first
+/// clause holds there too. A NaN end fails both clauses, as it fails a
+/// scan's. [`spans_of`] asks once per part, so a scan would cost the
+/// parts times the spans.
+fn holding_span(breaks: &[f64], range: (f64, f64)) -> Option<usize> {
+    let i = breaks.partition_point(|&b| b < range.1).saturating_sub(1);
+    match (breaks.get(i), breaks.get(i + 1)) {
+        (Some(&lo), Some(&hi)) if lo <= range.0 && range.1 <= hi => Some(i),
+        _ => None,
+    }
 }
 
 /// **The span hulls' memo**: [`spans_of`] keyed by exactly what it
@@ -13234,6 +13247,9 @@ mod analytic_image_rows;
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::panic)]
 mod analytic_net_rows;
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::panic)]
+mod bisected_reads_rows;
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::panic)]
 mod by_turn_rows;

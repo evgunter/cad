@@ -522,8 +522,14 @@ fn rotate_box<T: Real>(q: Quarter, x: (T, T), y: (T, T)) -> ((T, T), (T, T)) {
 /// built cannot be, so the caller refuses rather than drops a stretch.
 pub(crate) fn span_stretches(kv: &KnotVector, range: ParamRange) -> Option<Vec<ParamRange>> {
     let (a, b) = (range.start(), range.end());
+    // The knots strictly inside `range` are one run of the sorted list,
+    // found by bisection: a part of a many-span net reads the knots it
+    // crosses, not every knot (`sweep_box` boxes sixteen parts a span).
+    let knots = kv.knots();
+    let first = knots.partition_point(|&k| k <= a);
+    let inside = &knots[first..knots.partition_point(|&k| k < b).max(first)];
     let mut breaks = vec![a];
-    breaks.extend(kv.breakpoints().filter(|&k| k > a && k < b));
+    breaks.extend(inside.chunk_by(|x, y| x == y).map(|run| run[0]));
     breaks.push(b);
     breaks
         .windows(2)
