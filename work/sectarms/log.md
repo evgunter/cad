@@ -604,3 +604,13 @@ and bodies unchanged. No orchestrator yet.
 - The lane merged main (the stage-3b node listing conflict) and lowered the bare-rounding gate count from 2 to 1. Both are recorded in the PR body.
 - Merged as cde3660b, tier M, so no row.
 - Still open: [ev] PR 6829, waiting on Ev.
+
+## 2026-11-11 13:45 — two main-red P1s dispatched
+
+Both reds were found by PCERT's nightly lane and trace to SECTARMS merges.
+
+- **Census (cost E), from PR 6811.** `critical.rs` has 37 endpoint reads with 26 asking. My ruling:
+  - `node_frame` fails closed: `width` is NaN unless the point certifies, so it reads `Pinched`.
+  - `grown`'s four reads take the seed disposition.
+  - Lane on branch `sectarms/critical-census-disposition`.
+- **TubeStraddles at ε 1e-6, from PR 6518, plus the 1e-12 slowdown.** The lane decides from the mechanism between pinning the stop (the honest march) and fixing the sweep, and stops if that needs a design ruling. Lane on branch `sectarms/ruling-sweep-straddle-1e-6`.
