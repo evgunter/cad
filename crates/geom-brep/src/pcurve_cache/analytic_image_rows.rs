@@ -861,7 +861,10 @@ fn an_iso_line_whose_u_is_an_enclosure_certifies_on_its_ruling() {
     assert!(
         matches!(
             super::StatedDoor::of(&surface, &image),
-            Some(super::StatedDoor::Patch { .. })
+            super::StatedDoor::Patch {
+                class: super::patch::PatchClass::Ruling,
+                ..
+            }
         ),
         "the iso line routes to the ruling's patch"
     );

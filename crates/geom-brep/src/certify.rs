@@ -4384,17 +4384,15 @@ fn canonical_of<T: Decide>(
 
 /// **Where a description states its chart image**, decided once
 /// ([`StatedDoor`], by structure): bounded over the span by the door its
-/// class names ([`stated_bound`]), or, on an analytic chart where no door
-/// certifies its class, metered at the schedule's samples; or not at all
-/// (a derived image, or any other description). On an analytic chart the
-/// carrier is read first either way ([`stated_analytic_read`], and at the
-/// certificate a net bounded over the span, [`stated_analytic_bound`]).
+/// class names ([`stated_bound`]); or not at all (a derived image, or any
+/// other description). On an analytic chart the carrier is read first
+/// ([`stated_analytic_read`], and at the certificate a net bounded over
+/// the span, [`stated_analytic_bound`]).
 enum StatedChart<'a, T: Real> {
     Bounded {
         surface: &'a Surface<T>,
         door: StatedDoor<'a, T>,
     },
-    Sampled(&'a Surface<T>),
     None,
 }
 
@@ -4408,21 +4406,14 @@ impl<'a, T: Real> StatedChart<'a, T> {
         else {
             return Self::None;
         };
-        let door = StatedDoor::of(surface, image);
         #[cfg(test)]
         if surface.spline_chart().is_some() && crate::pcurve_cache::mutants::stated_image_sampled()
         {
             return Self::None;
         }
-        #[cfg(test)]
-        if surface.spline_chart().is_none()
-            && crate::pcurve_cache::mutants::analytic_image_sampled()
-        {
-            return Self::Sampled(surface);
-        }
-        match door {
-            Some(door) => Self::Bounded { surface, door },
-            None => Self::Sampled(surface),
+        Self::Bounded {
+            surface,
+            door: StatedDoor::of(surface, image),
         }
     }
 
@@ -4430,12 +4421,8 @@ impl<'a, T: Real> StatedChart<'a, T> {
     /// before the image.
     fn analytic(&self) -> Option<&'a Surface<T>> {
         match *self {
-            Self::Bounded { surface, .. } | Self::Sampled(surface)
-                if surface.spline_chart().is_none() =>
-            {
-                Some(surface)
-            }
-            Self::Bounded { .. } | Self::Sampled(_) | Self::None => None,
+            Self::Bounded { surface, .. } if surface.spline_chart().is_none() => Some(surface),
+            Self::Bounded { .. } | Self::None => None,
         }
     }
 }
@@ -4563,6 +4550,7 @@ fn stated_refusal<T: Real>(
             | PcurveCheck::GeneralLane
             | PcurveCheck::ParamSpan => mint_refusal(e, surface, carrier),
         },
+        PcurveCertifyError::MissLocated { margin } => missed(NOT_A_SAMPLE, Some(margin)),
         PcurveCertifyError::FittedLimb { limb, margin } => match limb {
             SsiLimb::HullValueChart | SsiLimb::ImageMiss => missed(NOT_A_SAMPLE, Some(margin)),
             _ => gap(LaneGap::Envelope),
@@ -4598,23 +4586,6 @@ fn stated_refusal<T: Real>(
         | PcurveCertifyError::PlaceholderChart
         | PcurveCertifyError::IntervalNotForward
         | PcurveCertifyError::Band(_) => mint_refusal(e, surface, carrier),
-    }
-}
-
-/// A stated image's definite miss at a sample, as the one refusal that
-/// carries it ([`CertifyError::StatedImageMissed`]); any other refusal
-/// as it stands.
-fn stated_missed(e: CertifyError) -> CertifyError {
-    match e {
-        CertifyError::ResidualExceeded {
-            check: CertCheck::StatedImage,
-            sample,
-            margin,
-        } => CertifyError::StatedImageMissed {
-            sample,
-            margin: Some(margin),
-        },
-        e => e,
     }
 }
 
@@ -4765,6 +4736,7 @@ fn mint_refusal<T: Real>(
         | PcurveCertifyError::PlacementTurnsExceeded
         | PcurveCertifyError::TubePeriodExceeded
         | PcurveCertifyError::ResidualExceeded { .. }
+        | PcurveCertifyError::MissLocated { .. }
         | PcurveCertifyError::Band(_) => CertifyError::ChartImageUnavailable {
             chart: surface.kind(),
             carrier: carrier.kind(),
@@ -5104,26 +5076,19 @@ fn run_checks<T: Decide + geom_core::CertifiedBounds>(
                     return Err(CertifyError::Unimplemented);
                 };
                 let p = spec.carrier.eval(t);
-                // A stated image whose door bounds it over the span is
-                // read above (`stated_bound`); one no door bounds is a
-                // stated image's miss at a sample, and a derived one the
-                // mint's.
-                let meter = match chart_stated {
-                    StatedChart::Bounded { .. } => None,
-                    StatedChart::Sampled(_) => Some(CertCheck::StatedImage),
-                    StatedChart::None => Some(CertCheck::ChartResidual),
-                };
-                if let Some(check) = meter {
+                // A stated image is bounded over the span above
+                // (`stated_bound`); a derived one is the mint's, metered
+                // here.
+                if let StatedChart::None = chart_stated {
                     let q = chart.pcurve.eval(t);
                     check_residual(
                         "pcurve_map_residual",
-                        check,
+                        CertCheck::ChartResidual,
                         i,
                         Margin::of(p.distance(surface.eval(q.x, q.y))),
                         band,
                         &mut max_residual,
-                    )
-                    .map_err(stated_missed)?;
+                    )?;
                 }
                 // **The declaration is metered too, or it is not a
                 // record of anything** (P-1b, reinstated in review).

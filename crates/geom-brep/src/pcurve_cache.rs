@@ -2174,6 +2174,14 @@ pub enum PcurveCertifyError {
     /// focal-section and spiric-wall lanes leave a span past a period to
     /// the edge certificate's `interval_span_winding`.
     TubePeriodExceeded,
+    /// A stated image definitely misses its carrier at a point the
+    /// bound's search located off the schedule
+    /// (`closed_bound::verdict`): `|C(t) − S(P(t))|` read past the band
+    /// there, at [`PcurveCheck::MapResidual`].
+    MissLocated {
+        /// What the classifier saw of the miss.
+        margin: geom_core::MarginDiag,
+    },
     /// A certified residual definitely exceeded the tolerance band: the
     /// pcurve does not represent the carrier through the map (D4 ¶2).
     ResidualExceeded {
@@ -2311,6 +2319,12 @@ impl PcurveCertifyError {
                     ),
                     None => String::new(),
                 }
+            ),
+            Self::MissLocated { margin } => write!(
+                f,
+                "pcurve certification: the image misses its carrier by {margin:e} m at a point \
+                 located between the schedule's samples, past the tolerance band — the pcurve \
+                 does not represent the carrier through the map (D4 ¶2)"
             ),
             Self::FittedLimb { limb, margin } => write!(
                 f,
@@ -2466,6 +2480,10 @@ impl PcurveCertifyError {
                 Decision::Check(general(*check), RefusedArm::Undecided(cause))
             }
             Self::ResidualExceeded { check, .. } => Decision::Check(general(*check), definite),
+            Self::MissLocated { margin } => Decision::Check(
+                PcurveCheck::MapResidual,
+                RefusedArm::SignCertain(Some(*margin)),
+            ),
             Self::FittedLimb { limb, margin } => {
                 match PcurveCheck::of_fitted_limb(*limb) {
                     Some(check) => Decision::Check(check, RefusedArm::SignCertain(Some(*margin))),
@@ -4510,8 +4528,14 @@ pub(crate) fn fitted_lane<T: Decide + geom_core::Bounds + geom_core::CertifiedEn
                     })
             };
             let chart = surface.map_scalar(geom_core::Interval::from_certified);
-            held = patch::patch(class, &chart, (window(&pcoords[0]), window(&pcoords[1]))).ok_or(
-                PcurveCertifyError::FittedCertificate {
+            held = patch::patch(
+                class,
+                &chart,
+                (window(&pcoords[0]), window(&pcoords[1])),
+                band,
+            )
+            .map_err(|refusal| match refusal {
+                patch::PatchRefusal::NoWidth => PcurveCertifyError::FittedCertificate {
                     limb: Some(SsiLimb::HullSupChart),
                     what: "no window around the image's control coordinates has width: they \
                            are no finite numbers, or too large for one unit either side to \
@@ -4519,7 +4543,14 @@ pub(crate) fn fitted_lane<T: Decide + geom_core::Bounds + geom_core::CertifiedEn
                     magnitude: None,
                     ending: FittedEnding::Defect,
                 },
-            )?;
+                patch::PatchRefusal::Pieces => PcurveCertifyError::FittedCertificate {
+                    limb: Some(SsiLimb::HullSupChart),
+                    what: "the image turns through more of its chart's angle than the enclosing \
+                           patch reads in pieces small enough to hold its remainder under the band",
+                    magnitude: None,
+                    ending: FittedEnding::NotYet,
+                },
+            })?;
             (&held.0, &held.1, &held.2[..], &held.3[..])
         }
     };
@@ -13207,10 +13238,12 @@ fn spiric_off_own_chart(why: &'static str) -> OffChart {
 
 // Check 4's per-arm lemma, swept, in a module of its own so the per-file
 // test gate can skip the sweep without skipping the deterministic rows.
+mod closed_bound;
 pub(crate) mod patch;
 pub mod projected;
 mod spline_incidence;
 mod stated;
+mod trig;
 pub use projected::{FramedCarrier, ProjectedChart, ProjectedImage, SectorChannel};
 pub(crate) use stated::{EdgeSpan, StatedDoor};
 
@@ -13240,6 +13273,9 @@ mod by_turn_rows;
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::panic)]
 mod circle_lane_rows;
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::panic)]
+mod closed_image_rows;
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::panic)]
 mod cone_line_rows;
