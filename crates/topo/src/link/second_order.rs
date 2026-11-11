@@ -3,7 +3,9 @@
 //! side of the shared tangent its two edges bend to ([`cusp`]); a ray
 //! where every sheet is a horn, the thorn they bound ([`thorns`]); and a
 //! ray where sheets' bounds or planes meet without an edge they share,
-//! whether the sheets part across it ([`parts`]).
+//! whether the sheets part across it ([`parts`]); and two sheets on one
+//! wedge, bounded by the same two edges, which side of the other each
+//! bends to ([`lenses`]).
 //!
 //! The picture these read, the cut square to the tied ray scaled by
 //! `2/s²`, and why a sign read at the arm with the first order's residue
@@ -234,7 +236,8 @@ fn beside<T: Decide>(
 
 /// One sheet of a tangent link along a ray, one order down ([`parts`]):
 /// where it meets the cut, the point `anchor` of the edge it starts at
-/// (its curvature vector; nothing for a plane through the ray), that
+/// (its curvature vector), or of a face through the ray (its normal
+/// section's curvature vector along it, nothing for a plane), that
 /// edge's first-order direction `at`, its outward unit `normal`, and
 /// how it runs from the anchor.
 #[derive(Clone, Copy)]
@@ -258,14 +261,16 @@ enum Run<T: Decide> {
 /// down**, where first order leaves a bound of one lying on another's
 /// plane ([`super::rest::one_material`]'s first-order hold). The sheets
 /// are the sectors whose planes hold the ray: a planar one holding it
-/// inside, the whole line through the point; one bounded along it, the
-/// half-line from its edge's point into the sector. Every two must
+/// inside, the whole line through the point; a curved one holding it
+/// inside, the line through its normal section's curvature vector along
+/// the ray ([`crate::bound_side::FaceBend::section`]), square to the ray
+/// in its plane; one bounded along it, the half-line from its edge's
+/// point into the sector. Every two must
 /// decidedly not meet but at an edge's point they share, without
 /// folding there: one strictly on one side of the other's line, or
 /// touching it only at its own anchor, decidedly behind the other's, or
 /// running along it away from it. A horn is no sheet ([`thorns`] refuses
-/// one a sector reaches); a curved sector holding the ray inside is
-/// false.
+/// one a sector reaches); a curved face with no certified bend is false.
 pub(super) fn parts<T: Decide>(link: &Link<T>, r: Point3<T>, rd: Reading<T>) -> bool {
     let p = link.cone.p;
     let unit = (r - p).normalize();
@@ -281,14 +286,25 @@ pub(super) fn parts<T: Decide>(link: &Link<T>, r: Point3<T>, rd: Reading<T>) -> 
         match t.place(p, r, rd) {
             Ok(Place::Outside) => {}
             Ok(Place::Inside) => {
-                if !tangent.is_some_and(|g| g.plane_exact) {
-                    return false;
-                }
+                // The ray as the plane holds it: what the ray leans off
+                // the plane is a residue the readings charge.
+                let at = (unit - t.outward * t.outward.dot(unit)).normalize();
+                let anchor = match tangent {
+                    Some(g) if g.plane_exact => Vec3::zero(),
+                    Some(_) => {
+                        let face = &link.faces[j];
+                        let bend =
+                            crate::bound_side::FaceBend::at(&face.surface, face.sense, t.apex);
+                        match bend.section(at, t.outward) {
+                            Some(h) => t.outward * h,
+                            None => return false,
+                        }
+                    }
+                    None => return false,
+                };
                 sheets.push(Sheet {
-                    anchor: Vec3::zero(),
-                    // The ray as the plane holds it: what the ray leans
-                    // off the plane is a residue the readings charge.
-                    at: (unit - t.outward * t.outward.dot(unit)).normalize(),
+                    anchor,
+                    at,
                     normal: t.outward,
                     run: Run::Both(t.outward.cross(unit).normalize()),
                     edge: None,
@@ -416,5 +432,121 @@ fn misses<T: Decide>(
             },
             _ => false,
         },
+    }
+}
+
+/// What a lens holds between its two sheets ([`lenses`]).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) enum Lens {
+    /// Void: each sheet stands on the other's outward side.
+    Void,
+    /// A sliver of material: each stands behind the other.
+    Sliver,
+}
+
+/// **The link's lenses, one order down**: pairs of sectors bounded at
+/// the point by the same two edges, each one's first edge the other's
+/// last, on each other to first order ([`on_each_other`]) and not both
+/// planes (two planes on each other are a slit,
+/// [`super::rest::one_material`]'s to refuse). Each pair's kind is the
+/// sign of its sheets' second-order gap at the wedge's middle
+/// ([`lens`]). A candidate pair that does not read, or a sector in two
+/// pairs, is [`crate::CurvedUnread::Unreadable`]. The argument:
+/// `crates/topo/README.md`, beside the first-order one.
+pub(super) fn lenses<T: Decide>(
+    link: &Link<T>,
+    rd: Reading<T>,
+) -> Result<Vec<([usize; 2], Lens)>, TouchUnread> {
+    let n = link.cone.sectors.len();
+    let tangent = |k: usize| link.faces[k].tangent;
+    let mut out: Vec<([usize; 2], Lens)> = Vec::new();
+    for i in 0..n {
+        for j in i + 1..n {
+            let (Some(ti), Some(tj)) = (tangent(i), tangent(j)) else {
+                continue;
+            };
+            let (Some([i0, i1]), Some([j0, j1])) = (ti.bounds, tj.bounds) else {
+                continue;
+            };
+            if i0.edge != j1.edge || i1.edge != j0.edge || i0.edge == i1.edge {
+                continue;
+            }
+            if (super::rest::planar(link, i) && super::rest::planar(link, j))
+                || !on_each_other(link, [i, j], rd)
+            {
+                continue;
+            }
+            if out
+                .iter()
+                .any(|(pair, _)| pair.contains(&i) || pair.contains(&j))
+            {
+                return Err(TouchUnread::Curved(CurvedUnread::Unreadable));
+            }
+            out.push((
+                [i, j],
+                lens(link, [i, j], rd).ok_or(TouchUnread::Curved(CurvedUnread::Unreadable))?,
+            ));
+        }
+    }
+    Ok(out)
+}
+
+/// Whether sectors `i` and `j` are one wedge to first order: their
+/// outward normals decidedly opposed, and `i` in `j`'s plane
+/// ([`super::rest::in_plane_of`]; two bounds on one line leave the
+/// planes free to differ).
+fn on_each_other<T: Decide>(link: &Link<T>, [i, j]: [usize; 2], rd: Reading<T>) -> bool {
+    let p = link.cone.p;
+    let (s, t) = (&link.cone.sectors[i], &link.cone.sectors[j]);
+    let Some(&(a, _)) = s.wedges.first() else {
+        return false;
+    };
+    toward(p, reach(p, a - p).length(), t.outward, s.outward, rd) == Some(Sign::Negative)
+        && super::rest::in_plane_of(link, i, j, rd)
+}
+
+/// **One pair's lens** ([`lenses`]): the second sheet's height past the
+/// first's along the first's outward normal, one order down
+/// ([`crate::bound_side::FaceBend::section`]), Zero at both bounds and
+/// decided at the wedge's middle at the arm with the second plane's
+/// parting there charged ([`Reading::charged`]): positive a void,
+/// negative a sliver. `None` where a sector is more than one wedge, a
+/// face has no certified bend, a bound does not read Zero, or the middle
+/// does not decide.
+fn lens<T: Decide>(link: &Link<T>, [i, j]: [usize; 2], rd: Reading<T>) -> Option<Lens> {
+    let p = link.cone.p;
+    let (s, t) = (&link.cone.sectors[i], &link.cone.sectors[j]);
+    let (&[(a, b)], &[(c, d)]) = (s.wedges.as_slice(), t.wedges.as_slice()) else {
+        return None;
+    };
+    let m = s.outward;
+    let arm = [a, b, c, d]
+        .into_iter()
+        .map(|q| reach(p, q - p))
+        .fold(reach(p, a - p), Lever::min);
+    let l = arm.length();
+    let bend = |k: usize| {
+        let face = &link.faces[k];
+        crate::bound_side::FaceBend::at(&face.surface, face.sense, link.cone.sectors[k].apex)
+    };
+    let (first, second) = (bend(i), bend(j));
+    // The second sheet past the first along `m` at the arm, one order
+    // down along the unit `u`.
+    let gap = |u: Vec3<T>| -> Option<Distance<T>> {
+        let rise = second.section(u, m)? - first.section(u, m)?;
+        Some(Distance::departure(Departure::Parted(m * rise), m, arm))
+    };
+    let (u0, u1) = ((a - p).normalize(), (b - p).normalize());
+    for u in [u0, u1] {
+        if metric::sign_as(LINK_SECOND_ORDER, gap(u)?, rd.band) != Some(Sign::Zero) {
+            return None;
+        }
+    }
+    let mid = (u0 + u1).normalize();
+    let residue = Distance::of(p + mid * l, p, t.outward);
+    match metric::settle_as(LINK_SECOND_ORDER, gap(mid)?, rd.charged(residue)) {
+        Ok(Sign::Positive) => Some(Lens::Void),
+        Ok(Sign::Negative) => Some(Lens::Sliver),
+        Ok(Sign::Zero) | Err(_) => None,
     }
 }

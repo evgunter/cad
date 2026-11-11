@@ -1979,7 +1979,7 @@ fn moved_stored_scalars_are_dominated() {
     let sphere = unit_sphere();
     let c = tilted_on(1.0, 0.7, 0.3);
     let mut image = project(&c, Some((0.3, 2.1)), &sphere, b).unwrap();
-    if let FramedCarrier::Circle { ref mut centre, .. } = image.carrier {
+    if let FramedCarrier::Conic { ref mut centre, .. } = image.carrier {
         *centre = *centre + Vec3::new(eta, -eta, eta);
     }
     check("the circle's stored centre", image, &c, &sphere, 0.3, 2.1);
