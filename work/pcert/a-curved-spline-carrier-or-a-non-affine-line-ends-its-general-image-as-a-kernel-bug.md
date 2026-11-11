@@ -2,10 +2,13 @@
 id: a-curved-spline-carrier-or-a-non-affine-line-ends-its-general-image-as-a-kernel-bug
 kind: issue
 title: A curved spline carrier, or a line whose foot path is not affine in t, ends its degree-1 General image's refusal with a tolerance offer and the kernel-bug ending
-status: open
+status: closed
 opened: 2026-11-10
 priority: P1
 cost: M
+branch: pcert/general-image-climbs-on-its-miss
+pr: 6819
+closed: 2026-11-11
 ---
 
 
@@ -51,3 +54,19 @@ The relabel (`minted_refusal`, `LaneImage::General`) then keys on the
 image the mint produced rather than on `bends`. The edge certificates
 that read the same degree-1 image are ssiedge's
 `plane-nurbs-limb-two-refuses-a-non-row-section`.
+
+## Closed (PR 6819, 2026-11-11)
+
+The mint's `General` image climbs on its measured miss.
+`edge_nurbs::curved_chart_image` is now the image of every carrier. Its
+first rung is `chart_image`'s degree-1 image, kept where the miss
+between feet, net of the carrier's standoff at its feet, is within the
+rung's share of the band. Past that it climbs the curved rungs, and a
+climb that refuses keeps the degree-1 image. `minted_refusal` relabels
+any minted `General` image's refusal as the lane's gap, so `bends` is
+gone. Both probes climb and certify at f64 and Interval at ε 1e-9. The
+line on the uneven wall ends "not yet" at 1e-12, filed as
+`a-climbed-general-image-on-a-stretched-chart-reads-its-hull-wide-at-fine-eps`.
+Rows: `pcurve_cache::general_climb_rows`, with the mutant
+`general-image-class-gate`. The class table and cost are in PR 6819's
+body.
