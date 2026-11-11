@@ -1222,3 +1222,7 @@ E1c waits on the answer.
   - Ruled: sectarms 6811's six unasked reads in `critical.rs` stay theirs (P1 on their slate). This PR merges with that one census row red, as on main.
   - Class evidence (six slow-set census reds the PR gate never selects) added to green's recourse-roster class row.
   - Review tier: orchestrator's read (census tables and work files).
+- 2026-11-11 — **Main red `main-red-the-stated-wrong-general-rows-refuse-chart-image-unavailable-in-the-slow-set` closed** (PR 6833; filed by RESTREAD). Bisected to PR 6815's merge: a wrong STATED General row on a spline wall is now certified at the build's edge door through the same pcurve door the mint uses. It is refused there as the description's own image, `ChartImageUnavailable`, decided and not the lane's gap. That is the E1d ending for a caller's wrong row at a build, and the code is right.
+  - The rows were re-pinned to it exactly. An at-rest half (the wall re-parametrized under a true stated row) keeps 6532's provenance guard reachable: M5 still reds it, and the mint ends it in check 3's own term.
+  - The f64 row left the slow set, so the PR gate runs it. Evidence was added to green's slow-set class row.
+  - Review tier: orchestrator's read (tests and work files; no `src/` change).
