@@ -5,7 +5,7 @@ title: The copysign census counts sites that are f64 by type, so a mesh-only cha
 status: open
 opened: 2026-11-11
 priority: P3
-cost: E
+cost: M
 ---
 
 
