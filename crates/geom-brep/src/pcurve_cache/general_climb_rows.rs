@@ -9,9 +9,10 @@
 //!   circle on that ring, and a line on a flat wall whose `v` is not
 //!   affine in height (control rows at `z = 0, 0.1, 1`) bend on their
 //!   walls and climb: each certifies at `f64` and at `Interval`.
-//! - A line and a degree-1 spline on a flat bilinear wall, and a short
-//!   arc of a circle on a cylinder wall, follow their degree-1 images
-//!   and keep them: no climb.
+//! - A line and a degree-1 spline on a flat bilinear wall follow their
+//!   degree-1 images and keep them: no climb. Nor does a line a few ε
+//!   off that wall, whose feet's miss is its standoff, which no finer
+//!   image lowers.
 //!
 //! The `general-image-class-gate` mutant (the climb and the relabel keyed
 //! on a curved carrier with no net) reds the two bending rows: each takes
@@ -255,6 +256,26 @@ fn straight_feet_keep_degree_one<T: Decide + CertifiedBounds>() {
             minted.certified
         );
     }
+    // In band of the wall: its certificate is the incidence read's, but
+    // its image is the degree-1 one.
+    let standoff = 3.0 * band().zero();
+    let off = Curve3::line(Point3::new(0.1, standoff, 0.2), Vec3::new(0.6, 0.0, 0.8));
+    let image = FittedLane::<T>::certified()
+        .general_image(
+            &off.map_scalar(|x: f64| T::from_f64(x)),
+            (T::from_f64(0.0), T::from_f64(1.0)),
+            &flat_wall().map_scalar(|x: f64| T::from_f64(x)),
+            band(),
+        )
+        .unwrap();
+    assert!(
+        degree_one(&image),
+        "a line {standoff:e} m off the wall at {}: its standoff is no bend (degree {}, {} \
+         control points)",
+        T::NAME,
+        image.degree(),
+        image.control().len()
+    );
 }
 
 #[test]
