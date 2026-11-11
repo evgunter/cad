@@ -1,0 +1,191 @@
+diff --git a/crates/sweep/tests/join_pierce_runs_sweep.rs b/crates/sweep/tests/join_pierce_runs_sweep.rs
+index 352dd8dc136..0cd4e15c5e1 100644
+--- a/crates/sweep/tests/join_pierce_runs_sweep.rs
++++ b/crates/sweep/tests/join_pierce_runs_sweep.rs
+@@ -1696,7 +1696,11 @@ fn octants_overlap(f: Frame, g: Frame) -> bool {
+ #[ignore = "differential battery; run with --ignored --nocapture"]
+ fn four_pairs_battery() {
+     let v = notch343().v;
++    let only_i: Option<u32> = std::env::var("SVC_A_I").ok().and_then(|s| s.parse().ok());
+     for i in 0..12 {
++        if only_i.is_some_and(|o| o != i) {
++            continue;
++        }
+         for j in 0..7 {
+             let n = unit(direction(i, j));
+             let [p, q, _] = frame(n, 0.0);
+diff --git a/crates/topo/src/boolean/insert.rs b/crates/topo/src/boolean/insert.rs
+index bf64a784897..a3dd9ef06dd 100644
+--- a/crates/topo/src/boolean/insert.rs
++++ b/crates/topo/src/boolean/insert.rs
+@@ -86,6 +86,12 @@ use crate::entity::{EdgeKey, EntityId, FaceKey, HalfEdgeKey, VertexKey};
+ use crate::live::{Proven, linked, proven};
+ use crate::null::NewVertexSide;
+ 
++thread_local! {
++    pub(super) static SVC_A_FLIP: core::cell::Cell<bool> = const { core::cell::Cell::new(false) };
++    pub(super) static SVC_A_CTX: core::cell::Cell<Option<(bool, SideCode)>> = const { core::cell::Cell::new(None) };
++    pub(super) static SVC_A_HELD: core::cell::Cell<Option<usize>> = const { core::cell::Cell::new(None) };
++}
++
+ /// Output of one vertex-pair insertion.
+ #[derive(Debug)]
+ pub(super) struct InsertOut<T: geom_core::Real> {
+@@ -593,16 +599,75 @@ pub(super) fn plan_null_pairs<T: Decide>(
+         pos
+     };
+     let (a_pos, b_pos) = (positions(&a_order), positions(&b_order));
++    let flip = SVC_A_FLIP.with(std::cell::Cell::get);
+     let pairs = in_arc_pairs(
+         match lead {
+             Operand::A => &a_order,
+             Operand::B => &b_order,
+         },
+-        |i| match lead {
+-            Operand::A => survivors[i].sa.0,
+-            Operand::B => survivors[i].sb.0,
++        |i| {
++            let c = match lead {
++                Operand::A => survivors[i].sa.0,
++                Operand::B => survivors[i].sb.0,
++            };
++            if flip {
++                match c {
++                    SideCode::In => SideCode::Out,
++                    SideCode::Out => SideCode::In,
++                    o => o,
++                }
++            } else {
++                c
++            }
+         },
+     );
++    if std::env::var_os("SVC_A_DIFF").is_some()
++        && let Some((shared_now, kept)) = SVC_A_CTX.with(std::cell::Cell::get)
++        && !shared_now
++        && kept != SideCode::Out
++    {
++        use std::io::Write as _;
++        if let Ok(mut f) = std::fs::OpenOptions::new()
++            .create(true)
++            .append(true)
++            .open(std::env::var_os("SVC_A_DIFF").unwrap_or_default())
++        {
++            let _ = writeln!(
++                f,
++                "SVC-A-DIFF n={n} lead={lead:?} kept={kept:?} test={:?} pid={}",
++                std::thread::current().name(),
++                std::process::id()
++            );
++        }
++    }
++    if std::env::var_os("SVC_A_PROBE").is_some() {
++        let lk = |l: super::Locus| match l {
++            super::Locus::OnEdge(_) => "E",
++            _ => "F",
++        };
++        let desc: Vec<String> = (0..n)
++            .map(|i| {
++                format!(
++                    "g{i}:a{}b{} sa={:?} sb={:?} at={}/{} loc={}{}",
++                    a_pos[i],
++                    b_pos[i],
++                    survivors[i].sa,
++                    survivors[i].sb,
++                    survivors[i].a,
++                    survivors[i].b,
++                    lk(loci[i].0),
++                    lk(loci[i].1)
++                )
++            })
++            .collect();
++        eprintln!(
++            "SVC-A-PLAN contact={:?} lead={lead:?} n={n} asecs={} bsecs={} pairs={pairs:?} [{}]",
++            contact,
++            a_sectors.len(),
++            b_sectors.len(),
++            desc.join("; ")
++        );
++    }
+     // Which way round each solid runs each pair: its walk order's
+     // ([`walk_run`]), in the lead the run that holds no third germ, in
+     // the other solid the same where the pair is adjacent in its walk,
+@@ -1254,6 +1319,7 @@ pub(super) fn reconcile_shared<T: Decide>(
+                         });
+                     }
+                     Some(HeldCut::Strictly) => {
++                        SVC_A_HELD.with(|h| h.set(Some(i)));
+                         return Err(BooleanError::ClassificationInvariant {
+                             what: "a run at a shared vertex holds another pair's cut: two pieces \
+                                    of one operand overlap at the point",
+diff --git a/crates/topo/src/boolean/mod.rs b/crates/topo/src/boolean/mod.rs
+index e4144dc4faa..7cbf8cdd825 100644
+--- a/crates/topo/src/boolean/mod.rs
++++ b/crates/topo/src/boolean/mod.rs
+@@ -7196,15 +7196,41 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
+         &classified.iter().map(|(c, ..)| *c).collect::<Vec<_>>(),
+         &crossing,
+     );
++    let svc_clear = std::env::var_os("SVC_A_CLEAR").is_some();
++    let svc_unshared_out = std::env::var_os("SVC_A_UNSHARED_OUT").is_some();
++    let all_contacts: Vec<VvContact> = classified.iter().map(|(c, ..)| *c).collect();
++    let is_shared = |i: usize| {
++        crossing[i]
++            && (0..all_contacts.len()).any(|j| {
++                j != i
++                    && crossing[j]
++                    && (all_contacts[j].a == all_contacts[i].a
++                        || all_contacts[j].b == all_contacts[i].b)
++            })
++    };
++    let svc_unshared_kept = std::env::var_os("SVC_A_UNSHARED_KEPT").is_some();
++    let mut flipped: Vec<bool> = (0..classified.len())
++        .map(|i| {
++            (svc_unshared_out && !is_shared(i))
++                || (svc_unshared_kept
++                    && !is_shared(i)
++                    && finish::kept_side(op, leads[i]) == SideCode::Out)
++        })
++        .collect();
++    let (plans, orbits) = loop {
+     let mut plans = classified
+         .iter()
+-        .zip(leads)
+-        .map(|((c, a_sectors, b_sectors, records, raw, _), lead)| {
++        .zip(leads.iter().copied())
++        .enumerate()
++        .map(|(i, ((c, a_sectors, b_sectors, records, raw, _), lead))| {
++            insert::SVC_A_FLIP.with(|f| f.set(flipped[i]));
++            insert::SVC_A_CTX.with(|f| f.set(Some((is_shared(i), finish::kept_side(op, lead)))));
+             insert::plan_null_pairs(
+                 &a, &b, *c, a_sectors, b_sectors, records, raw, &declared, &contacts, lead, band,
+             )
+         })
+         .collect::<Result<Vec<_>, _>>()?;
++    insert::SVC_A_FLIP.with(|f| f.set(false));
+     #[cfg_attr(not(any(test, feature = "test-support")), allow(unused_mut))]
+     let mut orbits: Vec<_> = classified
+         .iter()
+@@ -7212,7 +7238,21 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
+         .collect();
+     #[cfg(any(test, feature = "test-support"))]
+     insert::reverse_when_asked(&mut plans, &mut orbits);
+-    insert::reconcile_shared(&mut plans, &orbits, band)?;
++    insert::SVC_A_HELD.with(|h| h.set(None));
++    match insert::reconcile_shared(&mut plans, &orbits, band) {
++        Ok(()) => break (plans, orbits),
++        Err(e @ BooleanError::ClassificationInvariant { .. }) if svc_clear => {
++            match insert::SVC_A_HELD.with(std::cell::Cell::get) {
++                Some(i) if !flipped[i] => {
++                    eprintln!("SVC-A-CLEAR flip plan {i}");
++                    flipped[i] = true;
++                }
++                _ => return Err(e),
++            }
++        }
++        Err(e) => return Err(e),
++    }
++    };
+     let out = insert::mint_plans(&mut a, &mut b, &plans, &orbits, band)?;
+     null_edges.extend(out.edges)?;
+     null_pairs.extend(out.pairs);

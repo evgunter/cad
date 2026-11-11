@@ -1,0 +1,40 @@
+with-build-slot: waiting for a slot (0s; holding: slot-1: pid 25677 since 15:17:38 (@1794410258): shared [held 0m7s]; express: pid 19838 since 13:00:03 (@1794402003): express(560s) [held 137m42s] [record is stale (pid 19838 dead); this shared request never polls express at width 1])
+with-build-slot: waiting for a slot (60s; holding: slot-1: pid 25677 since 15:17:38 (@1794410258): shared [held 1m7s]; express: pid 19838 since 13:00:03 (@1794402003): express(560s) [held 138m42s] [record is stale (pid 19838 dead); this shared request never polls express at width 1])
+with-build-slot: waiting for a slot (120s; holding: slot-1: pid 25677 since 15:17:38 (@1794410258): shared [held 2m7s]; express: pid 19838 since 13:00:03 (@1794402003): express(560s) [held 139m42s] [record is stale (pid 19838 dead); this shared request never polls express at width 1])
+   Compiling topo v0.0.0 (/root/.local/share/cad-work/fork-svc-a/cad/crates/topo)
+   Compiling sweep v0.0.0 (/root/.local/share/cad-work/fork-svc-a/cad/crates/sweep)
+   Compiling step-export v0.0.0 (/root/.local/share/cad-work/fork-svc-a/cad/crates/step-export)
+   Compiling mesh v0.0.0 (/root/.local/share/cad-work/fork-svc-a/cad/crates/mesh)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 2m 09s
+  Executable tests/all.rs (/home/user/fork-svc-a-target/debug/deps/all-e94e0ca4fde1af8f)
+   Compiling stl v0.0.0 (/root/.local/share/cad-work/fork-svc-a/cad/crates/stl)
+   Compiling topo v0.0.0 (/root/.local/share/cad-work/fork-svc-a/cad/crates/topo)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 36.38s
+  Executable tests/all.rs (/home/user/fork-svc-a-target/debug/deps/all-e40d882d07ea0348)
+   Compiling geom-core v0.0.0 (/root/.local/share/cad-work/fork-svc-a/cad/crates/geom-core)
+   Compiling generic-array v0.14.7
+   Compiling typenum v1.20.1
+   Compiling serde_core v1.0.229
+   Compiling zmij v1.0.23
+   Compiling syn v3.0.3
+   Compiling block-buffer v0.10.4
+   Compiling crypto-common v0.1.7
+   Compiling serde v1.0.229
+   Compiling serde_json v1.0.151
+   Compiling digest v0.10.7
+   Compiling memchr v2.8.3
+   Compiling itoa v1.0.18
+   Compiling cpufeatures v0.2.17
+   Compiling sha2 v0.10.9
+   Compiling bvh v0.0.0 (/root/.local/share/cad-work/fork-svc-a/cad/crates/bvh)
+   Compiling geom v0.0.0 (/root/.local/share/cad-work/fork-svc-a/cad/crates/geom)
+   Compiling profile v0.0.0 (/root/.local/share/cad-work/fork-svc-a/cad/crates/profile)
+   Compiling geom-brep v0.0.0 (/root/.local/share/cad-work/fork-svc-a/cad/crates/geom-brep)
+   Compiling serde_derive v1.0.229
+   Compiling topo v0.0.0 (/root/.local/share/cad-work/fork-svc-a/cad/crates/topo)
+   Compiling sweep v0.0.0 (/root/.local/share/cad-work/fork-svc-a/cad/crates/sweep)
+   Compiling mesh v0.0.0 (/root/.local/share/cad-work/fork-svc-a/cad/crates/mesh)
+   Compiling verbs v0.0.0 (/root/.local/share/cad-work/fork-svc-a/cad/crates/verbs)
+   Compiling editor-core v0.0.0 (/root/.local/share/cad-work/fork-svc-a/cad/crates/editor-core)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 2m 47s
+  Executable unittests src/lib.rs (/home/user/fork-svc-a-target/debug/deps/editor_core-95fcaf070b6d0ea5)

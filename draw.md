@@ -26,3 +26,14 @@ Harness token counts (first report = total): A (Opus) 211,859; B (Opus) 255,096;
   - B: the unshared solid's kept arcs plus a non-crossing placement, which reads the op.
   - C: main's start plus turning plus re-plan on refusal, which reads the op.
 - They split. Round 3 dispatched with round3.md and each other's r2 reports.
+
+## Round 3
+- Each designer was shown round3.md and the other two r2 reports.
+- Token counts for round 3: A 356,967; B 443,286; C 279,055.
+- Totals: A 889,695; B 1,062,308; C 711,155.
+- Converged:
+  - the kept-side start;
+  - blocked pairs at a shared vertex take the other start (B: chosen jointly, measured);
+  - no turning.
+  - B withdrew its placement, and A withdrew Out.
+- Re-decided by the orchestrator (row 261 updated on gauge/in-arc-pairing, 5ce8ad5c8f).

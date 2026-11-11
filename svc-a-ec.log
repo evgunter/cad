@@ -1,0 +1,414 @@
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.13s
+────────────
+ Nextest run ID a6370e74-b2c6-4f56-b2be-63a2df23329b with nextest profile: ci
+    Starting 408 tests across 1 binary (4 tests skipped via profile.ci.default-filter)
+        PASS [   0.010s] (  1/408) editor-core appearance::tests::tied_name_is_refused_ambiguous_not_painted
+        PASS [   0.010s] (  2/408) editor-core checks::tests::a_door_job_settles_its_findings_in_the_doors_place
+        PASS [   0.010s] (  3/408) editor-core appearance::tests::vanished_merged_name_offers_its_constituents
+        PASS [   0.011s] (  4/408) editor-core appearance::tests::constituent_vanishing_into_a_merge_offers_the_merged_name
+        PASS [   0.007s] (  5/408) editor-core checks::tests::a_subject_never_taken_refuses_in_its_own_words
+        PASS [   0.007s] (  6/408) editor-core checks::tests::a_subject_no_resident_asked_for_carries_no_refusal_class
+        PASS [   0.008s] (  7/408) editor-core checks::tests::only_a_loud_judged_finding_refuses
+        PASS [   0.008s] (  8/408) editor-core checks::tests::the_subject_door_carries_the_gather_refusal_it_saw
+        PASS [   0.006s] (  9/408) editor-core checks::tests::the_subject_door_routes_an_absence_away_from_the_unavailable_arm
+        PASS [   0.008s] ( 10/408) editor-core decision::census::every_rendered_decision_has_a_row_and_words
+        PASS [   0.007s] ( 11/408) editor-core decision::undecided_text::a_selections_undecided_distance_ends_sized
+        PASS [   0.012s] ( 12/408) editor-core decision::undecided_text::a_placement_axis_escalation_keeps_its_sentence
+        PASS [   0.010s] ( 13/408) editor-core decision::undecided_text::an_evaluations_undecided_decision_ends_by_its_kind
+        PASS [   0.006s] ( 14/408) editor-core decision::undecided_text::namings_undecided_decision_ends_sized
+        PASS [   0.009s] ( 15/408) editor-core decision::undecided_text::an_undecided_name_this_crate_does_not_decide_ends_sized
+        PASS [   0.007s] ( 16/408) editor-core decision::undecided_text::the_evaluations_undecided_direction_length_ends_in_the_lever
+        PASS [   0.006s] ( 17/408) editor-core doc::tests::a_cycle_orders_every_variable_and_binds_none
+        PASS [   0.005s] ( 18/408) editor-core doc::tests::the_carrier_roster_is_what_the_walk_iterates
+        PASS [   0.011s] ( 19/408) editor-core doc::tests::an_expansion_count_saturates_past_the_bound
+        PASS [   0.008s] ( 20/408) editor-core doc::tests::name_carriers_reads_the_payloads_then_the_store
+        PASS [   0.006s] ( 21/408) editor-core drive::tests::a_renamed_tangent_refusal_is_not_a_second_order_sliver
+        PASS [   0.007s] ( 22/408) editor-core drive::tests::an_in_band_second_order_refusal_is_a_second_order_sliver
+        PASS [   0.009s] ( 23/408) editor-core drive::tests::a_definite_second_order_refusal_is_not_a_parallelism_sliver
+        PASS [   0.006s] ( 24/408) editor-core edit::tests::exactly_the_mate_insert_writes_a_mates_datum
+        PASS [   0.005s] ( 25/408) editor-core eval::bundle_key::a_values_freedom_moves_the_key
+        PASS [   0.006s] ( 26/408) editor-core eval::bundle_key::a_values_constant_zero_form_moves_the_key
+        PASS [   0.005s] ( 27/408) editor-core eval::measure::tests::a_cell_with_no_link_refuses_naming_the_reading_cell
+        PASS [   0.007s] ( 28/408) editor-core eval::class::tests::each_class_has_an_arm_and_each_arm_projects_to_its_own_class
+        PASS [   0.006s] ( 29/408) editor-core eval::measure::tests::a_role_swap_keeps_an_opposed_round_pair_and_negates_an_aligned_one
+        PASS [   0.011s] ( 30/408) editor-core eval::measure::tests::a_face_reads_a_vertex_or_an_edge_by_its_outward_normal
+        PASS [   0.008s] ( 31/408) editor-core eval::measure::tests::a_round_centre_on_the_other_carrier_refuses
+        PASS [   0.007s] ( 32/408) editor-core eval::measure::tests::a_round_face_reads_by_both_material_sides
+        PASS [   0.007s] ( 33/408) editor-core eval::measure::tests::an_angle_reads_a_line_edge_without_its_ends
+        PASS [   0.009s] ( 34/408) editor-core eval::measure::tests::r1_probe_a_nested_ball_read_small_outer_reads_zero_at_its_touch
+        PASS [   0.007s] ( 35/408) editor-core eval::measure::tests::r1_probe_a_nested_rod_read_thin_outer_reads_zero_at_its_touch
+        PASS [   0.006s] ( 36/408) editor-core eval::measure::tests::r1_probe_a_real_touch_never_lands_in_band
+        PASS [   0.006s] ( 37/408) editor-core eval::measure::tests::r1_probe_nested_hollows_swapped_read_zero_at_their_touch
+        PASS [   0.007s] ( 38/408) editor-core eval::measure::tests::r1_probe_two_meeting_axes_read_zero_and_not_parallel
+        PASS [   0.011s] ( 39/408) editor-core eval::measure::tests::r1_probe_two_bores_side_by_side_read_zero_at_their_touch
+        PASS [   0.007s] ( 40/408) editor-core eval::measure::tests::r2_probe_a_nested_touch_is_not_in_band
+        PASS [   0.006s] ( 41/408) editor-core eval::measure::tests::r2_probe_bores_side_by_side_touch_reads_zero
+        PASS [   0.006s] ( 42/408) editor-core eval::measure::tests::r2_probe_nested_balls_swapped_reads_minus_s
+        PASS [   0.007s] ( 43/408) editor-core eval::measure::tests::r2_probe_nested_bores_touch_reads_zero_either_way
+        PASS [   0.006s] ( 44/408) editor-core eval::measure::tests::r2_probe_nested_pair_swapped_reads_minus_s
+        PASS [   0.005s] ( 45/408) editor-core eval::measure::tests::r2_probe_rod_in_the_wall_touching_the_hole_reads_zero
+        PASS [   0.009s] ( 46/408) editor-core eval::members::tests::a_family_canceled_by_a_member_stops_before_the_next
+        PASS [   0.008s] ( 47/408) editor-core eval::members::tests::an_uncanceled_family_evaluates_every_member
+        PASS [   0.007s] ( 48/408) editor-core eval::parts::tests::a_table_miss_refuses_not_entered_and_a_store_asks_once
+        PASS [   0.005s] ( 49/408) editor-core eval::tag_vocabulary_tests::arc_mode_tags_are_injective
+        PASS [   0.017s] ( 50/408) editor-core eval::name_feed_tests::a_name_feeds_the_stream_a_descent_feeds
+        PASS [   0.007s] ( 51/408) editor-core eval::tag_vocabulary_tests::seg_content_tags_are_injective
+        PASS [   0.008s] ( 52/408) editor-core eval::tag_vocabulary_tests::node_kind_vocabulary_is_injective
+        PASS [   0.008s] ( 53/408) editor-core eval::tag_vocabulary_tests::side_tags_are_injective
+        PASS [   0.011s] ( 54/408) editor-core eval::tag_vocabulary_tests::structural_tag_groups_are_injective
+        PASS [   0.007s] ( 55/408) editor-core eval::tag_vocabulary_tests::target_tags_are_injective
+        PASS [   0.006s] ( 56/408) editor-core eval::tag_vocabulary_tests::the_seam_arrival_target_tag_is_distinct_and_executed
+        PASS [   0.007s] ( 57/408) editor-core eval::tag_vocabulary_tests::verb_content_tags_are_injective
+        PASS [   0.006s] ( 58/408) editor-core eval::tag_vocabulary_tests::verb_content_tags_are_the_committed_numbers
+        PASS [   0.006s] ( 59/408) editor-core eval::tag_vocabulary_tests::winding_tags_are_injective
+        PASS [   0.010s] ( 60/408) editor-core eval::tag_vocabulary_tests::verb_tags_are_injective
+        PASS [   0.006s] ( 61/408) editor-core eval::wire::loop_coordinates_tests::addresses_every_loop_and_refuses_one_past_the_bound
+        PASS [   0.009s] ( 62/408) editor-core eval::wire::pose::held_text::a_pose_constructions_undecided_direction_keeps_its_sentence
+        PASS [   0.009s] ( 63/408) editor-core eval::wire::union_row_tests::a_fold_row_is_the_member_cells_that_meet
+        PASS [   0.006s] ( 64/408) editor-core eval::wire::union_row_tests::a_members_rank_is_its_reads_place
+        PASS [   0.006s] ( 65/408) editor-core eval::wire::union_row_tests::one_pairs_two_rows_publish_and_a_repeated_read_collapses
+        PASS [   0.006s] ( 66/408) editor-core expr::tests::the_final_check_refuses_an_unbounded_enclosure
+        PASS [   0.006s] ( 67/408) editor-core label::tests::a_label_is_visible_one_line_and_free_of_controls_and_direction_formatting
+        PASS [   0.028s] ( 68/408) editor-core label::tests::default_ignorable_is_unicodes_ranges_and_nothing_else
+        PASS [   0.292s] ( 69/408) editor-core coincide::replay::tests::the_axis_tilt_is_levered_at_the_pairs_reach_not_a_metre
+        PASS [   0.009s] ( 70/408) editor-core label::tests::the_load_door_reads_a_label_through_the_same_rule
+        PASS [   0.142s] ( 71/408) editor-core eval::wire::union_row_tests::a_fold_row_on_a_face_made_of_two_panics
+        PASS [   0.007s] ( 72/408) editor-core mate::orient::tests::a_tie_keeps_the_authors_x
+        PASS [   0.007s] ( 73/408) editor-core mate::orient::tests::the_24_are_rotations
+        PASS [   0.005s] ( 74/408) editor-core mate::orient::tests::the_wire_refuses_a_degenerate_orientation
+        PASS [   0.006s] ( 75/408) editor-core mate::solve::tests::a_bundle_with_no_mate_writes_every_freedom_once
+        PASS [   0.005s] ( 76/408) editor-core mate::solve::tests::a_freedom_set_twice_names_its_two_values
+        PASS [   0.010s] ( 77/408) editor-core mate::solve::tests::a_point_mates_rotation_is_a_chain
+        PASS [   0.011s] ( 78/408) editor-core mate::solve::tests::mates_that_repeat_an_equation_are_named_whatever_values_they_carry
+        PASS [   0.007s] ( 79/408) editor-core mate::solve::tests::no_admitted_slide_sits_beside_a_second_mate
+        PASS [   0.006s] ( 80/408) editor-core mate::solve::tests::the_symbolic_tier_reads_an_angle_on_its_lanes_branch
+        PASS [   0.009s] ( 81/408) editor-core mate::solve::tests::the_four_value_availability_rows
+        PASS [   0.009s] ( 82/408) editor-core mate::value::tests::an_oblique_charts_carried_slide_moves_its_value_along_its_part_in_the_plane
+        PASS [   0.010s] ( 83/408) editor-core mate::value::tests::the_sum_on_a_tilted_planes_carried_axes_is_the_projection_bit_for_bit
+        PASS [   0.252s] ( 84/408) editor-core eval::name_feed_tests::a_name_nested_past_every_stack_keys_on_the_smallest_stack
+        PASS [   0.007s] ( 85/408) editor-core measure::tests::equal_decides_zero_both_signs_and_the_band
+        PASS [   0.007s] ( 86/408) editor-core meta::tests::enums_erase_with_external_tags_and_come_back
+        PASS [   0.010s] ( 87/408) editor-core meta::tests::boundary_refusals_are_typed
+        PASS [   0.006s] ( 88/408) editor-core meta::tests::every_i64_and_u64_is_metadata_and_nothing_past_them
+        PASS [   0.008s] ( 89/408) editor-core meta::tests::first_non_finite_names_the_path
+        PASS [   0.006s] ( 90/408) editor-core mint::tests::a_declare_hashes_its_kind_and_would_declare_agrees
+        PASS [   0.008s] ( 91/408) editor-core meta::tests::producer_round_trips_through_the_erased_tree
+        PASS [   0.007s] ( 92/408) editor-core mint::tests::a_log_out_of_order_is_found
+        PASS [   0.006s] ( 93/408) editor-core mint::tests::a_re_keeping_edit_mints_from_its_own_bytes
+        PASS [   0.009s] ( 94/408) editor-core mint::tests::a_profile_insert_mints_its_node_then_its_steps_on_one_chain
+        PASS [   0.006s] ( 95/408) editor-core mint::tests::a_set_program_that_mints_nothing_leaves_the_chain
+        PASS [   0.006s] ( 96/408) editor-core mint::tests::an_id_reads_back_only_from_its_one_spelling
+        PASS [   0.009s] ( 97/408) editor-core mint::tests::ids_order_as_minted_across_every_tag
+        PASS [   0.008s] ( 98/408) editor-core mint::tests::kept_ids_pass_through_and_only_new_steps_mint
+        PASS [   0.008s] ( 99/408) editor-core mint::tests::one_sequence_mints_one_set_of_ids_and_two_sequences_part
+        PASS [   0.005s] (100/408) editor-core mint::tests::the_mint_of_one_fixture_declare_is_pinned
+        PASS [   0.006s] (101/408) editor-core mint::tests::the_mint_of_one_fixture_edit_is_pinned
+        PASS [   0.011s] (102/408) editor-core mint::tests::the_display_unit_is_not_part_of_what_an_insert_hashes
+        PASS [   0.007s] (103/408) editor-core mint::tests::the_wire_round_trips_and_refuses_a_short_chain
+        PASS [   0.007s] (104/408) editor-core mint::zz_ord_sizes::zz_ord_sizes
+        PASS [   0.008s] (105/408) editor-core mint::tests::two_declares_of_one_kind_mint_two_ids
+        PASS [   0.005s] (106/408) editor-core names::attribute::tests::a_blend_face_is_the_fillets_own_and_names_no_operand
+        PASS [   0.005s] (107/408) editor-core names::attribute::tests::a_member_belongs_to_its_source
+        PASS [   0.006s] (108/408) editor-core names::attribute::tests::a_fragment_qualifier_does_not_move_the_attribution
+        PASS [   0.007s] (109/408) editor-core names::attribute::tests::a_carried_face_belongs_to_the_operand_it_came_from
+        PASS [   0.005s] (110/408) editor-core names::attribute::tests::a_sweeps_own_role_is_minted_where_it_is_emitted
+        PASS [   0.006s] (111/408) editor-core names::attribute::tests::an_unreadable_path_answers_no_minting_node
+        PASS [   0.006s] (112/408) editor-core names::attribute::tests::the_walk_descends_as_far_as_the_carry_through_goes
+        PASS [   0.007s] (113/408) editor-core names::canonical::tests::a_band_face_set_is_one_form_in_every_order
+        PASS [   0.007s] (114/408) editor-core names::canonical::tests::a_borders_set_is_one_form_in_every_order
+        PASS [   0.006s] (115/408) editor-core names::canonical::tests::a_crossings_sense_on_a_seam_is_one_form_whichever_order_its_pair_is_in
+        PASS [   0.006s] (116/408) editor-core names::canonical::tests::a_junction_run_is_one_form_in_every_order
+        PASS [   0.006s] (117/408) editor-core names::canonical::tests::a_merged_set_is_one_form_in_every_order
+        PASS [   0.006s] (118/408) editor-core names::canonical::tests::a_seam_edge_piece_is_one_form_from_either_side_and_whatever_order_its_ends_are_in
+        PASS [   0.007s] (119/408) editor-core names::canonical::tests::a_seams_sides_are_in_name_order_whichever_node_minted_them
+        PASS [   0.008s] (120/408) editor-core names::canonical::tests::a_through_senses_things_are_one_form_in_every_order
+        PASS [   0.010s] (121/408) editor-core names::canonical::tests::an_edge_crossing_run_is_one_form_in_every_order_each_sense_with_its_line
+        PASS [   0.009s] (122/408) editor-core names::chase::tests::a_chain_of_bound_hops_reaches_its_root
+        PASS [   0.009s] (123/408) editor-core names::chase::tests::a_step_refusal_passes_through
+        PASS [   0.007s] (124/408) editor-core names::defer::tests::a_carry_refuses_a_repeated_pair_and_a_repeated_entity_apart
+        PASS [   0.005s] (125/408) editor-core names::defer::tests::a_lone_candidate_narrows_to_unique_and_keeps_its_number
+        PASS [   0.006s] (126/408) editor-core names::defer::tests::a_split_tie_gathers_the_same_whole_or_as_its_projected_halves
+        PASS [   0.008s] (127/408) editor-core names::defer::tests::a_strict_name_beside_a_tie_candidate_refuses
+        PASS [   0.009s] (128/408) editor-core names::defer::tests::a_strict_name_carried_twice_refuses
+        PASS [   0.009s] (129/408) editor-core names::defer::tests::different_candidates_of_one_tie_merge_back_into_the_tie
+        PASS [   0.007s] (130/408) editor-core names::defer::tests::the_same_candidate_twice_refuses
+        PASS [   0.007s] (131/408) editor-core names::emit::conventional_vertex_tests::a_constructions_own_rim_self_loop_vertex_keeps_its_name
+        PASS [   0.310s] (132/408) editor-core label::tests::exactly_the_nine_direction_scopes_refuse_as_direction
+        PASS [   0.010s] (133/408) editor-core names::emit::conventional_vertex_tests::a_table_naming_a_conventional_vertex_refuses_typed
+        PASS [   0.010s] (134/408) editor-core names::emit::conventional_vertex_tests::an_open_edges_vertices_are_not_refused
+        PASS [   0.007s] (135/408) editor-core names::emit::display_tests::the_cycling_edge_reaches_the_node_level_prose
+        PASS [   0.009s] (136/408) editor-core names::emit::display_tests::every_variant_names_its_subject
+        PASS [   0.131s] (137/408) editor-core names::borders::tests::a_lineage_cycle_panics_under_a_stop_at_seen_keys
+        PASS [   0.005s] (138/408) editor-core names::emit::display_tests::the_framings_are_the_sentences_they_are_written_as
+        PASS [   0.010s] (139/408) editor-core names::emit::display_tests::the_eval_boundary_carries_the_diagnostic_through
+        PASS [   0.006s] (140/408) editor-core names::emit::to_u32_tests::a_position_past_the_bound_is_the_inputs_refusal
+        PASS [   0.011s] (141/408) editor-core names::emit::display_tests::the_underdetermined_seam_vertex_reaches_the_node_level_prose
+        PASS [   0.016s] (142/408) editor-core names::emit::display_tests::the_rim_walk_reports_cardinality_as_a_fact
+        PASS [   0.005s] (143/408) editor-core names::emit::to_u32_tests::narrows_to_the_bound
+        PASS [   0.146s] (144/408) editor-core names::chase::tests::a_cycle_panics
+        PASS [   0.141s] (145/408) editor-core names::emit::to_u32_tests::panics_one_past_the_bound
+        PASS [   0.021s] (146/408) editor-core names::emit::walk_tests::edge_ends_reads_two_ends_of_a_sound_edge
+        PASS [   0.163s] (147/408) editor-core names::emit::walk_tests::edge_ends_panics_on_a_dangling_he_plus
+        PASS [   0.168s] (148/408) editor-core names::emit::walk_tests::edge_ends_panics_on_a_dangling_edge
+        PASS [   0.021s] (149/408) editor-core names::emit::walk_tests::the_chord_walk_carries_the_rim_to_the_face_across_it
+        PASS [   0.205s] (150/408) editor-core names::emit::walk_tests::edge_ends_panics_on_a_dangling_next
+        PASS [   0.128s] (151/408) editor-core names::emit::walk_tests::the_chord_walk_panics_on_a_dangling_mate
+        PASS [   0.167s] (152/408) editor-core names::emit::walk_tests::the_chord_walk_panics_on_a_dangling_loop
+        PASS [   0.182s] (153/408) editor-core names::emit::walk_tests::the_face_walk_panics_on_a_dangling_face
+        PASS [   0.259s] (154/408) editor-core names::emit::walk_tests::the_chord_walk_panics_on_an_unmated_half_edge
+        PASS [   0.029s] (155/408) editor-core names::emit::walk_tests::the_face_walk_walks_the_square_cap
+        PASS [   0.020s] (156/408) editor-core names::emit::walk_tests::the_rim_walk_finds_the_rim_of_a_sound_box
+        PASS [   0.233s] (157/408) editor-core names::emit::walk_tests::the_face_walk_panics_on_a_dangling_loop
+        PASS [   0.224s] (158/408) editor-core names::emit::walk_tests::the_face_walk_panics_on_an_unwalkable_loop
+        PASS [   0.180s] (159/408) editor-core names::emit::walk_tests::the_incidence_walk_panics_on_a_dangling_loop
+        PASS [   0.171s] (160/408) editor-core names::emit::walk_tests::the_rim_walk_panics_on_a_dangling_loop
+        PASS [   0.166s] (161/408) editor-core names::emit::walk_tests::the_rim_walk_panics_on_a_dangling_mate
+        PASS [   0.017s] (162/408) editor-core names::emit::walk_tests::vertex_point_reads_a_sound_vertex
+        PASS [   0.015s] (163/408) editor-core names::emit_blend::tie_tests::a_join_over_a_trim_and_a_survivor_names_their_set
+        PASS [   0.021s] (164/408) editor-core names::emit_blend::tie_tests::a_join_over_an_edge_the_blend_minted_outright_refuses
+        PASS [   0.206s] (165/408) editor-core names::emit::walk_tests::the_rim_walk_panics_on_an_unmated_half_edge
+        PASS [   0.171s] (166/408) editor-core names::emit::walk_tests::vertex_point_panics_on_a_dangling_vertex
+        PASS [   0.166s] (167/408) editor-core names::emit::walk_tests::vertex_point_panics_on_a_vertex_without_a_point
+        PASS [   0.054s] (168/408) editor-core names::emit_shell::tests::a_joined_ring_arc_is_named_as_the_set_of_its_halves
+        PASS [   0.101s] (169/408) editor-core names::emit_blend::tie_tests::a_planted_upstream_tie_reaches_the_output_table_as_a_tie
+        PASS [   0.088s] (170/408) editor-core names::emit_shell::tests::a_joined_edge_over_an_upstream_set_is_one_flat_set
+        PASS [   0.083s] (171/408) editor-core names::emit_shell::tests::a_rim_cut_at_three_points_joins_to_the_set_of_its_four_pieces
+        PASS [   0.110s] (172/408) editor-core names::emit_topo::a_pairs_flush_line::a_crossing_of_two_flush_edges_running_opposite_ways_reads_each
+        PASS [   0.011s] (173/408) editor-core names::emit_topo::fused_tests::a_chain_of_fusions_reaches_the_survivor_nearest_first
+        PASS [   0.079s] (174/408) editor-core names::emit_topo::edge_pieces_of_one_line_tie::pieces_of_two_parents_with_one_pair_of_ends_tie
+        PASS [   0.009s] (175/408) editor-core names::emit_topo::fused_tests::a_chain_of_null_copies_is_the_vertex
+        PASS [   0.169s] (176/408) editor-core names::emit_sweep::tests::a_full_revolves_axis_cavities_are_named
+        PASS [   0.044s] (177/408) editor-core names::emit_topo::rim_holding_rows::a_chord_across_a_split_is_held_by_no_piece
+        PASS [   0.045s] (178/408) editor-core names::emit_topo::rim_holding_rows::a_chord_ending_at_a_piece_end_is_held_by_that_piece
+        PASS [   0.028s] (179/408) editor-core names::emit_topo::rim_holding_rows::a_chord_through_zero_is_held_through_the_stretch_a_period_back
+        PASS [   0.022s] (180/408) editor-core names::emit_topo::rim_holding_rows::a_lone_curved_rim_holds_only_a_chord_within_it
+        PASS [   0.036s] (181/408) editor-core names::emit_topo::rim_holding_rows::a_curved_chord_is_held_by_the_piece_it_lies_within
+        PASS [   0.009s] (182/408) editor-core names::emit_topo::rim_holding_rows::a_segment_across_a_line_at_a_small_k_refuses_typed
+        PASS [   0.029s] (183/408) editor-core names::emit_topo::rim_holding_rows::a_point_on_a_curved_piece_is_held_along_its_carrier
+        PASS [   0.023s] (184/408) editor-core names::emit_topo::rim_holding_rows::a_straight_chord_is_held_by_no_curved_piece
+        PASS [   0.017s] (185/408) editor-core names::emit_topo::rim_holding_rows::an_arc_a_few_tolerances_long_at_a_small_k_refuses_typed
+        PASS [   0.013s] (186/408) editor-core names::emit_topo::rim_holding_rows::an_arc_a_few_tolerances_long_escalates_its_way
+        PASS [   0.006s] (187/408) editor-core names::emit_topo::side_tests::a_side_reads_its_one_class
+        PASS [   0.016s] (188/408) editor-core names::emit_topo::rim_holding_rows::arcs_of_one_circle_are_one_line_either_way_along_it
+        PASS [   0.014s] (189/408) editor-core names::emit_topo::side_tests::a_side_with_no_classified_piece_refuses
+        PASS [   0.313s] (190/408) editor-core names::emit_sweep::tests::a_one_segment_loop_revolves_and_lofts_to_named_bodies
+        PASS [   0.021s] (191/408) editor-core names::emit_topo::tests::a_b_lineage_leaving_the_graft_rows_refuses
+        PASS [   0.028s] (192/408) editor-core names::emit_topo::tests::a_chord_between_two_merged_faces_is_the_rim_it_lies_within
+        PASS [   0.178s] (193/408) editor-core names::emit_topo::rim_holding_rows::a_spline_edge_is_a_line_of_its_own
+        PASS [   0.007s] (194/408) editor-core names::emit_topo::tests::a_chord_off_its_rims_line_is_not_on_it
+        PASS [   0.122s] (195/408) editor-core names::emit_topo::split_edge_lineage::a_twice_crossed_rim_arcs_pieces_chase_to_the_rim_across_halves
+        PASS [   0.028s] (196/408) editor-core names::emit_topo::tests::a_chord_between_two_merged_faces_may_lie_within_the_b_operands_rim
+        PASS [   0.010s] (197/408) editor-core names::emit_topo::tests::a_chord_past_either_end_of_its_rim_is_not_on_it
+        PASS [   0.008s] (198/408) editor-core names::emit_topo::tests::a_chord_within_its_rim_is_on_it_ends_included
+        PASS [   0.021s] (199/408) editor-core names::emit_topo::tests::a_chord_within_no_rim_of_two_merged_faces_is_no_rims_in_every_order
+        PASS [   0.020s] (200/408) editor-core names::emit_topo::tests::a_crossing_at_an_unread_partner_refuses_why
+        PASS [   0.024s] (201/408) editor-core names::emit_topo::tests::a_lineage_through_a_killed_piece_reaches_the_table
+        PASS [   0.025s] (202/408) editor-core names::emit_topo::tests::a_merge_over_a_merged_face_lists_its_constituents_flat
+        PASS [   0.007s] (203/408) editor-core names::emit_topo::tests::a_split_sense_follows_the_crossed_edge_through_a_reversed_piece
+        PASS [   0.017s] (204/408) editor-core names::emit_topo::tests::merged_lane_names_kept_face_with_sorted_deduped_constituents
+        PASS [   0.006s] (205/408) editor-core names::emit_topo::tests::one_partner_refuses_two_distinct_partners
+        PASS [   0.006s] (206/408) editor-core names::emit_topo::tests::one_partner_takes_one_name_however_many_rows_carry_it
+        PASS [   0.019s] (207/408) editor-core names::emit_topo::tests::two_faces_holding_one_face_with_no_discard_between_them_refuse
+        PASS [   0.016s] (208/408) editor-core names::emit_topo::tests::two_holders_of_one_merged_parent_with_nothing_between_them_refuse
+        PASS [   0.143s] (209/408) editor-core names::emit_topo::tests::a_chord_within_a_rim_of_each_operand_is_a_kernel_bug
+        PASS [   0.028s] (210/408) editor-core names::emit_topo::tests::two_merges_of_tied_faces_publish_one_tied_row
+        PASS [   0.132s] (211/408) editor-core names::emit_topo::tests::a_merge_over_a_nested_merged_face_panics_at_the_mint
+        PASS [   0.011s] (212/408) editor-core names::emit_topo::track_cover::a_closed_edge_reads_alike_wherever_its_vertex_sits
+        PASS [   0.008s] (213/408) editor-core names::emit_topo::track_cover::an_open_arc_lies_within_the_arc_that_holds_it
+        PASS [   0.011s] (214/408) editor-core names::emit_union::tests::a_cited_crossing_group_ties_only_among_one_sense
+        PASS [   0.010s] (215/408) editor-core names::emit_union::tests::a_cited_group_that_is_not_one_seam_ties
+        PASS [   0.010s] (216/408) editor-core names::emit_union::tests::a_cited_group_ties_whether_or_not_it_moved
+        PASS [   0.099s] (217/408) editor-core names::emit_topo::touch_reread_rows::a_corner_held_as_several_result_vertices_is_a_fragment_at_each
+        PASS [   0.010s] (218/408) editor-core names::emit_union::tests::a_cited_group_with_no_member_edge_side_ties
+        PASS [   0.009s] (219/408) editor-core names::emit_union::tests::a_crossing_of_a_swapped_seam_edge_keeps_the_side_it_enters_along
+        PASS [   0.007s] (220/408) editor-core names::emit_union::tests::a_descent_through_a_swapped_seam_edge_keeps_its_ends
+        PASS [   0.100s] (221/408) editor-core names::emit_topo::touch_reread_rows::a_tied_corners_candidates_are_named_apart_wherever_they_lie
+        PASS [   0.010s] (222/408) editor-core names::emit_union::tests::a_flat_merged_face_collapses_to_its_member_space_set
+        PASS [   0.016s] (223/408) editor-core names::emit_union::tests::a_member_face_its_member_ties_is_read_by_its_key
+        PASS [   0.017s] (224/408) editor-core names::emit_union::tests::a_member_edge_its_member_ties_refuses_where_its_faces_are_read
+        PASS [   0.021s] (225/408) editor-core names::emit_union::tests::a_member_vertex_its_member_ties_is_cited_with_its_tie
+        PASS [   0.008s] (226/408) editor-core names::emit_union::tests::a_rewrites_crossing_senses_are_reread_side_by_side_along_the_edges_it_cites
+        PASS [   0.007s] (227/408) editor-core names::emit_union::tests::a_run_of_seams_is_admitted_as_a_whole_vertex_path
+        PASS [   0.138s] (228/408) editor-core names::emit_union::tests::a_qualified_run_of_seams_panics
+        PASS [   0.150s] (229/408) editor-core names::emit_union::tests::a_nested_merged_face_panics_as_an_emission_bug
+        PASS [   0.009s] (230/408) editor-core names::emit_union::tests::a_seam_junction_collapses_to_its_sorted_member_space_lines
+        PASS [   0.143s] (231/408) editor-core names::emit_union::tests::a_run_of_seams_naming_an_edge_panics
+        PASS [   0.008s] (232/408) editor-core names::emit_union::tests::a_side_unclassed_at_an_unread_partner_refuses_why
+        PASS [   0.007s] (233/408) editor-core names::emit_union::tests::a_swapped_seam_edge_piece_keeps_its_ends
+        PASS [   0.008s] (234/408) editor-core names::emit_union::tests::a_tied_member_edge_piece_is_grouped_under_its_member_edge
+        PASS [   0.022s] (235/408) editor-core names::emit_union::tests::a_vertex_held_by_a_tied_and_an_untied_member_is_its_own_row
+        PASS [   0.011s] (236/408) editor-core names::emit_union::tests::an_unglued_twin_refuses_as_a_duplicate_name
+        PASS [   0.010s] (237/408) editor-core names::emit_union::tests::two_junction_lines_collapsing_to_one_refuse
+        PASS [   0.007s] (238/408) editor-core names::geompred::census::one_sample_per_variant_each_under_its_own_identifier
+        PASS [   0.006s] (239/408) editor-core names::groups::tests::a_unions_vertex_base_reads_the_end_pass_in_every_fold
+        PASS [   0.006s] (240/408) editor-core names::least_root::tests::a_root_is_the_least_key_whatever_the_union_order
+        PASS [   0.006s] (241/408) editor-core names::merged::tests::a_flat_row_covers_its_constituents_and_the_merged_faces_they_came_from
+        PASS [   0.006s] (242/408) editor-core names::merged::tests::a_loft_wall_has_no_constituents
+        PASS [   0.007s] (243/408) editor-core names::merged::tests::a_run_meridian_covers_its_pieces_meridians_at_its_own_end
+        PASS [   0.006s] (244/408) editor-core names::merged::tests::a_run_rim_is_offered_for_its_pieces_rims_on_its_own_cap
+        PASS [   0.006s] (245/408) editor-core names::merged::tests::a_run_wall_covers_its_pieces_walls_through_its_wrappers
+        PASS [   0.006s] (246/408) editor-core names::merged::tests::a_station_offers_the_run_wall_and_a_broken_run_offers_its_pieces_walls
+        PASS [   0.006s] (247/408) editor-core names::merged::tests::a_union_over_a_union_reads_the_inner_merge_through_from_member
+        PASS [   0.165s] (248/408) editor-core names::emit_union::tests::a_seam_after_a_fragment_is_foreign
+        PASS [   0.150s] (249/408) editor-core names::emit_union::tests::a_side_re_cited_as_a_set_off_one_line_panics
+        PASS [   0.027s] (250/408) editor-core names::nest::tests::a_names_text_reads_and_refuses_as_the_derived_form_does
+        PASS [   0.754s] (251/408) editor-core names::emit_topo::split_carries_candidates::a_split_carries_each_tie_candidates_number_tied_or_narrowed
+        PASS [   0.012s] (252/408) editor-core names::nest::tests::a_union_collapses_a_fold_name_nested_past_every_stack_on_the_smallest_stack
+        PASS [   0.049s] (253/408) editor-core names::nest::tests::a_rewrite_and_a_collapse_run_each_level_once
+        PASS [   0.152s] (254/408) editor-core names::nest::tests::a_name_pattern_nested_past_every_stack_walks_on_the_smallest_stack
+        PASS [   0.006s] (255/408) editor-core names::nest::tests::the_corpus_holds_every_variant
+        PASS [   0.104s] (256/408) editor-core names::nest::tests::every_walk_answers_what_the_derived_impls_answer_at_every_variant
+        PASS [   0.008s] (257/408) editor-core names::nest::tests::the_native_levels_fit_a_quarter_of_the_smallest_stack
+        PASS [   0.006s] (258/408) editor-core names::role::tests::a_pieces_start_is_spelled_as_the_piece
+        PASS [   0.006s] (259/408) editor-core names::role::tests::band_mints_the_hand_spelled_face
+        PASS [   0.006s] (260/408) editor-core names::role::tests::band_pi_mints_the_hand_spelled_face
+        PASS [   0.006s] (261/408) editor-core names::role::tests::band_rim_mints_the_hand_spelled_edge
+        PASS [   0.006s] (262/408) editor-core names::role::tests::band_rim_pi_mints_the_hand_spelled_edge
+        PASS [   0.006s] (263/408) editor-core names::role::tests::carried_mints_the_hand_spelled_wrapper_and_keeps_the_kind
+        PASS [   0.006s] (264/408) editor-core names::role::tests::meridian_vertex_mints_the_hand_spelled_vertex
+        PASS [   0.006s] (265/408) editor-core names::role::tests::piece_steps_read_the_name_and_what_it_carries
+        PASS [   0.006s] (266/408) editor-core names::seam_pair::tests::a_face_descending_from_neither_side_decides_nothing
+        PASS [   0.191s] (267/408) editor-core names::nest::tests::a_walk_that_panics_or_runs_inside_another_leaves_the_walks_whole
+        PASS [   0.006s] (268/408) editor-core names::seam_pair::tests::a_face_merged_across_both_sides_is_resolved_by_the_other_face
+        PASS [   0.006s] (269/408) editor-core names::seam_pair::tests::a_seam_edges_sides_are_found_through_its_carriers
+        PASS [   0.008s] (270/408) editor-core names::seam_pair::tests::a_split_fragment_is_seen_through
+        PASS [   0.007s] (271/408) editor-core names::seam_pair::tests::the_other_half_of_a_through_names_the_side_it_did_not
+        PASS [   0.108s] (272/408) editor-core names::nest::tests::the_descent_walks_run_on_the_smallest_stack
+        PASS [   0.006s] (273/408) editor-core names::seam_pair::tests::the_sides_are_read_off_the_faces_descent
+        PASS [   0.006s] (274/408) editor-core names::seam_pair::tests::two_faces_each_merged_across_both_sides_decide_nothing
+        PASS [   0.006s] (275/408) editor-core names::successor::a_successor_is_one_whole_unique_row::a_carry_beside_a_borders_set_is_recarried_on_its_own_read
+        PASS [   0.006s] (276/408) editor-core names::successor::a_successor_is_one_whole_unique_row::a_carry_is_recarried_through_its_read_alone
+        PASS [   0.007s] (277/408) editor-core names::successor::a_successor_is_one_whole_unique_row::a_name_carried_from_two_reads_has_no_successor
+        PASS [   0.006s] (278/408) editor-core names::successor::a_successor_is_one_whole_unique_row::a_set_with_members_from_two_reads_succeeds_each
+        PASS [   0.006s] (279/408) editor-core names::successor::a_successor_is_one_whole_unique_row::each_row_shape_against_its_carry
+        PASS [   0.006s] (280/408) editor-core names::table::carrying_door::a_kind_mismatched_seating_refuses_as_a_kind_mismatch
+        PASS [   0.006s] (281/408) editor-core names::table::carrying_door::a_short_tie_refuses_as_a_short_tie
+        PASS [   0.006s] (282/408) editor-core names::table::carrying_door::an_entity_offered_a_second_name_refuses_as_entity_named
+        PASS [   0.006s] (283/408) editor-core names::table::carrying_door::the_carrying_door_keeps_each_number
+        PASS [   0.006s] (284/408) editor-core names::table::carrying_door::the_carrying_door_refuses_what_would_name_one_pair_twice
+        PASS [   0.006s] (285/408) editor-core names::table::tests::a_bare_name_probes_a_sealed_map_through_borrow
+        PASS [   0.008s] (286/408) editor-core names::table::tests::a_clone_reseals_and_stamps_what_it_gained
+        PASS [   0.007s] (287/408) editor-core names::table::tests::a_deep_chain_answers_the_same_stamped_or_not
+        PASS [   0.006s] (288/408) editor-core names::table::tests::a_row_inserted_after_the_seal_is_unstamped_and_still_ordered
+        PASS [   0.006s] (289/408) editor-core names::table::tests::one_handle_in_two_tables_keeps_the_first_seals_positions
+        PASS [   0.008s] (290/408) editor-core names::table::tests::a_sealed_tables_stamped_order_is_its_structural_order
+        PASS [   0.008s] (291/408) editor-core names::table::tests::two_epochs_fall_back_and_still_agree
+        PASS [   0.006s] (292/408) editor-core names::words::tests::a_band_crossing_and_slit_say_their_band
+        PASS [   0.006s] (293/408) editor-core names::words::tests::a_deep_derivation_is_said_whole
+        PASS [   0.008s] (294/408) editor-core names::words::tests::a_composite_path_and_a_junction_say_every_segment
+        PASS [   0.007s] (295/408) editor-core names::words::tests::a_touch_says_which_side_it_meets_from
+        PASS [   0.006s] (296/408) editor-core names::words::tests::blend_shell_and_split_faces_are_said_over_their_source
+        PASS [   0.006s] (297/408) editor-core names::words::tests::by_tag_a_carry_says_its_read
+        PASS [   0.005s] (298/408) editor-core names::words::tests::by_tag_each_carry_says_its_read_and_the_feature_is_said
+        PASS [   0.006s] (299/408) editor-core names::words::tests::the_detail_bounds_how_much_of_a_cited_name_is_said
+        PASS [   0.007s] (300/408) editor-core names::words::tests::the_parts_of_one_face_are_told_apart
+        PASS [   0.006s] (301/408) editor-core names::words::tests::the_unique_detail_opens_only_what_a_rival_needs
+        PASS [   0.008s] (302/408) editor-core names::words::tests::the_unique_detail_reads_apart_from_every_name_of_the_table
+        PASS [   0.009s] (303/408) editor-core names::words::tests::two_names_at_their_own_details_never_read_alike
+        PASS [   0.006s] (304/408) editor-core param_source::tests::equal_constants_encode_alike
+        PASS [   0.009s] (305/408) editor-core param_source::tests::every_encoding_parses_back_by_its_tags_alone
+        PASS [   0.074s] (306/408) editor-core names::words::tests::a_citation_nested_past_every_stack_is_said_on_the_smallest_stack
+        PASS [   0.014s] (307/408) editor-core param_source::tests::every_tag_is_distinct
+        PASS [   0.007s] (308/408) editor-core param_source::tests::the_key_feeds_exactly_the_flow_bearing_parameters
+        PASS [   0.017s] (309/408) editor-core param_source::tests::the_alphabet_covers_the_encoder
+        PASS [   0.053s] (310/408) editor-core param_source::tests::encoding_equality_is_expression_equality
+        PASS [   0.007s] (311/408) editor-core persist::check::tests::every_snapshot_error_arm_names_the_walk_that_produces_it
+        PASS [   0.008s] (312/408) editor-core persist::check::tests::rv_an_appearance_key_the_mint_never_minted_refuses_typed
+        PASS [   0.007s] (313/408) editor-core persist::check::tests::structurally_invalid_documents_refuse_at_save
+        PASS [   0.009s] (314/408) editor-core persist::check::tests::the_save_door_speaks_a_non_finite_metadata_sites_name
+        PASS [   0.009s] (315/408) editor-core persist::check::tests::the_save_door_speaks_a_refused_programs_node
+        PASS [   0.006s] (316/408) editor-core persist::jsontext::tests::both_passes_write_what_serde_json_writes
+        PASS [   0.006s] (317/408) editor-core persist::nesting::tests::the_scan_counts_brackets_outside_strings_only
+        PASS [   0.040s] (318/408) editor-core parse::tests::the_parser_keeps_its_own_stack
+        PASS [   0.007s] (319/408) editor-core persist::pairs::tests::a_duplicate_appearance_key_is_said_by_its_minting_node
+        PASS [   0.008s] (320/408) editor-core persist::strict::tests::a_duplicate_key_is_said_as_a_parse_can_say_it
+        PASS [   0.007s] (321/408) editor-core placement::tests::affine_at_f64_carries_the_stored_bits
+        PASS [   0.005s] (322/408) editor-core placement::tests::compose_is_the_affine_product_to_the_last_multiply_add
+        PASS [   0.006s] (323/408) editor-core placement::tests::compose_with_an_identity_returns_the_other_operand_verbatim
+        PASS [   0.005s] (324/408) editor-core placement::tests::determinant_is_mat3s_association_and_not_just_its_value
+        PASS [   0.005s] (325/408) editor-core placement::tests::from_affine_carries_the_affines_bits_and_snaps_nothing
+        PASS [   0.005s] (326/408) editor-core pose::tests::a_pose_built_at_any_scale_measures_a_length
+        PASS [   0.005s] (327/408) editor-core pose::tests::the_decided_door_partitions_on_the_band
+        PASS [   0.005s] (328/408) editor-core product::tests::a_read_without_a_value_renders_its_standing
+        PASS [   0.005s] (329/408) editor-core product::tests::each_kind_has_an_arm_and_each_built_arm_projects_to_its_own_kind
+        PASS [   0.005s] (330/408) editor-core product::tests::exactly_one_arm_reads_as_no_body
+        PASS [   0.005s] (331/408) editor-core product::tests::the_stage_word_opens_the_rendering_and_no_sentence
+        PASS [   0.005s] (332/408) editor-core range::tests::a_gap_between_leaves_refuses
+        PASS [   0.005s] (333/408) editor-core range::tests::a_standing_change_is_what_makes_a_flip_a_new_failure
+        PASS [   0.005s] (334/408) editor-core range::tests::the_frontier_does_not_jump_an_undecided_leaf
+        PASS [   0.005s] (335/408) editor-core range::tests::withins_far_end_is_the_flipped_leafs_near_edge
+        PASS [   0.007s] (336/408) editor-core ratio::tests::a_decimal_is_its_exact_value
+        PASS [   0.005s] (337/408) editor-core ratio::tests::construction_reduces_and_bounds
+        PASS [   0.005s] (338/408) editor-core ratio::tests::the_f64_value_is_the_decimal_parse
+        PASS [   0.005s] (339/408) editor-core ratio::tests::the_text_reads_back
+        PASS [   0.005s] (340/408) editor-core refactor::a_miss_two_segments_down_is_not_the_outer_name::the_rewrite_reports_the_nested_node
+        PASS [   0.006s] (341/408) editor-core refactor::a_remap_that_reorders_ids_republishes_the_canonical_form::a_crossing_of_a_union_seam_keeps_the_side_it_enters_along
+        PASS [   0.006s] (342/408) editor-core refactor::a_remap_that_reorders_ids_republishes_the_canonical_form::a_pair_booleans_sets_borders_junction_and_seams_are_resorted
+        PASS [   0.006s] (343/408) editor-core refactor::a_remap_that_reorders_ids_republishes_the_canonical_form::a_union_seam_edge_piece_swaps_its_sides_and_reorders_its_ends
+        PASS [   0.005s] (344/408) editor-core refactor::remap_a_run::a_remap_that_swaps_a_runs_lines_re_sorts_it_each_sense_with_its_line
+        PASS [   0.005s] (345/408) editor-core refactor::remap_keeps_a_parts_section::a_section_the_source_never_minted_crosses_as_it_is_only_when_parted
+        PASS [   0.008s] (346/408) editor-core refactor::remap_error_reads::every_remap_refusal_fits_the_budget_and_ends_on_one_recourse
+        PASS [   0.006s] (347/408) editor-core refactor::remap_moves_the_step::a_piece_crosses_on_the_step_map_and_a_section_crosses_as_it_is
+        PASS [   0.009s] (348/408) editor-core refactor::remap_keeps_the_kind::a_bare_name_remap_carries_every_kind_through
+        PASS [   0.005s] (349/408) editor-core resolve::flip_lane_rows::a_corner_sign_flip_ranks_after_any_other_flip
+        PASS [   0.005s] (350/408) editor-core resolve::flip_lane_rows::a_side_reader_flip_ranks_after_any_other_flip
+        PASS [   0.005s] (351/408) editor-core resolve::pick::tests::a_corner_graze_is_admitted_or_refused_by_its_label
+        PASS [   0.006s] (352/408) editor-core resolve::pick::tests::a_candidate_whose_barycentrics_carry_no_information_is_refused
+        PASS [   0.006s] (353/408) editor-core resolve::pick::tests::a_patch_with_no_entry_identity_is_built_and_never_stored
+        PASS [   0.014s] (354/408) editor-core resolve::pick::tests::a_fan_triangulated_cap_accepts_its_interior_hits
+        PASS [   0.014s] (355/408) editor-core resolve::pick::tests::a_flat_triangles_interior_hits_are_accepted
+        PASS [   0.006s] (356/408) editor-core resolve::pick::tests::a_ray_down_a_shared_edge_ties_two_narrow_intervals_and_nothing_breaks_it
+        PASS [   0.005s] (357/408) editor-core resolve::pick::tests::a_segment_point_on_a_ray_with_no_direction_has_no_span
+        PASS [   0.006s] (358/408) editor-core resolve::pick::tests::a_segment_points_span_encloses_its_exact_parameter
+        PASS [   0.005s] (359/408) editor-core resolve::pick::tests::a_segment_points_span_widens_as_its_rounding_grows
+        PASS [   0.015s] (360/408) editor-core resolve::pick::tests::a_stored_table_is_served_without_building
+        PASS [   0.033s] (361/408) editor-core resolve::pick::tests::a_well_conditioned_interior_hit_is_accepted
+        PASS [   0.005s] (362/408) editor-core resolve::pick::tests::doubling_the_derived_bound_refuses_a_candidate_the_door_admits
+        PASS [   0.005s] (363/408) editor-core resolve::pick::tests::every_admitted_hit_is_placed_on_the_closed_triangle
+        PASS [   0.584s] (364/408) editor-core names::nest::tests::a_name_nested_past_every_stack_walks_on_the_smallest_stack
+        PASS [   0.073s] (365/408) editor-core resolve::pick::tests::a_segment_points_span_encloses_its_exact_parameter_under_stress
+        PASS [   0.008s] (366/408) editor-core resolve::pick::tests::halving_the_derived_bound_admits_a_candidate_the_door_refuses
+        PASS [   0.006s] (367/408) editor-core resolve::pick::tests::inform_on_the_sum_alone_refuses_a_candidate_whose_parts_inform
+        PASS [   0.008s] (368/408) editor-core resolve::pick::tests::the_acceptance_at_its_ends
+        PASS [   0.008s] (369/408) editor-core resolve::pick::tests::the_certified_order_does_not_depend_on_the_arrival_order
+        PASS [   0.009s] (370/408) editor-core resolve::pick::tests::the_clamp_is_a_retraction_onto_the_simplex_and_not_the_nearest_point
+        PASS [   0.007s] (371/408) editor-core resolve::pick::tests::the_closed_boundaries_are_pinned_one_ulp_each_way
+        PASS [   0.006s] (372/408) editor-core resolve::pick::tests::the_retraction_keeps_u_plus_v_at_most_one_exactly
+        PASS [   0.007s] (373/408) editor-core resolve::tests::a_cutter_is_its_seam_pair_on_the_parents_side_and_kind
+        PASS [   0.010s] (374/408) editor-core resolve::tests::a_seam_with_a_deep_fragment_tail_is_read
+        PASS [   0.010s] (375/408) editor-core resolve::tests::a_union_cutter_is_compared_without_its_fold_tail
+        PASS [   0.007s] (376/408) editor-core resolve::tests::a_union_seam_line_group_is_read
+        PASS [   0.007s] (377/408) editor-core resolve::tests::an_unread_seam_on_the_parent_names_none
+        PASS [   0.007s] (378/408) editor-core resolve::tests::no_seam_on_the_parent_in_the_prior_table_names_none
+        PASS [   0.007s] (379/408) editor-core resolve::tests::two_groups_under_one_base_read_as_tied_parents
+        PASS [   0.012s] (380/408) editor-core resolve::walk_tests::a_walk_reaches_the_things_a_through_sense_enters_along
+        PASS [   0.056s] (381/408) editor-core resolve::pick::tests::the_prism_cap_answers_an_edge_on_pick
+        PASS [   0.022s] (382/408) editor-core resolve::walk_tests::a_walk_over_a_name_nested_past_every_stack_runs_on_the_smallest_stack
+        PASS [   0.013s] (383/408) editor-core resolve::walk_tests::a_walk_visits_depth_first_in_path_order
+        PASS [   0.007s] (384/408) editor-core resolve::walk_tests::the_cascade_walk_asks_through_a_merged_set_and_never_of_it
+        PASS [   0.008s] (385/408) editor-core spoken::tests::a_held_node_is_its_kind_and_tag_and_an_absent_one_is_a_node
+        PASS [   0.006s] (386/408) editor-core spoken::tests::the_tag_is_the_digests_twelve_high_hex_digits_and_the_full_id_all_of_it
+        PASS [   0.008s] (387/408) editor-core spoken::tests::a_kept_node_is_said_only_where_the_document_does_not_hold_it
+        PASS [   0.034s] (388/408) editor-core stackup::tests::a_refusal_only_the_dual_made_carries_the_records_value
+        PASS [   0.007s] (389/408) editor-core stackup::tests::a_refused_rss_splits_back_into_its_blockers
+        PASS [   0.042s] (390/408) editor-core stackup::tests::a_pass_whose_measured_value_is_perturbed_refuses_as_drift
+        PASS [   0.008s] (391/408) editor-core stackup::tests::a_single_blocker_is_counted_in_the_singular
+        PASS [   0.197s] (392/408) editor-core resolve::pick::tests::a_served_table_that_is_not_this_patchs_panics
+        PASS [   0.008s] (393/408) editor-core stackup::tests::every_blocker_renders_on_one_line
+        PASS [   0.006s] (394/408) editor-core var::tests::a_kind_reads_at_the_dimension_it_came_from
+        PASS [   0.007s] (395/408) editor-core verbs::blend::tests::each_correspondence_builds_its_own_verb
+        PASS [   0.010s] (396/408) editor-core test_support::tests::a_quarter_turn_is_read_about_its_own_axis
+        PASS [   0.007s] (397/408) editor-core verbs::blend::tests::the_two_correspondences_share_no_literal
+        PASS [   0.007s] (398/408) editor-core verbs::boolean::tests::the_foreign_record_sentence_names_the_door
+        PASS [   0.006s] (399/408) editor-core verbs::shell::tests::the_correspondence_builds_the_shell_in_designation_order
+        PASS [   0.011s] (400/408) editor-core verbs::boolean::tests::the_correspondence_builds_the_boolean
+        PASS [   0.073s] (401/408) editor-core stackup::tests::a_pass_of_other_inputs_refuses_at_the_binding
+        PASS [   0.007s] (402/408) editor-core verbs::shell::tests::the_fold_at_f64_is_the_identity_on_display
+        PASS [   0.006s] (403/408) editor-core verbs::split::tests::the_correspondence_builds_the_split
+        PASS [   0.006s] (404/408) editor-core verbs::split::tests::the_foreign_record_sentence_names_the_door
+        PASS [   0.007s] (405/408) editor-core verbs::split::tests::the_tool_reading_takes_a_plane_only
+        PASS [   0.006s] (406/408) editor-core verbs::sweep::tests::each_reader_refuses_a_foreign_record
+        PASS [   0.007s] (407/408) editor-core verbs::sweep::tests::each_correspondence_builds_its_own_verb
+        PASS [   0.015s] (408/408) editor-core verbs::shell::tests::the_interval_witness_reports_the_end_each_field_declares
+────────────
+     Summary [   3.137s] 408 tests run: 408 passed, 4 skipped

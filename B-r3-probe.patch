@@ -1,0 +1,259 @@
+diff --git a/crates/sweep/tests/a_closed_conic_in_the_partners_face.rs b/crates/sweep/tests/a_closed_conic_in_the_partners_face.rs
+index afaf5fbce39..1442dcc8cee 100644
+--- a/crates/sweep/tests/a_closed_conic_in_the_partners_face.rs
++++ b/crates/sweep/tests/a_closed_conic_in_the_partners_face.rs
+@@ -2170,3 +2170,49 @@ fn review3_a_meeting_off_the_carrier_says_so() {
+         "the rim is not on the hole's wall: {text}"
+     );
+ }
++
++/// Designer-B probe (not for landing): the complement of the crescent
++/// pose near its tip. `A` is a block with a blind pocket `r = 0.3`
++/// (floor at `z = 0`), `B` a slab `z ∈ [0, 0.5]` with a peg `r = 0.1`
++/// about `(0.2, 0)` hanging below it, tangent inside the pocket's rim
++/// at `(0.3, 0, 0)`. Locally `A ∩ B` is the complement of the boss ∪
++/// holed plate. Prints every op's outcome.
++#[test]
++#[ignore = "designer probe"]
++fn svc_b_dual_crescent_probe() {
++    for form in [true, false] {
++        let cutter = fin("the cutter", extruded(vec![rim(form, 0.0, 0.3, 0.0)], 0.0, 1.5));
++        let block = fin("the block", brick((-1.0, 1.0), (-1.0, 1.0), (-0.5, 1.0), tol()));
++        let pocketed = topo::subtract(&block, &cutter, tol()).unwrap();
++        let a = fin("the pocketed block", pocketed.body().unwrap().body.clone().into_body());
++        let slab = fin("the slab", brick((-1.0, 1.0), (-1.0, 1.0), (0.0, 0.5), tol()));
++        let peg = fin("the peg", extruded(vec![rim(form, 0.2, 0.1, 0.0)], -0.5, 0.75));
++        let pegged = topo::union(&slab, &peg, tol()).unwrap();
++        let b = fin("the pegged slab", pegged.body().unwrap().body.clone().into_body());
++        let va = 6.0 - 0.09 * PI;
++        let vb = 2.0 + 0.005 * PI;
++        let vab = 2.0 - 0.04 * PI;
++        for (op, x, y, want) in [
++            ("A ∪ B", &a, &b, va + vb - vab),
++            ("B ∪ A", &b, &a, va + vb - vab),
++            ("A ∩ B", &a, &b, vab),
++            ("B ∩ A", &b, &a, vab),
++            ("A ∖ B", &a, &b, va - vab),
++            ("B ∖ A", &b, &a, vb - vab),
++        ] {
++            let r = match op {
++                "A ∪ B" | "B ∪ A" => topo::union(x, y, tol()),
++                "A ∩ B" | "B ∩ A" => topo::intersect(x, y, tol()),
++                _ => topo::subtract(x, y, tol()),
++            };
++            let shells = r.as_ref().ok().and_then(|b| b.body()).map(|b| census(&b.body));
++            if let Some(b) = r.as_ref().ok().and_then(|b| b.body()) {
++                if let Err(es) = topo::validate_pseudomanifold(&b.body, &b.contacts, tol()) {
++                    println!("SVC-B-DUAL-T3P {op}: {:?}", es.iter().map(|e| format!("{e:?}").chars().take(160).collect::<String>()).collect::<Vec<_>>());
++                }
++            }
++            let j = judged_within(r, Some(want), tol(), VOLUME_PAD_BUDGET);
++            println!("SVC-B-DUAL form_one={form} {op}: {} census={shells:?}", j.line);
++        }
++    }
++}
+diff --git a/crates/sweep/tests/join_pierce_runs_sweep.rs b/crates/sweep/tests/join_pierce_runs_sweep.rs
+index 352dd8dc136..0cd4e15c5e1 100644
+--- a/crates/sweep/tests/join_pierce_runs_sweep.rs
++++ b/crates/sweep/tests/join_pierce_runs_sweep.rs
+@@ -1696,7 +1696,11 @@ fn octants_overlap(f: Frame, g: Frame) -> bool {
+ #[ignore = "differential battery; run with --ignored --nocapture"]
+ fn four_pairs_battery() {
+     let v = notch343().v;
++    let only_i: Option<u32> = std::env::var("SVC_A_I").ok().and_then(|s| s.parse().ok());
+     for i in 0..12 {
++        if only_i.is_some_and(|o| o != i) {
++            continue;
++        }
+         for j in 0..7 {
+             let n = unit(direction(i, j));
+             let [p, q, _] = frame(n, 0.0);
+diff --git a/crates/topo/src/boolean/insert.rs b/crates/topo/src/boolean/insert.rs
+index bf64a784897..13b915b6216 100644
+--- a/crates/topo/src/boolean/insert.rs
++++ b/crates/topo/src/boolean/insert.rs
+@@ -86,6 +86,11 @@ use crate::entity::{EdgeKey, EntityId, FaceKey, HalfEdgeKey, VertexKey};
+ use crate::live::{Proven, linked, proven};
+ use crate::null::NewVertexSide;
+ 
++thread_local! {
++    pub(super) static SVC_A_FLIP: core::cell::Cell<bool> = const { core::cell::Cell::new(false) };
++    pub(super) static SVC_A_HELD: core::cell::Cell<Option<usize>> = const { core::cell::Cell::new(None) };
++}
++
+ /// Output of one vertex-pair insertion.
+ #[derive(Debug)]
+ pub(super) struct InsertOut<T: geom_core::Real> {
+@@ -593,16 +598,56 @@ pub(super) fn plan_null_pairs<T: Decide>(
+         pos
+     };
+     let (a_pos, b_pos) = (positions(&a_order), positions(&b_order));
++    let flip = SVC_A_FLIP.with(std::cell::Cell::get);
+     let pairs = in_arc_pairs(
+         match lead {
+             Operand::A => &a_order,
+             Operand::B => &b_order,
+         },
+-        |i| match lead {
+-            Operand::A => survivors[i].sa.0,
+-            Operand::B => survivors[i].sb.0,
++        |i| {
++            let c = match lead {
++                Operand::A => survivors[i].sa.0,
++                Operand::B => survivors[i].sb.0,
++            };
++            if flip {
++                match c {
++                    SideCode::In => SideCode::Out,
++                    SideCode::Out => SideCode::In,
++                    o => o,
++                }
++            } else {
++                c
++            }
+         },
+     );
++    if std::env::var_os("SVC_A_PROBE").is_some() {
++        let lk = |l: super::Locus| match l {
++            super::Locus::OnEdge(_) => "E",
++            _ => "F",
++        };
++        let desc: Vec<String> = (0..n)
++            .map(|i| {
++                format!(
++                    "g{i}:a{}b{} sa={:?} sb={:?} at={}/{} loc={}{}",
++                    a_pos[i],
++                    b_pos[i],
++                    survivors[i].sa,
++                    survivors[i].sb,
++                    survivors[i].a,
++                    survivors[i].b,
++                    lk(loci[i].0),
++                    lk(loci[i].1)
++                )
++            })
++            .collect();
++        eprintln!(
++            "SVC-A-PLAN contact={:?} lead={lead:?} n={n} asecs={} bsecs={} pairs={pairs:?} [{}]",
++            contact,
++            a_sectors.len(),
++            b_sectors.len(),
++            desc.join("; ")
++        );
++    }
+     // Which way round each solid runs each pair: its walk order's
+     // ([`walk_run`]), in the lead the run that holds no third germ, in
+     // the other solid the same where the pair is adjacent in its walk,
+@@ -1254,6 +1299,7 @@ pub(super) fn reconcile_shared<T: Decide>(
+                         });
+                     }
+                     Some(HeldCut::Strictly) => {
++                        SVC_A_HELD.with(|h| h.set(Some(i)));
+                         return Err(BooleanError::ClassificationInvariant {
+                             what: "a run at a shared vertex holds another pair's cut: two pieces \
+                                    of one operand overlap at the point",
+diff --git a/crates/topo/src/boolean/mod.rs b/crates/topo/src/boolean/mod.rs
+index e4144dc4faa..1dca5b507ff 100644
+--- a/crates/topo/src/boolean/mod.rs
++++ b/crates/topo/src/boolean/mod.rs
+@@ -7196,15 +7196,62 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
+         &classified.iter().map(|(c, ..)| *c).collect::<Vec<_>>(),
+         &crossing,
+     );
++    let svc_clear = std::env::var_os("SVC_A_CLEAR").is_some();
++    let svc_unshared_out = std::env::var_os("SVC_A_UNSHARED_OUT").is_some();
++    let all_contacts: Vec<VvContact> = classified.iter().map(|(c, ..)| *c).collect();
++    let is_shared = |i: usize| {
++        crossing[i]
++            && (0..all_contacts.len()).any(|j| {
++                j != i
++                    && crossing[j]
++                    && (all_contacts[j].a == all_contacts[i].a
++                        || all_contacts[j].b == all_contacts[i].b)
++            })
++    };
++    // SVC_B_KEPT: every pair (shared or not) starts where its lead's
++    // runs lie on the side the op keeps of the lead; SVC_A_CLEAR then
++    // takes the other start once where that one's runs are not clear.
++    let svc_b_kept = std::env::var_os("SVC_B_KEPT").is_some();
++    let mut flipped: Vec<bool> = (0..classified.len())
++        .map(|i| {
++            if svc_b_kept {
++                finish::kept_side(op, leads[i]) == SideCode::Out
++            } else {
++                svc_unshared_out && !is_shared(i)
++            }
++        })
++        .collect();
++    let mut tried: Vec<bool> = vec![false; classified.len()];
++    // SVC_B_SEARCH: try every set of pairs to take the other start,
++    // fewest first, from the kept start.
++    let svc_b_search = std::env::var_os("SVC_B_SEARCH").is_some();
++    let kept0 = flipped.clone();
++    let sh_ix: Vec<usize> = (0..classified.len()).filter(|&i| is_shared(i)).collect();
++    let nplans = sh_ix.len();
++    let mut masks: Vec<u32> = if svc_b_search && nplans <= 10 {
++        let mut m: Vec<u32> = (0..(1u32 << nplans)).collect();
++        m.sort_by_key(|x| (x.count_ones(), *x));
++        m
++    } else {
++        vec![0]
++    };
++    masks.reverse();
++    if svc_b_search {
++        masks.pop();
++    }
++    let (plans, orbits) = loop {
+     let mut plans = classified
+         .iter()
+-        .zip(leads)
+-        .map(|((c, a_sectors, b_sectors, records, raw, _), lead)| {
++        .zip(leads.iter().copied())
++        .enumerate()
++        .map(|(i, ((c, a_sectors, b_sectors, records, raw, _), lead))| {
++            insert::SVC_A_FLIP.with(|f| f.set(flipped[i]));
+             insert::plan_null_pairs(
+                 &a, &b, *c, a_sectors, b_sectors, records, raw, &declared, &contacts, lead, band,
+             )
+         })
+         .collect::<Result<Vec<_>, _>>()?;
++    insert::SVC_A_FLIP.with(|f| f.set(false));
+     #[cfg_attr(not(any(test, feature = "test-support")), allow(unused_mut))]
+     let mut orbits: Vec<_> = classified
+         .iter()
+@@ -7212,7 +7259,34 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
+         .collect();
+     #[cfg(any(test, feature = "test-support"))]
+     insert::reverse_when_asked(&mut plans, &mut orbits);
+-    insert::reconcile_shared(&mut plans, &orbits, band)?;
++    insert::SVC_A_HELD.with(|h| h.set(None));
++    match insert::reconcile_shared(&mut plans, &orbits, band) {
++        Ok(()) => break (plans, orbits),
++        Err(e @ BooleanError::ClassificationInvariant { .. }) if svc_b_search => {
++            match masks.pop() {
++                Some(m) => {
++                    flipped.clone_from(&kept0);
++                    for (k, &i) in sh_ix.iter().enumerate() {
++                        flipped[i] = kept0[i] != ((m >> k) & 1 == 1);
++                    }
++                    eprintln!("SVC-B-SEARCH mask {m:b}");
++                }
++                None => return Err(e),
++            }
++        }
++        Err(e @ BooleanError::ClassificationInvariant { .. }) if svc_clear => {
++            match insert::SVC_A_HELD.with(std::cell::Cell::get) {
++                Some(i) if !tried[i] && (svc_b_kept || !flipped[i]) => {
++                    eprintln!("SVC-A-CLEAR flip plan {i} flipped={flipped:?}");
++                    flipped[i] = !flipped[i];
++                    tried[i] = true;
++                }
++                held => { eprintln!("SVC-A-CLEAR give up held={held:?} flipped={flipped:?} tried={tried:?}"); return Err(e) }
++            }
++        }
++        Err(e) => return Err(e),
++    }
++    };
+     let out = insert::mint_plans(&mut a, &mut b, &plans, &orbits, band)?;
+     null_edges.extend(out.edges)?;
+     null_pairs.extend(out.pairs);
