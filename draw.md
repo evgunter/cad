@@ -16,4 +16,14 @@ They agree on: f64 entering as itself; the band is not in the crossing; one cros
 
 Harness token counts (first report):
 - A (Opus): 213,136
-- B (Fable): recorded with round 1's close
+- B (Fable): 204,182
+
+## Round 2 (2026-11-11)
+
+Each designer was shown the other's round-1 report. The positions crossed:
+- **A** moved to B's `CellBound` type, for F28–F30 and the shell's missing scope. A added a rule: a cell bound never establishes an equality, which comes instead from topology, tier 3 or a point reading. A adopted B's point readings at `T`, and dropped its own "every refusal names its lever".
+- **B** dropped the type, because `Vec3<T: Real>` forces a full `Real` by delegation, the shape PR 2701 retired. B took A's changes 1–3, and added change 4: the engine's door owns the unlogged disposition of its cell readings.
+
+The positions moved but did not meet. Round 3 asks the question beneath them: is the log split held by a type or by a door, and does a delegating `Real` without `Decide` reopen PR 2701's ruling?
+
+Totals after round 2: A 229,240; B 218,397.
