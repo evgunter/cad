@@ -680,7 +680,7 @@ mod tests {
     /// reversal used to leave pointing the wrong way. After `revert`
     /// the image is the stored one with `v` negated coefficient for
     /// coefficient; the SOURCE's curve re-certified against the
-    /// reverted surfaces refuses `ChartResidual` at sample 1 (the
+    /// reverted surfaces refuses `StatedImage` at sample 1 (the
     /// merge-base shape of the defect, kept as the control), the
     /// reverted curve re-certified there yields the certificate it
     /// carries, byte for byte, and the involution restores the bits.
@@ -689,7 +689,7 @@ mod tests {
         use crate::construction::{FaceSurface, MevSite};
         use geom::{Curve3, Surface};
         use geom_brep::EdgeCurveSpec;
-        use geom_brep::certify::{CertCheck, CertifyError};
+        use geom_brep::certify::CertifyError;
         use geom_core::{Band, Point3, Vec3};
 
         let tol = Tol::witness();
@@ -781,11 +781,7 @@ mod tests {
                     band,
                     geom_brep::NurbsLane::certified()
                 ),
-                Err(CertifyError::ResidualExceeded {
-                    check: CertCheck::ChartResidual,
-                    sample: 1,
-                    ..
-                })
+                Err(CertifyError::StatedImageMissed { sample: 1, .. })
             ),
             "the source's image is wrong on the reverted plane"
         );

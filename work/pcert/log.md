@@ -1239,3 +1239,24 @@ E1c waits on the answer.
 - 2026-11-11 — **Dispatched** P1 `a-closed-form-image-stated-on-an-analytic-chart-is-metered-at-nine-samples` (filed by PR 6836).
   - Branch `pcert/closed-form-image-bounded`, from `d7fea092cc`.
   - Review tier: single FULL, soundness-led. The fix is a new bound over a trigonometric family, and it must keep the ~300 mirrored and periodic product reads on-image, so believing it takes more than reading it.
+- 2026-11-11 — **PR 6836 merged: a stated image on an analytic chart is metered against its carrier over its span** (closes the P1 `a-stated-image-on-an-analytic-chart-is-metered-against-its-carrier-at-nine-samples`).
+  - **What it does.** `StatedDoor` routes each stated image to the door that certifies its class: on an analytic chart, its pcurve door, or the fitted composite against a bilinear patch (`pcurve_cache/patch.rs`). The patch equals the chart along the image, on a plane and on a cylinder or cone ruling.
+  - **Endings (E1d, D4 ¶1 (iv)).**
+    - A shown miss ends `StatedImageMissed`: the kernel's defect at a build, the culprit at rest, the file at import.
+    - An unlocated closed-form envelope ends `StatedImageUnsettled`, and an in-band reading ends `Escalated{StatedImage}`. Both are the lever at every door.
+    - Structural refusals keep their own defect ending.
+    - It does not ride `StoredContradiction`'s stale build arm. The open P2 `stored-contradiction-at-a-build-still-tells-the-lever-story` has gained this instance as evidence.
+  - **Review.** Single FULL, soundness-led. FULL review → fix list QQ → delta review → fix list RR → second delta review: APPROVE.
+    - The patch route held every falsification probe at f64 and Interval, ε 1e-9 and 1e-12, and a patch-off mutant turns 8 of 10 rows red.
+    - Upheld across the rounds:
+      - the D4 build arm;
+      - one exhaustive ending per route refusal, with no catch-all and no re-meter;
+      - the patch class decided once;
+      - a spline iso line's between-samples miss never ending "not yet";
+      - `NOT_A_SAMPLE` for envelope-term misses;
+      - a withdrawn cost figure, so the cost line now reads "no measurable cost on product rows".
+  - **Filed.**
+    - P1 `a-closed-form-image-stated-on-an-analytic-chart-is-metered-at-nine-samples`: the sampled cells, with two executed witnesses.
+    - P3 `a-correct-stated-image-far-from-the-origin-reads-in-band-at-a-fine-band`: a false refusal at 1 km, ε 1e-12, which ends in the lever and certifies nothing false.
+    - P3 `readers-of-the-stated-image-lever-match-escalated-alone`: two error shapes for one lever. It also records the class finding that an unlocated bound past the band is spelled two ways, the lever on the envelope and "not yet" on the fitted composite.
+  - **Not filed, argued.** An iso line outside its column's spline space ends "not yet" (`IsoUnsupported`), but product builders state the column itself as the carrier. The census found no other kind.
