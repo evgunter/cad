@@ -3081,9 +3081,9 @@ impl<T: Real> PcurveCertificate<T> {
 ///
 /// The `edge_nurbs` schedule with no per-sample hook: the transversality
 /// sweep the adopt path runs there is a statement about the PLANE
-/// operand, which is the edge certificate's and not the row's. A carrier
-/// whose foot path [`bends`] climbs `edge_nurbs::curved_chart_image`'s
-/// rungs; any other takes the degree-1 image its edge certificate reads.
+/// operand, which is the edge certificate's and not the row's. The image
+/// is `edge_nurbs::general_chart_image`'s: the degree-1 image the edge
+/// certificate reads, climbed where its measured miss asks.
 pub(crate) fn general_image_lane<T: Decide + geom_core::Bounds + geom_core::CertifiedEnclosure>(
     carrier: &Curve3<T>,
     params: (T, T),
@@ -3103,11 +3103,12 @@ pub(crate) fn general_image_lane<T: Decide + geom_core::Bounds + geom_core::Cert
         magnitude: None,
         ending,
     };
-    let bending = bends(carrier);
-    let image = if bending {
-        crate::edge_nurbs::curved_chart_image(schedule, wall, band)
-    } else {
-        crate::edge_nurbs::chart_image(schedule, wall, |_, _| Ok(()))
+    let image = crate::edge_nurbs::general_chart_image(schedule, wall, band);
+    #[cfg(test)]
+    let image = match mutants::general_image_class_gate(carrier) {
+        Some(true) => crate::edge_nurbs::curved_chart_image(schedule, wall, band),
+        Some(false) => crate::edge_nurbs::chart_image(schedule, wall, |_, _| Ok(())),
+        None => image,
     };
     image.map_err(|e| match e {
         P::FootPointInconclusive {
@@ -3130,19 +3131,10 @@ pub(crate) fn general_image_lane<T: Decide + geom_core::Bounds + geom_core::Cert
             }),
             ending: FittedEnding::FootUnsettled,
         },
-        // A bending carrier's image is its lane's own structure, so a fit
-        // that will not solve is the lane's gap (unhit, not unreachable:
-        // breaks are kept clear of the domain's ends, not of each other);
-        // a line's or a spline's degree-1 fit through distinct feet always
+        // Only the degree-1 rung's fit reaches here (a climb that refuses
+        // keeps it), and a degree-1 fit at distinct parameters always
         // solves.
-        P::PcurveFit => certificate(
-            crate::edge_nurbs::PCURVE_FIT_REFUSAL,
-            if bending {
-                FittedEnding::NotYet
-            } else {
-                FittedEnding::Defect
-            },
-        ),
+        P::PcurveFit => certificate(crate::edge_nurbs::PCURVE_FIT_REFUSAL, FittedEnding::Defect),
         P::CarrierDomain(refusal) => PcurveCertifyError::CarrierDomain(refusal),
         // The wall this door was handed, as the foot producer refuses it
         // (`chart_foot_lane`): one lever at both doors.
@@ -3165,15 +3157,6 @@ pub(crate) fn general_image_lane<T: Decide + geom_core::Bounds + geom_core::Cert
              the mint passes a no-op hook and runs no certificate: {other:?}"
         ),
     })
-}
-
-/// Whether `carrier`'s foot path on a spline chart bends, so that the
-/// mint images it at `edge_nurbs::curved_chart_image`'s rungs: a curved
-/// carrier with no net. A line's path is straight wherever the chart is
-/// flat, and a spline's image is the degree-1 one its edge certificate
-/// reads (`edge_nurbs::chart_image`).
-pub(crate) fn bends<T: Real>(carrier: &Curve3<T>) -> bool {
-    carrier.is_curved() && !matches!(carrier, Curve3::Nurbs(_))
 }
 
 /// The foot producer's body, shared by every certifying scalar
@@ -9607,9 +9590,10 @@ fn chart_image<T: Decide>(
 ///
 /// - a conic's or a line's projected image ([`chart_pcurve_over`]), on
 ///   its sector, its metre conversion's lever or its envelope;
-/// - a bending carrier's `General` image on a spline chart (`topo`'s
-///   mint, at `edge_nurbs::curved_chart_image`'s finest rung), on any
-///   bound of its miss ([`LaneImage::General`]).
+/// - a `General` image on a spline chart (`topo`'s mint, at
+///   `edge_nurbs::general_chart_image`'s rung: the degree-1 image, or the
+///   finer one its measured miss climbed to), on any bound of its miss
+///   ([`LaneImage::General`]).
 ///
 /// Read by the doors that certify an image they just derived (the
 /// mint's walk, `topo::pcurves`), never by one that re-certifies a
@@ -9633,9 +9617,13 @@ pub fn minted_refusal<T: Real>(
         {
             LaneImage::Projected
         }
-        Pcurve::General(_) if bends(carrier) => LaneImage::General,
+        Pcurve::General(_) => LaneImage::General,
         _ => return refused,
     };
+    #[cfg(test)]
+    if lane == LaneImage::General && mutants::general_image_class_gate(carrier) == Some(false) {
+        return refused;
+    }
     #[cfg(test)]
     if mutants::lane_envelope_bound() {
         return refused;
@@ -9689,9 +9677,10 @@ pub enum LaneGap {
     /// the miss, refused it ([`ENVELOPE_LEVER`]).
     Envelope,
     /// A spline chart's lane images this carrier, but its `General`
-    /// image, fitted through the carrier's feet at its finest structure,
-    /// does not follow the carrier inside the band: the certificate's
-    /// bound on the image's miss refused it ([`IMAGE_LEVER`]).
+    /// image, fitted through the carrier's feet at the structure their
+    /// measured miss asked for, does not follow the carrier inside the
+    /// band: the certificate's bound on the image's miss refused it
+    /// ([`IMAGE_LEVER`]).
     Image,
 }
 
@@ -9705,9 +9694,9 @@ pub(crate) const ENVELOPE_LEVER: &str = "the general image's certificate bounds 
 /// The lever of a [`LaneGap::Image`]: the one sentence both
 /// [`PcurveCertifyError::NoGeneralLane`]'s and
 /// [`crate::CertifyError::NoGeneralLane`]'s Display give it.
-pub(crate) const IMAGE_LEVER: &str = "the general image of a curved carrier on a spline chart \
-     is fitted through the carrier's feet, and over this edge its finest fit does not follow \
-     the carrier inside the band; a shorter edge reads a finer one";
+pub(crate) const IMAGE_LEVER: &str = "the general image of a carrier on a spline chart is \
+     fitted through the carrier's feet, and over this edge its fit does not follow the carrier \
+     inside the band; a shorter edge reads a finer one";
 
 /// **The general lane's refusal at the mint**: the one place a
 /// general-lane refusal is relabelled, read from both of `chart_image`'s
@@ -9738,7 +9727,7 @@ pub(crate) const IMAGE_LEVER: &str = "the general image of a curved carrier on a
 /// before the call: for the projected image by [`projected::has_lane`],
 /// and for the `General` image by its producer, which images on a spline
 /// chart alone (`general_image_lane`), and by [`minted_refusal`], which
-/// hands this a bending carrier's image alone.
+/// hands this a minted image alone.
 fn general_lane_refusal<T: Real>(
     refused: PcurveCertifyError,
     lane: LaneImage,
@@ -12987,6 +12976,9 @@ mod cylinder_line_rows;
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::panic)]
 mod ellipse_lane_rows;
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::panic)]
+mod general_climb_rows;
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::panic)]
 mod harmonic_sup_rows;

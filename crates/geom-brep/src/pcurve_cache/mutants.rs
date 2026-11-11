@@ -24,7 +24,7 @@ const NAME: Option<&str> = option_env!("PCERT_RADIAL_PAIR_MUTANT");
 
 /// Every site this crate's hooks name. topo's `chord_join` declares its
 /// own one (`topo-v-var`) under the same variable.
-pub(super) const SITES: [&str; 40] = [
+pub(super) const SITES: [&str; 41] = [
     "class-circle",
     "zero-winding",
     "torus-parallel",
@@ -65,6 +65,7 @@ pub(super) const SITES: [&str; 40] = [
     "arc-rim-weight-unpaid",
     "arc-rim-span-unpaid",
     "arc-rim-tangent-under",
+    "general-image-class-gate",
 ];
 
 fn on(site: &str) -> bool {
@@ -374,4 +375,14 @@ pub(super) fn arc_rim_span_unpaid() -> bool {
 /// `iso_arc_weight_rows::a_short_sub_arc_pays_its_tangential_miss`).
 pub(super) fn arc_rim_tangent_under() -> bool {
     on("arc-rim-tangent-under")
+}
+
+/// The mint's `General` image climbed on its carrier's class rather than
+/// its measured miss: `Some(true)` for a curved carrier with no net,
+/// which climbs, and `Some(false)` for any other, which takes the
+/// degree-1 image and whose refusal keeps its own term (its rows are
+/// `general_climb_rows`).
+pub(crate) fn general_image_class_gate<T: Real>(carrier: &geom::Curve3<T>) -> Option<bool> {
+    on("general-image-class-gate")
+        .then(|| carrier.is_curved() && !matches!(carrier, geom::Curve3::Nurbs(_)))
 }
