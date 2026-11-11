@@ -63,15 +63,16 @@ fn walls(body: &Body<f64>) -> Vec<topo::FaceKey> {
         .collect()
 }
 
-/// The `y` span of `face`'s outer loop.
+/// The `y` span of `face`'s loops.
 fn y_span(body: &Body<f64>, face: topo::FaceKey) -> (f64, f64) {
-    let f = body.get_face(face).unwrap();
-    let topo::LoopBoundary::Cycle { first } = body.get_loop(f.outer).unwrap().boundary else {
-        panic!("a wall's outline is a cycle");
-    };
-    body.loop_cycle(first)
+    body.face(face)
         .unwrap()
-        .into_iter()
+        .loops()
+        .filter_map(|(_, l, _)| match l.boundary {
+            topo::LoopBoundary::Cycle { first } => body.loop_cycle(first),
+            topo::LoopBoundary::Empty { .. } => None,
+        })
+        .flatten()
         .filter_map(|he| body.half_edge_start_point(he))
         .fold((f64::INFINITY, f64::NEG_INFINITY), |(lo, hi), p| {
             (lo.min(p.y), hi.max(p.y))

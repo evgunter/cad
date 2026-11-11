@@ -109,8 +109,12 @@ fn a_ring_crossed_at_its_vertices_is_divided_or_refused() {
                 other => panic!("{what}: {:?}", other.map(|_| ())),
             };
             let (kept, taken) = (body("subtract", sub), body("intersect", int));
+            // The offset's sliver: the strip `d` wide across the plate's
+            // 6 m section, which the corners identified at `x = 0` leave
+            // the cut face's fan to read either side of.
+            let sliver = 6.0 * d;
             assert!(
-                (taken - half(d)).abs() < 1e-9 && (kept + taken - whole).abs() < 1e-9,
+                (taken - half(d)).abs() < 1e-9 + sliver && (kept + taken - whole).abs() < 1e-9,
                 "{what}: intersect {taken} is the half at x ≥ d, subtract {kept} the rest"
             );
             let r = cut.unwrap_or_else(|e| panic!("{what}: the split refused: {e:?}"));
@@ -120,7 +124,7 @@ fn a_ring_crossed_at_its_vertices_is_divided_or_refused() {
             };
             let (above, below) = (side(&r.above), side(&r.below));
             assert!(
-                (above - half(d)).abs() < 1e-9 && (above + below - whole).abs() < 1e-9,
+                (above - half(d)).abs() < 1e-9 + sliver && (above + below - whole).abs() < 1e-9,
                 "{what}: the split's sides {above} + {below}"
             );
         } else {

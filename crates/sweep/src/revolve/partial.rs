@@ -443,12 +443,21 @@ fn finish_partial<T: Decide + topo::AtRestPolicy>(
                     // and its row is recorded.
                     if let Some(margin) = smooth {
                         let start_cap = face_wearing(body, bottom, start_surface);
-                        if let Some(row) = body.one_record_across(bottom, start_cap, margin, tol)? {
+                        if let Some(caps) = body.one_record_across(bottom, start_cap, tol)? {
                             let Ok(sides) = topo::readback::edge_sides(body, bottom) else {
                                 unreachable!("axis edge {bottom:?} was read a moment ago")
                             };
                             (start_surface, end_surface) = sides.surfaces();
-                            coplanar = Some(row);
+                            coplanar = Some(topo::Coincidence {
+                                cells: caps.map(|face| topo::RowCell::Result {
+                                    cell: topo::Cell::Face(face),
+                                }),
+                                more: [None; 3],
+                                relation: topo::Relation::SameOriented,
+                                site: topo::DecisionSite::SmoothJoin,
+                                margin,
+                                discharge: topo::Discharge::of(margin),
+                            });
                         }
                     }
                 }

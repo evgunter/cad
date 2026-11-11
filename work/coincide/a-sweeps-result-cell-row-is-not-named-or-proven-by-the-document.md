@@ -10,8 +10,9 @@ opened: 2026-11-03
 A half revolve's two caps are one plane, decided from the turn's value:
 `sweep::revolve` now leaves them on one surface record and returns the
 decision's row in `RevolvedKind::Partial::coplanar_caps`
-(`crates/sweep/src/revolve/partial.rs` `finish_partial`, through
-`topo::Body::unify_across`). The row's cells are `RowCell::Result` faces:
+(`crates/sweep/src/revolve/partial.rs` `finish_partial`, handing the
+smooth verdict it reads on the axis edge to
+`topo::Body::one_record_across`). The row's cells are `RowCell::Result` faces:
 a sweep has no input body to key them in. `editor-core` reads no such
 row: `emit_sweep.rs` ignores the field, and `coincide::name_rows` holds a
 result cell `unreachable!` ("the at-rest census is the only producer of a

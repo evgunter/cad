@@ -4,8 +4,8 @@
 //!
 //! A verdict that faces lie on one carrier ends with them on one
 //! surface record. The deciding reading mints a [`OneRecord`]: the
-//! faces it moves onto the kept record, read before it decided
-//! ([`moved_closure`]), and the row it records. [`Body::one_record`]
+//! faces it moves onto the kept record ([`moved_closure`]), every one of
+//! them read over by the verdict; the reading records its own row. [`Body::one_record`]
 //! is the one act that consumes a token; no caller hands it a record.
 //! A verdict decided from values reaches only the faces it was read
 //! over, so a face the token does not move keeps its record, whatever
@@ -25,25 +25,20 @@ use crate::entity::FaceKey;
 use crate::euler::EulerOpError;
 
 /// **One value-decided coincidence verdict, ready to be acted on**: the
-/// faces it moves onto `kept` from `other`, and the row it records.
+/// faces it moves onto `kept` from its other records.
 /// Only a deciding reading mints one ([`Self::minted`]).
 #[derive(Clone, Debug)]
 pub(crate) struct OneRecord {
     /// The record the moved faces are left on.
     pub(crate) kept: SurfaceKey,
-    /// The record they leave.
-    pub(crate) other: SurfaceKey,
-    /// Whether the two records' charts face the same way: a moved
-    /// face's sense is restated where they do not, so its material
-    /// side is unchanged.
-    pub(crate) charts_agree: bool,
-    /// The faces the verdict was read over that wear `other`: each
+    /// The records they leave, each with whether its chart faces as the
+    /// kept one's does: a moved face's sense is restated where it does
+    /// not, so its material side is unchanged.
+    pub(crate) others: Vec<(SurfaceKey, bool)>,
+    /// The faces the verdict was read over that wear an other record: each
     /// decided face on it, every fragment of one, and their closure
     /// under same-record adjacency ([`moved_closure`]).
     pub(crate) moved: BTreeSet<FaceKey>,
-    /// The row the act records, where the deciding reading has not
-    /// recorded it already.
-    pub(crate) row: Option<crate::Coincidence>,
 }
 
 impl OneRecord {
@@ -53,14 +48,11 @@ impl OneRecord {
         (kept, other): (SurfaceKey, SurfaceKey),
         charts_agree: bool,
         moved: BTreeSet<FaceKey>,
-        row: Option<crate::Coincidence>,
     ) -> Self {
         Self {
             kept,
-            other,
-            charts_agree,
+            others: vec![(other, charts_agree)],
             moved,
-            row,
         }
     }
 
@@ -146,8 +138,6 @@ impl<T: Decide + crate::props::AtRestPolicy> Body<T> {
     /// certified on the kept chart at the ordinary write gate. A face
     /// the token does not move keeps its record. Reads no value.
     ///
-    /// Returns the row the token carries, for the caller's record.
-    ///
     /// # Errors
     ///
     /// The re-chart door's
@@ -160,27 +150,25 @@ impl<T: Decide + crate::props::AtRestPolicy> Body<T> {
         site: crate::policy_lane::KernelSite,
         token: &OneRecord,
         tol: Tol,
-    ) -> Result<Option<crate::Coincidence>, EulerOpError> {
-        self.recharted_onto(site, token, tol)?;
-        Ok(token.row)
+    ) -> Result<(), EulerOpError> {
+        self.recharted_onto(site, token, tol)
     }
 }
 
 impl<T: Decide + crate::props::AtRestPolicy> Body<T> {
     /// **The two faces either side of `edge`, decided one carrier by the
     /// smooth join a sweep read there, left on one record**: the act
-    /// ([`Body::one_record`]) on the token that reading mints. `margin`
-    /// is the join's own decision (the dihedral the sweep read across
-    /// `edge`, decided smooth), which this re-reads nowhere; a smooth
-    /// join that is no slit faces one way across the edge, so the two
-    /// faces' material sides agree. The kept record is the one alone also
+    /// ([`Body::one_record`]) on the token that reading mints. The
+    /// verdict is the sweep's (the dihedral it read across `edge`,
+    /// decided smooth), read nowhere again here, and its row the sweep's
+    /// to record; a smooth join that is no slit faces one way across the
+    /// edge, so the two faces' material sides agree. The kept record is the one alone also
     /// worn by faces outside the two ([`kept_of`]), else `first`'s, the
     /// face the sweep wrote first; the moved face's closure under
     /// same-record adjacency moves with it ([`moved_closure`]).
     ///
-    /// Returns the decision's row, its cells the two faces of this body.
-    /// `None`, and nothing written, where the two faces already wear one
-    /// record.
+    /// Returns the two faces, `first`'s first, for the row's cells.
+    /// `None`, and nothing written, where they already wear one record.
     ///
     /// # Errors
     ///
@@ -191,9 +179,8 @@ impl<T: Decide + crate::props::AtRestPolicy> Body<T> {
         &mut self,
         edge: crate::entity::EdgeKey,
         first: FaceKey,
-        margin: geom_core::MarginDiag,
         tol: Tol,
-    ) -> Result<Option<crate::Coincidence>, EulerOpError> {
+    ) -> Result<Option<[FaceKey; 2]>, EulerOpError> {
         crate::live::lookup(
             &self.edges,
             edge,
@@ -234,32 +221,22 @@ impl<T: Decide + crate::props::AtRestPolicy> Body<T> {
         );
         let charts_agree =
             self.proven_face(kept).record().sense == self.proven_face(moving).record().sense;
-        let row = crate::Coincidence {
-            cells: [first, second].map(|face| crate::RowCell::Result {
-                cell: crate::Cell::Face(face),
-            }),
-            more: [None; 3],
-            relation: crate::Relation::SameOriented,
-            site: crate::DecisionSite::SmoothJoin,
-            margin,
-            discharge: crate::Discharge::of(margin),
-        };
         let token = OneRecord::minted(
             (kept_key, other_key),
             charts_agree,
             moved_closure(self, &[moving]),
-            Some(row),
         );
-        self.one_record(crate::policy_lane::KernelSite::OneRecord, &token, tol)
+        self.one_record(crate::policy_lane::KernelSite::OneRecord, &token, tol)?;
+        Ok(Some([first, second]))
     }
 }
 
 impl<T: Decide + crate::props::AtRestPolicy> Body<T> {
     /// **A merge's run of faces its margins decided one carrier, left on
     /// one record without the surgery** (a curved run the merge records
-    /// as skipped): the act ([`Body::one_record`]) on the tokens the
-    /// run's verdicts mint, one per record the run wears besides the kept
-    /// one. The kept record is the one alone also worn by faces outside
+    /// as skipped): the act ([`Body::one_record`]) on the token the
+    /// run's verdicts mint, moving every record the run wears besides the
+    /// kept one in one move. The kept record is the one alone also worn by faces outside
     /// the run ([`kept_of`]'s rule), else its first face's; each other
     /// record's faces in the run move with their closure under
     /// same-record adjacency ([`moved_closure`]). A run faces one way
@@ -307,20 +284,22 @@ impl<T: Decide + crate::props::AtRestPolicy> Body<T> {
                 .unwrap_or(first),
             _ => first,
         };
-        for &(other, sense) in records.iter().filter(|&&(k, _)| k != kept.0) {
-            let on: Vec<FaceKey> = run
-                .iter()
-                .copied()
-                .filter(|&f| record(self, f).0 == other)
-                .collect();
-            let token = OneRecord::minted(
-                (kept.0, other),
-                sense == kept.1,
-                moved_closure(self, &on),
-                None,
-            );
-            self.one_record(crate::policy_lane::KernelSite::OneRecord, &token, tol)?;
-        }
+        let others: Vec<(SurfaceKey, bool)> = records
+            .iter()
+            .filter(|&&(k, _)| k != kept.0)
+            .map(|&(k, sense)| (k, sense == kept.1))
+            .collect();
+        let on: Vec<FaceKey> = run
+            .iter()
+            .copied()
+            .filter(|&f| record(self, f).0 != kept.0)
+            .collect();
+        let token = OneRecord {
+            kept: kept.0,
+            others,
+            moved: moved_closure(self, &on),
+        };
+        self.one_record(crate::policy_lane::KernelSite::OneRecord, &token, tol)?;
         Ok(())
     }
 }

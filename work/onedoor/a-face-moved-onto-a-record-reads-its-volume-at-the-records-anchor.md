@@ -2,8 +2,9 @@
 id: a-face-moved-onto-a-record-reads-its-volume-at-the-records-anchor
 kind: issue
 title: A face moved onto a one-carrier record reads its volume term at that record's anchor, so the shift is bounded by the carriers' gap there, not over the faces
-status: open
+status: closed
 opened: 2026-11-04
+closed: 2026-11-10
 ---
 
 
@@ -36,3 +37,19 @@ re-anchor the kept record inside the extent the verdict was decided on,
 or to restate the moved face's boundary onto the kept record. Curved
 records have the same shape (per-surface anchors) and want the same
 reading.
+
+## Fixed (2026-11-10)
+
+A face's measure is read at the face (`crates/geom-brep/README.md`
+`[geom-brep.face-anchored]`): the plane term is its boundary's flux
+about a point of the face (`geom_brep::props::planar_face`), a
+cylinder's origin is re-anchored at the face before its closed form
+(`geom_brep::surface_anchored_at`, through `topo`'s
+`props::face_anchored`), and `props::rounding_bound` levers from the
+same anchor. No record's origin enters a face's term, so a face moved
+onto a record anchored far off reads its own fan. Witnesses, both
+operand orders, within ε times the moved face's area of the operands'
+sum: `crates/topo/tests/a_verdict_moves_only_the_faces_it_read.rs`
+(R1's lean kiss, R2's turned kiss at 0.1, 0.3 and 0.6 ε, two flush
+blocks, the slotted plate). The guard is `topo`'s
+`props::face_list_door_tests::sliding_every_record_along_its_symmetry_moves_no_reading`.

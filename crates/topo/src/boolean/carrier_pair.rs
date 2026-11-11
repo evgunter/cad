@@ -301,7 +301,7 @@ pub fn carrier_pair_decided<T: Decide>(
 /// # Panics
 ///
 /// As [`carrier_pair_decided`].
-pub(crate) fn carrier_pair_decided_over<T: Decide>(
+pub(super) fn carrier_pair_decided_over<T: Decide>(
     a: &Body<T>,
     fa: FaceKey,
     b: &Body<T>,
@@ -320,7 +320,7 @@ pub(crate) fn carrier_pair_decided_over<T: Decide>(
 /// # Errors
 ///
 /// The side whose face's extent cannot be read.
-pub(crate) fn glue_extent<T: Decide>(
+pub(super) fn glue_extent<T: Decide>(
     a: &Body<T>,
     fa: FaceKey,
     b: &Body<T>,
@@ -928,37 +928,5 @@ mod lever_rows {
             ending.contains("subdivide"),
             "a straddle's ending subdivides: {ending}"
         );
-    }
-}
-
-/// **Where a conventional edge between two surfaces rests** — the one
-/// home of D2's split between a locus one chart defines and one two
-/// surfaces under-determine ([`geom_brep::RestLocus`]); every door
-/// states what it decides. A key reading: one surface record on both
-/// sides is one surface, and the edge rests in its chart; two records
-/// are two surfaces at rest (DESIGN `[coincidence.door]`), and the edge
-/// rests on their pair. Where an act decided two faces one carrier it
-/// left them on one record ([`crate::one_record`]), so no value is read
-/// here.
-///
-/// The pair's certificate is incidence on both surfaces, which holds
-/// whether or not they are one carrier, so the description is true
-/// under either reading and needs no decision.
-///
-/// **What a reader must not do with a pair.** An `OnPair` here may lie
-/// between two near-coincident surfaces — two planes `ε` apart — whose
-/// intersection is ill-conditioned or absent. The stored carrier is the
-/// pair's defining data: no reader derives the edge's geometry from the
-/// pair's section. A door that moves or re-anchors such an edge carries
-/// or re-sections its CARRIER and re-asks the rule over it
-/// ([`geom_brep::reask_pair`]); a door that would re-derive a section
-/// from the moved surfaces refuses typed where that section does not
-/// certify.
-#[must_use]
-pub fn rest_locus([ka, kb]: [crate::SurfaceKey; 2]) -> geom_brep::RestLocus {
-    if ka == kb {
-        geom_brep::RestLocus::Chart(ka)
-    } else {
-        geom_brep::RestLocus::Pair(geom_brep::SurfacePair::new(ka, kb))
     }
 }

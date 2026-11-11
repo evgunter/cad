@@ -141,7 +141,8 @@ impl<T: Decide> Body<T> {
     }
 
     /// [`Body::one_record`]'s re-chart: `token`'s moved faces still on
-    /// its other record onto its kept one, certified at the write gate.
+    /// one of its other records onto its kept one, in one move, certified
+    /// at the write gate.
     pub(crate) fn recharted_onto(
         &mut self,
         site: crate::policy_lane::KernelSite,
@@ -151,16 +152,19 @@ impl<T: Decide> Body<T> {
     where
         T: crate::props::AtRestPolicy,
     {
-        let (kept, other) = (token.kept, token.other);
-        if kept == other {
-            return Ok(());
-        }
+        let kept = token.kept;
+        let agree = |k: SurfaceKey| {
+            token
+                .others
+                .iter()
+                .find(|&&(o, _)| o == k && o != kept)
+                .map(|&(_, a)| a)
+        };
         let mut wearers = token
             .moved
             .iter()
             .filter_map(|&f| self.get_face(f).map(|face| (f, face)))
-            .filter(|(_, face)| face.surface == other)
-            .map(|(f, face)| (f, face.sense == token.charts_agree));
+            .filter_map(|(f, face)| agree(face.surface).map(|a| (f, face.sense == a)));
         let Some((first, sense)) = wearers.next() else {
             return Ok(());
         };
@@ -170,24 +174,56 @@ impl<T: Decide> Body<T> {
         let on_kept: std::collections::BTreeSet<FaceKey> =
             chart.faces.iter().map(|w| w.face).collect();
         let charts = vec![chart];
+        // Every boundary edge of a moved face is certified on the record
+        // its moved side wears after the move: carried where its
+        // description renames onto it, and otherwise restated where it
+        // rests by key ([`crate::rest_locus`]), in the kept chart between
+        // two faces of the kept record and on the pair beside another.
         let mut specs = self.carried_redescriptions(&charts)?;
-        let one = geom_brep::SurfacePair::new(kept, other);
-        for edge in self.stranded_by(&charts)? {
-            if specs.iter().any(|(e, _)| *e == edge) {
+        let after = |f: FaceKey| {
+            if on_kept.contains(&f) {
+                Some(kept)
+            } else {
+                self.get_face(f).map(|face| face.surface)
+            }
+        };
+        let names = |spec: &EdgeDescriptionSpec<T>, k: SurfaceKey| match spec {
+            EdgeDescriptionSpec::Chart { surface, .. } => *surface == k,
+            EdgeDescriptionSpec::Intersection { pair, .. }
+            | EdgeDescriptionSpec::TangentIntersection { pair, .. }
+            | EdgeDescriptionSpec::OnPair { pair, .. } => pair.keys().contains(&k),
+            EdgeDescriptionSpec::Scaffold(_) => true,
+        };
+        let mut boundary: Vec<EdgeKey> = on_kept
+            .iter()
+            .flat_map(|&f| self.run_edges(&self.proven_face(f).half_edges()))
+            .collect();
+        boundary.sort_unstable();
+        boundary.dedup();
+        for edge in boundary {
+            let [fp, fm] = crate::wedge_reach::edge_faces(self, edge);
+            if fp == fm {
                 continue;
             }
+            let (Some(sp), Some(sm)) = (after(fp), after(fm)) else {
+                continue;
+            };
             let data = proven(&self.edges, edge, EntityId::Edge);
             let Some(curve) = self.edge_curve_linked(edge, data).certified() else {
                 continue;
             };
-            let both_kept = crate::wedge_reach::edge_faces(self, edge).iter().all(|&f| {
-                on_kept.contains(&f) || self.get_face(f).is_some_and(|face| face.surface == kept)
-            });
-            if both_kept
-                && matches!(Named::of_description(curve.description()), Named::Pair(p) if p == one)
-            {
-                specs.push((edge, curve.restated_at(geom_brep::RestLocus::Chart(kept))));
+            let carried = specs.iter().find(|(e, _)| *e == edge).map(|(_, spec)| spec);
+            let held = carried.map_or_else(
+                || curve.restated_spec().description,
+                |s| s.description.clone(),
+            );
+            let collapsed = sp == sm && !matches!(held, EdgeDescriptionSpec::Chart { .. });
+            if !collapsed && names(&held, sp) && names(&held, sm) {
+                continue;
             }
+            let at_rest = curve.restated_at(crate::rest_locus([sp, sm]));
+            specs.retain(|(e, _)| *e != edge);
+            specs.push((edge, at_rest));
         }
         self.set_face_surfaces_certifying(
             crate::policy_lane::Origin::Kernels(site),

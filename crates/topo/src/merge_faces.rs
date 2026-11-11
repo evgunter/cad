@@ -1899,7 +1899,6 @@ impl<T: crate::props::AtRestPolicy> Body<T> {
                 (k.surface, o.surface),
                 k.sense == o.sense,
                 crate::one_record::moved_closure(&work, &[other]),
-                None,
             );
             work.one_record(crate::policy_lane::KernelSite::OneRecord, &token, tol)
                 .map_err(|error| MergeCoplanarError::Op { error })?;

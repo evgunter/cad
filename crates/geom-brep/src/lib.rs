@@ -135,7 +135,7 @@ pub use dihedral::{
     WedgeEscalation, WedgeRung, classify_dihedral, classify_edge_wedge,
     classify_material_pairing_as, classify_seam, dihedral_class, dihedral_decided,
     folded_lever_arm, material_kappa_rel, must_carry_description, must_carry_over_edge,
-    reask_chart, reask_pair, tangent_second_order,
+    reask_chart, reask_pair, rest_locus, tangent_second_order,
 };
 pub use dihedral_side::{
     ChartPointRefusal, CreaseReading, EdgeHalf, EdgeWalk, FaceSide, SideEscalation, SideFace,

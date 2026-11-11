@@ -8,7 +8,7 @@ opened: 2026-11-03
 
 
 A boolean now leaves each glued one-carrier pair's faces on one surface
-record (`Body::unify_surfaces`, DESIGN `[coincidence.door]`), so a record
+record (`Body::one_record`, DESIGN `[coincidence.door]`), so a record
 can be worn by faces of two solids: the union of two cubes kissing at a
 corner leaves the first cube's top and the second's bottom on one plane
 record (`crates/topo/tests/offset_a_corner_kiss.rs`).

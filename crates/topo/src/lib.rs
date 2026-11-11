@@ -1408,12 +1408,13 @@ pub use boolean::{
     curved_face_containment, decision_words, face_carrier, flush_pair_relation, insert_void,
     insert_voids, intersect, is_conventional_vertex, join_covers, joinable_vertices, joined_cell,
     joined_edge, nary_boolean, nary_boolean_apart, oriented_plane_eq, overlap, point_in_solid,
-    point_in_solid_faces, point_in_solid_of, rest_locus, subtract, tangent_pair_relation, union,
+    point_in_solid_faces, point_in_solid_of, subtract, tangent_pair_relation, union,
 };
 pub use cover::{
     BoundaryUnknown, EdgeUncovered, FaceCovered, FaceUncovered, edge_cover, face_cover,
     face_cover_toward, face_nearest,
 };
+pub use geom_brep::rest_locus;
 pub use joint::{Deck, JointElement};
 pub use lineage::{
     ConeCopies, Division, FaceDivisions, Fate, Lineage, LineageError, LineageKey, LineageRows,

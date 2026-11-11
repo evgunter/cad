@@ -1423,8 +1423,7 @@ already and reads no extent.
 
 - **`[topo.one-record.token]` The deciding reading mints a token**
   (`one_record::OneRecord`). It holds the record kept, the record left,
-  how their charts face, the moved set, and the row where the reading
-  has not recorded it. The moved set is each decided face that wears
+  how their charts face, and the moved set; the reading records its row. The moved set is each decided face that wears
   the other record, every fragment of it, and every face joined to one
   of these by an edge across which the two wear one record, to closure
   (`one_record::moved_closure`). The closure starts from the faces that
@@ -1438,8 +1437,10 @@ already and reads no extent.
 - **`[topo.one-record.act]` One act consumes a token**
   (`Body::one_record`). It re-points exactly the moved faces that still
   wear the other record onto the kept one, each sense restated so its
-  material side is unchanged, restates the edges the move strands, and
-  certifies every moved boundary at the ordinary write gate. No caller
+  material side is unchanged, restates the edges the move strands (an
+  edge left between two faces of the kept record rests in its chart,
+  whatever pair it named), and certifies every moved boundary at the
+  ordinary write gate. No caller
   hands it a record. A face the token does not move keeps its record.
   Where the verdict decided Zero over every face it moves, a boundary
   that does not certify is a kernel defect

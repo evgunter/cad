@@ -282,7 +282,6 @@ pub use zip::{SharedClass, swap_split_roles, take_shared_points};
 pub use crate::side_reader::AimedPair;
 pub use carrier_pair::{
     PairUnread, carrier_pair_decided, carrier_pair_relation, face_carrier, flush_pair_relation,
-    rest_locus,
 };
 pub use contact_verify::{rest_pair_verdict, tangent_pair_relation};
 pub use solid_contain::{
@@ -1253,7 +1252,7 @@ pub(crate) enum Verdicts {
 impl<T: Real> Glue<T> {
     /// Each operand's faces in a one-carrier pair of this glue, A's then
     /// B's ([`glue::GlueCensus`]).
-    pub(crate) fn one_carrier_faces(&self) -> glue::Decided {
+    fn one_carrier_faces(&self) -> glue::Decided {
         let mut decided = glue::Decided::default();
         for pair in self.pairs.iter().filter(|p| p.class().is_one_carrier()) {
             decided[0].insert(pair.a);
@@ -1399,12 +1398,7 @@ impl<T: Real> GluedPair<T> {
     /// its operands' keys ([`glue::GlueCensus`]): the kept side its
     /// deciding reading took, or, for a pair a fold step was given, the
     /// census over `decided`.
-    pub(crate) fn census(
-        &self,
-        a: &Body<T>,
-        b: &Body<T>,
-        decided: &glue::Decided,
-    ) -> glue::GlueCensus {
+    fn census(&self, a: &Body<T>, b: &Body<T>, decided: &glue::Decided) -> glue::GlueCensus {
         let kept = match self.origin {
             Origin::Decided(Glued::OneCarrier { kept, .. }) => Some(kept),
             _ => None,

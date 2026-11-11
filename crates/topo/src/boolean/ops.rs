@@ -5596,16 +5596,19 @@ impl OneRecordTokens {
                         != turned;
                     let side = census.moving();
                     let view = &views[usize::from(side == Operand::B)];
-                    let moved = census
+                    let lowered: Vec<FaceKey> = census
                         .moved
                         .iter()
                         .flat_map(|&f| lowered_faces(result, desc, (side, view), f))
+                        .filter(|&f| result.get_face(f).is_some_and(|g| g.surface == other))
                         .collect();
+                    // Every fragment of a moved face, and every face an edge
+                    // joins to one of these on the same record.
+                    let moved = crate::one_record::moved_closure(result, &lowered);
                     Some(crate::one_record::OneRecord::minted(
                         (kept, other),
                         charts_agree,
                         moved,
-                        None,
                     ))
                 })
                 .collect(),

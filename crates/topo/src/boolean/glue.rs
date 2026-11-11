@@ -70,16 +70,16 @@ pub(crate) fn kept_first<X: Copy>((side, x): (Operand, X), y: X) -> (X, X) {
 /// over the two decided faces and every face it moves
 /// ([`super::carrier_pair::glue_extent`]).
 #[derive(Clone, Debug)]
-pub(crate) struct GlueCensus {
+pub(super) struct GlueCensus {
     /// The side whose record the moved faces are left on.
-    pub(crate) kept: Operand,
+    pub(super) kept: Operand,
     /// The moved side's faces the verdict moves, in its keys.
-    pub(crate) moved: BTreeSet<FaceKey>,
+    pub(super) moved: BTreeSet<FaceKey>,
 }
 
 /// Each operand's faces the glue decided in a one-carrier pair: A's,
 /// then B's.
-pub(crate) type Decided = [BTreeSet<FaceKey>; 2];
+pub(super) type Decided = [BTreeSet<FaceKey>; 2];
 
 impl GlueCensus {
     /// The census of `fa` on `a` and `fb` on `b`, `kept` where the
@@ -88,7 +88,7 @@ impl GlueCensus {
     /// # Panics
     ///
     /// Where a face's loop does not walk ([`crate::one_record::moved_closure`]).
-    pub(crate) fn of<T: geom_core::Real>(
+    pub(super) fn of<T: geom_core::Real>(
         (a, fa): (&Body<T>, FaceKey),
         (b, fb): (&Body<T>, FaceKey),
         decided: &Decided,
@@ -117,7 +117,7 @@ impl GlueCensus {
     }
 
     /// The side whose faces move.
-    pub(crate) fn moving(&self) -> Operand {
+    pub(super) fn moving(&self) -> Operand {
         match self.kept {
             Operand::A => Operand::B,
             Operand::B => Operand::A,

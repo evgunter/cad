@@ -60,3 +60,11 @@ rows.
 The derivation also shows where the bound comes from: the gap is read
 at the kept record's anchor, not over the faces. That caveat is filed
 as `work/onedoor/a-face-moved-onto-a-record-reads-its-volume-at-the-records-anchor.md`.
+
+## The shift is gone (2026-11-10)
+
+The `4/3 ε` above was the plate's loop read at the rod's record anchor.
+Each face is read at the face now
+(`work/onedoor/a-face-moved-onto-a-record-reads-its-volume-at-the-records-anchor.md`,
+fixed), so the row asserts main's `1e-9` again and `touches_within` is
+gone.

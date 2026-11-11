@@ -59,10 +59,10 @@ fn block(what: &str, x: (f64, f64), y: (f64, f64), z: (f64, f64)) -> AtRestBody<
 
 /// The points of `face`'s loops.
 fn face_points(body: &topo::Body<f64>, face: topo::FaceKey) -> Vec<Point3<f64>> {
-    let f = body.get_face(face).expect("a live face");
-    core::iter::once(f.outer)
-        .chain(f.rings.iter().copied())
-        .filter_map(|l| match body.get_loop(l)?.boundary {
+    body.face(face)
+        .expect("a live face")
+        .loops()
+        .filter_map(|(_, l, _)| match l.boundary {
             topo::LoopBoundary::Cycle { first } => body.loop_cycle(first),
             topo::LoopBoundary::Empty { .. } => None,
         })
