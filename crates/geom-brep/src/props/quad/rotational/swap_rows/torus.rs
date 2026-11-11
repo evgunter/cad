@@ -1088,7 +1088,7 @@ fn the_spiric_arms_residual_pad_pays_the_area_the_envelope_moves() {
         );
         let chart = face.chart;
         let entry = edge_entry(&face.loops[0][0], chart).unwrap();
-        let (t, _) = torus_edge_terms(&face.loops[0][0], &entry, (pt(big), pt(r)), 64);
+        let (t, _) = torus_edge_terms(&face.loops[0][0], &entry, (pt(big), pt(r)), 2);
         (t[0].width(), t[1].width())
     };
     let ((f1, a1), (f0, a0)) = (widths(env), widths(0.0));

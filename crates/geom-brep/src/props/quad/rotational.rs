@@ -338,12 +338,24 @@ const PIECE_TURN: f64 = core::f64::consts::TAU / EDGE_INIT_PIECES as f64;
 /// remainder, so a span by the axis takes the pieces its turn needs, and
 /// a short span far from it one.
 ///
+/// On the torus the level is an angle too, and a piece fits only where
+/// the tube angle turns through at most [`PIECE_TURN`] as well: a
+/// meridian's azimuth stands still while its level sweeps the tube.
+///
 /// **No piece a round reads turns through more than [`PIECE_TURN`]**,
 /// its pieces only halving round by round, unless its span is still not
 /// read so at [`MOST_SPAN_PIECES`], where the rounds read it as they can
 /// and refuse what they cannot.
-fn span_schedule(p: &ProjectedEdgeQ) -> Schedule {
-    let fits = |at: &FrameJets, h: f64| at.du.0[0].mag() * h <= PIECE_TURN;
+fn span_schedule(p: &ProjectedEdgeQ, chart: RotationalChartQ) -> Schedule {
+    let fits = |at: &FrameJets, h: f64| {
+        at.du.0[0].mag() * h <= PIECE_TURN
+            && match chart {
+                RotationalChartQ::Torus { major, .. } => {
+                    tube_jets(major, at).rate.0[0].mag() * h <= PIECE_TURN
+                }
+                _ => true,
+            }
+    };
     Schedule(match &p.carrier {
         FramedQ::Net(net) => {
             rational_span_pieces(net, MOST_SPAN_PIECES, |j, h| fits(&net_rate(j), h))
@@ -1231,7 +1243,7 @@ fn edge_entry(e: &EdgeTermQ, chart: RotationalChartQ) -> Result<EdgeEntry, Props
         }
         EdgeTermQ::Projected(p) => {
             let length = projected_metric_length(p, chart);
-            let schedule = span_schedule(p);
+            let schedule = span_schedule(p, chart);
             let turn = entry_turn(p, &schedule, chart);
             if !(length.is_finite() && turn.iter().all(|t| t.is_certified())) {
                 return Err(PropsError::QuadratureUnsupported {
