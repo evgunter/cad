@@ -2,7 +2,8 @@
 id: main-red-the-copysign-census-names-a-walk-rs-site-since-the-horn-cusp
 kind: issue
 title: Main red (slow set): sym_rule_f_rows' copysign census names a new mint site in crates/mesh/src/walk.rs since PR 6806
-status: open
+status: dispatched
+branch: spiricarm/copysign-walk-site
 opened: 2026-11-11
 priority: P1
 cost: E
