@@ -176,9 +176,11 @@ impl<T: Decide> Body<T> {
         let charts = vec![chart];
         // Every boundary edge of a moved face is certified on the record
         // its moved side wears after the move: carried where its
-        // description renames onto it, and otherwise restated where it
-        // rests by key ([`crate::rest_locus`]), in the kept chart between
-        // two faces of the kept record and on the pair beside another.
+        // description renames onto it, vouched by its residuals onto a
+        // plane, and otherwise restated where it rests by key
+        // ([`crate::rest_locus`]): in the kept chart between two faces of
+        // the kept record, whatever pair it named, and on the pair beside
+        // another.
         let mut specs = self.carried_redescriptions(&charts)?;
         let after = |f: FaceKey| {
             if on_kept.contains(&f) {
@@ -194,6 +196,7 @@ impl<T: Decide> Body<T> {
             | EdgeDescriptionSpec::OnPair { pair, .. } => pair.keys().contains(&k),
             EdgeDescriptionSpec::Scaffold(_) => true,
         };
+        let kept_is_plane = matches!(self.get_surface(kept), Some(Surface::Plane { .. }));
         let mut boundary: Vec<EdgeKey> = on_kept
             .iter()
             .flat_map(|&f| self.run_edges(&self.proven_face(f).half_edges()))
@@ -217,8 +220,18 @@ impl<T: Decide> Body<T> {
                 || curve.restated_spec().description,
                 |s| s.description.clone(),
             );
-            let collapsed = sp == sm && !matches!(held, EdgeDescriptionSpec::Chart { .. });
-            if !collapsed && names(&held, sp) && names(&held, sm) {
+            // A moved side the description does not name is vouched by
+            // its residuals onto a plane; onto a curved chart nothing
+            // reads them, so the edge is restated where it rests.
+            let unvouched = |f: FaceKey, k: SurfaceKey| {
+                on_kept.contains(&f) && !names(&held, k) && !kept_is_plane
+            };
+            let collapsed = sp == sm
+                && !matches!(
+                    held,
+                    EdgeDescriptionSpec::Chart { .. } | EdgeDescriptionSpec::Scaffold(_)
+                );
+            if !collapsed && !unvouched(fp, sp) && !unvouched(fm, sm) {
                 continue;
             }
             let at_rest = curve.restated_at(crate::rest_locus([sp, sm]));
