@@ -2,7 +2,8 @@
 id: main-red-two-cylinder-sphere-volume-pads-pass-their-ceiling-at-1e-6-since-the-sphere-lane
 kind: issue
 title: Main red at eps 1e-6: since PR 6509, two cylinder x sphere volume pads pass their 1e-7 ceiling (a_ringed_wall, verbs_cylsph_opening)
-status: open
+status: dispatched
+branch: spiricarm/sphere-pad-ceiling
 opened: 2026-11-11
 priority: P1
 cost: M
