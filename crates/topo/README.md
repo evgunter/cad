@@ -1220,8 +1220,10 @@ point tied inside a curved edge read as its faces' tangent cones
 down where it ties at a cusp corner or along a ray
 (`link::second_order`), two sheets on one wedge read as the lens or
 lune their bends make, two planar faces on each other refused as the planar link
-refuses them, and left unread where none of these decides
-(`census::SelfTouch::SecondOrder`: a cone's apex, a horn beside a sheet
+refuses them, a cone's apex read as the nappe of its rulings, and left
+unread where none of these decides
+(`census::SelfTouch::SecondOrder`: a cone's apex that reading does not
+decide, a horn beside a sheet
 along its ray, sheets the bends do not part, a face whose tangent
 reading does not build, or tangent sectors lying on each other that no
 lens or lune reads). Every other use of a face's normal in the coincidence
@@ -1233,7 +1235,7 @@ blow-up `q ↦ p + (q − p)/t` the faces about `p` tend in C¹, as
 decided to a strict sign holds under every small enough perturbation
 of the planes and rays; a reading decided Zero is taken only where the
 faces keep the coincidence themselves (a shared edge, two line edges on
-one line, a line on a cylinder's ruling, a line edge in a planar face's
+one line, two circle edges on one circle, a line on a cylinder's ruling, a line edge in a planar face's
 plane), and every other bound on another sector's plane, inside it or
 on its bound, refuses, as do two whole tangent planes on one plane.
 What is left is a cone in which each two sectors meet in a ray they
@@ -1423,6 +1425,55 @@ holds. Such a link refuses `Degenerate` before any tie, horn or lens of
 it is read (`rest::slit`), as the planar link refuses the same two
 faces: the solid touches itself over an area there, which tier 3′ does
 not read.
+
+Two circle edges leaving the point along one ray, a bound lying on
+another sector's bound, are kept as their faces keep them where their
+curvature vectors read Zero apart one order down at the arm, off the
+sector's plane and square to the ray in it (`second_order::one_circle`,
+`rest::kept_bound`). A point, a tangent and a curvature
+vector fix a circle, and every derivative of a circle's arc-length
+parametrisation is a polynomial in its tangent and its curvature vector,
+so two arcs agreeing in both to the band part along the arm by what those
+zeros leave, scaled by a factor that tends to one as the arm shrinks
+against the radius: the band's coincidence, as two lines on one ray part
+by what their zero leaves. No order of the cut parts two such arcs, whose
+points coincide at every order, so the reading one order down would tie
+them for good. Two arcs of other conics are not kept so: a point, a
+tangent and a curvature vector do not fix an ellipse.
+
+A cone face's corner at its apex has no tangent plane, and needs none: a
+cone is its own tangent cone at its apex, so near the point the face is
+its rulings exactly, at every scale its corner reaches (`link::ApexLobe`,
+`rest::at_apex`). The reading takes a nappe the link holds whole: one
+corner whose loop leaves back along the half-edge it came in by (a spur,
+the whole turn), or two corners on one carrier and of one sense, each
+bounded by the other's two edges, whose rulings are decidedly apart, so
+that each turns under a whole turn and the two together exactly one. The
+nappe bounds the solid cone `C` of its rulings, convex since its
+half-angle `α` is under a quarter turn; the face's material is `C` (a
+thorn) or what lies round it (a needle of void). At the arm `l` (the
+corners' least reach) the rulings meet the circle about the axis point
+`c = p + a·l·cos α` (`a` the nappe's unit axis) of radius `ρ = l·sin α`,
+whose heights off a plane through `p` of unit normal `m` are exactly
+`m·(c − p) ± ρ|m × a|`. So each other sector's plane is read at `c` with
+`ρ|m × a|` charged (`Reading::charged`): a decided sign puts every ruling
+on that side past the band, and `C` meets the sector's plane only at
+`p`. With every plane so read, `C` meets no other sheet but at `p`; the
+other sheets are their faces' tangent sectors, a strict side holds under
+the blow-up as the first-order reading says, and the nappe is its own
+blow-up. So `C`'s directions lie in one region of the rest of the link,
+which must read one material by itself (`one_material`) and read the
+axis decidedly outside its material for a thorn, inside it for a needle:
+crossing the nappe then moves the winding by one, into the other of the
+rest's two values, as at a thorn. A whole plane about the point (a face
+holding it inside) with rulings decidedly on both sides, read at the two
+rulings farthest either way (real points of the face), crosses the
+nappe along the rulings between: a crossing. Left unread: a nappe not
+held whole, a second apex, a horn beside the nappe (its ray may lie in
+`C`, which no region holds), a sector whose plane cuts the nappe and
+whose wedges may pass it by, and an axis read on the wrong side of the
+rest's material. A plane whose side the charge leaves in band, a plane
+tangent to the cone along a ruling among them, refuses in band.
 
 The chord reading is the cross-section's (`FaceSector::chord`). A
 cylinder or cone face along a line edge of it, the edge lying in a

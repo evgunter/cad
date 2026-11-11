@@ -235,6 +235,35 @@ fn beside<T: Decide>(
     .ok()
 }
 
+/// **Two circles' arcs along one ray, on one circle** ([`super::rest::kept_bound`]):
+/// the edges `a` and `c` leaving `p` along the rays through `qa` and
+/// `qc`, read on one ray in a sector's plane of outward unit `m`, both
+/// circles' arcs, whose curvature vectors read Zero apart one order down
+/// at the arm, off the plane and square to the ray in it. A point, a
+/// tangent and a curvature vector fix a circle, so the two arcs lie on one
+/// circle as the band reads it, as two lines on one ray lie on one line.
+/// The argument: `crates/topo/README.md`, beside the first-order one.
+pub(super) fn one_circle<T: Decide>(
+    p: Point3<T>,
+    (qa, a): (Point3<T>, Bound<T>),
+    (qc, c): (Point3<T>, Bound<T>),
+    m: Vec3<T>,
+    rd: Reading<T>,
+) -> bool {
+    if !(a.circle && c.circle) {
+        return false;
+    }
+    let arm = reach(p, qa - p).min(reach(p, qc - p));
+    let across = m.cross((qa - p).normalize()).normalize();
+    [m, across].into_iter().all(|n| {
+        metric::sign_as(
+            LINK_SECOND_ORDER,
+            Distance::departure(Departure::Parted(c.bend - a.bend), n, arm),
+            rd.band,
+        ) == Some(Sign::Zero)
+    })
+}
+
 /// One sheet of a tangent link along a ray, one order down ([`parts`]):
 /// where it meets the cut, the point `anchor` of the edge it starts at
 /// (its curvature vector), or of a face through the ray (its normal

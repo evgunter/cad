@@ -835,6 +835,9 @@ pub(crate) struct Tangent<T: Real> {
 pub(crate) struct Bound<T: Real> {
     pub(crate) edge: EdgeKey,
     pub(crate) line: bool,
+    /// The edge is a circle's arc, which its point, its tangent and its
+    /// curvature vector fix ([`rest::kept_bound`]).
+    pub(crate) circle: bool,
     pub(crate) bend: Vec3<T>,
 }
 
@@ -933,6 +936,9 @@ pub struct Link<T: Real> {
     /// The tangent cones' horns, which no sector of the cone stands for
     /// ([`Horn`], [`Link::of_tangent`]).
     horns: Vec<Horn<T>>,
+    /// The cone faces' corners at their apex, which no sector stands for
+    /// either ([`ApexLobe`], [`Link::of_tangent`]).
+    lobes: Vec<ApexLobe<T>>,
     /// The farthest wedge point from `p`.
     reach: geom_core::Lever<T>,
     /// The radius of the ball about `p` the link's wedges fill: the
@@ -2539,33 +2545,38 @@ impl<T: Decide> Link<T> {
             cone: Cone::of(p, sectors)?,
             faces,
             horns: Vec::new(),
+            lobes: Vec::new(),
             reach,
             ball,
         })
     }
 
-    /// **A link of faces' tangent cones and horns**
-    /// ([`FaceSector::tangent`]): [`Link::of`] over the sectors, and
-    /// where every face is a horn, a cone of no sector, its material
-    /// nowhere but the horns'.
+    /// **A link of faces' tangent cones, horns and cone apices**
+    /// ([`FaceSector::tangent`], [`ApexLobe`]): [`Link::of`] over the
+    /// sectors, and where every face is a horn or an apex, a cone of no
+    /// sector, its material nowhere but theirs.
     pub(crate) fn of_tangent(
         p: Point3<T>,
         pieces: Vec<TangentPiece<T>>,
     ) -> Result<Self, TouchUnread> {
-        let (mut sectors, mut horns) = (Vec::new(), Vec::new());
+        let (mut sectors, mut horns, mut lobes) = (Vec::new(), Vec::new(), Vec::new());
         for piece in pieces {
             match piece {
                 TangentPiece::Sector(s) => sectors.push(s),
                 TangentPiece::Horn(h) => horns.push(h),
+                TangentPiece::Apex(a) => lobes.push(a),
             }
         }
-        // Each horn's vertex is a key tied into `p`: the cone is read over
-        // the farthest of them as over its sectors' own.
+        // Each horn's or lobe's vertex is a key tied into `p`, and a
+        // lobe's rulings leave its cone's apex: the cone is read over the
+        // farthest of them as over its sectors' own.
         let tied = horns
             .iter()
-            .map(|h| (h.apex - p).norm())
+            .map(|h| h.apex)
+            .chain(lobes.iter().flat_map(|a| [a.vertex, a.cone.apex]))
+            .map(|q| (q - p).norm())
             .fold(T::zero(), |r, l| r.max(l));
-        if sectors.is_empty() && !horns.is_empty() {
+        if sectors.is_empty() && !(horns.is_empty() && lobes.is_empty()) {
             return Ok(Self {
                 cone: Cone {
                     p,
@@ -2575,6 +2586,7 @@ impl<T: Decide> Link<T> {
                 },
                 faces: Vec::new(),
                 horns,
+                lobes,
                 reach: geom_brep::ExtentBall::point(p).lever(),
                 ball: T::zero(),
             });
@@ -2586,6 +2598,7 @@ impl<T: Decide> Link<T> {
                 ..link.cone
             },
             horns,
+            lobes,
             ..link
         })
     }
@@ -2593,7 +2606,9 @@ impl<T: Decide> Link<T> {
     /// Whether a sector of the link is a face's tangent cone
     /// ([`FaceSector::tangent`]), or the link holds a horn.
     fn tangent(&self) -> bool {
-        !self.horns.is_empty() || self.faces.iter().any(|f| f.tangent.is_some())
+        !self.horns.is_empty()
+            || !self.lobes.is_empty()
+            || self.faces.iter().any(|f| f.tangent.is_some())
     }
 
     /// The link's cone.
@@ -2945,10 +2960,31 @@ impl<T: Decide> FaceSector<T> {
     }
 }
 
-/// **A face's tangent cone at the point, or its horn** ([`FaceSector::tangent`]).
+/// **A face's tangent cone at the point, or its horn** ([`FaceSector::tangent`]),
+/// or a cone face's corner at its apex, which has none ([`ApexLobe`]).
 pub(crate) enum TangentPiece<T: Real> {
     Sector(FaceSector<T>),
     Horn(Horn<T>),
+    Apex(ApexLobe<T>),
+}
+
+/// **A cone face's corner at the cone's apex**: no tangent plane, but
+/// the face is its rulings there at every scale its corner reaches,
+/// which [`rest::one_material`] reads as the nappe they make.
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct ApexLobe<T: Real> {
+    /// The face's cone at its apex.
+    pub(crate) cone: crate::sector_face::ConeApex<T>,
+    /// The face's carrier: two lobes of one nappe share it.
+    pub(crate) carrier: crate::SurfaceKey,
+    /// The corner's vertex.
+    pub(crate) vertex: Point3<T>,
+    /// The departure out of the vertex and the one back into it, each a
+    /// ruling scaled to its reach, with its edge.
+    pub(crate) ends: [(Vec3<T>, EdgeKey); 2],
+    /// The loop leaves back along the half-edge it came in by: the
+    /// corner is the whole turn.
+    pub(crate) spur: bool,
 }
 
 /// **A cusp corner that is a horn about its ray**: its two edges leave
@@ -4526,7 +4562,8 @@ pub(crate) mod rest {
 
     /// Whether the ray through `r`, along `edge` (a line where `line`),
     /// lying on a bound of sector `j`, lies there as the faces keep it:
-    /// the bound is the same edge, or both are lines.
+    /// the bound is the same edge, both are lines, or both are circles'
+    /// arcs on one circle ([`super::second_order::one_circle`]).
     fn kept_bound<T: Decide>(
         link: &Link<T>,
         j: usize,
@@ -4542,7 +4579,8 @@ pub(crate) mod rest {
         tags.into_iter().zip(rays).any(|(tag, b)| {
             wedge_side(p, t.outward, b, r, rd) == Some(Sign::Zero)
                 && ahead(p, b, r, rd) == Some(Sign::Positive)
-                && tag.kept_with(bound)
+                && (tag.kept_with(bound)
+                    || super::second_order::one_circle(p, (b, tag), (r, bound), t.outward, rd))
         })
     }
 
@@ -4675,6 +4713,137 @@ pub(crate) mod rest {
         None
     }
 
+    /// **A link holding a cone's apex**, read as the nappe of its rulings
+    /// ([`super::ApexLobe`]): the lobes make one nappe whole (one spur
+    /// corner, or two on one carrier and of one sense, each bounded by the
+    /// other's edges, their rulings decidedly apart); the link holds no
+    /// horn; every other sector's plane holds the nappe strictly to one
+    /// side, read at the axis point of the rulings' circle at the arm with
+    /// the circle's spread off the plane charged; the rest of the link
+    /// reads one material ([`one_material`] over it); and the axis reads
+    /// decidedly outside that material where the cone's is inside it (a
+    /// thorn), inside it where the cone's is round it (a needle). A whole
+    /// plane about the point holding rulings decidedly on both sides is a
+    /// [`TouchVerdict::Crossing`]; a side the charge leaves in band is
+    /// [`TouchUnread::InBand`]; anything else is
+    /// [`crate::CurvedUnread::NoTangentPlane`], the apex left unread. The
+    /// argument: `crates/topo/README.md`, beside the first-order one.
+    fn at_apex<T: Decide>(link: &Link<T>, band: Band, rd: Reading<T>) -> TouchVerdict {
+        let unread = TouchVerdict::Unread(TouchUnread::Curved(CurvedUnread::NoTangentPlane));
+        let p = link.cone.p;
+        let Some(lobe) = whole_nappe(link, rd) else {
+            return unread;
+        };
+        if !link.horns.is_empty() {
+            return unread;
+        }
+        let arm = link
+            .lobes
+            .iter()
+            .flat_map(|a| a.ends.map(|(d, _)| geom_brep::ExtentBall::point(p + d).lever_from(p)))
+            .fold(geom_brep::ExtentBall::point(p + lobe.ends[0].0).lever_from(p), geom_core::Lever::min);
+        let l = arm.length();
+        let cone = lobe.cone;
+        // The nappe's unit axis, toward the rulings, and the circle the
+        // rulings meet at the arm: its centre `c` and radius `rho`.
+        let axis = (cone.axis * cone.axis.dot(lobe.ends[0].0)).normalize();
+        let c = p + axis * (l * cone.half_angle.cos());
+        let rho = l * cone.half_angle.sin();
+        for t in &link.cone.sectors {
+            let m = t.outward;
+            // The rulings' heights off the plane are `m·(c − p)` give or
+            // take `rho·|m × axis|`, the circle's spread off it.
+            let spread = Distance::apart(c + m.cross(axis) * rho, c);
+            if matches!(
+                metric::settle_as(LINK_PLANE, Distance::of(c, p, m), rd.charged(spread)),
+                Ok(Sign::Positive | Sign::Negative)
+            ) {
+                continue;
+            }
+            // The two rulings farthest off the plane either way.
+            let w = (m - axis * m.dot(axis)).normalize();
+            let far = [c + w * rho, c - w * rho].map(|q| link.cone.side(t, q, rd));
+            match far {
+                [Some(Sign::Positive), Some(Sign::Positive)]
+                | [Some(Sign::Negative), Some(Sign::Negative)] => {}
+                [Some(Sign::Positive), Some(Sign::Negative)]
+                | [Some(Sign::Negative), Some(Sign::Positive)] => {
+                    return if t.closed {
+                        TouchVerdict::Crossing
+                    } else {
+                        unread
+                    };
+                }
+                _ => return TouchVerdict::Unread(TouchUnread::InBand),
+            }
+        }
+        let pieces: Vec<_> = (0..link.cone.sectors.len())
+            .map(|k| {
+                super::TangentPiece::Sector(super::FaceSector {
+                    sector: link.cone.sectors[k].clone(),
+                    face: link.faces[k].clone(),
+                })
+            })
+            .collect();
+        let around = if pieces.is_empty() {
+            super::Material::Out
+        } else {
+            let rest = match Link::of_tangent(p, pieces) {
+                Ok(rest) => rest,
+                Err(why) => return TouchVerdict::Unread(why),
+            };
+            match one_material(&rest, band) {
+                TouchVerdict::Rest(_) => {}
+                other => return other,
+            }
+            match rest.cone.reads_over(c, rd) {
+                Some(m) => m,
+                None => return TouchVerdict::Unread(TouchUnread::InBand),
+            }
+        };
+        let want = if cone.material_inside() {
+            super::Material::Out
+        } else {
+            super::Material::In
+        };
+        if around == want {
+            TouchVerdict::Rest(Rest { _sealed: () })
+        } else {
+            unread
+        }
+    }
+
+    /// **The link's lobes as one whole nappe** ([`at_apex`]): one lobe
+    /// whose corner is a spur, the whole turn; or two of one carrier and
+    /// one sense, neither a spur, each one's edge out the other's edge
+    /// back in, whose two rulings stand decidedly apart, so each turns
+    /// under a whole turn and the two together exactly one. A lobe of it,
+    /// or `None` where they make no such nappe.
+    fn whole_nappe<T: Decide>(link: &Link<T>, rd: Reading<T>) -> Option<super::ApexLobe<T>> {
+        let p = link.cone.p;
+        match link.lobes.as_slice() {
+            [a] if a.spur => Some(*a),
+            [a, b]
+                if !a.spur
+                    && !b.spur
+                    && a.carrier == b.carrier
+                    && a.cone.sense == b.cone.sense
+                    && a.ends[0].1 == b.ends[1].1
+                    && a.ends[1].1 == b.ends[0].1 =>
+            {
+                let [(d0, _), (d1, _)] = a.ends;
+                let l = geom_brep::ExtentBall::point(p + d0)
+                    .lever_from(p)
+                    .min(geom_brep::ExtentBall::point(p + d1).lever_from(p))
+                    .length();
+                let apart = Distance::apart(p + d0.normalize() * l, p + d1.normalize() * l);
+                (metric::sign_as(super::LINK_TIE, apart, rd.band) == Some(Sign::Positive))
+                    .then_some(*a)
+            }
+            _ => None,
+        }
+    }
+
     /// **Whether one solid's link at a point where it touches itself
     /// bounds one material** (D1 tier 3, `crates/topo/README.md`): no two
     /// of its sheets cross, and its winding over the sphere of directions
@@ -4724,6 +4893,9 @@ pub(crate) mod rest {
         // The link is read against its own planes and rays: the reading
         // over the pair it makes with itself.
         let rd = reading(link, link, band);
+        if !link.lobes.is_empty() {
+            return at_apex(link, band, rd);
+        }
         if let Some(open) = held_closed(&[link], rd) {
             return open;
         }

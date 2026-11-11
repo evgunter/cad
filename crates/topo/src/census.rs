@@ -9321,7 +9321,25 @@ fn tangent_sectors<T: Decide>(
             }
             let into = half.prev;
             let back = body.mate(into).ok_or(TouchUnread::Corrupt)?;
-            let normal = corner_normal(body, half.start, back, band)?;
+            let at = crate::sector_face::resolve(body, half.start, back, band)
+                .map_err(|why| corner_cause(&why))?
+                .at_vertex;
+            // A cone face's corner at its apex has no tangent plane: its
+            // rulings are its own there, read as the nappe they make.
+            if let crate::sector_face::VertexFace::Apex(cone) = at {
+                let (d0, ..) = departure(body, half.start, he)?;
+                let (d1, ..) = departure(body, half.start, back)?;
+                let e_in = body.get_half_edge(into).ok_or(TouchUnread::Corrupt)?.edge;
+                out.push(crate::link::TangentPiece::Apex(crate::link::ApexLobe {
+                    cone,
+                    carrier: face.surface,
+                    vertex: *geo.vmap.get(&half.start).ok_or(TouchUnread::Corrupt)?,
+                    ends: [(d0, half.edge), (d1, e_in)],
+                    spur: back == he,
+                }));
+                continue;
+            }
+            let normal = vertex_normal(at)?;
             let (d0, line0, bend0) = departure(body, half.start, he)?;
             let (d1, line1, bend1) = departure(body, half.start, back)?;
             let e_in = body.get_half_edge(into).ok_or(TouchUnread::Corrupt)?.edge;
@@ -9333,11 +9351,13 @@ fn tangent_sectors<T: Decide>(
                     Bound {
                         edge: half.edge,
                         line: line0,
+                        circle: on_circle(body, half.edge),
                         bend: bend0,
                     },
                     Bound {
                         edge: e_in,
                         line: line1,
+                        circle: on_circle(body, e_in),
                         bend: bend1,
                     },
                 ],
@@ -9373,6 +9393,7 @@ fn tangent_sectors<T: Decide>(
                 edge: Bound {
                     edge: half.edge,
                     line,
+                    circle: on_circle(body, half.edge),
                     bend,
                 },
             };
@@ -9419,19 +9440,13 @@ pub(crate) fn carrier_frame<T: Real>(surface: &geom::Surface<T>) -> Option<[Vec3
     Some([u, a.cross(u), a])
 }
 
-/// The outward unit normal of the face whose corner at `v` the orbit
-/// half-edge `he` leaves along ([`crate::sector_face::resolve`]): its
-/// tangent plane's there, where it has one.
-fn corner_normal<T: Decide>(
-    body: &Body<T>,
-    v: VertexKey,
-    he: HalfEdgeKey,
-    band: Band,
-) -> Result<Vec3<T>, TouchUnread> {
-    match crate::sector_face::resolve(body, v, he, band) {
-        Ok(face) => vertex_normal(face.at_vertex),
-        Err(why) => Err(corner_cause(&why)),
-    }
+/// Whether edge `e`'s certified carrier is a circle
+/// ([`crate::link::Bound::circle`]).
+fn on_circle<T: Real>(body: &Body<T>, e: EdgeKey) -> bool {
+    body.get_edge(e)
+        .and_then(|d| body.get_curve_geom(d.curve))
+        .and_then(|g| g.certified())
+        .is_some_and(|c| matches!(c.carrier(), geom::Curve3::Circle(..)))
 }
 
 /// **A resolved corner face's normal at the vertex**, or no tangent
@@ -9447,7 +9462,7 @@ fn vertex_normal<T: Decide>(at: crate::sector_face::VertexFace<T>) -> Result<Vec
     }
 }
 
-/// **The cause [`corner_normal`] names for a corner face
+/// **The cause [`tangent_sectors`] names for a corner face
 /// [`crate::sector_face::resolve`] refuses**: an apex in band by its own
 /// standing, and every other refusal the curved reading's abort under
 /// its own name ([`TouchUnread::Curved`]).
@@ -22941,8 +22956,9 @@ mod corner_cause_rows {
     use crate::entity::FaceKey;
     use crate::sector_face::{ConeApex, SectorFaceError, VertexFace};
 
-    /// **[`corner_normal`](super::corner_normal) names each cause of a
-    /// corner left unread**: a cone's apex no tangent plane, a surface with
+    /// **[`tangent_sectors`](super::tangent_sectors) names each cause of a
+    /// corner left unread** ([`vertex_normal`], [`corner_cause`]): a vertex
+    /// at a cone's apex no tangent plane, a surface with
     /// no sector arm and a spline edge not placed their own, each the
     /// curved reading's abort ([`TouchUnread::Curved`]); a crease refuses
     /// by its own standing instead.
