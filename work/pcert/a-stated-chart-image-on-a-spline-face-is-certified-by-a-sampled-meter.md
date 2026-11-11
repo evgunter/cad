@@ -100,12 +100,18 @@ Greville abscissae (`spline_incidence::own_fractions`), so R2 ends
 `Incidence(Off)` (`CarrierOffChart`) at `f64` and `Interval`, through the
 iso and the general image alike. Without them it ends
 `ChartImageUnavailable`: sound, but not the definite ending. That sampling
-decides only the ending; the envelope certifies.
+decides only the ending; the envelope certifies. It sees the carrier's
+features only: a carrier off a NARROW FEATURE OF THE WALL (a line under a
+pushed row) still ends `ChartImageUnavailable`, which is
+`a-narrow-wall-feature-under-a-carrier-ends-as-its-images-refusal-not-off` (P3).
 
 A stated image on an analytic chart keeps its read first and the sampled
 meter: routing it through the pcurve doors refused about seventy product
-rows. The analytic remainder (a derived or stated image whose read is
-sampled, and the two-surface `OnPair`) is evidence on
+rows. The analytic remainder is filed: a spline net stated on a plane, a
+cylinder or a cone certifies 1 mm off it (the review's probe), P1
+`a-net-carrier-stated-on-an-analytic-chart-is-certified-by-a-sampled-meter`;
+the rest (a derived image whose read is sampled, and the two-surface
+`OnPair`) is evidence on
 `a-closed-conics-and-a-spline-nets-incidence-on-an-analytic-chart-is-sampled`.
 The double certification per build is
 `a-stated-spline-image-is-certified-twice-by-the-edge-certificate-and-the-mint` (P3).
