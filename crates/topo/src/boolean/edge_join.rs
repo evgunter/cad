@@ -2112,8 +2112,29 @@ mod undecided_text {
                     !ending.is_empty() && text.ends_with(&ending),
                     "{e:?} at {at:?}: {text}"
                 );
-                assert_eq!(text.matches("There is no way through").count(), 1, "{text}");
-                assert_eq!(text.contains("defect"), defect, "{e:?} at {at:?}: {text}");
+                // The winding escalation, read at rest, is reported as
+                // undecided (ONEHOME fork 259): the last resort, no dead
+                // end. The class escalation's ending is "not yet" at both.
+                let undecided_at_rest = matches!(
+                    (&e, at),
+                    (
+                        geom_brep::PcurveCertifyError::Escalated {
+                            check: geom_brep::PcurveCheck::ChartWinding,
+                            ..
+                        },
+                        Reading::AtRest
+                    )
+                );
+                assert_eq!(
+                    text.matches("There is no way through").count(),
+                    usize::from(!undecided_at_rest),
+                    "{text}"
+                );
+                assert_eq!(
+                    text.contains("defect"),
+                    defect && !undecided_at_rest,
+                    "{e:?} at {at:?}: {text}"
+                );
             }
         }
     }

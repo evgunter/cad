@@ -794,6 +794,9 @@ mod nested_at_the_door {
         );
     }
 
+    /// The re-mint's undecided escalation opens on the file's door and
+    /// reads as rest does: undecided, so the last resort (ONEHOME fork
+    /// 259), not the damaged file.
     #[test]
     fn a_pcurve_remints_escalation_names_the_file() {
         let error = StepImportError::Pcurves {
@@ -815,7 +818,7 @@ mod nested_at_the_door {
         let text = error.render();
         assert!(
             text.starts_with("step import: pcurve re-mint on the adopted body:")
-                && text.ends_with(DAMAGED_FILE_ENDING),
+                && text.ends_with(geom_core::KERNEL_LIMIT_RECOURSE),
             "{text}"
         );
     }

@@ -7174,6 +7174,30 @@ pub(crate) fn edge_wedge_walk<T: geom_core::Decide>(
     ))
 }
 
+/// **A seam read by identity** (check 4): an edge whose two sides lie
+/// on ONE surface record with one sense is interior to that surface,
+/// which is smooth and shares its own curvature there, so its wedge is
+/// the seam with an under-determined bend — what the whole-edge fold
+/// reads at `f64`, where the sagitta of a surface against itself is an
+/// exact zero — and no margin is read for it. Keyed on the record, not
+/// on a value, so it answers alike at every scalar: over a box the two
+/// evaluations of one surface do not cancel, and the fold would read
+/// the zero as an enclosure `[0, w]` in band (ONEHOME fork 259: a
+/// cylinder leaf taken alone at `Sym`). `None` where the sides are two
+/// records or two senses: the fold reads them.
+pub(crate) fn one_surface_seam<T: geom_core::Real>(
+    body: &Body<T>,
+    (f_plus, s_plus): (FaceKey, crate::SurfaceKey),
+    (f_minus, s_minus): (FaceKey, crate::SurfaceKey),
+) -> Option<geom_brep::WedgeVerdict> {
+    let sense = |face| body.get_face(face).map(|f| f.sense);
+    (s_plus == s_minus && sense(f_plus)? == sense(f_minus)?).then_some(
+        geom_brep::WedgeVerdict::Seam {
+            bend: geom_brep::Bend::UnderDetermined,
+        },
+    )
+}
+
 /// **Check 4's reading of an edge's wedge**: the contact mark the
 /// whole-edge fold's verdict earns ([`geom_brep::edge_wedge_over`]), and
 /// the finding it raises, if any. `wrap` is a chart seam's edge, marked
@@ -7351,8 +7375,8 @@ pub(crate) enum PlusVCheck<T: geom_core::Decide> {
 ///    the 2026-09-02 certified at-rest entry) — one home, not restated
 ///    here.
 ///
-/// One function for both kinds, so the file's one bracket read has one
-/// site. A SOLE bracket bound, deliberately: nothing here decides.
+/// One function for both kinds, so the file's two bracket reads (the
+/// bracket's `lo` and `hi`) have one site. A SOLE bracket bound, deliberately: nothing here decides.
 pub(crate) fn analytic_datum_verdicts<T: geom_core::Bounds, D: Copy>(
     poisoned: Vec<D>,
     margins: Vec<geom::RepresentabilityMargin<T, D>>,
@@ -8080,10 +8104,15 @@ pub(crate) fn tier3_local_checks_marked<
         let mark = if nurbs_adjacent {
             ContactMark::Unmarked
         } else {
-            let Some(walk) = edge_wedge_walk(body, edge_key) else {
-                continue; // unreachable on tier-1 input
+            let verdict = match one_surface_seam(body, (f_plus, fs_plus), (f_minus, fs_minus)) {
+                Some(seam) => seam,
+                None => {
+                    let Some(walk) = edge_wedge_walk(body, edge_key) else {
+                        continue; // unreachable on tier-1 input
+                    };
+                    geom_brep::edge_wedge_over(&walk, reach, band)
+                }
             };
-            let verdict = geom_brep::edge_wedge_over(&walk, reach, band);
             let wrap = curve.description().is_wrap();
             let (mark, finding) = wedge_reading(verdict, edge_key, wrap, conventional);
             errors.extend(finding);
@@ -12065,6 +12094,25 @@ mod tests {
             let lifted: Surface<Interval> = surface.map_scalar(Interval::from_f64);
             let at_interval = surface_datum_errors(face, &lifted, band);
             assert_eq!(at_f64, expected, "{name}, at f64");
+            // `FRAC_PI_2` rounds below π/2, so the cone it builds is
+            // inside the convention: at f64 its margin rounds to zero and
+            // reads outside, and over its rounding the bracket straddles
+            // zero and reads undecided (ONEHOME fork 259), never outside.
+            if name == "cone at pi/2" {
+                assert!(
+                    matches!(
+                        at_interval.as_slice(),
+                        [ValidationError::SurfaceDatumUndecided {
+                            kind: K::Cone,
+                            datum: D::HalfAngle,
+                            end: ConventionEnd::Upper,
+                            ..
+                        }]
+                    ),
+                    "{name}, at Interval: {at_interval:?}"
+                );
+                continue;
+            }
             assert_eq!(at_interval, expected, "{name}, at Interval");
         }
     }
@@ -12820,7 +12868,15 @@ mod tests {
                 error,
             }
             .render(geom_brep::recourse::Reading::AtRest);
-            assert!(at_rest.ends_with(DEFECT), "{at_rest}");
+            // An unreadable volume is the kernel's or the file's; one read
+            // over a box and not decided is reported as undecided (ONEHOME
+            // fork 259), in the box scalars' recourse.
+            let want = if matches!(margin.kind(), geom_core::MarginKind::Enclosure) {
+                geom_brep::recourse::BOX_SCALAR_RECOURSE
+            } else {
+                DEFECT
+            };
+            assert!(at_rest.ends_with(want), "{at_rest}");
             assert!(
                 !at_rest.contains("tolerance"),
                 "no tolerance is offered: {at_rest}"
@@ -18474,11 +18530,13 @@ mod certify_escalation_rows {
                  the geometry so this edge runs forward over a clear length, or, if this length is \
                  intended, tighten the tolerance below 5e-10 m",
             ),
+            // Read at rest and not decided, it is reported as undecided
+            // (ONEHOME fork 259): at a point, the last resort.
             (
                 escalated(CertCheck::EndpointStart, in_band),
-                "whether it lies where its description says is undecided. There is no way \
-                 through: this is a kernel defect or a damaged \
-                 file; report it",
+                "whether it lies where its description says is undecided. Recourse: loosen the \
+                 tolerance, as a last resort; this refusal may indicate a kernel bug worth \
+                 reporting",
             ),
             (
                 escalated(
@@ -18491,14 +18549,15 @@ mod certify_escalation_rows {
                  through: this is a kernel defect or a damaged \
                  file; report it",
             ),
+            // Read over a box and not decided, it is reported as
+            // undecided (ONEHOME fork 259), in the box scalars' recourse.
             (
                 escalated(
                     CertCheck::ChartImage,
                     MarginDiag::enclosure(-2.0e-9, 4.0e-9),
                 ),
-                "where it sits on its face's parameter chart is undecided. There is no way \
-                 through: this is a kernel defect or a damaged \
-                 file; report it",
+                "where it sits on its face's parameter chart is undecided. Recourse: narrow the \
+                 box, or evaluate at the symbolic scalar",
             ),
             // A zero verdict where zero does not pass is band-decided
             // (D4 ¶1 (i)): the lever, and the tolerance its margin gives.

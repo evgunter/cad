@@ -61,6 +61,8 @@ mod wire;
 
 #[path = "a_blend_refusal_names_its_edge.rs"]
 mod a_blend_refusal_names_its_edge;
+#[path = "a_bore_taken_alone_is_smooth_at_its_seams_interval.rs"]
+mod a_bore_taken_alone_is_smooth_at_its_seams_interval;
 #[path = "a_dual_is_bound_to_its_build_of_record.rs"]
 mod a_dual_is_bound_to_its_build_of_record;
 #[path = "a_keel_on_the_floor_names_its_two_edges.rs"]

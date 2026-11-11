@@ -286,11 +286,12 @@ impl Unsized {
     /// margin could not be read ends in the defect ending, whatever the
     /// decision: no tolerance makes it readable.
     ///
-    /// **An undecided reading at rest is reported as undecided, at
-    /// every scalar**: over a body at rest, an arm whose margin was read
-    /// but not decided never ends in the defect ending, which is for a
-    /// stored contradiction or a breached invariant. A build's and the
-    /// import door's endings are their own. Read over a box (an enclosure,
+    /// **An undecided reading past a build is reported as undecided, at
+    /// every scalar**: over a body at rest, and at the import door, which
+    /// reads as rest does, an arm whose margin was read but not decided
+    /// never ends in the defect ending, which is for a stored
+    /// contradiction or a breached invariant. A build's endings are its
+    /// own. Read over a box (an enclosure,
     /// [`geom_core::MarginKind::Enclosure`]) it ends in the box scalars'
     /// recourse ([`BOX_SCALAR_RECOURSE`]); read at a point, in the band,
     /// in the last resort.
@@ -298,9 +299,7 @@ impl Unsized {
     pub fn recourse(self, arm: RefusedArm<'_>, at: impl Into<ReadAt>) -> String {
         let at = at.into();
         let defect = defect_ending(at);
-        if let (Self::Defect, RefusedArm::Undecided(cause), ReadAt::Run(Reading::AtRest)) =
-            (self, arm, at)
-        {
+        if let (Self::Defect, RefusedArm::Undecided(cause), false) = (self, arm, at.is_build()) {
             match cause.margin.kind() {
                 geom_core::MarginKind::Enclosure => return BOX_SCALAR_RECOURSE.to_owned(),
                 geom_core::MarginKind::Value => return KERNEL_LIMIT_RECOURSE.to_owned(),

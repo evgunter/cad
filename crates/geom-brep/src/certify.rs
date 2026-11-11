@@ -1790,8 +1790,8 @@ impl DoorCheck for CertCheck {
     ///   D4 ¶1 (iv)).
     /// - A residual or a form selection has no size. Every arm ends in the
     ///   kernel-defect ending where the kernel built the geometry exactly
-    ///   (the file's too, at rest), except an undecided arm at rest, which
-    ///   is reported as undecided ([`Unsized::recourse`]). Where the kernel
+    ///   (the file's too, at rest), except an undecided arm past a build,
+    ///   which is reported as undecided ([`Unsized::recourse`]). Where the kernel
     ///   approximated, an arm read at a build, and an undecided arm read at
     ///   rest, end in the last resort; a definite arm at rest ends in the
     ///   file's defect ending, since no loosening repairs a stored

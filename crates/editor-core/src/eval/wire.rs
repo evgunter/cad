@@ -2886,6 +2886,13 @@ fn wire_split<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
 /// ([`super::Carry::copied`]): its records, findings and census, each
 /// meeting inside it the source's. No rigid motion
 /// stands the source's pieces in the image, so it holds none.
+///
+/// A refusal of the reflection's data map reads
+/// [`NodeErrorKind::Mirror`]. No pin reaches that arm: no finished body
+/// known here makes the re-mint refuse. A reflection keeps every
+/// distance, so each re-minted pcurve row reads its source's margins,
+/// which certified, up to the reflected data's rounding, and no fixture
+/// holds a margin within that rounding of its band's edge.
 fn wire_mirror<T: Decide + topo::AtRestPolicy>(
     read: crate::VarId,
     source: RecipeNodeId,
