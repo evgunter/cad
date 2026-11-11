@@ -2389,9 +2389,22 @@ fn a_corner_crossing_the_cubes_four_times_builds_every_op() {
 /// outside it, from the op's kept side of A or from the Out arcs, and
 /// as `JoinDesync` in `y ∩ cube` and `y ∪ cube` where the finish
 /// refuses a kept vertex that corresponds to two vertices of the other
-/// operand.
+/// operand. It holds again with every reduction taking its vertex
+/// pairs and their records in reverse
+/// (`test_support::with_vertex_pairs_reversed`), among them one with
+/// three crossing pairs at the cube's corner.
 #[test]
 fn three_corners_alternating_round_the_cube_build_every_op() {
+    three_corners_alternating();
+    let ((), reversed) = topo::test_support::with_vertex_pairs_reversed(three_corners_alternating);
+    assert!(
+        reversed > 0,
+        "no reduction held two crossing pairs at one vertex"
+    );
+}
+
+/// [`three_corners_alternating_round_the_cube_build_every_op`]'s body.
+fn three_corners_alternating() {
     let tol = Tol::witness();
     let rays = [
         [
