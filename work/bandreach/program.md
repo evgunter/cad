@@ -2,7 +2,7 @@
 id: bandreach
 kind: program
 title: BANDREACH — predicate 2 reading wider than it needs: the blend's reach meter and its support screen
-status: active
+status: ready
 opened: 2026-10-26
 group: kernel/sweep/blend
 prefix: bandreach/

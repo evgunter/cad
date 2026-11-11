@@ -155,23 +155,41 @@ index (VR4); an index outside the
 range leaves the reader unresolved and typed at evaluation, never
 re-pointed. `xs[i]` is not a variable: it is the read a per-`k` reader
 makes implicitly, with the index written in the slot rather than supplied
-by the evaluation. Names pass through unchanged (`role.rs`): the member
-keeps its `Member { (i, …), of }` names, keyed by
-the index variables' ids and the integers, and an operation reading it
-keys them by `xs` (DM4), the index said once, in `Member`. So
+by the evaluation. A member read answers the member's own table: its
+names are its source's names, carried verbatim, with no `Member`
+qualifier. An operation carrying an entity from it keys the name
+`From { read: xs, of: Member { (i, …), of } }` (`role.rs`, DM4), keyed by
+the index variables' ids and the integers, exactly as reading the family
+whole does. The index is said once: in the read, and in `Member` only
+where the family is read whole or a member's entity is carried. So
 `Union(xs)` and `Union([xs[0], …, xs[N−1]])` name alike, because they read
 the same things, and inside a per-`k` reader `union(xs)` and
-`union(xs[k])` are one read with one name. A member is not a named alias:
+`union(xs[k])` are one read with one name. A selection reads a member
+the same way: `Select { body: xs[i], names }` holds the indexed read,
+its index the selection's own `Count` slots, and the member's own names,
+so D10's per-copy `gap(c[k].r, c[(k + 1) mod N].l)` is a selection of
+`c` beside a selection of `c[(k + 1) mod N]`. A selection whose indices
+are exactly the family's own index chain is the plain read: `xs[k]` is
+stored as `xs`. A selection reads one body: its body is a body seat. A
+member is reached by an indexed read, never through the family's table,
+and the index is never stored twice. At a mate side, each index is absent
+or a written count — a count literal, or a free `Count` variable, each
+holding its value in the document — since the mate's member walk reads
+the member from the document, never from an evaluated value; an index
+defined by an expression refuses (`SideIndex`) at the door that authors
+the side and at load, wherever the side reads its selection. A member is not a named alias:
 two readers wanting one member share the family and a named `Count`. A
 name is scoped by the variable that holds its body (N1), so a split half's names do not spell the half: its variable says it,
 and a selection of `split.above` states its body once. A body seat
-reading a whole family, a profile or a split as a whole refuses by kind at
-the door (`SlotVarKind`).
+reading a profile refuses by kind at the door (`SlotVarKind`), and a
+split read as a whole names no one output (`AmbiguousOutput`). A family
+read plainly at a body seat is read one member at a time, so no body
+seat reads a family whole.
 
 *Built: the indexed read at every body seat, rank one, FORK-DM4 unit 1
-(PR 4527). Every family a node defines is one flat list, so `xs[i, j]`
+(PR 4527); a selection's body read, PR 6555. Every family a node defines is one flat list, so `xs[i, j]`
 waits on a family keyed by two indices
-(`work/intent/an-indexed-read-of-rank-two-has-no-family.md`). Until stage
+(`work/refs/an-indexed-read-of-rank-two-has-no-family.md`). Until stage
 3 G, `Part { select: Instance }` stands beside it, a second way to pick a
 member; new authoring writes `xs[i]`.*
 

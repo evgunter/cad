@@ -548,6 +548,35 @@ pub enum CertifyError {
         /// The metered length's verdict, with its reporting margin.
         verdict: Refused,
     },
+    /// **A conic carrier stores a negative semi-axis**: a circle's
+    /// radius, or either of an ellipse's semi-axes, below zero. Every door
+    /// builds positive semi-axes, a STEP ellipse's are positive lengths,
+    /// and a signed one reverses the traversal, so the record breaks the
+    /// representation's invariant rather than spelling the same edge. The
+    /// kernel mints none, so at a build it is the caller's input and ends
+    /// in its lever (store the magnitude, flip the frame's normal to
+    /// reverse the traversal); at rest it is the stored culprit's defect,
+    /// and at the import door a damaged file. Decided once, at the head of
+    /// the span check, before any reader of the carrier's speed. Only a
+    /// definite sign is this refusal: an enclosure across zero is read
+    /// by the span check in band, and ends in its lever. A zero
+    /// semi-axis is a collapsed length, read by the span check itself
+    /// ([`CertifyError::StatedInterval`]).
+    SemiAxisNegative {
+        /// The carrier's kind.
+        carrier: geom::CurveKind,
+    },
+    /// **A conic carrier stores a semi-axis that is not a finite number**
+    /// (NaN, or infinite, or an enclosure reaching either): no length at
+    /// all, so no speed reader can meter it. Decided exactly
+    /// ([`Real::is_bounded`]), at the head of the span check beside
+    /// [`CertifyError::SemiAxisNegative`], and ended as it is: the
+    /// caller's input at a build, the stored culprit at rest, a damaged
+    /// file at the import door.
+    SemiAxisNotFinite {
+        /// The carrier's kind.
+        carrier: geom::CurveKind,
+    },
     /// A periodic carrier's stored interval (a circle's, an ellipse's, a
     /// spiric's) spans definitely more than one full period beyond
     /// tolerance. This closes the 9-sample winding alias (M2 PR 3
@@ -568,8 +597,7 @@ pub enum CertifyError {
     /// [`CertCheck::ParamWinding`]), and at a public door
     /// ([`EdgeCurve::certify`], [`EdgeCurve::recertify`] and their `_via`
     /// doors) that is its input — a zero, reversed or past-a-turn
-    /// `param_start … param_end`, a chord between coincident points, a
-    /// circle or ellipse carrier of no positive radius, or a stored arc
+    /// `param_start … param_end`, a chord between coincident points, or a stored arc
     /// re-certified at a band finer than the one it was minted at, where
     /// its headroom read as zero. At a build it ends in the check's
     /// lever; at the import door it ends as any reading of the check's
@@ -795,6 +823,15 @@ fn row_image_refusal(surface: SurfaceKey, refusal: PcurveCertifyError) -> Certif
         PcurveCertifyError::Escalated { check, cause, .. } => {
             RowRefusal::ImageEscalated { check, cause }
         }
+        // The carrier's incidence read in band ends the row's refusal in
+        // band too, never as a definite refusal.
+        PcurveCertifyError::Incidence(read) => match read.read() {
+            crate::IncidenceRead::Undecided(cause) => RowRefusal::ImageEscalated {
+                check: crate::pcurve_cache::PcurveCheck::ChartIncidence,
+                cause,
+            },
+            _ => RowRefusal::Image(Some(crate::pcurve_cache::PcurveCheck::ChartIncidence)),
+        },
         refused => RowRefusal::Image(refused.refused_check()),
     };
     CertifyError::Row { surface, refusal }
@@ -870,6 +907,19 @@ impl core::fmt::Display for CertifyError {
                 chart.name(),
                 crate::pcurve_cache::ENVELOPE_LEVER,
             ),
+            Self::NoGeneralLane {
+                chart,
+                carrier,
+                gap: crate::LaneGap::Image,
+            } => write!(
+                f,
+                "a conventional description's {} carrier is on its {} chart but is none of \
+                 the chart's own curves, and its general image on that chart does not yet \
+                 follow it over this edge. Recourse: {}",
+                carrier.name(),
+                chart.name(),
+                crate::pcurve_cache::IMAGE_LEVER,
+            ),
             Self::Incidence(refusal) => refusal.write_at::<CertCheck>(f),
             Self::Unimplemented => write!(
                 f,
@@ -893,6 +943,18 @@ impl core::fmt::Display for CertifyError {
             Self::IntervalNotForward { verdict } => {
                 StatedSpan::Forward(ForwardReading::Decided(*verdict)).tell(STORED_INTERVAL, f)
             }
+            Self::SemiAxisNotFinite { carrier } => write!(
+                f,
+                "the {} carrier stores a semi-axis that is not a finite number, and a conic's \
+                 semi-axes are positive lengths",
+                carrier.name()
+            ),
+            Self::SemiAxisNegative { carrier } => write!(
+                f,
+                "the {} carrier stores a negative semi-axis, and a conic's semi-axes are \
+                 positive lengths",
+                carrier.name()
+            ),
             Self::SpanMeterCollapsed { verdict } => write!(
                 f,
                 "{SPAN_METER} is {} zero (margin {} m), so the stored interval has no proven \
@@ -1078,7 +1140,7 @@ impl CertifyError {
                 ..
             } => (CertCheck::ChartClass, RefusedArm::SignCertain(None)),
             Self::NoGeneralLane {
-                gap: crate::LaneGap::Pose { .. } | crate::LaneGap::Envelope,
+                gap: crate::LaneGap::Pose { .. } | crate::LaneGap::Envelope | crate::LaneGap::Image,
                 ..
             } => (CertCheck::GeneralLane, RefusedArm::SignCertain(None)),
             Self::Incidence(refusal) => (CertCheck::ChartIncidence, refusal.arm()),
@@ -1091,6 +1153,8 @@ impl CertifyError {
             | Self::WrapOnNonPeriodic
             | Self::TangentCertificateUnsupported
             | Self::StatedInterval { .. }
+            | Self::SemiAxisNegative { .. }
+            | Self::SemiAxisNotFinite { .. }
             | Self::Band(_) => return None,
         };
         Some(Decision::Check(check, arm))
@@ -1120,6 +1184,20 @@ impl CertifyError {
     pub(crate) fn own_ending(&self, at: ReadAt) -> Option<String> {
         match self {
             Self::StatedInterval { refused } => Some(refused.ending(at)),
+            // The kernel mints no negative or non-finite semi-axis, so at
+            // a build the record is its caller's input, which the lever
+            // moves; past a build it is the stored culprit's
+            // (`RefusedSide::Unminted`).
+            Self::SemiAxisNegative { .. } | Self::SemiAxisNotFinite { .. } => Some(
+                SizedDecision {
+                    lever: SEMI_AXIS_LEVER,
+                    size: length_noun!(),
+                    passes: SizedPass::Positive,
+                    side: RefusedSide::Unminted,
+                    no_size: None,
+                }
+                .recourse(RefusedArm::SignCertain(None), at),
+            ),
             _ => self.incidence_read().map(|read| read.ending(at)),
         }
     }
@@ -1186,6 +1264,12 @@ const TANGENT_PLANES_UNDEFINED: &str = "a surface's gradient is zero or undefine
 /// a cylinder's axis and at a sphere's centre, and an enclosure reaches one
 /// when the point and the surface's axis are enclosed apart by more
 /// than the radius, as two images of one widened map are.
+/// The lever of a [`CertifyError::SemiAxisNegative`] and a
+/// [`CertifyError::SemiAxisNotFinite`] at a build, where the record is
+/// the caller's input.
+pub(crate) const SEMI_AXIS_LEVER: &str = "store each semi-axis as its finite, positive length, and \
+     reverse the traversal by flipping the frame's normal";
+
 const TANGENT_PLANES_RECOURSE: &str = "keep the edge clear of each surface's axis or centre; over \
      a parameter box, a narrower box encloses the edge and its surfaces closer to where they are";
 
@@ -2056,7 +2140,8 @@ pub struct Certificate<T: Real> {
     /// coincident with zero — the endpoint, surface, mapped-source,
     /// chart and witness residuals, and the tangent lane's parallelism
     /// defect and sag bound — together with the plane × NURBS lane's
-    /// limb-1 on-locus maximum and limb-2 sup bound. Transversality
+    /// limb-1 on-locus maximum and limb-2 sup bound, and a stated chart
+    /// image's pcurve certificate's residual and envelope. Transversality
     /// margins (clearance margins, not residuals) and the analytic
     /// rung-3 limbs are not folded. Certified ≤ ε by construction.
     ///
@@ -2292,6 +2377,11 @@ impl<T: Decide + geom_core::CertifiedBounds> EdgeCurve<T> {
     ///      `TangentIntersection`'s second-order arm folds the same
     ///      `reach`.
     ///    - `Scaffold` (a mapped source): `|carrier(t_i) − description(i/8)|`.
+    ///    - `Chart`: `|C(t_i) − S(P(t_i))|`, but for a stated image on a
+    ///      spline chart, which is bounded over the whole span before the
+    ///      schedule, through its pcurve certificate's door
+    ///      ([`crate::PcurveCache::certify_stated_image`]), whose envelope is a
+    ///      sup, and its refusal ends by the carrier's incidence read.
     /// 5. `Intersection`: the witness's implicit residuals vs both
     ///    surfaces, then the **mid-parameter pin**
     ///    `|carrier.mid_point(t₀, t₁) − witness| ≤ ε`
@@ -3965,13 +4055,47 @@ fn decide_turn<T: Decide>(
             cause: undecided.diag,
         }),
     };
+    // A conic's semi-axes are finite, positive lengths, the invariant
+    // every reader of its speed (`geom::Conic::speed_lo`) states, so a
+    // stored one that is not is refused here, before the first of them:
+    // one not a finite number (`CertifyError::SemiAxisNotFinite`), and
+    // one definitely negative (`CertifyError::SemiAxisNegative`). Both
+    // are exact reads of stored data, not banded decisions. `−x` decides
+    // above zero (`Real::select_le_zero` picks its second candidate)
+    // exactly where `x` is negative at every point; an enclosure across
+    // zero hulls both candidates, so the second read, with the poison
+    // first, tells a decided negative from a straddle, which falls
+    // through to the span meter's reading in band. A zero semi-axis is a
+    // collapsed length, which the span meter reads as the interval it
+    // leaves no length to.
+    if let Some(conic) = spec.carrier.conic() {
+        let (a, b) = conic.semi_axes();
+        let poison = T::from_f64(f64::NAN);
+        let negative = |x: T| {
+            let minus = T::zero() - x;
+            minus.select_le_zero(T::zero(), poison).is_poison()
+                && !minus.select_le_zero(poison, T::zero()).is_poison()
+        };
+        let carrier = spec.carrier.kind();
+        #[cfg(not(test))]
+        let unchecked = false;
+        #[cfg(test)]
+        let unchecked = crate::pcurve_cache::mutants::semi_axis_unchecked();
+        if !unchecked {
+            if !(a.is_bounded() && b.is_bounded()) {
+                return Err(CertifyError::SemiAxisNotFinite { carrier });
+            }
+            if negative(a) || negative(b) {
+                return Err(CertifyError::SemiAxisNegative { carrier });
+            }
+        }
+    }
     // A periodic carrier's span is forward at the carrier's speed floor
     // (`geom::carrier_speed::speed_floor`, the one spelling the conic
     // readers share): a circle's radius; an ellipse's smaller semi-axis
     // (|dP/dθ| ≥ min(a, b), so the span times it is a certified lower
-    // bound on the child's arc length, in either stored order), so a
-    // non-positive semi-axis, either one, is refused as
-    // `IntervalNotForward`, a door's `StatedInterval`; a spiric's MINOR
+    // bound on the child's arc length, in either stored order; both are
+    // positive, decided above); a spiric's MINOR
     // radius (`|dP/dv| ≥ r`). The winding bound is the
     // 8kτ sample-alias argument about the parameter period, which all
     // three share.
@@ -4159,21 +4283,9 @@ fn canonical_of<T: Decide>(
                 // every stored cache of this class already carries,
                 // which is what makes description and cache the same
                 // object.
-                Some(p) => {
-                    // A stated image is metered against the chart below;
-                    // whether the carrier lies on the chart is read first,
-                    // as the mint reads it (D3), so a carrier off its face
-                    // ends as that read, never as the residual's meter.
-                    crate::pcurve_cache::read_incidence(
-                        &spec.carrier,
-                        spec.param_start,
-                        spec.param_end,
-                        surface,
-                        band,
-                    )
-                    .map_err(|e| mint_refusal(e, surface, &spec.carrier))?;
-                    p.clone()
-                }
+                // Whether the carrier lies on the chart is read by the
+                // door that holds this (`StatedChart`).
+                Some(p) => p.clone(),
                 // D4, the minted half: an analytic chart's image is
                 // derived from the carrier through the one door that
                 // derives chart images anywhere in this kernel.
@@ -4193,6 +4305,89 @@ fn canonical_of<T: Decide>(
             })
         }
     })
+}
+
+/// **Where a description states its chart image**, decided once: on a
+/// spline chart, which the certification bounds over the span
+/// ([`stated_bound`]); on an analytic chart, whose carrier is read first
+/// ([`stated_analytic_read`]); or not at all (a derived image, or any
+/// other description).
+enum StatedChart<'a, T: Real> {
+    Spline(&'a Surface<T>, &'a Pcurve<T>),
+    Analytic(&'a Surface<T>),
+    None,
+}
+
+impl<'a, T: Real> StatedChart<'a, T> {
+    fn of(resolved: &'a Resolved<T>) -> Self {
+        let Resolved::Chart {
+            surface,
+            image: Some(image),
+            ..
+        } = resolved
+        else {
+            return Self::None;
+        };
+        if surface.spline_chart().is_none() {
+            return Self::Analytic(surface);
+        }
+        #[cfg(test)]
+        if crate::pcurve_cache::mutants::stated_image_sampled() {
+            return Self::None;
+        }
+        Self::Spline(surface, image)
+    }
+}
+
+/// **A stated chart image's bound over the span on a spline chart** (D4
+/// ¶2): the image a construction states is certified through its pcurve
+/// certificate's door ([`crate::PcurveCache::certify_stated_image`], the
+/// mint's), whose envelope bounds `|C(t) − S(P(t))|` over the whole span,
+/// so a carrier off its wall between any samples does not certify. A
+/// refusal is ended by the carrier's incidence read there, and carried
+/// into this door's vocabulary by [`mint_refusal`].
+///
+/// `fitted` is the certifying scalar's fitted door. [`crate::FittedLane`]
+/// has the one constructor, so it is the door the mint takes through the
+/// scalar's `AtRestPolicy::fitted_lane` too, and both certify one image
+/// alike.
+fn stated_bound<T: Decide>(
+    spec: &EdgeCurveSpec<T>,
+    (surface, image): (&Surface<T>, &Pcurve<T>),
+    band: Band,
+    fitted: crate::FittedLane<T>,
+) -> Result<T, CertifyError> {
+    let cache = crate::PcurveCache::certify_stated_image(
+        image,
+        (spec.param_start, spec.param_end),
+        &spec.carrier,
+        surface,
+        band,
+        Some(fitted),
+    )
+    .map_err(|e| mint_refusal(e, surface, &spec.carrier))?;
+    let c = cache.certificate();
+    Ok(c.max_residual.max(c.envelope))
+}
+
+/// **A stated chart image's read on an analytic chart** (D3): the
+/// carrier's incidence read over the span, before the image is used, so
+/// a carrier shown off its face ends as the read ([`mint_refusal`]). How
+/// much of the span the read bounds is its class's
+/// (`work/pcert/a-closed-conics-and-a-spline-nets-incidence-on-an-analytic-chart-is-sampled.md`).
+fn stated_analytic_read<T: Decide>(
+    spec: &EdgeCurveSpec<T>,
+    surface: &Surface<T>,
+    band: Band,
+) -> Result<(), CertifyError> {
+    crate::read_incidence(
+        &spec.carrier,
+        spec.param_start,
+        spec.param_end,
+        surface,
+        band,
+    )
+    .map_err(|e| mint_refusal(e, surface, &spec.carrier))
 }
 
 /// **A chart image's refusal, as the edge certificate's**: an incidence
@@ -4307,6 +4502,9 @@ fn mint_checks<T: Decide>(
 ) -> Result<(EdgeDescription<T>, Option<CertifiedTurn<T>>), CertifyError> {
     let resolved = resolve_spec(spec, surfaces)?;
     let turn = decide_turn(spec, band)?;
+    if let StatedChart::Analytic(surface) = StatedChart::of(&resolved) {
+        stated_analytic_read(spec, surface, band)?;
+    }
     let canonical = canonical_of(spec, &resolved, band)?;
     Ok((canonical, turn))
 }
@@ -4353,7 +4551,20 @@ fn run_checks<T: Decide + geom_core::CertifiedBounds>(
         &mut max_residual,
     )?;
 
-    let canonical = canonical_of(spec, &resolved, band)?;
+    // From the canonical description on: a stated image's read on an
+    // analytic chart or bound over the span on a spline chart, the
+    // description's sampled checks and C2's limbs.
+    let resolved = &resolved;
+    let chart_stated = StatedChart::of(resolved);
+    match chart_stated {
+        StatedChart::Spline(surface, image) => {
+            let bound = stated_bound(spec, (surface, image), band, crate::FittedLane::certified())?;
+            max_residual = max_residual.max(bound);
+        }
+        StatedChart::Analytic(surface) => stated_analytic_read(spec, surface, band)?,
+        StatedChart::None => {}
+    }
+    let canonical = canonical_of(spec, resolved, band)?;
 
     // ---- Check 4: per-sample description residuals. ----
     // Jet-schedule accumulators (TangentIntersection only): the worst
@@ -4607,15 +4818,19 @@ fn run_checks<T: Decide + geom_core::CertifiedBounds>(
                     return Err(CertifyError::Unimplemented);
                 };
                 let p = spec.carrier.eval(t);
-                let q = chart.pcurve.eval(t);
-                check_residual(
-                    "pcurve_map_residual",
-                    CertCheck::ChartResidual,
-                    i,
-                    Margin::of(p.distance(surface.eval(q.x, q.y))),
-                    band,
-                    &mut max_residual,
-                )?;
+                // A stated image on a spline chart is bounded over
+                // the span above (`stated_bound`).
+                if !matches!(chart_stated, StatedChart::Spline(..)) {
+                    let q = chart.pcurve.eval(t);
+                    check_residual(
+                        "pcurve_map_residual",
+                        CertCheck::ChartResidual,
+                        i,
+                        Margin::of(p.distance(surface.eval(q.x, q.y))),
+                        band,
+                        &mut max_residual,
+                    )?;
+                }
                 // **The declaration is metered too, or it is not a
                 // record of anything** (P-1b, reinstated in review).
                 // A declared locus says a sketch entity under a sweep
@@ -5592,6 +5807,7 @@ mod tests {
                     CertifyError::PlaneNurbs(crate::edge_nurbs::PlaneNurbsRefusal::ArcRim(
                         crate::edge_nurbs::ArcRimRefusal {
                             iso: Some(crate::pcurve_cache::PcurveCheck::ParamSpan),
+                            read: None,
                             limb: crate::ssi::SsiLimb::HullSupChart,
                             bound: MarginDiag::value(5e-6),
                         },

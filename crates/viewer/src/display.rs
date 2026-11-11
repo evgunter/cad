@@ -1531,14 +1531,13 @@ impl DisplayState {
         doc: &Doc<ProfileProgram>,
         node: RecipeNodeId,
         frame: Frame,
-        tol: pncad::geom_core::Tol,
     ) -> Result<(), DisplayFault> {
         let space = doc.node_space(node);
         self.free_move.preview(
             free_move_words(),
             |probed| Some(probed.space) == space,
             |_| {
-                if frame.admission_fault(tol).is_none() {
+                if frame.admission_fault().is_none() {
                     Ok((frame, ()))
                 } else {
                     Err(DisplayFault::NonRigidFrame {

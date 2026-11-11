@@ -306,6 +306,16 @@ impl ImplicitForm {
         self.frame[0] * g.x + self.frame[1] * g.y + self.frame[2] * g.z
     }
 
+    /// `∇f` in world coordinates where it is the same at every point: the
+    /// plane's, the frame's third axis (its unit normal). `None` for a
+    /// curved form, whose gradient turns with the point.
+    pub(crate) fn constant_gradient(&self) -> Option<Vec3<Interval>> {
+        match self.form {
+            Form::Plane => Some(self.frame[2]),
+            Form::Cylinder { .. } | Form::Sphere { .. } | Form::Torus { .. } => None,
+        }
+    }
+
     /// An upper bound on `‖∇f‖` over the frame box `q`; `NaN` where it
     /// does not certify. The frame encloses an exactly orthonormal one,
     /// so the frame's coordinates carry the world length.
@@ -350,7 +360,7 @@ impl ImplicitForm {
         let over = self
             .form
             .meters()
-            .over(Interval::point(mag), rho, (0.0, 0.0), |lever| {
+            .over(Interval::point(mag), rho, (0.0, 0.0), |lever, _| {
                 if lever.is_certified() && lever.lo() > 0.0 {
                     Ok(lever)
                 } else {

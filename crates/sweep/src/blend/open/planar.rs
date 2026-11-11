@@ -1,8 +1,8 @@
 //! **The planar open band** — the blank phase: a plane–plane link
 //! carved LOCALLY on its two support faces, each of its two ends a
-//! trivalent vertex of one convexity whose edges the request names
-//! all — the corner patch, the fillet's sphere octant or the
-//! chamfer's flat patch through the three trimline feet
+//! trivalent vertex whose edges the request names all — the corner
+//! patch, at a vertex of one convexity, the fillet's sphere octant or
+//! the chamfer's flat patch through the three trimline feet
 //! ([`corner_plan`]) — two: the mitre where the two bands meet
 //! ([`turn_plan`]) — or one: the cut-off in the plane end face
 //! ([`cut_off_plan`], [`super::end_face`]).
@@ -90,7 +90,7 @@ pub(in crate::blend) struct Corner<'a, T: Real> {
     /// **Any one incident link answers for all of them**, and what
     /// makes that sound is the BATTERY, not this module's door: a
     /// termination reaches the carve only through predicate 6, which
-    /// runs at every open chain's two ends and admits a trihedron
+    /// runs at every open chain's two ends and admits a corner patch
     /// only where its three edges carry ONE convexity. So the three
     /// links here cannot disagree — on either side of the material.
     pub(in crate::blend) convexity: Convexity,
@@ -147,7 +147,7 @@ pub(in crate::blend) fn corner_plan<'a, T: Decide + Bounds>(
             .vec();
     }
     // Any one incident link answers for all of them (`Corner`'s field
-    // doc): the battery's corner predicate admits a termination only
+    // doc): the battery's corner predicate admits a corner patch only
     // where all three of its edges carry one convexity.
     let convexity = links.first().convexity();
     let (arc, feet, surface) = match kind {

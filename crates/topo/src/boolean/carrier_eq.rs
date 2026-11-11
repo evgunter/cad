@@ -705,6 +705,17 @@ fn perpendicular<T: geom_core::Real>(v: Vec3<T>, axis: Vec3<T>) -> Vec3<T> {
 
 pub(crate) use geom_brep::line_tilt;
 
+/// **The arm the ladder levers a pair's angular data at** over
+/// `reach` ([`at_consumed_extent`]'s third part): the reach from the
+/// pivot each kind's position datum is read at.
+pub(super) fn consumed_arm<T: geom_core::Real>(
+    c1: &CarrierDesc<T>,
+    c2: &CarrierDesc<T>,
+    reach: geom_brep::ExtentBall<T>,
+) -> geom_core::Lever<T> {
+    at_consumed_extent(c1, c2, reach).2
+}
+
 /// **The pair as the ladder reads it when its verdict is
 /// consumed over `reach`**: each description anchored where its
 /// position datum is read nearest the extent's centre, and the lever

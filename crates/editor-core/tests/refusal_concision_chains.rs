@@ -926,7 +926,7 @@ mod kernel {
     test_utils::f6_variants! {
         /// `TraceFault`'s arms, for the `Trace/Carrier/` rows.
         pub(super) const TRACE_FAULT: TraceFault = [
-            Unsupported, Unbounded, Grazing, Apex, OnCarrier, Escalated, Unsettled,
+            Unsupported, Unbounded, Grazing, Apex, OnCarrier, Escalated, Unsettled, Torus,
         ];
     }
 
@@ -4659,6 +4659,13 @@ fn trace() -> Vec<(String, NodeErrorKind)> {
             "Carrier/Unsettled",
             F::Carrier(TraceFault::Unsettled(geom_brep::roots::Unsettled::Meter {
                 row: "test_meter",
+            })),
+        ),
+        (
+            "Carrier/Torus",
+            F::Carrier(TraceFault::Torus(geom_brep::TorusRefusal {
+                convention: geom_brep::TorusConvention::Ring,
+                verdict: geom_brep::TorusVerdict::Undecided(diag()),
             })),
         ),
         ("Uncovered", F::Uncovered(uncovered_face())),

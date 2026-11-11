@@ -1266,6 +1266,14 @@ pub(crate) fn loop_polygon(
                     prev_u
                 };
                 if let Some(vp) = jpole {
+                    // A horn's one pole is its cusp, at `v = ±π` alike
+                    // (`Chart::is_horn`): a face names the copy on the
+                    // side the meridian leaving it reads.
+                    let vp = if chart.is_horn() {
+                        vp.copysign(chart.v_of(positions[cur.ids[1] as usize]))
+                    } else {
+                        vp
+                    };
                     // Close the incoming column, open the outgoing one.
                     out.push(UvPoint {
                         u: prev_u,

@@ -268,7 +268,7 @@ pub fn side_placement(doc: &ProfileDoc, side: &editor_core::Operand) -> Option<R
     let editor_core::Operand::Select { body, .. } = side else {
         return None;
     };
-    let at = match body.as_ref() {
+    let at = match &body.read {
         editor_core::Operand::Node(at) | editor_core::Operand::Output { node: at, .. } => *at,
         editor_core::Operand::Var(var) => doc.operation_of(*var)?,
         editor_core::Operand::Name(name) => doc.operation_of(doc.var_named(name.as_str())?)?,
@@ -321,7 +321,7 @@ pub fn placed_by(doc: &ProfileDoc, mate: &editor_core::Mate<Formula>) -> RecipeN
         let editor_core::Operand::Select { body, .. } = select else {
             continue;
         };
-        let read = match body.as_ref() {
+        let read = match &body.read {
             editor_core::Operand::Node(at) | editor_core::Operand::Output { node: at, .. } => {
                 Some(*at)
             }
@@ -776,6 +776,22 @@ pub fn head(name: impl Sited) -> editor_core::SitedFace {
     name.sited()
 }
 
+/// **A side read in one member of the family `family` defines**,
+/// `family[member]`, by the member's own name `of` (REFERENCES DM3): the
+/// native member read a side states.
+pub fn member_head(family: RecipeNodeId, member: &[u32], of: impl Sited) -> editor_core::SitedFace {
+    editor_core::SitedFace::in_member(family, member.to_vec(), face(of.name()))
+}
+
+/// **`name` read in one member of `family`**, `family[member]`, of any
+/// entity kind: the one-name selection of that member.
+pub fn read_member(family: RecipeNodeId, member: &[u32], of: impl Sited) -> editor_core::Operand {
+    editor_core::Operand::select(
+        editor_core::BodyRead::member(family, member),
+        vec![of.name()],
+    )
+}
+
 /// The same side read at `at` rather than at its mint.
 pub fn head_at(at: RecipeNodeId, name: impl Into<StableName>) -> editor_core::SitedFace {
     editor_core::SitedFace::new(at, face(name))
@@ -883,6 +899,43 @@ impl Sited for (RecipeNodeId, StableName) {
     }
 }
 
+/// **A name read in one member of a family** (REFERENCES DM3): the
+/// family, the member's index values keyed by their indices, and the
+/// member's own name. A side states it natively, `family[i]` by the own
+/// name ([`Sited::sited`]); a readback of the family's table names it as
+/// the table does, under the `Member` qualifier ([`Sited::name`]).
+#[derive(Debug, Clone)]
+pub struct InMember {
+    /// The family's operation.
+    pub family: RecipeNodeId,
+    /// The member's index values, outermost first.
+    pub at: editor_core::MemberAt,
+    /// The member's own name.
+    pub of: StableName,
+}
+
+impl Sited for InMember {
+    fn site(&self) -> RecipeNodeId {
+        self.family
+    }
+    fn name(self) -> StableName {
+        in_member(self.family, self.at, self.of)
+    }
+    fn sited(self) -> editor_core::SitedFace {
+        let member: Vec<u32> = self.at.iter().map(|&(_, value)| value).collect();
+        editor_core::SitedFace::in_member(self.family, member, face(self.of))
+    }
+}
+
+/// [`InMember`] of a one-index family: member `i` of `index`.
+pub fn copy_site(family: RecipeNodeId, index: VarId, i: u32, of: impl Sited) -> InMember {
+    InMember {
+        family,
+        at: vec![(index, i)],
+        of: of.name(),
+    }
+}
+
 impl Sited for resolver::PartName {
     fn site(&self) -> RecipeNodeId {
         self.at
@@ -928,7 +981,7 @@ pub fn authored_head(side: &editor_core::Operand) -> editor_core::SitedFace {
     let editor_core::Operand::Select { body, names } = side else {
         panic!("an authored side is a selection, got {side:?}")
     };
-    let editor_core::Operand::Node(at) = **body else {
+    let editor_core::Operand::Node(at) = body.read else {
         panic!("an authored side is read at a node, got {body:?}")
     };
     let [name] = names.as_slice() else {
@@ -3847,7 +3900,7 @@ pub fn body_selecting(doc: &ProfileDoc, name: &StableName) -> Option<editor_core
         .values()
         .filter_map(|var| var.def().select())
         .filter(|select| select.names.contains(name))
-        .map(|select| select.body)
+        .map(|select| select.body.read)
         .collect();
     let [one] = bodies.as_slice() else {
         panic!("one selection names {name:?}, not {bodies:?}");

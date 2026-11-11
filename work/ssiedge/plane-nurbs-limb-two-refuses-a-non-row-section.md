@@ -138,3 +138,23 @@ The rational-wall measurements above are history. The row's live pin
 is the polynomial tilted prism
 (`a_tilted_caps_marched_rim_refuses_at_its_certificate`), a marched
 non-row section.
+
+## 2026-11-04 — the mint's image of a bending carrier has a finer producer (PCERT, `pcert/curved-general-image`)
+
+The pcurve mint's `General` image of a curved carrier with no net (a
+circle no row holds, an ellipse) is no longer `edge_nurbs::chart_image`'s
+degree-1 interpolant. It is `edge_nurbs::curved_chart_image`: degree 5
+through 33, 65, 129 or 257 feet of the same uniform schedule, stopping at
+the first rung whose miss sampled between feet is within `band.zero()/16`,
+and broken at full multiplicity wherever the foot path crosses one of the
+wall's interior knot lines. On a rational ring wall in two sub-arcs, a
+circle crossing the joint certifies at ε 1e-9, 1e-6 and 1e-12 at `f64`
+(envelope 4.2e-11 m at 1e-9). Unbroken at the joint, every degree
+refuses at `O(h²)`: 1.29e-7 m through 257 feet, at degree 1, 3 or 5 alike.
+
+The three edge-certificate producers still read the degree-1 image for
+every carrier, a bending one included: `plane_nurbs_limbs`,
+`plane_nurbs_incidence`'s fitted path, and `nurbs_pair_limbs` (both
+charts). They were left on it because `plane_nurbs_limbs` rides its
+transversality sweep on the same schedule's feet. Whether they take the
+curved producer is this row's question.

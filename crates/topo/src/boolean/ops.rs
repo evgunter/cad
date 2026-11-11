@@ -6806,66 +6806,47 @@ fn apply_recuts<T: Decide + Bounds + crate::props::AtRestPolicy>(
             let ball = carve(src, solid, &[shell])
                 .map_err(|_| corrupt("re-cut carve of the sphere shell failed"))?;
             recut_lean(r.axis, r.align, r.radius, band)?;
-            let cross = r.axis.cross(r.align);
-            // The alignment rotation, built ALGEBRAICALLY (Rodrigues
-            // with the angle eliminated: R = I + K + K²/(1+c) for
-            // K = [â×n̂]ₓ, c = â·n̂ — division guarded by the
-            // alignment trilean above, which already refused the
-            // antiparallel c ≈ −1 arm together with the parallel one).
-            // No atan2/sin/cos anywhere: under the Interval scalar a
-            // trig-built rotation carries straddling-zero matrix
-            // entries whose downstream crossing-root phases explode at
-            // the atan2 branch cut; the algebraic form keeps exact
-            // zeros exact, and the f64 lane is bit-for-bit the same
-            // standard construction.
-            let k = cross;
-            let c = r.axis.dot(r.align);
-            let kx = |v: Vec3<T>| k.cross(v);
-            let one = T::one();
-            let col = |e: Vec3<T>| {
-                let kv = kx(e);
-                e + kv + kx(kv) / (one + c)
+            // The alignment turn and the seam spin, each MINTED as the
+            // turn between two unit witnesses (`RigidMotion::turned_between`,
+            // the quaternion of `(1 + a·b, a × b)`: algebraic, no
+            // atan2/sin/cos, so under the Interval scalar exact zeros stay
+            // exact), about the sphere's centre. Rigid by construction,
+            // so no rigidity door is asked of twelve numbers (closing
+            // `work/honepair/the-sphere-re-cut-rotation-is-decided-at-the-door-not-minted.md`);
+            // `1 + a·b > 0` is its one decision, which the alignment
+            // trilean above already settled for the axis pair and the
+            // seam's half-plane choice settles for the spin.
+            const RECUT_TURN: &str = "bool_sphere_recut_turn";
+            let unit = |v: Vec3<T>| {
+                geom_core::UnitVec3::new(v, RECUT_TURN, band)
+                    .map_err(|_| corrupt("re-cut direction is not a unit direction"))
             };
-            let linear = geom_core::Mat3::from_cols(
-                col(Vec3::new(one, T::zero(), T::zero())),
-                col(Vec3::new(T::zero(), one, T::zero())),
-                col(Vec3::new(T::zero(), T::zero(), one)),
-            );
+            let turn = |a, b| {
+                geom_core::RigidMotion::turned_between(a, b, r.center, RECUT_TURN, band)
+                    .map_err(|_| corrupt("re-cut rotation does not mint a turn"))
+            };
+            let align = turn(unit(r.axis)?, unit(r.align)?)?;
             // The spin about `align` that turns the rotated seam to
-            // `seam`, the same algebraic form on the seam directions; the
-            // sign that keeps the turn at most a quarter is either of the
-            // seam's two half-planes.
-            let linear = match r.seam {
-                None => linear,
+            // `seam`; the sign that keeps the turn at most a quarter is
+            // either of the seam's two half-planes.
+            let map = match r.seam {
+                None => align,
                 Some(seam) => {
-                    let a = linear * r.u_ref;
+                    let a = align.turn(unit(r.u_ref)?);
                     let flip = matches!(
-                        decide("bool_sphere_recut_seam", Margin::of(a.dot(seam)), band),
+                        decide(
+                            "bool_sphere_recut_seam",
+                            Margin::of(a.get().dot(seam)),
+                            band
+                        ),
                         Ok(Sign::Negative)
                     );
                     let b = if flip { -seam } else { seam };
-                    let k = a.cross(b);
-                    let c = a.dot(b);
-                    let kx = |v: Vec3<T>| k.cross(v);
-                    let col = |e: Vec3<T>| {
-                        let kv = kx(e);
-                        e + kv + kx(kv) / (one + c)
-                    };
-                    let spin = geom_core::Mat3::from_cols(
-                        col(Vec3::new(one, T::zero(), T::zero())),
-                        col(Vec3::new(T::zero(), one, T::zero())),
-                        col(Vec3::new(T::zero(), T::zero(), one)),
-                    );
-                    spin * linear
+                    turn(a, unit(b)?)?
+                        .compose(align)
+                        .map_err(|_| corrupt("re-cut rotation's product overflowed"))?
                 }
             };
-            let q = r.center - Point3::origin();
-            let map = geom_core::Affine3::from_parts(linear, q - linear * q);
-            // Built from bare unit-by-convention directions, so its
-            // rigidity is decided at the door rather than carried
-            // (`work/cleave/the-sphere-re-cut-rotation-is-decided-at-the-door-not-minted`).
-            let map = geom_core::RigidMotion::check_rigid(&map, band)
-                .map_err(|_| corrupt("re-cut rotation is not decided rigid"))?;
             let turned = crate::transform::transform_rigid(&ball, &map, tol)
                 .map_err(|_| corrupt("re-cut rotation failed to re-certify"))?;
             rotated.push((turned, faces));

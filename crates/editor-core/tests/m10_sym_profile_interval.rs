@@ -427,8 +427,15 @@ const PLATE_MAX_TERMS: usize = 38;
 /// moving on the plate at these ε. That is the plate's fact, not a rule:
 /// freezing is not monotone in reach, so a form frozen past the degree
 /// budget can flip a verdict elsewhere.
+///
+/// **Moved with ONEHOME's composed placements** (`mate::solve::admitted`
+/// removed: a solved placement is composed as motions and decides no
+/// rigidity margin): the two holes' placements no longer decide their seven
+/// rigidity margins, so `Plain/Decision` loses those 14 calls (1203 →
+/// 1189) and the nine forms they built (55907 → 55898). No other line
+/// moves.
 const PLATE_LEDGER: &str = "\
-     Plain/Decision calls 1203 forms 55907 frozen 66 digest 2b516892cf60afa28b5f21bfa2380ad9\n\
+     Plain/Decision calls 1189 forms 55898 frozen 66 digest 20fc0ebc7b7a86d1655eb11d10bcece9\n\
      Plain/Assertion calls 824 forms 9114 frozen 193 digest dd673bfb67b01ff645a83264700b9100\n\
      Early/Decision calls 412 forms 42505 frozen 0 digest 2694202f7b062a10a6e74f46b875d770\n\
      Early/Assertion calls 824 forms 10519 frozen 0 digest 2348058666416ec4901cd72db6861631\n\
