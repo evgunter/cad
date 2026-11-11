@@ -2316,8 +2316,9 @@ fn every_tied_strut_witness_holds_with_its_vertex_pairs_reversed() {
 /// builds at the volume clipping the corner to the cube gives
 /// ([`clipped_volume`]) and passes tier 2, 3′ and the certificate.
 /// Red as `PairingMismatch` when two germs in one sector are ordered by
-/// the other solid's sector, and as `JoinDesync` when the pairing starts
-/// at A's first germ whatever the op keeps of A.
+/// the other solid's sector, and as `JoinDesync` in `y ∪ cube` when the
+/// finish refuses a kept vertex that corresponds to two vertices of the
+/// other operand: the union keeps A's vertex, not its In-run copies.
 #[test]
 fn a_corner_crossing_the_cubes_four_times_builds_every_op() {
     let tol = Tol::witness();
@@ -2383,11 +2384,12 @@ fn a_corner_crossing_the_cubes_four_times_builds_every_op() {
 /// passes tier 2, 3′ and the certificate, and measures `cube ∪ y` =
 /// 1.0336378, `cube ∩ y` = 0.0285733 and `cube ∖ y` = 0.9714267, with
 /// each op the same in both operand orders and `y ∖ cube + ∩` = `y`.
-/// Red as `SharedVertexCrossings` in `y ∩ cube`, `cube ∪ y` and
-/// `cube ∖ y` where the band pairs along the cube's arcs outside it
-/// (the op's kept side of A), and as `JoinDesync` in `y ∩ cube` and
-/// `cube ∪ y` where the finish refuses a kept vertex that corresponds
-/// to two vertices of the other operand.
+/// Red as `ClassificationInvariant` ("a run at a shared vertex holds
+/// another pair's cut") where the band pairs along the cube's arcs
+/// outside it, from the op's kept side of A or from the Out arcs, and
+/// as `JoinDesync` in `y ∩ cube` and `y ∪ cube` where the finish
+/// refuses a kept vertex that corresponds to two vertices of the other
+/// operand.
 #[test]
 fn three_corners_alternating_round_the_cube_build_every_op() {
     let tol = Tol::witness();

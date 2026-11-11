@@ -779,16 +779,13 @@ fn a_corner_pinch_on_the_second_operands_side_builds() {
     assert_eq!(finding, None, "cube ∪ prism");
 }
 
-/// **A vertex-vertex pinch the pairing start avoids.** With `v` on the
-/// cube's edge (direction `i = 6, j = 1`), the vertex pair crosses four
-/// times, and its pairing starts where A's runs lie on the side the
-/// op keeps of A (`insert::pairing_start_turns`): each run A keeps is a
-/// copy of its own, and the result needs no crossing at `v`. Every op in
-/// both orders builds `SOUND` at the clipping oracle. Red when the
-/// pairing starts at A's first germ (`JoinDesync` "conflicting seam
-/// vertex correspondence" in prism ∩ cube, the first run checked).
+/// **A four-germ vertex pair on the cube's edge builds every op.** With
+/// `v` on the cube's edge (direction `i = 6, j = 1`), the vertex pair
+/// crosses four times and pairs along A's arcs inside B, whatever the op
+/// (`insert::in_arc_pairs`). Every op in both orders builds `SOUND` at
+/// the clipping oracle.
 #[test]
-fn a_four_germ_pinch_the_pairing_start_avoids_builds_every_op() {
+fn a_four_germ_vertex_pair_on_the_cubes_edge_builds_every_op() {
     let (place, lo, psis) = PLACEMENTS[1];
     for (tag, r, want) in pose_runs((place, lo), (6, 1, psis[0])) {
         let line = outcome(r, want, tol());
@@ -1430,21 +1427,14 @@ fn eight_crossing_corners_nest_two_deep_and_build_every_op() {
 /// orders.** [`notch343`] against a pinch of two cubes at its corner,
 /// the sweep's grid direction `i=0 j=0` turned `psi=2.2`: the notch
 /// crosses one cube's corner six times and the other's twice, at the
-/// notch's corner, which both pairs share.
-/// - Notch first, the shared vertex is A's: one run turns, and its own
-///   pair's other run hangs at its copy.
-/// - Pinch first, it is B's, and the six-crossing pair nests in B's
-///   walk order: a fan holds a strut. In the union and the difference
-///   that fan holds the other pair's strut too and turns, which leaves
-///   its strut outside it and holds its other sibling; in the
-///   intersection nothing turns, and the strut hangs at the fan's copy.
+/// notch's corner, which both pairs share. In both orders the notch's
+/// corner leads both pairs, which run along its arcs inside each cube
+/// (`insert::in_arc_pairs`), clear of each other's cuts; where the
+/// six-crossing pair nests in the cube's walk, a held run mints at its
+/// holder's copy (`insert::run_holders`).
 ///
 /// Every op builds `SOUND`, one vertex per cone at the corner, on one
-/// point key, and meshing ([`pierce_point_finding`]). Red as
-/// `SharedVertexCrossings` if a plan nested in B's walk order is refused
-/// at a shared vertex, and as `ClassificationInvariant` if the runs a
-/// turn re-nests keep the holders read before it
-/// (`insert::hang_at_shared`).
+/// point key, and meshing ([`pierce_point_finding`]).
 #[test]
 fn a_six_crossing_pair_at_the_notchs_shared_corner_builds_in_both_orders() {
     let (m, psi) = (direction(0, 0), 2.2);
@@ -1471,20 +1461,17 @@ fn a_six_crossing_pair_at_the_notchs_shared_corner_builds_in_both_orders() {
     );
 }
 
-/// **A run turned round a shared vertex holds the rest of its pair.**
-/// [`notch343`] against the corner pinch at the pinch battery's poses
-/// `i=0 j=2 k=2` and `i=0 j=6 k=3`. Two vertex pairs cross at the
-/// notch's corner, which both share: one four times, the other twice.
-/// One run of the four-crossing pair holds the other pair's cuts and
-/// turns onto its complement, which holds its own pair's other run. Every
-/// op in both orders builds `SOUND`, one vertex per cone at the corner,
-/// on one point key, and meshing ([`pierce_point_finding`]). Red as
-/// `ClassificationInvariant` ("a vertex at a shared point is the In end
-/// of one null edge and the Out end of another") when the held run
-/// mints at the shared vertex rather than at the turned run's copy
-/// (`insert::hang_at_shared`).
+/// **A four- and a two-crossing pair at the notch's corner build every
+/// op.** [`notch343`] against the
+/// corner pinch at the pinch battery's poses `i=0 j=2 k=2` and
+/// `i=0 j=6 k=3`. Two vertex pairs cross at the notch's corner, which
+/// both share: one four times, the other twice. Both pair along the
+/// notch's arcs inside their cubes (`insert::in_arc_pairs`), so no run
+/// holds the other pair's cuts. Every op in both orders builds `SOUND`,
+/// one vertex per cone at the corner, on one point key, and meshing
+/// ([`pierce_point_finding`]).
 #[test]
-fn a_run_turned_at_a_shared_vertex_holds_the_rest_of_its_pair() {
+fn a_four_and_a_two_crossing_pair_at_the_notchs_corner_build_every_op() {
     let v = notch343().v;
     let mut bad = Vec::new();
     for (i, j, k) in [(0, 2, 2), (0, 6, 3)] {
@@ -1776,9 +1763,9 @@ fn four_pairs_battery() {
 /// there, two poses (PR 4249's review probes): `three i=4 j=3 k=1`
 /// (side-2 cubes, diagonals 120° apart in the plane normal to the grid
 /// direction) and `tripod i=0 j=4 t=1 k=0` (side-4 cubes tilted 0.25
-/// toward it). In each union a run turns at the shared corner and its
-/// siblings hang at its copy (`insert::hang_at_shared`), and no seam
-/// links the pinched operand's cones. The touch unions that built the
+/// toward it). Each pair runs along the shared corner's arcs inside its
+/// cube (`insert::in_arc_pairs`), and no seam links the pinched
+/// operand's cones. The touch unions that built the
 /// operand decided its corners one point and put them on one key
 /// (`ops::record_classes`), so every op builds at the oracle's volume
 /// with one vertex per cone at `v`, on one key, and meshes. In each
@@ -1853,19 +1840,15 @@ fn three_pairs_at_one_vertex_build_on_one_key_and_every_op_is_sound() {
     }
 }
 
-/// **A run turned round a shared vertex holds two siblings.**
+/// **The notch against a pinch of two wedges builds every op.**
 /// [`notch343`]'s corner against a pinch of two 50° wedges touching
 /// there, the second the first turned half a turn about its own `y`, at
 /// the grid direction `i=1 j=3` turned `0.7 + 0.3 j` (PR 4249's review
-/// probe `wpinch n343 a=50 i=1 j=3`). With the notch first, in the union
-/// and the difference one run at the notch's corner turns and holds two
-/// runs of its own pair, both hung at its copy. Every op with the notch
-/// first builds `SOUND`, one vertex per cone on one key, meshing. Red as
-/// `ClassificationInvariant` ("a vertex at a shared point is the In end
-/// of one null edge and the Out end of another") without
-/// `insert::hang_at_shared`.
+/// probe `wpinch n343 a=50 i=1 j=3`). The pairs run along the notch's arcs inside each wedge
+/// (`insert::in_arc_pairs`). Every op with the notch first builds
+/// `SOUND`, one vertex per cone on one key, meshing.
 #[test]
-fn a_run_turned_at_a_shared_vertex_holds_two_siblings() {
+fn the_notch_against_a_wedge_pinch_builds_every_op() {
     let v = notch343().v;
     let f = frame(direction(1, 3), 0.7 + 0.3 * 3.0);
     let g = [f[0].map(|t| -t), f[1], f[2].map(|t| -t)];
@@ -2758,33 +2741,20 @@ fn eight_crossings_with_a_pinched_cube(
     Ok(out)
 }
 
-/// **A strut chain at a shared vertex nests another pair's strut, and
-/// depth three hangs there.** [`eight_crossings_with_a_pinched_cube`]
-/// on the wedges, two cube poses; with the cube's union first, the
-/// shared vertex is the wedge's, B's.
-/// - `t=0 a=0 k=0` (tilt 0, spin 0.2): the reconcile turns the two
-///   fans of the eight-crossing pair in the union and the difference,
-///   leaving its strut chain `[2,5] ⊃ [3,4]` at the shared vertex, and
-///   the cube's strut nests in both.
-/// - `t=2 a=3 k=0` (tilt 0.55, azimuth 4.8, spin 0.2): nothing turns,
-///   and the pair's chain `[0,7] ⊃ [1,6] ⊃ [2,5] ⊃ [3,4]` (fan, fan,
-///   strut, strut) hangs from depth one to three, the innermost by a
-///   strut.
+/// **An eight-crossing pair at a shared vertex builds in both orders.**
+/// [`eight_crossings_with_a_pinched_cube`] on the wedges, two cube
+/// poses: `t=0 a=0 k=0` (tilt 0, spin 0.2) and `t=2 a=3 k=0` (tilt 0.55,
+/// azimuth 4.8, spin 0.2). The wedge's vertex, which the cube's pair
+/// shares, leads both pairs (`insert::pairing_leads`): the
+/// eight-crossing pair's four runs there are struts along the wedge's
+/// arcs inside its partner, none holding another, and in the partner's
+/// walk two of them nest under fans, at depths one and two
+/// (`insert::run_holders`).
 ///
 /// Every op in both orders builds `SOUND`, one vertex per cone on one
-/// key, meshing ([`pierce_point_finding`]). Red as
-/// `ClassificationInvariant`:
-/// - at the first pose, "the In end of one null edge and the Out end of
-///   another", when a run only struts hold mints after the shared
-///   vertex's other struts (`insert::mint_plans`), so the cube's strut
-///   hangs at the outer strut's tip;
-/// - at the second, when `insert::hang_at_shared` caps the depth at one
-///   ("a nested null edge's holder was not minted before it") or names
-///   the outermost holder ("the In end … the Out end");
-/// - at both, "the walk order and the corner's geometry disagree" when
-///   it drops `by_strut`.
+/// key, meshing ([`pierce_point_finding`]).
 #[test]
-fn a_strut_chain_at_a_shared_vertex_nests_another_pairs_strut_and_depth_three_hangs() {
+fn an_eight_crossing_pair_at_a_shared_vertex_builds_in_both_orders() {
     let poses = eight_crossing_poses();
     let mut bad = Vec::new();
     for (tilt, az) in [(0.0, 0.0), (0.55, 4.8)] {
