@@ -168,12 +168,15 @@ impl Bump {
     }
 
     /// The carrier's largest distance from the wall, by a dense walk in
-    /// `f64` (the oracle the rows' verdicts are checked against).
+    /// `f64` and at the bump's own peak (the oracle the rows' verdicts are checked against).
     fn miss(self, wall: Wall) -> f64 {
         let net = self.net(wall);
-        (0..=1 << 16)
-            .map(|i| {
-                let q = net.eval(f64::from(i) / f64::from(1u32 << 16));
+        let n = 1u32 << 13;
+        (0..=n)
+            .map(|i| f64::from(i) / f64::from(n))
+            .chain([self.peak])
+            .map(|t| {
+                let q = net.eval(t);
                 wall.distance([q.x, q.y, q.z])
             })
             .fold(0.0, f64::max)
