@@ -179,6 +179,35 @@ fn degenerate_net() -> Curve3<f64> {
     Curve3::Nurbs(Arc::new(n))
 }
 
+/// A carrier on [`quarter_cylinder_wall`]'s `u = 0` ruling, `(1, 0, z)`,
+/// the iso line the pcurve-lane probes state: on its chart, so a lane's
+/// own refusal stands rather than ending by the carrier's incidence read
+/// (a refused certificate on a spline chart ends by that read).
+fn ruling_segment_f64(length: f64) -> Curve3<f64> {
+    let k = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).expect("knots");
+    let n = NurbsCurve3::new(
+        Knots::from(k).lift(geom_core::Real::from_f64),
+        vec![Point3::new(1.0, 0.0, 0.0), Point3::new(1.0, 0.0, length)],
+        vec![Real::one(); 2],
+    )
+    .expect("the carrier builds");
+    Curve3::Nurbs(Arc::new(n))
+}
+
+/// The degenerate net collapsed to a point of [`quarter_cylinder_wall`]'s
+/// `u = 0` ruling: its speed is a poison meter, and it is on its chart.
+fn degenerate_net_on_the_wall() -> Curve3<f64> {
+    let k = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).expect("knots");
+    let p = Point3::new(1.0, 0.0, 1.0);
+    let n = NurbsCurve3::new(
+        Knots::from(k).lift(geom_core::Real::from_f64),
+        vec![p, p],
+        vec![Real::one(); 2],
+    )
+    .expect("the degenerate net builds");
+    Curve3::Nurbs(Arc::new(n))
+}
+
 fn axis_segment_f64(length: f64) -> Curve3<f64> {
     let k = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).expect("knots");
     let n = NurbsCurve3::new(
@@ -261,7 +290,7 @@ fn iso_lane_poison_meter_escalates_invalid_end_to_end() {
         iso,
         0.0,
         1.0,
-        &degenerate_net(),
+        &degenerate_net_on_the_wall(),
         &quarter_cylinder_wall(),
         band(),
     );
@@ -290,7 +319,7 @@ fn iso_lane_backwards_span_stays_interval_not_forward() {
         iso,
         1.0,
         0.0,
-        &axis_segment_f64(1.0),
+        &ruling_segment_f64(1.0),
         &quarter_cylinder_wall(),
         band(),
     );
@@ -319,7 +348,7 @@ fn fitted_lane_poison_meter_escalates_invalid_end_to_end() {
         image,
         0.0,
         1.0,
-        &degenerate_net(),
+        &degenerate_net_on_the_wall(),
         &wall,
         band(),
         FittedLane::certified(),
