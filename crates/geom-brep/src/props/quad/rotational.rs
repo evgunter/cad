@@ -51,7 +51,7 @@
 //! `|Ω|` lies in `(0, 4πr²]`, a window two of `q`'s steps wide, so it
 //! fixes `q`: per loop, the area outside it is read in `[0, 4πr²)`
 //! ([`sphere_outside`]), the face's is the sphere less those, and the
-//! reading is decided ([`require_sphere_sides`]). The flux about the
+//! reading is decided ([`require_compact_sides`]). The flux about the
 //! centre is then `r·s_f·|Ω|`.
 //!
 //! # The torus

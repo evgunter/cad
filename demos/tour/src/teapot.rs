@@ -139,11 +139,11 @@
 //!    loops about the handle's tube marched and fitted, each germ matched
 //!    to its loop by foot, and each closed loop seated at its first site,
 //!    so the segment lays them off the edges and the union builds. The
-//!    result then fails its own validation: its volume is not computed,
-//!    the vessel's sphere face now trimmed by a conic loop that no
-//!    sphere-chart quadrature reads yet (`ResultInvalid` with
-//!    `VolumeUncomputable` from `QuadratureUnsupported`), pinned in wall
-//!    2.
+//!    result validates: the vessel's chorded sphere face and the handle's
+//!    chorded torus face measure through the rotational lane, and wall 2
+//!    is retired. The scene does not join them yet: its handle stands
+//!    11.2 mm past the belly's inner wall, which a joined teapot must
+//!    re-cut first (`work/splice/curved-demo-joins-build.md`).
 //!
 //!    spout ∪ pot used to be the same shape of refusal — cone × plane
 //!    — and it is not any more. A loft's walls are `Nurbs`, and the
@@ -169,11 +169,7 @@
 //!    about and onto the meeting itself. Wall 3 pins it and the note
 //!    carries the payload.
 //!
-//!    Wall 2 is past the operand gate, the maximal-faces precondition
-//!    and the section, and stops at the segment the join cannot yet
-//!    lay along the vessel's sphere face where it meets the handle's
-//!    torus. **Both refusals arrive through the
-//!    DOCUMENT**: each join is a `Node::Union` that lowers to the
+//!    **The refusal arrives through the DOCUMENT**: each join is a `Node::Union` that lowers to the
 //!    same kernel `union` and fails at `evaluate`, and what the note
 //!    quotes is that node's own carried refusal rather than a second
 //!    measurement of it.
@@ -1279,13 +1275,6 @@ fn describe_join(ev: &Evaluation<f64>, node: RecipeNodeId) -> String {
 /// arm cannot be reached is a probe that can never tell the scene its
 /// wall is gone, and this scene's two walls are exactly the frontier
 /// whose retirement has to be noticed.
-/// Wall 2's refusal in the scene's evaluation, where it refuses: what
-/// the suite reads the refused face's kind off
-/// (`tests/teapot.rs`, `wall_2_refuses_on_the_handles_torus_face`).
-pub fn wall2_refusal<'a>(ev: &'a Evaluation<f64>, r: &Recipe) -> Option<&'a BooleanError> {
-    join_outcome(ev, r.handle_union).err()
-}
-
 fn join_outcome(ev: &Evaluation<f64>, node: RecipeNodeId) -> Result<(), &BooleanError> {
     match ev.node_error(node).map(|e| &e.kind) {
         None => Ok(()),
@@ -1545,43 +1534,19 @@ fn per_rim_answers(tol: Tol) -> Vec<(&'static str, String, Option<Census>)> {
 /// only a tolerance and builds its own operands: nothing outside that
 /// scene's probe reads what it makes.
 pub fn wall_probes(ev: &Evaluation<f64>, r: &Recipe) {
-    // WALL 2 — the handle joined to the pot. The handle's torus is on
-    // the union's KIND roster, so the gate has nothing to say about
-    // it. The join used to stop one door on, at the maximal-faces
-    // precondition, on the VESSEL, whose full revolve minted split
-    // planar walls; it sweeps them whole now (BAND, one wall per run),
-    // so the request reaches the vessel's sphere face meeting the
-    // handle's torus. The section value carries that pair's loops, the
-    // segment lays them, and the union builds; its chorded sphere face
-    // and the handle's chorded torus face measure through the rotational
-    // lane. The face is read by its kind in the suite
-    // (`wall_2_refuses_on_the_handles_torus_face`).
-    crate::walls::wall(
-        "teapot",
-        2,
-        "join the handle to the vessel (union; both roots driven 11.2 mm past the \
-         belly's inner wall — a real overlap, not a tangency)",
-        join_outcome(ev, r.handle_union),
-        |e| {
-            matches!(
-                e,
-                BooleanError::ResultInvalid { findings } if matches!(
-                    findings.as_slice(),
-                    [pncad::topo::ValidationError::VolumeUncomputable {
-                        source: pncad::topo::MassPropsError::Face {
-                            source: pncad::geom_brep::PropsError::QuadratureUnsupported { what },
-                            ..
-                        },
-                        ..
-                    }] if what.starts_with("a trimmed face with no volume lane on its chart")
-                )
-            )
-        },
-        "make the teapot ONE solid: union the handle and the spout into the vessel, drop \
-         walls 2 and 3, re-state the montage caption (which currently says four solids), \
-         and RE-CUT THE HANDLE'S OVERSHOOT FIRST — at 0.5 rad its roots stand 11.2 mm \
-         inside the cavity, which is fine for a refused request and wrong for a joined one",
+    // WALL 2 — RETIRED: the handle joins the pot. The section value
+    // carries the vessel's sphere face meeting the handle's torus, the
+    // segment lays its loops, and the union builds and validates: its
+    // chorded sphere face and the handle's chorded torus face measure
+    // through the rotational lane. What is left is the scene's own
+    // retirement (`work/splice/curved-demo-joins-build.md`): re-cut the
+    // handle's overshoot, join it into the pot and re-state the caption.
+    assert!(
+        join_outcome(ev, r.handle_union).is_ok(),
+        "wall 2: the handle no longer joins the vessel: {:?}",
+        join_outcome(ev, r.handle_union).err()
     );
+    println!("   wall 2 — RETIRED: the handle joins the vessel");
 
     // WALL 3 — the spout joined to the pot, and it is a DIFFERENT RUNG
     // of the gate from wall 2 now that the spout is a canal.

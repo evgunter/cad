@@ -272,7 +272,9 @@ fn torus_face(
         for e in edges {
             if !e.swap {
                 closed = closed + e.arc.vector_area(d.c);
-                out.push(EdgeTermQ::Harmonic(e.harmonic.unwrap()));
+                let h = e.harmonic.unwrap();
+                ribbon += h.env.hi() * e.arc.rho * (e.arc.phi.1 - e.arc.phi.0).abs();
+                out.push(EdgeTermQ::Harmonic(h));
                 continue;
             }
             let n = e.arc.net();
@@ -336,19 +338,28 @@ fn torus_face(
     })
 }
 
+/// The lane's run over `loops` to a target of `1e-9`: met, or, where an
+/// image stands off its boundary (`floor`), wherever the pads' floor
+/// stops it.
 fn torus_run(
     d: Donut,
     outward: bool,
     loops: &[Vec<TorusEdge>],
     about: Point3<f64>,
+    floor: bool,
 ) -> Result<FaceCutBounds, PropsError> {
     let band = Band::linear(Tol::witness()).unwrap();
-    met(rotational_cut_face_rounds::<f64>(
+    let run = rotational_cut_face_rounds::<f64>(
         &torus_face(d, outward, loops, about)?,
         band,
         RoundWindow::SCHEDULE,
         &mut to_target(1e-9),
-    ))
+    );
+    if floor {
+        run.map(|r| r.bounds)
+    } else {
+        met(run)
+    }
 }
 
 /// The lane's enclosures of `loops` hold the region's `[area, flux about
@@ -368,7 +379,11 @@ fn torus_holds(
         .fold(Vec3::zero(), |va, e| va + e.arc.vector_area(d.c));
     let s = if outward { 1.0 } else { -1.0 };
     let flux = s * region[1] + (d.c - about).dot(va);
-    let got = torus_run(d, outward, loops, about)
+    let floor = loops
+        .iter()
+        .flatten()
+        .any(|e| e.harmonic.as_ref().is_some_and(|h| h.env.hi() > 0.0));
+    let got = torus_run(d, outward, loops, about, floor)
         .unwrap_or_else(|e| panic!("{label}: the lane refused: {e:?}"));
     encloses(got.flux, flux, &format!("{label} flux"));
     encloses(got.area, region[0], &format!("{label} area"));
@@ -461,6 +476,56 @@ fn a_patch_across_the_inner_equator_holds_its_closed_form() {
             inside,
             about,
         );
+    }
+}
+
+/// **A patch whose top rim is named a turn up**: its harmonic level is
+/// `v₁ + 2π`, the same circle on the next branch, so the junctions at
+/// its ends take a whole turn of the level off, and the rim's own lift
+/// sits a turn above the chain's. Its terms are carried onto the chain
+/// (`−o·κ·2π·Δu`), or the patch reads a whole band of the torus too much.
+/// Swapped sides beside it read their own branches. With its left
+/// meridian's image turned `0.9e-6/(R + r)` off in `u` (at most `0.9e-6`
+/// m off the true one, within an envelope of `1e-6`), the junction at
+/// the top rim's end leaves a connector on the rim's lift, whose level
+/// is carried a turn too (`κ_G·2π·Δu` there, about `2e-6` m², past the pads' `0.8e-6`).
+#[test]
+fn a_patch_whose_rim_is_named_a_turn_up_holds_its_closed_form() {
+    let d = Donut::tilted(Point3::new(0.4, -0.2, 0.3), 1.3, 0.45);
+    let about = Point3::new(0.1, 0.5, -0.2);
+    let (us, vs) = ((0.3, 1.9), (-0.7, 1.1));
+    // The meridian's widest circle, `v = 0` between its ends.
+    let rho = d.big + d.r;
+    for (swap, off) in [
+        ([false; 4], 0.0),
+        ([true, true, false, true], 0.0),
+        ([false; 4], 0.9e-6 / rho),
+    ] {
+        let mut loops = patch(d, us, vs, true, swap);
+        let top = loops[0][2].harmonic.as_mut().unwrap();
+        top.v.c0 = top.v.c0 + pt(TAU);
+        if off > 0.0 {
+            let left = loops[0][3].harmonic.as_mut().unwrap();
+            left.u.c0 = left.u.c0 + pt(off);
+            left.env = pt(1e-6);
+        }
+        for (label, outward, region) in [
+            ("the patch", true, d.rectangle(us, vs)),
+            (
+                "the rest, inward",
+                false,
+                complement(d, d.rectangle(us, vs)),
+            ),
+        ] {
+            torus_holds(
+                &format!("{label}, its top rim a turn up (swapped {swap:?}, off {off:e})"),
+                d,
+                outward,
+                &loops,
+                region,
+                about,
+            );
+        }
     }
 }
 
@@ -656,6 +721,57 @@ fn the_toruss_arm_refuses_what_it_cannot_read() {
         matches!(shifted, Err(PropsError::QuadratureUnsupported { .. })),
         "a deck level naming no tube angle: {shifted:?}"
     );
+    let image = chart_pcurve_over(&carrier, 0.0, 1.0, &surface, band).unwrap();
+    let other = ProjectedEdgeQ::of_image(
+        image.projected().unwrap(),
+        RotationalChartQ::Torus {
+            major: pt(d.big * (1.0 + 1e-9)),
+            minor: pt(d.r),
+            outward: true,
+        },
+        (pt(0.0), pt(1.0)),
+        true,
+        [(pt(0.0), pt(0.0)); 2],
+        Interval::zero(),
+        pt,
+    );
+    assert!(
+        matches!(other, Err(PropsError::QuadratureUnsupported { .. })),
+        "an image whose inverse reads another torus's core: {other:?}"
+    );
+}
+
+/// **An image whose evaluator names its end a turn of the level away**:
+/// the patch's swapped top rim with its end's level read `2π` up, as an
+/// evaluator that changed branch inside the edge would read it. The
+/// edge's turn `∫v′` says the rim does not climb, so the lane takes the
+/// whole turn as the edge's own branch turn and the chain stays on one
+/// lift; the patch holds its closed form.
+#[test]
+fn an_image_whose_end_is_named_a_turn_up_holds_its_closed_form() {
+    let d = Donut::tilted(Point3::new(0.4, -0.2, 0.3), 1.3, 0.45);
+    let about = Point3::new(0.1, 0.5, -0.2);
+    let (us, vs) = ((0.3, 1.9), (-0.7, 1.1));
+    let loops = patch(d, us, vs, true, [false, false, true, false]);
+    let mut face = torus_face(d, true, &loops, about).unwrap();
+    let EdgeTermQ::Projected(top) = &mut face.loops[0][2] else {
+        panic!("the top rim is swapped")
+    };
+    top.ends[1].1 = top.ends[1].1 + pt(TAU);
+    let got = met(rotational_cut_face_rounds::<f64>(
+        &face,
+        Band::linear(Tol::witness()).unwrap(),
+        RoundWindow::SCHEDULE,
+        &mut to_target(1e-9),
+    ))
+    .unwrap_or_else(|e| panic!("the lane refused: {e:?}"));
+    let va = loops
+        .iter()
+        .flatten()
+        .fold(Vec3::zero(), |va, e| va + e.arc.vector_area(d.c));
+    let [area, flux] = d.rectangle(us, vs);
+    encloses(got.area, area, "area");
+    encloses(got.flux, flux + (d.c - about).dot(va), "flux");
 }
 
 // ---------------------------------------------------------------------
