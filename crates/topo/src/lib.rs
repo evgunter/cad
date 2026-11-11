@@ -189,6 +189,7 @@ pub mod offset_nappe;
 pub(crate) mod offset_restate;
 pub mod offset_together;
 pub(crate) mod one_record;
+pub use one_record::{DihedralAcross, SmoothAcross};
 pub(crate) mod one_region;
 pub mod pcurves;
 pub mod pieces;

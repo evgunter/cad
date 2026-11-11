@@ -873,11 +873,12 @@ pub fn face_anchor<T: Real>(
         (lo.y + hi.y) * half,
         (lo.z + hi.z) * half,
     );
-    let offset = points
+    // The count kept in `T`, one per vertex: an exact small integer.
+    let (offset, n) = points
         .iter()
-        .fold(Vec3::zero(), |sum, &p| sum + (p - lever));
-    #[allow(clippy::cast_precision_loss)] // a face's vertex count.
-    let n = T::from_f64(points.len() as f64);
+        .fold((Vec3::zero(), T::zero()), |(sum, n), &p| {
+            (sum + (p - lever), n + T::one())
+        });
     Some(FaceAnchor {
         at: lever + offset * (T::one() / n),
         lever,

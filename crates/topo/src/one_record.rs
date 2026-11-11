@@ -11,9 +11,9 @@
 //! over, so a face the token does not move keeps its record, whatever
 //! record it wears.
 //!
-//! Which record is kept is a census of keys ([`kept_of`]): the one that
-//! alone is also worn by faces the verdict did not decide, else the
-//! first-written side's.
+//! Which record is kept is a census of keys ([`kept_of`]): the one
+//! alone also worn by faces outside the faces the verdicts leave on one
+//! record, else the first-written side's.
 
 use std::collections::BTreeSet;
 
@@ -62,9 +62,18 @@ impl OneRecord {
     }
 }
 
+/// **Whether two faces of one carrier have charts facing one way**,
+/// given whether their material sides agree and each face's sense, which
+/// turns its material side to its chart's normal: they face one way
+/// where the materials agree and the senses do, or where neither does.
+/// The one spelling every act's token takes. Reads no value.
+pub(crate) fn charts_agree(materials_agree: bool, [a, b]: [bool; 2]) -> bool {
+    materials_agree == (a == b)
+}
+
 /// **Whether `face`'s record is also worn by a face of `body` outside
-/// `decided`**, the faces a verdict decided: the census [`kept_of`]
-/// reads on each side. Keys only.
+/// `decided`**, the faces the verdicts leave on one record: the census
+/// [`kept_of`] reads on each side. Keys only.
 pub(crate) fn worn_outside<T: Real>(
     body: &Body<T>,
     face: FaceKey,
@@ -77,15 +86,17 @@ pub(crate) fn worn_outside<T: Real>(
         .any(|(f, g)| g.surface == record && f != face && !decided.contains(&f))
 }
 
-/// **Which side's record a verdict keeps**: the side that alone is also
-/// worn by faces the verdict did not decide, else `first`, the
-/// first-written side. `worn` is [`worn_outside`] per side. A key census:
-/// it reads no value, so it cannot choose by rounding between two
-/// descriptions in band of each other.
-pub(crate) fn kept_of<S: Copy + PartialEq>(worn: [(S, bool); 2], first: S) -> S {
-    match worn {
-        [(a, true), (_, false)] => a,
-        [(_, false), (b, true)] => b,
+/// **Which side's record a verdict keeps**, the one rule every act's
+/// census runs: the side whose record alone is also worn by faces
+/// outside those the verdicts leave on one record, else `first`, the
+/// first-written side. `worn` is [`worn_outside`] per side, two for a
+/// pair, one per record for a merge's run. A key census: it reads no
+/// value, so it cannot choose by rounding between two descriptions in
+/// band of each other.
+pub(crate) fn kept_of<S: Copy>(worn: &[(S, bool)], first: S) -> S {
+    let mut outside = worn.iter().filter(|&&(_, w)| w);
+    match (outside.next(), outside.next()) {
+        (Some(&(side, _)), None) => side,
         _ => first,
     }
 }
@@ -155,49 +166,158 @@ impl<T: Decide + crate::props::AtRestPolicy> Body<T> {
     }
 }
 
-impl<T: Decide + crate::props::AtRestPolicy> Body<T> {
-    /// **The two faces either side of `edge`, decided one carrier by the
-    /// smooth join a sweep read there, left on one record**: the act
-    /// ([`Body::one_record`]) on the token that reading mints. The
-    /// verdict is the sweep's (the dihedral it read across `edge`,
-    /// decided smooth), read nowhere again here, and its row the sweep's
-    /// to record; a smooth join that is no slit faces one way across the
-    /// edge, so the two faces' material sides agree. The kept record is the one alone also
-    /// worn by faces outside the two ([`kept_of`]), else `first`'s, the
-    /// face the sweep wrote first; the moved face's closure under
-    /// same-record adjacency moves with it ([`moved_closure`]).
-    ///
-    /// Returns the two faces, `first`'s first, for the row's cells.
-    /// `None`, and nothing written, where they already wear one record.
+/// **What a sweep's dihedral reading decided across an edge**
+/// ([`Body::dihedral_across`]).
+#[derive(Debug)]
+pub enum DihedralAcross {
+    /// The two surfaces cross at the edge.
+    Transverse,
+    /// The join is smooth, on `margin`. Two planes joined smoothly along
+    /// a line of both are one plane: `one_carrier` is that verdict, and
+    /// `None` for every other pair of kinds, which a smooth join leaves
+    /// two carriers tangent along the edge.
+    Smooth {
+        /// The margin the reading decided the join smooth on.
+        margin: geom_core::MarginDiag,
+        /// The verdict that the two faces are one carrier.
+        one_carrier: Option<SmoothAcross>,
+    },
+}
+
+/// **The verdict that the two faces either side of an edge are one
+/// carrier**, as the dihedral reading across it decided two planes'
+/// join smooth.
+/// Only that reading constructs one ([`Body::dihedral_across`]), and only
+/// the act consumes it ([`Body::one_record_across`]): no caller states a
+/// coincidence from an edge and a face.
+#[derive(Debug)]
+#[must_use]
+pub struct SmoothAcross {
+    edge: crate::entity::EdgeKey,
+    faces: [FaceKey; 2],
+    margin: geom_core::MarginDiag,
+}
+
+impl SmoothAcross {
+    /// The margin the reading decided the join smooth on.
+    #[must_use]
+    pub fn margin(&self) -> geom_core::MarginDiag {
+        self.margin
+    }
+}
+
+impl<T: Decide> Body<T> {
+    /// **The dihedral across `edge` between its faces' records
+    /// `surfaces`**, read at the edge's stored carrier's mid-parameter
+    /// point and levered at its faces' extent ([`crate::wedge_reach`]):
+    /// [`geom_brep::dihedral_decided`], the reading a sweep takes at an
+    /// edge it wrote. A smooth join of two planes comes back with the
+    /// verdict that its two faces are one carrier ([`SmoothAcross`]).
     ///
     /// # Errors
     ///
     /// [`BadArgument::Stale`](crate::euler::BadArgument::Stale) where
-    /// `edge` does not resolve or `first` is not one of its faces, and
-    /// the re-chart's ([`Body::one_record`]).
+    /// `edge` does not resolve or `surfaces` are not its two faces'
+    /// records; the inner `Err` is the reading's escalation.
+    pub fn dihedral_across(
+        &self,
+        edge: crate::entity::EdgeKey,
+        surfaces: [SurfaceKey; 2],
+        band: geom_core::Band,
+    ) -> Result<Result<DihedralAcross, geom_brep::LeverEscalation>, EulerOpError> {
+        let curve = self.stored_curve(edge)?;
+        let stale = || {
+            EulerOpError::Argument(crate::euler::BadArgument::Stale {
+                role: "surfaces",
+                key: crate::entity::EntityId::Edge(edge),
+            })
+        };
+        let sides = crate::wedge_reach::edge_faces(self, edge);
+        let wearing = |s: SurfaceKey| {
+            sides
+                .into_iter()
+                .find(|&f| self.get_face(f).is_some_and(|face| face.surface == s))
+        };
+        let (Some(f1), Some(f2)) = (wearing(surfaces[0]), wearing(surfaces[1])) else {
+            return Err(stale());
+        };
+        if f1 == f2 {
+            return Err(stale());
+        }
+        let surface = |s: SurfaceKey| self.get_surface(s).ok_or_else(stale);
+        let (s1, s2) = (surface(surfaces[0])?, surface(surfaces[1])?);
+        let reach = crate::wedge_reach::wedge_reach(self, sides, curve.carrier(), curve.params());
+        Ok(
+            geom_brep::dihedral_decided(s1, s2, curve.mid_point(), reach, band).map(
+                |(class, margin)| match class {
+                    geom_brep::DihedralClass::Transverse => DihedralAcross::Transverse,
+                    geom_brep::DihedralClass::Smooth => DihedralAcross::Smooth {
+                        margin,
+                        one_carrier: matches!(
+                            (s1, s2),
+                            (geom::Surface::Plane { .. }, geom::Surface::Plane { .. })
+                        )
+                        .then_some(SmoothAcross {
+                            edge,
+                            faces: [f1, f2],
+                            margin,
+                        }),
+                    },
+                },
+            ),
+        )
+    }
+}
+
+impl<T: Decide + crate::props::AtRestPolicy> Body<T> {
+    /// **The two faces a smooth join was decided across, left on one
+    /// record**: the act ([`Body::one_record`]) on the token `verdict`
+    /// mints, and the row it records. The kept record is the one alone
+    /// also worn by faces outside the two ([`kept_of`]), else `first`'s,
+    /// the face the sweep wrote first; the moved face's closure under
+    /// same-record adjacency moves with it ([`moved_closure`]). A smooth
+    /// join that is no slit faces one way across the edge, so the two
+    /// faces' material sides agree.
+    ///
+    /// Returns the row, its cells the two faces, `first`'s first; `None`,
+    /// and nothing written, where they already wear one record.
+    ///
+    /// # Errors
+    ///
+    /// [`BadArgument::Stale`](crate::euler::BadArgument::Stale) where the
+    /// verdict's edge no longer joins its two faces or `first` is not one
+    /// of them, and the re-chart's ([`Body::one_record`]).
     pub fn one_record_across(
         &mut self,
-        edge: crate::entity::EdgeKey,
+        verdict: SmoothAcross,
         first: FaceKey,
         tol: Tol,
-    ) -> Result<Option<[FaceKey; 2]>, EulerOpError> {
+    ) -> Result<Option<crate::Coincidence>, EulerOpError> {
+        let SmoothAcross {
+            edge,
+            faces,
+            margin,
+        } = verdict;
         crate::live::lookup(
             &self.edges,
             edge,
             crate::entity::EntityId::Edge,
             crate::live::Arg("edge"),
         )?;
-        let faces = crate::wedge_reach::edge_faces(self, edge);
-        if !faces.contains(&first) {
-            return Err(EulerOpError::Argument(crate::euler::BadArgument::Stale {
-                role: "first",
-                key: crate::entity::EntityId::Face(first),
-            }));
+        let sides = crate::wedge_reach::edge_faces(self, edge);
+        let stale = |role, face| {
+            EulerOpError::Argument(crate::euler::BadArgument::Stale {
+                role,
+                key: crate::entity::EntityId::Face(face),
+            })
+        };
+        if let Some(&f) = faces.iter().find(|f| !sides.contains(f)) {
+            return Err(stale("verdict", f));
         }
-        let second = if faces[0] == first {
-            faces[1]
-        } else {
-            faces[0]
+        let second = match faces {
+            [a, b] if a == first => b,
+            [a, b] if b == first => a,
+            _ => return Err(stale("first", first)),
         };
         let (k1, k2) = (
             self.proven_face(first).record().surface,
@@ -208,7 +328,7 @@ impl<T: Decide + crate::props::AtRestPolicy> Body<T> {
         }
         let decided: BTreeSet<FaceKey> = [first, second].into();
         let kept = kept_of(
-            [
+            &[
                 (first, worn_outside(self, first, &decided)),
                 (second, worn_outside(self, second, &decided)),
             ],
@@ -219,15 +339,27 @@ impl<T: Decide + crate::props::AtRestPolicy> Body<T> {
             self.proven_face(kept).record().surface,
             self.proven_face(moving).record().surface,
         );
-        let charts_agree =
-            self.proven_face(kept).record().sense == self.proven_face(moving).record().sense;
+        let charts_agree = charts_agree(
+            true,
+            [
+                self.proven_face(kept).record().sense,
+                self.proven_face(moving).record().sense,
+            ],
+        );
         let token = OneRecord::minted(
             (kept_key, other_key),
             charts_agree,
             moved_closure(self, &[moving]),
         );
         self.one_record(crate::policy_lane::KernelSite::OneRecord, &token, tol)?;
-        Ok(Some([first, second]))
+        Ok(Some(crate::Coincidence {
+            cells: [first, second].map(crate::RowCell::result_face),
+            more: [None; 3],
+            relation: crate::Relation::SameOriented,
+            site: crate::DecisionSite::SmoothJoin,
+            margin,
+            discharge: crate::Discharge::of(margin),
+        }))
     }
 }
 
@@ -255,39 +387,31 @@ impl<T: Decide + crate::props::AtRestPolicy> Body<T> {
             let face = body.proven_face(f).record();
             (face.surface, face.sense)
         };
-        let mut records: Vec<(SurfaceKey, bool)> = Vec::new();
+        // Each record the run wears, with its first face in the run.
+        let mut records: Vec<((SurfaceKey, bool), FaceKey)> = Vec::new();
         for &f in run {
             let r = record(self, f);
-            if !records.iter().any(|&(k, _)| k == r.0) {
-                records.push(r);
+            if !records.iter().any(|&((k, _), _)| k == r.0) {
+                records.push((r, f));
             }
         }
-        let [first, ..] = records[..] else {
+        let [(first, _), ..] = records[..] else {
             return Ok(());
         };
         if records.len() == 1 {
             return Ok(());
         }
-        let worn: Vec<SurfaceKey> = records
+        let decided: BTreeSet<FaceKey> = run.iter().copied().collect();
+        let worn: Vec<((SurfaceKey, bool), bool)> = records
             .iter()
-            .map(|&(k, _)| k)
-            .filter(|&k| {
-                self.faces()
-                    .any(|(f, face)| face.surface == k && !run.contains(&f))
-            })
+            .map(|&(r, f)| (r, worn_outside(self, f, &decided)))
             .collect();
-        let kept = match worn[..] {
-            [k] => records
-                .iter()
-                .copied()
-                .find(|&(r, _)| r == k)
-                .unwrap_or(first),
-            _ => first,
-        };
+        let kept = kept_of(&worn, first);
+        let records: Vec<(SurfaceKey, bool)> = records.iter().map(|&(r, _)| r).collect();
         let others: Vec<(SurfaceKey, bool)> = records
             .iter()
             .filter(|&&(k, _)| k != kept.0)
-            .map(|&(k, sense)| (k, sense == kept.1))
+            .map(|&(k, sense)| (k, charts_agree(true, [sense, kept.1])))
             .collect();
         let on: Vec<FaceKey> = run
             .iter()

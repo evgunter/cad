@@ -307,10 +307,11 @@ carrier non-contradiction through the kind ladder, senses aligned as an
 exact bit. Opposed senses contradict it, as aligned senses contradict
 `Rest` at every door. A union merges a continuation its margin decides:
 the merge stage reads the glue's record of the pair and measures
-nothing again (D10), and the merged face keeps the first-written operand's description, which the glue decides
-once per pair (DESIGN.md [coincidence.booleans]): operand A's, where
-A's face plugs a hole of B's as anywhere else, whichever face holds the
-merged region.
+nothing again (D10). The lump keeps the first-written operand's copy of
+the coincident region, A's, where A's face plugs a hole of B's as
+anywhere else; the merged face wears the record the glue's census keeps
+for the pair (`[topo.one-record.kept]`), which the act moves A's copy
+onto where it is B's.
 
 **Seam.** A *seam* is a junction of the result whose material wedge is
 π: two faces on distinct carriers joining G1 along a curve. It is read
@@ -1046,7 +1047,8 @@ reparents only within one shell (`EulerOpError::CrossShell`).
 
 **C4 — A glued pair reads its record.** An operation glues a cross-operand
 face pair at its glue door (`boolean::glue`) on a margin decided Zero
-over both faces, under the class its senses make it (`GlueClass`:
+over its two faces and every face its census moves
+(`[topo.one-record.boolean]`), under the class its senses make it (`GlueClass`:
 `Rest` one carrier opposed, a continuation one carrier aligned), or on
 the witness lane's tangency along a locus (`Tangent`). The declaration
 door records the decision once (`crate::coincidence`), as the glue door
@@ -1487,9 +1489,16 @@ already and reads no extent.
   sides are one face (a seam, a strut). The verdict is read once, over
   the decided faces and every moved face.
 - **`[topo.one-record.kept]` The kept record** is the one that alone is
-  also worn by faces the verdict did not decide; where both or neither
-  is, the first-written side's (`one_record::kept_of`). It is a census
-  of keys and reads no value.
+  also worn by a face outside the faces the verdicts leave on one
+  record — for the Boolean, the faces of the pairs its glue leaves on
+  one record after the reading over what each moves; for a merge, the
+  run; for a half revolve, the two caps. Where both or neither is, it is
+  the first-written side's. One rule computes it for every act
+  (`one_record::kept_of`), a census of keys that reads no value. The
+  copies of a cell the Boolean's result holds where two operands' copies
+  meet — the lump's region, a seam's edges, a shared point — are the
+  first-written side's (`boolean::glue::FIRST_WRITTEN`), and a kept face
+  of the other side's record is moved onto it by the act.
 - **`[topo.one-record.act]` One act consumes a token**
   (`Body::one_record`). It re-points exactly the moved faces that still
   wear the other record onto the kept one, each sense restated so its
@@ -1501,31 +1510,41 @@ already and reads no extent.
   Where the verdict decided Zero over every face it moves, a boundary
   that does not certify is a kernel defect
   (`BooleanError::OneRecordUncertified` at the Boolean).
-- **`[topo.one-record.boolean]` The Boolean.** Its glue door takes the
-  census before it reads a pair (`boolean::glue::GlueCensus`): the kept
-  side and the moved side's faces, in the operands' keys. It reads the
-  pair over the two decided faces and every moved face
-  (`carrier_pair::glue_extent`). Where that reading is in band or
-  Distinct the pair is not glued, and the stage that meets it refuses it
-  with the coincidence decision's own lever. The output stage lowers
-  each token to the result's faces through the Boolean's face lineage
+- **`[topo.one-record.boolean]` The Boolean.** Its glue door reads each
+  pair over its two faces first; those it decides one carrier are the
+  decided faces its census starts from (`boolean::glue::GlueCensus`):
+  the kept side and the moved side's faces, in the operands' keys. It
+  then reads each such pair again over the two decided faces and every
+  moved face (`carrier_pair::glue_extent`). Where that reading is in
+  band or Distinct the pair is not glued, and the stage that meets it
+  refuses it with the coincidence decision's own lever; the census and
+  the reading are taken again over the pairs that remain until none
+  drops. The output stage lowers each token's moved faces to the
+  result's faces through the Boolean's face lineage
   (`ops::OneRecordTokens::of_result`: the join's divisions read through
   the faces it merged back), never through records, and acts on each in
-  glue order. A face an earlier token moved keeps the record it was left
-  on, so two verdicts never compose into one neither decided.
+  glue order. A result face the lowering does not reach but which an
+  edge joins on the other record to one it does is a kernel defect,
+  refused (`BooleanError::JoinDesync`). A face an earlier token moved
+  keeps the record it was left on, so two verdicts never compose into
+  one neither decided.
 - **`[topo.one-record.merge]` The merge is the one home.** A run the
   merge's margins decide one carrier across distinct records is the act
   followed by the surgery (`Body::one_record_of_run`, keeping the record
-  alone also worn outside the run, else its arena-first member's); a
+  `kept_of` keeps, else its arena-first member's); a
   curved run whose surgery the inventory stops is the act alone, left
   unmerged on one record. A half revolve's two caps across its axis edge
-  are the act alone on the verdict the revolve takes there, the
-  dihedral read smooth (`Body::one_record_across`), read nowhere again.
+  are the act alone on the verdict the revolve takes there: topo's
+  dihedral reading across the edge (`Body::dihedral_across`) decides two
+  planes' join smooth and hands back the verdict (`SmoothAcross`), which
+  only that reading constructs, and the act consumes it and records the
+  row (`Body::one_record_across`). No door re-points faces between
+  records from an edge and a face alone.
   The split's flush section, the chord join and import adoption keep two
   records of one carrier and are filed.
-- **`[topo.one-record.rest]` At rest nothing reads values.** Where an
-  edge rests is read off its sides by key (`rest_locus`): one record is
-  its chart, two records are their pair. Two distinct records at rest
+- **`[topo.one-record.rest]` At rest no edge's locus reads values.**
+  Where an edge rests is read off its sides by key (`rest_locus`): one
+  record is its chart, two records are their pair. Two distinct records at rest
   are two surfaces, and a chart description names a record both its
   faces wear.
 

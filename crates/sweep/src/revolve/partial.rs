@@ -394,7 +394,7 @@ pub(super) fn he_edge<T: Decide>(body: &Body<T>, he: topo::HalfEdgeKey) -> EdgeK
 /// each other — `Intersection { start, end }` when definitely
 /// transverse (θ ≠ π), conventional when definitely smooth (θ = π),
 /// where the caps are one carrier and that verdict leaves them on one
-/// record ([`topo::Body::one_record_across`]): its row is returned.
+/// record ([`topo::Body::one_record_across`]), which returns its row.
 #[allow(clippy::too_many_arguments)] // one internal call site.
 fn finish_partial<T: Decide + topo::AtRestPolicy>(
     body: &mut Body<T>,
@@ -439,25 +439,15 @@ fn finish_partial<T: Decide + topo::AtRestPolicy>(
                     )?;
                     // Two caps the axis edge joins smoothly are one
                     // carrier (a half turn): the verdict that read the
-                    // join leaves them on one record, the start cap's,
-                    // and its row is recorded.
-                    if let Some(margin) = smooth {
+                    // join leaves them on one record and records its row.
+                    if let Some(verdict) = smooth {
                         let start_cap = face_wearing(body, bottom, start_surface);
-                        if let Some(caps) = body.one_record_across(bottom, start_cap, tol)? {
+                        if let Some(row) = body.one_record_across(verdict, start_cap, tol)? {
                             let Ok(sides) = topo::readback::edge_sides(body, bottom) else {
                                 unreachable!("axis edge {bottom:?} was read a moment ago")
                             };
                             (start_surface, end_surface) = sides.surfaces();
-                            coplanar = Some(topo::Coincidence {
-                                cells: caps.map(|face| topo::RowCell::Result {
-                                    cell: topo::Cell::Face(face),
-                                }),
-                                more: [None; 3],
-                                relation: topo::Relation::SameOriented,
-                                site: topo::DecisionSite::SmoothJoin,
-                                margin,
-                                discharge: topo::Discharge::of(margin),
-                            });
+                            coplanar = Some(row);
                         }
                     }
                 }

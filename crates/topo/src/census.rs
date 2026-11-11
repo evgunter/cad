@@ -11666,11 +11666,8 @@ pub fn census_rest_decision<T: Decide>(
     let crate::contact::RestVerdict::Rest(margin) = rest_door(body, face_a, face_b, band)? else {
         return Ok(None);
     };
-    let cell = |face| crate::RowCell::Result {
-        cell: crate::Cell::Face(face),
-    };
     Ok(Some(crate::Coincidence {
-        cells: [cell(face_a), cell(face_b)],
+        cells: [face_a, face_b].map(crate::RowCell::result_face),
         more: [None; 3],
         relation: crate::Relation::SameOpposite,
         site: crate::DecisionSite::CensusAtRest,
@@ -12022,9 +12019,7 @@ fn flush_pairs<T: Decide>(
             match reading {
                 Ok(true) => {}
                 Ok(false) => out.rows.push(crate::Coincidence {
-                    cells: [fa, fb].map(|face| crate::RowCell::Result {
-                        cell: crate::Cell::Face(face),
-                    }),
+                    cells: [fa, fb].map(crate::RowCell::result_face),
                     more: [None; 3],
                     relation: crate::Relation::SameOriented,
                     site: crate::DecisionSite::CensusAtRest,

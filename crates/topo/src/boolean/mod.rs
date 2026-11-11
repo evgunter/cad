@@ -1461,7 +1461,9 @@ impl<T: Real> GluedPair<T> {
             Ok(Ok(CarrierVerdict::One { relation, margin }))
                 if Some(relation) == class.carrier_relation() =>
             {
-                Self::one_carrier(fa, fb, relation, margin, glue::KEPT)
+                let decided = [[fa].into(), [fb].into()];
+                let census = glue::GlueCensus::of((a, fa), (b, fb), &decided, None);
+                Self::one_carrier(fa, fb, relation, margin, census.kept)
             }
             _ => None,
         }

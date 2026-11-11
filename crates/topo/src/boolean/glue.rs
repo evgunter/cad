@@ -30,44 +30,45 @@ use geom_core::{Band, Bounds, Decide};
 
 use super::section_table::SectionTable;
 use super::{
-    BooleanError, CarrierVerdict, DeclarationRead, Glue, GluedPair, Operand, PairUnread,
-    TangencyFailure, carrier_pair_decided, glued_tangency,
+    BooleanError, CarrierRelation, CarrierVerdict, DeclarationRead, Glue, GluedPair, Operand,
+    PairUnread, TangencyFailure, carrier_pair_decided, glued_tangency,
 };
 use crate::body::Body;
 use crate::boxes;
 use crate::entity::FaceKey;
 
-/// **Which operand's description a glued pair keeps** (`docs/DESIGN.md`
-/// [coincidence.booleans], its one place [one-way.places]): the
-/// first-written operand's, A's, a fixed rule that reads no values. An
-/// n-ary operation folds its members in list order, each step's
-/// accumulation its operand A, so the first-written member's
-/// description is the one kept.
-pub(crate) const KEPT: Operand = Operand::A;
+/// **The first-written operand**, A: an n-ary operation folds its
+/// members in list order, each step's accumulation its operand A. Where
+/// the two operands' copies of one cell meet, the first-written side's
+/// copy is the one the result holds — the face region the lump keeps of
+/// a coincident pair ([`super::tables::surviving_copy`]), a seam's edges
+/// and points (`zip`), a vertex-vertex record's point
+/// (`ops::PointOwners`) — because the result arena is A's clone and the
+/// lump and the containment fallback cut only B's copies. The record a
+/// one-carrier pair's faces end on is the census's ([`GlueCensus`]),
+/// which falls back to this side where the census does not choose.
+pub(crate) const FIRST_WRITTEN: Operand = Operand::A;
 
-const _: () = assert!(
-    matches!(KEPT, Operand::A),
-    "[coincidence.booleans] keeps the first-written operand's description, \
-     and the boolean assumes it is A's: the result arena is A's clone, the \
-     lump and the containment fallback cut only B's copies"
-);
-
-/// A glued pair's two sides as `(kept, other)` ([`KEPT`]): given
-/// `side`'s `x` and the other operand's `y`.
-pub(crate) fn kept_first<X: Copy>((side, x): (Operand, X), y: X) -> (X, X) {
-    if side == KEPT { (x, y) } else { (y, x) }
+/// A pair's two sides as `(first-written, other)` ([`FIRST_WRITTEN`]):
+/// given `side`'s `x` and the other operand's `y`.
+pub(crate) fn written_first<X: Copy>((side, x): (Operand, X), y: X) -> (X, X) {
+    if side == FIRST_WRITTEN {
+        (x, y)
+    } else {
+        (y, x)
+    }
 }
 
 /// **What a one-carrier glue of `fa` on `a` and `fb` on `b` keeps and
 /// moves**, a census of keys (`[coincidence.door]`; this crate's README
 /// `[topo.one-record.kept]`): the side whose record is kept — the one
-/// alone also worn by a face of its operand the glue decided no pair of
-/// (`decided`, each operand's faces in a one-carrier pair), else
-/// [`KEPT`]'s ([`crate::one_record::kept_of`]) — and the faces of the
-/// other side the verdict moves: its decided face and that face's
-/// closure under same-record adjacency
-/// ([`crate::one_record::moved_closure`]). The verdict is read once,
-/// over the two decided faces and every face it moves
+/// whose record alone is also worn by a face of its operand outside
+/// `decided`, each operand's faces in a pair this glue leaves on one
+/// record, else [`FIRST_WRITTEN`]'s ([`crate::one_record::kept_of`]) —
+/// and the faces of the other side the verdict moves: its decided face
+/// and that face's closure under same-record adjacency
+/// ([`crate::one_record::moved_closure`]). The verdict is read over the
+/// two decided faces and every face it moves
 /// ([`super::carrier_pair::glue_extent`]).
 #[derive(Clone, Debug)]
 pub(super) struct GlueCensus {
@@ -77,7 +78,7 @@ pub(super) struct GlueCensus {
     pub(super) moved: BTreeSet<FaceKey>,
 }
 
-/// Each operand's faces the glue decided in a one-carrier pair: A's,
+/// Each operand's faces in a pair the glue leaves on one record: A's,
 /// then B's.
 pub(super) type Decided = [BTreeSet<FaceKey>; 2];
 
@@ -96,7 +97,7 @@ impl GlueCensus {
     ) -> Self {
         let kept = kept.unwrap_or_else(|| {
             crate::one_record::kept_of(
-                [
+                &[
                     (
                         Operand::A,
                         crate::one_record::worn_outside(a, fa, &decided[0]),
@@ -106,7 +107,7 @@ impl GlueCensus {
                         crate::one_record::worn_outside(b, fb, &decided[1]),
                     ),
                 ],
-                KEPT,
+                FIRST_WRITTEN,
             )
         });
         let moved = match kept {
@@ -176,19 +177,17 @@ pub(crate) fn decided_glue<'d, T: Decide + Bounds>(
             Ok(Err(_)) | Err(PairUnread::Extent(_)) => {}
         }
     }
-    let mut decided = decls.one_carrier_faces();
-    for &(_, fa, fb, ..) in &ones {
-        decided[0].insert(fa);
-        decided[1].insert(fb);
-    }
     // A one-carrier pair's verdict is the one read over every face it
-    // moves: the pair's own where it moves its decided face alone, read
-    // again over the closure where that moves more.
-    for (slot, fa, fb, relation, margin) in ones {
-        let census = GlueCensus::of((a, fa), (b, fb), &decided, None);
+    // moves, under the census of the pairs this glue leaves on one record:
+    // read again over those that survive until none drops.
+    // The pair's own reading where its census moves the decided face
+    // alone; read again over the decided faces and the closure where it
+    // moves more. Apart, in band or Distinct: left to the stage that meets
+    // the pair (module doc).
+    let verdict = |census: &GlueCensus, (fa, fb), first| {
         let verdict =
             if census.moved.len() == 1 && census.moved.contains(&census.decided_face((fa, fb))) {
-                Some((relation, margin))
+                Some(first)
             } else {
                 match super::carrier_pair::carrier_pair_decided_over(
                     a,
@@ -199,14 +198,39 @@ pub(crate) fn decided_glue<'d, T: Decide + Bounds>(
                     band,
                 ) {
                     Ok(Ok(CarrierVerdict::One { relation, margin })) => Some((relation, margin)),
-                    // Apart or in band over what it moves: left to the stage
-                    // that meets the pair (module doc).
                     _ => None,
                 }
             };
-        found[slot] = verdict.and_then(|(relation, margin)| {
-            GluedPair::one_carrier(fa, fb, relation, margin, census.kept)
-        });
+        verdict.filter(|&(relation, _)| relation != CarrierRelation::Distinct)
+    };
+    let declared_faces = decls.one_carrier_faces();
+    let mut live = ones;
+    let glued = loop {
+        let mut decided = declared_faces.clone();
+        for &(_, fa, fb, ..) in &live {
+            decided[0].insert(fa);
+            decided[1].insert(fb);
+        }
+        let read: Vec<_> = live
+            .iter()
+            .map(|&(slot, fa, fb, relation, margin)| {
+                let census = GlueCensus::of((a, fa), (b, fb), &decided, None);
+                let verdict = verdict(&census, (fa, fb), (relation, margin));
+                ((slot, fa, fb, relation, margin), census.kept, verdict)
+            })
+            .collect();
+        if read.iter().all(|(_, _, verdict)| verdict.is_some()) {
+            break read;
+        }
+        live = read
+            .into_iter()
+            .filter(|(_, _, verdict)| verdict.is_some())
+            .map(|(pair, ..)| pair)
+            .collect();
+    };
+    for ((slot, fa, fb, ..), kept, verdict) in glued {
+        found[slot] = verdict
+            .and_then(|(relation, margin)| GluedPair::one_carrier(fa, fb, relation, margin, kept));
     }
     let found: Vec<GluedPair<T>> = found.into_iter().flatten().collect();
     if found.is_empty() {

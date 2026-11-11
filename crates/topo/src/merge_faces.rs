@@ -456,6 +456,15 @@ pub enum MergeCoplanarError {
         /// The refusing operator's error.
         error: EulerOpError,
     },
+    /// A face of a run the merge's margins decided one carrier has a
+    /// boundary that does not certify on the record the run is left on
+    /// ([`Body::one_record_of_run`]): the margins decided it within the
+    /// band of that carrier, so a certificate that refuses it contradicts
+    /// the verdict. A kernel defect, refused under both failure regimes.
+    OneRecordUncertified {
+        /// The re-chart's refusal.
+        error: EulerOpError,
+    },
     /// A face either side of a shared edge has no extent to compare the
     /// pair's carriers over: its box has no claim to make, or its
     /// boundary cannot be walked. Tier 2 does not read either, and the
@@ -1129,6 +1138,12 @@ impl MergeCoplanarError {
                  cut-carrying canonical form and are recorded as a loud skip"
             ),
             Self::Op { error } => write!(f, "merge_coplanar_faces: {}", read_at(error, at)),
+            Self::OneRecordUncertified { error } => write!(
+                f,
+                "merge_coplanar_faces: a face the merge decided one carrier with its run does \
+                 not certify on the record the run was left on: {error}. {}",
+                geom_core::KERNEL_DEFECT_ENDING
+            ),
             Self::PairExtentUnread { face } => write!(
                 f,
                 "merge_coplanar_faces: face {face:?} has no extent to compare its carrier with \
@@ -1666,6 +1681,7 @@ impl MergeCoplanarError {
     fn is_arena_fault(&self) -> bool {
         match self {
             Self::Op { error } => matches!(OpPlacement::of(error), OpPlacement::Contradicts(_)),
+            Self::OneRecordUncertified { .. } => true,
             _ => false,
         }
     }
@@ -1897,11 +1913,11 @@ impl<T: crate::props::AtRestPolicy> Body<T> {
             );
             let token = crate::one_record::OneRecord::minted(
                 (k.surface, o.surface),
-                k.sense == o.sense,
+                crate::one_record::charts_agree(true, [k.sense, o.sense]),
                 crate::one_record::moved_closure(&work, &[other]),
             );
             work.one_record(crate::policy_lane::KernelSite::OneRecord, &token, tol)
-                .map_err(|error| MergeCoplanarError::Op { error })?;
+                .map_err(|error| MergeCoplanarError::OneRecordUncertified { error })?;
         }
         let outcome = work.merge_coplanar_faces(tol)?;
         *self = work;
@@ -2048,7 +2064,7 @@ impl<T: crate::props::AtRestPolicy> Body<T> {
                 .collect();
             surgery
                 .one_record_of_run(&run, tol)
-                .map_err(|error| MergeCoplanarError::Op { error })?;
+                .map_err(|error| MergeCoplanarError::OneRecordUncertified { error })?;
             let description = surgery.kept_description(&group);
             match regime {
                 GroupRegime::RefusesTheCall => {

@@ -1113,7 +1113,7 @@ pub(super) fn boolean_op_recut<T: Decide + Bounds + crate::props::AtRestPolicy>(
     }
     let mut vertex_merges = desc.vertex_merges();
     let mut cone_splits = cones.splits().clone();
-    let glued_pairs = OneRecordTokens::of_result(op, &body, (a, b), decls, (&desc, &fin.graft));
+    let glued_pairs = OneRecordTokens::of_result(op, &body, (a, b), decls, (&desc, &fin.graft))?;
     let mut discarded = [BTreeSet::new(), BTreeSet::new()];
     // A substituted fragment leaves the result as a discard does.
     for (operand, face) in fin
@@ -4564,8 +4564,8 @@ fn share_recorded_points<T: Decide>(
 /// **Which operand's point each of the result's point keys holds**:
 /// the operand whose graft put a point there, and otherwise the
 /// operand whose keys the result holds directly. `zip::share_points`
-/// reads it to keep the glue's kept side's point
-/// ([`super::glue::KEPT`]).
+/// reads it to keep the first-written side's point
+/// ([`super::glue::FIRST_WRITTEN`]).
 pub(super) struct PointOwners {
     grafted: BTreeMap<PointKey, Operand>,
     direct: Option<Operand>,
@@ -4585,9 +4585,9 @@ impl PointOwners {
         Self { grafted, direct }
     }
 
-    /// Whether `k` holds the glue's kept side's point.
-    pub(super) fn is_kept(&self, k: PointKey) -> bool {
-        self.grafted.get(&k).copied().or(self.direct) == Some(super::glue::KEPT)
+    /// Whether `k` holds the first-written side's point.
+    pub(super) fn is_first_written(&self, k: PointKey) -> bool {
+        self.grafted.get(&k).copied().or(self.direct) == Some(super::glue::FIRST_WRITTEN)
     }
 }
 
@@ -5545,30 +5545,37 @@ impl OneRecordTokens {
     /// ([`lowered_faces`]): the kept and other records are the two
     /// decided faces' records in the result's keys, and the moved set is
     /// every result face the moved operand faces the glue read over
-    /// ([`super::glue::GlueCensus`]) left: their fragments, read through
-    /// the faces the join merged back. A pair one of whose records no
-    /// result face wears licenses nothing. A pair whose two faces share a
-    /// record asks nothing.
+    /// ([`super::glue::GlueCensus`]) left that still wears the other
+    /// record: their fragments, read through the faces the join merged
+    /// back. A pair one of whose records no result face wears licenses
+    /// nothing. A pair whose two faces share a record asks nothing.
     ///
     /// The record's relation says whether the two operand faces'
     /// material sides agree, and each face's sense turns its material
     /// side to its chart's normal, so the two glued faces' own senses
     /// say how the two operands' charts face; `op` turns B's chart where
     /// it subtracts and B's surface carries its own reversal.
+    ///
+    /// # Errors
+    ///
+    /// [`BooleanError::JoinDesync`] where a result face an edge joins on
+    /// the other record to a moved face is no lowered face: the lineage
+    /// lost a fragment of a face the verdict was read over, a kernel
+    /// defect.
     pub(super) fn of_result<T: Real>(
         op: BooleanOp,
         result: &Body<T>,
         (a, b): (&Body<T>, &Body<T>),
         decls: &Glue<T>,
         (desc, graft): (&Descendants, &GraftMap),
-    ) -> Self {
+    ) -> Result<Self, BooleanError> {
         let views = [KeyView::Direct, KeyView::Graft(graft)];
         let decided = decls.one_carrier_faces();
-        Self {
-            tokens: decls
-                .pairs
-                .iter()
-                .filter_map(|pair| {
+        let tokens: Vec<Option<crate::one_record::OneRecord>> = decls
+            .pairs
+            .iter()
+            .map(|pair| {
+                (|| {
                     let relation = pair.class().carrier_relation()?;
                     let (fa, fb) = (a.get_face(pair.a)?, b.get_face(pair.b)?);
                     // A-clone surface keys ARE result keys (carve/clone
@@ -5585,34 +5592,45 @@ impl OneRecordTokens {
                         Operand::B => (kb, ka),
                     };
                     // ∖ reads B reverted, and a reverted plane turns its
-                    // chart where every other kind turns its faces' senses.
+                    // chart where every other kind turns its faces' senses:
+                    // B's face then faces its result chart as its sense
+                    // turned does.
                     let turned = op == BooleanOp::Subtract
                         && b.get_surface(fb.surface).is_some_and(|s| {
                             crate::transform::OrientationClass::of(s)
                                 == crate::transform::OrientationClass::Plane
                         });
-                    let charts_agree = ((relation == super::CarrierRelation::SameOriented)
-                        == (fa.sense == fb.sense))
-                        != turned;
+                    let charts_agree = crate::one_record::charts_agree(
+                        relation == super::CarrierRelation::SameOriented,
+                        [fa.sense, fb.sense != turned],
+                    );
                     let side = census.moving();
                     let view = &views[usize::from(side == Operand::B)];
-                    let lowered: Vec<FaceKey> = census
+                    let moved: BTreeSet<FaceKey> = census
                         .moved
                         .iter()
                         .flat_map(|&f| lowered_faces(result, desc, (side, view), f))
                         .filter(|&f| result.get_face(f).is_some_and(|g| g.surface == other))
                         .collect();
-                    // Every fragment of a moved face, and every face an edge
-                    // joins to one of these on the same record.
-                    let moved = crate::one_record::moved_closure(result, &lowered);
                     Some(crate::one_record::OneRecord::minted(
                         (kept, other),
                         charts_agree,
                         moved,
                     ))
-                })
-                .collect(),
+                })()
+            })
+            .collect();
+        let tokens: Vec<crate::one_record::OneRecord> = tokens.into_iter().flatten().collect();
+        for token in &tokens {
+            let moved: Vec<FaceKey> = token.moved.iter().copied().collect();
+            if crate::one_record::moved_closure(result, &moved).len() != moved.len() {
+                return Err(BooleanError::JoinDesync {
+                    what: "a result face an edge joins on the other record to a face a \
+                           one-carrier verdict moves is no fragment of a face it was read over",
+                });
+            }
         }
+        Ok(Self { tokens })
     }
 
     /// **Each token's act** ([`Body::one_record`]), in glue order. A
@@ -7766,7 +7784,7 @@ fn fallback<T: Decide + Bounds + crate::props::AtRestPolicy>(
                 (a_pristine, b_pristine),
                 decls,
                 (&desc, &graft),
-            );
+            )?;
             let none = BTreeSet::new();
             let ledger = ledger(red, decls, [&none, &none])?;
             let views = [&KeyView::Direct, &KeyView::Graft(&graft)];
@@ -7932,8 +7950,8 @@ struct FallbackFates {
 /// Every other refusal of the cut, as it is: a key that no longer
 /// resolves, a reading in band, an Euler operator's refusal. A pair
 /// whose kept copy the result drops while it keeps the copy the lump
-/// dropped, or a cut in operand A's clone (the lump keeps the glue's
-/// kept side's copy, [`super::glue::KEPT`]), refuses
+/// dropped, or a cut in operand A's clone (the lump keeps the
+/// first-written side's copy, [`super::glue::FIRST_WRITTEN`]), refuses
 /// [`BooleanError::ClassificationInvariant`]; a discard row's reading
 /// (`discard::discard_row`) refuses as it does.
 fn fallback_fates<T: Decide + AtRestPolicy>(
