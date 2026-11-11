@@ -249,8 +249,8 @@ pub(super) fn round_cost(edges: usize, round: usize) -> usize {
 /// rational rim's weight per span ([`w_rational`]: the same piece forms,
 /// read by Horner), a projected conic's at a spiric's per interval
 /// ([`W_SPIRIC`]: the same trig jets and one reciprocal), a projected
-/// line's at a degree-1 rim's per interval, and a spiric's, edge or chart
-/// term, at [`W_SPIRIC`].
+/// line's at a degree-1 rim's per interval, and a spiric edge at
+/// [`W_SPIRIC`], its chart term counted with it.
 fn face_cost(face: &RotationalFaceQ, round: usize) -> usize {
     let rational = |e: &RationalEdgeQ| w_rational(e.degree()) * e.span_count();
     let edges: usize = face
@@ -267,13 +267,7 @@ fn face_cost(face: &RotationalFaceQ, round: usize) -> usize {
             },
         })
         .sum();
-    let terms: usize = face
-        .chart_term
-        .rationals
-        .iter()
-        .map(rational)
-        .sum::<usize>()
-        + W_SPIRIC * face.chart_term.spirics.len();
+    let terms: usize = face.chart_term.rationals.iter().map(rational).sum();
     (edges + terms) * (EDGE_INIT_PIECES << round)
 }
 
@@ -1021,7 +1015,7 @@ fn refined_turn(read: impl Fn(usize) -> Interval) -> Interval {
     refined_turns(|pieces| [read(pieces)])[0]
 }
 
-/// A projected torus edge's `[−∫F du, −∫G du, Δu]` in its carrier's
+/// A projected torus edge's `[−∫F du, −∫G du]` in its carrier's
 /// order at `pieces` per span or cut interval. `F` and `G` are their periodic parts, read off
 /// the tube angle's cosine and sine at the frame point, plus their slopes
 /// times the level `v` ([`torus_slopes`]), which no frame point names: it
@@ -1033,7 +1027,7 @@ fn torus_projected(
     major: Interval,
     minor: Interval,
     pieces: usize,
-) -> Primitive<3> {
+) -> Primitive<2> {
     let [kf, kg] = torus_slopes(major, minor);
     let neg = -Interval::one();
     let g = |at: &FrameJets| {
@@ -1044,12 +1038,8 @@ fn torus_projected(
             .add(tube.sin.mul(tube.cos).scale(pt(0.5) * major * minor.sqr()));
         let gp = tube.sin.scale(minor.sqr());
         Integrand {
-            own: [fp.mul(at.du).scale(neg), gp.mul(at.du).scale(neg), at.du],
-            by: [
-                at.du.scale(-kf),
-                at.du.scale(-kg),
-                Jet::cst(Interval::zero()),
-            ],
+            own: [fp.mul(at.du).scale(neg), gp.mul(at.du).scale(neg)],
+            by: [at.du.scale(-kf), at.du.scale(-kg)],
             rate: tube.rate,
         }
     };
@@ -1223,7 +1213,7 @@ fn sphere_edge_area(
     (area + Interval::from_bounds(-pad, pad), removable)
 }
 
-/// One torus edge's `[−∫F du, −∫G du, Δu]` at `pieces`, traversal and
+/// One torus edge's `[−∫F du, −∫G du]` at `pieces`, traversal and
 /// the map-residual pad folded in, read on the edge's own lift: a rim's
 /// level, a spiric's `v₀ + σ·t`, and a projected image's level from its
 /// own start ([`torus_projected`]); the lane carries each onto the
@@ -1234,21 +1224,18 @@ fn torus_edge_terms(
     entry: &EdgeEntry,
     (major, minor): (Interval, Interval),
     pieces: usize,
-) -> ([Interval; 3], f64) {
-    let sign = |forward: bool, t: [Interval; 3]| if forward { t } else { t.map(|x| -x) };
+) -> ([Interval; 2], f64) {
+    let sign = |forward: bool, t: [Interval; 2]| if forward { t } else { t.map(|x| -x) };
     let (terms, removable) = match e {
-        EdgeTermQ::Harmonic(h) => {
-            let ([f, g], du) = rim_terms(h, |v| torus_forms(major, minor, v));
-            ([f, g, du], 0.0)
-        }
+        EdgeTermQ::Harmonic(h) => (rim_terms(h, |v| torus_forms(major, minor, v)).0, 0.0),
         EdgeTermQ::Projected(p) => {
             let run = torus_projected(p, major, minor, pieces);
             (sign(p.forward, run.total), run.removable[0])
         }
         EdgeTermQ::Spiric(w) => {
-            let (t, rem) =
+            let ([f, g, _], rem) =
                 crate::props::spiric::wall_terms(&w.edge, &w.image, (major, minor), pieces);
-            (sign(w.edge.forward, t), rem)
+            (sign(w.edge.forward, [f, g]), rem)
         }
     };
     let pad = RotationalChartQ::Torus {
@@ -1258,11 +1245,7 @@ fn torus_edge_terms(
     }
     .residual(pt(entry.length) * edge_env(e));
     (
-        [
-            terms[0] + Interval::from_bounds(-pad[0], pad[0]),
-            terms[1] + Interval::from_bounds(-pad[1], pad[1]),
-            terms[2],
-        ],
+        [0, 1].map(|k| terms[k] + Interval::from_bounds(-pad[k], pad[k])),
         removable,
     )
 }
@@ -1793,11 +1776,16 @@ fn torus_loop(
 ) -> [Interval; 2] {
     let turn = torus_slopes(radii.0, radii.1).map(|k| k * crate::props::bracket::tau_bracket());
     let mut acc = connectors;
-    for ((e, entry), &o) in edges.iter().zip(entries).zip(&lift.anchors) {
+    for (((e, entry), &o), &du) in edges
+        .iter()
+        .zip(entries)
+        .zip(&lift.anchors)
+        .zip(&lift.turns)
+    {
         let (t, rem) = torus_edge_terms(e, entry, radii, pieces);
         *removable += rem;
         let o = pt(lift_turns(o));
-        acc = [0, 1].map(|k| acc[k] + t[k] - o * turn[k] * t[2]);
+        acc = [0, 1].map(|k| acc[k] + t[k] - o * turn[k] * du);
     }
     if winds != 0 {
         let w = pt(lift_turns(winds));
@@ -2056,14 +2044,18 @@ fn branch_turns(ends: Interval, turn: Interval) -> Result<i64, PropsError> {
 /// docs, the torus): per edge in traversal order, the whole turns `o` by
 /// which the chain's level sits above the edge's own lift where the
 /// edge's terms anchor it (its carrier interval's start), and per
-/// junction those at the edge before's end; and the azimuth where the
-/// chain starts, the first edge's traversal start. The chain starts on
+/// junction those at the edge before's end; per edge its turn `Δu`, its
+/// ends' azimuths apart plus its branch turns, which the evaluator's
+/// ends read thin where the rule's turn is wide on a coarse round; and
+/// the azimuth where the chain starts, the first edge's traversal start.
+/// The chain starts on
 /// the first edge's own lift; past each edge it gains the edge's branch
 /// turns ([`edge_branch`]), and past each junction the whole turns the
 /// closure took off its level gap, so it ends `W_v` turns up.
 struct LoopLift {
     anchors: Vec<i64>,
     ends: Vec<i64>,
+    turns: Vec<Interval>,
     start: Interval,
 }
 
@@ -2075,11 +2067,15 @@ fn loop_lifts(
         .iter()
         .zip(entries)
         .map(|(edges, entries)| {
-            let (mut anchors, mut ends) = (Vec::new(), Vec::new());
+            let (mut anchors, mut ends, mut turns) = (Vec::new(), Vec::new(), Vec::new());
             let mut c = 0i64;
             for j in junctions(edges, entries) {
                 let (e, entry) = j.before;
-                let [_, b] = edge_branch(e, entry, face.chart)?;
+                let [bu, b] = edge_branch(e, entry, face.chart)?;
+                turns.push(
+                    chart_end(e, true).0 - chart_end(e, false).0
+                        + pt(lift_turns(bu)) * crate::props::bracket::tau_bracket(),
+                );
                 anchors.push(if traversal(e) { c } else { c + b });
                 ends.push(c + b);
                 let [(_, v1), (_, v0)] = j.ends();
@@ -2094,6 +2090,7 @@ fn loop_lifts(
             Ok(LoopLift {
                 anchors,
                 ends,
+                turns,
                 start,
             })
         })
