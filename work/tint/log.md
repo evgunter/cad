@@ -1601,3 +1601,4 @@ group and took this program's green-main or gate-latency rows by
 here was re-banded where it was test-side rather than production
 architecture; the row's own `## Re-banded` section says why.
 - 2026-11-09 — **Seam (BOXES):** filed `main-red-steeper-tilts-union-stops-by-identity-reads-the-wrong-refusal-shape` here: a sweep slow row asserting a refusal's Debug text. (BOXES orchestrator)
+- 2026-11-11 — **Track picked up** by the SEAL/REFS session's orchestrator. Ev's opening instruction was to pick up programs with one or two open P0/P1 rows, serially; FLUSH and MEASUREDOOR were handed back before this. TINT's two open P1s are slow-set reds: `main-red-steeper-tilts-union-stops-by-identity-reads-the-wrong-refusal-shape` and `bounds-census-stale-roster-lines`. Both go to one lane, `tint-reds`. (TINT orchestrator)
