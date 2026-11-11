@@ -1145,3 +1145,37 @@ fn a_pinched_oval_read_a_round_at_a_time_reads_wide_not_undecided() {
         );
     }
 }
+
+/// **The whole torus bounded by its chart's wrap loop**: the rectangle
+/// `[0, 2π] × [−π, π]`, its rims the inner equator twice and its
+/// meridians one circle twice, harmonic and swapped. Its signed area is a
+/// whole torus to within its width, at the window's closed end, so the
+/// reading cannot tell the whole torus from an empty face and holds both
+/// counts: it reads `[0, 4π²Rr]`, at its floor, and the whole torus's
+/// closed forms lie inside it. (Such a face takes its closed form before
+/// the lane; the row holds the window's closed end.)
+#[test]
+fn the_wrap_loop_bounds_the_whole_torus() {
+    let d = Donut::tilted(Point3::new(0.4, -0.2, 0.3), 1.3, 0.45);
+    let about = Point3::new(0.1, 0.5, -0.2);
+    for swap in [[false; 4], [true, false, true, false]] {
+        let loops = patch(d, (0.0, TAU), (-PI, PI), true, swap);
+        let va = loops
+            .iter()
+            .flatten()
+            .fold(Vec3::zero(), |va, e| va + e.arc.vector_area(d.c));
+        let [area, flux] = d.whole();
+        let got = torus_run(d, true, &loops, about, true)
+            .unwrap_or_else(|e| panic!("swapped {swap:?}: the lane refused: {e:?}"));
+        encloses(
+            got.area,
+            area,
+            &format!("the whole torus (swapped {swap:?}) area"),
+        );
+        encloses(
+            got.flux,
+            flux + (d.c - about).dot(va),
+            &format!("the whole torus (swapped {swap:?}) flux"),
+        );
+    }
+}
