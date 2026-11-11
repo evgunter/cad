@@ -132,27 +132,42 @@ fn whole<T: Decide>(p: Point3<T>, m: Vec3<T>) -> TangentPiece<T> {
     FaceSector::tangent(surface, true, m, p, fan, band()).expect("a whole plane")
 }
 
-/// A needle whole, its nappe's axis turned `gamma` off `−y` toward `+x`:
-/// under the plane `y = 0` its nearest ruling stands `cos(α + γ)` below
-/// a unit out.
-fn tipped<T: Real>(p: Point3<T>, gamma: f64) -> TangentPiece<T> {
-    let (e, k) = (edges(1)[0], carriers(1)[0]);
-    let axis = v::<T>(gamma.sin(), -gamma.cos(), 0.0);
+/// The needle's cone with its nappe's axis turned `gamma` off `−y`
+/// toward `+x`, its apex `off` from `p`: under the plane `y = 0` its
+/// nearest ruling stands `cos(α + γ)` below a unit out.
+fn tipped_cone<T: Real>(p: Point3<T>, gamma: f64, off: Vec3<T>) -> crate::sector_face::ConeApex<T> {
+    crate::sector_face::ConeApex {
+        apex: p + off,
+        axis: v(gamma.sin(), -gamma.cos(), 0.0),
+        half_angle: T::from_f64(ALPHA),
+        u_ref: v(0.0, 0.0, 1.0),
+        sense: false,
+    }
+}
+
+/// The tipped cone's unit ruling square to its tip toward `±z` (`side`).
+fn tipped_ruling<T: Real>(gamma: f64, side: f64) -> Vec3<T> {
     let (s, c) = ALPHA.sin_cos();
-    let along = axis * T::from_f64(c) + v::<T>(0.0, 0.0, s);
+    v(c * gamma.sin(), -c * gamma.cos(), side * s)
+}
+
+/// [`tipped_cone`] whole, as one spur corner along its ruling toward `+z`
+/// scaled to `reach`, the corner's vertex at `p`.
+fn tipped_by<T: Real>(p: Point3<T>, gamma: f64, reach: f64, off: Vec3<T>) -> TangentPiece<T> {
+    let (e, k) = (edges(1)[0], carriers(1)[0]);
+    let along = tipped_ruling::<T>(gamma, 1.0) * T::from_f64(reach);
     TangentPiece::Apex(ApexLobe {
-        cone: crate::sector_face::ConeApex {
-            apex: p,
-            axis,
-            half_angle: T::from_f64(ALPHA),
-            u_ref: v(0.0, 0.0, 1.0),
-            sense: false,
-        },
+        cone: tipped_cone(p, gamma, off),
         carrier: k,
         vertex: p,
         ends: [(along, e), (along, e)],
         spur: true,
     })
+}
+
+/// [`tipped_by`] a unit out, its apex at `p`.
+fn tipped<T: Real>(p: Point3<T>, gamma: f64) -> TangentPiece<T> {
+    tipped_by(p, gamma, 1.0, Vec3::zero())
 }
 
 fn read<T: Decide>(p: Point3<T>, pieces: Vec<TangentPiece<T>>) -> TouchVerdict {
@@ -535,23 +550,15 @@ fn a_nappe_is_read_only_beside_a_rest_and_no_horn<T: Decide>() {
     }
 }
 
-#[test]
-fn a_nappe_is_read_only_beside_a_rest_and_no_horn_f64() {
-    a_nappe_is_read_only_beside_a_rest_and_no_horn::<f64>();
-}
-
-#[test]
-fn a_nappe_is_read_only_beside_a_rest_and_no_horn_interval() {
-    a_nappe_is_read_only_beside_a_rest_and_no_horn::<Interval>();
-}
-
 /// **Two arcs are one circle only where their bends agree both ways**
 /// ([`second_order::one_circle`]): along `−y` in the plane `z = 0`, two
 /// circles' arcs bending alike are one circle; bending apart off the
 /// plane, or across the ray in it, by twice the escalation at the arm,
 /// they are not, and two arcs bending alike that are not both circles'
-/// are not. Red where either way is not read, or an arc of another conic
-/// is kept.
+/// are not. Two rays of unequal reach are read at the shorter one's arm,
+/// out to which both are drawn: there a bend twice the escalation apart
+/// at the longer reads Zero. Red where either way is not read, an arc of
+/// another conic is kept, or the arm is the longer ray's.
 fn two_arcs_are_one_circle_only_where_their_bends_agree_both_ways<T: Decide>() {
     let e = band().escalate();
     let rd = metric::Reading::plain(band());
@@ -586,17 +593,144 @@ fn two_arcs_are_one_circle_only_where_their_bends_agree_both_ways<T: Decide>() {
             !one(arc(k[0], bend, true), arc(k[1], bend, false)),
             "an arc of no circle at {p:?}"
         );
+        // Read at the shorter ray's arm: rays out to `0.02` and `2`, the
+        // bends `2·e` apart at the longer arm, so `2e-4·e` at the shorter.
+        let (near, far) = (p + v::<T>(0.0, -0.02, 0.0), p + v::<T>(0.0, -2.0, 0.0));
+        let apart = v::<T>(2.0 * 2.0 * e / 4.0, 0.0, 0.0);
+        assert!(
+            second_order::one_circle(
+                p,
+                (near, arc(k[0], bend, true)),
+                (far, arc(k[1], bend + apart, true)),
+                v(0.0, 0.0, 1.0),
+                rd,
+            ),
+            "one circle to the shorter ray's arm at {p:?}"
+        );
     }
 }
 
-#[test]
-fn two_arcs_are_one_circle_only_where_their_bends_agree_both_ways_f64() {
-    two_arcs_are_one_circle_only_where_their_bends_agree_both_ways::<f64>();
+/// **A nappe is whole only where its lobes close round one nappe.** Two
+/// lobes of one carrier and sense, the second bounded by the first's edge
+/// back in but not by its edge out (either way round), or by its edge out
+/// but not its edge back in, leave a sliver of the turn unbounded; two
+/// crosswise lobes with a ruling on each nappe bound no sector of either.
+/// None is read. Red where either crosswise edge is not read, or a lobe's
+/// ruling off the nappe is passed.
+fn a_nappe_is_whole_only_where_its_lobes_close_round_one_nappe<T: Decide>() {
+    let unread = TouchVerdict::Unread(TouchUnread::Curved(CurvedUnread::NoTangentPlane));
+    let up = v::<T>(0.0, 1.0, 0.0);
+    for p in apexes::<T>() {
+        let k = carriers(1)[0];
+        let e = edges(3);
+        let lobe = |ends| {
+            TangentPiece::Apex(ApexLobe {
+                cone: cone(p, false),
+                carrier: k,
+                vertex: p,
+                ends,
+                spur: false,
+            })
+        };
+        let (r0, r1, r2) = (
+            ruling::<T>(0.0),
+            ruling::<T>(core::f64::consts::PI),
+            ruling::<T>(1.9 * core::f64::consts::PI),
+        );
+        for (what, pair) in [
+            (
+                "the second short of the first's edge out",
+                [[(r0, e[0]), (r1, e[1])], [(r1, e[1]), (r2, e[2])]],
+            ),
+            (
+                "the first short of the second's edge back",
+                [[(r2, e[2]), (r1, e[1])], [(r1, e[1]), (r0, e[0])]],
+            ),
+            (
+                "the second short of the first's edge back",
+                [[(r0, e[0]), (r1, e[1])], [(r2, e[2]), (r0, e[0])]],
+            ),
+        ] {
+            let [a, b] = pair;
+            assert_eq!(
+                read(p, vec![lobe(a), lobe(b), whole(p, up)]),
+                unread,
+                "{what} at {p:?}"
+            );
+        }
+        let other = -ruling::<T>(core::f64::consts::PI);
+        let crossed = vec![
+            lobe([(r0, e[0]), (other, e[1])]),
+            lobe([(other, e[1]), (r0, e[0])]),
+            whole(p, up),
+        ];
+        assert_eq!(read(p, crossed), unread, "a ruling on each nappe at {p:?}");
+    }
 }
 
-#[test]
-fn two_arcs_are_one_circle_only_where_their_bends_agree_both_ways_interval() {
-    two_arcs_are_one_circle_only_where_their_bends_agree_both_ways::<Interval>();
+/// **A nappe is read at its shortest ruling's reach, about its own
+/// apex's tie.** The cone tipped so its nearest ruling stands twice the
+/// escalation under the plane a unit out rests whole a unit out; with its
+/// ruling reaching `0.01` it refuses in band, as it does as two halves
+/// whose one ruling reaches a unit and the other `0.01`. A needle just past
+/// the escalation whose carrier's apex stands `0.9` of the band's zero off
+/// the point is read over that tie, and refuses in band. Red where the arm
+/// is not the rulings' shortest reach, or a lobe's apex is not tied.
+fn a_nappe_is_read_at_its_shortest_ruling_about_its_apexs_tie<T: Decide>() {
+    let (e, zero) = (band().escalate(), band().zero());
+    let up = v::<T>(0.0, 1.0, 0.0);
+    let in_band = TouchVerdict::Unread(TouchUnread::InBand);
+    let gamma = core::f64::consts::FRAC_PI_2 - ALPHA - (2.0 * e).asin();
+    for p in apexes::<T>() {
+        let got = read(
+            p,
+            vec![tipped_by(p, gamma, 1.0, Vec3::zero()), whole(p, up)],
+        );
+        assert!(
+            matches!(got, TouchVerdict::Rest(_)),
+            "a unit out at {p:?}: {got:?}"
+        );
+        assert_eq!(
+            read(
+                p,
+                vec![tipped_by(p, gamma, 0.01, Vec3::zero()), whole(p, up)]
+            ),
+            in_band,
+            "reaching 0.01 at {p:?}"
+        );
+        let (k, ed) = (carriers(1)[0], edges(2));
+        let (a, b) = (
+            tipped_ruling::<T>(gamma, 1.0),
+            tipped_ruling::<T>(gamma, -1.0) * T::from_f64(0.01),
+        );
+        let lobe = |ends| {
+            TangentPiece::Apex(ApexLobe {
+                cone: tipped_cone(p, gamma, Vec3::zero()),
+                carrier: k,
+                vertex: p,
+                ends,
+                spur: false,
+            })
+        };
+        let halves = vec![
+            lobe([(a, ed[0]), (b, ed[1])]),
+            lobe([(b, ed[1]), (a, ed[0])]),
+            whole(p, up),
+        ];
+        assert_eq!(read(p, halves), in_band, "halves of unequal reach at {p:?}");
+        let past = core::f64::consts::FRAC_PI_2 - ALPHA - (e + zero).asin();
+        let got = read(p, vec![tipped_by(p, past, 1.0, Vec3::zero()), whole(p, up)]);
+        assert!(
+            matches!(got, TouchVerdict::Rest(_)),
+            "just past at {p:?}: {got:?}"
+        );
+        let off = v::<T>(0.0, 0.0, 0.9 * zero);
+        assert_eq!(
+            read(p, vec![tipped_by(p, past, 1.0, off), whole(p, up)]),
+            in_band,
+            "the apex off by its tie at {p:?}"
+        );
+    }
 }
 
 #[test]
@@ -627,4 +761,44 @@ fn two_arcs_of_one_circle_are_kept_as_one_f64() {
 #[test]
 fn two_arcs_of_one_circle_are_kept_as_one_interval() {
     two_arcs_of_one_circle_are_kept_as_one::<Interval>();
+}
+
+#[test]
+fn a_nappe_is_read_only_beside_a_rest_and_no_horn_f64() {
+    a_nappe_is_read_only_beside_a_rest_and_no_horn::<f64>();
+}
+
+#[test]
+fn a_nappe_is_read_only_beside_a_rest_and_no_horn_interval() {
+    a_nappe_is_read_only_beside_a_rest_and_no_horn::<Interval>();
+}
+
+#[test]
+fn two_arcs_are_one_circle_only_where_their_bends_agree_both_ways_f64() {
+    two_arcs_are_one_circle_only_where_their_bends_agree_both_ways::<f64>();
+}
+
+#[test]
+fn two_arcs_are_one_circle_only_where_their_bends_agree_both_ways_interval() {
+    two_arcs_are_one_circle_only_where_their_bends_agree_both_ways::<Interval>();
+}
+
+#[test]
+fn a_nappe_is_whole_only_where_its_lobes_close_round_one_nappe_f64() {
+    a_nappe_is_whole_only_where_its_lobes_close_round_one_nappe::<f64>();
+}
+
+#[test]
+fn a_nappe_is_whole_only_where_its_lobes_close_round_one_nappe_interval() {
+    a_nappe_is_whole_only_where_its_lobes_close_round_one_nappe::<Interval>();
+}
+
+#[test]
+fn a_nappe_is_read_at_its_shortest_ruling_about_its_apexs_tie_f64() {
+    a_nappe_is_read_at_its_shortest_ruling_about_its_apexs_tie::<f64>();
+}
+
+#[test]
+fn a_nappe_is_read_at_its_shortest_ruling_about_its_apexs_tie_interval() {
+    a_nappe_is_read_at_its_shortest_ruling_about_its_apexs_tie::<Interval>();
 }

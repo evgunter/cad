@@ -1448,7 +1448,11 @@ its rulings exactly, at every scale its corner reaches (`link::ApexLobe`,
 corner whose loop leaves back along the half-edge it came in by (a spur,
 the whole turn), or two corners on one carrier and of one sense, each
 bounded by the other's two edges, whose rulings are decidedly apart, so
-that each turns under a whole turn and the two together exactly one. The
+that each turns under a whole turn and the two together exactly one; and
+every ruling of every corner decidedly on the one nappe, ahead of the
+plane through `p` square to the axis. The census reads bodies that may be
+bad, so a corner with a ruling on each nappe, which no valid body's edges
+make, is read here rather than assumed away. The
 nappe bounds the solid cone `C` of its rulings, convex since its
 half-angle `α` is under a quarter turn; the face's material is `C` (a
 thorn) or what lies round it (a needle of void). At the arm `l` (the
@@ -1467,8 +1471,9 @@ axis decidedly outside its material for a thorn, inside it for a needle:
 crossing the nappe then moves the winding by one, into the other of the
 rest's two values, as at a thorn. A whole plane about the point (a face
 holding it inside) with rulings decidedly on both sides, read at the two
-rulings farthest either way (real points of the face), crosses the
-nappe along the rulings between: a crossing. Left unread: a nappe not
+rulings farthest either way (real points of the face, read only where
+the spread `ρ|m × a|` is decided, so the direction toward them reads),
+crosses the nappe along the rulings between: a crossing. Left unread: a nappe not
 held whole, a second apex, a horn beside the nappe (its ray may lie in
 `C`, which no region holds), a sector whose plane cuts the nappe and
 whose wedges may pass it by, and an axis read on the wrong side of the

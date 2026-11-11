@@ -27,7 +27,7 @@ use geom_core::ladder::{Climb, Rung, climb_agreeing};
 
 /// The arm of a departure `d` from `apex`: the point it reaches, read
 /// from `apex` (the link's own idiom, [`Link::of`]).
-fn reach<T: Decide>(apex: Point3<T>, d: Vec3<T>) -> Lever<T> {
+pub(super) fn reach<T: Decide>(apex: Point3<T>, d: Vec3<T>) -> Lever<T> {
     geom_brep::ExtentBall::point(apex + d).lever_from(apex)
 }
 
@@ -177,11 +177,7 @@ pub(super) fn thorns<T: Decide>(link: &Link<T>, rd: Reading<T>) -> Result<(), To
             }
         };
         let ray = along(horns[start].ends[0].0, l);
-        let around = if link.cone.sectors.is_empty() {
-            Material::Out
-        } else {
-            link.cone.reads_over(ray, rd).ok_or(unread)?
-        };
+        let around = link.cone.material_round(ray, rd).ok_or(unread)?;
         match (side, around) {
             (Some(Sign::Negative), Material::Out) | (Some(Sign::Positive), Material::In) => {}
             _ => return Err(unread),
