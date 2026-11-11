@@ -234,7 +234,28 @@ impl<T: Decide> Body<T> {
             if !collapsed && !unvouched(fp, sp) && !unvouched(fm, sm) {
                 continue;
             }
-            let at_rest = curve.restated_at(crate::rest_locus([sp, sm]));
+            // A description naming a record the move leaves names the kept
+            // one instead, intrinsic forms kept intrinsic; one naming
+            // neither rests where its sides' keys say.
+            let renamed = (!collapsed)
+                .then(|| {
+                    rekeyed(&held, |k| {
+                        if token.others.iter().any(|&(o, _)| o == k) {
+                            kept
+                        } else {
+                            k
+                        }
+                    })
+                })
+                .flatten()
+                .filter(|d| names(d, sp) && names(d, sm));
+            let at_rest = match renamed {
+                Some(description) => EdgeCurveSpec {
+                    description,
+                    ..curve.restated_spec()
+                },
+                None => curve.restated_at(crate::rest_locus([sp, sm])),
+            };
             specs.retain(|(e, _)| *e != edge);
             specs.push((edge, at_rest));
         }
@@ -1823,6 +1844,37 @@ impl<T: Real> Written<T> {
     fn push(&mut self, row: (EdgeKey, Sides, EdgeCurve<T>)) {
         self.at.insert(row.0, self.rows.len());
         self.rows.push(row);
+    }
+}
+
+/// `spec` with each surface key `map`ped, where it names any: a chart's
+/// image is left for the door to re-derive on the new chart.
+fn rekeyed<T: geom_core::Real>(
+    spec: &EdgeDescriptionSpec<T>,
+    map: impl Fn(SurfaceKey) -> SurfaceKey,
+) -> Option<EdgeDescriptionSpec<T>> {
+    let pair = |p: geom_brep::SurfacePair| {
+        let [a, b] = p.keys();
+        geom_brep::SurfacePair::new(map(a), map(b))
+    };
+    match spec {
+        EdgeDescriptionSpec::Intersection { pair: p, selector } => {
+            Some(EdgeDescriptionSpec::Intersection {
+                pair: pair(*p),
+                selector: selector.clone(),
+            })
+        }
+        EdgeDescriptionSpec::TangentIntersection { pair: p, witness } => {
+            Some(EdgeDescriptionSpec::TangentIntersection {
+                pair: pair(*p),
+                witness: *witness,
+            })
+        }
+        EdgeDescriptionSpec::OnPair { pair: p, declared } => Some(EdgeDescriptionSpec::OnPair {
+            pair: pair(*p),
+            declared: declared.clone(),
+        }),
+        EdgeDescriptionSpec::Chart { .. } | EdgeDescriptionSpec::Scaffold(_) => None,
     }
 }
 
