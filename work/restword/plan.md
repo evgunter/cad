@@ -19,7 +19,7 @@ step, after reading each body.
 
 | pri | item | cost |
 |---|---|---|
-| P1 | `material-arm-split-ends-as-a-hand-minted-invalid` | M, design |
+| P1 | `material-arm-split-ends-as-a-hand-minted-invalid` | M, design; closed by PR 6443 (found 2026-11-11) |
 | P3 | `validate-classifiers-and-lower-displays-classify-refusals-differently` | M |
 | P3 | `topo-calls-k-stats-past-its-own-classification-funnel` | M |
 | P3 | `validate-window-leads-say-no-length-on-a-zero-arm` | E |
