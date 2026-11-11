@@ -4438,7 +4438,24 @@ fn stated_bound<T: Decide>(
         band,
         fitted,
     )
-    .map_err(|e| stated_refusal(e, spec, (surface, image), band))?;
+    ;
+    // REVIEW 6836 census probe (review branch only).
+    if let Some(path) = std::env::var_os("REV6836_CENSUS") {
+        use std::io::Write as _;
+        let line = format!(
+            "{}\t{:?}\t{:?}\t{:?}\t{:?}\t{}\n",
+            T::NAME,
+            surface.kind(),
+            crate::pcurve_cache::PcurveKind::of(image),
+            spec.carrier.kind(),
+            door,
+            match &c { Ok(_) => "ok".to_owned(), Err(e) => format!("ERR {e:?}") },
+        );
+        if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(path) {
+            let _ = f.write_all(line.as_bytes());
+        }
+    }
+    let c = c.map_err(|e| stated_refusal(e, spec, (surface, image), band))?;
     Ok(c.max_residual.max(c.envelope))
 }
 
