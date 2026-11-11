@@ -307,6 +307,8 @@ impl<'a> ImplicitSection<'a> {
     /// What this section's boundary pass is run over ([`PassKey`]).
     pub(crate) fn pass_key(&self) -> PassKey {
         let d = self.lane.wall.domain();
+        // The lift's ends only name the pass: `{:e}` renders each exactly,
+        // and nothing compares them or branches on them.
         let lift = self.lane.form.lift();
         PassKey {
             partner: format!(

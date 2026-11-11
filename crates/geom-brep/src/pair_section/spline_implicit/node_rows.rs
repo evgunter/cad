@@ -478,25 +478,28 @@ fn listing(
 }
 
 /// **A node not placed within the band refuses by name.** The cross
-/// saddle's node, its point enclosure read wider than the band's zero:
-/// the listing refuses `spline_node_box` rather than list a node it has
-/// not placed. Red against the width left unread.
+/// saddle's node, its point enclosure read wider than the band's zero, or
+/// not certified (its width NaN): the listing refuses `spline_node_box`
+/// rather than list a node it has not placed. Red against the width left
+/// unread, and against a NaN width read as within the zero.
 #[test]
 fn a_node_not_placed_within_the_band_refuses() {
-    let (pose, mut decided, out) = crossing();
-    if let Some(frame) = decided[0].node.as_mut() {
-        frame.width = 2.0 * band().zero();
+    for width in [2.0 * band().zero(), f64::NAN] {
+        let (pose, mut decided, out) = crossing();
+        if let Some(frame) = decided[0].node.as_mut() {
+            frame.width = width;
+        }
+        let got = listing(pose, &decided, out);
+        assert!(
+            matches!(
+                got,
+                Err(SectionError::Pinched {
+                    predicate: "spline_node_box"
+                })
+            ),
+            "{width}: {got:?}"
+        );
     }
-    let got = listing(pose, &decided, out);
-    assert!(
-        matches!(
-            got,
-            Err(SectionError::Pinched {
-                predicate: "spline_node_box"
-            })
-        ),
-        "{got:?}"
-    );
 }
 
 /// **A node whose rays are not each claimed once refuses by name.** The
