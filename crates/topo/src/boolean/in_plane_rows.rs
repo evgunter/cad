@@ -284,3 +284,58 @@ fn an_end_resting_in_the_face_holds_its_piece() {
         "the edge is recorded in the U's top"
     );
 }
+
+/// **A piece shorter than twice the band reads at the corner it leaves,
+/// never at its midpoint.** A slab `(0,1)×(0.5,0.8)×(0.5,0.5+w)` and a
+/// fill flush with it on five faces from `y = 0.5 + w`, `w = 12ε`, no
+/// pair glued: every piece lying in the other's face plane has an end
+/// at a corner of that face, and the short ones, across the slab's end
+/// faces, hold no point off the band of their ends. The fill's edge
+/// where its face toward the channel meets each end face, or the
+/// slab's floor or roof, runs across that face of the slab, which holds
+/// it; every piece of the slab runs along a boundary of the fill's face
+/// it lies in, or off it.
+///
+/// Mutant: reading every piece by its midpoint refuses
+/// `bool_contact_vertex` `w/2` from a corner.
+#[test]
+fn a_short_piece_reads_at_its_corner() {
+    let tol = Tol::witness();
+    let w = 12.0 * tol.eps();
+    let slab = brick((0.0, 1.0), (0.5, 0.8), (0.5, 0.5 + w), tol);
+    let fill = brick((0.0, 1.0), (0.5 + w, 0.8), (0.5, 0.5 + w), tol);
+    for (x_is, a, b) in [(Operand::A, &slab, &fill), (Operand::B, &fill, &slab)] {
+        let ([sa, sb], records, _) = sweep(a, b, |_| {});
+        let (in_slab, in_fill, cut) = match x_is {
+            Operand::A => (&records.b_in_a, &records.a_in_b, &sb),
+            Operand::B => (&records.a_in_b, &records.b_in_a, &sa),
+        };
+        assert!(
+            in_fill.is_empty(),
+            "slab {x_is:?}: no piece of the slab lies inside a face of the fill: {in_fill:?}"
+        );
+        let mut runs: Vec<[f64; 4]> = in_slab
+            .iter()
+            .map(|c| {
+                let (u, v) = cut.edge_vertices(c.edge).unwrap();
+                let (p, q) = (point(cut, u), point(cut, v));
+                assert!(
+                    (p.y - 0.5 - w).abs() < 1e-15 && (q.y - 0.5 - w).abs() < 1e-15,
+                    "slab {x_is:?}: a held piece runs along y = 0.5 + w: {p:?} {q:?}"
+                );
+                [p.x.min(q.x), p.x.max(q.x), p.z.min(q.z), p.z.max(q.z)]
+            })
+            .collect();
+        runs.sort_by(|a, b| a.partial_cmp(b).unwrap());
+        assert_eq!(
+            runs,
+            [
+                [0.0, 0.0, 0.5, 0.5 + w],
+                [0.0, 1.0, 0.5, 0.5],
+                [0.0, 1.0, 0.5 + w, 0.5 + w],
+                [1.0, 1.0, 0.5, 0.5 + w],
+            ],
+            "slab {x_is:?}: the fill's four edges along its face toward the channel"
+        );
+    }
+}
