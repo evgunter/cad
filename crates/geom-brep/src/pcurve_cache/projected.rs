@@ -88,7 +88,9 @@
 //! `INCIDENCE_CUTS` parts in the composite's own ring
 //! (`CurveCertData::with_breaks`; the net itself is never refined
 //! through an `f64` plan, which would re-round it), and further halved
-//! by the edge certificate's limb 2 (`limb2_offset_sup`). The conversion
+//! by the edge certificate's limb 2 (`limb2_offset_sup`), whose first
+//! reading cuts each span into the parts its own turn needs
+//! (`pcurve_cache::Parts::ByTurn`). The conversion
 //! divides `|f|` by a lower bound on `|∇f|` along the segment from the
 //! point to its nearest point on the chart, so each is tight to first
 //! order: `|f|` on the plane;
@@ -900,6 +902,9 @@ impl<T: SpanLocate> ProjectedImage<T> {
 /// form along it (`pcurve_cache::projected_hull_lane`): the incidence
 /// is read per part. Not halved further: on honest rows eight parts read
 /// within 0.3% of a 64-cut read (`work/pcert/projected-check4-incidence-can-falsely-refuse-in-the-sliver-below-the-band.md`).
+/// Limb 2's rounds read a net's spans in as many, and its first reading
+/// at most as many (`pcurve_cache::Parts::ByTurn`): that ceiling is not
+/// what the 0.3% measures, which is check 4's fixed read.
 pub(crate) const INCIDENCE_CUTS: usize = 8;
 
 /// How many equal parts [`ProjectedImage::sweep_box`] cuts a piece into.
@@ -1515,7 +1520,7 @@ pub(crate) struct ProjectedHull {
     /// `x′`, and of the tube's `X′` (`+∞` off a torus).
     pub(crate) pieces: Vec<PieceHull>,
     /// Per part of the re-derived twin net (each knot span cut into
-    /// [`INCIDENCE_CUTS`], and at the caller's cuts): its parameter
+    /// equal parts, and at the caller's cuts): its parameter
     /// range, the bound of `|f|`, the floors its metre conversion reads,
     /// and its metre readings.
     pub(crate) spans: Vec<SpanHull>,

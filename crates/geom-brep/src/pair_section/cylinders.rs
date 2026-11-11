@@ -22,8 +22,8 @@ use geom_core::{Band, Decide, Decided, Margin, MarginDiag, Point3, Real, Sign, V
 use super::ruling::{self, RuledCylinders};
 use super::{
     ClassCarrier, Coincident, ComponentEnds, ComponentShape, Components, NodeEnd, NodeEnds,
-    NodeLine, NodeSet, PairPose, PairSection, PairSide, RaySense, SectionComponent,
-    SectionDecision, SectionNode, ZeroVerdict,
+    NodeLine, PairPose, PairSection, PairSide, RaySense, SectionComponent, SectionDecision,
+    SectionNode, ZeroVerdict, node_joined,
 };
 use crate::ExtentBall;
 use crate::extent::Reach;
@@ -1062,37 +1062,4 @@ pub(super) fn cylinder_cylinder<T: Decide>(
         decided,
         components,
     })
-}
-
-/// **The node-joined sets of `listed`** ([`NodeSet`]): arcs joined where
-/// they share a node, each set claiming `winds`.
-fn node_joined<T: Real>(
-    listed: &[SectionComponent<T>],
-    nodes: usize,
-    winds: [bool; 2],
-) -> Vec<NodeSet> {
-    let ends = |c: &SectionComponent<T>| match c.shape {
-        ComponentShape::Open { ends } => ends.nodes.nodes(),
-        ComponentShape::Loop | ComponentShape::Point => [None, None],
-    };
-    let mut sets: Vec<NodeSet> = Vec::new();
-    for node in 0..nodes {
-        let arcs: Vec<usize> = (0..listed.len())
-            .filter(|&i| ends(&listed[i]).contains(&Some(node)))
-            .collect();
-        if arcs.is_empty() {
-            continue;
-        }
-        // Merge every set already holding one of these arcs.
-        let (mut joined, rest): (Vec<NodeSet>, Vec<NodeSet>) = sets
-            .into_iter()
-            .partition(|set| set.arcs.iter().any(|a| arcs.contains(a)));
-        let mut all: Vec<usize> = joined.drain(..).flat_map(|set| set.arcs).collect();
-        all.extend(arcs);
-        all.sort_unstable();
-        all.dedup();
-        sets = rest;
-        sets.push(NodeSet { arcs: all, winds });
-    }
-    sets
 }

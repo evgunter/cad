@@ -176,7 +176,8 @@ use crate::props::rational_rim::{
     rational_vector_area_each,
 };
 use crate::props::taylor::{
-    Jet, W_SPIRIC, composite_each, pieces_where, rate_bound_over, trig_jets, trig_of, w_rational,
+    Jet, PIECE_TURN, W_SPIRIC, composite_each, pieces_where, rate_bound_over, trig_jets, trig_of,
+    w_rational,
 };
 use crate::props::trig::{limit, rotate, spread_cos, spread_sin, trig_at, trig_over};
 
@@ -261,12 +262,6 @@ impl Schedule {
 /// The most pieces a span or cut interval is read in by the entry: its
 /// schedule's round 0 ([`Schedule`]) and its turn ([`entry_turn`]).
 const MOST_SPAN_PIECES: usize = 1024;
-
-/// **The azimuth one round-0 piece may turn through**: a sixteenth of a
-/// turn, what a full-turn harmonic rim's round-0 piece turns
-/// ([`EDGE_INIT_PIECES`]).
-#[allow(clippy::cast_precision_loss)]
-const PIECE_TURN: f64 = core::f64::consts::TAU / EDGE_INIT_PIECES as f64;
 
 /// **A projected edge's schedule**: per span or cut interval, the fewest
 /// pieces ([`pieces_where`], at most [`MOST_SPAN_PIECES`]) on each of

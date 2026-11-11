@@ -28,10 +28,12 @@
 //!    wall's chart outside the critical points it decides Zero. That
 //!    verdict is the section: no component where the pass found no end
 //!    and no point was decided, [`Components::Reaching`] on the sides the
-//!    pass found ends on, the touches as point components where they are
-//!    all the section has, and a pinch ([`SectionError::Pinched`]) where a
-//!    node, or a touch beside components with ends, meets arcs the march
-//!    would list; the interior-loop guard's loop-free stage is it. Where
+//!    pass found ends on, and the touches as point components where they
+//!    are all the section has; the interior-loop guard's loop-free stage
+//!    is it. Where a node, or a touch beside components with ends, meets
+//!    arcs, the pose is read whole with the decided points handed in and
+//!    listed with its arcs ([`listed`]): each node with its lines and side,
+//!    each arc end at it naming its ray. Where
 //!    the sweep declines, the pose is read whole on the same pass, on the
 //!    1×2 trace ([`crate::ImplicitSection`]), a plane's pass carried on
 //!    the pose.
@@ -87,7 +89,10 @@
 //! transversality, a graze of a side, a side held tangent) is a pinch
 //! named by its decision, an escalation is the value's escalation, and
 //! any other refusal, an accounting that did not close among them, is
-//! [`SectionError::Unaccounted`], carrying its cause.
+//! [`SectionError::Unaccounted`], carrying its cause; but a reading with
+//! decided points handed in that does not account for the components
+//! beside them refuses as a pinch ([`CRITICAL_UNREAD`]): the surfaces meet
+//! within the band there.
 //!
 //! The reading is a march, so the arm is the march door's
 //! ([`super::SsiLane::marched`], at `f64` alone).
@@ -97,8 +102,8 @@ use geom_core::k_stats::{Magnitude, decide, decide_magnitude};
 use geom_core::{Band, Bounds, Decide, Interval, Margin, Point3, Real, Sign, Vec2, Vec3};
 
 use super::{
-    ChartReach, ClassCarrier, ComponentEnds, ComponentShape, Components, PairPose, PairSection,
-    SectionComponent, SsiLane,
+    ChartReach, ClassCarrier, ComponentEnds, ComponentShape, Components, NodeEnd, NodeSet,
+    PairPose, PairSection, PairSide, SectionComponent, SectionNode, SsiLane, node_joined,
 };
 use crate::ExtentBall;
 use crate::intersect::SectionError;
@@ -106,9 +111,11 @@ use crate::ssi::boundary::BoundaryPass;
 use crate::ssi::enclose::{Box3, NurbsBoxes, UvWindow};
 use crate::ssi::exhaust::UvRect;
 use crate::ssi::residual::ImplicitForm;
-use crate::ssi::{BranchEnd, SsiBoundaryContact, SsiBranch, SsiDomain, SsiTube};
+use crate::ssi::{BranchEnd, BranchTip, SsiBoundaryContact, SsiBranch, SsiDomain, SsiTube};
 
 mod curved;
+#[cfg(test)]
+mod node_rows;
 mod sweep;
 
 /// **A spline wall and an implicit partner**, in the order the section
@@ -182,6 +189,15 @@ impl<T: Real> SplineImplicitPose<T> {
         &self.net
     }
 
+    /// The wall's side of the pair, in the order the pose was asked of.
+    pub(super) fn wall_side(&self) -> PairSide {
+        if self.partner_first {
+            PairSide::Second
+        } else {
+            PairSide::First
+        }
+    }
+
     /// `[on the partner, on the wall]` in the order the pose was asked
     /// of.
     pub(super) fn order<V>(&self, on_partner: V, on_wall: V) -> [V; 2] {
@@ -225,13 +241,25 @@ impl<T: Real> SplineImplicitPose<T> {
         components: Components<T>,
         decided: Vec<super::ZeroVerdict>,
     ) -> PairSection<T> {
+        self.section_listing(components, decided, Vec::new(), Vec::new())
+    }
+
+    /// The pair's section with these components, `Zero` verdicts, nodes
+    /// and node-joined sets.
+    fn section_listing(
+        self,
+        components: Components<T>,
+        decided: Vec<super::ZeroVerdict>,
+        nodes: Vec<SectionNode<T>>,
+        node_sets: Vec<NodeSet>,
+    ) -> PairSection<T> {
         let lever = self.ball().lever();
         PairSection {
             pose: PairPose::SplineImplicit(Box::new(self)),
             decided,
             components,
-            nodes: Vec::new(),
-            node_sets: Vec::new(),
+            nodes,
+            node_sets,
             lever,
         }
     }
@@ -731,14 +759,108 @@ pub(super) fn section(
     ) {
         sweep::Sweep::Declined(_) => {
             let out = reading.all().map_err(super::whole_reading_refused)?;
-            return listed(pose, Bracketed::Plane(pivot.heights), out);
+            return listed(pose, Bracketed::Plane(pivot.heights), out, None, band);
+        }
+        sweep::Sweep::Enclosing { decided } => {
+            let (out, listing) = read_listing(reading, &decided)?;
+            let partner = Bracketed::Plane(pivot.heights);
+            return listed(pose, partner, out, Some(&listing.of(&decided)), band);
         }
         sweep::Sweep::LoopFree(decided) => decided,
     };
+    if crosses(&decided, reach) {
+        let (out, listing) = read_listing(reading, &decided)?;
+        let partner = Bracketed::Plane(pivot.heights);
+        return listed(pose, partner, out, Some(&listing.of(&decided)), band);
+    }
     let witnesses = witnesses(reading.boxes(), &decided);
     drop(reading);
     pose.pass = Some(pass);
-    loop_free(pose, reach, &decided, &witnesses)
+    Ok(loop_free(pose, reach, &decided, &witnesses))
+}
+
+/// **A crossing section read whole with its decided points handed in**
+/// ([`read_crossing`]), beside each point's witness, for [`listed`] to
+/// list with them: the sweep's enclosing verdict, or a loop-free one
+/// whose points cross the section's other components ([`crosses`]).
+///
+/// # Errors
+///
+/// [`read_crossing`]'s.
+pub(super) fn read_listing(
+    reading: crate::ImplicitSection<'_>,
+    decided: &[sweep::Critical],
+) -> Result<(crate::ssi::SsiOutcome, Witnesses), SectionError> {
+    let witnesses = Witnesses(witnesses(reading.boxes(), decided));
+    Ok((read_crossing(reading, decided)?, witnesses))
+}
+
+/// The decided points' witnesses a crossing reading kept
+/// ([`read_listing`]).
+pub(super) struct Witnesses(Vec<Option<(Point3<f64>, f64)>>);
+
+impl Witnesses {
+    /// The listing of `decided`, these its witnesses.
+    pub(super) fn of<'d>(&'d self, decided: &'d [sweep::Critical]) -> Listing<'d> {
+        Listing {
+            decided,
+            witnesses: &self.0,
+        }
+    }
+}
+
+/// Whether the decided points cross the section's other components: a
+/// node, whose arcs end at it, or a touch beside components with ends.
+/// Such a section is read whole with the points handed in
+/// ([`read_crossing`], [`listed`]), every arc listed.
+pub(super) fn crosses(decided: &[sweep::Critical], reach: ChartReach) -> bool {
+    decided.iter().any(|c| c.kind == sweep::Kind::Node) || (!decided.is_empty() && reach.any())
+}
+
+/// **The section read whole with the decided points handed in** (C5):
+/// each node's box a march ends on entering, and every point's box a
+/// region seeding skips and accounting reads.
+///
+/// # Errors
+///
+/// The whole reading's refusal, mapped ([`super::whole_reading_refused`]).
+pub(super) fn read_crossing(
+    reading: crate::ImplicitSection<'_>,
+    decided: &[sweep::Critical],
+) -> Result<crate::ssi::SsiOutcome, SectionError> {
+    let nodes: Vec<UvRect> = decided
+        .iter()
+        .filter(|c| c.kind == sweep::Kind::Node)
+        .map(|c| c.region)
+        .collect();
+    let claimed: Vec<UvRect> = decided.iter().map(|c| c.region).collect();
+    reading.with_criticals(&nodes, &claimed).all().map_err(|e| {
+        match super::whole_reading_refused(e) {
+            // The surfaces meet within the band at a decided point beside
+            // the components the reading could not account for: the
+            // pair is near tangent there, and reads so, as the
+            // classification's pinch did before the points were listed.
+            SectionError::Unaccounted { .. } => SectionError::Pinched {
+                predicate: CRITICAL_UNREAD,
+            },
+            other => other,
+        }
+    })
+}
+
+/// **The pinch a crossing section refuses as where its whole reading
+/// does not account for it** ([`read_crossing`]): the surfaces meet
+/// within the band at a decided node or touch, and the components beside
+/// it were not all read (`work/sectarms/a-spline-node-the-reading-cannot-account-for-reads-as-a-tangency.md`).
+pub(super) const CRITICAL_UNREAD: &str = "spline_critical_unread";
+
+/// The decided points a whole reading was handed, beside its outcome
+/// ([`listed`]): the points in the sweep's order, and each one's witness.
+pub(super) struct Listing<'d> {
+    /// The points decided Zero.
+    pub decided: &'d [sweep::Critical],
+    /// Each point's witness ([`witnesses`]).
+    pub witnesses: &'d [Option<(Point3<f64>, f64)>],
 }
 
 /// Each decided critical point's witness, the wall's point at its box's
@@ -757,9 +879,8 @@ pub(super) fn witnesses(
         .collect()
 }
 
-/// What a decided critical point's section refuses as
-/// ([`SectionError::Pinched`]) where the section has more than its
-/// touches: its decision's name.
+/// The decision a critical point decided Zero is named by, a tangency
+/// decided Zero ([`super::SectionDecision::Tangency`]).
 pub(super) const CRITICAL: &str = "spline_critical_value";
 
 /// **The section a loop-free sweep's verdict is** (module docs), the
@@ -770,32 +891,27 @@ pub(super) const CRITICAL: &str = "spline_critical_value";
 /// - only touches and no end: each touch a point component, its witness
 ///   the wall's point at its box and its pad that box's reach, each a
 ///   tangency decided Zero, the reading the interior-loop guard's touch
-///   arm takes;
-/// - a node, or touches beside components with ends: those components
-///   meet a decided tangency, and the march that would list them does not
-///   start at one, so they are not counted
-///   ([`SectionError::Pinched`], named [`CRITICAL`]).
+///   arm takes.
 ///
-/// # Errors
-///
-/// [`SectionError::Pinched`] as above.
+/// A node, or touches beside components with ends, crosses the section
+/// ([`crosses`]): the caller reads it whole with the points handed in
+/// and lists every arc ([`read_listing`]), so it never reaches here.
 pub(super) fn loop_free(
     pose: SplineImplicitPose<f64>,
     reach: ChartReach,
     decided: &[sweep::Critical],
     witnesses: &[Option<(Point3<f64>, f64)>],
-) -> Result<PairSection<f64>, SectionError> {
+) -> PairSection<f64> {
     if decided.is_empty() {
         let Some(reached) = super::Reached::new(pose.order(ChartReach::default(), reach)) else {
-            return Ok(pose.section(Components::Counted(Vec::new())));
+            return pose.section(Components::Counted(Vec::new()));
         };
-        return Ok(pose.section(Components::Reaching(reached)));
+        return pose.section(Components::Reaching(reached));
     }
-    if reach.any() || decided.iter().any(|c| c.kind == sweep::Kind::Node) {
-        return Err(SectionError::Pinched {
-            predicate: CRITICAL,
-        });
-    }
+    debug_assert!(
+        !crosses(decided, reach),
+        "a section its decided points cross is read whole, not here"
+    );
     let mut components = Vec::with_capacity(decided.len());
     let mut verdicts = Vec::with_capacity(decided.len());
     for (c, &witness) in decided.iter().zip(witnesses) {
@@ -812,7 +928,7 @@ pub(super) fn loop_free(
             margin: c.margin,
         });
     }
-    Ok(pose.section_deciding(Components::Counted(components), verdicts))
+    pose.section_deciding(Components::Counted(components), verdicts)
 }
 
 /// **The section read whole** (module docs): C3's reading, every
@@ -846,6 +962,8 @@ pub(super) fn whole(
         pose.clone(),
         Bracketed::Plane(pivot.heights),
         reading.all().map_err(super::whole_reading_refused)?,
+        None,
+        band,
     )
 }
 
@@ -857,30 +975,110 @@ fn contact_reach(region: &SsiBoundaryContact) -> ChartReach {
     }
 }
 
+/// Why a node's arcs are not listed: their ends at it name no ray each
+/// (C5: "Each arc end at a node names its line and the sense it leaves
+/// along").
+pub(super) const NODE_RAY: &str = "spline_node_ray";
+
+/// The cosine of the widest angle an arc end may leave its node at off
+/// its ray, 45°. It is a floor on the end's own ray alone: which ray is
+/// nearest is the lead's decision ([`ray_of`]), since rays nearer each
+/// other than a quarter turn put two within 45° of one end; an end in a
+/// sector wider than a quarter turn may be past 45° of both its bounds,
+/// and names neither.
+const RAY_FLOOR: f64 = core::f64::consts::FRAC_1_SQRT_2;
+
 /// **The whole reading's outcome as the section's components** (module
-/// docs).
+/// docs), with the decided points it was handed, if any ([`Listing`]):
+///
+/// - each node listed (C5): its point, the wall's normal, its two lines
+///   and the side of each other the surfaces lie on in sector 0, read off
+///   the Hessian that decided it; refused ([`sweep::NODE_BOX`]) where its point
+///   is not placed within the band;
+/// - each arc end at a node named by the ray it leaves along: the ray of
+///   the four nearest the end's direction, by the largest `t·ray`, its
+///   lead over the next decided and its own clear of 45° decided, each
+///   levered by the feature extent; in the band the listing escalates,
+///   and a node whose rays are not each claimed by exactly one end
+///   refuses ([`NODE_RAY`]);
+/// - each touch a point component with its witness;
+/// - each point a tangency decided Zero, and the arcs sharing nodes one
+///   node-joined set ([`NodeSet`]).
+///
+/// Carriers stay unminted: no component of a spline × implicit section
+/// is carried yet.
 ///
 /// # Errors
 ///
 /// [`SectionError::Unaccounted`] for a branch that ends off the wall's
-/// rectangle.
+/// rectangle; [`SectionError::Pinched`] as above, and
+/// [`SectionError::Escalated`] for a ray read in the band.
 fn listed(
     pose: SplineImplicitPose<f64>,
     partner: Bracketed<'_>,
     out: crate::ssi::SsiOutcome,
+    listing: Option<&Listing<'_>>,
+    band: Band,
 ) -> Result<PairSection<f64>, SectionError> {
+    let (decided, witnesses) = listing.map_or((&[][..], &[][..]), |l| (l.decided, l.witnesses));
+    let side = |tip: BranchTip| match tip {
+        BranchTip::Rim(at) => ChartReach::side(at.side),
+        BranchTip::Node(_) => ChartReach::default(),
+    };
     let open = |on_wall: ChartReach| ComponentShape::Open {
         ends: ComponentEnds {
             rims: pose.order(ChartReach::default(), on_wall),
             ..ComponentEnds::default()
         },
     };
+    let frames: Vec<&sweep::NodeFrame> = decided.iter().filter_map(|c| c.node.as_ref()).collect();
+    if frames
+        .iter()
+        .any(|f| f.width.is_nan() || f.width > band.zero())
+    {
+        return Err(SectionError::Pinched {
+            predicate: sweep::NODE_BOX,
+        });
+    }
+    let nodes: Vec<SectionNode<f64>> = frames
+        .iter()
+        .map(|f| SectionNode {
+            point: f.point,
+            normal: f.normal,
+            lines: f.lines,
+            above: if f.wall_above {
+                pose.wall_side()
+            } else {
+                pose.wall_side().other()
+            },
+        })
+        .collect();
+    // Each node's arc ends: the component, whether it is the start, and
+    // the direction it leaves the node along, read as the chord from the
+    // node to the end. Two arcs meet only at the node, so the chords
+    // keep the arcs' order about it, where a fitted end tangent may turn
+    // toward a neighbour's ray.
+    let mut at_node: Vec<Vec<(usize, bool, Vec3<f64>)>> = vec![Vec::new(); nodes.len()];
     let mut components = Vec::with_capacity(out.branches.len() + out.boundary.len());
     for b in out.branches {
         let shape = match b.end {
             BranchEnd::Closed => ComponentShape::Loop,
             BranchEnd::Rim { from, to } => {
                 open(ChartReach::side(from.side).or(ChartReach::side(to.side)))
+            }
+            BranchEnd::Node { from, to } => {
+                for (tip, start) in [(from, true), (to, false)] {
+                    let BranchTip::Node(n) = tip else {
+                        continue;
+                    };
+                    let ends = at_node.get_mut(n).ok_or(SectionError::Pinched {
+                        predicate: NODE_RAY,
+                    })?;
+                    let t = if start { b.params.0 } else { b.params.1 };
+                    let chord = b.carrier.eval(t) - nodes[n].point;
+                    ends.push((components.len(), start, chord.normalize()));
+                }
+                open(side(from).or(side(to)))
             }
             BranchEnd::Cut => {
                 return Err(SectionError::Unaccounted {
@@ -900,6 +1098,38 @@ fn listed(
             cut_ends: None,
         });
     }
+    let extent = pose.ball().certified_diameter();
+    for (n, ends) in at_node.iter().enumerate() {
+        let rays = nodes[n].rays();
+        let mut claimed = [false; 4];
+        for &(k, start, d) in ends {
+            let ray = ray_of(d, rays, extent, band)?;
+            if claimed[ray] {
+                return Err(SectionError::Pinched {
+                    predicate: NODE_RAY,
+                });
+            }
+            claimed[ray] = true;
+            let (line, sense) = SectionNode::<f64>::RAYS[ray];
+            let end = Some(NodeEnd {
+                node: n,
+                line,
+                sense,
+            });
+            if let ComponentShape::Open { ends } = &mut components[k].shape {
+                if start {
+                    ends.nodes.start = end;
+                } else {
+                    ends.nodes.end = end;
+                }
+            }
+        }
+        if claimed != [true; 4] {
+            return Err(SectionError::Pinched {
+                predicate: NODE_RAY,
+            });
+        }
+    }
     components.extend(out.boundary.iter().map(|region| SectionComponent {
         shape: open(contact_reach(region)),
         winds: [false, false],
@@ -908,7 +1138,81 @@ fn listed(
         carrier: ClassCarrier::Unminted(super::NoCarrier::WallRegion),
         cut_ends: None,
     }));
-    Ok(pose.section(Components::Counted(components)))
+    for (c, &witness) in decided.iter().zip(witnesses) {
+        if c.kind == sweep::Kind::Touch {
+            components.push(SectionComponent {
+                shape: ComponentShape::Point,
+                winds: [false, false],
+                witness: witness.map(|(q, _)| q),
+                pad: witness.map_or(0.0, |(_, pad)| pad),
+                carrier: ClassCarrier::Unminted(super::NoCarrier::Touch),
+                cut_ends: None,
+            });
+        }
+    }
+    let verdicts = decided
+        .iter()
+        .map(|c| super::ZeroVerdict {
+            decision: super::SectionDecision::Tangency(CRITICAL),
+            margin: c.margin,
+        })
+        .collect();
+    let node_sets = node_joined(&components, nodes.len(), [false, false]);
+    Ok(pose.section_listing(Components::Counted(components), verdicts, nodes, node_sets))
+}
+
+/// **The ray an arc end leaves its node along**, by index in
+/// [`SectionNode::RAYS`]: the ray of the four nearest the end's unit
+/// direction `d` (the largest `d·ray`), its lead over the next and its
+/// own clear of 45° ([`RAY_FLOOR`]) each decided, levered by the feature
+/// extent (a difference of cosines, read as a sine is).
+///
+/// # Errors
+///
+/// [`SectionError::Escalated`] where either reads in the band, and
+/// [`SectionError::Pinched`] ([`NODE_RAY`]) where the end leaves along
+/// no ray.
+fn ray_of(
+    d: Vec3<f64>,
+    rays: [Vec3<f64>; 4],
+    extent: geom_core::Lever<Interval>,
+    band: Band,
+) -> Result<usize, SectionError> {
+    let dots = rays.map(|r| d.dot(r));
+    let best = SectionNode::<f64>::nearest_ray(dots);
+    let next = SectionNode::<f64>::nearest_ray(core::array::from_fn(|i| {
+        if i == best {
+            f64::NEG_INFINITY
+        } else {
+            dots[i]
+        }
+    }));
+    let decided_positive = |name: &'static str, value: f64| -> Result<bool, SectionError> {
+        let d = geom_core::k_stats::decide_reported(
+            name,
+            Margin::levered(Interval::from_certified(value), extent),
+            band,
+        )
+        .map_err(SectionError::Escalated)?;
+        match d.sign {
+            Sign::Positive => Ok(true),
+            Sign::Negative => Ok(false),
+            Sign::Zero => Err(SectionError::Escalated(geom_core::k_stats::gate_rejection(
+                name,
+                d,
+                band,
+                geom_core::SizedPass::NonZero,
+            ))),
+        }
+    };
+    if !decided_positive(NODE_RAY, dots[best] - dots[next])?
+        || !decided_positive(NODE_RAY, dots[best] - RAY_FLOOR)?
+    {
+        return Err(SectionError::Pinched {
+            predicate: NODE_RAY,
+        });
+    }
+    Ok(best)
 }
 
 #[cfg(test)]
