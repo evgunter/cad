@@ -2,10 +2,13 @@
 id: an-iso-arcs-envelope-omits-its-in-band-weight-margin
 kind: issue
 title: The arc-rim certificate decides its weight margins Zero in band and never pays them into the envelope, so a near-circle row certifies with an envelope far under its miss
-status: open
+status: closed
 priority: P1
 cost: M
 opened: 2026-11-04
+closed: 2026-11-10
+pr: 6801
+branch: pcert/iso-arc-envelope-margin
 ---
 
 Filed by the PCERT main-reds lane from PR 6528's FULL review (fix EE4). It
@@ -57,3 +60,20 @@ above: `R·|w − cos(h/2)|·max(1, (1 − c)/(c(1 + c)))`, or the exact
 sup of the radial miss over the sub-arc. Add a row at `(1, 1 + 1e-7, 2)`
 whose envelope must hold the true miss, and one at a 150° sub-arc.
 
+
+## Closed (PR 6801)
+
+`run_iso_arc_checks` pays each decided sub-arc weight margin into the
+envelope as `arc_rim_weight_miss`: `R·|w − c|·sin α·√(tan²α + 16/27) /
+((1 + min(w, 1))(1 + min(c, 1)))`, `α = h/2`, a sup bound on the
+POINTWISE miss over the sub-arc, at any held end weights (the Möbius
+change moves both curves alike). The reviewer's factor is confirmed as
+the radial miss's sup, which sits at the middle; the certificate's
+statement is pointwise, and off the middle the miss is mostly
+tangential on a short sub-arc (at 1°, 88× the radial). The bound is
+within 13% of the exact sup at every angle (mpmath,
+`scripts/oracles/iso_arc_weight_miss_mpmath.py`); it crosses the
+radius alone at about 129°, and a sub-arc of a half turn or more costs
+an unbounded miss, so it refuses on its envelope. The same sweep found
+the edge-span overshoot the class admits in band past its arc unpaid;
+it is paid too (`R·overshoot`, the chord to the clamped end).
