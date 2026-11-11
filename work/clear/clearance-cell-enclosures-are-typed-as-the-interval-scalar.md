@@ -2,7 +2,7 @@
 id: clearance-cell-enclosures-are-typed-as-the-interval-scalar
 kind: issue
 title: The clearance engine's cell enclosures are typed as the Interval scalar: every input value enters through Interval::from_certified, so a bound on a function over a cell and an uncertain number are one type
-status: open
+status: dispatched
 opened: 2026-11-02
 priority: P0
 cost: M
@@ -39,3 +39,7 @@ reads as treating the float as the value.
 
 Priority: P0, because `the-at-rest-gate-certifies-embedding` (P0) waits
 on it (a blocker inherits the band of what waits on it).
+
+## Dispatch
+
+2026-11-11, CLEAR orchestrator. The fork is with two designers, A and B, under `docs/DESIGN-FORK-PROTOCOL.md` (protocol `2126b860b63`). The arm byte drew two designers, and the draw and labels are on `analysis/design-fork/clear-enclosure`. Both have the same problem statement and no candidate answers. Reconciliation follows `memories/orchestration-model.md`. The outcome goes to Ev as an `[ev]` PR that edits this row and any clause the answer touches, or is decided here if no ratified text moves and the designers converge.
