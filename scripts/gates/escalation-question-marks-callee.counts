@@ -27,6 +27,9 @@ crates/geom-brep/src/props/curved.rs 1
 # NOT A SEARCH.
 crates/geom-brep/src/props/quad/patch.rs 1
 crates/geom-brep/src/props/quad/rational.rs 1
+# rotational rounds: the torus's rings read against its face are the
+# premise of its area's window decision on the same round: NOT A SEARCH.
+crates/geom-brep/src/props/quad/rotational.rs 1
 crates/geom-brep/src/props/quad/trimmed.rs 1
 # ssi certify: limb_three's ladder over radii, the rung that certifies is
 # the certificate's tube: WHICH.
