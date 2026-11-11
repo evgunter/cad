@@ -259,10 +259,10 @@
 //! columns within a few percent said the faces and their bounds were
 //! still the block's. It did not by itself say which sizing rule
 //! changed: a re-cut taken after a schedule
-//! change and the schedule change landing are one event. The dated
-//! record settles that — `docs/MODEL-AB-LOG.md`'s TESS-SPLIT row reads
-//! *"tour NURBS cells 163,182 -> 46,102"*, and 46,102 is what the
-//! committed file carried from that cut on.
+//! change and the schedule change landing are one event. The merge
+//! settles that: TESS-SPLIT (PR #951) took the tour's NURBS cells from
+//! 163,182 to 46,102, and 46,102 is what the committed file carries
+//! from that cut on.
 //!
 //! **The numeric form of that argument is a comparison between two
 //! NAMED cuts, it lives in `docs/TESS-BUDGET.md` under "The finding",

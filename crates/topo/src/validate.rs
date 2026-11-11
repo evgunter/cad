@@ -3453,6 +3453,12 @@ fn classify_certify(e: &CertifyError) -> (&'static str, Cow<'static, str>) {
             }))
             .0
         }
+        CertifyError::StatedImageMissed { .. } => {
+            "the chart image it states does not follow its carrier"
+        }
+        CertifyError::StatedImageUnsettled => {
+            geom_core::undecided!("whether the chart image it states follows it")
+        }
         CertifyError::ChartImageUnavailable { .. }
         | CertifyError::UnresolvedSurface { .. }
         | CertifyError::IntersectionSameSurface { .. }
@@ -3647,6 +3653,8 @@ fn classify_certify(e: &CertifyError) -> (&'static str, Cow<'static, str>) {
             | CertifyError::TangentCertificateUnsupported => NOT_YET_ENDING,
             CertifyError::Band(_) => TOLERANCE,
             CertifyError::ChartImageUnavailable { .. }
+            | CertifyError::StatedImageMissed { .. }
+            | CertifyError::StatedImageUnsettled
             | CertifyError::NoGeneralLane { .. }
             | CertifyError::Incidence(_)
             | CertifyError::ResidualExceeded { .. }
@@ -3723,6 +3731,9 @@ fn certify_undecided(check: CertCheck) -> &'static str {
         CertCheck::ChartIncidence => incidence_reasons::UNSHOWN,
         CertCheck::GeneralLane => {
             geom_core::undecided!("whether its face's general image covers it")
+        }
+        CertCheck::StatedImage => {
+            geom_core::undecided!("whether the chart image it states follows it")
         }
         CertCheck::EndpointStart
         | CertCheck::EndpointEnd
