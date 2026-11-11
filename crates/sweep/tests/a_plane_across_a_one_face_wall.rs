@@ -68,7 +68,7 @@ fn extruded(loops: Vec<ProfileLoop<f64>>, z0: f64, h: f64) -> Body<f64> {
     };
     let body = extrude(&profile, depth, tol()).unwrap().body;
     let up = Affine3::translation(Vec3::new(0.0, 0.0, z0));
-    topo::transform_rigid(&body, &geom_core::test_support::rigid(&up, tol()), tol()).unwrap()
+    topo::transform_rigid(&body, &geom_core::test_support::rigid(&up, tol())).unwrap()
 }
 
 /// The one-segment circle of radius 1 about the z axis, its vertex at
@@ -95,12 +95,7 @@ fn tube(ri: f64) -> Body<f64> {
 fn below(at: Point3<f64>, turn: Affine3<f64>) -> Body<f64> {
     let raw = brick((-4.0, 4.0), (-4.0, 4.0), (-8.0, 0.0), tol());
     let to = Affine3::translation(at - Point3::origin());
-    topo::transform_rigid(
-        &raw,
-        &geom_core::test_support::rigid(&(to * turn), tol()),
-        tol(),
-    )
-    .unwrap()
+    topo::transform_rigid(&raw, &geom_core::test_support::rigid(&(to * turn), tol())).unwrap()
 }
 
 /// Every op in both orders between `a` and `b` (volumes `va`, `vb`,

@@ -1547,7 +1547,8 @@ fn every_offset_fit_refusal_ends_exactly_once() {
             "{name}: {text}"
         );
         // The shell user sets the curvature meter's size as a wall
-        // thickness, an offset face's finish as an offset distance.
+        // thickness. The at-rest route raises no `Meter` row, so its
+        // size, an offset distance, reads no curvature ending.
         let (arm, curvature) = match name.strip_prefix("Shell/Face/Fit/") {
             Some(arm) => (arm, WALL),
             None => (

@@ -79,8 +79,7 @@ impl Pose {
         let place = Affine3::rotation_about_axis(o, Vec3::unit_z(), self.turn)
             * Affine3::rotation_about_axis(o, Vec3::unit_x(), self.tilt);
         let placed =
-            topo::transform_rigid(&body, &geom_core::test_support::rigid(&place, tol), tol)
-                .unwrap();
+            topo::transform_rigid(&body, &geom_core::test_support::rigid(&place, tol)).unwrap();
         (finished("the tube", placed, tol), vt, shared)
     }
 }
@@ -170,7 +169,6 @@ fn placed_tube(a: f64, z0: f64, len: f64, place: Affine3<f64>) -> AtRestBody<f64
     let body = topo::transform_rigid(
         &tube_at(a, z0, len),
         &geom_core::test_support::rigid(&place, tol),
-        tol,
     )
     .unwrap();
     finished("the tube", body, tol)

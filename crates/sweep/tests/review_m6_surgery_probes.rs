@@ -45,12 +45,7 @@ fn ball_at(r: f64, c: Vec3<f64>) -> Body<f64> {
     let ball = revolve(&vp, axis, Revolution::Full, Tol::witness())
         .unwrap()
         .body;
-    topo::transform_rigid(
-        &ball,
-        &geom_core::RigidMotion::translation(c).unwrap(),
-        Tol::witness(),
-    )
-    .unwrap()
+    topo::transform_rigid(&ball, &geom_core::RigidMotion::translation(c).unwrap()).unwrap()
 }
 
 /// +Z-poled ball at c (pole toward +z, like the die's top-face pips).
@@ -66,15 +61,9 @@ fn ball_top(r: f64, c: Vec3<f64>) -> Body<f64> {
             ),
             Tol::witness(),
         ),
-        Tol::witness(),
     )
     .unwrap();
-    topo::transform_rigid(
-        &rot,
-        &geom_core::RigidMotion::translation(c).unwrap(),
-        Tol::witness(),
-    )
-    .unwrap()
+    topo::transform_rigid(&rot, &geom_core::RigidMotion::translation(c).unwrap()).unwrap()
 }
 
 fn subtract(a: &Body<f64>, b: &Body<f64>) -> Result<Body<f64>, topo::BooleanError> {
@@ -559,7 +548,6 @@ fn p5_seam_azimuth_rotation_certifies_identically() {
                 ),
                 Tol::witness(),
             ),
-            Tol::witness(),
         )
         .unwrap();
         let pipped = subtract(&cube0, &ball).expect("pip cuts");

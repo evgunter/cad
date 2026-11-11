@@ -386,7 +386,6 @@ fn a_thin_bar_turned_about_two_axes_gets_through_the_join() {
             &Affine3::rotation_about_axis(o, Vec3::new(1.0, 0.0, 0.0), 0.3),
             tol,
         ),
-        tol,
     )
     .expect("a rigid pose");
     let bar = topo::transform_rigid(
@@ -395,7 +394,6 @@ fn a_thin_bar_turned_about_two_axes_gets_through_the_join() {
             &Affine3::rotation_about_axis(o, Vec3::new(0.0, 1.0, 0.0), 0.5),
             tol,
         ),
-        tol,
     )
     .expect("a rigid pose");
     let bar = finished("the turned bar", bar, tol);
@@ -714,7 +712,6 @@ fn assert_turned_bar_through_the_pipe(theta: f64, (cx, cy): (f64, f64), ops: &[&
             ),
             tol,
         ),
-        tol,
     )
     .expect("a rigid pose");
     let bar = finished("the turned bar", bar, tol);

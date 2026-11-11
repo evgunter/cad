@@ -369,7 +369,7 @@ fn a2_the_member_is_the_member() {
         .relative(&second)
         .expect("a finite relative map")
         .expect("two members apart");
-    let read = transform_rigid(second.body(), &map, Tol::witness()).expect("a rigid read");
+    let read = transform_rigid(second.body(), &map).expect("a rigid read");
     let fused = kernel_union(first.body(), &read);
     let joined = match &ev.value(joined).expect("the union").payload {
         ValuePayload::Boolean(editor_core::BooleanValue::Body { body, .. }) => body.clone(),

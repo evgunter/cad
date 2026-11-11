@@ -305,7 +305,6 @@ fn cylinder_apart(gap: f64) -> Body<f64> {
     topo::transform_rigid(
         &cylinder(0.0, 1.0),
         &geom_core::RigidMotion::translation(Vec3::new(1.0 + gap, 0.0, 0.0)).unwrap(),
-        Tol::witness(),
     )
     .unwrap()
 }

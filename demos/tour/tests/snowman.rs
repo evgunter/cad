@@ -27,7 +27,6 @@ mod tests {
         let moved = pncad::topo::transform_rigid(
             &head,
             &RigidMotion::translation(v3(0.05, 0.0, 0.0)).expect("a finite translation"),
-            tol,
         )
         .expect("a rigid pose");
         let moved = finished("the moved head", moved, tol);
@@ -60,7 +59,7 @@ mod tests {
         let (bottom, head) = (ball(R1, 0.0, tol), ball(R2, D, tol));
         let spin = RigidMotion::rotation(pncad::geom_core::UnitVec3::exact_y(), 0.9)
             .expect("a finite angle");
-        let moved = pncad::topo::transform_rigid(&head, &spin, tol).expect("a rigid pose");
+        let moved = pncad::topo::transform_rigid(&head, &spin).expect("a rigid pose");
         let moved = finished("the moved head", moved, tol);
         let (va, vb, vl) = (ball_volume(R1), ball_volume(R2), lens_volume_at(D));
         for (op, out, expected) in [
@@ -88,7 +87,6 @@ mod tests {
         let moved = pncad::topo::transform_rigid(
             &head,
             &RigidMotion::translation(v3(0.0, 0.0, 0.05)).expect("a finite translation"),
-            tol,
         )
         .expect("a rigid pose");
         let moved = finished("the moved head", moved, tol);

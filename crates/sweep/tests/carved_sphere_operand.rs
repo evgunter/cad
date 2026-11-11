@@ -25,12 +25,7 @@ fn ball(r: f64, c: Vec3<f64>) -> AtRestBody<f64> {
         Revolution::Full,
         Tol::witness(),
     );
-    let b = topo::transform_rigid(
-        &b,
-        &geom_core::RigidMotion::translation(c).unwrap(),
-        Tol::witness(),
-    )
-    .unwrap();
+    let b = topo::transform_rigid(&b, &geom_core::RigidMotion::translation(c).unwrap()).unwrap();
     finished("the ball", b, Tol::witness())
 }
 
@@ -426,8 +421,7 @@ fn the_lens_union_classifies_points_at_the_interval_scalar() {
         let to = Vec3::new(iv(c.x), iv(c.y), iv(c.z));
         finished(
             "the ball",
-            topo::transform_rigid(&b, &geom_core::RigidMotion::translation(to).unwrap(), tol)
-                .unwrap(),
+            topo::transform_rigid(&b, &geom_core::RigidMotion::translation(to).unwrap()).unwrap(),
             tol,
         )
     };

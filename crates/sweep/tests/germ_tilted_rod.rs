@@ -50,12 +50,8 @@ fn rod(beta: f64, spin: f64) -> AtRestBody<f64> {
     let c = germ_pair::spin(&germ_pair::cyl(0.15, 0.85), Vec3::unit_z(), spin);
     let c = germ_pair::spin(&c, Vec3::unit_y(), beta);
     let centre = Vec3::new(1.8, 0.0, 0.0) + dir(beta) * 0.55;
-    let moved = topo::transform_rigid(
-        &c,
-        &geom_core::RigidMotion::translation(centre).unwrap(),
-        Tol::witness(),
-    )
-    .expect("the rod moves");
+    let moved = topo::transform_rigid(&c, &geom_core::RigidMotion::translation(centre).unwrap())
+        .expect("the rod moves");
     finished("the rod", moved, Tol::witness())
 }
 

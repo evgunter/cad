@@ -538,7 +538,7 @@ fn steep_frusta_in_a_generic_pose_split_at_a_shallow_tilt() {
         // kernel limit
         // (`work/shell/eps-min-leaves-no-certification-headroom-at-the-box-edge.md`).
         let pinned: &[f64] = if alpha == 1.3 { &[1e-12] } else { &[] };
-        let turned = topo::transform_rigid(&body, &rigid(&motion, tol), tol);
+        let turned = topo::transform_rigid(&body, &rigid(&motion, tol));
         let Some(body) = test_utils::kernel_limit::pinned(turned, eps, pinned, &what) else {
             continue;
         };

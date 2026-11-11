@@ -287,7 +287,6 @@ fn the_fenced_poses_keep_their_own_outcomes() {
     let skew = topo::transform_rigid(
         &spin(&cyl(1.0, 2.0), Vec3::new(1.0, 0.0, 0.0), PI / 2.0),
         &geom_core::RigidMotion::translation(shift).unwrap(),
-        tol,
     )
     .unwrap();
     let want = crossed::volume(
@@ -423,7 +422,6 @@ fn a_rod_through_a_drum_wall_builds_at_its_sliced_volume() {
     let rod = topo::transform_rigid(
         &rod,
         &geom_core::test_support::rigid(&Affine3::translation(shift), tol),
-        tol,
     )
     .unwrap();
     let rod = finished("the rod", rod, tol);

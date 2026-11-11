@@ -54,7 +54,6 @@ fn witnesses_are_construction_fresh_bits() {
     let out = transform_rigid(
         &bb.body,
         &geom_core::test_support::rigid(&rot_trans(), Tol::witness()),
-        Tol::witness(),
     )
     .unwrap();
     let mid = (CERT_SAMPLES - 1) / 2;
@@ -100,7 +99,6 @@ fn transform_chain_stays_fresh() {
         cur = transform_rigid(
             &cur,
             &geom_core::test_support::rigid(&rot_trans(), Tol::witness()),
-            Tol::witness(),
         )
         .unwrap_or_else(|e| panic!("chain step {i} refused: {e:?}"));
     }
@@ -133,13 +131,11 @@ fn remint_is_deterministic() {
     let o1 = transform_rigid(
         &bb.body,
         &geom_core::test_support::rigid(&rot_trans(), Tol::witness()),
-        Tol::witness(),
     )
     .unwrap();
     let o2 = transform_rigid(
         &bb.body,
         &geom_core::test_support::rigid(&rot_trans(), Tol::witness()),
-        Tol::witness(),
     )
     .unwrap();
     assert_eq!(format!("{o1:?}"), format!("{o2:?}"));

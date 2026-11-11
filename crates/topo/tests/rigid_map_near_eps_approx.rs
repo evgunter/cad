@@ -291,14 +291,13 @@ fn a_rigid_map_moves_a_face_minted_near_eps() {
         let (body, key) = body_with(face.clone());
         let (mut certified, mut refused) = (0_usize, 0_usize);
         for (name, map) in rotations() {
-            let moved =
-                topo::transform_rigid(&body, &geom_core::test_support::rigid(&map, tol), tol)
-                    .unwrap_or_else(|e| {
-                        panic!(
-                            "d = {d}, {name}: a sound face must move: {e_at}",
-                            e_at = e.render(geom_brep::recourse::Reading::Build)
-                        )
-                    });
+            let moved = topo::transform_rigid(&body, &geom_core::test_support::rigid(&map, tol))
+                .unwrap_or_else(|e| {
+                    panic!(
+                        "d = {d}, {name}: a sound face must move: {e_at}",
+                        e_at = e.render(geom_brep::recourse::Reading::Build)
+                    )
+                });
             let after = approx_on(&moved, key);
             let (description, fit) = image(&face, &map);
             let geom::SurfaceDescription::Offset {
@@ -372,7 +371,7 @@ fn a_planted_face_is_moved_and_refused_by_the_finishs_door() {
     );
     let (body, key) = body_with(planted);
     for (name, map) in rotations() {
-        let moved = topo::transform_rigid(&body, &geom_core::test_support::rigid(&map, tol), tol)
+        let moved = topo::transform_rigid(&body, &geom_core::test_support::rigid(&map, tol))
             .unwrap_or_else(|e| panic!("{name}: the map moves what it is handed: {e:?}"));
         assert!(
             OffsetFitLane::fit()

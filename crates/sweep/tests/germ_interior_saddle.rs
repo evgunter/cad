@@ -177,7 +177,6 @@ fn a_tilted_cylinder_saddle_behind_a_pin_refuses_every_op() {
             &Affine3::rotation_about_axis(Point3::origin(), Vec3::unit_y(), 0.15),
             Tol::witness(),
         ),
-        Tol::witness(),
     )
     .expect("the bracket tilts");
     refuses_at_the_cylinder_half(&a, &b, "rod and tilted arc bracket");
@@ -204,7 +203,6 @@ fn the_saddle_without_a_pin_refuses_at_the_fallback() {
             ),
             Tol::witness(),
         ),
-        Tol::witness(),
     )
     .expect("the rod moves");
     for (what, b) in [("full rod", rod), ("arc prism", arc_prism())] {
@@ -277,7 +275,6 @@ fn the_saddle_is_a_certified_interior_loop_naming_both_walls() {
             &Affine3::rotation_about_axis(Point3::origin(), Vec3::unit_y(), 0.15),
             Tol::witness(),
         ),
-        Tol::witness(),
     )
     .expect("the bracket tilts");
     for (what, b) in [("straight", arc_bracket()), ("tilted", tilted)] {

@@ -6844,7 +6844,7 @@ fn apply_recuts<T: Decide + Bounds + crate::props::AtRestPolicy>(
                         .map_err(|_| corrupt("re-cut rotation's product overflowed"))?
                 }
             };
-            let turned = crate::transform::transform_rigid(&ball, &map, tol)
+            let turned = crate::transform::transform_rigid(&ball, &map)
                 .map_err(|_| corrupt("re-cut rotation failed to re-certify"))?;
             rotated.push((turned, faces));
         }

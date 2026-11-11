@@ -277,3 +277,63 @@ fn a_moved_leaf_runs_one_finish() {
         "the twist of a leaf runs one finish"
     );
 }
+
+/// **A copy moved past the session box refuses at the box, typed**: the
+/// move asks the box of the image (`Held::moved`). A block placed 2 km off
+/// evaluates as its placement, in its own frame; the `Assemble` that reads
+/// it into the first copy's frame moves it, and refuses with the session
+/// box's finding alone. The refusal names that `Assemble`, the operation
+/// whose read moved the copy, not the far copy's placement: no
+/// `NodeErrorKind` arm names a member.
+#[test]
+fn a_copy_moved_past_the_box_refuses_at_the_box() {
+    let tol = Tol::witness();
+    let doc = ProfileDoc::empty(DocumentId::derive("a-copy-past-the-box"), tol);
+    let (doc, source) = block(doc);
+    let (doc, _near) = editor_core::test_support::in_world(
+        doc,
+        source,
+        &editor_core::Frame::translation([0.0; 3]),
+        tol,
+    );
+    let (doc, far) = editor_core::test_support::in_world(
+        doc,
+        source,
+        &editor_core::Frame::translation([2000.0, 0.0, 0.0]),
+        tol,
+    );
+    let doc = fixture::assemble_world_copies(doc);
+    let ev: Evaluation<f64> = evaluate(
+        &doc,
+        None,
+        &CancelToken::new(),
+        &EvalOptions::default(),
+        tol,
+    );
+    assert!(
+        ev.node_error(far).is_none(),
+        "the far copy's placement evaluates in its own frame"
+    );
+    let refusals: Vec<_> = doc
+        .ids()
+        .into_iter()
+        .filter_map(|id| ev.node_error(id))
+        .collect();
+    let [refused] = &refusals[..] else {
+        panic!("one node refuses: {refusals:?}")
+    };
+    assert!(
+        matches!(doc.node(refused.node), Some(Node::Assemble { .. })),
+        "the Assemble reading the copy refuses"
+    );
+    match &refused.kind {
+        editor_core::NodeErrorKind::NotFinished { findings } => assert!(
+            matches!(
+                &findings[..],
+                [topo::ValidationError::OutsideSessionBox { .. }]
+            ),
+            "the session box is the move's one refusal: {findings:?}"
+        ),
+        other => panic!("the Assemble refuses at the box: {other:?}"),
+    }
+}

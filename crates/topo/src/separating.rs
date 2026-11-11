@@ -403,7 +403,6 @@ mod tests {
         let turned = crate::transform::transform_rigid(
             &cube,
             &RigidMotion::rotation(axis, f64::EPSILON).unwrap(),
-            tol,
         )
         .unwrap();
         let key = crate::boxes::axis_key;

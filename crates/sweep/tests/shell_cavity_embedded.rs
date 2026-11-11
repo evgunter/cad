@@ -487,7 +487,7 @@ fn one_face_torus_cut() -> topo::AtRestBody<Interval> {
     );
     let slab = finished(
         "the turned slab",
-        topo::transform_rigid(&slab, &rigid, tol()).expect("a rigid turn"),
+        topo::transform_rigid(&slab, &rigid).expect("a rigid turn"),
         tol(),
     );
     match topo::subtract(&ring, &slab, tol()) {

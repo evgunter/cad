@@ -63,7 +63,7 @@ fn ball_at(c: Vec3<f64>) -> Body<f64> {
         dir: Vec2::new(0.0, 1.0),
     };
     let b = revolve(&vp, axis, Revolution::Full, tol()).unwrap().body;
-    topo::transform_rigid(&b, &geom_core::RigidMotion::translation(c).unwrap(), tol()).unwrap()
+    topo::transform_rigid(&b, &geom_core::RigidMotion::translation(c).unwrap()).unwrap()
 }
 
 /// The edges of `body` on line carriers.
@@ -283,7 +283,6 @@ fn a_polygonal_ring_is_metered_edge_by_edge_clear_crossed_and_in_band() {
     let diamond = topo::transform_rigid(
         &diamond,
         &geom_core::RigidMotion::translation(Vec3::new(0.0, 0.0, 0.8)).unwrap(),
-        tol(),
     )
     .unwrap();
     let body = subtract(&cube(1.0, tol()), &diamond);
@@ -344,7 +343,6 @@ fn a_polygonal_ring_beside_a_hole_rim_is_metered_against_its_trim_circle() {
     let hole = topo::transform_rigid(
         &hole,
         &geom_core::RigidMotion::translation(Vec3::new(0.0, 0.0, -0.2)).unwrap(),
-        tol(),
     )
     .unwrap();
     let (a, h) = (11.25f64.to_radians(), 0.1);
@@ -363,7 +361,6 @@ fn a_polygonal_ring_beside_a_hole_rim_is_metered_against_its_trim_circle() {
     let pocket = topo::transform_rigid(
         &pocket,
         &geom_core::RigidMotion::translation(Vec3::new(0.0, 0.0, 0.8)).unwrap(),
-        tol(),
     )
     .unwrap();
     let body = subtract(&subtract(&cube(1.0, tol()), &hole), &pocket);
@@ -421,7 +418,6 @@ fn a_ring_of_arcs_of_two_circles_is_metered_arc_by_arc() {
         topo::transform_rigid(
             &b,
             &geom_core::RigidMotion::translation(Vec3::new(0.0, 0.0, z)).unwrap(),
-            tol(),
         )
         .unwrap()
     };

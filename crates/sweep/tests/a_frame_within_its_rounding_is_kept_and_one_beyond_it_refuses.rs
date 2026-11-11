@@ -70,7 +70,7 @@ fn a_frame_within_its_rounding_is_kept_and_places_its_cylinder() {
         frame(stretch).linear.c0.x.to_bits(),
         "the door admits the frame as given"
     );
-    let placed = topo::transform_rigid(&cylinder(), &kept, tol()).unwrap();
+    let placed = topo::transform_rigid(&cylinder(), &kept).unwrap();
     if let Err(refusal) = topo::finish(placed, tol()) {
         panic!("the placed cylinder refuses at rest: {refusal}");
     }

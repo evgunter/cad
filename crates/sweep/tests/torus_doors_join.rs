@@ -37,7 +37,6 @@ fn placed(b: &Body<f64>, axis: Vec3<f64>, angle: f64, t: Vec3<f64>) -> Body<f64>
             &Affine3::from_parts(r.linear, r.translation + t),
             Tol::witness(),
         ),
-        Tol::witness(),
     )
     .unwrap()
 }

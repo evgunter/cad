@@ -23,7 +23,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom_core::{RigidMotion, Tol, UnitVec3, Vec3};
-use topo::{AtRestBody, Body, Isometry};
+use topo::{AtRestBody, Body, FinishedBody as _, Isometry};
 
 use crate::a_mirrored_body_is_its_image::{bodies, loft, planes, torus_less_a_brick};
 
@@ -63,7 +63,7 @@ fn keeps_its_verdict(what: &str, body: Body<f64>) {
         let at = format!("{what} under {how}");
         let before = topo::finishes_on_this_thread();
         let moved = source
-            .moved(&iso, tol())
+            .moved_by(&iso, tol())
             .unwrap_or_else(|e| panic!("{at}: the move refused: {e}"));
         assert_eq!(
             topo::finishes_on_this_thread(),
@@ -96,6 +96,40 @@ fn an_offset_cap_keeps_its_verdict_under_a_move() {
     keeps_its_verdict("the offset-capped box", body);
 }
 
+/// **Check 7's kept certificate moves with the body**
+/// (`KeptSign::moved`): every run's reference point is moved too, so the
+/// moved body measures as its source does. A reference left where the
+/// source stood reads each face hundreds of metres off, and the
+/// measurement's pad, which scales with that reach, grows with it.
+#[test]
+fn a_moved_body_measures_as_its_source_does() {
+    let far = RigidMotion::translation(Vec3::new(400.0, -300.0, 200.0)).unwrap();
+    {
+        let (what, body) = ("the spline loft", loft());
+        let source = topo::test_support::finished(what, body, tol());
+        let moved = source
+            .moved(&far, tol())
+            .unwrap_or_else(|e| panic!("{what}: the move refused: {e}"));
+        // Finer than the finish settled: the faces run rounds past
+        // their kept ones, each about its run's reference point.
+        let finer = |body: &AtRestBody<f64>| {
+            let m = body
+                .measure(topo::test_support::resolution(1e-6))
+                .unwrap_or_else(|e| panic!("{what}: the body measures: {e:?}"));
+            (m.enclosure.volume, m.enclosure.volume_pad)
+        };
+        let ((v, v_pad), (w, w_pad)) = (finer(&source), finer(&moved));
+        assert!(
+            (v - w).abs() <= v_pad + w_pad + 1e-12 * v.abs(),
+            "{what}: the source measures {v} ± {v_pad}, the moved body {w} ± {w_pad}"
+        );
+        assert!(
+            w_pad <= 4.0 * v_pad + 1e-12 * v.abs(),
+            "{what}: the moved body's pad {w_pad} is not its source's {v_pad}"
+        );
+    }
+}
+
 /// **A move out of the session box refuses there, typed, and does not
 /// panic**: a brick at 950 m moved 900 m further reaches past the box,
 /// which the move asks again.
@@ -108,7 +142,7 @@ fn a_move_out_of_the_box_refuses_at_the_box() {
     );
     let out = RigidMotion::translation(Vec3::new(900.0, 0.0, 0.0)).unwrap();
     let refusal = brick
-        .moved(&Isometry::Proper(out), tol())
+        .moved(&out, tol())
         .expect_err("a body moved past the box refuses");
     let shown = refusal.to_string();
     assert!(

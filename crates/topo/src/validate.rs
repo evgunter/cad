@@ -10647,15 +10647,17 @@ impl<T: geom_core::Decide> AtRestBody<T> {
     ///
     /// # Errors
     ///
-    /// [`crate::NotFinished`] holding the session-box finding, the band's
-    /// where the tolerance forms none, or, under a reflection, a
-    /// re-minted pcurve row's ([`crate::mirror`]).
-    pub fn moved(&self, iso: &crate::Isometry<T>, tol: Tol) -> Result<Self, crate::NotFinished>
+    /// [`crate::MoveError::Map`] where the data map refuses: under a
+    /// reflection a re-minted pcurve row ([`crate::mirror`]).
+    /// [`crate::MoveError::NotFinished`] holding the session-box finding,
+    /// or the band's where the tolerance forms none.
+    pub fn moved_by(&self, iso: &crate::Isometry<T>, tol: Tol) -> Result<Self, crate::MoveError>
     where
         T: crate::props::AtRestPolicy,
     {
-        let body = crate::finish::moved_body(&self.body, iso, tol)?;
-        crate::finish::asked_after_isometry(&body, tol)?;
+        let body =
+            crate::finish::moved_body(&self.body, iso, tol).map_err(crate::MoveError::Map)?;
+        crate::finish::asked_after_isometry(&body, tol).map_err(crate::MoveError::NotFinished)?;
         Ok(Self {
             body,
             sign: std::sync::Arc::new(self.sign.moved(&iso.to_affine())),

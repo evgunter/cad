@@ -365,17 +365,14 @@ fn an_approx_faced_body_moves_under_a_rigid_map() {
     let map = rigid();
     for d in [0.05_f64, -0.05] {
         let (body, face) = box_with_approx_cap(d, MINT_TARGET);
-        let moved = topo::transform_rigid(
-            &body,
-            &geom_core::test_support::rigid(&map, Tol::witness()),
-            Tol::witness(),
-        )
-        .unwrap_or_else(|e| {
-            panic!(
-                "d = {d}: an Approx-faced body must move: {e_at}",
-                e_at = e.render(geom_brep::recourse::Reading::Build)
-            )
-        });
+        let moved =
+            topo::transform_rigid(&body, &geom_core::test_support::rigid(&map, Tol::witness()))
+                .unwrap_or_else(|e| {
+                    panic!(
+                        "d = {d}: an Approx-faced body must move: {e_at}",
+                        e_at = e.render(geom_brep::recourse::Reading::Build)
+                    )
+                });
 
         let before = approx_face_surface(&body, face);
         let after = approx_face_surface(&moved, face);
@@ -442,7 +439,6 @@ fn the_props_lanes_verdict_is_the_same_either_side_of_the_map() {
     let moved = topo::transform_rigid(
         &body,
         &geom_core::test_support::rigid(&rigid(), Tol::witness()),
-        Tol::witness(),
     )
     .expect("the body moves");
     let read = |b: &Body<f64>| {
@@ -497,7 +493,6 @@ fn the_mapped_face_is_a_certified_fit_of_the_mapped_description() {
         let moved = topo::transform_rigid(
             &body,
             &geom_core::test_support::rigid(&rigid(), Tol::witness()),
-            Tol::witness(),
         )
         .expect("the body moves");
         let after = approx_face_surface(&moved, face);
@@ -537,7 +532,6 @@ fn findings_after_the_map(body: &Body<f64>, face: FaceKey) -> Vec<String> {
     let moved = topo::transform_rigid(
         body,
         &geom_core::test_support::rigid(&rigid(), Tol::witness()),
-        Tol::witness(),
     )
     .unwrap_or_else(|e| panic!("the map moves what it is handed: {e:?}"));
     match topo::validate_geometric(&moved, Tol::witness()) {
@@ -618,7 +612,6 @@ fn the_pcurve_pass_reaches_the_same_charts_either_side_of_the_map() {
     let mut moved = topo::transform_rigid(
         &body,
         &geom_core::test_support::rigid(&rigid(), Tol::witness()),
-        Tol::witness(),
     )
     .expect("the body moves");
     let here = topo::mint_pcurves(&mut body, Tol::witness())
@@ -784,7 +777,6 @@ fn a_planted_certificate_is_carried_by_the_map() {
     let moved = topo::transform_rigid(
         &body,
         &geom_core::test_support::rigid(&rigid(), Tol::witness()),
-        Tol::witness(),
     )
     .expect("a good pair moves");
     let after = approx_face_surface(&moved, face);
@@ -864,7 +856,6 @@ fn an_approx_face_moves_at_a_scalar_with_no_fit_lane() {
     topo::transform_rigid(
         &body,
         &geom_core::RigidMotion::translation(v3(1.0, 0.0, 0.0)).unwrap(),
-        Tol::witness(),
     )
     .unwrap_or_else(|e| panic!("the map carries the face's certificate at Interval: {e:?}"));
 }
@@ -892,7 +883,6 @@ fn the_walls_a_placed_approx_capped_part_still_meets() {
         topo::transform_rigid(
             &body,
             &geom_core::test_support::rigid(&rigid(), Tol::witness()),
-            Tol::witness(),
         )
         .expect("the part places"),
         Tol::witness(),

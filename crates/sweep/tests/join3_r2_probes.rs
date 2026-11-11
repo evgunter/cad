@@ -616,7 +616,6 @@ fn j3r2_snowman_battery() {
             let b = topo::transform_rigid(
                 &snow_ball(r2, d),
                 &geom_core::test_support::rigid(&spin, tol()),
-                tol(),
             )
             .unwrap();
             let tag = format!("snow r1={r1} r2={r2} d={d} spin={angle}");

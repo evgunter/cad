@@ -303,7 +303,7 @@ fn a_slab_face_nearly_along_a_ruling_builds() {
                 t,
             );
             let slab = topo::finish(
-                topo::transform_rigid(&slab, &geom_core::test_support::rigid(&turn, tol), tol)
+                topo::transform_rigid(&slab, &geom_core::test_support::rigid(&turn, tol))
                     .expect("a rigid turn"),
                 tol,
             )

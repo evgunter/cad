@@ -73,7 +73,6 @@ fn cut_below(rod: &AtRestBody<f64>, slope: f64, c: f64) -> AtRestBody<f64> {
     let under = topo::transform_rigid(
         &brick((-50.0, 50.0), (-50.0, 50.0), (-100.0, 0.0), tol),
         &geom_core::test_support::rigid(&tilt, tol),
-        tol,
     )
     .unwrap();
     let under = finished(
@@ -81,7 +80,6 @@ fn cut_below(rod: &AtRestBody<f64>, slope: f64, c: f64) -> AtRestBody<f64> {
         topo::transform_rigid(
             &under,
             &geom_core::RigidMotion::translation(Vec3::new(0.0, 0.0, c)).unwrap(),
-            tol,
         )
         .unwrap(),
         tol,
@@ -310,7 +308,6 @@ fn a_ruling_in_band_of_the_wall_but_not_on_it_is_not_on() {
                     topo::transform_rigid(
                         &square(turn, z0, h),
                         &geom_core::test_support::rigid(&xf, tol),
-                        tol,
                     )
                     .unwrap(),
                     tol,
@@ -344,7 +341,6 @@ fn a_ruling_in_band_of_the_wall_but_not_on_it_is_not_on() {
                 topo::transform_rigid(
                     &square(turn, z0, h),
                     &geom_core::test_support::rigid(&lean(d), tol),
-                    tol,
                 )
                 .unwrap(),
                 tol,
@@ -464,12 +460,7 @@ fn a_continuation_on_a_wall_bounded_by_an_ellipse_builds_every_op() {
     let spin = Affine3::rotation_about_axis(Point3::origin(), Vec3::unit_z(), 0.4);
     let r = finished(
         "the rod",
-        topo::transform_rigid(
-            &rod_z(1.0, H),
-            &geom_core::test_support::rigid(&spin, tol),
-            tol,
-        )
-        .unwrap(),
+        topo::transform_rigid(&rod_z(1.0, H), &geom_core::test_support::rigid(&spin, tol)).unwrap(),
         tol,
     );
     // The union's two wall pairs meet on a four-arc circle; every other
@@ -533,12 +524,8 @@ fn a_rim_across_a_walls_ellipse_builds_every_op_in_both_orders() {
         let spin = Affine3::rotation_about_axis(Point3::origin(), Vec3::unit_z(), turn);
         let r = finished(
             "the rod",
-            topo::transform_rigid(
-                &rod_z(0.5, H),
-                &geom_core::test_support::rigid(&spin, tol),
-                tol,
-            )
-            .unwrap(),
+            topo::transform_rigid(&rod_z(0.5, H), &geom_core::test_support::rigid(&spin, tol))
+                .unwrap(),
             tol,
         );
         let label = |op: &str| format!("turn {turn}: {op}");
@@ -689,7 +676,6 @@ fn a_half_rods_rim_across_a_rods_wall_moves_with_its_flat_face() {
         topo::transform_rigid(
             &rod_z(1.0, 2.0),
             &geom_core::test_support::rigid(&spin, tol),
-            tol,
         )
         .unwrap(),
         tol,

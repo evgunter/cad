@@ -74,15 +74,10 @@ fn placed(b: &Body<f64>, axis: Vec3<f64>, angle: f64, t: Vec3<f64>) -> AtRestBod
             &Affine3::rotation_about_axis(Point3::new(0.0, 0.0, 0.0), axis, angle),
             tol,
         ),
-        tol,
     )
     .unwrap();
-    let moved = topo::transform_rigid(
-        &turned,
-        &geom_core::RigidMotion::translation(t).unwrap(),
-        tol,
-    )
-    .unwrap();
+    let moved =
+        topo::transform_rigid(&turned, &geom_core::RigidMotion::translation(t).unwrap()).unwrap();
     finished("the placed operand", moved, tol)
 }
 

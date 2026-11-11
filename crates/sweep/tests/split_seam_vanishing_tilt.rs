@@ -33,7 +33,7 @@ fn cylinder(phi: f64) -> AtRestBody<f64> {
         .expect("the unit cylinder is finished");
     let turn =
         Affine3::rotation_about_axis(Point3::new(0.0, 0.0, 0.0), Vec3::new(0.0, 0.0, 1.0), phi);
-    let turned = topo::transform_rigid(&body, &geom_core::test_support::rigid(&turn, tol()), tol())
+    let turned = topo::transform_rigid(&body, &geom_core::test_support::rigid(&turn, tol()))
         .expect("a rigid turn");
     topo::finish(turned, tol()).expect("the turned cylinder is finished")
 }

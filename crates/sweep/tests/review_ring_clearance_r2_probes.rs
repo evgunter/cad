@@ -81,7 +81,6 @@ fn pipped(dc: f64, pr: f64) -> Body<f64> {
     let ball = topo::transform_rigid(
         &ball,
         &geom_core::RigidMotion::translation(Vec3::new(dc, 1.0, 0.0)).unwrap(),
-        tol(),
     )
     .expect("the pip's rigid motion");
     realized(BooleanOp::Subtract, &cylinder(), &ball, tol())

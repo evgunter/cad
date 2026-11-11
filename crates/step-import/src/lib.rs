@@ -878,56 +878,57 @@ pub fn import_step(
                            not a finite number — its placements stand too far from the origin \
                            to compose",
                 };
-                let one = match finished.get(&instance.solid) {
-                    Some((source, at)) => {
-                        let relative = |m: &geom_core::RigidMotion<f64>| {
-                            at.map_or(Ok(*m), |at| at.inverse().and_then(|i| m.compose(i)))
-                        };
-                        let relative = match (&motion, at) {
-                            (None, None) => None,
-                            (Some((m, transform)), _) => {
-                                Some(relative(m).map_err(|_| not_finite(*transform))?)
-                            }
-                            (None, Some(at)) => Some(at.inverse().map_err(|_| {
-                                not_finite(instance.placed.map_or(0, |p| p.transform))
-                            })?),
-                        };
-                        match relative {
-                            None => source.clone(),
-                            Some(r) => source.moved(&topo::Isometry::Proper(r), tol).map_err(
-                                |findings| StepImportError::TierInvalid {
-                                    solid: Some(spec.id),
-                                    errors: findings.into_findings(),
-                                },
-                            )?,
-                        }
-                        .into_body()
-                    }
-                    None => {
-                        let (built, joins) = assemble::build_one_solid(spec, tol, file)?;
-                        normalizations.extend(joins);
-                        let one =
-                            match &motion {
-                                Some((m, transform)) => topo::transform_rigid(&built, m, tol)
-                                    .map_err(|source| StepImportError::Placement {
-                                        transform: *transform,
-                                        source,
-                                        file,
-                                    })?,
-                                None => built,
+                let one =
+                    match finished.get(&instance.solid) {
+                        Some((source, at)) => {
+                            let relative = |m: &geom_core::RigidMotion<f64>| {
+                                at.map_or(Ok(*m), |at| at.inverse().and_then(|i| m.compose(i)))
                             };
-                        if topo::per_part_gate_owed(model.instances.len()) {
-                            let one = gate(one, Some(spec.id), tol)?;
-                            finished.insert(
-                                instance.solid,
-                                (one.clone(), motion.as_ref().map(|(m, _)| *m)),
-                            );
-                            one.into_body()
-                        } else {
-                            one
+                            let relative = match (&motion, at) {
+                                (None, None) => None,
+                                (Some((m, transform)), _) => {
+                                    Some(relative(m).map_err(|_| not_finite(*transform))?)
+                                }
+                                (None, Some(at)) => Some(at.inverse().map_err(|_| {
+                                    not_finite(instance.placed.map_or(0, |p| p.transform))
+                                })?),
+                            };
+                            match relative {
+                                None => source.clone(),
+                                Some(r) => topo::FinishedBody::moved(source, &r, tol).map_err(
+                                    |findings| StepImportError::TierInvalid {
+                                        solid: Some(spec.id),
+                                        errors: findings.into_findings(),
+                                    },
+                                )?,
+                            }
+                            .into_body()
                         }
-                    }
-                };
+                        None => {
+                            let (built, joins) = assemble::build_one_solid(spec, tol, file)?;
+                            normalizations.extend(joins);
+                            let one =
+                                match &motion {
+                                    Some((m, transform)) => topo::transform_rigid(&built, m)
+                                        .map_err(|source| StepImportError::Placement {
+                                            transform: *transform,
+                                            source,
+                                            file,
+                                        })?,
+                                    None => built,
+                                };
+                            if topo::per_part_gate_owed(model.instances.len()) {
+                                let one = gate(one, Some(spec.id), tol)?;
+                                finished.insert(
+                                    instance.solid,
+                                    (one.clone(), motion.as_ref().map(|(m, _)| *m)),
+                                );
+                                one.into_body()
+                            } else {
+                                one
+                            }
+                        }
+                    };
                 topo::graft_disjoint(&mut body, &one).map_err(|source| {
                     StepImportError::Instance {
                         solid: spec.id,

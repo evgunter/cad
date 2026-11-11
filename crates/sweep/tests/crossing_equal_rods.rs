@@ -50,7 +50,7 @@ fn rod(spin: f64, (z0, z1): (f64, f64)) -> AtRestBody<f64> {
     let m = Affine3::rotation_about_axis(Point3::origin(), Vec3::unit_z(), spin);
     finished(
         "the spun rod",
-        topo::transform_rigid(&rod, &geom_core::test_support::rigid(&m, tol), tol).unwrap(),
+        topo::transform_rigid(&rod, &geom_core::test_support::rigid(&m, tol)).unwrap(),
         tol,
     )
 }
@@ -62,7 +62,7 @@ fn mitred(spin: f64) -> AtRestBody<f64> {
     let slab = brick((-50.0, 50.0), (-50.0, 50.0), (-100.0, 0.0), tol);
     let under = finished(
         "the half-space under z = x",
-        topo::transform_rigid(&slab, &geom_core::test_support::rigid(&tilt, tol), tol).unwrap(),
+        topo::transform_rigid(&slab, &geom_core::test_support::rigid(&tilt, tol)).unwrap(),
         tol,
     );
     match topo::subtract(&rod(spin, (-3.0, 3.0)), &under, tol) {
@@ -80,7 +80,6 @@ fn crossing(spin: f64, x0: f64) -> AtRestBody<f64> {
         topo::transform_rigid(
             &rod(spin, (x0, 3.0)),
             &geom_core::test_support::rigid(&m, tol),
-            tol,
         )
         .unwrap(),
         tol,
@@ -275,7 +274,7 @@ fn a_rod_cut_obliquely_and_glued_back_is_the_rod() {
     let slab = brick((-50.0, 50.0), (-50.0, 50.0), (-100.0, 0.0), tol);
     let under = finished(
         "the half-space under z = x",
-        topo::transform_rigid(&slab, &geom_core::test_support::rigid(&tilt, tol), tol).unwrap(),
+        topo::transform_rigid(&slab, &geom_core::test_support::rigid(&tilt, tol)).unwrap(),
         tol,
     );
     let mut bad = Vec::new();

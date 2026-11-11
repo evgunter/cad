@@ -47,8 +47,7 @@ const CORNER: f64 = R * R - PI * R * R / 4.0;
 
 /// `body` moved by `pose`, finished.
 fn posed(what: &str, body: topo::Body<f64>, pose: &Affine3<f64>) -> AtRestBody<f64> {
-    let body =
-        topo::transform_rigid(&body, &geom_core::test_support::rigid(pose, tol()), tol()).unwrap();
+    let body = topo::transform_rigid(&body, &geom_core::test_support::rigid(pose, tol())).unwrap();
     finished(what, body, tol())
 }
 

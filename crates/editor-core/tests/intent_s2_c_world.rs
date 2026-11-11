@@ -705,7 +705,7 @@ fn a_posed_placement_moves_its_copy_and_its_records_rigidly() {
     // first source's frame.
     let world = match editor_core::in_space(&gathered) {
         None => topo::Body::clone(&gathered.body),
-        Some(map) => topo::transform_rigid(&gathered.body, &map, Tol::witness())
+        Some(map) => topo::transform_rigid(&gathered.body, &map)
             .expect("the product composes into the world"),
     };
     let at = |key| {

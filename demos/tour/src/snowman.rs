@@ -250,19 +250,18 @@ fn waist(body: &Body<f64>) -> Vec<EdgeKey> {
 }
 
 /// The cell's bodies sit side by side along `x`.
-fn placed(body: &Body<f64>, slot: f64, tol: Tol) -> Body<f64> {
+fn placed(body: &Body<f64>, slot: f64) -> Body<f64> {
     pncad::topo::transform_rigid(
         body,
         &RigidMotion::translation(v3(slot * STEP, 0.0, 0.0)).expect("a finite translation"),
-        tol,
     )
     .expect("a translation is rigid")
 }
 
 /// A boolean result, placed in its slot and routed by
 /// [`crate::declares_no_contacts`].
-fn scene_body(name: &str, color: [f64; 3], bb: BooleanBody<f64>, slot: f64, tol: Tol) -> SceneBody {
-    let body = placed(&bb.body, slot, tol);
+fn scene_body(name: &str, color: [f64; 3], bb: BooleanBody<f64>, slot: f64) -> SceneBody {
+    let body = placed(&bb.body, slot);
     if crate::declares_no_contacts(&bb.contacts) {
         SceneBody::plain(name, color, body)
     } else {
@@ -363,10 +362,10 @@ pub fn stops(tol: Tol) -> Vec<TourStop> {
             up: 'y',
         },
         bodies: vec![
-            SceneBody::plain("snowman_rolled", snow, placed(&rolled.body, 0.0, tol)),
-            scene_body("snowman_union", snow, snowman, 1.0, tol),
-            scene_body("snowman_bitten", [0.55, 0.75, 0.95], bitten, 2.0, tol),
-            scene_body("snowman_lens", [0.85, 0.55, 0.25], lens, 3.0, tol),
+            SceneBody::plain("snowman_rolled", snow, placed(&rolled.body, 0.0)),
+            scene_body("snowman_union", snow, snowman, 1.0),
+            scene_body("snowman_bitten", [0.55, 0.75, 0.95], bitten, 2.0),
+            scene_body("snowman_lens", [0.85, 0.55, 0.25], lens, 3.0),
         ],
     }]
 }

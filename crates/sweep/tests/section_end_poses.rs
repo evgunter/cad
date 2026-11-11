@@ -244,7 +244,6 @@ fn a_section_end_at_the_band_edge_refuses_as_the_inputs_at_the_boolean_and_its_l
                 &Affine3::rotation_about_axis(about, Vec3::new(0.0, 1.0, 0.0), t),
                 tol,
             ),
-            tol,
         )
         .unwrap();
         finished(turned, tol)
@@ -573,7 +572,6 @@ fn a_torus_section_read_square_refuses_as_the_inputs_and_its_lever_builds() {
                 &Affine3::rotation_about_axis(Point3::new(0.0, h, 0.0), Vec3::unit_z(), t),
                 tol,
             ),
-            tol,
         )
         .unwrap();
         finished(turned, tol)

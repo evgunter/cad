@@ -1590,8 +1590,10 @@ fn intersection(
     b: usize,
     tol: Tol,
 ) -> Result<Option<topo::BooleanBody<f64>>, Unlocalized> {
-    // The intersection takes the two copies as finished bodies: a copy
-    // the gather read through a placement's map is finished here, once.
+    // The intersection takes the two copies as finished bodies. A copy
+    // the gather read through a placement's map holds what its source
+    // held, moved, its verdict carried (`Held::moved`): a finished copy
+    // is taken as it is, and a leaf is finished here, once.
     let operand = |i: usize| product.copies[i].body.clone().finished(tol);
     let (body_a, body_b) = match (operand(a), operand(b)) {
         (Ok(x), Ok(y)) => (x, y),

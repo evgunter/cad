@@ -116,7 +116,6 @@ fn y_poled_pip() -> Body<f64> {
     topo::transform_rigid(
         &ball,
         &geom_core::RigidMotion::translation(Vec3::new(0.5, 0.5, 1.0)).unwrap(),
-        Tol::witness(),
     )
     .expect("the ball moves to its pip")
 }

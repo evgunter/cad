@@ -57,10 +57,82 @@ pub trait FinishedBody:
     ///
     /// # Errors
     ///
-    /// [`NotFinished`] holding that family's finding: the image reaches
-    /// past the session box.
-    fn moved(&self, iso: &crate::Isometry<Self::Scalar>, tol: Tol) -> Result<Self, NotFinished>;
+    /// [`MoveError::Map`] where the data map refuses ([`moved_body`]);
+    /// [`MoveError::NotFinished`] holding the session box's finding.
+    fn moved_by(&self, iso: &crate::Isometry<Self::Scalar>, tol: Tol) -> Result<Self, MoveError>;
+
+    /// **This finished body under a rigid motion** ([`Self::moved_by`]).
+    ///
+    /// # Errors
+    ///
+    /// [`NotFinished`] holding the session box's finding. A motion's map
+    /// refuses only a state a finished body never holds, returned typed
+    /// as [`ValidationError::Unmovable`].
+    fn moved(
+        &self,
+        motion: &geom_core::RigidMotion<Self::Scalar>,
+        tol: Tol,
+    ) -> Result<Self, NotFinished> {
+        self.moved_by(&crate::Isometry::Proper(*motion), tol)
+            .map_err(MoveError::under_a_motion)
+    }
+
+    /// **This finished body's mirror image** ([`Self::moved_by`]).
+    ///
+    /// # Errors
+    ///
+    /// [`MoveError::Map`] where a re-minted row refuses ([`crate::mirror`]);
+    /// [`MoveError::NotFinished`] holding the session box's finding.
+    fn mirrored(
+        &self,
+        reflection: &crate::Reflection<Self::Scalar>,
+        tol: Tol,
+    ) -> Result<Self, MoveError> {
+        self.moved_by(&crate::Isometry::Improper(*reflection), tol)
+    }
 }
+
+/// **Why a move refused**: the data map's own refusal, or the image's
+/// finding where the move asks one ([`FinishedBody::moved_by`]).
+#[derive(Debug)]
+pub enum MoveError {
+    /// The data map refused ([`moved_body`]): under a reflection, a
+    /// re-minted row ([`crate::mirror`]); otherwise a state a finished
+    /// body or a leaf never holds.
+    Map(crate::TransformError),
+    /// The image's finding: the session box, or a leaf's finish.
+    NotFinished(NotFinished),
+}
+
+impl MoveError {
+    /// **A rigid motion's refusal as findings**: its map refuses only a
+    /// state a finished body or a leaf never holds (a motion re-mints
+    /// no row), returned typed ([`ValidationError::Unmovable`]) rather
+    /// than panicked on.
+    #[must_use]
+    pub fn under_a_motion(self) -> NotFinished {
+        use crate::transform::TransformError as E;
+        let found = match self {
+            Self::NotFinished(findings) => return findings,
+            Self::Map(E::Pcurve { .. }) => "a re-minted pcurve row",
+            Self::Map(E::NullScaffold { .. }) => "a null-scaffold edge",
+            Self::Map(E::NurbsPlaceholder) => "a placeholder net",
+            Self::Map(E::Corrupt { found }) => found,
+        };
+        NotFinished::new(vec![ValidationError::Unmovable { found }])
+    }
+}
+
+impl fmt::Display for MoveError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Map(error) => write!(f, "{error}"),
+            Self::NotFinished(findings) => write!(f, "{findings}"),
+        }
+    }
+}
+
+impl std::error::Error for MoveError {}
 
 impl<T: AtRestPolicy<Finished = Self>> FinishedBody for AtRestBody<T> {
     type Scalar = T;
@@ -69,8 +141,8 @@ impl<T: AtRestPolicy<Finished = Self>> FinishedBody for AtRestBody<T> {
         AtRestBody::into_body(self)
     }
 
-    fn moved(&self, iso: &crate::Isometry<T>, tol: Tol) -> Result<Self, NotFinished> {
-        AtRestBody::moved(self, iso, tol)
+    fn moved_by(&self, iso: &crate::Isometry<T>, tol: Tol) -> Result<Self, MoveError> {
+        AtRestBody::moved_by(self, iso, tol)
     }
 }
 
@@ -132,20 +204,20 @@ impl<T: Real> Deref for Replay<T> {
 }
 
 impl<T: AtRestPolicy> Replay<T> {
-    /// **This replay under an isometry**: its data mapped. A replay
-    /// carries no verdict and its tier 2 is topology, which no map moves,
-    /// so nothing is asked: at the box scalars the taker's tier 3 asks
-    /// the moved body everything, the session box included.
+    /// **This replay under an isometry**: its data mapped, and every
+    /// family not up to isometry asked of the image
+    /// ([`asked_after_isometry`]), the session box: a move asks the box
+    /// whatever it moves. A replay carries no other verdict and its tier
+    /// 2 is topology, which no map moves.
     ///
     /// # Errors
     ///
-    /// [`NotFinished`] where the data map meets a state tier 2 refuses,
-    /// which a replay never holds, or a mirror's re-minted row refuses
-    /// ([`moved_body`]).
-    pub fn moved(&self, iso: &crate::Isometry<T>, tol: Tol) -> Result<Self, NotFinished> {
-        Ok(Self {
-            body: moved_body(&self.body, iso, tol)?,
-        })
+    /// [`MoveError::Map`] where the data map refuses ([`moved_body`]);
+    /// [`MoveError::NotFinished`] holding the session box's finding.
+    pub fn moved_by(&self, iso: &crate::Isometry<T>, tol: Tol) -> Result<Self, MoveError> {
+        let body = moved_body(&self.body, iso, tol).map_err(MoveError::Map)?;
+        asked_after_isometry(&body, tol).map_err(MoveError::NotFinished)?;
+        Ok(Self { body })
     }
 }
 
@@ -163,7 +235,6 @@ pub(crate) fn asked_after_isometry<T: geom_core::Decide>(
         .map_err(|error| NotFinished::new(vec![ValidationError::Band { error }]))?;
     let findings: Vec<ValidationError> = FindingFamily::ALL
         .into_iter()
-        .filter(|family| !family.up_to_isometry())
         .filter_map(|family| family.asked_again(image, band).err())
         .collect();
     if findings.is_empty() {
@@ -175,26 +246,20 @@ pub(crate) fn asked_after_isometry<T: geom_core::Decide>(
 
 /// **`body` under `iso`**, the reflection's reversal and re-minted rows
 /// included ([`crate::mirror`]): the data map behind every `moved` door.
-/// A refusal of the map is a state the gate refuses, which a finished
-/// body or a leaf never holds; it is returned typed
-/// ([`ValidationError::Unmovable`]) rather than panicked on. Under a
-/// reflection the re-mint of a row can refuse, as a [`ValidationError::Pcurve`].
+///
+/// # Errors
+///
+/// The map's own refusal: under a reflection a re-minted row's
+/// ([`crate::TransformError::Pcurve`]); otherwise a state the gate
+/// refuses, which a finished body or a leaf never holds.
 pub(crate) fn moved_body<T: AtRestPolicy>(
     body: &Body<T>,
     iso: &crate::Isometry<T>,
     tol: Tol,
-) -> Result<Body<T>, NotFinished> {
-    use crate::transform::TransformError as E;
-    let unmovable = |found| NotFinished::new(vec![ValidationError::Unmovable { found }]);
-    let refused = |e| match e {
-        E::Pcurve { source } => NotFinished::new(vec![ValidationError::Pcurve { finding: source }]),
-        E::NullScaffold { .. } => unmovable("a null-scaffold edge"),
-        E::NurbsPlaceholder => unmovable("a placeholder net"),
-        E::Corrupt { found } => unmovable(found),
-    };
+) -> Result<Body<T>, crate::TransformError> {
     match iso {
-        crate::Isometry::Proper(_) => crate::transform::map_isometry(body, iso).map_err(refused),
-        crate::Isometry::Improper(r) => crate::mirror::mirror_body(body, r, tol).map_err(refused),
+        crate::Isometry::Proper(_) => crate::transform::map_isometry(body, iso),
+        crate::Isometry::Improper(r) => crate::mirror::mirror_body(body, r, tol),
     }
 }
 
@@ -205,8 +270,8 @@ impl<T: AtRestPolicy<Finished = Self>> FinishedBody for Replay<T> {
         Replay::into_body(self)
     }
 
-    fn moved(&self, iso: &crate::Isometry<T>, tol: Tol) -> Result<Self, NotFinished> {
-        Replay::moved(self, iso, tol)
+    fn moved_by(&self, iso: &crate::Isometry<T>, tol: Tol) -> Result<Self, MoveError> {
+        Replay::moved_by(self, iso, tol)
     }
 }
 
@@ -226,7 +291,7 @@ pub trait LeafBody:
 
     /// **This leaf under an isometry**, a leaf of the same kind: the
     /// image's leaf at `f64` and `Probe` ([`AtRestPolicy::leaf`] of the
-    /// moved body, its finish held off the log), [`Replay::moved`] where
+    /// moved body, its finish held off the log), [`Replay::moved_by`] where
     /// it is a replay. While the box-scalar switch lives a leaf's held
     /// record must be what the box lane's taker decides of the same body,
     /// and that taker runs tier 3 on the image, so a moved leaf is
@@ -235,8 +300,38 @@ pub trait LeafBody:
     ///
     /// # Errors
     ///
-    /// [`NotFinished`]: the image's leaf's findings.
-    fn moved(&self, iso: &crate::Isometry<Self::Scalar>, tol: Tol) -> Result<Self, NotFinished>;
+    /// [`MoveError::Map`] where the data map refuses ([`moved_body`]);
+    /// [`MoveError::NotFinished`] holding the image's leaf's findings,
+    /// the session box among them.
+    fn moved_by(&self, iso: &crate::Isometry<Self::Scalar>, tol: Tol) -> Result<Self, MoveError>;
+
+    /// **This leaf under a rigid motion** ([`Self::moved_by`]).
+    ///
+    /// # Errors
+    ///
+    /// [`NotFinished`]: the image's leaf's findings, and a motion's map
+    /// refusal as [`MoveError::under_a_motion`] states it.
+    fn moved(
+        &self,
+        motion: &geom_core::RigidMotion<Self::Scalar>,
+        tol: Tol,
+    ) -> Result<Self, NotFinished> {
+        self.moved_by(&crate::Isometry::Proper(*motion), tol)
+            .map_err(MoveError::under_a_motion)
+    }
+
+    /// **This leaf's mirror image** ([`Self::moved_by`]).
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::moved_by`].
+    fn mirrored(
+        &self,
+        reflection: &crate::Reflection<Self::Scalar>,
+        tol: Tol,
+    ) -> Result<Self, MoveError> {
+        self.moved_by(&crate::Isometry::Improper(*reflection), tol)
+    }
 }
 
 impl<T: AtRestPolicy<Leaf = Self>> LeafBody for AtRestBody<T> {
@@ -246,8 +341,9 @@ impl<T: AtRestPolicy<Leaf = Self>> LeafBody for AtRestBody<T> {
         AtRestBody::into_body(self)
     }
 
-    fn moved(&self, iso: &crate::Isometry<T>, tol: Tol) -> Result<Self, NotFinished> {
-        T::leaf(moved_body(self, iso, tol)?, tol)
+    fn moved_by(&self, iso: &crate::Isometry<T>, tol: Tol) -> Result<Self, MoveError> {
+        T::leaf(moved_body(self, iso, tol).map_err(MoveError::Map)?, tol)
+            .map_err(MoveError::NotFinished)
     }
 }
 
@@ -258,8 +354,8 @@ impl<T: AtRestPolicy<Leaf = Self>> LeafBody for Replay<T> {
         Replay::into_body(self)
     }
 
-    fn moved(&self, iso: &crate::Isometry<T>, tol: Tol) -> Result<Self, NotFinished> {
-        Replay::moved(self, iso, tol)
+    fn moved_by(&self, iso: &crate::Isometry<T>, tol: Tol) -> Result<Self, MoveError> {
+        Replay::moved_by(self, iso, tol)
     }
 }
 
@@ -451,6 +547,7 @@ impl std::error::Error for NotFinished {}
 /// decision and read off the finding's own verdict and margin, so the
 /// margin rides the finding as data.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[cfg_attr(any(test, feature = "test-support"), derive(strum::EnumIter))]
 pub enum FindingFamily {
     /// The body reaches past the session box (D4 ¶4), so nothing
     /// geometric is read on it.
@@ -498,18 +595,24 @@ pub enum FindingFamily {
     Interference,
 }
 
+/// **A question a move asks again of its image** ([`FindingFamily::under_isometry`]).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum AskedAgain {
+    /// Whether the image lies in the session box.
+    SessionBox,
+}
+
 impl FindingFamily {
-    /// **Whether this family decides a fact of the shape up to
-    /// isometry** (`[topology.tiers]`): a distance, an angle, a side or
-    /// an incidence of the body with itself, or a fact of the run. Every
-    /// family but the session box does, so an isometry's image keeps the
-    /// verdict; [`FinishedBody::moved`] asks again every family that
-    /// does not ([`Self::asked_again`]). A new family states its answer
-    /// here.
-    #[must_use]
-    pub const fn up_to_isometry(self) -> bool {
+    /// **What an isometry's image is asked again for this family**, the
+    /// one place the partition is stated (`[topology.tiers]`): `None`
+    /// where the family decides a fact of the shape up to isometry (a
+    /// distance, an angle, a side or an incidence of the body with
+    /// itself, or a fact of the run), so the image keeps the verdict; the
+    /// question where it does not. Only the session box is asked again.
+    /// A new family states its answer here.
+    const fn under_isometry(self) -> Option<AskedAgain> {
         match self {
-            Self::SessionBox => false,
+            Self::SessionBox => Some(AskedAgain::SessionBox),
             Self::Tolerance
             | Self::Structure
             | Self::Scaffolding
@@ -524,36 +627,30 @@ impl FindingFamily {
             | Self::Orientation
             | Self::Census
             | Self::Embedding
-            | Self::Interference => true,
+            | Self::Interference => None,
         }
     }
 
-    /// **This family's question, asked of an isometry's image**: its
-    /// finding where it finds one. A family up to isometry
-    /// ([`Self::up_to_isometry`]) is not asked; a family that is not
-    /// states its question here.
+    /// **Whether this family decides a fact of the shape up to
+    /// isometry** ([`Self::under_isometry`]): every family but the session
+    /// box does, so an isometry's image keeps the verdict, and
+    /// [`FinishedBody::moved_by`] asks again every family that does not.
+    #[must_use]
+    pub const fn up_to_isometry(self) -> bool {
+        self.under_isometry().is_none()
+    }
+
+    /// **This family's question, asked of an isometry's image**
+    /// ([`Self::under_isometry`]): its finding where it finds one, and
+    /// nothing asked of a family up to isometry.
     pub(crate) fn asked_again<T: geom_core::Decide>(
         self,
         image: &Body<T>,
         band: geom_core::Band,
     ) -> Result<(), ValidationError> {
-        match self {
-            Self::SessionBox => crate::session_box::in_session_box(image, band),
-            Self::Tolerance
-            | Self::Structure
-            | Self::Scaffolding
-            | Self::Description
-            | Self::Convention
-            | Self::Certificate
-            | Self::Planar
-            | Self::Dihedral
-            | Self::Join
-            | Self::FaceSense
-            | Self::FaceRegion
-            | Self::Orientation
-            | Self::Census
-            | Self::Embedding
-            | Self::Interference => Ok(()),
+        match self.under_isometry() {
+            None => Ok(()),
+            Some(AskedAgain::SessionBox) => crate::session_box::in_session_box(image, band),
         }
     }
 
@@ -754,5 +851,30 @@ impl ValidationError {
             | Self::SameSideInterference { .. }
             | Self::TouchInterference { .. } => F::Interference,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::FindingFamily;
+
+    /// **`ALL` names every family once, in declaration order**: the
+    /// move asks each family of `ALL` ([`super::asked_after_isometry`]), so
+    /// a family missing from it would never be asked again.
+    #[test]
+    fn all_names_every_family_once_in_declaration_order() {
+        let declared: Vec<FindingFamily> =
+            <FindingFamily as strum::IntoEnumIterator>::iter().collect();
+        assert_eq!(FindingFamily::ALL.to_vec(), declared);
+    }
+
+    /// **Only the session box is asked again of a moved body**.
+    #[test]
+    fn only_the_session_box_is_asked_again() {
+        let asked: Vec<FindingFamily> = FindingFamily::ALL
+            .into_iter()
+            .filter(|family| !family.up_to_isometry())
+            .collect();
+        assert_eq!(asked, [FindingFamily::SessionBox]);
     }
 }

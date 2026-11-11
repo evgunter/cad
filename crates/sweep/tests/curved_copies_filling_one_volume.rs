@@ -154,7 +154,7 @@ fn spun(angle: f64) -> RigidMotion<f64> {
 /// `body` moved by `inner`, then by [`tilted`].
 fn placed(body: &Body<f64>, inner: RigidMotion<f64>) -> Body<f64> {
     let motion = tilted().compose(inner).unwrap();
-    topo::transform_rigid(body, &motion, Tol::witness()).unwrap()
+    topo::transform_rigid(body, &motion).unwrap()
 }
 
 /// `a` and `b` as two solids of one body.
@@ -358,7 +358,6 @@ fn copies_that_abut_along_a_rim_or_a_seam_are_no_interference() {
         &tilted()
             .compose(RigidMotion::translation(Vec3::new(0.0, 1.0, 0.0)).unwrap())
             .unwrap(),
-        Tol::witness(),
     )
     .unwrap();
     let wedge = cylinder(1.0, Revolution::Partial(core::f64::consts::PI));
@@ -596,7 +595,7 @@ fn halves_off_by_a_few_eps_are_decided_past_the_band_only() {
     let half = |r: f64| rect(0.0, r, 0.0, 1.0, Revolution::Partial(PI));
     let a = placed(&half(1.0), spun(0.0));
     let shifted = |dz: f64| {
-        let b = topo::transform_rigid(&half(1.0), &moved(Vec3::new(0.0, 0.0, dz)), Tol::witness());
+        let b = topo::transform_rigid(&half(1.0), &moved(Vec3::new(0.0, 0.0, dz)));
         placed(&b.unwrap(), spun(PI))
     };
     for k in [0.5, 3.0, 100.0, 1000.0] {
@@ -625,7 +624,7 @@ fn copies_overlapping_on_one_carrier_are_one_interference() {
     let base = placed(&full, spun(0.0));
     let half = Revolution::Partial(PI);
     let posed = |b: &Body<f64>, inner: RigidMotion<f64>| {
-        topo::transform_rigid(b, &tilted().compose(inner).unwrap(), Tol::witness()).unwrap()
+        topo::transform_rigid(b, &tilted().compose(inner).unwrap()).unwrap()
     };
     let flipped = moved(Vec3::new(0.0, 1.0, 0.0))
         .compose(RigidMotion::rotation(UnitVec3::exact_x(), PI).unwrap())

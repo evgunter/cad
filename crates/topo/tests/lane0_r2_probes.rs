@@ -119,7 +119,7 @@ fn doors_at<T: geom_core::Bounds + topo::AtRestPolicy>(label: &str, lane: Option
     // The transform door does not reach the seam: it carries the
     // offset face's certificate at every scalar, since an isometry keeps
     // the distance it bounds.
-    topo::transform_rigid(&body, &turned::<T>(), tol())
+    topo::transform_rigid(&body, &turned::<T>())
         .unwrap_or_else(|e| panic!("{label} transform_rigid carries the certificate: {e:?}"));
 
     // The offset mint does, on a NURBS-faced seed.

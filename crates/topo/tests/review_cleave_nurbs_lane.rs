@@ -23,18 +23,13 @@ fn the_m7_8_cube_turns_about_a_skew_axis_and_back_at_f64() {
         Vec3::new(1.0, 2.0, 3.0).normalize(),
         0.7,
     );
-    let moved = transform_rigid(
-        &body,
-        &geom_core::test_support::rigid(&map, Tol::witness()),
-        Tol::witness(),
-    )
-    .expect("an M7-8 body turns at f64");
+    let moved = transform_rigid(&body, &geom_core::test_support::rigid(&map, Tol::witness()))
+        .expect("an M7-8 body turns at f64");
     assert_eq!(m7_8_edges(&moved), 4, "the class survives the turn");
     assert_eq!(edge_findings(&moved), 0, "check 2 is clean after the turn");
     let back = transform_rigid(
         &moved,
         &geom_core::test_support::rigid(&map.inverse(), Tol::witness()),
-        Tol::witness(),
     )
     .expect("and turns back");
     assert_eq!(m7_8_edges(&back), 4, "the class survives the inverse");
@@ -77,12 +72,8 @@ where
     let body = m7_8_cube::<T>();
     assert_eq!(edge_findings(&body), 0, "the cube certifies at rest");
     let map = Affine3::translation(Vec3::new(0.25, -1.5, 8.0)).map(T::from_f64);
-    let moved = transform_rigid(
-        &body,
-        &geom_core::test_support::rigid(&map, Tol::witness()),
-        Tol::witness(),
-    )
-    .expect("an M7-8 body moves");
+    let moved = transform_rigid(&body, &geom_core::test_support::rigid(&map, Tol::witness()))
+        .expect("an M7-8 body moves");
     assert_eq!(m7_8_edges(&moved), 4, "the class survives the map");
     assert_eq!(edge_findings(&moved), 0, "check 2 is clean after the map");
 }
@@ -110,16 +101,11 @@ fn a_dual_brick_moves_bit_for_bit_with_its_f64_twin() {
     );
     let f = common::brick::<f64>((0.0, 2.0), (0.0, 1.0), (0.0, 0.5), Tol::witness());
     let d = common::brick::<Dual64>((0.0, 2.0), (0.0, 1.0), (0.0, 0.5), Tol::witness());
-    let fm = transform_rigid(
-        &f,
-        &geom_core::test_support::rigid(&map, Tol::witness()),
-        Tol::witness(),
-    )
-    .expect("f64 brick turns");
+    let fm = transform_rigid(&f, &geom_core::test_support::rigid(&map, Tol::witness()))
+        .expect("f64 brick turns");
     let dm = transform_rigid(
         &d,
         &geom_core::test_support::rigid(&map.map(Dual64::from_f64), Tol::witness()),
-        Tol::witness(),
     )
     .expect("dual brick turns");
     let bits = |p: Point3<f64>| (p.x.to_bits(), p.y.to_bits(), p.z.to_bits());
@@ -156,12 +142,8 @@ where
     // interval plane's structural parameters, which the lane refuses
     // (`PlaneNurbsRefusal::Unsupported`) as a family of surfaces.
     let map = Affine3::translation(Vec3::new(0.25, -1.5, 8.0)).map(T::from_f64);
-    let moved = transform_rigid(
-        &dst,
-        &geom_core::test_support::rigid(&map, Tol::witness()),
-        Tol::witness(),
-    )
-    .expect("the voided body moves");
+    let moved = transform_rigid(&dst, &geom_core::test_support::rigid(&map, Tol::witness()))
+        .expect("the voided body moves");
     assert_eq!(m7_8_edges(&moved), 4);
     assert_eq!(edge_findings(&moved), 0);
 }

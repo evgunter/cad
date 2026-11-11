@@ -9039,7 +9039,6 @@ mod shell_reference_rows {
         let body = crate::transform_rigid(
             &body,
             &geom_core::RigidMotion::translation(geom_core::Vec3::new(5.0, -3.0, 2.0)).unwrap(),
-            tol,
         )
         .unwrap();
         let faces = crate::query::all_faces(&body);

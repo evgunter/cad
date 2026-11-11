@@ -13726,7 +13726,6 @@ mod tests {
         let part = crate::transform_rigid(
             &quad_prism(&[(1.2, 1.2), (1.8, 1.2), (1.8, 1.8), (1.2, 1.8)], 0.6, tol),
             &geom_core::RigidMotion::translation(Vec3::new(0.0, 0.0, 1.2)).unwrap(),
-            tol,
         )
         .unwrap();
         crate::instance::graft_disjoint(&mut body, &part).unwrap();
@@ -22832,7 +22831,6 @@ mod lone_vertex_rows {
         let cube = crate::transform_rigid(
             &crate::test_support_fixtures::brick::<f64>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), tol),
             &tip,
-            tol,
         )
         .unwrap();
         crate::graft_disjoint_all_keyed(&mut body, &cube).unwrap();

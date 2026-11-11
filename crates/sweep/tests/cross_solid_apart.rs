@@ -56,8 +56,7 @@ fn shelled(what: &str, body: Body<f64>, t: f64) -> AtRestBody<f64> {
 /// body, at rest.
 fn nested(outer: Body<f64>, inner: &Body<f64>, by: Vec3<f64>) -> AtRestBody<f64> {
     let mut out = outer;
-    let placed =
-        topo::transform_rigid(inner, &RigidMotion::translation(by).unwrap(), tol()).unwrap();
+    let placed = topo::transform_rigid(inner, &RigidMotion::translation(by).unwrap()).unwrap();
     topo::graft_disjoint(&mut out, &placed).expect("the placed copy grafts");
     finished("the nested pair", out, tol())
 }
@@ -189,13 +188,11 @@ fn a_rod_crossed_by_a_thinner_rod_refuses() {
     let mut out = topo::transform_rigid(
         &revolved(0.0, 0.2, 1.0),
         &RigidMotion::translation(Vec3::new(0.0, 0.5, 0.0)).unwrap(),
-        tol(),
     )
     .unwrap();
     let cross = topo::transform_rigid(
         &revolved(0.0, 0.1, 2.0),
         &RigidMotion::axes_zx(geom_core::Point3::new(-1.0, 1.0, 0.25)),
-        tol(),
     )
     .unwrap();
     topo::graft_disjoint(&mut out, &cross).expect("grafts");
@@ -218,7 +215,6 @@ fn a_flush_rod_far_from_the_origin_still_refuses() {
         let moved = topo::transform_rigid(
             &pair.into_body(),
             &RigidMotion::translation(Vec3::new(far, far, far)).unwrap(),
-            tol(),
         )
         .unwrap();
         let moved = finished("the far pair", moved, tol());
@@ -260,7 +256,6 @@ fn a_skewer_through_a_ball_with_every_vertex_outside_refuses() {
     let skewer = topo::transform_rigid(
         &revolved(0.0, 0.2, 4.0),
         &RigidMotion::axes_zx(geom_core::Point3::new(-2.0, 0.0, 0.0)),
-        tol(),
     )
     .unwrap();
     topo::graft_disjoint(&mut out, &skewer).expect("grafts");
@@ -330,12 +325,8 @@ fn a_rod_wider_than_an_elliptical_rim_refuses_on_the_plate() {
     let map = Affine3::from_parts(tilt, pivot - tilt * pivot);
     let bore = finished(
         "the tilted bore",
-        topo::transform_rigid(
-            &upright,
-            &geom_core::test_support::rigid(&map, tol()),
-            tol(),
-        )
-        .expect("the cylinder tilts"),
+        topo::transform_rigid(&upright, &geom_core::test_support::rigid(&map, tol()))
+            .expect("the cylinder tilts"),
         tol(),
     );
     let topo::BooleanResult::Body(bored) = topo::subtract(&block, &bore, tol()).expect("bores")
@@ -515,7 +506,6 @@ fn a_trimmed_sphere_face_holding_its_pole_clears_only_past_it() {
         let ball = topo::transform_rigid(
             &sweep::test_support::ball_poled_y(1.0, Vec3::new(0.0, 0.0, 0.0), tol()),
             &geom_core::test_support::rigid(&turn, tol()),
-            tol(),
         )
         .unwrap();
         let ball = finished("the ball", ball, tol());
@@ -654,7 +644,6 @@ fn two_parallel_rods_part_along_the_line_of_centres_until_they_touch() {
         let pin = topo::transform_rigid(
             &revolved(0.0, 0.05, 1.0),
             &RigidMotion::translation(Vec3::new(s, 0.0, s)).unwrap(),
-            tol(),
         )
         .unwrap();
         topo::graft_disjoint(&mut out, &pin).expect("grafts");
@@ -702,7 +691,6 @@ fn a_frustum_and_a_rod_part_along_the_line_of_centres_until_they_touch() {
         let pin = topo::transform_rigid(
             &revolved(0.0, 0.05, 1.0),
             &RigidMotion::translation(Vec3::new(s, 0.0, s)).unwrap(),
-            tol(),
         )
         .unwrap();
         topo::graft_disjoint(&mut out, &pin).expect("grafts");
@@ -759,7 +747,7 @@ fn tilted(body: &Body<f64>) -> Body<f64> {
     use geom_core::UnitVec3;
     let rx = RigidMotion::rotation(UnitVec3::exact_x(), 0.4).unwrap();
     let rz = RigidMotion::rotation(UnitVec3::exact_z(), 0.7).unwrap();
-    topo::transform_rigid(body, &rz.compose(rx).unwrap(), tol()).unwrap()
+    topo::transform_rigid(body, &rz.compose(rx).unwrap()).unwrap()
 }
 
 /// `a` and `b` turned obliquely together, two solids of one body.
@@ -783,7 +771,6 @@ fn staggered_parallel_rods_part_along_the_line_of_centres_until_they_touch() {
         let pin = topo::transform_rigid(
             &revolved(0.0, 0.05, 1.0),
             &RigidMotion::translation(Vec3::new(s, 0.37, s)).unwrap(),
-            tol(),
         )
         .unwrap();
         tilted_pair(&revolved(0.0, 0.5, 1.0), &pin)
@@ -1213,7 +1200,7 @@ fn a_cube_on_its_corner_inside_a_plates_top_refuses() {
                 axis,
                 geom_core::Turns::new(1, 16).unwrap(),
             );
-            cube = topo::transform_rigid(&cube, &sixteenth, t).unwrap();
+            cube = topo::transform_rigid(&cube, &sixteenth).unwrap();
         }
         let low = cube
             .vertex_points()
@@ -1221,8 +1208,7 @@ fn a_cube_on_its_corner_inside_a_plates_top_refuses() {
             .min_by(|p, q| p.z.total_cmp(&q.z))
             .unwrap();
         let by = Vec3::new(at.0 - low.x, at.1 - low.y, at.2 - low.z);
-        let placed =
-            topo::transform_rigid(&cube, &RigidMotion::translation(by).unwrap(), t).unwrap();
+        let placed = topo::transform_rigid(&cube, &RigidMotion::translation(by).unwrap()).unwrap();
         let mut out = rounded_square();
         topo::graft_disjoint(&mut out, &placed).expect("grafts");
         let pair = finished("the plate and the cube", out, t);

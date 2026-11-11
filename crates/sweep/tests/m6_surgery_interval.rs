@@ -69,7 +69,6 @@ mod certified {
         topo::transform_rigid(
             &ball,
             &geom_core::RigidMotion::translation(v3(h, h, DIE_L + (PIP_R - PIP_H))).unwrap(),
-            Tol::witness(),
         )
         .unwrap()
     }

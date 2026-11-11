@@ -66,7 +66,6 @@ fn moved(b: topo::Body<f64>, d: [f64; 3]) -> topo::Body<f64> {
     topo::transform_rigid(
         &b,
         &RigidMotion::translation(Vec3::new(d[0], d[1], d[2])).unwrap(),
-        tol(),
     )
     .unwrap()
 }

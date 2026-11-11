@@ -53,7 +53,7 @@ fn rod(r: f64, cx: f64) -> Body<f64> {
     .unwrap()
     .body;
     let lift = Affine3::translation(Vec3::new(0.0, 0.0, -H));
-    topo::transform_rigid(&body, &geom_core::test_support::rigid(&lift, tol()), tol()).unwrap()
+    topo::transform_rigid(&body, &geom_core::test_support::rigid(&lift, tol())).unwrap()
 }
 
 /// `body` cut below (`below`) or above the plane `z = y·tan(tilt)`.
@@ -61,8 +61,8 @@ fn cut(body: &Body<f64>, tilt: f64, below: bool) -> Body<f64> {
     let z = if below { (-10.0, 0.0) } else { (0.0, 10.0) };
     let brick = sweep::test_support::brick((-10.0, 10.0), (-10.0, 10.0), z, tol());
     let turn = Affine3::rotation_about_axis(Point3::origin(), Vec3::new(1.0, 0.0, 0.0), tilt);
-    let half = topo::transform_rigid(&brick, &geom_core::test_support::rigid(&turn, tol()), tol())
-        .unwrap();
+    let half =
+        topo::transform_rigid(&brick, &geom_core::test_support::rigid(&turn, tol())).unwrap();
     match op(BooleanOp::Intersect, body, &half) {
         Ok(BooleanResult::Body(b)) => b.body.into_body(),
         other => panic!("cutting a rod at tilt {tilt}: {other:?}"),

@@ -66,7 +66,7 @@ fn near_rigid_door_rounding_behavior() {
     // moves the body.
     let admitted = RigidMotion::check_rigid(&with_c0x(1.0 + f64::EPSILON))
         .expect("rounding-level orthonormality noise must not refuse");
-    assert!(transform_rigid(&b, &admitted, Tol::witness()).is_ok());
+    assert!(transform_rigid(&b, &admitted).is_ok());
     // Beyond rounding, however small against any length: refused.
     for defect in [1e-12, 1e-6] {
         match RigidMotion::check_rigid(&with_c0x(1.0 + defect)) {
@@ -98,18 +98,8 @@ fn transform_is_bit_deterministic() {
         Mat3::rotation_about(Vec3::new(1.0, 2.0, 3.0).normalize(), FRAC_PI_3),
         Vec3::new(0.1, -0.2, 0.3),
     );
-    let t1 = transform_rigid(
-        &b,
-        &geom_core::test_support::rigid(&map, Tol::witness()),
-        Tol::witness(),
-    )
-    .unwrap();
-    let t2 = transform_rigid(
-        &b,
-        &geom_core::test_support::rigid(&map, Tol::witness()),
-        Tol::witness(),
-    )
-    .unwrap();
+    let t1 = transform_rigid(&b, &geom_core::test_support::rigid(&map, Tol::witness())).unwrap();
+    let t2 = transform_rigid(&b, &geom_core::test_support::rigid(&map, Tol::witness())).unwrap();
     assert_eq!(
         arena_dump(&t1),
         arena_dump(&t2),
@@ -141,11 +131,7 @@ fn rotation_composition_keeps_witness_residuals_honest() {
             Mat3::rotation_about(axes[i % 4], FRAC_PI_3 + 0.01 * i as f64),
             Vec3::new(0.25, -0.5, 0.125),
         );
-        cur = match transform_rigid(
-            &cur,
-            &geom_core::test_support::rigid(&map, Tol::witness()),
-            Tol::witness(),
-        ) {
+        cur = match transform_rigid(&cur, &geom_core::test_support::rigid(&map, Tol::witness())) {
             Ok(t) => t,
             Err(e) => panic!("step {i}: typed refusal {e:?} — fail-loud but surprising"),
         };
@@ -173,11 +159,7 @@ fn long_thin_feature_transform_is_honest_either_way() {
         Mat3::rotation_about(Vec3::new(0.0, 0.0, 1.0), FRAC_PI_3),
         Vec3::zero(),
     );
-    match transform_rigid(
-        &b,
-        &geom_core::test_support::rigid(&map, Tol::witness()),
-        Tol::witness(),
-    ) {
+    match transform_rigid(&b, &geom_core::test_support::rigid(&map, Tol::witness())) {
         Ok(t) => {
             tiers_ok(&t);
             let m0 = mass_properties(
@@ -213,11 +195,7 @@ fn an_extreme_scale_image_is_the_session_boxs_to_refuse() {
         Mat3::rotation_about(Vec3::new(0.0, 0.0, 1.0), FRAC_PI_3),
         Vec3::zero(),
     );
-    match transform_rigid(
-        &b,
-        &geom_core::test_support::rigid(&map, Tol::witness()),
-        Tol::witness(),
-    ) {
+    match transform_rigid(&b, &geom_core::test_support::rigid(&map, Tol::witness())) {
         Ok(t) => {
             let errors = validate_geometric(&t, Tol::witness()).unwrap_err();
             assert!(
@@ -270,12 +248,7 @@ fn keys_and_topology_are_bit_stable_under_rotation() {
         Mat3::rotation_about(Vec3::new(0.0, 1.0, 0.0), FRAC_PI_2),
         Vec3::new(-3.0, 7.0, 0.5),
     );
-    let t = transform_rigid(
-        &b,
-        &geom_core::test_support::rigid(&map, Tol::witness()),
-        Tol::witness(),
-    )
-    .unwrap();
+    let t = transform_rigid(&b, &geom_core::test_support::rigid(&map, Tol::witness())).unwrap();
     let keys = |bb: &Body<f64>| {
         (
             bb.points()

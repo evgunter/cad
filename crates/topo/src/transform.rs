@@ -61,7 +61,6 @@ use std::sync::Arc;
 use geom::Curve3;
 use geom::Surface;
 use geom_brep::{EdgeDescription, MappedCurve, MappedSource};
-use geom_core::Tol;
 use geom_core::{Affine3, Decide, Real, RigidMotion, Vec3};
 use slotmap::SecondaryMap;
 
@@ -188,8 +187,10 @@ pub(crate) enum Hand {
 /// [`crate::finish()`] makes it a finished body: a scale changes every
 /// length the gate compares against ε.
 ///
-/// Both arms are exact by construction or re-minted at their door
-/// ([`RigidMotion::check_rigid`], [`crate::Reflection::across`]).
+/// Each arm is exact apart from rounding at its door: a motion is
+/// minted by its own constructors, or admitted within rounding with its
+/// bits kept ([`RigidMotion::check_rigid`]); a reflection is decided at
+/// [`crate::Reflection::across`].
 #[derive(Clone, Copy, Debug)]
 pub enum Isometry<T: Real> {
     /// A rigid motion (determinant `+1`).
@@ -466,7 +467,6 @@ fn map_carrier<T: Real>(iso: &Isometry<T>, c: &Curve3<T>) -> Result<Curve3<T>, T
 pub fn transform_rigid<T: Decide>(
     body: &Body<T>,
     motion: &RigidMotion<T>,
-    _tol: Tol,
 ) -> Result<Body<T>, TransformError> {
     map_isometry(body, &Isometry::Proper(*motion))
 }
@@ -780,6 +780,50 @@ mod tests {
     use geom_core::Point3;
     use geom_core::spline::KnotVector;
 
+    /// **A spiric wall image under a reflection is its source's with the
+    /// azimuth negated, point for point** ([`reflected_image`]): the
+    /// restated `u0′ = −u0 − σμπ` reads `−u(t)` on the mapped carrier,
+    /// whose stand-off is `−d`, on both tori and both senses. Without the
+    /// `−σμπ` term the image stands half a turn off its locus.
+    #[test]
+    fn a_reflected_spiric_wall_image_negates_its_azimuth_point_for_point() {
+        use core::f64::consts::{PI, TAU};
+        use geom_brep::{Pcurve, SpiricImage, WallTorus};
+        // `f = √((R + r·cos t)² − d²) > 0` at every `t`: the two-oval
+        // regime the restatement is derived for.
+        let (major, minor, offset) = (2.0, 1.0, 0.5);
+        for torus in [WallTorus::Own, WallTorus::Mirror] {
+            for sense in [1.0, -1.0] {
+                let source = Pcurve::Spiric {
+                    major,
+                    minor,
+                    offset,
+                    image: SpiricImage::Wall {
+                        u0: 0.3,
+                        v0: 0.0,
+                        sense,
+                        torus,
+                    },
+                };
+                let image = reflected_image(&source, OrientationClass::Analytic)
+                    .expect("a wall image has a reflection");
+                for k in 0..16 {
+                    let t = TAU * f64::from(k) / 16.0;
+                    let (a, b) = (source.eval(t), image.eval(t));
+                    let turn = (b.x + a.x + PI).rem_euclid(TAU) - PI;
+                    assert!(
+                        turn.abs() <= 1e-12,
+                        "{torus:?}, σ = {sense}, t = {t}: the image's azimuth {} is not \
+                         the negated {}",
+                        b.x,
+                        a.x
+                    );
+                    assert!((b.y - a.y).abs() <= 1e-12, "the minor angle is unmoved");
+                }
+            }
+        }
+    }
+
     /// A translation: rigid, with exact entries.
     fn aside() -> Affine3<f64> {
         aside_motion().to_affine()
@@ -889,7 +933,7 @@ mod tests {
     }
     /// A reflection across a plane tilted off every world axis.
     fn reflection() -> crate::Reflection<f64> {
-        let band = geom_core::Band::linear(Tol::witness()).expect("the witness band");
+        let band = geom_core::Band::linear(geom_core::Tol::witness()).expect("the witness band");
         let n = geom_core::UnitVec3::new(Vec3::new(1.0, 2.0, 2.0) / 3.0, "mirror", band)
             .expect("a unit normal");
         crate::mirror::Reflection::across_unit(Point3::new(0.3, -0.2, 0.1), n)
@@ -1016,13 +1060,13 @@ mod tests {
         let mut placeheld: Body<f64> = Body::new();
         placeheld.add_surface(Surface::nurbs_placeholder());
         assert!(matches!(
-            transform_rigid(&placeheld, &aside_motion(), Tol::witness()),
+            transform_rigid(&placeheld, &aside_motion()),
             Err(TransformError::NurbsPlaceholder)
         ));
 
         let mut described: Body<f64> = Body::new();
         described.add_surface(described_surface());
-        assert!(transform_rigid(&described, &aside_motion(), Tol::witness()).is_ok());
+        assert!(transform_rigid(&described, &aside_motion()).is_ok());
     }
 
     /// A curve entry no edge names is refused, and the refusal says the
@@ -1034,7 +1078,7 @@ mod tests {
             below_end: crate::VertexKey::default(),
             above_end: crate::VertexKey::default(),
         });
-        let err = transform_rigid(&orphaned, &aside_motion(), Tol::witness())
+        let err = transform_rigid(&orphaned, &aside_motion())
             .expect_err("an orphan curve entry is corruption");
         let shown = err.render(geom_brep::recourse::Reading::Build);
         assert!(

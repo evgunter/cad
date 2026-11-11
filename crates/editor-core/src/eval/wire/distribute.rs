@@ -100,7 +100,7 @@ impl<T: Decide + topo::AtRestPolicy> Operand<T> {
             None => Ok(Arc::clone(own)),
             Some(map) => {
                 crate::eval::counters::rigid_map();
-                topo::FinishedBody::moved(&**own, &topo::Isometry::Proper(map), tol)
+                topo::FinishedBody::moved(&**own, &map, tol)
                     .map(Arc::new)
                     .map_err(|findings| NodeErrorKind::NotFinished { findings })
             }

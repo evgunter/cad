@@ -179,13 +179,11 @@ fn a_reposed_lentil_fillets_in_its_own_frame() {
     let posed = transform_rigid(
         &symmetric_lentil(),
         &geom_core::test_support::rigid(&map, tol()),
-        tol(),
     )
     .unwrap();
     let posed = transform_rigid(
         &posed,
         &geom_core::RigidMotion::translation(Vec3::new(0.3, -0.2, 0.5)).unwrap(),
-        tol(),
     )
     .unwrap();
     // The rim rides the pose: a rigid map keeps its radius and carries

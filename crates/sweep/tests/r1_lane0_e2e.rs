@@ -99,7 +99,6 @@ fn the_f64_seam_answers_every_public_door_row() {
     let moved = topo::transform_rigid(
         &body,
         &geom_core::test_support::rigid(&rigid_f64(), Tol::witness()),
-        Tol::witness(),
     )
     .expect("a rigid map of a certified fit moves it");
     let Some(Surface::Approx(m)) = moved.face_surface(face) else {
@@ -270,7 +269,6 @@ fn the_interval_seam_refuses_at_every_public_door() {
     topo::transform_rigid(
         &body,
         &geom_core::RigidMotion::translation(v3(1.0, 0.0, 0.0)).unwrap(),
-        Tol::witness(),
     )
     .unwrap_or_else(|e| panic!("the map carries the face's certificate at Interval: {e:?}"));
 }
@@ -378,7 +376,6 @@ fn the_probe_seam_carries_at_the_map_and_refuses_at_the_mint() {
             Probe::zero(),
         ))
         .unwrap(),
-        Tol::witness(),
     )
     .unwrap_or_else(|e| panic!("the map carries the face's certificate at the probe: {e:?}"));
 

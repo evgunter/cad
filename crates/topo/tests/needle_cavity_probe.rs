@@ -87,7 +87,7 @@ fn needle_cavity_probe() {
         .expect("a unit axis");
     let motion = geom_core::RigidMotion::rotation(axis, 1.1).expect("a finite angle");
     let moved = |b: &AtRestBody<f64>| {
-        topo::finish(topo::transform_rigid(b, &motion, tol).expect("moves"), tol)
+        topo::finish(topo::transform_rigid(b, &motion).expect("moves"), tol)
             .expect("moved operand at rest")
     };
     for (pose, r) in [

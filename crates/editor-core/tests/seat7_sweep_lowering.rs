@@ -1012,7 +1012,6 @@ fn raw_spin(b: &Body<f64>, axis: Vec3<f64>, angle: f64) -> Body<f64> {
             &Affine3::rotation_about_axis(Point3::new(0.0, 0.0, 0.0), axis, angle),
             tol(),
         ),
-        tol(),
     )
     .unwrap()
 }

@@ -407,7 +407,6 @@ fn a_rigid_transform_re_derives_the_caches() {
     let moved = topo::transform::transform_rigid(
         &above,
         &geom_core::test_support::rigid(&map, Tol::witness()),
-        Tol::witness(),
     )
     .unwrap();
     assert_eq!(moved.pcurves().count(), before);

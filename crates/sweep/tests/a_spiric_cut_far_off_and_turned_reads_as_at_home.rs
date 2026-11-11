@@ -38,7 +38,7 @@ fn posed(s: f64) -> (AtRestBody<f64>, AtRestBody<f64>) {
         * Affine3::rotation_about_axis(Point3::origin(), axis, 0.7);
     let motion = geom_core::test_support::rigid(&m, tol);
     let mv = |b: &AtRestBody<f64>, who: &str| {
-        finished(who, topo::transform_rigid(b, &motion, tol).unwrap(), tol)
+        finished(who, topo::transform_rigid(b, &motion).unwrap(), tol)
     };
     (
         mv(&torus(2.0, 0.5), "the torus"),
@@ -261,7 +261,7 @@ pub(crate) fn two_tori_on_a_bar() -> topo::Body<f64> {
         );
         finished(
             "the far torus",
-            topo::transform_rigid(&torus(0.2, 0.05), &motion, tol).unwrap(),
+            topo::transform_rigid(&torus(0.2, 0.05), &motion).unwrap(),
             tol,
         )
     };
@@ -360,7 +360,6 @@ fn tori_on_the_bar(tori: &[(f64, f64, Vec3<f64>)]) -> topo::Body<f64> {
             topo::transform_rigid(
                 &torus(big, small),
                 &geom_core::test_support::rigid(&Affine3::translation(at), tol),
-                tol,
             )
             .unwrap(),
             tol,
@@ -589,7 +588,6 @@ fn a_torus_astride_a_roof() -> topo::Body<f64> {
                 &Affine3::translation(Vec3::new(ridge - 0.05, 0.0, 0.0)),
                 tol,
             ),
-            tol,
         )
         .unwrap(),
         tol,
@@ -693,7 +691,6 @@ fn a_carried_region_at_the_certified_scalar_holds_its_volume() {
             &Affine3::translation(Vec3::new(iv(-101.0), iv(0.0), iv(0.0))),
             tol,
         ),
-        tol,
     )
     .unwrap());
     let bar = at(sweep::test_support::brick(
@@ -916,7 +913,6 @@ fn a_region_near_its_shells_point_is_read_about_it_bit_for_bit() {
         topo::transform_rigid(
             &torus(0.2, 0.05),
             &geom_core::test_support::rigid(&Affine3::translation(Vec3::new(-3.27, 0.0, 0.0)), tol),
-            tol,
         )
         .unwrap(),
         tol,

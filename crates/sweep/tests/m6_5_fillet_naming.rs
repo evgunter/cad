@@ -44,12 +44,7 @@ fn ball_at(r: f64, c: Vec3<f64>) -> Body<f64> {
     let ball = revolve(&vp, axis, Revolution::Full, Tol::witness())
         .unwrap()
         .body;
-    topo::transform_rigid(
-        &ball,
-        &geom_core::RigidMotion::translation(c).unwrap(),
-        Tol::witness(),
-    )
-    .unwrap()
+    topo::transform_rigid(&ball, &geom_core::RigidMotion::translation(c).unwrap()).unwrap()
 }
 
 /// The die_composed pip: a ball poled along +Z, centred at `c`.
@@ -65,15 +60,9 @@ fn ball_poled_z(r: f64, c: Vec3<f64>) -> Body<f64> {
             ),
             Tol::witness(),
         ),
-        Tol::witness(),
     )
     .unwrap();
-    topo::transform_rigid(
-        &placed,
-        &geom_core::RigidMotion::translation(c).unwrap(),
-        Tol::witness(),
-    )
-    .unwrap()
+    topo::transform_rigid(&placed, &geom_core::RigidMotion::translation(c).unwrap()).unwrap()
 }
 
 fn rim_edges(body: &Body<f64>) -> Vec<EdgeKey> {

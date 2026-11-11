@@ -243,7 +243,8 @@ use crate::m10_8_harness::{assert_split, split_at_the_nominal};
 /// pcurve row is read on its chart before check 3 meters it
 /// (`PcurveCache::certify`), so a row the mint certifies there reads its
 /// carrier a second time: `pcurve_cylinder_chart_incident` 16/4 -> 24/6 and
-/// `pcurve_line_chart_incident` 20/4 -> 28/6.///
+/// `pcurve_line_chart_incident` 20/4 -> 28/6.
+///
 /// **ONEHOME, a move carries its verdict** (`topo::FinishedBody::moved`,
 /// `Held::moved`): the placed copy is its source's body under the map,
 /// its certificates, rows and verdict carried. Its edges are not

@@ -27,8 +27,8 @@ fn sphere_aims_reader_ties() {
     let v = |x: f64, y: f64, z: f64| Vec3::new(S::from_f64(x), S::from_f64(y), S::from_f64(z));
     let ball = move |r: f64, c: Vec3<S>| -> AtRestBody<S> {
         let at = ball_poled_y(S::from_f64(r), v(0.0, 0.0, 0.0), tol);
-        let m = topo::transform_rigid(&at, &geom_core::RigidMotion::translation(c).unwrap(), tol)
-            .unwrap();
+        let m =
+            topo::transform_rigid(&at, &geom_core::RigidMotion::translation(c).unwrap()).unwrap();
         finished("ball", m, tol)
     };
     let shells = |r: Result<topo::BooleanResult<S>, topo::BooleanError>| {

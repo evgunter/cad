@@ -113,7 +113,6 @@ fn review_6002_boolean_germ_hunt() {
                             foot - Point3::origin(),
                         )
                         .unwrap(),
-                        tol,
                     );
                     let Ok(turned) = turned else {
                         eprintln!(

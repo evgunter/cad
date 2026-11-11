@@ -657,7 +657,7 @@ fn twisted<T: Decide + topo::AtRestPolicy>(
         // kind, its verdict carried.
         let turned = body
             .holding()
-            .moved(&topo::Isometry::Proper(twist), tol)
+            .moved(&twist, tol)
             .map_err(|findings| NodeErrorKind::NotFinished { findings })?;
         let back = super::Frame::Own
             .moved(&twist.inverse().map_err(NodeErrorKind::Motion)?)
@@ -2908,8 +2908,11 @@ fn wire_mirror<T: Decide + topo::AtRestPolicy>(
     // the same kind, its verdict carried.
     let image = body
         .holding()
-        .moved(&topo::Isometry::Improper(reflection), tol)
-        .map_err(|findings| NodeErrorKind::NotFinished { findings })?;
+        .moved_by(&topo::Isometry::Improper(reflection), tol)
+        .map_err(|refused| match refused {
+            topo::MoveError::Map(error) => NodeErrorKind::Mirror(error),
+            topo::MoveError::NotFinished(findings) => NodeErrorKind::NotFinished { findings },
+        })?;
     let value = value_of(results, source)?;
     let table = read_table(value)
         .project(0)

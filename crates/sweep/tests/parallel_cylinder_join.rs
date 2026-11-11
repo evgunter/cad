@@ -123,12 +123,7 @@ fn turned(mut pose: Pose, axis: Vec3<f64>, angle: f64) -> Pose {
     let turn = |b: &AtRestBody<f64>| {
         finished(
             "the turned operand",
-            topo::transform_rigid(
-                b,
-                &geom_core::test_support::rigid(&m, Tol::witness()),
-                Tol::witness(),
-            )
-            .unwrap(),
+            topo::transform_rigid(b, &geom_core::test_support::rigid(&m, Tol::witness())).unwrap(),
             Tol::witness(),
         )
     };
@@ -441,7 +436,7 @@ fn tipped(r: f64, c: f64, half: f64, theta: f64) -> Pose {
         a: rod(0.5, (0.0, 0.0), (-half - 1.0, half + 1.0)),
         b: finished(
             "the tipped rod",
-            topo::transform_rigid(&rod_b, &geom_core::test_support::rigid(&m, tol), tol).unwrap(),
+            topo::transform_rigid(&rod_b, &geom_core::test_support::rigid(&m, tol)).unwrap(),
             tol,
         ),
         va: PI * 0.25 * (2.0 * half + 2.0),
@@ -508,7 +503,7 @@ fn cut_and_tipped(
     );
     finished(
         "the tipped rod",
-        topo::transform_rigid(&cut.body, &geom_core::test_support::rigid(&m, tol), tol).unwrap(),
+        topo::transform_rigid(&cut.body, &geom_core::test_support::rigid(&m, tol)).unwrap(),
         tol,
     )
 }
@@ -617,7 +612,7 @@ fn seams_on_the_walls(axis: Vec3<f64>, theta: f64) -> Pose {
         a: rod(1.0, (0.0, 0.0), (-1.0, 1.0)),
         b: finished(
             "the tipped rod",
-            topo::transform_rigid(&b, &geom_core::test_support::rigid(&m, tol), tol).unwrap(),
+            topo::transform_rigid(&b, &geom_core::test_support::rigid(&m, tol)).unwrap(),
             tol,
         ),
         va: 2.0 * PI,
@@ -771,7 +766,7 @@ fn one_face_rod(c: (f64, f64), r: f64, az: f64, (z0, z1): (f64, f64)) -> AtRestB
     let up = Affine3::translation(Vec3::new(0.0, 0.0, z0));
     finished(
         "the one-face rod",
-        topo::transform_rigid(&body, &geom_core::test_support::rigid(&up, tol), tol).unwrap(),
+        topo::transform_rigid(&body, &geom_core::test_support::rigid(&up, tol)).unwrap(),
         tol,
     )
 }
@@ -789,7 +784,6 @@ fn one_face_walls(az: f64, theta: f64) -> Pose {
     let b = topo::transform_rigid(
         &one_face_rod((1.2, 0.0), 1.0, az, (-0.3, 0.3)),
         &geom_core::test_support::rigid(&m, tol),
-        tol,
     )
     .unwrap();
     Pose {

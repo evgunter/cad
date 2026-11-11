@@ -78,7 +78,6 @@ pub(crate) fn ball(r: f64, c: [f64; 3]) -> AtRestBody<f64> {
     let ball = topo::transform_rigid(
         &at_origin,
         &geom_core::test_support::rigid(&to, Tol::witness()),
-        Tol::witness(),
     )
     .expect("a translation is rigid");
     finished("the ball", ball, Tol::witness())
@@ -92,7 +91,6 @@ fn polar_ball(r: f64, c: [f64; 3]) -> AtRestBody<f64> {
     let ball = topo::transform_rigid(
         &ball(r, c),
         &geom_core::test_support::rigid(&turn, Tol::witness()),
-        Tol::witness(),
     )
     .expect("a rotation is rigid");
     finished("the polar ball", ball, Tol::witness())

@@ -28,8 +28,7 @@ fn cylinder(phi: f64, tol: Tol) -> AtRestBody<f64> {
         Vec3::new(0.0, 0.0, 1.0),
         phi,
     );
-    let turned =
-        topo::transform_rigid(&body, &geom_core::test_support::rigid(&turn, tol), tol).unwrap();
+    let turned = topo::transform_rigid(&body, &geom_core::test_support::rigid(&turn, tol)).unwrap();
     topo::finish(turned, tol).unwrap()
 }
 

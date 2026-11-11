@@ -224,7 +224,7 @@ pub fn body_in_space<T: geom_core::Decide + topo::AtRestPolicy>(
         None => Ok(body.holding().clone()),
         Some(map) => body
             .holding()
-            .moved(&topo::Isometry::Proper(map), tol)
+            .moved(&map, tol)
             .map_err(ComposeError::NotFinished),
     }
 }
@@ -248,9 +248,7 @@ pub fn product_body_in_space(
     let Some(map) = editor_core::in_space(product) else {
         return Ok(std::borrow::Cow::Borrowed(&product.body));
     };
-    product
-        .body
-        .moved(&topo::Isometry::Proper(map), tol)
+    topo::FinishedBody::moved(&product.body, &map, tol)
         .map(std::borrow::Cow::Owned)
         .map_err(|findings| ProductError::ProductInvalid { findings })
 }

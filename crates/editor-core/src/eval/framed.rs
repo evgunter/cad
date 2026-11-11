@@ -158,21 +158,36 @@ impl<T: topo::AtRestPolicy> Held<T> {
     }
 
     /// **What it holds under an isometry**, of the same kind
-    /// ([`topo::FinishedBody::moved`], [`topo::LeafBody::moved`]): the
-    /// verdict carried and the session box asked again.
+    /// ([`topo::FinishedBody::moved_by`], [`topo::LeafBody::moved_by`]):
+    /// the verdict carried and the session box asked again.
     ///
     /// # Errors
     ///
-    /// The move's [`topo::NotFinished`]: the image reaches past the
-    /// session box.
-    pub fn moved(&self, iso: &topo::Isometry<T>, tol: Tol) -> Result<Self, topo::NotFinished> {
+    /// [`topo::MoveError::Map`] where the data map refuses (under a
+    /// reflection, a re-minted row); [`topo::MoveError::NotFinished`]
+    /// where the image reaches past the session box, or a leaf's image
+    /// does not finish.
+    pub fn moved_by(&self, iso: &topo::Isometry<T>, tol: Tol) -> Result<Self, topo::MoveError> {
         use topo::{FinishedBody, LeafBody};
         Ok(match self {
             Self::Finished(body) => {
-                Self::Finished(Arc::new(FinishedBody::moved(&**body, iso, tol)?))
+                Self::Finished(Arc::new(FinishedBody::moved_by(&**body, iso, tol)?))
             }
-            Self::Leaf(body) => Self::Leaf(Arc::new(LeafBody::moved(&**body, iso, tol)?)),
+            Self::Leaf(body) => Self::Leaf(Arc::new(LeafBody::moved_by(&**body, iso, tol)?)),
         })
+    }
+
+    /// **What it holds under a rigid motion** ([`Self::moved_by`]).
+    ///
+    /// # Errors
+    ///
+    /// The move's [`topo::NotFinished`] ([`topo::MoveError::under_a_motion`]):
+    /// the image reaches past the session box, or, where it holds a
+    /// leaf, the leaf's image does not finish (at `f64` and `Probe`, where
+    /// a leaf is finished on its image while the box-scalar switch lives).
+    pub fn moved(&self, motion: &RigidMotion<T>, tol: Tol) -> Result<Self, topo::NotFinished> {
+        self.moved_by(&topo::Isometry::Proper(*motion), tol)
+            .map_err(topo::MoveError::under_a_motion)
     }
 
     /// Whether the two hold one body, by `Arc`.
@@ -383,7 +398,7 @@ impl<T: topo::AtRestPolicy> Framed<T> {
                 super::counters::rigid_map();
                 other
                     .body
-                    .moved(&topo::Isometry::Proper(map), tol)
+                    .moved(&map, tol)
                     .map_err(|findings| super::NodeErrorKind::NotFinished { findings })
             }
         }

@@ -393,8 +393,7 @@ fn the_sealed_island_request_builds_at_every_pose() {
     let want = 64.0 - rounded_box_volume(1.5, 0.25) + rounded_box_volume(1.4, 0.25);
     for (name, map) in crate::common::poses::poses() {
         let posed =
-            topo::transform_rigid(&body, &geom_core::test_support::rigid(&map, tol()), tol())
-                .unwrap();
+            topo::transform_rigid(&body, &geom_core::test_support::rigid(&map, tol())).unwrap();
         let out = fillet_edges(
             &sweep::test_support::at_rest(&posed, tol()),
             &req,

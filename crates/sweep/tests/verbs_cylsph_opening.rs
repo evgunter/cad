@@ -73,12 +73,7 @@ fn ball_at(r: f64, centre: Vec3<f64>) -> Body<f64> {
     let ball = revolve(&vp, axis, Revolution::Full, Tol::witness())
         .unwrap()
         .body;
-    topo::transform_rigid(
-        &ball,
-        &geom_core::RigidMotion::translation(centre).unwrap(),
-        Tol::witness(),
-    )
-    .unwrap()
+    topo::transform_rigid(&ball, &geom_core::RigidMotion::translation(centre).unwrap()).unwrap()
 }
 
 /// The re-posed twin's map, off every axis plane.
@@ -94,7 +89,6 @@ fn posed(b: &Body<f64>) -> Body<f64> {
     topo::transform_rigid(
         b,
         &geom_core::test_support::rigid(&twin_map(), Tol::witness()),
-        Tol::witness(),
     )
     .unwrap()
 }
@@ -370,7 +364,6 @@ fn a_ball_scraping_the_wall_refuses_at_the_section_pass() {
     let s = topo::transform_rigid(
         &ball_at(0.5, Vec3::new(0.0, 0.0, 0.0)),
         &geom_core::test_support::rigid(&poled_z, Tol::witness()),
-        Tol::witness(),
     )
     .unwrap();
     for (pose, c, s) in [

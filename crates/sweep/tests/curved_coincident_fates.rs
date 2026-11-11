@@ -285,7 +285,7 @@ fn a_slanted_rod_and_a_coaxial_rod_are_cut_alike_in_either_order() {
     let cutter = fin("cutter", brick((-3.0, 3.0), (-3.0, 3.0), (2.0, 6.0), tol));
     let cutter = fin(
         "cutter",
-        topo::transform_rigid(&cutter, &tilt, tol).expect("moved"),
+        topo::transform_rigid(&cutter, &tilt).expect("moved"),
     );
     let whole = fin("rod", rod(Point2::new(0.0, 0.0), 1.0, 0.0, 3.0));
     let BooleanResult::Body(slanted) = topo::subtract(&whole, &cutter, tol).expect("the slant")

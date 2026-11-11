@@ -175,7 +175,7 @@ fn grid_widths(body: &Body<f64>, wall: FaceKey) -> Vec<[f64; 3]> {
 fn the_lily_blade_moved_off_the_origin_reads_its_walls_alike() {
     let home = leaf_a::<f64>(leaf_a_plan(), tol());
     let motion = RigidMotion::translation(Vec3::new(10.0, 10.0, 10.0)).expect("a translation");
-    let away = transform_rigid(&home, &motion, tol()).expect("the blade moves");
+    let away = transform_rigid(&home, &motion).expect("the blade moves");
     for wall in walls(&home) {
         let (a, b) = (grid_widths(&home, wall), grid_widths(&away, wall));
         for (cell, (a, b)) in a.iter().zip(&b).enumerate() {

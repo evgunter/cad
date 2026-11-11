@@ -112,7 +112,6 @@ fn each_edge_face_record_cites_its_own_pieces_ends() {
         crate::transform::transform_rigid(
             &prism_z::<f64>(&tri, z0, z1, tol).body,
             &geom_core::test_support::rigid(&along_x, tol),
-            tol,
         )
         .unwrap()
     };

@@ -42,14 +42,9 @@ fn boxed(b: Bounds) -> AtRestBody<f64> {
 /// `ball` turned by `turn` before it is moved to `c`.
 fn placed(ball: topo::Body<f64>, turn: Affine3<f64>, c: Vec3<f64>) -> AtRestBody<f64> {
     let tol = Tol::witness();
-    let turned =
-        topo::transform_rigid(&ball, &geom_core::test_support::rigid(&turn, tol), tol).unwrap();
-    let moved = topo::transform_rigid(
-        &turned,
-        &geom_core::RigidMotion::translation(c).unwrap(),
-        tol,
-    )
-    .unwrap();
+    let turned = topo::transform_rigid(&ball, &geom_core::test_support::rigid(&turn, tol)).unwrap();
+    let moved =
+        topo::transform_rigid(&turned, &geom_core::RigidMotion::translation(c).unwrap()).unwrap();
     finished("the ball", moved, tol)
 }
 
