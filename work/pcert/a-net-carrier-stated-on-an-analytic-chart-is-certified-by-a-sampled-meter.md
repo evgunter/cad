@@ -6,6 +6,7 @@ status: closed
 opened: 2026-11-11
 priority: P1
 cost: M
+pr: 6826
 closed: 2026-11-11
 ---
 
@@ -74,7 +75,7 @@ sampled read is not. Two same-named functions of opposite natures (one a
 sampled lower bound, one a bound over the span) are worth a rename in the
 fix, whichever it takes.
 
-## Closed (2026-11-11)
+## Closed (PR 6826, 2026-11-11)
 
 The fix took the first shape: the read of a net stated on an analytic
 chart is a supremum over the span at the edge certificate. `certify.rs`
@@ -108,3 +109,7 @@ Rows (`pcurve_cache/analytic_net_rows.rs`):
 - the no-false-Off search against an exact supremum, on all five charts.
 
 The mutant `net-bound-sampled` turns the witness and the narrowed bump red.
+
+Not closed here, filed: the stated image's own fidelity to the carrier
+on an analytic chart is still metered at the nine samples
+(`a-stated-image-on-an-analytic-chart-is-metered-against-its-carrier-at-nine-samples`, P1).
