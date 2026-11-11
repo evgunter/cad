@@ -2,8 +2,9 @@
 id: main-red-two-cylinder-sphere-volume-pads-pass-their-ceiling-at-1e-6-since-the-sphere-lane
 kind: issue
 title: Main red at eps 1e-6: since PR 6509, two cylinder x sphere volume pads pass their 1e-7 ceiling (a_ringed_wall, verbs_cylsph_opening)
-status: dispatched
-branch: spiricarm/sphere-pad-ceiling
+status: closed
+closed: 2026-11-11
+pr: 6840
 opened: 2026-11-11
 priority: P1
 cost: M
@@ -23,3 +24,6 @@ Found by PCERT's nightly-reds lane (`pcert/nightly-slowset-reds`), in nightly 42
 Both bodies build, certify and read their volume within `want` (the values agree to 1e-9 and 1e-8). What fails is the volume pad against a 1e-7 ceiling. At ε 1e-6 the sphere's rotational lane pads by 1e-7 to 5e-6, so the pad seems to scale with ε. A ceiling of 1e-7 is not one an ε-1e-6 pad can meet.
 
 Decide which side is wrong. If the lane's pad is ε-scaled by construction, the rows' ceiling should scale with the row's ε, and that should be argued from the lane's pad term. If not, the pad is too wide. Do not move the ceiling to fit the number.
+
+## Closed (2026-11-11)
+PR 6840. The ceiling was the wrong side: both rows held an ε-scaled pad to a fixed `1e-7`. They now read the frame's resolution ceiling (`pad_ceiling`: each face is accepted at `3·res·area_f` with res = 1024ε, so a Met run's pad is at most `res·area/2`, the area taken from the fixtures), plus per-ε guards at 4× the widest pad measured at 1e-6, 1e-9 and 1e-12. No pad was narrowed. Both rows are red → green at 1e-6 locally and green at 1e-9 and 1e-12; CI's filter runs neither, so the nightly is their record. The class this exposed is filed: `cylinder-sphere-pad-ceilings-speak-four-vocabularies`.
