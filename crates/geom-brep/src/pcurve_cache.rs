@@ -3322,19 +3322,30 @@ pub(crate) enum Parts {
     /// **Per span, the parts its own geometry needs**: the fewest, a
     /// power of two up to [`projected::INCIDENCE_CUTS`]
     /// ([`crate::props::taylor::pieces_where`]), on each of which the
-    /// part's control box spans at most
-    /// [`crate::props::taylor::PIECE_TURN`] times its distance from the
-    /// chart's axis, on which the cone's apex and the sphere's poles
-    /// lie: a short span far from the axis reads one part, and a long
-    /// span or one by the axis the parts its turn needs. On the plane,
-    /// which has no axis, one. A span's count is read off that span's
-    /// controls alone, so a chord reads the same parts however it is
-    /// cut into spans or edges. The reading is a schedule, in `f64`:
-    /// each part's hull bounds `|f|` over that part at any count.
+    /// diagonal of the part's control box is at most
+    /// [`crate::props::taylor::PIECE_TURN`] times the box's least
+    /// distance from the chart's axis, on which the cone's apex and the
+    /// sphere's poles lie. That is a chord over a radius, not a turn
+    /// about the axis: the box's extent along the axis counts too. A
+    /// short span far from the axis reads one part, and a long span or
+    /// one by the axis the parts that ratio needs. On the plane, which
+    /// has no axis, one. A span's count is read off that span's controls
+    /// alone, so a chord reads the same parts however it is cut into
+    /// spans or edges. The count is a schedule, compared in `f64` on the
+    /// ends of the controls' brackets; each part's hull bounds `|f|`
+    /// over that part at any count.
     ByTurn,
 }
 
 impl Parts {
+    /// The memo keys' one spelling of the rule.
+    fn key(self) -> u64 {
+        match self {
+            Self::Each(n) => u64::try_from(n).unwrap_or(u64::MAX - 1),
+            Self::ByTurn => u64::MAX,
+        }
+    }
+
     /// The parts of the knot span `(a, b)` of `net` on a chart of `form`.
     fn of(
         self,
@@ -3709,11 +3720,7 @@ mod span_memo {
             // The sign of `major` names the sheet.
             Meters::Spindle { major, minor, .. } => scalars(&mut k, 6, &[major, minor]),
         }
-        let parts = match input.parts {
-            super::Parts::Each(n) => len(n),
-            super::Parts::ByTurn => u64::MAX,
-        };
-        k.extend([parts, len(knots.degree())]);
+        k.extend([input.parts.key(), len(knots.degree())]);
         floats(&mut k, 6, knots.knots());
         floats(&mut k, 7, weights);
         k.push(len(input.twin_net.control().len()));
@@ -3753,7 +3760,14 @@ mod span_memo {
 /// reach past the window's ends (a bound over a span holding a piece of
 /// the window bounds that piece); that reading passes only on cleared
 /// parts that cover the window's outer ends with no gap, and hands
-/// anything else to the rounds, so every refusal is the rounds'.
+/// anything else to the rounds, so every refusal is the rounds'. A net
+/// is read first with each knot span in the parts its own geometry
+/// needs ([`Parts::ByTurn`]); that reading is the limb's where it
+/// clears the band, and anything else goes to the rounds, every span in
+/// [`projected::INCIDENCE_CUTS`] parts. A first reading of either kind
+/// that clears but whose decision on the parts then escalates or
+/// refuses is set aside for the rounds: the decisions it took stay on
+/// the trail, and the rounds take them again.
 ///
 /// The reading carries the size of the net it stopped on
 /// ([`projected::NetSize`]): the carrier's own enclosure width there,
@@ -3843,6 +3857,7 @@ pub(crate) fn limb2_offset_sup<T: Decide + geom_core::Bounds + geom_core::Certif
         };
     let round_hull = |cuts: &[f64]| round_over(&grid, cuts, per_span);
     let key = limb2_memo::Key::of(carrier, window, surface, band);
+    let rounds_key = key.with(per_span);
     // A curved closed form is read first on its dyadic spans, each
     // enclosed alone (`limb2_quick`); a reading that clears is the
     // limb's, and anything else goes to the rounds below. Its parts
@@ -3865,7 +3880,7 @@ pub(crate) fn limb2_offset_sup<T: Decide + geom_core::Bounds + geom_core::Certif
     // anything else goes to the rounds below, every span in
     // `INCIDENCE_CUTS` parts, so every refusal is the rounds'.
     let quick = quick.or_else(|| match carrier {
-        Curve3::Nurbs(_) => limb2_memo::read(&key.by_turn(), &[], || {
+        Curve3::Nurbs(_) => limb2_memo::read(&key.with(Parts::ByTurn), &[], || {
             round_over(&grid, &[], Parts::ByTurn)
         })
         .ok()
@@ -3876,8 +3891,9 @@ pub(crate) fn limb2_offset_sup<T: Decide + geom_core::Bounds + geom_core::Certif
         Some(read) => read,
         None => {
             // The rounds read through limb 2's memo (`limb2_memo`): a
-            // round is a pure function of the key's inputs and its cuts.
-            let hull = |cuts: &[f64]| limb2_memo::read(&key, cuts, || round_hull(cuts));
+            // round is a pure function of the key's inputs, its parts and
+            // its cuts.
+            let hull = |cuts: &[f64]| limb2_memo::read(&rounds_key, cuts, || round_hull(cuts));
             projected::offset_rounds(hull, window, nappe, &twin, band)?
         }
     };
@@ -3949,10 +3965,9 @@ mod limb2_memo {
             ))
         }
 
-        /// The key of the same inputs' first reading, its spans in the
-        /// parts their own geometry needs ([`super::Parts::ByTurn`]).
-        pub(super) fn by_turn(&self) -> Self {
-            Self(format!("{}|by-turn", self.0))
+        /// The key of the same inputs read with each span in `parts`.
+        pub(super) fn with(&self, parts: super::Parts) -> Self {
+            Self(format!("{}|{:x}", self.0, parts.key()))
         }
     }
 

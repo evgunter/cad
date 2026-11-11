@@ -77,6 +77,49 @@ fn chord(spans: usize) -> Curve3<f64> {
     spline(&controls)
 }
 
+/// The cone of half-angle 30° about `z`, its apex at the origin.
+fn cone() -> Surface<f64> {
+    Surface::Cone {
+        apex: Point3::new(0.0, 0.0, 0.0),
+        axis: Vec3::new(0.0, 0.0, 1.0),
+        half_angle: core::f64::consts::FRAC_PI_6,
+        u_ref: Vec3::new(1.0, 0.0, 0.0),
+    }
+}
+
+/// **A short span on the cone**, `0.005` long round its axis at height
+/// `h`, its controls on the cone.
+fn on_cone(h: f64) -> Curve3<f64> {
+    let rho = h * core::f64::consts::FRAC_PI_6.tan();
+    let sweep = 0.005 / rho;
+    let at = |k: f64| {
+        let a = sweep * k / 3.0;
+        Point3::new(rho * a.cos(), rho * a.sin(), h)
+    };
+    spline(&[at(0.0), at(1.0), at(2.0), at(3.0)])
+}
+
+/// The ring torus `R = 2`, `r = 0.5` about `z`.
+fn torus() -> Surface<f64> {
+    Surface::Torus {
+        center: Point3::new(0.0, 0.0, 0.0),
+        axis: Vec3::new(0.0, 0.0, 1.0),
+        major_radius: 2.0,
+        minor_radius: 0.5,
+        u_ref: Vec3::new(1.0, 0.0, 0.0),
+    }
+}
+
+/// **A span along the torus's outer equator** through `sweep` radians,
+/// its controls on it.
+fn on_torus(sweep: f64) -> Curve3<f64> {
+    let at = |k: f64| {
+        let a = sweep * k / 3.0;
+        Point3::new(2.5 * a.cos(), 2.5 * a.sin(), 0.0)
+    };
+    spline(&[at(0.0), at(1.0), at(2.0), at(3.0)])
+}
+
 /// The twin net limb 2 reads `carrier` through on `surface`, and the
 /// twin's canonical form.
 fn twin_net(
@@ -99,12 +142,24 @@ fn twin_net(
         &crate::carrier_net::Frame::of(o, e),
     )
     .unwrap();
-    let radius = geom_core::Interval::from_f64(1.0);
-    let form = match surface {
-        Surface::Cylinder { .. } => CanonicalSurface::Cylinder { radius },
-        Surface::Sphere { .. } => CanonicalSurface::Sphere { radius },
+    let at = geom_core::Interval::from_f64;
+    let form = match *surface {
+        Surface::Cylinder { radius, .. } => CanonicalSurface::Cylinder { radius: at(radius) },
+        Surface::Sphere { radius, .. } => CanonicalSurface::Sphere { radius: at(radius) },
         Surface::Plane { .. } => CanonicalSurface::Plane,
-        _ => panic!("the rows' charts are a plane, a cylinder and a sphere"),
+        Surface::Cone { half_angle, .. } => CanonicalSurface::Cone {
+            cos2: at(half_angle.cos()).powi(2),
+            sin2: at(half_angle.sin()).powi(2),
+        },
+        Surface::Torus {
+            major_radius,
+            minor_radius,
+            ..
+        } => CanonicalSurface::Torus {
+            major: at(major_radius),
+            minor: at(minor_radius),
+        },
+        _ => panic!("the rows' charts are analytic"),
     };
     (net.curve().unwrap(), twin, form)
 }
@@ -127,7 +182,8 @@ fn by_turn(carrier: &Curve3<f64>, surface: &Surface<f64>) -> Vec<usize> {
 /// `parts`.
 fn widest(carrier: &Curve3<f64>, surface: &Surface<f64>, parts: Parts) -> f64 {
     let (net, twin, _) = twin_net(carrier, surface);
-    twin_span_hulls(&net, &twin, None, parts, &[])
+    let nappe = matches!(surface, Surface::Cone { .. }).then_some(crate::offset::Nappe::Opening);
+    twin_span_hulls(&net, &twin, nappe, parts, &[])
         .unwrap()
         .iter()
         .map(|s| s.meters)
@@ -185,9 +241,29 @@ fn a_span_reads_the_parts_its_own_turn_needs() {
             by_turn(&chord(40), &cylinder()),
             vec![1; 40],
         ),
+        (
+            "a short span far from the cone's apex",
+            by_turn(&on_cone(1.0), &cone()),
+            vec![1],
+        ),
+        (
+            "a short span far along the torus",
+            by_turn(&on_torus(0.01), &torus()),
+            vec![1],
+        ),
+        (
+            "a long span round the torus",
+            by_turn(&on_torus(core::f64::consts::FRAC_PI_2), &torus()),
+            vec![most],
+        ),
     ] {
         assert_eq!(got, want, "{what}");
     }
+    let by_apex = by_turn(&on_cone(0.01), &cone());
+    assert!(
+        by_apex[0] > 1,
+        "the same length by the cone's apex reads more parts: {by_apex:?}"
+    );
 }
 
 /// **A long span, and a short one by the pole, are decided at limb 2's
@@ -229,6 +305,27 @@ fn a_long_span_and_one_by_the_pole_decide_at_the_first_reading() {
     }
 }
 
+/// **A short span far from the axis on a cone and on a torus is decided
+/// at limb 2's first reading**, in one part, its metre conversion the
+/// cone's lever and the torus's.
+#[test]
+fn a_short_span_on_a_cone_or_a_torus_decides_at_the_first_reading() {
+    for (what, c, s) in [
+        ("cone", on_cone(1.0), cone()),
+        ("torus", on_torus(0.01), torus()),
+    ] {
+        let one = widest(&c, &s, Parts::ByTurn);
+        assert!(one.is_finite() && one > 0.0, "{what}: reads {one:e}");
+        let band = Band::new(4.0 * one, 40.0 * one).unwrap();
+        let (read, composed) = limb2(&c, &s, band);
+        assert_eq!(composed, 1, "{what}: decided at the first reading");
+        assert!(
+            matches!(read.offset, projected::Offset::Bound(b) if b <= 4.0 * one),
+            "{what}: clears"
+        );
+    }
+}
+
 /// **A chord of short spans far from the axis reads one part a span**,
 /// and is decided at limb 2's first reading: forty spans, forty parts.
 /// Red under a fixed count of parts a span.
@@ -264,5 +361,38 @@ fn a_first_reading_that_does_not_clear_is_the_rounds() {
     assert!(
         !cleared,
         "a span off the chart by more than the band does not clear"
+    );
+}
+
+/// **The rounds after a first reading that does not clear start at
+/// eight parts a span**, whatever the first reading's count: a chord of
+/// short spans far from the axis (one part each at the first reading)
+/// against a band under its own eight parts' reading. The rounds' first
+/// composite, kept in limb 2's memo under the rounds' key, holds eight
+/// parts a span. Red under rounds that start at the first reading's
+/// schedule.
+#[test]
+fn the_rounds_start_at_eight_parts_a_span() {
+    let (c, s) = (chord(40), cylinder());
+    let eight = widest(&c, &s, Parts::Each(projected::INCIDENCE_CUTS));
+    let band = Band::new(0.25 * eight, 2.5 * eight).unwrap();
+    let (_, composed) = limb2(&c, &s, band);
+    assert!(composed > 1, "the rounds read after the first reading");
+    let key =
+        limb2_memo::Key::of(&c, (0.0, 1.0), &s, band).with(Parts::Each(projected::INCIDENCE_CUTS));
+    let computed = core::cell::Cell::new(false);
+    let round = limb2_memo::read(&key, &[], || {
+        computed.set(true);
+        Err(PcurveCertifyError::UnsupportedChart { chart: s.kind() })
+    });
+    assert!(
+        !computed.get(),
+        "the rounds' first composite is in the memo"
+    );
+    let (hull, _) = round.unwrap();
+    assert_eq!(
+        hull.spans.len(),
+        40 * projected::INCIDENCE_CUTS,
+        "eight parts a span"
     );
 }

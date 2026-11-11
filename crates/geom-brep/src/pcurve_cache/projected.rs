@@ -903,7 +903,8 @@ impl<T: SpanLocate> ProjectedImage<T> {
 /// is read per part. Not halved further: on honest rows eight parts read
 /// within 0.3% of a 64-cut read (`work/pcert/projected-check4-incidence-can-falsely-refuse-in-the-sliver-below-the-band.md`).
 /// Limb 2's rounds read a net's spans in as many, and its first reading
-/// at most as many (`pcurve_cache::Parts::ByTurn`).
+/// at most as many (`pcurve_cache::Parts::ByTurn`): that ceiling is not
+/// what the 0.3% measures, which is check 4's fixed read.
 pub(crate) const INCIDENCE_CUTS: usize = 8;
 
 /// How many equal parts [`ProjectedImage::sweep_box`] cuts a piece into.
