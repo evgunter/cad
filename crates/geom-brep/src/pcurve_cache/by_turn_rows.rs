@@ -114,7 +114,10 @@ fn twin_net(
 fn by_turn(carrier: &Curve3<f64>, surface: &Surface<f64>) -> Vec<usize> {
     let (net, _, form) = twin_net(carrier, surface);
     let net = net.map_scalar(geom_core::Interval::from_certified::<geom_core::Interval>);
-    let runs: Vec<f64> = net.knots_f64_interim().breakpoints().collect();
+    let Curve3::Nurbs(n) = carrier else {
+        panic!("the rows' carriers are nets")
+    };
+    let runs: Vec<f64> = n.knot_values().runs().map(|(k, _)| k).collect();
     runs.windows(2)
         .map(|w| Parts::ByTurn.of(&net, &form, (w[0], w[1])))
         .collect()
