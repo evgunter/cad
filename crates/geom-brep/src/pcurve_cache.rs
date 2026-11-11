@@ -9938,15 +9938,11 @@ fn read_shown<T: Decide>(
 ///   anywhere else the read is taken over `asked`, whatever the door
 ///   answered.
 ///
-/// That skip is sound for the pcurve certificate doors (`certify`,
-/// `recertify`, `certify_fitted`, `certify_general`), whose certificate
-/// that holds bounds the carrier within the band of the wall over
-/// `certified`: its envelope is a sup over the span. It is not for a
-/// door whose meter is sampled, such as the edge certificate's stated
-/// image ([`incidence_ended_unwitnessed`] from `certify.rs`
-/// `stated_door`), where a carrier off its wall only between both sets of
-/// samples passes
-/// (`work/pcert/a-stated-chart-image-on-a-spline-face-is-certified-by-a-sampled-meter.md`).
+/// That skip is sound for a door whose certificate that holds bounds the
+/// carrier within the band of the wall over `certified`, as the pcurve
+/// certificate doors' envelopes do (a sup over the span); a door whose
+/// meter is sampled bounds nothing between its samples, so it holds no
+/// certificate this rule may take as it stands.
 ///
 /// `refused` carries the read's refusal into the door's own vocabulary.
 fn incidence_ended<T: Decide, R, E>(
@@ -9973,9 +9969,8 @@ fn incidence_ended<T: Decide, R, E>(
 /// for a door that takes no witness: the one home's rule
 /// (`incidence_ended`), which reads an analytic chart before `door` and a
 /// spline chart where `door` refuses or where `certified` is not shown to
-/// cover `asked`. Its callers are the edge certificate's stated chart image
-/// (`certify.rs` `stated_door`), whose meter is sampled, and `topo`'s
-/// restatement of a stored fitted image at a scalar with no fitted door.
+/// cover `asked`. Its caller is a stored fitted image restated at a
+/// scalar with no fitted door ([`PcurveCache::certify_stated_image`]).
 ///
 /// # Errors
 ///
@@ -12508,11 +12503,7 @@ mod incidence {
                 _ => "pcurve_nurbs_chart_incident",
             };
             return match super::spline_incidence::spline_incidence_as(
-                name,
-                chart,
-                place.span,
-                |t| carrier.eval(t),
-                band,
+                name, chart, carrier, place.span, band,
             )? {
                 Incidence::On(margin) => Ok(tested(margin)),
                 Incidence::Off(margin) => Err(OffChart(
@@ -12959,6 +12950,7 @@ fn spiric_off_own_chart(why: &'static str) -> OffChart {
 // test gate can skip the sweep without skipping the deterministic rows.
 pub mod projected;
 mod spline_incidence;
+mod stated;
 pub use projected::{FramedCarrier, ProjectedChart, ProjectedImage, SectorChannel};
 
 #[cfg(test)]
@@ -13014,6 +13006,9 @@ mod ruling_reading_rows;
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 pub(crate) mod spline_door_rows;
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod stated_image_rows;
 
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
