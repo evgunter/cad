@@ -243,6 +243,9 @@ fn spec_of<T: Real>(
     }
 }
 
+/// A bounded read of a net on a chart over a window, at one scalar.
+type Read = fn(&Surface<f64>, &NurbsCurve3<f64>, (f64, f64)) -> Result<(), PcurveCertifyError>;
+
 /// One certifying scalar's doors, instantiated per scalar by name (so
 /// the rows hold no compound scalar bound): the edge certificate of a
 /// net along a chart's ruling stated by its image, and the bounded read
@@ -251,7 +254,7 @@ fn spec_of<T: Real>(
 struct Door {
     name: &'static str,
     certify: fn(Ruled, &Net, Stated) -> Result<(), CertifyError>,
-    read: fn(&Surface<f64>, &NurbsCurve3<f64>, (f64, f64)) -> Result<(), PcurveCertifyError>,
+    read: Read,
 }
 
 macro_rules! door_at {
