@@ -53,3 +53,36 @@ Write the patch in coordinates local to the image: shift `u, v` by the
 image box's centre (exact in `f64` structure) before the composite, so
 the window and the image's chart channels are small, and fold the
 shift into the corners.
+
+## Evidence from `pcert/closed-form-image-bounded`
+
+The same class reaches the two doors that PR adds, at ε 1e-12 and only
+there, by the size of the image rather than its distance alone. Each
+read ends in its lever (or the composite's gap), never as a miss and
+never certified:
+
+- `pcurve_cache/closed_bound.rs`, a focal section's residual: a cone
+  section about 25 m across, stated by its derived image, reads
+  `pcurve_closed_bound` at 1.8e-12 at `Interval`. The bound sums the
+  enclosures of about thirty coefficient slots of a residual whose terms
+  are tens of metres, then divides by `(1 − |β|)²`.
+- `pcurve_cache/patch.rs`, the enclosing patch: a torus meridian or
+  parallel 8–10 m from the origin, stated as an iso line, reads
+  `ssi_hull_sup_chart` at 1.2–3.7e-12 (f64 and `Interval`). A sphere
+  meridian there ended `NoGeneralLane { Envelope }`. The patch's own
+  controls are 4e-14 wide; the composite's tensor products at degree
+  6 + 6 take the rest.
+
+The rows that read them
+(`closed_image_rows.rs` `a_spiric_or_focal_section_on_its_carrier_certifies`,
+`a_curve_in_uv_on_its_carrier_certifies_on_a_curved_chart`) admit the
+lever at bands finer than `1e-10` and nothing else. No product row
+reaches either door's fine-band edge: the product's census through that
+PR found no stated focal section and no curve in UV off its ruling, and
+its harmonic and spiric reads certify at ε 1e-12.
+
+The fix direction above holds for the enclosing patch too (centre the
+chart coordinates and the spatial ones on the image). For the closed
+forms, centre the residual's spatial terms on a point of the carrier,
+which removes the distance from the origin though not the image's own
+size.

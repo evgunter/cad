@@ -208,9 +208,10 @@ fn binomial(n: usize, k: usize) -> f64 {
     factorial(n) / (factorial(k) * factorial(n - k))
 }
 
+/// An enclosure of both `a` and `b`, `a + (b − a)·[0, 1]`, in interval
+/// arithmetic, so a refused input's decoration rides through.
 fn hull(a: Interval, b: Interval) -> Interval {
-    use geom_core::Bounds;
-    Interval::from_bounds(a.lo().min(b.lo()), a.hi().max(b.hi()))
+    a + (b - a) * Interval::from_bounds(0.0, 1.0)
 }
 
 /// `x` widened by `e` either side.
@@ -252,19 +253,22 @@ impl Angle {
         knots.extend(vec![hi; p + 1]);
         let knots = KnotVector::clamped(knots, p).map_err(|_| PatchRefusal::NoWidth)?;
         let count = pieces * p + 1;
-        let (mut cos, mut sin) = (vec![None; count], vec![None; count]);
+        let (mut cos, mut sin) = (Vec::with_capacity(count), Vec::with_capacity(count));
         for k in 0..pieces {
             let (a, b) = (at(k), at(k + 1));
             // The piece's exact midpoint and half-width, enclosed.
             let (ia, ib) = (Interval::from_bounds(a, a), Interval::from_bounds(b, b));
             let d = (ib - ia) * Interval::from_bounds(0.5, 0.5);
             let m = ia + d;
-            // The remainder over the piece, rounded outward.
-            let e = {
-                use geom_core::Bounds;
-                d.hi().powi(i32::try_from(p + 1).unwrap_or(i32::MAX)) / factorial(p + 1)
-                    * (1.0 + 1e-12)
-            };
+            // The remainder over the piece, its half-width read up from the
+            // two `f64` knots, whose difference rounds by at most half an
+            // ulp.
+            let e = ((b - a) * 0.5)
+                .next_up()
+                .next_up()
+                .powi(i32::try_from(p + 1).unwrap_or(i32::MAX))
+                / factorial(p + 1)
+                * (1.0 + 1e-12);
             let (sm, cm) = m.sin_cos();
             for (f0, f1, out) in [(cm, sm, &mut cos), (sm, -cm, &mut sin)] {
                 // The derivatives of cos (sin) at m cycle cos, −sin, −cos,
@@ -275,24 +279,18 @@ impl Angle {
                     2 => -f0,
                     _ => f1,
                 };
-                let control = bernstein(p, d, deriv);
-                for (i, c) in control.into_iter().enumerate() {
+                for (i, c) in bernstein(p, d, deriv).into_iter().enumerate() {
                     let c = widen(c, e);
-                    let slot = &mut out[k * p + i];
-                    *slot = Some(slot.map_or(c, |held| hull(held, c)));
+                    // A piece's first control is the last one's end: one
+                    // control of the spline, holding both.
+                    match out.last_mut() {
+                        Some(held) if i == 0 => *held = hull(*held, c),
+                        _ => out.push(c),
+                    }
                 }
             }
         }
-        let full = |v: Vec<Option<Interval>>| {
-            v.into_iter()
-                .map(|c| c.unwrap_or(Interval::from_bounds(0.0, 0.0)))
-                .collect()
-        };
-        Ok(Self {
-            knots,
-            cos: full(cos),
-            sin: full(sin),
-        })
+        Ok(Self { knots, cos, sin })
     }
 }
 

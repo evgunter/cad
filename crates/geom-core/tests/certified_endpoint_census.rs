@@ -252,6 +252,7 @@ const HOLDERS: &[&str] = &[
     "crates/geom-brep/src/offset_meters.rs",
     "crates/geom-brep/src/pair_section/spline_implicit.rs",
     "crates/geom-brep/src/patch_bound.rs",
+    "crates/geom-brep/src/pcurve_cache/patch.rs",
     "crates/geom-brep/src/props/mod.rs",
     "crates/geom-brep/src/props/quad/",
     "crates/geom-brep/src/ssi.rs",
@@ -416,6 +417,17 @@ const ROSTER: &[(&str, usize, usize, &str)] = &[
          which encloses over any breaks, and every span hull of it reads its ends through the \
          two asking reads above; so a refused bracket moves where the net is cut, never what a \
          span certifies, and a NaN reading compares false and grades nothing",
+    ),
+    (
+        "crates/geom-brep/src/pcurve_cache/patch.rs",
+        2,
+        0,
+        "both are the enclosing patch's `mag`, a chart radius's magnitude read only to choose how \
+         many pieces an angle's window is cut into and at what degree. Every control is formed \
+         in interval arithmetic from the chart's own brackets, so a refused one's decoration \
+         rides into the controls and the composite that reads them; a refused bracket moves \
+         where the window is cut, never what a control encloses, and a NaN magnitude cuts it \
+         into no finite count and refuses (`PatchRefusal::Pieces`)",
     ),
     ("crates/geom-brep/src/pcurve_cache/projected.rs", 2, 2, ""),
     ("crates/geom-brep/src/props/bracket.rs", 8, 8, ""),
