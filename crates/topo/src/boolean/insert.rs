@@ -8,8 +8,10 @@
 //! where neither is ([`pairing_leads`]).
 //!
 //! **The start takes the kept side.** The codes alternate round the
-//! vertex, so either start pairs the corner; the pairing starts where
-//! the lead's runs lie on the side the op keeps of it ([`start_pairs`]).
+//! vertex, so either start pairs the corner; with more than two
+//! survivors the pairing starts where the lead's runs lie on the side
+//! the op keeps of it ([`start_pairs`]). Two survivors pair with each
+//! other, and their run goes forward from the first record.
 //! A kept arc is a stretch of one cone of the result, so each null edge
 //! joins germs of one cone, which the join's one-site rim lane needs to
 //! close a rim. The op enters only there, and it is the fact the result
@@ -644,9 +646,17 @@ pub(super) fn plan_null_pairs<T: Decide>(
                 swapped != spelled_reversed(sectors, cuts[from].entry, cuts[to].entry)?,
             )
         };
-    // The runs of the pairing whose lead runs lie on `side`.
-    let runs_on = |side: SideCode| -> Result<Vec<[SideRun<T>; 2]>, BooleanError> {
-        let pairs = start_pairs(order, forward, side);
+    let kept = super::finish::kept_side(op, lead);
+    // The runs of the kept start, or of the other. Two survivors run
+    // forward from the first record, which either way builds where no
+    // other pair cuts the vertex, and the other start runs them the
+    // other way round.
+    let runs_on = |other: bool| -> Result<Vec<[SideRun<T>; 2]>, BooleanError> {
+        let pairs = match (n, other) {
+            (2, false) => vec![(0, 1)],
+            (2, true) => vec![(1, 0)],
+            _ => start_pairs(order, forward, if other { kept.opposite() } else { kept }),
+        };
         let swapped = pairs
             .iter()
             .map(|&p| {
@@ -708,9 +718,8 @@ pub(super) fn plan_null_pairs<T: Decide>(
         }
         Ok(runs)
     };
-    let kept = super::finish::kept_side(op, lead);
-    plan.runs = runs_on(kept)?;
-    plan.other = runs_on(kept.opposite())?;
+    plan.runs = runs_on(false)?;
+    plan.other = runs_on(true)?;
     Ok(plan)
 }
 
@@ -3148,34 +3157,29 @@ mod tests {
                 "{op:?}, {lead:?} leads: each runs forward from its pair's first germ"
             );
         }
-        // Two survivors, either record order: in ∩ forward from the In
-        // germ unless [`spelled_reversed`]. On the bisected orbit, one forward
-        // run from an In germ crosses every edge, and runs from the Out
-        // germ.
-        let mut degenerates = 0;
-        for recs in [
-            [rec(0, (Out, In)), rec(1, (In, Out))],
-            [rec(1, (In, Out)), rec(0, (Out, In))],
-            [rec(3, (Out, In)), rec(2, (In, Out))],
-            [rec(2, (In, Out)), rec(3, (Out, In))],
-            [rec(3, (In, Out)), rec(2, (Out, In))],
+        // Two survivors, either record order: forward unless
+        // [`spelled_reversed`]. On the bisected orbit, the forward run from the twin
+        // entry 3 to entry 2 crosses every edge, so it runs from 2.
+        for (recs, degenerates) in [
+            ([rec(0, (Out, In)), rec(1, (In, Out))], false),
+            ([rec(1, (In, Out)), rec(0, (Out, In))], false),
+            ([rec(3, (Out, In)), rec(2, (In, Out))], true),
+            ([rec(2, (In, Out)), rec(3, (Out, In))], false),
         ] {
-            let (p, secs) = plan((1, true), &recs, BooleanOp::Intersect, Operand::A);
+            let (p, secs) = plan((1, true), &recs, BooleanOp::Union, Operand::A);
             let r = p.runs[0][0];
-            let (inn, out) = if recs[0].sa.0 == In {
-                (recs[0].a, recs[1].a)
-            } else {
-                (recs[1].a, recs[0].a)
-            };
-            let degenerate = spelled_reversed(&secs, inn, out).unwrap();
-            degenerates += usize::from(degenerate);
+            let degenerate = spelled_reversed(&secs, recs[0].a, recs[1].a).unwrap();
+            assert_eq!(degenerate, degenerates, "{recs:?}: the fixture");
+            assert_eq!(r.swapped, degenerate, "{recs:?}");
             assert_eq!(
                 (r.from.cut.entry, r.to.cut.entry),
-                if degenerate { (out, inn) } else { (inn, out) },
-                "{recs:?}"
+                if degenerate {
+                    (recs[1].a, recs[0].a)
+                } else {
+                    (recs[0].a, recs[1].a)
+                }
             );
         }
-        assert_eq!(degenerates, 1, "the fixture spells one run as its strut");
     }
 
     /// **A run crossing every real edge is spelled as its strut, at any
