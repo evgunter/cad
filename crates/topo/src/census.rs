@@ -104,7 +104,7 @@
 //!   curve, sheets along a tied ray that one order down meet or do not
 //!   part, a curved sheet holding a tied ray inside it with no certified
 //!   bend, two whole tangent planes on one plane, or two tangent sectors
-//!   lying on each other that no lens reads
+//!   lying on each other that no lens or lune reads
 //!   (`link::second_order::lenses`) — which
 //!   [`sweep_self_touch_points`] leaves unread
 //!   (`work/restread/tier-3-prime-reads-no-side-where-a-solid-touches-itself-at-a-point-on-a-curved-face.md`);
@@ -8929,9 +8929,9 @@ enum SelfTouch {
     /// there (a cone's apex, or a vertex in the band of its axis:
     /// [`crate::CurvedUnread::NoTangentPlane`]), a cusp
     /// corner its edges' bends do not part, a horn beside a sector along
-    /// its ray or a ring of horns that reads as no thorn, a spline face
-    /// held off a corner, a face whose normal at the foot or whose reach
-    /// does not read, a corner face [`crate::sector_face::resolve`]
+    /// its ray that caps no lune or a ring of horns that reads as no
+    /// thorn, a spline face held off a corner, a face whose normal at the
+    /// foot or whose reach does not read, a corner face [`crate::sector_face::resolve`]
     /// refuses (a surface with no sector arm, a spline edge not placed:
     /// [`crate::CurvedUnread::NoSectorArm`], [`crate::CurvedUnread::Unplaced`];
     /// a spline corner on a crease reads the normal on its sector's side,
@@ -8941,9 +8941,9 @@ enum SelfTouch {
     /// sheet holding such a ray inside it with no certified bend among
     /// them), two whole tangent planes on one plane (two kissing balls at
     /// any pose included), two sectors lying on each other where one is no
-    /// plane and no lens reads them, or a lens the link round it does not
-    /// hold. A sign one order down that the band leaves undecided, in band
-    /// or moved there by the first order's charged residue, is
+    /// plane and no lens or lune reads them, or a lens or lune the link
+    /// round it does not hold. A sign one order down that the band leaves
+    /// undecided, in band or moved there by the first order's charged residue, is
     /// [`crate::CurvedUnread::Unreadable`] too: this `why` does not part an
     /// in-band reading one order down from a structural refusal. Two
     /// planar faces lying on each other are no such point: the link
