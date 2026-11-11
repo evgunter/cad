@@ -103,7 +103,10 @@
 //!   image's own, read at the lane scalar; its turn `Δu = ∫u′` is the
 //!   rule's, and the closure reads the two against each other, so an
 //!   image whose evaluator reads a branch its integral does not is
-//!   caught rather than integrated through.
+//!   caught rather than integrated through. Each span or interval is
+//!   read in the pieces its own turn and length need ([`span_schedule`]),
+//!   doubling per round, so a chord of many short spans reads one piece
+//!   a span and a span by the axis as many as its turn needs.
 //!
 //! # The harmonic integrand
 //!
@@ -169,65 +172,164 @@ use super::run::{Accept, EDGE_INIT_PIECES, FaceCutBounds, LaneRun, RoundWindow, 
 use crate::props::PropsError;
 use crate::props::bracket::{AbsEnclosure, exact_point, mid, pt};
 use crate::props::rational_rim::{
-    RationalEdgeQ, rational_integrals, rational_rate_bound, rational_vector_area_split,
+    RationalEdgeQ, rational_integrals_each, rational_rate_bound, rational_span_pieces,
+    rational_vector_area_each,
 };
 use crate::props::taylor::{
-    Jet, W_SPIRIC, composite_over, rate_bound_over, trig_jets, trig_of, w_rational,
+    Jet, W_SPIRIC, composite_each, pieces_where, rate_bound_over, trig_jets, trig_of, w_rational,
 };
 use crate::props::trig::{limit, rotate, spread_cos, spread_sin, trig_at, trig_over};
 
 /// Weight of one harmonic piece of a cylinder edge, in [`FACE_WORK_WALL`](super::run::FACE_WORK_WALL)'s unit.
 const W_CYLINDER: usize = 3;
 
+/// The pieces a harmonic edge reads at `round`: [`EDGE_INIT_PIECES`],
+/// doubling per round.
+fn round_pieces(round: usize) -> usize {
+    EDGE_INIT_PIECES << round
+}
+
 /// The work of round `round` on a face of `edges` harmonic trim edges.
 #[cfg(test)]
 pub(super) fn round_cost(edges: usize, round: usize) -> usize {
-    W_CYLINDER * edges * (EDGE_INIT_PIECES << round)
+    W_CYLINDER * edges * round_pieces(round)
 }
 
 /// The work of round `round` on `face`: a harmonic edge's pieces at
-/// [`W_CYLINDER`], a projected net's and a rational chart term's at a
-/// rational rim's weight per piece ([`w_rational`]: the same piece forms,
-/// read by Horner), a projected circle's at a spiric's ([`W_SPIRIC`]: the
-/// same trig jets and one reciprocal), and a projected line's at a
-/// degree-1 rim's; each spread over its spans or cut intervals
-/// ([`span_pieces`]).
-fn face_cost(face: &RotationalFaceQ, round: usize) -> usize {
-    let pieces = EDGE_INIT_PIECES << round;
-    let spread = |weight: usize, spans: usize| weight * spans * span_pieces(pieces, spans);
-    let rational = |e: &RationalEdgeQ| spread(w_rational(e.degree()), e.span_count());
+/// [`W_CYLINDER`], a projected carrier's at its piece weight
+/// ([`framed_weight`]) and a rational chart term's at a rational rim's,
+/// each projected or rational carrier at the pieces its [`Schedule`]
+/// reads.
+fn face_cost(
+    face: &RotationalFaceQ,
+    entries: &[Vec<EdgeEntry>],
+    terms: &[Schedule],
+    round: usize,
+) -> usize {
     let edges: usize = face
         .loops
         .iter()
         .flatten()
-        .map(|e| match e {
-            EdgeTermQ::Harmonic(_) => W_CYLINDER * pieces,
-            EdgeTermQ::Projected(p) => match &p.carrier {
-                FramedQ::Net(net) => rational(net),
-                FramedQ::Circle { cuts, .. } => spread(W_SPIRIC, cuts.len().saturating_sub(1)),
-                FramedQ::Line { cuts, .. } => spread(w_rational(1), cuts.len().saturating_sub(1)),
-            },
+        .zip(entries.iter().flatten())
+        .map(|(e, entry)| match e {
+            EdgeTermQ::Harmonic(_) => W_CYLINDER * round_pieces(round),
+            EdgeTermQ::Projected(p) => framed_weight(&p.carrier) * entry.schedule.pieces(round),
         })
         .sum();
-    let terms: usize = face.chart_term.rationals.iter().map(rational).sum();
-    edges + terms
+    let rationals: usize = face
+        .chart_term
+        .rationals
+        .iter()
+        .zip(terms)
+        .map(|(e, s)| w_rational(e.degree()) * s.pieces(round))
+        .sum();
+    edges + rationals
 }
 
-/// **Pieces per span or cut interval** of a carrier of `spans` at a round
-/// whose harmonic edges read `pieces`: the round's count spread over the
-/// spans, and never fewer than `pieces / EDGE_INIT_PIECES` per span, so
-/// every span halves its pieces' width each round. A carrier of
-/// [`EDGE_INIT_PIECES`] spans or more reads one piece a span at round 0.
-fn span_pieces(pieces: usize, spans: usize) -> usize {
-    (pieces / EDGE_INIT_PIECES).max(1) * EDGE_INIT_PIECES.div_ceil(spans.max(1))
-}
-
-/// The spans or cut intervals a projected carrier's rule reads.
-fn framed_spans(carrier: &FramedQ) -> usize {
+/// One piece's weight on a projected carrier: a net's at a rational
+/// rim's ([`w_rational`]: the same piece forms, read by Horner), a
+/// circle's at a spiric's ([`W_SPIRIC`]: the same trig jets and one
+/// reciprocal), and a line's at a degree-1 rim's.
+fn framed_weight(carrier: &FramedQ) -> usize {
     match carrier {
-        FramedQ::Net(net) => net.span_count(),
-        FramedQ::Circle { cuts, .. } | FramedQ::Line { cuts, .. } => cuts.len().saturating_sub(1),
+        FramedQ::Net(net) => w_rational(net.degree()),
+        FramedQ::Circle { .. } => W_SPIRIC,
+        FramedQ::Line { .. } => w_rational(1),
     }
+}
+
+/// **A carrier's schedule**: its pieces per span or cut interval at
+/// round 0, each read off that span's own geometry ([`span_schedule`],
+/// [`term_schedule`]), doubling per round. A span's count is a function
+/// of the span alone, so a boundary reads the same pieces however it is
+/// cut into edges.
+#[derive(Clone, Debug, Default)]
+struct Schedule(Vec<usize>);
+
+impl Schedule {
+    /// The pieces span `i` reads at `round`.
+    fn at(&self, round: usize) -> impl Fn(usize) -> usize + '_ {
+        move |i| self.0[i] << round
+    }
+
+    /// Every span's pieces at `round`, together.
+    fn pieces(&self, round: usize) -> usize {
+        self.0.iter().sum::<usize>() << round
+    }
+}
+
+/// The most pieces a span or cut interval is read in by the entry: its
+/// schedule's round 0 ([`Schedule`]) and its turn ([`entry_turn`]).
+const MOST_SPAN_PIECES: usize = 1024;
+
+/// **The azimuth one round-0 piece may turn through**: a sixteenth of a
+/// turn, what a full-turn harmonic rim's round-0 piece turns
+/// ([`EDGE_INIT_PIECES`]).
+#[allow(clippy::cast_precision_loss)]
+const PIECE_TURN: f64 = core::f64::consts::TAU / EDGE_INIT_PIECES as f64;
+
+/// **The metric length one round-0 piece may span on `chart`**: a
+/// sixteenth of the chart's circumference, what a full-turn harmonic
+/// rim's round-0 piece spans ([`EDGE_INIT_PIECES`]).
+fn piece_reach(chart: RotationalChartQ) -> f64 {
+    let radius = match chart {
+        RotationalChartQ::Cylinder { radius } | RotationalChartQ::Sphere { radius, .. } => radius,
+    };
+    radius.hi() * PIECE_TURN
+}
+
+/// **A projected edge's schedule**: per span or cut interval, the fewest
+/// pieces ([`pieces_where`], at most [`MOST_SPAN_PIECES`]) on each of
+/// which the frame jets certify, the azimuth turns through at most
+/// [`PIECE_TURN`] (`sup|u′|·h`) and the metric length is at most
+/// [`piece_reach`]. The azimuth rate's reciprocal reads the chart's axis
+/// or a pole: a piece that sweeps past it refuses, and one that turns
+/// fast by it reads a wide remainder, so a span by the axis takes the
+/// pieces its turn needs and a short span far from it one.
+///
+/// **No piece a round reads is uncertified, turns through more than
+/// [`PIECE_TURN`] or is longer than [`piece_reach`]**, its pieces only
+/// halving round by round, unless its span is still not read so at
+/// [`MOST_SPAN_PIECES`], where the rounds read it as they can and refuse
+/// what they cannot.
+fn span_schedule(p: &ProjectedEdgeQ, chart: RotationalChartQ) -> Schedule {
+    let reach = piece_reach(chart);
+    let fits = |at: &FrameJets, h: f64| {
+        let speed = chart.projected_speed(at);
+        at.du.0.iter().chain(&at.height().0).all(|c| c.is_certified())
+            && speed.is_certified()
+            && speed.hi() * h <= reach
+            && at.du.0[0].mag() * h <= PIECE_TURN
+    };
+    Schedule(match &p.carrier {
+        FramedQ::Net(net) => rational_span_pieces(net, MOST_SPAN_PIECES, |b, db, w, h| {
+            fits(&net_rate(b, db, w), h)
+        }),
+        FramedQ::Circle { cuts, .. } | FramedQ::Line { cuts, .. } => cuts
+            .windows(2)
+            .map(|w| {
+                pieces_where(
+                    (w[0], w[1]),
+                    MOST_SPAN_PIECES,
+                    |_, _| (),
+                    |(), t, h| fits(&analytic_rate(&p.carrier, t), h),
+                )
+            })
+            .collect(),
+    })
+}
+
+/// **A rational chart term's schedule**: per span, the fewest pieces on
+/// each of which the carrier `B/w` certifies and its length,
+/// `Σ|B′w − Bw′|/w²` read over the piece, is at most `reach`.
+fn term_schedule(e: &RationalEdgeQ, reach: f64) -> Schedule {
+    Schedule(rational_span_pieces(e, MOST_SPAN_PIECES, |b, db, w, h| {
+        let (w0, dw) = (w.0[0], w.0[1]);
+        let speed = (0..3).fold(Interval::zero(), |acc, c| {
+            acc + ((db[c].0[0] * w0 - b[c].0[0] * dw) / w0.sqr()).abs_enclosure()
+        });
+        speed.is_certified() && speed.hi() * h <= reach
+    }))
 }
 
 /// One harmonic chart channel `c₀ + c_a·cos t + c_b·sin t + c_l·t`
@@ -738,7 +840,7 @@ fn unit_weight(p: [Jet; 3], dp: [Jet; 3]) -> FrameJets {
 
 /// The frame point of a projected circle or line at `t`, a circle's
 /// through the trig jets of `t`. A net has none here: its spans are read
-/// through [`rational_integrals`], and its reading is refused.
+/// through [`rational_integrals_each`], and its reading is refused.
 fn analytic_rate(carrier: &FramedQ, t: Interval) -> FrameJets {
     match carrier {
         FramedQ::Circle { centre, a, b, .. } => {
@@ -764,31 +866,34 @@ fn cut_intervals(cuts: &[f64]) -> impl Iterator<Item = (f64, f64, ())> + '_ {
 }
 
 /// `∫ g(frame point) dt` of a projected edge in its carrier's own order
-/// at `pieces` per span or cut interval, with the part of each width a
+/// at `pieces(i)` pieces on span or cut interval `i`, with the part of each width a
 /// later round removes: a net span by span, a circle or a line over its
 /// cuts.
 fn framed_integrals<const N: usize>(
     carrier: &FramedQ,
-    pieces: usize,
+    pieces: impl Fn(usize) -> usize,
     g: impl Fn(&FrameJets) -> [Jet; N],
 ) -> ([Interval; N], [f64; N]) {
     match carrier {
-        FramedQ::Net(net) => rational_integrals(net, pieces, |b, db, w| g(&net_rate(b, db, w))),
-        FramedQ::Circle { cuts, .. } | FramedQ::Line { cuts, .. } => composite_over(
-            cut_intervals(cuts),
-            pieces,
+        FramedQ::Net(net) => {
+            rational_integrals_each(net, pieces, |b, db, w| g(&net_rate(b, db, w)))
+        }
+        FramedQ::Circle { cuts, .. } | FramedQ::Line { cuts, .. } => composite_each(
+            cut_intervals(cuts)
+                .enumerate()
+                .map(|(i, (a, b, ()))| (a, b, (), pieces(i))),
             |(), _, _| (),
             |(), t| g(&analytic_rate(carrier, t)),
         ),
     }
 }
 
-/// `σ·∫ g(frame point) dt` of a projected edge at `pieces` per span or
-/// cut interval, `σ` its traversal, and the part of each width a later
+/// `σ·∫ g(frame point) dt` of a projected edge at `pieces(i)` pieces on
+/// span or cut interval `i`, `σ` its traversal, and the part of each width a later
 /// round removes.
 fn projected_integrals<const N: usize>(
     e: &ProjectedEdgeQ,
-    pieces: usize,
+    pieces: impl Fn(usize) -> usize,
     g: impl Fn(&FrameJets) -> [Jet; N],
 ) -> ([Interval; N], [f64; N]) {
     let (terms, removable) = framed_integrals(&e.carrier, pieces, g);
@@ -796,31 +901,30 @@ fn projected_integrals<const N: usize>(
 }
 
 /// Pieces per span or cut interval at which a projected edge's metric
-/// length and its turn are first read, before the rounds: the length is
-/// an upper bound at any count, and the turn need only tell whole turns
-/// apart ([`loop_windings`]).
+/// length is read, before the rounds: an upper bound at any count, which
+/// pads every round's enclosure ([`RotationalChartQ::residual`],
+/// [`chart_term_pad`]), so it is read finer than a round-0 piece.
 const PROJECTED_ENTRY_PIECES: usize = 4;
 
-/// The most pieces per span or cut interval [`entry_turn`] reads a turn
-/// at.
-const PROJECTED_TURN_PIECES: usize = 1024;
-
-/// A projected edge's turn `Δu`, in its carrier's order, read at
-/// [`PROJECTED_ENTRY_PIECES`] and at four times as many pieces again
-/// while its enclosure is wider than an eighth of a turn, up to
-/// [`PROJECTED_TURN_PIECES`]: a chord that passes near the chart's axis
-/// (a sphere's pole) turns fast there, and its turn at the first count
-/// may not tell whole turns apart ([`branch_turns`]). The widest reading
-/// stops at the cap, and [`branch_turns`] refuses it.
-fn entry_turn(p: &ProjectedEdgeQ) -> Interval {
+/// A projected edge's turn `Δu`, in its carrier's order, read at its
+/// schedule's round 0 ([`span_schedule`]) and at four times as many
+/// pieces again while its enclosure is wider than an eighth of a turn,
+/// every span at most [`MOST_SPAN_PIECES`]: a chord that passes near the
+/// chart's axis (a sphere's pole) turns fast there, and its turn at the
+/// first count may not tell whole turns apart ([`branch_turns`]). A
+/// reading still that wide at the cap is the one [`branch_turns`]
+/// refuses.
+fn entry_turn(p: &ProjectedEdgeQ, schedule: &Schedule) -> Interval {
     let eighth = core::f64::consts::TAU / 8.0;
-    let mut pieces = PROJECTED_ENTRY_PIECES;
+    let mut scale = 1;
     loop {
+        let pieces = |i: usize| (schedule.0[i] * scale).min(MOST_SPAN_PIECES);
         let ([turn], _) = framed_integrals(&p.carrier, pieces, |at| [at.du]);
-        if pieces >= PROJECTED_TURN_PIECES || (turn.is_certified() && turn.width() < eighth) {
+        let capped = schedule.0.iter().all(|&n| n * scale >= MOST_SPAN_PIECES);
+        if capped || (turn.is_certified() && turn.width() < eighth) {
             return turn;
         }
-        pieces *= 4;
+        scale *= 4;
     }
 }
 
@@ -858,6 +962,8 @@ fn projected_metric_length(e: &ProjectedEdgeQ, chart: RotationalChartQ) -> f64 {
 struct EdgeEntry {
     length: f64,
     turn: Option<Interval>,
+    /// A projected edge's pieces per span; empty for a harmonic edge.
+    schedule: Schedule,
 }
 
 /// What the lane reads of `e` before the rounds.
@@ -872,11 +978,13 @@ fn edge_entry(e: &EdgeTermQ, chart: RotationalChartQ) -> Result<EdgeEntry, Props
             EdgeEntry {
                 length: harmonic_metric_length(h, chart),
                 turn: None,
+                schedule: Schedule::default(),
             }
         }
         EdgeTermQ::Projected(p) => {
             let length = projected_metric_length(p, chart);
-            let turn = entry_turn(p);
+            let schedule = span_schedule(p, chart);
+            let turn = entry_turn(p, &schedule);
             if !(length.is_finite() && turn.is_certified()) {
                 return Err(PropsError::QuadratureUnsupported {
                     what: "a projected edge whose chart speed or turn reads no enclosure — its \
@@ -886,32 +994,32 @@ fn edge_entry(e: &EdgeTermQ, chart: RotationalChartQ) -> Result<EdgeEntry, Props
             EdgeEntry {
                 length,
                 turn: Some(turn),
+                schedule,
             }
         }
     })
 }
 
-/// One cylinder edge's `[−∫F du, −∫G du]` at `pieces`, traversal and
+/// One cylinder edge's `[−∫F du, −∫G du]` at `round`, traversal and
 /// pads folded in, and the part of its flux width a later round removes.
 fn cylinder_edge_terms(
     e: &EdgeTermQ,
     entry: &EdgeEntry,
     radius: Interval,
     anchor: f64,
-    pieces: usize,
+    round: usize,
 ) -> ([Interval; 2], f64) {
     let chart = RotationalChartQ::Cylinder { radius };
     let (terms, removable) = match e {
         EdgeTermQ::Harmonic(h) => {
-            let (level, rem) = harmonic_edge_integral(h, anchor, pieces);
+            let (level, rem) = harmonic_edge_integral(h, anchor, round_pieces(round));
             (
                 [radius.sqr() * level, radius * level],
                 rem * radius.sqr().mag(),
             )
         }
         EdgeTermQ::Projected(p) => {
-            let per_span = span_pieces(pieces, framed_spans(&p.carrier));
-            let (terms, [rf, _]) = projected_integrals(p, per_span, |at| {
+            let (terms, [rf, _]) = projected_integrals(p, entry.schedule.at(round), |at| {
                 let [f, g] = cylinder_projected_forms(radius, p, at, anchor);
                 [
                     f.mul(at.du).scale(-Interval::one()),
@@ -928,7 +1036,7 @@ fn cylinder_edge_terms(
     )
 }
 
-/// One sphere edge's `−∫G du` at `pieces`, traversal and the
+/// One sphere edge's `−∫G du` at `round`, traversal and the
 /// map-residual pad folded in, and the part of its flux width a later
 /// round removes. The sphere reads no `F`: about the centre `F = r·G`,
 /// and its flux is `r·s_f·|Ω|` ([`sphere_face_area`]).
@@ -936,13 +1044,12 @@ fn sphere_edge_area(
     e: &EdgeTermQ,
     entry: &EdgeEntry,
     radius: Interval,
-    pieces: usize,
+    round: usize,
 ) -> (Interval, f64) {
     let (area, removable) = match e {
         EdgeTermQ::Harmonic(h) => (sphere_harmonic_area(h, radius), 0.0),
         EdgeTermQ::Projected(p) => {
-            let per_span = span_pieces(pieces, framed_spans(&p.carrier));
-            let ([g], [rg]) = projected_integrals(p, per_span, |at| {
+            let ([g], [rg]) = projected_integrals(p, entry.schedule.at(round), |at| {
                 [sphere_projected_g(radius, at)
                     .mul(at.du)
                     .scale(-Interval::one())]
@@ -1125,13 +1232,14 @@ fn chart_term_pad(face: &RotationalFaceQ, entries: &[Vec<EdgeEntry>], band: Band
     certified_hi(lever * ribbon)
 }
 
-/// The face's chart term at `pieces`, and the part of its width a later
-/// round removes.
-fn chart_term_at(term: &ChartTermQ, pieces: usize) -> (Interval, f64) {
+/// The face's chart term at `round`, each rational at its schedule
+/// ([`term_schedule`]), and the part of its width a later round removes.
+fn chart_term_at(term: &ChartTermQ, schedules: &[Schedule], round: usize) -> (Interval, f64) {
     term.rationals
         .iter()
-        .fold((term.closed, 0.0), |(acc, removable), e| {
-            let (va, rem) = rational_vector_area_split(e, span_pieces(pieces, e.span_count()));
+        .zip(schedules)
+        .fold((term.closed, 0.0), |(acc, removable), (e, s)| {
+            let (va, rem) = rational_vector_area_each(e, s.at(round));
             let flux = (0..3).fold(acc, |a, k| a + term.lever[k] * va[k]);
             let rem: f64 = (0..3).map(|k| term.lever[k].mag() * rem[k]).sum();
             (flux, removable + rem)
@@ -1211,13 +1319,19 @@ pub fn rotational_cut_face_rounds<T: Decide>(
             ),
         },
     };
-    let cost = |round: usize| face_cost(face, round);
+    let reach = piece_reach(chart);
+    let term_schedules: Vec<Schedule> = face
+        .chart_term
+        .rationals
+        .iter()
+        .map(|e| term_schedule(e, reach))
+        .collect();
+    let cost = |round: usize| face_cost(face, &entries, &term_schedules, round);
     let mut run = Run::enter(window, &cost);
     let mut round = run.first();
-    let mut pieces = EDGE_INIT_PIECES << round;
     loop {
         let mut removable = 0.0_f64;
-        let (term, term_rem) = chart_term_at(&face.chart_term, pieces);
+        let (term, term_rem) = chart_term_at(&face.chart_term, &term_schedules, round);
         let term = term + Interval::from_bounds(-term_pad, term_pad);
         // Per loop at this resolution, its connectors included: the
         // cylinder's [−∮F du, −∮G du], the sphere's −∮G du.
@@ -1238,7 +1352,7 @@ pub fn rotational_cut_face_rounds<T: Decide>(
                             .zip(entries)
                             .fold(connectors, |acc, (e, entry)| {
                                 let (terms, rem) =
-                                    cylinder_edge_terms(e, entry, *radius, *anchor, pieces);
+                                    cylinder_edge_terms(e, entry, *radius, *anchor, round);
                                 removable += rem;
                                 [acc[0] + terms[0], acc[1] + terms[1]]
                             })
@@ -1264,7 +1378,7 @@ pub fn rotational_cut_face_rounds<T: Decide>(
                             .iter()
                             .zip(entries)
                             .fold(connectors, |acc, (e, entry)| {
-                                let (g, rem) = sphere_edge_area(e, entry, *radius, pieces);
+                                let (g, rem) = sphere_edge_area(e, entry, *radius, round);
                                 removable += rem;
                                 acc + g
                             })
@@ -1298,7 +1412,6 @@ pub fn rotational_cut_face_rounds<T: Decide>(
             return Ok(out);
         }
         round += 1;
-        pieces *= 2;
     }
 }
 
@@ -1600,53 +1713,6 @@ mod tests {
     use crate::props::PropsCheck;
     use crate::props::quad::test_target::{self, met, to_target};
     use geom_core::Tol;
-
-    /// **A round's pieces spread over a carrier's spans**: a carrier of
-    /// fewer spans than [`EDGE_INIT_PIECES`] reads at least that many in
-    /// all, one of more reads one a span at round 0, and every span's
-    /// count doubles each round.
-    #[test]
-    fn a_rounds_pieces_spread_over_a_carriers_spans() {
-        for (spans, at_zero) in [(0, 16), (1, 16), (3, 6), (5, 4), (15, 2), (16, 1), (625, 1)] {
-            for round in 0..5 {
-                assert_eq!(
-                    span_pieces(EDGE_INIT_PIECES << round, spans),
-                    at_zero << round,
-                    "{spans} spans at round {round}"
-                );
-            }
-        }
-        for spans in 1..64 {
-            assert!(
-                spans * span_pieces(EDGE_INIT_PIECES, spans) >= EDGE_INIT_PIECES,
-                "{spans} spans read fewer pieces in all than a harmonic edge"
-            );
-        }
-    }
-
-    /// **A harmonic face's work is its edges' pieces**, whatever the
-    /// projected arms spread.
-    #[test]
-    fn a_harmonic_faces_work_is_its_edges_pieces() {
-        let edge = TrimEdgeQ {
-            u: chan(0.0, 0.0, 0.0, 1.0),
-            v: chan(0.0, 0.0, 0.0, 0.0),
-            t0: pt(0.0),
-            t1: pt(1.0),
-            forward: true,
-            trig0: (pt(1.0), pt(0.0)),
-            trig1: None,
-            env: pt(0.0),
-        };
-        let face = unit_face(&[&[edge; 4]]);
-        for round in 0..6 {
-            assert_eq!(
-                face_cost(&face, round),
-                round_cost(4, round),
-                "round {round}"
-            );
-        }
-    }
 
     /// The face of harmonic `loops` on the unit cylinder, its chart term
     /// zero.
@@ -1984,7 +2050,7 @@ mod tests {
             let anchor = level_anchor(&loops).unwrap();
             let a_s = loops.iter().flatten().fold(Interval::zero(), |a, e| {
                 let entry = edge_entry(e, chart).unwrap();
-                a + cylinder_edge_terms(e, &entry, pt(1.0), anchor, EDGE_INIT_PIECES).0[0]
+                a + cylinder_edge_terms(e, &entry, pt(1.0), anchor, 0).0[0]
             });
             let bounds = FaceCutBounds {
                 flux: a_s,
