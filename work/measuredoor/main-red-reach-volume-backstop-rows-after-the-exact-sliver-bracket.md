@@ -2,7 +2,7 @@
 id: main-red-reach-volume-backstop-rows-after-the-exact-sliver-bracket
 kind: issue
 title: Main red (slow set): two reach_volume_backstop rows fail since PR 5734's exact cylinder-sliver bracket
-status: open
+status: dispatched
 opened: 2026-10-26
 priority: P1
 cost: M
@@ -85,3 +85,21 @@ Un-pinning owes a re-measure: each pin stops its row at main's first stop, so wh
 ## The two backstop rows left with the backstop (2026-10-27)
 
 PR 5842, under `[ev]` PR 5780 (the boolean's volume relations are a test oracle, `topo::test_support::volume_relations`), deleted the volume backstop. `reach_volume_backstop.rs` is now `curved_trims_build_at_their_volumes.rs`: the midpoint row tested the backstop's enclosure arithmetic and is deleted with it, and the planted subtractions are oracle rows (`planted_subtraction_results_break_the_volume_relations`: 1e-3 and 100ε fattenings flagged, the right answer and ε/100 held), green at 1e-9, 1e-6 and 1e-12. Neither row is red any more, and their pins go with them. What stays here is whether PR 5734's tightened readings are right, and the step-export sidecar that follows them.
+
+## 2026-11-11 — the sidecar is red again on main
+
+On main `5e01d02d2a6`, `step-export` `kernel_sidecars::kernel_sidecar_fields_match_live_kernel` fails at the default ε. It is in the fast set:
+
+    cut_cylinder: want KERNEL_VOLUME_PAD_MM3=1022.370482199146, sidecar has ["1022.3704888604841"]
+
+The pad narrowed again by about 6.7e-6 mm³, after the re-sync in `7487300d562` (2026-10-27). In the same run, `curved_trims_build_at_their_volumes` passes at the default ε, including `planted_subtraction_results_break_the_volume_relations`.
+
+## Dispatch
+
+2026-11-11, MEASUREDOOR orchestrator. One implementer, lane `mdoor-sidecar`, branch `measuredoor/sliver-bracket-close`. The lane will:
+- bisect the commit that moved `cut_cylinder`'s pad after `7487300d562`;
+- decide by meaning whether the new pad is right;
+- decide this row's open question: are PR 5734's tightened readings right? QUAD's PR 5818 already checked `tilted_cut_upper` against its closed form, in `work/quad/tilted-cut-upper-digest-moved-by-5734.md`;
+- then re-sync the sidecar, or fix the source.
+
+Review tier: the orchestrator's read if the outcome is a re-sync with the analytic volume inside the new pad. If the lane changes kernel code, a single full review.

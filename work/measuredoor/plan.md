@@ -15,7 +15,7 @@ they work on different functions of it
 
 | pri | item | cost | title |
 |---|---|---|---|
-| P1 | `main-red-reach-volume-backstop-rows-after-the-exact-sliver-bracket` | M | Main red (slow set): two reach_volume_backstop rows fail since PR 5734's exact cylinder-sliver bracket |
+| P1 | `main-red-reach-volume-backstop-rows-after-the-exact-sliver-bracket` | M | dispatched: Main red (slow set): two reach_volume_backstop rows fail since PR 5734's exact cylinder-sliver bracket |
 | P3 | `a-finished-body-is-validated-again-by-an-explicit-tier-3-assert` | M | about 380 test functions finish a body and also assert validate_geometric, so tier 3 runs twice where they read one body; the asserts right after finished cannot fail |
 | P3 | `a-pinched-seam-region-has-no-witness` | M | check 6 leaves a pinched seam region unread, and no body reaches that branch |
 | P3 | `an-op-output-validated-at-its-last-act-drops-its-verdict` | M | topo::shell and the STEP reader validate the body they hand out, then hand it out as a plain Body, so every reader pays the gate again |
