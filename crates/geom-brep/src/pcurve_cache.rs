@@ -9186,8 +9186,10 @@ pub(crate) enum Along {
     Azimuth,
     /// A torus's tube angle, about its core circle.
     Tube,
-    /// A sphere's latitude, and a spindle sheet's tube angle.
+    /// A sphere's latitude.
     Latitude,
+    /// A spindle sheet's tube angle, about its tube circle.
+    Sheet,
 }
 
 /// **The levers a placement's marks are read at**, one per angle, each
@@ -9211,11 +9213,11 @@ pub(crate) enum Along {
 /// apart ([`Placement`], *What holds across scalars*). The lever only
 /// sets how wide the band about each mark reads, and a floor never
 /// decides a mark apart that the span's largest movement would leave in
-/// band. The tube angle at the torus's minor radius; the latitude at the
-/// sphere's radius, or a spindle sheet's minor radius. A chart without
-/// one of those angles carries `1` in its slot, which no arm reads (no
-/// arm places a tube angle off a torus, or a latitude off a sphere or a
-/// sheet).
+/// band. The tube angle at the torus's or the spindle sheet's minor
+/// radius; the latitude at the sphere's radius. A chart without one of
+/// those angles carries `1` in its slot, which no arm reads (no arm
+/// places a tube angle off a torus or a sheet, or a latitude off a
+/// sphere).
 #[derive(Clone, Copy, Debug)]
 struct Levers<T> {
     azimuth: T,
@@ -9229,6 +9231,7 @@ impl Along {
         match self {
             Along::Azimuth | Along::Tube => Window::Angle,
             Along::Latitude => Window::Latitude,
+            Along::Sheet => Window::Sheet,
         }
     }
 }
@@ -9263,9 +9266,10 @@ impl<T: Decide> Placement<T> {
             }
         });
         let (tube, latitude) = match *surface {
-            Surface::Torus { minor_radius, .. } => (minor_radius, T::one()),
+            Surface::Torus { minor_radius, .. } | Surface::Spindle { minor_radius, .. } => {
+                (minor_radius, T::one())
+            }
             Surface::Sphere { radius, .. } => (T::one(), radius),
-            Surface::Spindle { minor_radius, .. } => (T::one(), minor_radius),
             _ => (T::one(), T::one()),
         };
         Self {
@@ -9355,7 +9359,7 @@ impl<T: Decide> Placement<T> {
         let window = along.window();
         let lever = match along {
             Along::Azimuth => self.levers.azimuth,
-            Along::Tube => self.levers.tube,
+            Along::Tube | Along::Sheet => self.levers.tube,
             Along::Latitude => self.levers.latitude,
         };
         // A zero lever (or an enclosure reaching zero, the structure
@@ -10106,7 +10110,7 @@ pub fn chart_iso_family<T: Decide>(
 /// Which revolved circle a torus-family chart is: the ring torus or a
 /// spindle sheet. The two share their parametrisation (a signed `R` on
 /// the sheet), so the formulas they share take one arm, and what parts
-/// them (the sheet's tube angle in the latitude window, its meridian
+/// them (the sheet's tube angle in [`Window::Sheet`], its meridian
 /// circle leaving it past its apexes, its oblique circles on the
 /// general lane) reads this, decided once here over every kind.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -10986,8 +10990,8 @@ fn derive_class_zero<T: Decide>(
         // circles, azimuth-non-harmonic, whose image is the
         // [`Pcurve::FocalSection`] (`torus_oblique_circle`). A spindle
         // sheet holds the same parallels and meridians, its tube angle
-        // read in the latitude window, and its oblique circles take
-        // the general lane.
+        // named in [`Window::Sheet`], and its oblique circles take the
+        // general lane.
         Surface::Torus {
             center: t_center,
             axis,
@@ -11006,7 +11010,7 @@ fn derive_class_zero<T: Decide>(
                 unreachable!("the arm matched a torus or a sheet")
             };
             let tube_angle = match tube {
-                RevolvedTube::Sheet => Along::Latitude,
+                RevolvedTube::Sheet => Along::Sheet,
                 RevolvedTube::Ring => Along::Tube,
             };
             let oblique = |shown| match tube {
