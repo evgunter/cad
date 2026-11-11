@@ -538,11 +538,9 @@ fn r1_an_open_chain_with_tangent_junctions_pairs_by_incidence_and_refuses_at_a_r
         );
         assert_eq!(chains[0].junctions.len(), open.len() - 1, "{name}");
         assert_pairing_is_the_bodys(&body, &open, &chains, name);
-        // Measured: the door refuses at an END of the chain as a corner
-        // it cannot classify (`UnsupportedCorner`, run-out policy named)
-        // — never at a junction — so no open chain with a junction
-        // carves today, which is the PR's premise for narrowing the
-        // open-chain acceptance to a pairing pin.
+        // The request stops part way along the smooth outline, so the
+        // door refuses at an END of the chain as a tangent run requested
+        // in part — never at a junction.
         let ends = match chains[0].closure {
             ChainClosure::Open { head, tail } => [head, tail],
             ChainClosure::Closed => unreachable!(),
@@ -554,11 +552,15 @@ fn r1_an_open_chain_with_tangent_junctions_pairs_by_incidence_and_refuses_at_a_r
             tol(),
         ) {
             Err(BlendRefusal {
-                error: BlendError::UnsupportedCorner { vertex, .. },
+                error:
+                    BlendError::UnsupportedRunOut {
+                        at: topo::EntityId::Vertex(vertex),
+                        detail,
+                    },
                 ..
             }) => assert!(
-                ends.contains(&vertex),
-                "{name}: refused at an end, not a junction"
+                ends.contains(&vertex) && detail == sweep::blend::battery::PARTIAL_TANGENT_RUN,
+                "{name}: refused at an end as a tangent run requested in part, not at a junction"
             ),
             other => panic!("{name}: the open chain refuses at its run-out, got {other:?}"),
         }

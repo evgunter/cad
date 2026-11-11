@@ -465,6 +465,8 @@ mod band_mixed_vertex;
 mod band_one_cycle_members;
 #[path = "band_open_mixed_chain.rs"]
 mod band_open_mixed_chain;
+#[path = "band_open_mixed_chain_shapes.rs"]
+mod band_open_mixed_chain_shapes;
 #[path = "band_planar_consume.rs"]
 mod band_planar_consume;
 #[path = "band_planar_cut_off.rs"]

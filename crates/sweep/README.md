@@ -614,8 +614,9 @@ transverse circle, a torus's meridian;
 `geom_brep::analytic_shared_row`); a section whose row does not certify
 at the scalar refuses `UnsupportedGeometry` at its link. Each link's
 strip is read within its own window, the slab between a straight
-link's end normals or an arc's wedge, by the support-boundary meter and
-by the reach; and two links of one closed chain joined along it by
+link's end normals or an arc's wedges (the union of its pieces', each
+under a half turn), by the support-boundary meter and
+by the reach; and two links of one chain, closed or open, joined along it by
 links turning less than a half turn are not a clearance pair of the
 battery's support screen, their windows lying on either side of that
 run. A convex rim removes, and a concave
@@ -640,11 +641,11 @@ is a circle only in a plane through its axis
 (`work/band/an-end-torus-link-cut-off-in-its-meridian-plane-is-unbuilt.md`).
 A straight link's two ends put their feet on each trimline in order,
 metered before any mutation under `fillet3_cut_off_feet` where one is a
-junction. A torus link's strips are metered within its wedge, as a mixed
-rim's link is, and a joint inside an open mixed chain refuses. A request
-that stops where its edge runs on smoothly into one it does not name
-refuses `UnsupportedRunOut` at the battery, its end face tangent to the
-band's support
+junction. A torus link's strips are metered within its own window, as a
+mixed rim's link is, and a joint inside an open mixed chain refuses. A
+request that stops where its edge runs on smoothly into one it does not
+name refuses `UnsupportedRunOut` at the battery, whatever the arm of the
+link that stops there, its recourse naming the whole smooth run
 (`work/band/a-smooth-outline-filleted-in-part-stops-at-a-tangent-junction.md`).
 The teardrop's rim, which turns once, the L-plate's rounded corner run
 and a notch's rounded floor build at Pappus by pieces
@@ -709,8 +710,11 @@ for the ruling a cylinder band is. A self-closed
 link's own seam is one cell, not two, and records nothing.
 
 What still refuses, typed `UnsupportedRunOut` with a detail naming the
-shape: a curved end face (a fillet against a cylinder meets it in a
-quartic with no stored carrier); a foot that lands inside a support
+shape: a request that stops where its edge runs on smoothly into one it
+does not name, its end face tangent to the band's support
+(`PARTIAL_TANGENT_RUN`, read before any other end); a curved end face (a
+fillet against a cylinder meets it in a quartic with no stored
+carrier); a foot that lands inside a support
 rather than on a rim edge (a band running into a wall or a step, and the
 inner corner of an L-shaped rim, where the shared face's sector is
 reflex); two cut-offs at the two ends of one rim whose feet on it cross
@@ -742,7 +746,9 @@ coincide the turn foot has four edges, so blending L in a later call
 refuses. At an overrun the turn foot is trivalent and L's later band
 ends in band `k`'s face: a chamfer's is a plane, and it builds only
 where L's foot lands on the overrun edge, which takes a much smaller
-second setback; a fillet's is a cylinder, a curved end face. Every such
+second setback; a fillet's is a cylinder tangent to L's support, so L
+runs on there smoothly into the overrun arc and refuses as a tangent run
+requested in part (`PARTIAL_TANGENT_RUN`). Every such
 refusal's recourse is to request L in the same call, which builds the
 patch.
 

@@ -773,8 +773,8 @@ BOUNDS_ALLOWLIST=(
   # `BlendError::BallDoesNotFit`. The next tighter
   # bound, `Decide` alone, fails there: `classified` takes `T: Bounds`.
   # Neither picks anything from a bracket.
-  # 23 -> 24: `closed_chain_apart`, which takes from the support
-  # screen the pairs of one closed chain's links joined by a run turning
+  # 23 -> 24: `chain_apart`, which takes from the support
+  # screen the pairs of one chain's links joined by a run turning
   # less than a half turn. Its one bracket read, `(sum - π).hi() < 0`, is
   # a SELECTION that only narrows the screen: a sum not certainly below
   # the half turn leaves the pair screened as before, the conservative
@@ -914,7 +914,10 @@ BOUNDS_ALLOWLIST=(
   #   `piece_distance`'s and `piece_along`'s), and its result is one term
   #   of `CapSliver::inside_point` or `ring_inside`, which only `sure`
   #   decides, so it inherits that door's disposition and no other.
-  'crates/sweep/src/blend/open/end_face.rs 9 M5 PR 12 (orchestrator ruling 2026-08-03), the edge-blend battery'
+  # 9 -> 10: `feet_in_order` is `shared_rims_clear`'s decision split
+  # out so a junction's feet meter decides through it too; it decides
+  # only through `classify`, as that meter did.
+  'crates/sweep/src/blend/open/end_face.rs 10 M5 PR 12 (orchestrator ruling 2026-08-03), the edge-blend battery'
   # junction.rs new at 2: the junction's moves left `surgery.rs`'s
   # mixed rim for their own file when the open band took them too.
   # `split_mate` reads brackets only through `seam_split_param`'s window
@@ -922,7 +925,15 @@ BOUNDS_ALLOWLIST=(
   # link's two feet along it, deciding only through `classify`, as
   # `shared_rims_clear` meters two cut-offs'. The same seam and the same
   # reads, moved and shared; no new decision reads a bracket.
-  'crates/sweep/src/blend/junction.rs 2 M5 PR 12 (orchestrator ruling 2026-08-03), the edge-blend battery'
+  # 2 -> 4: `strut_foot` moved here from `surgery.rs` as a junction's
+  # own move, and `split_at` is `split_mate`'s split shared with the
+  # annulus and ladder walks; each reads brackets only through
+  # `seam_split_param`'s window test or not at all, as before the move.
+  # `surgery.rs` 26 holds: it lost `strut_foot` and gained `arc_pieces`,
+  # which reads a sweep's bracket only to select how many pieces to cut
+  # and whether each is certainly under a half turn, an uncertain read
+  # taking the whole circle.
+  'crates/sweep/src/blend/junction.rs 4 M5 PR 12 (orchestrator ruling 2026-08-03), the edge-blend battery'
   # M6-2, the SSI rung-3 certificate.
   # The fitted door's fourth body is `projected_hull_lane` (`Decide +
   # Bounds + CertifiedEnclosure`, the bound its three siblings carry):

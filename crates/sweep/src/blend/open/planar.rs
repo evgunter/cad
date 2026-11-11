@@ -52,19 +52,18 @@ use topo::{Body, EdgeKey, EntityId, FaceKey, HalfEdgeKey, LoopKey, VertexKey};
 
 use super::end_face::{CapSliver, CutRims, EndCut, cut_off, fold_sliver};
 use crate::blend::admit::{
-    AdmittedOpen, CornerFaces, CornerLinks, Joint, Junction, OpenBand, RequestedBoundary,
-    StationKind,
+    AdmittedOpen, CornerFaces, CornerLinks, Joint, Junction, OpenBand, PlannedStation,
+    RequestedBoundary, StationKind,
 };
 use crate::blend::arms::{chamfer_corner_patch, corner_ball, line_meet};
 use crate::blend::battery::{Convexity, EndSection, Link, Overrun, Turn};
 use crate::blend::build::{fan_at, octant_chart, outward_of};
-use crate::blend::junction::{self, JunctionReading, MixedTrim};
+use crate::blend::junction::{self, JunctionReading, MixedTrim, strut_foot};
 use crate::blend::naming::BlendNaming;
 use crate::blend::surgery::{
     CORNER_SUPPORT_NOT_PLANAR, ContactCarrier, Described, ExpectedSource, SourceFaces, chord_site,
     disagrees, face_of_half, halves_of, host_side_half, op, open_trimline, point_of,
-    retire_fragment, split_fragment, strut_foot, unbuilt_geometry, unbuilt_run_out, unresolved,
-    unwalked,
+    retire_fragment, split_fragment, unbuilt_geometry, unbuilt_run_out, unresolved, unwalked,
 };
 use crate::blend::{BlendDecision, BlendError, BlendKind, BlendSite};
 
@@ -383,6 +382,7 @@ pub(in crate::blend) fn junction_plan<'a, T: Decide>(
 pub(in crate::blend) struct MixedLinkPlan<T: Real> {
     pub(in crate::blend) edge: EdgeKey,
     pub(in crate::blend) host: FaceKey,
+    pub(in crate::blend) mate: FaceKey,
     pub(in crate::blend) trims: (MixedTrim<T>, MixedTrim<T>),
     pub(in crate::blend) surface: Surface<T>,
 }
@@ -416,11 +416,75 @@ pub(in crate::blend) fn mixed_link_plans<T: Decide>(
             Ok(MixedLinkPlan {
                 edge: l.edge,
                 host,
+                mate: if l.face_a == host { l.face_b } else { l.face_a },
                 trims: junction::mixed_trims(body, l, host)?,
                 surface: junction::band_chart(body, l, Some(&jp.reading))?,
             })
         })
         .collect()
+}
+
+/// **Every planned station, as support admission reads them**
+/// ([`PlannedStation`]): each corner on its three faces, each joint on
+/// its two, each cut-off on its band's two supports, each turn at the
+/// trimlines' crossing on its shared face and at its foot on each of its
+/// third edge's faces, and each junction at its host foot on the host
+/// and its mate foot on each mate.
+pub(in crate::blend) fn planned_stations<T: Real>(
+    corners: &[Corner<'_, T>],
+    joints: &[JointPlan<'_, T>],
+    cut_offs: &[CutOffPlan<'_, T>],
+    turns: &[Turn<T>],
+    junctions: &[JunctionPlan<'_, T>],
+) -> Vec<PlannedStation<T>> {
+    let mut planned = Vec::new();
+    for c in corners {
+        let on = c.faces.as_slice().iter().zip(c.feet);
+        planned.push(PlannedStation {
+            vertex: c.links.vertex(),
+            on: on.map(|(f, p)| (*f, p, StationKind::Corner)).collect(),
+        });
+    }
+    for j in joints {
+        let on = j.joint.faces().into_iter().zip(j.feet);
+        planned.push(PlannedStation {
+            vertex: j.joint.vertex(),
+            on: on.map(|(f, p)| (f, p, StationKind::Joint)).collect(),
+        });
+    }
+    for c in cut_offs {
+        let l = c.link.link();
+        let on = [(l.face_a, c.end.foot_a), (l.face_b, c.end.foot_b)];
+        planned.push(PlannedStation {
+            vertex: c.end.vertex,
+            on: on.map(|(f, p)| (f, p, StationKind::CutOff)).to_vec(),
+        });
+    }
+    for t in turns {
+        let mut on = vec![(t.shared, t.crossing, StationKind::Mitre)];
+        on.extend(
+            t.others
+                .iter()
+                .filter_map(|&f| t.foot_on(f).map(|p| (f, p, StationKind::TurnFoot))),
+        );
+        planned.push(PlannedStation {
+            vertex: t.vertex,
+            on,
+        });
+    }
+    for jp in junctions {
+        let j = jp.junction;
+        let mut on = vec![(j.host(), jp.reading.host_foot, StationKind::JunctionHost)];
+        on.extend(
+            j.mates()
+                .map(|f| (f, jp.reading.mate_foot, StationKind::JunctionMate)),
+        );
+        planned.push(PlannedStation {
+            vertex: j.vertex(),
+            on,
+        });
+    }
+    planned
 }
 
 /// One cut-off end of a planar band, planned: the link that ends there
@@ -673,14 +737,20 @@ pub(in crate::blend) fn blank_phase<'a, T: Decide + Bounds + topo::AtRestPolicy>
     );
     // A link of a band with junctions reads its trims off its own plan,
     // a straight one's as the arm's trimline and a torus's as its circle.
-    let mixed_trim = |edge: EdgeKey, face: FaceKey| {
-        mixed.iter().find(|m| m.edge == edge).map(|m| {
-            if m.host == face {
-                &m.trims.0
-            } else {
-                &m.trims.1
-            }
-        })
+    let mixed_trim = |edge: EdgeKey, face: FaceKey| -> Result<Option<&MixedTrim<T>>, BlendError> {
+        let Some(m) = mixed.iter().find(|m| m.edge == edge) else {
+            return Ok(None);
+        };
+        if m.host == face {
+            Ok(Some(&m.trims.0))
+        } else if m.mate == face {
+            Ok(Some(&m.trims.1))
+        } else {
+            Err(disagrees(
+                EntityId::Face(face),
+                "a mixed link's trim is read on a face that is neither its host nor its mate",
+            ))
+        }
     };
     // The carve is one shape for both verbs — feet, trimline chords
     // between them, a kef per link, the corner fusion and the cut-offs'
@@ -689,7 +759,7 @@ pub(in crate::blend) fn blank_phase<'a, T: Decide + Bounds + topo::AtRestPolicy>
     // ends in an arc; the chamfer's meets them at an angle and closes
     // its corner and its ends on chords.
     let trim_carrier = |edge: EdgeKey, face: FaceKey| -> Result<ContactCarrier<T>, BlendError> {
-        if let Some(trim) = mixed_trim(edge, face) {
+        if let Some(trim) = mixed_trim(edge, face)? {
             return Ok(trim.contact());
         }
         match kind {
@@ -848,7 +918,7 @@ pub(in crate::blend) fn blank_phase<'a, T: Decide + Bounds + topo::AtRestPolicy>
                 point_of(body, x).ok_or_else(|| unresolved(EntityId::Vertex(x), "a foot"))?,
                 point_of(body, y).ok_or_else(|| unresolved(EntityId::Vertex(y), "a foot"))?,
             );
-            let spec = match mixed_trim(chord.edge, f) {
+            let spec = match mixed_trim(chord.edge, f)? {
                 Some(trim) => trim.spec(px, py).ok_or_else(|| {
                     unbuilt_geometry(EntityId::Edge(chord.edge), "a band's trim arc on a support")
                 })?,
@@ -923,7 +993,7 @@ pub(in crate::blend) fn blank_phase<'a, T: Decide + Bounds + topo::AtRestPolicy>
                     ));
                 }
             };
-            junction::retire(body, strut, v, splits[ix].near, tol)?;
+            junction::retire(body, strut, v, splits[ix].near, "junction kev", tol)?;
             junction::record(
                 &mut described,
                 rec,

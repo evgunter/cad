@@ -72,12 +72,14 @@ fn pin_today_the_bracket_filleted_all_round_refuses_a_mixed_convexity_corner() {
     );
 }
 
-/// **PIN (flipped by `work/band/a-chain-end-beside-a-smooth-seam-folds-to-an-indeterminate-corner.md`)**:
-/// one of the slot's semicircular top arcs, requested alone, ends at
-/// vertices where a smooth strut arrives; the corner read folds that
-/// strut into an unreadable configuration.
+/// **A slot's end arc requested alone** ends at vertices where a smooth
+/// strut arrives, the arc running on there tangentially into the slot's
+/// straight sides: the request stops part way along a smooth run, and
+/// refuses saying so, its recourse naming the whole run
+/// (`work/band/a-chain-end-beside-a-smooth-seam-folds-to-an-indeterminate-corner.md`,
+/// which this flipped from `UnsupportedCorner { Indeterminate }`).
 #[test]
-fn pin_today_a_slot_end_arc_alone_folds_its_smooth_neighbour_to_indeterminate() {
+fn a_slot_end_arc_alone_refuses_as_a_tangent_run_requested_in_part() {
     let body = slot();
     let arc = topo::query::all_edges(&body)
         .into_iter()
@@ -93,12 +95,10 @@ fn pin_today_a_slot_end_arc_alone_folds_its_smooth_neighbour_to_indeterminate() 
     let got = fillet_edges(&at_rest(&body, tol()), &[arc], 0.05, tol()).map_err(|r| r.error);
     assert!(
         matches!(
-            got,
-            Err(BlendError::UnsupportedCorner {
-                corner: CornerConfig::Indeterminate,
-                ..
-            })
+            &got,
+            Err(BlendError::UnsupportedRunOut { detail, .. })
+                if *detail == sweep::blend::battery::PARTIAL_TANGENT_RUN
         ),
-        "today a slot's end arc alone folds its strut into an indeterminate corner, got {got:?}"
+        "a slot's end arc alone refuses as a tangent run requested in part, got {got:?}"
     );
 }

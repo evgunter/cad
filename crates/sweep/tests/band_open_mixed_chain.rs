@@ -25,13 +25,13 @@ use sweep::blend::{BlendError, chamfer_edges, fillet_edges};
 use sweep::test_support::{assert_naming_totality, at_rest, extruded};
 use topo::{Body, EdgeKey, validate_geometric};
 
-fn tol() -> Tol {
+pub(crate) fn tol() -> Tol {
     Tol::witness()
 }
 
 /// The section a round of radius `r` removes or adds, and its
 /// centroid's inset from each face.
-fn section(r: f64) -> (f64, f64) {
+pub(crate) fn section(r: f64) -> (f64, f64) {
     (
         r * r * (1.0 - PI / 4.0),
         r * (10.0 - 3.0 * PI) / (3.0 * (4.0 - PI)),
@@ -40,7 +40,11 @@ fn section(r: f64) -> (f64, f64) {
 
 /// An outline of `(x, y, bulge)` vertices extruded from `z0` up `h`, at
 /// any scalar.
-fn outline<T: Decide + topo::AtRestPolicy>(o: &[(f64, f64, f64)], z0: f64, h: f64) -> Body<T> {
+pub(crate) fn outline<T: Decide + topo::AtRestPolicy>(
+    o: &[(f64, f64, f64)],
+    z0: f64,
+    h: f64,
+) -> Body<T> {
     let plane = SketchPlane::xy_at(Point3::new(T::zero(), T::zero(), T::from_f64(z0)));
     extruded(
         plane,
@@ -55,13 +59,13 @@ fn outline<T: Decide + topo::AtRestPolicy>(o: &[(f64, f64, f64)], z0: f64, h: f6
 }
 
 /// The rounded corner's radius.
-const R: f64 = 0.3;
+pub(crate) const R: f64 = 0.3;
 
 /// **The L-plate**: an L of arms 2 and 1 wide, its outer corner at
 /// `(2, 0)` rounded at `R`, `z ∈ [0, 0.5]`. The run is the top's line
 /// along `y = 0`, the arc, and the line along `x = 2`, cut off square at
 /// the walls `x = 0` and `y = 1`.
-fn l_plate<T: Decide + topo::AtRestPolicy>() -> Body<T> {
+pub(crate) fn l_plate<T: Decide + topo::AtRestPolicy>() -> Body<T> {
     let q = (FRAC_PI_2 / 4.0).tan();
     outline(
         &[
@@ -89,13 +93,13 @@ fn teardrop<T: Decide + topo::AtRestPolicy>() -> Body<T> {
     )
 }
 
-fn mid<T: Bounds>(x: T) -> f64 {
+pub(crate) fn mid<T: Bounds>(x: T) -> f64 {
     0.5 * (x.lo() + x.hi())
 }
 
 /// The edges of `body` whose two ends lie at height `z` and whose
 /// midpoint `keep` admits.
-fn edges_at<T: Decide + Bounds>(
+pub(crate) fn edges_at<T: Decide + Bounds>(
     body: &Body<T>,
     z: f64,
     keep: impl Fn(f64, f64) -> bool,
@@ -115,7 +119,9 @@ fn edges_at<T: Decide + Bounds>(
 }
 
 /// A body's volume and the half-width of its certified enclosure.
-fn volume<T: Decide + Bounds + CertifiedBounds + topo::AtRestPolicy>(body: &Body<T>) -> (f64, f64) {
+pub(crate) fn volume<T: Decide + Bounds + CertifiedBounds + topo::AtRestPolicy>(
+    body: &Body<T>,
+) -> (f64, f64) {
     let p = topo::mass_properties(
         &topo::test_support::finished("the measured body", Body::clone(body), tol()),
         tol(),
@@ -132,7 +138,7 @@ fn volume<T: Decide + Bounds + CertifiedBounds + topo::AtRestPolicy>(body: &Body
 /// the certified scalar at ε = 1e-12, before its touch is read, on a
 /// closed rim as on an open one
 /// (`work/band/every-mixed-rims-section-escalates-its-touch-reading-at-interval-at-eps-1e-12.md`).
-fn assert_shared_row_unadmitted(what: &str, e: &BlendError) {
+pub(crate) fn assert_shared_row_unadmitted(what: &str, e: &BlendError) {
     assert!(
         matches!(e, BlendError::UnsupportedGeometry { detail, .. }
             if *detail == "a junction's section does not certify as the shared row of its two bands"),
@@ -146,7 +152,7 @@ fn assert_shared_row_unadmitted(what: &str, e: &BlendError) {
 /// at ε = 1e-12 the row refuses as `tightest` says instead
 /// ([`tightest_interval`]).
 #[allow(clippy::too_many_arguments)]
-fn run_row<T: Decide + Bounds + CertifiedBounds + topo::AtRestPolicy>(
+pub(crate) fn run_row<T: Decide + Bounds + CertifiedBounds + topo::AtRestPolicy>(
     what: &str,
     body: &Body<T>,
     edges: &[EdgeKey],
@@ -368,18 +374,19 @@ fn a_torus_link_at_an_open_chains_end_refuses_at_the_open_door() {
     );
 }
 
-/// **A smooth outline filleted in part stays refused**: the rounded
-/// plate's run of line, arc and line, requested alone, stops at a
-/// tangent junction into an unrequested arc, whose wall is the end face
-/// it would stop against
-/// (`work/band/a-smooth-outline-filleted-in-part-stops-at-a-tangent-junction.md`);
-/// the recourse names the whole smooth run.
+/// **A smooth outline filleted in part stays refused**, at the end
+/// where the request stops while its edge runs on smoothly into one it
+/// does not name, whatever the arm of the link that stops there
+/// (`work/band/a-smooth-outline-filleted-in-part-stops-at-a-tangent-junction.md`):
+/// the rounded plate's run of line, arc and line requested alone, and
+/// the L-plate's line alone, line and arc, and arc alone. The recourse
+/// names the whole smooth run.
 #[test]
 fn a_smooth_outline_filleted_in_part_refuses_naming_the_whole_run() {
     let q = (FRAC_PI_2 / 4.0).tan();
     let (hx, hy) = (1.0, 0.6);
     let (ax, ay) = (hx - R, hy - R);
-    let body = outline::<f64>(
+    let plate = outline::<f64>(
         &[
             (-ax, -hy, 0.0),
             (ax, -hy, q),
@@ -393,18 +400,52 @@ fn a_smooth_outline_filleted_in_part_refuses_naming_the_whole_run() {
         0.0,
         0.5,
     );
-    let run = edges_at(&body, 0.5, |x, y| {
-        y < -hy + 1e-9 || x > hx - 1e-9 || (x > 0.5 && y < -0.2)
-    });
-    assert_eq!(run.len(), 3, "the line, the arc and the line");
-    let got = fillet_edges(&at_rest(&body, tol()), &run, 0.1, tol()).map_err(|r| r.error);
-    let Err(e @ BlendError::UnsupportedRunOut { .. }) = &got else {
-        panic!("a part of a smooth outline refuses at its tangent end, got {got:?}");
-    };
-    let shown = e.to_string();
-    assert!(
-        shown.contains(sweep::blend::battery::END_FACE_CURVED)
-            && shown.contains("every edge it runs on into smoothly"),
-        "{shown}"
-    );
+    let l = l_plate::<f64>();
+    let rows = [
+        (
+            "rounded plate's run",
+            &plate,
+            edges_at(&plate, 0.5, |x, y| {
+                y < -hy + 1e-9 || x > hx - 1e-9 || (x > 0.5 && y < -0.2)
+            }),
+            3,
+        ),
+        (
+            "L-plate's line",
+            &l,
+            edges_at(&l, 0.5, |_, y| y.abs() < 1e-9),
+            1,
+        ),
+        (
+            "L-plate's line and arc",
+            &l,
+            edges_at(&l, 0.5, |x, y| {
+                y.abs() < 1e-9 || (x > 1.5 && x < 1.99 && y < 0.9)
+            }),
+            2,
+        ),
+        (
+            "L-plate's arc",
+            &l,
+            edges_at(&l, 0.5, |x, y| x > 1.5 && x < 1.99 && y > 1e-9 && y < 0.9),
+            1,
+        ),
+    ];
+    for (what, body, run, n) in rows {
+        assert_eq!(run.len(), n, "{what}: the request");
+        let got = fillet_edges(&at_rest(body, tol()), &run, 0.1, tol()).map_err(|r| r.error);
+        let Err(e @ BlendError::UnsupportedRunOut { detail, .. }) = &got else {
+            panic!("{what}: a part of a smooth outline refuses at its tangent end, got {got:?}");
+        };
+        assert_eq!(
+            *detail,
+            sweep::blend::battery::PARTIAL_TANGENT_RUN,
+            "{what}: the refusal names the tangent run requested in part"
+        );
+        let shown = e.to_string();
+        assert!(
+            shown.contains("every edge it runs on into smoothly"),
+            "{what}: {shown}"
+        );
+    }
 }

@@ -1035,7 +1035,6 @@ pub(in crate::blend) fn shared_rims_clear<T: Decide + Bounds>(
         if rim != r1 {
             continue;
         }
-        let refuse = || unbuilt_run_out(EntityId::Edge(rim), FEET_CROSS_ON_A_SHARED_RIM);
         let (t0, t1) = (
             foot_param(body, rim, v0, f0)?,
             foot_param(body, rim, v1, f1)?,
@@ -1069,18 +1068,43 @@ pub(in crate::blend) fn shared_rims_clear<T: Decide + Bounds>(
         } else {
             t0 - t1
         };
-        let margin = Margin::metered(span, rate);
-        match classify(
-            BlendSite::Link { edge: rim },
-            BlendDecision::CutOffFeet,
-            margin,
+        feet_in_order(
+            rim,
+            Margin::metered(span, rate),
+            FEET_CROSS_ON_A_SHARED_RIM,
             band,
-        )? {
-            Sign::Positive => {}
-            Sign::Zero | Sign::Negative => return Err(refuse()),
-        }
+        )?;
     }
     Ok(())
+}
+
+/// **Two of a band's feet in order and definitely apart along `edge`**
+/// (`fillet3_cut_off_feet`): the one decision behind every feet-order
+/// meter, two cut-offs' feet on a shared rim ([`shared_rims_clear`]) and
+/// a straight link's two feet beside a junction
+/// ([`crate::blend::junction::feet_clear`]). `margin` is the span from the
+/// first foot to the second; feet that cross or coincide refuse typed
+/// with `detail`, and feet apart only within the band escalate.
+///
+/// # Errors
+///
+/// [`BlendError::UnsupportedRunOut`] (`detail`); [`BlendError::Escalated`]
+/// in band.
+pub(in crate::blend) fn feet_in_order<T: Decide + Bounds>(
+    edge: EdgeKey,
+    margin: Margin<T>,
+    detail: &'static str,
+    band: Band,
+) -> Result<(), BlendError> {
+    match classify(
+        BlendSite::Link { edge },
+        BlendDecision::CutOffFeet,
+        margin,
+        band,
+    )? {
+        Sign::Positive => Ok(()),
+        Sign::Zero | Sign::Negative => Err(unbuilt_run_out(EntityId::Edge(edge), detail)),
+    }
 }
 
 /// **One rim's piece from its foot to the old vertex**: the rim's stored

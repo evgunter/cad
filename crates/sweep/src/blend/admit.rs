@@ -41,9 +41,9 @@
 use geom_core::{Decide, Point3, Real};
 use topo::{Body, EdgeKey, EntityId, FaceKey, HalfEdgeKey, VertexKey};
 
-use super::arms::BlendArm;
-use super::battery::{Chain, Convexity, JointVerdict, Link, Turn, joint_verdict, same_supports};
+use super::battery::{Chain, Convexity, JointVerdict, Link, joint_verdict};
 use super::build::{fan_at, outward_of};
+use super::junction;
 use super::surgery::{
     CORNER_SUPPORT_NOT_PLANAR, disagrees, unbuilt_chain, unbuilt_corner_config, unbuilt_geometry,
     unresolved, unwalked,
@@ -127,61 +127,18 @@ pub(super) struct Joint {
 }
 
 impl Joint {
-    /// Admit the junction at `vertex` between `arriving` and `leaving`
-    /// as a joint; `chain` is the edge the chain refuses under.
-    ///
-    /// # Errors
-    ///
-    /// [`BlendError::UnsupportedChain`] when the two links are not both
-    /// plane–plane, or do not lie between the same two support faces;
-    /// [`BlendError::BodyNotIntact`] when the vertex's orbit does not
-    /// walk; [`BlendError::UnsupportedCorner`] when the vertex carries
-    /// edges other than the two links.
-    fn admit<T: Decide>(
-        body: &Body<T>,
-        vertex: VertexKey,
-        arriving: &Link<T>,
-        leaving: &Link<T>,
-        chain: EdgeKey,
-    ) -> Result<Self, BlendError> {
-        // Only the plane–plane band mints the struts a joint is fused
-        // across: the ruled band is cut off at plane caps and mints
-        // none. Links on different supports meet at a [`Junction`],
-        // which [`OpenBand::admit`] routes there.
-        match joint_verdict(body, vertex, arriving, leaving) {
-            JointVerdict::Joint => {}
-            JointVerdict::NotPlanar => {
-                return Err(unbuilt_chain(
-                    chain,
-                    "an open chain's links meet on supports other than two planes; that \
-                     junction is not implemented",
-                ));
-            }
-            JointVerdict::OtherFaces => {
-                return Err(unbuilt_chain(
-                    chain,
-                    "an open chain's links meet on different support faces; that junction is \
-                     not implemented",
-                ));
-            }
-            JointVerdict::Valence(valence) => {
-                return Err(unbuilt_corner_config(
-                    vertex,
-                    CornerConfig::NEdgeVertex { valence },
-                ));
-            }
-            JointVerdict::OrbitBroken => {
-                return Err(unwalked(
-                    EntityId::Vertex(vertex),
-                    "a joint's vertex orbit does not walk",
-                ));
-            }
-        }
-        Ok(Self {
+    /// The joint at `vertex`, `arriving` the link that reaches it in walk
+    /// order — minted by [`OpenBand::admit`] alone, on `joint_verdict`'s
+    /// [`JointVerdict::Joint`]: both links plane–plane, between the same
+    /// two support faces, at a valence-2 vertex. Only the plane–plane band
+    /// mints the struts a joint is fused across; the ruled band is cut off
+    /// at plane caps and mints none.
+    fn joined<T: Real>(vertex: VertexKey, arriving: &Link<T>) -> Self {
+        Self {
             vertex,
             faces: [arriving.face_a, arriving.face_b],
             arriving: arriving.edge,
-        })
+        }
     }
 
     /// The joint vertex.
@@ -217,25 +174,19 @@ impl Joint {
 /// edge between them, which the carve splits there.
 pub(super) struct Junction {
     vertex: VertexKey,
-    host: FaceKey,
-    mates: [FaceKey; 2],
-    mate_edge: EdgeKey,
+    shape: junction::Shape,
     links: [EdgeKey; 2],
 }
 
 impl Junction {
     /// Admit the junction at `vertex` between `arriving` and `leaving`,
-    /// which lie on different supports; `chain` is the edge the chain
+    /// which lie on different supports, through the one reading of what
+    /// a junction is ([`junction::shape`]); `chain` is the edge the chain
     /// refuses under.
     ///
     /// # Errors
     ///
-    /// [`BlendError::UnsupportedChain`] when a link is no rolling-ball
-    /// band with a section, the two share no one support or that
-    /// support is not a plane, or the vertex carries other than one
-    /// edge besides the links, separating their other supports;
-    /// [`BlendError::BodyNotIntact`] when the vertex's orbit or the edge
-    /// does not resolve.
+    /// [`junction::shape`]'s.
     fn admit<T: Decide>(
         body: &Body<T>,
         vertex: VertexKey,
@@ -243,71 +194,9 @@ impl Junction {
         leaving: &Link<T>,
         chain: EdgeKey,
     ) -> Result<Self, BlendError> {
-        let sectioned =
-            |l: &Link<T>| l.arm == BlendArm::PlanePlaneCylinder || l.arm.is_coaxial_torus();
-        if !(sectioned(arriving) && sectioned(leaving)) {
-            return Err(unbuilt_chain(
-                chain,
-                "an open chain's links meet on different supports where one is neither a \
-                 rolling-ball cylinder over two planes nor a torus; that junction is not \
-                 implemented",
-            ));
-        }
-        if same_supports(body, arriving, leaving)? {
-            return Err(unbuilt_chain(
-                chain,
-                "an open chain runs two curved links on one support pair; that junction is \
-                 not implemented",
-            ));
-        }
-        let shared: Vec<FaceKey> = [arriving.face_a, arriving.face_b]
-            .into_iter()
-            .filter(|&f| f == leaving.face_a || f == leaving.face_b)
-            .collect();
-        let [host] = shared[..] else {
-            return Err(unbuilt_chain(
-                chain,
-                "an open chain's links meet on supports that share no one face",
-            ));
-        };
-        if outward_of(body, host).is_none() {
-            return Err(unbuilt_chain(
-                chain,
-                "an open chain's links meet where the face they share is not a plane",
-            ));
-        }
-        let mate = |l: &Link<T>| if l.face_a == host { l.face_b } else { l.face_a };
-        let mates = [mate(arriving), mate(leaving)];
-        let incident = fan_at(body.edges_of_vertex(vertex))
-            .ok_or_else(|| unwalked(EntityId::Vertex(vertex), "a junction's edge orbit"))?;
-        let others: Vec<EdgeKey> = incident
-            .into_iter()
-            .filter(|&e| e != arriving.edge && e != leaving.edge)
-            .collect();
-        let [mate_edge] = others[..] else {
-            return Err(unbuilt_chain(
-                chain,
-                "an open chain's junction carries other than one edge off the chain",
-            ));
-        };
-        let sides = topo::readback::edge_sides(body, mate_edge)
-            .map_err(|_| unresolved(EntityId::Edge(mate_edge), "a junction edge's two faces"))?;
-        let mut faces = [sides.plus.face, sides.minus.face];
-        faces.sort_unstable();
-        let mut pair = mates;
-        pair.sort_unstable();
-        if faces != pair {
-            return Err(unbuilt_chain(
-                chain,
-                "an open chain's junction edge does not separate the junction's two other \
-                 supports",
-            ));
-        }
         Ok(Self {
             vertex,
-            host,
-            mates,
-            mate_edge,
+            shape: junction::shape(body, vertex, arriving, leaving, chain)?,
             links: [arriving.edge, leaving.edge],
         })
     }
@@ -319,17 +208,17 @@ impl Junction {
 
     /// The support both links share.
     pub(super) fn host(&self) -> FaceKey {
-        self.host
+        self.shape.host
     }
 
     /// Each link's other support, arriving then leaving.
     pub(super) fn mates(&self) -> [FaceKey; 2] {
-        self.mates
+        self.shape.mates
     }
 
     /// The source edge between the two mates.
     pub(super) fn mate_edge(&self) -> EdgeKey {
-        self.mate_edge
+        self.shape.mate_edge
     }
 
     /// The two links, arriving then leaving.
@@ -398,16 +287,28 @@ impl<'a, T: Decide> OpenBand<'a, T> {
                 ));
             };
             match joint_verdict(body, j.vertex, a, b) {
+                JointVerdict::Joint => joints.push(Joint::joined(j.vertex, a)),
                 JointVerdict::NotPlanar | JointVerdict::OtherFaces => {
                     junctions.push(Junction::admit(body, j.vertex, a, b, chain.first().edge)?);
                 }
-                _ => joints.push(Joint::admit(body, j.vertex, a, b, chain.first().edge)?),
+                JointVerdict::Valence(valence) => {
+                    return Err(unbuilt_corner_config(
+                        j.vertex,
+                        CornerConfig::NEdgeVertex { valence },
+                    ));
+                }
+                JointVerdict::OrbitBroken => {
+                    return Err(unwalked(
+                        EntityId::Vertex(j.vertex),
+                        "a joint's vertex orbit does not walk",
+                    ));
+                }
             }
         }
         if !(joints.is_empty() || junctions.is_empty()) {
             return Err(unbuilt_chain(
                 chain.first().edge,
-                "an open chain of links on different supports runs two consecutive links on                  one support pair",
+                junction::JUNCTION_ON_ONE_PAIR,
             ));
         }
         let at_junction = |v: VertexKey| junctions.iter().any(|j| j.vertex == v);
@@ -663,13 +564,6 @@ impl CornerFaces {
         self.faces.contains(&face)
     }
 
-    /// Where `face` sits in orbit order — the index a corner's
-    /// per-support rows (normals, feet) are keyed by, so a lookup
-    /// cannot silently take another support's row.
-    pub(super) fn slot_of(&self, face: FaceKey) -> Option<usize> {
-        self.faces.iter().position(|f| *f == face)
-    }
-
     /// The corner's remaining support once `a` and `b` are excluded —
     /// `Some` exactly when `a` and `b` are two DISTINCT supports of
     /// this corner, where excluding two of three distinct faces always
@@ -771,9 +665,20 @@ pub(super) struct BoundaryChord<T: Real> {
     pub(super) feet: [Point3<T>; 2],
 }
 
-/// One planned cut-off, as support admission reads it: the old vertex,
-/// the band's two supports, and its foot on each in that order.
-pub(super) type CutOffRow<T> = (VertexKey, [FaceKey; 2], [Point3<T>; 2]);
+/// **One planned station, as support admission reads it**: the vertex,
+/// and on each face it counts among its supports the band's foot there
+/// and which station it is there. The plan states one per corner, joint,
+/// cut-off, turn and junction (`open::planar::planned_stations`).
+pub(super) struct PlannedStation<T: Real> {
+    pub(super) vertex: VertexKey,
+    pub(super) on: Vec<(FaceKey, Point3<T>, StationKind)>,
+}
+
+/// The refusal for a torus link's curved mate that carries a ring: the
+/// carve takes its strip between two splits of its outer boundary and
+/// reads no ring of it.
+pub(super) const CURVED_MATE_WITH_A_RING: &str = "a torus link's curved support carries a ring \
+     of its own, which the open carve of a mixed chain does not take";
 
 /// **A support face's requested boundary**: every requested edge in its
 /// cycles, each ending at two stations, and every station a planned
@@ -802,98 +707,47 @@ pub(super) struct RequestedBoundary<T: Real> {
 impl<T: Decide> RequestedBoundary<T> {
     /// Admit one support face of the plan.
     ///
-    /// `corners` is `(vertex, its three faces, its three FEET in those
-    /// faces' orbit order)` for every planned corner, `joints` is
-    /// `(joint, its foot on each of its two faces in that order)` for
-    /// every planned joint, `cut_offs` is `(vertex, the band's two
-    /// supports, its foot on each in that order)` for every planned
-    /// cut-off, `turns` is every planned turn, whose station on its
-    /// shared face is the trimlines' crossing and on each of its third
-    /// edge's faces the foot, and `junctions` is `(junction, its host
-    /// foot, its mate foot)` for every planned junction. The
-    /// feet are the plan's, not this door's: where a band's
-    /// trimlines meet a support is what the two verbs derive differently
-    /// (the ball's foot; the two trimlines' crossing), and deriving it
-    /// here would put that difference in the door instead of in the plan
-    /// that owns it.
+    /// `planned` is every planned station — corner, joint, cut-off, turn
+    /// and junction — each with the band's foot and its kind on every
+    /// face it counts among its supports ([`PlannedStation`]). The feet
+    /// are the plan's, not this door's: where a band's trimlines meet a
+    /// support is what the two verbs derive differently (the ball's foot;
+    /// the two trimlines' crossing), and deriving it here would put that
+    /// difference in the door instead of in the plan that owns it.
     ///
     /// # Errors
     ///
     /// [`BlendError::BodyNotIntact`] when a cycle of the face does not
     /// walk, or a requested edge ends at a vertex that is not exactly
     /// one planned station of this face; [`BlendError::UnsupportedGeometry`]
-    /// when the face is not a plane, and not a junction mate as above.
-    #[allow(clippy::too_many_arguments)] // one row slice per station kind, each the plan's.
+    /// when the face is not a plane and not a junction mate
+    /// ([`CORNER_SUPPORT_NOT_PLANAR`]), or is a junction mate carrying a
+    /// ring ([`CURVED_MATE_WITH_A_RING`]).
     pub(super) fn admit(
         body: &Body<T>,
         face: FaceKey,
         opens: &[AdmittedOpen<'_, T>],
-        corners: &[(VertexKey, &CornerFaces, [Point3<T>; 3])],
-        joints: &[(&Joint, [Point3<T>; 2])],
-        cut_offs: &[CutOffRow<T>],
-        turns: &[Turn<T>],
-        junctions: &[(&Junction, [Point3<T>; 2])],
+        planned: &[PlannedStation<T>],
     ) -> Result<Self, BlendError> {
         let fd = body
             .face(face)
             .ok_or_else(|| unresolved(EntityId::Face(face), "a support face"))?;
+        // A corner, a joint and a junction run a band through their
+        // vertex or end it there, and a cut-off's vertex carries one
+        // requested edge, a turn's two and a corner's three — so a
+        // vertex is at most one planned station of a face, and a
+        // requested edge's end is at least one.
         let station = |he: HalfEdgeKey, v: VertexKey| -> Result<BoundaryStation<T>, BlendError> {
-            let corner = corners
+            let mut here = planned
                 .iter()
-                .find(|(c, faces, _)| *c == v && faces.contains(face))
-                .map(|(_, faces, feet)| faces.slot_of(face).map(|slot| feet[slot]));
-            let joint = joints
-                .iter()
-                .find(|(j, _)| j.vertex() == v && j.faces().contains(&face))
-                .map(|(j, feet)| {
-                    if j.faces()[0] == face {
-                        feet[0]
-                    } else {
-                        feet[1]
-                    }
-                });
-            let cut = cut_offs
-                .iter()
-                .find(|(c, faces, _)| *c == v && faces.contains(&face))
-                .map(|(_, faces, feet)| if faces[0] == face { feet[0] } else { feet[1] });
-            let turn = turns.iter().find(|t| t.vertex == v).and_then(|t| {
-                if t.shared == face {
-                    Some((t.crossing, StationKind::Mitre))
-                } else {
-                    t.foot_on(face).map(|p| (p, StationKind::TurnFoot))
-                }
-            });
-            let junction =
-                junctions
-                    .iter()
-                    .find(|(j, _)| j.vertex() == v)
-                    .and_then(|(j, [host, mate])| {
-                        if j.host() == face {
-                            Some((*host, StationKind::JunctionHost))
-                        } else {
-                            j.mates()
-                                .contains(&face)
-                                .then_some((*mate, StationKind::JunctionMate))
-                        }
-                    });
-            // A corner, a joint and a junction run a band through their
-            // vertex or end it there, and a cut-off's vertex carries one
-            // requested edge, a turn's two and a corner's three — so a
-            // vertex is at most one of the five, and a requested edge's
-            // end is at least one.
-            let (foot, kind) = match (corner, joint, cut, turn, junction) {
-                (Some(Some(foot)), None, None, None, None) => (foot, StationKind::Corner),
-                (None, Some(foot), None, None, None) => (foot, StationKind::Joint),
-                (None, None, Some(foot), None, None) => (foot, StationKind::CutOff),
-                (None, None, None, Some(station), None)
-                | (None, None, None, None, Some(station)) => station,
-                _ => {
-                    return Err(disagrees(
-                        EntityId::Vertex(v),
-                        "a requested edge of a support ends at a vertex that is not exactly one \
-                         planned corner, joint, cut-off, turn or junction of that support",
-                    ));
-                }
+                .filter(|p| p.vertex == v)
+                .filter_map(|p| p.on.iter().find(|(f, _, _)| *f == face));
+            let (Some(&(_, foot, kind)), None) = (here.next(), here.next()) else {
+                return Err(disagrees(
+                    EntityId::Vertex(v),
+                    "a requested edge of a support ends at a vertex that is not exactly one \
+                     planned corner, joint, cut-off, turn or junction of that support",
+                ));
             };
             Ok(BoundaryStation {
                 half_edge: he,
@@ -961,13 +815,19 @@ impl<T: Decide> RequestedBoundary<T> {
         // A face that is not a plane is carved only as a junction mate:
         // its strip runs between two splits of its own boundary, so the
         // carve spins no strut across it.
-        let mate_only = body.get_face(face).is_some_and(|f| f.rings.is_empty())
-            && stations.iter().all(|s| s.kind == StationKind::JunctionMate);
-        if outward_of(body, face).is_none() && !mate_only {
-            return Err(unbuilt_geometry(
-                EntityId::Face(face),
-                CORNER_SUPPORT_NOT_PLANAR,
-            ));
+        if outward_of(body, face).is_none() {
+            if !stations.iter().all(|s| s.kind == StationKind::JunctionMate) {
+                return Err(unbuilt_geometry(
+                    EntityId::Face(face),
+                    CORNER_SUPPORT_NOT_PLANAR,
+                ));
+            }
+            if body.get_face(face).is_some_and(|f| !f.rings.is_empty()) {
+                return Err(unbuilt_geometry(
+                    EntityId::Face(face),
+                    CURVED_MATE_WITH_A_RING,
+                ));
+            }
         }
         Ok(Self {
             face,
