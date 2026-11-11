@@ -1100,3 +1100,48 @@ fn the_spiric_arms_residual_pad_pays_the_area_the_envelope_moves() {
         );
     }
 }
+
+/// **A one-loop face read one round at a time reads wide, not
+/// undecided**: an oval cut `1e-3` short of the inner equator, closed by
+/// its meridian, pinches there (`f ≈ 0.055`), so its round-0 terms read
+/// `±1e3`, and its signed area admits more than one whole count of tori.
+/// A window of that round alone returns an enclosure that holds every
+/// count it admits, which the face's reading over the whole schedule
+/// narrows inside; it escalated `props_chart_area_side` while the face's
+/// area window was a decision, and the result gate that runs a face a
+/// round at a time refused the plane against the donut there.
+#[test]
+fn a_pinched_oval_read_a_round_at_a_time_reads_wide_not_undecided() {
+    let band = Band::linear(Tol::witness()).unwrap();
+    let face = spiric_face(
+        2.0,
+        0.5,
+        true,
+        vec![oval_loop(2.0, 0.5, 1.499, 0.0, 0.0, 0.0)],
+    );
+    let first =
+        rotational_cut_face_rounds::<f64>(&face, band, RoundWindow::at(0), &mut to_target(1e-9))
+            .unwrap_or_else(|e| panic!("round 0 alone: {e:?}"))
+            .bounds;
+    assert!(
+        first.area.width() > 1.0,
+        "the premise: round 0 reads the pinch wide, {:?}",
+        first.area
+    );
+    let whole = met(rotational_cut_face_rounds::<f64>(
+        &face,
+        band,
+        RoundWindow::SCHEDULE,
+        &mut to_target(1e-9),
+    ))
+    .unwrap_or_else(|e| panic!("the schedule: {e:?}"));
+    for (what, wide, narrow) in [
+        ("area", first.area, whole.area),
+        ("flux", first.flux, whole.flux),
+    ] {
+        assert!(
+            wide.lo() <= narrow.lo() && narrow.hi() <= wide.hi(),
+            "{what}: round 0's {wide:?} does not hold the schedule's {narrow:?}"
+        );
+    }
+}

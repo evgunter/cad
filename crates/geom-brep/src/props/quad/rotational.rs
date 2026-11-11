@@ -100,12 +100,13 @@
 //! the face is read off its loops' signed area under the sense, carried
 //! into `(0, 4π²Rr]` by whole tori ([`torus_face`]): the face is a region
 //! of the torus, and the window holds the whole torus, so a face bounded
-//! by its chart's wrap loop reads whole. The loops that wind the torus
-//! are at most two, wound against each other ([`loop_windings`]). The
-//! face's area is decided in `(0, 4π²Rr)` and its rings against it as
-//! the cylinder's are ([`require_holes_wound_against`]: every loop that
-//! winds nothing but the first is a hole, and with a winding pair every
-//! one is). Under a flipped bit the lane certifies the complement, as on
+//! by its chart's wrap loop reads whole. The reading holds every whole
+//! count of tori its enclosure admits, so it decides nothing and a later
+//! round narrows it. The loops that wind the torus are at most two, wound
+//! against each other ([`loop_windings`]), and its rings are read against
+//! the face as the cylinder's are ([`require_holes_wound_against`]: every
+//! loop that winds nothing but the first is a hole, and with a winding
+//! pair every one is). Under a flipped bit the lane certifies the complement, as on
 //! the sphere.
 //!
 //! `v du` because it is a global 1-form on the chart (the azimuth is
@@ -1707,19 +1708,9 @@ pub fn rotational_cut_face_rounds<T: Decide>(
                 let lengths: Vec<Interval> = entries.iter().map(|e| loop_length(e)).collect();
                 require_sphere_sides(sphere, &outsides, &lengths, area, band)
             }
-            Reading::Torus { radii, .. } => {
+            Reading::Torus { .. } => {
                 let winds: Vec<bool> = turns.iter().map(|&k| k != [0, 0]).collect();
-                require_holes_wound_against(&entries, &areas, &winds, signed, band)?;
-                let whole = torus_whole(radii.0, radii.1)[1];
-                let length = entries
-                    .iter()
-                    .fold(Interval::zero(), |l, e| l + loop_length(e));
-                crate::props::curved::require_holes_wound_against(
-                    "props_chart_area_side",
-                    (area, length),
-                    &[(area - whole, length)],
-                    band,
-                )
+                require_holes_wound_against(&entries, &areas, &winds, signed, band)
             }
         })? {
             return Ok(out);
@@ -1802,21 +1793,65 @@ struct TorusFace {
 }
 
 /// **A torus face's region from its loops** (module docs, the torus):
-/// its loops' signed area read under the face's sense, `X = s_f·ΣA`,
-/// known up to whole tori, carried into `(0, 4π²Rr]` by the whole number
-/// `N` read at `X`'s midpoint, `|Ω| = X + N·4π²Rr`; and its flux about the
-/// centre `ΣF + s_f·N·6π²Rr²`, the whole torus's flux at the same count.
-/// The window holds the whole torus, so a face bounded by its chart's
-/// wrap loop is read whole.
+/// its loops' signed area read under the face's sense, `X = s_f·ΣA`, is
+/// the face's area up to whole tori, `|Ω| = X + N·4π²Rr` for the one `N`
+/// that puts it in `(0, 4π²Rr]`, and its flux about the centre is
+/// `ΣF + s_f·N·6π²Rr²`, the whole torus's flux at the same count. The
+/// reading decides nothing: it holds every `N` whose `X + N·4π²Rr` meets
+/// that window, the area clipped to it, so a round whose `X` is wide
+/// reads wide and a later round narrows it, and a round that tells `N`
+/// reads it alone. The window holds the whole torus, so a face bounded by
+/// its chart's wrap loop reads whole.
 fn torus_face(radii: (Interval, Interval), outward: bool, per_loop: &[[Interval; 2]]) -> TorusFace {
     let [flux_whole, area_whole] = torus_whole(radii.0, radii.1);
     let sense = pt(if outward { 1.0 } else { -1.0 });
     let flux = per_loop.iter().fold(Interval::zero(), |f, l| f + l[0]);
     let x = sense * per_loop.iter().fold(Interval::zero(), |a, l| a + l[1]);
-    let n = pt((1.0 - mid(x) / mid(area_whole)).floor());
+    let refused = TorusFace {
+        area: Interval::refused(),
+        flux: Interval::refused(),
+    };
+    if !(x.is_certified() && area_whole.is_certified() && area_whole.lo() > 0.0) {
+        return refused;
+    }
+    // Every `N` with `X + N·A` meeting `(0, A]`: `−X/A < N ≤ 1 − X/A`,
+    // over-counted at the ends of `A`'s bracket, then each end moved in
+    // past the counts that miss the window. They run unbroken, and `F` is
+    // affine in `N`.
+    let meets = |n: f64| {
+        let area = x + pt(n) * area_whole;
+        area.hi() > 0.0 && area.lo() <= area_whole.hi()
+    };
+    let mut lo = (-x.hi() / area_whole.lo())
+        .min(-x.hi() / area_whole.hi())
+        .floor();
+    let mut hi = (1.0 - x.lo() / area_whole.lo())
+        .max(1.0 - x.lo() / area_whole.hi())
+        .ceil();
+    if !(lo.is_finite() && hi.is_finite()) {
+        return refused;
+    }
+    while lo <= hi && !meets(lo) {
+        lo += 1.0;
+    }
+    while hi >= lo && !meets(hi) {
+        hi -= 1.0;
+    }
+    if lo > hi {
+        return refused;
+    }
+    let window = Interval::from_bounds(0.0, area_whole.hi());
+    let at = |n: f64| (x + pt(n) * area_whole).meet(window);
     TorusFace {
-        area: x + n * area_whole,
-        flux: flux + sense * n * flux_whole,
+        area: if hi - lo >= 2.0 {
+            window
+        } else {
+            Interval::hull(at(lo), at(hi))
+        },
+        flux: Interval::hull(
+            flux + sense * pt(lo) * flux_whole,
+            flux + sense * pt(hi) * flux_whole,
+        ),
     }
 }
 
