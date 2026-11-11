@@ -2,7 +2,8 @@
 id: main-red-the-endpoint-census-moved-in-four-props-files-since-6808
 kind: issue
 title: Main red: geom-core's certified_endpoint_census moved in four props files with PR 6808 (the torus rotational lane)
-status: open
+status: dispatched
+branch: spiricarm/endpoint-census
 opened: 2026-11-11
 priority: P1
 cost: E
