@@ -53,3 +53,11 @@ geom-brep's `src/`, and the rows are topo's, a downstream crate's. A
 behaviour row in the slow set that guards an upstream crate's change
 needs selecting by the paths it guards, not by its own crate.
 
+
+The same PR showed a second hole in "the PR that edits a slow test runs
+it". `scripts/slow_set.py`'s `is_new` reads a row as edited only where an
+added `.rs` line spells its leaf name. The fix rewrote the rows' shared
+generic body (`a_stated_wrong_general_row_keeps_its_term::<T>`) and left
+the two `#[test]` wrappers alone, so its first gated run (run
+43019583177) selected 0 slow tests. Naming the rows in the generic's doc
+made the gate select them.
