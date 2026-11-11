@@ -35,7 +35,7 @@
 use std::cell::OnceCell;
 
 use geom::{NurbsSurface, Surface};
-use geom_core::{Band, Point3};
+use geom_core::{Band, Bounds, Interval, Point3};
 
 use super::boundary::BoundaryPass;
 use super::enclose::ChartPhi;
@@ -286,11 +286,35 @@ impl<'a> ImplicitSection<'a> {
         passed(&self.pass, || self.lane.wall.pass(&self.lane.form))
     }
 
+    /// **The section of a plane read at a pivot**, `lift` its stored
+    /// plane's height of the pivot ([`ImplicitForm::lifted`]): the exact
+    /// empty answers its readings decide are the stored plane's.
+    pub(crate) fn lifted(self, lift: Interval) -> Self {
+        let Self { lane, pass, banked } = self;
+        if pass.get().is_some() {
+            unreachable!("a section is lifted before its boundary pass runs");
+        }
+        Self {
+            lane: Lane {
+                form: lane.form.lifted(lift),
+                ..lane
+            },
+            pass,
+            banked,
+        }
+    }
+
     /// What this section's boundary pass is run over ([`PassKey`]).
     pub(crate) fn pass_key(&self) -> PassKey {
         let d = self.lane.wall.domain();
+        let lift = self.lane.form.lift();
         PassKey {
-            partner: format!("{:?}", self.lane.sys.partner),
+            partner: format!(
+                "{:?} lifted [{:e}, {:e}]",
+                self.lane.sys.partner,
+                lift.lo(),
+                lift.hi()
+            ),
             wall: wall_digest(self.lane.sys.wall),
             domain: [
                 d.center.x,

@@ -461,13 +461,20 @@ fn listing(
     decided: &[sweep::Critical],
     out: crate::ssi::SsiOutcome,
 ) -> Result<PairSection<f64>, SectionError> {
-    let heights = pose.pivot().heights;
+    let pivot = pose.pivot();
+    let form = crate::ssi::residual::ImplicitForm::of(&pivot.plane)
+        .unwrap()
+        .lifted(pivot.lift);
     let none = vec![None; decided.len()];
     let listing = Listing {
         decided,
         witnesses: &none,
     };
-    super::listed(pose, Bracketed::Plane(heights), out, Some(&listing), band())
+    let partner = Bracketed {
+        surface: &pivot.plane,
+        form: &form,
+    };
+    super::listed(pose, partner, out, Some(&listing), band())
 }
 
 /// **A node not placed within the band refuses by name.** The cross
