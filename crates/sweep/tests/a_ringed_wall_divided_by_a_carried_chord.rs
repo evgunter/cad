@@ -18,10 +18,9 @@
 
 use core::f64::consts::PI;
 
-use crate::common::differential::VOLUME_PAD_BUDGET;
 use crate::common::germ_pair::cyl;
 use crate::conic_edge_curved_face::ball;
-use crate::cylinder_sphere_frame::{Ends, FULL, at_its_volume, oracle, run};
+use crate::cylinder_sphere_frame::{Ends, FULL, at_its_volume, oracle, pad_ceiling, run};
 use geom_core::Tol;
 use sweep::test_support::finished;
 use topo::BooleanOp;
@@ -54,6 +53,9 @@ fn a_wall_holding_one_balls_ring_is_divided_by_the_others_chord() {
         ("A ∖ B", BooleanOp::Subtract, false, va - vi),
         ("B ∖ A", BooleanOp::Subtract, true, vb - vi),
     ];
+    // The operands' area: the drum's wall and caps, `2π + π/2`, and the
+    // two balls' spheres, `π/2`.
+    let ceiling = pad_ceiling(3.0 * PI);
     let mut off = Vec::new();
     for (label, op, swapped, want) in runs {
         let (x, y) = if swapped {
@@ -68,7 +70,7 @@ fn a_wall_holding_one_balls_ring_is_divided_by_the_others_chord() {
             run(op, x, y),
             want,
             Ends::Builds,
-            VOLUME_PAD_BUDGET,
+            ceiling,
             Some(4.0e-10),
         ));
     }

@@ -214,8 +214,12 @@ fn a_transversal_pose_builds_in_both_poses() {
             got,
             transversal_union_volume(),
             crate::cylinder_sphere_frame::Ends::Builds,
-            crate::common::differential::VOLUME_PAD_BUDGET,
-            None,
+            // The operands' area: the cylinder's wall and caps, `10π`, and
+            // the ball's sphere, `9π`.
+            crate::cylinder_sphere_frame::pad_ceiling(19.0 * core::f64::consts::PI),
+            // A guard at four times the widest half-width measured at
+            // ε 1e-9 (7.9e-9), not a soundness bound.
+            Some(3.2e-8),
         ) {
             panic!("{off}");
         }

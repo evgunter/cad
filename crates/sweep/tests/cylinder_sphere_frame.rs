@@ -439,6 +439,46 @@ pub(crate) fn far_union(body: &topo::AtRestBody<f64>) -> Operand {
     }
 }
 
+/// **The widest volume half-width a cylinder × sphere run accepts**, on
+/// operands of surface area at most `area` (m²): the pinned
+/// resolution's own ceiling on that area
+/// ([`resolution_pad`](crate::common::differential::resolution_pad)),
+/// never below [`VOLUME_PAD_BUDGET`](crate::common::differential::VOLUME_PAD_BUDGET).
+///
+/// **It scales with ε because the pad does, by construction.** A run is
+/// measured at the pinned resolution, `1024·ε` of mean boundary
+/// displacement, and the rotational lane hands back the first round
+/// whose flux width meets it (or its floor). Each part of that width is
+/// a multiple of ε or is held under the resolution:
+///
+/// - the honesty pads — the map residual `ρ·Σ L·e`, the chart term
+///   `|lever|₁·Σ(½·e·L_carrier + 1.5·e·L_image)` and the junctions'
+///   corners `2·g·(e_i + e_j + g)` — are linear in the edges' certified
+///   envelopes `e` and the junction gaps `g`, and the pcurve certificate
+///   admits an envelope only inside the band's zero, `e ≤ ε` (check 4,
+///   `pcurve_envelope`), while `g` is the closure's slack plus `3·ε`;
+/// - the quadrature remainder a later round would remove is whatever
+///   the accepted round leaves, and the round is accepted only once the
+///   whole width meets the resolution. Its pieces per span are fixed by
+///   the span, and the spans are the SSI march's, whose spacing is
+///   aimed at `0.02·ε` of between-sample miss, so a coarser ε marches
+///   coarser spans and leaves a wider remainder.
+///
+/// So on a run that meets the resolution every face's flux width is at
+/// most `3·1024·ε·area_f` and the body's volume half-width at most
+/// `1024·ε·area/2`; a result's boundary lies on its operands', so their
+/// area bounds its. (A run stopped short is still held to the ceiling.) At ε `1e-6` the
+/// transversal opening's pad is ~`5ε`, nearly all the cylinder wall's
+/// chart-term pad (an envelope near `0.5·ε` on a lever of `2.2`); the
+/// ringed wall's is ~`0.3ε`, two thirds of it the balls' faces' round-0
+/// remainder. A fixed `1e-7` is a guard set at the witness ε, which no
+/// ε-`1e-6` pad can meet; each row guards its own measured width there
+/// ([`at_its_volume`]'s `guard`).
+pub(crate) fn pad_ceiling(area: f64) -> f64 {
+    use crate::common::differential::{VOLUME_PAD_BUDGET, resolution_pad};
+    resolution_pad(Tol::witness(), area).max(VOLUME_PAD_BUDGET)
+}
+
 /// The widest volume half-width measured on each pose at ε `1e-9`,
 /// debug, over its runs that build: the rim poses accept a round only
 /// just inside the pinned resolution, the others far inside it.
@@ -452,14 +492,12 @@ const MEASURED_PAD: [f64; 9] = [
 /// on the operands' area and guarded at four times the pose's
 /// [`MEASURED_PAD`].
 fn builds_at_its_volume_or_refuses_at_its_door(index: usize) {
-    use crate::common::differential::{VOLUME_PAD_BUDGET, resolution_pad};
-    let tol = Tol::witness();
     let pose = &poses()[index];
     let (a, b) = pose.operands();
     let (va, vb, vi) = pose.volumes();
     let drum_area = 2.0 * PI * R * (pose.drum.z1 - pose.drum.z0) + 2.0 * PI * R * R / TILT.cos();
     let area = drum_area + 4.0 * PI * pose.big.powi(2);
-    let ceiling = resolution_pad(tol, area).max(VOLUME_PAD_BUDGET);
+    let ceiling = pad_ceiling(area);
     let two_loops = pose.label.starts_with("two loops");
     let mut off = Vec::new();
     for (op_label, op, swapped, want) in runs(va, vb, vi) {
