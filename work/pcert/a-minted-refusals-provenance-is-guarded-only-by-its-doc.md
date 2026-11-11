@@ -62,3 +62,28 @@ mint defect, which this relabel would now hide behind "not yet". The
 row `a_lane_choices_azimuth_refusal_ends_not_yet` reaches the azimuth arm
 only through a hand-edited image the mint never produces. A fix for this
 row should also tell those two cases apart.
+
+## 2026-11-10 — a stated General image reached the relabel (PCERT, PR 6532 review FF1)
+
+PR 6532 widened `minted_refusal` to a bending carrier's `General` image,
+and its review executed this row's hazard. A construction's stated
+`General` row, its control 15 bumped `1e-4` in `v` so that every
+check-3 sample still holds, reached the mint's own-chart arm
+(`nurbs_iso_derive` returns a stated `c.pcurve` verbatim).
+`certify_walked` then mapped its `FittedLimb { HullValueChart, 6.3e-5 }`
+through `minted_refusal` and ended it "not yet".
+
+The fix carries provenance on the walk's image, as data: a new
+`geom_brep::ChartImage::Stated` holds an image a description or a stored
+row states, which the derivation read and did not produce. The mint's
+two relabel sites, `certify_walked` and `read_loop`'s mint arm, relabel
+only a `ChartImage::Image` (derived in this walk); a `Stated` image keeps
+its term. Rows:
+`a_bending_carrier_on_a_spline_wall_takes_the_general_lane::a_stated_wrong_general_row_keeps_its_term_{f64,interval}`.
+The mutant that relabels a `Stated` image reds them.
+
+**This narrows the row but does not close it**, for `General` or for
+`Projected`. `minted_refusal` is still `pub` and still takes a bare
+`Pcurve`, so a caller outside the walk can still hand it a stored row.
+The type-level fix this row names (`minted_refusal` taking the walked
+row, or a `ChartImage`) remains.

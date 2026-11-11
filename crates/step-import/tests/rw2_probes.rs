@@ -311,9 +311,35 @@ fn probe_foreign_segmentation_certifies_through_the_same_door() {
     let refusal = PcurveCache::certify(pcurve2, 0.0, theta, &carrier, &surface2, band)
         .expect_err("a wrong interior weight must refuse");
     let text = format!("{refusal:?}");
+    // The wrong weight moves the wall off the arc past the band at every
+    // ε the fixture is built at, and the certificate's refusal is ended
+    // by that read.
     assert!(
-        text.contains("cos(h/2)") || text.contains("Envelope") || text.contains("Residual"),
-        "the refusal should be the decided weight margin or a residual, got: {text}"
+        read_off(
+            &refusal,
+            Some(geom::SurfaceKind::Nurbs),
+            Some(geom::CurveKind::Circle)
+        ),
+        "the wrong weight moves the wall off the arc, which ends the refusal, got: {text}"
     );
     println!("RW2 probe 3 negative control: wrong weight refused: {text}");
+}
+
+fn read_off(
+    e: &geom_brep::PcurveCertifyError,
+    chart: Option<geom::SurfaceKind>,
+    carrier: Option<geom::CurveKind>,
+) -> bool {
+    let geom_brep::PcurveCertifyError::Incidence(r) = e else {
+        return false;
+    };
+    matches!(r.read(), geom_brep::IncidenceRead::Off(_)) && kinds_are(r.kinds(), chart, carrier)
+}
+
+fn kinds_are(
+    kinds: Option<(geom::SurfaceKind, geom::CurveKind)>,
+    chart: Option<geom::SurfaceKind>,
+    carrier: Option<geom::CurveKind>,
+) -> bool {
+    kinds.is_some_and(|(c, k)| chart.is_none_or(|x| x == c) && carrier.is_none_or(|x| x == k))
 }

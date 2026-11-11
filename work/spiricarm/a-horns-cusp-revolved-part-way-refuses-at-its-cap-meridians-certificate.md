@@ -2,10 +2,13 @@
 id: a-horns-cusp-revolved-part-way-refuses-at-its-cap-meridians-certificate
 kind: issue
 title: A horn's cusp revolved part way refuses at its cap meridians: the horn's two sheets are tangent at the cusp, so limb 2 reads only the distance from it over a stretch near it
-status: open
+status: closed
 opened: 2026-11-04
 priority: P1
 cost: H
+branch: spiricarm/horn-cusp
+closed: 2026-11-11
+pr: 6806
 ---
 
 (SPIRICARM, a residue of `a-football-revolved-part-way-refuses-at-its-cap-meridians-certificate`.)
@@ -48,3 +51,19 @@ measure `θ/2π` of the full revolve's volume and sheet area plus their caps,
 or refuse typed with a reason that names the cusp. A bound near the cusp
 that reads the tangency (the sheets part as `t²`, not `t`) is the likely
 lane; it needs a row that goes red when its load-bearing check is removed.
+
+## Dispatched (2026-11-10)
+
+Branch `spiricarm/horn-cusp`.
+
+**Phase 0 is a decide:** what certificate bounds an edge's distance from a sheet over the stretch where the horn's two sheets are tangent at the cusp. The cusp is a point of tangency, not a crossing, so the side check cannot shrink by halving.
+
+- Read the cone apex, the lemon/apple apex (`Meters::apex_root`, PR 6521), and how the sphere handles a pole.
+- Propose the final state before building it.
+- If the answer changes a ratified clause, or has several viable answers where Ev's preference matters, stop and report the fork as a problem.
+
+**Review tier:** dual. This is a new certificate at a tangency, which is soundness-critical.
+
+## Closed (2026-11-11)
+
+PR 6806. A horn's cusp revolved part way builds as its lune: the needle, the lower needle and the four-arc horn each mesh watertight, pass tier 3 and meet their closed forms (Pappus for the horn). A sheet's edge certificate takes the least of its readings, one of them the height reading `Meters::sheet_at_height` (sound against two independent 60-digit oracles, about 180,000 Interval readings, no miss). The walk names a horn's cusp on the leaving meridian's side (`Chart::is_horn`). Residue: `limb-2s-band-decided-sheet-reading-omits-the-height-reading-beside-a-horns-cusp` (P4), `a-sheets-tube-residual-cancels-beside-a-horns-cusp` (P4).

@@ -112,7 +112,6 @@ const INDIRECT: &[(&str, &str)] = &[
         "linalg/rigid_motion.rs: an_undecided_check_ends_in_the_lever_and_notes_a_poisoned_margin: 0.5 * (band().zero() + band().escalate())",
         CARRIER_CALL,
     ),
-    ("linalg/rigid_motion.rs: admitted_for_a_suite: check", ROW_TABLE),
     (
         "linalg/rigid_motion.rs: an_undecided_check_ends_in_the_lever_and_notes_a_poisoned_margin: check",
         CLOSURE_FORWARDS,
@@ -120,6 +119,10 @@ const INDIRECT: &[(&str, &str)] = &[
     (
         "linalg/rigid_motion.rs: an_undecided_check_ends_in_the_lever_and_notes_a_poisoned_margin: f64::NAN",
         CARRIER_CALL,
+    ),
+    (
+        "linalg/rigid_motion.rs: admitted_for_a_suite: check",
+        ROW_TABLE,
     ),
     ("linalg/rigid_motion.rs: turned_between: site", FORWARDS),
     ("linalg/rigid_motion.rs: turned_onto: self.w", CARRIER_CALL),

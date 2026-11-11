@@ -166,6 +166,7 @@ dependencies = [
  "geom",
  "geom-core",
  "slotmap",
+ "strum",
 ]
 
 [[package]]
@@ -178,6 +179,7 @@ dependencies = [
  "num-integer",
  "num-traits",
  "rayon",
+ "strum",
 ]
 
 [[package]]
@@ -545,6 +547,7 @@ dependencies = [
  "geom-core",
  "quantity",
  "slotmap",
+ "strum",
 ]
 
 [[package]]

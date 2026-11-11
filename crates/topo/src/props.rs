@@ -244,14 +244,13 @@ pub enum MassPropsError {
         source: PropsError,
     },
     /// A curved face carries interior rings and is neither a cone wall,
-    /// a cylinder wall (its closed form and its quadrature both read
-    /// every loop: `geom_brep::props::curved_face_loops`,
+    /// a cylinder wall nor a sphere face (each one's closed form and its
+    /// quadrature read every loop: `geom_brep::props::curved_face_loops`,
     /// `geom_brep::props::quad::rotational_cut_face_rounds`), nor a torus wall
     /// bounded by rims and rulings, nor a torus wall any of whose loops
     /// carries a spiric (the spiric lane reads every loop,
-    /// `geom_brep::props::spiric::rim_face_rounds`), nor a sphere face
-    /// bounded by circles. A boolean pierce leaves a ring in the wall it
-    /// pierces.
+    /// `geom_brep::props::spiric::rim_face_rounds`). A boolean pierce
+    /// leaves a ring in the wall it pierces.
     RingOnCurvedFace {
         /// The offending face.
         face: FaceKey,
@@ -629,6 +628,7 @@ fn round_hook<T: Decide>(
 ) -> impl Fn(
     &Body<T>,
     &Surface<T>,
+    bool,
     &[FlatLoop<T>],
     Band,
     Tol,
@@ -638,7 +638,7 @@ fn round_hook<T: Decide>(
 ) -> Result<Option<LaneRun>, PropsError>
 + Sync
 + Copy {
-    move |body, surface, loops, band, tol, window, about: Point3<T>, resolution| match quad {
+    move |body, surface, sense, loops, band, tol, window, about: Point3<T>, resolution| match quad {
         Some(lane) => {
             let about = Point3::new(
                 (lane.lift)(about.x),
@@ -648,6 +648,7 @@ fn round_hook<T: Decide>(
             (lane.cut_face_rounds)(
                 body,
                 surface,
+                sense,
                 loops,
                 band,
                 tol,
@@ -1702,6 +1703,7 @@ fn rederive_faces<T: Decide>(
                     (lane.cut_face_rounds)(
                         body,
                         surface,
+                        face.record().sense,
                         &flat,
                         band,
                         tol,
@@ -2331,6 +2333,7 @@ pub(crate) fn mass_properties_closed_form_of<T: Decide>(
 type QuadHook<'h, T> = dyn Fn(
         &Body<T>,
         &Surface<T>,
+        bool,
         &[FlatLoop<T>],
         Band,
         Tol,
@@ -5147,11 +5150,11 @@ fn face_flux_about<T: Decide>(
                 .flat_map(|(edges, _)| edges)
                 .any(|e| trims(&e.carrier));
             // Which lanes read a ring: the cone's closed form (every
-            // loop's vector area, whatever trims it), the cylinder's
-            // closed form and quadrature alike (each a Green form summed
-            // over every loop), and the torus's closed form over rims
-            // and rulings, the sphere's over circles (Gauss–Bonnet over
-            // every loop), and the spiric lane every loop of a
+            // loop's vector area, whatever trims it), the cylinder's and
+            // the sphere's closed forms and quadrature alike (each a Green
+            // form, or Gauss–Bonnet, summed over every loop), and the
+            // torus's closed form over rims and rulings, and the spiric
+            // lane every loop of a
             // spiric-bounded plane or torus wall: on a wall, every loop's
             // spirics, rims and meridians, each ring wound against the
             // face, and any other edge refuses typed in that lane. No
@@ -5164,19 +5167,24 @@ fn face_flux_about<T: Decide>(
                 // A plane reaches this arm only bounded by a spiric or a
                 // rational spline rim, and the plane cap reads every loop
                 // of its face.
-                Surface::Cone { .. } | Surface::Cylinder { .. } | Surface::Plane { .. } => true,
+                Surface::Cone { .. }
+                | Surface::Cylinder { .. }
+                | Surface::Plane { .. }
+                | Surface::Sphere { .. } => true,
                 Surface::Torus { .. } => !trimmed || spiric,
-                Surface::Sphere { .. } => !trimmed,
                 _ => false,
             };
             if loops.len() > 1 && !reads_rings {
                 return Err(MassPropsError::RingOnCurvedFace { face: face_key });
             }
-            // The S10 sense bit does not enter the quadrature lane: its
-            // Green form is winding-derived end to end (the signed UV area
-            // IS s_f·|Ω| through the stored loop traversal). An
-            // approximating face takes it as its fit's flux, the geometry
-            // the face carries.
+            // The S10 sense bit enters the quadrature lane on the sphere
+            // alone: a cylinder's, plane's or torus's Green form is
+            // winding-derived end to end (the signed UV area IS s_f·|Ω|
+            // through the stored loop traversal), while a sphere loop
+            // bounds a face on each side and the rotational lane reads
+            // the bit to say which (`quad_lane::cut_face_lane`), with no
+            // cross-check against the boundary. An approximating face
+            // takes it as its fit's flux, the geometry the face carries.
             let quad_out = if takes_quadrature(
                 surface,
                 loops
@@ -5184,7 +5192,18 @@ fn face_flux_about<T: Decide>(
                     .flat_map(|(edges, _)| edges)
                     .map(|e| &e.carrier),
             ) {
-                quad(body, surface, &loops, band, tol, window, about, resolution).map_err(wrap)?
+                quad(
+                    body,
+                    surface,
+                    face.sense(),
+                    &loops,
+                    band,
+                    tol,
+                    window,
+                    about,
+                    resolution,
+                )
+                .map_err(wrap)?
             } else {
                 None
             };
@@ -6346,6 +6365,7 @@ pub struct QuadLane<T: Decide> {
     cut_face_rounds: fn(
         &Body<T>,
         &Surface<T>,
+        bool,
         &[FlatLoop<T>],
         Band,
         Tol,
@@ -6485,7 +6505,7 @@ mod wiring_rows {
     -> Result<(), &'static str> {
         if !std::ptr::fn_addr_eq(
             QuadLane::<T>::certified().cut_face_rounds,
-            quad_lane::cut_face_rounds::<T> as fn(_, _, _, _, _, _, _, _) -> _,
+            quad_lane::cut_face_rounds::<T> as fn(_, _, _, _, _, _, _, _, _) -> _,
         ) {
             return Err("cut_face_rounds is not `quad_lane::cut_face_rounds`");
         }
