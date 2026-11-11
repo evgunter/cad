@@ -630,3 +630,17 @@ Both reds were found by PCERT's nightly lane and trace to SECTARMS merges.
 - **Reviewed by me.** `cut_loop`'s new index fails loud (Inconsistent) when no point is read there. Merged as 19eb4541 (tier M).
 - **The 1e-12 slowdown is not this PR's.** The parent's quick end was the row stopping on VolumeUncomputable. The cost is in topo's boolean pipeline over 6365-span carriers. Filed as `cylinder-sphere-frame-rows-take-twenty-minutes-a-boolean-at-1e-12` (P1); it needs a bisect from 50cfcf499d.
 - **Deeper root, on ssiarith.** A non-graph end span of a closed fit is never refined. Recorded on the ssiarith row.
+
+## 2026-11-11 — PR 6843 merged (the 1e-12 cylinder × sphere cost)
+
+- **The bisect found no single culprit.** PR 6509, the sphere volume lane on SPIRICARM, made the row's runs build bodies and check them. That is about 1.8× the work, which is the row doing its job.
+- **Within each boolean, the cost was quadratic.**
+  - `projected::span_stretches` scanned all of a carrier's roughly 6400 knots once per part.
+  - `spans_of` used a `windows` scan to find the span holding each part.
+  - Both now bisect.
+- **Reviewed.**
+  - I checked that `holding_span` equals the scan, including repeated knots and NaN.
+  - A new row file checks both bisections against the scans they replace.
+  - pcert's file was touched surgically, and the territory is noted.
+- **Result.** A boolean takes about half as long in debug. Merged as b8166e76; the next 1e-12 nightly is the real check.
+- **Left over.** The cost of the spline `Curve3::foot` whole-carrier sampling is filed on CPAIR at P2.
