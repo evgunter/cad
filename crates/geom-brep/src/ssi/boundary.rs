@@ -350,7 +350,7 @@ impl Partner for &ImplicitForm {
             return plane_partial([g.x, g.y, g.z], boxes, w, along_u);
         }
         let n = CURVED_PARTIAL_PIECES;
-        count_partial(n * n);
+        count_partial(n.pow(2));
         let cut = |(a, b): (f64, f64), k: u32| {
             let at = |i: u32| {
                 if i == n {
