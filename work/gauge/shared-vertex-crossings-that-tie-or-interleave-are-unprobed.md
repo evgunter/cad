@@ -247,3 +247,18 @@ Both 2 and 3 change the insertion contract that the module docs of
 ## Fork dispatched (2026-11-11)
 
 GAUGE orchestrator. Three designers, A, B and C, weigh the design question under `docs/DESIGN-FORK-PROTOCOL.md` (protocol `2126b860b63`). The arm byte drew three; the draw and labels are on `analysis/design-fork/shared-vertex-pairing`. All three have the same problem statement, and this section's options are given to them as hypotheses, not candidates. The outcome goes to Ev as an `[ev]` PR if it changes ratified text or the designers split. Otherwise the orchestrator decides it and records why.
+
+## Decided (fork `shared-vertex-pairing`, 2026-11-11)
+
+Three designers (fork-log row 261) were unanimous on their first reports. No ratified text governs the pairing: the insertion contract is agent-written in `insert.rs`'s module docs. So the GAUGE orchestrator decides it, with no `[ev]` PR.
+
+- **The fault is the op-chosen start.** `pairing_start_turns` pairs a crossing pair from the germ whose run lies on A's kept side, "the one the finish needs". For `∪` and `∖` that lays a pair with four or more crossings along A's Out arcs, where the other operand's pieces sit. The rule was written on 2026-10-04 (`c50f2ff22e6`), two days before `zip::split_cones` (one vertex per cone) removed the finish's need for it.
+- **The pairing is read from the pose.** Each crossing pair pairs consecutively along the In arcs of its **lead** vertex's link: the arcs inside the partner piece. The lead is the vertex other crossing pairs share, or A's where neither is shared. The other operand's pieces at the point are disjoint, so no other pair's cut lies on those arcs, and every run at a shared vertex is clear by construction, for both the laminar and the crossing class. The other solid's runs nest as B's do today (`b_runs`), read per solid. The op leaves the insertion.
+- **The finish takes the correspondence as given.** `setopfinish`'s vertex-set shape check ("conflicting seam vertex correspondence", with its `shared_cut` and `one_ring` exemptions) retires: `split_cones` reads the cones. Designer C's probe measured it: with the start flipped where a shared vertex's runs were not clear and the check off, `four_pairs_battery` builds 5,190 of 5,190 lines sound, and the cleave witness builds all six ops at the oracle's volumes.
+- **The reconcile** keeps the tie reading and strut-in-strut (`holds_whole`). The run-turning loop and `hang_at_shared`'s re-reading of turned runs should go dead, and are removed or become invariants once measured. `SharedVertexCrossings` shrinks to the one-arc case (its own closed row).
+- **The typed refusal is not an acceptable final state** for either class: both have a defined body, and the kernel builds it.
+- **Not done:** nesting across pairs (the row's option 3); with this pairing nothing needs it. The one shape that might, two crossing pairs sharing both vertices, is filed as `two-crossing-pairs-sharing-both-vertices-refuse-non-manifold-result`.
+
+## Dispatch (the build, 2026-11-11)
+
+GAUGE orchestrator. One implementer in lane `gauge-svc`, branch `gauge/in-arc-pairing`. Review tier: a single full review. The change deletes mechanism more than it adds, and it is measured over the whole battery, the slow sets and the cleave witness. But it moves the pairing of every `∪` and `∖` vertex pair with four or more crossings, so the review carries correctness claims.
