@@ -58,7 +58,7 @@ that read the same degree-1 image are ssiedge's
 ## Closed (PR 6819, 2026-11-11)
 
 The mint's `General` image climbs on its measured miss.
-`edge_nurbs::curved_chart_image` is now the image of every carrier. Its
+`edge_nurbs::general_chart_image` is now the image of every carrier. Its
 first rung is `chart_image`'s degree-1 image, kept where the miss
 between feet, net of the carrier's standoff at its feet, is within the
 rung's share of the band. Past that it climbs the curved rungs, and a

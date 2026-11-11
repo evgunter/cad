@@ -177,7 +177,7 @@ impl<T: Real> FittedLane<T> {
     /// (`pcurve_cache::general_image_lane`). The image is the degree-1 one
     /// the edge certificate reads (`edge_nurbs::chart_image`) where its
     /// miss between feet is within its share of `band`, and climbs
-    /// `edge_nurbs::curved_chart_image`'s rungs where the foot path bends
+    /// `edge_nurbs::general_chart_image`'s rungs where the foot path bends
     /// past it, whatever the carrier's kind. It
     /// is EVIDENCE and certifies nothing by itself; the caller's next
     /// move is [`crate::PcurveCache::certify_general`], which bounds

@@ -16,7 +16,7 @@ Filed by `pcert/general-image-climbs-on-its-miss`, from its own row.
 A line on a flat wall whose `v` is quadratic in height (control rows at
 `z = 0, 0.1, 1`, so `dz/dv` runs from 0.2 to 1.8) bends in the chart,
 and the mint's `General` image climbs to
-`edge_nurbs::curved_chart_image`'s finest rung (degree 5, 257 control
+`edge_nurbs::general_chart_image`'s finest rung (degree 5, 257 control
 points). That image follows the carrier: its miss, read at nine
 stations, is at most 8e-16 m, the foot projection's own roundoff. At
 ε 1e-12 its certificate still refuses: `FittedLimb { HullValueChart }`
@@ -38,5 +38,5 @@ Read where the hull limb's slack comes from on a stretched chart: the
 composite `S(P(t))`'s per-span hull at degree 5 against a quadratic
 wall, or the chart-to-metre conversion's speed bound. A rung the hull
 reads tighter (fewer, lower-degree spans) may certify where the finest
-does not; `curved_chart_image` keeps its finest rung on a miss, never a
+does not; `general_chart_image` keeps its finest rung on a miss, never a
 coarser one the certificate would take.

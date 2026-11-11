@@ -3082,7 +3082,7 @@ impl<T: Real> PcurveCertificate<T> {
 /// The `edge_nurbs` schedule with no per-sample hook: the transversality
 /// sweep the adopt path runs there is a statement about the PLANE
 /// operand, which is the edge certificate's and not the row's. The image
-/// is `edge_nurbs::curved_chart_image`'s: the degree-1 image the edge
+/// is `edge_nurbs::general_chart_image`'s: the degree-1 image the edge
 /// certificate reads, climbed where its measured miss asks.
 pub(crate) fn general_image_lane<T: Decide + geom_core::Bounds + geom_core::CertifiedEnclosure>(
     carrier: &Curve3<T>,
@@ -3103,7 +3103,7 @@ pub(crate) fn general_image_lane<T: Decide + geom_core::Bounds + geom_core::Cert
         magnitude: None,
         ending,
     };
-    let image = crate::edge_nurbs::curved_chart_image(schedule, wall, band);
+    let image = crate::edge_nurbs::general_chart_image(schedule, wall, band);
     #[cfg(test)]
     let image = match mutants::general_image_class_gate(carrier) {
         Some(false) => crate::edge_nurbs::chart_image(schedule, wall, |_, _| Ok(())),
