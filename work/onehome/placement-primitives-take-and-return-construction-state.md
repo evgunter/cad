@@ -2,11 +2,12 @@
 id: placement-primitives-take-and-return-construction-state
 kind: issue
 title: transform_rigid and mirror_body stay Body-to-Body; each placement door finishes after calling them
-status: dispatched
+status: review
 opened: 2026-11-02
 priority: P2
 cost: M
 branch: onehome/rigid-motion
+pr: 6820
 ---
 
 
