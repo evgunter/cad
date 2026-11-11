@@ -731,6 +731,12 @@ impl Mirror {
     }
 }
 
+/// A spelling of an image: its name, chart, carrier and image.
+type Spelled = (&'static str, Surface<f64>, Curve3<f64>, Pcurve<f64>);
+
+/// A drawn case: its name, chart, carrier and span.
+type Case = (String, Surface<f64>, Curve3<f64>, (f64, f64));
+
 /// The spellings of one image the rows certify: as derived, shifted a
 /// whole period on each angle channel, the sphere's twin, and on the
 /// reflected chart both mapped through the reflection and derived there.
@@ -740,7 +746,7 @@ fn spellings(
     carrier: &Curve3<f64>,
     span: (f64, f64),
     image: &Pcurve<f64>,
-) -> Vec<(&'static str, Surface<f64>, Curve3<f64>, Pcurve<f64>)> {
+) -> Vec<Spelled> {
     let periods = surface.angle_periods().unwrap();
     let whole = |g: &mut fuzz::Rng, p: Option<_>| match p {
         Some(_) => AxisMap::shift(TAU * f64::from(i32::try_from(g.below(7)).unwrap() - 3)),
@@ -773,10 +779,10 @@ fn spellings(
         c.clone(),
         mapped.map_affine(shift).unwrap(),
     ));
-    if let Ok(derived) = chart_pcurve_over(&c, span.0, span.1, &s, band()) {
-        if matches!(derived, Pcurve::Harmonic { .. }) {
-            out.push(("derived on the mirror", s, c, derived));
-        }
+    if let Ok(derived) = chart_pcurve_over(&c, span.0, span.1, &s, band())
+        && matches!(derived, Pcurve::Harmonic { .. })
+    {
+        out.push(("derived on the mirror", s, c, derived));
     }
     out
 }
@@ -1192,7 +1198,7 @@ fn nudged(image: &Pcurve<f64>, which: usize, delta: f64) -> Pcurve<f64> {
     };
     match &mut image {
         Pcurve::Harmonic { u, v } => {
-            if which % 2 == 0 {
+            if which.is_multiple_of(2) {
                 nudge(u, which / 2);
             } else {
                 nudge(v, which / 2);
@@ -1235,7 +1241,7 @@ fn no_closed_form_is_certified_past_its_miss() {
     let b = band();
     let mut tally = [0usize; 3];
     for _ in 0..fuzz::scaled(24) {
-        let mut cases: Vec<(String, Surface<f64>, Curve3<f64>, (f64, f64))> = KINDS
+        let mut cases: Vec<Case> = KINDS
             .iter()
             .map(|&kind| {
                 let (s, c, span) = drawn(&mut g, kind);
