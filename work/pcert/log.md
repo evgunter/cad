@@ -1149,3 +1149,17 @@ E1c waits on the answer.
     - the off-arc clamp doc;
     - the weight read once beside its margin.
   - Filed P3 `a-margin-decided-through-a-bool-helper-or-outside-pcurve-cache-is-unswept`: the sweep's blind spot.
+- 2026-11-11 — **Main red: geom-core's `recourse_roster`, fixed** (PR below). Onehome's 6717 moved the rigidity decide loop from `check_rigid` into `admitted_for_a_suite`, and the roster still named the old site. A one-line re-listing, with a note on onehome's log. Review tier: orchestrator's read. Three census reds in a day (6531, 6518, 6717), each green on its own PR because the per-PR gate does not select the census, are a class: filed P4 on green, `a-src-change-that-moves-a-decide-site-skips-its-crates-recourse-roster`.
+- 2026-11-11 — **`an-ellipses-general-lane-is-written-on-no-chart` closed** (PR 6524). An ellipse takes the general (projected) lane wherever D3's lane choice sends one: within the band of a sphere or torus, and a cone section or cylinder conic whose orientation reads Zero or in band (`Lane::Conic`, `FramedCarrier::Conic`, `FramedQ::Conic`).
+  - Soundness: the shared charge read `Conic::speed_hi` signed, so a conic stored with a negative semi-axis was under-charged. That record is an invariant breach, not another spelling of the edge: every door builds positive semi-axes, STEP's are `positive_length_measure`, and a signed one reverses the traversal. Ruled CC2(b) and refined twice.
+  - It is now refused once, typed, at the head of the edge certificate's span check, before any speed reader:
+    - `SemiAxisNotFinite` for NaN or ±∞, at both scalars alike;
+    - `SemiAxisNegative` for a definitely negative semi-axis;
+    - a straddle of zero falls through to the span check's in-band reading and its lever;
+    - zero stays the span check's collapsed length.
+  - Endings by E1d: at a build, the caller's own lever (store the finite, positive length, flip the normal); at rest, the stored culprit; at import, a damaged file. `semi_reach` was removed, and the positive invariant is stated once, at the charge entry.
+  - Review tier: single FULL. NOT-MERGEABLE-AS-IS first; soundness held (8971 rows at 50 digits, 0 under).
+  - Fix list CC: one delta, APPROVE-WITH-FIXES, 0 MAJOR (7761 rows, 0 under).
+  - Fix list II was read by the orchestrator: the non-finite ending, a straddle to the lever, one sign→count home, the invariant's one statement.
+  - Slow set: the lune fillets' lattice row, which is main's drift (0.419 s on main, 0.410 s on the branch).
+  - The lane found main's `recourse_roster` red, fixed by PR 6809.
