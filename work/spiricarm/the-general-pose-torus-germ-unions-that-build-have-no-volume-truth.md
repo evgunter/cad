@@ -24,6 +24,9 @@ volume, and their rows are re-pinned to a seamed body only:
 - `crates/sweep/tests/germ_sphere_torus_placements.rs`
   `a_ball_against_a_donut_carries_onto_the_torus_and_builds`: four
   unions of a ball and a donut.
+- `demos/tour/src/teapot.rs` wall 2: the handle ∪ the vessel composes,
+  and its probe is retired to that assertion; the joined teapot has no
+  volume of its own either (`work/splice/curved-demo-joins-build.md`).
 
 A body that builds passed tier 3, its volume included, but nothing holds
 that volume to a truth computed apart from the lane, and a wrong torus

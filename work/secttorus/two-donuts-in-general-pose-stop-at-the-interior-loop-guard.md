@@ -39,3 +39,13 @@ stop (`TORUS_PAIR`).
 The certificate classifies a general-pose torus × torus pair, or the
 guard reads the pair's section the march already carried; the row moves
 to a body held to an independent volume.
+
+## The steep tilt meets the same guard on torus × cylinder
+
+`crates/sweep/tests/germ_tilted_rod.rs`
+`the_steeper_tilts_union_stops_by_identity` (the half donut ∪ a rod
+tilted 0.7 rad): with the half donut's torus wall measured (its spiric
+and its chords alike), the union passes the gate and stops at the same
+guard on the torus wall × the rod's cylinder wall
+(`CurvedPairUnsupported { site: InteriorLoopGuard, kind: Torus,
+other_kind: Cylinder }`), pinned by identity.
