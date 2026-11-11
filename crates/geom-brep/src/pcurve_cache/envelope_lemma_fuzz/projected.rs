@@ -697,10 +697,24 @@ fn a_spindle_toruss_bound_asks_its_lever_positive() {
     );
 }
 
-/// `f = (m² − r²)(M² − r²)` in a sheet's meridian half-plane.
+/// An upper bound on `|f|`, `f = (m² − r²)(M² − r²)`, at a point of a
+/// sheet's meridian half-plane: each factor `ρ(ρ ∓ 2R) + z² + (R − r)(R + r)`
+/// enclosed in `Interval`, so the bound holds beside a horn's cusp, where
+/// the `f64` form cancels below the true value.
 fn sheet_form(major: f64, minor: f64, rho: f64, z: f64) -> f64 {
-    let r2 = minor * minor;
-    ((rho - major).powi(2) + z * z - r2) * ((rho + major).powi(2) + z * z - r2)
+    let pt = |x: f64| Interval::from_bounds(x, x);
+    let (big, r, rho, z) = (pt(major), pt(minor), pt(rho), pt(z));
+    let k = (big - r) * (big + r);
+    let near = rho * (rho - big - big) + z.powi(2) + k;
+    let far = rho * (rho + big + big) + z.powi(2) + k;
+    (near * far).abs().hi()
+}
+
+/// The fuzzes' allowance for the `f64` oracle's own rounding: relative
+/// to the bound, and absolute at the scale of the point's coordinates and
+/// the apexes' height, which beside a horn's cusp is far below `1e-15`.
+fn oracle_slack(bound: f64, rho: f64, z: f64, h: f64) -> f64 {
+    bound * 1e-9 + 8.0 * f64::EPSILON * (rho.abs() + z.abs() + h)
 }
 
 /// The exact distance in the meridian half-plane from `(ρ, z)` to the
@@ -804,7 +818,7 @@ fn a_spindle_bound_is_this_sheets_distance() {
                 };
                 let rho = rho_lo + (rho_hi - rho_lo) * at(a);
                 let z = z_lo + (z_hi - z_lo) * at(b);
-                f_sup = f_sup.max(sheet_form(major, minor, rho, z).abs());
+                f_sup = f_sup.max(sheet_form(major, minor, rho, z));
                 far = far.max(sheet_distance(major, minor, rho, z));
             }
         }
@@ -817,7 +831,7 @@ fn a_spindle_bound_is_this_sheets_distance() {
         );
         if let Some(bound) = read {
             assert!(
-                far <= bound * (1.0 + 1e-9) + 1e-15,
+                far <= bound + oracle_slack(bound, rho_hi, z_lo.abs().max(z_hi.abs()), h),
                 "draw {i}: R {major} r {minor}, box ρ [{rho_lo}, {rho_hi}] z [{z_lo}, {z_hi}]: \
                  a point {far} from the sheet past the bound {bound}; {}",
                 fuzz::replay()
@@ -889,7 +903,7 @@ fn a_spindle_bound_is_this_sheets_distance_at_interval() {
                 };
                 let rho = rho_lo + (rho_hi - rho_lo) * at(a);
                 let z = z_lo + (z_hi - z_lo) * at(b);
-                f_sup = f_sup.max(sheet_form(major, minor, rho, z).abs());
+                f_sup = f_sup.max(sheet_form(major, minor, rho, z));
                 far = far.max(sheet_distance(major, minor, rho, z));
             }
         }
@@ -909,7 +923,7 @@ fn a_spindle_bound_is_this_sheets_distance_at_interval() {
             )
         };
         assert!(
-            far <= bound.hi() * (1.0 + 1e-9) + 1e-15,
+            far <= bound.hi() + oracle_slack(bound.hi(), rho_hi, z_lo.abs().max(z_hi.abs()), h),
             "draw {i}: R {major} r {minor}, box ρ [{rho_lo}, {rho_hi}] z [{z_lo}, {z_hi}]: \
              a point {far} from the sheet past {}; {}",
             bound.hi(),
@@ -936,7 +950,7 @@ fn a_part_beside_a_horns_cusp_is_read_at_its_own_height() {
     let (rho, z) = ((0.0, 4.4e-16), (7e-11, 9e-11));
     let mut f_sup = 0.0_f64;
     for (a, b) in [(rho.0, z.0), (rho.0, z.1), (rho.1, z.0), (rho.1, z.1)] {
-        f_sup = f_sup.max(sheet_form(major, minor, a, b).abs());
+        f_sup = f_sup.max(sheet_form(major, minor, a, b));
     }
     let f_sup = 2.0 * f_sup;
     let positive = |x: f64, _| if x > 0.0 { Ok(x) } else { Err(()) };
@@ -985,7 +999,7 @@ fn a_sheets_reading_is_the_least_that_reads() {
     let (rho, z) = ((0.04, 0.06), (0.3, 0.3001));
     let mut f_sup = 0.0_f64;
     for (a, b) in [(rho.0, z.0), (rho.0, z.1), (rho.1, z.0), (rho.1, z.1)] {
-        f_sup = f_sup.max(sheet_form(major, minor, a, b).abs());
+        f_sup = f_sup.max(sheet_form(major, minor, a, b));
     }
     let meters = Meters::Spindle { major, minor };
     let positive = |x: f64, _| if x > 0.0 { Ok(x) } else { Err(()) };
@@ -1031,7 +1045,7 @@ fn a_parts_past_a_sheets_apex_is_refused_by_the_side_check() {
         "the circle's distance {whole} under-reads the sheet's {own}"
     );
     assert!(whole * major.abs() > minor * rho, "the side check fails");
-    let f = sheet_form(major, minor, rho, z).abs();
+    let f = sheet_form(major, minor, rho, z);
     let positive = |x: f64, which| if x > 0.0 { Ok(x) } else { Err(which) };
     let got = Meters::Spindle { major, minor }.over(f, (rho, rho), (z, z), positive);
     assert_eq!(got, Err(Lever::Side), "the side check refuses");

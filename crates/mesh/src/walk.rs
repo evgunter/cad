@@ -1266,11 +1266,10 @@ pub(crate) fn loop_polygon(
                     prev_u
                 };
                 if let Some(vp) = jpole {
-                    // A horn's cusp closes its sheet's `v` window at both
-                    // ends, `±π`, and `Chart::poles` lists it once, at
-                    // `π`: a face reaching it from below names `−π`, the
+                    // A horn's one pole is its cusp, at `v = ±π` alike
+                    // (`Chart::is_horn`): a face names the copy on the
                     // side the meridian leaving it reads.
-                    let vp = if vp == core::f64::consts::PI && !chart.v_domain_wraps() {
+                    let vp = if chart.is_horn() {
                         vp.copysign(chart.v_of(positions[cur.ids[1] as usize]))
                     } else {
                         vp

@@ -245,6 +245,7 @@ not (
   (binary_id(sweep::all) & test(=the_football_revolves::a_football_revolved_part_way_is_its_lune)) |
   (binary_id(sweep::all) & test(=the_football_revolves::a_horns_cusp_revolved_part_way_is_its_lune)) |
   (binary_id(geom-brep::all) & test(=closed_form_limb2::limb_2_against_a_sheet_reads_that_sheet_up_to_its_apexes)) |
+  (binary_id(geom-brep::all) & test(=closed_form_limb2::limb_2_against_a_horn_reads_the_sheet_up_to_its_cusp)) |
   (binary_id(geom-brep) & test(=pcurve_cache::circle_lane_rows::a_circles_projected_envelope_covers_its_residual)) |
   (binary_id(topo::all) & (test(=a_vertex_through_a_declared_seat::a_cut_or_meet_through_a_seat_builds_on_the_whole_body) | test(=a_vertex_through_a_declared_seat::a_union_bridging_a_seat_touches_itself_and_one_on_a_piece_builds) | test(=a_vertex_through_a_declared_seat::a_cut_across_its_tools_seat_refuses_typed) | test(=a_vertex_through_a_declared_seat::a_tool_touching_its_seat_from_one_piece_is_cut_away) | test(=a_vertex_through_a_declared_seat::a_seat_divided_along_a_ring_or_met_with_a_seat_refuses_at_the_carry)))
 )

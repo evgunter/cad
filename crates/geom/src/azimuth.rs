@@ -308,8 +308,10 @@ impl<T: Decide> Azimuth<T> {
     /// The angle read in `window`: as [`Azimuth::principal`] reads in the
     /// angle window, with the cut line through `window`'s own start, so a
     /// direction decided on either side reads in that window and the
-    /// read's one jump is the window's cut. A direction of no length reads
-    /// `0`, in every window.
+    /// read's one jump is the window's cut. The sheet's window is the angle
+    /// window's read renamed by whole turns to within half a turn of zero
+    /// ([`Period::near`], a tie to `π`), so its one jump is at `±π`. A
+    /// direction of no length reads `0`, in every window.
     pub fn principal_in(self, window: Window, band: Band) -> T {
         self.read_in_as(window, "pcurve_chart_cut_side", band)
     }
@@ -381,7 +383,15 @@ impl<T: Decide> Azimuth<T> {
         if !geom_core::structure_nonzero(self.length()) {
             return T::zero();
         }
-        stable_azimuth_as(row, self.y, self.x, window.start(), band)
+        match window {
+            Window::Angle | Window::Latitude => {
+                stable_azimuth_as(row, self.y, self.x, window.start(), band)
+            }
+            Window::Sheet => Period::angle().near(
+                stable_azimuth_as(row, self.y, self.x, Window::Angle.start(), band),
+                T::zero(),
+            ),
+        }
     }
 }
 
@@ -408,17 +418,24 @@ pub fn separation<T: Real>(theta: T, at: T) -> T {
 /// poles (`1 + π` beyond the north, `1 − π` beyond the south): the
 /// meridian's placed polar angle, the parallel's `asin` and the
 /// projected image's latitude, which is never moved, are one convention.
+/// A spindle sheet's tube angle is closed on `[−v*, v*]`, `v* ≤ π`, so it
+/// is named in `(−π, π]`, centred on zero: that window's cut meets the
+/// sheet only at a horn's cusp, where the chart is singular.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Window {
     /// An angle of a periodic chart.
     Angle,
     /// A sphere's latitude.
     Latitude,
+    /// A spindle sheet's tube angle, `(−π, π]`.
+    Sheet,
 }
 
-/// Every window's start lies in `(−π, 0]`, which `stable_azimuth_as`'s two
-/// formulas need to cover `(start, start + τ]`; a start moved outside it
-/// fails the build.
+/// Every window read by `stable_azimuth_as` from its own start has that
+/// start in `(−π, 0]`, which its two formulas need to cover
+/// `(start, start + τ]`; a start moved outside it fails the build. The
+/// sheet's window, whose start is `−π`, is read in the angle window and
+/// renamed by whole turns ([`Azimuth::principal_in`]).
 const _: () = {
     use core::f64::consts::PI;
     assert!(-PI < ANGLE_WINDOW_START && ANGLE_WINDOW_START <= 0.0);
@@ -431,6 +448,7 @@ impl Window {
         match self {
             Window::Angle => T::from_f64(ANGLE_WINDOW_START),
             Window::Latitude => T::from_f64(LATITUDE_WINDOW_START),
+            Window::Sheet => -T::pi(),
         }
     }
 

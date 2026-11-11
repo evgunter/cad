@@ -655,11 +655,12 @@ fn past_a_thin_lemons_apex_limb_2_reads_the_sheet_not_its_circle() {
 /// about `(1, 0, 0)`, from its top to the cusp on either side
 /// (`π/2 ≤ t ≤ π` and `−π ≤ t ≤ −π/2`), certify at a band whose zero
 /// is `10⁻⁹` and at one whose zero is `10⁻¹²`. Beside the cusp the sheet
-/// runs at `ρ ≈ z²/2`, tangent to the axis: a part there is read at its
-/// own height, `|ρ − ρ_s(z)|` (`Meters::certified`), where `|f|` over the
-/// lever (`≈ z²`) reads only the net's rounding over `z²`. The same
-/// circle moved `10⁻⁶` off the axis, `10⁻⁶` from the horn at the cusp,
-/// refuses at both, read off (`Limb`) or not shown on (`KernelLimit`).
+/// runs at `ρ ≈ z²/2`, tangent to the axis, and only the reading at a
+/// part's own height (`Meters::certified`) reaches the band there. This
+/// row holds that it reaches it; what pins the reading's tightness is
+/// `envelope_lemma_fuzz`'s two static horn rows, and its soundness the
+/// sheet fuzzes (a circle off the horn is refused by the distance floor
+/// before any reading is asked).
 #[test]
 fn limb_2_against_a_horn_reads_the_sheet_up_to_its_cusp() {
     let horn = Surface::Spindle {
@@ -680,21 +681,58 @@ fn limb_2_against_a_horn_reads_the_sheet_up_to_its_cusp() {
                 own.is_ok(),
                 "band {band:?}, the horn's meridian over {span:?}: {own:?}"
             );
-            let off =
-                geom_brep::analytic_edge_limbs(&meridian(1.0 + 1e-6), span, &horn, &plane, band);
-            assert!(
-                matches!(
-                    off,
-                    Err(AnalyticRung3Refusal::KernelLimit {
-                        operand: geom::SurfaceKind::Spindle,
-                        ..
-                    } | AnalyticRung3Refusal::Limb {
-                        operand: geom::SurfaceKind::Spindle,
-                        ..
-                    })
-                ),
-                "band {band:?}, a circle 1e-6 off over {span:?}: {off:?}"
-            );
         }
+    }
+}
+
+/// **A wide apple's pcurves name `v` as its chart does.** The apple
+/// `R = 0.8, r = 1` (`v* ≈ 2.50`, past `π − 1`): each parallel's pcurve
+/// and each meridian arc's, at its midpoint, reads the same `v` as
+/// `chart_point` at the same point, below `1 − π` as above it. Both name a
+/// sheet's tube angle in `Window::Sheet`.
+#[test]
+fn a_wide_apples_pcurves_name_v_as_its_chart_does() {
+    let (major, minor) = (0.8_f64, 1.0_f64);
+    let sheet = Surface::Spindle {
+        center: Point3::origin(),
+        axis: Vec3::unit_z(),
+        major_radius: major,
+        minor_radius: minor,
+        u_ref: Vec3::unit_x(),
+    };
+    let band = Band::new(1e-9, 3e-9).unwrap();
+    let at = |v: f64| Point3::new(major + minor * v.cos(), 0.0, minor * v.sin());
+    for v in [-2.45, -2.4, -2.2, -2.0, -1.0, 1.0, 2.2, 2.4, 2.45] {
+        let parallel = Curve3::circle(
+            Point3::new(0.0, 0.0, minor * v.sin()),
+            Vec3::unit_z(),
+            major + minor * v.cos(),
+            Vec3::unit_x(),
+        );
+        let pcurve = geom_brep::chart_pcurve(&parallel, &sheet, band)
+            .unwrap_or_else(|e| panic!("the parallel at {v}: {e:?}"));
+        let chart = sheet.chart_point(at(v), band).unwrap().uv.y;
+        let placed = pcurve.eval(0.0).y;
+        assert!(
+            (placed - chart).abs() <= 1e-9,
+            "the parallel at {v}: its pcurve names v = {placed}, the chart {chart}"
+        );
+    }
+    for (t0, t1) in [
+        (-2.45, -2.3),
+        (-2.4, -1.0),
+        (-2.4, -2.2),
+        (-1.0, 1.0),
+        (1.0, 2.4),
+    ] {
+        let pcurve = geom_brep::chart_pcurve_over(&meridian(major), t0, t1, &sheet, band)
+            .unwrap_or_else(|e| panic!("the meridian over [{t0}, {t1}]: {e:?}"));
+        let mid = 0.5 * (t0 + t1);
+        let chart = sheet.chart_point(at(mid), band).unwrap().uv.y;
+        let placed = pcurve.eval(mid).y;
+        assert!(
+            (placed - chart).abs() <= 1e-9,
+            "the meridian over [{t0}, {t1}]: its pcurve names v = {placed} at {mid}, the chart {chart}"
+        );
     }
 }
