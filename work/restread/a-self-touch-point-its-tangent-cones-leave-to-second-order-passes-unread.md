@@ -2,11 +2,13 @@
 id: a-self-touch-point-its-tangent-cones-leave-to-second-order-passes-unread
 kind: issue
 title: A self-touch point whose curved faces' tangent cones leave it to second order passes unread
-status: open
+status: review
 opened: 2026-11-02
 priority: P1
 cost: H
 refs: [tier-3-prime-reads-no-side-where-a-solid-touches-itself-at-a-point-on-a-curved-face]
+pr: 6835
+branch: restread/self-touch-apex
 ---
 
 
@@ -298,3 +300,62 @@ measured body: a curved pinch whose polar value reads zero (third
 order), a pair whose other sector runs on past both ends, and a mouth
 inside a wedge of the running-on sector (the pose dependence above).
 Whether the remainder refuses is still Ev's call.
+
+## A cone's apex, and two arcs of one circle (branch `restread/self-touch-apex`)
+
+Tier: **dual (class H): a GRANT in the self-touch reading.**
+
+What the real bodies hold: at the cone apex (`(0, 1, 0)`) a void cone's
+whole nappe, its face's corner a spur at the apex (one wrap edge), under
+a plane face holding the point inside, its material below; at the pit
+(`(0, 0.134, 0)`) the same needle as two half-turn corners of one
+carrier, split at the revolve's two meridians, under the cut plane. At
+`a_hole_sharing_…` the boss's rim and the hole's rim are one circle
+through the point (the boss's vertex sits inside the shared arc), so
+the four sheets' anchors coincide at every order: no order of the cut
+parts them, third order included.
+
+- **A cone's apex** (`rest::at_apex`): a cone is its own tangent cone at
+  its apex, so the face is its rulings there. A nappe held whole (one
+  spur corner, or two corners of one carrier and sense, each bounded by
+  the other's edges, their rulings decidedly apart) bounds the convex
+  cone `C`. Every other sector's plane must hold the nappe strictly to
+  one side, read at the axis point of the rulings' circle at the arm
+  with the circle's spread off the plane (`ρ·|m × a|`) charged; then
+  `C` lies in one region of the rest of the link, which must read one
+  material and read `C`'s axis outside it for a thorn, inside it for a
+  needle. A whole plane with rulings decidedly on both sides is a
+  crossing; a side in band refuses `InBand`; a horn beside the nappe, a
+  half-plane cutting it, a nappe not held whole, or the axis on the
+  wrong side is left unread.
+- **Two arcs of one circle** (`second_order::one_circle`,
+  `rest::kept_bound`): two circle edges along one ray whose curvature
+  vectors read Zero apart at the arm, off the sector's plane and square
+  to the ray in it, are kept as the faces keep them, as two lines on one
+  line are: a point, a tangent and a curvature vector fix a circle.
+  Arcs of other conics are not kept (the edge's carrier must be a
+  circle, `Bound::circle`).
+
+The arguments are in `crates/topo/README.md` beside the others.
+
+**Measured at head `d44b40b182` against merge base `c43415ae04`**, same
+instrument (key: test, `census::witness`, verdict; topo plus the nine
+sweep families, default ε). 478 triples both sides. Skipped at the base:
+5. At head the cone apex (1), the pit (1) and `a_hole_sharing_…` (1) read
+`Rest`; no other triple changes verdict and the head reaches no point the
+base does not. The later commits change rows and one equivalent arm of
+the apex reading (a same-side read of the two far rulings, which the
+charged reading already decides); the three triples read `Rest` again
+there. Still skipped (2), both in rows that accept a refusal:
+
+| class still skipped | triples |
+|---|---|
+| a NURBS face held inside at the point (`reach_wall_chord_rows::a_vertex_on_a_curved_face_is_confirmed_by_its_trim`): its tangent plane's fan needs a carrier frame, which a spline has none of (`census::carrier_frame`) | 1 |
+| a NURBS face's corner `sector_face::resolve` refuses: no sector arm (`census::tests::a_vertex_on_edge_record_off_a_circle_edge_reads_stale`, `NoSectorArm`) | 1 |
+
+**Refusing what is left** (local variant, never committed) turns no
+sweep row red: both remaining triples are in rows that accept a refusal.
+Not reached by any measured body, and skipped: a second apex in one link,
+a horn beside a nappe, a nappe of more than two corners, and a
+half-plane cutting a nappe. Whether the remainder refuses is still Ev's
+call.
