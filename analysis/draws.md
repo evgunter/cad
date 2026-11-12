@@ -6,3 +6,4 @@ Protocol at dispatch: e1c428efbb
 
 - 2026-11-12T13:29Z implementer arm: byte 117 (odd) -> Fable.
 - 2026-11-12T18:30Z dual H slot order: byte 14 (even) -> R1 Opus, R2 Fable. Frozen head 6f4a9665d4 (PR 6878).
+- 2026-11-12T20:19Z blind coder A/B: byte 158 (even) -> A = R1, B = R2.
