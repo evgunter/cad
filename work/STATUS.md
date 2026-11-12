@@ -263,7 +263,7 @@ prefix `band/`; tag `(BAND orchestrator)`; ab_band `7800-7899`.
 
 | pri | item | kind | cost | status | title | blocked on | PR |
 |---|---|---|---|---|---|---|---|
-| P0 | `a-boss-on-a-plate-meets-it-at-a-mixed-convexity-corner-no-run-out-rounds` | issue | H | open | A boss on a plate meets it at a mixed-convexity corner that no run-out rounds, so the bracket cannot be filleted all round |  |  |
+| P0 | `a-boss-on-a-plate-meets-it-at-a-mixed-convexity-corner-no-run-out-rounds` | issue | H | open | A boss on a plate meets it at a mixed-convexity corner that no run-out rounds, so the bracket cannot be filleted all round |  | #6507 |
 | P0 | `a-rounded-outline-is-a-closed-chain-of-mixed-links-the-blend-refuses` | issue | H | open | A rounded outline's edges form a closed tangent-continuous chain of mixed links, which the blend refuses (junction carry-through) |  |  |
 | P1 | `a-fillet-leaves-the-kiss-of-two-touching-solids-as-it-is-with-no-refusal` | issue | M +design | open | the fillet leaves the kiss of two touching solids as it is, with no refusal |  |  |
 | P1 | `blend-reads-its-chain-convexity-off-the-link` | issue | M | open | Blend decides its chain convexity with its own triple-product predicate and lever, the same question topo's link answers |  |  |
