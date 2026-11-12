@@ -24,7 +24,7 @@ under any other description:
 - `OnPair`: `plane_nurbs_pair` takes a plane; a curved partner falls to
   `resolve`, which refuses the spline side. The incidence lane
   (`edge_nurbs::plane_nurbs_incidence`) is a plane's by its door
-  (`plane_lane_door`).
+  (`plane_partner`).
 - `TangentIntersection`: both sides go through `resolve`.
 - `Intersection` under a shared row: the walls are both spline or both
   analytic.

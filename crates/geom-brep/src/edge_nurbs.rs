@@ -44,9 +44,9 @@
 //! The pcurve `P(t)` is not in the file. This lane derives it from foot
 //! points at the fixed schedule, on the carrier's own parameter (the OQ4
 //! identity: `P(t)` and `C(t)` are the same `t` by construction):
-//! beside a plane their degree-1 interpolant ([`chart_image`]); beside a
+//! beside a plane their degree-1 interpolant (`chart_image`); beside a
 //! curved partner, whose arc bends in the chart, the image the pcurve
-//! mint climbs to for the same carrier ([`general_chart_image`]), whose
+//! mint climbs to for the same carrier (`general_chart_image`), whose
 //! nodes depend on the band. Either is a **structure** selection in
 //! C6's `f64` lane, lifted to the caller's scalar, and certifies nothing
 //! by itself. Limb 2 bounds `sup_t |S(P(t)) − C(t)|` over the whole
@@ -827,8 +827,10 @@ impl core::fmt::Display for PlaneNurbsRefusal {
 }
 
 /// **The certified plane × NURBS derivation** — the whole of what a
-/// scalar with certification rights can prove about this edge class,
-/// and the function the doors inject ([`crate::certify::NurbsLane`]).
+/// scalar with certification rights can prove about this edge class.
+/// The doors inject it through the residual lanes' one door
+/// ([`crate::certify::NurbsLane`]), which a curved partner shares
+/// ([`curved_nurbs_limbs`]).
 ///
 /// The operand ORDER is load-bearing exactly as it is in the fitted
 /// pcurve lane: the NURBS wall is operand **b**, because
@@ -915,10 +917,11 @@ pub fn plane_nurbs_limbs<T: Decide + Bounds + geom_core::CertifiedEnclosure>(
     residual_nurbs_limbs(carrier, params, plane, wall, extent, band)
 }
 
-/// The analytic operand of a residual × NURBS edge lane, and the one
-/// place the lanes differ by it: which surfaces are partners, what an
-/// interior sample reads of one, which image of the carrier the wall's
-/// limbs are read on, and the stream each decision is recorded under.
+/// The analytic operand of a residual × NURBS edge lane, and where the
+/// lanes differ by it: which surfaces are partners, what an interior
+/// sample reads of one, and the stream each decision is recorded under.
+/// The image the wall's limbs are read on is the one difference read in
+/// the door itself ([`residual_nurbs_limbs`]).
 #[derive(Clone, Copy)]
 enum Partner<'a, T: Real> {
     /// A plane, by its normal: flat, so the wall's curvature alone sets
@@ -929,9 +932,10 @@ enum Partner<'a, T: Real> {
 }
 
 impl<'a, T: Real> Partner<'a, T> {
-    /// `s` as a lane's partner: a plane, or a curved surface whose
-    /// implicit residual the rung-3 door reads in metres. A cone's has
-    /// no metres conversion there, and a spline is a wall.
+    /// `s` as a lane's partner: a plane, or a sphere, cylinder or ring
+    /// torus, whose implicit residual the rung-3 door reads in metres.
+    /// A cone's has no metres conversion there, a spindle has no arm,
+    /// and a spline is a wall.
     fn of(s: &'a Surface<T>) -> Option<Self> {
         match s {
             Surface::Plane { normal, .. } => Some(Self::Plane(*normal)),
@@ -966,12 +970,16 @@ impl<'a, T: Real> Partner<'a, T> {
     /// refused where poisoned.
     fn reported(self, min_sin: T, band: Band) -> Result<T, Indeterminate> {
         match self {
-            Self::Plane(_) => {
-                geom_core::k_stats::gate_measured("plane_nurbs_transversality_reported", min_sin, band)
-            }
-            Self::Curved(_) => {
-                geom_core::k_stats::gate_measured("curved_nurbs_transversality_reported", min_sin, band)
-            }
+            Self::Plane(_) => geom_core::k_stats::gate_measured(
+                "plane_nurbs_transversality_reported",
+                min_sin,
+                band,
+            ),
+            Self::Curved(_) => geom_core::k_stats::gate_measured(
+                "curved_nurbs_transversality_reported",
+                min_sin,
+                band,
+            ),
         }
     }
 }
@@ -1010,7 +1018,7 @@ pub(crate) fn is_residual_partner<T: Real>(s: &Surface<T>) -> bool {
 /// branch by. The wall's image of the carrier is not the plane lane's
 /// degree-1 interpolant, which misses an arc that bends in the chart by
 /// its chords' sag: it is the image the pcurve mint climbs to for the
-/// same carrier ([`general_chart_image`]), through the same schedule's
+/// same carrier (`general_chart_image`), through the same schedule's
 /// feet. An interior sample's angle is between the partner's gradient at
 /// the wall's foot and the wall's normal, its arm the shorter of the
 /// extent and either surface's curvature radius there.

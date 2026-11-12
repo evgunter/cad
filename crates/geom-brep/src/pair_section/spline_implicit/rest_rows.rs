@@ -140,10 +140,8 @@ fn image_missed(refused: &CertifyError) -> bool {
 /// Red against: a resolver with no arm for the pair
 /// (`CertifyError::Unimplemented`); the arm reading the wall's image at
 /// degree 1, whose chords miss the arc's bend in the chart by a fraction
-/// of a millimetre at every row; limbs 1 and 2 read against the wall
-/// alone, which an arc off the partner then passes to the witness's
-/// residual, or against the partner alone, which an arc off the wall
-/// then passes to the tube.
+/// of a millimetre at every row; limbs 1 and 2 read against one surface
+/// alone, which leaves an arc a thousand ε off the other to the tube.
 #[test]
 fn a_carried_rim_arc_certifies_at_rest_and_refuses_once_a_surface_stands_off_it() {
     let eps = band().zero();
@@ -536,7 +534,12 @@ fn the_stand_off_is_decided_on_the_runs_band() {
     let nearest = [(0.75, Certifies), (1.25, Escalates), (12.0, Refuses)];
     let cases = [
         ("the cylinder", 1.0, rod(1.0), &whole[..]),
-        ("the sphere", 1e-2, ball(1e-2, (0.0, 1.1, 0.0), 0.4), &nearest[..]),
+        (
+            "the sphere",
+            1e-2,
+            ball(1e-2, (0.0, 1.1, 0.0), 0.4),
+            &nearest[..],
+        ),
     ];
     for (what, s, partner, ladder) in &cases {
         let w = wall(*s);
