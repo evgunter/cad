@@ -4408,6 +4408,12 @@ impl DocSession {
         {
             return OpOutcome::refused(refusal);
         }
+        if let ProductDoor::IntoWorld { placement, .. } = &door
+            && let Err(refusal) =
+                target_change_held(doc, *placement, PlaceTarget::space(VarId::WORLD))
+        {
+            return OpOutcome::refused(refusal);
+        }
         // The space the moved placement leaves, where the same history
         // step minted it with the placement: an "Add part…" insert's.
         let minted = match &door {
@@ -4736,6 +4742,9 @@ impl DocSession {
                 },
             )));
         };
+        if let Err(refusal) = target_change_held(doc, placement, PlaceTarget::NewSpace) {
+            return OpOutcome::refused(refusal);
+        }
         let constraints = base.constraints.clone();
         self.judged_bundle(placement, &base, PlaceTarget::NewSpace, constraints)
     }
@@ -4751,7 +4760,7 @@ impl DocSession {
         if let Err(refusal) = self.bundle_fresh(placement, base) {
             return OpOutcome::refused(refusal);
         }
-        if bundle_writes_nothing(base, &target, &constraints) {
+        if bundle_writes_nothing(self.committed_doc(), placement, base, &target, &constraints) {
             return OpOutcome::default();
         }
         self.commit_run(|run| bundle_run(run, placement, &target, constraints))
@@ -4834,7 +4843,7 @@ impl DocSession {
         let doc = self.committed_doc();
         self.bundle_fresh(placement, base)?;
         // A change that writes what the placement holds lands as nothing.
-        if bundle_writes_nothing(base, target, constraints) {
+        if bundle_writes_nothing(doc, placement, base, target, constraints) {
             return Ok(());
         }
         let mut run = Recording::start(doc, self.tol);
@@ -5137,8 +5146,12 @@ enum ProductDoor {
     Add(VarId),
     /// A placement's copy in another space that nothing reads
     /// ([`crate::world::movable_into_world`]): its placement re-targeted
-    /// into the world, and the copy added. A placement defines one copy,
-    /// so a pick's `body` names nothing more here.
+    /// into the world by the target edit, and the copy added — held in its
+    /// placement editor where its own constraints read the space it
+    /// leaves ([`Refusal::TargetHeld`]). Moving only a copy nothing reads
+    /// is this door's choice, not a rule of the target edit, which admits
+    /// a re-target that strands other reads. A placement defines one
+    /// copy, so a pick's `body` names nothing more here.
     IntoWorld {
         /// The placement.
         placement: RecipeNodeId,
@@ -5693,9 +5706,8 @@ fn in_one_space(
     };
     let mut read = vec![first.clone()];
     for operand in rest {
-        let copy = crate::world::read_output(run.doc(), &operand.read)
-            .map(|(node, _)| !operand.is_indexed() && moves_copies(run.doc(), node));
-        if copy.is_none_or(|copy| copy) || run.doc().operand_space(&operand.read) == Some(home) {
+        let elsewhere = run.doc().operand_space(&operand.read) != Some(home);
+        if !(elsewhere && combined(run.doc(), operand) == Combined::Body) {
             read.push(operand.clone());
             continue;
         }
@@ -5707,6 +5719,37 @@ fn in_one_space(
         read.push(placement.into());
     }
     Ok(read)
+}
+
+/// **What a combine's operand is**, the one reading [`in_one_space`] and
+/// [`copy_off_space`] share.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Combined {
+    /// A placement's copy read whole (a `Place` or an instance): moved
+    /// only by its own placement.
+    Copy(RecipeNodeId),
+    /// A pattern's family read whole: moved only by its pattern.
+    Family,
+    /// Any other body, a member read (`xs[i]`) included: placed into the
+    /// first operand's space where it lives in another.
+    Body,
+    /// A read that names no node's output.
+    Unread,
+}
+
+/// [`Combined`] of `operand` in `doc`.
+fn combined(doc: &Doc<ProfileProgram>, operand: &pncad::document::BodyRead<Formula>) -> Combined {
+    match crate::world::read_output(doc, &operand.read) {
+        None => Combined::Unread,
+        Some((node, _)) if !operand.is_indexed() && moves_copies(doc, node) => {
+            if crate::world::repeats(doc, node) {
+                Combined::Family
+            } else {
+                Combined::Copy(node)
+            }
+        }
+        Some(_) => Combined::Body,
+    }
 }
 
 /// **The first copy among a combine's later operands placed into
@@ -5725,13 +5768,14 @@ fn copy_off_space(
     let Some(home) = doc.operand_space(&first.read) else {
         return Ok(());
     };
-    for operand in rest.iter().filter(|read| !read.is_indexed()) {
-        let Some((node, _)) = crate::world::read_output(doc, &operand.read) else {
+    for operand in rest {
+        let Combined::Copy(node) = combined(doc, operand) else {
             continue;
         };
-        let space = doc.operand_space(&operand.read);
-        let copy = moves_copies(doc, node) && !crate::world::repeats(doc, node);
-        if let Some(space) = space.filter(|&space| space != home && copy) {
+        if let Some(space) = doc
+            .operand_space(&operand.read)
+            .filter(|&space| space != home)
+        {
             return Err(Refusal::CopyInAnotherSpace {
                 copy: doc.spoken(node),
                 space: Box::new(doc.spoken_space(space)),
@@ -5740,6 +5784,61 @@ fn copy_off_space(
         }
     }
     Ok(())
+}
+
+/// **The spaces a constraint reads besides its copy's**: a mate's `to`,
+/// a value's direction or axis read off a body — what a re-target leaves
+/// reading the old space. The one rule the placement editor's marked rows
+/// and the re-targeting doors share.
+pub(crate) fn read_spaces(
+    doc: &Doc<ProfileProgram>,
+    constraint: &pncad::document::Constraint<Formula>,
+) -> Vec<VarId> {
+    let mut spaces: Vec<VarId> = Vec::new();
+    for space in constraint
+        .target_reads()
+        .into_iter()
+        .filter_map(|read| doc.operand_space(read))
+    {
+        if !spaces.contains(&space) {
+            spaces.push(space);
+        }
+    }
+    spaces
+}
+
+/// **A door's target change for `placement`, held where its own bundle
+/// reads the space it leaves**: a door has no draft to hold the change
+/// in, so it refuses [`Refusal::TargetHeld`], and the chrome opens the
+/// placement editor on the copy with `target` set, where the change is
+/// held with the rows that read the old space marked
+/// ([`crate::tools::Tools::answered`]).
+fn target_change_held(
+    doc: &Doc<ProfileProgram>,
+    placement: RecipeNodeId,
+    target: PlaceTarget,
+) -> Result<(), Refusal> {
+    let Some(space) = doc.node_space(placement) else {
+        return Ok(());
+    };
+    let reading = held_bundle(doc, placement)
+        .iter()
+        .filter(|c| read_spaces(doc, c).contains(&space))
+        .count();
+    if reading == 0 {
+        return Ok(());
+    }
+    Err(Refusal::TargetHeld {
+        copy: doc.spoken(placement),
+        placement,
+        space: Box::new(doc.spoken_space(space)),
+        reading,
+        into: match target {
+            PlaceTarget::Space(into) => Some(Box::new(doc.spoken_space(into))),
+            PlaceTarget::NewSpace => None,
+        },
+        target,
+    })
 }
 
 /// **`placement`'s bundle as authored**: each constraint re-authored,
@@ -5803,13 +5902,25 @@ fn write_bundle(
 }
 
 /// **Whether a `SetBundle` of `target` and `constraints` over `base`
-/// writes nothing**: the target and the bundle the placement holds.
+/// writes nothing**: the bundle the placement holds, and the space its
+/// target reads in `doc`, however the slot spells it.
 pub(crate) fn bundle_writes_nothing(
+    doc: &Doc<ProfileProgram>,
+    placement: RecipeNodeId,
     base: &PlacementBase,
     target: &PlaceTarget,
     constraints: &[pncad::document::Constraint<Formula>],
 ) -> bool {
-    constraints == base.constraints && *target == PlaceTarget::Space(base.target.clone())
+    constraints == base.constraints && holds_target(doc, placement, target)
+}
+
+/// Whether `placement` is placed into `target` in `doc` already.
+pub(crate) fn holds_target(
+    doc: &Doc<ProfileProgram>,
+    placement: RecipeNodeId,
+    target: &PlaceTarget,
+) -> bool {
+    matches!(target, PlaceTarget::Space(space) if doc.node_space(placement) == Some(*space))
 }
 
 /// **The placement editor's change, applied**: `placement` re-targeted
@@ -5840,13 +5951,11 @@ pub(crate) fn retarget(
     placement: RecipeNodeId,
     target: &PlaceTarget,
 ) -> Result<(), EditError> {
+    if holds_target(run.doc(), placement, target) {
+        return Ok(());
+    }
     let read = match target {
-        PlaceTarget::Space(read) => {
-            if held_placement(run.doc(), placement).is_some_and(|held| held.target == *read) {
-                return Ok(());
-            }
-            read.clone()
-        }
+        PlaceTarget::Space(space) => Operand::Var(*space),
         PlaceTarget::NewSpace => {
             let node = run.insert(Node::Space)?;
             let Some(&space) = run.doc().outputs(node).first() else {

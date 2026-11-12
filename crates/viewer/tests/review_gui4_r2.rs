@@ -145,6 +145,7 @@ fn the_solved_seat_hangs_the_post_under_the_shelf() {
     let mut tool = MateTool::new();
     tool.pick(session.doc(), a);
     tool.pick(session.doc(), b);
+    common::into_to_space(&session, &mut tool);
     let proposal =
         common::proposed(&session, &tool, asm::seat_choice()).expect("the seat proposes");
     common::commit_mate(&mut session, proposal.op());
@@ -296,6 +297,7 @@ fn a_second_mate_beyond_the_pin_refuses_typed_at_the_door() {
     let mut tool = MateTool::new();
     tool.pick(session.doc(), a.clone());
     tool.pick(session.doc(), b.clone());
+    common::into_to_space(&session, &mut tool);
     let proposal =
         common::proposed(&session, &tool, asm::seat_choice()).expect("the seat proposes");
     common::commit_mate(&mut session, proposal.op());

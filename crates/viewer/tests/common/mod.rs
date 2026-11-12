@@ -462,55 +462,75 @@ pub fn commit_mate(session: &mut DocSession, op: SessionOp) -> pncad::document::
     mate
 }
 
-/// **A mate op whose `to` reads another space than its placement's
-/// target, made with the target change it needs**. An `AddMate` is
-/// drafted in the placement's editor with its first row set to the space
-/// the `to` reads, as one `SetBundle` — "Into <space>" and the mate
-/// drafted together. Where the door holds that draft (a bundle that would
-/// not stand, which an `AddMate` admits and the evaluation refuses), the
-/// target change is made as a step of its own first ([`into_space`]) and
-/// the op is answered as it is. A `SetBundle` a proposal formed is
-/// re-based on the target its own step set. Any other op is answered as
-/// it is.
-pub fn into_its_space(session: &mut DocSession, op: SessionOp) -> SessionOp {
-    let doc = session.committed_doc();
+/// **The space `op`'s mate reads, where its placement is not placed
+/// into it**: an `AddMate`'s `to`, or the first mate of a `SetBundle`
+/// whose `to` reads another space.
+fn mate_elsewhere(
+    doc: &Doc<ProfileProgram>,
+    op: &SessionOp,
+) -> Option<(RecipeNodeId, pncad::document::VarId)> {
     let off = |placement: RecipeNodeId, to: &pncad::document::Operand| {
         doc.operand_space(to)
             .filter(|&space| doc.node_space(placement) != Some(space))
+            .map(|space| (placement, space))
     };
-    let into = match &op {
+    match op {
         SessionOp::AddMate {
             placement, mate, ..
-        } => off(*placement, &mate.to).map(|space| (*placement, space)),
+        } => off(*placement, &mate.to),
         SessionOp::SetBundle {
             placement,
+            target,
             constraints,
             ..
         } => constraints
             .iter()
             .filter_map(|c| c.mate())
             .find_map(|mate| off(*placement, &mate.to))
-            .map(|space| (*placement, space)),
+            .filter(|&(_, space)| *target != viewer::session::PlaceTarget::space(space)),
         _ => None,
-    };
-    let Some((placement, space)) = into else {
-        return op;
-    };
-    if let SessionOp::AddMate { mate, values, .. } = &op {
-        let mut tool =
-            viewer::matetool::MateTool::edit(doc, placement).expect("a placement's editor");
-        tool.set_target(viewer::session::PlaceTarget::space(space));
-        tool.add_written(doc, mate);
-        for (coord, by) in values.clone() {
-            tool.type_value(coord, by);
-        }
-        let (landed, ev) = session.landed_pair().expect("landed");
-        if let Ok(proposal) = tool.proposal(landed, ev, session.tol())
-            && session.bundle_door(&proposal.op()).is_ok()
-        {
-            return proposal.op();
-        }
     }
+}
+
+/// **An `AddMate` reading another space, made in one change with the
+/// target it needs**: the placement's editor, its first row set to the
+/// space the mate's `to` reads and the mate added, as one `SetBundle`
+/// the door judges — "Into <space>" and the mate drafted together.
+///
+/// # Panics
+///
+/// Where `op` is no such `AddMate`, or the draft does not propose.
+pub fn in_one_change(session: &DocSession, op: SessionOp) -> SessionOp {
+    let doc = session.committed_doc();
+    let (placement, space) = mate_elsewhere(doc, &op).expect("a mate reading another space");
+    let SessionOp::AddMate { mate, values, .. } = op else {
+        panic!("an `AddMate`: {op:?}")
+    };
+    let mut tool = viewer::matetool::MateTool::edit(doc, placement).expect("a placement's editor");
+    tool.set_target(viewer::session::PlaceTarget::space(space));
+    tool.add_written(doc, &mate);
+    for (coord, by) in values {
+        tool.type_value(coord, by);
+    }
+    let (landed, ev) = session.landed_pair().expect("landed");
+    tool.proposal(landed, ev, session.tol())
+        .unwrap_or_else(|error| panic!("the mate proposes over its space: {error}"))
+        .op()
+}
+
+/// **A mate op reading another space, made after the target change it
+/// needs**: the placement's "into" row set to that space as a step of its
+/// own ([`into_space`]), then `op` answered over it — the panel's "Into
+/// <space>" and then the held mate. An `AddMate` is answered as it is (a
+/// bundle the evaluation refuses lands, as `AddMate` admits it); a
+/// `SetBundle` is re-based on the target its own step set.
+///
+/// # Panics
+///
+/// Where `op` reads no other space, or the target change is refused.
+pub fn after_into(session: &mut DocSession, op: SessionOp) -> SessionOp {
+    let (placement, space) =
+        mate_elsewhere(session.committed_doc(), &op).expect("a mate reading another space");
     into_space(session, placement, space);
     match op {
         SessionOp::SetBundle {
@@ -531,15 +551,38 @@ pub fn into_its_space(session: &mut DocSession, op: SessionOp) -> SessionOp {
     }
 }
 
-/// [`into_its_space`], then the op performed.
-pub fn perform_in_its_space(session: &mut DocSession, op: SessionOp) -> viewer::session::OpOutcome {
-    let op = into_its_space(session, op);
+/// [`in_one_change`], performed.
+pub fn perform_in_one_change(
+    session: &mut DocSession,
+    op: SessionOp,
+) -> viewer::session::OpOutcome {
+    let op = in_one_change(session, op);
     session.perform(op)
+}
+
+/// [`after_into`], performed.
+pub fn perform_after_into(session: &mut DocSession, op: SessionOp) -> viewer::session::OpOutcome {
+    let op = after_into(session, op);
+    session.perform(op)
+}
+
+/// [`commit_mate`] of [`in_one_change`].
+pub fn commit_mate_in_one_change(
+    session: &mut DocSession,
+    op: SessionOp,
+) -> pncad::document::MateRef {
+    let op = in_one_change(session, op);
+    commit_mate(session, op)
+}
+
+/// [`commit_mate`] of [`after_into`].
+pub fn commit_mate_after_into(session: &mut DocSession, op: SessionOp) -> pncad::document::MateRef {
+    let op = after_into(session, op);
+    commit_mate(session, op)
 }
 
 /// [`commit_mate`] without the pump.
 pub fn add_mate(session: &mut DocSession, op: SessionOp) -> pncad::document::MateRef {
-    let op = into_its_space(session, op);
     // A placement's editor writes its bundle whole; a mate is added to it.
     let (SessionOp::AddMate { placement, .. } | SessionOp::SetBundle { placement, .. }) = &op
     else {
@@ -1308,7 +1351,7 @@ pub fn place_and_edit(
 /// reads, where that is not the target**, as one change of the draft
 /// made with the rest of it ([`viewer::matetool::MateTool::set_target`]).
 /// A row that wants the panel's two-step "Into <space>" calls
-/// `MateTool::into_space` instead.
+/// `MateTool::retarget_into` instead.
 pub fn into_to_space(session: &DocSession, tool: &mut viewer::matetool::MateTool) {
     let (doc, ev) = session.landed_pair().expect("landed");
     let &(_, space) = tool

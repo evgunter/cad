@@ -188,7 +188,7 @@ fn an_assembly_authored_into_a_directory_of_parts_round_trips() {
             asm::seat_values_at(asm::SHELF_LENGTH / 2.0, [0.0; 3]),
         )
     };
-    let outcome = common::perform_in_its_space(&mut session, seat());
+    let outcome = common::perform_in_one_change(&mut session, seat());
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
     assert_eq!(
         outcome.committed.len(),
@@ -1096,7 +1096,7 @@ fn a_gesture_under_a_root_that_comes_to_refuse_dies_at_the_landing() {
         let mut session = asm::open_bench(&bench, tol);
         asm::unpin(&mut session, bench.post_b);
         asm::unpin(&mut session, bench.shelf_i);
-        common::commit_mate(
+        common::commit_mate_in_one_change(
             &mut session,
             asm::seat_op(&bench, bench.post_b, asm::own_space_seat_values()),
         );

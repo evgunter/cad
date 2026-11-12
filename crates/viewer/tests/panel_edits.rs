@@ -720,6 +720,7 @@ test_utils::f6_variants! {
         BundleStale,
         PlaceOnACopy,
         CopyInAnotherSpace,
+        TargetHeld,
         NothingPlaced,
         Unspliced,
         ValueNotRemoved,

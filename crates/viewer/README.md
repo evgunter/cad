@@ -2407,7 +2407,9 @@ back restores the document. It keeps every mate as written; a mate
 whose `to` reads the old space makes the copy fail, so the change is
 held, each such row marked, until its `to` is re-picked or it is struck
 ("strike the N that read <old space>", the freed values measured where
-the copy stood, as `remove` measures them). Reads of the copy left in
+the copy stood, as `remove` measures them). A value along a direction
+or about an axis read off the old space holds the change the same way,
+is marked, and is struck with them, its freedom measured afresh. Reads of the copy left in
 the old space are admitted, unresolved and typed (D10
 `[placement.spaces]`, as deleting a variable leaves its readers): the
 change names each one it strands and marks it on its row, and one undo
@@ -2495,11 +2497,13 @@ body's tree row, and as the action of the `EmptyProduct`,
 `StrandedProduct` and `unused` recourses, each one action and one undo:
 a copy in the world is added to the slot (`SetProduct`); a placement's
 copy that nothing in its space reads (no operand, no mate pose, no
-pick), and whose own bundle reads nothing there, has its placement
-re-targeted into the world by the target edit, its values kept, a space
-the gesture minted and left empty deleted, and is added — a choice of
-this door, which moves a copy only where the move strands nothing
-(`world::movable_into_world`); any other body is
+pick) has its placement re-targeted into the world by the target edit,
+its values kept, a space the gesture minted and left empty deleted, and
+is added; where that copy's own constraints read the space it leaves (a
+mate's `to`, a value along a direction or about an axis), the change is
+held as the editor holds it: the door refuses `Refusal::TargetHeld` and
+the placement editor opens on the copy with its target set to the world,
+those rows marked to re-pick or strike; any other body is
 placed into the world by the identity bundle and that copy added. A
 fresh body therefore reports `unused` (D10 `[operations]`), with this
 door as its recourse.
@@ -2515,8 +2519,9 @@ refuses one (`Refusal::ValueNotRemoved`) — and opens the editor with
 that mate struck out, a change offered as every other is, the freed
 values measured where the copy stands; the op writes the same draft. `SessionOp::IntoOwnSpace` gives a copy a
 space of its own — a `new_space()`, the placement re-targeted into it
-by the target edit, its values kept, refused `Refusal::PlacementFails`
-where a mate of its own reads the space it leaves — which the Properties pane offers beside the free-move
+by the target edit, its values kept, held in its placement editor with
+the target set to a new space where its own constraints read the space
+it leaves, as Add to the product's move is — which the Properties pane offers beside the free-move
 probe's refusal for a copy in the world.
 
 **The rule reads the document alone.** The mate reads poses off

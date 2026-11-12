@@ -285,7 +285,7 @@ fn a_frame_keeps_its_space_whoever_wrote_it() {
     let bench = asm::bench("saved-layout-writer", tol);
     let mut session = asm::open_bench(&bench, tol);
     asm::unpin(&mut session, bench.shelf_i);
-    common::commit_mate(
+    common::commit_mate_in_one_change(
         &mut session,
         asm::seat_op(&bench, bench.post_b, asm::own_space_seat_values()),
     );
@@ -297,7 +297,7 @@ fn a_frame_keeps_its_space_whoever_wrote_it() {
     let probe = Frame::translation([0.0, 0.0, 0.07]);
     free_move(&mut session, bench.shelf_i, probe);
     let rested =
-        common::perform_in_its_space(&mut session, asm::shelf_rest_op(&bench, bench.post_a, 0.0));
+        common::perform_in_one_change(&mut session, asm::shelf_rest_op(&bench, bench.post_a, 0.0));
     assert!(rested.refusal.is_none(), "{:?}", rested.refusal);
     session.pump();
     assert_ne!(

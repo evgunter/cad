@@ -135,6 +135,7 @@ fn r1_the_minted_mate_reads_the_parts_own_faces_under_a_rotated_placement() {
     let mut tool = MateTool::new();
     tool.pick(session.doc(), post_a_top.clone());
     tool.pick(session.doc(), shelf_bottom.clone());
+    common::into_to_space(&session, &mut tool);
     let (doc, _) = session.landed_pair().expect("landed");
     let proposal =
         common::proposed(&session, &tool, asm::seat_choice()).expect("the tool proposes");
@@ -354,7 +355,7 @@ fn r1_hide_probe_and_mate_compose_without_a_silent_state() {
     // Mate it onto the shelf, in the world: the mate places it into
     // the world, which empties its own space, and the edit discards the
     // probe and reports it.
-    let first = common::perform_in_its_space(
+    let first = common::perform_in_one_change(
         &mut session,
         asm::seat_op(&bench, bench.post_b, asm::middle_seat_values()),
     );
@@ -653,7 +654,7 @@ fn r1_the_probe_gestures_order_and_identity_edges() {
         node: bench.post_b,
         frame: Frame::translation([0.03, 0.0, 0.0]),
     });
-    let outcome = common::perform_in_its_space(
+    let outcome = common::perform_in_one_change(
         &mut session,
         asm::seat_op(&bench, bench.post_b, asm::middle_seat_values()),
     );

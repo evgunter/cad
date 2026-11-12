@@ -1052,12 +1052,12 @@ fn a_mate_refusal_draws_every_copy_it_does_not_reach() {
     // its evaluation refuses, against post_b: post_a is chained to the
     // refused shelf.
     common::asm::unpin(&mut session, bench.post_a);
-    common::commit_mate(
+    common::commit_mate_in_one_change(
         &mut session,
         common::asm::seat_op(&bench, bench.post_a, common::asm::middle_seat_values()),
     );
     common::asm::unpin(&mut session, bench.shelf_i);
-    common::commit_mate(
+    common::commit_mate_after_into(
         &mut session,
         common::asm::no_centre_op(&bench, bench.post_b),
     );
@@ -3476,7 +3476,7 @@ fn a_superseded_free_move_is_news_the_ranking_shows() {
     // Then they mate it onto the shelf, and that placement is discarded
     // under them by the edit.
     let mate = asm::seat_op(&bench, bench.post_b, asm::middle_seat_values());
-    let outcome = common::perform_in_its_space(&mut session, mate.clone());
+    let outcome = common::perform_in_one_change(&mut session, mate.clone());
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
     let report = &outcome.withdrawn;
     let [superseded] = &report.superseded[..] else {

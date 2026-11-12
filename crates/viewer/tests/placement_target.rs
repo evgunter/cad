@@ -4,8 +4,9 @@
 //! <space>", and re-seating it is the one edit that changes a
 //! placement's target — a live change, one `SetBundle` carrying it, one
 //! undo step. Every door that re-targets a placement uses that edit: the
-//! row, Add to the product, and Into a space of its own; the combine
-//! re-targets nothing. The held cross-space `to` and its "Into <space>"
+//! row, Add to the product, and Into a space of its own, a door's change
+//! over a copy whose own constraints read its space held in that copy's
+//! editor; the combine re-targets nothing. The held cross-space `to` and its "Into <space>"
 //! are `place_live`'s rows.
 
 #![allow(clippy::expect_used)]
@@ -268,7 +269,7 @@ fn a_re_target_holds_on_an_old_space_mate_until_it_is_struck() {
     let (doc, ev) = session.landed_pair().expect("landed");
     assert_eq!(
         tool.off_target(doc, ev),
-        [(0, old)],
+        [(viewer::matetool::Reading::Mate(0), old)],
         "the mate's row is marked as reading the old space"
     );
     let states = session.history().len();
@@ -347,12 +348,75 @@ fn a_re_target_admits_and_reports_a_stranded_reader() {
     );
 }
 
+/// **A door's target change over a copy whose own constraints read its
+/// space opens the placement editor holding it**: `op` refuses
+/// `Refusal::TargetHeld` naming `target`, recording nothing, and the
+/// tools open the editor on `placement` with that target set — answered.
+fn held_in_editor(
+    session: &mut DocSession,
+    op: SessionOp,
+    placement: RecipeNodeId,
+    target: &PlaceTarget,
+) -> MateTool {
+    let states = session.history().len();
+    let refused = session.perform(op);
+    let Some(refusal) = refused.refusal else {
+        panic!("the door holds the change")
+    };
+    assert!(
+        matches!(&refusal, Refusal::TargetHeld { placement: p, target: t, reading: 1, .. }
+            if *p == placement && t == target),
+        "held, naming the copy and the target: {refusal:?}"
+    );
+    assert_eq!(session.history().len(), states, "nothing is recorded");
+    let mut tools = viewer::tools::Tools::new();
+    assert!(
+        tools.held_target(&refusal, session.committed_doc()),
+        "the editor opens"
+    );
+    let tool = tools.mate().expect("the placement editor is open").clone();
+    assert_eq!(tool.door().map(|door| door.placement), Some(placement));
+    assert_eq!(tool.target(), Some(target), "with the door's target set");
+    tool
+}
+
+/// **The held change in the editor a door opened**: offered, it holds
+/// `PlacementFails` with the mate reading `old` marked; "strike the 1
+/// that read <old>" lands it as one step. Answers the step's outcome.
+fn struck_and_landed(
+    session: &mut DocSession,
+    mut tool: MateTool,
+    old: VarId,
+) -> viewer::session::OpOutcome {
+    assert_eq!(offered(session, &mut tool), None, "the change is held");
+    assert!(
+        matches!(tool.pending(), Some(Refusal::PlacementFails { .. })),
+        "{:?}",
+        tool.pending()
+    );
+    let (doc, ev) = session.landed_pair().expect("landed");
+    assert_eq!(
+        tool.off_target(doc, ev),
+        [(viewer::matetool::Reading::Mate(0), old)],
+        "the mate's row is marked"
+    );
+    tool.strike_reading(doc, ev, old);
+    let op = offered(session, &mut tool).expect("the struck change passes");
+    let states = session.history().len();
+    let outcome = session.perform(op);
+    assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
+    session.pump();
+    assert_eq!(session.history().len(), states + 1, "one step");
+    outcome
+}
+
 /// **Into a space of its own is the target edit**: a `new_space()` and
 /// the placement re-targeted into it, the values kept rather than
-/// zeroed; a copy whose mate reads the space it leaves refuses, as the
-/// row's change holds.
+/// zeroed. On a copy whose own mate reads the space it leaves, the change
+/// is held in the copy's placement editor, its target set to a new space;
+/// striking the mate there lands it.
 #[test]
-fn into_own_space_keeps_the_values_and_holds_on_a_mate() {
+fn into_own_space_keeps_the_values_and_holds_a_mated_copy_in_its_editor() {
     let tol = Tol::witness();
     let (mut session, bolt, c1, c2) = mated_bolts("target-own-space", tol);
     let lift = common::transformed(&mut session, c1, &common::slides([0.0, 0.0, 0.01]));
@@ -360,14 +424,22 @@ fn into_own_space_keeps_the_values_and_holds_on_a_mate() {
     session.pump();
     let was = stands(&session, c1).expect("copy 1 stands");
     let kept = bundle(session.committed_doc(), c1);
-    let states = session.history().len();
-    let refused = session.perform(SessionOp::IntoOwnSpace { placement: c2 });
-    assert!(
-        matches!(refused.refusal, Some(Refusal::PlacementFails { .. })),
-        "copy 2's mate reads the space it would leave: {:?}",
-        refused.refusal
+    let old = session.committed_doc().node_space(c2).expect("placed");
+    let tool = held_in_editor(
+        &mut session,
+        SessionOp::IntoOwnSpace { placement: c2 },
+        c2,
+        &PlaceTarget::NewSpace,
     );
-    assert_eq!(session.history().len(), states, "nothing is recorded");
+    struck_and_landed(&mut session, tool, old);
+    let doc = session.committed_doc();
+    let own = doc.node_space(c2).expect("placed");
+    assert!(
+        doc.defined_by(own)
+            .is_some_and(|(node, _)| matches!(doc.node(node), Some(Node::Space))),
+        "copy 2 in a space of its own"
+    );
+
     let outcome = session.perform(SessionOp::IntoOwnSpace { placement: c1 });
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
     session.pump();
@@ -405,6 +477,164 @@ fn add_to_the_product_re_targets_by_the_one_edit() {
     let doc = session.committed_doc();
     assert_eq!(doc.node_space(copy), Some(VarId::WORLD), "into the world");
     assert_eq!(bundle(doc, copy), kept, "its values kept");
+}
+
+/// **Add to the product on a copy whose own mate reads its space holds
+/// the move in the copy's editor**: no fresh world copy is placed; the
+/// editor opens with the target set to the world, and once the mate is
+/// struck the copy is in the world and the door adds it.
+#[test]
+fn add_to_the_product_holds_a_mated_copy_in_its_editor() {
+    let tol = Tol::witness();
+    let (mut session, _, _, c2) = mated_bolts("target-product-mated", tol);
+    let placements = session.committed_doc().placements().len();
+    let old = session.committed_doc().node_space(c2).expect("placed");
+    let tool = held_in_editor(
+        &mut session,
+        SessionOp::AddToProduct {
+            node: c2,
+            body: None,
+        },
+        c2,
+        &PlaceTarget::space(VarId::WORLD),
+    );
+    assert_eq!(
+        session.committed_doc().placements().len(),
+        placements,
+        "no fresh copy is placed"
+    );
+    struck_and_landed(&mut session, tool, old);
+    assert_eq!(session.committed_doc().node_space(c2), Some(VarId::WORLD));
+    let added = session.perform(SessionOp::AddToProduct {
+        node: c2,
+        body: None,
+    });
+    assert!(added.refusal.is_none(), "{:?}", added.refusal);
+    let copy = session.committed_doc().output(c2, 0).expect("a copy");
+    assert!(viewer::world::product_reads(session.committed_doc()).contains(&copy));
+}
+
+/// **A product copy moved out of the world and mated there keeps its
+/// recourse**: the product reads copy 2, re-targeted back into the bolt's
+/// space and rested on copy 1 there. The `ProductOutsideWorld` recourse
+/// still offers "Move … into the world", and Add to the product on it
+/// holds the move in its editor rather than saying it is in the product.
+#[test]
+fn a_mated_product_copy_outside_the_world_keeps_its_recourse() {
+    let tol = Tol::witness();
+    let mut session = common::inline_without_door(Doc::empty_derived("target-outside", tol), tol);
+    let bolt = common::xy_box_in(&mut session, BOLT);
+    session.pump();
+    let c1 = placed(&mut session, bolt);
+    let c2 = placed(&mut session, bolt);
+    let home = session.committed_doc().node_space(c2).expect("placed");
+    let added = session.perform(SessionOp::AddToProduct {
+        node: c2,
+        body: None,
+    });
+    assert!(added.refusal.is_none(), "{:?}", added.refusal);
+    session.pump();
+    common::into_space(&mut session, c2, home);
+    session.pump();
+    common::commit_mate(
+        &mut session,
+        SessionOp::AddMate {
+            placement: c2,
+            mate: Box::new(crate::fixture::rest(
+                Operand::select(Operand::Node(bolt), vec![cap(bolt, CapEnd::Start)]),
+                Operand::select(Operand::Node(c1), vec![cap(bolt, CapEnd::End)]),
+            )),
+            values: Vec::new(),
+        },
+    );
+    let fault = session.product_fault();
+    assert!(
+        matches!(
+            fault.map(pncad::document::ProductError::kind),
+            Some(pncad::document::ProductErrorKind::ProductOutsideWorld)
+        ),
+        "the premise: the product reads a copy outside the world: {fault:?}"
+    );
+    let recourse = viewer::frame::product_recourse(fault, session.committed_doc());
+    let [(label, op)] = &recourse[..] else {
+        panic!("one recourse: {recourse:?}")
+    };
+    assert!(label.starts_with("Move "), "{label}");
+    assert_eq!(
+        *op,
+        SessionOp::AddToProduct {
+            node: c2,
+            body: None
+        }
+    );
+    held_in_editor(
+        &mut session,
+        op.clone(),
+        c2,
+        &PlaceTarget::space(VarId::WORLD),
+    );
+}
+
+/// **A value read off the old space is marked and struck like a mate**:
+/// a copy placed by a slide along another body's edge direction in the
+/// bolt's space, re-targeted into the world. The value reads the bolt's
+/// space, so the change is held with that value marked; "strike the 1
+/// that read <old>" measures its freedom afresh, and the change lands.
+#[test]
+fn a_value_read_off_the_old_space_is_marked_and_struck() {
+    use pncad::document::pose::{PoseDef, PoseRole, RoleRead};
+    let tol = Tol::witness();
+    let mut session = common::inline_without_door(Doc::empty_derived("target-value", tol), tol);
+    let bolt = common::xy_box_in(&mut session, BOLT);
+    session.pump();
+    let c1 = placed(&mut session, bolt);
+    let space = session.committed_doc().node_space(c1).expect("placed");
+    let along = RoleRead::through(
+        Operand::Pose(Box::new(PoseDef::Plane {
+            face: Operand::select(Operand::Node(c1), vec![cap(bolt, CapEnd::End)]),
+        })),
+        PoseRole::Normal,
+    );
+    let values = vec![(pncad::document::Coord::SlideAlong(along), common::len(0.01))];
+    let (mut session, c2) = with(
+        &session,
+        Node::place(
+            BodyRead::plain(Operand::Node(bolt)),
+            Operand::Var(space),
+            pncad::document::Placed::unmated(values).bundle(),
+        ),
+        tol,
+    );
+    let was = stands(&session, c2).expect("copy 2 stands");
+    let mut tool = MateTool::edit(session.committed_doc(), c2).expect("a placement");
+    tool.set_target(PlaceTarget::space(VarId::WORLD));
+    assert_eq!(offered(&session, &mut tool), None, "the change is held");
+    let (doc, ev) = session.landed_pair().expect("landed");
+    let off = tool.off_target(doc, ev);
+    let [(viewer::matetool::Reading::Value(id), read)] = off[..] else {
+        panic!("the value is marked as reading the bolt's space: {off:?}")
+    };
+    assert_eq!(read, space);
+    tool.strike_reading(doc, ev, space);
+    assert_eq!(tool.struck_values(), [id], "the value is struck");
+    let op = offered(&session, &mut tool).expect("the struck change passes");
+    let outcome = session.perform(op);
+    assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
+    session.pump();
+    let doc = session.committed_doc();
+    assert_eq!(doc.node_space(c2), Some(VarId::WORLD));
+    assert!(
+        bundle(doc, c2).iter().all(|c| c
+            .target_reads()
+            .into_iter()
+            .all(|read| doc.operand_space(read) != Some(space))),
+        "nothing in the bundle reads the bolt's space"
+    );
+    let now = stands(&session, c2).expect("copy 2 stands in the world");
+    assert!(
+        near(&now, &was),
+        "measured where it stood: {now:?} vs {was:?}"
+    );
 }
 
 /// **A combine moves no existing copy** (PLACING's probe, filed as
@@ -475,4 +705,281 @@ fn the_combine_refuses_a_copy_in_another_space() {
                 && doc.node_space(p) == Some(room)),
         "the body nothing placed is placed into the first operand's space"
     );
+}
+
+/// The reviewer's bench (PR 6850's review): [`mated_bolts`] and the plate
+/// beside them, in a space of its own.
+fn bolts_and_plate(
+    tag: &str,
+    tol: Tol,
+) -> (
+    DocSession,
+    RecipeNodeId,
+    RecipeNodeId,
+    RecipeNodeId,
+    RecipeNodeId,
+) {
+    let (mut session, bolt, c1, c2) = mated_bolts(tag, tol);
+    let plate = common::xy_box_in(&mut session, PLATE);
+    session.pump();
+    (session, bolt, plate, c1, c2)
+}
+
+/// `bolt`'s underside resting on `to`.
+fn rest_on(bolt: RecipeNodeId, to: Operand) -> pncad::document::Mate<pncad::document::Formula> {
+    crate::fixture::rest(
+        Operand::select(Operand::Node(bolt), vec![cap(bolt, CapEnd::Start)]),
+        to,
+    )
+}
+
+/// **"Into" the loaded space keeps what the draft holds** (PR 6850's
+/// review, M1): copy 2's target set to the world is held, and x typed
+/// over it. Its row offers "Into <bolt's space>", the space it was
+/// loaded in; clicking it sets the target back, x still in the draft and
+/// offered with it — nothing set aside, nothing replayed later.
+#[test]
+fn into_the_loaded_space_keeps_the_typed_value() {
+    let tol = Tol::witness();
+    let (mut session, _, _, _, c2) = bolts_and_plate("target-into-back", tol);
+    let old = session.committed_doc().node_space(c2).expect("placed");
+    let mut tool = MateTool::edit(session.committed_doc(), c2).expect("a placement");
+    tool.set_target(PlaceTarget::space(VarId::WORLD));
+    assert_eq!(offered(&session, &mut tool), None, "held");
+    let (x, by) = common::slides([0.003, 0.0, 0.0]).remove(0);
+    tool.type_value(x, by);
+    assert_eq!(offered(&session, &mut tool), None, "still held");
+    let (doc, ev) = session.landed_pair().expect("landed");
+    assert_eq!(
+        tool.off_target(doc, ev),
+        [(viewer::matetool::Reading::Mate(0), old)],
+        "Into <old> offered"
+    );
+    tool.retarget_into(old);
+    assert_eq!(tool.typed().len(), 1, "x is kept in the draft");
+    let op = offered(&session, &mut tool).expect("x passes over the loaded target");
+    assert!(
+        matches!(&op, SessionOp::SetBundle { target, .. } if *target == PlaceTarget::space(old)),
+        "{op:?}"
+    );
+    let mut tools = viewer::tools::Tools::new();
+    tools.open_mate(tool);
+    let outcome = session.perform(op.clone());
+    assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
+    session.pump();
+    tools.answered(&op, outcome.made, true, session.committed_doc());
+    let editor = tools.mate_mut().expect("open");
+    assert!(
+        !editor.differs_from_base(),
+        "nothing waits to be made again"
+    );
+    assert_eq!(offered(&session, editor), None, "and nothing is replayed");
+}
+
+/// **A held "Into" that does not pass alone puts back what it set aside,
+/// whatever the offer answered** (M1's class): with x typed over the
+/// loaded target and a rest onto the plate, "Into <plate's space>" sets
+/// both aside; the target alone is refused (the loaded rest reads the
+/// bolt's space), so they are put back at once and counted as the
+/// draft's.
+#[test]
+fn a_refused_into_counts_and_puts_back_what_it_set_aside() {
+    let tol = Tol::witness();
+    let (mut session, bolt, plate, _, c2) = bolts_and_plate("target-into-mix", tol);
+    let plate_space = session
+        .committed_doc()
+        .node_space(plate)
+        .expect("in a space");
+    let before = session.committed_doc().clone();
+    let states = session.history().len();
+    let mut tool = MateTool::edit(session.committed_doc(), c2).expect("a placement");
+    tool.strike(0, true);
+    tool.add_written(
+        session.committed_doc(),
+        &rest_on(
+            bolt,
+            Operand::select(Operand::Node(plate), vec![cap(plate, CapEnd::End)]),
+        ),
+    );
+    let (x, by) = common::slides([0.003, 0.0, 0.0]).remove(0);
+    tool.type_value(x, by);
+    assert_eq!(
+        offered(&session, &mut tool),
+        None,
+        "the cross-space to is held"
+    );
+    let rows = tool.rows().to_vec();
+    tool.retarget_into(plate_space);
+    assert!(
+        tool.differs_from_base(),
+        "what is set aside counts as the draft's"
+    );
+    assert!(tool.holds_changes(), "and an undo would take it first");
+    let first = offered(&session, &mut tool);
+    let op = first
+        .or_else(|| offered(&session, &mut tool))
+        .unwrap_or_else(|| panic!("the whole draft passes: {:?}", tool.pending()));
+    assert_eq!(tool.rows(), &rows[..], "the rows are put back");
+    let SessionOp::SetBundle {
+        target,
+        constraints,
+        ..
+    } = &op
+    else {
+        panic!("{op:?}")
+    };
+    assert_eq!(*target, PlaceTarget::space(plate_space));
+    assert_eq!(constraints.iter().filter(|c| c.mate().is_some()).count(), 1);
+    let out = session.perform(op);
+    assert!(out.refusal.is_none(), "{:?}", out.refusal);
+    session.pump();
+    assert_eq!(session.history().len(), states + 1, "one step");
+    let after = session.committed_doc().clone();
+    assert!(session.perform(SessionOp::Undo).refusal.is_none());
+    assert!(session.committed_doc().bit_eq(&before), "one undo");
+    assert!(session.perform(SessionOp::Redo).refusal.is_none());
+    assert!(session.committed_doc().bit_eq(&after), "one redo");
+}
+
+/// **An undo between "Into" and the held mate reloads the editor**
+/// (PR 6850's review, N1; the editor's rule for any draft over a bundle
+/// an undo changed, `MateToolEvent::Reloaded`): the target lands as step
+/// one and the held rest is made again over it; one undo restores the
+/// document exactly, and the editor reloads the bundle as it now is, the
+/// held rest gone with the step it waited on.
+#[test]
+fn an_undo_between_into_and_the_held_mate_reloads_the_editor() {
+    let tol = Tol::witness();
+    let (mut session, bolt, plate, c1, _) = bolts_and_plate("target-undo-mid", tol);
+    let plate_space = session
+        .committed_doc()
+        .node_space(plate)
+        .expect("in a space");
+    let before = session.committed_doc().clone();
+    let mut tool = MateTool::edit(session.committed_doc(), c1).expect("a placement");
+    tool.add_written(
+        session.committed_doc(),
+        &rest_on(
+            bolt,
+            Operand::select(Operand::Node(plate), vec![cap(plate, CapEnd::End)]),
+        ),
+    );
+    assert_eq!(offered(&session, &mut tool), None, "held");
+    let mut tools = viewer::tools::Tools::new();
+    tools.open_mate(tool);
+    tools.mate_mut().expect("open").retarget_into(plate_space);
+    let into = offered(&session, tools.mate_mut().expect("open")).expect("the target alone");
+    let out = session.perform(into.clone());
+    session.pump();
+    tools.answered(
+        &into,
+        out.made,
+        out.refusal.is_none(),
+        session.committed_doc(),
+    );
+    assert_eq!(session.committed_doc().node_space(c1), Some(plate_space));
+    assert_eq!(
+        tools.mate().expect("open").rows().len(),
+        1,
+        "the held mate is made again over it"
+    );
+    assert!(session.perform(SessionOp::Undo).refusal.is_none());
+    session.pump();
+    assert!(session.committed_doc().bit_eq(&before), "one undo");
+    let committed = session.committed_doc().clone();
+    let events = tools
+        .mate_mut()
+        .expect("open")
+        .reconcile(&committed, session.landed_pair().expect("landed"));
+    assert!(
+        events
+            .iter()
+            .any(|event| matches!(event, viewer::matetool::MateToolEvent::Reloaded { .. })),
+        "the reload is said: {events:?}"
+    );
+    let editor = tools.mate().expect("open");
+    assert!(editor.rows().is_empty(), "the bundle as it now is");
+    assert!(!editor.differs_from_base());
+}
+
+/// **"Into" clicked while a change lands is a step of its own** (PR
+/// 6850's review, N2): x typed and landing, then "Into <plate's space>"
+/// and a y typed after it. Once x lands, the target is offered alone over
+/// it — y set aside — and y follows as the next step.
+#[test]
+fn into_made_while_a_change_lands_is_a_step_of_its_own() {
+    let tol = Tol::witness();
+    let mut session =
+        common::inline_without_door(Doc::empty_derived("target-into-landing", tol), tol);
+    let bolt = common::xy_box_in(&mut session, BOLT);
+    let plate = common::xy_box_in(&mut session, PLATE);
+    session.pump();
+    let copy = placed(&mut session, bolt);
+    let plate_space = session
+        .committed_doc()
+        .node_space(plate)
+        .expect("in a space");
+    let mut tools = viewer::tools::Tools::new();
+    tools.open_mate(MateTool::edit(session.committed_doc(), copy).expect("a placement"));
+    let [x, y, _] = <[_; 3]>::try_from(common::slides([0.003, 0.004, 0.0])).expect("three slides");
+    tools.mate_mut().expect("open").type_value(x.0, x.1);
+    let first = offered(&session, tools.mate_mut().expect("open")).expect("x passes");
+    tools.mate_mut().expect("open").retarget_into(plate_space);
+    tools.mate_mut().expect("open").type_value(y.0.clone(), y.1);
+    let states = session.history().len();
+    let out = session.perform(first.clone());
+    assert!(out.refusal.is_none(), "{:?}", out.refusal);
+    session.pump();
+    tools.answered(&first, out.made, true, session.committed_doc());
+    let into = offered(&session, tools.mate_mut().expect("open")).expect("the target alone");
+    let SessionOp::SetBundle {
+        target,
+        constraints,
+        base,
+        ..
+    } = &into
+    else {
+        panic!("{into:?}")
+    };
+    assert_eq!(*target, PlaceTarget::space(plate_space), "the target");
+    assert_eq!(*constraints, base.constraints, "alone: y waits");
+    let out = session.perform(into.clone());
+    assert!(out.refusal.is_none(), "{:?}", out.refusal);
+    session.pump();
+    tools.answered(&into, out.made, true, session.committed_doc());
+    let then = offered(&session, tools.mate_mut().expect("open")).expect("y passes");
+    let SessionOp::SetBundle { constraints, .. } = &then else {
+        panic!("{then:?}")
+    };
+    assert!(
+        constraints
+            .iter()
+            .any(|c| c.value().is_some_and(|v| v.coord == y.0)),
+        "y follows as its own step"
+    );
+    assert!(session.perform(then).refusal.is_none());
+    assert_eq!(
+        session.history().len(),
+        states + 3,
+        "x, the target, y: three steps"
+    );
+}
+
+/// **A combine refuses an unmated copy in another space too** (PR
+/// 6850's review): a third copy of the bolt, never mated, and the plate.
+#[test]
+fn the_combine_refuses_an_unmated_copy_in_another_space() {
+    let tol = Tol::witness();
+    let (mut session, bolt, plate, _, _) = bolts_and_plate("target-combine-unmated", tol);
+    let c3 = placed(&mut session, bolt);
+    let before = session.committed_doc().clone();
+    let out = session.perform(SessionOp::AddBoolean {
+        spec: BooleanSpec::Union(vec![plate.into(), c3.into()]),
+    });
+    assert!(
+        matches!(&out.refusal, Some(Refusal::CopyInAnotherSpace { copy, .. }) if copy.id() == c3),
+        "{:?}",
+        out.refusal
+    );
+    assert!(session.committed_doc().bit_eq(&before));
 }

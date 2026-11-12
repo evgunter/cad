@@ -772,10 +772,47 @@ struct PlaceDraft {
     /// The space the copy is placed into: the loaded target until the
     /// first row is re-seated.
     target: PlaceTarget,
-    /// The rows a target change of its own set aside
-    /// ([`MateTool::retarget_into`]), made again once it lands.
-    held_back: Option<Change>,
+    /// The target the placement held when the draft was loaded.
+    loaded_target: PlaceTarget,
+    /// The loaded values struck out for reading another space than the
+    /// target ([`MateTool::strike_reading`]): their freedoms are measured
+    /// afresh.
+    struck_values: Vec<ConstraintId>,
+    /// What a target change of its own set aside
+    /// ([`MateTool::retarget_into`]), made again once it lands and put
+    /// back at once on every other answer of the offer.
+    held_back: Option<SetAside>,
     offer: Offer,
+}
+
+impl PlaceDraft {
+    /// Whether the rows, the numbers or the struck values differ from
+    /// what was loaded.
+    fn differs_in_rows(&self) -> bool {
+        self.rows != self.loaded_rows || !self.typed.is_empty() || !self.struck_values.is_empty()
+    }
+}
+
+/// **What a target change of its own sets aside**: the draft's rows,
+/// numbers, struck values and active row, and the changes made after it
+/// while it waited on an earlier change landing.
+#[derive(Debug, Clone, PartialEq)]
+struct SetAside {
+    rows: Vec<MateRow>,
+    typed: Vec<(Coord, Formula)>,
+    struck_values: Vec<ConstraintId>,
+    active: usize,
+    then: Vec<Change>,
+}
+
+/// **What reads a space in the draft**: a live mate row's `to`, or a
+/// loaded value along a direction or about an axis.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Reading {
+    /// The mate row at this index.
+    Mate(usize),
+    /// The loaded value of this constraint.
+    Value(ConstraintId),
 }
 
 /// **Why a draft is held**: a refusal, one value however often it is
@@ -801,15 +838,14 @@ enum Change {
     ChooseKind(usize, VarKind),
     Sense(usize, bool),
     Strike(usize, bool),
-    StrikeRows(Vec<usize>),
+    StrikeReading(Vec<Reading>),
     Type(Coord, Formula),
     Target(PlaceTarget),
-    /// The draft's rows, numbers and active row, put back whole.
-    Rows {
-        rows: Vec<MateRow>,
-        typed: Vec<(Coord, Formula)>,
-        active: usize,
-    },
+    /// "Into <space>" made while an earlier change lands: made over what
+    /// it writes as a target change of its own.
+    IntoAlone(VarId),
+    /// What a target change of its own set aside, put back whole.
+    PutBack(Box<SetAside>),
 }
 
 /// **Where the draft stands with the document** — the live editors' one
@@ -1201,10 +1237,9 @@ impl MateProposal {
 /// [`Doc::spoken_space`], or "a new space".
 #[must_use]
 pub fn said_target(doc: &Doc<ProfileProgram>, target: &PlaceTarget) -> String {
-    match (target, MateTool::target_space(doc, target)) {
-        (PlaceTarget::NewSpace, _) => "a new space".to_owned(),
-        (_, Some(space)) => doc.spoken_space(space).to_string(),
-        (PlaceTarget::Space(_), None) => "a space the document does not hold".to_owned(),
+    match target {
+        PlaceTarget::NewSpace => "a new space".to_owned(),
+        PlaceTarget::Space(space) => doc.spoken_space(*space).to_string(),
     }
 }
 
@@ -1299,9 +1334,7 @@ fn door_on(
     {
         return edit(instance);
     }
-    let (at, port) = crate::world::seat_read(doc, node, body);
-    let read = crate::seats::Output::named(port).read(at);
-    let read = crate::session::as_body(doc, read);
+    let read = seated_read(doc, node, body);
     let space = doc.operand_space(&read);
     match space {
         Some(space)
@@ -1318,6 +1351,14 @@ fn door_on(
             node: doc.spoken(node),
         }),
     }
+}
+
+/// **The body a pick on `node` reads** (`body` the output a viewport
+/// pick hit): the output the seat reads, as a body — what Place places
+/// and whose space the target row's pick names.
+fn seated_read(doc: &Doc<ProfileProgram>, node: RecipeNodeId, body: Option<u32>) -> Operand {
+    let (at, port) = crate::world::seat_read(doc, node, body);
+    crate::session::as_body(doc, crate::seats::Output::named(port).read(at))
 }
 
 /// [`door_on`] of an entity pick.
@@ -1664,14 +1705,19 @@ impl MateTool {
             .iter()
             .filter_map(|c| c.mate().map(|m| MateRow::written(doc, Some(c.id), m)))
             .collect();
+        let Some(space) = doc.node_space(placement) else {
+            unreachable!("an admitted placement's target reads a space")
+        };
         Self {
             draft: Some(PlaceDraft {
-                target: PlaceTarget::Space(base.target.clone()),
+                target: PlaceTarget::Space(space),
+                loaded_target: PlaceTarget::Space(space),
                 door: PlaceDoor { placement, base },
                 loaded_rows: rows.clone(),
                 rows,
                 typed: Vec::new(),
                 active: 0,
+                struck_values: Vec::new(),
                 held_back: None,
                 offer: Offer::Quiet,
             }),
@@ -1849,26 +1895,33 @@ impl MateTool {
         self.make(None, Change::Target(target));
     }
 
-    /// **`Into <space>`**, offered beside a row whose `to` reads `space`:
-    /// a target change of its own. The draft's other changes are set
-    /// aside while the target alone is offered, and made again once it
-    /// lands, so the target and the held mate are two steps; where the
-    /// target alone does not pass, they are put back at once and the
-    /// whole draft is held over the new target.
+    /// **`Into <space>`**, offered beside what reads `space`: a target
+    /// change of its own. The draft's other changes are set aside while
+    /// the target alone is offered, and made again once it lands, so the
+    /// target and the held mate are two steps; on any other answer of
+    /// the offer (refused, writing no bundle, writing nothing) they are
+    /// put back at once and the whole draft is offered over the new
+    /// target. Into the loaded target is the target set back, made with
+    /// the rest of the draft. Made while an earlier change lands, it
+    /// waits on it and is then a step of its own over what it wrote.
     pub fn retarget_into(&mut self, space: VarId) {
         let target = PlaceTarget::space(space);
         let Some(draft) = self.draft.as_mut() else {
             return;
         };
-        let aside = draft.offer.landing().is_none()
-            && (draft.rows != draft.loaded_rows || !draft.typed.is_empty());
-        if aside && draft.target != target {
-            draft.held_back = Some(Change::Rows {
+        if draft.offer.landing().is_some() {
+            self.picking_target = false;
+            self.make(None, Change::IntoAlone(space));
+            return;
+        }
+        if target != draft.target && target != draft.loaded_target && draft.differs_in_rows() {
+            draft.held_back = Some(SetAside {
                 rows: core::mem::replace(&mut draft.rows, draft.loaded_rows.clone()),
                 typed: core::mem::take(&mut draft.typed),
-                active: draft.active,
+                struck_values: core::mem::take(&mut draft.struck_values),
+                active: core::mem::take(&mut draft.active),
+                then: Vec::new(),
             });
-            draft.active = 0;
         }
         self.set_target(target);
     }
@@ -1885,61 +1938,91 @@ impl MateTool {
         self.picking_target
     }
 
-    /// **The space `target` names** in `doc`: `None` for a new space,
-    /// which no read is in yet.
+    /// **The space `target` names**: `None` for a new space, which no
+    /// read is in yet.
     #[must_use]
-    pub fn target_space(doc: &Doc<ProfileProgram>, target: &PlaceTarget) -> Option<VarId> {
+    pub fn target_space(target: &PlaceTarget) -> Option<VarId> {
         match target {
-            PlaceTarget::Space(Operand::Var(space)) => Some(*space),
-            PlaceTarget::Space(Operand::Name(name)) => doc.var_named(name.as_str()),
-            PlaceTarget::Space(_) | PlaceTarget::NewSpace => None,
+            PlaceTarget::Space(space) => Some(*space),
+            PlaceTarget::NewSpace => None,
         }
     }
 
-    /// **The live rows whose `to` reads another space than the draft's
-    /// target**, each with that space, in row order: a mate is a
-    /// constraint of one placement and reads its `to` in that
-    /// placement's target, so each holds the draft at the door — a `to`
-    /// picked in another space, or a mate a target change left reading
-    /// the old one.
+    /// The target the placement held when the draft was loaded.
+    #[must_use]
+    pub fn loaded_target(&self) -> Option<&PlaceTarget> {
+        self.draft.as_ref().map(|draft| &draft.loaded_target)
+    }
+
+    /// **What in the draft reads another space than its target**, each
+    /// with that space: a live mate row whose `to` does (a `to` picked in
+    /// another space, or a mate a target change left reading the old
+    /// one), and a loaded value along a direction or about an axis read
+    /// off a body there ([`crate::session::read_spaces`]). A mate is a
+    /// constraint of one placement and reads its `to` in that placement's
+    /// target, and a value reads its direction there too, so each holds
+    /// the draft at the door.
     #[must_use]
     pub fn off_target(
         &self,
         doc: &Doc<ProfileProgram>,
         ev: &Evaluation<f64>,
-    ) -> Vec<(usize, VarId)> {
+    ) -> Vec<(Reading, VarId)> {
         let Some(draft) = self.draft.as_ref() else {
             return Vec::new();
         };
-        let target = Self::target_space(doc, &draft.target);
-        draft
+        let target = Self::target_space(&draft.target);
+        let mates = draft
             .rows
             .iter()
             .enumerate()
             .filter(|(_, row)| !row.struck)
-            .filter_map(|(at, row)| Some((at, row.to_space(doc, ev)?)))
+            .filter_map(|(at, row)| Some((Reading::Mate(at), row.to_space(doc, ev)?)));
+        let values = draft
+            .door
+            .base
+            .constraints
+            .iter()
+            .filter(|c| c.value().is_some() && !draft.struck_values.contains(&c.id))
+            .flat_map(|c| {
+                crate::session::read_spaces(doc, c)
+                    .into_iter()
+                    .map(|space| (Reading::Value(c.id), space))
+            });
+        mates
+            .chain(values)
             .filter(|&(_, space)| Some(space) != target)
             .collect()
     }
 
-    /// **Strike every live row whose `to` reads `space`**, as one change
-    /// (`strike the N that read <space>`): their freed values are
-    /// measured where the copy stands, as `remove` measures them.
+    /// **Strike everything in the draft that reads `space`**, as one
+    /// change (`strike the N that read <space>`): each mate row struck
+    /// out, and each loaded value read off `space` struck so its freedom
+    /// is measured afresh; the freed values are measured where the copy
+    /// stands, as `remove` measures them.
     pub fn strike_reading(
         &mut self,
         doc: &Doc<ProfileProgram>,
         ev: &Evaluation<f64>,
         space: VarId,
     ) {
-        let rows: Vec<usize> = self
-            .off_target(doc, ev)
-            .into_iter()
-            .filter(|&(_, read)| read == space)
-            .map(|(at, _)| at)
-            .collect();
-        if !rows.is_empty() {
-            self.make(None, Change::StrikeRows(rows));
+        let mut reading: Vec<Reading> = Vec::new();
+        for (at, read) in self.off_target(doc, ev) {
+            if read == space && !reading.contains(&at) {
+                reading.push(at);
+            }
         }
+        if !reading.is_empty() {
+            self.make(None, Change::StrikeReading(reading));
+        }
+    }
+
+    /// The loaded values struck out for reading another space.
+    #[must_use]
+    pub fn struck_values(&self) -> &[ConstraintId] {
+        self.draft
+            .as_ref()
+            .map_or(&[], |draft| &draft.struck_values)
     }
 
     /// **Feed one pick**, consumed into tool state. With nothing open,
@@ -1957,15 +2040,14 @@ impl MateTool {
     ) -> Option<MateToolEvent> {
         let pick = pick.into();
         if self.picking_target && self.draft.is_some() {
-            self.picking_target = false;
-            let (at, port) = crate::world::seat_read(doc, pick.node(), Some(pick.on().body()));
-            let read = crate::seats::Output::named(port).read(at);
-            let Some(space) = doc.operand_space(&crate::session::as_body(doc, read)) else {
+            let read = seated_read(doc, pick.node(), Some(pick.on().body()));
+            let Some(space) = doc.operand_space(&read) else {
+                self.picking_target = false;
                 return Some(MateToolEvent::NotPlaceable {
                     node: doc.spoken(pick.node()),
                 });
             };
-            self.make(Some(doc), Change::Target(PlaceTarget::space(space)));
+            self.set_target(PlaceTarget::space(space));
             return None;
         }
         if self.draft.is_none() {
@@ -2124,10 +2206,18 @@ impl MateTool {
                 };
                 row.struck = struck;
             }
-            Change::StrikeRows(rows) => {
-                for at in rows {
-                    if let Some(row) = draft.rows.get_mut(at) {
-                        row.struck = true;
+            Change::StrikeReading(reading) => {
+                for at in reading {
+                    match at {
+                        Reading::Mate(at) => {
+                            if let Some(row) = draft.rows.get_mut(at) {
+                                row.struck = true;
+                            }
+                        }
+                        Reading::Value(id) if !draft.struck_values.contains(&id) => {
+                            draft.struck_values.push(id);
+                        }
+                        Reading::Value(_) => {}
                     }
                 }
             }
@@ -2141,15 +2231,40 @@ impl MateTool {
                 }
                 draft.target = target;
             }
-            Change::Rows {
-                rows,
-                typed,
-                active,
-            } => {
+            Change::IntoAlone(_) => {
+                unreachable!("made by `Self::make_deferred`, as a target change of its own")
+            }
+            Change::PutBack(aside) => {
+                let SetAside {
+                    rows,
+                    typed,
+                    struck_values,
+                    active,
+                    then: _,
+                } = *aside;
                 draft.rows = rows;
                 draft.typed = typed;
+                draft.struck_values = struck_values;
                 draft.active = active.min(draft.rows.len().saturating_sub(1));
             }
+        }
+        true
+    }
+
+    /// **Put back what a target change of its own set aside**, where it
+    /// did not land: the rows, numbers and struck values, then each
+    /// change made after it. Answers whether anything was set aside.
+    fn put_back(&mut self, doc: &Doc<ProfileProgram>) -> bool {
+        let Some(aside) = self.draft.as_mut().and_then(|draft| draft.held_back.take()) else {
+            return false;
+        };
+        let then = aside.then.clone();
+        self.apply(Some(doc), Change::PutBack(Box::new(aside)));
+        for change in then {
+            self.apply(Some(doc), change);
+        }
+        if let Some(draft) = self.draft.as_mut() {
+            draft.offer.changed();
         }
         true
     }
@@ -2186,14 +2301,15 @@ impl MateTool {
     }
 
     /// **Whether the draft differs from what it was loaded from**: its
-    /// rows, a number typed, or its target — what letting go of it would
-    /// lose ([`crate::offer::Offer::holds_changes`]).
+    /// rows, a number typed, a value struck, its target, or what a target
+    /// change of its own set aside — what letting go of it would lose
+    /// ([`crate::offer::Offer::holds_changes`]).
     #[must_use]
     pub fn differs_from_base(&self) -> bool {
         self.draft.as_ref().is_some_and(|draft| {
-            draft.rows != draft.loaded_rows
-                || !draft.typed.is_empty()
-                || draft.target != PlaceTarget::Space(draft.door.base.target.clone())
+            draft.differs_in_rows()
+                || draft.target != draft.loaded_target
+                || draft.held_back.is_some()
         })
     }
 
@@ -2232,57 +2348,57 @@ impl MateTool {
             return None;
         }
         let proposed = self.proposal(doc, ev, tol);
+        let placement = self.door().map(|door| door.placement);
+        let formed = proposed
+            .map_err(|error| Refusal::Draft(Box::new(error)))
+            .map(|proposal| {
+                let Some(draft) = self.draft.as_ref() else {
+                    unreachable!("an unsettled draft is open")
+                };
+                let nothing = placement.is_some_and(|placement| {
+                    crate::session::bundle_writes_nothing(
+                        doc,
+                        placement,
+                        &draft.door.base,
+                        &proposal.target,
+                        &proposal.bundle,
+                    )
+                });
+                (!nothing).then(|| proposal.op())
+            })
+            .and_then(|op| match op {
+                Some(op) => door(&op).map(|()| Some(op)),
+                None => Ok(None),
+            });
+        // A target change of its own that does not land puts back what it
+        // set aside, whatever the offer answered: the whole draft is then
+        // offered over the new target.
+        if !matches!(formed, Ok(Some(_))) && self.put_back(doc) {
+            return None;
+        }
         let Some(draft) = self.draft.as_mut() else {
             unreachable!("an unsettled draft is open")
         };
-        let held = |refusal| Offer::Pending(Held(Arc::new(refusal)));
-        // A target change of its own that does not pass puts back what it
-        // set aside: the whole draft is offered over the new target.
-        let put_back = |draft: &mut PlaceDraft| -> bool {
-            let Some(Change::Rows {
-                rows,
-                typed,
-                active,
-            }) = draft.held_back.take()
-            else {
-                return false;
-            };
-            draft.rows = rows;
-            draft.typed = typed;
-            draft.active = active;
-            draft.offer.changed();
-            true
-        };
-        let proposal = match proposed {
-            Ok(proposal) => proposal,
-            Err(error) => {
-                if put_back(draft) {
-                    return None;
+        match formed {
+            Ok(Some(op)) => {
+                let mut deferred = Vec::new();
+                if let Some(mut aside) = draft.held_back.take() {
+                    let then = core::mem::take(&mut aside.then);
+                    deferred.push(Change::PutBack(Box::new(aside)));
+                    deferred.extend(then);
                 }
-                draft.offer = held(Refusal::Draft(Box::new(error)));
-                return None;
-            }
-        };
-        if crate::session::bundle_writes_nothing(
-            &draft.door.base,
-            &proposal.target,
-            &proposal.bundle,
-        ) {
-            draft.offer = Offer::Quiet;
-            return None;
-        }
-        let op = proposal.op();
-        match door(&op) {
-            Ok(()) => {
                 draft.offer = Offer::Landing {
                     op: Box::new(op.clone()),
-                    deferred: draft.held_back.take().into_iter().collect(),
+                    deferred,
                 };
                 Some(op)
             }
-            Err(_) if put_back(draft) => None,
+            Ok(None) => {
+                draft.offer = Offer::Quiet;
+                None
+            }
             Err(refusal) => {
-                draft.offer = held(refusal);
+                draft.offer = Offer::Pending(Held(Arc::new(refusal)));
                 None
             }
         }
@@ -2362,7 +2478,28 @@ impl MateTool {
             .as_mut()
             .map(|draft| draft.offer.take_deferred())
             .unwrap_or_default();
-        for change in deferred {
+        let mut deferred = deferred.into_iter();
+        while let Some(change) = deferred.next() {
+            if let Change::IntoAlone(space) = change {
+                // "Into <space>" waited on the change that landed: it is a
+                // target change of its own over what that wrote, and the
+                // changes made after it wait with what it sets aside.
+                self.retarget_into(space);
+                let rest: Vec<Change> = deferred.by_ref().collect();
+                if let Some(draft) = self.draft.as_mut()
+                    && !rest.is_empty()
+                {
+                    let aside = draft.held_back.get_or_insert_with(|| SetAside {
+                        rows: draft.rows.clone(),
+                        typed: draft.typed.clone(),
+                        struck_values: draft.struck_values.clone(),
+                        active: draft.active,
+                        then: Vec::new(),
+                    });
+                    aside.then.extend(rest);
+                }
+                return;
+            }
             self.make(Some(doc), change);
         }
     }
@@ -2641,7 +2778,16 @@ impl MateTool {
             .iter()
             .map(|&(at, row)| Self::row_mate(doc, ev, at, row))
             .collect::<Result<Vec<_>, _>>()?;
-        let base: &[Constraint<Formula>] = &draft.door.base.constraints;
+        // A loaded value struck for reading another space is no longer
+        // loaded: its freedom is measured afresh.
+        let base: &[Constraint<Formula>] = &draft
+            .door
+            .base
+            .constraints
+            .iter()
+            .filter(|c| !draft.struck_values.contains(&c.id))
+            .cloned()
+            .collect::<Vec<_>>();
         // The chart: the first live mate fixing a direction. While it is
         // the bundle's own, as loaded, its orientation, its slides and its
         // values keep their meaning; otherwise its orientation is the

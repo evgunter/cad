@@ -123,7 +123,10 @@ fn two_picks_one_choice_one_committed_edit() {
     let (landed, ev) = session.landed_pair().expect("landed");
     assert_eq!(
         tool.off_target(landed, ev),
-        [(0, pncad::document::VarId::WORLD)],
+        [(
+            viewer::matetool::Reading::Mate(0),
+            pncad::document::VarId::WORLD
+        )],
         "the row is marked as reading the shelf's space"
     );
     common::into_to_space(&session, &mut tool);
@@ -428,6 +431,12 @@ fn shelf_on(
     let mut tool = MateTool::new();
     tool.pick(session.doc(), shelf_bottom.clone());
     tool.pick(session.doc(), target.clone());
+    // Where the shelf is in a space of its own, its "into" row is set to
+    // the target's, in the same change as the rest.
+    let (doc, ev) = session.landed_pair().expect("landed");
+    if !tool.off_target(doc, ev).is_empty() {
+        common::into_to_space(session, &mut tool);
+    }
     let mut choice = asm::seat_choice();
     choice.values = Vec::new();
     common::proposed(session, &tool, choice).expect("the shelf's rest proposes")
@@ -1219,11 +1228,12 @@ fn a_face_on_a_splits_lower_half_is_mated_on_that_half() {
         top.node, split,
         "and the upper half's top, drawn by the split"
     );
-    // The upper half is drawn in the block's own space, so the rest
-    // moves the half into it by name.
+    // The upper half is drawn in the block's own space, so the copy's
+    // "into" row is set to it with the rest.
     let mut mate = viewer::matetool::MateTool::new();
     mate.pick(session.doc(), underside);
     mate.pick(session.doc(), top);
+    common::into_to_space(&session, &mut mate);
     let proposal = {
         common::proposed(
             &session,

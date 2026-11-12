@@ -290,7 +290,7 @@ fn a_held_cross_space_mate_lands_after_into_its_space_in_two_steps() {
     );
     let (doc, ev) = session.landed_pair().expect("landed");
     let off = tool.off_target(doc, ev);
-    let [(0, wide_space)] = off[..] else {
+    let [(viewer::matetool::Reading::Mate(0), wide_space)] = off[..] else {
         panic!("the flush's row reads the wide box's space: {off:?}");
     };
     let own = doc.node_space(copy).expect("the copy is placed");

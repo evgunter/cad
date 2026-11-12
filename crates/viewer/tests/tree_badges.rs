@@ -287,7 +287,7 @@ fn a_refused_bundle_badges_the_placement_that_evaluated_before_it() {
     let mut session = common::asm::open_bench(&bench, tol);
     common::asm::unpin(&mut session, bench.shelf_i);
 
-    let held = common::commit_mate(
+    let held = common::commit_mate_in_one_change(
         &mut session,
         common::asm::shelf_rest_op(&bench, bench.post_a, 0.0),
     );
@@ -302,7 +302,7 @@ fn a_refused_bundle_badges_the_placement_that_evaluated_before_it() {
         bench.shelf_i,
     ));
     assert!(removed.refusal.is_none(), "{:?}", removed.refusal);
-    let added = common::commit_mate(
+    let added = common::commit_mate_after_into(
         &mut session,
         common::asm::no_centre_op(&bench, bench.post_a),
     );
@@ -351,7 +351,7 @@ fn two_faults_in_succession_on_one_placement_never_serve_a_stale_one() {
         other => panic!("the shelf refuses, got {other:?}"),
     };
 
-    let first = common::commit_mate(
+    let first = common::commit_mate_after_into(
         &mut session,
         common::asm::no_centre_op(&bench, bench.post_a),
     );
@@ -361,7 +361,7 @@ fn two_faults_in_succession_on_one_placement_never_serve_a_stale_one() {
         bench.shelf_i,
     ));
     assert!(removed.refusal.is_none(), "{:?}", removed.refusal);
-    let second = common::commit_mate(
+    let second = common::commit_mate_after_into(
         &mut session,
         common::asm::no_centre_op(&bench, bench.post_b),
     );
@@ -1155,7 +1155,7 @@ fn a_placement_row_carries_its_constraints_as_children() {
     let bench = common::asm::bench("auth16-children", tol);
     let mut session = common::asm::open_bench(&bench, tol);
     common::asm::unpin(&mut session, bench.post_b);
-    let seat = common::commit_mate(
+    let seat = common::commit_mate_in_one_change(
         &mut session,
         common::asm::seat_op(&bench, bench.post_b, common::asm::middle_seat_values()),
     );

@@ -140,7 +140,7 @@ fn an_assembly_keeps_its_body_whatever_its_census_found() {
     let beside = middle + common::asm::POST_SECTION + 3.0 * tol.eps();
     for (post, at) in [(bench.post_a, middle), (bench.post_b, beside)] {
         common::asm::unpin(&mut session, post);
-        common::commit_mate(
+        common::commit_mate_in_one_change(
             &mut session,
             common::asm::seat_op(&bench, post, common::asm::seat_values(at)),
         );

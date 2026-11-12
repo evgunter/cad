@@ -81,9 +81,10 @@ pub enum SessionOp {
     /// values kept, as one action. The copy leaves the space it was
     /// placed into — the world's, the product's — and is drawn as a
     /// shown space of its own (DI5), which free-move moves and a mate
-    /// places again. A bundle holding a mate that reads the space it
-    /// leaves refuses [`Refusal::PlacementFails`], as the editor's
-    /// change of target holds.
+    /// places again. Where its own constraints read the space it leaves,
+    /// the change is held: it refuses [`Refusal::TargetHeld`], and the
+    /// chrome opens the placement editor on it with the target set to a
+    /// new space.
     IntoOwnSpace {
         /// The placement: a `Place` or an instance.
         placement: RecipeNodeId,
@@ -1037,7 +1038,10 @@ pub enum SessionOp {
     /// product's recourses and the `unused` finding's. A copy in the
     /// world is added to the slot; a placement's copy nothing reads has
     /// its placement re-targeted into the world, a `new_space()` it
-    /// leaves empty deleted, and is added; any other body is placed into
+    /// leaves empty deleted, and is added — where its own constraints read
+    /// the space it leaves, the move is held instead
+    /// ([`super::Refusal::TargetHeld`]), the chrome opening its placement
+    /// editor with the target set to the world; any other body is placed into
     /// the world by the identity bundle and that copy added. One action,
     /// one undo. A copy the product reads already is refused
     /// ([`super::Refusal::InTheProduct`]).
@@ -1246,17 +1250,18 @@ impl GestureName {
 /// name it.
 #[derive(Clone, Debug, PartialEq)]
 pub enum PlaceTarget {
-    /// A space the document holds, as a `target` slot reads it.
-    Space(Operand),
+    /// A space the document holds, by id: one target however a slot
+    /// spells its read.
+    Space(VarId),
     /// A `new_space()`, inserted in the same action.
     NewSpace,
 }
 
 impl PlaceTarget {
-    /// The space a document holds, read by id.
+    /// The space a document holds.
     #[must_use]
     pub fn space(space: VarId) -> Self {
-        Self::Space(Operand::Var(space))
+        Self::Space(space)
     }
 }
 

@@ -690,7 +690,7 @@ impl ViewerBehavior<'_> {
         );
         if let Some(target) = tool.target() {
             let doc = self.session.committed_doc();
-            let loaded = tool.door().map(|door| door.base.target.clone());
+            let loaded = tool.loaded_target().cloned();
             ui.horizontal(|ui| {
                 ui.label(format!(
                     "into: {}",
@@ -710,11 +710,10 @@ impl ViewerBehavior<'_> {
                 if ui.button("a new space").clicked() {
                     edited.set_target(PlaceTarget::NewSpace);
                 }
-                if let Some(loaded) =
-                    loaded.filter(|loaded| *target != PlaceTarget::Space(loaded.clone()))
+                if let Some(loaded) = loaded.filter(|loaded| loaded != target)
                     && ui.button("where it is").clicked()
                 {
-                    edited.set_target(PlaceTarget::Space(loaded));
+                    edited.set_target(loaded);
                 }
             });
         }
@@ -751,39 +750,48 @@ impl ViewerBehavior<'_> {
                 }
             });
             mate_picks_row(ui, &tool, at, by, &self.theme);
-            if let Some(&(_, space)) = off_target.iter().find(|(row, _)| *row == at) {
-                let doc = self.session.committed_doc();
-                let into = tool.target().map_or_else(String::new, |target| {
-                    crate::matetool::said_target(doc, target)
-                });
-                let read = doc.spoken_space(space);
-                ui.horizontal(|ui| {
-                    crate::widgets::message_toned(
-                        ui,
-                        ToolKind::Mate.says(&format_args!(
-                            "mate {}'s to is in {read}; this placement is into {into}",
-                            at + 1
-                        )),
-                        &self.theme,
-                        Tone::Actionable,
+            if let Some(&(_, space)) = off_target
+                .iter()
+                .find(|(reading, _)| *reading == crate::matetool::Reading::Mate(at))
+            {
+                self.off_target_row(
+                    ui,
+                    &tool,
+                    &mut edited,
+                    &format!("mate {}'s to", at + 1),
+                    space,
+                );
+            }
+        }
+        // A loaded value along a direction or about an axis reads its
+        // space too, and is marked the same way.
+        for (reading, space) in &off_target {
+            if let crate::matetool::Reading::Value(id) = reading {
+                let coord = tool
+                    .door()
+                    .and_then(|door| door.base.constraints.iter().find(|c| c.id == *id))
+                    .and_then(|c| c.value())
+                    .map_or_else(
+                        || "a value".to_owned(),
+                        |v| format!("the {} value", v.coord.name()),
                     );
-                    if ui.button(format!("Into {read}")).clicked() {
-                        edited.retarget_into(space);
-                    }
-                });
+                self.off_target_row(ui, &tool, &mut edited, &coord, *space);
             }
         }
         // A target change leaves the mates reading the space it leaves
         // as written: one button strikes them all.
-        if let (Some(door), Some((doc, ev))) = (tool.door(), self.session.landed_pair())
-            && let Some(old) = crate::matetool::MateTool::target_space(
-                doc,
-                &PlaceTarget::Space(door.base.target.clone()),
-            )
+        if let (Some(loaded), Some((doc, ev))) = (tool.loaded_target(), self.session.landed_pair())
+            && let Some(old) = crate::matetool::MateTool::target_space(loaded)
         {
-            let reading = off_target.iter().filter(|(_, space)| *space == old).count();
+            let mut read_off: Vec<crate::matetool::Reading> = Vec::new();
+            for (reading, space) in &off_target {
+                if *space == old && !read_off.contains(reading) {
+                    read_off.push(*reading);
+                }
+            }
+            let reading = read_off.len();
             if reading > 0
-                && tool.target() != Some(&PlaceTarget::Space(door.base.target.clone()))
+                && tool.target() != Some(loaded)
                 && ui
                     .button(format!(
                         "strike the {reading} that read {}",
@@ -922,6 +930,37 @@ impl ViewerBehavior<'_> {
             *open = edited;
         }
         ui.separator();
+    }
+
+    /// **One marked reading of another space**: `what` (a mate's `to`, a
+    /// value) is in `space` while the placement is into another, said,
+    /// with "Into <space>" beside it as a target change of its own.
+    fn off_target_row(
+        &self,
+        ui: &mut egui::Ui,
+        tool: &MateTool,
+        edited: &mut MateTool,
+        what: &str,
+        space: pncad::document::VarId,
+    ) {
+        let doc = self.session.committed_doc();
+        let into = tool.target().map_or_else(String::new, |target| {
+            crate::matetool::said_target(doc, target)
+        });
+        let read = doc.spoken_space(space);
+        ui.horizontal(|ui| {
+            crate::widgets::message_toned(
+                ui,
+                ToolKind::Mate.says(&format_args!(
+                    "{what} is in {read}; this placement is into {into}"
+                )),
+                &self.theme,
+                Tone::Actionable,
+            );
+            if ui.button(format!("Into {read}")).clicked() {
+                edited.retarget_into(space);
+            }
+        });
     }
 
     /// The `Add part…` door: the open document's own directory,

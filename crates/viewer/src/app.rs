@@ -1463,6 +1463,12 @@ impl ViewerApp {
             // to learns its id here and nowhere else.
             let made = outcome.made;
             let committed = outcome.refusal.is_none();
+            // A door's target change held over the copy's own constraints
+            // opens the placement editor holding it.
+            if let Some(refusal) = &outcome.refusal {
+                self.tools
+                    .held_target(refusal, self.session.committed_doc());
+            }
             // The placement editor opens on the placement a Place made,
             // and settles the draft whose change landed or was refused.
             if matches!(

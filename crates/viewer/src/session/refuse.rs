@@ -442,6 +442,26 @@ pub enum Refusal {
         /// The copy, as the document held it at the refusal.
         copy: SpokenNode,
     },
+    /// A door's change of a copy's target ([`super::SessionOp::AddToProduct`]
+    /// moving it into the world, [`super::SessionOp::IntoOwnSpace`]) over
+    /// a bundle of its own that reads the space it leaves: the change is
+    /// held, as the placement editor holds it, and the editor opens on
+    /// the copy with `target` set, the rows reading the old space marked
+    /// ([`crate::tools::Tools::answered`]).
+    TargetHeld {
+        /// The copy's placement, as the document held it at the refusal.
+        copy: SpokenNode,
+        /// The placement, for the editor to open on.
+        placement: RecipeNodeId,
+        /// The space it would leave.
+        space: Box<SpokenSpace>,
+        /// How many of its constraints read that space.
+        reading: usize,
+        /// The space it would move into, `None` for a new space.
+        into: Option<Box<SpokenSpace>>,
+        /// The target the editor opens with.
+        target: super::PlaceTarget,
+    },
     /// A combine was asked of a copy placed into another space than its
     /// first operand's: a combine changes no placement's target, and the
     /// copy is moved by its own placement's "into" row.
@@ -528,6 +548,21 @@ impl Refusal {
             Self::ProfileEditStale { node } => Self::ProfileEditStale { node: again(node) },
             Self::BundleStale { node } => Self::BundleStale { node: again(node) },
             Self::PlaceOnACopy { copy } => Self::PlaceOnACopy { copy: again(copy) },
+            Self::TargetHeld {
+                copy,
+                placement,
+                space,
+                reading,
+                into,
+                target,
+            } => Self::TargetHeld {
+                copy: again(copy),
+                placement,
+                space: Box::new(doc.spoken_space(space.id())),
+                reading,
+                into: into.map(|into| Box::new(doc.spoken_space(into.id()))),
+                target,
+            },
             Self::CopyInAnotherSpace { copy, space, into } => Self::CopyInAnotherSpace {
                 copy: again(copy),
                 space: Box::new(doc.spoken_space(space.id())),
@@ -626,6 +661,7 @@ impl Refusal {
             | Self::BundleStale { .. }
             | Self::PlaceOnACopy { .. }
             | Self::CopyInAnotherSpace { .. }
+            | Self::TargetHeld { .. }
             | Self::NothingPlaced { .. }
             | Self::Unspliced { .. }
             | Self::ValueNotRemoved { .. }
@@ -677,6 +713,7 @@ impl Refusal {
             | Self::BundleStale { .. }
             | Self::PlaceOnACopy { .. }
             | Self::CopyInAnotherSpace { .. }
+            | Self::TargetHeld { .. }
             | Self::NothingPlaced { .. }
             | Self::Unspliced { .. }
             | Self::ValueNotRemoved { .. }
@@ -1018,6 +1055,23 @@ impl Refusal {
                 "{copy} is a copy; move it by its own placement in the placement editor, not \
                  by a copy of it"
             ),
+            Self::TargetHeld {
+                copy,
+                space,
+                reading,
+                into,
+                ..
+            } => {
+                let into = into
+                    .as_ref()
+                    .map_or_else(|| "a new space".to_owned(), ToString::to_string);
+                write!(
+                    f,
+                    "{copy} has {reading} constraint(s) of its own reading {space}, the space \
+                     this would move it out of; its placement editor opens with the target set \
+                     to {into}: re-pick or strike the marked rows"
+                )
+            }
             Self::CopyInAnotherSpace { copy, space, into } => write!(
                 f,
                 "{copy} is placed into {space}, and this combine is in {into}; a combine moves \
