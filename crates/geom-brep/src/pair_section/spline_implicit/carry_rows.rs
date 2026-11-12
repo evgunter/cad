@@ -101,7 +101,7 @@ fn on_wall(w: &Surface<f64>, u: f64, v: f64) -> Point3<f64> {
 /// Red against: a carry that refuses every spline × implicit component
 /// (the listing's `Unminted`); a pad left in chart units (the tube's
 /// `pad_u`, `pad_v`), far past the rung at `s = 0.01` and far inside it
-/// at `s = 1000`; a pad read off whole windows, past four rungs.
+/// at `s = 1000`.
 #[test]
 fn a_rim_arc_is_carried_as_its_reading_fitted_it_with_its_pad_in_metres() {
     for s in [1e-2, 1.0, 1e2, 1e3] {

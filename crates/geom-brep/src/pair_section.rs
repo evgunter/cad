@@ -1796,16 +1796,7 @@ impl<T: Decide> PairSection<T> {
                 let fitted = if general { branches()? } else { Vec::new() };
                 let carried = Self::matched(listed, fitted, self.pose.cut(), band)?;
                 held_per_set(&self.node_sets, listed, &carried)?;
-                // A reading's own carriers are distinct as the march's
-                // are: each witness on its component alone.
-                if listed
-                    .iter()
-                    .any(|c| matches!(c.carrier, ClassCarrier::Fitted(_)))
-                {
-                    distinct(carried, band)?
-                } else {
-                    carried
-                }
+                carried
             }
         };
         Ok(CarriedSection {

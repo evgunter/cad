@@ -569,11 +569,10 @@ fn fitted(
 /// section the window holds.
 ///
 /// - **The pad** is the farthest a point of any image box stands from
-///   the carrier over the window's span: each window is cut along each
-///   chart axis into parts no longer than [`PAD_WINDOW_ASPECT`] of its
-///   pads there (at most [`PAD_WINDOW_CUTS`]), each part imaged, and
-///   each image read against the carrier's samples over the span, twice
-///   as many as the parts along the longer axis (`super::farthest`).
+///   the carrier over the window's span, each box halved as an ℝ³ loop's
+///   tube box is and read against the carrier's samples there
+///   (`super::parts`, `super::farthest`). The windows are the tube's
+///   rung across, so the pad is about the rung.
 ///   Limb 3 holds the section in the windows
 ///   one arc, the branch's, and the reading's accounting banks every
 ///   other cell of the wall's rectangle, so every point of the
@@ -590,7 +589,7 @@ fn fitted(
 /// window or carrier point does not read; and
 /// [`super::CarryRefusal::PadShort`].
 fn pad_of(b: &SsiBranch, net: &NurbsSurface<f64>) -> Result<(f64, f64), super::CarryError> {
-    use super::{CarryError, CarryRefusal, LoopTubeRefusal, farthest};
+    use super::{CarryError, CarryRefusal, LoopTubeRefusal, PAD_SAMPLES, farthest, parts};
     let (SsiTube::Chart { pad_u, pad_v, .. }, Some(pcurve)) =
         (b.certificate.tube, b.pcurve_b.as_ref())
     else {
@@ -623,46 +622,20 @@ fn pad_of(b: &SsiBranch, net: &NurbsSurface<f64>) -> Result<(f64, f64), super::C
         })
         .collect::<Result<_, _>>()?;
     let mut pad = 0.0f64;
-    for w in &windows {
-        let (lo, hi) = w.ends;
-        // The window cut along each chart axis in proportion to how long
-        // it stands against its pad there, so a part's image is short
-        // beside the carrier's samples however long the span.
-        let cuts = |(a, b): (f64, f64), pad: f64| {
-            let n = ((b - a) / (PAD_WINDOW_ASPECT * pad)).ceil();
-            if n.is_finite() && n >= 1.0 {
-                #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
-                let n = n.min(f64::from(PAD_WINDOW_CUTS)) as u32;
-                n
-            } else {
-                1
-            }
-        };
-        let (nu, nv) = (cuts(w.rect.u, pad_u), cuts(w.rect.v, pad_v));
-        let count = 2 * nu.max(nv) + 1;
-        let samples: Vec<Point3<Interval>> = (0..count)
-            .map(|j| lifted.eval(lift(lo + (hi - lo) * f64::from(j) / f64::from(count - 1))))
+    for &(image, (lo, hi)) in &imaged {
+        #[allow(clippy::cast_precision_loss)]
+        let samples: Vec<Point3<Interval>> = (0..PAD_SAMPLES)
+            .map(|j| lifted.eval(lift(lo + (hi - lo) * j as f64 / (PAD_SAMPLES - 1) as f64)))
             .collect();
-        let at = |(a, b): (f64, f64), n: u32, i: u32| a + (b - a) * f64::from(i) / f64::from(n);
-        for i in 0..nu {
-            for j in 0..nv {
-                let part = UvWindow::new(
-                    at(w.rect.u, nu, i),
-                    at(w.rect.u, nu, i + 1),
-                    at(w.rect.v, nv, j),
-                    at(w.rect.v, nv, j + 1),
-                )
-                .map(|uv| boxes.rect_box(uv))
-                .ok_or(unread(LoopTubeRefusal::NotFinite))?;
-                let far = samples
-                    .iter()
-                    .map(|&p| farthest(part, p))
-                    .fold(f64::INFINITY, f64::min);
-                if !far.is_finite() {
-                    return Err(unread(LoopTubeRefusal::of(part, &samples)));
-                }
-                pad = pad.max(far);
+        for part in parts(image) {
+            let far = samples
+                .iter()
+                .map(|&p| farthest(part, p))
+                .fold(f64::INFINITY, f64::min);
+            if !far.is_finite() {
+                return Err(unread(LoopTubeRefusal::of(part, &samples)));
             }
+            pad = pad.max(far);
         }
     }
     let hull_sup = b.certificate.hull_sup;
@@ -691,13 +664,6 @@ fn pad_of(b: &SsiBranch, net: &NurbsSurface<f64>) -> Result<(f64, f64), super::C
     }
     Ok((pad, reach))
 }
-
-/// How long a part of a chart tube's window may stand along an axis, in
-/// that axis's pads, before [`pad_of`] cuts it.
-const PAD_WINDOW_ASPECT: f64 = 4.0;
-
-/// The most parts [`pad_of`] cuts a window into along one chart axis.
-const PAD_WINDOW_CUTS: u32 = 256;
 
 /// **A branch's witness and how far it may stand from its arc**: the
 /// wall's point `q = S(P(mid))` at the middle of the branch's pcurve on
