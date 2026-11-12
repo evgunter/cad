@@ -1457,17 +1457,10 @@ file edited by hand or merged into that state loads with them marked.
 values. The source is always a body, of this document or another
 document's product (an instance), never a space; the target is a
 space. A placement of this document's body reads it through a
-**source**, a `Body` variable defined as a read of one body (`bracket
-= B`): a plain body, a member `xs[k]`, a pick or another source. A
-source is a variable like any other, so the naming rule holds
-unchanged (VARIABLES VR2): a lone placement's source is anonymous and
-its own, and two or more placements share it only by its name, given
-by the person when the body is placed a second time. Re-pointing the
-placements of a body is redefining their source (`bracket = F`), one
-action with the rebinds of what reads the copies; a later placement of
-`bracket` reads `bracket`. A source adds no name segment, so a copy's
-mate `on` sides select the source (`bracket.top`). An operation's
-output keeps its exemption from naming everywhere else. The placement defines one body, a copy of the source in the
+**source**, a `Body` variable defined as a read of a body (`bracket =
+B`), which the usual naming rule governs: several placements share a
+source only by its name, and re-pointing them is redefining it
+(`bracket = F`; VARIABLES VR4). The placement defines one body, a copy of the source in the
 target space under the one rigid motion its constraints state, which
 carries every pose of the source as the source carries it, and the
 source's contact records and census decisions, which stay the
