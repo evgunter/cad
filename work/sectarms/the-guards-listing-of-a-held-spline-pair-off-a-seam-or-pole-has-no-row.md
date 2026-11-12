@@ -31,8 +31,14 @@ is the surface's alone. No fixture in the
 tree builds such a spline wall against an implicit partner through a
 boolean: the loft builds one wall per profile segment, each bounded on
 all four sides (`sweep::test_support::lofted_cylinder` is two
-half-walls). So the branch runs on no row: the mutant that reads the
-held pair's carry instead of its listing survives every row.
+half-walls). The section certificate's own door has a closed-channel
+row (`section_cert_spline_rows::a_branch_across_a_closed_channels_seam_is_not_cleared_by_reaching_it`,
+a plane square to a tube whose `u` row closes on itself), but it reads
+the surfaces, not a body the glue door's table holds. So the guard's
+branch runs on no row: the mutant that reads the held pair's carry
+instead of its listing survives every row. The two readings are one
+function (`section_cert::of_listed`), so the mutant is the guard's
+call site alone.
 
 ## Done when
 
