@@ -314,3 +314,16 @@ second site needs to ask the question at all. (ONEDOOR orchestrator)
 - **Class:** *a path-filtered CI on main lets a suite's red sit unseen until an unrelated PR meets it.* Here, a Rust-side retirement left its python twin behind. Logged here only; the scene's owner moving both twins is the fix, not a new gate.
 - **Merge path:** CI green on `a4856ec9f24`, then #6511 (still waiting on Ev), then #6505, then the state sync and the dual-review row.
 - (ONEDOOR orchestrator)
+
+## 2026-11-12 — #6511 and #6505 merged; state sync
+
+- **Ev approved #6511** (2026-11-12, "this looks good! sorry for the delay"). Fork-log row 251 holds the decision and the draws: bytes 90 and 84, two designers, Opus = A and Fable = B. #6511 merged as `690c83eb`.
+- **#6505 merged as `9e148404`.** CI was green on `1b98bff0`. The PR body was rewritten to describe the state built. It had still described the pre-review `unify_surfaces` design, and nothing in the fix briefs said to update it.
+  - The dual-review row `docs/dual-review-log/rows/PR-6505.md` is its last commit: concurrent arm, letter H, 0 tallied, MAJOR raised, fair, no miss.
+  - The unit `coincidence-leaves-one-surface-record` is closed.
+- **Class:** *a PR body written at first push goes stale across fix passes.* The fix briefs ask for commit messages that can go in the PR body, but no step re-reads the body before merge. The merge step now reads it. That step lives in this log only; a change to the standing prompts is Ev's call.
+- **Stale statuses synced:**
+  - `S173` was still marked `dispatched`; PR 6480 landed it in part. It is now parked on `carrier-eq-and-plane-eq-take-no-body`, re-banded to P1 because it unblocks a P1 row.
+  - The wedge unit was `dispatched` with stage 1 landed (PR 6443). It is now `spec`, with stage 2 as specified on the row.
+- No lane is live. Worktrees and targets are deleted, and disk is at 27 GB.
+- (ONEDOOR orchestrator)
