@@ -1149,9 +1149,10 @@ that decision.
 whose tool's solids rest on each other, the face–face records between
 them stating where, unites those solids before it cuts, and then runs
 the ordinary cut: `t − (p ⊔ q)` is computed as `t − (p ∪ q)`
-(`boolean::material`). Every solid of the tool is a member, carved out
-of it with its keys, and every fold step is given, on each pair a record
-names, the record's meaning: a `⊔` records a touch, the two materials
+(`boolean::nary::cut_by_material`). Every solid of the tool is a
+member, carved out of it with its keys (`carve::solid_alone`), and
+every fold step is given, on each pair a record names, the record's
+meaning: a `⊔` records a touch, the two materials
 on the two sides of where the faces meet, and two planar faces a record
 holds apart lie on one plane, so the record is one carrier with senses
 opposed, a `Rest` pair (`contact::area_record`). The union decides no
@@ -1174,7 +1175,9 @@ states and refuses `ToolSeatUnread` naming it, never decided again. And
 the result names the tool's cells: every operand-B cell of the cut's
 naming, rows, holdings and records is read back through the union to
 the tool's (`boolean::material::Through`), a face the union divided a
-piece of the tool's face, a merged face holding each face it holds. The
+piece of the tool's face, a merged face holding each face it holds, and
+an edge along which the union fused two solids a seam between two of
+the tool's faces (`BooleanNaming::fused_seams`), as a union's is. The
 record keeps "the pair and nothing else" ([topology.records]): the class
 is what a planar record means, not a stored or carried class.
 

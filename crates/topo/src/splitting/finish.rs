@@ -92,8 +92,9 @@ use super::{KnifeEdge, KnifeEdgeSite, PlaneSide, SplitReduction, section_loops};
 use crate::attach::{Named, Rechart};
 use crate::body::Body;
 use crate::boolean::{CarryRefusal, Cell};
+use crate::carve::carve;
 use crate::chord_join::SplitJoinError;
-use crate::entity::{EdgeKey, EntityId, FaceKey, LoopBoundary, ShellKey, SolidKey, VertexKey};
+use crate::entity::{EdgeKey, EntityId, FaceKey, ShellKey, SolidKey, VertexKey};
 use crate::euler::{EulerOpError, FaceSurface};
 use crate::live::{BoundaryMember, proven};
 use geom::Surface;
@@ -993,6 +994,12 @@ pub enum SplitFinishError {
         /// Why the merge refused.
         error: crate::MergeCoplanarError,
     },
+}
+
+impl From<crate::carve::Corrupt> for SplitFinishError {
+    fn from(_: crate::carve::Corrupt) -> Self {
+        Self::Corrupt
+    }
 }
 
 impl From<EulerOpError> for SplitFinishError {
@@ -2236,165 +2243,6 @@ fn classify_shell<T: Decide>(
         Some(s) => Ok((s, has_real_face)),
         None => Err(SplitFinishError::UnclassifiableComponent { shell }),
     }
-}
-
-/// Carves the sub-body spanned by `keep` shells out of `src`: a clone
-/// with every other shell's entities removed and orphaned geometry
-/// swept. Kept entities keep their keys (lineage-scoped identity —
-/// deterministic, replay-stable).
-///
-/// **Every surviving link resolves.** The removal is arena surgery, not
-/// an Euler operator, so it keeps the links by removing only records
-/// no kept record names: no kept half-edge starts at a dropped vertex
-/// or shares an edge with a dropped half-edge, and no kept lone-vertex
-/// loop holds a dropped vertex. That is tier-1 pass 6's "no split
-/// orbits" on a body at rest; `src` may be mid-operation, so the carve
-/// checks it and answers [`SplitFinishError::Corrupt`] where it fails.
-pub(crate) fn carve<T: Decide>(
-    src: &Body<T>,
-    solid: SolidKey,
-    keep: &[ShellKey],
-) -> Result<Body<T>, SplitFinishError> {
-    let mut body = src.clone();
-    let corrupt = || SplitFinishError::Corrupt;
-
-    let all: Vec<ShellKey> = body.shells_of_solid(solid).ok_or_else(corrupt)?.to_vec();
-    let drop: Vec<ShellKey> = all.iter().copied().filter(|s| !keep.contains(s)).collect();
-
-    // Collect the dropped entity sets (deterministic list walks).
-    let mut faces = Vec::new();
-    let mut loops = Vec::new();
-    let mut hes = Vec::new();
-    let mut edges: Vec<crate::entity::EdgeKey> = Vec::new();
-    let mut vertices: SecondaryMap<VertexKey, ()> = SecondaryMap::new();
-    for &shell in &drop {
-        let shell_data = body.get_shell(shell).ok_or_else(corrupt)?;
-        for &face in &shell_data.faces {
-            faces.push(face);
-            let holder = EntityId::Shell(shell);
-            let view = body.linked_face(face, holder, "faces");
-            for (l, members, _) in view.boundary_by_loop() {
-                loops.push(l);
-                for member in members {
-                    vertices.insert(member.vertex(), ());
-                    if let BoundaryMember::Edge { he, ek, edge, .. } = member {
-                        hes.push(he);
-                        // Each edge is claimed by its he_plus only (one
-                        // removal per edge).
-                        if edge.he_plus == he {
-                            edges.push(ek);
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    let dropped_hes: SecondaryMap<crate::entity::HalfEdgeKey, ()> =
-        hes.iter().map(|&he| (he, ())).collect();
-    let dropped_loops: SecondaryMap<crate::entity::LoopKey, ()> =
-        loops.iter().map(|&l| (l, ())).collect();
-    for (he, he_data) in &body.half_edges {
-        if dropped_hes.contains_key(he) {
-            continue;
-        }
-        let edge = body.get_edge(he_data.edge).ok_or_else(corrupt)?;
-        if vertices.contains_key(he_data.start)
-            || dropped_hes.contains_key(edge.he_plus)
-            || dropped_hes.contains_key(edge.he_minus)
-        {
-            return Err(corrupt());
-        }
-    }
-    for (l, loop_data) in &body.loops {
-        if let LoopBoundary::Empty { vertex } = loop_data.boundary
-            && !dropped_loops.contains_key(l)
-            && vertices.contains_key(vertex)
-        {
-            return Err(corrupt());
-        }
-    }
-
-    // ---- Removal (crate-internal arena surgery; deterministic). ----
-    let Some(solid_data) = body.solids.get_mut(solid) else {
-        unreachable!("carve: `solid` resolved above and nothing has been removed yet")
-    };
-    solid_data.shells.retain(|s| keep.contains(s));
-    for &shell in &drop {
-        body.shells.remove(shell);
-        body.shell_provenance.remove(shell);
-    }
-    for &face in &faces {
-        body.faces.remove(face);
-        body.face_provenance.remove(face);
-        body.null_faces.remove(face);
-    }
-    for &l in &loops {
-        body.loops.remove(l);
-        body.loop_provenance.remove(l);
-    }
-    for &he in &hes {
-        body.half_edges.remove(he);
-        body.half_edge_provenance.remove(he);
-    }
-    for &edge in &edges {
-        body.edges.remove(edge);
-        body.edge_provenance.remove(edge);
-    }
-    let vertex_keys: Vec<VertexKey> = vertices.keys().collect();
-    for &v in &vertex_keys {
-        body.vertices.remove(v);
-        body.vertex_provenance.remove(v);
-    }
-
-    // ---- Orphan geometry sweep (tier-1 pass 8 hygiene): keep only
-    // points/curves/surfaces still referenced by survivors. ----
-    let mut live_points: SecondaryMap<crate::geometry::PointKey, ()> = SecondaryMap::new();
-    for (_, v) in body.vertices() {
-        live_points.insert(v.point, ());
-    }
-    let orphan_points: Vec<_> = body
-        .points
-        .keys()
-        .filter(|k| !live_points.contains_key(*k))
-        .collect();
-    for k in orphan_points {
-        body.points.remove(k);
-    }
-    let mut live_curves: SecondaryMap<crate::geometry::CurveKey, ()> = SecondaryMap::new();
-    for (_, e) in body.edges() {
-        live_curves.insert(e.curve, ());
-    }
-    let orphan_curves: Vec<_> = body
-        .curves
-        .keys()
-        .filter(|k| !live_curves.contains_key(*k))
-        .collect();
-    for k in orphan_curves {
-        body.curves.remove(k);
-    }
-    let mut live_surfaces: SecondaryMap<crate::geometry::SurfaceKey, ()> = SecondaryMap::new();
-    for (_, face) in body.faces() {
-        live_surfaces.insert(face.surface, ());
-    }
-    // Description references keep surfaces alive exactly like faces do
-    // (the `remove_surface_if_orphaned` rule): an `Intersection`/`Seam`
-    // description on a surviving edge must never dangle (extrude-built
-    // operands carry them — M3 PR 5).
-    for (_, curve) in body.curves() {
-        for s in Named::of(curve).keys() {
-            live_surfaces.insert(s, ());
-        }
-    }
-    let orphan_surfaces: Vec<_> = body
-        .surfaces
-        .keys()
-        .filter(|k| !live_surfaces.contains_key(*k))
-        .collect();
-    for k in orphan_surfaces {
-        body.surfaces.remove(k);
-    }
-    Ok(body)
 }
 
 /// **A torn section curve panics before the description writes**: on a

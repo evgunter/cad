@@ -41,10 +41,11 @@ use super::shell_witness::{
 use super::zip::SeamCorrespondence;
 use super::{BooleanError, BooleanOp, BooleanReduction, Operand, SideCode};
 use crate::body::Body;
+use crate::carve::carve;
 use crate::entity::{EntityId, FaceKey, HalfEdgeKey, ShellKey, SolidKey, VertexKey};
 use crate::euler::FaceSurface;
 use crate::live::{BoundaryMember, proven};
-use crate::splitting::finish::{carve, single_solid};
+use crate::splitting::finish::single_solid;
 use geom_core::Tol;
 use std::collections::{BTreeMap, BTreeSet};
 

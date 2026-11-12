@@ -2,8 +2,8 @@
 //! `[topo.cut-material]`): `t − (p ⊔ q)` is computed as
 //! `t − (p ∪ q)`. Where the tool's solids rest on each other, the cut's
 //! door unites them on the face–face records between them, each record's
-//! meaning the union's given verdict ([`super::nary`]'s tool door), and
-//! the ordinary cut runs against that material.
+//! meaning the union's given verdict, and the ordinary cut runs against
+//! that material ([`super::nary::cut_by_material`]).
 //!
 //! The cut's result is then stated in the tool's own terms, as a cut by
 //! the tool would state it: every operand-B cell its naming, rows,
@@ -18,57 +18,15 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use geom_core::{Bounds, Decide, Tol};
-
 use super::holdings::{Held, Holdings};
-use super::nary::{ToolMaterial, tool_material};
-use super::ops::{BooleanBody, OperandKeys, boolean_op_given};
-use super::{BooleanError, BooleanInputs, BooleanOp, BooleanResult, Cell, Operand, SweepStrategy};
+use super::nary::ToolMaterial;
+use super::ops::{BooleanBody, OperandKeys};
+use super::{BooleanError, Cell, Operand};
 use crate::body::Body;
 use crate::coincidence::{Backing, RowCell};
 use crate::entity::{EdgeKey, FaceKey, VertexKey};
 use crate::props::AtRestPolicy;
 use crate::provenance::Provenance;
-
-/// **`a − b`, `b` read as its material**, where `b`'s solids rest on each
-/// other ([`tool_material`]); `None` where they do not, and the cut
-/// reads `b` as it stands.
-///
-/// # Errors
-///
-/// The tool door's refusals; the cut's own; [`BooleanError::JoinDesync`]
-/// where a cell or record of the material reads back to no cell or
-/// record of the tool, which every one does.
-pub(super) fn cut_by_material<T: Decide + Bounds + AtRestPolicy>(
-    a: &T::Finished,
-    b: &T::Finished,
-    inputs: &BooleanInputs,
-    strategy: SweepStrategy,
-    tol: Tol,
-) -> Result<Option<BooleanResult<T>>, BooleanError> {
-    let Some(material) = tool_material::<T>(b, &inputs.records_b, strategy, tol)? else {
-        return Ok(None);
-    };
-    let through = Through::of(&material)?;
-    let fused = material.body();
-    let cut = boolean_op_given(
-        BooleanOp::Subtract,
-        a,
-        &fused.body,
-        &BooleanInputs {
-            records_a: inputs.records_a.clone(),
-            records_b: fused.contacts.carried(),
-        },
-        (None, None),
-        strategy,
-        tol,
-    )?;
-    let BooleanResult::Body(mut out) = cut else {
-        return Ok(Some(cut));
-    };
-    through.restate(&mut out, b)?;
-    Ok(Some(BooleanResult::Body(out)))
-}
 
 /// What a fold refused to read back, for [`BooleanError::JoinDesync`].
 const UNREAD: &str = "a cell or record of a cut's material reads back to no cell or record of its \
@@ -79,7 +37,7 @@ const UNREAD: &str = "a cell or record of a cut's material reads back to no cell
 /// cell's key; each face the union minted, to the tool's face it is a
 /// piece of; each edge the union split, to the edge it was split from;
 /// each record, to the tool's records it carries.
-struct Through {
+pub(super) struct Through {
     faces: BTreeMap<FaceKey, FaceKey>,
     edges: BTreeMap<EdgeKey, EdgeKey>,
     vertices: BTreeMap<VertexKey, VertexKey>,
@@ -101,7 +59,7 @@ struct Through {
 
 impl Through {
     /// The read-back of `material`'s last body, through its steps.
-    fn of<T: AtRestPolicy>(material: &ToolMaterial<T>) -> Result<Self, BooleanError> {
+    pub(super) fn of<T: AtRestPolicy>(material: &ToolMaterial<T>) -> Result<Self, BooleanError> {
         let unread = || BooleanError::JoinDesync { what: UNREAD };
         let first: &Body<T> = &material.members[0];
         let mut faces: BTreeMap<FaceKey, FaceKey> = first.faces().map(|(f, _)| (f, f)).collect();
@@ -336,7 +294,7 @@ impl Through {
     /// [`BooleanError::JoinDesync`] where a row or a holding names a cell
     /// of the material that is no cell of `tool`, or a record cites one of
     /// the material's records that carries none of the tool's.
-    fn restate<T: AtRestPolicy>(
+    pub(super) fn restate<T: AtRestPolicy>(
         &self,
         out: &mut BooleanBody<T>,
         tool: &Body<T>,
@@ -520,89 +478,6 @@ impl Cell {
         match self {
             Self::Face(f) => Some(f),
             Self::Edge(_) | Self::Vertex(_) => None,
-        }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
-
-    use std::collections::BTreeMap;
-
-    use geom_core::Tol;
-
-    use super::super::SweepStrategy;
-    use super::tool_material;
-    use crate::test_support::meeting::{posed_boxes, poses};
-    use crate::{ContactRecords, SolidKey};
-
-    /// **A cut's tool is fused on its seat's record, decided nowhere**:
-    /// the bolt on the plate, one body of two solids, its seat recorded
-    /// as the census at a `⊔`'s door records it, read as material is one
-    /// solid of 11 faces (the plate's top keeps the foot's outline), and
-    /// no step of the fold records a carrier pair's row, at rest and
-    /// turned: the glue is the record's meaning. Red where the fold
-    /// decides its own glue (it records the plane ladder's row of the
-    /// foot and the top), where it is handed no pair for the record (a
-    /// foot corner on the top escalates) or the pair aligned (a face of
-    /// the result runs the wrong way round).
-    #[test]
-    fn a_tools_seat_is_taken_and_decided_nowhere() {
-        let tol = Tol::witness();
-        for pose in poses()
-            .into_iter()
-            .filter(|p| ["at rest", "turned"].contains(&p.label))
-        {
-            let body = posed_boxes(
-                "a bolt on a plate",
-                &[
-                    [(-0.2, 0.2), (-0.2, 0.2), (0.2, 1.2)],
-                    [(-1.0, 1.0), (-1.0, 1.0), (0.0, 0.2)],
-                ],
-                &pose,
-                tol,
-            );
-            let groups: BTreeMap<SolidKey, u32> = body.solids().map(|(s, _)| s).zip(0..).collect();
-            let recorded = crate::record_at_rest(
-                &body,
-                &ContactRecords::default(),
-                |records| {
-                    crate::validate_pseudomanifold(&body, records, tol)
-                        .err()
-                        .unwrap_or_default()
-                },
-                &|s| groups.get(&s).copied(),
-                0,
-            );
-            assert_eq!(
-                recorded.records.face_face().count(),
-                1,
-                "{}: the premise, the seat is one face–face record",
-                pose.label
-            );
-            let material = tool_material::<f64>(
-                &body,
-                &recorded.records.carried(),
-                SweepStrategy::Realized,
-                tol,
-            )
-            .unwrap_or_else(|e| panic!("{}: the tool fuses: {e:?}", pose.label))
-            .unwrap_or_else(|| panic!("{}: its solids rest on each other", pose.label));
-            let fused = material.body();
-            assert_eq!(fused.body.solids().count(), 1, "{}: one solid", pose.label);
-            assert_eq!(fused.body.faces().count(), 11, "{}: its faces", pose.label);
-            for step in &material.steps {
-                assert!(
-                    step.body
-                        .coincidences
-                        .iter()
-                        .all(|row| row.face_pair().is_none()),
-                    "{}: the fold decides no carrier pair: {:?}",
-                    pose.label,
-                    step.body.coincidences
-                );
-            }
         }
     }
 }

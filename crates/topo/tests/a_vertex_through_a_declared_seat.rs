@@ -699,6 +699,85 @@ fn a_cut_by_the_seat_is_the_cut_by_each_piece_in_turn() {
     }
 }
 
+/// **A tool of three stacked solids is read as one material**: the bolt
+/// on the plate on a base `[−1, 1]² × [−0.3, 0]` flush with it, one body
+/// of three solids, both seats recorded. The fold unites them in two
+/// steps, the plate's and the base's sides merged, and the pin cut by
+/// it leaves its stub below the base, `[−0.1, 0.1]² × [−0.5, −0.3]`,
+/// while a block through the stack's side keeps what lies outside it,
+/// its notch walled by the merged sides. Red where a step after the
+/// first is handed no verdict through the fold's lineage, or where a
+/// merged face of the material reads back to no face of the tool.
+#[test]
+fn a_tool_of_three_stacked_solids_is_one_material() {
+    for pose in two_poses() {
+        let seat = Seat::at(pose);
+        let stack = posed_boxes(
+            "a bolt on a plate on a base",
+            &[
+                [(-0.2, 0.2), (-0.2, 0.2), (0.2, 1.2)],
+                [(-1.0, 1.0), (-1.0, 1.0), (0.0, 0.2)],
+                [(-1.0, 1.0), (-1.0, 1.0), (-0.3, 0.0)],
+            ],
+            &seat.pose,
+            t(),
+        );
+        let records = Seat::recorded(&stack);
+        assert_eq!(
+            records.face_face().count(),
+            2,
+            "the premise, {}: two seats: {records:?}",
+            seat.pose.label
+        );
+        let pin = seat.block((-0.1, 0.1), (-0.1, 0.1), (-0.5, 0.5));
+        let side = seat.block((0.5, 2.0), (-0.5, 0.5), (-0.5, 0.4));
+        for (name, x, faces, want, [held, not]) in [
+            ("pin", &pin, 6, 0.008, [[0.0, 0.0, -0.4], [0.0, 0.0, -0.1]]),
+            ("side", &side, 10, 1.1, [[1.5, 0.0, 0.0], [0.7, 0.0, 0.0]]),
+        ] {
+            let what = format!("{name} − stack, {}", seat.pose.label);
+            let r = built(
+                &what,
+                topo::boolean_op_with(
+                    BooleanOp::Subtract,
+                    x,
+                    &stack,
+                    &BooleanInputs {
+                        records_a: Default::default(),
+                        records_b: records.carried(),
+                    },
+                    topo::SweepStrategy::Realized,
+                    t(),
+                ),
+            );
+            assert_eq!(r.body.solids().count(), 1, "{what}: one solid");
+            assert_eq!(r.body.faces().count(), faces, "{what}: its faces");
+            assert_eq!(
+                topo::validate_geometric(&r.body, t()),
+                Ok(()),
+                "{what}: tier 3"
+            );
+            assert_eq!(
+                topo::validate_pseudomanifold(&r.body, &r.contacts, t()),
+                Ok(()),
+                "{what}: tier 3′"
+            );
+            let v = volume(&r.body);
+            assert!((v - want).abs() < 1e-9, "{what}: volume {v}, want {want}");
+            assert_eq!(
+                inside(&r.body, seat.pose.at(held)),
+                Some(true),
+                "{what}: holds {held:?}"
+            );
+            assert_eq!(
+                inside(&r.body, seat.pose.at(not)),
+                Some(false),
+                "{what}: not {not:?}"
+            );
+        }
+    }
+}
+
 /// **A block inside the seat's material is cut away whole**: a ridge
 /// inside the bolt or the plate, its apex edge lying in the seat, a block
 /// with a face on the seat from above or below, and a blade whose edge

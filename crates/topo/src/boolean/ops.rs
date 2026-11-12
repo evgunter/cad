@@ -136,13 +136,14 @@ use super::{
 };
 use crate::body::Body;
 use crate::boxes;
+use crate::carve::carve;
 use crate::coincidence::{Backing, Cited, Cites};
 use crate::entity::{EdgeKey, EntityId, FaceKey, LoopBoundary, ShellKey, VertexKey};
 use crate::geometry::{PointKey, SurfaceKey};
 use crate::live::{BoundaryMember, linked, proven};
 use crate::merge_faces::{DescribeRefusal, DihedralReading, EdgeDescribeFailure};
 use crate::props::AtRestPolicy;
-use crate::splitting::finish::{carve, single_solid};
+use crate::splitting::finish::single_solid;
 use crate::validate::decide;
 use geom_brep::recourse::Refused;
 use geom_core::NonzeroSign;
@@ -769,7 +770,7 @@ where
     F::Scalar: Decide + Bounds,
 {
     if op == BooleanOp::Subtract
-        && let Some(result) = super::material::cut_by_material(a, b, inputs, strategy, tol)?
+        && let Some(result) = super::nary::cut_by_material(a, b, inputs, strategy, tol)?
     {
         return Ok(result);
     }

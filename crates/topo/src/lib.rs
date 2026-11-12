@@ -133,6 +133,7 @@ pub mod body;
 pub mod boolean;
 pub(crate) mod bound_side;
 pub(crate) mod boxes;
+pub(crate) mod carve;
 pub mod cell_region;
 pub(crate) mod census;
 pub mod chart;
