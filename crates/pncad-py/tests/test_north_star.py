@@ -2568,9 +2568,8 @@ class TestTeapot(unittest.TestCase):
     it is the binding's shape rather than a gap: the spout's union arrives as
     `EvaluationError` with `kind == "boolean"` carrying the kernel's
     own DISPLAY prose — `pncad-py` never Debug-dumps a payload, so the
-    variant name `CurvedPairUnsupported` is not in the text and what
-    the row pins instead is the face pair the gate named, which is the
-    same fact the Rust wall matches on.
+    variant name is not in the text, and what the row pins instead is
+    the refusal's arm (`inner_kind`) and the gate's own sentence.
     """
 
     # ---- the vessel (dyadic metres, exactly the scene's) ----
@@ -3295,27 +3294,27 @@ class TestTeapot(unittest.TestCase):
 
         # spout union vessel: PAST the pair rung, because a loft's
         # walls are Nurbs and that arm exists; PAST the split of the
-        # spout's spline seam where the solids meet; and PAST the
-        # spout's walls' reading of the belly's pierce point. Dead in
-        # the join, where no section frame traces the belly's sphere
-        # against the spout's spline wall (SECTARMS'
-        # `a-nurbs-face-against-a-cone-or-sphere-has-no-section-arm`).
-        # Making the spout the shape a potter draws did not make it
-        # joinable; it moved the refusal off a pair nobody modelled
-        # and onto the meeting itself. Pinned by the refusal's arm, and
-        # by the two face kinds its narration names.
+        # spout's spline seam where the solids meet; PAST the spout's
+        # walls' reading of the belly's pierce point; and PAST the
+        # section, which the spline-implicit lane now traces between the
+        # belly's sphere and the spout's spline wall. Dead in the join,
+        # at the attachment gate: a section edge on a spline wall beside
+        # a curved analytic surface has no certificate in this build.
+        # Pinned by the refusal's arm, and by the gate's own sentence.
         self.assertFalse(ev.succeeded(spout_join))
         with self.assertRaises(EvaluationError) as caught:
             ev.value(spout_join)
         refusal = caught.exception
         self.assertEqual(refusal.kind, "boolean")
-        self.assertEqual(refusal.inner_kind, "germ_frame_unsupported")
+        self.assertEqual(refusal.inner_kind, "join")
         text = str(refusal)
-        self.assertIn("sphere face", text)
-        self.assertIn("spline (NURBS) face", text)
-        # NOT the pair rung any more, and this is the half that would
-        # go quietly wrong if it were only asserted positively.
+        self.assertIn("sections could not be joined", text)
+        self.assertIn("a spline beside a curved analytic surface has no certificate", text)
+        # NOT the pair rung, nor the germ frame the section stopped at
+        # before the lane traced it: the halves that would go quietly
+        # wrong if the refusal were only asserted positively.
         self.assertNotIn("may meet", text)
+        self.assertNotIn("sphere face", text)
 
 
 class TestTorusvessel(unittest.TestCase):

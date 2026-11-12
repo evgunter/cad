@@ -1307,3 +1307,23 @@ E1c waits on the answer.
 - 2026-11-12 — **Dispatched the two P1s PR 6857 filed**, both main reds by fuzz seed at ε 1e-12, both from `e61f2dc848`. Each gets a single FULL review, soundness-led.
   - `a-closed-form-image-at-a-fuzz-seed-reads-its-coefficient-bound-in-band-at-eps-1e-12`, on branch `pcert/closed-bound-fine-band`. The lane root-causes the bound's excess and keeps every 6845/6857 mutant red.
   - `a-derived-sphere-image-misses-its-circle-by-1e-11-near-five-half-pi-at-eps-1e-12`, on branch `pcert/derived-sphere-image-accuracy`. The defect is in `chart_pcurve_over`'s accuracy near t ≡ π/2. The lane also sweeps the other charts' derivations.
+
+- 2026-11-12 — **PR 6864 merged: check 4's projected door reads a chord's spans in the parts their turn needs.** It closes the P1 `check-4s-projected-door-reads-every-span-of-a-chord-in-eight-parts`, which spiricarm had re-banded under the blocker rule.
+  - **The change.**
+    - Check 4 first reads a curved chart's net at `Parts::ByTurn`, inside `k_stats::detached` and the new `geom_core::sym::aside`.
+    - If that read passes, it is the verdict, and its recording is spliced in.
+    - Anything else gets main's eight-part re-read, with main's trail. So every refusal and escalation, and the sliver, are main's.
+  - **Cost** on `cylinder_pair_cost_probe`: 4.7–7.3 s per boolean, down from 6.1–8.7 s. Check 4 itself takes 0.36–0.46 s, down from 1.75–2.15 s. Volumes are bit-identical.
+  - **The trade.** A first reading that passes states a wider envelope: median 1.6×, max 2.1×. The volume pads on `cylinder_sphere_frame` grow 1.5–1.9×.
+    - `MEASURED_PAD` is re-baselined for this PR's share. The 4× guard was never designed to catch a widening under 2×.
+    - Main's earlier drift, up to 3.66×, is filed on spiricarm as P3 `the-cylinder-sphere-frame-pad-table-drifted-past-its-guard-on-main`.
+  - **Review.** Single FULL, then the VV fixes, a delta review, and the WW fixes (the orchestrator read the WW diff). APPROVE.
+    - Enclosure at any parts held: 622 adversarial ByTurn reads, and no false Ok in 300 tries.
+    - The decision trail matches main rung for rung at Interval and Sym.
+    - The splice, drop and Sym-keep rules each have a row and a named mutant.
+  - **Filed:**
+    - P4 `check-4s-first-reading-states-an-envelope-up-to-twice-the-eight-parts`, which includes the two-parts-a-span floor that was not taken;
+    - P4 `limb-2s-set-aside-first-reading-leaves-its-decisions-on-the-trail`;
+    - spiricarm P3 for the pad drift.
+
+- 2026-11-12 — **`main-red-a-cone-stated-image-fuzz-seed-fails-at-1e-12` closed. PR 6857 had already fixed it.** sectarms' lane filed it at 08:44, before 6857 merged. The orchestrator ran the seed on 6857's parent, where it is red (sample 5, the computed station's width, [0, 6.8e-12]), and on main, where it is green. The seed is now pinned as a row beside 6857's cone row, and it goes red under 6857's mutant.
