@@ -1364,3 +1364,4 @@ E1c waits on the answer.
     - sectarms' endpoint census (PR 6862);
     - band, gauge and lathe sweep reds.
   - **Roster-skip class:** recurred three times; the evidence is on green's row.
+- 2026-11-12 — **Main red filed on sectarms** (orchestrator; PR 6870's lane met it). geom-core's `certified_endpoint_census` moved in `pair_section/spline_implicit.rs` from (2, 0) to (6, 4). Bisected to 81b50a0631, which reached main in PR 6862. Filed P1 as `sectarms/main-red-the-endpoint-census-moved-in-spline-implicit-rs-since-6862`. It is not PCERT's, so PCERT PRs merge over it.
