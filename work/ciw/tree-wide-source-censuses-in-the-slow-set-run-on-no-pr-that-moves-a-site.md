@@ -45,7 +45,7 @@ reaches it. A census depends on them by text.
 All four (with `flagged_census`, PR 6603) were red together on
 `1b31bac52e`.
 
-The slow set's reach on a PR is decided in `dependents-slow-sets-skip-a-kernel-pr.md`'s policy: a PR runs its seeded crates' slow sets, and the nightly attributes each newly red slow test to its merge. A census is a slow test of geom-core or pncad-py, so it runs on a PR that seeds its own crate. A PR that moves a site elsewhere is reached by the nightly attribution, not by its gate. The options below stay as the census-specific alternatives.
+The slow set's reach on a PR is decided in `dependents-slow-sets-skip-a-kernel-pr.md`'s policy (Ev, 2026-11-12): no PR runs a crate's whole slow set, and the nightly attributes each newly red slow test to its merge. So a PR that moves a census's site is reached by the nightly attribution, not by its gate. Option A below is the kind of cheap per-PR selection `trimmed-slow-canary-for-a-seeded-crate` asks for, and the options stay as the census-specific alternatives.
 
 ## Options
 
