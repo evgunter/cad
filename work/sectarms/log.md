@@ -653,3 +653,10 @@ Both reds were found by PCERT's nightly lane and trace to SECTARMS merges.
   - The node carry is its own unit, `a-spline-implicit-arc-is-carried-to-its-node` (P1 H). It follows the join, since both touch `CarriedComponent::pad`.
   - The join is unparked. Its blocker's stage 3 and 4 have landed; the arm row stays open only for the torus and cone partners, which are on other programs.
 - **Next:** dispatch the join (P0 H, dual review).
+
+## 2026-11-12 09:20 — the join's stage A is up for dual review (PR 6862)
+
+- **PR 6862**, head `fb97f06037`, green. This is stage A only. The whole reading carries each rim-to-rim arc with its pad in metres, the glue door reads spline × implicit pairs lazily, and a plane × spline germ rides `GermLane::Carried`.
+- **Done-when not met.** The sphere × lofted-wall union now stops at the at-rest certificate of the minted edge, P0 `a-curved-partners-arc-on-a-spline-wall-has-no-at-rest-certificate`. That is where stage B lands. Also filed: two P1 M stops, one P2 and one P3.
+- **Review tier: dual (P0 H).** The join is an architectural lane that later arms will follow. Slot-order byte 202 (even), so R1 = Opus and R2 = Fable, run concurrently on `fb97f06037`.
+- **Protocol deviation.** The implementer was dispatched without an arm draw, on the default model, and with the harness trailer, so its commits name the model. The row records the implementer half as unfair, and the reviewers as exposed to the implementer's model.
