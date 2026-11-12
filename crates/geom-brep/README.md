@@ -1037,9 +1037,9 @@ counts carries; a site's component is its foot on the carried section,
 its one reading. A spline wall against a plane, cylinder, sphere or
 ring torus is carried from its whole reading: each branch between two
 rim ends as the reading fitted and certified it, its pad the chart
-tube's windows imaged on the wall by its chart speeds; a loop on the
-wall's chart and an arc to a node carry none. A pair traced in ℝ³ is read over its own ball where
-its pose proves one, cut by one region per operation, as at one band:
+tube's windows imaged on the wall by its chart speeds. A pair traced
+in ℝ³ is read over its own ball where its pose proves one, cut by one
+region per operation, as at one band:
 the ball about the overlap of the two operands' boxes, padded, which
 holds every section point the operation can use. No face's or site's
 extent enters it, so two faces on one carrier read one value. A

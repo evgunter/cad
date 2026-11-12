@@ -559,37 +559,35 @@ fn fitted(
 }
 
 /// **A chart-tubed branch's pad and reach in metres**
-/// ([`super::CarriedComponent::pad`], [`super::CarriedComponent::reach`]),
-/// the chart's per-axis pads read through the wall's chart speeds: each
-/// window of the certificate's chart tube (the pcurve's span hull padded
-/// by `pad_u` and `pad_v`, `ssi::certify::chart_tube_windows`) is imaged
-/// on the wall by its chart speeds (`NurbsBoxes::rect_box`: the
-/// midpoint's enclosure plus the window's half-widths times the
-/// certified partials over it), boxes holding every point of the
-/// section the window holds.
+/// ([`super::CarriedComponent::pad`], [`super::CarriedComponent::reach`]):
+/// the windows of the certificate's chart tube (the pcurve's hull over
+/// each of its spans, padded by `pad_u` and `pad_v`,
+/// `ssi::certify::chart_tube_windows`), each one piece of the tube
+/// ([`super::pad_and_reach`]). Limb 3 holds the section in the windows
+/// one arc, a piece of it in each, and the reading's accounting banks
+/// every other cell of the wall's rectangle, so every point of the
+/// component lies in some window's image on the wall.
 ///
-/// - **The pad** is the farthest a point of any image box stands from
-///   the carrier over the window's span, each box halved as an ℝ³ loop's
-///   tube box is and read against the carrier's samples there
-///   (`super::parts`, `super::farthest`). The windows are the tube's
-///   rung across, so the pad is about the rung.
-///   Limb 3 holds the section in the windows
-///   one arc, the branch's, and the reading's accounting banks every
-///   other cell of the wall's rectangle, so every point of the
-///   component lies within the pad of the carrier. The carrier's limb-2
-///   bound must lie within it too ([`super::CarryRefusal::PadShort`]).
-/// - **The reach** bounds the witness's distance from the component:
-///   the least, over the windows whose span holds the witness's
-///   parameter, of the farthest their image reaches from it.
+/// Each window is cut into a [`PAD_GRID`]² grid of cells, each imaged
+/// on the wall by its chart speeds (`NurbsBoxes::rect_box`: the cell's
+/// midpoint enclosure plus its half-widths times the certified partials
+/// over it), and read against [`PAD_GRID_SAMPLES`] carrier points over
+/// the window's span. The cells cover the window, so the pad bounds
+/// every point of its image; it is the farthest point of the window's
+/// image from the carrier, read at the cell's size. A window is the
+/// pcurve's hull over a whole span, so the pad is at least the
+/// window's own width across the carrier imaged on the wall: for a
+/// pcurve of one span, the arc's whole bend in the chart, however
+/// narrow the tube's rung.
 ///
 /// # Errors
 ///
-/// A desync where the certificate is not a chart tube or the branch
-/// carries no wall pcurve; [`super::CarryRefusal::TubeUnread`] where a
-/// window or carrier point does not read; and
-/// [`super::CarryRefusal::PadShort`].
+/// A desync where the certificate is not a chart tube, the branch
+/// carries no wall pcurve or its carrier is not a spline; otherwise
+/// [`super::pad_and_reach`]'s, with [`super::CarryRefusal::TubeUnread`]
+/// where the windows or a cell do not read.
 fn pad_of(b: &SsiBranch, net: &NurbsSurface<f64>) -> Result<(f64, f64), super::CarryError> {
-    use super::{CarryError, CarryRefusal, LoopTubeRefusal, PAD_SAMPLES, farthest, parts};
+    use super::{CarryError, CarryRefusal, LoopTubeRefusal, TubePiece};
     let (SsiTube::Chart { pad_u, pad_v, .. }, Some(pcurve)) =
         (b.certificate.tube, b.pcurve_b.as_ref())
     else {
@@ -597,72 +595,131 @@ fn pad_of(b: &SsiBranch, net: &NurbsSurface<f64>) -> Result<(f64, f64), super::C
             "a spline × implicit branch holds no chart tube on the wall's pcurve",
         ));
     };
+    let geom::Curve3::Nurbs(carrier) = &b.carrier else {
+        return Err(CarryError::Desync(
+            "a spline × implicit branch's carrier is not a spline",
+        ));
+    };
     let unread = |why| CarryError::Refused(CarryRefusal::TubeUnread(why));
     let windows = crate::ssi::certify::chart_tube_windows(pcurve, (pad_u, pad_v))
         .ok_or(unread(LoopTubeRefusal::Uncertified))?;
-    if windows.is_empty() {
-        return Err(unread(LoopTubeRefusal::Empty));
-    }
     let boxes = NurbsBoxes::new(net);
-    let lift = <Interval as Real>::from_computed;
-    let lifted = match &b.carrier {
-        geom::Curve3::Nurbs(curve) => curve.map_scalar(lift),
-        _ => {
-            return Err(CarryError::Desync(
-                "a spline × implicit branch's carrier is not a spline",
-            ));
-        }
-    };
-    let imaged: Vec<(Box3, (f64, f64))> = windows
+    #[allow(clippy::cast_precision_loss)]
+    let at = |(lo, hi): (f64, f64), k: usize| lo + (hi - lo) * k as f64 / PAD_GRID as f64;
+    let pieces: Vec<TubePiece> = windows
         .iter()
         .map(|w| {
-            UvWindow::new(w.rect.u.0, w.rect.u.1, w.rect.v.0, w.rect.v.1)
-                .map(|uv| (boxes.rect_box(uv), w.ends))
-                .ok_or(unread(LoopTubeRefusal::NotFinite))
+            let cells = (0..PAD_GRID).flat_map(|i| (0..PAD_GRID).map(move |j| (i, j)));
+            let boxes = cells
+                .map(|(i, j)| {
+                    UvWindow::new(
+                        at(w.rect.u, i),
+                        at(w.rect.u, i + 1),
+                        at(w.rect.v, j),
+                        at(w.rect.v, j + 1),
+                    )
+                    .map(|uv| boxes.rect_box(uv))
+                    .ok_or(unread(LoopTubeRefusal::NotFinite))
+                })
+                .collect::<Result<_, _>>()?;
+            Ok(TubePiece {
+                boxes,
+                span: w.ends,
+                samples: PAD_GRID_SAMPLES,
+            })
         })
-        .collect::<Result<_, _>>()?;
-    let mut pad = 0.0f64;
-    for &(image, (lo, hi)) in &imaged {
-        #[allow(clippy::cast_precision_loss)]
-        let samples: Vec<Point3<Interval>> = (0..PAD_SAMPLES)
-            .map(|j| lifted.eval(lift(lo + (hi - lo) * j as f64 / (PAD_SAMPLES - 1) as f64)))
-            .collect();
-        for part in parts(image) {
-            let far = samples
+        .collect::<Result<_, CarryError>>()?;
+    super::pad_and_reach(
+        carrier,
+        &pieces,
+        b.certificate.hull_sup,
+        geom::mid_param(b.params.0, b.params.1),
+    )
+}
+
+/// How many cells [`pad_of`] cuts each chart window into along each
+/// chart axis.
+const PAD_GRID: usize = 8;
+
+/// The carrier points [`pad_of`] reads each window's cells against,
+/// evenly over its span: as many intervals as the window has cells along
+/// an axis times the halvings of each cell (`super::PAD_SPLITS`), so a
+/// cell's part has a carrier point about as near as its own size.
+const PAD_GRID_SAMPLES: usize = 8 * PAD_GRID + 1;
+
+/// **Two carried arcs whose pads may meet carry neither**
+/// ([`super::CarryRefusal::PadsMeet`]). A site is read on every component
+/// whose carrier it stands within the band padded by that component's
+/// pad ([`super::CarriedComponent::reads`]), and a point read on two arcs
+/// that share no node is a desync ([`super::CarriedSection::site`]): so
+/// the carry holds each pair of fitted arcs apart by more than both
+/// pads and both bands, read off the carriers' control hulls
+/// (`ssi::certify::tube_chain` at radius zero). Limb 3 holds each arc
+/// alone in its own tube, but the pad is a ball about the carrier
+/// wider than the tube, so the tube's uniqueness does not give this.
+fn apart(components: &mut [SectionComponent<f64>], band: Band) {
+    let hull = |c: &SectionComponent<f64>| match &c.carrier {
+        ClassCarrier::Fitted(fitted) => match fitted.as_ref() {
+            Ok(arc) => match &arc.carrier {
+                geom::Curve3::Nurbs(net) => {
+                    Some((arc.pad, crate::ssi::certify::tube_chain(net, 0.0)))
+                }
+                _ => None,
+            },
+            Err(_) => None,
+        },
+        _ => None,
+    };
+    let hulls: Vec<_> = components.iter().map(hull).collect();
+    let mut meet: Vec<Option<super::CarryRefusal>> = vec![None; components.len()];
+    for (i, a) in hulls.iter().enumerate() {
+        let Some((pad_a, chain_a)) = a else { continue };
+        for (j, b) in hulls.iter().enumerate().skip(i + 1) {
+            let Some((pad_b, chain_b)) = b else { continue };
+            let gap = chain_a
                 .iter()
-                .map(|&p| farthest(part, p))
-                .fold(f64::INFINITY, f64::min);
-            if !far.is_finite() {
-                return Err(unread(LoopTubeRefusal::of(part, &samples)));
+                .flat_map(|(ba, _, _)| chain_b.iter().map(move |(bb, _, _)| box_gap(*ba, *bb)))
+                .fold(f64::INFINITY, |least, g| {
+                    if least.is_nan() || g.is_nan() {
+                        f64::NAN
+                    } else {
+                        least.min(g)
+                    }
+                });
+            let reach = pad_a + pad_b + 2.0 * band.escalate();
+            // A refused hull reads `NaN`, which holds nothing apart.
+            if gap.partial_cmp(&reach) != Some(core::cmp::Ordering::Greater) {
+                let refusal = super::CarryRefusal::PadsMeet {
+                    pads: [*pad_a, *pad_b],
+                    gap,
+                };
+                meet[i].get_or_insert(refusal.clone());
+                meet[j].get_or_insert(refusal);
             }
-            pad = pad.max(far);
         }
     }
-    let hull_sup = b.certificate.hull_sup;
-    if hull_sup.partial_cmp(&pad) == Some(core::cmp::Ordering::Greater) || hull_sup.is_nan() {
-        return Err(CarryError::Refused(CarryRefusal::PadShort {
-            pad,
-            hull_sup,
-        }));
+    for (c, refusal) in components.iter_mut().zip(meet) {
+        if let Some(refusal) = refusal {
+            c.carrier =
+                ClassCarrier::Fitted(Box::new(Err(super::CarryError::Refused(refusal))));
+        }
     }
-    let mid = geom::mid_param(b.params.0, b.params.1);
-    let witness = lifted.eval(lift(mid));
-    let reach = imaged
-        .iter()
-        .filter(|(_, (lo, hi))| *lo <= mid && mid <= *hi)
-        .map(|&(image, _)| farthest(image, witness))
-        .filter(|r| r.is_finite())
-        .fold(f64::INFINITY, f64::min);
-    if !reach.is_finite() {
-        return Err(unread(LoopTubeRefusal::of(
-            imaged
-                .iter()
-                .find(|(_, (lo, hi))| *lo <= mid && mid <= *hi)
-                .map_or(imaged[0].0, |&(image, _)| image),
-            core::slice::from_ref(&witness),
-        )));
-    }
-    Ok((pad, reach))
+}
+
+/// A lower bound on the distance between any point of `a` and any
+/// point of `b`: the diagonal of the per-axis gaps, rounded down by a
+/// relative `1e-12`, far past its few roundings. `NaN` where either box
+/// is refused.
+fn box_gap(a: Box3, b: Box3) -> f64 {
+    let gap = |s: Interval, t: Interval| {
+        if s.is_certified() && t.is_certified() {
+            (s.lo() - t.hi()).max(t.lo() - s.hi()).max(0.0)
+        } else {
+            f64::NAN
+        }
+    };
+    let [x, y, z] = [gap(a.x, b.x), gap(a.y, b.y), gap(a.z, b.z)];
+    (x * x + y * y + z * z).sqrt() * (1.0 - 1e-12)
 }
 
 /// **A branch's witness and how far it may stand from its arc**: the
@@ -1277,6 +1334,7 @@ fn listed(
             });
         }
     }
+    apart(&mut components, band);
     let verdicts = decided
         .iter()
         .map(|c| super::ZeroVerdict {

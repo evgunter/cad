@@ -30,11 +30,14 @@
 //! nor a cone is served), so no section of it is held among the
 //! sections, and the two maps never hold one pair.
 //!
-//! The table is classified when it is built, and a pair is carried on
-//! its first read that needs a carrier or a list no closed form counts,
-//! through the scalar's march door ([`crate::AtRestPolicy::ssi_lane`])
-//! held from the build: so only a pair with a germ, or one the guard
-//! reads whose components are the march's, is ever marched. The table is read
+//! A pair the value classifies without a march is classified when the
+//! table is built; a spline wall against an implicit partner is held
+//! unread and classified on its first read ([`SectionReader::hold`]). A
+//! pair is read whole and carried on its first read that needs a carrier
+//! or a list no closed form counts, through the scalar's march door
+//! ([`crate::AtRestPolicy::ssi_lane`]) held from the build: so only a
+//! pair with a germ, or one the guard reads whose components are the
+//! march's, is ever marched. The table is read
 //! through a [`SectionReader`], which takes the operation's one band and
 //! one region at its making, so every pair is classified and carried at
 //! that band, and every pair traced in ℝ³ over that region
@@ -61,11 +64,7 @@ use crate::live::proven;
 /// (the table's one band), which it is carried at.
 #[derive(Debug)]
 struct Held<T: Real> {
-    /// The pair's surfaces, A's then B's, where its classification waits
-    /// for its first reader ([`SectionReader::hold`]); `None` where the
-    /// door classified it.
-    deferred: Option<(geom::Surface<T>, geom::Surface<T>)>,
-    read: OnceCell<Result<PairSection<T>, SectionError>>,
+    read: Classified<T>,
     band: Band,
     /// The section read whole where its classification reaches
     /// ([`PairSection::read_whole`]), on the first read that needs its
@@ -77,17 +76,24 @@ struct Held<T: Real> {
     seated: OnceCell<Vec<OnceCell<Seated<T>>>>,
 }
 
+/// **A held pair's classification**: the door's, or one waiting for its
+/// first reader ([`SectionReader::hold`]).
+#[derive(Debug)]
+enum Classified<T: Real> {
+    /// Classified at the door.
+    Read(Result<PairSection<T>, SectionError>),
+    /// Held unread: the pair's surfaces, A's then B's, classified on the
+    /// first ask and kept.
+    Deferred {
+        surfaces: (geom::Surface<T>, geom::Surface<T>),
+        read: OnceCell<Result<PairSection<T>, SectionError>>,
+    },
+}
+
 impl<T: geom_core::Decide> Held<T> {
-    /// A pair whose section is read on its first read, classified now
-    /// where `read` is given.
-    fn new(
-        deferred: Option<(geom::Surface<T>, geom::Surface<T>)>,
-        read: Option<Result<PairSection<T>, SectionError>>,
-        band: Band,
-    ) -> Self {
+    fn new(read: Classified<T>, band: Band) -> Self {
         Self {
-            deferred,
-            read: read.map_or_else(OnceCell::new, OnceCell::from),
+            read,
             band,
             whole: OnceCell::new(),
             carried: OnceCell::new(),
@@ -99,18 +105,19 @@ impl<T: geom_core::Decide> Held<T> {
     /// for a pair held unread ([`SectionReader::hold`]), read now on the
     /// first ask and kept.
     fn read(&self, lane: Option<SsiLane<T>>) -> &Result<PairSection<T>, SectionError> {
-        self.read.get_or_init(|| {
-            let Some((sa, sb)) = &self.deferred else {
-                unreachable!("a pair the door classified holds its classification")
-            };
-            match geom_brep::pair_section(sa, sb, None, lane, self.band) {
+        match &self.read {
+            Classified::Read(read) => read,
+            Classified::Deferred {
+                surfaces: (sa, sb),
+                read,
+            } => read.get_or_init(|| match geom_brep::pair_section(sa, sb, None, lane, self.band) {
                 Ok(geom_brep::SectionRead::Built(section)) => Ok(section),
                 Ok(geom_brep::SectionRead::Elsewhere(_)) => {
                     unreachable!("the value builds every spline × implicit pair it holds")
                 }
                 Err(e) => Err(e),
-            }
-        })
+            }),
+        }
     }
 }
 
@@ -236,7 +243,7 @@ impl<T: geom_core::Decide> SectionReader<T> {
                     Ok(geom_brep::SectionRead::Built(section)) => Ok(section),
                     Err(e) => Err(e),
                 };
-                Some(slot.insert(Held::new(None, Some(read), band)).read(lane))
+                Some(slot.insert(Held::new(Classified::Read(read), band)).read(lane))
             }
         }
     }
@@ -256,7 +263,15 @@ impl<T: geom_core::Decide> SectionReader<T> {
         self.table
             .pairs
             .entry(PairKey { a: ka, b: kb })
-            .or_insert_with(|| Held::new(Some((sa.clone(), sb.clone())), None, band));
+            .or_insert_with(|| {
+                Held::new(
+                    Classified::Deferred {
+                        surfaces: (sa.clone(), sb.clone()),
+                        read: OnceCell::new(),
+                    },
+                    band,
+                )
+            });
     }
 
     /// **Holds surface `ka` of A against `kb` of B, a plane×cone pair**,

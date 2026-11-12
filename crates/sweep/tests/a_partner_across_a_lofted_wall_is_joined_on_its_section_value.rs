@@ -62,6 +62,34 @@ fn a_ball_across_a_lofted_wall_is_joined_on_its_carried_arc() {
     }
 }
 
+#[test]
+fn probe_fix6862() {
+    let t = Tol::witness();
+    let prism = finished(
+        "p",
+        sweep::test_support::loft_prism_at(&[0.0, 0.2, 0.4], t),
+        t,
+    );
+    let ball = finished("b", ball_poled_z(0.21, Vec3::new(0.3, 0.95, 0.2), t), t);
+    eprintln!("F1 union {:?}", topo::union(&prism, &ball, t).err());
+    eprintln!("F1 subtract {:?}", topo::subtract(&prism, &ball, t).err());
+    eprintln!("F1 swapped {:?}", topo::union(&ball, &prism, t).err());
+    let prism = finished("the loft prism", loft_prism(t), t);
+    let brick = |x, y, z| {
+        finished(
+            "the brick",
+            topo::test_support::brick_with_fresh_keys::<f64>(x, y, z, t),
+            t,
+        )
+    };
+    let inside = brick((-0.25, 0.25), (-0.25, 0.25), (0.75, 1.25));
+    eprintln!("inside {:?}", topo::union(&prism, &inside, t).err());
+    let flat = brick((-0.25, 0.25), (0.75, 1.25), (-0.25, 0.25));
+    eprintln!("flat {:?}", topo::union(&prism, &flat, t).err());
+    let flared = brick((-0.25, 0.35), (-1.3, -0.8), (0.75, 1.25));
+    eprintln!("flared {:?}", topo::union(&prism, &flared, t).err());
+}
+
 /// **A brick across the prism's wall**: the brick's planes meet the wall
 /// in arcs the join carries, each plane's chord an arc of the same
 /// carrier as the wall's. Across the flat wall at its rim the join

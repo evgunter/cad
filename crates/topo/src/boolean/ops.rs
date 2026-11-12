@@ -1970,17 +1970,11 @@ fn pair_verdict<T: Decide + Bounds + crate::props::AtRestPolicy>(
     }
     let section = match held {
         // A spline wall against an implicit partner is read off its
-        // listing, the whole reading where its classification reaches, as
-        // an unheld one is (`section_cert::spline_implicit`): the table's,
-        // which the join carries.
+        // listing, as an unheld one is: the table's whole reading, which
+        // the join carries.
         Some(held) if spline(&fa.surface) || spline(&fb.surface) => {
-            of_pair_section(held, band, |_| {
-                match sections.listed((a, fa.face), (b, fb.face)) {
-                    Some(listed) => {
-                        of_pair_section(listed, band, |_| super::section_cert::Section::Unmarched)
-                    }
-                    None => super::section_cert::Section::Unmarched,
-                }
+            super::section_cert::of_listed(held, band, |_| {
+                sections.listed((a, fa.face), (b, fb.face))
             })
         }
         Some(held) => of_pair_section(held, band, |_| {

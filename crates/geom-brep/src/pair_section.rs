@@ -28,7 +28,8 @@
 //!   whether it winds about each surface's carrier, a witness point with
 //!   how far it may stand from the component, and its carrier at
 //!   classification ([`ClassCarrier`]): a closed form, the general rung
-//!   (marched on demand by [`PairSection::carry`]), or none (a tangency,
+//!   (marched on demand by [`PairSection::carry`]), one a spline ×
+//!   implicit whole reading fitted and certified, or none (a tangency,
 //!   a boundary region or a spline section's piece, classification
 //!   only). Where no closed form counts them
 //!   ([`Components::Marched`]: a general cylinder × torus or torus ×
@@ -77,7 +78,8 @@
 //! over the operation's region; and, through the march door, a plane,
 //! cylinder, sphere or torus against a NURBS or approximating surface
 //! ([`spline_implicit`],
-//! [`SplineImplicitPose`], read by the section certificate alone). Each
+//! [`SplineImplicitPose`], whose whole reading the section certificate
+//! reads and the boolean's join carries). Each
 //! analytic pair's pose
 //! ([`CylinderSpherePose`], [`SphereTorusPose`], [`CylinderTorusPose`],
 //! [`TorusTorusPose`], [`CylinderCylinderPose`]) is decided once, and
@@ -2301,22 +2303,9 @@ struct Tube {
 
 impl Tube {
     /// The tube of the loop `carrier` certified by `certificate`, its
-    /// witness at `carrier(at)`.
-    ///
-    /// - **The pad** is the farthest any point of the tube stands from
-    ///   the carrier: each box is halved [`PAD_SPLITS`] times
-    ///   (`Box3::split`), and a part's every point is no farther from
-    ///   the carrier than from the nearest of [`PAD_SAMPLES`] carrier
-    ///   points over the box's span ([`farthest`]). The carrier's limb-2
-    ///   bound must lie within it too, so the carrier lies within the pad
-    ///   of each surface; otherwise it refuses [`CarryRefusal::PadShort`].
-    /// - **The reach** bounds the witness's distance from the component:
-    ///   a box whose span holds `at` holds the witness and a piece of the
-    ///   component, so the farthest the box reaches from the witness
-    ///   bounds it; the least over such boxes.
-    ///
-    /// An empty chain, or a box or carrier point that is refused, reads
-    /// no tube ([`CarryRefusal::TubeUnread`], why by [`LoopTubeRefusal`]).
+    /// witness at `carrier(at)`: its chain's boxes, each its own piece
+    /// over its span, read for the pad and reach by [`pad_and_reach`]
+    /// against [`PAD_SAMPLES`] carrier points per box.
     fn of(
         carrier: &Curve3<f64>,
         certificate: &SsiCertificate<f64>,
@@ -2332,23 +2321,75 @@ impl Tube {
                 "a fitted component's carrier is not a spline",
             ));
         };
-        let lift = <geom_core::Interval as Real>::from_computed;
-        let lifted = net.map_scalar(lift);
         let chain = crate::ssi::certify::tube_chain(net, radius);
-        if chain.is_empty() {
-            return Err(CarryError::Refused(CarryRefusal::TubeUnread(
-                LoopTubeRefusal::Empty,
-            )));
-        }
-        let pad = chain.iter().try_fold(0.0f64, |acc, &(b, _, (lo, hi))| {
-            #[allow(clippy::cast_precision_loss)]
-            let samples: Vec<Point3<geom_core::Interval>> = (0..PAD_SAMPLES)
-                .map(|j| {
-                    let t = lo + (hi - lo) * j as f64 / (PAD_SAMPLES - 1) as f64;
-                    lifted.eval(lift(t))
-                })
-                .collect();
-            parts(b).into_iter().try_fold(acc, |acc, part| {
+        let pieces: Vec<TubePiece> = chain
+            .iter()
+            .map(|&(b, _, span)| TubePiece {
+                boxes: vec![b],
+                span,
+                samples: PAD_SAMPLES,
+            })
+            .collect();
+        let (pad, reach) = pad_and_reach(net, &pieces, certificate.hull_sup, at)?;
+        Ok(Self { chain, pad, reach })
+    }
+}
+
+/// **A piece of a component's tube**: boxes covering a region limb 3
+/// puts a piece of the component in, the carrier's span over that piece,
+/// and how many carrier points over the span its boxes are read against.
+pub(super) struct TubePiece {
+    pub(super) boxes: Vec<crate::ssi::enclose::Box3>,
+    pub(super) span: (f64, f64),
+    pub(super) samples: usize,
+}
+
+/// **A tube's pad and its witness's reach** ([`CarriedComponent::pad`],
+/// [`CarriedComponent::reach`]), read over `pieces` that cover every
+/// point of the component, the witness at `carrier(at)`.
+///
+/// - **The pad** is the farthest any point of a piece's boxes stands
+///   from the carrier: each box is halved [`PAD_SPLITS`] times
+///   (`Box3::split`), and a part's every point is no farther from the
+///   carrier than from the nearest of the piece's carrier points, evenly
+///   over its span with its ends among them ([`farthest`]). The
+///   carrier's limb-2 bound `hull_sup` must lie within it too, so the
+///   carrier lies within the pad of each surface; otherwise it refuses
+///   [`CarryRefusal::PadShort`].
+/// - **The reach** bounds the witness's distance from the component: a
+///   piece whose span holds `at` holds a piece of the component, so the
+///   farthest its boxes reach from the witness bounds it; the least over
+///   such pieces. The pieces tile the carrier's span, so one holds `at`.
+///
+/// # Errors
+///
+/// [`CarryRefusal::TubeUnread`] for no piece, or a box or carrier point
+/// that is refused ([`LoopTubeRefusal`]); [`CarryRefusal::PadShort`];
+/// and a desync where no piece's span holds `at`.
+pub(super) fn pad_and_reach(
+    carrier: &geom::NurbsCurve3<f64>,
+    pieces: &[TubePiece],
+    hull_sup: f64,
+    at: f64,
+) -> Result<(f64, f64), CarryError> {
+    let unread = |why| CarryError::Refused(CarryRefusal::TubeUnread(why));
+    if pieces.is_empty() {
+        return Err(unread(LoopTubeRefusal::Empty));
+    }
+    let lift = <geom_core::Interval as Real>::from_computed;
+    let lifted = carrier.map_scalar(lift);
+    let pad = pieces.iter().try_fold(0.0f64, |acc, piece| {
+        let (lo, hi) = piece.span;
+        let last = piece.samples.max(2) - 1;
+        #[allow(clippy::cast_precision_loss)]
+        let samples: Vec<Point3<geom_core::Interval>> = (0..=last)
+            .map(|j| lifted.eval(lift(lo + (hi - lo) * j as f64 / last as f64)))
+            .collect();
+        piece
+            .boxes
+            .iter()
+            .flat_map(|&b| parts(b))
+            .try_fold(acc, |acc, part| {
                 let far = samples
                     .iter()
                     .map(|&p| farthest(part, p))
@@ -2356,50 +2397,56 @@ impl Tube {
                 if far.is_finite() {
                     Ok(acc.max(far))
                 } else {
-                    Err(CarryError::Refused(CarryRefusal::TubeUnread(
-                        LoopTubeRefusal::of(part, &samples),
-                    )))
+                    Err(unread(LoopTubeRefusal::of(part, &samples)))
                 }
             })
-        })?;
-        if certificate.hull_sup.partial_cmp(&pad) == Some(core::cmp::Ordering::Greater)
-            || certificate.hull_sup.is_nan()
-        {
-            return Err(CarryError::Refused(CarryRefusal::PadShort {
-                pad,
-                hull_sup: certificate.hull_sup,
-            }));
-        }
-        let witness = lifted.eval(lift(at));
-        let holding: Vec<_> = chain
-            .iter()
-            .filter(|(_, _, (lo, hi))| *lo <= at && at <= *hi)
-            .map(|&(b, _, _)| b)
-            .collect();
-        let reach = holding
-            .iter()
-            .map(|&b| farthest(b, witness))
-            .filter(|r| r.is_finite())
-            .fold(f64::INFINITY, f64::min);
-        if !reach.is_finite() {
-            let Some(&b) = holding.first() else {
-                return Err(CarryError::Desync(
-                    "no box of a loop's tube holds its witness, though the chain tiles its span",
-                ));
-            };
-            return Err(CarryError::Refused(CarryRefusal::TubeUnread(
-                LoopTubeRefusal::of(b, core::slice::from_ref(&witness)),
-            )));
-        }
-        Ok(Self { chain, pad, reach })
+    })?;
+    if hull_sup.partial_cmp(&pad) == Some(core::cmp::Ordering::Greater) || hull_sup.is_nan() {
+        return Err(CarryError::Refused(CarryRefusal::PadShort { pad, hull_sup }));
     }
+    let witness = lifted.eval(lift(at));
+    let holding: Vec<&TubePiece> = pieces
+        .iter()
+        .filter(|piece| piece.span.0 <= at && at <= piece.span.1)
+        .collect();
+    let Some(first) = holding.first() else {
+        return Err(CarryError::Desync(
+            "no piece of a tube holds its witness, though the pieces tile its span",
+        ));
+    };
+    let reach = holding
+        .iter()
+        .map(|piece| {
+            piece
+                .boxes
+                .iter()
+                .map(|&b| farthest(b, witness))
+                .fold(0.0f64, |acc, r| if r.is_finite() { acc.max(r) } else { f64::NAN })
+        })
+        .filter(|r| r.is_finite())
+        .fold(f64::INFINITY, f64::min);
+    if !reach.is_finite() {
+        // Every piece holding `at` read some box unread: the first's.
+        let Some(b) = first
+            .boxes
+            .iter()
+            .copied()
+            .find(|&b| !farthest(b, witness).is_finite())
+        else {
+            return Err(CarryError::Desync(
+                "a tube's reach read unread with every box read",
+            ));
+        };
+        return Err(unread(LoopTubeRefusal::of(b, core::slice::from_ref(&witness))));
+    }
+    Ok((pad, reach))
 }
 
-/// How many times [`Tube::of`] halves each tube box for the pad: into
-/// `2³` parts.
+/// How many times [`pad_and_reach`] halves each tube box for the pad:
+/// into `2³` parts.
 const PAD_SPLITS: u32 = 3;
 
-/// The carrier points [`Tube::of`] reads each tube box's parts against,
+/// The carrier points [`Tube::of`] reads each chain box's parts against,
 /// evenly over the box's span, its ends among them.
 const PAD_SAMPLES: usize = 9;
 
@@ -2614,6 +2661,16 @@ pub enum CarryRefusal {
     },
     /// A fitted loop's uniqueness tube could not be read ([`Tube::of`]).
     TubeUnread(LoopTubeRefusal),
+    /// Two arcs of a spline × implicit section stand no farther apart
+    /// than the pads their points are read within, so a point near both
+    /// would read on both ([`CarriedSection::site`]).
+    PadsMeet {
+        /// The two arcs' pads, in metres.
+        pads: [f64; 2],
+        /// The least their carriers' hulls stand apart, in metres;
+        /// `NaN` where a hull did not read.
+        gap: f64,
+    },
     /// A spline component's piece walk could not run
     /// ([`SiteRefusal::Unwalked`]), standing as the walk's refusal does
     /// ([`geom::PieceWalkRefusal::refusal`]).
@@ -2668,6 +2725,15 @@ impl CarryRefusal {
                 "a marched loop's uniqueness tube could not be read: {}. {}",
                 why.sentence(),
                 why.recourse()
+            ),
+            Self::PadsMeet {
+                pads: [a, b],
+                gap,
+            } => write!(
+                f,
+                "two arcs of the section stand {gap:e} m apart, within the {a:e} m and {b:e} m \
+                 their points are read within, so a point near both could not be read on one. {}",
+                geom_core::move_recourse!("so the section's arcs stand farther apart")
             ),
             Self::Unwalked(why) => write!(
                 f,
@@ -2813,7 +2879,9 @@ pub struct CarriedComponent<T: Real> {
     pub span: (T, T),
     /// A loop, whose span's ends are one point, or a curve with ends.
     pub shape: ComponentShape,
-    /// The general rung's certificate, where it was fitted.
+    /// The certificate of the fitted carrier: the general rung's, or the
+    /// spline × implicit whole reading's ([`ClassCarrier::Fitted`]);
+    /// `None` for a closed form.
     pub certificate: Option<SsiCertificate<T>>,
     /// Whether it winds about each surface's carrier, in the order the
     /// section was asked of: a closed form's as classified, a fitted
@@ -2826,28 +2894,34 @@ pub struct CarriedComponent<T: Real> {
     /// **How far from its carrier a point of this component is read**,
     /// in metres; zero for a closed form. Every reading of a point
     /// against the component pads its band by it ([`Self::reads`]), and
-    /// the certificate's W3 rests on it. For
-    /// a marched loop it is [`Tube::of`]'s: two facts make it the pad, each
-    /// a limb of the loop's C2 certificate.
+    /// the certificate's W3 rests on it. It is [`pad_and_reach`]'s over
+    /// the component's tube: a marched loop's chain boxes ([`Tube::of`]),
+    /// or a fitted spline × implicit arc's chart windows imaged on the
+    /// wall (`spline_implicit::pad_of`). Two facts make it the pad, each
+    /// a limb of the C2 certificate.
     ///
     /// - **Closeness**: every point of the component lies within `pad`
-    ///   of the carrier. The march's exhaustiveness receipt accounts each
-    ///   cell of the domain to a branch's uniqueness tube, the hull boxes
-    ///   padded by the tube radius (limb 3 says each holds exactly one
-    ///   arc, the branch's own), and the pad bounds every point of every
-    ///   padded box's distance from the carrier. And limbs 1 and 2
+    ///   of the carrier. The exhaustiveness receipt accounts each cell of
+    ///   the domain to a branch's uniqueness tube (limb 3 says it holds
+    ///   exactly one arc, the branch's own), and the pad bounds every
+    ///   point of the tube's distance from the carrier. And limbs 1 and 2
     ///   put the carrier within `hull_sup` of each surface, which the pad
     ///   is checked to hold ([`CarryRefusal::PadShort`]), so a point of the
     ///   carrier lies within the pad of each surface too.
-    /// - **Uniqueness**: limb 3's tube holds this loop's arc alone, so no
-    ///   other component crosses it. A point read on two components
-    ///   (each within its pad) is not chosen between: it desyncs.
+    /// - **Uniqueness**: limb 3's tube holds this component's arc alone,
+    ///   but the pad is a ball about the carrier wider than the tube. Two
+    ///   fitted spline × implicit arcs are held apart by more than both
+    ///   pads, or carry neither ([`CarryRefusal::PadsMeet`]); a point read
+    ///   on two components (each within its pad) is not chosen between:
+    ///   it desyncs.
     pub pad: f64,
     /// **How far the witness may stand from the component**, in metres;
-    /// zero for a closed form. For a marched loop it is the diameter of
-    /// a tube box holding the witness ([`Tube::of`]): limb 3 puts a
-    /// piece of the component in every box of the chain. The
-    /// certificate's W3 reads the witness within it.
+    /// zero for a closed form. It is the farthest a piece of the tube
+    /// whose span holds the witness's parameter reaches from the witness
+    /// ([`pad_and_reach`]): limb 3 puts a piece of the component in every
+    /// piece of the tube, a marched loop's chain box or a fitted arc's
+    /// chart window, so for an arc whose pcurve is one span it is about
+    /// half the arc. The certificate's W3 reads the witness within it.
     pub reach: f64,
     /// A point of the carrier, `carrier(mid)`: the witness the component
     /// is read by.
