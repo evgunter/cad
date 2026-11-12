@@ -1,5 +1,5 @@
 ---
-id: a-chamfer-on-a-closed-chain-with-an-arc-link-refuses-at-the-arc
+id: a-chamfer-over-a-plane-cylinder-edge-has-no-arm
 kind: issue
 title: "A chamfer over a plane–cylinder edge refuses ChamferArmUnsupported, so a bracket with a bore cannot be chamfered all round"
 status: open
