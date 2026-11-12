@@ -8013,8 +8013,10 @@ mod touch_reread_rows {
     /// scene again with every reduction taking its vertex pairs and their
     /// records in reverse (`topo::test_support::with_vertex_pairs_reversed`),
     /// the same seven corners held as several vertices and none tied.
-    /// Red if a two-crossing pair's run follows its records' order: the
-    /// count is eight one way round and seven the other.
+    /// With [`a_vertex_read_twice_names_its_result_in_every_op`] it pins
+    /// the names free of the records' order: a two-crossing pair whose
+    /// run followed its records' order counted eight as read and seven
+    /// reversed, which the row as read refuses.
     #[test]
     fn a_vertex_read_twice_names_alike_with_its_vertex_pairs_reversed() {
         let (named, _) =

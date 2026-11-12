@@ -301,25 +301,36 @@ GAUGE orchestrator. The same implementer, in lane `gauge-svc`, rebuilds PR 6832 
 Built as re-decided (`## Decided, revised`).
 
 **The rule as built.**
-- A vertex pair of more than two crossings pairs in its lead's walk from the kept side (`insert::start_pairs`, `insert::pairing_leads`). Two survivors keep main's record-order run.
+- Every vertex pair pairs in its lead's walk from the kept side, two crossings included (`insert::start_pairs`, `insert::pairing_leads`). No plan reads the records' order.
 - At a shared vertex the pairs choose their starts together, the fewest off the kept side, ties by partner key (`insert::choose_starts`, `insert::blocked`).
 - No run turns, and `hang_at_shared` stays retired.
-- `SharedVertexCrossings` is typed where no choice is clear.
+- `SharedVertexCrossings` is typed where no choice is clear (`SharedStarts::NoneClear`) or the vertex holds more than 12 crossing pairs (`SharedStarts::TooMany`).
 - The finish's vertex-set check stays retired.
 
 **Evidence.**
-- **Battery:** `four_pairs_battery`, release, gives 5,190 `OK SOUND` and 0 `ERR` (main `da005e4b27`: 4,208 and 982 `SharedVertexCrossings`). The 4,208 lines that built on main are identical in face, edge and vertex counts and in their lines.
-- **Independence:** the joint choice equalled the per-pair one at all 5,353 shared-vertex choices measured (battery and `ci`).
+- **Battery:** `four_pairs_battery`, release, gives 5,190 `OK SOUND` and 0 `ERR` (main `da005e4b27`: 4,208 and 982 `SharedVertexCrossings`), and it now asserts that. The 4,208 lines that built on main are identical in their lines; in face, edge and vertex counts too, measured on `864550f445`, which also took the kept side for two crossings.
+- **Independence:** the joint choice equalled the per-pair one at all 5,353 shared-vertex choices measured (battery and `ci`, on `a639e5401a`).
 - **Cleave witness:** `three_corners_alternating_round_the_cube_build_every_op`, all six ops, also under reversed vertex pairs.
-- **Family 1:** the four `touch_reread_rows` pass. Re-pinned at eight corners held as several vertices; which operand names a pinch vertex follows the pairing, and the PR body leaves that weighing to review.
+- **Family 1:** the four `touch_reread_rows` pass, at main's seven corners held as several vertices, and the same with the vertex pairs reversed (`a_vertex_read_twice_names_alike_with_its_vertex_pairs_reversed`). The seven are a different set of scenes from main's: BORDERS' `which-operand-names-a-vertex-vertex-pinch-vertex-follows-the-cone-split`.
 - **Family 2:** all 22 tests of its file pass.
 - **The dual pose:** `a_peg_in_a_pocket_tangent_to_its_rim_builds_its_unions_and_intersections`.
-- **Mutants**, all on this head: an Out default (the dual `∩`), an In default (family 2), no other start (the witness, `SharedVertexCrossings`) and the restored check (the witness, `JoinDesync`) are each red on a named test. Greedy one-pair flipping survives, consistent with the measured independence.
-- **Slow sets:** topo and sweep with `--ignore-default-filter` ran 7,803 tests at default ε with 8 red, and 7,803 at 1e-6 with 19 red. Every red is red on main too.
+- **Mutants**, each red on a named test:
+  - an Out default (the dual `∩`);
+  - an In default (family 2);
+  - no other start (the witness, `SharedVertexCrossings`);
+  - the restored check (the witness, `JoinDesync`);
+  - `∩` keeping Out for B (`as_runs_go_forward_between_consecutive_germs_and_two_as_the_orbit_allows`);
+  - the lead forced to A (`four_cubes_against_the_notch_pair_in_the_shared_corners_walk`, one of 24 battery lines it turns into `SharedVertexCrossings`);
+  - two crossings in record order (`a_rim_arc_beside_a_bent_spline_wall_is_taken_on_the_cylinder`, which stops on `10v1` as read, and `a_vertex_read_twice_names_its_result_in_every_op`, which counts eight as read; each reads as this head does with the pairs reversed: the review's measurement on `56fda58f2c`, which paired that way).
+  - Greedy one-pair flipping survives, consistent with the measured independence.
+- **Slow sets:** topo and sweep with `--ignore-default-filter` ran 7,803 tests at default ε with 8 red, and 7,803 at 1e-6 with 19 red. Every red is red on main too. These ran on `ab17d4bd0d`. The fix pass re-ran what it touched (the `ci` profiles, the battery, the re-pinned slow rows at default ε, 1e-6 and 1e-12), not the whole slow set.
 
 **Filed:**
 - `a-pair-curve-with-partner-curves-on-both-sides-refuses-shared-vertex-crossings` (GAUGE, P3), the typed limit;
-- HONEJOIN's `a-one-vertex-rim-in-its-partners-coplanar-face-closes-only-when-its-germs-share-a-null-edge` (P2), the dual pose's one-segment `∖`.
+- HONEJOIN's `a-one-vertex-rim-in-its-partners-coplanar-face-closes-only-when-its-germs-share-a-null-edge` (P2), the dual pose's one-segment `∖`;
+- BORDERS' `which-operand-names-a-vertex-vertex-pinch-vertex-follows-the-cone-split` (P2), the naming the pairing moves;
+- GUARD's `a-search-that-answers-by-mutation-and-ok-unit-hides-its-question-mark` (P3), the gate's blind spot `choose_starts` sits in;
+- `a-run-only-struts-hold-has-no-pose-past-the-unit-row` (GAUGE, P3), an arm only a unit row reaches now.
 
 **Evidence added:**
 - RESTREAD's `census-cross-solid-curved-pairs-undecidable-on-shell-results`: the dual `∩`'s tier 3′ is `CensusUndecidable` only, not a decided failure;
