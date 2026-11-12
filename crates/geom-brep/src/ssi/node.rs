@@ -14,8 +14,8 @@
 //! in a box over which the claim is the node's own reading.
 
 use geom::NurbsSurface;
-use geom_core::k_stats::{Magnitude, decide_magnitude_reported};
 use geom_core::interval::certification::Certification;
+use geom_core::k_stats::{Magnitude, decide_magnitude_reported};
 use geom_core::{Band, Bounds, Interval, Margin, Real, Vec3};
 
 use super::exhaust::UvRect;
@@ -126,7 +126,11 @@ pub(crate) fn mid(x: Interval) -> f64 {
 /// **The Krawczyk box of `x`**, `K ∩ x`, and whether `K` lies strictly
 /// inside `x` (module docs). `None` where a reading does not certify or
 /// the Hessian's midpoint is singular.
-pub(crate) fn krawczyk(jets: &Jets, phi: Phi<'_>, x: [Interval; 2]) -> Option<([Interval; 2], bool)> {
+pub(crate) fn krawczyk(
+    jets: &Jets,
+    phi: Phi<'_>,
+    x: [Interval; 2],
+) -> Option<([Interval; 2], bool)> {
     let m = [mid(x[0]), mid(x[1])];
     let at = read(jets, phi, Interval::point(m[0]), Interval::point(m[1]));
     let over = read(jets, phi, x[0], x[1]);
@@ -158,7 +162,6 @@ pub(crate) fn krawczyk(jets: &Jets, phi: Phi<'_>, x: [Interval; 2]) -> Option<([
     ];
     Some((meet, inside))
 }
-
 
 impl Jets {
     /// The wall's net at a certifying scalar, each of its scalars its

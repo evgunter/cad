@@ -104,6 +104,9 @@ struct Lane<'a> {
     /// The node boxes a march ends on entering, by node
     /// ([`ImplicitSection::with_criticals`]).
     nodes: Vec<UvRect>,
+    /// Each node's chart point, by node: where an arc entering its box
+    /// is carried on to.
+    node_at: Vec<(f64, f64)>,
     /// The boxes of the decided critical points, nodes' and touches':
     /// each proved to hold the one zero of `∇φ` in it, claimed as
     /// regions by seeding and accounting.
@@ -123,7 +126,7 @@ impl Lane<'_> {
             ctx,
             &self.wall_op,
             self.wall.band(),
-            &self.nodes,
+            (&self.nodes, &self.node_at),
         ))
     }
 
@@ -268,6 +271,7 @@ impl<'a> ImplicitSection<'a> {
                 ctx,
                 seed_floor,
                 nodes: Vec::new(),
+                node_at: Vec::new(),
                 claimed: Vec::new(),
             },
             pass: OnceCell::new(),
@@ -362,12 +366,18 @@ impl<'a> ImplicitSection<'a> {
 
     /// **The section with the classification's decided critical points
     /// handed in** (C5): `nodes`, each node's box, which a march ends on
-    /// entering (C5's node end), indexed as the branches' node tips
+    /// entering and an arc is carried through to the node's chart point
+    /// beside it (C5's node end), indexed as the branches' node tips
     /// ([`super::BranchTip::Node`]); and `claimed`, every decided point's
     /// box, nodes' and touches', each holding the one zero of `∇φ` in
     /// it, which seeding skips and accounting reads as a region.
-    pub(crate) fn with_criticals(mut self, nodes: &[UvRect], claimed: &[UvRect]) -> Self {
-        self.lane.nodes = nodes.to_vec();
+    pub(crate) fn with_criticals(
+        mut self,
+        nodes: &[(UvRect, (f64, f64))],
+        claimed: &[UvRect],
+    ) -> Self {
+        self.lane.nodes = nodes.iter().map(|&(r, _)| r).collect();
+        self.lane.node_at = nodes.iter().map(|&(_, at)| at).collect();
         self.lane.claimed = claimed.to_vec();
         self
     }

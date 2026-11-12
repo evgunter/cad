@@ -214,7 +214,7 @@ pub use pair_section::{
     CcNode, CcStance, ChartReach, ClassCarrier, Coincident, ComponentEnds, ComponentShape,
     Components, CsDecision, CsStance, CtStance, CylinderCylinderPose, CylinderSpherePose,
     CylinderTorusPose, FittedCarrier, Gap, KnownPair, KnownRow, LoopTubeRefusal, NoCarrier,
-    NodeEnd, NodeEnds, NodeLine, NodeSet, PairPose, PairSection, PairSide, PoseRefusal, RaySense,
+    NodeEnd, NodeEnds, NodeLine, NodeSet, PadBox, PairPose, PairSection, PairSide, PoseRefusal, RaySense,
     Reached, RegionPlacement, Ring, Seated, SectionComponent, SectionDecision, SectionNode,
     SectionRead, SiteFoot, SiteReading, SiteRefusal, SpanEnd, SphereTorusPose, SplineImplicitPose,
     SplinePairPose, SquareWall, SsiLane, StStance, TT_COINCIDENT, TT_COINCIDENT_FLOOR,

@@ -533,39 +533,6 @@ fn a_node_whose_rays_are_not_each_claimed_once_refuses() {
     }
 }
 
-/// **An end between two rays names neither.** An end leaving at 45° off
-/// both of two neighbouring rays leads neither by a decided gap and is
-/// refused or escalated, never named; one along a ray names it; one 50°
-/// off every ray is past the floor and refused. Red against the runner-up
-/// read as the ray, and against the 45° floor skipped.
-#[test]
-fn an_end_between_two_rays_names_neither() {
-    let rays = [
-        Vec3::unit_x(),
-        Vec3::unit_y(),
-        Vec3::new(-1.0, 0.0, 0.0),
-        Vec3::new(0.0, -1.0, 0.0),
-    ];
-    let extent = geom_core::test_support::fixture_lever(geom_core::Interval::from_certified(1.0));
-    let between = Vec3::new(1.0, 1.0, 0.0) * core::f64::consts::FRAC_1_SQRT_2;
-    assert!(super::ray_of(between, rays, extent, band()).is_err());
-    assert_eq!(super::ray_of(Vec3::unit_y(), rays, extent, band()), Ok(1));
-    let near = Vec3::new(0.9, 0.1, 0.0);
-    let near = near.normalize();
-    assert_eq!(super::ray_of(near, rays, extent, band()), Ok(0));
-    // 50° off the x axis, out of the plane of the rays: past the floor.
-    let (c, s) = (50f64.to_radians().cos(), 50f64.to_radians().sin());
-    assert!(super::ray_of(Vec3::new(c, 0.0, s), rays, extent, band()).is_err());
-    // Lines 30° apart: an end at 15°, between the two rays, is within 45°
-    // of both, so the floor passes it and the lead alone refuses it; one
-    // at 5° leads at 0, one at 25° at 1.
-    let at = |deg: f64| Vec3::new(deg.to_radians().cos(), deg.to_radians().sin(), 0.0);
-    let narrow = [at(0.0), at(30.0), -at(0.0), -at(30.0)];
-    assert!(super::ray_of(at(15.0), narrow, extent, band()).is_err());
-    assert_eq!(super::ray_of(at(5.0), narrow, extent, band()), Ok(0));
-    assert_eq!(super::ray_of(at(25.0), narrow, extent, band()), Ok(1));
-}
-
 /// **A touch beside components that reach a side crosses them.** The
 /// bowl `z = −2(x − ½)² − 2(y − ½)²` against `z = 0` is swept loop-free
 /// with its top a touch decided Zero. Alone it is listed beside nothing

@@ -182,7 +182,10 @@ const SPEED_SLACK: f64 = 32.0;
 
 /// One certified ruling's pads, as minted speeds over sampled ones.
 fn speed_ratios(tube: SsiTube<f64>, sampled: (f64, f64)) -> (f64, f64) {
-    let SsiTube::Chart { rung, pad_u, pad_v } = tube else {
+    let SsiTube::Chart {
+        rung, pad_u, pad_v, ..
+    } = tube
+    else {
         panic!("a plane × NURBS tube is a chart tube")
     };
     (rung / pad_u / sampled.0, rung / pad_v / sampled.1)
@@ -229,13 +232,20 @@ fn run(label: &str, s: &Section, u0s: &[f64]) -> (Vec<String>, (f64, f64)) {
         );
         match at_itv {
             Ok(l) => {
-                let SsiTube::Chart { rung, pad_u, pad_v } = l.tube else {
+                let SsiTube::Chart {
+                    rung,
+                    pad_u,
+                    pad_v,
+                    nodes,
+                } = l.tube
+                else {
                     panic!("a plane × NURBS tube is a chart tube")
                 };
                 let tube = SsiTube::Chart {
                     rung: rung.hi(),
                     pad_u: pad_u.lo(),
                     pad_v: pad_v.lo(),
+                    nodes,
                 };
                 bad.extend(read("Interval", u0, speed_ratios(tube, sampled)));
             }
