@@ -87,3 +87,13 @@ Rows (`pcurve_cache/by_turn_rows.rs`):
   composite.
 
 The dominance fuzz reads both schedules.
+
+What it costs in tightness: a first reading that passes states its own
+envelope, sound but wider, at median 1.6× and at most 2.1× the 64-cut
+read on the suites' rows (eight parts: 1.00×). The volume enclosures
+that carry it widen to match. On `sweep/tests/cylinder_sphere_frame.rs`'s
+seven non-rim poses the widest pads grow 1.54–1.94×, to 2.4e-11–8.0e-10
+against ceilings near 4.6e-6, and its `MEASURED_PAD` is re-measured.
+Refusals are unchanged: over the five crates' whole suites (release,
+slow set included), every test's check-4 endings match main's, apart
+from three fuzz searches that draw fresh seeds.
