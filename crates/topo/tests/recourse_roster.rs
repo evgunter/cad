@@ -182,9 +182,6 @@ const EXCEPTIONS: &[(&str, &Door)] = &[
     ("tangent_sector_order2", &BOOLEAN),
     ("tangent_sector_witness", &BOOLEAN),
     ("tangent_sector_osculation", &SPLIT),
-    // The plane-cut section's straddle between its conic lane and its
-    // rulings' lane, which the split's chord join reads.
-    ("pc_axis_plane_parallel_straddle", &SPLIT_JOIN),
     ("germ_apex", &SPLIT_JOIN),
     ("section_pin_within", &SPLIT_JOIN),
     ("forward_window_row", &REPLACE_FACE),
