@@ -130,8 +130,6 @@ mod mate_kinds;
 mod mate_tool_flow;
 #[path = "mirror_authoring.rs"]
 mod mirror_authoring;
-#[path = "review_named_source_r2.rs"]
-mod review_named_source_r2;
 #[path = "named_source.rs"]
 mod named_source;
 #[path = "review_bundle_editor_r2.rs"]
@@ -197,6 +195,8 @@ mod review_gui4_r1;
 mod review_gui4_r2;
 #[path = "review_m10_1_r1.rs"]
 mod review_m10_1_r1;
+#[path = "review_named_source_r2.rs"]
+mod review_named_source_r2;
 #[path = "review_pick_r2.rs"]
 mod review_pick_r2;
 #[path = "review_recheck_6300.rs"]
