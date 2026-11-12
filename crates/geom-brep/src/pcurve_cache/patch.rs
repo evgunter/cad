@@ -148,22 +148,10 @@ pub(crate) fn patch(
     (u, v): ((f64, f64), (f64, f64)),
     band: geom_core::Band,
 ) -> Result<Patch, PatchRefusal> {
-    let widened = |(lo, hi): (f64, f64)| {
-        let (lo, hi) = (lo - 1.0, hi + 1.0);
-        (lo.is_finite() && hi.is_finite() && lo < hi).then_some((lo, hi))
-    };
     if class == PatchClass::Enclosed {
         return enclosed(chart, (u, v), band);
     }
-    let ((u0, u1), (v0, v1)) = (
-        widened(u).ok_or(PatchRefusal::NoWidth)?,
-        widened(v).ok_or(PatchRefusal::NoWidth)?,
-    );
-    let knots = |lo, hi| KnotVector::clamped(vec![lo, lo, hi, hi], 1).ok();
-    let (ku, kv) = (
-        knots(u0, u1).ok_or(PatchRefusal::NoWidth)?,
-        knots(v0, v1).ok_or(PatchRefusal::NoWidth)?,
-    );
+    let ((ku, [u0, u1]), (kv, [v0, v1])) = (linear(u)?, linear(v)?);
     // On a ruling both `u` columns are the ruling itself.
     let column = |at: f64| match class {
         PatchClass::Plane | PatchClass::Enclosed => Interval::from_bounds(at, at),
@@ -230,6 +218,10 @@ impl Angle {
         // `arm · d^(p+1)/(p+1)! ≤ target` for a piece of half-width `d`:
         // the least degree that holds the window in one piece, else
         // [`DEGREE`] in pieces. A low degree keeps the composite's low.
+        // A radius that is no number reads no size: the chart's structure.
+        if !arm.is_finite() {
+            return Err(PatchRefusal::NoWidth);
+        }
         let half_at = |p: usize| {
             (target * factorial(p + 1) / arm.max(f64::MIN_POSITIVE)).powf(1.0 / (p + 1) as f64)
         };
@@ -272,6 +264,12 @@ impl Angle {
                 .powi(i32::try_from(p + 1).unwrap_or(i32::MAX))
                 / factorial(p + 1)
                 * (1.0 + 1e-12);
+            #[cfg(test)]
+            let e = if super::mutants::patch_remainder_dropped() {
+                0.0
+            } else {
+                e
+            };
             let (sm, cm) = m.sin_cos();
             for (f0, f1, out) in [(cm, sm, &mut cos), (sm, -cm, &mut sin)] {
                 // The derivatives of cos (sin) at m cycle cos, −sin, −cos,
@@ -328,7 +326,10 @@ fn bernstein(p: usize, dd: Interval, deriv: impl Fn(usize) -> Interval) -> Vec<I
         .collect()
 }
 
-/// A linear direction's two controls: the window widened by one.
+/// **A window widened by one either side**, as a clamped degree-1 knot
+/// vector and its two ends: so a window of one value has width, and an
+/// image's convex hull lies inside it. [`PatchRefusal::NoWidth`] where
+/// the window is no number or widening cannot open it.
 fn linear((lo, hi): (f64, f64)) -> Result<(KnotVector, [f64; 2]), PatchRefusal> {
     let (lo, hi) = (lo - 1.0, hi + 1.0);
     if !(lo.is_finite() && hi.is_finite() && lo < hi) {

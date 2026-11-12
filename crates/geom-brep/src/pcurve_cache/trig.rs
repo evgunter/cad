@@ -22,6 +22,12 @@ use geom_core::{Real, Vec3};
 
 use crate::harmonic::harmonic_sup;
 
+/// The most whole turns per carrier period an angle is read at. A line or
+/// a conic's closed-form image turns at most once per period; a stated
+/// winding past this is no closed form's, and its image's structure is
+/// read wrong.
+pub(super) const MAX_WINDING: u32 = 64;
+
 /// One scalar of the family over `s`, dense in `(k, j)`.
 #[derive(Clone, Debug)]
 pub(super) struct Trig<T> {
@@ -80,18 +86,23 @@ impl<T: Real> Trig<T> {
 
     /// `(cos θ, sin θ)` of the angle `θ = phase + w·t` at `t = t_m + s`:
     /// `θ = φ + w·s` with `φ = phase + w·t_m`, read as an angle, so a phase
-    /// a whole period away is the same pair to rounding.
-    pub(super) fn angle(phase: T, winding: i32, t_m: T) -> (Self, Self) {
+    /// a whole period away is the same pair to rounding. `None` for a
+    /// winding past [`MAX_WINDING`], whose frequency the family does not
+    /// hold.
+    pub(super) fn angle(phase: T, winding: i32, t_m: T) -> Option<(Self, Self)> {
+        if winding.unsigned_abs() > MAX_WINDING {
+            return None;
+        }
         let w: T = super::angle_rate(winding);
         let (sin_p, cos_p) = (phase + w * t_m).sin_cos();
-        let k = isize::try_from(winding).unwrap_or(isize::MAX);
+        let k = isize::try_from(winding).ok()?;
         let n = k.unsigned_abs() + 1;
         let (mut cos, mut sin) = (Self::zero(n, 1), Self::zero(n, 1));
         // cos(φ + ks) = cos φ·cos ks − sin φ·sin ks;
         // sin(φ + ks) = sin φ·cos ks + cos φ·sin ks.
         cos.add_at(k, 0, (cos_p, -sin_p));
         sin.add_at(k, 0, (sin_p, cos_p));
-        (cos, sin)
+        Some((cos, sin))
     }
 
     /// `self + other`.
@@ -196,12 +207,6 @@ impl<T: Real> Trig3<T> {
     #[must_use]
     pub(super) fn minus(&self, other: &Self) -> Self {
         Self(core::array::from_fn(|i| self.0[i].minus(&other.0[i])))
-    }
-
-    /// `self·x` for a constant `x`.
-    #[must_use]
-    pub(super) fn scaled_by(&self, x: T) -> Self {
-        Self(core::array::from_fn(|i| self.0[i].scaled(x)))
     }
 
     /// `x·self`, a scalar of the family times this vector.
