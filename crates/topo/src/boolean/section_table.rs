@@ -61,7 +61,11 @@ use crate::live::proven;
 /// (the table's one band), which it is carried at.
 #[derive(Debug)]
 struct Held<T: Real> {
-    read: Result<PairSection<T>, SectionError>,
+    /// The pair's surfaces, A's then B's, where its classification waits
+    /// for its first reader ([`SectionReader::hold`]); `None` where the
+    /// door classified it.
+    deferred: Option<(geom::Surface<T>, geom::Surface<T>)>,
+    read: OnceCell<Result<PairSection<T>, SectionError>>,
     band: Band,
     /// The section read whole where its classification reaches
     /// ([`PairSection::read_whole`]), on the first read that needs its
@@ -71,6 +75,43 @@ struct Held<T: Real> {
     /// Each carried component, seated on the first ask for it
     /// ([`SectionTable::seated`]).
     seated: OnceCell<Vec<OnceCell<Seated<T>>>>,
+}
+
+impl<T: geom_core::Decide> Held<T> {
+    /// A pair whose section is read on its first read, classified now
+    /// where `read` is given.
+    fn new(
+        deferred: Option<(geom::Surface<T>, geom::Surface<T>)>,
+        read: Option<Result<PairSection<T>, SectionError>>,
+        band: Band,
+    ) -> Self {
+        Self {
+            deferred,
+            read: read.map_or_else(OnceCell::new, OnceCell::from),
+            band,
+            whole: OnceCell::new(),
+            carried: OnceCell::new(),
+            seated: OnceCell::new(),
+        }
+    }
+
+    /// **The pair's classification**, through `lane`: the door's, or,
+    /// for a pair held unread ([`SectionReader::hold`]), read now on the
+    /// first ask and kept.
+    fn read(&self, lane: Option<SsiLane<T>>) -> &Result<PairSection<T>, SectionError> {
+        self.read.get_or_init(|| {
+            let Some((sa, sb)) = &self.deferred else {
+                unreachable!("a pair the door classified holds its classification")
+            };
+            match geom_brep::pair_section(sa, sb, None, lane, self.band) {
+                Ok(geom_brep::SectionRead::Built(section)) => Ok(section),
+                Ok(geom_brep::SectionRead::Elsewhere(_)) => {
+                    unreachable!("the value builds every spline × implicit pair it holds")
+                }
+                Err(e) => Err(e),
+            }
+        })
+    }
 }
 
 /// **The table's key**: A's surface, then B's. Both are keys of their
@@ -186,28 +227,36 @@ impl<T: geom_core::Decide> SectionReader<T> {
         use std::collections::btree_map::Entry;
         let band = self.band;
         let region = self.table.region_for(sa, sb);
+        let lane = self.table.lane;
         match self.table.pairs.entry(PairKey { a: ka, b: kb }) {
-            Entry::Occupied(held) => Some(&held.into_mut().read),
+            Entry::Occupied(held) => Some(held.into_mut().read(lane)),
             Entry::Vacant(slot) => {
-                let lane = self.table.lane;
                 let read = match geom_brep::pair_section(sa, sb, region, lane, band) {
                     Ok(geom_brep::SectionRead::Elsewhere(_)) => return None,
                     Ok(geom_brep::SectionRead::Built(section)) => Ok(section),
                     Err(e) => Err(e),
                 };
-                Some(
-                    &slot
-                        .insert(Held {
-                            read,
-                            band,
-                            whole: OnceCell::new(),
-                            carried: OnceCell::new(),
-                            seated: OnceCell::new(),
-                        })
-                        .read,
-                )
+                Some(slot.insert(Held::new(None, Some(read), band)).read(lane))
             }
         }
+    }
+
+    /// **Holds surface `sa` of A against `sb` of B, a spline wall and a
+    /// partner with an implicit residual** ([`geom_brep::SplineImplicitPose`]),
+    /// unread: its classification marches, and it decides no coincidence
+    /// the door records, so it is read on its first reader's ask, at the
+    /// reader's band and through the table's march door, and an operation
+    /// that refuses before any reader asks never marches it.
+    pub(crate) fn hold(
+        &mut self,
+        (ka, sa): (SurfaceKey, &geom::Surface<T>),
+        (kb, sb): (SurfaceKey, &geom::Surface<T>),
+    ) {
+        let band = self.band;
+        self.table
+            .pairs
+            .entry(PairKey { a: ka, b: kb })
+            .or_insert_with(|| Held::new(Some((sa.clone(), sb.clone())), None, band));
     }
 
     /// **Holds surface `ka` of A against `kb` of B, a plane×cone pair**,
@@ -279,7 +328,7 @@ impl<T: geom_core::Decide> SectionTable<T> {
         a: (&Body<T>, FaceKey),
         b: (&Body<T>, FaceKey),
     ) -> Option<&Result<PairSection<T>, SectionError>> {
-        self.entry(a, b).map(|h| &h.read)
+        self.entry(a, b).map(|h| h.read(self.lane))
     }
 
     /// **The pair's section as it lists its components**: the held
@@ -295,11 +344,12 @@ impl<T: geom_core::Decide> SectionTable<T> {
         b: (&Body<T>, FaceKey),
     ) -> Option<&Result<PairSection<T>, SectionError>> {
         let held = self.entry(a, b)?;
-        let Ok(section) = &held.read else {
-            return Some(&held.read);
+        let read = held.read(self.lane);
+        let Ok(section) = read else {
+            return Some(read);
         };
         if !matches!(section.components(), geom_brep::Components::Reaching(_)) {
-            return Some(&held.read);
+            return Some(read);
         }
         Some(
             held.whole
@@ -348,7 +398,7 @@ impl<T: geom_core::Decide> SectionTable<T> {
         at: T,
     ) -> Option<Result<&CarriedComponent<T>, Uncarried<'_>>> {
         let held = self.entry(a, b)?;
-        let section = match &held.read {
+        let section = match held.read(self.lane) {
             Ok(section) => section,
             Err(e) => return Some(Err(Uncarried::Section(e))),
         };

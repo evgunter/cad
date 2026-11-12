@@ -453,6 +453,10 @@ pub(crate) fn section_door<T: Decide + Bounds>(
         if !pair_read(&sa, &sb) {
             continue;
         }
+        if geom_brep::SplineImplicitPose::of(&sa, &sb).is_some() {
+            table.hold((ka, &sa), (kb, &sb));
+            continue;
+        }
         // A refusal adds no row: where the faces meet, a later reading of
         // the pair refuses (`honeone/coaxiality-of-two-revolution-carriers-is-tested-five-ways`).
         let Some(Ok(section)) = table.read((ka, &sa), (kb, &sb)) else {
