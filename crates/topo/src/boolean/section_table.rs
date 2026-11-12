@@ -110,13 +110,17 @@ impl<T: geom_core::Decide> Held<T> {
             Classified::Deferred {
                 surfaces: (sa, sb),
                 read,
-            } => read.get_or_init(|| match geom_brep::pair_section(sa, sb, None, lane, self.band) {
-                Ok(geom_brep::SectionRead::Built(section)) => Ok(section),
-                Ok(geom_brep::SectionRead::Elsewhere(_)) => {
-                    unreachable!("the value builds every spline × implicit pair it holds")
-                }
-                Err(e) => Err(e),
-            }),
+            } => {
+                read.get_or_init(
+                    || match geom_brep::pair_section(sa, sb, None, lane, self.band) {
+                        Ok(geom_brep::SectionRead::Built(section)) => Ok(section),
+                        Ok(geom_brep::SectionRead::Elsewhere(_)) => {
+                            unreachable!("the value builds every spline × implicit pair it holds")
+                        }
+                        Err(e) => Err(e),
+                    },
+                )
+            }
         }
     }
 }
@@ -243,7 +247,10 @@ impl<T: geom_core::Decide> SectionReader<T> {
                     Ok(geom_brep::SectionRead::Built(section)) => Ok(section),
                     Err(e) => Err(e),
                 };
-                Some(slot.insert(Held::new(Classified::Read(read), band)).read(lane))
+                Some(
+                    slot.insert(Held::new(Classified::Read(read), band))
+                        .read(lane),
+                )
             }
         }
     }

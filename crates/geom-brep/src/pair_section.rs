@@ -2402,7 +2402,10 @@ pub(super) fn pad_and_reach(
             })
     })?;
     if hull_sup.partial_cmp(&pad) == Some(core::cmp::Ordering::Greater) || hull_sup.is_nan() {
-        return Err(CarryError::Refused(CarryRefusal::PadShort { pad, hull_sup }));
+        return Err(CarryError::Refused(CarryRefusal::PadShort {
+            pad,
+            hull_sup,
+        }));
     }
     let witness = lifted.eval(lift(at));
     let holding: Vec<&TubePiece> = pieces
@@ -2421,7 +2424,10 @@ pub(super) fn pad_and_reach(
                 .boxes
                 .iter()
                 .map(|&b| farthest(b, witness))
-                .fold(0.0f64, |acc, r| if r.is_finite() { acc.max(r) } else { f64::NAN })
+                .fold(
+                    0.0f64,
+                    |acc, r| if r.is_finite() { acc.max(r) } else { f64::NAN },
+                )
         })
         .filter(|r| r.is_finite())
         .fold(f64::INFINITY, f64::min);
@@ -2437,7 +2443,10 @@ pub(super) fn pad_and_reach(
                 "a tube's reach read unread with every box read",
             ));
         };
-        return Err(unread(LoopTubeRefusal::of(b, core::slice::from_ref(&witness))));
+        return Err(unread(LoopTubeRefusal::of(
+            b,
+            core::slice::from_ref(&witness),
+        )));
     }
     Ok((pad, reach))
 }
@@ -2726,10 +2735,7 @@ impl CarryRefusal {
                 why.sentence(),
                 why.recourse()
             ),
-            Self::PadsMeet {
-                pads: [a, b],
-                gap,
-            } => write!(
+            Self::PadsMeet { pads: [a, b], gap } => write!(
                 f,
                 "two arcs of the section stand {gap:e} m apart, within the {a:e} m and {b:e} m \
                  their points are read within, so a point near both could not be read on one. {}",

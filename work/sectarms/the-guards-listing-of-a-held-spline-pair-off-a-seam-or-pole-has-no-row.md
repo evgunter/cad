@@ -5,7 +5,7 @@ title: The guard's reading of a held spline x implicit pair whose reaching side 
 status: open
 opened: 2026-11-12
 priority: P2
-cost: S
+cost: M
 ---
 
 Filed by the `sectarms/join-reads-spline-implicit` lane's fix pass.

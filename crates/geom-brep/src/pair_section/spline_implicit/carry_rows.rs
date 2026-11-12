@@ -277,7 +277,9 @@ fn a_rim_arc_is_carried_as_its_reading_fitted_it_with_its_pad_in_metres() {
             // Twice the pad off the section, square to the carrier's
             // tangent at its middle (along `x`) and level: off the wall.
             let p = points[points.len() / 2];
-            let (_, tangent) = comp.carrier.ders1(geom::mid_param(comp.span.0, comp.span.1));
+            let (_, tangent) = comp
+                .carrier
+                .ders1(geom::mid_param(comp.span.0, comp.span.1));
             let across = Vec3::unit_z().cross(tangent);
             let q = p + across * (2.0 * comp.pad / across.norm());
             assert!(
@@ -350,10 +352,7 @@ fn each_point_of_two_close_rim_arcs_reads_on_its_own_arc_or_the_carry_refuses() 
                 Err(e) => panic!("s = {s}, r = {r}: carried, or refused by name: {e:?}"),
             };
             let [lower, upper] = carried.components() else {
-                panic!(
-                    "s = {s}, r = {r}: two arcs: {}",
-                    carried.components().len()
-                );
+                panic!("s = {s}, r = {r}: two arcs: {}", carried.components().len());
             };
             // The listing's order is the march's: name each arc by its
             // witness's height.
@@ -364,10 +363,7 @@ fn each_point_of_two_close_rim_arcs_reads_on_its_own_arc_or_the_carry_refuses() 
             };
             let [low_points, high_points] = rod_arcs(&w, s, r);
             let witnesses = carried.components().iter().map(|c| c.witness);
-            for (k, points) in [
-                (below, low_points),
-                (above, high_points),
-            ] {
+            for (k, points) in [(below, low_points), (above, high_points)] {
                 for p in points.into_iter().chain(witnesses.clone().skip(k).take(1)) {
                     match carried.site(p, band()) {
                         Ok(crate::pair_section::SiteReading::OnArc(foot)) => assert_eq!(
@@ -400,4 +396,47 @@ fn two_arcs_closer_than_their_pads_carry_neither_by_name() {
         gap > 0.0 && gap <= 0.18 && gap <= pads[0] + pads[1],
         "the arcs stand {gap} apart, within the pads {pads:?}"
     );
+}
+
+/// **A loop on the wall's chart carries none, by name**: the reading
+/// lists it and fits its carrier, and no seat opens a loop certified on a
+/// chart, so the carry refuses it as [`NoCarrier::ChartLoop`] rather than
+/// hand the join a component it cannot open.
+///
+/// Red against: a loop carried as a rim arc is.
+#[test]
+fn a_loop_on_the_wall_carries_none_by_name() {
+    let w = wall(1.0);
+    // A ball through the wall's middle, clear of every side: a loop.
+    let section = listed(&w, &ball(1.0, (0.0, 1.3, 1.0), 0.3));
+    let refused = section.carry(Some(SsiLane::marched()), band());
+    assert!(
+        matches!(
+            refused,
+            Err(CarryError::Refused(CarryRefusal::Unminted(
+                NoCarrier::ChartLoop
+            )))
+        ),
+        "{refused:?}"
+    );
+}
+
+/// **A classification that reaches is not the listing the carry takes**:
+/// it names the sides the section ends on and no component, so carrying
+/// it is a desync; its whole reading is what carries.
+///
+/// Red against: a carry that reads a reaching classification as empty.
+#[test]
+fn a_reaching_classification_is_carried_from_its_whole_reading() {
+    let lane = Some(SsiLane::marched());
+    let SectionRead::Built(section) =
+        pair_section(&level(1.0), &wall(1.0), None, lane, band()).expect("the pair classifies")
+    else {
+        panic!("a spline × implicit pair is built here");
+    };
+    assert!(
+        matches!(section.carry(lane, band()), Err(CarryError::Desync(_))),
+        "a reaching classification carries nothing"
+    );
+    assert_eq!(one(&listed(&level(1.0), &wall(1.0))).winds, [false, false]);
 }

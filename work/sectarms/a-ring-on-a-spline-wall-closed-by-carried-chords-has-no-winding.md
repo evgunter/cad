@@ -22,7 +22,10 @@ only on a cylinder, sphere or torus face (`ring_path::Quadric::of`), so
 a spline wall refuses `CurvedBooleanUnsupported { kind: Nurbs }` naming
 the wall, in every op. On main the same runs refused earlier, at the
 germ frame (`GermFrameUnsupported`), in about 0.4 s each in debug; they
-now read the four sections whole first, about 7.5 s each.
+now take about 7.3 s each, of which the four sections' whole readings
+are 0.56 s and the at-rest certificates of the 12 chords the join mints
+6.4 s
+(`a-carried-plane-spline-chords-at-rest-certificate-costs-half-a-second`).
 
 The island's winding on a spline face needs paths on the wall's chart
 (the cylinder's ring lane winds on its chart), not the quadric paths

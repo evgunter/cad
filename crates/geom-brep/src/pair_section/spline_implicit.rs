@@ -616,30 +616,29 @@ fn pad_of(b: &SsiBranch, net: &NurbsSurface<f64>) -> Result<(f64, f64), super::C
         .iter()
         .map(|w| {
             let mut cells = Vec::new();
-            let mut open = vec![((w.rect.u.0, w.rect.u.1, w.rect.v.0, w.rect.v.1), 0u32)];
-            while let Some((rect, depth)) = open.pop() {
-                let whole = image(rect)?;
-                // A box no wider than the rung, or one cut as often as a
-                // window is, is read as it stands.
-                if whole.width().partial_cmp(&(PAD_CELL_RUNGS * rung)) != Some(core::cmp::Ordering::Greater)
-                    || depth == PAD_CUTS
-                {
-                    cells.push(whole);
+            let whole = (w.rect.u.0, w.rect.u.1, w.rect.v.0, w.rect.v.1);
+            let mut open = vec![(whole, image(whole)?, 0u32)];
+            while let Some(((u0, u1, v0, v1), cell, depth)) = open.pop() {
+                // A cell no wider than `PAD_CELL_RUNGS` rungs, or one cut
+                // as often as a window is, is read as it stands.
+                let narrow = cell.width().partial_cmp(&(PAD_CELL_RUNGS * rung))
+                    != Some(core::cmp::Ordering::Greater);
+                if narrow || depth == PAD_CUTS {
+                    cells.push(cell);
                     continue;
                 }
-                let (u0, u1, v0, v1) = rect;
                 let (um, vm) = (geom::mid_param(u0, u1), geom::mid_param(v0, v1));
-                let across_u = [(u0, um, v0, v1), (um, u1, v0, v1)];
-                let across_v = [(u0, u1, v0, vm), (u0, u1, vm, v1)];
-                let widest = |halves: [(f64, f64, f64, f64); 2]| -> Result<f64, CarryError> {
-                    Ok(image(halves[0])?.width().max(image(halves[1])?.width()))
-                };
-                let halves = if widest(across_u)? <= widest(across_v)? {
+                let halves =
+                    |a, b| -> Result<_, CarryError> { Ok([(a, image(a)?), (b, image(b)?)]) };
+                let across_u = halves((u0, um, v0, v1), (um, u1, v0, v1))?;
+                let across_v = halves((u0, u1, v0, vm), (u0, u1, vm, v1))?;
+                let widest = |h: &[(_, Box3); 2]| h[0].1.width().max(h[1].1.width());
+                let cut = if widest(&across_u) <= widest(&across_v) {
                     across_u
                 } else {
                     across_v
                 };
-                open.extend(halves.map(|half| (half, depth + 1)));
+                open.extend(cut.map(|(rect, cell)| (rect, cell, depth + 1)));
             }
             let samples = (8 * cells.len() + 1).min(PAD_SAMPLES_MAX);
             Ok(TubePiece {
@@ -725,8 +724,7 @@ fn apart(components: &mut [SectionComponent<f64>], band: Band) {
     }
     for (c, refusal) in components.iter_mut().zip(meet) {
         if let Some(refusal) = refusal {
-            c.carrier =
-                ClassCarrier::Fitted(Box::new(Err(super::CarryError::Refused(refusal))));
+            c.carrier = ClassCarrier::Fitted(Box::new(Err(super::CarryError::Refused(refusal))));
         }
     }
 }

@@ -388,7 +388,10 @@ pub(crate) fn section_door<T: Decide + Bounds>(
     // by classification, a spline wall, or a plane where the other
     // operand has a spline face, as a plane is read against a spline wall
     // alone.
-    let spline = |body: &Body<T>| body.face_views().any(|f| f.surface().spline_chart().is_some());
+    let spline = |body: &Body<T>| {
+        body.face_views()
+            .any(|f| f.surface().spline_chart().is_some())
+    };
     let read = |s: &geom::Surface<T>, partner_spline: bool| {
         geom_brep::pair_section::serves(s.kind())
             || s.spline_chart().is_some()
