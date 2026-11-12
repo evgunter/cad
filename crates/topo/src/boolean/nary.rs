@@ -603,9 +603,9 @@ fn run_members<T: Decide + Bounds + AtRestPolicy>(
     };
     // Each member's box, read wherever the run judges its own pairs, its
     // two members' one step included: given verdicts judge none.
-    let hulls = match given {
-        Some(_) => Vec::new(),
-        None => members
+    let hulls = match (given, pairwise) {
+        (Some(_), false) => Vec::new(),
+        _ => members
             .iter()
             .enumerate()
             .map(|(member, m)| {
