@@ -45,18 +45,12 @@ fn turned(b: &Body<f64>, axis: Vec3<f64>, angle: f64) -> Body<f64> {
             &Affine3::rotation_about_axis(Point3::new(0.0, 0.0, 0.0), axis, angle),
             Tol::witness(),
         ),
-        Tol::witness(),
     )
     .unwrap()
 }
 
 fn moved(b: &Body<f64>, d: Vec3<f64>) -> Body<f64> {
-    topo::transform_rigid(
-        b,
-        &geom_core::RigidMotion::translation(d).unwrap(),
-        Tol::witness(),
-    )
-    .unwrap()
+    topo::transform_rigid(b, &geom_core::RigidMotion::translation(d).unwrap()).unwrap()
 }
 
 /// Every crossing pose this reviewer could author must refuse TYPED at a

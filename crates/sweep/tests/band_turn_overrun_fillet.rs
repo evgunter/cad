@@ -657,7 +657,7 @@ fn the_witnesses_build_at_every_pose() {
         let want = taken_on(&halves_of(&body), &body, &edges, D);
         for (pose, map) in poses() {
             let rigid = geom_core::test_support::rigid(&map, tol());
-            let moved = topo::transform_rigid(&body, &rigid, tol()).expect("a rigid pose");
+            let moved = topo::transform_rigid(&body, &rigid).expect("a rigid pose");
             let what = format!("{what} at {pose}");
             let out = fillet(&moved, &edges, &what);
             assert_delta(&moved, &out.body, want, 1e-11, &what);

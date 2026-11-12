@@ -95,7 +95,6 @@ fn ball(x: f64, y: f64, rad: f64) -> AtRestBody<f64> {
         &b,
         &pncad::geom_core::RigidMotion::translation(pncad::geom_core::Vec3::new(x, y, 0.0))
             .expect("a finite translation"),
-        t,
     )
     .expect("the ball moves");
     pncad::topo::finish(moved, t).expect("the ball is a finished body")

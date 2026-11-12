@@ -444,11 +444,11 @@ pub fn about_y(
     let body = sweep::test_support::revolved_about_y(profile, rev, tol);
     let place = Affine3::translation(Vec3::new(x, 0.0, 0.0))
         * Affine3::rotation_about_axis(Point3::origin(), Vec3::unit_y(), spin);
-    topo::transform_rigid(&body, &geom_core::test_support::rigid(&place, tol), tol).unwrap()
+    topo::transform_rigid(&body, &geom_core::test_support::rigid(&place, tol)).unwrap()
 }
 
 /// `b` turned `angle` about the `z` axis through the origin.
 pub fn turned_about_z(tol: Tol, b: Body<f64>, angle: f64) -> Body<f64> {
     let t = Affine3::rotation_about_axis(Point3::origin(), Vec3::unit_z(), angle);
-    topo::transform_rigid(&b, &geom_core::test_support::rigid(&t, tol), tol).unwrap()
+    topo::transform_rigid(&b, &geom_core::test_support::rigid(&t, tol)).unwrap()
 }
