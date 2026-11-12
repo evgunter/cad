@@ -2316,8 +2316,9 @@ fn every_tied_strut_witness_holds_with_its_vertex_pairs_reversed() {
 /// builds at the volume clipping the corner to the cube gives
 /// ([`clipped_volume`]) and passes tier 2, 3′ and the certificate.
 /// Red as `PairingMismatch` when two germs in one sector are ordered by
-/// the other solid's sector, and as `JoinDesync` when the pairing starts
-/// at A's first germ whatever the op keeps of A.
+/// the other solid's sector, and as `JoinDesync` in `y ∪ cube` when the
+/// finish refuses a kept vertex that corresponds to two vertices of the
+/// other operand: the union keeps A's vertex, not its In-run copies.
 #[test]
 fn a_corner_crossing_the_cubes_four_times_builds_every_op() {
     let tol = Tol::witness();
@@ -2371,21 +2372,38 @@ fn a_corner_crossing_the_cubes_four_times_builds_every_op() {
     }
 }
 
-/// **Three corners alternating round the cube's corner refuse three
-/// ops** (`work/cleavetail/three-corners-alternating-round-a-corner-refuse-at-the-join.md`):
+/// **Three corners alternating round the cube's corner build every op**
+/// (`work/cleavetail/three-corners-alternating-round-a-corner-refuse-at-the-join.md`):
 /// three trihedral corners touching only at the origin, one a band
 /// that meets the cube's corner's boundary in two dangling segments
 /// and the other two in the gaps between, so the pieces' cuts
-/// alternate round the corner. The shared corner's runs reconcile, and
-/// ∪ and ∖ with `y` first and `cube ∩ y` build at volumes that agree
-/// with each other. In `y ∩ cube`, `cube ∪ y` and `cube ∖ y` the band's
-/// pair, which crosses the cube's corner four times, has no run in the
-/// cube's corner clear of the other pieces' cuts, both ways round, and
-/// refuses `SharedVertexCrossings`
-/// (`work/gauge/shared-vertex-crossings-that-tie-or-interleave-are-unprobed.md`):
-/// pinned as they stand.
+/// alternate round the corner. The band's pair crosses the cube's
+/// corner four times. Where its start on the side the op keeps lays it
+/// along the cube's arcs outside the band, which the other corners' cuts
+/// lie on, it takes the other start (`insert::reconcile_shared`), so the
+/// shared corner's runs are clear in every op. Every op builds,
+/// passes tier 2, 3′ and the certificate, and measures `cube ∪ y` =
+/// 1.0336378, `cube ∩ y` = 0.0285733 and `cube ∖ y` = 0.9714267, with
+/// each op the same in both operand orders and `y ∖ cube + ∩` = `y`.
+/// Red as `SharedVertexCrossings` where a blocked pair keeps its kept
+/// start, and as `JoinDesync` in `y ∩ cube` and `y ∪ cube` where the finish
+/// refuses a kept vertex that corresponds to two vertices of the other
+/// operand. It holds again with every reduction taking its vertex
+/// pairs and their records in reverse
+/// (`test_support::with_vertex_pairs_reversed`), among them one with
+/// three crossing pairs at the cube's corner.
 #[test]
-fn three_corners_alternating_round_the_cube_refuse_three_ops() {
+fn three_corners_alternating_round_the_cube_build_every_op() {
+    three_corners_alternating();
+    let ((), reversed) = topo::test_support::with_vertex_pairs_reversed(three_corners_alternating);
+    assert!(
+        reversed > 0,
+        "no reduction held two crossing pairs at one vertex"
+    );
+}
+
+/// [`three_corners_alternating_round_the_cube_build_every_op`]'s body.
+fn three_corners_alternating() {
     let tol = Tol::witness();
     let rays = [
         [
@@ -2415,41 +2433,52 @@ fn three_corners_alternating_round_the_cube_refuse_three_ops() {
     let BooleanResult::Body(y) = union_in(&two.body, &k, &decls, tol).expect("∪ k") else {
         panic!("∪ k came back empty");
     };
-    let y_volume = mass_properties(&y.body, tol, topo::test_support::pinned_resolution(tol))
-        .expect("mass")
-        .met()
-        .expect("the pinned resolution is met")
-        .volume;
+    let volume_of = |body: &AtRestBody<f64>| {
+        mass_properties(body, tol, topo::test_support::pinned_resolution(tol))
+            .expect("mass")
+            .met()
+            .expect("the pinned resolution is met")
+            .volume
+    };
+    let y_volume = volume_of(&y.body);
     let mut volumes = std::collections::BTreeMap::new();
     for (op, got) in against_the_cube(&y.body, &carried_rows(&y.contacts), tol) {
-        match (op, got) {
-            (
-                "y ∩ cube" | "cube ∪ y" | "cube ∖ y",
-                Err(BooleanError::SharedVertexCrossings { .. }),
-            ) => {}
-            ("y ∪ cube" | "y ∖ cube" | "cube ∩ y", Ok(BooleanResult::Body(out))) => {
-                let verdict = validate_pseudomanifold(&out.body, &out.contacts, tol);
-                assert!(verdict.is_ok(), "{op}: 3′ refused {:?}", verdict.err());
-                volumes.insert(
-                    op,
-                    mass_properties(&out.body, tol, topo::test_support::pinned_resolution(tol))
-                        .expect("mass")
-                        .met()
-                        .expect("the pinned resolution is met")
-                        .volume,
-                );
-            }
-            (op, got) => panic!("{op}: the pin moved: {:?}", got.map(|_| ())),
-        }
+        let BooleanResult::Body(out) = got.unwrap_or_else(|e| panic!("{op} refused: {e:?}")) else {
+            panic!("{op} came back empty");
+        };
+        assert_eq!(topo::validate_closed(&out.body), Ok(()), "{op}: tier 2");
+        assert_eq!(
+            validate_pseudomanifold(&out.body, &out.contacts, tol),
+            Ok(()),
+            "{op}: 3′"
+        );
+        assert!(
+            topo::validate_geometric_certificate(&out.body, tol).is_ok(),
+            "{op}: the certificate"
+        );
+        volumes.insert(op, volume_of(&out.body));
     }
-    let (union, less, common) = (
-        volumes["y ∪ cube"],
-        volumes["y ∖ cube"],
-        volumes["cube ∩ y"],
-    );
     for (what, got, want) in [
-        ("y ∖ cube + ∩", less + common, y_volume),
-        ("∪", union, 1.0 + less),
+        ("cube ∪ y", volumes["cube ∪ y"], 1.033_637_8),
+        ("cube ∩ y", volumes["cube ∩ y"], 0.028_573_3),
+        ("cube ∖ y", volumes["cube ∖ y"], 0.971_426_7),
+    ] {
+        assert!((got - want).abs() < 1e-7, "{what}: {got}, want {want}");
+    }
+    for (what, got, want) in [
+        ("y ∪ cube", volumes["y ∪ cube"], volumes["cube ∪ y"]),
+        ("y ∩ cube", volumes["y ∩ cube"], volumes["cube ∩ y"]),
+        (
+            "cube ∖ y + ∩",
+            volumes["cube ∖ y"] + volumes["cube ∩ y"],
+            1.0,
+        ),
+        (
+            "y ∖ cube + ∩",
+            volumes["y ∖ cube"] + volumes["cube ∩ y"],
+            y_volume,
+        ),
+        ("∪", volumes["y ∪ cube"], 1.0 + volumes["y ∖ cube"]),
     ] {
         assert!((got - want).abs() < 1e-9, "{what}: {got}, want {want}");
     }
