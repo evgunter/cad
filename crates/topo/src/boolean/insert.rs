@@ -1868,7 +1868,7 @@ fn walks_after<T: Decide>(
         }
         // The star's one sine of two germs' order.
         None => match crate::star::turn((x, y), s.tangent().vec(), s.arm, band).map_err(refuse)? {
-            crate::star::Turn::Apart(sign) => Ok(sign.into()),
+            crate::star::Turn::Off(sign) => Ok(sign.into()),
             crate::star::Turn::Along(_) => Ok(Sign::Zero),
         },
     }

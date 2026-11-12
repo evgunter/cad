@@ -296,7 +296,7 @@ impl PlaneSide {
     /// The side a decided offset's sign names: the one reading of a
     /// sign as a side of a plane.
     #[must_use]
-    pub(crate) const fn of_sign(sign: geom_core::Sign) -> Self {
+    pub const fn of_sign(sign: geom_core::Sign) -> Self {
         match sign {
             geom_core::Sign::Negative => Self::Below,
             geom_core::Sign::Zero => Self::On,
@@ -307,7 +307,7 @@ impl PlaneSide {
     /// The side as the star's cut reads it ([`crate::star::apart`]):
     /// `Some(true)` above, `Some(false)` below, `None` on the plane.
     #[must_use]
-    pub(crate) const fn strict(self) -> Option<bool> {
+    pub const fn strict(self) -> Option<bool> {
         match self {
             Self::Below => Some(false),
             Self::On => None,

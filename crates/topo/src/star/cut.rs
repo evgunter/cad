@@ -219,6 +219,7 @@ mod tests {
     fn the_germ_line_is_the_ray_inside_the_cut_sector() {
         let band = geom_core::Band::new(1e-9, 1e-8).unwrap();
         let n_s = Vec3::new(0.0, 0.0, 1.0_f64);
+        // Unsourced lever: a unit reach for hand-stated unit bounds.
         let span = Lever::unsourced(1.0);
         let mut checked = 0;
         for tilt in [0.2_f64, 0.9, 1.4] {

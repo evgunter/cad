@@ -64,7 +64,7 @@ fn same_sense<T: Decide>(
 #[derive(Clone, Copy, Debug)]
 pub(crate) enum Turn {
     /// `Negative` where `g₁` follows `g₀` clockwise about `n`.
-    Apart(NonzeroSign),
+    Off(NonzeroSign),
     /// Along one line, decided so by the reading.
     Along(Indeterminate),
 }
@@ -86,7 +86,7 @@ pub(crate) fn turn<T: Decide>(
     let lever = leaned_lever(arm, (g0.lean, g1.lean));
     let order = Margin::levered(g0.dir.cross(g1.dir).dot(normal), lever);
     match crate::validate::decide_nonzero(GERM_ORDER, order, band) {
-        Ok(sign) => Ok(Turn::Apart(sign)),
+        Ok(sign) => Ok(Turn::Off(sign)),
         Err(diag) if diag.margin.rejected_sign() == Some(Sign::Zero) => Ok(Turn::Along(diag)),
         Err(diag) => Err(diag),
     }
@@ -135,7 +135,7 @@ pub(crate) fn before<T: Decide, E>(
         return Ok(far1);
     }
     match turn(germs, normal, arm, band).map_err(|diag| fault(OrderFault::Coincident(diag)))? {
-        Turn::Apart(sign) => Ok(sign == NonzeroSign::Negative),
+        Turn::Off(sign) => Ok(sign == NonzeroSign::Negative),
         Turn::Along(diag) => match tie()? {
             Some(Sign::Negative) => Ok(true),
             Some(Sign::Positive) => Ok(false),
@@ -147,7 +147,7 @@ pub(crate) fn before<T: Decide, E>(
 /// Where germ `j` lies from germ `i` about the normal ([`GERM_SIDE`]).
 enum GermSide {
     /// Off `i`'s line: the sign of `(gᵢ × gⱼ)·n`.
-    Apart(NonzeroSign),
+    Off(NonzeroSign),
     /// Along `i`'s direction, decided so by this reading.
     Along(Indeterminate),
     /// Along the ray opposite `i`.
@@ -203,7 +203,7 @@ where
             leaned_lever(arm, (g.lean, h.lean)),
         );
         match crate::validate::decide_nonzero(GERM_SIDE, side, band) {
-            Ok(sign) => Ok(GermSide::Apart(sign)),
+            Ok(sign) => Ok(GermSide::Off(sign)),
             Err(diag) if diag.margin.rejected_sign() == Some(Sign::Zero) => {
                 Ok(if same_sense(g.dir, h.dir, arm, band)? {
                     GermSide::Along(diag)
@@ -217,7 +217,7 @@ where
     let along = |i: usize, j: usize, arm: Lever<T>| -> Result<Option<Indeterminate>, OrderFault> {
         Ok(match side(i, j, arm)? {
             GermSide::Along(diag) => Some(diag),
-            GermSide::Apart(_) | GermSide::Opposite => None,
+            GermSide::Off(_) | GermSide::Opposite => None,
         })
     };
     let apart = |g: Leaned<T>, arm: Lever<T>| -> Result<(), OrderFault> {
@@ -247,7 +247,7 @@ where
                 // Two germs each along `germs[0]` may still read apart.
                 let later = match side(i, j, g_arm.min(germs[j].1)).map_err(&fault)? {
                     GermSide::Along(diag) => after(i, j, diag)?,
-                    GermSide::Apart(sign) => sign == NonzeroSign::Positive,
+                    GermSide::Off(sign) => sign == NonzeroSign::Positive,
                     GermSide::Opposite => return Err(fault(OrderFault::Opposite)),
                 };
                 if !later {
