@@ -1,9 +1,12 @@
-//! **The shell checks its cavity embedded at every scalar that shells**
-//! (`topo::shell`'s module docs): the moved clone is asked the verdict
-//! door's question (`topo::clearance::embedded`) before it is inserted.
+//! **The shell checks its cavity embedded at certifying scalars**
+//! (`topo::shell`'s module docs): at `Interval` and `Sym` over it, the
+//! moved clone is asked the verdict door's question
+//! (`topo::clearance::embedded`) before it is inserted. At `f64` the
+//! shell does not ask yet, and the rows that will pin it there wait on
+//! `work/clear/the-f64-cavity-gate-refuses-thirty-two-valid-shells.md`.
 //!
 //! - a vessel holding a coaxial void whose dilation reaches past the
-//!   eroded wall refuses `CavityCrosses` at `f64`, `Interval` and
+//!   eroded wall refuses `CavityCrosses` at `Interval` and at
 //!   `Sym<Interval>`, the witness on the vessel's wall and the void's
 //!   cap, on the same pair of operand faces at each;
 //! - the tube and the vessel shell Ok at `Interval`, and the vessel at
@@ -14,9 +17,8 @@
 //!   and the klein elbow at both certifying scalars, shell Ok;
 //! - the planar dumbbell still refuses at the planar gate, at both
 //!   scalars;
-//! - the planar dumbbell's curved twin refuses `CavityCrosses` at
-//!   `f64`, its witness on the two neck walls, and at `Interval` refuses
-//!   in the general offset door before the cavity is built;
+//! - the planar dumbbell's curved twin refuses in the general offset
+//!   door at `Interval`, before the cavity is built;
 //! - the box whose cylindrical void dilates past the cavity's planar
 //!   wall refuses before the gate is reached, at the planar
 //!   `moved_walls_cross`.
@@ -194,8 +196,8 @@ fn coaxial_crossing<T: topo::AtRestPolicy + Decide>(
 }
 
 /// **A void dilated through a curved cavity wall refuses with a
-/// witness** at `f64`, at `Interval` and at the certifying `Sym`
-/// rebuild, on the same pair of operand faces at each.
+/// witness** at `Interval`, and the certifying `Sym` rebuild refuses on
+/// the same pair of operand faces.
 #[test]
 fn a_void_dilated_through_the_curved_wall_refuses_with_a_witness() {
     let operand: Body<Interval> = vessel_with_void();
@@ -206,30 +208,16 @@ fn a_void_dilated_through_the_curved_wall_refuses_with_a_witness() {
         at_sym, at_interval,
         "the Sym rebuild's witness is on the Interval rebuild's faces"
     );
-    let float: Body<f64> = vessel_with_void();
-    let at_f64 = coaxial_crossing("at f64", &float, shell(float.clone(), 0.1));
-    assert_eq!(
-        at_f64, at_interval,
-        "the f64 build's witness is on the Interval rebuild's faces"
-    );
 }
 
 /// **The planar dumbbell's curved twin** — bulge −0.2 narrows the neck
-/// to 0.2 at `x = 2.5`, and two walls of 0.15 need 0.3 — refuses
-/// `CavityCrosses` at `f64`, the witness on the two neck walls, and at
-/// `Interval` refuses in the general offset door before the cavity is
-/// built, an escalation at `offset_corner_on_surface`. It waits on
+/// to 0.2 at `x = 2.5`, and two walls of 0.15 need 0.3 — refuses at
+/// `Interval` in the general offset door before the cavity is built, an
+/// escalation at `offset_corner_on_surface`. It waits on
 /// `work/shell/offset-corner-on-surface-escalates-at-interval-on-an-arc-necked-extrude.md`,
-/// whose fix turns this row's second half into a `CavityCrosses` row.
+/// whose fix turns this row into a `CavityCrosses` row.
 #[test]
-fn the_curved_dumbbell_refuses_at_f64_and_waits_on_the_offset_door_at_interval() {
-    let operand: Body<f64> = dumbbell(-0.2);
-    let (face, other, _, distance) = crossing("at f64", shell(operand.clone(), 0.15));
-    assert!(
-        face != other && is_cylinder(&operand, face) && is_cylinder(&operand, other),
-        "the witness is on the two neck walls: {face:?} {other:?}"
-    );
-    assert!(distance <= 1e-6, "the witness pair coincides: {distance}");
+fn the_curved_dumbbell_waits_on_the_offset_door_at_interval() {
     match shell(dumbbell::<Interval>(-0.2), 0.15) {
         Err(ShellError::Face { error, .. })
             if matches!(
