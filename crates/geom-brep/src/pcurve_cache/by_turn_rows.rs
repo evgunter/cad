@@ -723,3 +723,24 @@ fn a_dropped_first_reading_leaves_no_decision_at_sym() {
         "one envelope decision, the eight parts': {decisions:?}"
     );
 }
+
+/// **At `Sym<f64>` a first reading that passes keeps its decisions on
+/// the re-valuation recorder.** The bulging span against a band whose
+/// zero lies over both readings' envelopes: check 4 passes at its first
+/// reading, and the record holds its one `pcurve_envelope` decision. Red
+/// where a passing first reading's `Sym` decisions are discarded (mutant
+/// `first-reading-sym-discarded-on-pass`).
+#[test]
+fn a_passing_first_reading_keeps_its_decisions_at_sym() {
+    let (c, s) = (bulge(1e-4), cylinder());
+    let (certified, decisions) = sym_decisions(&c, &s, Band::new(1e-3, 1e-2).unwrap());
+    assert!(certified, "passes at the first reading");
+    assert_eq!(
+        decisions
+            .iter()
+            .filter(|p| **p == "pcurve_envelope")
+            .count(),
+        1,
+        "the passing first reading's envelope decision: {decisions:?}"
+    );
+}

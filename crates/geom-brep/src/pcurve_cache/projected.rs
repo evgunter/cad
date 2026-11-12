@@ -3255,6 +3255,12 @@ pub(super) fn run_projected_checks<T: Decide>(
             let kept = super::mutants::first_reading_kept(kept).unwrap_or(kept);
             if kept {
                 geom_core::k_stats::splice(recording);
+                #[cfg(test)]
+                if super::mutants::first_reading_sym_discarded_on_pass() {
+                    sym.discard();
+                    return read.ok();
+                }
+                sym.keep();
             } else {
                 sym.discard();
             }

@@ -3260,12 +3260,16 @@ pub fn session_installed() -> bool {
 /// it (the shape report's decisions, and under `sym-revalue-testing`
 /// the re-valuation recorder's). [`Aside::discard`] cuts both back to
 /// the mark, so a reading its caller drops leaves no decision in them;
-/// dropping the [`Aside`] keeps what `work` recorded. The k_stats
+/// [`Aside::keep`] keeps what `work` recorded. The k_stats
 /// channels have their own door (`k_stats::detached`).
 ///
 /// The profile (`sym-profile-testing`) is not a decision log: it charges
 /// the forms walked and the time spent, and a dropped reading's work was
-/// done, so it keeps it.
+/// done, so it keeps it. Two per-decision records are not set aside
+/// either: the session's [`SymCounts::symbolic`] count (the E12 receipt)
+/// and the deferring session's list of undischarged Zeros
+/// ([`deferred::with_deferred_session`]) keep a dropped reading's
+/// decisions.
 pub fn aside<R>(work: impl FnOnce() -> R) -> (R, Aside) {
     let mark = Aside {
         shapes: report::mark(),
@@ -3284,6 +3288,10 @@ pub struct Aside {
 }
 
 impl Aside {
+    /// Keeps every decision the set-aside run recorded: the reading is
+    /// the caller's.
+    pub fn keep(self) {}
+
     /// Cuts the per-decision logs back to the mark: every decision the
     /// set-aside run recorded is gone from them, and none before it is.
     pub fn discard(self) {
