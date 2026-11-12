@@ -981,6 +981,7 @@ fn the_extremes_are_covered_at_their_50_digit_distance() {
             &surface,
             b,
             None,
+            crate::pcurve_cache::Parts::Each(crate::pcurve_cache::projected::INCIDENCE_CUTS),
         )
         .unwrap_or_else(|e| panic!("{what}: the envelope reads: {e:?}"));
         let (ci, si) = (carrier.map_scalar(f), surface.map_scalar(f));
@@ -995,6 +996,7 @@ fn the_extremes_are_covered_at_their_50_digit_distance() {
             &si,
             b,
             None,
+            crate::pcurve_cache::Parts::Each(crate::pcurve_cache::projected::INCIDENCE_CUTS),
         )
         .unwrap_or_else(|e| panic!("{what}: the envelope reads at Interval: {e:?}"));
         println!(

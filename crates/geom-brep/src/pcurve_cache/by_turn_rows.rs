@@ -396,3 +396,182 @@ fn the_rounds_start_at_eight_parts_a_span() {
         "eight parts a span"
     );
 }
+
+/// **A short span that bulges off the unit cylinder by about `delta`
+/// near its first third**: the cubic arc on a tenth of a turn (within
+/// `10⁻⁶` of the cylinder, its inner controls on the tangents at
+/// `4/3·tan(θ/4)`) with its first inner control pushed `delta` further
+/// out, so its distance from the chart peaks inside a part, at no
+/// dyadic break of the span.
+fn bulge(delta: f64) -> Curve3<f64> {
+    let arc = core::f64::consts::TAU / 10.0;
+    let k = 4.0 / 3.0 * (arc / 4.0).tan();
+    let on = |a: f64| Point3::new(a.cos(), a.sin(), 0.0);
+    let handle = |a: f64, sense: f64, push: f64| {
+        let r = (1.0 + k * k).sqrt() + push;
+        let turn = a + sense * k.atan();
+        Point3::new(r * turn.cos(), r * turn.sin(), 0.0)
+    };
+    spline(&[
+        on(0.0),
+        handle(0.0, 1.0, delta),
+        handle(arc, -1.0, 0.0),
+        on(arc),
+    ])
+}
+
+/// The densely sampled distance of `carrier` from the unit cylinder
+/// about `z`.
+fn off_cylinder(carrier: &Curve3<f64>) -> f64 {
+    (0..=1000)
+        .map(|i| {
+            let p = carrier.eval(f64::from(i) / 1000.0);
+            (p.x.hypot(p.y) - 1.0).abs()
+        })
+        .fold(0.0, f64::max)
+}
+
+/// **Check 4 alone** on `carrier`'s projected row on `surface`, over
+/// the carrier's whole domain at `Interval` (whose check 3 takes no
+/// samples), read with the span memo emptied first: the certificate's
+/// envelope (its upper end), the image, and how many composites check 4
+/// computed.
+fn check_4(
+    carrier: &Curve3<f64>,
+    surface: &Surface<f64>,
+    band: Band,
+) -> (
+    Result<f64, PcurveCertifyError>,
+    ProjectedImage<geom_core::Interval>,
+    u64,
+) {
+    use geom_core::Bounds;
+    let at = geom_core::Interval::from_f64;
+    let (c, s) = (carrier.map_scalar(at), surface.map_scalar(at));
+    let image = projected::project(&c, None, &s, band).unwrap();
+    span_memo::clear();
+    let (_, before) = span_memo::counts();
+    let read = projected::run_projected_checks(
+        &Pcurve::Projected(Box::new(image.clone())),
+        at(0.0),
+        at(1.0),
+        &c,
+        &s,
+        band,
+        Some(crate::FittedLane::certified()),
+    )
+    .map(|cert| cert.limbs().1.hi());
+    (read, image, span_memo::counts().1 - before)
+}
+
+/// **Check 4 reads a 625-span chord in one part a span.** A chord of
+/// short spans far from the cylinder's axis, against a band its first
+/// reading clears: check 4 composes once, and that composite is the one
+/// each span in the parts its turn needs reads, 625 parts where eight a
+/// span read 5,000. Red under a check 4 that reads its spans in a fixed
+/// eight parts.
+#[test]
+fn check_4_reads_a_625_span_chord_in_one_part_a_span() {
+    use geom_core::Interval;
+    let (c, s) = (chord(625), cylinder());
+    let band = Band::new(1e-4, 1e-3).unwrap();
+    let (read, image, composed) = check_4(&c, &s, band);
+    let envelope = read.unwrap_or_else(|e| panic!("the chord certifies: {e:?}"));
+    assert!(envelope <= 1e-4, "the envelope {envelope:e} clears");
+    assert_eq!(composed, 1, "check 4 composes once");
+    let at = Interval::from_f64;
+    let twin = orthonormal_chart(&s.map_scalar(at));
+    let (o, e) = projected::chart_frame(&twin).unwrap();
+    let Curve3::Nurbs(n) = c.map_scalar(at) else {
+        panic!("the chord is a net")
+    };
+    let twin_net = projected::framed_net(&n, o, &e);
+    let (_, misses) = span_memo::counts();
+    let hull = projected_hull_lane(&image, &twin_net, &twin, Parts::ByTurn, &[]).unwrap();
+    assert_eq!(
+        span_memo::counts().1,
+        misses,
+        "check 4's one composite is the one read in the parts each span's turn needs"
+    );
+    assert_eq!(hull.spans.len(), 625, "one part a span");
+}
+
+/// Check 4's envelope of `carrier`'s projected row on `surface`, over
+/// its whole domain at `Interval`, its spans read in `parts`: the terms'
+/// total with the placement pair, its upper end.
+fn envelope_in(carrier: &Curve3<f64>, surface: &Surface<f64>, band: Band, parts: Parts) -> f64 {
+    use geom_core::Bounds;
+    let at = geom_core::Interval::from_f64;
+    let (c, s) = (carrier.map_scalar(at), surface.map_scalar(at));
+    let image = projected::project(&c, None, &s, band).unwrap();
+    let (t0, t1) = (at(0.0), at(1.0));
+    let (mut terms, name) = projected::projected_envelope(
+        &image,
+        t0,
+        t1,
+        &image.chart_box(t0, t1),
+        &c,
+        &s,
+        band,
+        Some(crate::FittedLane::certified()),
+        parts,
+    )
+    .unwrap();
+    let pcurve = Pcurve::Projected(Box::new(image));
+    let (fu, fv) = placement_terms(&pcurve, name, (t0, t1), &c, &s, band).unwrap();
+    terms.add(EnvelopeTerm::FidelityU, fu);
+    terms.add(EnvelopeTerm::FidelityV, fv);
+    terms.total().hi()
+}
+
+/// **Check 4's first reading bounds the distance it certifies.** A
+/// short span bulging off the cylinder inside its part, against a band
+/// above its sampled distance: check 4 certifies at its first reading,
+/// with an envelope over that distance. Red under a first reading that
+/// under-reads a part (mutant `by-turn-sampled`, which reads a part off
+/// its ends alone).
+#[test]
+fn check_4s_first_reading_bounds_what_it_certifies() {
+    let (c, s) = (bulge(1e-4), cylinder());
+    let off = off_cylinder(&c);
+    assert!(
+        (3e-5..1e-4).contains(&off),
+        "the span bulges off the chart by about 0.44·10⁻⁴: {off:e}"
+    );
+    let (read, _, composed) = check_4(&c, &s, Band::new(1e-3, 1e-2).unwrap());
+    let envelope = read.unwrap_or_else(|e| panic!("certifies: {e:?}"));
+    assert_eq!(composed, 1, "decided at the first reading");
+    assert!(
+        envelope >= off,
+        "the envelope {envelope:e} bounds the sampled distance {off:e}"
+    );
+}
+
+/// **A first reading that does not pass is read again at eight parts a
+/// span, and that reading decides.** The bulging span against a band
+/// whose zero lies between its envelope read in the parts its turn
+/// needs and read in eight parts a span: the first reading does not
+/// pass, and check 4 certifies on a second composite, with the eight
+/// parts' envelope. Red under a check 4 that takes its first reading's
+/// refusal or escalation as its own.
+#[test]
+fn a_first_reading_that_does_not_pass_is_read_again_at_eight_parts() {
+    let (c, s) = (bulge(1e-4), cylinder());
+    let wide = Band::new(1e-3, 1e-2).unwrap();
+    let (first, eight) = (
+        envelope_in(&c, &s, wide, Parts::ByTurn),
+        envelope_in(&c, &s, wide, Parts::Each(projected::INCIDENCE_CUTS)),
+    );
+    assert!(
+        first > 1.05 * eight,
+        "the first reading ({first:e}) reads wider than eight parts ({eight:e})"
+    );
+    let zero = (first * eight).sqrt();
+    let (read, _, composed) = check_4(&c, &s, Band::new(zero, 10.0 * zero).unwrap());
+    let envelope = read.unwrap_or_else(|e| panic!("certifies at eight parts a span: {e:?}"));
+    assert_eq!(composed, 2, "read again after the first reading");
+    assert!(
+        envelope <= zero && (envelope - eight).abs() <= 1e-9 * eight,
+        "the envelope {envelope:e} is the eight parts' {eight:e}, under {zero:e}"
+    );
+}

@@ -263,10 +263,18 @@ fn the_envelope_dominates_a_certified_lower_bound_at_interval() {
             let (t0, t1) = (Interval::from_f64(0.0), Interval::from_f64(1.0));
             let pc = Pcurve::Projected(Box::new(image.clone()));
             let boxed = pc.chart_box(t0, t1);
-            let Ok(terms) =
-                projected_envelope(&image, t0, t1, &boxed, &ci, &certify_on, b, Some(lane))
-                    .map(|(terms, _)| terms)
-            else {
+            let Ok(terms) = projected_envelope(
+                &image,
+                t0,
+                t1,
+                &boxed,
+                &ci,
+                &certify_on,
+                b,
+                Some(lane),
+                crate::pcurve_cache::Parts::Each(crate::pcurve_cache::projected::INCIDENCE_CUTS),
+            )
+            .map(|(terms, _)| terms) else {
                 continue;
             };
             let env = terms.total().hi();

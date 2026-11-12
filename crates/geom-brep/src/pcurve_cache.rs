@@ -3208,8 +3208,8 @@ pub(crate) fn chart_foot_lane<T: Decide + geom_core::Bounds + geom_core::Certifi
 /// ([`crate::FittedLane`]): the stored image's piece hulls (its sector
 /// and lever data), and the chart's canonical implicit form composed
 /// along `twin_net`, the carrier written in the frame of `twin`, the
-/// chart's orthonormal twin, over parts cut at `cuts` besides the
-/// uniform ones. Every value crosses into certification arithmetic
+/// chart's orthonormal twin, over each knot span cut into the parts
+/// `parts` reads it in and at `cuts`. Every value crosses into certification arithmetic
 /// through [`geom_core::Interval::from_certified`].
 ///
 /// # Errors
@@ -3220,6 +3220,7 @@ pub(crate) fn projected_hull_lane<T: Decide + geom_core::Bounds + geom_core::Cer
     image: &ProjectedImage<T>,
     twin_net: &NurbsCurve3<T>,
     twin: &Surface<T>,
+    parts: Parts,
     cuts: &[f64],
 ) -> Result<projected::ProjectedHull, PcurveCertifyError> {
     use projected::{PieceHull, ProjectedHull};
@@ -3280,13 +3281,7 @@ pub(crate) fn projected_hull_lane<T: Decide + geom_core::Bounds + geom_core::Cer
             }
         })
         .collect();
-    let spans = twin_span_hulls(
-        &lift(twin_net),
-        twin,
-        image.chart.nappe(),
-        Parts::Each(projected::INCIDENCE_CUTS),
-        cuts,
-    )?;
+    let spans = twin_span_hulls(&lift(twin_net), twin, image.chart.nappe(), parts, cuts)?;
     Ok(ProjectedHull { pieces, spans })
 }
 
@@ -3546,6 +3541,8 @@ fn spans_of(
     } else {
         Some(composite_of(&data.clone().with_breaks(&all_cuts))?)
     };
+    #[cfg(test)]
+    let rule = parts;
     let parts = cut.as_ref().unwrap_or(&whole);
     let (breaks, part_sup, values) = (
         parts.num.breaks().to_vec(),
@@ -3586,6 +3583,8 @@ fn spans_of(
             };
             let ok = all_certified || !uncertified(twin_net, range);
             let f_sup = if ok { part.min(whole) } else { f64::NAN };
+            #[cfg(test)]
+            let f_sup = mutants::by_turn_sampled(rule, (values[j], values[j + 1])).unwrap_or(f_sup);
             let (rho_lo, rho_hi, z) = (
                 lower(rho, ok),
                 upper(far, ok),
@@ -3767,6 +3766,12 @@ mod span_memo {
     #[must_use]
     pub(crate) fn counts() -> (u64, u64) {
         crate::memo::counts(&MEMO)
+    }
+
+    /// Empties this thread's memo.
+    #[cfg(test)]
+    pub(crate) fn clear() {
+        crate::memo::clear(&MEMO);
     }
 }
 

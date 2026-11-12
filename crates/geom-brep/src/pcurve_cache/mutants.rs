@@ -24,7 +24,7 @@ const NAME: Option<&str> = option_env!("PCERT_RADIAL_PAIR_MUTANT");
 
 /// Every site this crate's hooks name. topo's `chord_join` declares its
 /// own one (`topo-v-var`) under the same variable.
-pub(super) const SITES: [&str; 50] = [
+pub(super) const SITES: [&str; 51] = [
     "class-circle",
     "zero-winding",
     "torus-parallel",
@@ -75,6 +75,7 @@ pub(super) const SITES: [&str; 50] = [
     "net-bound-sampled",
     "general-image-class-gate",
     "analytic-image-sampled",
+    "by-turn-sampled",
 ];
 
 fn on(site: &str) -> bool {
@@ -452,4 +453,16 @@ pub(super) fn arc_rim_tangent_under() -> bool {
 pub(crate) fn general_image_class_gate<T: Real>(carrier: &geom::Curve3<T>) -> Option<bool> {
     on("general-image-class-gate")
         .then(|| carrier.is_curved() && !matches!(carrier, geom::Curve3::Nurbs(_)))
+}
+
+/// A part read in the parts its turn needs (`Parts::ByTurn`) bounds
+/// `|f|` by its values at its two ends alone, a sampled read: check 4's
+/// first reading and limb 2's then under-read a part whose distance from
+/// the chart peaks inside it.
+pub(super) fn by_turn_sampled(
+    parts: super::Parts,
+    (a, b): (geom_core::Interval, geom_core::Interval),
+) -> Option<f64> {
+    use geom_core::Bounds;
+    (on("by-turn-sampled") && parts == super::Parts::ByTurn).then(|| a.abs().hi().max(b.abs().hi()))
 }

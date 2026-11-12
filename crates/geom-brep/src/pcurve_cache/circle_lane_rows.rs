@@ -464,6 +464,7 @@ pub(super) fn check_4_terms(
         surface,
         band(),
         None,
+        crate::pcurve_cache::Parts::Each(crate::pcurve_cache::projected::INCIDENCE_CUTS),
     )?;
     let (terms_i, _) = projected::projected_envelope(
         p_i,
@@ -474,6 +475,7 @@ pub(super) fn check_4_terms(
         &surface.map_scalar(f),
         band(),
         None,
+        crate::pcurve_cache::Parts::Each(crate::pcurve_cache::projected::INCIDENCE_CUTS),
     )?;
     Ok((terms.total(), terms_i.total().hi()))
 }
@@ -891,6 +893,7 @@ fn a_needle_cones_far_section_is_covered_at_its_50_digit_distance() {
         &surface,
         b,
         None,
+        crate::pcurve_cache::Parts::Each(crate::pcurve_cache::projected::INCIDENCE_CUTS),
     )
     .unwrap_or_else(|e| panic!("the envelope reads: {e:?}"));
     assert!(
@@ -911,6 +914,7 @@ fn a_needle_cones_far_section_is_covered_at_its_50_digit_distance() {
         &si,
         b,
         None,
+        crate::pcurve_cache::Parts::Each(crate::pcurve_cache::projected::INCIDENCE_CUTS),
     )
     .unwrap_or_else(|e| panic!("the envelope reads at Interval: {e:?}"));
     assert!(
