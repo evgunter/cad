@@ -2295,3 +2295,6 @@ fn a_derived_circle_image_is_on_its_circle_where_its_azimuth_shows_most() {
         "derived images off their circles: {missed:#?}"
     );
 }
+
+#[cfg(test)]
+mod review_6870;

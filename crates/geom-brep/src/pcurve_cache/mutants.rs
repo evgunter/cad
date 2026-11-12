@@ -483,3 +483,8 @@ pub(crate) fn general_image_class_gate<T: Real>(carrier: &geom::Curve3<T>) -> Op
     on("general-image-class-gate")
         .then(|| carrier.is_curved() && !matches!(carrier, geom::Curve3::Nurbs(_)))
 }
+
+/// REVIEW PROBE (6870): the compiled mutant's name, for dump files.
+pub(crate) fn name_for_review() -> &'static str {
+    NAME.unwrap_or("head")
+}

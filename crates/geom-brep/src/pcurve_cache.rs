@@ -10979,6 +10979,13 @@ fn derive_class_zero<T: Decide>(
                                 }
                             }
                         };
+                    // REVIEW PROBE (6870): the anchored read off a short
+                    // `radial(w)` is the same cancellation; project it.
+                    let r_ref = if anchored && std::env::var("REV6870_CONE").is_ok() {
+                        in_carrier_plane(r_ref, axis.cross(dir))
+                    } else {
+                        r_ref
+                    };
                     let r_dir = r_ref * h_sign.value();
                     // An anchor on the axis off the apex names no
                     // generator: the only ruling through an axis point is
