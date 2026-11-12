@@ -279,7 +279,7 @@ of them is a defect.
 | Location | a placement | [placement] |
 | A pose's symmetry and a mate's fold | one `Subgroup` type | [variables.poses] |
 | A coincidence decided from values | recorded at the one coincidence door | [coincidence] |
-| Whether two surface records are one surface | the act that decided their coincidence, which leaves their faces on one record | [coincidence.door] |
+| Whether faces lie on one surface | the act that decided their coincidence, which leaves them on one record | [coincidence.door] |
 | Whether a coincidence is structural | that door, and nowhere else | [coincidence.structural] |
 | A value authored several ways | a family of forms lowering through one reading | [recipe.forms] |
 | Which version of a document a reference means | its content pin | [assemblies.pins] |
@@ -1202,7 +1202,8 @@ suits the slot.
 - *2-D poses:* `Point2`, `Direction2`, in one profile's coordinates
   ([variables.poses]).
 - *Shapes:* `Body`; `Bodies`, an ordered list of bodies whose length
-  is a `Count`; and `Profile`. Only an operation defines a shape. A
+  is a `Count`; and `Profile`. An operation defines a shape; a
+  **source** or a pick reads one ([placement.placement]). A
   `Profile` is 2-D shape whose numbers are read only against each
   other; a sweep reads a profile and, at most, a heading and a tilt in
   the profile's own axes (an extrude's signed depth, above or below the
@@ -1222,8 +1223,8 @@ suits the slot.
 
 **Free and defined.** A variable is **free** — a value, its written
 unit ([units]) and optionally a distribution — or **defined**: by an
-`Expr` over other variables, by a selection of a `Body` variable, or
-as an output of an operation. Poses are only defined, and spaces only
+`Expr` over other variables, by a selection of a `Body` variable, as
+a read of a body (a source, a pick), or as an output of an operation. Poses are only defined, and spaces only
 minted.
 
 **No dimensioned literal.** `[variables.literals]` A dimensioned
@@ -1301,7 +1302,8 @@ operand stays a first-class value after a boolean reads it.
 **Bodies and operators.** `[operations.operators]` A body variable is
 defined by exactly one of: a construction; a one-input operation (a
 fillet, a shell, a split, a mirror); an operator over bodies; or a
-placement ([placement.placement]). There are four operators, REFERENCES
+placement ([placement.placement]); and a `Body` variable is also
+defined as a read of one of these, a source or a pick. There are four operators, REFERENCES
 DM4's `Union`, `Subtract` and `Intersect` and one more: `∪` union
 (n-ary) fuses its operands into one material, `−` cut is binary, `∩`
 meet is n-ary, and `⊔` assemble (n-ary, `Assemble`) keeps its operands
@@ -1309,10 +1311,7 @@ as separate pieces. They differ only in what they do where two
 operands' material meets: `∪` and `∩` glue there and merge an overlap,
 `−` removes, and `⊔` records a touch and reports an overlap as an
 interference finding ([assertions]). `−` and `∩` distribute over `⊔`,
-so `(p ⊔ q) − t` cuts both and keeps two pieces. A cut reads its tool
-as material: `t − (p ⊔ q)` is `t − (p ∪ q)`, the pieces fused where the
-`⊔` recorded their meetings, on those records' own decisions, since
-nothing a cut keeps holds any of its tool's own meetings. `∪` does not absorb
+so `(p ⊔ q) − t` cuts both and keeps two pieces. `∪` does not absorb
 `⊔`: a meeting inside an operand is never changed by an operator above
 it ([coincidence.booleans]), so `(bolt ⊔ plate) ∪ bead` fuses the bead
 to each part and leaves the bolt–plate meeting a record.
@@ -1457,7 +1456,11 @@ file edited by hand or merged into that state loads with them marked.
 **source**, a **target** and a bundle of constraints, mates and
 values. The source is always a body, of this document or another
 document's product (an instance), never a space; the target is a
-space. The placement defines one body, a copy of the source in the
+space. A placement of this document's body reads it through a
+**source**, a `Body` variable defined as a read of a body (`bracket =
+B`), which the usual naming rule governs: several placements share a
+source only by its name, and re-pointing them is redefining it
+(`bracket = F`; VARIABLES VR4). The placement defines one body, a copy of the source in the
 target space under the one rigid motion its constraints state, which
 carries every pose of the source as the source carries it, and the
 source's contact records and census decisions, which stay the
@@ -1465,7 +1468,7 @@ source's. What reads a copy downstream reads a body, never a
 placement: a body is the same to its readers whether it was built in
 its space, placed there, or placed through other spaces. A
 sub-assembly is a body written with `⊔` in its space, placed as many
-times as it is wanted, so no placement's data is ever repeated. A
+times as it is wanted through one named source, so no placement's data is ever repeated. A
 **pick** is a `Body` variable defined as one piece of a copy: it names
 the placement and the piece's variable in the source, through the
 placements inside the source down to the first variable it reaches,
@@ -1708,10 +1711,10 @@ forms is only ever a cache generated from the symbolic evaluation and
 checked against it, never written by hand. A reading that only chooses
 a cell's form (a lane choice, [verdicts.consumers]) infers no
 coincidence and records nothing; a door that makes cells one on a
-class it read (the boolean's edge join) records it. A verdict that two surface records are one
-carrier ends in one surface record: the act that decided it leaves every
-face on the other record re-pointed onto the kept one, and the row
-records why. Two distinct records at rest are two surfaces.
+class it read (the boolean's edge join) records it. A verdict that faces lie on one carrier
+leaves them on one surface record, and the row records why; a verdict
+decided from values moves only the faces it was read over. Two distinct
+records at rest are two surfaces.
 
 **Booleans.** `[coincidence.booleans]` The booleans are the four
 operators ([operations.operators]), and a boolean's operands must
@@ -1730,10 +1733,8 @@ of `A` both operands carry are glued structurally.
 
 Where its verdicts decide Zero, a union, a cut or a meet glues where
 an arm exists for the carrier pair ([topology]'s frontier), keeping
-one fixed operand's description for a merged face (which one is
-arbitrary; the kernel keeps the first-written operand's, the simplest
-fixed rule, where a rule that read values would choose by rounding
-between two descriptions within the band of each other), and an assemble
+one fixed operand's description for a merged face (chosen by
+a fixed rule that reads keys, never values), and an assemble
 records the touch ([topology.records]); each refuses what falls in the
 sliver band. Its result holds no in-band pair, a pair of result cells
 whose one census number lies in band. A solid's only shell is its outer
@@ -2499,7 +2500,6 @@ is the board and `work/README.md` its contract.
 | `work/perf/plan.md` | Merged-and-advisory ([determinism], deterministic parallelism) | Performance plan and Q-P answers |
 | `docs/CURVO-AUDIT.md` | Reference | curvo vendor audit behind Q5 |
 | `docs/LONGTERM-IDEAS.md` | Parked, non-binding | Idea bank with a graduation rule |
-| `docs/MODEL-AB-LOG.md` | Experiment log | Model A/B protocol + data; process, not design |
 | `docs/NAME-CANDIDATES.md` | Reference | Q9 name candidates (re-sweep before ratifying) |
 | `docs/predicate-dimension-audit.md` | Live audit | Dimensional-analysis sweep of predicate comparands against D4; its *Findings* section is the live list |
 
