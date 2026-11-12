@@ -110,8 +110,9 @@ pub(crate) const SELF_INTERSECTION_SPAN: &str = "self_intersection_span";
 /// The funnel site of a planar corner's convexity: how far the second
 /// edge's far end stands on the first edge's face side, metres.
 pub(crate) const SELF_INTERSECTION_CORNER: &str = "self_intersection_corner";
-/// The funnel site of a vertex at a cone's apex: its distance from the
-/// apex, metres. `Zero` is the apex.
+/// The funnel site of a vertex at a collapse of its face's chart, a
+/// cone's apex or a sphere's pole: its distance from that point, metres.
+/// `Zero` is the collapse.
 pub(crate) const SELF_INTERSECTION_APEX: &str = "self_intersection_apex";
 /// The funnel site of a cone face's nappe: a vertex's signed height
 /// along the axis from the apex, metres. Its sign is the nappe.
@@ -1701,6 +1702,54 @@ fn present_chart<'a>(
                     edges: Vec::new(),
                     collapsed: Some(v),
                 }),
+            }
+        }
+    }
+    // A sphere's pole is a collapsed side of its chart: the latitude
+    // line `v = ±π/2` is the one point `center ± axis·radius`, where a
+    // rectangle reaching the pole's latitude stops.
+    if let Surface::Sphere {
+        center,
+        radius,
+        axis,
+        ..
+    } = piece.surface
+    {
+        let half = core::f64::consts::FRAC_PI_2;
+        for &v in &piece.local.vertices {
+            let Some(&p) = b.vertices.get(&v) else {
+                continue;
+            };
+            for north in [false, true] {
+                let pole = if north {
+                    *center + *axis * *radius
+                } else {
+                    *center - *axis * *radius
+                };
+                let reaches = if north { y.1 >= half } else { y.0 <= -half };
+                if !reaches
+                    || !matches!(
+                        decide(SELF_INTERSECTION_APEX, Margin::of((p - pole).norm()), band),
+                        Ok(Sign::Zero)
+                    )
+                {
+                    continue;
+                }
+                let (side, bound) = if north {
+                    (Side::YHi, y.1)
+                } else {
+                    (Side::YLo, y.0)
+                };
+                match merged.iter_mut().find(|m| m.side == side) {
+                    Some(m) if m.at.lo() <= bound && bound <= m.at.hi() => m.collapsed = Some(v),
+                    Some(_) => return Err(Unpresented::Local),
+                    None => merged.push(Clip {
+                        side,
+                        at: at(bound),
+                        edges: Vec::new(),
+                        collapsed: Some(v),
+                    }),
+                }
             }
         }
     }
@@ -4612,11 +4661,12 @@ fn heading(p: &Presented<'_>, q: Point3<f64>) -> Option<Vec3<f64>> {
     unit(pmid(p.image((x, x), (y, y))) - q)
 }
 
-/// **A plane through the shared cell**: one conic shared edge's own
-/// plane; or, where the shared edges are straight, through one line
-/// edge, bisecting the faces' headings about it, through two line edges
-/// at a shared vertex, or, at a shared vertex alone, across the faces'
-/// two headings.
+/// **A plane through the shared cell**: where every shared edge is a
+/// planar conic, the first one's own plane (a sphere's two seam
+/// meridians are arcs of one great circle); or, where the shared edges
+/// are straight, through one line edge, bisecting the faces' headings
+/// about it, through two line edges at a shared vertex, or, at a shared
+/// vertex alone, across the faces' two headings.
 fn plane_through(
     x: &Piece<'_>,
     near: &Near,
@@ -4626,33 +4676,31 @@ fn plane_through(
     let q = anchor(x, near)?;
     let q0 = pmid(q);
     let (hx, hy) = (heading(px, q0)?, heading(py, q0)?);
-    if let [(i, _)] = near.edges.as_slice()
-        && let Some((
+    let conic = |i: usize| match x.boundary.edges.get(i)?.arc.as_ref()? {
+        (
             Curve3::Circle(geom::Circle {
-                frame:
-                    geom::Frame {
-                        origin: center,
-                        axis,
-                        ..
-                    },
+                frame: geom::Frame { origin, axis, .. },
                 ..
             })
             | Curve3::Ellipse(geom::Ellipse {
-                frame:
-                    geom::Frame {
-                        origin: center,
-                        axis,
-                        ..
-                    },
+                frame: geom::Frame { origin, axis, .. },
                 ..
             }),
             _,
-        )) = x.boundary.edges.get(*i).and_then(|e| e.arc.as_ref())
+        ) => Some((*origin, *axis)),
+        _ => None,
+    };
+    if let Some(planes) = near
+        .edges
+        .iter()
+        .map(|&(i, _)| conic(i))
+        .collect::<Option<Vec<_>>>()
+        && let Some(&(center, axis)) = planes.first()
     {
-        // A planar conic: its own plane.
+        // Planar conics: the first one's own plane.
         return Some(Psi::Linear {
-            n: lift(unit(vmid(*axis))?),
-            q: *center,
+            n: lift(unit(vmid(axis))?),
+            q: center,
         });
     }
     let lines: Vec<Vec3<f64>> = near

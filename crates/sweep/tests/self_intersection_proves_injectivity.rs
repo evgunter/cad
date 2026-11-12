@@ -2745,3 +2745,48 @@ fn the_walk_reads_its_charts_and_edges_through_their_memos() {
         "the walk read through the memos: charts {charts:?}, edges {edges:?}"
     );
 }
+
+// ------------------------------------------------ a sphere's pole
+
+/// **Two coaxial balls' union holds, its poles read**: the snowman of
+/// `snowman.rs`, radii 1 and 0.8 on centres 1.4 apart. Each ball is two
+/// half-bands of one sphere meeting along a meridian circle and at the
+/// two poles, and the union keeps one pole of each. A cell holding a
+/// pole is near both meridians and the pole, and the pole is the whole
+/// latitude line `v = ±π/2` of the chart, so no split moves a cell off
+/// it. Read as a collapsed side, the polar cells certify against the
+/// meridians' plane; read as a loose vertex, every polar strip of one
+/// half-band against every one of the other split until the walk ran
+/// out of its 65,536 pairs, at depth 32.
+#[test]
+fn a_two_ball_union_holds_with_its_poles_read() {
+    fn snowman<T: Scalar>() -> Body<T> {
+        let ball = |r: f64, y: f64| {
+            let p = |y: f64, bulge: f64| {
+                (
+                    Point2::new(T::from_f64(0.0), T::from_f64(y)),
+                    T::from_f64(bulge),
+                )
+            };
+            sweep::test_support::finished(
+                "the ball",
+                revolved_about_y_at::<T>(
+                    vec![p(y - r, 1.0), p(y + r, 0.0)],
+                    Revolution::Full,
+                    tol(),
+                ),
+                tol(),
+            )
+        };
+        let union =
+            topo::boolean::union(&ball(1.0, 0.0), &ball(0.8, 1.4), tol()).expect("the balls unite");
+        Body::clone(&union.body().expect("a body").body)
+    }
+    for report in holds_at_both("the snowman", snowman::<f64>(), snowman::<Interval>()) {
+        assert!(
+            report.receipt.discharged + report.receipt.refused < BUDGET / 16,
+            "the poles cost a few hundred pairs, not the budget: {:?}",
+            report.receipt
+        );
+    }
+}
