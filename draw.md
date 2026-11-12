@@ -36,4 +36,8 @@ Each designer was shown the other's round-2 report and asked about PR 2701's rea
 
 **Converged.** The recommendation is changes 1–4: one crossing door held by the lane; no second reading, with equalities taken from topology or tier 3; each refusal names its width; and the engine's entry points own the unlogged scope. Plus the `[topology.tiers]` rewording. The alternative is a delegating `CellBound` with no `Decide`.
 
-Totals after round 3: A recorded at PR time; B 228,963.
+Totals after round 3: A 254,329; B 228,963.
+
+## Ev decided (2026-11-12, PR 6821)
+
+Approved the converged recommendation, with the engine's door (not `CellBound`) for decision 3, and the `[topology.tiers]` sentence in Ev's wording: an exact value `x` enters as `[x, x]`.
