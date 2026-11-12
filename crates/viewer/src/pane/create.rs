@@ -934,7 +934,7 @@ impl ViewerBehavior<'_> {
 
     /// **One marked reading of another space**: `what` (a mate's `to`, a
     /// value) is in `space` while the placement is into another, said,
-    /// with "Into <space>" beside it as a target change of its own.
+    /// with `"Into <space>"` beside it as a target change of its own.
     fn off_target_row(
         &self,
         ui: &mut egui::Ui,

@@ -457,9 +457,12 @@ const PLATE_MAX_TERMS: usize = 38;
 /// `Plain/Assertion` gains 2084 forms, those 504 and the 1580 the
 /// assertion alone needs, and Decision plus Assertion grows by 1580.
 ///
-/// PCERT's closed-form bound (a stated harmonic image bounded by its residual's coefficients,
-/// main's `4121c920`) moves none of these counts: the stated images sit on moved copies whose
-/// certificates are carried, so none is metered again in the measuring frame.
+/// PCERT's closed-form bound (a stated harmonic image bounded by its
+/// residual's coefficients, main's `4121c920`), and its slack (`closed_bound.rs`
+/// `Residual::bound`'s `+ slack`, one more form per bound, main's
+/// `b8f04c55`), move none of these counts: the stated images sit on moved
+/// copies whose certificates are carried, so no bound is built again in
+/// the measuring frame.
 const PLATE_LEDGER: &str = "\
      Plain/Decision calls 1015 forms 41501 frozen 54 digest 1b310266a1968c11616d2750affc0dfa\n\
      Plain/Assertion calls 670 forms 9047 frozen 137 digest ebdae96f526ae41ae0680df5d5bb5545\n\

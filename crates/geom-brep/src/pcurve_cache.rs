@@ -5861,8 +5861,7 @@ fn run_harmonic_checks<T: Decide>(
             schedule_residuals(
                 Record::CrossCheck,
                 pcurve,
-                t0,
-                t1,
+                Stations::Computed(t0, t1),
                 carrier,
                 surface,
                 band,
@@ -7277,8 +7276,7 @@ fn run_focal_section_checks<T: Decide>(
             schedule_residuals(
                 Record::CrossCheck,
                 pcurve,
-                t0,
-                t1,
+                Stations::Computed(t0, t1),
                 carrier,
                 surface,
                 band,
@@ -7769,8 +7767,7 @@ fn run_spiric_checks_as<T: Decide>(
     schedule_residuals(
         Record::Verdict,
         pcurve,
-        t0,
-        t1,
+        Stations::Computed(t0, t1),
         carrier,
         surface,
         band,
@@ -8220,23 +8217,54 @@ fn nurbs_stretch_inf<T: Real>(s: &geom::NurbsSurface<T>) -> ChartStretchInf<T> {
     }
 }
 
+/// **The stations check 3 reads**: the shared schedule's samples.
+#[derive(Clone, Copy, Debug)]
+pub(crate) enum Stations<T> {
+    /// [`sample_param`] over `[t0, t1]`, computed at the scalar.
+    Computed(T, T),
+    /// The ends as held, every other station the `f64` schedule over
+    /// `domain` entered as the point it is
+    /// ([`crate::certify::held_station`]): at an enclosure scalar the
+    /// image and the carrier are read at one point, so the read's
+    /// width is their evaluation's and not the station's arithmetic
+    /// taken twice through a steep map.
+    Held {
+        /// The span's `f64` ends. The caller passes them in the order of
+        /// `held`; the stated route's are the sorted outer ends of a span
+        /// already decided forward ([`stated::EdgeSpan`]).
+        domain: (f64, f64),
+        /// The span's ends at the scalar.
+        held: (T, T),
+    },
+}
+
+impl<T: Real> Stations<T> {
+    /// Station `i` of [`CERT_SAMPLES`].
+    fn at(self, i: u32) -> T {
+        match self {
+            Self::Computed(t0, t1) => sample_param(t0, t1, i),
+            Self::Held { domain, held } => {
+                crate::certify::held_station(domain, held, i, CERT_SAMPLES)
+            }
+        }
+    }
+}
+
 /// Check 3 for every lane: `|S(P(tᵢ)) − C(tᵢ)|` at the shared
-/// schedule, in metres through the map, recorded as `record` says: a
-/// verdict on every lane whose statement it is part of, and the
-/// cross-check of check 4's closed form on a harmonic row.
-#[allow(clippy::too_many_arguments)] // one parameter per named quantity
+/// schedule's `stations`, in metres through the map, recorded as
+/// `record` says: a verdict on every lane whose statement it is part
+/// of, and the cross-check of check 4's closed form on a harmonic row.
 fn schedule_residuals<T: Decide>(
     record: Record,
     pcurve: &Pcurve<T>,
-    t0: T,
-    t1: T,
+    stations: Stations<T>,
     carrier: &Curve3<T>,
     surface: &Surface<T>,
     band: Band,
     max_residual: &mut T,
 ) -> Result<(), PcurveCertifyError> {
     for i in 0..CERT_SAMPLES {
-        let t = sample_param(t0, t1, i);
+        let t = stations.at(i);
         let chart_point = pcurve.eval(t);
         let mapped = surface.eval(chart_point.x, chart_point.y);
         let on_carrier = carrier.eval(t);
@@ -8334,8 +8362,7 @@ fn run_fitted_checks<T: Decide>(
     schedule_residuals(
         Record::Verdict,
         &pcurve,
-        t0,
-        t1,
+        Stations::Computed(t0, t1),
         carrier,
         surface,
         band,
@@ -8677,8 +8704,7 @@ fn run_iso_arc_checks<T: Decide>(
     schedule_residuals(
         Record::Verdict,
         &pcurve,
-        t0,
-        t1,
+        Stations::Computed(t0, t1),
         carrier,
         surface,
         band,
@@ -9088,8 +9114,7 @@ fn run_iso_checks<T: Decide>(
     schedule_residuals(
         Record::Verdict,
         &pcurve,
-        t0,
-        t1,
+        Stations::Computed(t0, t1),
         carrier,
         surface,
         band,
