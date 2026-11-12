@@ -3122,7 +3122,7 @@ pub(crate) fn general_image_lane<T: Decide + geom_core::Bounds + geom_core::Cert
         magnitude: None,
         ending,
     };
-    let image = crate::edge_nurbs::general_chart_image(schedule, wall, band);
+    let image = crate::edge_nurbs::general_chart_image(schedule, wall, band, |_, _| Ok(()));
     #[cfg(test)]
     let image = match mutants::general_image_class_gate(carrier) {
         Some(false) => crate::edge_nurbs::chart_image(schedule, wall, |_, _| Ok(())),

@@ -777,7 +777,7 @@ impl core::fmt::Display for PlaneNurbsRefusal {
             ),
             Self::ReportedTransversalityPoisoned(cause) => write!(
                 f,
-                "every interior sample decided the plane and the NURBS wall cross, yet \
+                "every interior sample decided the two surfaces cross, yet \
                  their reported minimum crossing angle is unreadable: {}",
                 cause.payload()
             ),
@@ -919,21 +919,6 @@ enum Partner<'a, T: Real> {
 }
 
 impl<T: Real> Partner<'_, T> {
-    /// The two names a lane's transversality is decided and reported
-    /// under.
-    const fn names(self) -> [&'static str; 2] {
-        match self {
-            Self::Plane(_) => [
-                "plane_nurbs_transversality",
-                "plane_nurbs_transversality_reported",
-            ],
-            Self::Curved(_) => [
-                "curved_nurbs_transversality",
-                "curved_nurbs_transversality_reported",
-            ],
-        }
-    }
-
     /// The partner's normal at the wall's foot `jet.point` and the larger
     /// principal curvature of either surface there
     /// ([`crate::ssi::point_arm`]'s `κ`).
@@ -1012,7 +997,6 @@ fn residual_nurbs_limbs<T: Decide + Bounds + geom_core::CertifiedEnclosure>(
     extent: geom_core::Lever<T>,
     band: Band,
 ) -> Result<PlaneNurbsLimbs<T>, PlaneNurbsRefusal> {
-    let [decided_as, reported_as] = read.names();
     // The wall the tube localizes on, with its chart speeds minted at the
     // door: a wall constant along an axis, or with no finite speed bound
     // along one, has no chart a length in metres can cross into, and the
@@ -1049,7 +1033,16 @@ fn residual_nurbs_limbs<T: Decide + Bounds + geom_core::CertifiedEnclosure>(
         let sin_theta = normal_angle_sine(normal, jet.du.cross(jet.dv));
         let (arm, reach) = crate::ssi::point_arm(kappa, extent);
         let margin = geom_core::Margin::levered(sin_theta, arm);
-        match crate::dihedral::decide_reported(decided_as, margin, band) {
+        // Each lane's samples are its own stream.
+        let decided = match read {
+            Partner::Plane(_) => {
+                crate::dihedral::decide_reported("plane_nurbs_transversality", margin, band)
+            }
+            Partner::Curved(_) => {
+                crate::dihedral::decide_reported("curved_nurbs_transversality", margin, band)
+            }
+        };
+        match decided {
             Ok(decided) => {
                 if let Some(verdict) = Refused::of(decided, band) {
                     return Err(PlaneNurbsRefusal::NotTransverse {
@@ -1075,7 +1068,7 @@ fn residual_nurbs_limbs<T: Decide + Bounds + geom_core::CertifiedEnclosure>(
     let schedule = Schedule::new(&eval, domain, ends);
     let pcurve = match read {
         Partner::Plane(_) => chart_image(schedule, wall, per_sample),
-        Partner::Curved(_) => general_chart_image_sampled(schedule, wall, band, per_sample),
+        Partner::Curved(_) => general_chart_image(schedule, wall, band, per_sample),
     }?;
     // FAIL LOUD on a poisoned aggregate. A NaN sine cannot reach here
     // today — the per-sample `decide` above escalates on its levered
@@ -1084,8 +1077,15 @@ fn residual_nurbs_limbs<T: Decide + Bounds + geom_core::CertifiedEnclosure>(
     // that ever survives the fold refuses TYPED, carrying the
     // `Invalid` diagnostic, instead of riding out as a reported number
     // no caller can tell from a measurement.
-    let min_sin = geom_core::k_stats::gate_measured(reported_as, min_sin, band)
-        .map_err(PlaneNurbsRefusal::ReportedTransversalityPoisoned)?;
+    let min_sin = match read {
+        Partner::Plane(_) => {
+            geom_core::k_stats::gate_measured("plane_nurbs_transversality_reported", min_sin, band)
+        }
+        Partner::Curved(_) => {
+            geom_core::k_stats::gate_measured("curved_nurbs_transversality_reported", min_sin, band)
+        }
+    }
+    .map_err(PlaneNurbsRefusal::ReportedTransversalityPoisoned)?;
 
     // ---- The rung-3 door: all three limbs, both operands. ----
     let cert = crate::ssi::certify::certify_branch(
@@ -3142,20 +3142,9 @@ where
 /// degree-1 one at the first), and the certificate's refusal of that
 /// image ends the lane's gap, "not yet", where the foot's own refusal
 /// would have ended unsettled, also "not yet".
-pub(crate) fn general_chart_image<T>(
-    schedule: Schedule<'_, T>,
-    wall: &NurbsSurface<T>,
-    band: Band,
-) -> Result<NurbsCurve2<T>, PlaneNurbsRefusal>
-where
-    T: Decide + Bounds + geom_core::CertifiedEnclosure,
-{
-    general_chart_image_sampled(schedule, wall, band, |_, _| Ok(()))
-}
-
-/// [`general_chart_image`], with [`chart_image`]'s `per_sample` hook run
-/// at the first rung's feet.
-pub(crate) fn general_chart_image_sampled<T, F>(
+///
+/// `per_sample` is [`chart_image`]'s hook, run at the first rung's feet.
+pub(crate) fn general_chart_image<T, F>(
     schedule: Schedule<'_, T>,
     wall: &NurbsSurface<T>,
     band: Band,

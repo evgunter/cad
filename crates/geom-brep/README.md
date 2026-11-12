@@ -269,7 +269,12 @@ plane×NURBS the chain is the
 wall pcurve's per-span windows, padded along each chart axis by the
 radius over that axis's chart speed (minted once over the wall's domain,
 refusing a zero or non-finite axis by name), and the enclosure is the
-chart form `∇φ·e⊥ / ‖chart stretch‖`. For NURBS×NURBS the chain is
+chart form `∇φ·e⊥ / ‖chart stretch‖`. A sphere, cylinder or ring torus
+beside a spline chart is certified at rest on the same chain and form
+(`edge_nurbs::curved_nurbs_limbs`), each interior sample's two normals,
+the partner's gradient at the wall's foot and the wall's own, decided
+transversal at the shorter of the extent and either surface's curvature
+radius there. For NURBS×NURBS the chain is
 of boxes in the ℝ⁴ state space, each the product of the two pcurves'
 padded windows over a run of consecutive spans (at most
 `PAIR_TUBE_BOXES` of them, the same windows hulled), and the enclosure

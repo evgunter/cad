@@ -61,13 +61,26 @@ fn at_rest(
     wall: &Surface<f64>,
     extent: f64,
 ) -> Result<EdgeCurve<f64>, CertifyError> {
+    let witness = carrier.mid_point(t0, t1);
+    witnessed(carrier, (t0, t1), witness, partner, wall, extent).0
+}
+
+/// [`at_rest`] under the witness `witness`, with the partner's key.
+fn witnessed(
+    carrier: &Curve3<f64>,
+    (t0, t1): (f64, f64),
+    witness: Point3<f64>,
+    partner: &Surface<f64>,
+    wall: &Surface<f64>,
+    extent: f64,
+) -> (Result<EdgeCurve<f64>, CertifyError>, SurfaceKey) {
     let mut arena = slotmap::SlotMap::<SurfaceKey, Surface<f64>>::with_key();
     let (k1, k2) = (arena.insert(partner.clone()), arena.insert(wall.clone()));
-    EdgeCurve::certify(
+    let edge = EdgeCurve::certify(
         EdgeCurveSpec {
             description: EdgeDescriptionSpec::Intersection {
                 pair: SurfacePair::new(k1, k2),
-                selector: CurveSelector::Witness(carrier.mid_point(t0, t1)),
+                selector: CurveSelector::Witness(witness),
             },
             carrier: carrier.clone(),
             param_start: t0,
@@ -79,7 +92,8 @@ fn at_rest(
         fixture_lever(extent),
         band(),
         NurbsLane::certified(),
-    )
+    );
+    (edge, k1)
 }
 
 /// Whether `refused` is the lane's own image missing the carrier's foot
@@ -108,7 +122,8 @@ fn image_missed(refused: &CertifyError) -> bool {
 /// partner and off the wall: the certificate refuses each on the on-locus
 /// residual, which the arc as fitted passes on both surfaces. With either
 /// moved a thousandth of ε the cylinder's certificate reads as it does
-/// unmoved. A sphere's reports the least sine of its radius against the
+/// unmoved, and its witness is held to the carrier's middle and to the
+/// partner. A sphere's reports the least sine of its radius against the
 /// wall's normal over the interior feet.
 ///
 /// Where the arc bends in the chart the lane's image of it is the pcurve
@@ -187,6 +202,47 @@ fn a_carried_rim_arc_certifies_at_rest_and_refuses_once_a_surface_stands_off_it(
                     }))
                 ),
                 "s = {s}, {what}, {moved}: the arc refuses on the on-locus residual: {read:?}"
+            );
+        }
+        if let Surface::Cylinder { axis, .. } = *partner {
+            // A witness is pinned to the carrier's middle and to the
+            // partner: the middle slid along the cylinder's rulings stays
+            // on the partner and leaves the middle; the wall's point
+            // beside the middle, off the arc, leaves the partner.
+            let (t0, t1) = comp.span;
+            let mid = comp.carrier.mid_point(t0, t1);
+            let (slid, _) = witnessed(
+                &comp.carrier,
+                comp.span,
+                mid + axis * (1e3 * eps),
+                partner,
+                &w,
+                extent,
+            );
+            assert!(
+                matches!(
+                    slid,
+                    Err(CertifyError::ResidualExceeded {
+                        check: CertCheck::WitnessMidpoint,
+                        ..
+                    })
+                ),
+                "s = {s}, {what}: a witness a thousand ε along the arc's partner is not the \
+                 carrier's middle: {slid:?}"
+            );
+            let foot = chart(&w).project(mid).expect("the middle's foot settles");
+            let beside = chart(&w).eval(foot.u, foot.v + 1e-3);
+            let (off, key) = witnessed(&comp.carrier, comp.span, beside, partner, &w, extent);
+            assert!(
+                matches!(
+                    off,
+                    Err(CertifyError::ResidualExceeded {
+                        check: CertCheck::WitnessSurfaceResidual { surface },
+                        ..
+                    }) if surface == key
+                ),
+                "s = {s}, {what}: a witness on the wall beside the arc is off the partner, \
+                 named by its key: {off:?}"
             );
         }
         let (true, Surface::Sphere { center, .. }) = (image_holds, partner) else {
