@@ -82,16 +82,18 @@
 //! joint's 3-D coincidence is not decided again in the chart: it
 //! follows from the two rows' envelopes and the edge certificate's
 //! endpoint pinning. At a joint whose vertex is on the chart's singular
-//! set — a pole, an apex, decided as 3-D incidence — the azimuth has no
-//! lever and its periods are not decided: the element is the reset
-//! marker, which carries the rest ([`JointElement::Reset`]). A spline
-//! chart's joint also states its chart-space gap.
+//! set — a pole, an apex, decided as 3-D incidence — every azimuth
+//! names the point, and the element is the turn there on the face's
+//! side ([`singular_turn`]), so the chain runs on through the point as
+//! the face's boundary. Every stored element records a decision: a
+//! joint that decides none refuses. A spline chart's joint also states
+//! its chart-space gap.
 //!
 //! A loop's **lift** — the chain of chart curves its readers draw — is
 //! its images moved by the elements summed along it ([`Lift::read`]),
 //! and its **winding** is the elements composed once around
 //! ([`Winding`]). The loop must close: its winding a whole period of
-//! the first channel at most (none counted across a reset), of a
+//! the first channel at most, of a
 //! second channel the chart is closed in (an angle, or a net's `v`
 //! knot domain) at most, or — on a sphere — the involution
 //! ([`Winding::closes`]), read off conjugation invariants, so the
@@ -532,9 +534,8 @@ pub enum PcurveMintError {
     /// band nor definitely under it (`pcurve_loop_v_stretch`), so the
     /// joint's `v` periods are undecided and no element is written: a
     /// net whose `v` sections are within the band's sliver of collapsing
-    /// to a curve. Refused under this name, not as a reset, because a
-    /// reset keeps the element modulo the first channel's periods and
-    /// would carry an undecided `v` while dropping a decided `u`.
+    /// to a curve. The same of a net closed in `u` whose `u` sweep is
+    /// undecided (`pcurve_loop_pole_joint`).
     NetStretchUndecided {
         /// The half-edge whose ENTRY is the joint.
         half_edge: HalfEdgeKey,
@@ -2911,8 +2912,8 @@ pub(crate) struct CarriedRows<T: Real> {
     /// The second child's row, for the half-edge minted beside it.
     pub(crate) new_half: PcurveCache<T>,
     /// The element of the joint between the two children, at the split
-    /// point: the identity, the two children being one image — a reset
-    /// where that point is on the chart's singular set.
+    /// point: the identity, the two children being one image — the
+    /// face's turn where that point is on the chart's singular set.
     pub(crate) joint: JointElement,
     /// Where a child's row was placed again over its own span: the
     /// element of the joint into the child the parent's incoming joint
@@ -2991,9 +2992,8 @@ pub(crate) enum SplitRefusal {
 /// **The joint between the children** is decided at `t`, where both
 /// children's images hold one chart point, so its gap is zero and no
 /// period is crossed. Off the chart's singular set it decides the
-/// identity shift; it writes a reset at a split point on that set, or
-/// on a `u`-closed spline chart whose `u` knot domain moves a point
-/// within the band ([`net_reach`], [`decide_joint`]).
+/// identity shift; at a split point on that set it decides the face's
+/// turn there ([`decide_joint`]).
 ///
 /// **`t₀` and `t₁` are the EDGE's certified interval**, read from the
 /// carrier through [`half_edge_carrier`] — the same interval
@@ -5170,8 +5170,9 @@ fn pole_lever<T: Decide>(edge: EdgeEnd<'_, T>, axis: geom::Line<T>, radius: T) -
 /// the composed path and the bridged joint carry the same image onto
 /// the same point, and on the singular set a killed strut splits the
 /// face's sector into the two turns summed. A door that moves a loop to
-/// a face of the opposite sense on one chart decides the loop's
-/// singular-set joints again ([`restate_singular_joints`]). And tier 3
+/// a face of the opposite sense on a chart with a singular set treats
+/// the loop's rows as rows about another chart, and its band door
+/// decides them again (`Body::sides_agree`). And tier 3
 /// re-decides every stored element here, so a written element this
 /// decision does not give reads as a [`PcurveMintError::LoopDiscontinuity`]
 /// at rest — loud, never silent. Where the room is short (a pole at a
@@ -6028,8 +6029,8 @@ pub(crate) struct PcurvePass {
 /// face's chart singularity). The tip ([`crate::validate::wrap_tips`]) is
 /// the vertex of the joint between the wrap edge's two halves, and
 /// whether that vertex lies on the chart's singular set is
-/// [`singular_at`], the reading [`decide_joint`] resets the joint's first
-/// channel by: decided on, the tip is admitted; off, or on a chart with
+/// [`singular_at`], the reading [`decide_joint`] takes the face's turn
+/// by: decided on, the tip is admitted; off, or on a chart with
 /// no singular set, it is refused; undecided, it is refused as
 /// undecided. A face whose chart mints no rows (a plane) holds no tip: a
 /// wrap description is refused on a plane at the mint. A tip whose joint the
@@ -7161,11 +7162,11 @@ mod stretch_meter {
         ));
     }
 
-    /// **On a spline chart, a gate that does not read `Off` writes a
-    /// reset**, the undecided reading included: a net whose `u` knot
-    /// domain moves a point within the band (`net_reach`) names no
-    /// azimuth integer, so none is decided, and the joint's chart-space
-    /// gap is what decides it (`spline_gap_closes`, here a zero gap).
+    /// **On a spline chart, a gate that reads collapsed decides no
+    /// period, and one that is undecided refuses**: a net whose `u` knot
+    /// domain moves a point under the band (`net_reach`) names no
+    /// azimuth integer, and the joint's chart-space gap is what decides
+    /// it (`spline_gap_closes`, here a zero gap).
     /// Read off a net whose reach is under the band, in it, and past it,
     /// on a chart given a period of 1: an identity with no period read
     /// (every lift names the point), a refusal, and an ordinary
@@ -10526,8 +10527,8 @@ mod net_period_rows {
     /// **The same of `u`** ([`super::singular_at`]'s net-level gate): the
     /// prism closed in `u` over a `u` knot domain 10¹⁰ long crosses its
     /// seam by one `u` period. Read as a rate, its stretch sits under
-    /// the band and the gate wrote a reset with no `u` integer, its gap
-    /// of metres a discontinuity.
+    /// the band and the gate read no `u` integer, its gap of metres a
+    /// discontinuity.
     #[test]
     fn a_long_u_domain_crosses_its_seam_by_one_period() {
         let k = 1e10;
@@ -10559,9 +10560,9 @@ mod net_period_rows {
     /// **An undecided `v` gate refuses under its own name**
     /// (`PinMiss::NetStretchUndecided`): a net closed in `v` whose `v`
     /// knot domain moves a point within the band (`net_reach`) decides no
-    /// `v` integer, and the joint writes no element, neither a reset nor
-    /// an ordinary `v = 0`. Decided under the band, the same joint is an
-    /// ordinary identity (`a_spline_gate_that_is_not_off_writes_a_reset`'s
+    /// `v` integer, and the joint writes no element. Decided under the
+    /// band, the same joint is an ordinary identity
+    /// (`a_spline_gate_that_is_undecided_refuses_and_writes_nothing`'s
     /// flat net); decided past it, the marks read.
     #[test]
     fn an_undecided_v_gate_refuses_under_its_own_name() {
@@ -10642,11 +10643,8 @@ mod net_period_rows {
     /// **An undecided `v` gate refuses even where the `u` element is
     /// decided.** On a net closed in both channels whose `v` sweep sits
     /// in the band, a crossing of the `u` seam decides `u = 1`, but the
-    /// joint refuses as `NetStretchUndecided`. A reset there would store
-    /// the element modulo `T_u`, dropping the decided `u = 1` and keeping
-    /// the undecided `v = 0`: the lift would restart `u`, the loop's
-    /// winding would count no `u` wrap, and the chart boundary would
-    /// refuse the loop under another name. With the `v` sweep decided
+    /// joint refuses as `NetStretchUndecided`: an element is written
+    /// whole or not at all. With the `v` sweep decided
     /// past the band the same crossing is `Shift(u: 1)`.
     #[test]
     fn an_undecided_v_gate_refuses_a_decided_u_crossing() {

@@ -274,6 +274,7 @@ of them is a defect.
 | Which description a glued pair keeps | decided once, at the glue | [coincidence.booleans] |
 | An edge's geometry | one intensional description; every representation a certified cache | [edges] |
 | A locus one chart defines | `Chart`, one (surface, `Pcurve`) form | [edges] |
+| A loop's position in its face's chart | its lift (`topo::pcurves::Lift`): one joint decision (`decide_joint`), read from the stored rows or decided at a band, as the caller names; every window, hull and winding a method on it | [edges] |
 | Re-describing an existing edge after a door changes its faces, span or surfaces | one door: the form read off its sides by key, the old description's data carried to the new span, the selector certified at the one write gate; no door states a description for an existing edge, only a mint does | [edges] |
 | Dependency | reading a variable | [operations] |
 | Location | a placement | [placement] |
@@ -816,7 +817,7 @@ tiers".
      reader in the chart's own coordinates (measurement in a lifted
      coordinate, a loop's windings, the mesher's domain) reads the
      loops as stored, seams and wrap edges as the chart's cuts and a
-     wrap edge's tip through the lift's reset at its singular
+     wrap edge's tip through the lift's whole turn at its singular
      vertex. A chart-free reader (Gauss–Bonnet, 3-D flux) reads the
      surface boundary, keeping each wrap tip's singular vertex as the
      datum of the face's side; an empty one on a closed surface is
