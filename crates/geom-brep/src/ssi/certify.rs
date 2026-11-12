@@ -1548,7 +1548,7 @@ pub(crate) fn chart_tube_windows<T: geom_core::CertifiedBounds>(
 /// spread about the Hessian times the window's width with its pads, so
 /// a pad that narrows in proportion to the distance keeps the spread a
 /// share of the value at every scale (C2's node end).
-pub(crate) const NODE_PAD_SHARE: f64 = 1.0 / 8.0;
+pub(crate) const NODE_PAD_SHARE: f64 = 1.0 / 4.0;
 
 /// How many times its last span's reach from the node a node's box is,
 /// half-width (D9): the span's hull lies strictly inside it, so the
@@ -3808,7 +3808,13 @@ mod tests {
         let out = plane_nurbs_ssi(&plane, &wall, domain, band).expect("the wall certifies");
         assert!(!out.branches.is_empty(), "FIXTURE: the plane cuts the wall");
         for (i, b) in out.branches.iter().enumerate() {
-            let SsiTube::Chart { rung, pad_u, pad_v, nodes } = b.certificate.tube else {
+            let SsiTube::Chart {
+                rung,
+                pad_u,
+                pad_v,
+                nodes,
+            } = b.certificate.tube
+            else {
                 panic!(
                     "branch {i}: the plane × NURBS arm proved {:?}",
                     b.certificate.tube

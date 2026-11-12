@@ -3016,7 +3016,9 @@ impl<T: Decide> CarriedComponent<T> {
                 .iter()
                 .filter(|b| b.holds(p, band.escalate()))
                 .map(|b| b.pad)
-                .fold(None, |acc: Option<f64>, x| Some(acc.map_or(x, |a| a.max(x))));
+                .fold(None, |acc: Option<f64>, x| {
+                    Some(acc.map_or(x, |a| a.max(x)))
+                });
             match held {
                 Some(pad) => pad,
                 None => return Ok(None),
@@ -3364,25 +3366,6 @@ impl<T: Decide> CarriedSection<T> {
         if let Some(n) = node {
             return Ok(SiteReading::AtNode(n));
         }
-        // A site in a node's own box and not at the node: within about
-        // `√(εR)` of it, where no reading at the band tells its arcs
-        // apart (C2's node end).
-        let in_box = self
-            .components
-            .iter()
-            .flat_map(|c| &c.boxes)
-            .find_map(|b| b.node.filter(|_| b.holds(p, band.escalate())));
-        if let Some(n) = in_box {
-            let at = apart.get(n).copied().ok_or(SiteRefusal::Desync(
-                "a node's box names a node not in its section",
-            ))?;
-            return Err(SiteRefusal::Escalated(geom_core::k_stats::gate_rejection(
-                SITE_AT_NODE,
-                at,
-                band,
-                geom_core::SizedPass::Zero,
-            )));
-        }
         let mut found: Option<SiteFoot<T>> = None;
         for (k, c) in self.components.iter().enumerate() {
             let Some(t) = c.reads(p, band)? else {
@@ -3422,9 +3405,29 @@ impl<T: Decide> CarriedSection<T> {
                 tangent: c.carrier.ders1(t).1,
             });
         }
-        found.map(SiteReading::OnArc).ok_or(SiteRefusal::Desync(
+        let found = found.ok_or(SiteRefusal::Desync(
             "a site lies on no component of its section",
-        ))
+        ))?;
+        // A site in a node's own box and not at the node: within about
+        // `√(εR)` of it, where no reading at the band tells its arcs
+        // apart (C2's node end), though it read on one arc alone.
+        let in_box = self
+            .components
+            .iter()
+            .flat_map(|c| &c.boxes)
+            .find_map(|b| b.node.filter(|_| b.holds(p, band.escalate())));
+        if let Some(n) = in_box {
+            let at = apart.get(n).copied().ok_or(SiteRefusal::Desync(
+                "a node's box names a node not in its section",
+            ))?;
+            return Err(SiteRefusal::Escalated(geom_core::k_stats::gate_rejection(
+                SITE_AT_NODE,
+                at,
+                band,
+                geom_core::SizedPass::Zero,
+            )));
+        }
+        Ok(SiteReading::OnArc(found))
     }
 
     /// **Component `k`'s end at the node `n`** ([`ArcPlace::AtEnd`]),
@@ -3629,6 +3632,69 @@ mod wiring {
         assert!(
             matches!(component.reads(at(1.0 - 2e-9), band), Ok(Some(_))),
             "2e-9 inside: on the arc"
+        );
+    }
+
+    /// **A site in a node's box that reads on one arc alone escalates**
+    /// (C2's node end): an arc along `+x` from a node at the origin, its
+    /// pad read box by box, its last box the node's, `10⁻³` wide. A site
+    /// on the arc inside that box reads on that arc alone (no other arc is
+    /// carried), and escalates on its distance from the node, there being
+    /// no reading at the band that tells the node's arcs apart; one past
+    /// the box reads on the arc; one off every box reads on nothing, a
+    /// desync. Red against the node's box read as the arc's own.
+    #[test]
+    fn a_site_in_a_nodes_box_on_one_arc_escalates() {
+        use geom_core::{Point3, Vec3};
+        let node = super::SectionNode {
+            point: Point3::origin(),
+            normal: Vec3::unit_z(),
+            lines: [Vec3::unit_x(), Vec3::unit_y()],
+            above: super::PairSide::First,
+        };
+        let pad_box = |lo: f64, hi: f64, node: Option<usize>| super::PadBox {
+            lo: [lo, -1e-3, -1e-3],
+            hi: [hi, 1e-3, 1e-3],
+            pad: 1e-3,
+            node,
+        };
+        let component = super::CarriedComponent {
+            witness: Point3::new(0.5, 0.0, 0.0),
+            boxes: vec![
+                pad_box(-1e-3, 1e-3, Some(0)),
+                pad_box(5e-4, 0.5, None),
+                pad_box(0.5, 1.0, None),
+            ],
+            carrier: geom::Curve3::line(Point3::origin(), Vec3::unit_x()),
+            span: (0.0, 1.0),
+            shape: super::ComponentShape::Open {
+                ends: super::ComponentEnds::default(),
+            },
+            certificate: None,
+            winds: [false, false],
+            pad: 1e-3,
+            reach: 0.0,
+        };
+        let carried = super::CarriedSection {
+            components: vec![component],
+            nodes: vec![node],
+            lever: geom_core::test_support::fixture_lever(1.0),
+        };
+        let at = |x: f64, y: f64| carried.site(Point3::new(x, y, 0.0), band());
+        assert!(
+            matches!(at(5e-4, 0.0), Err(super::SiteRefusal::Escalated(_))),
+            "in the node's box: {:?}",
+            at(5e-4, 0.0)
+        );
+        assert!(
+            matches!(at(0.25, 0.0), Ok(super::SiteReading::OnArc(f)) if f.component == 0),
+            "past the box: {:?}",
+            at(0.25, 0.0)
+        );
+        assert!(
+            matches!(at(0.25, 0.1), Err(super::SiteRefusal::Desync(_))),
+            "off every box: {:?}",
+            at(0.25, 0.1)
         );
     }
 

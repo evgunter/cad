@@ -1338,11 +1338,13 @@ fn listed(
                     let BranchTip::Node(n) = tip else {
                         continue;
                     };
-                    let (node, list) = nodes.get(n).zip(at_node.get_mut(n)).ok_or(
-                        SectionError::Pinched {
-                            predicate: NODE_RAY,
-                        },
-                    )?;
+                    let (node, list) =
+                        nodes
+                            .get(n)
+                            .zip(at_node.get_mut(n))
+                            .ok_or(SectionError::Pinched {
+                                predicate: NODE_RAY,
+                            })?;
                     let ray = ray_at(&b, pose.net(), (e, node), extent, band)?;
                     list.push((components.len(), e == 0, ray));
                     ends[e] = Some(n);
@@ -1460,7 +1462,10 @@ fn ray_at(
     };
     let (
         SsiTube::Chart {
-            pad_u, pad_v, nodes, ..
+            pad_u,
+            pad_v,
+            nodes,
+            ..
         },
         Some(pcurve),
     ) = (b.certificate.tube, b.pcurve_b.as_ref())
@@ -1470,7 +1475,11 @@ fn ray_at(
     let windows =
         crate::ssi::certify::chart_tube(pcurve, (pad_u, pad_v), nodes).ok_or_else(pinched)?;
     let n = windows.len();
-    let (at, before) = if end == 0 { (0, 1) } else { (n - 1, n.wrapping_sub(2)) };
+    let (at, before) = if end == 0 {
+        (0, 1)
+    } else {
+        (n - 1, n.wrapping_sub(2))
+    };
     let (Some(w), Some(last)) = (windows.get(at), windows.get(before)) else {
         return Err(pinched());
     };

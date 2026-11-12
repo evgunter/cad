@@ -70,6 +70,13 @@ pub(crate) const NODE_SETTLES: usize = 48;
 /// apart.
 pub(crate) const NODE_SETTLE_FLOOR: f64 = 64.0;
 
+/// The grade [`Ends::finish`] first reads a node end at (D9): a span
+/// about a tenth of its distance from the node, so the window before the
+/// node's box, its hull reaching a span or two past its own toward the
+/// node, sees the node across an angle well inside a sector between the
+/// node's rays, which is the ray the arc's end names (C5).
+pub(crate) const NODE_GRADE_FIRST: u32 = 2;
+
 /// The grades [`Ends::finish`] climbs at a node end while limb 3's tube
 /// straddles (D9): at the last, a span is about a fiftieth of its
 /// distance from the node.
@@ -619,7 +626,8 @@ impl<const M: usize, const N: usize, S: SectionSystem<M, N>> Ends<'_, S, M, N> {
             if !(reach > NODE_SETTLE_FLOOR * self.ctx.tol.meters()) {
                 break;
             }
-            let aim = core::array::from_fn::<f64, N, _>(|k| centre[k] + 0.5 * (prev[k] - centre[k]));
+            let aim =
+                core::array::from_fn::<f64, N, _>(|k| centre[k] + 0.5 * (prev[k] - centre[k]));
             let Some(y) = super::march::newton_refine(self.sys, aim, self.ctx.tol) else {
                 break;
             };
@@ -715,7 +723,7 @@ impl<const M: usize, const N: usize, S: SectionSystem<M, N>> Ends<'_, S, M, N> {
                 let fitted = fit_states(self.sys, states)?;
                 // A node end's grading climbs while the tube straddles
                 // (Self::graded); every other refusal stands at once.
-                let mut level = 0;
+                let mut level = NODE_GRADE_FIRST;
                 loop {
                     let (carrier, pa, pb) = self.graded((end, level), states, fitted.clone())?;
                     let lane = self.operands.lane(pa.as_ref(), pb.as_ref())?;
@@ -775,8 +783,7 @@ impl<const M: usize, const N: usize, S: SectionSystem<M, N>> Ends<'_, S, M, N> {
         let BranchEnd::Node { from, to } = end else {
             return Ok(triple);
         };
-        let (Some(&[a0, a1]), Some(&[b0, b1])) = (states.first_chunk(), states.last_chunk())
-        else {
+        let (Some(&[a0, a1]), Some(&[b0, b1])) = (states.first_chunk(), states.last_chunk()) else {
             return Ok(triple);
         };
         let (carrier, pa, pb) = triple;
