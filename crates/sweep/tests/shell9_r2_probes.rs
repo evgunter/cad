@@ -303,13 +303,13 @@ fn r2_an_operand_with_a_stale_row_is_refused_at_the_gate() {
     let (he, element) = maimed
         .joints()
         .find_map(|(he, e)| match e {
-            topo::JointElement::Shift(deck) => Some((he, deck)),
+            topo::JointElement(deck) => Some((he, deck)),
             topo::JointElement::Reset(_) => None,
         })
         .expect("the vessel carries rows");
     maimed.attach_joint(
         he,
-        topo::JointElement::Shift(topo::Deck {
+        topo::JointElement(topo::Deck {
             u: element.u + 1,
             ..element
         }),

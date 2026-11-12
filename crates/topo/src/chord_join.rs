@@ -5369,9 +5369,8 @@ impl ChordJoiner {
         oldf: FaceKey,
         ring: LoopKey,
     ) -> Result<FaceKey, JoinError> {
-        let sense = body.get_face(oldf).ok_or_else(|| corrupt_face(oldf))?.sense;
-        let promoted = body.mfkrh(ring, FaceSurface::Inherit)?.face;
-        body.set_face_sense(promoted, sense)?;
+        body.get_face(oldf).ok_or_else(|| corrupt_face(oldf))?;
+        let promoted = body.mfkrh_piece(ring, None)?.face;
         self.slivers.insert(promoted, ());
         self.fragments
             .push((promoted, oldf))

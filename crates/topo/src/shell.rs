@@ -3465,15 +3465,10 @@ fn band_between_boundaries<T: Decide + crate::props::AtRestPolicy>(
     let parted = body
         .kemr(plus(body, middle), middle_minus)
         .map_err(rim_error)?;
-    // `mfkrh` reads its ring as a hole and negates the host's bit, but
-    // the parted side is wound as the host's own region was, so the new
-    // face takes the host's bit (check 6 reads it against the winding).
-    let made = body
-        .mfkrh(parted.ring, crate::euler::FaceSurface::Inherit)
-        .map_err(rim_error)?;
-    let host_sense = proven(&body.faces, host, EntityId::Face).sense;
-    body.set_face_sense(made.face, host_sense)
-        .map_err(rim_error)?;
+    // The parted side is wound as the host's own region was, so it is
+    // promoted as the host's piece and takes the host's bit (check 6
+    // reads it against the winding).
+    let made = body.mfkrh_piece(parted.ring, None).map_err(rim_error)?;
     // Each strut's `he_minus` runs from its ring corner to its cut point,
     // which the collapse merges away.
     let moved = re_anchored(body, seam, m_a, p_start, designated, band)?;

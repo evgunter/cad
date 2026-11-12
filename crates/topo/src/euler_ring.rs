@@ -402,7 +402,8 @@ struct KfmrhPlan<T: geom_core::Real> {
     f1: FaceKey,
     f2: FaceKey,
     f1_shell: ShellKey,
-    f1_surface: SurfaceKey,
+    /// Whether the ring's rows stand on `f1` ([`Body::plan_moved_rows`]).
+    stand: bool,
     f2_data: crate::entity::Face,
     s2_data: crate::entity::Shell,
     /// The form: the fusion across two shells, or the handle within
@@ -993,9 +994,11 @@ impl<T: Decide> Body<T> {
         let one_payload = kill.one_payload;
         let described = vouch(self, &kill)?;
         let ring_halves = kill.moving;
+        let f1_sense = crate::live::proven(&self.faces, f1, EntityId::Face).sense;
+        let stand = one_payload && self.sides_agree(f1_surface, f2_data.sense, f1_sense);
         let rows = self.plan_moved_rows(
             &ring_halves,
-            one_payload,
+            stand,
             f1,
             |body| Ok(body.site_face_receiving(f1, &ring_halves)),
             tol,
@@ -1004,7 +1007,7 @@ impl<T: Decide> Body<T> {
             f1,
             f2,
             f1_shell,
-            f1_surface,
+            stand,
             f2_data,
             s2_data,
             cross_shell,
@@ -1021,7 +1024,7 @@ impl<T: Decide> Body<T> {
             f1,
             f2,
             f1_shell,
-            f1_surface,
+            stand,
             f2_data,
             s2_data,
             cross_shell,
@@ -1041,7 +1044,9 @@ impl<T: Decide> Body<T> {
             unreachable!("kfmrh: `f1` resolved in the plan phase")
         };
         face.rings.push(ring);
-        self.drop_rows_on_chart_change(ring_halves, f2_data.surface, f1_surface);
+        if !stand {
+            self.drop_rows(ring_halves);
+        }
         crate::pcurves::apply_site_rows(self, rows, None);
         // A re-described edge keeps its carrier, so its rows stand.
         for (edge, curve) in described {
@@ -1179,6 +1184,8 @@ impl<T: Decide> Body<T> {
         let from_shell = from_data.shell;
         let to_data = lookup(&self.faces, to_face, EntityId::Face, Arg("to_face"))?;
         let to_surface = to_data.surface;
+        let stand = self.same_chart(from_surface, to_surface)
+            && self.sides_agree(to_surface, from_data.sense, to_data.sense);
         if to_data.shell != from_shell {
             return Err(EulerOpError::CrossShell {
                 f1: from_face,
@@ -1202,7 +1209,7 @@ impl<T: Decide> Body<T> {
             }
             let rows = self.plan_moved_rows(
                 &ring_halves,
-                self.same_chart(from_surface, to_surface),
+                stand,
                 to_face,
                 |body| Ok(body.site_face_receiving(to_face, &ring_halves)),
                 tol,
@@ -1226,7 +1233,9 @@ impl<T: Decide> Body<T> {
             l.face = to_face;
             self.drop_null_face_records_naming(ring);
         }
-        self.drop_rows_on_chart_change(ring_halves, from_surface, to_surface);
+        if !stand {
+            self.drop_rows(ring_halves);
+        }
         crate::pcurves::apply_site_rows(self, rows, None);
         Ok(())
     }
@@ -1276,11 +1285,13 @@ impl<T: Decide> Body<T> {
 
     /// **The site mint of a door that moves a loop or run onto a
     /// face**, planned before the door mutates. `moved` is the loop's
-    /// or run's half-edges, and `same_chart` whether the face it lands
-    /// on is on the chart it leaves ([`Body::same_chart`]).
+    /// or run's half-edges, and `same_chart` whether the rows it carries
+    /// stand on the face it lands on: that face is on the chart it
+    /// leaves ([`Body::same_chart`]) and on the same side of the loop
+    /// ([`Body::sides_agree`]).
     ///
-    /// Where every moved half carries a row and the chart is one, the
-    /// rows move with their keys: nothing is derived, and there is
+    /// Where every moved half carries a row and the rows stand, they
+    /// move with their keys: nothing is derived, and there is
     /// nothing to plan. Otherwise the moved rows do not stand on the
     /// destination — they are about another chart, which the door drops
     /// them for ([`Body::drop_rows`]), or missing — and the destination
@@ -1380,6 +1391,22 @@ impl<T: Decide> Body<T> {
             self.pcurves.remove(half_edge);
             self.joints.remove(half_edge);
         }
+    }
+
+    /// **Whether a loop's joint elements stand across a move between
+    /// two faces on one chart, `surface`**, of senses `from` and `to`. An
+    /// element on the chart's singular set is the turn on the face's
+    /// side (`crate::joint`), so it stands where the two senses agree,
+    /// or the chart has no singular set to turn at. Where it does not,
+    /// the door treats the loop's rows as it treats rows about another
+    /// chart: dropped, and re-minted by its band door
+    /// ([`Body::plan_moved_rows`]). Which joints are on the set is a
+    /// decision at a band, so no door restates them without one.
+    pub(crate) fn sides_agree(&self, surface: SurfaceKey, from: bool, to: bool) -> bool {
+        from == to
+            || !self
+                .get_surface(surface)
+                .is_some_and(crate::pcurves::has_singular_set)
     }
 
     /// Do these two surface keys hold one DESCRIPTION, so a pcurve

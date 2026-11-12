@@ -31,38 +31,27 @@
 //! arithmetic. On a chart with no involution `twin` is always `false`,
 //! and on a chart not closed in its second channel `v` is always 0.
 //!
-//! # The reset marker
+//! # The singular set
 //!
-//! A reset is written at a joint in exactly two cases
-//! (`crate::pcurves`' `decide_joint`):
+//! A joint whose vertex is on the chart's singular set — a sphere's
+//! pole, a cone's apex, a spindle sheet's apex — is a side of the
+//! face's region in the chart: every azimuth names the point, and the
+//! boundary runs along the singular latitude from the arriving edge's
+//! azimuth to the leaving edge's. Its element is the **turn on the
+//! face's side** (`crate::pcurves`' `decide_joint`, `singular_turn`):
+//! the angle about the chart's axis from the arriving edge's tangent at
+//! the point to the leaving edge's, swept through the face. It lies in
+//! `(0, τ)` or `(−τ, 0)` by the face's sense and the side of the
+//! singular latitude the face is on, and is a whole turn where the loop
+//! leaves along the edge it arrived on. So a loop's lift runs on
+//! through the point as the face's boundary, and the element there is
+//! a function of the two edges, the chart and the face's sense: a door
+//! that moves a loop to a face of the opposite sense on one chart
+//! decides it again, and a loop reversal inverts it.
 //!
-//! - **on the chart's singular set** — a sphere's pole, a cone's apex,
-//!   or a spline chart whose first-channel knot domain moves a point
-//!   under the band — where the first channel has no lever: every
-//!   azimuth names the same point, so no whole number of azimuth periods
-//!   is decided there;
-//! - **on a spline chart whose first-channel gate is undecided** (its
-//!   `u` sweep in the band's sliver, `AzimuthRule::SplineUndecided`),
-//!   where no azimuth integer is claimed and the joint's chart-space gap
-//!   is what keeps the joint sound.
-//!
-//! An undecided SECOND-channel gate (a net closed in `v` whose `v` sweep
-//! sits in the band's sliver) writes no reset: the joint refuses
-//! (`crate::pcurves::PcurveMintError::NetStretchUndecided`), since a reset
-//! quotients out the first channel, not the second.
-//!
-//! Such a joint stores [`JointElement::Reset`], which carries only the
-//! part of the element that IS decided (the second-channel periods and
-//! the twin, the element modulo `T_u`; `T_u` is central, so that
-//! quotient is a group). The joint decision writes a reset with no twin
-//! (`crate::pcurves`' `decide_joint`: at a pole either sheet names the
-//! point, so its orbit integer is 0); a kill's sum
-//! ([`JointElement::then`]) may carry one. The lift restarts the first channel after a
-//! reset: the next image is placed with no azimuth periods
-//! ([`JointElement::follow`]), and a loop's closure counts no azimuth
-//! wrap across a reset ([`Winding`]). So the pass and the at-rest
-//! check read a pole joint alike, and neither reads which half-edge is
-//! `first`.
+//! Every stored element records a decision. A joint whose element is
+//! not decided past the band stores none: its door refuses
+//! (`crate::pcurves::PcurveMintError`).
 //!
 //! # Kills are sums
 //!
@@ -73,7 +62,9 @@
 //! ([`JointElement::then`]); the joint between the killed halves at
 //! their shared vertex carries nothing and is skipped. That is the
 //! element the pass decides there: both carry `n`'s entry onto `p`'s
-//! exit, and away from the singular set there is one such element.
+//! exit. On the singular set the two turns either side of a killed
+//! strut sum to the turn across both: the strut lies in the face's
+//! sector, and splits it.
 
 use geom::Surface;
 use geom_brep::Pcurve;
@@ -137,14 +128,6 @@ impl Deck {
         }
     }
 
-    /// The element with its first-channel periods dropped: the
-    /// representative of its class modulo `T_u` that a reset stores and
-    /// the lift restarts from.
-    #[must_use]
-    pub fn without_u(self) -> Self {
-        Self { u: 0, ..self }
-    }
-
     /// `image` moved by this element on `surface`'s chart: the twin
     /// first, then the second-channel periods, then the first-channel
     /// periods, each in the period the chart owns for that channel
@@ -184,120 +167,69 @@ impl Deck {
 }
 
 /// A joint's element (module docs): the deck transformation carrying a
-/// half-edge's image onto the end of its predecessor's image, or — at a
-/// joint on the chart's singular set — the reset marker.
+/// half-edge's image onto the end of its predecessor's image.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-pub enum JointElement {
-    /// An ordinary joint: the whole element.
-    Shift(Deck),
-    /// A joint where the first chart channel has no lever: the element
-    /// modulo `T_u`, its `u` always 0. The lift restarts the first
-    /// channel after it.
-    Reset(Deck),
-}
+pub struct JointElement(pub Deck);
 
 impl JointElement {
     /// The identity joint: two images that already meet.
-    pub const IDENTITY: Self = Self::Shift(Deck::IDENTITY);
+    pub const IDENTITY: Self = Self(Deck::IDENTITY);
 
-    /// The element as a deck transformation: a reset's representative
-    /// with no azimuth periods.
+    /// The element as a deck transformation.
     #[must_use]
     pub fn deck(self) -> Deck {
-        match self {
-            Self::Shift(deck) | Self::Reset(deck) => deck,
-        }
-    }
-
-    /// The form the body stores: a reset with its azimuth periods
-    /// dropped, which it does not carry (module docs), and an ordinary
-    /// joint as it is. So [`JointElement::inverse`] is an involution on
-    /// every stored element.
-    #[must_use]
-    pub fn canonical(self) -> Self {
-        match self {
-            Self::Shift(_) => self,
-            Self::Reset(deck) => Self::Reset(deck.without_u()),
-        }
-    }
-
-    /// Whether this is a reset.
-    #[must_use]
-    pub fn is_reset(self) -> bool {
-        matches!(self, Self::Reset(_))
+        self.0
     }
 
     /// The element of the joint a kill bridges: `self` the element into
     /// the first killed half, `next` the element out of the last
-    /// (module docs, "Kills are sums"). A reset on either side is a
-    /// reset: the bridged joint sits at the same vertex, on the singular
-    /// set, and the first channel carries nothing through it.
+    /// (module docs, "Kills are sums").
     #[must_use]
     pub fn then(self, next: Self) -> Self {
-        let deck = self.deck().compose(next.deck());
-        if self.is_reset() || next.is_reset() {
-            Self::Reset(deck.without_u())
-        } else {
-            Self::Shift(deck)
-        }
+        Self(self.0.compose(next.0))
     }
 
     /// The element of the same joint read from the other side, as a loop
-    /// reversal reads it ([`crate::Body::revert`]): the inverse, a reset
-    /// staying one.
+    /// reversal reads it ([`crate::Body::revert`]): the inverse.
     #[must_use]
     pub fn inverse(self) -> Self {
-        match self {
-            Self::Shift(deck) => Self::Shift(deck.inverse()),
-            Self::Reset(deck) => Self::Reset(deck.inverse().without_u()),
-        }
+        Self(self.0.inverse())
     }
 
     /// The lift of the half-edge after this joint, from the lift `prev`
-    /// of the half-edge before it: `prev · e`, the first channel
-    /// restarted at a reset.
+    /// of the half-edge before it: `prev · e`.
     #[must_use]
     pub fn follow(self, prev: Deck) -> Deck {
-        match self {
-            Self::Shift(deck) => prev.compose(deck),
-            Self::Reset(deck) => prev.compose(deck).without_u(),
-        }
+        prev.compose(self.0)
     }
 }
 
 /// **How far a loop winds**: the elements of its joints composed once
-/// around, read as the closure reads them. `azimuth` is `None` where a
-/// reset breaks the first channel (a loop through a pole or an apex has
-/// no azimuth winding to count).
+/// around, read as the closure reads them.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Winding {
     /// The composed element.
     pub deck: Deck,
-    /// Whether any joint of the loop is a reset.
-    pub reset: bool,
 }
 
 impl Winding {
     /// The winding of a loop whose joints, in cycle order from any
     /// member, carry `elements`.
     pub fn of(elements: impl IntoIterator<Item = JointElement>) -> Self {
-        let mut deck = Deck::IDENTITY;
-        let mut reset = false;
-        for element in elements {
-            reset |= element.is_reset();
-            deck = deck.compose(element.deck());
-        }
-        Self { deck, reset }
+        let deck = elements
+            .into_iter()
+            .fold(Deck::IDENTITY, |deck, element| deck.compose(element.deck()));
+        Self { deck }
     }
 
     /// **Whether the loop closes**: it winds the chart's first channel
-    /// at most one period (none counted across a reset), its second
-    /// channel at most one period where the chart is closed in it, and on
-    /// a sphere it may close through the involution (a loop over a pole
-    /// that meets its start on the twin representation). Read off the
-    /// composed element's conjugation invariants — `twin`, `u` plus half
-    /// a period per twin, and `|v|` off the twin — so the answer does not
-    /// depend on which member the composition starts from.
+    /// at most one period, its second channel at most one period where
+    /// the chart is closed in it, and on a sphere it may close through
+    /// the involution (a loop over a pole that meets its start on the
+    /// twin representation). Read off the composed element's
+    /// conjugation invariants — `twin`, `u` plus half a period per twin,
+    /// and `|v|` off the twin — so the answer does not depend on which
+    /// member the composition starts from.
     #[must_use]
     pub fn closes(self) -> bool {
         let Deck { u, v, twin } = self.deck;
@@ -305,9 +237,9 @@ impl Winding {
             // `u + ½` periods is the invariant azimuth advance, so `u` in
             // `−2..=1` admits an advance of `±π` or `±3π`: the twin's own
             // half turn, plus at most one period either way.
-            self.reset || (-2..=1).contains(&u)
+            (-2..=1).contains(&u)
         } else {
-            (self.reset || (-1..=1).contains(&u)) && (-1..=1).contains(&v)
+            (-1..=1).contains(&u) && (-1..=1).contains(&v)
         }
     }
 
@@ -315,7 +247,7 @@ impl Winding {
     /// the only loop a closed chart polygon describes.
     #[must_use]
     pub fn is_zero(self) -> bool {
-        !self.reset && self.deck == Deck::IDENTITY
+        self.deck == Deck::IDENTITY
     }
 }
 
@@ -377,7 +309,7 @@ mod tests {
     /// invariants.
     #[test]
     fn the_closure_verdict_is_the_same_from_every_member() {
-        let elements: Vec<JointElement> = all().into_iter().map(JointElement::Shift).collect();
+        let elements: Vec<JointElement> = all().into_iter().map(JointElement).collect();
         for (i, &a) in elements.iter().enumerate().step_by(3) {
             for &b in elements.iter().skip(i % 7).step_by(5) {
                 for &c in elements.iter().skip(i % 5).step_by(7) {
@@ -393,102 +325,62 @@ mod tests {
         }
     }
 
-    /// A kill's sum is the composition along the bridged path, and a
-    /// reset on either side of it is a reset that keeps the second
-    /// channel and the twin.
+    /// A kill's sum is the composition along the bridged path.
     #[test]
     fn a_kill_sums_its_two_elements() {
-        let a = JointElement::Shift(Deck {
+        let a = JointElement(Deck {
             u: 1,
             v: 0,
             twin: false,
         });
-        let b = JointElement::Shift(Deck {
+        let b = JointElement(Deck {
             u: -1,
             v: 1,
             twin: false,
         });
         assert_eq!(
             a.then(b),
-            JointElement::Shift(Deck {
+            JointElement(Deck {
                 u: 0,
                 v: 1,
                 twin: false
             })
         );
-        let r = JointElement::Reset(Deck {
-            u: 0,
-            v: 1,
-            twin: false,
-        });
-        assert_eq!(
-            r.then(a),
-            JointElement::Reset(Deck {
-                u: 0,
-                v: 1,
-                twin: false
-            })
-        );
-        assert_eq!(a.inverse().inverse(), a);
-        assert_eq!(r.inverse().inverse(), r);
-    }
-
-    /// A reset carries no azimuth periods: its inverse, the form a loop
-    /// reversal writes, drops the `T_u` that inverting a twin produces,
-    /// so `inverse` is an involution on every stored reset; and the
-    /// canonical form the body stores drops a planted one.
-    #[test]
-    fn a_reset_never_carries_azimuth_periods() {
         for deck in all() {
-            let reset = JointElement::Reset(deck.without_u());
-            assert_eq!(reset.inverse().deck().u, 0, "inverse of {reset:?}");
-            assert_eq!(reset.inverse().inverse(), reset, "{reset:?}");
-            assert_eq!(
-                JointElement::Reset(deck).canonical(),
-                reset,
-                "canonical {deck:?}"
-            );
-            assert_eq!(
-                JointElement::Shift(deck).canonical(),
-                JointElement::Shift(deck)
-            );
+            let e = JointElement(deck);
+            assert_eq!(e.inverse().inverse(), e, "{e:?}");
+            assert_eq!(e.then(e.inverse()), JointElement::IDENTITY, "{e:?}");
         }
     }
 
     /// **Which windings close**, by value: a loop advances its azimuth at
-    /// most one period (none counted across a reset), its second
-    /// channel at most one period, and through the twin by its half
-    /// turn plus at most one period either way.
+    /// most one period, its second channel at most one period, and
+    /// through the twin by its half turn plus at most one period either
+    /// way.
     #[test]
     fn the_closure_admits_one_period_either_way_and_no_more() {
-        let winding = |u, v, twin, reset| {
+        let winding = |u, v, twin| {
             Winding {
                 deck: Deck { u, v, twin },
-                reset,
             }
             .closes()
         };
         for u in -2..=1 {
-            assert!(winding(u, 0, true, false), "twin u = {u} closes");
+            assert!(winding(u, 0, true), "twin u = {u} closes");
         }
         for u in [-3, 2] {
-            assert!(!winding(u, 0, true, false), "twin u = {u} does not close");
+            assert!(!winding(u, 0, true), "twin u = {u} does not close");
         }
         for u in -1..=1 {
-            assert!(winding(u, 0, false, false), "u = {u} closes");
+            assert!(winding(u, 0, false), "u = {u} closes");
         }
         for u in [-2, 2] {
-            assert!(!winding(u, 0, false, false), "u = {u} does not close");
-            assert!(winding(u, 0, false, true), "across a reset u = {u} closes");
+            assert!(!winding(u, 0, false), "u = {u} does not close");
         }
         for v in [-2, 2] {
-            assert!(!winding(0, v, false, false), "v = {v} does not close");
-            assert!(
-                !winding(0, v, false, true),
-                "a reset with v = {v} does not close"
-            );
+            assert!(!winding(0, v, false), "v = {v} does not close");
         }
-        assert!(winding(0, 1, false, true), "a reset with v = 1 closes");
+        assert!(winding(0, 1, false), "v = 1 closes");
     }
 
     /// **An element's `v` periods are the chart's own.** On a net closed

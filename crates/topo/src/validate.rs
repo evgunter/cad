@@ -4147,6 +4147,10 @@ fn classify_pcurve(e: &crate::pcurves::PcurveMintError) -> (&'static str, Cow<'s
         }
         // Never produced at rest: only the loop windings raise it.
         M::JointWithoutRoom { .. } => (CLOSE, NOT_YET_ENDING),
+        M::SingularTurn { .. } => (
+            "a corner of the face on its surface's pole or apex names no one side of the point",
+            crate::pcurves::SINGULAR_TURN_RECOURSE,
+        ),
         M::Band(b) => (classify_band(b), TOLERANCE),
         // A null edge at rest is tier 2's finding, and a row stored on
         // one of its halves is the producer's.

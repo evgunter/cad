@@ -1693,6 +1693,7 @@ fn walk_refusal(e: &crate::pcurves::PcurveMintError) -> WalkRefusal {
         | M::RowInterval { .. } => WalkRefusal::Torn,
         M::Escalated { .. }
         | M::NetStretchUndecided { .. }
+        | M::SingularTurn { .. }
         | M::JointWithoutRoom { .. }
         | M::Band(_) => WalkRefusal::Unread,
         M::Unminted { .. } => WalkRefusal::NotRaised,

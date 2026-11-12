@@ -1734,7 +1734,7 @@ impl<T: Real> Body<T> {
     pub(crate) fn write_joint(&mut self, half_edge: HalfEdgeKey, element: Option<JointElement>) {
         match element {
             Some(element) => {
-                self.joints.insert(half_edge, element.canonical());
+                self.joints.insert(half_edge, element);
             }
             None => {
                 self.joints.remove(half_edge);
@@ -1749,7 +1749,7 @@ impl<T: Real> Body<T> {
         half_edge: HalfEdgeKey,
         element: JointElement,
     ) -> Option<JointElement> {
-        self.joints.insert(half_edge, element.canonical())
+        self.joints.insert(half_edge, element)
     }
 
     /// The door [`Construct::attach_pcurve`](crate::construction::Construct::attach_pcurve) forwards to;

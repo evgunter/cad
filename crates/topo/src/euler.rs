@@ -2971,6 +2971,7 @@ impl<T: Decide> Body<T> {
                 let new = body.new_site_face(
                     face_key,
                     &surface,
+                    ParentSide::With,
                     !carried,
                     with(SiteHalf::NewMinus, new_side),
                 )?;
@@ -3132,7 +3133,13 @@ impl<T: Decide> Body<T> {
             |body| {
                 let old = body.site_face(face_key, &[(loop_key, vec![SiteHalf::NewPlus])], None);
                 let new =
-                    body.new_site_face(face_key, &surface, !carried, vec![SiteHalf::NewMinus])?;
+                    body.new_site_face(
+                        face_key,
+                        &surface,
+                        ParentSide::With,
+                        !carried,
+                        vec![SiteHalf::NewMinus],
+                    )?;
                 Ok(vec![old, new])
             },
             &certified,
@@ -4249,6 +4256,7 @@ impl<T: Decide> Body<T> {
         SiteFace {
             rows_from: face,
             surface,
+            sense: view.sense(),
             moved: false,
             loops,
         }
@@ -4283,10 +4291,20 @@ impl<T: Decide> Body<T> {
         &self,
         from: FaceKey,
         surface: &FaceSurface<T>,
+        side: ParentSide,
         moved: bool,
         halves: Vec<SiteHalf>,
     ) -> Result<SiteFace<T>, EulerOpError> {
         let from_data = self.proven_face(from);
+        // The bit the door writes ([`Body::resolve_face_surface`]): the
+        // stated one, or the one the door's topology derives.
+        let sense = match *surface {
+            FaceSurface::New { sense, .. } | FaceSurface::Shared { sense, .. } => sense,
+            FaceSurface::Inherit => match side {
+                ParentSide::With => from_data.sense(),
+                ParentSide::Against => !from_data.sense(),
+            },
+        };
         let chart = match surface {
             FaceSurface::Inherit => from_data.surface().clone(),
             FaceSurface::Shared { key, .. } => self
@@ -4298,6 +4316,7 @@ impl<T: Decide> Body<T> {
         Ok(SiteFace {
             rows_from: from,
             surface: chart,
+            sense,
             moved,
             loops: vec![SiteLoop::Rewired(halves)],
         })

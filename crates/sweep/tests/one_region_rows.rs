@@ -611,7 +611,7 @@ fn a_torus_face_reads_its_essential_cycles_as_one_pair() {
         u: element.deck().u - 2 * windings[0],
         ..element.deck()
     };
-    misread.attach_joint(h, topo::JointElement::Shift(turned));
+    misread.attach_joint(h, topo::JointElement(turned));
     let errors = topo::validate_geometric_structural(&misread, tol()).unwrap_err();
     assert!(
         errors.iter().any(|e| matches!(
