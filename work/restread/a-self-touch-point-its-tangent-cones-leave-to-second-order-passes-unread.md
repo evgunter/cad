@@ -2,12 +2,11 @@
 id: a-self-touch-point-its-tangent-cones-leave-to-second-order-passes-unread
 kind: issue
 title: A self-touch point whose curved faces' tangent cones leave it to second order passes unread
-status: review
-branch: restread/self-touch-refuses
-pr: 6854
+status: closed
 opened: 2026-11-02
 priority: P1
 cost: H
+closed: 2026-11-12
 refs: [tier-3-prime-reads-no-side-where-a-solid-touches-itself-at-a-point-on-a-curved-face]
 ---
 
@@ -449,3 +448,7 @@ profile), was run at `20366d0744`:
 
 The pose-dependent lune is filed as
 `the-lune-reading-depends-on-the-corner-fans-quarter-turn-split.md`.
+
+## Closed
+
+PR 6854 (`restread/self-touch-refuses`) closes it: no self-touch point passes unread. A point the reading reaches and cannot decide refuses `BoundaryCrossesItselfUndecided` with its cause (Ev, PR 6847), and the skip (`census::SelfTouch`) is gone. The classes still refusing, and the two valid bodies pinned as refusals, are filed under `work/restread/` (the two P1 valid-body rows, the pose-dependent lune, the wrong-kind lens, the wrong-cause labels, and the cause arms no row reaches).
