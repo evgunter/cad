@@ -7995,11 +7995,32 @@ mod touch_reread_rows {
     /// result vertices, and each copy's walls tell it apart. They are
     /// `x`'s apex, where `y`'s void meets it, in `x − y` over a void in
     /// the arch, the bare arch, the quad arch and the bare quad arch and
-    /// over the void with the island in it, and in `x ∩ y` crossing the
-    /// island in the void and hanging across the near-flat quad void.
+    /// over the void with the island in it, and in `y − x` over the quad
+    /// void in the quad arch and in the bare quad arch. Which operand's
+    /// corner names a result vertex at a pinch follows the vertex the
+    /// cone split moves, so it follows the pairing (`topo`'s
+    /// `boolean::insert`); the count holds with the vertex pairs reversed
+    /// ([`a_vertex_read_twice_names_alike_with_its_vertex_pairs_reversed`]).
     #[test]
     fn a_vertex_read_twice_names_its_result_in_every_op() {
         let named = every_scene(&poses()[..1]);
+        assert!(named.built > 0, "cells built");
+        assert_eq!(named.fragmented, 7, "corners held as several vertices");
+        assert_eq!(named.tied_corners, 0, "corner names that tie");
+    }
+
+    /// **The names do not read the vertex pairs' order**: at rest, every
+    /// scene again with every reduction taking its vertex pairs and their
+    /// records in reverse (`topo::test_support::with_vertex_pairs_reversed`),
+    /// the same seven corners held as several vertices and none tied.
+    /// With [`a_vertex_read_twice_names_its_result_in_every_op`] it pins
+    /// the names free of the records' order: a two-crossing pair whose
+    /// run followed its records' order counted eight as read and seven
+    /// reversed, which the row as read refuses.
+    #[test]
+    fn a_vertex_read_twice_names_alike_with_its_vertex_pairs_reversed() {
+        let (named, _) =
+            topo::test_support::with_vertex_pairs_reversed(|| every_scene(&poses()[..1]));
         assert!(named.built > 0, "cells built");
         assert_eq!(named.fragmented, 7, "corners held as several vertices");
         assert_eq!(named.tied_corners, 0, "corner names that tie");

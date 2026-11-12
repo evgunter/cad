@@ -226,6 +226,9 @@ impl Angle {
         if !arm.is_finite() {
             return Err(PatchRefusal::NoWidth);
         }
+        // Sizing only: a piece too wide for `target` is still enclosed,
+        // its remainder read from its own half-width below, so this
+        // division cannot under-read a bound, only cost a piece.
         let half_at = |p: usize| {
             (target * factorial(p + 1) / arm.max(f64::MIN_POSITIVE)).powf(1.0 / (p + 1) as f64)
         };
@@ -268,7 +271,8 @@ impl Angle {
             let m = ia + d;
             // The remainder over the piece, its half-width read up from the
             // two `f64` knots, whose difference rounds by at most half an
-            // ulp.
+            // ulp; `(p + 1)!` is exact (`p ≤ WIDE_DEGREE`), and the power's
+            // and quotient's few roundings are under the `1e-12` widen.
             let e = ((b - a) * 0.5)
                 .next_up()
                 .next_up()

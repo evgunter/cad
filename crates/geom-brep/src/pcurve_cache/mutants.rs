@@ -24,7 +24,7 @@ const NAME: Option<&str> = option_env!("PCERT_RADIAL_PAIR_MUTANT");
 
 /// Every site this crate's hooks name. topo's `chord_join` declares its
 /// own one (`topo-v-var`) under the same variable.
-pub(super) const SITES: [&str; 49] = [
+pub(super) const SITES: [&str; 50] = [
     "class-circle",
     "zero-winding",
     "torus-parallel",
@@ -69,6 +69,7 @@ pub(super) const SITES: [&str; 49] = [
     "patch-remainder-dropped",
     "focal-floor-single",
     "spiric-floor-major",
+    "spiric-copy-divisor-high",
     "closed-sup-half-span",
     "stated-image-sampled",
     "net-bound-sampled",
@@ -368,6 +369,13 @@ pub(super) fn focal_floor_single() -> bool {
 /// A spiric wall's multiplier floor read `R`, not `R − r` (the same row).
 pub(super) fn spiric_floor_major() -> bool {
     on("spiric-floor-major")
+}
+
+/// A spiric copy's `f_i − f_c` divisor read `2·sup f_c`, not
+/// `inf f_i + inf f_c` (the same row, and
+/// `closed_image_rows::a_spiric_copy_moved_in_band_is_certified_only_within_it`).
+pub(super) fn spiric_copy_divisor_high() -> bool {
+    on("spiric-copy-divisor-high")
 }
 
 /// A closed form's coefficient bound read over half its span
