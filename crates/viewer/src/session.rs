@@ -1867,7 +1867,7 @@ impl DocSession {
                 // by the scene's door, never in the gather's computing
                 // frame.
                 let gather =
-                    crate::scene::product_in_world(product, doc, self.tol).map(|body| Gathered {
+                    crate::scene::product_in_world(product, self.tol).map(|body| Gathered {
                         at_rest,
                         body: Arc::new(body),
                     });

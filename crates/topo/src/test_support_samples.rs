@@ -1691,6 +1691,24 @@ pub fn validation_error_samples() -> Vec<(String, ValidationError)> {
                     },
                 ));
             }
+            // Undecided: read over a box, and at a point.
+            for verdict in [diags()[1], diags()[0]] {
+                s.push((
+                    format!(
+                        "{}/{measure:?}/{:?}",
+                        label("SurfaceDatumUndecided", &datum),
+                        verdict.margin.kind()
+                    ),
+                    ValidationError::SurfaceDatumUndecided {
+                        face,
+                        kind,
+                        datum,
+                        measure,
+                        end: geom::ConventionEnd::Upper,
+                        verdict,
+                    },
+                ));
+            }
         }
     }
 
@@ -1717,6 +1735,23 @@ pub fn validation_error_samples() -> Vec<(String, ValidationError)> {
                     },
                 ));
             }
+            for verdict in [diags()[1], diags()[0]] {
+                s.push((
+                    format!(
+                        "{}/{measure:?}/{:?}",
+                        label("CurveDatumUndecided", &datum),
+                        verdict.margin.kind()
+                    ),
+                    ValidationError::CurveDatumUndecided {
+                        edge,
+                        kind,
+                        datum,
+                        measure,
+                        end: geom::ConventionEnd::Upper,
+                        verdict,
+                    },
+                ));
+            }
         }
     }
 
@@ -1728,6 +1763,12 @@ pub fn validation_error_samples() -> Vec<(String, ValidationError)> {
         "OutsideSessionBox".into(),
         ValidationError::OutsideSessionBox {
             margin: geom_core::MarginDiag::value(-2.5e3),
+        },
+    ));
+    s.push((
+        "Unmovable".into(),
+        ValidationError::Unmovable {
+            found: "a null scaffold",
         },
     ));
     for error in offset_fit_errors() {
