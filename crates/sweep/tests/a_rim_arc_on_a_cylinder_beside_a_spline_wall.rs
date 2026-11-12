@@ -91,41 +91,48 @@ fn tube(end: Point3<f64>) -> AtRestBody<f64> {
 /// which leaves the rim tangent to the cylinder, is read in band of the
 /// wall (an honest escalation, a second-order departure inside a wide
 /// band). At `1e-9` and `1e-12` it stops describing the result's rim arc
-/// on the wall's arc joint. Any other ε is unmeasured, and only the
-/// arc's being taken is asserted there.
+/// on the wall's arc joint, the edge `9v1`. Any other ε is unmeasured,
+/// and only the arc's being taken is asserted there. The same holds with
+/// every reduction taking its vertex pairs and their records in reverse
+/// (`test_support::with_vertex_pairs_reversed`): red if a two-crossing
+/// pair's run follows its records' order (`insert::start_pairs`), which
+/// puts the stop on `10v1` one way round and `9v1` the other.
 #[test]
 fn a_rim_arc_beside_a_bent_spline_wall_is_taken_on_the_cylinder() {
-    let got = topo::union(&cylinder(), &tube(Point3::new(1.5, 0.0, 3.0)), tol());
-    assert!(
-        !matches!(got, Err(BooleanError::CurvedPierceUnsupported { .. })),
-        "the cap's rim arc lies on the cylinder beside a spline wall off it: {got:?}"
-    );
-    let key = |k: &dyn core::fmt::Debug| format!("{k:?}");
-    let eps = tol().eps();
-    if eps == 1e-6 {
+    let union = || topo::union(&cylinder(), &tube(Point3::new(1.5, 0.0, 3.0)), tol());
+    let (reversed, _) = topo::test_support::with_vertex_pairs_reversed(union);
+    for (order, got) in [("as read", union()), ("reversed", reversed)] {
         assert!(
-            matches!(
-                &got,
-                Err(BooleanError::CurvedPierceEscalated { operand: topo::Operand::B, face, edge, diag, .. })
-                    if key(face) == "FaceKey(3v1)"
-                        && key(edge) == "EdgeKey(4v1)"
-                        && diag.predicate == Some("spline_composite_past_the_band")
-            ),
-            "at ε 1e-6 the tube's tangent edge escalates against the wall: {got:?}"
+            !matches!(got, Err(BooleanError::CurvedPierceUnsupported { .. })),
+            "{order}: the cap's rim arc lies on the cylinder beside a spline wall off it: {got:?}"
         );
-    } else if eps == 1e-9 || eps == 1e-12 {
-        assert!(
-            matches!(
-                &got,
-                Err(BooleanError::EdgeUndescribed {
-                    edge,
-                    failure: EdgeDescribeFailure::Crease,
-                    cause: None,
-                    fitted: false,
-                }) if key(edge) == "EdgeKey(10v1)"
-            ),
-            "the union stops describing the result's rim arc on the wall's arc joint: {got:?}"
-        );
+        let key = |k: &dyn core::fmt::Debug| format!("{k:?}");
+        let eps = tol().eps();
+        if eps == 1e-6 {
+            assert!(
+                matches!(
+                    &got,
+                    Err(BooleanError::CurvedPierceEscalated { operand: topo::Operand::B, face, edge, diag, .. })
+                        if key(face) == "FaceKey(3v1)"
+                            && key(edge) == "EdgeKey(4v1)"
+                            && diag.predicate == Some("spline_composite_past_the_band")
+                ),
+                "{order}: at ε 1e-6 the tube's tangent edge escalates against the wall: {got:?}"
+            );
+        } else if eps == 1e-9 || eps == 1e-12 {
+            assert!(
+                matches!(
+                    &got,
+                    Err(BooleanError::EdgeUndescribed {
+                        edge,
+                        failure: EdgeDescribeFailure::Crease,
+                        cause: None,
+                        fitted: false,
+                    }) if key(edge) == "EdgeKey(9v1)"
+                ),
+                "{order}: the union stops describing the result's rim arc on the wall's arc joint: {got:?}"
+            );
+        }
     }
 }
 

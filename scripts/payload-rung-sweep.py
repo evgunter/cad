@@ -254,6 +254,10 @@ DISPOSITIONS: dict[str, tuple[str, str]] = {
     # same carrier, the same row.
     "AlongFace": ("filed", "work/lib/boolean-decision-and-contradiction-are-rungs-under-"
                   "boolean-error.md"),
+    # `BooleanError::SharedVertexCrossings`' why (PR 6832): the same
+    # carrier, the same row.
+    "SharedStarts": ("filed", "work/bind/boolean-decision-and-contradiction-are-rungs-under-"
+                     "boolean-error.md"),
     "Diagnosis": ("argued", "the telemetry half, deliberately interior, "
                             "crates/pncad/src/select.rs"),
     "KProbe": ("filed", "work/bind/kprobe-is-a-rung-under-drive-config-on-the-analysis-list.md"),

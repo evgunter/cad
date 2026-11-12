@@ -25,7 +25,7 @@ fn the_mate_door_commits_through_undo_redo_and_replay() {
     let before = session.doc().clone();
     assert_eq!(before.node_space(bench.post_b), Some(own));
     let shelf_bundle = crate::fixture::bundle(&before, bench.shelf_i);
-    let mate = common::commit_mate(
+    let mate = common::commit_mate_in_one_change(
         &mut session,
         asm::seat_op(&bench, bench.post_b, asm::middle_seat_values()),
     );

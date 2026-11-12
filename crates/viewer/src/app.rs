@@ -1463,6 +1463,12 @@ impl ViewerApp {
             // to learns its id here and nowhere else.
             let made = outcome.made;
             let committed = outcome.refusal.is_none();
+            // A door's target change held over the copy's own constraints
+            // opens the placement editor holding it.
+            if let Some(refusal) = &outcome.refusal {
+                self.tools
+                    .held_target(refusal, self.session.committed_doc());
+            }
             // The placement editor opens on the placement a Place made,
             // and settles the draft whose change landed or was refused.
             if matches!(
@@ -8942,9 +8948,12 @@ mod properties_pane_tests {
     fn an_edge_direction_mate_at_the_panels_default_keeps_its_copy_upright() {
         let mut driven = Driven::with(Vec::new());
         driven.settle();
-        driven.perform(SessionOp::Place {
-            body: pncad::document::Operand::Node(extrude()),
-        });
+        let place = SessionOp::place_where_it_stands(
+            driven.app.session.committed_doc(),
+            pncad::document::Operand::Node(extrude()),
+        )
+        .expect("a body in a space");
+        driven.perform(place);
         let doc = driven.app.session.committed_doc().clone();
         let [copy] = doc
             .placements()
@@ -8990,8 +8999,16 @@ mod properties_pane_tests {
             matches!(driven.app.session.committed_doc().node(copy), Some(Node::Place { constraints, .. })
                 if constraints.iter().any(|c| c.mate().is_some()))
         };
+        // The edge's `to` reads the other copy's space: "Into" it, a
+        // target change of its own, and the held mate lands after it.
         if !mated(&driven) {
-            driven.click("move the copy into the target's space");
+            let doc = driven.app.session.committed_doc();
+            let into = format!(
+                "Into {}",
+                doc.spoken_space(doc.node_space(placement()).expect("placed"))
+            );
+            driven.click(&into);
+            driven.quiet();
             driven.quiet();
         }
         let (doc, ev) = driven.app.session.landed_pair().expect("landed");
