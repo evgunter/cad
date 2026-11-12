@@ -31,11 +31,36 @@ refusal past the join.
 
 The certificate reads the whole carrier each time
 (`carrier_net::carrier_span`: a spline spans its own knot domain), so
-each chord cut from one carried arc pays for all of it. Its parts were
-not timed apart: the image's climb projects 33 + 65 + 129 + 257 feet,
-limb 2 composes a degree-5 image with the wall over each of the
-carrier's spans (554 for the sphere at s = 1), and limb 3 reads the
-tube over the same windows.
+each chord cut from one carried arc pays for all of it.
+
+## Where the time goes
+
+Timed apart by both reviews of PR 6879 (opt-level 1, default ε, one
+certificate of the rest rows' arc at s = 1):
+
+| arc | the image (climb and per-sample hook) | limbs 1 and 2 | limb 3 | the certificate |
+|---|---|---|---|---|
+| sphere | 14 ms | 150 ms | 676 ms | 827 ms |
+| torus | 12 ms | 93 ms | 1746 ms | 1840 ms |
+| cylinder | 0.9 ms | 2.5 ms | 178 ms | 180 ms |
+
+- **Limb 3 is 80 to 98% of it** (82%, 95% and 98% above). The image's
+  climb, which this item first suspected, is about 1%.
+- The tube has one box per span of the image. The climbed image has
+  252 spans where the degree-1 image has 32, so a bent arc's tube reads
+  eight times the boxes a plane's does.
+- It is paid once per chord, on a carrier the trace already certified
+  on its own knots, tube included (`ssi::certify_rung3`).
+
+## What of it is avoidable
+
+- **Once per carrier, not once per chord.** Every chord cut from one
+  carried arc re-reads the whole arc's tube; a certificate keyed on the
+  carrier and the pair would be read by each of its chords.
+- **The tube's boxes hulled over runs of spans**, as the NURBS × NURBS
+  lane's are (`PAIR_TUBE_BOXES`): 252 boxes of one image span each are
+  finer than the theorem needs wherever a run's hull still excludes
+  zero.
 
 The plane's lane is the same shape at a tenth of the cost
 (`a-carried-plane-spline-chords-at-rest-certificate-costs-half-a-second`).

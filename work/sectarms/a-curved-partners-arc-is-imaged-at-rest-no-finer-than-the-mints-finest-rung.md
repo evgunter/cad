@@ -60,6 +60,29 @@ the loft prism's flat wall), which is why the curved lane climbs at all.
   ε = 1e-12 the union stops at the chord's certificate on this miss;
   at the other rows it passes the join.
 
+## Headroom where it certifies
+
+The rows that certify do so narrowly. At s = 1 and the default ε the
+image's worst miss is 5.1e-10 m against ε = 1e-9 m, and a review of
+PR 6879 measured the rest of the way: the image shifted by 4e-10 chart
+units flips the arm from certifying to
+`Escalated { check: PlaneNurbsHullValue }` (2.19e-9 m at a shift of
+1e-9; `ImageMiss` 4.2e-8 m at 2e-8). The same sphere with either
+surface stood half of ε off the arc is therefore not held to certify
+by any row: `the_stand_off_is_decided_on_the_runs_band` reads the
+sphere at s = 0.01, where the miss is 1.3e-12 m. At s = 100 the arm
+escalates on a miss of 2.17e-9 m.
+
+## The two lanes read different images for one role
+
+Since PR 6879 the residual × NURBS door (`edge_nurbs::residual_nurbs_limbs`)
+reads the wall's image of the carrier two ways: beside a plane the
+degree-1 interpolant of the schedule's feet (`chart_image`), beside a
+sphere, cylinder or torus the mint's climbed image
+(`general_chart_image`). One role, the image limb 2 and the tube are
+read on, has two answers by the partner's kind, chosen in one `match`
+in that door. Whichever candidate below is taken should end that.
+
 ## The choice this leaves
 
 C2 says rest re-derives the door's certificate and that the image is
@@ -72,7 +95,10 @@ fitted arc that bends in the chart. Three candidates, none built:
 2. The door states its pcurve (`SsiBranch::pcurve_b`, already on the
    carrier's parameter), the edge certificate reads it as it stands
    (`EdgeCurve::certify_stated`, the `OnPair` lane's shape), and the
-   face stores it as the edge's row.
+   face stores it as the edge's row. **This changes what a face
+   stores** (the trace's pcurve in place of the mint's climb), so it
+   is a design fork: it goes to designers (`docs/prompts/designer.md`)
+   before it is built, not to an implementer.
 3. A finer rung on the mint's climb, which moves every stored
    `Pcurve::General` that reaches it.
 

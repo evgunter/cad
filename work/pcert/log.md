@@ -1327,3 +1327,8 @@ E1c waits on the answer.
     - spiricarm P3 for the pad drift.
 
 - 2026-11-12 — **`main-red-a-cone-stated-image-fuzz-seed-fails-at-1e-12` closed. PR 6857 had already fixed it.** sectarms' lane filed it at 08:44, before 6857 merged. The orchestrator ran the seed on 6857's parent, where it is red (sample 5, the computed station's width, [0, 6.8e-12]), and on main, where it is green. The seed is now pinned as a row beside 6857's cone row, and it goes red under 6857's mutant.
+
+- 2026-11-12 — **Filed from outside, P0: `a-general-image-that-leaves-the-knot-rectangle-between-two-nodes-certifies-its-row-off-the-wall`.** The fix pass of sectarms' PR 6879 probed a review finding against `PcurveCache::certify_general` and it reproduces.
+  - **What.** The fitted-grade door reads limbs 1 and 2 and nothing holds the image to the wall's knot rectangle, so where the image leaves it between two nodes the composite reads the wall's polynomial extension and the row certifies. Measured at the default ε: a circle dipping up to 1e-5 m past a flat wall's rim certifies its row; the incidence read ends it at 1e-4 m.
+  - **What holds today.** A witness-selected `Intersection` edge is still refused, by limb 3's tube (a row in PR 6879 pins that). The row's other readers have no limb 3.
+  - **Not probed.** Whether a body can be built that stores such a row, and whether tier 3 or the mint's walk refuses it by another check. The item says so.
