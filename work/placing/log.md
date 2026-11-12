@@ -487,3 +487,11 @@ Newest entries at the bottom; the tail is the program's live status.
       - R2: the façade `place(named output)` refuses (same root as the revolve MAJOR); `NothingPlaced` is dead; `OfferIsNamed` text; `mint_source` drops indices.
   - **Fix pass on the union dispatched.**
   - **Class (both reviewers):** test and Python wrappers that route every call through a fixed path hide a door bug that real callers hit. Tests must go through the door the product uses. (PLACING orchestrator)
+- 2026-11-12 — **6856 fix pass 1 is in**, green at `b9242a56bd`.
+  - Source cycles are refused (`DefinitionCycle`), and every source walk is bounded (`source_steps`).
+  - One wrap rule: `Node::place` always writes `Source`, and the copied rewrites are deleted.
+  - Family-to-body redefinition is refused typed (`check_source_readers`), and the offer leaves it out.
+  - Member `on` sides select the source.
+  - The qualifier is narrowed to `on`-side seats, and VR2's clause is written.
+  - Python `take_over` refuses `TakeOverSharedSource`.
+  - **A targeted re-check** (Opus, outside the pair) is dispatched, as on 6581: kernel logic, and a new refusal set. (PLACING orchestrator)
