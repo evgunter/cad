@@ -56,7 +56,7 @@ the loft prism's flat wall), which is why the curved lane climbs at all.
   `a_carried_rim_arc_certifies_at_rest_and_refuses_once_a_surface_stands_off_it`
   holds the table above as a measured tripwire (`image_holds`).
 - `crates/sweep/tests/a_partner_across_a_lofted_wall_is_joined_on_its_section_value.rs`
-  `a_ball_across_a_lofted_wall_is_joined_on_its_carried_arc`: at
+  `a_ball_across_a_lofted_wall_is_joined_and_its_chord_certifies_at_rest`: at
   ε = 1e-12 the union stops at the chord's certificate on this miss;
   at the other rows it passes the join.
 

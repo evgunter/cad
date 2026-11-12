@@ -48,7 +48,7 @@ fn chord_certificate(e: &BooleanError) -> Option<&geom_brep::CertifyError> {
 /// germ through a frame (`GermFrameUnsupported`); a table that does not
 /// hold the pair.
 #[test]
-fn a_ball_across_a_lofted_wall_is_joined_on_its_carried_arc() {
+fn a_ball_across_a_lofted_wall_is_joined_and_its_chord_certifies_at_rest() {
     let t = Tol::witness();
     let prism = finished("the loft prism", loft_prism(t), t);
     for (what, c) in [

@@ -60,7 +60,9 @@ filed:
 
 - past the join, the inside/outside test cannot cross a spline face
   (`work/inside/point-containments-ray-test-has-no-spline-arm.md`): the
-  ball row is pinned there at ε = 1e-9 and 1e-6;
+  ball row (now
+  `a_ball_across_a_lofted_wall_is_joined_and_its_chord_certifies_at_rest`)
+  is pinned there at ε = 1e-9 and 1e-6;
 - at ε = 1e-12, and on a ten-metre wall at 1e-9, the chord refuses on
   the lane's own image
   (`a-curved-partners-arc-is-imaged-at-rest-no-finer-than-the-mints-finest-rung`).
