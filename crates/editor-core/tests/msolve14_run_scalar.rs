@@ -802,10 +802,13 @@ fn run_at<T: editor_core::test_support::AnyEvaluate>(
 /// pin, so every id the digest feeds moves with the row. The rows are
 /// the three the hosted matrix runs; any other ε has no measurement and
 /// the row fails rather than pass on nothing.
+// Re-measured when a placement came to read its body through a source
+// it mints (VARIABLES VR4): the digest feeds every node id, and one more
+// minted variable per placement moves the ids after it.
 const MAIN_CORPUS_DIGEST: [(f64, u64); 3] = [
-    (1e-9, 0xb45f_83ac_32e6_ae67),
-    (1e-6, 0x1480_cddd_152c_b481),
-    (1e-12, 0xabc4_cdbd_523f_e822),
+    (1e-9, 0x0ead_14ce_445e_ce03),
+    (1e-6, 0x73a8_4e8b_71c0_bd39),
+    (1e-12, 0xc80b_ee07_2317_7015),
 ];
 
 /// **Each seat of the corpus stands on what it is seated on**: in the
