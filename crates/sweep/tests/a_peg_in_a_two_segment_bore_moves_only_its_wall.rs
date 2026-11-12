@@ -128,7 +128,7 @@ fn a_peg_in_one_segment_of_a_bore_moves_only_its_wall_in_both_orders() {
     let moved = turn(Vec3::zero()).transform_point(pivot);
     let peg = finished(
         "the peg",
-        topo::transform_rigid(&rod(R, (0.25, 0.75)), &turn(pivot - moved), tol).unwrap(),
+        topo::transform_rigid(&rod(R, (0.25, 0.75)), &turn(pivot - moved)).unwrap(),
         tol,
     );
     let peg_wall = walls(&peg)[0];
