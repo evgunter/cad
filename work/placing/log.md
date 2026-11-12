@@ -521,3 +521,10 @@ Newest entries at the bottom; the tail is the program's live status.
   - The round-1 MAJORs are closed. The load-semantics change and the VR4 sentence are judged faithful.
   - **Orchestrator ruling, structural:** a source's redefinition, or a source handover, runs the load's own whole-document check, or its downstream-scoped equivalent. Door/load parity then holds by construction, so no more per-reader arms.
   - **Fix pass 3 dispatched.** (PLACING orchestrator)
+- 2026-11-12 — **6856 fix pass 3 accepted on the orchestrator's read** (`2daaf3b31a`).
+  - **The structural fix:** the door runs `persist::check::validate_document` after a source's `DefineVar`, so door/load parity holds by construction. Measured at 139 ms per door run at 641 nodes in debug, about one `save`.
+  - **Also in the pass:** the offer runs the action's own checks and is cached per generation; one rank rule; rows for the revolve's off-space combine.
+  - **The gate is red on one hosted Python row,** `TestTeapot.test_the_handle_join_builds_and_the_spout_join_refuses`. It was red only after main's PR 6872 merged in, and it passes locally on the branch and on main.
+    - Filed by the lane as `work/pcert/main-red-the-teapot-spout-join-refuses-join-on-the-hosted-runner.md`, on 6856's branch.
+    - The orchestrator's `workflow_dispatch` on main is refused 403 to this integration. Tonight's nightly is the first to include 6872 and decides it; a check-in is set for 09:45 UTC.
+  - The dual-review row is being coded blind (byte 170, even, so A = R1). (PLACING orchestrator)
