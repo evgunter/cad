@@ -113,6 +113,7 @@ mod handle;
 mod implicit_chart;
 pub mod jet;
 pub mod march;
+pub(crate) mod node;
 mod one_arc;
 pub(crate) mod pair;
 mod refine;
