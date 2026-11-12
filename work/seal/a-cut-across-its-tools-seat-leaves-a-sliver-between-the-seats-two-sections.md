@@ -2,11 +2,13 @@
 id: a-cut-across-its-tools-seat-leaves-a-sliver-between-the-seats-two-sections
 kind: issue
 title: A cut across its tool's declared seat leaves a sliver of the cut part between the seat's two sections, which the finish keeps: X − (bolt ⊔ plate) refuses ToolSeatCrossed
-status: dispatched
+status: closed
 opened: 2026-11-09
 priority: P1
 cost: H
 design: true
+closed: 2026-11-12
+pr: 6860
 ---
 
 
@@ -103,3 +105,40 @@ The build found that a face–face record carries no class and no margin: at the
 - **Why the class follows.** For two planar faces the record certifies one plane, the reading `contact::area_record` documents and `vtxfac::Wall` and `Held::apart` already build on. One carrier with opposed senses is `GlueClass::Rest` by that class's definition. So the class is what the record means, not a new band decision, and nothing is decided twice.
 - **Curved faces.** A face–face record of curved faces may be a line tangency, which the record does not tell from an area. The fuse refuses typed and names the pair. The census cannot record one today (`work/atrest/the-census-cannot-record-a-curved-seat-between-two-solids.md`).
 - **What it does not move.** No ratified text: `[topology.records]` keeps "the pair and nothing else", and `[coincidence.booleans]` holds, because the record is taken, not re-decided. Carrying the class from the record's backing, or storing it on the record, stay where `a-cut-by-a-curved-seat-keeps-its-two-faces-held-apart-by-the-record` leaves them.
+
+## Closed (2026-11-12, PR 6860)
+
+A cut reads its tool as material (`crates/topo/README.md` `[topo.cut-material]`). The cut's door (`boolean::nary::cut_by_material`) makes every solid of a tool whose solids rest on each other a member, carved out with its keys (`carve::solid_alone`). It unites the members in `run_members`, every step given each planar face–face record between two solids as a `Rest` pair (`nary::tool_parts`), and deciding no carrier pair. Then the ordinary cut runs, and `boolean::material::Through` restates the result in the tool's cells. The crack is never minted.
+
+- **Deleted.** `BooleanError::ToolSeatCrossed` with its kind, tag and editor row; `seat_crossed`; `vtxfac`'s cut-tool branch; the cut arm of `Held::apart`.
+- **Given verdicts.** `GivenDecision` is now `Rest`, `Continuation`, or `Tangent { margin, line }`: a one-carrier given pair carries its class alone.
+- **Refusals.** A curved or lower-cell record between two of the tool's solids refuses `ToolSeatUnread` naming it.
+
+**Evidence** (`crates/topo/tests/a_vertex_through_a_declared_seat.rs`, at rest and turned, tier 3 and 3′):
+- `a_cut_by_its_tools_seat_reads_the_tool_as_material`:
+  - post: typed empty;
+  - pin: 6 faces, 0.020;
+  - bead: 6 faces, 0.006;
+  - slab: 14 faces, 2.276;
+  - cap: 10 faces, 0.168;
+  - over: 8 faces, 0.030;
+  - collar: 10 faces, 0.096;
+  - corner: 6 faces, 0.018.
+- `a_block_inside_the_seats_material_is_cut_away`: ridge, down, above, below and blade are typed empty.
+- `a_cut_by_the_seat_is_the_cut_by_each_piece_in_turn`: the fold identity.
+- `a_tool_of_three_stacked_solids_is_one_material`.
+- The split post, both ways, in `a_seat_divided_along_a_ring_or_met_with_a_seat_refuses_at_the_carry`.
+
+**Elsewhere:**
+- `nary.rs`'s `a_tools_seat_is_taken_and_decided_nowhere`: no step decides a carrier pair.
+- `crates/sweep/tests/a_cut_by_a_curved_seat_refuses_its_material.rs`: the coaxial and flush shafts refuse `ToolSeatUnread`.
+- The editor's `a_seat_as_a_cuts_tool_is_read_as_its_material`: the post is empty, and a cap's floor is named as the plate's top.
+- `S − X`, both `∩` and `∪` are unchanged; the bridged `∪` still refuses `TouchesItself`.
+
+Five mutants were each killed by a named row (PR body).
+
+Residues:
+- `a-cut-by-a-tool-whose-pieces-also-meet-at-a-line-refuses`;
+- `a-row-on-a-merged-face-of-a-cuts-material-names-one-tool-face`;
+- the narrowed `a-cut-by-a-curved-seat-keeps-its-two-faces-held-apart-by-the-record`;
+- the narrowed `a-seat-held-apart-across-two-shells-of-one-solid-passes-the-gate`.
