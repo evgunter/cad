@@ -1,7 +1,8 @@
 //! **A ring lane's chart-free reading on a cylinder, a sphere, a cone
 //! or a torus face**: the parity of a path on the face's surface across
 //! a closed curve of loop arcs, which says whether the path's ends lie
-//! on one side of the curve or on opposite sides.
+//! on one side of the curve or on opposite sides. A spline wall is read
+//! the same way along its chart's iso curves ([`SplineWall`]).
 //!
 //! The path is made of pieces whose meeting with a loop arc is closed
 //! form: on a cylinder or a cone, a segment of a ruling and an arc of a
@@ -725,8 +726,9 @@ pub(crate) enum LoopArc<T: Real> {
     Spline(SplineArc<T>),
 }
 
-/// **A spline arc on a cylinder, a sphere or a torus face, with the
-/// evidence that it lies on the face's surface to within the band.**
+/// **A spline arc on a cylinder, a sphere, a torus or a spline face,
+/// with the evidence that it lies on the face's surface to within the
+/// band.**
 ///
 /// [`spline_crossings`] reads a spline arc's meetings with a path's
 /// pieces through the curve-pair table, which finds the points where
@@ -745,9 +747,10 @@ pub(crate) enum LoopArc<T: Real> {
 ///   with its three-limb certificate against both surfaces of the
 ///   section, the chord a join is about to mint from it.
 ///
-/// Both are read on a cylinder, a sphere or a torus face: the faces a
-/// carried chord bounds, which the ring lane's rows read
-/// (`ring_path::tests`). Every piece of a torus path past its lead lies
+/// Both are read on a cylinder, a sphere, a torus or a spline face: the
+/// faces a carried chord bounds, which the ring lane's rows read
+/// (`ring_path::tests`, `ring_path::spline_wall_rows`). A spline wall's
+/// pieces are its own iso curves, which lie on it. Every piece of a torus path past its lead lies
 /// on the tube through its end, within the band of the face's own, so the
 /// argument is the cylinder's: a crossing on the surface is a meeting in
 /// space. The lead, which moves the start onto that tube along its own
@@ -1635,9 +1638,10 @@ pub(crate) fn path_parity<T: Decide>(
 /// on it ([`SplineArc`]):
 /// every meeting it finds lies inside both spans and is a crossing, the
 /// sine between the two curves' directions there decided past the band
-/// (**`split_ring_path_spline_across`**, levered at the piece's length
-/// and charged `slack`). The arrival on the closing chord, at the end of
-/// the path's last piece, is no crossing before it (`arrival`). `None`
+/// (**`split_ring_path_spline_across`**, levered at the piece's length,
+/// an iso curve's chord, and charged `slack`). The arrival on the closing
+/// chord, at the end of the path's last piece, is no crossing before it
+/// (`arrival`). `None`
 /// where the path says nothing: a meeting at either span's end (the
 /// path starts on the arc or runs through its end) or in the zero band
 /// of the crossing reading, a shared run, or a meeting the reader could
@@ -1734,9 +1738,9 @@ fn spline_crossings<T: Decide>(
 /// nothing there, as a probe ray grazes; so does a limit of the reader
 /// or a pose it has no closed form for. An escalation escalates. A
 /// carrier of a kind its arm does not read, or two readings that
-/// contradict, is the kernel's fault: a piece is a circle or a line and
-/// the arc a spline, which the table reads, and a contradiction is ruled
-/// out by the readings' definitions.
+/// contradict, is the kernel's fault: a piece is a circle, a line or a
+/// spline and the arc a spline, which the table reads, and a
+/// contradiction is ruled out by the readings' definitions.
 fn meet_refused(fault: geom_brep::curve_pair::MeetFault) -> Result<Option<usize>, Indeterminate> {
     use geom_brep::curve_pair::MeetKind;
     match fault.kind() {
@@ -2097,8 +2101,8 @@ mod graze_rows;
 mod spline_fuzz;
 
 mod spline_wall;
-pub(crate) use spline_wall::SplineWall;
 use spline_wall::IsoPiece;
+pub(crate) use spline_wall::SplineWall;
 
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]

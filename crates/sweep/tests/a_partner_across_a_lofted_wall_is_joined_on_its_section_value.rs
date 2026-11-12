@@ -213,28 +213,96 @@ fn a_brick_across_a_lofted_wall_is_joined_on_its_carried_arcs() {
     );
 }
 
+/// Whether the run stopped past the join, at the inside/outside test
+/// that cannot cross a spline face
+/// (`work/inside/point-containments-ray-test-has-no-spline-arm.md`).
+fn stops_at_containment(refusal: &BooleanError) -> bool {
+    matches!(
+        refusal,
+        BooleanError::Containment(topo::PointInSolidError::KindUnsupported {
+            kind: geom::SurfaceKind::Nurbs,
+            ..
+        })
+    )
+}
+
+/// **A brick wholly inside the flat wall's face closes a ring on the
+/// wall**: its four planes meet the wall in a closed loop of four
+/// carried arcs, and the chord that closes the loop walls an island off
+/// the wall, wound by paths along the wall's own iso curves. Every
+/// operation passes the join and stops at the inside/outside test.
+///
+/// Red against: a ring lane with no winding on a spline wall, where each
+/// run refused `CurvedBooleanUnsupported` naming the wall; a winding
+/// read the other way round, where the island's run takes the wall's
+/// outer loop and the join desyncs.
 #[test]
-fn probe_brick_inside_wall() {
+fn a_brick_inside_a_lofted_walls_face_closes_a_ring_on_the_wall() {
     let t = Tol::witness();
     let prism = finished("the loft prism", loft_prism(t), t);
-    let brick = |x, y, z| {
+    let brick = finished(
+        "the brick",
+        topo::test_support::brick_with_fresh_keys::<f64>(
+            (-0.25, 0.25),
+            (0.75, 1.25),
+            (0.75, 1.25),
+            t,
+        ),
+        t,
+    );
+    for (what, run) in [
+        ("prism ∪ brick", topo::union(&prism, &brick, t)),
+        ("prism ∖ brick", topo::subtract(&prism, &brick, t)),
+        ("prism ∩ brick", topo::intersect(&prism, &brick, t)),
+        ("brick ∪ prism", topo::union(&brick, &prism, t)),
+        ("brick ∖ prism", topo::subtract(&brick, &prism, t)),
+    ] {
+        let refusal = run.expect_err("no ray crosses the prism's spline walls");
+        assert!(
+            stops_at_containment(&refusal),
+            "{what}: the island closes on the wall and the join completes, the inside/outside \
+             test refusing the wall: {refusal:?}"
+        );
+    }
+}
+
+/// **A fork with two prongs inside the flat wall's face closes two
+/// rings on the wall**: when the first island is walled off, the other
+/// prong's pierce rings are bystanders on the wall, each placed out of
+/// the island by a path on the wall. The union passes the join and stops
+/// at the inside/outside test.
+///
+/// Red against: a re-homing with no reading on a spline wall, where the
+/// first island's chord refused `RingIslandUnread` naming the wall.
+#[test]
+fn a_fork_inside_a_lofted_walls_face_closes_two_rings_on_the_wall() {
+    let t = Tol::witness();
+    let prism = finished("the loft prism", loft_prism(t), t);
+    let brick = |x, y| {
         finished(
             "a brick",
-            topo::test_support::brick_with_fresh_keys::<f64>(x, y, z, t),
+            topo::test_support::brick_with_fresh_keys::<f64>(x, y, (0.75, 1.25), t),
             t,
         )
     };
-    let z = (0.75, 1.25);
-    let left = brick((-0.6, -0.3), (0.75, 1.5), z);
-    let right = brick((0.3, 0.6), (0.75, 1.5), z);
-    let bridge = brick((-0.6, 0.6), (1.5, 1.8), z);
-    let half = topo::union(&left, &bridge, t).expect("left ∪ bridge");
-    let half = half.body().expect("a union is never empty").body.clone();
-    let fork = topo::union(&half, &right, t).expect("fork");
-    let fork = fork.body().expect("a union is never empty").body.clone();
-    let start = std::time::Instant::now();
-    let run = topo::union(&prism, &fork, t).map(|_| ());
-    eprintln!("PROBE prism ∪ fork: {run:?} in {:?}", start.elapsed());
-    let run = topo::subtract(&fork, &prism, t).map(|_| ());
-    eprintln!("PROBE fork ∖ prism: {run:?}");
+    let joined = |a: &topo::AtRestBody<f64>, b: &topo::AtRestBody<f64>| {
+        topo::union(a, b, t)
+            .expect("two bricks sharing a face unite")
+            .body()
+            .expect("a union is never empty")
+            .body
+            .clone()
+    };
+    let bridge = brick((-0.6, 0.6), (1.5, 1.8));
+    let fork = joined(
+        &joined(&brick((-0.6, -0.3), (0.75, 1.5)), &bridge),
+        &brick((0.3, 0.6), (0.75, 1.5)),
+    );
+    let refusal =
+        topo::union(&prism, &fork, t).expect_err("no ray crosses the prism's spline walls");
+    assert!(
+        stops_at_containment(&refusal),
+        "both islands close on the wall and the join completes, the inside/outside test \
+         refusing the wall: {refusal:?}"
+    );
 }

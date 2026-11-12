@@ -33,7 +33,13 @@ pub(super) fn wall_side(
 ) -> Result<RingSide, JoinError> {
     let surface = body.proven_face(oldf).surface().clone();
     let quadric = Quadric::of(&surface).unwrap();
-    path_ring_side(body, (&surface, &crate::ring_path::Carrier::Quadric(quadric)), (oldf, newf), ring, band())
+    path_ring_side(
+        body,
+        (&surface, &crate::ring_path::Carrier::Quadric(quadric)),
+        (oldf, newf),
+        ring,
+        band(),
+    )
 }
 
 /// The unit wall `[u0, u1] × [0, 1]` holding the island

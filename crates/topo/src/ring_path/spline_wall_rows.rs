@@ -14,8 +14,11 @@ use super::{LoopArc, SplineArc, path_parity};
 /// A bent wall: one biquadratic span over the unit chart, bulged off
 /// the plane `y = 0` in its middle and sheared along `x`, so neither
 /// iso family is straight.
+fn clamped() -> KnotVector {
+    KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap()
+}
+
 fn wall() -> geom::NurbsSurface<f64> {
-    let clamped = || KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap();
     let mut control = Vec::new();
     for i in 0..3 {
         for j in 0..3 {
@@ -114,7 +117,13 @@ fn a_spline_wall_path_arriving_on_a_side_reads_its_starts_side() {
     let q = (u1, 0.5 * (v0 + v1));
     let to = chart.eval(q.0, q.1);
     let mut decided = 0;
-    for a in [(0.1, 0.12), (0.45, 0.4), (0.9, 0.55), (0.6, 0.85), (0.9, 0.12)] {
+    for a in [
+        (0.1, 0.12),
+        (0.45, 0.4),
+        (0.9, 0.55),
+        (0.6, 0.85),
+        (0.9, 0.12),
+    ] {
         let paths = wall.paths((chart.eval(a.0, a.1), to), band()).unwrap();
         assert_eq!(paths.len(), 2, "{a:?}: its paths");
         // The first path arrives along the `v` iso, across the side; the
@@ -147,14 +156,10 @@ fn a_spline_wall_path_arriving_on_a_side_reads_its_starts_side() {
 #[test]
 fn a_wall_with_no_shared_iso_weights_and_a_point_off_the_wall_are_not_read() {
     let chart = wall();
-    let (knots_u, knots_v) = (
-        chart.knots_u_f64_interim().clone(),
-        chart.knots_v_f64_interim().clone(),
-    );
     let mut weights = vec![1.0; 9];
     weights[4] = 0.5;
     let rational =
-        geom::NurbsSurface::new(knots_u, knots_v, chart.control().to_vec(), weights).unwrap();
+        geom::NurbsSurface::new(clamped(), clamped(), chart.control().to_vec(), weights).unwrap();
     assert!(SplineWall::of(&geom::Surface::Nurbs(Arc::new(rational))).is_none());
     let surface = geom::Surface::Nurbs(Arc::new(chart.clone()));
     let wall = SplineWall::of(&surface).unwrap();

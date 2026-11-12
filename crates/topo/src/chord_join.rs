@@ -3819,8 +3819,8 @@ fn ring_island_unread<T: Real>(face: FaceKey, surface: &geom::Surface<T>) -> Joi
 /// metres (`R·|Δu|` plus the axial variation, per piece).
 ///
 /// A sphere, a cone or a torus face winds without a chart
-/// ([`path_island_winding`]), and so does a cylinder face a carried
-/// chord closes; any other curved kind refuses typed
+/// ([`path_island_winding`]), and so does a cylinder or a spline face a
+/// carried chord closes; any other curved kind refuses typed
 /// ([`ring_island_unread`]).
 pub(crate) fn chart_island_winding<T: Decide>(
     body: &Body<T>,
@@ -4017,8 +4017,8 @@ fn loop_points<T: Decide>(body: &Body<T>, l: LoopKey) -> Result<Vec<Point3<T>>, 
         .collect())
 }
 
-/// **The winding of a ring-lane island on a cylinder, a sphere, a cone or
-/// a torus face**,
+/// **The winding of a ring-lane island on a cylinder, a sphere, a cone, a
+/// torus or a spline face**,
 /// about the face's OUTWARD normal, read without a chart: whether the
 /// open run `h1 → h2` (`next` order, through `h2`), closed by `closing`
 /// (the chord from `h2`'s site back to `h1`'s; `None`, the straight
@@ -4026,7 +4026,7 @@ fn loop_points<T: Decide>(body: &Body<T>, l: LoopKey) -> Result<Vec<Point3<T>>, 
 /// holding none of the face's outer loop — the island, since the ring is
 /// a hole and the run's left is the face's side of it.
 ///
-/// A path ([`Quadric::paths`]) runs from an outer-loop point `w` (a
+/// A path ([`Carrier::paths`]) runs from an outer-loop point `w` (a
 /// vertex, or an edge midpoint: [`outer_references`]) to the closing
 /// chord's midpoint `q`, where it arrives across the chord. Its
 /// crossings of the curve before `q` ([`crate::ring_path::path_parity`])
@@ -4035,15 +4035,17 @@ fn loop_points<T: Decide>(body: &Body<T>, l: LoopKey) -> Result<Vec<Point3<T>>, 
 /// against the chord's left normal `N × t` (`N` the outward normal at
 /// `q`, `t` the chord's direction of travel), the lean
 /// **`split_ring_path_lean`** (the cosine between the arrival and the
-/// left normal, levered at [`Quadric::lever`]). CCW is `w` off the left.
+/// left normal, levered at [`Carrier::lean_lever`]). CCW is `w` off the
+/// left.
 ///
 /// Positive for CCW, as the cylinder arm's chart sign. A path whose lean
 /// or crossings land in the zero band or the escalation band says
 /// nothing, and the next path or `w` is asked: the parity is the same on
 /// every path, so the first decided one is the reading. The first
 /// escalation escalates only where no path decides. A run
-/// bounded by an edge the face's loops do not carry, or a chord through
-/// a cone's apex, is a ring the lane does not read
+/// bounded by an edge the face's loops do not carry, a chord through
+/// a cone's apex, or a chord whose midpoint has no foot on its spline
+/// wall, is a ring the lane does not read
 /// ([`JoinError::RingIslandUnread`]); an outer loop no point of
 /// which a path decides refuses typed.
 pub(crate) fn path_island_winding<T: Decide>(
@@ -4075,9 +4077,9 @@ pub(crate) fn path_island_winding_closed_by<T: Decide>(
         Err(diag) => Ok(Err(diag)),
         Ok(None) => Err(JoinError::SectionInvariant {
             face,
-            what: "no outer-loop point of a cylinder, sphere, cone or torus face reads which side \
-                   of a ring-lane island it is on (every path to the closing chord meets the \
-                   island's boundary in the zero band)",
+            what: "no outer-loop point of a cylinder, sphere, cone, torus or spline face reads \
+                   which side of a ring-lane island it is on (every path to the closing chord \
+                   meets the island's boundary in the zero band)",
         }),
     }
 }
@@ -4267,7 +4269,7 @@ impl<T: Decide> IslandReading<T> {
     }
 }
 
-/// The paths [`Quadric::paths`] offers between two points, read by
+/// The paths [`Carrier::paths`] offers between two points, read by
 /// `read` as one rung of a **side ladder**: the first path that decides
 /// answers ([`Rung::of_reading`]); an escalation choosing the paths is
 /// the rung's kept reading.
@@ -4316,9 +4318,10 @@ fn paths_rung<T: Decide, R>(
     }
 }
 
-/// [`ring_side`] on a cylinder, a sphere, a cone or a torus face, without a chart:
+/// [`ring_side`] on a cylinder, a sphere, a cone, a torus or a spline
+/// face, without a chart:
 /// whether `ring` lies inside `newf`'s outer loop (the run a `mef` just
-/// walled off `oldf`), by the parity of a path ([`Quadric::paths`]) from a ring
+/// walled off `oldf`), by the parity of a path ([`Carrier::paths`]) from a ring
 /// vertex to a point outside the new face: a vertex of `oldf`'s outer
 /// loop, or the midpoint of one of its edges the run does not share,
 /// which lies off the run even where every vertex of that loop is a
@@ -5548,7 +5551,7 @@ impl ChordJoiner {
             .cloned()
             .ok_or_else(|| corrupt_face(oldf))?;
         // How a ring's side is read: off the plane, or by a path on a
-        // cylinder, a sphere, a cone or a torus.
+        // cylinder, a sphere, a cone, a torus or a spline wall.
         enum Homing<T: geom_core::Real> {
             Plane(Vec3<T>),
             Path(Carrier<T>),

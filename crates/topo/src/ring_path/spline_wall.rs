@@ -60,34 +60,31 @@ impl<T: Decide> SplineWall<T> {
             swapped: Arc::new(chart.transposed()),
             values: Arc::new(chart.map_scalar(T::value_channel)),
         };
-        let (u, v) = wall.domain();
-        (wall.iso(Held::U, u.0).is_some() && wall.iso(Held::V, v.0).is_some()).then_some(wall)
-    }
-
-    /// The chart's `u` and `v` domains.
-    fn domain(&self) -> ((f64, f64), (f64, f64)) {
-        (
-            self.chart.knots_u_f64_interim().domain(),
-            self.chart.knots_v_f64_interim().domain(),
-        )
+        let (u, v) = (
+            chart.knot_values_u().domain().0,
+            chart.knot_values_v().domain().0,
+        );
+        (wall.iso(Held::U, u).is_some() && wall.iso(Held::V, v).is_some()).then_some(wall)
     }
 
     /// The iso curve holding `held` at `at`, its parameter the chart's
     /// other one.
-    fn iso(&self, held: Held, at: f64) -> Option<Arc<geom::NurbsCurve3<T>>> {
+    fn iso(&self, held: Held, at: T) -> Option<Arc<geom::NurbsCurve3<T>>> {
         let net = match held {
             Held::U => &self.chart,
             Held::V => &self.swapped,
         };
-        geom_brep::interior_iso_u(net, T::from_f64(at))
-            .ok()
-            .map(Arc::new)
+        geom_brep::interior_iso_u(net, at).ok().map(Arc::new)
     }
 
     /// The chart parameters of `p`'s foot on the wall; `None` where the
     /// projection settles on none, as from a point with no one value.
     fn foot(&self, p: Point3<T>) -> Option<(f64, f64)> {
-        let p = Point3::new(p.x.value_channel(), p.y.value_channel(), p.z.value_channel());
+        let p = Point3::new(
+            p.x.value_channel(),
+            p.y.value_channel(),
+            p.z.value_channel(),
+        );
         self.values.project(p).ok().map(|foot| (foot.u, foot.v))
     }
 
@@ -95,7 +92,7 @@ impl<T: Decide> SplineWall<T> {
     /// `None` where `p` has no foot.
     pub(crate) fn outward(&self, p: Point3<T>, sense: bool) -> Option<Vec3<T>> {
         let (u, v) = self.foot(p)?;
-        let jet = self.chart.ders(T::from_f64(u), T::from_f64(v));
+        let jet = self.chart.ders(T::from_computed(u), T::from_computed(v));
         Some(geom_brep::OutwardNormal::from_chart(jet.du.cross(jet.dv).normalize(), sense).vec())
     }
 
@@ -123,19 +120,20 @@ impl<T: Decide> SplineWall<T> {
         let (Some(a), Some(b)) = (self.foot(from), self.foot(to)) else {
             return Ok(Vec::new());
         };
-        for (p, (u, v)) in [(from, a), (to, b)] {
-            let off = self.chart.eval(T::from_f64(u), T::from_f64(v)) - p;
-            if decide("split_ring_path_wall_foot", Margin::of(off.norm()), band)? != Sign::Zero {
-                return Ok(Vec::new());
-            }
+        let on_wall = |p: Point3<T>, (u, v): (f64, f64)| {
+            let off = self.chart.eval(T::from_computed(u), T::from_computed(v)) - p;
+            decide("split_ring_path_wall_foot", Margin::of(off.norm()), band)
+                .map(|sign| sign == Sign::Zero)
+        };
+        if !(on_wall(from, a)? && on_wall(to, b)?) {
+            return Ok(Vec::new());
         }
         let mut stored = vec![from, to];
         stored.extend_from_slice(self.chart.control());
         let slack = resolution(&stored);
-        let mut paths = Vec::with_capacity(2);
-        // Each path's first piece holds `first` at `from`'s foot and its
-        // second holds the other parameter at `to`'s.
-        for first in [Held::U, Held::V] {
+        // The path whose first piece holds `first` at `from`'s foot and
+        // whose second holds the other parameter at `to`'s.
+        let path = |first: Held| -> Result<Option<Path<T>>, Indeterminate> {
             let (lead, arriving) = match first {
                 Held::U => (
                     self.piece(Held::U, a.0, (a.1, b.1)),
@@ -147,31 +145,34 @@ impl<T: Decide> SplineWall<T> {
                 ),
             };
             let (Some(lead), Some(arriving)) = (lead, arriving) else {
-                continue;
+                return Ok(None);
             };
             let (chord, arrival) = arriving.travel();
-            if decide(
+            let arrives = decide(
                 "split_ring_path_wall_arrival",
                 Margin::of(charge(chord.length(), slack)),
                 band,
-            )? == Sign::Zero
-            {
-                continue;
-            }
-            paths.push(Path {
+            )?;
+            Ok((arrives != Sign::Zero).then(|| Path {
                 pieces: vec![Piece::Iso(lead), Piece::Iso(arriving)],
                 arrival: arrival.normalize(),
-            });
-        }
-        Ok(paths)
+            }))
+        };
+        Ok([path(Held::U)?, path(Held::V)?]
+            .into_iter()
+            .flatten()
+            .collect())
     }
 
     /// The piece holding `held` at `at` from the other parameter's
     /// `from` to its `to`.
     fn piece(&self, held: Held, at: f64, (from, to): (f64, f64)) -> Option<IsoPiece<T>> {
         Some(IsoPiece {
-            curve: self.iso(held, at)?,
-            span: (T::from_f64(from.min(to)), T::from_f64(from.max(to))),
+            curve: self.iso(held, T::from_computed(at))?,
+            span: (
+                T::from_computed(from.min(to)),
+                T::from_computed(from.max(to)),
+            ),
             forward: from <= to,
         })
     }
