@@ -138,6 +138,7 @@ use crate::live::{Proven, linked, proven};
 use crate::null::CurveGeom;
 use crate::ring_path::{LoopArc, LoopSplit, Path, Quadric, SplineArc, path_parity};
 use crate::splitting::containment::{LoopContainment, PointInLoopError, point_in_loop};
+use crate::unresolved::Unresolved;
 use crate::validate::decide;
 use geom_core::Tol;
 
@@ -246,13 +247,11 @@ const SECTION_WITHIN_CAUSE: &str =
 /// Typed failure of the joining step.
 #[derive(Debug)]
 pub enum JoinError {
-    /// The split's join order escalated (interval lane only): building
-    /// its frame — whether the plane is an axis plane
-    /// (`split_join_frame_axis`), or whether a schedule member projects
-    /// into it (`split_join_frame_arm`) — or comparing two section
-    /// points in it (`split_join_order_u` / `_v`). The sentence names
-    /// which ([`order_decision`]).
+    /// The join order escalated: building its frame, or comparing two
+    /// section points in it ([`OrderDecision`]).
     OrderEscalated {
+        /// Which decision of the order escalated.
+        decision: OrderDecision,
         /// Diagnostics (named predicate inside).
         diag: Indeterminate,
     },
@@ -377,10 +376,7 @@ pub enum JoinError {
     ///
     /// This arm is corruption ONLY. A state the join's own construction
     /// rules out is [`Self::SectionInvariant`], which says which.
-    Corrupt {
-        /// The entity the join was reading when it could not continue.
-        entity: EntityId,
-    },
+    Corrupt(Unresolved),
     /// The join's face division list refused a row where a chord added
     /// it ([`crate::lineage::FaceDivisions::push`]): a kernel defect.
     LineageRow(crate::lineage::RowRefusal),
@@ -641,7 +637,7 @@ impl JoinError {
     /// payload's own aborts.
     pub(crate) fn refusal(&self) -> Result<Refusal, Aborts> {
         match self {
-            Self::OrderEscalated { diag }
+            Self::OrderEscalated { diag, .. }
             | Self::Escalated { diag, .. }
             | Self::SectionEndEscalated { diag, .. }
             | Self::TangentChordEscalated { diag, .. }
@@ -668,7 +664,7 @@ impl JoinError {
             // A kernel fault, a corruption, two readings that disagree.
             Self::SectionLoopMixed { .. }
             | Self::CutInvariant { .. }
-            | Self::Corrupt { .. }
+            | Self::Corrupt(_)
             | Self::LineageRow(_)
             | Self::Band(_)
             | Self::Euler(_)
@@ -711,33 +707,39 @@ impl From<PointInLoopError> for JoinError {
 /// Boolean alike: the geometry.
 use geom_core::COINCIDENCE_RECOURSE as JOIN_RECOURSE;
 
-/// The join order's frame gate's row: a schedule member's in-plane
-/// fraction, levered by the points' spread.
-pub(crate) const FRAME_ARM: &str = "split_join_frame_arm";
-
-/// The join order's axis-plane test's row: a component of the plane's
-/// normal, levered by the points' spread.
-pub(crate) const FRAME_AXIS: &str = "split_join_frame_axis";
-
-/// What a [`JoinError::OrderEscalated`] could not decide, by its
-/// predicate: the join order's frame, or the order of two points in it.
-fn order_decision(predicate: Option<&str>) -> &'static str {
-    match predicate {
-        Some(FRAME_AXIS) => "whether the section plane's normal lies along a coordinate axis",
-        Some(FRAME_ARM) => "which direction in the section plane to order points along",
-        _ => "the order of two section points",
-    }
+/// Which decision of the join order a [`JoinError::OrderEscalated`]
+/// could not make. The lane that orders the join states it: the
+/// decisions are that lane's, and so are their predicates.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum OrderDecision {
+    /// Whether the section plane's normal lies along a coordinate axis.
+    FrameAxis,
+    /// Which direction in the section plane to order points along.
+    FrameArm,
+    /// The order of two section points in the frame.
+    Points,
 }
 
-/// The ending of a join order escalation. The frame's two decisions
-/// (an axis component, an arm's length in the plane) are no size the
-/// user chose, so they end in the join's lever alone (D4 ¶1 (i)); the
-/// order of two points compares metred coordinates, a size, and takes
-/// the escalation's whole ending.
-fn order_ending(diag: &Indeterminate) -> String {
-    match diag.predicate {
-        Some(FRAME_AXIS | FRAME_ARM) => diag.lever_ending(JOIN_RECOURSE),
-        _ => diag.ending(JOIN_RECOURSE),
+impl OrderDecision {
+    /// The decision, as the subject of the refusal's sentence.
+    const fn subject(self) -> &'static str {
+        match self {
+            Self::FrameAxis => "whether the section plane's normal lies along a coordinate axis",
+            Self::FrameArm => "which direction in the section plane to order points along",
+            Self::Points => "the order of two section points",
+        }
+    }
+
+    /// The ending of the escalation `diag`. The frame's two decisions
+    /// (an axis component, an arm's length in the plane) are no size the
+    /// user chose, so they end in the join's lever alone (D4 ¶1 (i)); the
+    /// order of two points compares metred coordinates, a size, and takes
+    /// the escalation's whole ending.
+    fn ending(self, diag: &Indeterminate) -> String {
+        match self {
+            Self::FrameAxis | Self::FrameArm => diag.lever_ending(JOIN_RECOURSE),
+            Self::Points => diag.ending(JOIN_RECOURSE),
+        }
     }
 }
 
@@ -765,10 +767,10 @@ impl JoinError {
         use core::fmt::Display as _;
         use geom_brep::recourse::read_at;
         match self {
-            Self::OrderEscalated { diag } => write!(
+            Self::OrderEscalated { decision, diag } => write!(
                 f,
                 "{}",
-                diag.undecided(order_decision(diag.predicate), order_ending(diag))
+                diag.undecided(decision.subject(), decision.ending(diag))
             ),
             // The section's sized decisions (a pose's gap, an apex's
             // offset, a tangent chord's advance) end as geom-brep ends
@@ -841,9 +843,7 @@ impl JoinError {
                 f,
                 "neither face flanking null edge {edge:?} is a sliver (kernel bug)"
             ),
-            Self::Corrupt { entity } => {
-                write!(f, "the join's traversal failed at {entity} (corrupt body)")
-            }
+            Self::Corrupt(unresolved) => write!(f, "{unresolved} (corrupt body)"),
             Self::LineageRow(refusal) => write!(
                 f,
                 "{}. {}",
@@ -1076,23 +1076,17 @@ impl std::error::Error for JoinError {}
 
 /// The corruption refusal naming the half-edge the join was reading.
 pub(crate) fn corrupt_he(he: HalfEdgeKey) -> JoinError {
-    JoinError::Corrupt {
-        entity: EntityId::HalfEdge(he),
-    }
+    JoinError::Corrupt(Unresolved::Walk(EntityId::HalfEdge(he)))
 }
 
 /// The corruption refusal naming the loop the join was reading.
 pub(crate) fn corrupt_loop(r#loop: LoopKey) -> JoinError {
-    JoinError::Corrupt {
-        entity: EntityId::Loop(r#loop),
-    }
+    JoinError::Corrupt(Unresolved::Walk(EntityId::Loop(r#loop)))
 }
 
 /// The corruption refusal naming the face the join was reading.
 pub(crate) fn corrupt_face(face: FaceKey) -> JoinError {
-    JoinError::Corrupt {
-        entity: EntityId::Face(face),
-    }
+    JoinError::Corrupt(Unresolved::Walk(EntityId::Face(face)))
 }
 
 /// Where the section table reads a wall's pose, and how far `face`
@@ -1171,9 +1165,7 @@ pub(crate) fn he_face<T: Real>(body: &Body<T>, he: HalfEdgeKey) -> Result<FaceKe
 
 /// The corruption refusal naming the edge the join was reading.
 pub(crate) fn corrupt_edge(edge: EdgeKey) -> JoinError {
-    JoinError::Corrupt {
-        entity: EntityId::Edge(edge),
-    }
+    JoinError::Corrupt(Unresolved::Walk(EntityId::Edge(edge)))
 }
 
 /// Chord-mef fragment rows: `(new face, divided-from face)` in mint
@@ -2470,9 +2462,8 @@ fn chord_spec<T: Decide>(
     if u1 == u2 && matches!(lane, JoinLane::Planar | JoinLane::AlongEdge) {
         return Ok(None);
     }
-    body.get_vertex(u1).ok_or(JoinError::Corrupt {
-        entity: EntityId::Vertex(u1),
-    })?;
+    body.get_vertex(u1)
+        .ok_or(JoinError::Corrupt(Unresolved::Record(EntityId::Vertex(u1))))?;
     let view = body.face(face).ok_or_else(|| corrupt_face(face))?;
     let wall_key = view.record().surface;
     // The surface is a link of the face the join divides, mid-operation
@@ -5754,24 +5745,30 @@ fn ring_vertices<T: Decide>(body: &Body<T>, ring: LoopKey) -> Result<Vec<VertexK
 }
 
 /// A representative point of a loop (its anchor vertex).
+///
+/// # Errors
+///
+/// The loop's record, or its first half-edge's, where it does not
+/// resolve.
 pub(crate) fn ring_representative<T: Decide>(
     body: &Body<T>,
     ring: LoopKey,
-) -> Result<Point3<T>, JoinError> {
+) -> Result<Point3<T>, Unresolved> {
     let v = match body
         .get_loop(ring)
-        .ok_or_else(|| corrupt_loop(ring))?
+        .ok_or(Unresolved::Record(EntityId::Loop(ring)))?
         .boundary
     {
         LoopBoundary::Cycle { first } => {
             body.get_half_edge(first)
-                .ok_or_else(|| corrupt_he(first))?
+                .ok_or(Unresolved::Record(EntityId::HalfEdge(first)))?
                 .start
         }
         LoopBoundary::Empty { vertex } => vertex,
     };
     Ok(body.resolve_vertex_point(v, Proven))
 }
+
 /// The side ladders' ranking ([`Rung::of_reading`]): where no reading
 /// decides, a reading whose margin cannot be read refuses ahead of an
 /// in-band one read before it — `ladder::Evidence`'s order, where the

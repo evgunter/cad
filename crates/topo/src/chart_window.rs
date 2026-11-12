@@ -1147,9 +1147,7 @@ mod torn_hop_rows {
         assert!(
             matches!(
                 super::face_azimuth_images(&stale, &surface, gone, band()),
-                Err(JoinError::Corrupt {
-                    entity: EntityId::Face(f)
-                }) if f == gone
+                Err(JoinError::Corrupt(u)) if u.entity() == EntityId::Face(gone)
             ),
             "a stale face is the caller's key, refused typed"
         );

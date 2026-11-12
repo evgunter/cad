@@ -4267,6 +4267,18 @@ pub enum BooleanError {
         /// Which lockstep invariant broke.
         what: &'static str,
     },
+    /// Surgery on a body the Boolean built refused: carving an
+    /// operand's kept shells out of its cut clone
+    /// ([`crate::carve::carve`]), or reading a body it built to hold one
+    /// solid (a kernel bug).
+    ///
+    /// An abort: a kernel fault (row 4).
+    Carve {
+        /// Which of the Boolean's surgeries refused.
+        step: CarveStep,
+        /// What the surgery found.
+        error: crate::CarveError,
+    },
     /// An operand edge's `SplitEdge` provenance never reached a root:
     /// the walk back from an edge a germ runs along (`Body::split_root`),
     /// or the chain a discarded face's boundary edge records
@@ -4764,6 +4776,8 @@ pub enum BooleanErrorKind {
     OneRecordUncertified,
     /// [`BooleanError::JoinDesync`].
     JoinDesync,
+    /// [`BooleanError::Carve`].
+    Carve,
     /// [`BooleanError::LineageRow`].
     LineageRow,
     /// [`BooleanError::SplitLineage`].
@@ -5069,6 +5083,7 @@ impl BooleanError {
             Self::CarryRefused { .. } => BooleanErrorKind::CarryRefused,
             Self::OneRecordUncertified { .. } => BooleanErrorKind::OneRecordUncertified,
             Self::JoinDesync { .. } => BooleanErrorKind::JoinDesync,
+            Self::Carve { .. } => BooleanErrorKind::Carve,
             Self::LineageRow { .. } => BooleanErrorKind::LineageRow,
             Self::SplitLineage(_) => BooleanErrorKind::SplitLineage,
             Self::EdgeUndescribed { .. } => BooleanErrorKind::EdgeUndescribed,
@@ -5232,6 +5247,7 @@ impl BooleanError {
             | Self::CarryRefused { .. }
             | Self::OneRecordUncertified { .. }
             | Self::JoinDesync { .. }
+            | Self::Carve { .. }
             | Self::LineageRow { .. }
             | Self::SplitLineage(_)
             | Self::MixedSeam { .. }
@@ -5282,6 +5298,48 @@ fn unsettled_crossing(why: geom_brep::roots::Unsettled) -> &'static str {
         U::Resolvent | U::CountDisagrees { .. } => "the count of its crossings did not certify",
         U::AtApex => "it meets the face within the tolerance of a cone's apex",
         U::Degenerate => "it runs along a ruling of the face",
+    }
+}
+
+/// Which of the Boolean's surgeries a [`BooleanError::Carve`] refused in.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum CarveStep {
+    /// An operand's kept component, carved out of its cut clone.
+    Kept(Operand),
+    /// The kept first operand's component, which the second's is
+    /// grafted into.
+    Combine,
+    /// A sphere face's re-cut: its shell turned, the rest kept.
+    Recut(Operand),
+    /// Operands whose boundaries do not cross: each one's kept shells.
+    Fallback,
+}
+
+impl CarveStep {
+    /// The step, as the clause that opens the refusal's sentence.
+    fn clause(self) -> String {
+        match self {
+            Self::Kept(operand) => format!(
+                "while the kept part of the {} solid was cut out",
+                operand_word(operand)
+            ),
+            Self::Combine => "while the kept parts were put together".to_owned(),
+            Self::Recut(operand) => format!(
+                "while a sphere face of the {} solid was cut again",
+                operand_word(operand)
+            ),
+            Self::Fallback => {
+                "while the kept shells of solids that do not cross were taken".to_owned()
+            }
+        }
+    }
+
+    /// The refusal of this step for what the surgery found.
+    pub(in crate::boolean) fn refused(self, error: impl Into<crate::CarveError>) -> BooleanError {
+        BooleanError::Carve {
+            step: self,
+            error: error.into(),
+        }
     }
 }
 
@@ -5971,6 +6029,10 @@ impl BooleanError {
                 "A/B lockstep invariant violated: {what} (kernel bug or corrupt \
                  reduction)"
             ),
+            Self::Carve { step, error } => {
+                write!(f, "{}, {error}", step.clause())?;
+                geom_brep::recourse::defect_ended(f, at)
+            }
             Self::SplitLineage(cycle) => write!(
                 f,
                 "the Boolean's split records of an operand edge are corrupt, so no body \
@@ -9938,6 +10000,10 @@ mod tests {
                 source: crate::pcurves::PcurveMintError::Unminted { face },
             },
             BooleanError::JoinDesync { what: "a lockstep" },
+            BooleanError::Carve {
+                step: CarveStep::Combine,
+                error: crate::carve::NotOneSolid { solids: 2 }.into(),
+            },
             BooleanError::SplitLineage(crate::SplitLineageCycle {
                 edge: EdgeKey::default(),
             }),
@@ -10113,6 +10179,7 @@ mod tests {
                 BooleanErrorKind::CarryRefused => "CarryRefused",
                 BooleanErrorKind::OneRecordUncertified => "OneRecordUncertified",
                 BooleanErrorKind::JoinDesync => "JoinDesync",
+                BooleanErrorKind::Carve => "Carve",
                 BooleanErrorKind::LineageRow => "LineageRow",
                 BooleanErrorKind::SplitLineage => "SplitLineage",
                 BooleanErrorKind::EdgeUndescribed => "EdgeUndescribed",

@@ -1,7 +1,8 @@
 //! **Carving shells out of a solid**: the sub-body a set of a solid's
 //! shells spans, as a body of its own ([`carve`]), and the one solid an
 //! operation's operand is read as ([`single_solid`]). Arena surgery
-//! over a [`Body`], refused in its own type ([`CarveError`]).
+//! over a [`Body`], refused in its own types ([`CarveError`],
+//! [`NotOneSolid`]).
 
 use geom_core::Decide;
 use slotmap::SecondaryMap;
@@ -12,20 +13,34 @@ use crate::entity::{
     EdgeKey, EntityId, HalfEdgeKey, LoopBoundary, LoopKey, ShellKey, SolidKey, VertexKey,
 };
 use crate::live::BoundaryMember;
+use crate::unresolved::Unresolved;
 
-/// Why [`carve`] or [`single_solid`] refused. The body it read is an
-/// operation's scratch state, so every arm is a kernel defect in the
-/// operation that built that state.
+/// [`single_solid`]'s refusal: the body holds `solids` solids, not one.
+/// Whether that is the caller's body or a kernel defect is the reader's
+/// to say: an operation that merges its operand's solids first can meet
+/// only the empty body here.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct NotOneSolid {
+    /// How many solids the body holds.
+    pub solids: usize,
+}
+
+impl core::fmt::Display for NotOneSolid {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        write!(f, "the body holds {} solids where one is read", self.solids)
+    }
+}
+
+/// Why surgery on a body an operation built refused: [`carve`]'s
+/// refusals, and [`single_solid`]'s where the operation built the body
+/// it counts. Every arm is a kernel defect in that operation.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum CarveError {
-    /// The body holds `solids` solids where the operation reads one.
-    NotOneSolid {
-        /// How many it holds.
-        solids: usize,
-    },
+    /// A body the operation built to hold one solid does not.
+    NotOneSolid(NotOneSolid),
     /// The solid carved from, or a record reached from it, does not
     /// resolve.
-    Unresolved(EntityId),
+    Unresolved(Unresolved),
     /// A kept half-edge starts at a vertex of a dropped shell.
     KeptStartsAtDropped {
         /// The kept half-edge.
@@ -49,13 +64,17 @@ pub enum CarveError {
     },
 }
 
+impl From<NotOneSolid> for CarveError {
+    fn from(e: NotOneSolid) -> Self {
+        Self::NotOneSolid(e)
+    }
+}
+
 impl core::fmt::Display for CarveError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
-            Self::NotOneSolid { solids } => {
-                write!(f, "the body holds {solids} solids where one is read")
-            }
-            Self::Unresolved(entity) => write!(f, "{entity} does not resolve"),
+            Self::NotOneSolid(e) => write!(f, "{e}"),
+            Self::Unresolved(unresolved) => write!(f, "{unresolved}"),
             Self::KeptStartsAtDropped { half_edge, vertex } => write!(
                 f,
                 "kept half-edge {half_edge:?} starts at vertex {vertex:?} of a dropped shell"
@@ -75,19 +94,22 @@ impl core::fmt::Display for CarveError {
 
 impl std::error::Error for CarveError {}
 
-/// The operand's single solid. The pipelines read every operand as one
+impl std::error::Error for NotOneSolid {}
+
+/// The body's single solid. The pipelines read every operand as one
 /// solid (`split` and the boolean hand them over through
-/// [`Body::merge_all_solids`]), so any other count is a desync.
+/// [`Body::merge_all_solids`]).
 ///
 /// # Errors
 ///
-/// [`CarveError::NotOneSolid`].
-pub(crate) fn single_solid<T: Decide>(body: &Body<T>) -> Result<SolidKey, CarveError> {
-    let mut it = body.solids();
-    match (it.next(), it.next()) {
+/// [`NotOneSolid`], with the count.
+pub(crate) fn single_solid<T: Decide>(body: &Body<T>) -> Result<SolidKey, NotOneSolid> {
+    let mut solids = body.solids();
+    match (solids.next(), solids.next()) {
         (Some((k, _)), None) => Ok(k),
-        _ => Err(CarveError::NotOneSolid {
-            solids: body.solids().count(),
+        (None, _) => Err(NotOneSolid { solids: 0 }),
+        (Some(_), Some(_)) => Err(NotOneSolid {
+            solids: 2 + solids.count(),
         }),
     }
 }
@@ -117,7 +139,9 @@ pub(crate) fn carve<T: Decide>(
     let mut body = src.clone();
     let all: Vec<ShellKey> = body
         .shells_of_solid(solid)
-        .ok_or(CarveError::Unresolved(EntityId::Solid(solid)))?
+        .ok_or(CarveError::Unresolved(Unresolved::Record(EntityId::Solid(
+            solid,
+        ))))?
         .to_vec();
     let drop: Vec<ShellKey> = all.iter().copied().filter(|s| !keep.contains(s)).collect();
 
@@ -128,9 +152,11 @@ pub(crate) fn carve<T: Decide>(
     let mut edges: Vec<EdgeKey> = Vec::new();
     let mut vertices: SecondaryMap<VertexKey, ()> = SecondaryMap::new();
     for &shell in &drop {
-        let shell_data = body
-            .get_shell(shell)
-            .ok_or(CarveError::Unresolved(EntityId::Shell(shell)))?;
+        let shell_data =
+            body.get_shell(shell)
+                .ok_or(CarveError::Unresolved(Unresolved::Record(EntityId::Shell(
+                    shell,
+                ))))?;
         for &face in &shell_data.faces {
             faces.push(face);
             let holder = EntityId::Shell(shell);
@@ -158,9 +184,11 @@ pub(crate) fn carve<T: Decide>(
         if dropped_hes.contains_key(he) {
             continue;
         }
-        let edge = body
-            .get_edge(he_data.edge)
-            .ok_or(CarveError::Unresolved(EntityId::Edge(he_data.edge)))?;
+        let edge =
+            body.get_edge(he_data.edge)
+                .ok_or(CarveError::Unresolved(Unresolved::Record(EntityId::Edge(
+                    he_data.edge,
+                ))))?;
         if vertices.contains_key(he_data.start) {
             return Err(CarveError::KeptStartsAtDropped {
                 half_edge: he,

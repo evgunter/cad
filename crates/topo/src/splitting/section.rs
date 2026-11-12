@@ -376,7 +376,7 @@ where
     }
     let nesting = section_loops::nest(&red.body, outlines, holes, normal, band).map_err(
         |fault| match fault {
-            NestFault::Torn => SectionError::Corrupt,
+            NestFault::Torn(_) => SectionError::Corrupt,
             NestFault::Contradiction(hole) => SectionError::NestingContradiction {
                 corner: hole.points()[0],
             },

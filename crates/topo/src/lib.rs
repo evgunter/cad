@@ -133,7 +133,7 @@ pub mod body;
 pub mod boolean;
 pub(crate) mod bound_side;
 pub(crate) mod boxes;
-pub mod carve;
+pub(crate) mod carve;
 pub mod cell_region;
 pub(crate) mod census;
 pub mod chart;
@@ -1078,7 +1078,9 @@ pub mod test_support {
             .contains(geom_core::KERNEL_DEFECT_ENDING)
             || matches!(
                 err.kind(),
-                BooleanErrorKind::ClassificationInvariant | BooleanErrorKind::JoinDesync
+                BooleanErrorKind::ClassificationInvariant
+                    | BooleanErrorKind::JoinDesync
+                    | BooleanErrorKind::Carve
             );
         (key, defect)
     }
@@ -1384,6 +1386,7 @@ mod tier3_tests;
 pub mod transform;
 #[cfg(test)]
 mod turn_rows;
+pub(crate) mod unresolved;
 pub mod validate;
 mod wedge_reach;
 pub use wedge_reach::{WedgeReach, edge_faces, edge_wedge_reach, wedge_reach};
@@ -1394,7 +1397,7 @@ pub use boolean::{
     AimedPair, AlongFace, Apart, ArcEndGaps, BoolNullEdgeRecord, BooleanBody, BooleanDecision,
     BooleanError, BooleanErrorKind, BooleanInputs, BooleanJoin, BooleanMerge, BooleanNaming,
     BooleanOp, BooleanReduction, BooleanResult, BooleanResultKind, CarriedRecord, CarrierDesc,
-    CarrierEqError, CarrierRelation, CarrierVerdict, CarryRefusal, Cell, Coincide,
+    CarrierEqError, CarrierRelation, CarrierVerdict, CarryRefusal, CarveStep, Cell, Coincide,
     CoincidenceMeasure, CompletedPolygonPair, ConsumedExtent, Contact, ContactKind,
     ContactPairError, ContactRecords, ContainDecision, ContainError, DeclarationRead, DiscardRow,
     EdgeCarrierSite, EdgeInBand, EdgeInFaceGap, EdgeJoin, EdgePieceClass, EeContact, EfContact,
@@ -1509,9 +1512,10 @@ pub use provenance::{Provenance, SplitLineageCycle};
 // The query VOCABULARY rides at the root like every other type;
 // the query DOORS (materializers, predicates) keep their module
 // identity, like `readback`'s.
-pub use carve::CarveError;
+pub use carve::{CarveError, NotOneSolid};
 pub use chord_join::{
-    ApexSectionReading, ConicCrossingsCase, JoinError, SectionEndReading, SectionPinMiss,
+    ApexSectionReading, ConicCrossingsCase, JoinError, OrderDecision, SectionEndReading,
+    SectionPinMiss,
 };
 pub use face_boxes::{FaceBox, FaceBoxes};
 #[cfg(debug_assertions)]
@@ -1549,6 +1553,7 @@ pub use splitting::{
     vertex_sides,
 };
 pub use transform::{TransformError, transform_rigid};
+pub use unresolved::Unresolved;
 pub use validate::{
     AtRestBody, CensusContact, CensusSubject, CensusUnsupportedCause, ContactMark,
     CrossingSideVerdict, INSIDE_OUT_REFUSAL, OrientationUnread, RingContact, RingPairContact,

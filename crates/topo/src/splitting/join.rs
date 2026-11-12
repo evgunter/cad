@@ -74,8 +74,9 @@ use crate::chord_join::{
     SectionCase, SectionConic, SectionCtx, SegmentEdge, WallSection, corrupt_edge, corrupt_face,
     corrupt_he, corrupt_loop, he_face, lone_site_placeholder, wall_section,
 };
-use crate::entity::{EdgeKey, FaceKey, HalfEdgeKey, LoopBoundary, LoopKey, VertexKey};
+use crate::entity::{EdgeKey, EntityId, FaceKey, HalfEdgeKey, LoopBoundary, LoopKey, VertexKey};
 use crate::null::{CurveGeom, NullFacePair};
+use crate::unresolved::Unresolved;
 use crate::validate::{decide, decide_nonzero};
 use geom_core::Tol;
 
@@ -145,8 +146,13 @@ pub(super) fn split_connect<T: Decide + crate::props::AtRestPolicy>(
                 .resolve_vertex_point(r.attr.below_end, crate::live::Proven),
         );
     }
-    let sorted = order::sort_indices_by_point(&points, &red.plane, band, exact)
-        .map_err(|diag| JoinError::OrderEscalated { diag })?;
+    let sorted =
+        order::sort_indices_by_point(&points, &red.plane, band, exact).map_err(|diag| {
+            JoinError::OrderEscalated {
+                decision: order::decision_of(&diag),
+                diag,
+            }
+        })?;
 
     let partner = fixed_partners(red, &above_set, band)?;
     let mut st = Sweep {
@@ -1405,24 +1411,53 @@ fn loop_halves<T: Decide>(body: &Body<T>, l: LoopKey) -> Result<Vec<HalfEdgeKey>
     body.loop_halves(l).ok_or_else(|| corrupt_loop(l))
 }
 
+/// Why a loop's start vertices could not be read.
+#[derive(Clone, Copy, Debug)]
+pub(super) enum LoopStartsFault {
+    /// A record on the walk did not resolve.
+    Unresolved(Unresolved),
+    /// The loop resolved and holds a lone vertex, which has no starts to
+    /// walk: a caller's invariant, not a torn arena.
+    LoneVertex {
+        /// The loop's face.
+        face: FaceKey,
+    },
+}
+
+impl From<LoopStartsFault> for JoinError {
+    fn from(fault: LoopStartsFault) -> Self {
+        match fault {
+            LoopStartsFault::Unresolved(unresolved) => Self::Corrupt(unresolved),
+            LoopStartsFault::LoneVertex { face } => Self::SectionInvariant {
+                face,
+                what: "a loop asked for its start vertices holds a lone vertex instead of \
+                       a cycle",
+            },
+        }
+    }
+}
+
 /// The start vertices of a cycle loop.
-pub(crate) fn loop_starts<T: Decide>(
-    body: &Body<T>,
-    l: LoopKey,
-) -> Result<Vec<VertexKey>, JoinError> {
-    let loop_data = body.get_loop(l).ok_or_else(|| corrupt_loop(l))?;
+fn loop_starts<T: Decide>(body: &Body<T>, l: LoopKey) -> Result<Vec<VertexKey>, LoopStartsFault> {
+    let record = |entity| LoopStartsFault::Unresolved(Unresolved::Record(entity));
+    let loop_data = body.get_loop(l).ok_or(record(EntityId::Loop(l)))?;
     let LoopBoundary::Cycle { first } = loop_data.boundary else {
-        // Resolved, but shaped wrong: an `Empty` loop has no starts to
-        // walk. That is a caller invariant, not a corrupt arena.
-        return Err(JoinError::SectionInvariant {
+        return Err(LoopStartsFault::LoneVertex {
             face: loop_data.face,
-            what: "a loop asked for its start vertices holds a lone vertex instead of \
-                   a cycle",
         });
     };
     let mut out = Vec::new();
-    for he in body.loop_cycle(first).ok_or_else(|| corrupt_he(first))? {
-        out.push(body.get_half_edge(he).ok_or_else(|| corrupt_he(he))?.start);
+    let cycle = body
+        .loop_cycle(first)
+        .ok_or(LoopStartsFault::Unresolved(Unresolved::Walk(
+            EntityId::Loop(l),
+        )))?;
+    for he in cycle {
+        out.push(
+            body.get_half_edge(he)
+                .ok_or(record(EntityId::HalfEdge(he)))?
+                .start,
+        );
     }
     Ok(out)
 }
@@ -1431,7 +1466,7 @@ pub(crate) fn loop_starts<T: Decide>(
 pub(super) fn loop_points_of<T: Decide>(
     body: &Body<T>,
     l: LoopKey,
-) -> Result<Vec<Point3<T>>, JoinError> {
+) -> Result<Vec<Point3<T>>, LoopStartsFault> {
     let starts = loop_starts(body, l)?;
     Ok(starts
         .into_iter()
@@ -1457,18 +1492,14 @@ mod tests {
         assert_eq!(he_face(&t.body, he).ok(), Some(t.face_a));
         assert!(matches!(
             he_face(&t.body, HalfEdgeKey::default()),
-            Err(JoinError::Corrupt {
-                entity: EntityId::HalfEdge(_)
-            })
+            Err(JoinError::Corrupt(u)) if matches!(u.entity(), EntityId::HalfEdge(_))
         ));
         // A live half-edge with a dead loop back-pointer: the SECOND
         // hop fails, and the refusal is about the loop.
         t.body.get_half_edge_mut(he).unwrap().parent_loop = LoopKey::default();
         assert!(matches!(
             he_face(&t.body, he),
-            Err(JoinError::Corrupt {
-                entity: EntityId::Loop(_)
-            })
+            Err(JoinError::Corrupt(u)) if matches!(u.entity(), EntityId::Loop(_))
         ));
     }
 

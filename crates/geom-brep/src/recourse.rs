@@ -218,6 +218,20 @@ pub fn defect_ending(at: impl Into<ReadAt>) -> &'static str {
     at.into().culprit().ending()
 }
 
+/// **The defect ending of a kernel-bug arm**, written after the arm's
+/// payload: `". "` and [`defect_ending`] at the door `at` reads the
+/// refusal, and nothing where it is read at no door (its `Display`).
+///
+/// # Errors
+///
+/// The formatter's.
+pub fn defect_ended(f: &mut core::fmt::Formatter<'_>, at: Option<ReadAt>) -> core::fmt::Result {
+    match at {
+        Some(at) => write!(f, ". {}", defect_ending(at)),
+        None => Ok(()),
+    }
+}
+
 /// The unreadable-margin note at `at`, by its culprit
 /// ([`ReadAt::culprit`]): the kernel's alone at a build, the kernel's or
 /// the file's at rest, and the file's at the import door. A poisoned
