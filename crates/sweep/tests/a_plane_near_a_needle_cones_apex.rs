@@ -27,7 +27,8 @@ use std::f64::consts::PI;
 use crate::revolve_common::needle;
 use geom_brep::{CertCheck, CertifyError};
 use geom_core::{Point3, Tol, Vec3};
-use topo::splitting::{SplitError, SplitJoinError, split};
+use topo::JoinError;
+use topo::splitting::{SplitError, split};
 use topo::{CensusUnsupportedCause, ContactRecords, ContactRefusal, EulerOpError, ValidationError};
 
 /// The pose's plane, and the tip's volume above it (the apex's side).
@@ -64,7 +65,7 @@ fn a_needle_cone_cut_in_band_of_its_apex_refuses_with_its_lever() {
     assert!(
         matches!(
             err,
-            SplitError::Join(SplitJoinError::SectionDepartureGrazes { .. })
+            SplitError::Join(JoinError::SectionDepartureGrazes { .. })
         ),
         "{what}: {err:?}"
     );
@@ -97,7 +98,7 @@ fn a_needle_cone_cut_in_band_of_its_apex_refuses_with_its_lever() {
     let what = "α = 1°, tilt 1.2, spin 2";
     let (plane, _) = pose(1.0, 1e3, 1.2, 2.0, tol);
     let err = split(&needle(1.0, None, tol), &plane, tol).expect_err(what);
-    let SplitError::Join(SplitJoinError::Euler(EulerOpError::Certification {
+    let SplitError::Join(JoinError::Euler(EulerOpError::Certification {
         error:
             CertifyError::Escalated {
                 check: CertCheck::Transversality,

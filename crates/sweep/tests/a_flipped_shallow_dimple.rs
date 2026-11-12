@@ -41,7 +41,6 @@ fn ball() -> AtRestBody<f64> {
     let moved = topo::transform_rigid(
         &at,
         &geom_core::RigidMotion::translation(Vec3::new(C.0, C.1, C.2)).unwrap(),
-        tol,
     )
     .unwrap();
     finished("the ball", moved, tol)

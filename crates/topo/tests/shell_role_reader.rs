@@ -517,7 +517,7 @@ fn channel(pose: Pose, w: f64, s: f64, tol: Tol) -> Channel {
             tol,
         );
         let body = if pose == Pose::Moved {
-            topo::transform_rigid(&body, &motion, tol).expect("the turn moves the operand")
+            topo::transform_rigid(&body, &motion).expect("the turn moves the operand")
         } else {
             body
         };

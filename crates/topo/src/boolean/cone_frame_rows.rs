@@ -822,8 +822,7 @@ fn germs_through_a_cone_apex_name_their_lines_by_one_reading() {
     use crate::body::Body;
     use geom_core::{Affine3, RigidMotion};
     let tol = Tol::witness();
-    let turned =
-        |body: &Body<f64>, m: &RigidMotion<f64>| crate::transform_rigid(body, m, tol).unwrap();
+    let turned = |body: &Body<f64>, m: &RigidMotion<f64>| crate::transform_rigid(body, m).unwrap();
     let identity = geom_core::test_support::rigid(&Affine3::identity(), tol);
     let flip = geom_core::test_support::rigid(
         &Affine3::rotation_about_axis(

@@ -81,7 +81,7 @@ fn a_turned_tube_reads_its_side_in_its_seam_plane() {
         for angle in [0.3_f64, core::f64::consts::FRAC_PI_4, 1.0, -0.7, 2.0] {
             let what = format!("slit {slit}, turned {angle}");
             let m = RigidMotion::rotation(z, angle).unwrap();
-            let turned = topo::transform_rigid(&tube(slit, tol), &m, tol).unwrap();
+            let turned = topo::transform_rigid(&tube(slit, tol), &m).unwrap();
             let body: Body<f64> = if slit {
                 turned
             } else {

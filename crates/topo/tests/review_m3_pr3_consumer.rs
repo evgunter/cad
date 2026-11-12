@@ -11,7 +11,7 @@ use common::{brick, prism};
 use geom_core::Tol;
 use geom_core::{Point3, Vec3};
 use topo::{
-    Body, SplitError, SplitJoinError, SplitPart, SplitPlane, mass_properties, plane_section, split,
+    Body, JoinError, SplitError, SplitPart, SplitPlane, mass_properties, plane_section, split,
     validate_closed, validate_geometric,
 };
 
@@ -180,7 +180,7 @@ fn in_band_section_escalates_typed_not_misclassified() {
         &plane_y(1.0),
         Tol::witness(),
     ) {
-        Err(SplitError::Join(SplitJoinError::DegenerateSection { .. })) => {
+        Err(SplitError::Join(JoinError::DegenerateSection { .. })) => {
             panic!("in-band sliver MISCLASSIFIED as zero-area tangency");
         }
         Err(e) => eprintln!(

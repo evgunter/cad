@@ -604,8 +604,7 @@ fn turned_v(pts: &[(f64, f64)], turn: f64) -> AtRestBody<f64> {
         tol(),
     );
     let turned = Affine3::rotation_about_axis(Point3::origin(), Vec3::unit_y(), turn.to_radians());
-    let v =
-        topo::transform_rigid(&v, &geom_core::test_support::rigid(&turned, tol()), tol()).unwrap();
+    let v = topo::transform_rigid(&v, &geom_core::test_support::rigid(&turned, tol())).unwrap();
     finished("the V", v, tol())
 }
 

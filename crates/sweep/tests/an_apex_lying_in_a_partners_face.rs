@@ -95,7 +95,6 @@ fn an_apex_across_a_round_hole_is_recorded_in_the_face() {
             ),
             tol(),
         ),
-        tol(),
     )
     .unwrap();
     let wide = finished(

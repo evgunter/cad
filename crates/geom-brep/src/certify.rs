@@ -1867,7 +1867,8 @@ impl DoorCheck for CertCheck {
     ///   D4 ¶1 (iv)).
     /// - A residual or a form selection has no size. Every arm ends in the
     ///   kernel-defect ending where the kernel built the geometry exactly
-    ///   (the file's too, at rest). Where the kernel
+    ///   (the file's too, at rest), except an undecided arm past a build,
+    ///   which is reported as undecided ([`Unsized::recourse`]). Where the kernel
     ///   approximated, an arm read at a build, and an undecided arm read at
     ///   rest, end in the last resort; a definite arm at rest ends in the
     ///   file's defect ending, since no loosening repairs a stored
@@ -2290,7 +2291,7 @@ const WINDING_ROWS: TurnRows<&str> = crate::rows::INTERVAL_SPAN_WINDING.rows();
 /// [`EdgeCurve::uncertified`] where it never does), or from such a value
 /// by a map that carries what it carries
 /// ([`EdgeCurve::with_remapped_surfaces`],
-/// [`EdgeCurve::with_chart_v_mirrored`]) — fields are private, so an
+/// [`EdgeCurve::with_chart_v_mirrored`], [`EdgeCurve::carried`]) — fields are private, so an
 /// uncertified value at a certifying scalar is unrepresentable (D4 ¶2
 /// made structural).
 #[derive(Clone, Debug)]
@@ -3250,6 +3251,36 @@ impl<T: Real> EdgeCurve<T> {
             turn: self.turn,
             certificate: self.certificate,
         })
+    }
+
+    /// **This edge under an isometry, its certificate carried**: the
+    /// mapped `carrier`, `description` and `authority` on this edge's
+    /// own interval, with its turn and certificate verbatim.
+    ///
+    /// The certificate is `{samples, max_residual}`, a distance between
+    /// the description and its carrier at the schedule's parameters, and
+    /// the turn is the interval against one period. An isometry keeps
+    /// both, and a map keeps the carrier's parameter, so both are the
+    /// image's. That holds only where the three arguments are this
+    /// edge's data under one isometry, exact apart from rounding: the
+    /// caller's to keep, and `topo`'s data map (`map_isometry`) is the
+    /// one caller.
+    #[must_use]
+    pub fn carried(
+        &self,
+        carrier: Curve3<T>,
+        description: EdgeDescription<T>,
+        authority: EdgeAuthority<T>,
+    ) -> Self {
+        Self {
+            description,
+            authority,
+            carrier,
+            param_start: self.param_start,
+            param_end: self.param_end,
+            turn: self.turn,
+            certificate: self.certificate,
+        }
     }
 
     /// The carrier parameter at schedule sample `i` (i ∈ 0…8): the
@@ -8928,15 +8959,19 @@ mod tests {
                 KERNEL_LIMIT_RECOURSE,
                 KERNEL_LIMIT_RECOURSE,
                 KERNEL_DEFECT_ENDING,
+                KERNEL_DEFECT_ENDING,
             ),
+            // The chart image read at rest and not decided is reported as
+            // undecided (ONEHOME fork 259): at a point, the last resort.
             (
                 Reading::AtRest,
                 KERNEL_OR_FILE_DEFECT_ENDING,
                 KERNEL_LIMIT_RECOURSE,
                 KERNEL_OR_FILE_DEFECT_ENDING,
+                KERNEL_LIMIT_RECOURSE,
             ),
         ];
-        for (reading, definite, undecided, exact) in rows {
+        for (reading, definite, undecided, exact, chart_undecided) in rows {
             assert_eq!(limb.ending(reading), definite, "{reading:?}");
             assert_eq!(
                 P::Escalated {
@@ -8948,7 +8983,11 @@ mod tests {
                 "{reading:?}"
             );
             assert_eq!(unavailable.ending(reading).unwrap(), exact, "{reading:?}");
-            assert_eq!(chart.ending(reading).unwrap(), exact, "{reading:?}");
+            assert_eq!(
+                chart.ending(reading).unwrap(),
+                chart_undecided,
+                "{reading:?}"
+            );
         }
     }
 
