@@ -475,7 +475,7 @@ impl core::error::Error for NaryRefusal {}
 /// **One carrier pair a step is given**: the two members and a face of
 /// each, `a`'s then `b`'s, the decision, and the judgement row that
 /// recorded it, none for a face–face record's meaning
-/// ([`record_verdicts`]).
+/// ([`tool_parts`]).
 struct PairVerdict<T: Real> {
     a: usize,
     b: usize,
