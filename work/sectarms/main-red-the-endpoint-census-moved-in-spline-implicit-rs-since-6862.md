@@ -11,7 +11,7 @@ cost: E
 
 ## Finding
 
-Filed by PCERT's orchestrator. PR 6870's lane met it on main, and the orchestrator reproduced it at `origin/main` (`6c705123`+).
+Filed by PCERT's orchestrator. PR 6870's lane met it on main, and the orchestrator reproduced it on main as of 2026-11-12 17:10Z.
 
 geom-core's slow-set row `certified_endpoint_census::every_production_endpoint_read_is_counted_and_dispositioned` fails on one entry:
 
