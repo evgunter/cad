@@ -398,3 +398,4 @@ Ev, in chat: "go ahead in whatever order you see fit (including parallelizing th
 - **Three-walks specified** (the row's "Designed" and "Spec" sections): letter H, tier dual, written before the implementer draw. It runs as a cloud session, because the local disk holds the face-pair build.
 - (ONEDOOR orchestrator)
 - **Three-walks dispatched** at 18:19. The implementer is byte 13, Fable, running as cloud session `session_018u3gVKjyLGFvrEKPUvpTZE` on `onedoor/three-walks`, with brief `onedoor-briefs/onedoor-threewalks-brief.md`. The brief owes the apex/spindle census as a row, and makes a refused body that is valid by the user's lights a STOP.
+- **#6851 merged** (`c1243c5539e`) on green CI. C4 now reads: no reset anywhere.
