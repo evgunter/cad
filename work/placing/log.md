@@ -433,3 +433,6 @@ Newest entries at the bottom; the tail is the program's live status.
   - **Trimmed** (`20bf41c6cd`): DESIGN keeps the rule only, and the mechanics move to VARIABLES VR4.
   - **Read as approval of the design.** The two offered points default to: Place on a copy is not built (the refusal stays), and two anonymous sources raise no finding. Both are stated on the thread.
   - It merges on green, and then the named-source build starts. (PLACING orchestrator)
+- 2026-11-12 — **`[ev]` PR 6672 merged** (`e996c00498`). Ev: "you should go ahead, but i'm not totally sure that this variable design i proposed is right … please feel free to push back on this decision".
+  - Ev's invitation to push back is recorded in VARIABLES VR4 itself and in fork row 260 (renumbered from 255), so a later reader meets it.
+  - **Sequencing:** the named-source build follows the target build that is now running, because both change `SessionOp::Place` (its target, and its name) and `session.rs`. The named-source lane, idle at `/home/user/wt-named-source`, is resumed when the target PR lands. (PLACING orchestrator)
