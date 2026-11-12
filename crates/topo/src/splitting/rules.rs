@@ -519,19 +519,19 @@ pub(super) fn apply_rule_b<T: Decide>(
 }
 
 /// The wedge of the edge that is bound `k` of `star`: `None` where its
-/// two faces are tangent-continuous ([`geom_brep::DihedralClass::Smooth`]),
+/// two faces are tangent-continuous ([`geom_brep::Dihedral::Tangent`]),
 /// else whether the material wedge is under 180°. The sector before the
 /// bound is its own face's, the sector after it its mate's.
 ///
 /// Smooth or not is the dihedral classifier's own question, read
-/// through [`geom_brep::classify_dihedral`] with the edge's extent, as
-/// the tier-3 validator reads it, so the two cannot disagree on one
-/// edge. That classifier is unsigned, and which side of 180° a corner
-/// is on is not its question: that sign is [`enters_material`] of the
+/// through [`geom_brep::classify_dihedral`] levered at the faces' extent
+/// ([`crate::edge_wedge_reach`]), the lever tier 3's check 4 reads it
+/// at. That classifier is unsigned, and which side of 180° a corner is
+/// on is not its question: that sign is [`enters_material`] of the
 /// direction into the mate's face, across the edge, against the own
-/// face's outward normal, metered over the same folded lever arm.
-/// Where either face is a cone at its apex, both are read along the
-/// edge's ray ([`StarFace::normal_along`]).
+/// face's outward normal, metered over the folded lever arm of the same
+/// extent. Where either face is a cone at its apex, both are read along
+/// the edge's ray ([`StarFace::normal_along`]).
 fn edge_wedge<T: Decide>(
     body: &Body<T>,
     star: &Star<T>,
@@ -550,7 +550,10 @@ fn edge_wedge<T: Decide>(
     let sector_surface = |f| body.proven_face(f).surface();
     let (s_own, s_mate) = (sector_surface(own_face), sector_surface(mate_face));
     let along = star.bounds[k].ray();
-    let extent = star.bounds[k].reach.lever();
+    let edge = proven(&body.half_edges, star.bounds[k].he, EntityId::HalfEdge).edge;
+    let Some(extent) = crate::edge_wedge_reach(body, edge) else {
+        unreachable!("the star read {edge:?}'s departure off its certified carrier")
+    };
     // Both faces are read along the edge's ray: at the vertex where each
     // has a tangent plane, and out along the ray where either is a cone at
     // its apex, whose normal is constant along the ruling the ray lies on

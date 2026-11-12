@@ -483,9 +483,29 @@ fn knots(g: &mut fuzz::Rng, degree: usize) -> Vec<f64> {
 /// certifies at both scalars.
 #[test]
 fn a_stated_image_on_its_carrier_certifies() {
-    let mut g = fuzz::start("analytic_image_on_its_carrier");
+    stated_images_on_their_carriers(&mut fuzz::start(ON_ITS_CARRIER));
+}
+
+/// The no-false-refusal row's sweep label.
+const ON_ITS_CARRIER: &str = "analytic_image_on_its_carrier";
+
+/// **A cone's General image whose station read wide at `Interval`**: the
+/// no-false-refusal row at the sweep seed that drew it (filed as
+/// `main-red-a-cone-stated-image-fuzz-seed-fails-at-1e-12`). A degree-1
+/// image on a cone's ruling over `[0.260, 0.917]` read its sample 5 at
+/// `[0, 6.8e-12]` at ε 1e-12 when the stations were computed at the
+/// scalar; read at held stations (PR 6857) it certifies.
+#[test]
+fn a_cone_general_image_at_its_sweep_seed_certifies() {
+    stated_images_on_their_carriers(&mut fuzz::pinned_sweep(
+        ON_ITS_CARRIER,
+        0xbc20_d21a_e8ad_d37e,
+    ));
+}
+
+fn stated_images_on_their_carriers(g: &mut fuzz::Rng) {
     for _ in 0..fuzz::scaled(16) {
-        let (origin, axis, u_ref) = frame(&mut g);
+        let (origin, axis, u_ref) = frame(g);
         let chart = Chart::ALL[g.below(3)];
         let surface = match chart {
             Chart::Plane => Surface::Plane {
@@ -507,7 +527,7 @@ fn a_stated_image_on_its_carrier_certifies() {
             },
         };
         let degree = 1 + g.below(3);
-        let knots = knots(&mut g, degree);
+        let knots = knots(g, degree);
         let count = knots.len() - degree - 1;
         let rational = g.below(2) == 0;
         let weights: Vec<f64> = (0..count)

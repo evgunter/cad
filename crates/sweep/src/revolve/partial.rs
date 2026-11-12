@@ -411,11 +411,10 @@ fn finish_partial<T: Decide + topo::AtRestPolicy>(
     for (li, col) in cols.iter().enumerate() {
         for (j, seg) in col.segs.iter().enumerate() {
             let segment_index = seg.canonical_segment;
-            let sliver = |reading, source| RevolveError::SliverRim {
+            let sliver = |escalation| RevolveError::SliverRim {
                 loop_index: li,
                 segment_index,
-                reading,
-                source,
+                escalation,
             };
             let bottom = he_edge(body, bases[li][j]);
             match walls_all[li][j] {
@@ -591,11 +590,10 @@ pub(super) fn sweep_loop<T: Decide + topo::AtRestPolicy>(
             k_prev,
             k_next,
             band,
-            |reading, source| RevolveError::SliverJoin {
+            |escalation| RevolveError::SliverJoin {
                 loop_index,
                 vertex_index,
-                reading,
-                source,
+                escalation,
             },
             tol,
         )?;

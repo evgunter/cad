@@ -1337,3 +1337,4 @@ E1c waits on the answer.
     - P2 `a-cone-ruling-anchored-near-its-apex-reads-its-azimuth-off-a-short-radial-part`;
     - P3s for the spindle, the interval mint door at pole starts, the unsigned reach, and Villarceau.
     - Both arm rows now note that a fix needs one shared reader.
+- 2026-11-12 — **`main-red-a-cone-stated-image-fuzz-seed-fails-at-1e-12` closed. PR 6857 had already fixed it.** sectarms' lane filed it at 08:44, before 6857 merged. The orchestrator ran the seed on 6857's parent, where it is red (sample 5, the computed station's width, [0, 6.8e-12]), and on main, where it is green. The seed is now pinned as a row beside 6857's cone row, and it goes red under 6857's mutant.

@@ -72,9 +72,9 @@ fn sliver_margin(what: &str, got: Result<(), RevolveError>) -> f64 {
         Err(RevolveError::SliverJoin {
             loop_index: 0,
             vertex_index: 1,
-            source,
+            escalation,
             ..
-        }) => match source.margin.diagnostic_f64_for_error_text() {
+        }) => match escalation.diag().margin.diagnostic_f64_for_error_text() {
             ErrorTextReading::Value(m) => m,
             ErrorTextReading::Enclosure { lo, hi } => 0.5 * (lo + hi),
             ErrorTextReading::Invalid => panic!("{what}: a poisoned margin"),

@@ -552,8 +552,12 @@ BOUNDS_ALLOWLIST=(
   # The third is `nary_boolean_apart`, `nary_boolean` with the member
   # pairs a placement's separation certificate certifies apart: it
   # forwards to `run_members` with those pairs and reads no bracket of
-  # its own. 2 + 1 = 3.
-  'crates/topo/src/boolean/nary.rs 3 2026-07-29 (M5 PR 8), the driver amendment'
+  # its own. The fourth is `cut_by_material`, a cut whose tool's solids
+  # rest on each other (`crates/topo/README.md`, `[topo.cut-material]`):
+  # it runs the tool's fold through `run_members` and the cut through the
+  # boolean door (`boolean_op_given`), and reads no bracket of its own
+  # (without `Bounds` neither call compiles). 3 + 1 = 4.
+  'crates/topo/src/boolean/nary.rs 4 2026-07-29 (M5 PR 8), the driver amendment'
   # `separation.rs` is FIVE. The ledger entry enumerates three seams
   # (`Separation::of`, the pair certificate, `image`), and the pair
   # certificate is `Separation::apart`, every pair of placed copies the
