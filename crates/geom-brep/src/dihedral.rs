@@ -1727,7 +1727,7 @@ impl core::fmt::Display for MixedStations {
 
 /// What a join stores, by the must-carry rule's verdict
 /// ([`MustCarryVerdict::description`]) or by its whole wedge
-/// ([`crate::WedgeVerdict::description`]).
+/// ([`crate::WedgeWalk::description`]).
 #[derive(Clone, Debug)]
 pub enum MustCarryDescription<T: Real> {
     /// The intrinsic description over the pair the rule was asked about:
