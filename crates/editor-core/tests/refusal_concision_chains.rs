@@ -2045,9 +2045,9 @@ fn extrude() -> Vec<(String, NodeErrorKind)> {
             E::SmoothJoinRefuted {
                 edge: topo::EdgeKey::default(),
                 mixed: geom_brep::MixedStations::Class {
-                transverse: 3,
-                smooth: 4,
-            },
+                    transverse: 3,
+                    smooth: 4,
+                },
             },
         ),
         ("Op", E::Op { source: euler() }),
@@ -2217,9 +2217,9 @@ fn revolve_arms() -> Vec<(&'static str, sweep::RevolveError)> {
             E::SmoothJoinRefuted {
                 edge: topo::EdgeKey::default(),
                 mixed: geom_brep::MixedStations::Class {
-                transverse: 3,
-                smooth: 4,
-            },
+                    transverse: 3,
+                    smooth: 4,
+                },
             },
         ),
         (

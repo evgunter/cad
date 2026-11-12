@@ -130,12 +130,12 @@ pub use dihedral::{
     Convexity, Corner, DIHEDRAL_ARM, DIHEDRAL_ARM_CLAUSE, DIHEDRAL_ARM_NOUN, DIHEDRAL_SIGN,
     Dihedral, DihedralClass, EdgeWedge, EdgeWedgeEscalation, MATERIAL_PAIRING,
     MATERIAL_PAIRING_CLAUSE, MaterialPairing, MixedStations, MustCarryDescription,
-    MustCarryRefusal, MustCarryVerdict, PairRefusal, PositiveArm, RestLocus,
-    SeamEscalation, SeamFace, SecondOrder, SmoothJoin, Station, Tangency, WedgeEnd,
-    WedgeEscalation, WedgeRung, classify_dihedral, classify_edge_wedge,
-    classify_dihedral_reported, classify_material_pairing_as, classify_seam,
-    folded_lever_arm, material_kappa_rel, must_carry_description, must_carry_over_edge,
-    reask_chart, reask_pair, rest_locus, tangent_second_order,
+    MustCarryRefusal, MustCarryVerdict, PairRefusal, PositiveArm, RestLocus, SeamEscalation,
+    SeamFace, SecondOrder, SmoothJoin, Station, Tangency, WedgeEnd, WedgeEscalation, WedgeRung,
+    classify_dihedral, classify_dihedral_reported, classify_edge_wedge,
+    classify_material_pairing_as, classify_seam, folded_lever_arm, material_kappa_rel,
+    must_carry_description, must_carry_over_edge, reask_chart, reask_pair, rest_locus,
+    tangent_second_order,
 };
 pub use dihedral_side::{
     ChartPointRefusal, CreaseReading, EdgeHalf, EdgeWalk, FaceSide, SideEscalation, SideFace,

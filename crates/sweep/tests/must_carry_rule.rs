@@ -60,9 +60,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom::{Curve3, Surface};
-use geom_brep::{
-    EdgeDescription, MustCarryVerdict, WedgeRung, must_carry_over_edge,
-};
+use geom_brep::{EdgeDescription, MustCarryVerdict, WedgeRung, must_carry_over_edge};
 use geom_core::{Band, ErrorTextReading, Point2, Point3, Tol, Vec2, Vec3};
 use profile::{
     EscalationSite, Profile, ProfileError, SegmentRef, SketchPlane, ValidatedProfile,
@@ -694,8 +692,7 @@ fn a_tangency_over_a_collapsed_arm_escalates_at_the_arm_in_both_orders() {
     for extent in [in_band_margin(), definite_zero_margin()] {
         let (a, b) = both_orders(&plane, &cylinder, &ruling, extent, extent);
         for (order, verdict) in [("plane first", a), ("cylinder first", b)] {
-            let MustCarryVerdict::InBand(escalation) = verdict
-            else {
+            let MustCarryVerdict::InBand(escalation) = verdict else {
                 panic!(
                     "{order}, extent {extent:e}: a collapsed arm must escalate, not {verdict:?}"
                 );

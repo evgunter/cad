@@ -3355,10 +3355,9 @@ fn must_carry_reading<T: Decide>(
         MustCarryVerdict::UnderDetermined => Ok(SeamReading::Conventional),
         MustCarryVerdict::Transverse => Err(SeamRefusal::Mixed(None)),
         MustCarryVerdict::Mixed(stations) => Err(SeamRefusal::Mixed(Some(stations))),
-        MustCarryVerdict::InBand(escalation) => Err(SeamRefusal::Undecided(
-            escalation.rung(),
-            escalation.diag(),
-        )),
+        MustCarryVerdict::InBand(escalation) => {
+            Err(SeamRefusal::Undecided(escalation.rung(), escalation.diag()))
+        }
     }
 }
 

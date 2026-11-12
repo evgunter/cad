@@ -23,7 +23,10 @@ pub fn edge_wedge_walk<T: Decide>(
     edge: EdgeKey,
 ) -> Option<geom_brep::WedgeWalk<'_, T>> {
     let e = body.get_edge(edge)?;
-    let curve = body.curves.get(e.curve).and_then(crate::CurveGeom::certified)?;
+    let curve = body
+        .curves
+        .get(e.curve)
+        .and_then(crate::CurveGeom::certified)?;
     let sides = crate::readback::edge_sides(body, edge).ok()?;
     let side = |side: crate::readback::EdgeSide| {
         Some(geom_brep::SideFace {

@@ -264,7 +264,8 @@ impl<T: Decide> Body<T> {
             (geom::Surface::Plane { .. }, geom::Surface::Plane { .. })
         );
         let one_carrier = if planes && matches!(verdict, geom_brep::WedgeVerdict::Seam { .. }) {
-            let reach = crate::wedge_reach::wedge_reach(self, sides, curve.carrier(), curve.params());
+            let reach =
+                crate::wedge_reach::wedge_reach(self, sides, curve.carrier(), curve.params());
             match geom_brep::classify_dihedral_reported(s1, s2, curve.mid_point(), reach, band) {
                 Ok((_, margin)) => Some(SmoothAcross {
                     edge,

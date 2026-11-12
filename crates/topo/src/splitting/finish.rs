@@ -1096,8 +1096,11 @@ impl SplitFinishError {
                         "whether two faces touching along the cut close a cusp or a slit"
                     }
                 };
-                diag.undecided(question, diag.lever_ending(super::SPLIT_COINCIDENCE_RECOURSE))
-                    .fmt(f)
+                diag.undecided(
+                    question,
+                    diag.lever_ending(super::SPLIT_COINCIDENCE_RECOURSE),
+                )
+                .fmt(f)
             }
             Self::Undescribed { failure, .. } => write!(
                 f,

@@ -1375,6 +1375,7 @@ pub mod test_support {
         crate::boolean::solid_contain::point_in_face(body, face, normal, p, band)
     }
 }
+mod edge_wedge;
 #[cfg(test)]
 mod r2_probes;
 #[cfg(test)]
@@ -1383,7 +1384,6 @@ pub mod transform;
 #[cfg(test)]
 mod turn_rows;
 pub mod validate;
-mod edge_wedge;
 pub use edge_wedge::{edge_wedge, edge_wedge_description, edge_wedge_walk};
 mod wedge_reach;
 pub use wedge_reach::{WedgeReach, edge_faces, edge_wedge_reach, wedge_reach};
@@ -1485,8 +1485,8 @@ pub use instance::{
     GraftKeys, graft_disjoint, graft_disjoint_all, graft_disjoint_all_keyed, per_part_gate_owed,
 };
 pub use merge_faces::{
-    EdgeDescribeFailure, MergeCoplanarError, MergeCoplanarOutcome, MergeDecision,
-    MergeKind, MergedGroup, OutlineVerdict, SkippedMerge,
+    EdgeDescribeFailure, MergeCoplanarError, MergeCoplanarOutcome, MergeDecision, MergeKind,
+    MergedGroup, OutlineVerdict, SkippedMerge,
 };
 pub use null::CurveGeom;
 pub use offset_axial::{is_axial, offset_charts_together};
