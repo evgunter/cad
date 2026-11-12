@@ -6,6 +6,7 @@
 use geom_core::{Band, Decide, Indeterminate, Lever, Margin, Real, Sign, Vec3};
 
 use super::Star;
+use crate::bound_side::BoundSupport;
 
 /// K name: a cut's section line, `|n_s × n_d|` levered at the sector's
 /// farther reach (metres): the sector's tilt against the datum. Zero is a
@@ -72,18 +73,24 @@ impl<T: Real> Star<T> {
     /// vertex the sector's own geometry is known, where [`germ_line`]
     /// levers its line.
     pub(crate) fn span(&self, k: usize) -> Lever<T> {
-        self.bounds[k]
-            .reach
-            .lever()
-            .max(self.start(k).reach.lever())
+        span(self.bounds[k].reach, self.start(k).reach)
     }
 }
 
-/// **A unit direction and its lean** `(0, 1]`: a germ read as two faces'
-/// line carries `|n_a × n_b|`, how steeply a tilt of either face turns it,
-/// and a reading of its side is levered by its lean
-/// (`boolean::sectors::leaned_lever`'s doctrine); a direction read
-/// off one carrier (a bound, a ruling) leans 1.
+/// **A sector's span**: the farther of its two bounds' reaches, in metres:
+/// how far from the vertex the sector's own geometry is known, the one
+/// reading the star's sectors and the Boolean's view of them share.
+pub(crate) fn span<T: Real>(a: BoundSupport<T>, b: BoundSupport<T>) -> Lever<T> {
+    a.lever().max(b.lever())
+}
+
+/// A unit direction with its **lean**: `|n_a × n_b| = sin φ` for two
+/// faces' line (a germ the faces' normals cross into), `1` for an edge,
+/// a bound, a tangent locus or any direction read off one carrier.
+/// Every reading of it against another direction levers by the lean
+/// ([`super::leaned_lever`]); read against a sector's bounds
+/// (`boolean::sectors::rays_within`) the same lean scales the direction
+/// itself, its [`Leaned::line`].
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct Leaned<T: Real> {
     /// The unit direction.

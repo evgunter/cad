@@ -25,38 +25,119 @@ pub(crate) const GERM_SENSE: &str = "germ_sense";
 #[derive(Clone, Copy, Debug)]
 pub(crate) enum OrderFault {
     /// A side or an order reads in the band, or reads zero where nothing
-    /// orders the tie: the germs coincide to the tolerance.
+    /// orders the tie, or where the directions read apart unlevered by
+    /// their lean ([`sine`]): the germs coincide to the tolerance.
     Coincident(Indeterminate),
     /// Two directions on one line whose sense reads in the band.
     Sense(Indeterminate),
-    /// Two germs each along the first point opposite ways: a kernel
-    /// defect.
-    Opposite,
 }
 
 /// **The lever a reading of two directions' sides carries, given their
-/// leans**: `lever · min(lean₀, lean₁)` ([`Leaned`]). A unit face line
-/// turns by up to `δ / sin φ` under a face tilt `δ`; levered so, the
-/// noise of a side read at `lever` is at most the two directions' own
-/// tolerances, whatever the faces' angle.
+/// leans**: `lever · min(lean₀, lean₁)` ([`Leaned`]).
+///
+/// A unit face line is steeper than its faces' own tilt: a tilt `δ` of
+/// either face, a displacement `δ·L ≤ zero` at the reach `L` it governs,
+/// turns their line in the reading's plane by up to `δ / sin φ`. A side
+/// read at `lever` therefore carries noise up to
+/// `lever · (δ₀ / s₀ + δ₁ / s₁)`, `sᵢ` each direction's lean (an edge's
+/// `δ` its own departure, its lean 1). Levered at `lever · min(s₀, s₁)`
+/// that noise is at most `lever · (δ₀ + δ₁)`: the two directions' own
+/// tolerances, whatever the faces' angle. One direction tilted within
+/// the zero therefore decides as the upright pose; two tilted the same
+/// way can add past it, as they do between two edges. Against an edge
+/// lying in the reading's plane, the reading is the edge's far end's
+/// offset from the face line's other face; an edge off that plane adds
+/// its own departure, foreshortened by `cos φ` (`boolean::sectors::rays_within`).
 pub(crate) fn leaned_lever<T: geom_core::Real>(lever: Lever<T>, (l0, l1): (T, T)) -> Lever<T> {
     // Unsourced lever: an arm scaled by a sine (the directions' lean),
     // a length no source reads.
     Lever::unsourced(lever.length() * l0.min(l1))
 }
 
-/// Whether two directions read on one line point the same way (`true`)
-/// or opposite ways, their cosine levered at `arm` ([`GERM_SENSE`]). A
-/// decided zero refuses with its margin, as the in-band arm does.
-fn same_sense<T: Decide>(
+/// Whether two directions read parallel point the same way (`true`) or
+/// opposite ways, their cosine levered at `arm` ([`GERM_SENSE`]). A
+/// decided zero is returned with its margin, as the in-band reading is:
+/// both say the arm is too short to tell.
+///
+/// # Errors
+///
+/// The reading's zero or band.
+pub(crate) fn same_sense<T: Decide>(
     u: Vec3<T>,
     v: Vec3<T>,
     arm: Lever<T>,
     band: Band,
-) -> Result<bool, OrderFault> {
+) -> Result<bool, Indeterminate> {
     crate::validate::decide_nonzero(GERM_SENSE, Margin::levered(u.dot(v), arm), band)
         .map(|sign| sign == NonzeroSign::Positive)
-        .map_err(OrderFault::Sense)
+}
+
+/// **The order's one sine**: `(g × h)·n` under `name`, levered at `arm`
+/// and the two directions' smaller lean ([`leaned_lever`]). Its sign where
+/// definite; `Err(diag)` inside it where it decides the two on one line.
+///
+/// The lean shrinks the lever by what a face line's own steepness would
+/// add, so a leaned zero says the two directions may lie on one line
+/// within their faces' tolerances, not that they do. It is taken as one
+/// line only where the same sine read at the bare `arm` is not definite:
+/// where it is, the two lie apart as computed, and the order cannot place
+/// them within the tolerance, which refuses as their coincidence. Two
+/// germs 60° apart on face lines leaning `1e-7` read zero leaned and
+/// apart unleaned; on one line they would read along the first germ, and
+/// each other, at once.
+///
+/// # Errors
+///
+/// [`OrderFault::Coincident`]: the leaned reading in the band, or a
+/// leaned zero the bare reading puts apart.
+fn sine<T: Decide>(
+    name: &'static str,
+    (g, h): (Leaned<T>, Leaned<T>),
+    normal: Vec3<T>,
+    arm: Lever<T>,
+    band: Band,
+) -> Result<Result<NonzeroSign, Indeterminate>, OrderFault> {
+    let raw = g.dir.cross(h.dir).dot(normal);
+    let leaned = Margin::levered(raw, leaned_lever(arm, (g.lean, h.lean)));
+    match crate::validate::decide_nonzero(name, leaned, band) {
+        Ok(sign) => Ok(Ok(sign)),
+        Err(diag) if diag.margin.rejected_sign() == Some(Sign::Zero) => {
+            match crate::validate::decide(name, Margin::levered(raw, arm), band) {
+                Ok(Sign::Positive | Sign::Negative) => Err(OrderFault::Coincident(diag)),
+                _ => Ok(Err(diag)),
+            }
+        }
+        Err(diag) => Err(OrderFault::Coincident(diag)),
+    }
+}
+
+/// Where germ `h` lies from germ `g` about the normal ([`GERM_SIDE`]).
+enum Place {
+    /// Off `g`'s line: the sign of `(g × h)·n`.
+    Off(NonzeroSign),
+    /// Along `g`'s direction, decided so.
+    Along(Indeterminate),
+    /// Along the ray opposite `g`.
+    Opposite,
+}
+
+/// [`sine`] under [`GERM_SIDE`], a zero placed by its sense.
+fn place<T: Decide>(
+    gh: (Leaned<T>, Leaned<T>),
+    normal: Vec3<T>,
+    arm: Lever<T>,
+    band: Band,
+) -> Result<Place, OrderFault> {
+    match sine(GERM_SIDE, gh, normal, arm, band)? {
+        Ok(sign) => Ok(Place::Off(sign)),
+        Err(diag) => Ok(
+            if same_sense(gh.0.dir, gh.1.dir, arm, band).map_err(OrderFault::Sense)? {
+                Place::Along(diag)
+            } else {
+                Place::Opposite
+            },
+        ),
+    }
 }
 
 /// Two germs' turn: off each other's line (the sign of `(g₀ × g₁)·n`) or
@@ -69,27 +150,23 @@ pub(crate) enum Turn {
     Along(Indeterminate),
 }
 
-/// **How `g₁` turns from `g₀` about `normal`**, the order's one sine
-/// ([`GERM_ORDER`]): `(g₀ × g₁)·n` levered at `arm` and the smaller lean
-/// ([`leaned_lever`]). Two germs a reading puts on one line are the
-/// caller's tie ([`Turn::Along`]).
+/// **How `g₁` turns from `g₀` about `normal`** ([`sine`] under
+/// [`GERM_ORDER`]). Two germs it puts on one line are the caller's tie
+/// ([`Turn::Along`]).
 ///
 /// # Errors
 ///
-/// The reading in the band.
+/// [`sine`]'s.
 pub(crate) fn turn<T: Decide>(
-    (g0, g1): (Leaned<T>, Leaned<T>),
+    germs: (Leaned<T>, Leaned<T>),
     normal: Vec3<T>,
     arm: Lever<T>,
     band: Band,
-) -> Result<Turn, Indeterminate> {
-    let lever = leaned_lever(arm, (g0.lean, g1.lean));
-    let order = Margin::levered(g0.dir.cross(g1.dir).dot(normal), lever);
-    match crate::validate::decide_nonzero(GERM_ORDER, order, band) {
-        Ok(sign) => Ok(Turn::Off(sign)),
-        Err(diag) if diag.margin.rejected_sign() == Some(Sign::Zero) => Ok(Turn::Along(diag)),
-        Err(diag) => Err(diag),
-    }
+) -> Result<Turn, OrderFault> {
+    Ok(match sine(GERM_ORDER, germs, normal, arm, band)? {
+        Ok(sign) => Turn::Off(sign),
+        Err(diag) => Turn::Along(diag),
+    })
 }
 
 /// **Whether `germs.0` comes before `germs.1` clockwise about `normal`
@@ -101,13 +178,13 @@ pub(crate) fn turn<T: Decide>(
 /// a germ on `e`'s line is placed by its sense ([`GERM_SENSE`]: along
 /// `e`, angle 0, near; against it, π, far). A germ in the near half-turn
 /// comes first. Within one half-turn the earlier germ is the one the
-/// other follows clockwise, `(g₀ × g₁)·n < 0` ([`GERM_ORDER`], at `arm`).
-/// Every reading is a sine levered as a distance and by the smaller lean
-/// of the directions it reads ([`leaned_lever`]): a sine is linear in the
-/// spacing at every angle, where a cosine is flat beside 0 and π. Two
-/// germs along one direction are the caller's `tie`: the sign of
-/// `(g₀ × g₁)·n` one order down (`geom_brep::tied_germ_turn`), or `None`
-/// where nothing orders them, which refuses with the first-order reading.
+/// other follows clockwise, `(g₀ × g₁)·n < 0` ([`turn`], at `arm`).
+/// Every reading is [`sine`]: levered as a distance and by the smaller
+/// lean of the directions it reads; a sine is linear in the spacing at
+/// every angle, where a cosine is flat beside 0 and π. Two germs along
+/// one direction are the caller's `tie`: the sign of `(g₀ × g₁)·n` one
+/// order down (`geom_brep::tied_germ_turn`), or `None` where nothing
+/// orders them, which refuses with the first-order reading.
 ///
 /// # Errors
 ///
@@ -122,19 +199,17 @@ pub(crate) fn before<T: Decide, E>(
     band: Band,
 ) -> Result<bool, E> {
     let far = |g: Leaned<T>| -> Result<bool, OrderFault> {
-        let lever = leaned_lever(reach, (e.lean, g.lean));
-        let side = Margin::levered(g.dir.cross(e.dir).dot(normal), lever);
-        match crate::validate::decide(GERM_SIDE, side, band).map_err(OrderFault::Coincident)? {
-            Sign::Positive => Ok(false),
-            Sign::Negative => Ok(true),
-            Sign::Zero => Ok(!same_sense(g.dir, e.dir, reach, band)?),
-        }
+        Ok(match place((g, e), normal, reach, band)? {
+            Place::Off(sign) => sign == NonzeroSign::Negative,
+            Place::Along(_) => false,
+            Place::Opposite => true,
+        })
     };
     let (far0, far1) = (far(germs.0).map_err(&fault)?, far(germs.1).map_err(&fault)?);
     if far0 != far1 {
         return Ok(far1);
     }
-    match turn(germs, normal, arm, band).map_err(|diag| fault(OrderFault::Coincident(diag)))? {
+    match turn(germs, normal, arm, band).map_err(&fault)? {
         Turn::Off(sign) => Ok(sign == NonzeroSign::Negative),
         Turn::Along(diag) => match tie()? {
             Some(Sign::Negative) => Ok(true),
@@ -142,16 +217,6 @@ pub(crate) fn before<T: Decide, E>(
             Some(Sign::Zero) | None => Err(fault(OrderFault::Coincident(diag))),
         },
     }
-}
-
-/// Where germ `j` lies from germ `i` about the normal ([`GERM_SIDE`]).
-enum GermSide {
-    /// Off `i`'s line: the sign of `(gᵢ × gⱼ)·n`.
-    Off(NonzeroSign),
-    /// Along `i`'s direction, decided so by this reading.
-    Along(Indeterminate),
-    /// Along the ray opposite `i`.
-    Opposite,
 }
 
 /// The caller's two tie rules ([`germ_order`]).
@@ -174,6 +239,8 @@ pub(crate) struct Ties<A, P> {
 /// it refuses as the germs' coincidence rather than stand at `germs[0]`,
 /// unless the reading decides it along; then the caller's `along` tie
 /// places it just after `germs[0]` or, a full turn round, just before.
+/// Two germs each decided along `germs[0]` that read opposite each other
+/// coincide to the tolerance, and refuse so.
 ///
 /// # Errors
 ///
@@ -196,35 +263,19 @@ where
     let Some(&(from, from_arm)) = germs.first() else {
         return Ok(Vec::new());
     };
-    let side = |i: usize, j: usize, arm: Lever<T>| -> Result<GermSide, OrderFault> {
-        let (g, h) = (germs[i].0, germs[j].0);
-        let side = Margin::levered(
-            g.dir.cross(h.dir).dot(normal),
-            leaned_lever(arm, (g.lean, h.lean)),
-        );
-        match crate::validate::decide_nonzero(GERM_SIDE, side, band) {
-            Ok(sign) => Ok(GermSide::Off(sign)),
-            Err(diag) if diag.margin.rejected_sign() == Some(Sign::Zero) => {
-                Ok(if same_sense(g.dir, h.dir, arm, band)? {
-                    GermSide::Along(diag)
-                } else {
-                    GermSide::Opposite
-                })
-            }
-            Err(diag) => Err(OrderFault::Coincident(diag)),
-        }
-    };
+    let side =
+        |i: usize, j: usize, arm: Lever<T>| place((germs[i].0, germs[j].0), normal, arm, band);
     let along = |i: usize, j: usize, arm: Lever<T>| -> Result<Option<Indeterminate>, OrderFault> {
         Ok(match side(i, j, arm)? {
-            GermSide::Along(diag) => Some(diag),
-            GermSide::Off(_) | GermSide::Opposite => None,
+            Place::Along(diag) => Some(diag),
+            Place::Off(_) | Place::Opposite => None,
         })
     };
+    // A germ off `germs[0]`'s line at one arm is off it at every arm a
+    // comparison of it uses.
     let apart = |g: Leaned<T>, arm: Lever<T>| -> Result<(), OrderFault> {
-        let lever = leaned_lever(arm, (g.lean, from.lean));
-        let side = Margin::levered(g.dir.cross(from.dir).dot(normal), lever);
-        match crate::validate::decide_nonzero(GERM_SIDE, side, band) {
-            Err(diag) if same_sense(g.dir, from.dir, arm, band)? => {
+        match sine(GERM_SIDE, (g, from), normal, arm, band)? {
+            Err(diag) if same_sense(g.dir, from.dir, arm, band).map_err(OrderFault::Sense)? => {
                 Err(OrderFault::Coincident(diag))
             }
             _ => Ok(()),
@@ -246,9 +297,9 @@ where
             for (slot, &j) in ray.iter().enumerate() {
                 // Two germs each along `germs[0]` may still read apart.
                 let later = match side(i, j, g_arm.min(germs[j].1)).map_err(&fault)? {
-                    GermSide::Along(diag) => after(i, j, diag)?,
-                    GermSide::Off(sign) => sign == NonzeroSign::Positive,
-                    GermSide::Opposite => return Err(fault(OrderFault::Opposite)),
+                    Place::Along(diag) => after(i, j, diag)?,
+                    Place::Off(sign) => sign == NonzeroSign::Positive,
+                    Place::Opposite => return Err(fault(OrderFault::Coincident(diag))),
                 };
                 if !later {
                     at = slot;
@@ -288,4 +339,70 @@ where
         order.insert(at, i);
     }
     Ok([&order[..1], &head, &order[1..], &tail].concat())
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod tests {
+    use super::*;
+
+    /// **Germs far apart on steep face lines refuse, never stand on one
+    /// line** (the FULL review's probe on PR 6871): germs at 0°, ±60° and
+    /// 180°, each a face line leaning `1e-7` or `1e-6`, at arm `1e-3`.
+    /// Levered by their lean the sines between them read zero, so on one
+    /// line the ±60° germs would read along `germs[0]` and opposite each
+    /// other at once. The bare sine puts them apart: the order refuses as
+    /// their coincidence, typed.
+    #[test]
+    fn germs_far_apart_on_steep_face_lines_refuse_as_coincident() {
+        let band = Band::new(1e-9, 1e-8).unwrap();
+        let n = Vec3::new(0.0, 0.0, 1.0_f64);
+        let at = |deg: f64, lean: f64| {
+            let t = deg.to_radians();
+            (
+                Leaned {
+                    dir: Vec3::new(t.cos(), t.sin(), 0.0),
+                    lean,
+                },
+                // Unsourced lever: the probe's hand-stated arm.
+                Lever::unsourced(1e-3),
+            )
+        };
+        for lean in [1e-7, 1e-6] {
+            let germs = [
+                at(0.0, lean),
+                at(60.0, lean),
+                at(-60.0, lean),
+                at(180.0, lean),
+            ];
+            let got = germ_order(
+                &germs,
+                n,
+                Ties {
+                    along: |_, _, _| Ok::<_, OrderFault>(false),
+                    pair: |_, _, _| Ok(None),
+                },
+                |f| f,
+                band,
+            );
+            assert!(
+                matches!(got, Err(OrderFault::Coincident(_))),
+                "lean {lean}: the far-apart germs refuse as coincident, got {got:?}"
+            );
+        }
+        // Upright, the same germs order: 0°, then clockwise −60°, 180°, 60°.
+        let germs = [at(0.0, 1.0), at(60.0, 1.0), at(-60.0, 1.0), at(180.0, 1.0)];
+        let got = germ_order(
+            &germs,
+            n,
+            Ties {
+                along: |_, _, _| Ok::<_, OrderFault>(false),
+                pair: |_, _, _| Ok(None),
+            },
+            |f| f,
+            band,
+        )
+        .unwrap();
+        assert_eq!(got, vec![0, 2, 3, 1], "upright germs order clockwise");
+    }
 }

@@ -80,9 +80,9 @@
 //! (`vertex_section`).
 //!
 //! A cut's **germ**, the direction the datum's section leaves the vertex
-//! along inside the cut's sector, is read by one rule, signed by the
-//! cut's codes, whose three arms each verb takes in this order (the bound
-//! in the datum is the verb's reading of its sides):
+//! along inside the cut's sector, is read by one rule where the sector
+//! and the datum cross: signed by the cut's codes, and taken in this
+//! order (the bound in the datum is the verb's reading of its sides):
 //!
 //! - where the verb read a bound of the sector in the datum, that bound;
 //! - at a cone's apex, the section ruling inside the sector
@@ -94,7 +94,14 @@
 //! The split's corners, the pierce's run germs and the vertex–vertex
 //! crossing germs all read it: a crossing record is a cut of A's star
 //! against B's face, signed by A's codes after reclassification, which
-//! name the same ray as B's (`boolean::insert::germ_dir`).
+//! name the same ray as B's (`boolean::insert::germ_dir`). Two arms stand
+//! outside it, where no line of two crossing planes exists to sign: a
+//! declared tangency, whose locus the two faces share (`n_a × n_b`
+//! vanishes there), and a vertex–vertex pair at a cone's apex, whose
+//! germ is a ruling of the fans' meeting; each is singled out by
+//! membership in both sectors (`boolean::insert::record_germ_dir`). The
+//! pierce's tangent sectors take the bound on the tangency locus, the
+//! first arm.
 //!
 //! # The germs' order
 //!
@@ -159,8 +166,10 @@ mod cut;
 
 mod order;
 mod walk;
-pub(crate) use cut::{Cut, CutEnd, GermLineFault, Leaned, apart, cuts, germ_line};
-pub(crate) use order::{OrderFault, Ties, Turn, before, germ_order, leaned_lever, turn};
+pub(crate) use cut::{Cut, CutEnd, GermLineFault, Leaned, apart, cuts, germ_line, span};
+pub(crate) use order::{
+    OrderFault, Ties, Turn, before, germ_order, leaned_lever, same_sense, turn,
+};
 pub(crate) use walk::{Bound, Corner, Datum, Orbit, Star, StarFace, StarFault, departure};
 
 use crate::body::{Body, WALKS_CLOSE};

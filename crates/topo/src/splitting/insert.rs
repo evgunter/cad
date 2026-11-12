@@ -158,6 +158,11 @@ fn section_chords<T: Decide>(
         })
         .collect::<Result<Vec<_>, _>>()?;
     let point = body.resolve_vertex_point(vertex, Proven);
+    // How far cut `c`'s face's section curves off the tangent `t`
+    // toward `across`, the plane's quarter turn of `t`: poison or
+    // unbounded where the surface is singular at the vertex or the
+    // plane is tangent to it there, which refuses. At a cone's apex the
+    // section is a ruling, straight: it bends by nothing.
     let section_bend = |c: usize, t: Vec3<T>, across: Vec3<T>| -> T {
         let sector = &star.sectors[cuts[c].sector];
         if let StarFace::Apex(_) = sector.at {
@@ -217,9 +222,6 @@ fn section_chords<T: Decide>(
             }
             OrderFault::Coincident(diag) | OrderFault::Sense(diag) => {
                 escalated(SectionGermReading::Order, diag)
-            }
-            OrderFault::Opposite => {
-                unreachable!("two germs along the first at {vertex:?} point opposite ways")
             }
         },
         band,

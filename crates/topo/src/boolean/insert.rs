@@ -1170,8 +1170,9 @@ fn holds_whole<T: Decide>(
     if secs[outer.0.entry].he != secs[inner.0.entry].he {
         return Ok(false);
     }
-    let tree = strut_tree(secs, &[outer, inner], band)?;
-    Ok(tree.iter().any(|s| s.run == 1 && s.parent == Some(0)))
+    // Two segments that cross nest neither way: neither holds the other.
+    Ok(strut_tree(secs, &[outer, inner], band)?
+        .is_some_and(|tree| tree.iter().any(|s| s.run == 1 && s.parent == Some(0))))
 }
 
 /// **The nesting of strut segments in one physical sector**:
@@ -1191,17 +1192,20 @@ fn holds_whole<T: Decide>(
 /// root, keeps the corner outside both pieces, which is empty in the
 /// corner's face; the other way round it would be inside both.
 ///
+/// `None` where two of the segments cross: they nest neither way, and a
+/// caller asking whether one holds another reads no.
+///
 /// # Errors
 ///
 /// The order's refusals; [`BooleanError::ClassificationInvariant`] where
 /// two struts tied at both ends carry one code (two pieces of one operand
 /// In on the segment would overlap there, and two Out on it are each In
-/// on the rest of the orbit, and overlap there), or the segments cross.
+/// on the rest of the orbit, and overlap there).
 fn strut_tree<T: Decide>(
     secs: &[BoolSector<T>],
     segments: &[Segment<T>],
     band: Band,
-) -> Result<Vec<crate::star::RingStrut>, BooleanError> {
+) -> Result<Option<Vec<crate::star::RingStrut>>, BooleanError> {
     let mut labels: Vec<usize> = Vec::with_capacity(2 * segments.len());
     for x in 0..2 * segments.len() {
         let mut at = labels.len();
@@ -1210,9 +1214,7 @@ fn strut_tree<T: Decide>(
         }
         labels.insert(at, x);
     }
-    crate::star::ring_tree(&labels, Some(0)).ok_or(BooleanError::ClassificationInvariant {
-        what: "the dangling null edges of one corner at a shared vertex cross",
-    })
+    Ok(crate::star::ring_tree(&labels, Some(0)))
 }
 
 /// Whether end `x` of [`strut_tree`]'s segments comes before end `y`
@@ -1238,12 +1240,9 @@ fn end_before<T: Decide>(
     if let Some(b) = before(x, y)? {
         return Ok(b);
     }
+    // Two ends of one strut never tie: [`segment`] reads them apart
+    // ([`leads`] refuses a strut whose germs lie along one direction).
     let (sx, sy) = (x / 2, y / 2);
-    if sx == sy {
-        return Err(BooleanError::ClassificationInvariant {
-            what: "a strut whose two germs the walk ties: a pair's two crossings are distinct",
-        });
-    }
     // Whether strut `sx` holds `sy` where they tie at both ends.
     let x_holds = || match (segments[sx].2, segments[sy].2) {
         (SideCode::Out, SideCode::In) => Ok(true),
@@ -1867,7 +1866,9 @@ fn walks_after<T: Decide>(
                 .map_err(refuse)
         }
         // The star's one sine of two germs' order.
-        None => match crate::star::turn((x, y), s.tangent().vec(), s.arm, band).map_err(refuse)? {
+        None => match crate::star::turn((x, y), s.tangent().vec(), s.arm, band)
+            .map_err(super::sectors::order_fault)?
+        {
             crate::star::Turn::Off(sign) => Ok(sign.into()),
             crate::star::Turn::Along(_) => Ok(Sign::Zero),
         },
@@ -1965,26 +1966,24 @@ fn mint_directed<T: Decide>(
     // innermost strut hung earlier whose segment holds its own.
     let walk = if empty && run.shared {
         let own = segment(sectors, run, band)?;
-        // The innermost hung strut holding it: its parent in the tree of
-        // every strut hung in its sector.
-        let beside: Vec<&HungStrut<T>> = hung
+        // The innermost hung strut whose segment holds its own, each pair
+        // read by its own tree ([`holds_whole`]): a hung strut that
+        // crosses it, or one in another sector, holds it not.
+        let mut holder: Option<&HungStrut<T>> = None;
+        for h in hung
             .struts
             .iter()
-            .filter(|h| {
-                (h.operand, h.root) == (operand, vertex)
-                    && sectors[h.segment.0.entry].he == sectors[own.0.entry].he
-            })
-            .collect();
-        let segments: Vec<Segment<T>> = beside
-            .iter()
-            .map(|h| h.segment)
-            .chain(std::iter::once(own))
-            .collect();
-        let holder = strut_tree(sectors, &segments, band)?
-            .into_iter()
-            .find(|s| s.run == beside.len())
-            .and_then(|s| s.parent)
-            .map(|p| beside[p]);
+            .filter(|h| (h.operand, h.root) == (operand, vertex))
+        {
+            let holds = holds_whole(sectors, h.segment, own, band)?;
+            let inner = match holder {
+                None => true,
+                Some(o) => holds_whole(sectors, o.segment, h.segment, band)?,
+            };
+            if holds && inner {
+                holder = Some(h);
+            }
+        }
         // In a nested plan the strut that holds it was named twice: by
         // the walk order ([`run_holders`]) and here by the geometry.
         if by_strut.is_some_and(|b| b != holder.is_some()) {
@@ -2533,8 +2532,16 @@ pub(super) fn strut_order<T: Decide>(
 /// sector normals are PARALLEL along the contact (the tangency), so
 /// its germ direction is the verified closed-form locus
 /// ([`geom_brep::tangent_locus`] — the DEV-1 witness the door
-/// derived), signed into the sector pair by the same membership test;
-/// every other pair takes the transverse normal cross ([`germ_dir`]).
+/// derived), signed into the sector pair by membership
+/// (`sectors::rays_within`); a pair at a cone's apex takes the fan's
+/// meeting ray ([`fan_germ_dir`]); every other pair takes the star's
+/// germ line signed by its codes ([`germ_dir`]).
+///
+/// The tangent locus is not signed by the codes: its two faces' tangent
+/// planes are one there, so `n_a × n_b` vanishes, and the codes, read
+/// against a face the locus lies in, name no ray of it. Membership in
+/// both sectors is the one datum that names its ray. The fan's meeting
+/// rays are rulings, each a ray of its own, singled out the same way.
 fn record_germ_dir<T: Decide>(
     (a_body, a_vertex): (&Body<T>, VertexKey),
     (b_body, b_vertex): (&Body<T>, VertexKey),
@@ -2606,10 +2613,11 @@ fn record_germ_dir<T: Decide>(
 /// crossing record's own codes after reclassification: which of A's
 /// sector's bounds lies Out of B's face ([`crate::star::CutEnd`]), as a
 /// pierce germ is signed by its transition's. A's sector is the cut, B's
-/// face its datum; the record's B codes name the same ray from B's side
-/// (`n_b × n_a` signed by B's Out bound), and the membership the pair
-/// search found the record on singles it out where it singles one out
-/// (both checked in debug builds).
+/// face its datum. The record's B codes must name the same ray from B's
+/// side (`n_b × n_a` signed by B's Out bound), which is a comparison of
+/// codes, checked in every build; the membership the pair search found
+/// the record on singles it out where it singles one out (checked in
+/// debug builds).
 ///
 /// The line is levered at A's sector's farther reach, where the pierce
 /// levers its own: `pair_search` read the same tilt definite at the
@@ -2621,17 +2629,25 @@ fn germ_dir<T: Decide>(
     read: DeclarationRead,
     band: Band,
 ) -> Result<Leaned<T>, BooleanError> {
+    // A surviving record carries one In and one Out code per side
+    // (`plan_null_pairs` refuses any other before reading a germ).
     let out = |codes: (SideCode, SideCode)| match codes {
-        (SideCode::Out, SideCode::In) => Ok(crate::star::CutEnd::Start),
-        (SideCode::In, SideCode::Out) => Ok(crate::star::CutEnd::End),
-        _ => Err(BooleanError::ClassificationInvariant {
-            what: "a crossing record without one In and one Out code per side",
-        }),
+        (SideCode::Out, _) => crate::star::CutEnd::Start,
+        _ => crate::star::CutEnd::End,
     };
+    // B's codes name the same ray from B's side: `n_b × n_a` is exactly
+    // `−(n_a × n_b)`, so they agree with A's where B's Out bound is the
+    // other end of B's sector. A record whose two sides disagree is no
+    // crossing the pair search makes.
+    if out(codes_b) == out(codes_a) {
+        return Err(BooleanError::ClassificationInvariant {
+            what: "a crossing record's two sides' codes name opposite rays of its germ line",
+        });
+    }
     let line = crate::star::germ_line(
         sa.tangent().vec(),
         sb.tangent().vec(),
-        out(codes_a)?,
+        out(codes_a),
         sa.span(),
         band,
     )
@@ -2646,34 +2662,20 @@ fn germ_dir<T: Decide>(
             diag,
         },
     })?;
+    // D9 row 5: where membership singles out one ray it is this one.
+    // Where a bound reads On, membership can read both rays in, which is
+    // no disagreement.
     #[cfg(debug_assertions)]
-    {
-        let from_b = crate::star::germ_line(
-            sb.tangent().vec(),
-            sa.tangent().vec(),
-            out(codes_b)?,
-            sb.span(),
-            band,
-        );
+    if let Ok(within) = super::sectors::rays_within(line, &[sa, sb], read, band) {
         debug_assert!(
-            from_b.as_ref().map_or(true, |b| b
-                .dir
-                .dot(line.dir)
-                .point_value()
-                .is_none_or(|d| d > 0.0)),
-            "a crossing germ's A codes {codes_a:?} and B codes {codes_b:?} name opposite rays"
+            within.0 || !within.1,
+            "the crossing germ {:?} ({codes_a:?}) is outside its sector pair and its \
+             opposite inside",
+            line.dir
         );
-        if let Ok(within) = super::sectors::rays_within(line, &[sa, sb], read, band) {
-            debug_assert!(
-                within.0 || !within.1,
-                "the crossing germ {:?} ({codes_a:?}) is outside its sector pair and its \
-                 opposite inside",
-                line.dir
-            );
-        }
     }
     #[cfg(not(debug_assertions))]
-    let _ = (codes_b, read);
+    let _ = read;
     Ok(line)
 }
 
@@ -4055,6 +4057,144 @@ mod tests {
 
     fn up(d: Vec3<f64>) -> Leaned<f64> {
         Leaned::upright(d)
+    }
+
+    /// One physical sector, `x` to `y` about `+z`, and a cut in it at walk
+    /// position `p` (`0..100`, the walk running from `y` toward `x`).
+    fn strut_sector() -> Vec<BoolSector<f64>> {
+        use super::super::sectors::BoundSupport;
+        let reach = || BoundSupport::Extent(geom_core::test_support::fixture_lever(1.0));
+        vec![BoolSector {
+            he: HalfEdgeKey::default(),
+            start: Vec3::new(1.0, 0.0, 0.0),
+            end: Vec3::new(0.0, 1.0, 0.0),
+            start_reach: reach(),
+            end_reach: reach(),
+            face: FaceKey::default(),
+            at_vertex: crate::star::StarFace::Tangent(geom_brep::OutwardNormal::from_chart(
+                Vec3::new(0.0, 0.0, 1.0),
+                true,
+            )),
+            arm: geom_core::test_support::fixture_lever(1.0),
+            bend: crate::bound_side::FaceBend::Plane,
+        }]
+    }
+
+    fn strut_at(p: u32) -> Cut<f64> {
+        let t = (90.0 - 0.8 * f64::from(p)).to_radians();
+        Cut::apart(0, up(Vec3::new(t.cos(), t.sin(), 0.0)))
+    }
+
+    /// **Crossing struts hold each other not** (the FULL review on PR 6871,
+    /// finding 2): segments `(10, 50)` and `(30, 70)` cross, so neither
+    /// holds the other, as on main, and `holds_whole` answers so rather
+    /// than refuse; `(10, 70)` holds `(30, 50)` and not the other way.
+    /// The shared-vertex mint's innermost-holder search reads each hung
+    /// strut through `holds_whole`, so a crossing hung strut is no holder
+    /// there either.
+    #[test]
+    fn crossing_struts_hold_each_other_not() {
+        let band = geom_core::Band::linear(Tol::witness()).unwrap();
+        let secs = strut_sector();
+        let seg = |lo, hi, code| (strut_at(lo), strut_at(hi), code);
+        let (a, b) = (seg(10, 50, SideCode::Out), seg(30, 70, SideCode::Out));
+        assert!(
+            !holds_whole(&secs, a, b, band).unwrap(),
+            "(10,50) does not hold (30,70)"
+        );
+        assert!(
+            !holds_whole(&secs, b, a, band).unwrap(),
+            "(30,70) does not hold (10,50)"
+        );
+        let (outer, inner) = (seg(10, 70, SideCode::Out), seg(30, 50, SideCode::Out));
+        assert!(
+            holds_whole(&secs, outer, inner, band).unwrap(),
+            "(10,70) holds (30,50)"
+        );
+        assert!(
+            !holds_whole(&secs, inner, outer, band).unwrap(),
+            "(30,50) holds not (10,70)"
+        );
+    }
+
+    /// **The struts' end order is total, ties included**: over every set of
+    /// three nested-or-apart segments on positions `{10, 30, 50, 70}`,
+    /// ends shared freely and a doubly tied pair carrying opposite codes,
+    /// [`end_before`] is antisymmetric and transitive on the six ends, so
+    /// [`strut_tree`]'s insertion sort reads one order whatever the
+    /// segments' order, and the tree it reads nests as containment says.
+    #[test]
+    fn the_struts_end_order_is_total_with_ties() {
+        let band = geom_core::Band::linear(Tol::witness()).unwrap();
+        let secs = strut_sector();
+        let ps = [10u32, 30, 50, 70];
+        let mut spans = Vec::new();
+        for (i, &lo) in ps.iter().enumerate() {
+            for &hi in &ps[i + 1..] {
+                spans.push((lo, hi));
+            }
+        }
+        // Two spans nest (an end shared counts inside), lie apart (an end
+        // shared counts apart), or cross.
+        let crosses = |(a, b): (u32, u32), (c, d): (u32, u32)| {
+            (a < c && c < b && b < d) || (c < a && a < d && d < b)
+        };
+        let mut sets = 0;
+        for x in 0..spans.len() {
+            for y in x..spans.len() {
+                for z in y..spans.len() {
+                    let set = [spans[x], spans[y], spans[z]];
+                    if (0..3).any(|i| (i + 1..3).any(|j| crosses(set[i], set[j]))) {
+                        continue;
+                    }
+                    // Doubly tied pairs alternate codes; a triple tie has
+                    // no order, and is skipped.
+                    if set[0] == set[1] && set[1] == set[2] {
+                        continue;
+                    }
+                    let codes = [SideCode::Out, SideCode::In, SideCode::Out];
+                    let mut segs: Vec<Segment<f64>> = set
+                        .iter()
+                        .zip(codes)
+                        .map(|(&(lo, hi), c)| (strut_at(lo), strut_at(hi), c))
+                        .collect();
+                    if set[0] == set[2] {
+                        segs[2].2 = SideCode::In;
+                        segs[1].2 = SideCode::Out;
+                        if set[0] == set[1] {
+                            continue;
+                        }
+                    }
+                    let before = |p: usize, q: usize| end_before(&secs, &segs, p, q, band).unwrap();
+                    for p in 0..6 {
+                        for q in 0..6 {
+                            if p == q {
+                                continue;
+                            }
+                            assert_ne!(
+                                before(p, q),
+                                before(q, p),
+                                "{set:?}: ends {p}, {q} antisymmetric"
+                            );
+                            for r in 0..6 {
+                                if r != p && r != q && before(p, q) && before(q, r) {
+                                    assert!(
+                                        before(p, r),
+                                        "{set:?}: ends {p} < {q} < {r} transitive"
+                                    );
+                                }
+                            }
+                        }
+                    }
+                    let tree = strut_tree(&secs, &segs, band)
+                        .unwrap()
+                        .unwrap_or_else(|| panic!("{set:?}: non-crossing segments nest"));
+                    assert_eq!(tree.len(), 3, "{set:?}: one strut per segment");
+                    sets += 1;
+                }
+            }
+        }
+        assert!(sets > 20, "the enumeration reached {sets} sets");
     }
 
     /// The face line of the plane through the z axis whose normal lies

@@ -76,7 +76,6 @@ use geom_brep::LeverBounds;
 use geom_brep::enters_material;
 use geom_brep::ladder::{Answering, Climb, Rung, climb, climb_agreeing};
 use geom_brep::{EntersMaterial, OutwardNormal};
-use geom_core::NonzeroSign;
 use geom_core::{Band, Decide, Decided, Lever, Margin, Point3, Sign, Vec3};
 
 use super::refusal_routes::{BOUNDS_PARALLEL, Parallelism};
@@ -224,7 +223,7 @@ impl<T: geom_core::Real> BoolSector<T> {
     /// The farther of the sector's two bounds' reaches, in metres: how
     /// far from the base vertex the sector's own geometry is known.
     pub(super) fn span(&self) -> Lever<T> {
-        self.start_reach.lever().max(self.end_reach.lever())
+        crate::star::span(self.start_reach, self.end_reach)
     }
     /// The face's outward normal at the base vertex, its tangent plane's.
     /// A sector at a cone's apex is read through its own arms
@@ -1164,12 +1163,6 @@ pub(super) fn exact_lever<T: geom_core::Real>(bound: Lever<T>, own: Option<Lever
     reading_lever(LeverBounds::Exact(bound), own.map(LeverBounds::Exact)).below()
 }
 
-/// A unit direction with its **lean**: `|n_a × n_b| = sin φ` for two
-/// faces' line (a germ the faces' normals cross into), `1` for an edge,
-/// a bound, a tangent locus or any direction read off one carrier.
-/// Every reading of it against another direction levers by the lean
-/// ([`leaned_lever`]); read against a sector's bounds ([`rays_within`])
-/// the same lean scales the direction itself, its [`Leaned::line`].
 pub(super) use crate::star::Leaned;
 
 pub(super) use crate::star::leaned_lever;
@@ -1186,9 +1179,6 @@ pub(super) fn order_fault(fault: crate::star::OrderFault) -> BooleanError {
         OrderFault::Sense(diag) => BooleanError::Escalated {
             decision: BooleanDecision::DirectionSense,
             diag,
-        },
-        OrderFault::Opposite => BooleanError::ClassificationInvariant {
-            what: "two germs along an order's first germ point opposite ways",
         },
     }
 }
@@ -2055,24 +2045,19 @@ pub(super) fn parallel_same_as<T: Decide>(
 }
 
 /// Whether two directions read parallel point the same way (`true`)
-/// or opposite ways, their cosine levered at `arm`
-/// ([`BooleanDecision::DirectionSense`]). A decided zero refuses with
-/// its decided margin, as the in-band arm does: both say the arm is
-/// too short to tell.
+/// or opposite ways: the star's one sense reading
+/// ([`crate::star::same_sense`], `germ_sense`), its zero or band refused
+/// as [`BooleanDecision::DirectionSense`].
 pub(super) fn direction_sense<T: Decide>(
     u: Vec3<T>,
     v: Vec3<T>,
     arm: Lever<T>,
     band: Band,
 ) -> Result<bool, BooleanError> {
-    Ok(
-        crate::validate::decide_nonzero("bool_dir_same", Margin::levered(u.dot(v), arm), band)
-            .map_err(|diag| BooleanError::Escalated {
-                decision: BooleanDecision::DirectionSense,
-                diag,
-            })?
-            == NonzeroSign::Positive,
-    )
+    crate::star::same_sense(u, v, arm, band).map_err(|diag| BooleanError::Escalated {
+        decision: BooleanDecision::DirectionSense,
+        diag,
+    })
 }
 
 /// **Whether two coplanar sectors, one of each operand, overlap**: at
