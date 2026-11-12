@@ -16,11 +16,11 @@ use crate::pair_section::{
     SectionRead, SsiLane, pair_section,
 };
 
-fn band() -> Band {
+pub(super) fn band() -> Band {
     Band::linear(Tol::witness()).expect("the run's tolerance forms a band")
 }
 
-fn pt(x: f64, y: f64, z: f64) -> Point3<f64> {
+pub(super) fn pt(x: f64, y: f64, z: f64) -> Point3<f64> {
     Point3::new(x, y, z)
 }
 
@@ -30,7 +30,7 @@ fn pt(x: f64, y: f64, z: f64) -> Point3<f64> {
 /// coordinate times `s`. Its height is `z = 2v` exactly, so the plane
 /// `z = s` cuts it along the iso-line `v = ½`, from the side `u = 0` to
 /// the side `u = 1`.
-fn wall(s: f64) -> Surface<f64> {
+pub(super) fn wall(s: f64) -> Surface<f64> {
     let ku = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
     let kv = KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap();
     let control = [-1.0, 1.0]
@@ -52,7 +52,7 @@ fn level(s: f64) -> Surface<f64> {
 }
 
 /// The sphere about `s·c` of radius `s·r`.
-fn ball(s: f64, c: (f64, f64, f64), r: f64) -> Surface<f64> {
+pub(super) fn ball(s: f64, c: (f64, f64, f64), r: f64) -> Surface<f64> {
     Surface::Sphere {
         center: pt(s * c.0, s * c.1, s * c.2),
         radius: s * r,
@@ -63,7 +63,7 @@ fn ball(s: f64, c: (f64, f64, f64), r: f64) -> Surface<f64> {
 
 /// `a` against `b` classified through the march, then read whole: the
 /// listing the carry takes.
-fn listed(a: &Surface<f64>, b: &Surface<f64>) -> PairSection<f64> {
+pub(super) fn listed(a: &Surface<f64>, b: &Surface<f64>) -> PairSection<f64> {
     let lane = Some(SsiLane::marched());
     match pair_section(a, b, None, lane, band()).expect("the pair classifies") {
         SectionRead::Built(s) => s

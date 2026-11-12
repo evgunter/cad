@@ -2,7 +2,8 @@
 id: main-red-the-prose-census-reads-a-debug-rendering-in-selects-message
 kind: issue
 title: Main red (slow set): pncad-py's prose census finds a Debug rendering in select.rs's message since PR 6555
-status: open
+status: closed
+closed: 2026-11-12
 opened: 2026-11-11
 priority: P1
 cost: E
@@ -17,3 +18,7 @@ Found by PCERT's nightly-reds lane (`pcert/nightly-slowset-reds`), in nightly 42
 **What closing it takes.** Render `member` through its `Display` (or a named field), or, if a `Debug` rendering is the right message here, give the site its allowance with the reason. The census keys the allowance on the site, not on the file.
 
 The class (slow-set source censuses no PR gate selects) is on green's `a-src-change-that-moves-a-decide-site-skips-its-crates-recourse-roster`.
+
+## Closed
+
+A duplicate of REFS' `main-red-select-no-member-raise-composes-a-debug-rendering` (filed 2026-11-10 by ONEHOME's stage-2 lane), which closes in the same PR (`reads/no-member-prose`): `NoMember`'s raise spells its index values joined, not through `Debug`, and `KNOWN_DEBUG_RAISES` stays empty. The class stays open on GREEN's `a-src-change-that-moves-a-decide-site-skips-its-crates-recourse-roster`.
