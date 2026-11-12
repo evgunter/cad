@@ -11399,7 +11399,8 @@ fn derive_class_zero<T: Decide>(
                             Sign::Zero => false,
                         };
                     let d_hat =
-                        meridian_direction(if use_a { a_r } else { b_r }, &form).normalize();
+                        in_carrier_plane(if use_a { a_r } else { b_r }, form.a.cross(form.b))
+                            .normalize();
                     // σ: the polar rate at t = 0 is v′(0) = σ, and
                     // e′(0)·axis = ba, with e·axis = r·sin v ⇒
                     // ba = r·cos δ·σ. At a pole start (cos δ = 0) the
@@ -11665,7 +11666,8 @@ fn derive_class_zero<T: Decide>(
                     // The meridian's half-plane: its centre's, or on a
                     // lemon the opposite one, where `R < 0` lies
                     // (`geom::meridian_side`, decided at rest).
-                    let side = meridian_direction(w_r, &form) * geom::meridian_side(major_radius);
+                    let side = in_carrier_plane(w_r, form.a.cross(form.b))
+                        * geom::meridian_side(major_radius);
                     let alpha = place.phase(
                         Along::Azimuth,
                         Azimuth::of(side.dot(cv), side.dot(u_ref)),
@@ -11791,20 +11793,19 @@ fn cylinder_rim_axial<T: Decide>(a: T, b: T, band: Band) -> (T, T) {
 
 /// [`derive_class`] for a caller that wants a closed-form image or a
 /// refusal: a circle or line no class images has none.
-/// A meridian circle's horizontal direction `radial`, read off a radial
-/// part, with its part across the circle's plane taken off. The radial
-/// part is a cancellation (`v − axis·(v·axis)`) whose absolute error is
-/// an ulp of the carrier's size, so where it is short (a sphere's pole
-/// start, a spindle's small major radius) its direction is off across the
-/// plane by that ulp over its length, which the image shows at its full
-/// radius. The direction lies in the plane, so along the plane the error
-/// moves only its length.
-fn meridian_direction<T: Real>(radial: Vec3<T>, form: &Harmonic3<T>) -> Vec3<T> {
+/// A meridian circle's horizontal direction, read off a radial part that
+/// lies in the circle's plane (normal `normal`, of any length), with its
+/// part across that plane taken off. The radial part is a cancellation
+/// (`v − axis·(v·axis)`) whose absolute error is an ulp of the carrier's
+/// size and position, so where it is short beside the radius the image
+/// shows its azimuth at (a sphere's pole start, a spindle's small major
+/// radius) its direction is off across the plane by that ulp over its
+/// length. Along the plane the error moves only its length.
+fn in_carrier_plane<T: Real>(radial: Vec3<T>, normal: Vec3<T>) -> Vec3<T> {
     #[cfg(test)]
     if mutants::meridian_direction_unprojected() {
         return radial;
     }
-    let normal = form.a.cross(form.b);
     radial - normal * (radial.dot(normal) / normal.dot(normal))
 }
 

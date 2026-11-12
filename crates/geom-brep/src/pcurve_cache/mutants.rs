@@ -309,7 +309,8 @@ pub(super) fn cone_ruling_gate() -> bool {
 
 /// A meridian's chart azimuth read off its radial part as it is, its
 /// error across the carrier's plane kept (its rows are
-/// `closed_image_rows`' pole-start and quarter-turn meridians).
+/// `closed_image_rows`' pole-start meridian and its far-shown
+/// azimuths).
 pub(super) fn meridian_direction_unprojected() -> bool {
     on("meridian-direction-unprojected")
 }

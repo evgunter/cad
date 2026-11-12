@@ -2100,57 +2100,75 @@ fn a_pole_start_meridian_at_a_fuzz_seed_certifies() {
     }
 }
 
-/// **A derived meridian image is on its circle where its azimuth shows
-/// most** (shape 2, an edge-value table). The chart azimuth is read from
-/// a radial part of length `s·r` while the image shows it at radius
-/// about `r`:
-/// - a great circle of a sphere starting `s` rad from the pole, over a
-///   turn, whose image shows its azimuth at `t ≡ π/2`, the equator;
-/// - a meridian of a spindle of major radius `s·r`, over the half on the
-///   sheet, whose azimuth is read off its centre's radial part.
+/// **A derived circle image is on its circle where its azimuth shows
+/// most** (shape 2, an edge-value table). Each chart azimuth is read from
+/// a radial part of length `s·r` while the image shows it at about `r`:
+/// - a great circle of a sphere of radius `r` starting `s` rad from the
+///   pole, over a turn, whose image shows its azimuth at `t ≡ π/2`, the
+///   equator;
+/// - a meridian of a spindle of minor radius `r` and major radius `s·r`,
+///   over the half on the sheet;
+/// - a Villarceau circle of a torus of major radius `r` and minor radius
+///   `s·r`, over a turn, its azimuth read off its centre's offset (its
+///   phase along the circle is read off the same direction, so the two
+///   move together and the image stays on its circle).
 ///
 /// Each image's enclosed miss stays at rounding, at every `s` past the
 /// band.
 #[test]
-fn a_derived_meridian_image_is_on_its_circle_near_a_quarter_turn() {
+fn a_derived_circle_image_is_on_its_circle_where_its_azimuth_shows_most() {
     let b = band();
     let centre = Point3::new(7.25, -8.5, 9.75);
     let axis = Vec3::new(0.36, -0.48, 0.8);
     let u_ref = Vec3::new(0.8, 0.6, 0.0);
     let v_ref = axis.cross(u_ref);
+    let r = 2.0;
     let mut read = 0;
     let mut missed = Vec::new();
     for (u0, sense) in [(0.3, 1.0), (2.9, -1.0), (-1.7, 1.0)] {
         let radial = u_ref * f64::cos(u0) + v_ref * f64::sin(u0);
         let normal = (v_ref * f64::cos(u0) - u_ref * f64::sin(u0)) * sense;
-        for s in [1e-3, 1e-5, 1e-7] {
-            let r = 2.0;
-            if s * r <= 8.0 * b.escalate() {
-                continue;
-            }
-            let start = axis * f64::cos(s) + radial * f64::sin(s);
+        for s in [1e-3, 1e-5, 1e-7]
+            .into_iter()
+            .filter(|s| s * r > 8.0 * b.escalate())
+        {
             let sphere = Surface::Sphere {
                 center: centre,
                 radius: r,
                 axis,
                 u_ref,
             };
-            let great = Curve3::circle(centre, normal, r, start);
-            let major = s * r;
+            let great =
+                Curve3::circle(centre, normal, r, axis * f64::cos(s) + radial * f64::sin(s));
             let spindle = Surface::Spindle {
                 center: centre,
                 axis,
-                major_radius: major,
+                major_radius: s * r,
                 minor_radius: r,
                 u_ref,
             };
-            let meridian = Curve3::circle(centre + radial * major, normal, r, radial);
+            let meridian = Curve3::circle(centre + radial * (s * r), normal, r, radial);
+            let torus = Surface::Torus {
+                center: centre,
+                axis,
+                major_radius: r,
+                minor_radius: s * r,
+                u_ref,
+            };
+            let lean = radial.cross(axis) * f64::cos(s.asin()) + axis * (sense * s);
+            let villarceau = Curve3::circle(
+                centre + radial * (s * r),
+                radial.cross(lean),
+                r,
+                radial * f64::cos(u0) + lean * f64::sin(u0),
+            );
             for (what, surface, carrier, span) in [
                 ("sphere", sphere, great, (-0.4, TAU - 0.4)),
                 ("spindle", spindle, meridian, (-1.5, 1.5)),
+                ("villarceau", torus, villarceau, (-0.4, TAU - 0.4)),
             ] {
                 let image = chart_pcurve_over(&carrier, span.0, span.1, &surface, b)
-                    .unwrap_or_else(|e| panic!("the {what} meridian at s = {s:e} derives: {e:?}"));
+                    .unwrap_or_else(|e| panic!("the {what} circle at s = {s:e} derives: {e:?}"));
                 let miss = enclosed_miss(&surface, &carrier, &image, span, 512);
                 if miss >= 1e-13 {
                     missed.push(format!(
@@ -2164,6 +2182,6 @@ fn a_derived_meridian_image_is_on_its_circle_near_a_quarter_turn() {
     assert!(read > 0);
     assert!(
         missed.is_empty(),
-        "derived meridian images off their circles: {missed:#?}"
+        "derived images off their circles: {missed:#?}"
     );
 }
