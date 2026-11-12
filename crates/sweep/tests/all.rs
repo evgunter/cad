@@ -210,6 +210,10 @@ mod an_inside_out_thin_tube_operand;
 mod at_rest_pcurve_faces;
 #[path = "band_apart_partners_on_a_steep_ellipse.rs"]
 mod band_apart_partners_on_a_steep_ellipse;
+#[path = "band_closed_mixed_chain.rs"]
+mod band_closed_mixed_chain;
+#[path = "band_closed_mixed_chain_shapes.rs"]
+mod band_closed_mixed_chain_shapes;
 #[path = "band_subdivided_side_walls.rs"]
 mod band_subdivided_side_walls;
 #[path = "bisector_lane_stubs.rs"]
@@ -461,6 +465,10 @@ mod band_dihedral_cups;
 mod band_mixed_vertex;
 #[path = "band_one_cycle_members.rs"]
 mod band_one_cycle_members;
+#[path = "band_open_mixed_chain.rs"]
+mod band_open_mixed_chain;
+#[path = "band_open_mixed_chain_shapes.rs"]
+mod band_open_mixed_chain_shapes;
 #[path = "band_planar_consume.rs"]
 mod band_planar_consume;
 #[path = "band_planar_cut_off.rs"]

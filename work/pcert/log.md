@@ -1260,3 +1260,27 @@ E1c waits on the answer.
     - P3 `a-correct-stated-image-far-from-the-origin-reads-in-band-at-a-fine-band`: a false refusal at 1 km, ε 1e-12, which ends in the lever and certifies nothing false.
     - P3 `readers-of-the-stated-image-lever-match-escalated-alone`: two error shapes for one lever. It also records the class finding that an unlocated bound past the band is spelled two ways, the lever on the envelope and "not yet" on the fitted composite.
   - **Not filed, argued.** An iso line outside its column's spline space ends "not yet" (`IsoUnsupported`), but product builders state the column itself as the carrier. The census found no other kind.
+
+- 2026-11-12 — **geom-brep `recourse_roster` red on main mended again** (orchestrator; PR 6845's lane met it after a main merge). band's structural-section row (72188539ad) added two closures that forward their callers' names: `description.rs` `harmonic_row` and `row_contact.rs` `row_clear_of_singularities`. Both are now listed as `CLOSURE_FORWARDS`. It is the third such red this sitting, the same class as P4 `a-src-change-that-moves-a-decide-site-skips-its-crates-recourse-roster`.
+
+- 2026-11-12 — **PR 6845 merged: a closed-form image stated on an analytic chart is bounded over its span** (closes the P1 `a-closed-form-image-stated-on-an-analytic-chart-is-metered-at-nine-samples`).
+  - **What changed.** `StatedChart::Sampled` is deleted, so every stated image on an analytic chart now has a door bounding `|C − S∘P|` over the span.
+    - Closed forms (harmonic, spiric, focal section) are bounded by the coefficients of an exact trigonometric polynomial (`pcurve_cache/closed_bound.rs`, `trig.rs`), with angle channels read as angles.
+    - Past the band, the grid maximum is located (`MissLocated` → `StatedImageMissed`). An unlocated miss ends `StatedImageUnsettled`, and an in-band one `Escalated{StatedImage}`.
+    - Curves in UV off a ruling run against an enclosing Taylor–Bernstein patch (`PatchClass::Enclosed`).
+    - Structural refusals end as their own defect, never "not yet".
+    - Spiric copies are decided in band through the old door's identity decisions, now shared.
+  - **Review.** Single FULL, soundness-led: FULL → SS → delta → TT → delta, APPROVE.
+    - No reviewer ever certified a real miss on this code.
+    - The rounds closed: structural "not yet" endings; bit-exact copy identity (one-ulp-off copies now certify again); unchecked floor invariants and β = ±1; and five surviving mutants (patch remainder, focal/spiric floors, sup at h/2, the copies' divisor), each now red by name.
+    - The tilted-seam refusal is the same on main, so it is not a behaviour change. Its miss of 1e-6 is real.
+  - **Census.**
+    - Census 2 covered 465k routed reads. All 615 refusals are deliberate controls.
+    - The cost on 40 product rows is +0.1%.
+  - **Filed.**
+    - P3 `the-plane-harmonic-envelope-is-the-closed-form-bound-spelled-twice`. Folding the plane arm into the bound would move stored envelopes and the M10 ledger digests.
+    - P4 `the-unit-winding-order-is-held-by-a-type-anyone-in-the-crate-can-build`, which collects the TT delta's three style items.
+
+- 2026-11-12 — **Dispatched two P1s that arrived during the sitting**, both from `9550b98e39`. Each gets a single FULL review, soundness-led.
+  - `a-cone-stated-image-at-a-fuzz-seed-reads-in-band-at-eps-1e-12`, filed by BAND. Main's kernel job goes red by fuzz seed on 6836's no-false-refusal row: a correct cone image reads in band at ε 1e-12. The lane's first task is to root-cause the read's width. Branch `pcert/cone-image-fine-band`.
+  - `check-4s-projected-door-reads-every-span-of-a-chord-in-eight-parts`, re-banded P1 by spiricarm, whose ~10 s cylinder boolean is parked on it. The lane cuts check 4's parts by turn, keeps the sliver within its 1%, and keeps the incidence term an enclosure. Branch `pcert/check4-parts-by-turn`.

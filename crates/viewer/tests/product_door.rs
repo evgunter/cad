@@ -371,7 +371,7 @@ fn a_mated_world_copy_is_added_with_its_bundle_untouched() {
     let bench = common::asm::bench("product-door-mated", tol);
     let mut session = common::asm::open_bench(&bench, tol);
     common::asm::unpin(&mut session, bench.post_b);
-    common::commit_mate(
+    common::commit_mate_in_one_change(
         &mut session,
         common::asm::seat_op(&bench, bench.post_b, common::asm::middle_seat_values()),
     );

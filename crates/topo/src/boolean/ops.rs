@@ -1729,6 +1729,7 @@ fn walk_certify_refusal(error: &geom_brep::PcurveCertifyError) -> WalkRefusal {
         | C::PlacementTurnsExceeded
         | C::CarrierEnclosure(_)
         | C::ResidualExceeded { .. }
+        | C::MissLocated { .. }
         | C::FittedLimb { .. }
         | C::FittedEscalated { .. }
         | C::Escalated { .. }
