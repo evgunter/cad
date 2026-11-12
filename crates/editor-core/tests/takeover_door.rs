@@ -53,7 +53,7 @@ fn source(doc: &ProfileDoc, copy: RecipeNodeId) -> editor_core::VarId {
 fn rebinds(doc: &ProfileDoc, copy: RecipeNodeId, u: RecipeNodeId) -> Vec<DocEdit<ProfileProgram>> {
     take_over(
         doc,
-        &[source(&doc, copy)],
+        &[source(doc, copy)],
         &Operand::Node(u),
         &EvalOptions::default(),
         &editor_core::CancelToken::new(),
@@ -527,7 +527,7 @@ fn the_door_evaluates_again_only_for_a_link_it_could_not_answer() {
     let seed = |doc: &ProfileDoc| {
         take_over(
             doc,
-            &[source(&doc, copy)],
+            &[source(doc, copy)],
             &Operand::Node(u),
             &EvalOptions::default(),
             &editor_core::CancelToken::new(),

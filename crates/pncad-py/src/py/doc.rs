@@ -1817,9 +1817,11 @@ impl Doc {
         Ok(SketchedOnFace(sketched))
     }
 
-    /// **A takeover**: each of `copies` (placements) re-pointed to copy
-    /// `result`, which replaces the body they copied, and every
-    /// selection that read one of them rebound where the result carries
+    /// **A takeover**: the source each of `copies` (placements) reads its
+    /// body through (VARIABLES VR4) redefined as a read of `result`, which
+    /// replaces the body they copied, so every placement reading one of
+    /// those sources copies `result`, and every selection that read one of
+    /// them, or selected in the source, rebound where the result carries
     /// its entity (a face, an edge or a vertex) as one entity; one the
     /// result splits, ties or consumes stays stale. One action. Answers
     /// each name moved, as `(copy, old name, new name)`, for a name held
@@ -1840,7 +1842,21 @@ impl Doc {
         result: OperandArg,
         resolver: Option<&super::store::Workspace>,
     ) -> PyResult<Vec<(NodeId, String, String)>> {
-        let copies: Vec<d::RecipeNodeId> = copies.into_iter().map(|c| c.0).collect();
+        // Each copy's source, once: copies sharing one are redefined together.
+        let mut sources: Vec<d::VarId> = Vec::new();
+        for copy in copies {
+            let Some(source) = self.inner.copied_read(copy.0) else {
+                return Err(edit_err(
+                    py,
+                    &d::EditError::UnknownNode {
+                        id: self.inner.spoken(copy.0),
+                    },
+                ));
+            };
+            if !sources.contains(&source) {
+                sources.push(source);
+            }
+        }
         let result = result.read();
         let opts = d::EvalOptions {
             resolver: seam(resolver),
@@ -1849,7 +1865,7 @@ impl Doc {
         let tol = Tol::witness();
         let done = d::take_over(
             &self.inner,
-            &copies,
+            &sources,
             &result,
             &opts,
             &d::CancelToken::new(),
