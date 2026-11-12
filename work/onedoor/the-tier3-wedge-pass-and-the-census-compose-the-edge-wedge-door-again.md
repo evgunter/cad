@@ -91,17 +91,18 @@ What landed:
 
 The free `classify_material_pairing_as` stays for the face-pair readers (`face-pair-contact-pairing-has-four-spellings`). The resolver's pass-over of `DIHEDRAL_SIGN` is a stopgap; its class is filed on DOCTAIL as `verdict-log-tells-no-validation-reading-from-a-building-decision`.
 
-## Stage 2 (`onedoor/wedge-fold-2`)
+## Stage 2 (`onedoor/wedge-fold-2`, PR 6869)
 
 What moves:
-- `topo::edge_wedge` (the fold over `edge_wedge_walk`, now public, beside it in `topo/src/edge_wedge.rs`) and `topo::edge_wedge_description` (`WedgeVerdict::description`: a crease's `Intersection`, a determinate tangency's `TangentIntersection` in lane, else conventional).
-- The extrude's struts and cap rims and the revolve upgrade (`Body::dihedral_across`) read it. `SmoothAcross` is minted only on a two-plane π seam.
-- The split finish's smooth arm reads the fold: an end or the lamina against a curved wall is `KnifeEdge`, and every rung escalates as `SplitFinishError::WedgeEscalated`, carrying the escalation whole.
-- `must_carry_over_edge`'s first pass is the fold's class pass (`edge_wedge::class_pass`).
-- `merge_faces_kept_rows`' fixture reads `classify_dihedral`.
+- `topo/src/edge_wedge.rs` is the one door from an edge to its wedge. `edge_wedge_walk` builds the walk. `edge_wedge` composes the verdict: the one-surface seam by identity, else `geom_brep::edge_wedge_over` levered at the faces' extent. Check 4 reads this composition with its cached reach. `edge_wedge_description` reads what the verdict demands off the same walk (`WedgeWalk::description`, witnessed at the carrier's middle).
+- The extrude's struts and cap rims, and the revolve upgrade through `Body::dihedral_across`, read it. `SmoothAcross` is minted only on a two-plane π seam, and its margin is the fold's first station's.
+- The split finish's smooth arm reads it. An end or the lamina against a curved wall is a `KnifeEdge`. Every rung escalates as `SplitFinishError::WedgeEscalated`, which carries the escalation whole.
+- `must_carry_over_edge`'s first pass is the fold's class pass. Its in-band verdict is a `MustCarryEscalation`: the one `WedgeEscalation`, held with a `MustCarryRung` of exactly the rule's three rungs.
+- One map from a settled verdict to the description (`dihedral::Settled`). One station numbering (`interior_stations`).
+- `rules::edge_wedge`'s class read and its sign's arm are levered at the faces' extent.
 
-What retires: `dihedral_class`, `dihedral_decided` (its margin is `classify_dihedral_reported`), `MustCarryEscalation`, `DihedralReading` (refusals carry a `WedgeRung`), `SplitFinishError::{DescribeEscalated, DescribeSideEscalated, DescribeBendEscalated}`.
+What retires: `dihedral_class`, `dihedral_decided`, `DihedralReading`, `MustCarryEscalation`'s first-order/second-order shape, and `SplitFinishError::{DescribeEscalated, DescribeSideEscalated, DescribeBendEscalated}`.
 
 Still owed:
-- `rules::edge_wedge`'s sign stays on `enters_material`. It decides which body the split builds, and `dihedral_sign` is on the resolver's pass-over list (`work/doctail/verdict-log-tells-no-validation-reading-from-a-building-decision.md`, where the evidence is filed). Its lever is the bound's reach, not `departure_arm_lever` as written above; the cone-apex point split stands.
-- `edge_join`'s vertex read is a point read at a vertex, which the fold, reading an edge's interior stations, cannot take. Whose tangent a joined vertex is read with is a design question.
+- `rules::edge_wedge`'s sign stays on `enters_material`. It decides which body the split builds, and `dihedral_sign` is on the resolver's pass-over list (`work/doctail/verdict-log-tells-no-validation-reading-from-a-building-decision.md`). The cone-apex point split stands.
+- `edge_join`'s vertex read: `work/onedoor/edge-join-reads-a-joined-vertex-with-one-incident-edges-tangent.md`.

@@ -924,8 +924,8 @@ fn m10_9_the_pad_at_both_rule_f_dials() {
     // session box of its image (`Replay::moved_by`): one numeric
     // decision, (1523, 1214, 3683). Then the constructors' whole-wedge
     // reads (the study's `symbolic`): (1523, 1214, 3683) -> (1515, 1698,
-    // 4012).
-    assert_eq!(got[0], (1515, 1698, 4012), "rule F shut: the pad's receipt");
+    // 3989), each witness the edge's carrier middle.
+    assert_eq!(got[0], (1515, 1698, 3989), "rule F shut: the pad's receipt");
     assert_eq!(
         got[1], got[0],
         "rule F moves nothing on the pad: the basis mints no copysign for it to fold"
