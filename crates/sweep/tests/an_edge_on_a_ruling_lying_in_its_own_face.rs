@@ -106,11 +106,11 @@ fn c_block(o: Vec3<f64>) -> BooleanBody<f64> {
 /// refuses `FaceThroughEdgeWedgeUndecided`, its cylinder face no
 /// sector), reads the arc on the wrong side of the floor, sets the
 /// lever past the face's own
-/// edges (the short arc's carrier then reads below the floor at it), or
-/// does not read the tangent wall's bend.
+/// edges (the short arc's carrier then reads below the floor at it). A
+/// wall tangent to the floor is [`a_ridge_on_an_arc_wall_tangent_to_its_floor_refuses_at_its_ends`].
 #[test]
 fn a_ridge_on_a_cylinders_ruling_resting_on_its_floor_passes_tier_3_prime() {
-    let ridges: [(&str, Corners); 4] = [
+    let ridges: [(&str, Corners); 3] = [
         (
             "an arc wall bowed out",
             &[(1.5, 1.0, 0.2), (2.1, 3.0, 0.0), (0.9, 3.0, 0.0)],
@@ -129,15 +129,6 @@ fn a_ridge_on_a_cylinders_ruling_resting_on_its_floor_passes_tier_3_prime() {
                 (1.5995988114088147, 1.0089485622281678, 0.0),
                 (1.5995988114088147, 3.0, 0.0),
                 (0.9, 3.0, 0.0),
-            ],
-        ),
-        (
-            "an arc wall tangent to the floor",
-            &[
-                (1.5, 1.0, QUARTER),
-                (2.5, 2.0, 0.0),
-                (2.5, 3.0, 0.0),
-                (1.5, 3.0, 0.0),
             ],
         ),
     ];
@@ -166,6 +157,58 @@ fn a_ridge_on_a_cylinders_ruling_resting_on_its_floor_passes_tier_3_prime() {
                 "{what}: the ridge's wedge lies outside the floor's material"
             );
         }
+    }
+}
+
+/// **A ridge on an arc wall tangent to its floor reads its tip and
+/// refuses at its ends**: the ridge of
+/// [`a_ridge_on_a_cylinders_ruling_resting_on_its_floor_passes_tier_3_prime`]
+/// whose cylinder wall leaves the tip tangent to the floor, near the
+/// origin and a kilometre off. The tip on the floor reads (the tangent
+/// wall's bend), but where the ridge's end caps meet the floor, at
+/// `z = 0.5` and `z = 2.5`, the self-touch reading refuses undecided,
+/// `Curved(Unreadable)`: that end is not yet read
+/// (`work/restread/a-ridge-end-on-an-arc-wall-tangent-to-its-floor-refuses-unreadable.md`).
+/// Red where the tip refuses, or either end passes or refuses otherwise.
+#[test]
+fn a_ridge_on_an_arc_wall_tangent_to_its_floor_refuses_at_its_ends() {
+    let tangent: Corners = &[
+        (1.5, 1.0, QUARTER),
+        (2.5, 2.0, 0.0),
+        (2.5, 3.0, 0.0),
+        (1.5, 3.0, 0.0),
+    ];
+    for o in OFFSETS {
+        let what = format!("an arc wall tangent to the floor, {o:?} off");
+        let c = c_block(o);
+        let ridge = prism(&what, o, tangent, 0.5, 2.0);
+        let r = built(&what, union(&c.body, &ridge, tol()));
+        assert_eq!(r.body.solids().count(), 1, "{what}: one solid");
+        let found = validate_pseudomanifold(&r.body, &r.contacts, tol())
+            .err()
+            .unwrap_or_default();
+        // `work/restread/a-ridge-end-on-an-arc-wall-tangent-to-its-floor-refuses-unreadable.md`
+        let mut at: Vec<String> = found
+            .iter()
+            .filter_map(|e| match e {
+                topo::ValidationError::BoundaryCrossesItselfUndecided {
+                    witness,
+                    why: topo::TouchUnread::Curved(topo::CurvedUnread::Unreadable),
+                    ..
+                } => Some(witness.clone()),
+                _ => None,
+            })
+            .collect();
+        at.sort();
+        let mut want = [0.5, 2.5].map(|z| {
+            let q = Point3::new(1.5, 1.0, z) + o;
+            format!("({:?}, {:?}, {:?})", q.x, q.y, q.z)
+        });
+        want.sort();
+        assert!(
+            found.len() == 2 && at == want,
+            "{what}: the ridge's two ends refuse undecided, and nothing else: {found:?}"
+        );
     }
 }
 
