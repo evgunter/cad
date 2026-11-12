@@ -410,3 +410,39 @@ The unit has four parts:
 - **Arm:** under `docs/MODEL-COMPARE-PROTOCOL.md` rule 2, a dual M unit
   runs sequentially. A drawn model reviews first, and the other model
   reviews second only if the first raises a MAJOR.
+
+**Results (PR 6854).** `SelfTouch` is gone. Every point the reading
+does not decide now refuses `BoundaryCrossesItselfUndecided` with its
+cause. In-band signs report `InBand` (`cusp`, `thorns`, `kind`, `parts`,
+`whole_nappe`). A thorn read inside its sectors' material, or a nappe
+whose axis is on the wrong side of the rest's, is a crossing. The
+argument is in `crates/topo/README.md`, beside the others.
+
+Measured with the same instrument (topo, both binaries, plus the nine
+families, default ε, slow set included), head `0951e6260c` against
+merge base `172d5bb04d`:
+
+- 478 triples at the base, 485 at head. The 7 new triples are this
+  PR's own census rows.
+- The 2 skipped triples (the NURBS pair) now refuse with their causes.
+- No other triple changes verdict.
+
+The whole workspace at default ε, slow set included (the default
+profile), was run at `20366d0744`:
+
+- 23 rows are red. 21 of them are red at the merge base too, with the
+  same panics.
+- 2 rows are red only here. Both assert that a valid body passes tier
+  3′, and are reported rather than pinned:
+  - `sweep::all a_cone_apex_meets_a_vertex::two_cones_through_one_apex_build_across_the_pose_families`:
+    20/50, near-coaxial, tipped, `b ∖ a`. It refuses at `(0, 1, 0)`
+    with `NoTangentPlane`: two apex lobes on two carriers, which
+    `whole_nappe` does not read.
+  - `sweep::all an_edge_on_a_ruling_lying_in_its_own_face::a_ridge_on_a_cylinders_ruling_resting_on_its_floor_passes_tier_3_prime`:
+    "an arc wall tangent to the floor". It refuses at `(1.5, 1, 0.5)`
+    and `(1.5, 1, 2.5)` with `Unreadable`.
+- Both are in the slow set, so the per-PR gate does not run them. The
+  nine-family measurement that put the cost at zero did not reach them.
+
+The pose-dependent lune (`corner_fan`'s quarter-turn split) is reported
+as a finding, not fixed.
