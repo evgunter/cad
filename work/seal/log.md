@@ -208,3 +208,27 @@
   - The all-On crossing record (about 120 field uses) is filed as `an-all-on-crossing-record-ends-as-an-invariant` (P3).
   - The umbrella `glue-disagreements-and-held-contradictions-after-stage-4` closed with it, and C24 moved into `the-indeterminate-seal`. `the-corners-senses-decide-the-plane-orientation-a-second-time` closed: `PlaneOrientation` is gone.
   - Plan updated. The glue track's four steps are done.
+- 2026-11-10 — **Dispatched `a-cut-by-a-curved-seat-keeps-its-two-faces-held-apart-by-the-record`** (P1, M) on `seal/curved-seat`, review tier single FULL. Picked over the H sliver row because it is a silent wrong body, and the sliver row needs its design question settled first. Direction: the result gate (`ops::Held::apart`) reads the carried record's class rather than face planarity (`contact::area_record`). The coaxial fixture runs first, since the defect was found by inspection. REFS's PR 6555 is in delta review with no lane building, so this is the one implementation lane.
+- 2026-11-10 — **The curved-seat lane stopped before building**, rightly.
+  - **The defect reproduces** on main: a coaxial `block − (shaft ⊔ bored plate)` builds one solid where two are right, at equal volume.
+  - **My dispatch's mechanism does not exist.** The carried record the gate sees is `FfContact { a, b }`, with no class. That is my third unchecked claim this sitting: I checked that `ContactPair` has a class, not that the gate is handed one.
+  - **Two designs, one against ratified text.** Carrying the class means stored granularity, against `[topology.records]`. The census's carrier reading re-decides carriers, against the row.
+  - **Unreachable today.** The census cannot record a curved seat (`CensusUndecidable`), so only caller-supplied inputs reach the wrong body, and those already fail tier 3′.
+  - **Re-banded P2 `design: true`**, with the fork to run before the census learns curved seats. Filed `a-seat-held-apart-across-two-shells-of-one-solid-passes-the-gate` (P3; the gate compares shells, and the flush cut ends in two shells of one solid) and ATREST's `the-census-cannot-record-a-curved-seat-between-two-solids` (P3). The lane and target were cleaned up.
+- 2026-11-10 — **Design fork `seat-crack` dispatched** on `a-cut-across-its-tools-seat-leaves-a-sliver-between-the-seats-two-sections`, SEAL's last dispatchable P1. Protocol `2126b860b6`.
+  - **Draw:** bytes 10 and 150, so three designers. Recorded on `analysis/design-fork/seat-crack`.
+  - **The problem statement** gives the case, the prototype's measured facts and the four questions. It flags the row's two named directions as the filer's hypotheses.
+  - The designers share one build target, because the disk cannot take three alongside PR 6555's lane.
+- 2026-11-10 — **Fork `seat-crack`: all three first reports agree.** A cut reads its tool as material, `t − (p ⊔ q) = t − (p ∪ q)`, fused on the `⊔`'s own records at the cut's door.
+  - No reconciliation round. Token counts are on the analysis branch.
+  - Opened `[ev]` PR 6765 with the new `[operations.operators]` sentence, fork row 260 (recommendation half) and each designer's For Ev section. Subscribed.
+  - The row is parked on 6765. The build waits on Ev, and checks first that a union can take the seat's record as a given verdict.
+  - PR 6555's fork row (258) collides with main's new 258. Its fix pass renumbers on its next main merge (259).
+- 2026-11-12 — **`seat-crack` built and merged (PR 6860, `ae97403b45`): a cut reads its tool as material.**
+  - **Orchestrator's ruling.** The build stopped at its first check: a face–face record carries no class. The orchestrator ruled that the class is what the record means: a planar ff record of a `⊔` is `Rest`, and a curved one refuses typed. The ruling sits at the top of the PR body for Ev to overturn.
+  - **Results.** Every refused cut of the seat table builds or is typed empty, at tier 3 and 3′. The fold identity `(x − bolt) − plate` holds.
+  - **Review.** One full review (merge after fixes) found a regression: lower-cell records between solids never fused refused, where main built. It also found a `JoinDesync` on a crossing-outline seat, and a silently dropped dangling key. All three were fixed and measured, and the delta review says merge as is.
+  - **Rows.** Its two remaining notes are filed as SEAL rows (P2, P3).
+  - **A main red met on the way:** PR 6862 moved the teapot spout's refusal. The python re-pin is in 6860, and SECTARMS has the P1 row for the tour's `wall3_pinned`.
+  - SEAL stays `active`: two P1 rows are parked. (SEAL orchestrator)
+- 2026-11-12 — **Track handed back; SEAL is `ready`** (Ev, in chat: a program no one is working is `ready`, not `active`). Its two P1 rows stay parked: `the-indeterminate-seal` and `topo-mints-indeterminates-outside-the-funnel`. No SEAL lane is running. (SEAL orchestrator)

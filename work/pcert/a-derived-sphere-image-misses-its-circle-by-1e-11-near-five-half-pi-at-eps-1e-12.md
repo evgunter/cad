@@ -2,11 +2,14 @@
 id: a-derived-sphere-image-misses-its-circle-by-1e-11-near-five-half-pi-at-eps-1e-12
 kind: issue
 title: chart_pcurve_over derives a sphere image that misses its circle by 1.05e-11 near t = 5π/2 at ε 1e-12, so the every-spelling row goes red by seed as a shown miss
-status: open
+status: closed
 opened: 2026-11-12
 priority: P1
 cost: M
 refs: [a-closed-form-image-at-a-fuzz-seed-reads-its-coefficient-bound-in-band-at-eps-1e-12]
+branch: pcert/derived-sphere-image-accuracy
+pr: 6870
+closed: 2026-11-12
 ---
 
 Filed by `pcert/cone-image-fine-band`, from PR 6857's FULL review
@@ -49,3 +52,53 @@ green, because the miss is real. The fix is in the derivation's
 accuracy near `t ≡ π/2 (mod 2π)` on a sphere, or else the row has to
 admit that a derived image may be refused at ε 1e-12 (as a miss the
 mint also refuses, never as certified).
+
+## Closed
+
+Closed by PR 6870 (`pcert/derived-sphere-image-accuracy`). The seed's great circle
+starts `4.4e-5` rad from the sphere's pole. The meridian arm read its
+azimuth direction `d̂` off the radial part `a − axis·(a·axis)`. That is
+a cancellation: its absolute error is about `ulp(r)`, so its direction
+was off across the carrier's plane by `ulp(r)/‖a_r‖`, about `4.9e-12`
+rad. The image shows that error at the full radius at the equator,
+`t ≈ 5π/2`. In 50-digit arithmetic the derived image missed by
+`1.0494e-11` there; it now misses by `7.1e-16`.
+
+`pcurve_cache.rs` `sphere_meridian_direction` reads `d̂` as the radial
+part's length along `m = e × n`, the one horizontal direction in the
+carrier's plane. `m` comes from long vectors, so the short part sets
+only a length. Both the derivation and check 4's incidence lemma call
+it, so the two read one direction.
+
+The same conditioning on two other arms is filed rather than fixed. The
+plane projection is not sound there, because those arms take carriers
+that do not lie in the plane it assumes:
+
+- `a-spindle-meridian-of-small-major-radius-reads-its-azimuth-off-a-short-centre-offset`;
+- `a-cone-ruling-anchored-near-its-apex-reads-its-azimuth-off-a-short-radial-part`.
+
+**The mint refusal "What" records.** The mint door refused this seed's
+image in band (`Escalated` MapResidual, 4.07e-12). With the derivation
+alone fixed, it then refused it as definite (`ResidualExceeded` on
+`EnvelopeTerm(Radius)`), because its lemma still modelled the old
+direction. With the shared readers, the `f64` mint door certifies it.
+The `Interval` mint door escalates it, as on main; that is filed as
+`a-sphere-pole-start-meridian-escalates-at-the-interval-mint-door`.
+
+These rows pin it:
+
+- `closed_image_rows` `a_pole_start_meridian_at_a_fuzz_seed_certifies`
+  covers this seed, and `0x8ffe04db921f5cff` from
+  `a-closed-form-image-at-a-fuzz-seed-reads-its-coefficient-bound-in-band-at-eps-1e-12`,
+  the same shape read in band at 1.4e-12. It reads the stated doors and
+  the mint door.
+- `a_derived_circle_image_is_on_its_circle_where_its_azimuth_shows_most`
+  covers the sphere and a Villarceau circle, each measured by interval
+  enclosure and read at the mint door.
+
+They are red under the `sphere-meridian-unprojected` mutant.
+
+After the sibling's frames were squared, a 2000-seed sweep of the three
+fast closed-image fuzzes at ε 1e-12 refuses one correct image on main's
+arithmetic (`0x3009e291bd7a05a8`, in band on `pcurve_closed_bound`) and
+none with this fix.

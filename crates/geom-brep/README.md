@@ -641,9 +641,18 @@ chart. Its home is the half-edge (`Body::pcurves`, a
 a function of the edge and the chart alone, plus the half-edge's
 **joint element**, the integer (whole periods, a torus's second period,
 a sphere's twin bit) that carries its image onto the end of the
-half-edge before it in its loop, or a reset marker at a pole or apex
-(and on a spline chart where the net's own `u` stretch is not decided
-past the band).
+half-edge before it in its loop. A joint on an analytic singular set
+(a sphere pole, a cone apex on one nappe, a spindle torus's point)
+stores the pole rule's decided element, the turn on the face's side,
+so the lift runs on through the singular point as the face's boundary.
+A joint whose element cannot be decided past the band (a spline chart
+whose net's own stretch is undecided in either channel, or a singular
+point where the pole rule does not decide) is a typed refusal at the
+door that makes it. Every stored element records a decision.
+The element is the record of the joint decision (`decide_joint`), made
+at the door that makes the joint: a reader of a finished body reads
+the record, and a reader mid-operation runs the same decision without
+storing it.
 On a periodic channel the image is placed over the edge's span in the
 chart's principal window, so where a carrier's parameter happens to
 start moves neither the stored image nor any joint element. A chart
@@ -1326,9 +1335,10 @@ corner at one and a concave one at its neighbour, brackets an
 unsampled in-band point and is refused (`MixedDihedral`, naming the two
 stations; along a tangency, stations whose material pairings or ends
 differ are refused the same way, ending as a defect);
-`must_carry_over_edge` answers a class bracket `MustCarryVerdict::Mixed`,
-and every constructor refuses it typed but one: the blend's contact
-edge, routed smooth by its carrier's construction, ends a mixed reading
+a constructor reads the edge it wrote by the same fold
+(`topo::edge_wedge_description`), `must_carry_over_edge` answers a class
+bracket `MustCarryVerdict::Mixed` to the doors that re-ask a pair, and
+every one refuses a mixed edge typed but one: the blend's contact edge, routed smooth by its carrier's construction, ends a mixed reading
 as `SurgeryInvariant`, the surgery contradicting its own routing, since
 the rolling ball's exact contact cannot read a corner anywhere along
 it. NURBS-

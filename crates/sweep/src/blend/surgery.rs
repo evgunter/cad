@@ -165,8 +165,8 @@
 //! against ring-free caps nor a rim between two revolution walls (of
 //! one edge, or of several arcs a chart seam split) nor a MIXED rim of
 //! links on different supports around one shared face ([`MixedRim`]),
-//! a mixed rim sharing a support with a ladder or annulus rim, and a LADDER rim
-//! sharing a support with an ANNULUS rim in ONE call (the annulus
+//! and an ANNULUS rim sharing a support with a LADDER or MIXED rim in
+//! ONE call (the annulus
 //! band consumes structure of the shared face beyond its own rim —
 //! [`shared_support_gate`], whose recourse is sequential calls; two
 //! annulus rims sharing a support face — wall or full-revolve cap —
@@ -436,9 +436,11 @@ enum RimShape {
 /// link, consecutive faces meeting G1 along the section the battery
 /// read shared at each junction (predicate 4's band reading). The host
 /// is the one face every link shares, the rim exactly one of its
-/// cycles; each link's mate is its own face, ring-free and carrying
-/// that one arc of the chain, and consecutive mates meet along one edge
-/// running off the rim at each junction.
+/// cycles; each link's mate is its own face carrying that one arc of
+/// the chain, and consecutive mates meet along one edge running off the
+/// rim at each junction. A mate's rings stay on it: the mate trim's
+/// `mef` hands the strip to the new face, and the support-boundary
+/// meter has read every ring clear of that strip.
 struct MixedRim {
     /// One per link, keyed by the vertex the link's host-side traversal
     /// ENDS at, with the source edge between the two mates there.
@@ -1709,7 +1711,7 @@ fn resolve_seam_split_rim<'a, T: Decide + Bounds>(
 ///   two mates;
 /// - ONE host for every junction, whose rim cycle (its outer cycle or a
 ///   ring) is exactly the chain;
-/// - each mate ring-free and carrying exactly its own arc of the chain.
+/// - each mate carrying exactly its own arc of the chain.
 fn resolve_mixed_rim<'a, T: Decide>(
     body: &Body<T>,
     chain: &'a Chain<T>,
@@ -1767,16 +1769,6 @@ fn resolve_mixed_rim<'a, T: Decide>(
         ));
     }
     for (link, &m) in links.iter().zip(&mates) {
-        let fd = body
-            .get_face(m)
-            .ok_or_else(|| unresolved(EntityId::Face(m), "a rim arc's mate"))?;
-        // `work/band/a-mixed-rims-mate-with-a-ring-refuses-at-the-mate-gate.md`.
-        if !fd.rings.is_empty() {
-            return Err(unbuilt_chain(
-                link.edge,
-                "a mixed rim's mate support carries rings of its own",
-            ));
-        }
         let carried: Vec<EdgeKey> = face_cycle_edges(body, m)
             .ok_or_else(|| unwalked(EntityId::Face(m), "a rim arc's mate cycle"))?
             .into_iter()
@@ -1881,11 +1873,23 @@ fn rims_share_support<T: Real>(a: &RimPlan<'_, T>, b: &RimPlan<'_, T>) -> bool {
 ///   shared WALL and to within a summation ulp on a shared PLANE —
 ///   `blend_tworims::a_seam_split_rim_pair_on_shared_half_band_walls_composes_in_one_call`,
 ///   `blend2_r2_probes::r2_p3_two_rims_sharing_a_plane_cap_compose_in_one_call`).
-/// - **A LADDER and an ANNULUS rim** sharing a support are refused:
-///   an annulus carve consumes structure of the shared face beyond
-///   its own rim (the seam split, the trimline carve of the face's
-///   outer cycle), and nothing here proves a ladder plan's ring walk
-///   survives that — nor the converse. Refused in BOTH orders, before
+/// - **A MIXED rim** carves beside a ladder or another mixed rim. Its
+///   plan names the junction vertices and the rim arcs, which no other
+///   carve touches, and every face, loop and edge off the rim its walk
+///   reaches is read live; a ladder's plan names its ring, which a
+///   mixed carve of the host's other cycle leaves in place. Pinned in
+///   both carve orders against the closed form and the sequential
+///   composition (`band_mixed_rim_shared_supports`).
+/// - **An ANNULUS and a LADDER or MIXED rim** sharing a support are
+///   refused: an annulus carve consumes structure of the shared face
+///   beyond its own rim (the seam split, the trimline carve of the
+///   face's outer cycle), and nothing here proves a ladder plan's ring
+///   walk survives that — nor the converse. Around a mixed rim, the
+///   support-boundary meter reads each of the annulus's trim arcs by its
+///   ranges across and along a link's strip, which straddle the strip
+///   though the arc clears it
+///   (`work/band/an-annulus-rim-around-a-mixed-rim-refuses-in-one-call.md`).
+///   Refused in BOTH orders, before
 ///   any mutation, with the sequential recourse (each call plans
 ///   against its own source, so sequence is always honest).
 ///
@@ -1904,21 +1908,12 @@ fn shared_support_gate<T: Real>(rims: &[RimPlan<'_, T>]) -> Result<(), BlendErro
             if !rims_share_support(a, b) {
                 continue;
             }
-            // `work/band/a-mixed-rim-and-an-annulus-rim-on-one-support-refuse-in-one-call.md`.
-            let mixed = |r: &RimPlan<'_, T>| matches!(r.shape, RimShape::Mixed(_));
-            if mixed(a) != mixed(b) {
-                return Err(unbuilt_chain(
-                    b.chain.first().edge,
-                    "a mixed rim shares a support with another rim; blend them in SEQUENTIAL \
-                     calls",
-                ));
-            }
             let annulus = |r: &RimPlan<'_, T>| matches!(r.shape, RimShape::Annulus(_));
             if annulus(a) != annulus(b) {
                 return Err(unbuilt_chain(
                     b.chain.first().edge,
-                    "a ladder rim and an annulus rim share a support face; blend them in SEQUENTIAL \
-             calls",
+                    "an annulus and a ladder or mixed rim share a support; blend them in \
+                     SEQUENTIAL calls",
                 ));
             }
         }
@@ -1969,8 +1964,8 @@ struct LiveSeams {
 /// strut this phase mints, which no earlier carve can have staled. A
 /// second rim of the same call CAN rest on that host face — the host may
 /// carry rings, and a ring of it is itself a candidate rim (the boss's
-/// dome rim beside its top rim) — but such a pair is a LADDER and an
-/// ANNULUS sharing a support, which [`shared_support_gate`] refuses
+/// dome rim beside its top rim) — but such a pair is a LADDER or MIXED
+/// rim and an ANNULUS sharing a support, which [`shared_support_gate`] refuses
 /// before any plan mutates, with the sequential recourse. So nothing on
 /// the host side can have moved by the time this runs, and what such a
 /// rim can share is its MATE wall, which is exactly the side still
@@ -2280,7 +2275,7 @@ fn metered_piece<'b, T: Decide>(
 ) -> Result<MeteredPiece<'b, T>, BlendError> {
     let (stored, window) = stored_piece(body, edge)?;
     Ok(
-        match co_requested_trim(edge, face, stored, window, opens, rims)? {
+        match co_requested_trim(body, edge, face, stored, window, opens, rims)? {
             Some((trim, w)) => (Cow::Owned(trim), w),
             None => (Cow::Borrowed(stored), window),
         },
@@ -3088,6 +3083,7 @@ fn ring_clearance_pass<T: Decide + Bounds>(
                 (opens, rims),
                 l.convexity,
                 band,
+                false,
             )?;
         }
     }
@@ -3321,7 +3317,7 @@ fn support_boundary_clearance<T: Decide + Bounds>(
             |edge: EdgeKey, outer: bool| arcs.contains(&edge) || outer && drops_into_rim(edge);
         let read = (opens, rims);
         if per_link {
-            level_clearance(body, &level, face, replaced, read, convexity, band)?;
+            level_clearance(body, &level, face, replaced, read, convexity, band, true)?;
         } else {
             let fd = body
                 .get_face(face)
@@ -3367,6 +3363,17 @@ fn outer_pieces<'b, T: Decide>(
 /// box as the outer cycle's is. `replaced` names the edges the carve
 /// replaces (with whether the cycle is the outer one), which are not
 /// metered. A mixed rim's link and an open torus link are read so.
+///
+/// A ring that another rim of the call carries is read at that rim's
+/// trim, a whole circle for a ladder's ring, whose ranges across and
+/// along a windowed strip straddle it wherever the circle passes the
+/// strip's wedge or slab ends, though the circle clears the strip
+/// (`work/band/a-mixed-ring-inside-a-few-wide-arcs-refuses-at-the-support-meter.md`).
+/// Under `beside_rim` such a ring that does not read clear refuses
+/// with the sequential recourse rather than a margin the read cannot
+/// vouch for: each call then meters the other rim's carved, stored
+/// ring.
+#[allow(clippy::too_many_arguments)]
 fn level_clearance<T: Decide + Bounds>(
     body: &Body<T>,
     level: &StripLevel<T>,
@@ -3375,6 +3382,7 @@ fn level_clearance<T: Decide + Bounds>(
     (opens, rims): (&[AdmittedOpen<'_, T>], &[RimPlan<'_, T>]),
     convexity: Convexity,
     band: Band,
+    beside_rim: bool,
 ) -> Result<(), BlendError> {
     let fd = body
         .get_face(face)
@@ -3390,7 +3398,35 @@ fn level_clearance<T: Decide + Bounds>(
         }
         cycles.push((pieces, false));
     }
-    cycles_clearance(face, level, cycles, replaced, convexity, band)
+    for (cycle, outer) in cycles {
+        let other_rim = (beside_rim && !outer)
+            .then(|| {
+                cycle.iter().map(|(edge, _, _)| *edge).find(|&e| {
+                    !replaced(e, false)
+                        && rims
+                            .iter()
+                            .flat_map(|r| r.chain.links())
+                            .any(|l| l.edge == e)
+                })
+            })
+            .flatten();
+        let read = cycles_clearance(
+            face,
+            level,
+            vec![(cycle, outer)],
+            &replaced,
+            convexity,
+            band,
+        );
+        if let (Err(BlendError::RingClearance { .. }), Some(edge)) = (&read, other_rim) {
+            return Err(unbuilt_chain(
+                edge,
+                "a ladder ring beside a mixed rim reads unclear; blend them in SEQUENTIAL calls",
+            ));
+        }
+        read?;
+    }
+    Ok(())
 }
 
 /// Each cycle of `face` against `level`, refusing at its least margin
@@ -3662,7 +3698,7 @@ type OwnedPiece<T> = (Curve3<T>, (T, T));
 ///   which no open chain admits), and there arm (a) has already read the
 ///   same trimline, unbounded, against the rim's widened ring — a margin
 ///   `dist(c, line) − R` no larger than any segment's.
-/// - A closed rim's arc, or an open torus link's, reads its WHOLE trim
+/// - A ladder or annulus rim's arc, or an open torus link's, reads its WHOLE trim
 ///   circle on `face`,
 ///   in the closed forms every circle takes here. The whole circle
 ///   contains the part of it that bounds `face`, so the read bounds
@@ -3673,7 +3709,14 @@ type OwnedPiece<T> = (Curve3<T>, (T, T));
 ///   joins a vertex of each rim, a station of both, so the screen reads
 ///   that pair exactly and no row reaches this arm; it stays because
 ///   nothing checks that a co-surface split IS a meridian.
+/// - A MIXED rim's link reads its own trim on `face` between its feet,
+///   as its carve mints it ([`junction::mixed_trims`]); a straight link's over
+///   the stored window projected onto it. A corner arc's whole trim
+///   circle runs on through the neighbouring links' strips, where the
+///   link cuts nothing, and would refuse a ladder rim's hole beside the
+///   corner that clears the band.
 fn co_requested_trim<T: Decide>(
+    body: &Body<T>,
     edge: EdgeKey,
     face: FaceKey,
     stored: &Curve3<T>,
@@ -3681,22 +3724,38 @@ fn co_requested_trim<T: Decide>(
     opens: &[AdmittedOpen<'_, T>],
     rims: &[RimPlan<'_, T>],
 ) -> Result<Option<OwnedPiece<T>>, BlendError> {
-    if let Some(l) = opens
+    let projected = |line: geom::Line<T>| {
+        let window = (line.param(stored.eval(ta)), line.param(stored.eval(tb)));
+        (Curve3::Line(line), window)
+    };
+    // Each requested link with the host its own trims are read from:
+    // a mixed rim's link alone has one.
+    let mixed_host = |r: &RimPlan<'_, T>| matches!(r.shape, RimShape::Mixed(_)).then(|| r.host0());
+    let Some((l, host)) = opens
         .iter()
-        .map(AdmittedOpen::link)
-        .chain(rims.iter().flat_map(|r| r.chain.links()))
-        .find(|l| l.edge == edge)
-    {
-        let (trim, _) = l.trim_on(face).ok_or_else(|| not_a_support(edge))?;
-        // A straight link reads its trimline over the stored window
-        // projected onto it; an arc, its whole trim circle.
-        if let Curve3::Line(line) = trim {
-            let window = (line.param(stored.eval(ta)), line.param(stored.eval(tb)));
-            return Ok(Some((trim.clone(), window)));
-        }
-        return Ok(Some((trim.clone(), (T::zero(), T::tau()))));
+        .map(|o| (o.link(), None))
+        .chain(
+            rims.iter()
+                .flat_map(|r| r.chain.links().map(move |l| (l, mixed_host(r)))),
+        )
+        .find(|(l, _)| l.edge == edge)
+    else {
+        return Ok(None);
+    };
+    let (trim, _) = l.trim_on(face).ok_or_else(|| not_a_support(edge))?;
+    if let Some(host) = host {
+        let (on_host, on_mate) = junction::mixed_trims(body, l, host)?;
+        return Ok(Some(match if face == host { on_host } else { on_mate } {
+            junction::MixedTrim::Line(line) => projected(line),
+            junction::MixedTrim::Arc(c, window) => (c, window),
+        }));
     }
-    Ok(None)
+    // A straight link reads its trimline over the stored window
+    // projected onto it; an arc, its whole trim circle.
+    Ok(Some(match trim {
+        Curve3::Line(line) => projected(*line),
+        _ => (trim.clone(), (T::zero(), T::tau())),
+    }))
 }
 
 /// **An open link's trimline on its support `face`**, as its line.
@@ -5893,10 +5952,10 @@ fn attach_contact<T: Decide + Bounds + topo::AtRestPolicy>(
         // contradicting its own routing, announced rather than
         // repaired by storing a description the routing did not
         // choose.
-        let escalated = |reading, source| BlendError::Escalated {
+        let escalated = |escalation: geom_brep::MustCarryEscalation| BlendError::Escalated {
             site: BlendSite::Link { edge: link },
-            decision: BlendDecision::of_contact(reading),
-            source,
+            decision: BlendDecision::of_contact(escalation.rung()),
+            source: escalation.diag(),
         };
         // Where the conventional description rests (`topo::rest_locus`):
         // a fillet and its support are never one carrier, so a reading
@@ -5923,7 +5982,6 @@ fn attach_contact<T: Decide + Bounds + topo::AtRestPolicy>(
             // `Body::describe_at_rest`: that restates the STORED
             // carrier, and what the `mef` stored is the chord scaffold,
             // which for an arc is not the locus.
-            escalated,
             escalated,
             |mixed| BlendError::SurgeryInvariant {
                 at: EntityId::Edge(edge),
