@@ -523,3 +523,86 @@ impl Cell {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+
+    use std::collections::BTreeMap;
+
+    use geom_core::Tol;
+
+    use super::super::SweepStrategy;
+    use super::tool_material;
+    use crate::test_support::meeting::{posed_boxes, poses};
+    use crate::{ContactRecords, SolidKey};
+
+    /// **A cut's tool is fused on its seat's record, decided nowhere**:
+    /// the bolt on the plate, one body of two solids, its seat recorded
+    /// as the census at a `⊔`'s door records it, read as material is one
+    /// solid of 11 faces (the plate's top keeps the foot's outline), and
+    /// no step of the fold records a carrier pair's row, at rest and
+    /// turned: the glue is the record's meaning. Red where the fold
+    /// decides its own glue (it records the plane ladder's row of the
+    /// foot and the top), where it is handed no pair for the record (a
+    /// foot corner on the top escalates) or the pair aligned (a face of
+    /// the result runs the wrong way round).
+    #[test]
+    fn a_tools_seat_is_taken_and_decided_nowhere() {
+        let tol = Tol::witness();
+        for pose in poses()
+            .into_iter()
+            .filter(|p| ["at rest", "turned"].contains(&p.label))
+        {
+            let body = posed_boxes(
+                "a bolt on a plate",
+                &[
+                    [(-0.2, 0.2), (-0.2, 0.2), (0.2, 1.2)],
+                    [(-1.0, 1.0), (-1.0, 1.0), (0.0, 0.2)],
+                ],
+                &pose,
+                tol,
+            );
+            let groups: BTreeMap<SolidKey, u32> = body.solids().map(|(s, _)| s).zip(0..).collect();
+            let recorded = crate::record_at_rest(
+                &body,
+                &ContactRecords::default(),
+                |records| {
+                    crate::validate_pseudomanifold(&body, records, tol)
+                        .err()
+                        .unwrap_or_default()
+                },
+                &|s| groups.get(&s).copied(),
+                0,
+            );
+            assert_eq!(
+                recorded.records.face_face().count(),
+                1,
+                "{}: the premise, the seat is one face–face record",
+                pose.label
+            );
+            let material = tool_material::<f64>(
+                &body,
+                &recorded.records.carried(),
+                SweepStrategy::Realized,
+                tol,
+            )
+            .unwrap_or_else(|e| panic!("{}: the tool fuses: {e:?}", pose.label))
+            .unwrap_or_else(|| panic!("{}: its solids rest on each other", pose.label));
+            let fused = material.body();
+            assert_eq!(fused.body.solids().count(), 1, "{}: one solid", pose.label);
+            assert_eq!(fused.body.faces().count(), 11, "{}: its faces", pose.label);
+            for step in &material.steps {
+                assert!(
+                    step.body
+                        .coincidences
+                        .iter()
+                        .all(|row| row.face_pair().is_none()),
+                    "{}: the fold decides no carrier pair: {:?}",
+                    pose.label,
+                    step.body.coincidences
+                );
+            }
+        }
+    }
+}
