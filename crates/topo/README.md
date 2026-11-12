@@ -47,7 +47,7 @@ that what you need belongs at the root or below.
 |---|---|
 | Arenas, entities, provenance | `src/body.rs`, `src/entity.rs`, `src/geometry.rs`, `src/provenance.rs`, `src/live.rs` |
 | Euler operators | `src/euler.rs` (make), `src/euler_kill.rs` (kill duals), `src/euler_ring.rs` (rings/genus), `src/strut.rs` (a strut deleted from its face, for the merge and the Boolean's closing), `src/split.rs`, `src/movefac.rs`, `src/revert.rs`, `src/attach.rs` |
-| Validation tiers 1–3, 3′ | `src/validate.rs` (`validate`, `validate_closed`, `validate_geometric`, `validate_pseudomanifold`), `src/face_normal.rs`, `src/sector_face.rs`, `src/sector_shape.rs`, `src/coherence.rs` |
+| Validation tiers 1–3, 3′ | `src/validate.rs` (`validate`, `validate_closed`, `validate_geometric`, `validate_pseudomanifold`), `src/edge_wedge.rs` (an edge's wedge read whole, which check 4 and the constructors share), `src/face_normal.rs`, `src/sector_face.rs`, `src/sector_shape.rs`, `src/coherence.rs` |
 | Coincidence census, at rest | `src/census.rs` (`census_and_certify`: the BVH pre-filter `Candidates`, the sweeps, the backing rungs, the confirm pass, the cross-solid backstop) |
 | Contact vocabulary | `src/contact.rs` (`GlueClass`, `ContactPair`, `ContactRefusal`, `ContactFinding`, `CONTACT_RECOURSE`) |
 | Contact verification (Door 1) | `src/boolean/contact_verify.rs` (`rest_pair_verdict`), `src/boolean/carrier_eq.rs` (the kind-generalized carrier ladder), `src/boolean/plane_eq.rs` (its planar arm) |

@@ -90,3 +90,18 @@ What landed:
 **Owed by stage 3:** the blend's `classify_edge_wedge`, `EdgeWedge` and `PositiveArm`, and the second `sweep::blend::Convexity`.
 
 The free `classify_material_pairing_as` stays for the face-pair readers (`face-pair-contact-pairing-has-four-spellings`). The resolver's pass-over of `DIHEDRAL_SIGN` is a stopgap; its class is filed on DOCTAIL as `verdict-log-tells-no-validation-reading-from-a-building-decision`.
+
+## Stage 2 (`onedoor/wedge-fold-2`)
+
+What moves:
+- `topo::edge_wedge` (the fold over `edge_wedge_walk`, now public, beside it in `topo/src/edge_wedge.rs`) and `topo::edge_wedge_description` (`WedgeVerdict::description`: a crease's `Intersection`, a determinate tangency's `TangentIntersection` in lane, else conventional).
+- The extrude's struts and cap rims and the revolve upgrade (`Body::dihedral_across`) read it. `SmoothAcross` is minted only on a two-plane π seam.
+- The split finish's smooth arm reads the fold: an end or the lamina against a curved wall is `KnifeEdge`, and every rung escalates as `SplitFinishError::WedgeEscalated`, carrying the escalation whole.
+- `must_carry_over_edge`'s first pass is the fold's class pass (`edge_wedge::class_pass`).
+- `merge_faces_kept_rows`' fixture reads `classify_dihedral`.
+
+What retires: `dihedral_class`, `dihedral_decided` (its margin is `classify_dihedral_reported`), `MustCarryEscalation`, `DihedralReading` (refusals carry a `WedgeRung`), `SplitFinishError::{DescribeEscalated, DescribeSideEscalated, DescribeBendEscalated}`.
+
+Still owed:
+- `rules::edge_wedge`'s sign stays on `enters_material`. It decides which body the split builds, and `dihedral_sign` is on the resolver's pass-over list (`work/doctail/verdict-log-tells-no-validation-reading-from-a-building-decision.md`, where the evidence is filed). Its lever is the bound's reach, not `departure_arm_lever` as written above; the cone-apex point split stands.
+- `edge_join`'s vertex read is a point read at a vertex, which the fold, reading an edge's interior stations, cannot take. Whose tangent a joined vertex is read with is a design question.

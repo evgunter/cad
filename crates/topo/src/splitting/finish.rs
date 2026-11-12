@@ -2540,13 +2540,16 @@ mod smooth_arm_rows {
         }
     }
 
-    /// **A corner at a station refutes the smooth premise, typed.** The
-    /// neighbour's cylinder runs ACROSS the edge, tangent to the
-    /// section plane at the midpoint only: the witness reads smooth,
-    /// the stations either side read a corner, and the split refuses
-    /// the mixed edge, naming the first two stations that disagree.
+    /// **A corner at a station off the faces' crossing refuses at its
+    /// sign, as tier 3 does.** The neighbour's cylinder runs ACROSS the
+    /// edge, tangent to the section plane at the midpoint only: the
+    /// witness reads smooth and the stations either side a corner, whose
+    /// crease runs along the cylinder's axis, square to the edge. The
+    /// edge's own direction reads that corner's sign a definite zero, so
+    /// the whole-edge fold escalates at the sign before it compares the
+    /// stations, and the split refuses with that rung.
     #[test]
-    fn a_corner_at_a_station_refuses_as_a_refuted_smooth_join() {
+    fn a_corner_at_a_station_off_the_crease_refuses_at_its_sign() {
         let SectionEdge {
             mut body,
             face,
@@ -2559,21 +2562,18 @@ mod smooth_arm_rows {
         body.surfaces[s_other] = cylinder_under(mid, Vec3::unit_z().cross(along));
         let band = Band::linear(tol()).unwrap();
         match super::describe_section_boundary(&mut body, face, band, tol()) {
-            Err(SplitFinishError::SmoothJoinRefuted {
+            Err(SplitFinishError::WedgeEscalated {
                 edge: refused,
-                mixed: Some(stations),
+                escalation,
             }) => {
-                assert_eq!(refused, edge, "the refusal names the mixed edge");
+                assert_eq!(refused, edge, "the refusal names the edge");
                 assert_eq!(
-                    stations,
-                    geom_brep::MixedStations::Class {
-                        transverse: 3,
-                        smooth: 4
-                    },
-                    "the stations bracketing the tangency at the midpoint"
+                    (escalation.rung(), escalation.diag().predicate),
+                    (geom_brep::WedgeRung::Sign, Some("dihedral_sign")),
+                    "the corner's sign, read along an edge square to its crease"
                 );
             }
-            other => panic!("a smooth-at-the-witness corner refuses typed, got {other:?}"),
+            other => panic!("a corner off the crease refuses at its sign, got {other:?}"),
         }
     }
 

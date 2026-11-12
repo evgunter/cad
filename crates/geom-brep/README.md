@@ -1322,9 +1322,10 @@ corner at one and a concave one at its neighbour, brackets an
 unsampled in-band point and is refused (`MixedDihedral`, naming the two
 stations; along a tangency, stations whose material pairings or ends
 differ are refused the same way, ending as a defect);
-`must_carry_over_edge` answers a class bracket `MustCarryVerdict::Mixed`,
-and every constructor refuses it typed but one: the blend's contact
-edge, routed smooth by its carrier's construction, ends a mixed reading
+a constructor reads the edge it wrote by the same fold
+(`topo::edge_wedge_description`), `must_carry_over_edge` answers a class
+bracket `MustCarryVerdict::Mixed` to the doors that re-ask a pair, and
+every one refuses a mixed edge typed but one: the blend's contact edge, routed smooth by its carrier's construction, ends a mixed reading
 as `SurgeryInvariant`, the surgery contradicting its own routing, since
 the rolling ball's exact contact cannot read a corner anywhere along
 it. NURBS-
