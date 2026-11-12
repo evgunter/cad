@@ -1358,7 +1358,7 @@ enum Origin<T: Real> {
 
 /// **One glued cross-operand face pair and its decision**: a pair an
 /// operation decided, or one an n-ary union's fold step was given
-/// ([`GlueVerdict::given_at`]). Its class is its decision's
+/// ([`GlueVerdict::decision`]). Its class is its decision's
 /// ([`Self::class`]).
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct GluedPair<T: Real = f64> {
