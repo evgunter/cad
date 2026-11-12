@@ -456,7 +456,7 @@ fn posed_bodies(f: &Fixture, s: f64) -> Vec<(&'static str, Affine3<f64>, AtRestB
     poses(s)
         .into_iter()
         .filter_map(|(pose, map)| {
-            let at_rest = transform_rigid(&body, &geom_core::test_support::rigid(&map, tol), tol)
+            let at_rest = transform_rigid(&body, &geom_core::test_support::rigid(&map, tol))
                 .map_err(|e| format!("posing it refused ({e})"))
                 .and_then(|posed| {
                     topo::finish(posed, tol)

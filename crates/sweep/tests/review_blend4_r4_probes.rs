@@ -273,7 +273,6 @@ fn arcs_at_reads_the_y_station_and_nothing_else() {
             ),
             tol(),
         ),
-        tol(),
     )
     .unwrap();
     assert_eq!(arcs_at(&body, 1.0, 0.0).len(), 1, "the equator at y = 0");

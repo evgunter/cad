@@ -369,7 +369,7 @@ fn a_carried_vertex_on_face_record_cites_its_operands_record() {
         (1.0_f64 / 3.0_f64.sqrt()).acos(),
     )
     .expect("a finite turn");
-    let turned = topo::transform_rigid(&cube, &turn, tol()).expect("a rigid turn");
+    let turned = topo::transform_rigid(&cube, &turn).expect("a rigid turn");
     let low = turned
         .vertex_points()
         .map(|(_, p)| p)
@@ -379,7 +379,7 @@ fn a_carried_vertex_on_face_record_cites_its_operands_record() {
         .expect("a finite lift");
     let on_corner = finished(
         "the cube on its corner",
-        topo::transform_rigid(&turned, &lift, tol()).expect("a rigid lift"),
+        topo::transform_rigid(&turned, &lift).expect("a rigid lift"),
         tol(),
     );
     let kiss = united(&a, &on_corner, &BooleanInputs::default());

@@ -80,7 +80,7 @@ fn extruded(loops: Vec<ProfileLoop<f64>>, lo: f64, h: f64) -> Body<f64> {
         return body.into_body();
     }
     let lift = Affine3::translation(Vec3::new(0.0, 0.0, lo));
-    topo::transform_rigid(&body, &geom_core::test_support::rigid(&lift, tol()), tol()).unwrap()
+    topo::transform_rigid(&body, &geom_core::test_support::rigid(&lift, tol())).unwrap()
 }
 
 fn op(o: BooleanOp, a: &Body<f64>, b: &Body<f64>) -> Result<Body<f64>, String> {
@@ -200,7 +200,6 @@ fn sweep_rows(radii: &[f64], tilts: &[f64]) -> (Vec<String>, Vec<String>) {
                     let a = topo::transform_rigid(
                         &shape.body,
                         &geom_core::test_support::rigid(&turn, tol()),
-                        tol(),
                     )
                     .unwrap();
                     let b = sweep::test_support::brick::<f64>(
@@ -314,8 +313,7 @@ fn a_brick_corner_on_a_rim_vertex_prints_its_volumes() {
         for t in [0.4, 0.9, -0.4, -0.9] {
             let turn = Affine3::rotation_about_axis(Point3::origin(), Vec3::new(1.0, 0.0, 0.0), t);
             let a =
-                topo::transform_rigid(&a0, &geom_core::test_support::rigid(&turn, tol()), tol())
-                    .unwrap();
+                topo::transform_rigid(&a0, &geom_core::test_support::rigid(&turn, tol())).unwrap();
             let v = Point3::new(0.0, t.cos(), t.sin());
             for spin in [FRAC_PI_4, -FRAC_PI_4, 0.3, -0.3, 2.5, -2.5] {
                 let brick = sweep::test_support::brick(
@@ -325,12 +323,9 @@ fn a_brick_corner_on_a_rim_vertex_prints_its_volumes() {
                     tol(),
                 );
                 let about = Affine3::rotation_about_axis(v, Vec3::new(0.0, 0.0, 1.0), spin);
-                let b = topo::transform_rigid(
-                    &brick,
-                    &geom_core::test_support::rigid(&about, tol()),
-                    tol(),
-                )
-                .unwrap();
+                let b =
+                    topo::transform_rigid(&brick, &geom_core::test_support::rigid(&about, tol()))
+                        .unwrap();
                 for (o, name) in [
                     (BooleanOp::Subtract, "sub"),
                     (BooleanOp::Intersect, "int"),

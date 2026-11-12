@@ -71,7 +71,7 @@ fn ridge() -> AtRestBody<f64> {
     let v = |x: f64, y: f64| (Point2::new(x, y), 0.0);
     let p = prism_at(vec![v(0.0, 1.0), v(0.5, 2.0), v(-0.5, 2.0)], -1.0, 2.0, t());
     let turn = Affine3::rotation_about_axis(Point3::origin(), Vec3::unit_x(), PI / 2.0);
-    let p = topo::transform_rigid(&p, &geom_core::test_support::rigid(&turn, t()), t()).unwrap();
+    let p = topo::transform_rigid(&p, &geom_core::test_support::rigid(&turn, t())).unwrap();
     finished("the ridge", p, t())
 }
 
