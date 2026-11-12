@@ -468,10 +468,10 @@ pub(crate) fn pad_ceiling(area: f64) -> f64 {
 }
 
 /// The widest volume half-width measured on each pose at ε `1e-9`,
-/// debug, over its runs that build: the rim poses accept a round only
-/// just inside the pinned resolution, the others far inside it.
+/// over its runs that build: the rim poses accept a round only just
+/// inside the pinned resolution, the others far inside it.
 const MEASURED_PAD: [f64; 9] = [
-    1.4e-11, 6.9e-11, 6.6e-12, 1.0e-10, 4.5e-10, 1.7e-10, 3.3e-10, 7.6e-7, 1.2e-7,
+    9.1e-11, 1.8e-10, 2.4e-11, 5.3e-10, 7.1e-10, 3.9e-10, 8.0e-10, 7.6e-7, 1.2e-7,
 ];
 
 /// **Every run of pose `index` ends as pinned** ([`at_its_volume`]): the
