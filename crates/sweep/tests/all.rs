@@ -1419,3 +1419,12 @@ mod the_football_revolves;
 mod a_ball_with_no_room_at_its_rim_refuses_typed;
 #[path = "a_peg_in_a_two_segment_bore_moves_only_its_wall.rs"]
 mod a_peg_in_a_two_segment_bore_moves_only_its_wall;
+
+#[path = "zz_probe_looplift_pole_rules.rs"]
+mod zz_probe_looplift_pole_rules;
+#[path = "zz_probe_looplift_tilted_pole.rs"]
+mod zz_probe_looplift_tilted_pole;
+#[path = "zz_probe_looplift_twin_joint.rs"]
+mod zz_probe_looplift_twin_joint;
+#[path = "zz_probe_looplift_opposite_sense.rs"]
+mod zz_probe_looplift_opposite_sense;
