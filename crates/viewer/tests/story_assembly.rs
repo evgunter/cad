@@ -537,6 +537,7 @@ fn the_windmill_story() {
     let mut tool = MateTool::new();
     tool.pick(session.doc(), hub_bottom.clone());
     tool.pick(session.doc(), tower_top);
+    common::into_to_space(&session, &mut tool);
     assert!(
         tool.rows()[0]
             .side(pncad::document::MateSide::To)
@@ -558,7 +559,7 @@ fn the_windmill_story() {
         )
         .expect("the seat proposes")
     };
-    let outcome = session.perform(seat_proposal.op_into_target_space());
+    let outcome = session.perform(seat_proposal.op());
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
     assert_eq!(
         outcome.committed.len(),
@@ -736,9 +737,12 @@ fn the_windmill_story() {
     let mut tool = MateTool::new();
     tool.pick(session.doc(), sail_a_bottom.clone());
     tool.pick(session.doc(), front_wall.clone());
+    // The sail is in a space of its own: its "into" row set to the
+    // hub's, in the same change as the mate.
+    common::into_to_space(&session, &mut tool);
     let sail_a_proposal =
         { common::proposed(&session, &tool, sail_choice(0.0)).expect("the first sail proposes") };
-    let outcome = session.perform(sail_a_proposal.op_into_target_space());
+    let outcome = session.perform(sail_a_proposal.op());
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
     assert_eq!(
         outcome.committed.len(),
@@ -782,11 +786,14 @@ fn the_windmill_story() {
     let mut tool = MateTool::new();
     tool.pick(session.doc(), sail_b_bottom.clone());
     tool.pick(session.doc(), back_wall.clone());
+    // The sail is in a space of its own: its "into" row set to the
+    // hub's, in the same change as the mate.
+    common::into_to_space(&session, &mut tool);
     let sail_b_proposal = {
         common::proposed(&session, &tool, sail_choice(core::f64::consts::FRAC_PI_2))
             .expect("the second sail proposes")
     };
-    let outcome = session.perform(sail_b_proposal.op_into_target_space());
+    let outcome = session.perform(sail_b_proposal.op());
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
     assert_eq!(
         outcome.committed.len(),

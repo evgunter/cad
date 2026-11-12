@@ -403,8 +403,8 @@ pub(crate) fn index(k: usize) -> u32 {
 /// faces can reach under every op is certified or typed; the doors are
 /// op-dependent, but the kind's arms are not. ∖ and ∩ classify the
 /// operands as given: the op enters through the op tables (an
-/// on-sector's Eq. 15.3 lump, [`super::tables::eq15_3_lump`]; the kept
-/// copy of a coincident pair, [`super::tables::kept_copy`]) and the
+/// on-sector's Eq. 15.3 lump, [`super::tables::eq15_3_lump`]; the
+/// surviving copy of a coincident pair, [`super::tables::surviving_copy`]) and the
 /// join's reading of the subtrahend's normals reversed (`stands_on`).
 /// ∖ reverts the kept subtrahend pieces only after classification
 /// (`finish`'s Eq. 15.1 `(B in A)⁻¹`, the operand-B fallback, the void

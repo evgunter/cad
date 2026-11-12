@@ -2,11 +2,12 @@
 id: the-carried-lane-chords-only-spline-components
 kind: issue
 title: The join's carried lane chords only spline components, so a counted closed-form component (parallel rulings, the bisector arcs, coaxial circles) rides a per-pair plane lane beside it (stage 3b)
-status: open
+status: closed
 opened: 2026-11-02
 priority: P1
 cost: H
 refs: [skew-cylinder-germ-pair-has-no-section-frame]
+closed: 2026-11-04
 ---
 
 
@@ -104,3 +105,10 @@ approved in PR 6398):
   arcs must name the end on the germ, or refuse typed.
 - The pinch's node is not listed:
   `the-cylinder-pinchs-node-is-not-listed` (P2).
+
+## Closed (2026-11-04)
+
+Both halves are merged: 3b-i (PR 6405), the closed-form carried chord with the parallel lane retired, and 3b-ii (PR 6466), nodes listed on the value per C5 (`[ev]` PR 6398) with the bisector lane retired. No cylinder pair rides a plane lane any more. What they left is filed:
+- `the-cylinder-pinchs-node-is-not-listed` (P2);
+- `an-edge-within-root-band-of-a-tangency-node-has-its-transversality-escalate` (P2: the near-node regression, which builds from about 1.9e-4);
+- `two-node-reading-arms-no-row-reaches` (P3).

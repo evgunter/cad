@@ -451,3 +451,17 @@ Newest entries at the bottom; the tail is the program's live status.
   - **Orchestrator ruling under 6600:** a door cannot hold a draft, so a door's re-target of a copy whose own mates read its space opens the placement editor with the target set, where the held change and strike show. This applies to both doors, and the fresh-copy fallback goes. It is a consequence of "every door uses the one edit" plus "the change is held", so it is not put to Ev.
   - **Fix pass dispatched.**
   - **Class (the reviewer's):** a set-aside draft state must be seen by every early return, and by `differs_from_base` and `holds_changes`. (PLACING orchestrator)
+- 2026-11-12 — **PR 6850's fix pass accepted on the orchestrator's read**, and the PR merged (`56ef8650ed`).
+  - M1 fixed: the set-aside draft is a typed `SetAside`, `offer` has one exit, and it is counted by `differs`/`holds`.
+  - Doors hold in the editor (`Refusal::TargetHeld` opens the editor with the target set); the fresh-copy fallback is gone.
+  - Values read off the old space are marked and struck.
+  - Cross-space test helpers are opt-in.
+  - Two rows closed.
+- 2026-11-12 — **The named-source lane resumed**, building the ratified 6672 design. **Review tier: dual, letter H.** (PLACING orchestrator)
+- 2026-11-12 — **PR 6850's fix pass accepted on the orchestrator's read**, and the PR merged (`56ef8650ed`).
+  - M1 fixed: the set-aside draft is a typed `SetAside`, `offer` has one exit, and it is counted by `differs`/`holds`.
+  - Doors hold in the editor (`Refusal::TargetHeld` opens the editor with the target set); the fresh-copy fallback is gone.
+  - Values read off the old space are marked and struck.
+  - Cross-space test helpers are opt-in.
+  - Two rows closed.
+- 2026-11-12 — **The named-source lane resumed**, building the ratified 6672 design. **Review tier: dual, letter H.** (PLACING orchestrator)

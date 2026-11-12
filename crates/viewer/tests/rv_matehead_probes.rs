@@ -109,10 +109,11 @@ fn a_face_name_at_an_instance_its_copy_does_not_carry_refuses_where_it_evaluates
     let mut tool = MateTool::new();
     tool.pick(session.doc(), a);
     tool.pick(session.doc(), b);
+    common::into_to_space(&session, &mut tool);
     let proposal = common::proposed(&session, &tool, asm::seat_choice())
         .expect("no pose is read before the commit");
     let states = session.history().len();
-    let outcome = session.perform(proposal.op_into_target_space());
+    let outcome = session.perform(proposal.op());
     match &outcome.refusal {
         Some(viewer::session::Refusal::PlacementFails { fault: Some(fault) })
             if matches!(

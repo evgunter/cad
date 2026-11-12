@@ -1048,7 +1048,7 @@ pub(super) fn read_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
                 ));
             }
         };
-        if let Some(keeper) = super::tables::kept_copy(op, rel) {
+        if let Some(keeper) = super::tables::surviving_copy(op, rel) {
             covered.push(match piercing {
                 Operand::A => (s.face, contact.face),
                 Operand::B => (contact.face, s.face),

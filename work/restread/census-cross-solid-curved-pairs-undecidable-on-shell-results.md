@@ -477,3 +477,20 @@ does not have, and three parked P0 rows wait on it (REACHHOLD's
 at two hard rows, 16 points. Cut the touching half into its own row at
 dispatch; the 2026-10-17 section's note that it "is not built here" is
 the seam.
+
+## Also measured: a peg in a pocket, tangent to its rim (GAUGE, PR 6832, 2026-11-11)
+
+`a_closed_conic_in_the_partners_face::a_peg_in_a_pocket_tangent_to_its_rim_builds_its_unions_and_intersections`
+(`crates/sweep/tests/a_closed_conic_in_the_partners_face.rs`) is a
+block with a blind pocket of radius 0.3, against a slab with a peg of
+radius 0.1 tangent inside the pocket's rim, in one-segment and two-arc
+forms. Each `∩`, in both orders, builds at its closed form
+(1.874336294) in two shells, the pocket's floor ring and the peg
+touching at one point. Tier 2 and the certificate pass. Tier 3′ refuses
+only `CensusUndecidable` ("a curved face of one is within reach of the
+other"), so the judged line reads `OK BAD … t3p=false`. That is this
+row's touching half, not a decided failure: no error but
+`CensusUndecidable` appears. The pin holds that reading
+(`Reads::Undecided`). Designer C had read it as `t3p=false` on main;
+designer B as `CensusUndecidable`; the latter is what the census
+returns.

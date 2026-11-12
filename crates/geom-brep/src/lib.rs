@@ -106,6 +106,7 @@ pub mod props;
 pub mod quartic;
 pub mod recourse;
 pub mod roots;
+pub mod row_contact;
 pub mod rows;
 pub mod sector_shape;
 pub(crate) mod shape_operator;
@@ -133,9 +134,9 @@ pub use dihedral::{
     MustCarryEscalation, MustCarryRefusal, MustCarryVerdict, PairRefusal, PositiveArm, RestLocus,
     SeamEscalation, SeamFace, SecondOrder, SmoothJoin, Station, Tangency, WedgeEnd,
     WedgeEscalation, WedgeRung, classify_dihedral, classify_edge_wedge,
-    classify_material_pairing_as, classify_seam, dihedral_class, folded_lever_arm,
-    material_kappa_rel, must_carry_description, must_carry_over_edge, reask_chart, reask_pair,
-    tangent_second_order,
+    classify_material_pairing_as, classify_seam, dihedral_class, dihedral_decided,
+    folded_lever_arm, material_kappa_rel, must_carry_description, must_carry_over_edge,
+    reask_chart, reask_pair, rest_locus, tangent_second_order,
 };
 pub use dihedral_side::{
     ChartPointRefusal, CreaseReading, EdgeHalf, EdgeWalk, FaceSide, SideEscalation, SideFace,
@@ -158,8 +159,9 @@ pub use enters::{
     tied_germ_turn,
 };
 pub use extent::{
-    ExtentBall, LeverBounds, Reach, edge_coordinate_reach_below, edge_extent_inf, edge_extent_sup,
-    edge_reach_bounds, points_diameter, points_lever_from, polygon_half_perimeter,
+    ExtentBall, Forgets, LeverBounds, Reach, anchored_at, edge_coordinate_reach_below,
+    edge_extent_inf, edge_extent_sup, edge_reach_bounds, points_diameter, points_lever_from,
+    polygon_half_perimeter, surface_anchored_at,
 };
 pub use fitted_lane::{FITTED_DOOR_HOLDERS, FittedLane};
 /// The ring-torus convention's one home is `geom` (below this crate, so
@@ -243,6 +245,7 @@ pub use props::{
     FaceContribution, LoopEdge, PropsError, curved_face, planar_face, require_iso_rectangle,
     require_one_chart_branch,
 };
+pub use row_contact::{RowContact, analytic_row_contact, analytic_shared_row};
 pub use ssi::{
     BandVerdict, BoundaryChart, BoundaryPoint, BoundarySection, ChartAxis, ChartCorner, ChartEnd,
     ChartSide, ChartSpeedRefusal, ChartedNurbs, DomainField, ExhaustLane, Exhaustiveness,

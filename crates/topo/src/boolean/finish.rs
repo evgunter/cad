@@ -319,7 +319,9 @@ pub(super) fn setopfinish<T: Decide + crate::props::AtRestPolicy>(
     // ---- Seam vertex correspondence from the pair records: the
     // surviving end of each pair's A edge ↔ the surviving end of its
     // B edge (exactly one each — the other went with the discarded
-    // component). ----
+    // component). A vertex may take several correspondents, one per
+    // pair or ring run that cuts it, and the zip reads which belong to
+    // one cone of the result (`zip::split_cones`). ----
     let mut a_attr: SecondaryMap<crate::entity::EdgeKey, crate::null::NullEdge> =
         SecondaryMap::new();
     let mut b_attr: SecondaryMap<crate::entity::EdgeKey, crate::null::NullEdge> =
@@ -331,11 +333,6 @@ pub(super) fn setopfinish<T: Decide + crate::props::AtRestPolicy>(
         };
     }
     let mut vertex_map = SeamCorrespondence::new();
-    // Each A survivor's v-v pairs, each with the B survivor it gave.
-    let mut vv_partners: BTreeMap<VertexKey, BTreeMap<(VertexKey, VertexKey), VertexKey>> =
-        BTreeMap::new();
-    // Each A survivor's pierce runs, each with the B survivor it gave.
-    let mut pierce_runs: BTreeMap<VertexKey, Vec<(super::PairSite, VertexKey)>> = BTreeMap::new();
     for pair in &red.null_pairs {
         let aa = a_attr
             .get(pair.a_edge)
@@ -359,39 +356,7 @@ pub(super) fn setopfinish<T: Decide + crate::props::AtRestPolicy>(
             (None, Some(v)) => v,
             _ => return Err(desync("pair B edge has not exactly one surviving end")),
         };
-        let bs = vertex_map.entry(a_survivor).or_default();
-        bs.insert(b_survivor);
-        let pairs = vv_partners.entry(a_survivor).or_default();
-        let mut one_each = true;
-        if let super::PairSite::VertexVertex(c) = pair.site {
-            one_each = pairs
-                .insert((c.a, c.b), b_survivor)
-                .is_none_or(|old| old == b_survivor);
-        }
-        if let super::PairSite::VertexAOnFaceB(_) | super::PairSite::VertexBOnFaceA(_) = pair.site {
-            pierce_runs
-                .entry(a_survivor)
-                .or_default()
-                .push((pair.site, b_survivor));
-        }
-        // An A vertex several crossing pairs cut lies on one seam per
-        // pair, with that pair's B vertex: every B correspondent is one
-        // pair's, and the pairs share their A vertex. A piercing vertex
-        // that keeps several In runs lies on its seam once per run, with
-        // that run's ring copy; a ring copy, once per run it holds, of
-        // the pierces of its face at its point (`vtxfac::mint_ring`).
-        let shared_cut = one_each
-            && pairs
-                .keys()
-                .all(|p| pairs.keys().next().is_some_and(|q| q.0 == p.0))
-            && pairs.values().copied().collect::<BTreeSet<_>>() == *bs;
-        let one_ring = pierce_runs.get(&a_survivor).is_some_and(|runs| {
-            runs.iter().all(|&(site, _)| red.one_ring(site, runs[0].0))
-                && runs.iter().map(|&(_, b)| b).collect::<BTreeSet<_>>() == *bs
-        });
-        if bs.len() > 1 && !shared_cut && !one_ring {
-            return Err(desync("conflicting seam vertex correspondence"));
-        }
+        vertex_map.entry(a_survivor).or_default().insert(b_survivor);
     }
 
     // A kept vertex in result keys: A's survive the carve in place,

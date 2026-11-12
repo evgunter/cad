@@ -2,11 +2,11 @@
 id: the-mate-editor-asks-before-moving-a-copy-into-the-targets-space
 kind: issue
 title: A mate can move its placement into another space (the 'move the copy into the target's space' checkbox); a mate belongs to an existing placement and never changes its target
-status: dispatched
-opened: 2026-11-01
-priority: P1
-cost: M
+status: closed
+pr: 6850
 branch: placing/target-row
+opened: 2026-11-01
+closed: 2026-11-12
 ---
 
 
@@ -56,6 +56,13 @@ placement's bundle" as #6300 rewrites it).
 
 ## Design work before building
 
+Superseded by Ev's ruling on `[ev]` PR 6600 wherever the two differ
+(the ruled text is `crates/viewer/README.md`'s placement section, "A
+placement's target is its own property, and no mate changes it"):
+there is no Apply, a mate reading the old space is kept as written and
+holds the change at the solving door, and the kernel admits the
+re-target.
+
 The consequences the checkbox's move had now belong to the
 target-space edit:
 - **Mates read in the old space.** Today's re-target stands the copy
@@ -64,7 +71,7 @@ target-space edit:
   Apply, rather than reset after it.
 - **What the move strands.** Re-targeting a placement leaves each read
   of its copy in the old space (a `⊔` operand, another placement's
-  mate pose) unresolved and typed (INTENT stage-3 spec §3, "An edit
+  mate pose) unresolved and typed (INTENT stage-3 spec §1 and §5′.1 D′1, "An edit
   that re-targets a placement ... is admitted"). The verdict
   (`DocSession::bundle_verdict`) should say which reads it strands
   before Apply. It is not a refusal.
@@ -77,7 +84,3 @@ mate-tool section, which is a design page, so the PR implementing it
 needs Ev's sign-off before it merges. The Create door's
 "placement and its first mates in one Apply" is filed separately, on
 `creating-a-thing-and-editing-it-are-two-implementations`.
-
-## Ev's reservation on where Place puts its placement (2026-11-09, PR 6580)
-
-Ev approved PR 6580's rule that every placement is a copy, but reserved judgement on the designers' supporting claim: "idk about 'Place keeps landing in the body's own space, so two Places of one body sit in one space and can be mated to each other'". Since PR 6578, `DocSession::place` targets the body's own space. This unit decides the placement's target as the placement's own property, so where Place lands, and how a person chooses or changes it, is decided here, not inherited from 6578. The designers weigh it before the build.

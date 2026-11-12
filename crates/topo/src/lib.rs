@@ -188,6 +188,8 @@ pub mod offset_general;
 pub mod offset_nappe;
 pub(crate) mod offset_restate;
 pub mod offset_together;
+pub(crate) mod one_record;
+pub use one_record::{DihedralAcross, SmoothAcross};
 pub(crate) mod one_region;
 pub mod pcurves;
 pub mod pieces;
@@ -696,7 +698,7 @@ pub mod test_support {
         body: &mut Body<T>,
         tol: geom_core::Tol,
     ) -> Result<crate::MergeCoplanarOutcome, crate::MergeCoplanarError> {
-        body.merge_coplanar_faces_unjoined(&crate::boolean::GluedSurfaces::none(), tol)
+        body.merge_coplanar_faces_unjoined(tol)
     }
 
     /// **A fixture that is, or becomes, a finished body**: a door's
@@ -1401,19 +1403,20 @@ pub use boolean::{
     OperandRecords, OverlapRefusal, PairRefusalSite, PairSite, PairUnread, PierceRingRecord,
     PlaneDesc, PlaneEqError, PlaneRelation, PlaneRung, PointInSolidError, ReductionContacts,
     RefusedRow, SectionUnbuilt, SectorRead, SectorRung, SelfCheck, SettleError, Settler, Settling,
-    ShellOrientation, SideCode, SlitFaceGap, SlitLineGap, SolidContainment, SolidFaces,
-    SphereQuestion, SpiricLoops, SubstitutedFace, SweepStrategy, TorusConvention, UncutFace,
-    UnreadPartner, VeContact, VfContact, VoidContainment, VoidEvidence, VoidInsertError,
+    SharedStarts, ShellOrientation, SideCode, SlitFaceGap, SlitLineGap, SolidContainment,
+    SolidFaces, SphereQuestion, SpiricLoops, SubstitutedFace, SweepStrategy, TorusConvention,
+    UncutFace, UnreadPartner, VeContact, VfContact, VoidContainment, VoidEvidence, VoidInsertError,
     VoidInserted, VvContact, WallRung, boolean_op_with, boolean_reduce, carrier_eq, contfp,
     curved_face_containment, decision_words, face_carrier, flush_pair_relation, insert_void,
     insert_voids, intersect, is_conventional_vertex, join_covers, joinable_vertices, joined_cell,
     joined_edge, nary_boolean, nary_boolean_apart, oriented_plane_eq, overlap, point_in_solid,
-    point_in_solid_faces, point_in_solid_of, rest_locus, subtract, tangent_pair_relation, union,
+    point_in_solid_faces, point_in_solid_of, subtract, tangent_pair_relation, union,
 };
 pub use cover::{
     BoundaryUnknown, EdgeUncovered, FaceCovered, FaceUncovered, edge_cover, face_cover,
     face_cover_toward, face_nearest,
 };
+pub use geom_brep::rest_locus;
 pub use joint::{Deck, JointElement};
 pub use lineage::{
     ConeCopies, Division, FaceDivisions, Fate, Lineage, LineageError, LineageKey, LineageRows,

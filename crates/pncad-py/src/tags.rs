@@ -1539,6 +1539,7 @@ pub fn boolean_error_tag(kind: BooleanErrorKind) -> &'static str {
         BooleanErrorKind::JoinPairsTied => "join_pairs_tied",
         BooleanErrorKind::JoinCarrierUnsupported => "join_carrier_unsupported",
         BooleanErrorKind::CarryRefused => "carry_refused",
+        BooleanErrorKind::OneRecordUncertified => "one_record_uncertified",
         BooleanErrorKind::JoinDesync => "join_desync",
         BooleanErrorKind::LineageRow => "lineage_row",
         BooleanErrorKind::SplitLineage => "split_lineage_cycle",
@@ -3006,6 +3007,7 @@ pub fn decision_site_tag(site: pncad::document::coincidence::DecisionSite) -> &'
         S::IsoJoin => "iso_join",
         S::CensusAtRest => "census_at_rest",
         S::ProfileJunction => "profile_junction",
+        S::SmoothJoin => "smooth_join",
     }
 }
 
