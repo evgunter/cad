@@ -1858,8 +1858,7 @@ by door, is `crates/editor-core/ASSEMBLY.md` and
   and its evaluation is one kernel `Body`, generally multi-solid and
   not connected: the kernel has no assembly type. Which solids are one
   part, and which mates hold, is recipe structure, never body state;
-  fusing copies is never implied: only a request that names their
-  contact fuses them, a boolean or a blend of that contact.
+  fusing copies is an explicit boolean, never implied.
 - **A reference pins content.** `[assemblies.pins]` A cross-document
   reference is a `DocRef`: a `DocumentId`, which says which document
   and survives every edit, and a `ContentPin`, the SHA-256 of the
@@ -2497,7 +2496,6 @@ is the board and `work/README.md` its contract.
 | `work/perf/plan.md` | Merged-and-advisory ([determinism], deterministic parallelism) | Performance plan and Q-P answers |
 | `docs/CURVO-AUDIT.md` | Reference | curvo vendor audit behind Q5 |
 | `docs/LONGTERM-IDEAS.md` | Parked, non-binding | Idea bank with a graduation rule |
-| `docs/MODEL-AB-LOG.md` | Experiment log | Model A/B protocol + data; process, not design |
 | `docs/NAME-CANDIDATES.md` | Reference | Q9 name candidates (re-sweep before ratifying) |
 | `docs/predicate-dimension-audit.md` | Live audit | Dimensional-analysis sweep of predicate comparands against D4; its *Findings* section is the live list |
 
