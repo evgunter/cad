@@ -846,10 +846,9 @@ tiers".
   itself, the local reading (how the faces leave their shared edge or
   vertex, or a face's own turning) passes by more than the band. A
   reading inside the band refuses as ambiguous, never as Holds or
-  Violated. A
-  stored value enters the question as the reals it stands for: itself at a
-  point scalar (`f64`, `Probe`), its bracket at `Interval` and `Sym`,
-  where the verdict then holds for the whole family.
+  Violated. An exact
+  value `x` enters the question as `[x, x]`; a stored bracket enters as
+  itself, and the verdict then holds for the whole family.
   It passes both once, at the door that
   built it; construction state becomes a finished body only through
   that gate. An isometry, exact apart from rounding, keeps a finished
