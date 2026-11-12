@@ -33,3 +33,19 @@ What it blocks: SHELL-4's curved-twin row, a refusal with a witness at
 and saying so. The certifying-scalar row then waits on this one.
 
 - 2026-11-02 — moved from OFFSET to SHELL by `git mv` when OFFSET merged into SHELL, id and body unchanged (the track budget now counts only P0, P1 and unbanded rows, and OFFSET had fallen far under it).
+
+## Measured (CLEAR's verdict-door lane, 2026-11-12)
+
+The fixture this row was found on did not have an arc neck. A bulge in
+`bulge_loop` rides the segment its vertex starts, and the SHELL-4
+dumbbell put its bulges on `(3, 0.8)` and `(2, 1.2)`. Those start the
+blob walls `x = 3` and `x = 2`, so its neck stayed straight and 0.4
+wide, and at `f64` its cavity certifies embedded (bulge 0.2,
+`t = 0.15`: 56 candidates, nothing refused). With the bulges moved to
+`(2, 0.8)` and `(3, 1.2)`, the neck walls are arcs. At `f64` the cavity
+gate refuses `CavityCrosses` at bulge −0.2 and at +0.2 (`t = 0.15`),
+and shells Ok at −0.2, `t = 0.05`. At `Interval` all three refuse here,
+`Face { Escalated offset_corner_on_surface }`, with enclosures of
+1.3–1.6e-6. The row's finding holds for a real arc neck. Its exhibit,
+`shell_cavity_embedded`'s `the_curved_dumbbell_refuses_at_f64_and_waits_on_the_offset_door_at_interval`,
+now builds the arc neck.
