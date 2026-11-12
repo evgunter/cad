@@ -2980,14 +2980,24 @@ mod tests {
             u_ref: x,
         });
         let (cb, fcb) = face_on(crate::test_support_fixtures::plane(&[o, o + x, o + z], tol));
-        assert!(
-            !crate::boolean::glue::decided_glue(&ca, &cb, &crate::boolean::Glue::none(), band)
-                .expect("the door reads every pair")
-                .pairs
-                .iter()
-                .any(|p| (p.a, p.b) == (fca, fcb) && p.class() == GlueClass::Tangent),
-            "the glue door glues the curved flanks under no Tangent"
-        );
+        // Two skeletal faces span no locus, so the glue door's tangency
+        // reading refuses the collapsed extent its normals' alignment is
+        // levered by, where it reads no pair glued Tangent either way.
+        match crate::boolean::glue::decided_glue(&ca, &cb, &crate::boolean::Glue::none(), band) {
+            Ok(glued) => assert!(
+                !glued
+                    .pairs
+                    .iter()
+                    .any(|p| (p.a, p.b) == (fca, fcb) && p.class() == GlueClass::Tangent),
+                "the glue door glues the curved flanks under no Tangent"
+            ),
+            Err(BooleanError::Escalated { diag, .. }) => assert_eq!(
+                diag.predicate,
+                Some(geom_brep::GRADIENT_ALIGNMENT_LEVER),
+                "the glue door refuses the collapsed locus's lever"
+            ),
+            Err(other) => panic!("the glue door reads the curved flanks: {other:?}"),
+        }
         for (arm, label) in arms {
             let err = run((&ca, fca), (&cb, fcb), arm, None).expect_err("the tie refuses");
             let BooleanError::Escalated { decision, .. } = &err else {

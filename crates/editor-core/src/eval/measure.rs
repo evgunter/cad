@@ -43,8 +43,8 @@
 //! never lands in band. The roles stay authored: the decision reads the
 //! configuration, never which face is the socket. The configuration is
 //! one reading of the pair, `geom_brep::carrier_pose`, and so is which
-//! way the two faces' materials face ([`facing`]), which the at-rest
-//! check's quieting rule reads of a `Gap`'s two faces.
+//! way the two faces' materials face, which the at-rest check's quieting
+//! rule reads off the same pose ([`pose`]).
 //!
 //! A vertex's or an edge's material is its link ([`topo::Link`]): the
 //! cone its faces bound at the point, convex, concave or a saddle alike.
@@ -998,7 +998,7 @@ fn posed<T: Decide>(c: &Carrier<'_, T>) -> Option<geom_brep::Posed<T>> {
 
 /// **The pose two faces stand in** ([`geom_brep::carrier_pose()`]),
 /// levered over [`arm`]: the one reading [`gap`] reads its value in and
-/// [`facing`] reads the faces' facing off. `None` where either cell is no
+/// the quieting rule reads the faces' facing off ([`pose`]). `None` where either cell is no
 /// plane, sphere or cylinder face. A refusal names the plane of a plane
 /// and a round face first, and otherwise the pair in its role order.
 fn face_pose<T: Decide>(
@@ -1104,16 +1104,16 @@ fn face_gap<T: Decide>(
     })
 }
 
-/// **Which way two faces' materials face each other**, read off the pose
-/// their [`gap`] is read in ([`geom_brep::CarrierPose::facing`]): the
-/// configuration a `Gap` over them was decided in. `None` where either is
-/// no plane, sphere or cylinder face, or the pose or the facing refuses.
-pub(crate) fn facing<T: Decide>(
+/// **The pose two faces' [`gap`] is read in** ([`face_pose`]): the
+/// configuration a `Gap` over them was decided in, which answers which
+/// way their materials face ([`geom_brep::CarrierPose::facing`]). `None`
+/// where either is no plane, sphere or cylinder face, or the pose refuses.
+pub(crate) fn pose<T: Decide>(
     outer: &Carrier<'_, T>,
     inner: &Carrier<'_, T>,
     band: Band,
-) -> Option<geom_brep::Facing> {
-    face_pose(outer, inner, band)?.ok()?.facing(band).ok()
+) -> Option<geom_brep::CarrierPose<T>> {
+    face_pose(outer, inner, band)?.ok()
 }
 
 /// **The signed [`gap`] of `outer` against `inner`, as the measure
@@ -1522,6 +1522,11 @@ mod tests {
         }
     }
 
+    /// The facing of the pose `outer` and `inner`'s gap is read in.
+    fn facing(outer: &Carrier<'_, f64>, inner: &Carrier<'_, f64>) -> Option<geom_brep::Facing> {
+        pose(outer, inner, band())?.facing(band()).ok()
+    }
+
     fn read(outer: &Carrier<'_, f64>, inner: &Carrier<'_, f64>) -> f64 {
         gap(outer, inner, band()).unwrap_or_else(|e| panic!("the gap reads: {e:?}"))
     }
@@ -1874,7 +1879,7 @@ mod tests {
             };
             for (order, x, y) in [("a first", &a, &b), ("b first", &b, &a)] {
                 assert_eq!(
-                    facing(x, y, band()),
+                    facing(x, y),
                     Some(facing_as),
                     "{what}, {order}: the facing the swap shows"
                 );
@@ -1943,7 +1948,7 @@ mod tests {
             ),
         ] {
             for (order, x, y) in [("plate first", &a, &b), ("plate second", &b, &a)] {
-                assert_eq!(facing(x, y, band()), want, "{what}, {order}");
+                assert_eq!(facing(x, y), want, "{what}, {order}");
             }
         }
     }

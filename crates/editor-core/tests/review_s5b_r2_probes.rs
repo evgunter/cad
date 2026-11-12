@@ -393,11 +393,10 @@ mod interference {
     /// = 1 - 0.3 - 1.2 = -0.5, which holds under <= -0.01, though the clash
     /// is 0.1 deep and neither face is a socket. Both lateral faces bound
     /// the crescent overlap, and it lies between their carriers. What
-    /// keeps it loud is `opposed`: two cylinders off one axis pair their
-    /// materials differently from point to point, so no single reading
-    /// answers for the pair, and it is not opposed at any bearing of B
-    /// about A (a reading at one point of A's wall was quiet at one
-    /// bearing in eight).
+    /// keeps it loud is `opposed`: the `Gap` reads the two walls apart,
+    /// and the quieting rule takes two round faces apart as no opposed
+    /// pair, at any bearing of B about A (a reading at one point of A's
+    /// wall was quiet at one bearing in eight).
     #[test]
     fn r2_two_convex_shafts_side_by_side_stay_loud() {
         use crate::fixture::piece;

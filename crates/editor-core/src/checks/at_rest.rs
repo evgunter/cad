@@ -1003,11 +1003,17 @@ pub(crate) fn gap_assertions<P: crate::ProfilePayload, T: Decide + topo::AtRestP
 /// **Whether a `Gap`'s two faces are opposed**: each faces the other's
 /// material, which is the mating configuration C5's gap is written for
 /// (two plates face to face, a bore about a pin, a socket about a ball,
-/// two rods side by side). It is the facing of the pose the `Gap` over
-/// the two faces is read in ([`crate::eval::measure::facing`]), so the
-/// quieting rule and the measure decide the pair once, alike; a pair the
-/// measure reads in no pose (two planes not parallel, a cone) or whose
-/// facing does not decide is not opposed, and its finding stays loud.
+/// a ball or a pin pressed into a plate). It is the facing of the pose
+/// the `Gap` over the two faces is read in ([`crate::eval::measure::pose`]),
+/// so the quieting rule and the measure decide the pair once, alike. A
+/// pair the measure reads in no pose (two planes not parallel, a cone)
+/// or whose facing does not decide is not opposed, and its finding stays
+/// loud.
+///
+/// **Two round faces apart are not opposed** here, though their
+/// materials face each other: the quieting rule takes no assertion over
+/// two shafts side by side, so their clash stays loud
+/// (`shafts_side_by_side_stay_loud_at_every_bearing`).
 fn opposed<T: Decide>(body: &Body<T>, outer: FaceKey, inner: FaceKey, band: Band) -> bool {
     let carrier = |key| {
         crate::eval::measure::carrier_of(
@@ -1019,8 +1025,15 @@ fn opposed<T: Decide>(body: &Body<T>, outer: FaceKey, inner: FaceKey, band: Band
             band,
         )
     };
-    crate::eval::measure::facing(&carrier(outer), &carrier(inner), band)
-        == Some(geom_brep::Facing::Opposed)
+    crate::eval::measure::pose(&carrier(outer), &carrier(inner), band).is_some_and(|pose| {
+        !matches!(
+            pose,
+            geom_brep::CarrierPose::Rounds {
+                nest: geom_brep::Nest::Apart,
+                ..
+            }
+        ) && pose.facing(band) == Ok(geom_brep::Facing::Opposed)
+    })
 }
 
 /// **The scalars the at-rest check localizes an overlap at**: one seam per
