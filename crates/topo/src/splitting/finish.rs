@@ -1920,7 +1920,8 @@ pub(crate) fn describe_section_boundary<T: Decide + crate::props::AtRestPolicy>(
                 }
                 // What the join stores is what its wedge demands, and
                 // a settled tangency demands a description.
-                let Some(Ok(demanded)) = crate::edge_wedge::demanded(body, edge, verdict) else {
+                let Some(Ok(demanded)) = crate::edge_wedge::demanded(body, edge, verdict, witness)
+                else {
                     unreachable!("{edge:?}'s settled tangency demands a description")
                 };
                 // A description of the demanded kind that names

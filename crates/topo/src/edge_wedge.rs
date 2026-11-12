@@ -61,25 +61,27 @@ pub fn edge_wedge<T: Decide>(
 
 /// **What an edge's wedge demands it store**
 /// ([`geom_brep::WedgeVerdict::description`]): its [`edge_wedge`] over
-/// its two faces' surface records, witnessed at its carrier's middle,
-/// with the jet certificate's lane read over its carrier
+/// its two faces' surface records, witnessed at `witness`, a point of
+/// its carrier, with the jet certificate's lane read over its carrier
 /// ([`geom_brep::tangent_certificate_lane`]). A constructor that wrote
 /// the edge restates it with this. `None` as [`edge_wedge`].
 #[must_use]
 pub fn edge_wedge_description<T: Decide>(
     body: &Body<T>,
     edge: EdgeKey,
+    witness: geom_core::Point3<T>,
     band: Band,
 ) -> Option<Result<geom_brep::MustCarryDescription<T>, geom_brep::PairRefusal>> {
-    demanded(body, edge, edge_wedge(body, edge, band)?)
+    demanded(body, edge, edge_wedge(body, edge, band)?, witness)
 }
 
-/// What `verdict`, `edge`'s wedge, demands it store
-/// ([`edge_wedge_description`]).
+/// What `verdict`, `edge`'s wedge, demands it store, witnessed at
+/// `witness` ([`edge_wedge_description`]).
 pub(crate) fn demanded<T: Decide>(
     body: &Body<T>,
     edge: EdgeKey,
     verdict: geom_brep::WedgeVerdict,
+    witness: geom_core::Point3<T>,
 ) -> Option<Result<geom_brep::MustCarryDescription<T>, geom_brep::PairRefusal>> {
     let curve = body.stored_curve(edge).ok()?;
     let sides = crate::readback::edge_sides(body, edge).ok()?;
@@ -89,5 +91,5 @@ pub(crate) fn demanded<T: Decide>(
         body.get_surface(sides.minus.surface)?,
     );
     let pair = geom_brep::SurfacePair::new(sides.plus.surface, sides.minus.surface);
-    Some(verdict.description(lane, pair, curve.mid_point()))
+    Some(verdict.description(lane, pair, witness))
 }

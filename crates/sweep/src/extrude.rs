@@ -1227,12 +1227,14 @@ fn sweep_loop<T: Decide + topo::AtRestPolicy>(
         // stations that disagree refuse rather than store a description
         // no reading chose.
         let vertex_index = segs[j].chord.canonical_vertex;
-        let demanded = topo::edge_wedge_description(body, strut.edge, band).unwrap_or_else(|| {
-            unreachable!(
-                "strut {:?} was minted with a certified line between two live walls",
-                strut.edge
-            )
-        });
+        let mid = qs[j] + w * T::from_f64(0.5);
+        let demanded =
+            topo::edge_wedge_description(body, strut.edge, mid, band).unwrap_or_else(|| {
+                unreachable!(
+                    "strut {:?} was minted with a certified line between two live walls",
+                    strut.edge
+                )
+            });
         match demanded {
             Ok(MustCarryDescription::Intrinsic(description)) => {
                 body.restate_stored_edge(strut.edge, description, tol)?;
@@ -1487,7 +1489,14 @@ fn upgrade_rim<T: Decide + topo::AtRestPolicy>(
     band: Band,
     tol: Tol,
 ) -> Result<(), ExtrudeError> {
-    let demanded = topo::edge_wedge_description(body, edge, band).unwrap_or_else(|| {
+    let stored = body.stored_curve(edge).map_err(|e| match e {
+        EulerOpError::Argument(_) => {
+            unreachable!("rim {edge:?} was minted by this extrude and is live")
+        }
+        e => e,
+    })?;
+    let witness = stored.mid_point();
+    let demanded = topo::edge_wedge_description(body, edge, witness, band).unwrap_or_else(|| {
         unreachable!("rim {edge:?} was minted by this extrude with a certified carrier")
     });
     match demanded {

@@ -254,7 +254,8 @@ impl<T: Decide> Body<T> {
         let surface = |s: SurfaceKey| self.get_surface(s).ok_or_else(stale);
         let (s1, s2) = (surface(surfaces[0])?, surface(surfaces[1])?);
         let verdict = crate::edge_wedge(self, edge, band).ok_or_else(stale)?;
-        let description = crate::edge_wedge::demanded(self, edge, verdict).ok_or_else(stale)?;
+        let description = crate::edge_wedge::demanded(self, edge, verdict, curve.mid_point())
+            .ok_or_else(stale)?;
         let description = match description {
             Ok(description) => description,
             Err(refusal) => return Ok(Err(refusal)),
