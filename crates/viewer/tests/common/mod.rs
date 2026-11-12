@@ -1175,7 +1175,7 @@ pub fn transformed_into(
 }
 
 /// [`moved_to`] into `into`'s axes ([`transformed_into`]).
-pub fn moved_into(
+pub fn moved_in_space(
     session: &mut DocSession,
     node: RecipeNodeId,
     by: [f64; 3],
@@ -1265,6 +1265,8 @@ pub fn moved_to(session: &mut DocSession, node: RecipeNodeId, by: [f64; 3]) -> R
 /// # Panics
 ///
 /// Where the door refuses the change.
+// The door answers the session's own `Refusal`, whatever its width.
+#[allow(clippy::result_large_err)]
 pub fn into_space(
     session: &mut DocSession,
     placement: RecipeNodeId,

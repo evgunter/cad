@@ -53,6 +53,13 @@ placement's bundle" as #6300 rewrites it).
 
 ## Design work before building
 
+Superseded by Ev's ruling on `[ev]` PR 6600 wherever the two differ
+(the ruled text is `crates/viewer/README.md`'s placement section, "A
+placement's target is its own property, and no mate changes it"):
+there is no Apply, a mate reading the old space is kept as written and
+holds the change at the solving door, and the kernel admits the
+re-target.
+
 The consequences the checkbox's move had now belong to the
 target-space edit:
 - **Mates read in the old space.** Today's re-target stands the copy
@@ -61,7 +68,7 @@ target-space edit:
   Apply, rather than reset after it.
 - **What the move strands.** Re-targeting a placement leaves each read
   of its copy in the old space (a `⊔` operand, another placement's
-  mate pose) unresolved and typed (INTENT stage-3 spec §3, "An edit
+  mate pose) unresolved and typed (INTENT stage-3 spec §1 and §5′.1 D′1, "An edit
   that re-targets a placement ... is admitted"). The verdict
   (`DocSession::bundle_verdict`) should say which reads it strands
   before Apply. It is not a refusal.

@@ -768,7 +768,7 @@ impl ViewerBehavior<'_> {
                         Tone::Actionable,
                     );
                     if ui.button(format!("Into {read}")).clicked() {
-                        edited.into_space(space);
+                        edited.retarget_into(space);
                     }
                 });
             }

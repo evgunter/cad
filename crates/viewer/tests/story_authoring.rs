@@ -170,7 +170,7 @@ fn lifted(
         .committed_doc()
         .node_space(onto)
         .expect("the body combined onto is in a space");
-    common::moved_into(session, body, translation, home)
+    common::moved_in_space(session, body, translation, home)
 }
 
 /// The whole sitting, top to bottom. One test because it is one

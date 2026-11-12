@@ -299,7 +299,7 @@ fn a_held_cross_space_mate_lands_after_into_its_space_in_two_steps() {
     let mut tools = Tools::new();
     tools.open(ToolKind::Mate);
     *tools.mate_mut().expect("open") = tool;
-    tools.mate_mut().expect("open").into_space(wide_space);
+    tools.mate_mut().expect("open").retarget_into(wide_space);
     let into = offered(&session, tools.mate_mut().expect("open")).expect("the target passes");
     assert!(
         matches!(&into, SessionOp::SetBundle { placement, target, constraints, base }

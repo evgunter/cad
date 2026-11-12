@@ -1855,7 +1855,7 @@ impl MateTool {
     /// lands, so the target and the held mate are two steps; where the
     /// target alone does not pass, they are put back at once and the
     /// whole draft is held over the new target.
-    pub fn into_space(&mut self, space: VarId) {
+    pub fn retarget_into(&mut self, space: VarId) {
         let target = PlaceTarget::space(space);
         let Some(draft) = self.draft.as_mut() else {
             return;

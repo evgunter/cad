@@ -90,9 +90,9 @@ fn two_picks_one_choice_one_committed_edit() {
         "two planes, the target flipped: the faces rest against each other"
     );
 
-    // post_b stands in a space of its own and the shelf in the world:
-    // the plain commit never moves the copy as a side effect, so the
-    // door refuses the mate, naming both spaces, and nothing is recorded.
+    // post_b stands in a space of its own and the shelf in the world: a
+    // mate reads its `to` in its placement's target, so the door refuses
+    // the mate, naming both spaces, and nothing is recorded.
     let before = session.committed_doc().clone();
     let refused = session.perform(proposal.op());
     let own = before.node_space(bench.post_b).expect("post_b is placed");
@@ -107,7 +107,7 @@ fn two_picks_one_choice_one_committed_edit() {
                             && [a.id(), b.id()].contains(&pncad::document::VarId::WORLD)
                 )
         ),
-        "a mate across two spaces refuses unless the move is asked for: {:?}",
+        "a mate across two spaces refuses: {:?}",
         refused.refusal
     );
     assert!(refused.committed.is_empty(), "nothing is recorded");
@@ -116,9 +116,19 @@ fn two_picks_one_choice_one_committed_edit() {
         "the document stands"
     );
 
-    // One committed action, through the session's one door, into
-    // post_b's bundle: the mate and its values, the copy moved into the
-    // shelf's space by name.
+    // The panel names both spaces and offers "Into" the shelf's: the
+    // copy's target re-seated, in the same change as the mate here. One
+    // committed action, through the session's one door, into post_b's
+    // bundle: the target, the mate and its values.
+    let (landed, ev) = session.landed_pair().expect("landed");
+    assert_eq!(
+        tool.off_target(landed, ev),
+        [(0, pncad::document::VarId::WORLD)],
+        "the row is marked as reading the shelf's space"
+    );
+    common::into_to_space(&session, &mut tool);
+    let proposal =
+        common::proposed(&session, &tool, asm::seat_choice()).expect("the seat proposes");
     let mate = common::commit_mate(&mut session, proposal.op());
     assert_eq!(mate.placement, bench.post_b, "the mate places post_b");
 

@@ -322,7 +322,7 @@ fn the_parametric_living_walk() {
         .committed_doc()
         .node_space(base)
         .expect("the base's space");
-    let tower_up = common::moved_into(&mut session, tower, [0.0, 0.0, 0.025], home);
+    let tower_up = common::moved_in_space(&mut session, tower, [0.0, 0.0, 0.025], home);
     let hull = session_insert(
         &mut session,
         SessionOp::AddBoolean {
@@ -400,7 +400,7 @@ fn the_parametric_living_walk() {
         .committed_doc()
         .node_space(hull)
         .expect("the hull's space");
-    let lamp_up = common::moved_into(&mut session, lamp, [0.0, 0.0, 0.08], home);
+    let lamp_up = common::moved_in_space(&mut session, lamp, [0.0, 0.0, 0.08], home);
     let lighthouse = session_insert(
         &mut session,
         SessionOp::AddBoolean {

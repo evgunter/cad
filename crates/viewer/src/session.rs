@@ -2230,7 +2230,7 @@ impl DocSession {
                 constraints,
             } => self.judged_bundle(placement, &base, target, constraints),
             SessionOp::RemoveConstraint { mate } => self.remove_constraint(mate),
-            SessionOp::IntoOwnSpace { placement } => self.into_own_space(placement),
+            SessionOp::IntoOwnSpace { placement } => self.own_space(placement),
             SessionOp::NewDocument { name } => self.new_document(&name),
             SessionOp::EditProfile {
                 node,
@@ -4727,7 +4727,7 @@ impl DocSession {
 
     /// **A copy given a space of its own** ([`SessionOp::IntoOwnSpace`]):
     /// the target edit into a `new_space()`, its bundle as held.
-    fn into_own_space(&mut self, placement: RecipeNodeId) -> OpOutcome {
+    fn own_space(&mut self, placement: RecipeNodeId) -> OpOutcome {
         let doc = self.committed_doc();
         let Some(base) = held_placement(doc, placement) else {
             return OpOutcome::refused(Refusal::Draft(Box::new(

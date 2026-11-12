@@ -1057,7 +1057,7 @@ fn an_upstream_edit_that_strands_held_edges_drops_them_and_says_so() {
     let a = common::xy_box_in(&mut session, [SIDE; 3]);
     let raw_b = common::xy_box_in(&mut session, [SIDE; 3]);
     let home = session.committed_doc().node_space(a).expect("a's space");
-    let b = common::moved_into(
+    let b = common::moved_in_space(
         &mut session,
         raw_b,
         [SIDE * 0.5, SIDE * 0.25, SIDE * 0.25],

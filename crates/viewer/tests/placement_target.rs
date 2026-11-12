@@ -127,6 +127,7 @@ fn the_target_row_re_targets_a_placement_in_one_step() {
     let tol = Tol::witness();
     let mut session = common::inline_without_door(Doc::empty_derived("target-row", tol), tol);
     let bolt = common::xy_box_in(&mut session, BOLT);
+    let plate = common::xy_box_in(&mut session, PLATE);
     session.pump();
     let own = session
         .committed_doc()
@@ -169,6 +170,30 @@ fn the_target_row_re_targets_a_placement_in_one_step() {
         "setting the target back restores the draft"
     );
     assert_eq!(offered(&session, &mut tool), None, "and it writes nothing");
+
+    // A body picked after "pick a body" names its space, and seats no mate.
+    let with_plate = session.committed_doc();
+    tool.pick_target();
+    assert!(tool.picking_target());
+    let picked = tool.pick(
+        with_plate,
+        viewer::session::FaceSelection {
+            name: cap(plate, CapEnd::End),
+            node: plate,
+            body: 0,
+        },
+    );
+    assert!(picked.is_none(), "the pick is taken: {picked:?}");
+    assert_eq!(
+        tool.target(),
+        with_plate
+            .node_space(plate)
+            .map(PlaceTarget::space)
+            .as_ref(),
+        "the picked body's space"
+    );
+    assert!(tool.rows().is_empty(), "no mate row is seated");
+    assert!(!tool.picking_target(), "one pick names the target");
 
     // Landed: one `SetBundle` carrying the target, one undo step.
     tool.set_target(PlaceTarget::space(VarId::WORLD));
