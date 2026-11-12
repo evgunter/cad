@@ -1541,6 +1541,7 @@ pub fn boolean_error_tag(kind: BooleanErrorKind) -> &'static str {
         BooleanErrorKind::CarryRefused => "carry_refused",
         BooleanErrorKind::OneRecordUncertified => "one_record_uncertified",
         BooleanErrorKind::JoinDesync => "join_desync",
+        BooleanErrorKind::Carve => "carve",
         BooleanErrorKind::LineageRow => "lineage_row",
         BooleanErrorKind::SplitLineage => "split_lineage_cycle",
         BooleanErrorKind::EdgeUndescribed => "edge_undescribed",

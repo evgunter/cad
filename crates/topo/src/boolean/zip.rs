@@ -77,7 +77,15 @@ pub(super) fn fuse_by_joint<T: Decide + crate::props::AtRestPolicy>(
     desync: fn(&'static str) -> BooleanError,
     tol: Tol,
 ) -> Result<(VertexKey, VertexKey), BooleanError> {
-    crate::fuse::fuse(body, joint, at, desync, tol).map(|f| (f.dead, f.kept))
+    let lost = |unresolved| {
+        desync(match unresolved {
+            crate::Unresolved::Walk(_) => "a joint half-edge has no end",
+            crate::Unresolved::Record(_) | crate::Unresolved::Geometry(_) => {
+                "a joint half-edge no longer resolves"
+            }
+        })
+    };
+    crate::fuse::fuse(body, joint, at, lost, tol).map(|f| (f.dead, f.kept))
 }
 
 /// What one seam zip did to the arena — the F9-style record the op

@@ -309,7 +309,7 @@ fn section_chords<T: Decide>(
 ///
 /// [`SplitReduceError::SectionGermsEscalated`] where the table or the
 /// reading escalates; [`SplitReduceError::ApexSection`] where the table
-/// and the walk disagree on the apex ([`ApexSectionReading`](crate::splitting::ApexSectionReading)): the table
+/// and the walk disagree on the apex ([`ApexSectionReading`](crate::ApexSectionReading)): the table
 /// refuses, or reads the section clear of the apex, or not exactly one of
 /// its rulings lies inside the sub-sector the walk read the plane
 /// crossing.

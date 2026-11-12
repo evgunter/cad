@@ -2,7 +2,8 @@
 id: a-closed-form-image-at-a-fuzz-seed-reads-its-coefficient-bound-in-band-at-eps-1e-12
 kind: issue
 title: A correct closed-form image reads its coefficient bound in band at ε 1e-12 at fuzz seeds, so the every-spelling row goes red by seed
-status: open
+status: closed
+closed: 2026-11-12
 opened: 2026-11-12
 priority: P1
 cost: M
@@ -68,3 +69,42 @@ the lever at ε 1e-12, as its siblings do, or the bound centres the
 residual's spatial terms on a point of the carrier, as that P3's fix
 direction says. Centring is the preferred fix, because a false refusal
 10 m from the origin is not the far-image regime.
+
+## Closed
+
+The bound has no excess at these seeds. Each refusal reads a real miss
+of the stated image, and the bound is that miss to within a part in a
+thousand. The residual's coefficients are exact to about 1e-14, so the
+rounding of the coefficient sum, the slack terms (zero on a harmonic),
+the phases and centring are each below 1e-13 of what the bound reads.
+Two causes:
+
+- **The fixture drew a frame off square** (`0x4661d077090b3597`). The
+  plane's `u_ref` leaned 5.35e-14 off its normal, the residue of one
+  Gram–Schmidt pass on a `b` near the axis. The chart therefore leaves
+  the line, drawn square to the normal, by 5.35e-14 per metre of `u`.
+  In rational arithmetic the stated image misses by 1.0181e-12 at the
+  span's far end (`u` ≈ 20.7), and the bound reads 1.0195e-12. No image
+  on that chart is within ε, so `Escalated` is the honest ending. The
+  rows' frames (`closed_image_rows.rs` `frame`/`perpendicular`, and
+  `analytic_image_rows.rs` `frame`) now square twice (`across`). Rows:
+  `a_plane_line_on_a_frame_drawn_near_its_axis_certifies_in_every_spelling`
+  (the seed, pinned) and `a_frame_drawn_near_its_axis_is_square_to_rounding`.
+  Mutant `across-once` turns both red.
+- **The derivation misses near the pole** (`0x8ffe04db921f5cff`, and
+  every refusal of the 2000-seed sweep). The case is a sphere meridian
+  whose start lies within about 1e-3 rad of the pole (`v` phase ≡ π/2).
+  The derived azimuth reads `â_r` off an `a_r` of about 1e-4·r, so it is
+  off by `ulp/‖â_r‖`, here 7.5e-13 rad, a miss of 1.43e-12 (dense
+  1.436e-12, bound 1.435e-12). This is
+  `a-derived-sphere-image-misses-its-circle-by-1e-11-near-five-half-pi-at-eps-1e-12`'s
+  shape, landing in band instead of past it, and is that row's to fix.
+
+Sweep at ε 1e-12, `f64` and `Interval`, the same 2000 seeds before and
+after, over every closed-image and analytic-image fuzz: 9 refusals before
+(8 `Escalated`, 1 `StatedImageMissed`) and 4 after (all `Escalated`).
+All are sphere meridians near the pole, and the count moves with the
+`u_ref` bits the fixture now draws. At ε 1e-9 there are none either way.
+The every-spelling row stays red by seed at ε 1e-12 until that
+derivation lands.
+
