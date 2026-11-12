@@ -113,3 +113,119 @@ shown, the remedy is a uniqueness certificate at the section's mint.
 **Optional ordering:** run embedding before the census's
 branch-resting reads (`census::curved::edge_tangent_at` and its
 callers).
+
+## Measured (CLEAR, lane clear-gate, 2026-11-12)
+
+Main at `348ec09727`. The question is the one the gate would ask: one
+body against itself, every face, `StrictlyPositive`,
+`DEFAULT_MAX_CELL_DEPTH` (40) and 65,536 pairs (PR 6102's budget), with
+the shell cavity gate's verifier. "Tier 3" is `topo::finish` on the
+same body. The harness is a scratch example in `demos/tour`, not
+committed; it ran at the tour's release profile (debug assertions and
+overflow checks on, as PRICEMEASURE's did), `RAYON_NUM_THREADS=1`,
+pinned to one core of an otherwise idle 4-core box. "Pairs" is the
+receipt's cell pairs examined, against the budget. Times are one run
+each; repeats of the small bodies moved them by up to 25%.
+
+### 1. Planar and boolean-chain bodies
+
+Every planar body holds, in 0.3 ms to 0.16 s, at 4–25× its tier 3.
+The cost grows with faces, not with the boolean chain behind them.
+
+| body | faces | tier 3 | certificate | × tier 3 | pairs | % budget | deepest |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| box, f64 | 6 | 0.3 ms | 1.3 ms | 3.9 | 74 | 0.1 | 3 |
+| box, Interval | 6 | 1.8 ms | 1.6 ms | 0.9 | 74 | 0.1 | 3 |
+| L-bracket (one union), f64 | 8 | 0.7 ms | 3.8 ms | 5.7 | 196 | 0.3 | 10 |
+| L-bracket, Interval | 8 | 1.9 ms | 3.0 ms | 1.5 | 196 | 0.3 | 10 |
+| plate, 1 drilled hole, f64 | 8 | 0.8 ms | 8.1 ms | 10 | 224 | 0.3 | 8 |
+| plate, 3 drilled holes, f64 | 12 | 1.5 ms | 12.7 ms | 8.3 | 304 | 0.5 | 8 |
+| plate, 3 drilled holes, Interval | 12 | 8.1 ms | 13.4 ms | 1.6 | 304 | 0.5 | 8 |
+| 5 slot subtracts, f64 | 26 | 1.4 ms | 14.9 ms | 11 | 1,170 | 1.8 | 10 |
+| 10 slot subtracts, f64 | 46 | 3.8 ms | 48 ms | 13 | 2,356 | 3.6 | 11 |
+| 10 slot subtracts, Interval | 46 | 13.2 ms | 44 ms | 3.3 | 2,356 | 3.6 | 11 |
+| tour `table` (4 unions) | 18 | 1.2 ms | 23 ms | 18 | 1,586 | 2.4 | 23 |
+| tour `az` | 28 | 2.9 ms | 31 ms | 11 | 1,631 | 2.5 | 23 |
+| tour `impeller6` | 56 | 4.7 ms | 90 ms | 19 | 4,149 | 6.3 | 15 |
+| tour `impeller12` | 86 | 7.1 ms | 160 ms | 22 | 8,105 | 12.4 | 15 |
+| tour `die` (21 pip subtracts) | 111 | 5.8 ms | 110 ms | 19 | 6,283 | 9.6 | 13 |
+| tour `bench` (an assembly, 3 contacts) | 24 | 1.3 ms | 0.4 ms | — | 99 | 0.2 | 0 |
+
+The other 11 planar tour bodies (`spacer`, `silhouette` and its four
+shadows, the three `crosslap` bodies, `diechamferblank`,
+`benchlayout`) hold in 4.7–16 ms. `bench`, `bench60` and `bench90`
+read `Violated` at distance 0 between faces 1 and 8: they are the
+assemblies with recorded contacts, which item 3 excludes. No planar
+price is near the ruling's line.
+
+**The whole tour (85 finished bodies, 20 planar).** The 42 curved
+bodies that hold take a median 0.22 s and at most 9.2 s (the Klein loop,
+51,322 pairs, 78% of the budget; PRICEMEASURE's 46.8 s before NETCACHE).
+The lily leaf `a` takes 2.6 s (27.2 s before). Over the walk the
+certificate costs 92 s against tier 3's 31 s.
+
+**24 of the 85 do not certify on main**, so a gate landed today
+refuses them at their doors:
+- 15 refuse `Uncertified` with the departure arm at the depth floor:
+  `chute`, `diefillet`, the lily's stem, arch, pedicel, lantern and
+  three buds, `tube_along_arc`, `hollowelbow`, `teapothandle`, and
+  `heatsink5`/`7`/`9`. They take 0.06–2.2 s to refuse.
+- 8 run out of pairs, in 2.5–6.3 s: `diepips`, `diecomposed`,
+  `diechamfer`, `klein_bulb` and the four snowman bodies.
+- the 3 assemblies above, at their recorded contacts.
+
+So the gate cannot land as one switch: the 23 engine refusals are
+filed (below) and gate lane C of the spec.
+
+### 2. The refusal price after NETCACHE
+
+Nothing refuses and nothing is slow. The four bodies that should
+refuse read `Violated`, at both scalars, in 2–75 ms.
+
+| body | scalar | tier 3 | certificate | verdict | pairs | deepest |
+|---|---|---:|---:|---|---:|---:|
+| arc spine 3.5 rad | f64 | 0.71 s | 0.22 s | Holds | 304 | 7 |
+| arc spine 3.5 rad | Interval | refuses, 11 ms | 0.31 s | Holds | 304 | 7 |
+| arc spine 6 rad | f64 | 0.59 s | 0.38 s | Holds | 661 | 8 |
+| arc spine 9 rad | f64 | 0.53 s | 73 ms | Violated, the wall against itself | 107 | 2 |
+| arc spine 9 rad | Interval | refuses, 10 ms | 74 ms | Violated, the same pair | 107 | 2 |
+| arc spine 13 rad | f64 | 0.64 s | 74 ms | Violated, the wall against itself | 116 | 2 |
+| arc spine 13 rad | Interval | refuses, 9 ms | 68 ms | Violated, the same pair | 116 | 2 |
+| closed spine | f64 | 0.23 s | 2.7 ms | Violated, top against bottom | 20 | 0 |
+| closed spine | Interval | refuses, 6 ms | 2.7 ms | Violated, the same pair | 20 | 0 |
+| CARVETAIL's joints | f64 | 8.9 ms | 1.9 ms | Violated, wall 0 against wall 3 | 29 | 0 |
+| CARVETAIL's joints | Interval | refuses, 4 ms | 2.0 ms | Violated, the same pair | 29 | 0 |
+
+At `Interval`, tier 3 refuses every one of these lofts before the
+certificate would run: check 7 cannot measure their spline walls
+(`work/boxfinish/check-7s-quadrature-refuses-interval-nurbs-walls-with-inexact-pcurve-ends.md`).
+The certificate there was asked of the unfinished body.
+
+### 3. A drive leaf at `Sym<Interval>`
+
+A box, 2 × 1 in plan, extruded to a depth `h` over a parameter box
+`1 ± w`, and SHELL-4's washer revolved about its inner radius `r0`.
+"Symbolic" counts the decisions the symbolic tier discharged as exact
+during each half (`geom_core::sym::session_counts`).
+
+| leaf | w | tier 3 | tier 3's symbolic decisions | certificate | its symbolic decisions | verdict | pairs |
+|---|---:|---:|---:|---:|---:|---|---:|
+| box, depth `h` | 1e-6 | 55 ms | 348 | 3.0 ms | 0 | Holds | 128 |
+| box, depth `h` | 1e-3 | 45 ms | 348 | 3.3 ms | 0 | Holds | 120 |
+| box, depth `h` | 1e-2 | 88 ms | 348 | 3.2 ms | 0 | Holds | 120 |
+| box, depth `h` | 3e-2 | refuses (the side reader), 77 ms | 348 | 4.4 ms | 0 | Holds | 156 |
+| box, depth `h` | 0.1 | refuses (the side reader), 79 ms | 348 | 1.54 s | 26 | `Budget(Pairs)` | 65,536 |
+| washer, `r0` | 1.6e-11 | 4.93 s | 228 | 25 ms | 19 | Holds | 24 |
+
+The washer's profile refuses validation (`line_span`) at `w = 1e-3`
+and wider, so it has no wider row. Two readings:
+- Where tier 3 needs its symbolic proof (348 exact decisions at every
+  width), the certificate needs none and costs 4–7% of tier 3. The
+  family's width costs it splits (128 pairs at `w = 1e-6`, against 74
+  for the f64 box), not symbolic work.
+- No width was found where tier 3 passes and the certificate refuses.
+  The certificate outlasts tier 3 here: at `w = 3e-2` tier 3's side
+  reader refuses
+  (`work/boxfinish/the-side-reader-cannot-read-a-solids-orientation-over-a-box.md`)
+  and the certificate still holds. At
+  `w = 0.1` it runs out of pairs, which is change 2's subject (below).
