@@ -104,7 +104,7 @@ fn ball_at(c: Vec3<f64>) -> Body<f64> {
         dir: Vec2::new(0.0, 1.0),
     };
     let b = revolve(&vp, axis, Revolution::Full, tol()).unwrap().body;
-    topo::transform_rigid(&b, &geom_core::RigidMotion::translation(c).unwrap(), tol()).unwrap()
+    topo::transform_rigid(&b, &geom_core::RigidMotion::translation(c).unwrap()).unwrap()
 }
 
 /// The edges of `body` on LINE carriers — on a dimpled or pocketed box,
@@ -845,10 +845,10 @@ fn the_assembly_recourse_names_four_doors_that_all_carve() {
     // several other `UnsupportedChain` arms also satisfy.
     assert!(
         matches!(&err, BlendError::UnsupportedChain { detail, .. }
-            if *detail == "an open chain's supports are neither a plane–plane nor a ruled \
-                 cylinder pair"),
-        "an open chain whose supports are neither plane–plane nor ruled has no built \
-         termination: {err:?}"
+            if *detail == "an open chain link is not plane–plane, ruled, or a torus between \
+                 two junctions"),
+        "an open chain whose link is neither plane–plane, nor ruled, nor a torus between two \
+         junctions has no built termination: {err:?}"
     );
     carries(&err, FILLET3_ASSEMBLY_RECOURSE, "unsupported chain");
     // The corner clause's two conditions, each true of every corner the

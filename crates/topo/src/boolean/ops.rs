@@ -136,13 +136,13 @@ use super::{
 };
 use crate::body::Body;
 use crate::boxes;
+use crate::carve::{carve, single_solid};
 use crate::coincidence::{Backing, Cited, Cites};
 use crate::entity::{EdgeKey, EntityId, FaceKey, LoopBoundary, ShellKey, VertexKey};
 use crate::geometry::{PointKey, SurfaceKey};
 use crate::live::{BoundaryMember, linked, proven};
 use crate::merge_faces::{DescribeRefusal, DihedralReading, EdgeDescribeFailure};
 use crate::props::AtRestPolicy;
-use crate::splitting::finish::{carve, single_solid};
 use crate::validate::decide;
 use geom_brep::recourse::Refused;
 use geom_core::NonzeroSign;
@@ -1382,7 +1382,7 @@ pub(super) fn through_the_join<T: Decide + Bounds + crate::props::AtRestPolicy>(
         let (mut a2, mut b2, recharted) = apply_recuts(a, b, &recuts.rechart, tol)?;
         // The cut-ins name faces of `a` and `b`; the re-charts carve
         // and graft other shells, and `carve` keeps every kept
-        // entity's key (`splitting::finish`'s `carve`), so those
+        // entity's key (`crate::carve::carve`), so those
         // names still hold on `a2` and `b2`.
         let cuts = apply_cut_ins(&mut a2, &mut b2, &recuts.cut_in, band, tol)?;
         // The re-entry's operands are not finished (the cut-ins leave
@@ -1716,6 +1716,7 @@ fn walk_certify_refusal(error: &geom_brep::PcurveCertifyError) -> WalkRefusal {
         | C::PlacementTurnsExceeded
         | C::CarrierEnclosure(_)
         | C::ResidualExceeded { .. }
+        | C::MissLocated { .. }
         | C::FittedLimb { .. }
         | C::FittedEscalated { .. }
         | C::Escalated { .. }
@@ -6811,7 +6812,7 @@ fn apply_recuts<T: Decide + Bounds + crate::props::AtRestPolicy>(
         }
         let src: &Body<T> = if operand == Operand::A { a } else { b };
         let corrupt = |what| BooleanError::ClassificationInvariant { what };
-        let solid = single_solid(src).map_err(|_| corrupt("re-cut operand is not one solid"))?;
+        let solid = single_solid(src).map_err(|e| super::CarveStep::Recut(operand).refused(e))?;
         let mut rotated: Vec<(Body<T>, Vec<FaceKey>)> = Vec::new();
         let mut cut_shells: Vec<ShellKey> = Vec::new();
         for r in &mine {
@@ -6830,7 +6831,7 @@ fn apply_recuts<T: Decide + Bounds + crate::props::AtRestPolicy>(
             .faces
             .clone();
             let ball = carve(src, solid, &[shell])
-                .map_err(|_| corrupt("re-cut carve of the sphere shell failed"))?;
+                .map_err(|e| super::CarveStep::Recut(operand).refused(e))?;
             recut_lean(r.axis, r.align, r.radius, band)?;
             // The alignment turn and the seam spin, each MINTED as the
             // turn between two unit witnesses (`RigidMotion::turned_between`,
@@ -6873,7 +6874,7 @@ fn apply_recuts<T: Decide + Bounds + crate::props::AtRestPolicy>(
                         .map_err(|_| corrupt("re-cut rotation's product overflowed"))?
                 }
             };
-            let turned = crate::transform::transform_rigid(&ball, &map, tol)
+            let turned = crate::transform::transform_rigid(&ball, &map)
                 .map_err(|_| corrupt("re-cut rotation failed to re-certify"))?;
             rotated.push((turned, faces));
         }
@@ -6889,7 +6890,7 @@ fn apply_recuts<T: Decide + Bounds + crate::props::AtRestPolicy>(
         } else {
             Some(
                 carve(src, solid, &keep)
-                    .map_err(|_| corrupt("re-cut carve of the kept shells failed"))?,
+                    .map_err(|e| super::CarveStep::Recut(operand).refused(e))?,
             )
         };
         // A turned shell that becomes the base keeps its input keys at
@@ -6903,8 +6904,8 @@ fn apply_recuts<T: Decide + Bounds + crate::props::AtRestPolicy>(
                     cells
                 }
                 Some(base) => {
-                    let base_solid =
-                        single_solid(base).map_err(|_| corrupt("re-cut base is not one solid"))?;
+                    let base_solid = single_solid(base)
+                        .map_err(|e| super::CarveStep::Recut(operand).refused(e))?;
                     let before = cells_of(base);
                     graft_solids_disjoint(base, &[base_solid], &turned)?;
                     cells_of(base).difference(&before).copied().collect()
@@ -7686,8 +7687,8 @@ fn fallback<T: Decide + Bounds + crate::props::AtRestPolicy>(
     )?;
 
     let carve_kept = |body: &Body<T>, keep: &[ShellKey]| -> Result<Body<T>, BooleanError> {
-        let solid = single_solid(body).map_err(|_| desync("fallback operand not one solid"))?;
-        carve(body, solid, keep).map_err(|_| desync("fallback carve failed"))
+        let solid = single_solid(body).map_err(|e| super::CarveStep::Fallback.refused(e))?;
+        carve(body, solid, keep).map_err(|e| super::CarveStep::Fallback.refused(e))
     };
 
     match (a_keep.is_empty(), b_keep.is_empty()) {
@@ -7735,8 +7736,7 @@ fn fallback<T: Decide + Bounds + crate::props::AtRestPolicy>(
                 // reading is structural.
                 no_unjoined_line(&b_body, band)?;
             }
-            let solid =
-                single_solid(&body).map_err(|_| desync("fallback A carve not one solid"))?;
+            let solid = single_solid(&body).map_err(|e| super::CarveStep::Fallback.refused(e))?;
             let graft = if op == BooleanOp::Subtract {
                 // ∖ with disjoint boundaries and kept B shells: every
                 // kept shell classified strictly `In` A, so this is

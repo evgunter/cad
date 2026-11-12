@@ -1270,7 +1270,6 @@ fn a_moved_curved_fitted_cap_builds_where_its_fit_certifies_row() {
         topo::transform_rigid(
             &body,
             &geom_core::test_support::rigid(&rigid, Tol::witness()),
-            Tol::witness(),
         )
         .unwrap_or_else(|e| {
             panic!(

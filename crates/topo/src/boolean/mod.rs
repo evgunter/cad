@@ -212,12 +212,13 @@ use geom_core::{
 };
 
 use crate::body::Body;
-use crate::chord_join::SplitJoinError;
+use crate::chord_join::JoinError;
 use crate::coincidence::{Cited, Cites};
 use crate::contact::GlueClass;
 use crate::entity::{EdgeKey, FaceKey, HalfEdgeKey, ShellKey, VertexKey};
 use crate::euler::EulerOpError;
 use crate::live::{BoundaryMember, Proven};
+use crate::meeting::{CONIC_EDGES_RECOURSE, CONIC_OUTLINE_RECOURSE, meeting_recourse};
 use crate::merge_faces::MergeCoplanarError;
 #[cfg(feature = "sweep-testing")]
 use crate::sweep_trace::SweepPairs;
@@ -2431,17 +2432,6 @@ impl<T: Real> BooleanReduction<T> {
             .iter()
             .position(|r| r.operand == pierced && r.pierces.contains(&vertex))
     }
-
-    /// Whether two pierce sites are served by one ring
-    /// ([`PierceRingRecord::pierces`]).
-    pub(crate) fn one_ring(&self, a: PairSite, b: PairSite) -> bool {
-        let ring = |site| match site {
-            PairSite::VertexAOnFaceB(c) => self.ring_of(Operand::B, c.vertex),
-            PairSite::VertexBOnFaceA(c) => self.ring_of(Operand::A, c.vertex),
-            _ => None,
-        };
-        ring(a).is_some_and(|r| ring(b) == Some(r))
-    }
 }
 
 /// **Whether two points are one vertex** (`bool_contact_vertex`, the
@@ -2713,6 +2703,22 @@ pub enum SectorRead {
     /// The vertex-vertex pass that pairs the vertex with this vertex of
     /// the other operand.
     Pair(VertexKey),
+}
+
+/// Why the pairs at a shared vertex took no choice of starts
+/// ([`BooleanError::SharedVertexCrossings`]).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum SharedStarts {
+    /// Every choice of the pairs' starts leaves a run holding another
+    /// pair's cut: a pair's curve with partner curves on both of its
+    /// sides.
+    NoneClear,
+    /// More crossing pairs share the vertex than the choice reads
+    /// (`insert::CHOICE_PAIRS`), and none was read.
+    TooMany {
+        /// How many crossing pairs share it.
+        pairs: usize,
+    },
 }
 
 /// How a partner whose link runs along a touched face meets it where
@@ -3204,7 +3210,7 @@ pub enum BooleanError {
     /// ([`crate::SplitReduceError::ApexSection`]).
     ///
     /// The vertex-on-face climb reads it (`vtxfac::pierce_apex_germ`), so
-    /// it stands by its reading ([`crate::splitting::ApexSectionReading::refusal`]):
+    /// it stands by its reading ([`crate::ApexSectionReading::refusal`]):
     /// the table and the walk disagreeing on one apex is a kernel fault,
     /// and the table's own refusal stands as that refusal does.
     ApexSection {
@@ -3213,7 +3219,7 @@ pub enum BooleanError {
         /// The cone face.
         face: FaceKey,
         /// How the table disagrees.
-        reading: crate::splitting::ApexSectionReading,
+        reading: crate::ApexSectionReading,
     },
     /// The result has a cone face whose boundary loop passes the cone's
     /// apex vertex twice: two lobes of the face pinched at the apex, as a
@@ -3590,9 +3596,9 @@ pub enum BooleanError {
         /// What was wrong.
         what: &'static str,
     },
-    /// The 15.11 consecutive-pairing invariant failed: two of A's
-    /// consecutive crossing-record pairs cross in B's walk order, or a
-    /// run's codes disagree at its two ends — readings no two simple
+    /// The 15.11 consecutive-pairing invariant failed: two of the
+    /// lead's consecutive crossing-record pairs cross in a solid's walk
+    /// order, or a run's codes disagree at its two ends — readings no two simple
     /// links round one point give (F12's guarded refusal — see
     /// `insert`).
     ///
@@ -3607,18 +3613,17 @@ pub enum BooleanError {
     /// there, in a way the insertion cannot place: an operand holds
     /// several vertices at one point (its own contact's) and the other
     /// operand's vertex there crosses into more than one of their
-    /// neighborhoods, and one pair has no run in the shared vertex's
-    /// orbit that holds none of another pair's cuts: a null edge both
-    /// of whose ways round hold one (`insert::reconcile_shared`). A
-    /// dangling null edge whose segment holds another's whole builds:
-    /// the inner hangs at its tip, and of two with one segment the Out
-    /// one holds (`insert::holds_whole`).
-    /// It also refuses where a run the shared vertex turned and a run of
-    /// its own pair that held it would together cover the orbit, so
-    /// neither can hang from the other (`insert::arc_holders`): a
-    /// backstop no known pose reaches. Emitted
-    /// by the insertion only: `insert::reconcile_pass` and
-    /// `insert::hang_at_shared`.
+    /// neighborhoods, and no choice of the pairs' starts leaves every
+    /// run in the shared vertex's orbit clear of the other pairs' cuts
+    /// (`insert::reconcile_shared`): [`SharedStarts::NoneClear`]. That
+    /// needs a pair's curve with other curves on both of its sides:
+    /// three nested cones of one operand at an apex, or a shell beside a
+    /// separate piece. No known pose reaches it. Or more crossing pairs
+    /// share the vertex than the choice reads (`insert::CHOICE_PAIRS`):
+    /// [`SharedStarts::TooMany`], which no known pose reaches either. A dangling null edge whose segment holds
+    /// another's whole builds: the inner hangs at its tip, and of two
+    /// with one segment the Out one holds (`insert::holds_whole`).
+    /// Emitted by the insertion only.
     ///
     /// A limit: an insertion not built (row 2).
     SharedVertexCrossings {
@@ -3628,10 +3633,14 @@ pub enum BooleanError {
         /// sweep may have minted on one of its edges.
         vertex: VertexKey,
         /// Two of the other operand's vertices at its point that it
-        /// crosses into, in classification order: the first two, when
-        /// it crosses into more. Keys of the other operand's working
-        /// copy, as `vertex` is.
+        /// crosses into: the partner of the pair whose plan the refusal
+        /// read first, and the partner of the pair whose cut blocks it
+        /// under the kept starts. Under [`SharedStarts::TooMany`] no
+        /// choice was read, and both are the first. Keys of the other
+        /// operand's working copy, as `vertex` is.
         partners: [VertexKey; 2],
+        /// Why no choice of starts was taken.
+        why: SharedStarts,
     },
     /// The operands meet along a ray where one or both hold coincident
     /// edges, pieces of that operand touching along it (a contact line),
@@ -4173,7 +4182,7 @@ pub enum BooleanError {
     ///
     /// The vertex-on-face and held-pierce climbs read it, through a pierce
     /// germ's branch (`join::germ_branch`), so it stands by its cause
-    /// ([`SplitJoinError::refusal`]): a spline component's walk as the
+    /// ([`JoinError::refusal`]): a spline component's walk as the
     /// walk's refusal does, each other cause as its own doc states it, and
     /// a cause that mixes classes as an abort.
     Join(BooleanJoin),
@@ -4257,6 +4266,18 @@ pub enum BooleanError {
     JoinDesync {
         /// Which lockstep invariant broke.
         what: &'static str,
+    },
+    /// Surgery on a body the Boolean built refused: carving an
+    /// operand's kept shells out of its cut clone
+    /// ([`crate::carve::carve`]), or reading a body it built to hold one
+    /// solid (a kernel bug).
+    ///
+    /// An abort: a kernel fault (row 4).
+    Carve {
+        /// Which of the Boolean's surgeries refused.
+        step: CarveStep,
+        /// What the surgery found.
+        error: crate::CarveError,
     },
     /// An operand edge's `SplitEdge` provenance never reached a root:
     /// the walk back from an edge a germ runs along (`Body::split_root`),
@@ -4755,6 +4776,8 @@ pub enum BooleanErrorKind {
     OneRecordUncertified,
     /// [`BooleanError::JoinDesync`].
     JoinDesync,
+    /// [`BooleanError::Carve`].
+    Carve,
     /// [`BooleanError::LineageRow`].
     LineageRow,
     /// [`BooleanError::SplitLineage`].
@@ -5060,6 +5083,7 @@ impl BooleanError {
             Self::CarryRefused { .. } => BooleanErrorKind::CarryRefused,
             Self::OneRecordUncertified { .. } => BooleanErrorKind::OneRecordUncertified,
             Self::JoinDesync { .. } => BooleanErrorKind::JoinDesync,
+            Self::Carve { .. } => BooleanErrorKind::Carve,
             Self::LineageRow { .. } => BooleanErrorKind::LineageRow,
             Self::SplitLineage(_) => BooleanErrorKind::SplitLineage,
             Self::EdgeUndescribed { .. } => BooleanErrorKind::EdgeUndescribed,
@@ -5223,6 +5247,7 @@ impl BooleanError {
             | Self::CarryRefused { .. }
             | Self::OneRecordUncertified { .. }
             | Self::JoinDesync { .. }
+            | Self::Carve { .. }
             | Self::LineageRow { .. }
             | Self::SplitLineage(_)
             | Self::MixedSeam { .. }
@@ -5250,11 +5275,6 @@ impl From<EulerOpError> for BooleanError {
     }
 }
 
-/// The recourse of every refusal of a spiric or spline edge: the kinds
-/// every lane reads are the line and the two conics.
-pub(crate) const CONIC_EDGES_RECOURSE: &str =
-    "rebuild that solid so its edges are lines, circles or ellipses";
-
 /// What the spline arm could not settle, as a clause for
 /// [`BooleanError::SplineCrossingUnsettled`]'s sentence.
 fn unsettled_crossing(why: geom_brep::roots::Unsettled) -> &'static str {
@@ -5281,6 +5301,60 @@ fn unsettled_crossing(why: geom_brep::roots::Unsettled) -> &'static str {
     }
 }
 
+/// Which of the Boolean's surgeries a [`BooleanError::Carve`] refused in.
+///
+/// **NOT carried to the façade's curated list, and that is a decision
+/// rather than an omission** (`scripts/payload-rung-sweep.py` names
+/// this rung; the disposition table cites this paragraph as its home).
+/// A Rust caller can already name and match it — `pncad` re-exports
+/// `topo` whole — and every step is a kernel defect that ends in one
+/// ending: the step says where in the Boolean a bug report should look,
+/// and no caller has a different recourse for one step than another.
+///
+/// **The falsifier is a caller that acts on the step by itself**: a
+/// driver that retries or re-poses on `Recut` and not on `Kept`. Then
+/// carry it and delete this paragraph and the disposition row with it.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum CarveStep {
+    /// An operand's kept component, carved out of its cut clone.
+    Kept(Operand),
+    /// The kept first operand's component, which the second's is
+    /// grafted into.
+    Combine,
+    /// A sphere face's re-cut: its shell turned, the rest kept.
+    Recut(Operand),
+    /// Operands whose boundaries do not cross: each one's kept shells.
+    Fallback,
+}
+
+impl CarveStep {
+    /// The step, as the clause that opens the refusal's sentence.
+    fn clause(self) -> String {
+        match self {
+            Self::Kept(operand) => format!(
+                "while the kept part of the {} solid was cut out",
+                operand_word(operand)
+            ),
+            Self::Combine => "while the kept parts were put together".to_owned(),
+            Self::Recut(operand) => format!(
+                "while a sphere face of the {} solid was cut again",
+                operand_word(operand)
+            ),
+            Self::Fallback => {
+                "while the kept shells of solids that do not cross were taken".to_owned()
+            }
+        }
+    }
+
+    /// The refusal of this step for what the surgery found.
+    pub(in crate::boolean) fn refused(self, error: impl Into<crate::CarveError>) -> BooleanError {
+        BooleanError::Carve {
+            step: self,
+            error: error.into(),
+        }
+    }
+}
+
 /// How a refusal names an operand to the person who built it: by its
 /// place in the operation, never by the enum spelling.
 fn operand_word(operand: Operand) -> &'static str {
@@ -5297,37 +5371,6 @@ fn op_noun(op: BooleanOp) -> &'static str {
         BooleanOp::Intersect => "intersection",
         BooleanOp::Subtract => "subtraction",
     }
-}
-
-/// A surface kind as the person holding the mouse reads it. The
-/// spline kinds get one spelling everywhere a Boolean refusal names
-/// them; every other kind is its own name.
-pub(crate) fn kind_word(kind: geom::SurfaceKind) -> &'static str {
-    match kind {
-        geom::SurfaceKind::Nurbs => "spline (NURBS)",
-        geom::SurfaceKind::Approx => "approximated spline",
-        other => other.name(),
-    }
-}
-
-/// The recourse every "these faces cannot meet yet" refusal ends on.
-///
-/// **This is the one statement of the pairs the Boolean can join**: the
-/// germ-pair join (`join::bool_connect`, and the chord layer it mints
-/// sections through) joins a plane face against a plane, cylinder,
-/// sphere or cone face, mirrors included, and against a torus face where
-/// the plane holds the torus's axis or stands square to it, and two
-/// spheres or two parallel cylinders along their radical plane.
-/// The rustdoc that needs the set points here. The operand gate's box
-/// test is conservative (a box overlap is a MAY),
-/// so moving the face clear of the other solid is a real recourse even
-/// where the faces never touch in exact geometry.
-pub(crate) fn meeting_recourse(kind: &str) -> String {
-    format!(
-        "Recourse: reshape the parts so every meeting is a plane against a plane, cylinder, \
-         sphere, cone, or torus whose axis it holds or is square to, or move the {kind} face \
-         clear of the other solid"
-    )
 }
 
 impl BooleanError {
@@ -5349,8 +5392,8 @@ impl BooleanError {
                 "the Boolean cannot yet work out where one solid's {} face meets the \
                  face of the other solid it runs into: that pairing of faces is not \
                  supported yet. {}",
-                kind_word(*kind),
-                meeting_recourse(kind_word(*kind)),
+                kind.word(),
+                meeting_recourse(kind.word()),
             ),
             Self::DegenerateTorus {
                 convention,
@@ -5520,7 +5563,7 @@ impl BooleanError {
                 f,
                 "the Boolean cannot yet tell what lies inside a flat face whose outline \
                  has a {} edge near the point it asked about, so it refuses rather than \
-                 guess. Recourse: model the outline with lines, circles or ellipses",
+                 guess. Recourse: {CONIC_OUTLINE_RECOURSE}",
                 cause.carrier.word()
             ),
             // `ContainError`'s own text names the loop by arena key; the
@@ -5586,11 +5629,11 @@ impl BooleanError {
                  parts so every place they meet crosses an edge of one of them, or so the \
                  {} face stays clear of the other solid",
                 operand_word(*operand),
-                kind_word(*kind),
+                kind.word(),
                 operand_word(operand.other()),
-                kind_word(*other_kind),
+                other_kind.word(),
                 op.map_or(String::new(), |op| format!(" {}", op_noun(op))),
-                kind_word(*kind),
+                kind.word(),
             ),
             Self::CurvedPairUnsupported {
                 op,
@@ -5604,11 +5647,11 @@ impl BooleanError {
                  Boolean{} cannot yet work out where such a face meets another solid. \
                  {}",
                 operand_word(*operand),
-                kind_word(*kind),
+                kind.word(),
                 operand_word(operand.other()),
-                kind_word(*other_kind),
+                other_kind.word(),
                 op.map_or(String::new(), |op| format!(" {}", op_noun(op))),
-                meeting_recourse(kind_word(*kind)),
+                meeting_recourse(kind.word()),
             ),
             Self::NurbsExtentUnsupported { operand, .. } => write!(
                 f,
@@ -5662,17 +5705,17 @@ impl BooleanError {
                 f,
                 "the Boolean cannot build the section where the first operand's {} face meets \
                  the second operand's {} face: {}",
-                kind_word(*a_kind),
-                kind_word(*b_kind),
+                a_kind.word(),
+                b_kind.word(),
                 read_at(why, at),
             ),
             Self::GermFrameUnsupported { a_kind, b_kind, .. } => write!(
                 f,
                 "the Boolean cannot yet trace where the first operand's {} face meets \
                  the second operand's {} face, so it refuses rather than guess. {}",
-                kind_word(*a_kind),
-                kind_word(*b_kind),
-                meeting_recourse(kind_word(*a_kind)),
+                a_kind.word(),
+                b_kind.word(),
+                meeting_recourse(a_kind.word()),
             ),
             Self::GermSectionOpenConic { conic, .. } => write!(
                 f,
@@ -5691,7 +5734,7 @@ impl BooleanError {
                     SpiricLoops::AroundTube => "two loops round the tube",
                     SpiricLoops::Null => "one loop on the tube",
                 },
-                meeting_recourse(kind_word(geom::SurfaceKind::Torus)),
+                meeting_recourse(geom::SurfaceKind::Torus.word()),
             ),
             Self::NodeUnbuilt { why, .. } => {
                 let (where_, recourse) = match why {
@@ -5783,8 +5826,8 @@ impl BooleanError {
                  join that solid to the other operand first, cut any hole in that face after \
                  this join, or move the edge off the face",
                 operand_word(*operand),
-                kind_word(*kind),
-                kind_word(*pierced_kind),
+                kind.word(),
+                pierced_kind.word(),
                 if *placed {
                     "; the Boolean cannot build a vertex on that face"
                 } else {
@@ -5998,6 +6041,10 @@ impl BooleanError {
                 "A/B lockstep invariant violated: {what} (kernel bug or corrupt \
                  reduction)"
             ),
+            Self::Carve { step, error } => {
+                write!(f, "{}, {error}", step.clause())?;
+                geom_brep::recourse::defect_ended(f, at)
+            }
             Self::SplitLineage(cycle) => write!(
                 f,
                 "the Boolean's split records of an operand edge are corrupt, so no body \
@@ -7256,11 +7303,21 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
             });
         }
     }
+    let crossing: Vec<bool> = classified
+        .iter()
+        .map(|(_, _, _, records, ..)| records.iter().any(sectors::PairRecord::survives))
+        .collect();
+    let leads = insert::pairing_leads(
+        &classified.iter().map(|(c, ..)| *c).collect::<Vec<_>>(),
+        &crossing,
+    );
     let mut plans = classified
         .iter()
-        .map(|(c, a_sectors, b_sectors, records, raw, _)| {
+        .zip(leads)
+        .map(|((c, a_sectors, b_sectors, records, raw, _), lead)| {
             insert::plan_null_pairs(
-                &a, &b, *c, a_sectors, b_sectors, records, raw, &declared, &contacts, op, band,
+                &a, &b, *c, a_sectors, b_sectors, records, raw, &declared, &contacts, op, lead,
+                band,
             )
         })
         .collect::<Result<Vec<_>, _>>()?;
@@ -8945,17 +9002,17 @@ pub use join_lift::BooleanJoin;
 /// [`BooleanError::Join`] is built only here, and never around a
 /// lineage row.
 mod join_lift {
-    use super::{BooleanError, SplitJoinError};
+    use super::{BooleanError, JoinError};
 
     /// A chord-join refusal the Boolean nests whole: any
-    /// [`SplitJoinError`] but a lineage row.
+    /// [`JoinError`] but a lineage row.
     #[derive(Debug)]
-    pub struct BooleanJoin(SplitJoinError);
+    pub struct BooleanJoin(JoinError);
 
     impl BooleanJoin {
         /// The join's own refusal.
         #[must_use]
-        pub fn error(&self) -> &SplitJoinError {
+        pub fn error(&self) -> &JoinError {
             &self.0
         }
     }
@@ -8970,10 +9027,10 @@ mod join_lift {
     /// join's division list refused, which is the Boolean's own
     /// [`BooleanError::LineageRow`], so one lineage refusal reaches a
     /// caller one way.
-    impl From<SplitJoinError> for BooleanError {
-        fn from(error: SplitJoinError) -> Self {
+    impl From<JoinError> for BooleanError {
+        fn from(error: JoinError) -> Self {
             match error {
-                SplitJoinError::LineageRow(refusal) => refusal.into(),
+                JoinError::LineageRow(refusal) => refusal.into(),
                 other => Self::Join(BooleanJoin(other)),
             }
         }
@@ -9745,7 +9802,7 @@ mod tests {
             BooleanError::ApexSection {
                 operand: Operand::A,
                 face,
-                reading: crate::splitting::ApexSectionReading::NoRulingInside,
+                reading: crate::ApexSectionReading::NoRulingInside,
             },
             BooleanError::NormalAtSplineCrease {
                 operand: Operand::B,
@@ -9835,6 +9892,7 @@ mod tests {
                 operand: Operand::B,
                 vertex: VertexKey::default(),
                 partners: [VertexKey::default(); 2],
+                why: SharedStarts::NoneClear,
             },
             BooleanError::PinchRaysInAFace {
                 operand: Operand::A,
@@ -9954,6 +10012,10 @@ mod tests {
                 source: crate::pcurves::PcurveMintError::Unminted { face },
             },
             BooleanError::JoinDesync { what: "a lockstep" },
+            BooleanError::Carve {
+                step: CarveStep::Combine,
+                error: crate::carve::NotOneSolid { solids: 2 }.into(),
+            },
             BooleanError::SplitLineage(crate::SplitLineageCycle {
                 edge: EdgeKey::default(),
             }),
@@ -10129,6 +10191,7 @@ mod tests {
                 BooleanErrorKind::CarryRefused => "CarryRefused",
                 BooleanErrorKind::OneRecordUncertified => "OneRecordUncertified",
                 BooleanErrorKind::JoinDesync => "JoinDesync",
+                BooleanErrorKind::Carve => "Carve",
                 BooleanErrorKind::LineageRow => "LineageRow",
                 BooleanErrorKind::SplitLineage => "SplitLineage",
                 BooleanErrorKind::EdgeUndescribed => "EdgeUndescribed",

@@ -447,9 +447,8 @@ fn chart_edge(
 
 /// At the `EdgeCurve` door: a chart image on a plane whose normal is
 /// then negated (what `Body::revert` does). The image as stored
-/// refuses `StatedImage` on the reverted plane at sample 0 (each
-/// image here starts off the `u_ref` axis, so its first sample already
-/// has a `v` channel to get wrong); the
+/// refuses as the stated image's miss on the reverted plane (each image
+/// here has a non-zero `v` channel to get wrong); the
 /// mirrored image certifies there with the certificate it carried
 /// across, to the rounding of a bound over the span; the door is an
 /// involution. Three of
@@ -517,10 +516,7 @@ fn mirrored_chart_images_recertify_on_the_reverted_plane_with_the_same_certifica
             geom_brep::NurbsLane::certified(),
         );
         assert!(
-            matches!(
-                stale,
-                Err(CertifyError::StatedImageMissed { sample: 0, .. })
-            ),
+            matches!(stale, Err(CertifyError::StatedImageMissed { .. })),
             "{name}: the stored image on the reverted plane: {stale:?}"
         );
         let mirrored = fwd

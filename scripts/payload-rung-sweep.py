@@ -206,11 +206,15 @@ DISPOSITIONS: dict[str, tuple[str, str]] = {
     # section was not built.
     "SectionUnbuilt": ("argued", "non-carriage with its falsifier, beside the declaration "
                        "in crates/topo/src/boolean/mod.rs"),
+    # `BooleanError::Carve`'s step: which of the Boolean's surgeries a
+    # carve or a single-solid read refused in.
+    "CarveStep": ("argued", "non-carriage with its falsifier, beside the declaration "
+                  "in crates/topo/src/boolean/mod.rs"),
     # `BooleanError::ApexSection`'s reading (and the split's
     # `SplitReduceError::ApexSection`): how the section table disagrees
     # with the walk at a cone's apex.
     "ApexSectionReading": ("argued", "non-carriage with its falsifier, beside the declaration "
-                           "in crates/topo/src/splitting/mod.rs"),
+                           "in crates/topo/src/chord_join.rs"),
     # `BooleanError::EdgeInFace`'s gap: why an edge lying in a face is not
     # parted.
     "EdgeInFaceGap": ("argued", "non-carriage with its falsifier, beside the declaration "
@@ -254,6 +258,10 @@ DISPOSITIONS: dict[str, tuple[str, str]] = {
     # same carrier, the same row.
     "AlongFace": ("filed", "work/lib/boolean-decision-and-contradiction-are-rungs-under-"
                   "boolean-error.md"),
+    # `BooleanError::SharedVertexCrossings`' why (PR 6832): the same
+    # carrier, the same row.
+    "SharedStarts": ("filed", "work/bind/boolean-decision-and-contradiction-are-rungs-under-"
+                     "boolean-error.md"),
     "Diagnosis": ("argued", "the telemetry half, deliberately interior, "
                             "crates/pncad/src/select.rs"),
     "KProbe": ("filed", "work/bind/kprobe-is-a-rung-under-drive-config-on-the-analysis-list.md"),

@@ -743,7 +743,6 @@ pub fn ball_poled_y<T: Decide + topo::AtRestPolicy>(r: T, c: Vec3<T>, tol: Tol) 
     topo::transform_rigid(
         &ball_about_origin(r, tol),
         &geom_core::RigidMotion::translation(c).unwrap(),
-        tol,
     )
     .unwrap()
 }
@@ -785,15 +784,9 @@ pub fn ball_poled_z_at<T: Decide + topo::AtRestPolicy>(r: T, c: Vec3<T>, tol: To
             ),
             tol,
         ),
-        tol,
     )
     .unwrap();
-    topo::transform_rigid(
-        &poled,
-        &geom_core::RigidMotion::translation(c).unwrap(),
-        tol,
-    )
-    .unwrap()
+    topo::transform_rigid(&poled, &geom_core::RigidMotion::translation(c).unwrap()).unwrap()
 }
 
 /// A radius-`r` ball centred at `c` with its POLAR AXIS along `pole`.
@@ -824,7 +817,6 @@ pub fn ball_poled(r: f64, c: Vec3<f64>, pole: Vec3<f64>, tol: Tol) -> Body<f64> 
                     ),
                     tol,
                 ),
-                tol,
             )
             .unwrap()
         }
@@ -839,16 +831,10 @@ pub fn ball_poled(r: f64, c: Vec3<f64>, pole: Vec3<f64>, tol: Tol) -> Body<f64> 
                 ),
                 tol,
             ),
-            tol,
         )
         .unwrap()
     };
-    topo::transform_rigid(
-        &placed,
-        &geom_core::RigidMotion::translation(c).unwrap(),
-        tol,
-    )
-    .unwrap()
+    topo::transform_rigid(&placed, &geom_core::RigidMotion::translation(c).unwrap()).unwrap()
 }
 
 /// **The toroidal spool**: an annular meridian whose outer wall is an
@@ -1422,6 +1408,7 @@ pub fn assert_naming_totality<T: topo::AtRestPolicy>(
         .map(|(e, _, _)| *e)
         .chain(rec.meridian_remnants.iter().map(|(e, _)| *e))
         .chain(rec.slits.iter().map(|(e, _, _)| *e))
+        .chain(rec.sections.iter().map(|(e, _, _)| *e))
         .chain(rec.trims.iter().map(|(e, _, _)| *e))
         .chain(rec.arcs.iter().map(|(e, _, _)| *e))
         .chain(rec.mitres.iter().map(|(e, _)| *e))
@@ -1457,6 +1444,7 @@ pub fn assert_naming_totality<T: topo::AtRestPolicy>(
         .iter()
         .copied()
         .chain(rec.slits.iter().map(|(e, m, _)| (*e, *m)))
+        .chain(rec.sections.iter().map(|(e, m, _)| (*e, *m)))
         .collect();
     for e in &minted_edges {
         match fragments.iter().find(|(k, _)| k == e) {

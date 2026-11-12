@@ -434,12 +434,41 @@ const PLATE_MAX_TERMS: usize = 38;
 /// rigidity margins, so `Plain/Decision` loses those 14 calls (1203 →
 /// 1189) and the nine forms they built (55907 → 55898). No other line
 /// moves.
+///
+/// **Moved with ONEHOME's moved copy** (a move carries its verdict,
+/// `Held::moved`): the cut reads each hole into the plate's frame with
+/// its certificates and rows carried, so neither hole's rims are
+/// certified again there. Every walk loses that copy's share: `Plain`
+/// 1189 → 1015 decisions and 824 → 669 assertions, `Early` 412 → 308
+/// and 824 → 669, `Door` 557 → 402. The largest form holds at 38.
+///
+/// **Moved with the move's session-box ask** (`Replay::moved_by`: every
+/// move asks the box of its image): one assertion per walk more, the
+/// box's margin, a form over every vertex's and edge's reach of the
+/// moved hole: `Plain` 669 → 670 assertions (forms 6963 → 9047),
+/// `Early` 669 → 670 (8611 → 10422), `Door` 402 → 403 decisions (9906 →
+/// 11719). `Plain/Decision`'s forms fall 42005 → 41501 with its
+/// calls unchanged, and that is the memo, not a decision: the Plain walk
+/// keeps one memo for both origins, and a form is charged to the origin
+/// that first builds it (`sym::profile`'s per-`(walk, origin)` entry).
+/// The box ask's assertion runs at the move, before the decisions over
+/// the moved hole, and builds 504 of the vertex- and edge-reach forms
+/// those decisions built before; they now hit the memo. So
+/// `Plain/Assertion` gains 2084 forms, those 504 and the 1580 the
+/// assertion alone needs, and Decision plus Assertion grows by 1580.
+///
+/// PCERT's closed-form bound (a stated harmonic image bounded by its
+/// residual's coefficients, main's `4121c920`), and its slack (`closed_bound.rs`
+/// `Residual::bound`'s `+ slack`, one more form per bound, main's
+/// `b8f04c55`), move none of these counts: the stated images sit on moved
+/// copies whose certificates are carried, so no bound is built again in
+/// the measuring frame.
 const PLATE_LEDGER: &str = "\
-     Plain/Decision calls 1189 forms 55898 frozen 66 digest 20fc0ebc7b7a86d1655eb11d10bcece9\n\
-     Plain/Assertion calls 824 forms 9114 frozen 193 digest dd673bfb67b01ff645a83264700b9100\n\
-     Early/Decision calls 412 forms 42505 frozen 0 digest 2694202f7b062a10a6e74f46b875d770\n\
-     Early/Assertion calls 824 forms 10519 frozen 0 digest 2348058666416ec4901cd72db6861631\n\
-     Door/Decision calls 557 forms 13458 frozen 0 digest def6998cc3dfb007c479d6625f9c680e";
+     Plain/Decision calls 1015 forms 41501 frozen 54 digest 1b310266a1968c11616d2750affc0dfa\n\
+     Plain/Assertion calls 670 forms 9047 frozen 137 digest ebdae96f526ae41ae0680df5d5bb5545\n\
+     Early/Decision calls 308 forms 28904 frozen 0 digest 3352b4ae55ef1b7fc0dd378dde163b3c\n\
+     Early/Assertion calls 670 forms 10422 frozen 0 digest 78eb95dd6549092cd88f101dfd74c22c\n\
+     Door/Decision calls 403 forms 11719 frozen 0 digest 007b3254e77f798485bfc9cf5c6b9cc3";
 
 /// **What the walks BUILD is pinned, not only what the tier decides.**
 /// For the slab and the plate at their nominals, every (walk, origin)
@@ -611,11 +640,13 @@ fn the_plains_ledger_lines_are_the_same_under_every_dial_set() {
     let sets: [(&str, SymRules, Option<u64>); 4] = [
         // The two sets without the canonical root render the blocked
         // residuals of the certificate's reads; the shipped sets none.
+        // ONEHOME's moved copy (`Held::moved`): the holes are not
+        // re-certified in the plate's frame, so 94 -> 64 of them.
         ("shipped", SymRules::shipped(), None),
         (
             "without_canonical_root",
             SymRules::without_canonical_root(),
-            Some(94),
+            Some(64),
         ),
         ("without_the_reads", SymRules::without_the_reads(), None),
         (
@@ -624,7 +655,7 @@ fn the_plains_ledger_lines_are_the_same_under_every_dial_set() {
                 decision_read: false,
                 ..SymRules::without_canonical_root()
             },
-            Some(94),
+            Some(64),
         ),
     ];
     let mut seen: Option<(&str, Vec<String>)> = None;

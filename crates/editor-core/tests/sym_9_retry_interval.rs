@@ -696,13 +696,21 @@ fn sym_9_the_kept_atom_ladder_recovers_what_phase_1_measured() {
     // as motions decides no rigidity margin): each placed
     // map's seven `transform_rigid_*` margins log no row, 7 symbolic per map
     // both ways, the numeric unmoved: the plate and the bracket −14, the
-    // annulus, the boss and the link −7.
+    // annulus, the boss and the link −7. Then ONEHOME's moved copy (a
+    // move carries its verdict, `Held::moved`): the copy each document
+    // reads into its measuring frame is not re-certified or finished
+    // again there, 174 to 178 symbolic and 155 numeric fewer both ways,
+    // the retries holding. Then each move asks the session box of its
+    // image (`Replay::moved_by`): one numeric decision more both ways.
+    // PCERT's closed-form bound (main's `4121c920`) moves none of these:
+    // the stated images sit on moved copies whose certificates are
+    // carried, so none is metered again in the measuring frame.
     let expected: [(&str, [u64; 2], [u64; 2], u64); 5] = [
-        ("two_hole_plate", [1189, 824], [1189, 824], 0),
-        ("r1_annulus", [713, 555], [713, 555], 0),
-        ("r1_segment_boss", [680, 539], [680, 539], 0),
-        ("r2_filleted_bracket", [1585, 1155], [1591, 1149], 6),
-        ("r2_link", [991, 821], [991, 821], 0),
+        ("two_hole_plate", [1015, 670], [1015, 670], 0),
+        ("r1_annulus", [535, 401], [535, 401], 0),
+        ("r1_segment_boss", [506, 385], [506, 385], 0),
+        ("r2_filleted_bracket", [1411, 1001], [1417, 995], 6),
+        ("r2_link", [817, 667], [817, 667], 0),
     ];
     let mut moved: Vec<String> = Vec::new();
     for (name, want_off, want_on, want_retried) in expected {
@@ -722,8 +730,9 @@ fn sym_9_the_kept_atom_ladder_recovers_what_phase_1_measured() {
             // named second, so rule G's trade lands half on each slot:
             // `[76, 0, 16, 16]` became `[92, 0, 8, 8]` here.
             for (pred, want) in [
-                ("carrier_on_surface_2", [136, 8]),
-                ("witness_on_surface_2", [20, 0]),
+                // ONEHOME's moved copy: 136/8 -> 100/8 and 20/0 -> 16/0.
+                ("carrier_on_surface_2", [100, 8]),
+                ("witness_on_surface_2", [16, 0]),
             ] {
                 let got = t.get(pred).copied().unwrap_or([0; 2]);
                 if got != want {
@@ -869,10 +878,16 @@ fn sym_9_the_drive_writes_the_ladders_receipt() {
     // [1529, 1382] -> [1573, 1500], the retries holding. Then ONEHOME
     // (`mate::solve::admitted` removed: a placement composed as motions
     // decides no rigidity margin): the pad's placement's seven
-    // `transform_rigid_*` margins log no row: 1573 -> 1566 symbolic.
+    // `transform_rigid_*` margins log no row: 1573 -> 1566 symbolic. Then
+    // ONEHOME's moved copy, its verdict carried and its edges not
+    // re-certified after the transform (`topo::FinishedBody::moved`):
+    // [1566, 1500] -> [1392, 1345], the retries holding, the same −174
+    // symbolic and −155 numeric `m10_9_pins_interval` reads off the pad.
+    // Then the placement asks the session box of its image
+    // (`Replay::moved_by`): [1392, 1345] -> [1392, 1346].
     assert_eq!(
         [d.symbolic, d.numeric, d.retried],
-        [1566, 1500, 34],
+        [1392, 1346, 34],
         "the shipped ladder's leaf receipt"
     );
     assert!(
@@ -891,8 +906,11 @@ fn sym_9_the_drive_writes_the_ladders_receipt() {
     // decisions, as the shipped receipt's. Then the run in as its own
     // segment, as the shipped receipt's: [1495, 1416, 0] -> [1539, 1534, 0].
     // Then ONEHOME's seven rigidity margins, as the shipped receipt's:
-    // [1539, 1534, 0] -> [1532, 1534, 0].
-    assert_eq!([b.symbolic, b.numeric, b.retried], [1532, 1534, 0]);
+    // [1539, 1534, 0] -> [1532, 1534, 0]. Then ONEHOME's moved copy, as the
+    // shipped receipt's: [1532, 1534, 0] -> [1358, 1379, 0]. Then the
+    // placement's session-box ask, as the shipped receipt's:
+    // [1358, 1379, 0] -> [1358, 1380, 0].
+    assert_eq!([b.symbolic, b.numeric, b.retried], [1358, 1380, 0]);
     assert!(
         !bare.serialize().contains("retried="),
         "no ladder, no column"

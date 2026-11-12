@@ -61,6 +61,8 @@ mod wire;
 
 #[path = "a_blend_refusal_names_its_edge.rs"]
 mod a_blend_refusal_names_its_edge;
+#[path = "a_bore_taken_alone_is_smooth_at_its_seams_interval.rs"]
+mod a_bore_taken_alone_is_smooth_at_its_seams_interval;
 #[path = "a_dual_is_bound_to_its_build_of_record.rs"]
 mod a_dual_is_bound_to_its_build_of_record;
 #[path = "a_keel_on_the_floor_names_its_two_edges.rs"]
@@ -93,6 +95,8 @@ mod assemble_one_local_battery;
 mod atrest_carried_coincidence;
 #[path = "atrest_operation_rows_quiet.rs"]
 mod atrest_operation_rows_quiet;
+#[path = "band_closed_mixed_chain_names.rs"]
+mod band_closed_mixed_chain_names;
 #[path = "band_joined_rim_names.rs"]
 mod band_joined_rim_names;
 #[path = "band_planar_cut_off_names.rs"]
@@ -131,6 +135,8 @@ mod cert3r1_dump;
 mod clearance_refusals_say_what_they_found;
 #[path = "coincidence_door.rs"]
 mod coincidence_door;
+#[path = "corpus_finish_count.rs"]
+mod corpus_finish_count;
 #[path = "display_contract.rs"]
 mod display_contract;
 #[path = "dm3_indexed_read.rs"]

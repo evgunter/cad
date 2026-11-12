@@ -157,6 +157,8 @@ mod pick_windows;
 mod picture_draws_bodies;
 #[path = "place_live.rs"]
 mod place_live;
+#[path = "placement_target.rs"]
+mod placement_target;
 #[path = "prefs.rs"]
 mod prefs;
 #[path = "probe_6356.rs"]

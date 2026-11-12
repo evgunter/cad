@@ -1541,6 +1541,7 @@ pub fn boolean_error_tag(kind: BooleanErrorKind) -> &'static str {
         BooleanErrorKind::CarryRefused => "carry_refused",
         BooleanErrorKind::OneRecordUncertified => "one_record_uncertified",
         BooleanErrorKind::JoinDesync => "join_desync",
+        BooleanErrorKind::Carve => "carve",
         BooleanErrorKind::LineageRow => "lineage_row",
         BooleanErrorKind::SplitLineage => "split_lineage_cycle",
         BooleanErrorKind::EdgeUndescribed => "edge_undescribed",
@@ -1571,12 +1572,8 @@ pub fn boolean_error_tag(kind: BooleanErrorKind) -> &'static str {
 pub fn transform_error_tag(err: &TransformError) -> &'static str {
     match err {
         TransformError::Pcurve { .. } => "pcurve",
-        TransformError::Band(_) => "band",
-        TransformError::Certify { .. } => "certify",
         TransformError::NullScaffold { .. } => "null_scaffold",
         TransformError::NurbsPlaceholder => "nurbs_placeholder",
-        TransformError::ApproxLaneUnsupported { .. } => "approx_lane_unsupported",
-        TransformError::ApproxRecertify { .. } => "approx_recertify",
         TransformError::Corrupt { .. } => "corrupt",
     }
 }
@@ -3120,6 +3117,8 @@ pub fn validation_error_tag(err: &ValidationError) -> &'static str {
         ValidationError::UnrepresentableSurfaceDatum { .. } => "unrepresentable_surface_datum",
         ValidationError::PoisonedCurveDatum { .. } => "poisoned_curve_datum",
         ValidationError::UnrepresentableCurveDatum { .. } => "unrepresentable_curve_datum",
+        ValidationError::SurfaceDatumUndecided { .. } => "surface_datum_undecided",
+        ValidationError::CurveDatumUndecided { .. } => "curve_datum_undecided",
         ValidationError::EdgeCertification { .. } => "edge_certification",
         ValidationError::DescriptionNotAdjacent { .. } => "description_not_adjacent",
         ValidationError::PlanarFaceResidual { .. } => "planar_face_residual",
@@ -3213,6 +3212,7 @@ pub fn validation_error_tag(err: &ValidationError) -> &'static str {
         ValidationError::OrphanEntity { .. } => "orphan_entity",
         ValidationError::MultiplyOwned { .. } => "multiply_owned",
         ValidationError::OrphanGeometry { .. } => "orphan_geometry",
+        ValidationError::Unmovable { .. } => "unmovable",
         ValidationError::SolidWithoutShells { .. } => "solid_without_shells",
         ValidationError::ShellWithoutFaces { .. } => "shell_without_faces",
         ValidationError::EdgeAcrossShells { .. } => "edge_across_shells",

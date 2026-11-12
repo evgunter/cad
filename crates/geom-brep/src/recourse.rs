@@ -212,10 +212,30 @@ macro_rules! ended_by_write {
 pub const BAND_TOLERANCE_RECOURSE: &str = "Recourse: set a smaller tolerance, so that K times it \
      stays finite; a run admits none below the floor its session box sets";
 
+/// **The recourse of a reading undecided over a box** ([`Unsized::recourse`]):
+/// at a box scalar a reading straddles because the box it encloses is
+/// wide, so a narrower box, or the exact symbolic scalar, decides it.
+pub const BOX_SCALAR_RECOURSE: &str =
+    "Recourse: narrow the box, or evaluate at the symbolic scalar";
+
 /// The defect ending at `at` ([`ReadAt::culprit`]).
 #[must_use]
 pub fn defect_ending(at: impl Into<ReadAt>) -> &'static str {
     at.into().culprit().ending()
+}
+
+/// **The defect ending of a kernel-bug arm**, written after the arm's
+/// payload: `". "` and [`defect_ending`] at the door `at` reads the
+/// refusal, and nothing where it is read at no door (its `Display`).
+///
+/// # Errors
+///
+/// The formatter's.
+pub fn defect_ended(f: &mut core::fmt::Formatter<'_>, at: Option<ReadAt>) -> core::fmt::Result {
+    match at {
+        Some(at) => write!(f, ". {}", defect_ending(at)),
+        None => Ok(()),
+    }
 }
 
 /// The unreadable-margin note at `at`, by its culprit
@@ -279,10 +299,27 @@ impl Unsized {
     /// ends in the last resort on every arm at every door. An arm whose
     /// margin could not be read ends in the defect ending, whatever the
     /// decision: no tolerance makes it readable.
+    ///
+    /// **An undecided reading past a build is reported as undecided, at
+    /// every scalar**: over a body at rest, and at the import door, which
+    /// reads as rest does, an arm whose margin was read but not decided
+    /// never ends in the defect ending, which is for a stored
+    /// contradiction or a breached invariant. A build's endings are its
+    /// own. Read over a box (an enclosure,
+    /// [`geom_core::MarginKind::Enclosure`]) it ends in the box scalars'
+    /// recourse ([`BOX_SCALAR_RECOURSE`]); read at a point, in the band,
+    /// in the last resort.
     #[must_use]
     pub fn recourse(self, arm: RefusedArm<'_>, at: impl Into<ReadAt>) -> String {
         let at = at.into();
         let defect = defect_ending(at);
+        if let (Self::Defect, RefusedArm::Undecided(cause), false) = (self, arm, at.is_build()) {
+            match cause.margin.kind() {
+                geom_core::MarginKind::Enclosure => return BOX_SCALAR_RECOURSE.to_owned(),
+                geom_core::MarginKind::Value => return KERNEL_LIMIT_RECOURSE.to_owned(),
+                geom_core::MarginKind::Invalid => {}
+            }
+        }
         match self {
             Self::Defect => defect.to_owned(),
             Self::Fit | Self::Bound if arm.unreadable() => defect.to_owned(),

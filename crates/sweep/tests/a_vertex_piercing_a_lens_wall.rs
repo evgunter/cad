@@ -115,7 +115,7 @@ fn a_vertex_piercing_a_lens_wall_mints_its_ring_and_reaches_the_chords_certifica
                     &got,
                     Err(BooleanError::Join(join)) if matches!(
                         join.error(),
-                        topo::SplitJoinError::Euler(topo::EulerOpError::Certification {
+                        topo::JoinError::Euler(topo::EulerOpError::Certification {
                             error: geom_brep::CertifyError::PlaneNurbs(_),
                         })
                     )

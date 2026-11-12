@@ -18,7 +18,7 @@
 
 use geom_core::{Tol, Vec3};
 use sweep::test_support::{ball_poled_z, finished, loft_prism};
-use topo::{BooleanError, EulerOpError, SplitJoinError};
+use topo::{BooleanError, EulerOpError, JoinError};
 
 /// The run's refusal as the chord edge's certification, if it is one.
 fn chord_certificate(e: &BooleanError) -> Option<&geom_brep::CertifyError> {
@@ -26,7 +26,7 @@ fn chord_certificate(e: &BooleanError) -> Option<&geom_brep::CertifyError> {
         return None;
     };
     match join.error() {
-        SplitJoinError::Euler(EulerOpError::Certification { error }) => Some(error),
+        JoinError::Euler(EulerOpError::Certification { error }) => Some(error),
         _ => None,
     }
 }

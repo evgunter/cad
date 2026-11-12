@@ -243,7 +243,7 @@ fn the_chamfers_flow_is_empty_beside_a_real_record() {
 fn the_booleans_flow_is_empty_beside_a_real_record() {
     let a = sweep::test_support::cube(1.0, tol());
     let map = Affine3::translation(Vec3::new(0.5, 0.5, 0.5));
-    let b = topo::transform_rigid(&a, &geom_core::test_support::rigid(&map, tol()), tol())
+    let b = topo::transform_rigid(&a, &geom_core::test_support::rigid(&map, tol()))
         .expect("a translation is rigid");
     let a = topo::finish(a, tol()).expect("the unit cube is a finished body");
     let b = topo::finish(b, tol()).expect("the shifted cube is a finished body");
