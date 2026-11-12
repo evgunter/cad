@@ -1,5 +1,5 @@
 //! **A cut reads its tool as material** (`crates/topo/README.md`,
-//! `[operations.cut-material]`): `t − (p ⊔ q)` is computed as
+//! `[topo.cut-material]`): `t − (p ⊔ q)` is computed as
 //! `t − (p ∪ q)`. Where the tool's solids rest on each other, the cut's
 //! door unites them on the face–face records between them, each record's
 //! meaning the union's given verdict ([`super::nary`]'s tool door), and
@@ -66,7 +66,7 @@ pub(super) fn cut_by_material<T: Decide + Bounds + AtRestPolicy>(
     let BooleanResult::Body(mut out) = cut else {
         return Ok(Some(cut));
     };
-    through.restate(&mut out)?;
+    through.restate(&mut out, b)?;
     Ok(Some(BooleanResult::Body(out)))
 }
 
@@ -90,6 +90,10 @@ struct Through {
     hops: BTreeMap<EdgeKey, EdgeKey>,
     /// Each face of the material → the tool's faces whose area it holds.
     held: BTreeMap<FaceKey, BTreeSet<FaceKey>>,
+    /// The material's edges along which the union fused two of the
+    /// tool's solids: between faces holding faces of two of them, which
+    /// share no edge of the tool.
+    seams: Vec<EdgeKey>,
     /// Each record of the material, by place → the tool's records it
     /// carries.
     records: Vec<Vec<u32>>,
@@ -175,6 +179,40 @@ impl Through {
                     }
                 }
             }
+            // A vertex the zip kept for two it fused is the tool's vertex
+            // either stood for.
+            for &(dead, by) in naming.vertex_merges.rows() {
+                let kept = naming.vertex_merges.survivor(by);
+                if v2.contains_key(&kept) {
+                    continue;
+                }
+                if let Some(&t) = v2.get(&dead).or_else(|| vertices.get(&dead)) {
+                    v2.insert(kept, t);
+                }
+            }
+            // A copy a null edge made of a vertex is that vertex, where the
+            // zip kept the copy: the accumulation's copies in its clone's
+            // keys, the result's, the member's in its clone's.
+            let grafted: BTreeMap<VertexKey, VertexKey> =
+                naming.graft_vertices.iter().copied().collect();
+            for &(operand, below, above) in &naming.null_copies {
+                let (tool, at) = match (operand, naming.a_keys, naming.b_keys) {
+                    (Operand::A, OperandKeys::Direct, _) => {
+                        (vertices.get(&below).copied(), Some(above))
+                    }
+                    (Operand::B, _, OperandKeys::Grafted) => (
+                        member.get_vertex(below).is_some().then_some(below),
+                        grafted.get(&above).copied(),
+                    ),
+                    _ => (None, None),
+                };
+                if let (Some(t), Some(at)) = (tool, at) {
+                    let kept = naming.vertex_merges.survivor(at);
+                    if result.get_vertex(kept).is_some() {
+                        v2.entry(kept).or_insert(t);
+                    }
+                }
+            }
             (faces, edges, vertices) = (f2, e2, v2);
             // Each record of the step's result, as the tool's: input 0 is
             // the accumulation (the first member's records cite the tool's
@@ -222,9 +260,25 @@ impl Through {
             }
             held_by.insert(f, held);
         }
+        // An edge between faces of two members is the union's seam,
+        // which no edge of the tool is, whatever key it kept.
+        let member_of = |f: FaceKey| -> BTreeSet<usize> {
+            match last_holdings(material).of(f) {
+                Some(Held::Faces(held)) => held.iter().map(|&(m, _)| m).collect(),
+                _ => BTreeSet::new(),
+            }
+        };
+        let mut seams = Vec::new();
+        for (e, _) in fused.edges() {
+            let [x, y] = crate::wedge_reach::edge_faces(fused, e);
+            if member_of(x).is_disjoint(&member_of(y)) {
+                edges.remove(&e);
+                seams.push(e);
+            }
+        }
         let mut hops = BTreeMap::new();
         for (e, _) in fused.edges() {
-            if edges.contains_key(&e) {
+            if seams.contains(&e) || edges.contains_key(&e) {
                 continue;
             }
             if let Some(&Provenance::SplitEdge { edge: parent }) = fused.edge_provenance_of(e) {
@@ -238,6 +292,7 @@ impl Through {
             pieces,
             hops,
             held: held_by,
+            seams,
             records: acc_records.unwrap_or_default(),
         })
     }
@@ -275,7 +330,17 @@ impl Through {
 
     /// **`out`, the cut by the material, stated as the cut by the tool**
     /// (module docs).
-    fn restate<T: AtRestPolicy>(&self, out: &mut BooleanBody<T>) -> Result<(), BooleanError> {
+    ///
+    /// # Errors
+    ///
+    /// [`BooleanError::JoinDesync`] where a row or a holding names a cell
+    /// of the material that is no cell of `tool`, or a record cites one of
+    /// the material's records that carries none of the tool's.
+    fn restate<T: AtRestPolicy>(
+        &self,
+        out: &mut BooleanBody<T>,
+        tool: &Body<T>,
+    ) -> Result<(), BooleanError> {
         let unread = || BooleanError::JoinDesync { what: UNREAD };
         let b = Operand::B;
         let n = &mut out.naming;
@@ -338,6 +403,7 @@ impl Through {
         for e in &mut n.chart_cuts[1] {
             *e = self.edge(*e);
         }
+        n.fused_seams.clone_from(&self.seams);
         let carved = core::mem::take(&mut n.carved_lineage[1]);
         n.carved_lineage[1] = self
             .hops
@@ -382,10 +448,21 @@ impl Through {
                 } = cell
                 {
                     *cell = self.input_cell(*cell);
+                    if !super::records::holds(tool, *cell) {
+                        return Err(unread());
+                    }
                 }
             }
         }
         out.holdings = self.holdings(&out.holdings);
+        if out
+            .holdings
+            .named()
+            .iter()
+            .any(|&(place, f)| place == 1 && tool.get_face(f).is_none())
+        {
+            return Err(unread());
+        }
         let records = &self.records;
         out.contacts = core::mem::take(&mut out.contacts).try_recited(
             |backing| match backing {

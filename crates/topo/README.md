@@ -1131,9 +1131,11 @@ A boolean's face pairs are the glue its margins decide (`boolean::glue`),
 or, at a fold step of the n-ary union or intersect (`nary_boolean`), the
 verdicts that operation's own pairwise judgements decided over the
 members it holds, read through the face lineage it advances from each
-step's naming (`MemberLineage`); no public input states a glue, so no
-glue goes unrecorded by the judgement that decided it. A fold step reads
-a given pair's own record. No node declares a contact, a mate included
+step's naming (`MemberLineage`), or, at a fold step of a cut's tool read
+as its material, the meaning of the tool's own records
+(`[topo.cut-material]`); no public input states a glue, so no glue goes
+unrecorded by the judgement or the record that stated it. A fold step
+reads a given pair's own record. No node declares a contact, a mate included
 (`crates/editor-core/ASSEMBLY.md` A3). Bodies carry only verified records,
 in the `BooleanBody` wrapper, never persisted. Replay is scalar-generic;
 an indeterminate verification at an interval scalar aborts.
@@ -1142,6 +1144,39 @@ Failures, all typed: `UnrecordedContact` (the census);
 `ContactContradicted` (a record at rest); `StaleContactDeclaration`; `CensusEscalated`. Invariant: a
 pair is decided once, where it is glued, and every later read of it is
 that decision.
+
+**A cut reads its tool as material.** `[topo.cut-material]` A cut
+whose tool's solids rest on each other, the face–face records between
+them stating where, unites those solids before it cuts, and then runs
+the ordinary cut: `t − (p ⊔ q)` is computed as `t − (p ∪ q)`
+(`boolean::material`). Every solid of the tool is a member, carved out
+of it with its keys, and every fold step is given, on each pair a record
+names, the record's meaning: a `⊔` records a touch, the two materials
+on the two sides of where the faces meet, and two planar faces a record
+holds apart lie on one plane, so the record is one carrier with senses
+opposed, a `Rest` pair (`contact::area_record`). The union decides no
+carrier pair of its own. A record within one solid rides with its
+member. It is sound for three reasons:
+- `−` removes its tool's material, and a `⊔`'s material is its pieces'
+  ([operations.operators]), so the point set is the cut by the tool;
+- each meeting's record is taken as the union's verdict and nothing is
+  decided again, so the meeting is the tool's decision, carried
+  ([coincidence.booleans]);
+- nothing of the tool's meetings reaches the result, whose material is
+  the cut part's, so a meeting inside an operand is never changed by an
+  operator above it: the `⊔` value is not touched.
+
+Two effects are observable. A cut refuses where the union cannot glue
+its tool's seat, with the union's own typed refusal naming the carrier
+pair; a record of curved faces, which may be an area or a line
+tangency, or of lower cells between two solids, is no area the record
+states and refuses `ToolSeatUnread` naming it, never decided again. And
+the result names the tool's cells: every operand-B cell of the cut's
+naming, rows, holdings and records is read back through the union to
+the tool's (`boolean::material::Through`), a face the union divided a
+piece of the tool's face, a merged face holding each face it holds. The
+record keeps "the pair and nothing else" ([topology.records]): the class
+is what a planar record means, not a stored or carried class.
 
 ### At-rest census identity (CENSUS-REST-CLOSURE)
 

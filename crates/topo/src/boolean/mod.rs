@@ -3775,7 +3775,7 @@ pub enum BooleanError {
     /// **A cut's tool holds a meeting between two of its solids that
     /// its record does not say is an area**: the cut reads its tool as
     /// material, its solids fused on the face–face records between them
-    /// (`crates/topo/README.md`, `[operations.cut-material]`), and a
+    /// (`crates/topo/README.md`, `[topo.cut-material]`), and a
     /// record of two planar faces is an area, one plane with the
     /// materials on its two sides. A record of curved faces may be an
     /// area or a tangency along a line, which the record does not tell

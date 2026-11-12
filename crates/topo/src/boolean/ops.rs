@@ -391,6 +391,11 @@ pub struct BooleanNaming {
     /// [`Self::discards`] (`boolean::discard`'s `carved_lineage`). Only
     /// the section path carves.
     pub carved_lineage: [BTreeMap<EdgeKey, EdgeKey>; 2],
+    /// Where a cut read its tool as material (`crates/topo/README.md`,
+    /// `[topo.cut-material]`): the edges of B's clone along which the
+    /// tool's solids were fused, in B's clone keys. Each lies between
+    /// two faces of the tool that share no edge of it.
+    pub fused_seams: Vec<EdgeKey>,
 }
 
 impl Default for BooleanNaming {
@@ -429,6 +434,7 @@ impl Default for BooleanNaming {
             edge_joins: Default::default(),
             killed_lineage: Default::default(),
             carved_lineage: Default::default(),
+            fused_seams: Vec::new(),
         }
     }
 }
@@ -1202,6 +1208,7 @@ pub(super) fn boolean_op_recut<T: Decide + Bounds + crate::props::AtRestPolicy>(
         reduction_contacts,
         discards,
         carved_lineage: fin.carved_lineage,
+        fused_seams: Vec::new(),
         substituted,
         uncut: Vec::new(),
         edge_classes,

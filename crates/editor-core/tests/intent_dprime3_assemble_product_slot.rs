@@ -563,18 +563,21 @@ fn a_meet_with_a_seat_meets_each_piece() {
     }
 }
 
-/// **A `⊔` read as a cut's tool is cut by whole, and refuses where the
-/// cut crosses its seat**: `t − (bolt ⊔ plate)`, `t` a post standing
-/// through the bolt's foot, refuses the kernel's `ToolSeatCrossed`. The
-/// kernel reads the seat as one wall, each face holding its piece's
-/// material, but its cut along the two faces apart would leave a sliver
-/// of `t` between them, which it cannot yet drop
-/// (`work/seal/a-cut-across-its-tools-seat-leaves-a-sliver-between-the-seats-two-sections.md`);
-/// this row builds when that row lands.
+/// **A `⊔` read as a cut's tool is its material**: `t − (bolt ⊔ plate)`
+/// is `t` less both pieces, the kernel fusing them on the seat's record
+/// before it cuts (`crates/topo/README.md`, `[topo.cut-material]`).
+/// A post standing through the bolt's foot is the typed empty result. A
+/// cap over the whole foot keeps one solid above the plate, its floor a
+/// piece of the plate's top and its hole the bolt's sides, each named
+/// through the read the `⊔` took its piece in by.
+///
+/// *Breaks if* the cut refuses at the seat, or names a face of the
+/// fused tool that is no piece's.
 #[test]
-fn a_seat_as_a_cuts_tool_is_read_whole_and_refuses_where_the_cut_crosses_it() {
-    let (doc, seat, _, plate) = seat("dprime3-seat-tool");
+fn a_seat_as_a_cuts_tool_is_read_as_its_material() {
+    let (doc, seat, bolt, plate) = seat("dprime3-seat-tool");
     let (doc, t) = beside(doc, plate, [0.0, 0.0, 0.1], 0.1, 0.3);
+    let (doc, cap) = beside(doc, plate, [0.0, 0.0, 0.1], 0.5, 0.3);
     let (doc, cut) = put(
         doc,
         Node::Subtract {
@@ -582,12 +585,58 @@ fn a_seat_as_a_cuts_tool_is_read_whole_and_refuses_where_the_cut_crosses_it() {
             tool: seat.into(),
         },
     );
+    let (doc, capped) = put(
+        doc,
+        Node::Subtract {
+            from: cap.into(),
+            tool: seat.into(),
+        },
+    );
     let ev = run(&doc, &EvalOptions::default());
-    assert_eq!(
-        refused(&ev, cut),
-        Some(topo::BooleanErrorKind::ToolSeatCrossed),
-        "{:?}",
+    assert!(
+        matches!(
+            ev.value(cut).map(|v| &v.payload),
+            Some(ValuePayload::Boolean(editor_core::BooleanValue::Empty))
+        ),
+        "the post inside the seat's material is cut away: {:?}",
         ev.result(cut)
+    );
+    let body = body_of(&ev, capped);
+    assert_eq!(solids(&body), 1, "{:?}", ev.result(capped));
+    assert!(
+        near(bounds(&body), ([-0.5, -0.5, 0.2], [0.5, 0.5, 0.4])),
+        "{:?}",
+        bounds(&body)
+    );
+    let table = ev
+        .table(doc.output(capped, 0).unwrap())
+        .expect("the cut is named");
+    // A face of the cut named as a face of `piece`, as the seat names
+    // that piece's faces, and its own path there.
+    let seat_read = doc.output(seat, 0).unwrap();
+    let of_piece = |piece: RecipeNodeId| {
+        let read = doc.output(piece, 0).unwrap();
+        table
+            .iter()
+            .filter_map(move |(name, _)| match name.path.as_slice() {
+                [RoleSeg::From { read: s, of }] if *s == seat_read => match of.path.as_slice() {
+                    [RoleSeg::From { read: r, of }] if *r == read => Some(of.path.clone()),
+                    _ => None,
+                },
+                _ => None,
+            })
+            .collect::<Vec<_>>()
+    };
+    assert!(
+        of_piece(plate)
+            .iter()
+            .any(|path| matches!(path.as_slice(), [RoleSeg::Cap(editor_core::CapEnd::End)])),
+        "the floor is the plate's top, named through the seat: {:?}",
+        of_piece(plate)
+    );
+    assert!(
+        !of_piece(bolt).is_empty(),
+        "the hole's walls are the bolt's sides, named through the seat"
     );
 }
 

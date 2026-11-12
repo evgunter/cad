@@ -21,7 +21,7 @@
 //!   naming the record.
 //! - **A cut by the seat reads it as material**: the bolt and the plate
 //!   fused on the seat's record, then an ordinary cut
-//!   (`crates/topo/README.md`, `[operations.cut-material]`), so every
+//!   (`crates/topo/README.md`, `[topo.cut-material]`), so every
 //!   block cut by the seat is the block less both pieces, the cut by
 //!   each piece in turn, and a block inside their material is cut away
 //!   whole.
@@ -578,7 +578,7 @@ fn a_union_bridging_a_seat_touches_itself_and_one_on_a_piece_builds() {
 /// **A cut reads its tool as material**: each block cut by the seat is
 /// the block less the bolt and the plate, the tool's two solids fused on
 /// the seat's record before the cut
-/// (`crates/topo/README.md`, `[operations.cut-material]`). The post, held
+/// (`crates/topo/README.md`, `[topo.cut-material]`). The post, held
 /// inside the bolt's foot and the plate, is the typed empty result; the
 /// pin leaves its stub below the plate, the bead its piece outside both,
 /// and the slab, the cap, the over, the collar and the corner what lies

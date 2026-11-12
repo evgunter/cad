@@ -1090,7 +1090,7 @@ fn restated_rows<T: Real>(
 }
 
 /// **A cut's tool read as its material** (`crates/topo/README.md`,
-/// `[operations.cut-material]`): the tool's solids, each carved out of it
+/// `[topo.cut-material]`): the tool's solids, each carved out of it
 /// with its keys, so a member face is the tool's face, and the fold that
 /// united them, each step given the meaning of the face–face records
 /// between the solids it joins. The last step's body is the material.

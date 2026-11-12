@@ -17,9 +17,9 @@
 //! node took it in by, so the coincidence door reads them where the
 //! operand stands.
 //!
-//! A `⊔` read as the TOOL of a cut is cut by whole: the kernel refuses
-//! `ToolSeatCrossed` where the cut crosses the tool's seat
-//! (`work/seal/a-cut-across-its-tools-seat-leaves-a-sliver-between-the-seats-two-sections.md`).
+//! A `⊔` read as the TOOL of a cut is cut by whole: the kernel reads it
+//! as its material, its pieces fused on their seats' records
+//! (`crates/topo/README.md`, `[topo.cut-material]`).
 
 use std::sync::Arc;
 

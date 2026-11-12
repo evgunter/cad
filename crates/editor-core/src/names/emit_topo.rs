@@ -2309,6 +2309,14 @@ fn name_boolean_edges<T: Decide>(
     // ([`rim_among`]); a merged face offers every face of that operand
     // it holds. What a reading that holds no rim means is
     // [`one_operand_chord`]'s.
+    let fused_seam = |e: EdgeKey| -> Result<bool, NamingError> {
+        let on = |k: EdgeKey| {
+            inv_edges
+                .get(&k)
+                .is_some_and(|kb| naming.fused_seams.contains(kb))
+        };
+        Ok(on(body.split_root(e, on)?))
+    };
     let chord_kind = |e: EdgeKey| -> Result<ChordKind, NamingError> {
         let Some(faces) = inc.edge_faces.get(&e) else {
             unreachable!(
@@ -2323,7 +2331,11 @@ fn name_boolean_edges<T: Decide>(
                 shape: SeamSidesShape::NotTwoFaces,
             });
         }
-        let union = op == topo::BooleanOp::Union;
+        // Two faces of one operand meet where they share no edge of it in
+        // a union, and along a seam where a cut read its tool as its
+        // material (`topo::BooleanNaming::fused_seams`): there too they
+        // are the seam of the pieces' material.
+        let union = op == topo::BooleanOp::Union || fused_seam(e)?;
         // A merged face beside an unmerged one. Where the merged face
         // holds a face of the other operand, the chord is a seam between
         // the merged face's parent and the unmerged face's. Where it
