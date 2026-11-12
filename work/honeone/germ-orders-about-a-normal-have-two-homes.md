@@ -2,10 +2,11 @@
 id: germ-orders-about-a-normal-have-two-homes
 kind: issue
 title: The split's germ order and the boolean's pierce/strut orders read one question in two homes
-status: open
+status: closed
 opened: 2026-10-10
 priority: P3
 cost: M
+closed: 2026-11-12
 ---
 
 Found by PR 4565's review (Q1).
@@ -139,3 +140,9 @@ Unwitnessed (PR 6184's review): `beside_order` also reads two cuts
 whose flush flankers lie on one side of the line, at different offsets
 from it, apart. That reading comes from the far bounds' angles from
 the line, not from a side, and no test or pose reaches it.
+
+## Closed in substance (ONEHOME, PR 6871, `topo::star` stage 3, 2026-11-12)
+
+The done-when holds. One cyclic-order door serves both lanes, `star::germ_order` with its comparison `star::before` and its one sine `star::turn`: the split's `section_chords`, the pierce ring's `vtxfac::germ_order`, the corner's `insert::strut_order` and the orbit's in-entry cut order (`walks_after`'s planar arm). It orders clockwise about the normal it is given (the split passes `−n`), every reading levered as a distance and by the smaller lean, and hands every tie to its caller (`star::Ties`) and every refusal to the caller's error (`star::OrderFault`). One set of K names, `germ_side`, `germ_order`, `germ_sense`, replaces `split_germ_side`/`_sense`/`_order` and `bool_strut_side`/`_order`; the predicate audit's rows point at the door. Closed from ONEHOME's PR on the orchestrator's dispatch.
+
+What the door does not settle is which evidence a caller's tie reads (the last two sections above): re-homed as `tied-cuts-at-a-vertex-are-placed-by-three-evidences`.

@@ -2,11 +2,12 @@
 id: two-germ-readers-sign-one-line-two-ways
 kind: issue
 title: The v-v crossing germ is signed by sector membership and the pierce germ by its transition's codes: two readers of one question
-status: dispatched
+status: closed
 opened: 2026-10-10
 priority: P1
 cost: E
 branch: onehome/star-cut
+closed: 2026-11-12
 ---
 
 
@@ -47,3 +48,7 @@ Classified on Ev's ask, via the CLEAVE note on INTENT's log, against main `e92fb
 
 - Re-banded P3 → P1: two readers sign one section line two ways: two implementations of one underlying logic, P1 by `work/README.md` Priority.
 - Moved to ONEHOME (`work/onehome/`) by `git mv`, id and body unchanged: the P1 track opened for CLEAVE's duplication rows; INTENT is sorting each into design signal or a mechanical deletion (`work/intent/log.md`, 2026-10-26), and the sort goes on the row. CLEAVE measured 270.5 budget points against 30 and split on its priority seam (Ev, in chat, 2026-10-26).
+
+## Closed (PR 6871, `topo::star` stage 3, 2026-11-12)
+
+One method: the crossing germ is the star's one germ rule (`star::germ_line`), signed by the record's own codes after reclassification, A's sector the cut and B's face its datum, as the pierce germ is signed by its transition's. Side by side over the topo suite and the sweep families, the code-signed ray agreed with the membership-signed one at every real record (from A's codes and from B's); the only disagreements were three `boolean::insert` unit fixtures whose hand-stated records gave B the same codes as A, which no crossing can carry, and Interval-scalar comparator artefacts. Those fixtures now state geometric codes. Membership stays as a debug check beside the pierce's.

@@ -4163,8 +4163,8 @@ mod tests {
     /// by the bound that run holds**, read off a real orbit: the L
     /// prism's reflex top corner `(1, 1, 1)` (five sectors, the reflex
     /// one bisected) against planes through it turned about every way.
-    /// For each Out run, [`run_transitions`] names a sector whose codes
-    /// are the transition it is given, and the germ that sector reads
+    /// For each Out run, its two cuts (`star::cuts`, `Run::cut_sectors`) name sectors whose codes
+    /// are the transitions they are given, and the germ each sector reads
     /// lies inside it and its opposite does not.
     #[test]
     fn a_runs_germs_are_its_transition_sectors_rays() {
