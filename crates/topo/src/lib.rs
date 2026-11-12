@@ -1438,8 +1438,9 @@ pub use boolean::{
     swap_split_roles, sweep_records, sweep_split, sweep_traces, sweep_traces_with_pad,
     take_output_stage_points, take_shared_points,
 };
+pub use chart_window::ChartWindowError;
 #[cfg(feature = "sweep-testing")]
-pub use chart_window::{ChartWindowError, face_azimuth_window_traces};
+pub use chart_window::face_azimuth_window_traces;
 // The census's idealized/realized pair (its `Candidates`): the
 // vocabulary always, the door on the boolean sweep's terms.
 pub use census::{
