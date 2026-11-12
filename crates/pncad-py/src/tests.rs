@@ -4412,6 +4412,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "arc_loop_containment_unsupported",
             "band",
             "carry_refused",
+            "carve",
             "classification_invariant",
             "coincident_shell",
             "containment",
