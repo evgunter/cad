@@ -440,7 +440,6 @@ fn a_tilted_through_slot_crossing_the_band_refuses_as_a_crossing() {
             ),
             t,
         ),
-        t,
     )
     .expect("the rigid motion");
     let body = less(slot);

@@ -1515,7 +1515,6 @@ mod tests {
         let ball = topo::transform_rigid(
             &ball,
             &geom_core::RigidMotion::translation(Vec3::new(2.0, 2.0, 1.2)).unwrap(),
-            Tol::witness(),
         )
         .unwrap();
         let slab = topo::test_support::finished("the die slab", slab, Tol::witness());
@@ -1603,7 +1602,6 @@ mod tests {
             match topo::transform_rigid(
                 &b,
                 &geom_core::test_support::rigid(&placement, Tol::witness()),
-                Tol::witness(),
             ) {
                 Ok(placed) => out.push((i, placed)),
                 Err(e) => skipped.push(format!("edge {i}: transform_rigid {e:?}")),
@@ -2246,7 +2244,6 @@ mod tests {
         topo::transform_rigid(
             &body,
             &geom_core::test_support::rigid(&placement, Tol::witness()),
-            Tol::witness(),
         )
         .unwrap()
     }

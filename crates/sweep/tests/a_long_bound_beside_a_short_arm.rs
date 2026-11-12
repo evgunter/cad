@@ -57,8 +57,7 @@ fn prism(outline: &[&[(f64, f64)]], z0: f64, h: f64) -> AtRestBody<f64> {
     };
     let body = extrude(&profile, depth, tol()).unwrap().body;
     let up = Affine3::translation(Vec3::new(0.0, 0.0, z0));
-    let body =
-        topo::transform_rigid(&body, &geom_core::test_support::rigid(&up, tol()), tol()).unwrap();
+    let body = topo::transform_rigid(&body, &geom_core::test_support::rigid(&up, tol())).unwrap();
     topo::test_support::finished("a prism", body, tol())
 }
 

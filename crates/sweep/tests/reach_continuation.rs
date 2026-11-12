@@ -940,7 +940,6 @@ fn a_sharp_plate_offset_over_a_rounded_one_unions_in_either_order() {
         let moved = topo::transform_rigid(
             &plate(sharp(), 1.0),
             &geom_core::test_support::rigid(&shift, tol()),
-            tol(),
         )
         .unwrap();
         let upper = finished("the offset plate", moved, tol());
