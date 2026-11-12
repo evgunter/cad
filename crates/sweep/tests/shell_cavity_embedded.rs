@@ -311,8 +311,8 @@ fn cell_readings(recorded: &geom_core::k_stats::Recorded) -> usize {
 /// **A shell at `Interval` logs no cell reading**: the cavity sweep
 /// decides cells at every level, and the engine takes them out of the
 /// caller's log itself (audit row F41), so the build's log holds none.
-/// Measured with that scope dropped, the vessel's shell logs
-/// (see the PR) of them.
+/// Measured with that scope dropped, the tube's shell logs 1,027 of
+/// them and the vessel's 588.
 fn holds(what: &str, operand: Body<Interval>, t: f64) {
     let bracket = Bracket::open();
     let start = Instant::now();

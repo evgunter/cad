@@ -746,8 +746,14 @@ BOUNDS_ALLOWLIST=(
   # walk does. Its `Question` impl (`Bracket`) asks the same two doors,
   # `RegionMemo::ask` and `station`, through `Bracket::outside` and
   # `Bracket::witness`, which the root pass shares; no new bracket read.
+  # 16 -> 18 (CLEAR's verdict door): `embedded`, the yes/no door bounded
+  # on certification rights, which asks `Side::windows` and `Sweep::run`
+  # through `ClearanceLane::certified` and reads its witness off the
+  # candidate's already-crossed carriers, and its table helper
+  # (`the_verdict_door_on_a_cube`), as the wiring helper is. Neither
+  # reads a bracket of `T`: the same plumbing at the same door.
   'crates/topo/src/cell_region.rs 4 M5 PR 11, the certified-quadrature plumbing'
-  'crates/topo/src/clearance.rs 16 M5 PR 11, the certified-quadrature plumbing'
+  'crates/topo/src/clearance.rs 18 M5 PR 11, the certified-quadrature plumbing'
   # M5 PR 12 (orchestrator ruling 2026-08-03), the edge-blend battery.
   # 15 -> 17: `chain_turns` is predicate 4's loop moved out of
   # `run_battery_for` whole (its junction-end pick the one bracket read,
@@ -1050,7 +1056,12 @@ BOUNDS_ALLOWLIST=(
   # shell.rs 2 -> 1 (ONEHOME, finished-body doors): `shell` takes the
   # scalar's finished body (`F: FinishedBody`), so its compound bound is
   # spelled on `F::Scalar` in a `where` clause; the seam is unchanged.
-  'crates/topo/src/shell.rs 1 2026-09-02, the certified at-rest validator'
+  # 1 -> 2 (CLEAR's verdict door): `cavity_embedded`, which asks the
+  # clearance engine's verdict door (`topo::clearance::embedded`) of the
+  # moved clone and maps its answer to the shell's refusals. It reads no
+  # bracket; the bound is the door's own, at the door that already
+  # carries it (`shell_open_at`).
+  'crates/topo/src/shell.rs 2 2026-09-02, the certified at-rest validator'
   # SEAT-4, in the `Bounds` trait's own doc rather than the
   # `bounds_allowlist` ledger: the verb dispatch site, which decides
   # nothing and reads no bracket. 2 -> 1: SEAT-9 was the shell
