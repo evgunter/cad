@@ -2109,6 +2109,13 @@ pub trait Construct<T: geom_core::Real> {
     /// is the deliberate exception to the coherence rule; it is not the
     /// only way to break it.
     ///
+    /// **A face on a chart with a singular set loses its rows where the
+    /// bit changes.** A joint on a pole or an apex stores the turn there
+    /// on the face's side ([`crate::joint`]), so a flipped face's rows
+    /// are about its other side: they are dropped
+    /// ([`Body::sides_agree`]), and the face is minted again by its
+    /// producer's closing mint.
+    ///
     /// Not an Euler operator (no topology changes) and not a numeric
     /// decision (a `bool` is written, nothing compared); tier 1 is
     /// trivially preserved.

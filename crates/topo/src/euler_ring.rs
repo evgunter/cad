@@ -1418,7 +1418,9 @@ impl<T: Decide> Body<T> {
     /// Two keys holding equal values with no identity tie answer
     /// `false`, and their rows drop and are re-minted: the price of
     /// never carrying a row onto a surface it is not about. The face's
-    /// `sense` is not read — it does not move the chart. The same
+    /// `sense` is not read — it does not move the chart; whether a
+    /// loop's rows stand across two senses is [`Body::sides_agree`]'s.
+    /// The same
     /// answer decides where an operator derives a minted face's
     /// `sense` ([`Body::resolve_face_surface`]).
     pub(crate) fn same_chart(&self, a: SurfaceKey, b: SurfaceKey) -> bool {
