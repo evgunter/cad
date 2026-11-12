@@ -870,7 +870,18 @@ BOUNDS_ALLOWLIST=(
   # band's torus link reads its supports through it too (arm (e) of
   # `ring_clearance_pass`); they read brackets only through
   # `StripLevel::clearance` and `ring_clearance`, as that arm did.
-  'crates/sweep/src/blend/surgery.rs 26 M5 PR 12 (orchestrator ruling 2026-08-03), the edge-blend battery'
+  # 26 -> 27: `impl StripLevel` gained `within` and `arc_within`, the
+  # clip of a line or circle piece to a wedge, under the impl's own
+  # bound. Their bracket reads are SELECTIONS between sound windows: a
+  # line's crossing clips only where its sign is certain, a circle that
+  # may lie wholly inside keeps its window, and a window is dropped only
+  # when certainly empty by more than the band, anything nearer kept as
+  # a superset. The one decision, a touch that decides the read, goes
+  # to `classify_nonzero`. The new occurrence is the unit row
+  # `a_circle_beside_a_wedge_reads_clipped_and_a_touch_escalates`,
+  # generic over the scalar `StripLevel::clearance` takes, reading
+  # brackets only for the midpoint its assertions quote.
+  'crates/sweep/src/blend/surgery.rs 27 M5 PR 12 (orchestrator ruling 2026-08-03), the edge-blend battery'
   # reach.rs 9 -> 14: `sign` decides a reference point's side of a
   # bound past its bracket (`±1` decided, `0` -- a vacuous bound --
   # where not), replacing the self-division `x/|x|` that gave the
