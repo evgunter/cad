@@ -23,6 +23,11 @@ moved:
 - the teapot's wall 3, "join the CANAL to the vessel"
   (`teapot::wall_probes`, `demos/tour/src/teapot.rs`): it now refuses
   `Join(BooleanJoin(Euler(Certification { error: Unimplemented })))`.
+  That half is already owned by
+  `sectarms/main-red-the-teapots-spout-join-refuses-in-the-join-since-6862`,
+  which traced it to PR 6862 and holds its fix; this row owns the
+  lily's wall 8 only, and closes when that probe pins what the kernel
+  does now (or the kernel builds the leaf).
 
 Both refusals come from the Boolean (`crates/topo/src/boolean/`), hence
 this slate. The last render on record (`render.yml`, 2026-11-09) passed
