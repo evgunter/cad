@@ -680,11 +680,11 @@ against
 its intensional description ([edges]). Kernel invariant: `residual ≤ ε`
 for every derived item in a valid body; the `topo` validator checks
 it, at `f64` as a conservative estimate and at `Interval` as an
-enclosure. Every bound a certificate or a meter reads, lower bounds
-and widths included, is a function of the geometry, so a rigid map
-moves it only by its rounding width: a vector-valued one is read from
-the Euclidean norm of each coefficient, never from a per-coordinate
-box folded into a norm.
+enclosure. Whatever a certificate or a meter reads is a function of
+the geometry, so a rigid map moves it only by its rounding width. A
+bound is the common case, upper or lower, and so is a width: a
+vector-valued bound is read from the Euclidean norm of each
+coefficient, never from a per-coordinate box folded into a norm.
 
 **Failure is a typed, actionable error naming the failing check and
 the entity.** `[tolerance.typed-failure]`
