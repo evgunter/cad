@@ -441,3 +441,13 @@ Newest entries at the bottom; the tail is the program's live status.
   - **Four lane decisions touch README sentences:** `movable_into_world`'s extra condition; `IntoOwnSpace` refusing on an old-space mate; "an operand that is no copy"; a family read whole keeping `SpaceMismatch`. The review judges each as a consequence of the ruling or a new decision. Any new decision goes to Ev on the PR before merge.
   - **The lane filed** `a-combine-re-targets-a-copy-another-copy-is-mated-to`, a probe on main, fixed by 6850.
   - **The orchestrator filed** COINCIDE's `main-red-two-door-at-rest-rows-on-the-2026-11-11-nightly` (P1). (PLACING orchestrator)
+- 2026-11-12 — **6850 review: NOT-MERGEABLE-AS-IS.**
+  - **M1** (demonstrated): [Into the loaded space] drops set-aside changes silently, then replays them unasked.
+  - **MINORs:**
+    - decision 1 is a new decision: `IntoWorld` falls back to a fresh copy for a mated copy;
+    - the `IntoOwnSpace` button is ungated and always refuses on mated world copies;
+    - decision 4 rewords a sentence Ev ratified in 6600;
+    - stale fixture docs.
+  - **Orchestrator ruling under 6600:** a door cannot hold a draft, so a door's re-target of a copy whose own mates read its space opens the placement editor with the target set, where the held change and strike show. This applies to both doors, and the fresh-copy fallback goes. It is a consequence of "every door uses the one edit" plus "the change is held", so it is not put to Ev.
+  - **Fix pass dispatched.**
+  - **Class (the reviewer's):** a set-aside draft state must be seen by every early return, and by `differs_from_base` and `holds_changes`. (PLACING orchestrator)
