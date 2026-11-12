@@ -698,3 +698,11 @@ Both reds were found by PCERT's nightly lane and trace to SECTARMS merges.
   - Give each reviewer its own scratchpad subdirectory.
 - **Main red seen by the fix pass, not ours:** geom-brep `recourse_roster`. pcert has mended it on main (pcert log, 2026-11-12).
 - **Next:** stage B, `a-curved-partners-arc-on-a-spline-wall-has-no-at-rest-certificate` (P0 H). It is not a fork: C2's re-derived door certificate decides it, and `plane_nurbs_limbs` is the precedent.
+
+## 2026-11-12 — stage B dispatched
+
+- **PR 6862 merged** as 7d83cdff.
+- **Stage B dispatched:** `a-curved-partners-arc-on-a-spline-wall-has-no-at-rest-certificate` (P0 H).
+  - **Review tier:** dual, concurrent. It adds a certificate arm that every curved partner on a spline wall will rest on.
+  - **Implementer arm:** byte 55 (Fable), drawn at dispatch.
+  - **Blinding:** the brief carries no model-naming trailer.
