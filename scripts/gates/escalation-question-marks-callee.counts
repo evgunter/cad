@@ -48,7 +48,13 @@ crates/topo/src/boolean/edge_join.rs 3
 crates/topo/src/boolean/factored_crossing.rs 1
 # fate: places' corner and place's reading, the side a corner holds: WHICH.
 crates/topo/src/boolean/fate.rs 2
-# insert: walk_order's comparison (a sort): NOT A SEARCH.
+# insert: walk_order's comparison (a sort): NOT A SEARCH. Not counted
+# here, as its loop answers by mutation and `return Ok(())`:
+# choose_starts' `blocked(..)?` over the choices of a shared vertex's
+# starts, which IS a search, rightly first-refusal: the choices are read
+# in order of preference, so an earlier choice the band cannot read is a
+# premise of every later one, and taking a later one past it could
+# choose a start the kept side would not.
 crates/topo/src/boolean/insert.rs 1
 # join: bool_connect's partners, every segment's: NOT A SEARCH.
 crates/topo/src/boolean/join.rs 1

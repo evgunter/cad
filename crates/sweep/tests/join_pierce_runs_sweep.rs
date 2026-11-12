@@ -1689,72 +1689,150 @@ fn octants_overlap(f: Frame, g: Frame) -> bool {
 /// **Four pairs at one vertex**: [`notch343`]'s corner against four
 /// side-4 cubes whose corners touch only there, three tilted round the
 /// grid direction and one along it (PR 4249's second review's probe),
-/// every op in both orders. One [`outcome`] line per run, with the
-/// built body's [`pierce_point_finding`] at the corner, for a diff
-/// between two trees.
+/// every op in both orders ([`four_pairs_pose`]). One [`outcome`] line
+/// per run, with the built body's [`pierce_point_finding`] at the
+/// corner, for a diff between two trees; red where any run refuses or
+/// builds anything but `SOUND` at one vertex per cone.
 #[test]
 #[ignore = "differential battery; run with --ignored --nocapture"]
 fn four_pairs_battery() {
-    let v = notch343().v;
+    let mut bad = Vec::new();
     for i in 0..12 {
         for j in 0..7 {
-            let n = unit(direction(i, j));
-            let [p, q, _] = frame(n, 0.0);
-            for (t, tilt) in [-0.36, -0.2, -0.5].into_iter().enumerate() {
+            for t in 0..3 {
                 for k in 0..4 {
-                    let spin = f64::from(k) * 0.7 + 0.1;
-                    let mut fs: Vec<Frame> = (0..3)
-                        .map(|c| {
-                            let a = std::f64::consts::TAU * f64::from(c) / 3.0 + 0.3 * f64::from(k);
-                            let d =
-                                [0, 1, 2].map(|x| a.cos() * p[x] + a.sin() * q[x] + tilt * n[x]);
-                            corner_diagonal_frame(d, spin + 1.3 * f64::from(c))
-                        })
-                        .collect();
-                    fs.push(corner_diagonal_frame(n, spin + 0.5));
                     let pose = format!("four i={i} j={j} t={t} k={k}");
-                    if (0..4).any(|x| (x + 1..4).any(|y| octants_overlap(fs[x], fs[y]))) {
-                        println!("{pose}: SKIP overlap");
-                        continue;
-                    }
-                    let pinch = unite_all(
-                        fs.iter()
-                            .map(|&f| cube_sized(v, f, [0.0; 3], SIDE))
-                            .collect(),
-                    )
-                    .filter(|b| {
-                        (mass_properties(b, tol(), topo::test_support::pinned_resolution(tol()))
-                            .unwrap()
-                            .met()
-                            .expect("the pinned resolution is met")
-                            .volume
-                            - 4.0 * SIDE.powi(3))
-                        .abs()
-                            < 1e-9
-                    });
-                    let Some(pinch) = pinch else {
-                        println!("{pose}: SKIP the cubes do not unite at the corner alone");
-                        continue;
+                    let lines = match four_pairs_pose(i, j, t, k) {
+                        Ok(lines) => lines,
+                        Err(skip) => {
+                            println!("{pose}: SKIP {skip}");
+                            continue;
+                        }
                     };
-                    let pinch_pieces: Pieces = fs
-                        .iter()
-                        .map(|&f| cube_planes_sized(v, f, [0.0; 3], SIDE))
-                        .collect();
-                    let (runs, notch_pieces) = notch_against(&pinch, &pinch_pieces);
-                    for (tag, r, want) in runs {
-                        let finding = r.as_ref().ok().and_then(BooleanResult::body).map(|bb| {
-                            pierce_point_finding(
-                                &bb.body,
-                                v,
-                                tag_cones(&tag, "ab", (&notch_pieces, &pinch_pieces)),
-                            )
-                        });
-                        println!("{pose} {tag}: {} {finding:?}", outcome(r, want, tol()));
+                    for (tag, line) in lines {
+                        println!("{pose} {tag}: {line}");
+                        if !line.starts_with("OK SOUND") || !line.ends_with("Some(None)") {
+                            bad.push(format!("{pose} {tag}: {line}"));
+                        }
                     }
                 }
             }
         }
     }
+    assert!(
+        bad.is_empty(),
+        "{} runs not SOUND at one vertex per cone:\n{}",
+        bad.len(),
+        bad.join("\n")
+    );
+}
+
+/// **One pose of [`four_pairs_battery`]**: grid direction `(i, j)`, the
+/// `t`-th tilt and the `k`-th spin. Each run's tag and its [`outcome`]
+/// line with the built body's [`pierce_point_finding`] at the corner;
+/// `Err` why the pose is skipped.
+fn four_pairs_pose(
+    i: u32,
+    j: u32,
+    t: usize,
+    k: u32,
+) -> Result<Vec<(String, String)>, &'static str> {
+    let v = notch343().v;
+    let (pinch, pinch_pieces) = four_pairs_pinch(i, j, t, k)?;
+    let (runs, notch_pieces) = notch_against(&pinch, &pinch_pieces);
+    Ok(runs
+        .into_iter()
+        .map(|(tag, r, want)| {
+            let finding = r.as_ref().ok().and_then(BooleanResult::body).map(|bb| {
+                pierce_point_finding(
+                    &bb.body,
+                    v,
+                    tag_cones(&tag, "ab", (&notch_pieces, &pinch_pieces)),
+                )
+            });
+            let line = format!("{} {finding:?}", outcome(r, want, tol()));
+            (tag, line)
+        })
+        .collect())
+}
+
+/// [`four_pairs_pose`]'s four cubes touching at [`notch343`]'s corner,
+/// united, and their pieces; `Err` why the pose is skipped.
+fn four_pairs_pinch(
+    i: u32,
+    j: u32,
+    t: usize,
+    k: u32,
+) -> Result<(AtRestBody<f64>, Pieces), &'static str> {
+    let v = notch343().v;
+    let n = unit(direction(i, j));
+    let [p, q, _] = frame(n, 0.0);
+    let tilt = [-0.36, -0.2, -0.5][t];
+    let spin = f64::from(k) * 0.7 + 0.1;
+    let mut fs: Vec<Frame> = (0..3)
+        .map(|c| {
+            let a = std::f64::consts::TAU * f64::from(c) / 3.0 + 0.3 * f64::from(k);
+            let d = [0, 1, 2].map(|x| a.cos() * p[x] + a.sin() * q[x] + tilt * n[x]);
+            corner_diagonal_frame(d, spin + 1.3 * f64::from(c))
+        })
+        .collect();
+    fs.push(corner_diagonal_frame(n, spin + 0.5));
+    if (0..4).any(|x| (x + 1..4).any(|y| octants_overlap(fs[x], fs[y]))) {
+        return Err("overlap");
+    }
+    let pinch = unite_all(
+        fs.iter()
+            .map(|&f| cube_sized(v, f, [0.0; 3], SIDE))
+            .collect(),
+    )
+    .filter(|b| {
+        (mass_properties(b, tol(), topo::test_support::pinned_resolution(tol()))
+            .unwrap()
+            .met()
+            .expect("the pinned resolution is met")
+            .volume
+            - 4.0 * SIDE.powi(3))
+        .abs()
+            < 1e-9
+    })
+    .ok_or("the cubes do not unite at the corner alone")?;
+    let pieces: Pieces = fs
+        .iter()
+        .map(|&f| cube_planes_sized(v, f, [0.0; 3], SIDE))
+        .collect();
+    Ok((pinch, pieces))
+}
+
+/// **The shared corner leads its pairs' pairing** (`insert::pairing_leads`):
+/// [`four_pairs_battery`]'s pose `i=2 j=1 t=1 k=2`, the four cubes first,
+/// so the corner their pairs share is the notch's, B's. Paired in the
+/// cubes' (A's) walk instead, none of the starts at that corner is
+/// clear, and the op refuses `SharedVertexCrossings` (24 battery lines,
+/// this one among them); paired in the notch's walk it builds. The
+/// intersection builds `SOUND` at the clipping oracle, one vertex per
+/// cone at the corner.
+#[test]
+fn four_cubes_against_the_notch_pair_in_the_shared_corners_walk() {
+    let v = notch343().v;
+    let (pinch, pinch_pieces) = four_pairs_pinch(2, 1, 1, 2).expect("the pose builds its operand");
+    let c = notch343();
+    let notch = finished(
+        "the notch",
+        fixtures::prism::<f64>(&c.profile, 1.0, tol()).body,
+    );
+    let notch_pieces: Pieces = c.pieces.iter().map(|p| polygon_prism(p)).collect();
+    let want = common_volume(&notch_pieces, &pinch_pieces);
+    let r = topo::intersect(&pinch, &notch, tol());
+    let finding = r.as_ref().ok().and_then(BooleanResult::body).map(|bb| {
+        pierce_point_finding(
+            &bb.body,
+            v,
+            (&pinch_pieces, &notch_pieces, Cones::Intersect),
+        )
+    });
+    let line = outcome(r, want, tol());
+    assert!(line.starts_with("OK SOUND"), "pinch ∩ notch: {line}");
+    assert_eq!(finding, Some(None), "pinch ∩ notch: {line}");
 }
 
 /// **Three pairs at one vertex build on one key, and every op is sound.**

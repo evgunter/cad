@@ -17,14 +17,14 @@ Filed by GAUGE's shared-vertex pairing build (PR 6832, lane
 
 At a vertex several crossing pairs share, each pair starts its pairing
 where its runs lie on the side the op keeps, and a blocked pair takes
-its other start. The pairs at one vertex choose together
-(`insert::choose_starts`, `crates/topo/src/boolean/insert.rs` near
-line 1298). Where no choice leaves every run clear of the other pairs'
-cuts, `insert::reconcile_shared` refuses
-`BooleanError::SharedVertexCrossings`, typed (`insert.rs` near line
-1307; the variant's docs in `crates/topo/src/boolean/mod.rs` near
-line 3577). A vertex holding more than `insert::CHOICE_PAIRS` (12)
-crossing pairs refuses the same way.
+its other start. The pairs at one vertex choose together. Where no
+choice leaves every run clear of the other pairs' cuts,
+`insert::choose_starts` (`crates/topo/src/boolean/insert.rs`, near
+line 1307) refuses `BooleanError::SharedVertexCrossings` with
+`why: SharedStarts::NoneClear`, typed (the variant's docs in
+`crates/topo/src/boolean/mod.rs`, near line 3577). A vertex holding
+more than `insert::CHOICE_PAIRS` (12) crossing pairs refuses with
+`SharedStarts::TooMany { pairs }`, before reading any choice.
 
 No choice is clear only where a pair's curve has partner curves on
 both of its sides, so that both of its starts hold another pair's
@@ -59,3 +59,13 @@ the result.
 - A witness: three nested cones at an apex, or a shell beside a piece,
   each refusing `SharedVertexCrossings` today.
 - The nesting placement across pairs, built against it.
+
+## The tie-break is untested
+
+`choose_starts` breaks ties between choices with equally many pairs
+off the kept side by the pairs' partner vertex keys, so that the
+plans' order does not choose. PR 6832's review reversed that order
+as a mutant (`tie_rev`): the battery's lines came out byte-identical,
+and every row passed. So on every measured pose the tie-break decides
+nothing, and its order-independence has no witness. It is owed a pose with two clear choices at one
+count, run under `with_vertex_pairs_reversed`.

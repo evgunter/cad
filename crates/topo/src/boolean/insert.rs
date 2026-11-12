@@ -8,10 +8,9 @@
 //! where neither is ([`pairing_leads`]).
 //!
 //! **The start takes the kept side.** The codes alternate round the
-//! vertex, so either start pairs the corner; with more than two
-//! survivors the pairing starts where the lead's runs lie on the side
-//! the op keeps of it ([`start_pairs`]). Two survivors pair with each
-//! other, and their run goes forward from the first record.
+//! vertex, so either start pairs the corner; the pairing starts where
+//! the lead's runs lie on the side the op keeps of it ([`start_pairs`]),
+//! two survivors included, so no plan reads the records' order.
 //! A kept arc is a stretch of one cone of the result, so each null edge
 //! joins germs of one cone, which the join's one-site rim lane needs to
 //! close a rim. The op enters only there, and it is the fact the result
@@ -27,7 +26,10 @@
 //! reaching the boundary at the point, nested cones). So a pair whose
 //! kept-side runs hold another pair's cuts takes its other start, and
 //! the pairs at one vertex choose together, the fewest off the kept side
-//! ([`reconcile_shared`]). Where no choice is clear the vertex refuses
+//! ([`reconcile_shared`]); on every pose measured that is each pair
+//! blocked against the others' kept starts, and choosing together
+//! guards a clearance that reads another pair's run (a strut nesting in
+//! a strut). Where no choice is clear the vertex refuses
 //! [`super::BooleanError::SharedVertexCrossings`], typed: a pair's curve
 //! with other curves on both of its sides (three nested cones of one
 //! operand at an apex, a shell beside a separate piece), which needs
@@ -51,9 +53,9 @@
 //!   book consumes surviving records two at a time and never argues
 //!   what lead-consecutive pairs are in the other solid for > 2
 //!   crossings. Each solid's link round its vertex is a simple closed
-//!   curve, and the lead's In runs are disjoint arcs of one disk the
-//!   other solid's link bounds, so the pairs cannot cross in the other
-//!   solid's walk order. At four crossings that makes each pair
+//!   curve, and the lead's runs of one start, all on one side of the
+//!   other solid, are disjoint arcs of one disk the other solid's link
+//!   bounds, so the pairs cannot cross in the other solid's walk order. At four crossings that makes each pair
 //!   adjacent there too. At six or more a pair may hold another's germs
 //!   between its own either way round the other vertex (a nested
 //!   matching): its run there then holds the other pair's run, which
@@ -647,16 +649,12 @@ pub(super) fn plan_null_pairs<T: Decide>(
             )
         };
     let kept = super::finish::kept_side(op, lead);
-    // The runs of the kept start, or of the other. Two survivors run
-    // forward from the first record, which either way builds where no
-    // other pair cuts the vertex, and the other start runs them the
-    // other way round.
+    // The runs of the kept start, or of the other. Two survivors pair
+    // with each other, and the start says which way round their run
+    // goes: from the germ whose forward run lies on the start's side.
     let runs_on = |other: bool| -> Result<Vec<[SideRun<T>; 2]>, BooleanError> {
-        let pairs = match (n, other) {
-            (2, false) => vec![(0, 1)],
-            (2, true) => vec![(1, 0)],
-            _ => start_pairs(order, forward, if other { kept.opposite() } else { kept }),
-        };
+        let side = if other { kept.opposite() } else { kept };
+        let pairs = start_pairs(order, forward, side);
         let swapped = pairs
             .iter()
             .map(|&p| {
@@ -1302,8 +1300,9 @@ const CHOICE_PAIRS: usize = 12;
 ///
 /// # Errors
 ///
-/// [`BooleanError::SharedVertexCrossings`] where no choice is clear, or
-/// the vertex holds more than [`CHOICE_PAIRS`] crossing pairs.
+/// [`BooleanError::SharedVertexCrossings`] where no choice is clear
+/// ([`super::SharedStarts::NoneClear`]), or the vertex holds more than
+/// [`CHOICE_PAIRS`] crossing pairs ([`super::SharedStarts::TooMany`]).
 fn choose_starts<T: Decide>(
     plans: &mut [NullPlan<T>],
     members: &[usize],
@@ -1313,19 +1312,17 @@ fn choose_starts<T: Decide>(
 ) -> Result<(), BooleanError> {
     let partner = |j: usize, plans: &[NullPlan<T>]| ends(plans[j].contact, slot).1;
     let refuse =
-        |blocker: Option<usize>, plans: &[NullPlan<T>]| BooleanError::SharedVertexCrossings {
+        |blocker: Option<usize>, why, plans: &[NullPlan<T>]| BooleanError::SharedVertexCrossings {
             operand: at.operand,
             vertex: at.vertex,
             partners: [
                 at.partner,
                 blocker.map_or(at.partner, |j| partner(j, plans)),
             ],
+            why,
         };
-    if members.len() > CHOICE_PAIRS {
-        return Err(refuse(None, plans));
-    }
-    let mut choices: Vec<u32> = (0..1u32 << members.len()).collect();
-    choices.sort_by_key(|&m| (m.count_ones(), m));
+    let choices = choice_order(members.len())
+        .map_err(|pairs| refuse(None, super::SharedStarts::TooMany { pairs }, plans))?;
     let mut first_blocker = None;
     for (n, &choice) in choices.iter().enumerate() {
         let flip = |plans: &mut [NullPlan<T>]| {
@@ -1346,7 +1343,20 @@ fn choose_starts<T: Decide>(
         }
         flip(plans);
     }
-    Err(refuse(first_blocker, plans))
+    Err(refuse(first_blocker, super::SharedStarts::NoneClear, plans))
+}
+
+/// **The order [`choose_starts`] reads the choices of `pairs` pairs'
+/// starts in**: each a bit set of the pairs off the kept side, the
+/// fewest first, then by the bits. More than [`CHOICE_PAIRS`] pairs is
+/// `Err(pairs)`: no choice is read.
+fn choice_order(pairs: usize) -> Result<Vec<u32>, usize> {
+    if pairs > CHOICE_PAIRS {
+        return Err(pairs);
+    }
+    let mut choices: Vec<u32> = (0..1u32 << pairs).collect();
+    choices.sort_by_key(|&m| (m.count_ones(), m));
+    Ok(choices)
 }
 
 /// Whether a run at the vertex of one of `members` holds another
@@ -1508,10 +1518,10 @@ fn held_cut<T: Decide>(
     let before = |p: Cut<T>, q: Cut<T>| walks_before(secs, p, q, band);
     // Any cut the run holds answers, whatever an earlier cut read
     // ([`climb`], [`Answering::Any`]). The owner is a witness only
-    // (`Answering::Any`'s diagnostic payload): `reconcile_pass` reads
-    // whether a cut is held to choose the way round, and the owner only
-    // names the second partner of the `SharedVertexCrossings` refusal it
-    // raises where neither way mints. A cut read in
+    // (`Answering::Any`'s diagnostic payload): [`choose_starts`] reads
+    // whether a cut is held to choose the pairs' starts, and the owner
+    // only names the second partner of the `SharedVertexCrossings`
+    // refusal it raises where no choice is clear. A cut read in
     // band is kept by its standing ([`BooleanError::refusal`]), refusing
     // only where no other cut is held. Each cut's reads are premises of
     // one another, so they stay inside its rung.
@@ -2974,6 +2984,30 @@ mod tests {
         assert_eq!(start_pairs(&[0, 1], |i| [Out, In][i], Out), vec![(0, 1)]);
     }
 
+    /// **The choices of a shared vertex's starts, in the order read**
+    /// ([`choice_order`]): the kept starts first, then one pair off the
+    /// kept side, then two; past [`CHOICE_PAIRS`] pairs none is read,
+    /// and the refusal says how many there were.
+    #[test]
+    fn a_shared_vertex_reads_its_choices_fewest_departures_first_up_to_its_cap() {
+        assert_eq!(
+            choice_order(3),
+            Ok(vec![0b000, 0b001, 0b010, 0b100, 0b011, 0b101, 0b110, 0b111]),
+            "three pairs"
+        );
+        assert_eq!(choice_order(0), Ok(vec![0]), "no pair");
+        assert_eq!(
+            choice_order(CHOICE_PAIRS).map(|c| c.len()),
+            Ok(1 << CHOICE_PAIRS),
+            "at the cap"
+        );
+        assert_eq!(
+            choice_order(CHOICE_PAIRS + 1),
+            Err(CHOICE_PAIRS + 1),
+            "past it"
+        );
+    }
+
     /// **The lead is the shared vertex's solid, else A**
     /// ([`pairing_leads`]): a pair that crosses nowhere shares nothing.
     #[test]
@@ -3135,6 +3169,7 @@ mod tests {
             (BooleanOp::Intersect, Operand::A, [(1, 3), (4, 0)]),
             (BooleanOp::Subtract, Operand::B, [(1, 3), (4, 0)]),
             (BooleanOp::Union, Operand::B, [(0, 1), (3, 4)]),
+            (BooleanOp::Intersect, Operand::B, [(1, 3), (4, 0)]),
         ] {
             let (p, _) = plan((2, false), &four, op, lead);
             let entries = |runs: &[[SideRun<f64>; 2]]| -> Vec<(usize, usize)> {
@@ -3157,29 +3192,37 @@ mod tests {
                 "{op:?}, {lead:?} leads: each runs forward from its pair's first germ"
             );
         }
-        // Two survivors, either record order: forward unless
-        // [`spelled_reversed`]. On the bisected orbit, the forward run from the twin
-        // entry 3 to entry 2 crosses every edge, so it runs from 2.
-        for (recs, degenerates) in [
-            ([rec(0, (Out, In)), rec(1, (In, Out))], false),
-            ([rec(1, (In, Out)), rec(0, (Out, In))], false),
-            ([rec(3, (Out, In)), rec(2, (In, Out))], true),
-            ([rec(2, (In, Out)), rec(3, (Out, In))], false),
-        ] {
-            let (p, secs) = plan((1, true), &recs, BooleanOp::Union, Operand::A);
-            let r = p.runs[0][0];
-            let degenerate = spelled_reversed(&secs, recs[0].a, recs[1].a).unwrap();
-            assert_eq!(degenerate, degenerates, "{recs:?}: the fixture");
-            assert_eq!(r.swapped, degenerate, "{recs:?}");
-            assert_eq!(
-                (r.from.cut.entry, r.to.cut.entry),
-                if degenerate {
-                    (recs[1].a, recs[0].a)
-                } else {
+        // Two survivors, either record order: forward from the germ whose
+        // forward run lies on the kept side (In for ∩, Out for ∪) unless
+        // [`spelled_reversed`]. On the bisected orbit, one forward run from
+        // a kept germ crosses every edge, and runs from the other germ.
+        let mut degenerates = 0;
+        for op in [BooleanOp::Intersect, BooleanOp::Union] {
+            let kept = crate::boolean::finish::kept_side(op, Operand::A);
+            for recs in [
+                [rec(0, (Out, In)), rec(1, (In, Out))],
+                [rec(1, (In, Out)), rec(0, (Out, In))],
+                [rec(3, (Out, In)), rec(2, (In, Out))],
+                [rec(2, (In, Out)), rec(3, (Out, In))],
+                [rec(3, (In, Out)), rec(2, (Out, In))],
+            ] {
+                let (p, secs) = plan((1, true), &recs, op, Operand::A);
+                let r = p.runs[0][0];
+                let (on, off) = if recs[0].sa.0 == kept {
                     (recs[0].a, recs[1].a)
-                }
-            );
+                } else {
+                    (recs[1].a, recs[0].a)
+                };
+                let degenerate = spelled_reversed(&secs, on, off).unwrap();
+                degenerates += usize::from(degenerate);
+                assert_eq!(
+                    (r.from.cut.entry, r.to.cut.entry),
+                    if degenerate { (off, on) } else { (on, off) },
+                    "{op:?} {recs:?}"
+                );
+            }
         }
+        assert!(degenerates > 0, "the fixture spells a run as its strut");
     }
 
     /// **A run crossing every real edge is spelled as its strut, at any
