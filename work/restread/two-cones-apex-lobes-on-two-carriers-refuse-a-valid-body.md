@@ -2,7 +2,7 @@
 id: two-cones-apex-lobes-on-two-carriers-refuse-a-valid-body
 kind: issue
 title: Two cones' apex lobes on two carriers in one self-touch link refuse a valid body
-status: open
+status: dispatched
 opened: 2026-11-12
 priority: P1
 cost: H
@@ -42,3 +42,17 @@ is decided by how the two cones and the remaining sectors sit, not by a
 tangent plane. One possible approach is to hold both nappes off every
 plane and off each other, and to read the windings as `at_apex` reads
 one. When it lands, the pinned row goes back to asserting pass.
+
+## Unit: the valid bodies the refusal reaches
+
+Spec (RESTREAD orchestrator, 2026-11-12). One unit reads both valid
+bodies PR 6854 pinned as refusals: this row's two apex lobes on two
+carriers, and `a-ridge-end-on-an-arc-wall-tangent-to-its-floor-refuses-unreadable`'s
+ridge ends. Branch `restread/self-touch-valid-bodies`.
+
+- **Letter H, tier dual** (a GRANT in the self-touch reading: a point
+  read `Rest` where the germ crosses is the worst outcome), so the
+  model comparison's concurrent pair.
+- Where a reading does not decide, the point keeps refusing with its
+  true cause.
+
