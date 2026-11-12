@@ -692,6 +692,7 @@ fn a_spline_arc_is_made_only_on_its_evidence() {
         pad: 0.0,
         reach: 0.0,
         witness: curve.eval(0.5),
+        boxes: Vec::new(),
     };
     assert!(
         SplineArc::of_section(&uncertified, &curve, (0.0, 1.0)).is_none(),
