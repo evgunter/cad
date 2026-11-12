@@ -2248,11 +2248,8 @@ fn one_carrier<T: Decide>(body: &Body<T>, fx: FaceKey, fy: FaceKey, band: Band) 
             }),
         ) => OneCarrier::Same { aligned: true },
         Ok(Ok(CarrierRelation::Distinct)) => OneCarrier::Distinct,
-        Ok(Err(CarrierEqError::Escalated { diag, .. })) => OneCarrier::Unread(Some(diag)),
-        Ok(Err(CarrierEqError::Undecided { coincidence, .. })) => {
-            OneCarrier::Unread(Some(coincidence.reported()))
-        }
-        Ok(Err(CarrierEqError::OffRing { .. })) | Err(_) => OneCarrier::Unread(None),
+        Ok(Err(refusal)) => OneCarrier::Unread(refusal.reported()),
+        Err(_) => OneCarrier::Unread(None),
     }
 }
 
