@@ -397,3 +397,4 @@ Ev, in chat: "go ahead in whatever order you see fit (including parallelizing th
 - **Ev ruled on [#6851](https://github.com/evgunter/cad/pull/6851)**: "i think this plan is good. i don't want to keep reset". C4 now reads: no reset anywhere. The singular set stores the pole rule's element, and an undecidable joint refuses typed. Fork-log row 262 is filled (A = Opus, B = Fable). The PR merges on green.
 - **Three-walks specified** (the row's "Designed" and "Spec" sections): letter H, tier dual, written before the implementer draw. It runs as a cloud session, because the local disk holds the face-pair build.
 - (ONEDOOR orchestrator)
+- **Three-walks dispatched** at 18:19. The implementer is byte 13, Fable, running as cloud session `session_018u3gVKjyLGFvrEKPUvpTZE` on `onedoor/three-walks`, with brief `onedoor-briefs/onedoor-threewalks-brief.md`. The brief owes the apex/spindle census as a row, and makes a refused body that is valid by the user's lights a STOP.
