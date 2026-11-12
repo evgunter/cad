@@ -15,7 +15,6 @@ test_utils::gated_to![
 
 use super::sibling_escalation_rows::{band, tol};
 use super::*;
-use crate::boolean::spline_region::rows::{sheet, twisted};
 use crate::euler::{FaceSurface, MefSite, MevSite};
 use geom_core::spline::KnotVector;
 
@@ -25,6 +24,89 @@ const CORNERS: [(f64, f64); 4] = [(0.3, 0.3), (0.7, 0.3), (0.7, 0.7), (0.3, 0.7)
 
 fn on((u, v): (f64, f64)) -> Point3<f64> {
     Point3::new(u, v, 0.0)
+}
+
+/// The flat spline sheet `(u, v, 0)` over the chart's square
+/// `[0.05, 0.95]²`, one bilinear span, each side a straight edge stated
+/// by the iso line it lies on. The body and the sheet's face.
+fn sheet() -> (Body<f64>, FaceKey) {
+    let kv = || KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
+    let chart = geom::NurbsSurface::new(
+        kv(),
+        kv(),
+        vec![
+            on((0.0, 0.0)),
+            on((0.0, 1.0)),
+            on((1.0, 0.0)),
+            on((1.0, 1.0)),
+        ],
+        vec![1.0; 4],
+    )
+    .unwrap();
+    let uv = [(0.05, 0.05), (0.95, 0.05), (0.95, 0.95), (0.05, 0.95)];
+    let mut body = Body::<f64>::new();
+    let seed = body.mvfs(on(uv[0]), true).unwrap();
+    let key = body
+        .set_face_surface(
+            seed.face,
+            FaceSurface::New {
+                surface: geom::Surface::Nurbs(std::sync::Arc::new(chart)),
+                sense: true,
+            },
+        )
+        .unwrap();
+    let edge = |a: (f64, f64), b: (f64, f64)| {
+        let line = EdgeCurveSpec::line_between(on(a), on(b));
+        let len = line.param_end;
+        EdgeCurveSpec {
+            description: geom_brep::EdgeDescriptionSpec::chart_image(
+                key,
+                geom_brep::Pcurve::IsoLine {
+                    p0: geom_core::Point2::new(a.0, a.1),
+                    pl: geom_core::Vec2::new((b.0 - a.0) / len, (b.1 - a.1) / len),
+                },
+            ),
+            ..line
+        }
+    };
+    let first = body
+        .mev(
+            MevSite::Lone {
+                r#loop: seed.r#loop,
+            },
+            on(uv[1]),
+            edge(uv[0], uv[1]),
+            tol(),
+        )
+        .unwrap();
+    let mut tip = first;
+    for k in 2..4 {
+        tip = body
+            .mev(
+                MevSite::Fan {
+                    he1: tip.he_minus,
+                    he2: tip.he_minus,
+                },
+                on(uv[k]),
+                edge(uv[k - 1], uv[k]),
+                tol(),
+            )
+            .unwrap();
+    }
+    let after = body.get_half_edge(tip.he_plus).unwrap().next;
+    let face = body
+        .mef(
+            MefSite::Chords {
+                he1: first.he_plus,
+                he2: after,
+            },
+            edge(uv[0], uv[3]),
+            FaceSurface::Shared { key, sense: true },
+            tol(),
+        )
+        .unwrap()
+        .face;
+    (body, face)
 }
 
 /// The plane through `a` and `b` square to the sheet, a surface the
@@ -118,10 +200,7 @@ fn island(
     corners: [(f64, f64); 4],
     points: &[(f64, f64)],
 ) -> (Result<Sign, Indeterminate>, Vec<bool>) {
-    let (mut body, face) = sheet(
-        &twisted(0.0),
-        &[(0.05, 0.05), (0.95, 0.05), (0.95, 0.95), (0.05, 0.95)],
-    );
+    let (mut body, face) = sheet();
     let wall = body.get_face(face).unwrap().surface;
     // A null edge holds the sheet open, as a boolean's wall is held
     // while its chords are joined: a complete spline face takes no new
