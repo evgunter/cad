@@ -2,7 +2,8 @@
 id: a-cut-across-its-tools-seat-leaves-a-sliver-between-the-seats-two-sections
 kind: issue
 title: A cut across its tool's declared seat leaves a sliver of the cut part between the seat's two sections, which the finish keeps: X − (bolt ⊔ plate) refuses ToolSeatCrossed
-status: open
+status: parked
+blocked_on: [6765]
 opened: 2026-11-09
 priority: P1
 cost: H
@@ -75,3 +76,14 @@ finish (its shell and the seat patches it zips with, the seam
 bookkeeping taught to lose a completed pair), or the X-side
 construction mints no crack at all; and how a wall's patch is divided
 where the wall turns one-sided (`bead − seat`).
+
+## Fork `seat-crack` (2026-11-10)
+
+Three designers, drawn by the protocol, independently recommended one final state: **a cut reads its tool as material**. `t − (p ⊔ q)` is `t − (p ∪ q)`: at the cut's door the tool's pieces are fused where the `⊔` recorded their meetings, on the records' own decisions, and then an ordinary cut runs.
+- The crack is never minted.
+- `ToolSeatCrossed`, `seat_crossed`, `vtxfac`'s cut-tool branch and `Held::apart`'s tool arm are deleted.
+- The union's coplanar imprint divides the plate's top for `bead − seat`.
+
+Measured with the tool fused, each union deciding the seat itself: every refused cut builds or is typed empty, at tiers 3 and 3′. That covers the faces-only seats (slab, cap) and the `VertexReadTwice` rows (above, below, blade, corner); the volumes are in PR 6765. One designer measured the coaxial and flush curved cuts: two solids each.
+
+The build checks first that a union can be handed the seat's record as its verdict; no designer exercised that path. The new `[operations.operators]` sentence is put to Ev on `[ev]` PR 6765, fork row 260.

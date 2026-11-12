@@ -208,3 +208,19 @@
   - The all-On crossing record (about 120 field uses) is filed as `an-all-on-crossing-record-ends-as-an-invariant` (P3).
   - The umbrella `glue-disagreements-and-held-contradictions-after-stage-4` closed with it, and C24 moved into `the-indeterminate-seal`. `the-corners-senses-decide-the-plane-orientation-a-second-time` closed: `PlaneOrientation` is gone.
   - Plan updated. The glue track's four steps are done.
+- 2026-11-10 — **Dispatched `a-cut-by-a-curved-seat-keeps-its-two-faces-held-apart-by-the-record`** (P1, M) on `seal/curved-seat`, review tier single FULL. Picked over the H sliver row because it is a silent wrong body, and the sliver row needs its design question settled first. Direction: the result gate (`ops::Held::apart`) reads the carried record's class rather than face planarity (`contact::area_record`). The coaxial fixture runs first, since the defect was found by inspection. REFS's PR 6555 is in delta review with no lane building, so this is the one implementation lane.
+- 2026-11-10 — **The curved-seat lane stopped before building**, rightly.
+  - **The defect reproduces** on main: a coaxial `block − (shaft ⊔ bored plate)` builds one solid where two are right, at equal volume.
+  - **My dispatch's mechanism does not exist.** The carried record the gate sees is `FfContact { a, b }`, with no class. That is my third unchecked claim this sitting: I checked that `ContactPair` has a class, not that the gate is handed one.
+  - **Two designs, one against ratified text.** Carrying the class means stored granularity, against `[topology.records]`. The census's carrier reading re-decides carriers, against the row.
+  - **Unreachable today.** The census cannot record a curved seat (`CensusUndecidable`), so only caller-supplied inputs reach the wrong body, and those already fail tier 3′.
+  - **Re-banded P2 `design: true`**, with the fork to run before the census learns curved seats. Filed `a-seat-held-apart-across-two-shells-of-one-solid-passes-the-gate` (P3; the gate compares shells, and the flush cut ends in two shells of one solid) and ATREST's `the-census-cannot-record-a-curved-seat-between-two-solids` (P3). The lane and target were cleaned up.
+- 2026-11-10 — **Design fork `seat-crack` dispatched** on `a-cut-across-its-tools-seat-leaves-a-sliver-between-the-seats-two-sections`, SEAL's last dispatchable P1. Protocol `2126b860b6`.
+  - **Draw:** bytes 10 and 150, so three designers. Recorded on `analysis/design-fork/seat-crack`.
+  - **The problem statement** gives the case, the prototype's measured facts and the four questions. It flags the row's two named directions as the filer's hypotheses.
+  - The designers share one build target, because the disk cannot take three alongside PR 6555's lane.
+- 2026-11-10 — **Fork `seat-crack`: all three first reports agree.** A cut reads its tool as material, `t − (p ⊔ q) = t − (p ∪ q)`, fused on the `⊔`'s own records at the cut's door.
+  - No reconciliation round. Token counts are on the analysis branch.
+  - Opened `[ev]` PR 6765 with the new `[operations.operators]` sentence, fork row 260 (recommendation half) and each designer's For Ev section. Subscribed.
+  - The row is parked on 6765. The build waits on Ev, and checks first that a union can take the seat's record as a given verdict.
+  - PR 6555's fork row (258) collides with main's new 258. Its fix pass renumbers on its next main merge (259).
