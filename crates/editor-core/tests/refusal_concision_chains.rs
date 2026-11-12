@@ -289,7 +289,6 @@ pub(crate) const FILED_NO_RECOURSE: &[&str] = &[
     "Boolean/Join/SectionInvariant",
     "Boolean/Join/SectionLoopMixed",
     "Boolean/Join/UnpairedLooseEnds",
-    "Split/Finish/Corrupt",
     "Split/Finish/DegenerateSide",
     "Split/Finish/TornComponent",
     "Split/Finish/UnclassifiableComponent",

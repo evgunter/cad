@@ -1164,6 +1164,18 @@ pub(crate) fn rechart_section<T: Decide + crate::props::AtRestPolicy>(
     })
 }
 
+/// The defect ending of a kernel-bug arm at the door `at` reads it, and
+/// nothing where the arm is read at no door.
+fn defect_ended(
+    f: &mut core::fmt::Formatter<'_>,
+    at: Option<geom_brep::recourse::ReadAt>,
+) -> core::fmt::Result {
+    match at {
+        Some(at) => write!(f, ". {}", geom_brep::recourse::defect_ending(at)),
+        None => Ok(()),
+    }
+}
+
 impl SplitFinishError {
     fn write(
         &self,
@@ -1188,8 +1200,20 @@ impl SplitFinishError {
                 "component {shell:?} has no section face and no off-plane vertex to \
                  classify it by"
             ),
-            Self::Desync(what) => write!(f, "the finish traversal failed (corrupt body): {what}"),
-            Self::Carve(e) => write!(f, "carving a side out of the cut body failed: {e}"),
+            Self::Desync(what) => {
+                write!(
+                    f,
+                    "the finish traversal failed (corrupt body), where {what}"
+                )?;
+                defect_ended(f, at)
+            }
+            Self::Carve(e) => {
+                write!(
+                    f,
+                    "a side could not be carved out of the cut body, where {e}"
+                )?;
+                defect_ended(f, at)
+            }
             Self::Euler(e) => write!(f, "an Euler operation refused: {}", read_at(e, at)),
             Self::Band(e) => write!(f, "{e}"),
             Self::DescribeEscalated { diag, .. } => diag
