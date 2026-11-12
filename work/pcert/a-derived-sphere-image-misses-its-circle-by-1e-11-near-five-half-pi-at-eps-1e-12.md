@@ -2,11 +2,13 @@
 id: a-derived-sphere-image-misses-its-circle-by-1e-11-near-five-half-pi-at-eps-1e-12
 kind: issue
 title: chart_pcurve_over derives a sphere image that misses its circle by 1.05e-11 near t = 5π/2 at ε 1e-12, so the every-spelling row goes red by seed as a shown miss
-status: open
+status: closed
 opened: 2026-11-12
 priority: P1
 cost: M
 refs: [a-closed-form-image-at-a-fuzz-seed-reads-its-coefficient-bound-in-band-at-eps-1e-12]
+branch: pcert/derived-sphere-image-accuracy
+closed: 2026-11-12
 ---
 
 Filed by `pcert/cone-image-fine-band`, from PR 6857's FULL review
@@ -49,3 +51,29 @@ green, because the miss is real. The fix is in the derivation's
 accuracy near `t ≡ π/2 (mod 2π)` on a sphere, or else the row has to
 admit that a derived image may be refused at ε 1e-12 (as a miss the
 mint also refuses, never as certified).
+
+## Closed
+
+Closed by `pcert/derived-sphere-image-accuracy`. The seed's great circle
+starts `4.4e-5` rad from the sphere's pole. The meridian arm read its
+azimuth direction `d̂` off the radial part `a − axis·(a·axis)`. That is
+a cancellation: its absolute error is about `ulp(r)`, so its direction
+was off across the carrier's plane by `ulp(r)/‖a_r‖`, about `4.9e-12`
+rad. The image shows that error at the full radius at the equator,
+`t ≈ 5π/2`. In 50-digit arithmetic the derived image missed by
+`1.0494e-11` there; it now misses by `7.1e-16`.
+
+`pcurve_cache.rs` `in_carrier_plane` takes the radial part's component
+across the carrier's plane off before it is normalized. The torus arm's
+meridian `side` takes the same projection: a spindle of small major
+radius has the same conditioning (`2.7e-13` at `R = 1e-3·r`, `7.8e-9` at
+`1e-7`). These rows pin it:
+
+- `closed_image_rows` `a_pole_start_meridian_at_a_fuzz_seed_certifies`
+  (the seed);
+- `a_derived_circle_image_is_on_its_circle_where_its_azimuth_shows_most`
+  (the sphere, the spindle and a Villarceau circle, measured by
+  interval enclosure).
+
+Both are red under the `meridian-direction-unprojected` mutant.
+
