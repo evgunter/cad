@@ -2550,7 +2550,7 @@ class TestTeapot(unittest.TestCase):
     hollowed by `Node.shell` and OPENED at its mouth, a revolved lid
     whose three latitude rims roll through `Node.fillet`, a revolved
     spout placed against the pot, a `Node.tube` handle, and the two
-    unions: the handle's builds and validates, the spout's refuses in
+    unions: the handle's builds and validates, the spout's refuses past
     the join (`test_the_handle_join_builds_and_the_spout_join_refuses`).
 
     Every selection here is a NAME the evaluation answered: the mouth
@@ -2569,7 +2569,7 @@ class TestTeapot(unittest.TestCase):
     `EvaluationError` with `kind == "boolean"` carrying the kernel's
     own DISPLAY prose — `pncad-py` never Debug-dumps a payload, so the
     variant name is not in the text, and what the row pins instead is
-    the refusal's arm (`inner_kind`) and the gate's own sentence.
+    the refusal's arm (`inner_kind`) and the refusing test's own sentence.
     """
 
     # ---- the vessel (dyadic metres, exactly the scene's) ----
@@ -3296,25 +3296,33 @@ class TestTeapot(unittest.TestCase):
         # walls are Nurbs and that arm exists; PAST the split of the
         # spout's spline seam where the solids meet; PAST the spout's
         # walls' reading of the belly's pierce point; and PAST the
-        # section, which the spline-implicit lane now traces between the
-        # belly's sphere and the spout's spline wall. Dead in the join,
-        # at the attachment gate: a section edge on a spline wall beside
-        # a curved analytic surface has no certificate in this build.
-        # Pinned by the refusal's arm, and by the gate's own sentence.
+        # section, which the spline-implicit lane traces between the
+        # belly's sphere and the spout's spline wall; and PAST the join,
+        # whose section edges on the spout's wall beside the belly's
+        # sphere certify at the attachment gate. Dead at the result's
+        # inside/outside test, which has no way to cross a spline face.
+        # Pinned by the refusal's arm, and by that test's own sentence.
         self.assertFalse(ev.succeeded(spout_join))
         with self.assertRaises(EvaluationError) as caught:
             ev.value(spout_join)
         refusal = caught.exception
         self.assertEqual(refusal.kind, "boolean")
-        self.assertEqual(refusal.inner_kind, "join")
+        self.assertEqual(refusal.inner_kind, "containment")
         text = str(refusal)
-        self.assertIn("sections could not be joined", text)
-        self.assertIn("a spline beside a curved analytic surface has no certificate", text)
+        self.assertIn("cannot tell what is inside the solid", text)
+        self.assertIn(
+            "a spline (NURBS) surface, which the inside/outside test has no way yet to cross",
+            text,
+        )
         # NOT the pair rung, nor the germ frame the section stopped at
-        # before the lane traced it: the halves that would go quietly
-        # wrong if the refusal were only asserted positively.
+        # before the lane traced it, nor the join's attachment gate the
+        # section's edges stopped at before they had a certificate: the
+        # halves that would go quietly wrong if the refusal were only
+        # asserted positively.
         self.assertNotIn("may meet", text)
         self.assertNotIn("sphere face", text)
+        self.assertNotIn("sections could not be joined", text)
+        self.assertNotIn("has no certificate", text)
 
 
 class TestTorusvessel(unittest.TestCase):
