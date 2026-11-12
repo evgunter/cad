@@ -166,7 +166,7 @@ bodies that hold take a median 0.22 s and at most 9.2 s (the Klein loop,
 The lily leaf `a` takes 2.6 s (27.2 s before). Over the walk the
 certificate costs 92 s against tier 3's 31 s.
 
-**24 of the 85 do not certify on main**, so a gate landed today
+**26 of the 85 do not certify on main** (23 engine refusals and 3 assemblies; 59 hold), so a gate landed today
 refuses them at their doors:
 - 15 refuse `Uncertified` with the departure arm at the depth floor:
   `chute`, `diefillet`, the lily's stem, arch, pedicel, lantern and
