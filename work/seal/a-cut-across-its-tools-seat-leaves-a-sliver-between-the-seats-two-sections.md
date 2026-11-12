@@ -94,3 +94,12 @@ Ev approved the final state: a cut reads its tool as material, the tool fused on
 ## Dispatch (the build, 2026-11-12)
 
 Lane `seal-material`, branch `seal/cut-tool-material`. Review tier: full (a P1 on shared ground, `crates/topo/src/boolean/*`). The build first checks that an area record can be handed to the union as its given verdict; if it cannot, it stops and reports, without re-deciding the seat.
+
+## Decided (orchestrator, 2026-11-12): the class is the record's meaning
+
+The build found that a face–face record carries no class and no margin: at the cut's door it is `CarriedRecord<FfContact>`, two faces and an index, and the class and margin live only in the row it cites, which the door is never handed. A given one-carrier pair needs only its class; the margin and line are read only for a tangency (`given_verdicts`).
+
+- **What the record already says.** A `⊔` records a touch and reports an overlap as an interference finding (`[operations.operators]`). So a face–face record is a touch: the two materials lie on opposite sides of where the faces meet.
+- **Why the class follows.** For two planar faces the record certifies one plane, the reading `contact::area_record` documents and `vtxfac::Wall` and `Held::apart` already build on. One carrier with opposed senses is `GlueClass::Rest` by that class's definition. So the class is what the record means, not a new band decision, and nothing is decided twice.
+- **Curved faces.** A face–face record of curved faces may be a line tangency, which the record does not tell from an area. The fuse refuses typed and names the pair. The census cannot record one today (`work/atrest/the-census-cannot-record-a-curved-seat-between-two-solids.md`).
+- **What it does not move.** No ratified text: `[topology.records]` keeps "the pair and nothing else", and `[coincidence.booleans]` holds, because the record is taken, not re-decided. Carrying the class from the record's backing, or storing it on the record, stay where `a-cut-by-a-curved-seat-keeps-its-two-faces-held-apart-by-the-record` leaves them.
