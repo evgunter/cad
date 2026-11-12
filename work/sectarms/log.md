@@ -742,3 +742,12 @@ Both reds were found by PCERT's nightly lane and trace to SECTARMS merges.
 - **Blind coding** (byte 39, A = R2, B = R1): 15 bilateral, no MAJOR either side, **no tally candidates**. R1's rim-excursion finding is unilateral and refutes R2's NOTE crediting limb 2.
 - **Main red, also from 6862:** geom-core's slow `certified_endpoint_census` (`spline_implicit.rs` 2,0 → 6,4), filed by PCERT on our track. A lane is re-pinning it on `sectarms/endpoint-census`, orchestrator's-read tier (a mechanical re-pin, each new read argued at its site).
 - **Friction:** the python suite job took 37 min on run 43308503535, over the 25 min bar for a geom-brep diff.
+
+## 2026-11-12 — PR 6879 merged; two P1 units dispatched
+
+- **PR 6879 merged** (`c94ffe568f`), the row as its last commit. Tell Ev: the bounds allowlist `edge_nurbs.rs` 16 → 20 (retroactive review), and that the join's done-when waits on INSIDE's P3 containment row.
+- **Umbrella row** `a-nurbs-face-against-a-cone-or-sphere-has-no-section-arm`: its sphere half is built; parked on SECTCONE's cone item, which is what it still holds.
+- **Node unit unblocked (sequencing).** It waited on the join for the pad's code, which has landed; the join's remaining wait is INSIDE's, which the node unit does not touch. Alternative, waiting for the join's done-when, would idle a ratified P1 behind a P3 elsewhere.
+- **Dispatched** `a-spline-implicit-arc-is-carried-to-its-node` (P1 H) on `sectarms/spline-node-carry`. **Tier: dual** — limb 3's per-box tube and the node end are the lane every node of every partner will read. Implementer arm byte 214 (Opus). It says whether its per-box pad closes the P1 pad item.
+- **Dispatched** `a-ring-on-a-spline-wall-closed-by-carried-chords-has-no-winding` (P1 M) on `sectarms/spline-ring-winding`. **Tier: single FULL review** — winding on a spline chart carries real chance of sign and seam bugs, but the lane follows the cylinder's. Implementer arm byte 147 (Fable).
+- **Held:** the P1 image item and the flared-wall P1 (same cause, the at-rest image) wait for the node unit, which reads the same tube; the image item's candidate 2 goes to designers if it is chosen.

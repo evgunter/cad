@@ -2,7 +2,8 @@
 id: a-nurbs-face-against-a-cone-or-sphere-has-no-section-arm
 kind: issue
 title: A NURBS face against a cone or sphere face has no C5 section arm, and no boolean reads a rung-3 section, so klein wall 3 and teapot wall 3 cannot join
-status: dispatched
+status: parked
+blocked_on: [the-cone-has-no-implicit-enclosure-or-metres-conversion]
 opened: 2026-10-25
 priority: P0
 cost: X
@@ -129,3 +130,12 @@ both by geometry. At 1e-6, wall 3 still stops in the sweep
 (`splice/teapot-wall-3-at-1e-6-floors-the-meridian-against-a-spout-wall`).
 When this row's sphere partner reaches the join, the wall-3 tripwire
 goes red, and its lane should re-pin it at the next stop.
+
+## The sphere half is built (SECTARMS, 2026-11-12)
+
+PR 6862 reads a spline × sphere section in the join, and PR 6879
+certifies its chords at rest, so teapot wall 3 now passes the join and
+stops at containment (INSIDE's `point-containments-ray-test-has-no-spline-arm`).
+What this row still holds is the cone partner, which waits on SECTCONE's
+`the-cone-has-no-implicit-enclosure-or-metres-conversion`; the torus is
+its own row. Parked on the cone until then.

@@ -2,11 +2,11 @@
 id: a-spline-implicit-arc-is-carried-to-its-node
 kind: unit
 title: A NURBS x implicit arc is carried to its node, certified by limb 3's graded tube
-status: open
+status: dispatched
+branch: sectarms/spline-node-carry
 opened: 2026-11-12
 priority: P1
 cost: H
-blocked_on: [the-join-reads-a-spline-implicit-section]
 ---
 
 
@@ -43,6 +43,15 @@ node (a 1 m sphere against a wall whose curvatures at the node are within
 read through φ's Hessian (as `sweep/critical.rs::read` forms it) inside
 the same test. Rows for `two-node-reading-arms-no-row-reaches.md` land
 with this unit.
+
+## Unblocked (SECTARMS orchestrator, 2026-11-12)
+
+It waited on the join for the pad's code, not its done-when. The join's
+pad and carry landed in PR 6862 and its at-rest arm in PR 6879; what the
+join still waits on is INSIDE's containment row, which this unit does
+not touch. So it is dispatchable. The P1 pad item
+`a-rim-arcs-pad-is-its-widest-certifying-rung` changes the same pad; this
+unit says whether its per-box pad closes it.
 
 ## Done when
 

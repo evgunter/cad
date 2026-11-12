@@ -2,7 +2,8 @@
 id: a-ring-on-a-spline-wall-closed-by-carried-chords-has-no-winding
 kind: issue
 title: A ring the join closes on a spline wall with carried chords has no winding: choose_roles refuses CurvedBooleanUnsupported naming the wall
-status: open
+status: dispatched
+branch: sectarms/spline-ring-winding
 opened: 2026-11-12
 priority: P1
 cost: M
