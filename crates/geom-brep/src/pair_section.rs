@@ -434,8 +434,9 @@ impl<T: Decide> CylinderSpherePose<T> {
         ExtentBall::of_covered(self.sphere.cover().as_ref().ok())
     }
 
-    /// **The ball the ruling sweep reads the section against**: about the
-    /// sphere's centre, of radius `R + max(R, 64·escalate)`. The section
+    /// **The ball the ruling sweep reads the section against**: the
+    /// sphere's cover's ball, its centre out to `R`, widened by
+    /// `max(R, 64·escalate)` ([`ExtentBall::of_cover_within`]). The section
     /// lies on the sphere, so its own ball holds it whole and no component
     /// has a cut end; but every meeting lies on that ball's boundary,
     /// where no leaf of the sweep decides a side. Every meeting stands `R`
@@ -450,9 +451,8 @@ impl<T: Decide> CylinderSpherePose<T> {
     /// but inside: neither enters this pair's count.
     pub(crate) fn sweep_ball(&self, band: Band) -> ExtentBall<T> {
         let pad = self.big_r.max(T::from_f64(64.0 * band.escalate()));
-        let frame = geom::Frame::new(self.center, self.axis, self.axis.orthonormal_basis().0);
-        geom::cover::Cover::sphere(&frame, self.big_r).map_or_else(
-            || ExtentBall::of_covered(None),
+        self.sphere.cover().map_or_else(
+            |_| ExtentBall::of_covered(None),
             |sphere| ExtentBall::of_cover_within(&sphere, pad),
         )
     }
