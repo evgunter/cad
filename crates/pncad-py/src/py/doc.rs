@@ -1200,23 +1200,6 @@ impl Doc {
         node: d::AuthoredNode,
         label: Option<d::Label>,
     ) -> Result<NodeId, d::EditError> {
-        // A placement of a body variable reads it through a source minted
-        // for it, as `Doc.place` does (VR4); a source read is shared.
-        let node = match node {
-            d::Node::Place {
-                source,
-                target,
-                constraints,
-            } => d::Node::Place {
-                source: d::BodyRead {
-                    read: self.inner.place_read(source.read),
-                    at: source.at,
-                },
-                target,
-                constraints,
-            },
-            node => node,
-        };
         self.minting(label, |action| action.insert(node))
     }
 
@@ -1836,13 +1819,18 @@ impl Doc {
 
     /// **A takeover**: the source each of `copies` (placements) reads its
     /// body through (VARIABLES VR4) redefined as a read of `result`, which
-    /// replaces the body they copied, so every placement reading one of
-    /// those sources copies `result`, and every selection that read one of
+    /// replaces the body they copied, and every selection that read one of
     /// them, or selected in the source, rebound where the result carries
     /// its entity (a face, an edge or a vertex) as one entity; one the
     /// result splits, ties or consumes stays stale. One action. Answers
     /// each name moved, as `(copy, old name, new name)`, for a name held
     /// outside the document.
+    ///
+    /// Redefining a source re-points every copy reading it, so every copy
+    /// reading a named copy's source is named too, or the call refuses
+    /// `take_over_shared_source` naming one left out. A copy given twice
+    /// refuses `take_over_repeats_copy`, and a node that is no placement
+    /// `unknown_slot` (only a placement reads a source).
     ///
     /// Reading where a name went evaluates the document, under
     /// `resolver=` as `evaluate` takes it: a document with instances
@@ -1859,17 +1847,54 @@ impl Doc {
         result: OperandArg,
         resolver: Option<&super::store::Workspace>,
     ) -> PyResult<Vec<(NodeId, String, String)>> {
-        // Each copy's source, once: copies sharing one are redefined together.
+        // Each copy's source, once. Redefining a source re-points every
+        // copy reading it, so a source another copy reads is refused unless
+        // that copy is named too.
+        let named: Vec<d::RecipeNodeId> = copies.iter().map(|c| c.0).collect();
         let mut sources: Vec<d::VarId> = Vec::new();
-        for copy in copies {
-            let Some(source) = self.inner.copied_read(copy.0) else {
+        for (at, &copy) in named.iter().enumerate() {
+            if named[..at].contains(&copy) {
                 return Err(edit_err(
                     py,
-                    &d::EditError::UnknownNode {
-                        id: self.inner.spoken(copy.0),
+                    &d::EditError::TakeOverRepeatsCopy {
+                        node: self.inner.spoken(copy),
+                    },
+                ));
+            }
+            let Some(source) = self.inner.copied_read(copy) else {
+                return Err(edit_err(
+                    py,
+                    &d::EditError::UnknownSlot {
+                        id: self.inner.spoken(copy),
+                        slot: d::SlotId::Operand(d::OperandSlot::Source),
                     },
                 ));
             };
+            let reads = |placement: d::RecipeNodeId| {
+                self.inner.copied_read(placement).is_some_and(|read| {
+                    read == source
+                        || self
+                            .inner
+                            .source_steps(read)
+                            .iter()
+                            .any(|&(step, _)| step == source)
+                })
+            };
+            if let Some(other) = self
+                .inner
+                .placements()
+                .into_iter()
+                .find(|&placement| reads(placement) && !named.contains(&placement))
+            {
+                return Err(edit_err(
+                    py,
+                    &d::EditError::TakeOverSharedSource {
+                        copy: self.inner.spoken(copy),
+                        source: Box::new(self.inner.spoken_var(source)),
+                        other: Box::new(self.inner.spoken(other)),
+                    },
+                ));
+            }
             if !sources.contains(&source) {
                 sources.push(source);
             }
@@ -1940,12 +1965,6 @@ impl Doc {
         let label = label.map(|text| label_from_text(py, text)).transpose()?;
         let constraints = constraints.map_or_else(|| d::stand().bundle(), super::mate::bundle);
         let (read, target) = (source.read(), target.read());
-        // A body read that is no source is placed through a source minted
-        // for this call; a source is shared (VR4).
-        let read = d::BodyRead {
-            read: self.inner.place_read(read.read),
-            at: read.at,
-        };
         Node::placed(py, read.clone(), target.clone(), constraints.clone())?;
         self.insert_edit(d::DocEdit::place(read, target, constraints), label)
             .map_err(|err| edit_err(py, &err))

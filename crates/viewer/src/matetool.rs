@@ -1407,10 +1407,10 @@ fn door_picked(
 
 /// **The entity `pick` names as an `on` side reads it**: in the source a
 /// `Place` reads (VARIABLES VR4), by the shape's own name for it (a copy
-/// and a source carry the body's names), on the member of a family it
-/// copies one of ([`crate::world::copy_source`]); an instance's or a
-/// body's own read otherwise, and a copy whose body does not resolve as
-/// itself.
+/// and a source carry the body's names), in the member of the source's
+/// family it copies where it copies one ([`crate::world::copy_source`]);
+/// an instance's or a body's own read otherwise, and a copy whose body
+/// does not resolve as itself.
 fn on_read(
     doc: &Doc<ProfileProgram>,
     ev: Option<&pncad::document::Evaluation<f64>>,
@@ -1425,20 +1425,12 @@ fn on_read(
             });
             let (at, port) = crate::world::seat_read(doc, at, Some(port));
             // The `on` side selects in the source the placement reads
-            // (`bracket.top`, VARIABLES VR4), so a redefinition of the
-            // source moves no side's body; a member of a family is
-            // selected in the family's member.
+            // (`bracket.top`, VARIABLES VR4), a member of a family's source
+            // in that member, so a redefinition of the source moves no
+            // side's body.
             let body = match copied {
-                Some(copied)
-                    if !copied.member
-                        && doc
-                            .var_reach(copied.var)
-                            .chain()
-                            .is_some_and(<[pncad::document::VarId]>::is_empty) =>
-                {
-                    Operand::Var(copied.var)
-                }
-                _ => crate::seats::Output::named(port).read(at),
+                Some(copied) => Operand::Var(copied.var),
+                None => crate::seats::Output::named(port).read(at),
             };
             Some((
                 SitedRef::new(at, pick.name().clone()),
@@ -1823,15 +1815,12 @@ impl MateTool {
     /// editor opens on the placement it makes ([`Self::placed`]).
     pub fn take_place(&mut self, doc: &Doc<ProfileProgram>) -> Option<SessionOp> {
         let (body, space) = self.placing.take()?;
-        match crate::world::source_to_place(doc, &body) {
-            Err(sources) => {
+        match crate::world::place_asks(doc, &body) {
+            crate::world::PlaceAsks::Source(sources) => {
                 self.asking = Some(PlaceAsk::Source { space, sources });
                 None
             }
-            Ok(Some(source))
-                if doc.var_name(source).is_none()
-                    && !crate::world::placements_of_var(doc, source).is_empty() =>
-            {
+            crate::world::PlaceAsks::Name(source) => {
                 self.asking = Some(PlaceAsk::Name {
                     body,
                     space,
@@ -1840,7 +1829,7 @@ impl MateTool {
                 });
                 None
             }
-            Ok(_) => Some(SessionOp::Place {
+            crate::world::PlaceAsks::Nothing => Some(SessionOp::Place {
                 body,
                 target: Operand::Var(space),
                 name: None,

@@ -722,7 +722,7 @@ test_utils::f6_variants! {
         SeveralSources,
         CopyInAnotherSpace,
         TargetHeld,
-        NothingPlaced,
+        SourceIsNamed,
         Unspliced,
         ValueNotRemoved,
         Draft,

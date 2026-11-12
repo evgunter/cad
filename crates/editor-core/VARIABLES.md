@@ -23,6 +23,10 @@ when a value is first shared or promoted, and a caller gives one when
 it declares. An unnamed variable has exactly one reader, a slot or a
 definition, and reads as its value and that reader ("5 mm, the depth of
 Extrude "base plate""), and as a hex tag in diagnostics, as a node does.
+A placement's own mate `on` sides selecting its source (`bracket.top`,
+VR4) are part of that placement's reading of the source, so an anonymous
+source read by one placement and its own `on` sides has one reader; a
+selection of it anywhere else is a second.
 An output reads as its operation and port, a name optional.
 
 **VR3 — Kind and definition.** `Var { kind, def }`. The kind is one of
@@ -34,7 +38,9 @@ at load). Distributions live only on free variables; a defined
 variable's uncertainty is the pushforward of its inputs'. The
 `Output { node, port }`, `Select { body, names }` and `Source(body)`
 definitions are arms of the same enum: a source is a `Body` defined as
-a read of one body (VR4), which evaluates as that body. A `Count` may be defined as an index,
+a read of one body (VR4), which evaluates as that body. A source reading
+itself, at any depth down further sources, is a definition reaching its
+own variable. A `Count` may be defined as an index,
 `index(N)` or `index(N) within j`, and every kind has a family keyed by
 index tuples, which no free variable holds (DESIGN `[repetition]`).
 

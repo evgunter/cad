@@ -999,30 +999,21 @@ pub fn world_copy(
     }
 }
 
-/// **The viewer's Place of `body` where it stands, named as the person
-/// names it** ([`SessionOp::place_where_it_stands`]): where `body`'s one
-/// source is anonymous and already read, this placement makes it shared,
-/// and the person types `bracket` (VR2: a shared variable has a name).
+/// **The viewer's Place of `body` where it stands, named `name` where it
+/// asks for one** ([`viewer::world::place_asks`], the placement editor's
+/// rule): where `body`'s one source is anonymous and already read, this
+/// placement makes it shared, and the person types `name` (VR2).
 pub fn place_named(
     doc: &Doc<ProfileProgram>,
     body: impl Into<pncad::document::Operand>,
+    name: &'static str,
 ) -> SessionOp {
     let body = body.into();
     let mut op = SessionOp::place_where_it_stands(doc, body.clone()).expect("a body in a space");
-    let read = match &body {
-        pncad::document::Operand::Node(node) => doc.output(*node, 0),
-        pncad::document::Operand::Var(var) => Some(*var),
-        _ => None,
-    };
-    let shared = read.and_then(|var| match doc.sources_of(var)[..] {
-        [one] => Some(one),
-        _ => None,
-    });
-    if let (SessionOp::Place { name, .. }, Some(source)) = (&mut op, shared)
-        && doc.var_name(source).is_none()
-        && !viewer::world::placements_of_var(doc, source).is_empty()
+    if let (SessionOp::Place { name: asked, .. }, viewer::world::PlaceAsks::Name(_)) =
+        (&mut op, viewer::world::place_asks(doc, &body))
     {
-        *name = Some(pncad::document::VarName::from_static("bracket"));
+        *asked = Some(pncad::document::VarName::from_static(name));
     }
     op
 }

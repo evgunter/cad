@@ -191,7 +191,7 @@ impl Recording<'_, ProfileProgram> {
     /// Which sources a takeover redefines is the caller's; the copies it
     /// re-points are every placement reading one of them, directly or
     /// through a source defined as a read of it (`spare = bracket`). A
-    /// variable that is no source refuses ([`EditError::SourceRead`]).
+    /// variable that is no source refuses ([`EditError::TakeOverNotASource`]).
     ///
     /// A name held where no selection holds it (an instance record's
     /// `outer`, an appearance key) is not rebound: [`DocEdit::Rebind`]
@@ -203,8 +203,8 @@ impl Recording<'_, ProfileProgram> {
     /// # Errors
     ///
     /// [`EditError::TakeOverRepeatsCopy`] for a copy two of `sources`
-    /// reach, [`EditError::SourceRead`] for a variable that is no
-    /// source, and as [`Self::apply`]'s: the first door that refuses
+    /// reach, [`EditError::TakeOverNotASource`] for a variable that is
+    /// no source, and as [`Self::apply`]'s: the first door that refuses
     /// ends the action.
     pub fn take_over(
         &mut self,
@@ -218,9 +218,8 @@ impl Recording<'_, ProfileProgram> {
         let mut taken = TakenOver::default();
         for &source in sources {
             if self.doc().source(source).is_none() {
-                return Err(EditError::SourceRead {
+                return Err(EditError::TakeOverNotASource {
                     var: self.doc().spoken_var(source),
-                    fault: crate::edit::SourceFault::NotASource,
                 });
             }
             let was = self.doc().through_sources(source).read;

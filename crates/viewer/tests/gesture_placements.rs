@@ -59,6 +59,21 @@ fn world(doc: &Doc<ProfileProgram>) -> World {
     )
 }
 
+/// **Every variable as the document holds it**: its id, its definition
+/// and its name, in id order — what `world` cannot see of a named source.
+fn var_table(doc: &Doc<ProfileProgram>) -> Vec<(VarId, pncad::document::VarDef, Option<VarName>)> {
+    doc.var_ids()
+        .iter()
+        .map(|&id| {
+            (
+                id,
+                doc.var(id).expect("live").def().clone(),
+                doc.var_name(id).cloned(),
+            )
+        })
+        .collect()
+}
+
 /// The body `copy` copies, through its source (VARIABLES VR4).
 fn source_of(doc: &Doc<ProfileProgram>, copy: RecipeNodeId) -> Option<VarId> {
     doc.copied_read(copy)
@@ -249,7 +264,11 @@ fn two_own_space_copies(tol: Tol) -> (DocSession, RecipeNodeId, RecipeNodeId, Re
     session.pump();
     let mut copies = Vec::new();
     for _ in 0..2 {
-        let out = session.perform(common::place_named(session.committed_doc(), body));
+        let out = session.perform(common::place_named(
+            session.committed_doc(),
+            body,
+            "bracket",
+        ));
         assert!(out.refusal.is_none(), "{:?}", out.refusal);
         session.pump();
         copies.push(out.made.expect("a placement"));
@@ -525,7 +544,11 @@ fn a_place_into_the_bodys_own_space_is_a_copy() {
     let body = common::xy_box_in(&mut session, SIZE);
     session.pump();
     let place = |session: &mut DocSession| {
-        let out = session.perform(common::place_named(session.committed_doc(), body));
+        let out = session.perform(common::place_named(
+            session.committed_doc(),
+            body,
+            "bracket",
+        ));
         assert!(out.refusal.is_none(), "{:?}", out.refusal);
         session.pump();
         out.made.expect("a placement")
@@ -590,7 +613,11 @@ fn designer_as_worked_example() {
     session.pump();
     let mut copies = Vec::new();
     for _ in 0..2 {
-        let out = session.perform(common::place_named(session.committed_doc(), bracket));
+        let out = session.perform(common::place_named(
+            session.committed_doc(),
+            bracket,
+            "bracket",
+        ));
         assert!(out.refusal.is_none(), "{:?}", out.refusal);
         copies.push(out.made.expect("a placement"));
     }
@@ -636,6 +663,7 @@ fn designer_as_worked_example() {
 
     // A fillet of B picked as itself, its re-point accepted.
     let before_f = world(session.committed_doc());
+    let vars_before_f = var_table(session.committed_doc());
     let out = session.perform(SessionOp::AddFillet {
         target: bracket,
         radius: len(0.001),
@@ -681,6 +709,11 @@ fn designer_as_worked_example() {
     assert!(
         world(session.committed_doc()) == before_f,
         "the document is the one before the fillet of B"
+    );
+    assert_eq!(
+        var_table(session.committed_doc()),
+        vars_before_f,
+        "and so is every variable: bracket = B again, none added or lost"
     );
 }
 
@@ -833,7 +866,11 @@ fn bracket(name: &str, tol: Tol) -> (DocSession, RecipeNodeId) {
 
 /// One Place of `body`, landed.
 fn place(session: &mut DocSession, body: RecipeNodeId) -> RecipeNodeId {
-    let out = session.perform(common::place_named(session.committed_doc(), body));
+    let out = session.perform(common::place_named(
+        session.committed_doc(),
+        body,
+        "bracket",
+    ));
     assert!(out.refusal.is_none(), "{:?}", out.refusal);
     session.pump();
     out.made.expect("a placement")

@@ -3443,32 +3443,26 @@ impl<P> Node<P, crate::Formula> {
     /// names the mate's id as written, which the insert mints
     /// ([`crate::mate::pin::Placed::bundle`]).
     ///
-    /// A placement reads its body through a source (VARIABLES VR4). A
-    /// `source` naming an operation — a node or a port — or a pick is
-    /// written as a source authored at the seat
-    /// ([`crate::Operand::Source`]), minted for this placement alone, as a
-    /// written `5 mm` mints a variable; a member read `xs[k]` of one reads
-    /// member `k` of a source of the family, so its index stays this
-    /// placement's slot. A variable read by id or name is read as given,
-    /// so placements share a named source by reading it.
+    /// A placement reads its body through a source (VARIABLES VR4):
+    /// `source`'s read is written as a source authored at the seat
+    /// ([`crate::Operand::Source`]), which the door answers by the one rule
+    /// every placement goes through — a body (a node, a port, an output's
+    /// variable, a pick) mints an anonymous source for this placement, as
+    /// a written `5 mm` mints a variable, and a source is shared. A member
+    /// read `xs[k]` reads member `k` of a source of the family, so its
+    /// index stays this placement's slot.
     pub fn place(
         source: impl Into<crate::BodyRead<crate::Formula>>,
         target: impl Into<crate::Operand>,
         constraints: Vec<crate::mate::Constraint<crate::Formula>>,
     ) -> Self {
         let crate::BodyRead { read, at } = source.into();
-        let source = match read {
-            read @ (crate::Operand::Node(_)
-            | crate::Operand::Output { .. }
-            | crate::Operand::Pick { .. }) => crate::BodyRead {
-                read: crate::Operand::source(crate::BodyRead::plain(read)),
-                at,
+        let source = crate::BodyRead {
+            read: match read {
+                read @ crate::Operand::Source(_) => read,
+                read => crate::Operand::source(crate::BodyRead::plain(read)),
             },
-            read @ (crate::Operand::Var(_)
-            | crate::Operand::Name(_)
-            | crate::Operand::Select { .. }
-            | crate::Operand::Pose(_)
-            | crate::Operand::Source(_)) => crate::BodyRead { read, at },
+            at,
         };
         Node::Place {
             source,

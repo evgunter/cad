@@ -3955,6 +3955,11 @@ impl DocSession {
             };
             let zero = Formula::zero(coord.dimension());
             let mut run = Recording::start(doc, self.tol);
+            // A refusal here is the candidate's: a read the door does not
+            // take at this value (a role its pose cannot give) is no
+            // candidate, and the next is asked. The placement itself is
+            // `Node::place`'s, whose source the door mints for any body
+            // `input` names (VARIABLES VR4), so it refuses no candidate.
             let probe = run
                 .insert(Node::place(
                     pncad::document::BodyRead::plain(input.clone()),
@@ -4813,7 +4818,9 @@ impl DocSession {
         if let (Some(source), Some(_)) = (source, &name)
             && doc.var_name(source).is_some()
         {
-            return Err(Refusal::OfferIsNamed(doc.spoken_var(source)));
+            return Err(Refusal::SourceIsNamed {
+                source: doc.spoken_var(source),
+            });
         }
         let takeover = Takeover::of(doc, &placed);
         takeover.stranded_pick(doc)?;
@@ -4828,7 +4835,7 @@ impl DocSession {
                     }
                     Operand::Var(source)
                 }
-                None => run.doc().place_read(body),
+                None => body,
             };
             let placement = run.insert(Node::place(
                 pncad::document::BodyRead::plain(read),

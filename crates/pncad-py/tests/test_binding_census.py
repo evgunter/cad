@@ -1414,7 +1414,7 @@ BOUND_AS = {
     "IndexFault": "EditError.inner_variant",
     # Why a source is refused as declared crosses at the carrier's second
     # word (`unresolved`, `written_in_place`, `kind`, `index_not_count`,
-    # `fresh`, `not_a_source`).
+    # `fresh`).
     "SourceFault": "EditError.inner_variant",
     # Why a family's members could not be listed: the evaluator turns
     # it into its node refusal (`MemberCountFault::node_error`), so it
@@ -3731,6 +3731,8 @@ MEMBERS_BOUND_AS = {
     "EditError::WitnessOnNonSketch": "EditError.variant",
     "EditError::DuplicateWitnessEntry": "EditError.variant",
     "EditError::TakeOverRepeatsCopy": "EditError.variant",
+    "EditError::TakeOverNotASource": "EditError.variant",
+    "EditError::TakeOverSharedSource": "EditError.variant",
     "EditError::EmptyWitnessBulk": "EditError.variant",
     "EditError::NameUnresolvedInEvaluation": "EditError.variant",
     "EditError::EvaluationOfAnotherDocument": "EditError.variant",

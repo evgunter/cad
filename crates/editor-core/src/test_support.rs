@@ -272,7 +272,6 @@ fn place_of(
     placed: crate::Placed,
     tol: geom_core::Tol,
 ) -> (ProfileDoc, RecipeNodeId) {
-    let body = doc.place_read(body);
     let applied = crate::apply(
         &doc,
         &DocEdit::place(crate::BodyRead::plain(body), target, placed.bundle()),

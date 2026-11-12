@@ -379,6 +379,7 @@ fn place_lands_where_the_body_stands_with_zero_values() {
     let outcome = session.perform(common::place_named(
         session.committed_doc(),
         Operand::Node(body),
+        "bracket",
     ));
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
     session.pump();
@@ -502,11 +503,11 @@ fn a_second_place_of_a_placed_body_is_a_second_placement() {
     );
     let body = common::xy_box_in(&mut session, [0.02, 0.03, 0.01]);
     session.pump();
-    let place = common::place_named(session.committed_doc(), Operand::Node(body));
+    let place = common::place_named(session.committed_doc(), Operand::Node(body), "bracket");
     let first = common::placed_by(&mut session, place);
     let states = session.history().len();
     // The second shares the first's source, named as the person names it.
-    let place = common::place_named(session.committed_doc(), Operand::Node(body));
+    let place = common::place_named(session.committed_doc(), Operand::Node(body), "bracket");
     let second = common::placed_by(&mut session, place);
     assert_eq!(session.history().len(), states + 1, "one history state");
     assert_ne!(first, second);

@@ -113,6 +113,7 @@ fn p4_place_of_a_copy_into_its_space_lands() {
     let outcome = session.perform(common::place_named(
         session.committed_doc(),
         Operand::Node(copy),
+        "bracket",
     ));
     eprintln!("P4 refusal {:?} made {:?}", outcome.refusal, outcome.made);
     if let Some(made) = outcome.made {
@@ -171,7 +172,11 @@ fn p6_place_on_a_placed_body_is_a_second_placement() {
     let mut session = session(tol);
     let body = common::xy_box_in(&mut session, A);
     let (mut session, _copy) = common::world_copy_in(&session, body, tol);
-    let outcome = session.perform(common::place_named(session.committed_doc(), body));
+    let outcome = session.perform(common::place_named(
+        session.committed_doc(),
+        body,
+        "bracket",
+    ));
     eprintln!(
         "P6 refusal: {:?}",
         outcome.refusal.as_ref().map(|r| r.to_string())

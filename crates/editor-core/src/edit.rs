@@ -1831,10 +1831,18 @@ fn mint_pick<P: crate::ProfilePayload>(
     )
 }
 
-/// **A source authored at a seat, minted** (VARIABLES VR4): its body
-/// read lowered as the seat (`expected`) reads a body — one member of a
-/// family where it is indexed, each index a `Count` written at the seat —
-/// and one anonymous source variable minted for the seat to read.
+/// **A source authored at a seat** (VARIABLES VR4): the one rule a
+/// placement's read goes through. Its body read is lowered as the seat
+/// (`expected`) reads a body — one member of a family where it is indexed,
+/// each index a `Count` written at the seat. A plain read of a source is
+/// that source, shared: the seat reads it, and VR2 asks for its name where
+/// it is anonymous and read already. Any other read mints one anonymous
+/// source for the seat to read.
+///
+/// A member read at the family's own indices (`xs[i]`, `i` the index the
+/// family is over) reads every member at its own value, which is the family
+/// read whole; it is stored as the plain read, as a selection's body is, so
+/// the two spellings mint one source definition.
 fn mint_source<P: crate::ProfilePayload>(
     doc: &mut Doc<P>,
     spoken: &impl Fn() -> SpokenNode,
@@ -1853,6 +1861,9 @@ fn mint_source<P: crate::ProfilePayload>(
         },
         Reader::of(expected),
     )?;
+    if !body.is_indexed() && doc.source(read).is_some() {
+        return Ok(read);
+    }
     let mut at = Vec::with_capacity(body.at.len());
     for (k, formula) in body.rows() {
         let index = match slot {
@@ -2241,9 +2252,6 @@ pub enum SourceFault {
     /// It is an entry of an edit's fresh table, which a formula reads:
     /// a source is no scalar, so it is declared or read in place.
     Fresh,
-    /// A takeover was asked to redefine a variable that is no source
-    /// ([`crate::Recording::take_over`]).
-    NotASource,
 }
 
 /// **Why an index is refused as declared** ([`EditError::Index`]).
@@ -3412,6 +3420,24 @@ pub enum EditError {
         /// The copy given twice.
         node: SpokenNode,
     },
+    /// A takeover was handed a variable that is no source
+    /// ([`crate::Recording::take_over`] redefines the sources placements
+    /// read, VARIABLES VR4).
+    TakeOverNotASource {
+        /// The variable.
+        var: SpokenVar,
+    },
+    /// A takeover named `copy`, whose source `source` another copy,
+    /// `other`, reads too and was not named: redefining the source would
+    /// re-point that copy unasked.
+    TakeOverSharedSource {
+        /// The copy named.
+        copy: SpokenNode,
+        /// Its source (boxed, with `other`, to keep `EditError` small).
+        source: Box<SpokenVar>,
+        /// A copy reading the same source, not named.
+        other: Box<SpokenNode>,
+    },
     /// Name-level edit-time validation (M4 PR 4, the PR 3 R6 banked
     /// obligation, via [`crate::resolve::apply_with_names`]): the
     /// name's minting node HAS an Ok value in the supplied
@@ -3890,6 +3916,18 @@ impl EditError {
             Self::PlacementReadsNoSource { node, read } => {
                 *node = node.respoken(doc);
                 *read = read.respoken(doc);
+            }
+            Self::TakeOverNotASource { var } => {
+                *var = var.respoken(doc);
+            }
+            Self::TakeOverSharedSource {
+                copy,
+                source,
+                other,
+            } => {
+                *copy = copy.respoken(doc);
+                **source = source.respoken(doc);
+                **other = other.respoken(doc);
             }
             Self::IndicesUnrelated { node, a, b } => {
                 *node = node.respoken(doc);
@@ -4746,11 +4784,6 @@ impl EditError {
                         "{var} is a source in an edit's fresh table, and a fresh entry is a \
                          scalar a formula reads"
                     )?,
-                    SourceFault::NotASource => write!(
-                        f,
-                        "{var} is no source, and a takeover redefines the sources placements \
-                         read"
-                    )?,
                 }
                 tail.recourse(
                     f,
@@ -4955,6 +4988,28 @@ impl EditError {
             Self::TakeOverRepeatsCopy { node } => {
                 write!(f, "{node} is given twice to the takeover")?;
                 tail.recourse(f, format_args!("give each copy once"))
+            }
+            Self::TakeOverNotASource { var } => {
+                write!(
+                    f,
+                    "{var} is no source, and a takeover redefines the sources placements read"
+                )?;
+                tail.recourse(f, format_args!("hand it the source a placement reads"))
+            }
+            Self::TakeOverSharedSource {
+                copy,
+                source,
+                other,
+            } => {
+                write!(
+                    f,
+                    "{copy} reads its body through {source}, which {other} reads too, so \
+                     redefining it would re-point {other} unasked"
+                )?;
+                tail.recourse(
+                    f,
+                    format_args!("name every copy reading {source}, or redefine {source} itself"),
+                )
             }
             Self::EmptyWitnessBulk => {
                 f.write_str("a re-witness bulk with no entries would change nothing")?;
@@ -6603,7 +6658,8 @@ fn check_definition<P: crate::ProfilePayload>(new: &Doc<P>, id: VarId) -> Result
     // as well as one through definitions.
     if new.source(id).is_some() {
         expansion_refusal(new)?;
-        return check_acyclic(new);
+        check_acyclic(new)?;
+        return check_source_readers(new, id);
     }
     let Some(expr) = new.var(id).and_then(|v| v.def().defined()) else {
         return Ok(());
@@ -6633,6 +6689,46 @@ fn check_definition<P: crate::ProfilePayload>(new: &Doc<P>, id: VarId) -> Result
     // reads it, so the whole document is asked, by the search the load
     // walk asks too.
     expansion_refusal(new)
+}
+
+/// **Every seat reading the source `id` still admits what it reads**
+/// (VARIABLES VR4): a redefinition changes the body behind each reader, so
+/// each seat reading `id`, directly or down further sources, is asked
+/// again what the load asks of it ([`Doc::read_fault`], and the node's
+/// member reads' rank): a member read of a family's source redefined onto
+/// one body is refused here, never written for the load to refuse.
+fn check_source_readers<P: crate::ProfilePayload>(
+    new: &Doc<P>,
+    id: VarId,
+) -> Result<(), EditError> {
+    for (&node_id, node) in &new.nodes {
+        let mut reads = false;
+        for (seat, var) in node.operand_rows() {
+            if !new.source_steps(var).iter().any(|&(at, _)| at == id) {
+                continue;
+            }
+            reads = true;
+            let Some(held) = new.var(var) else {
+                continue;
+            };
+            let expected = node.seat_kind(seat);
+            if let Some(crate::doc::ReadFault::Kind { found }) =
+                new.read_fault(var, held, expected, Reader::of(expected))
+            {
+                return Err(EditError::SlotVarKind {
+                    var: Box::new(new.spoken_var(var)),
+                    node: new.spoken(node_id),
+                    slot: SlotId::Operand(seat),
+                    found,
+                    expected,
+                });
+            }
+        }
+        if reads {
+            check_node_inputs(new, node_id, node)?;
+        }
+    }
+    Ok(())
 }
 
 /// **The expansion search's answer as this door refuses it**: a

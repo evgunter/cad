@@ -527,9 +527,21 @@ pub fn edit_payload(err: &EditError) -> EditPayload<'_> {
                 pncad::document::SourceFault::IndexNotCount { found, .. } => Some(dim(*found)),
                 pncad::document::SourceFault::Unresolved { .. }
                 | pncad::document::SourceFault::WrittenInPlace
-                | pncad::document::SourceFault::Fresh
-                | pncad::document::SourceFault::NotASource => None,
+                | pncad::document::SourceFault::Fresh => None,
             },
+            ..none
+        },
+        EditError::TakeOverNotASource { var } => EditPayload {
+            param: var.name(),
+            ..none
+        },
+        EditError::TakeOverSharedSource {
+            copy,
+            source,
+            other: _,
+        } => EditPayload {
+            node: Some(copy.id()),
+            param: source.name(),
             ..none
         },
         EditError::PlacementReadsNoSource { node, read } => EditPayload {

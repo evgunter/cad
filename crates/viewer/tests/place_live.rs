@@ -126,7 +126,10 @@ fn a_body_shown_again_and_picked_is_placed_a_second_time() {
     tools.open(ToolKind::Mate);
     let place = fed(&session, &mut tools, face_at(&session, [0.0, 0.0]))
         .expect("a pick on an unplaced body asks for Place");
-    assert_eq!(place, common::place_named(session.committed_doc(), body));
+    assert_eq!(
+        place,
+        common::place_named(session.committed_doc(), body, "bracket")
+    );
     assert!(landed(&mut session, &mut tools, place), "Place lands");
     let first = tools
         .mate()
@@ -175,7 +178,10 @@ fn a_body_shown_again_and_picked_is_placed_a_second_time() {
     let place = editor
         .place_named(pncad::document::VarName::from_static("bracket"))
         .expect("the named Place");
-    assert_eq!(place, common::place_named(session.committed_doc(), body));
+    assert_eq!(
+        place,
+        common::place_named(session.committed_doc(), body, "bracket")
+    );
     let states = session.history().len();
     assert!(
         landed(&mut session, &mut tools, place),

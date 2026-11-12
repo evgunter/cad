@@ -281,12 +281,7 @@ fn written(
     placed: Answer,
     tol: Tol,
 ) -> Placed {
-    // A placement reads its body through a source, minted for it here.
-    let edit = DocEdit::place(
-        BodyRead::plain(doc.place_read(body)),
-        space,
-        placed.bundle(),
-    );
+    let edit = DocEdit::place(BodyRead::plain(body), space, placed.bundle());
     let applied =
         apply(doc, &edit, tol).unwrap_or_else(|err| panic!("the placement applies: {err}"));
     let placement = applied.record.minted.expect("an insert mints an id");

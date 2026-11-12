@@ -562,21 +562,11 @@ pub fn placements_of_var(doc: &Doc<ProfileProgram>, var: VarId) -> Vec<RecipeNod
 }
 
 /// **The variables a placement's source read passes through**: the
-/// source it reads, each source down its plain reads, and the body read
-/// at the end (`spare`, `bracket`, `B`).
+/// sources it reads down ([`Doc::source_steps`]) and the body read at the
+/// end (`spare`, `bracket`, `B`).
 fn source_chain(doc: &Doc<ProfileProgram>, var: VarId) -> Vec<VarId> {
-    let mut chain = vec![var];
-    let mut at = var;
-    while let Some(body) = doc.source(at) {
-        if chain.contains(&body.read) {
-            break;
-        }
-        chain.push(body.read);
-        if body.is_indexed() {
-            break;
-        }
-        at = body.read;
-    }
+    let mut chain: Vec<VarId> = doc.source_steps(var).iter().map(|&(at, _)| at).collect();
+    chain.push(doc.through_sources(var).read);
     chain
 }
 
@@ -703,7 +693,9 @@ fn copy_downstream_of(
 /// placement reading it, through a source defined as a read of it too
 /// (`spare = bracket` follows `bracket` and is no row of its own). A
 /// source `onto` itself reads, at any depth, is left out: redefining it
-/// would close a cycle. The one list the offer names and the action
+/// would close a cycle. So is a source a member placement reads where
+/// `onto` is one body, not a family: the member would read a member of no
+/// family. The one list the offer names and the action
 /// writes ([`repoint_offer`], `SessionOp::RepointPlacements`).
 pub fn repoint_targets(
     doc: &Doc<ProfileProgram>,
@@ -711,13 +703,25 @@ pub fn repoint_targets(
     onto: RecipeNodeId,
 ) -> Vec<RepointRow> {
     let read = vars_read_at_any_depth(doc, onto);
+    let onto_family = doc.read_of_node(onto).is_some_and(|var| {
+        doc.var_reach(var)
+            .chain()
+            .is_some_and(|chain| !chain.is_empty())
+    });
     doc.sources_of(body)
         .into_iter()
         .filter(|&source| doc.source(source).is_some_and(|read| !read.is_indexed()))
         .filter(|source| !read.contains(source))
         .filter_map(|source| {
             let placements = placements_of_var(doc, source);
-            (!placements.is_empty()).then_some(RepointRow { source, placements })
+            // A member placement reads a member of its source's family:
+            // redefined onto one body it would read a member of no family,
+            // which the definition door refuses, so it is no row.
+            let member = placements.iter().any(|&placement| {
+                matches!(doc.node(placement), Some(Node::Place { source, .. }) if source.is_indexed())
+            });
+            (!placements.is_empty() && !(member && !onto_family))
+                .then_some(RepointRow { source, placements })
         })
         .collect()
 }
@@ -770,6 +774,33 @@ pub fn source_to_place(
         [] => Ok(None),
         [one] => Ok(Some(*one)),
         several => Err(several.to_vec()),
+    }
+}
+
+/// **What a Place of `body` asks the person first** (VARIABLES VR4; the
+/// placement editor's [`crate::matetool::PlaceAsk`]): a name where the one
+/// source it shares is anonymous and read already (VR2); a choice where
+/// several sources read the body; nothing otherwise.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum PlaceAsks {
+    /// Nothing: the Place mints a source, or shares a named one.
+    Nothing,
+    /// The name of the anonymous source it shares.
+    Name(VarId),
+    /// Which of these sources it shares.
+    Source(Vec<VarId>),
+}
+
+/// [`PlaceAsks`] of a Place of `body`.
+pub fn place_asks(doc: &Doc<ProfileProgram>, body: &Operand) -> PlaceAsks {
+    match source_to_place(doc, body) {
+        Err(sources) => PlaceAsks::Source(sources),
+        Ok(Some(source))
+            if doc.var_name(source).is_none() && !placements_of_var(doc, source).is_empty() =>
+        {
+            PlaceAsks::Name(source)
+        }
+        Ok(_) => PlaceAsks::Nothing,
     }
 }
 

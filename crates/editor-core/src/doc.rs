@@ -1396,9 +1396,11 @@ impl<P> Doc<P> {
             // variable is: its reads and its scalars, so a walk in
             // definition order (`observed`, the bindings) meets each
             // after everything it reads.
+            // A source is ordered by the body it reads, so a source cycle
+            // is a definition cycle (VR3).
             if !matches!(
                 self.vars.get(&ids[at]).map(Var::def),
-                Some(VarDef::Defined(_) | VarDef::Pose(_) | VarDef::Index(_))
+                Some(VarDef::Defined(_) | VarDef::Pose(_) | VarDef::Index(_) | VarDef::Source(_))
             ) {
                 continue;
             }
@@ -1467,10 +1469,11 @@ impl<P> Doc<P> {
     }
 
     /// **Whether `var` is a selection in a source that only that source's
-    /// placements read** — a copy's mate `on` side selecting its source
-    /// (`bracket.top`, VARIABLES VR4). It is part of the placements'
-    /// reading of the source, not a reader of its own, so an anonymous
-    /// source stays its one placement's own.
+    /// placements' own `on` sides read** — a copy's mate side selecting
+    /// its source (`bracket.top`, VARIABLES VR2 and VR4). It is part of the
+    /// placement's reading of its source, not a reader of its own, so an
+    /// anonymous source stays its one placement's own. Read at any other
+    /// seat — another node, the placement's own `to` side — it is a reader.
     fn selects_in_its_own_source(&self, var: VarId) -> bool
     where
         P: crate::ProfilePayload,
@@ -1484,17 +1487,22 @@ impl<P> Doc<P> {
         }
         let mut read_by_one = false;
         for (&id, node) in &self.nodes {
-            let reaches = node
-                .operand_rows()
-                .into_iter()
-                .any(|(_, read)| crate::edit::seat_selections(self, read).contains(&var));
-            if !reaches {
-                continue;
+            for (seat, read) in node.operand_rows() {
+                if !crate::edit::seat_selections(self, read).contains(&var) {
+                    continue;
+                }
+                let on_side = matches!(
+                    seat,
+                    crate::OperandSlot::Side {
+                        side: crate::mate::MateSide::On,
+                        ..
+                    }
+                );
+                if !on_side || self.copied_read(id) != Some(source) {
+                    return false;
+                }
+                read_by_one = true;
             }
-            if self.copied_read(id) != Some(source) {
-                return false;
-            }
-            read_by_one = true;
         }
         read_by_one
     }
@@ -1985,13 +1993,18 @@ impl<P> Doc<P> {
     /// operation it depends on is the placement's; a source
     /// ([`VarDef::Source`]) reads its body, so it depends on the body's.
     pub fn operation_of(&self, var: VarId) -> Option<RecipeNodeId> {
-        if let Some(pick) = self.pick(var) {
-            return self.operation_of(pick.placement);
+        let mut at = var;
+        let mut seen = BTreeSet::new();
+        while seen.insert(at) {
+            if let Some(pick) = self.pick(at) {
+                at = pick.placement;
+            } else if self.source(at).is_some() {
+                at = self.source_root(at)?;
+            } else {
+                return self.defined_by(at).map(|(node, _)| node);
+            }
         }
-        if let Some(body) = self.source(var) {
-            return self.operation_of(body.read);
-        }
-        self.defined_by(var).map(|(node, _)| node)
+        None
     }
 
     /// **The body read the source `var` is defined by**, if it is one
@@ -2000,21 +2013,57 @@ impl<P> Doc<P> {
         self.vars.get(&var)?.def().source()
     }
 
+    /// **The sources a read passes through**, each with its definition, in
+    /// read order: `var` where it is a source, then each source its
+    /// definition reads, down to the first read that is no source (`spare
+    /// = bracket`, `bracket = B` gives `[spare, bracket]`). The one walk
+    /// down sources; every other answers from it. A source cycle is a
+    /// definition cycle (VR3), which the edit door and the load refuse;
+    /// the walk still ends where a source would repeat.
+    pub fn source_steps(&self, var: VarId) -> Vec<(VarId, &crate::BodyRead<VarId>)> {
+        let mut steps: Vec<(VarId, &crate::BodyRead<VarId>)> = Vec::new();
+        let mut at = var;
+        while let Some(body) = self.source(at) {
+            if steps.iter().any(|&(seen, _)| seen == at) {
+                break;
+            }
+            steps.push((at, body));
+            at = body.read;
+        }
+        steps
+    }
+
+    /// **The first read below `var`'s sources that is no source**: `var`
+    /// itself where it is none. `None` only where the walk repeats
+    /// ([`Self::source_steps`]).
+    pub fn source_root(&self, var: VarId) -> Option<VarId> {
+        match self.source_steps(var).last() {
+            None => Some(var),
+            Some(&(_, body)) => (self.source(body.read).is_none()).then_some(body.read),
+        }
+    }
+
     /// **What a read reaches through sources**: `var` itself where it is
     /// no source, else the body read the source reads, down every plain
     /// read of a further source (`spare = bracket`, `bracket = B` reaches
     /// `B`). A member read of a source stops there: it is that family's
-    /// member. A cycle, which no door admits, stops where it repeats.
+    /// member ([`Self::source_steps`]).
     pub fn through_sources(&self, var: VarId) -> crate::BodyRead<VarId> {
-        let mut at = crate::BodyRead::plain(var);
-        let mut seen = BTreeSet::new();
-        while !at.is_indexed()
-            && seen.insert(at.read)
-            && let Some(body) = self.source(at.read)
-        {
-            at = body.clone();
-        }
-        at
+        self.source_holder(var)
+            .map_or_else(|| crate::BodyRead::plain(var), Clone::clone)
+    }
+
+    /// **The definition that holds what the source `var` reads**: the
+    /// first member read down its sources, or the last source's definition,
+    /// which reads a body that is no source ([`Self::source_steps`]). `None`
+    /// where `var` is no source.
+    pub fn source_holder(&self, var: VarId) -> Option<&crate::BodyRead<VarId>> {
+        let steps = self.source_steps(var);
+        steps
+            .iter()
+            .find(|(_, body)| body.is_indexed())
+            .or_else(|| steps.last())
+            .map(|&(_, body)| body)
     }
 
     /// **The body a selection's names are read in, through sources**: a
@@ -2025,24 +2074,6 @@ impl<P> Doc<P> {
         match select.body.is_indexed() {
             true => select.body.clone(),
             false => self.through_sources(select.body.read),
-        }
-    }
-
-    /// **What a placement of `read` reads** (VARIABLES VR4): `read` itself
-    /// where it names a source, so placements share it; any other body read
-    /// written as a source in place ([`crate::Operand::Source`]), minted
-    /// for that placement alone, as the façade's `place(B, …)` does.
-    #[must_use]
-    pub fn place_read(&self, read: crate::Operand) -> crate::Operand {
-        let var = match &read {
-            crate::Operand::Var(var) => Some(*var),
-            crate::Operand::Name(name) => self.var_named(name.as_str()),
-            crate::Operand::Source(_) => return read,
-            _ => None,
-        };
-        match var {
-            Some(var) if self.source(var).is_some() => read,
-            _ => crate::Operand::source(crate::BodyRead::plain(read)),
         }
     }
 
@@ -2267,7 +2298,10 @@ impl<P> Doc<P> {
                 .is_none()
                 .then_some(select.body.read),
             VarDef::Pick(pick) => self.unresolved_read(pick.placement),
-            VarDef::Source(body) => self.unresolved_read(body.read),
+            VarDef::Source(_) => match self.source_root(var) {
+                Some(root) => self.unresolved_read(root),
+                None => Some(var),
+            },
             VarDef::Pose(def) => def
                 .reads()
                 .into_iter()
@@ -3582,7 +3616,7 @@ impl<'d, P: crate::program::SlotPayload<VarId>> SpaceWalk<'d, P> {
             // A piece of a copy is where the copy is, and a source where
             // the body it reads is.
             VarDef::Pick(pick) => self.var(pick.placement),
-            VarDef::Source(body) => self.var(body.read),
+            VarDef::Source(_) => self.var(self.doc.source_root(var)?),
             // A pose is in the first space it reaches.
             VarDef::Pose(_) => self.reached_all([var]).first().copied(),
             VarDef::Free(_) | VarDef::Defined(_) | VarDef::Index(_) => None,

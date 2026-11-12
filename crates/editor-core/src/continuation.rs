@@ -434,21 +434,6 @@ fn handed<P: crate::ProfilePayload>(
     }
 }
 
-/// **The definition that holds what the source `var` reads**: its own,
-/// or down plain reads of further sources (`spare = bracket`) the last
-/// one's, which reads a body that is no source.
-fn source_holder<P>(doc: &Doc<P>, var: VarId) -> Option<&BodyRead<VarId>> {
-    let mut at = var;
-    let mut seen = BTreeSet::new();
-    loop {
-        let body = doc.source(at)?;
-        if body.is_indexed() || doc.source(body.read).is_none() || !seen.insert(at) {
-            return Some(body);
-        }
-        at = body.read;
-    }
-}
-
 /// **Whether `var` reaches a deleted operation other than through a
 /// source**, the sources it reaches collected into `sources`: an output
 /// of one directly, or a selection's body, a pose's reads or a pick's
@@ -485,7 +470,7 @@ fn source_survives<P: crate::ProfilePayload>(
     dead: &Dead,
     var: VarId,
 ) -> Result<bool, SpliceFault> {
-    let Some(body) = source_holder(doc, var) else {
+    let Some(body) = doc.source_holder(var) else {
         return Ok(false);
     };
     match live(doc, dead, body.read)? {

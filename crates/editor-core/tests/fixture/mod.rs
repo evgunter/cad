@@ -1615,23 +1615,6 @@ pub fn newest(doc: &ProfileDoc) -> RecipeNodeId {
 }
 
 pub fn insert(doc: ProfileDoc, node: AuthoredNode) -> (ProfileDoc, RecipeNodeId) {
-    // A placement of a body variable reads it through a source minted for
-    // it, as the façade's `place(B, …)` does (VARIABLES VR4).
-    let node = match node {
-        Node::Place {
-            source,
-            target,
-            constraints,
-        } => Node::Place {
-            source: editor_core::BodyRead {
-                read: doc.place_read(source.read),
-                at: source.at,
-            },
-            target,
-            constraints,
-        },
-        node => node,
-    };
     let (doc, minted) = step(
         doc,
         DocEdit::InsertNode {

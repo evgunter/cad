@@ -1013,7 +1013,7 @@ fn the_transform_tool_opens_the_placement_editor_on_its_pick() {
         });
         assert_eq!(
             place,
-            Some(common::place_named(doc, body)),
+            Some(common::place_named(doc, body, "bracket")),
             "a pick on {body:?} as itself asks for Place"
         );
     };
@@ -1119,7 +1119,11 @@ fn the_transform_tool_refuses_what_is_no_body_and_asks_a_split_for_its_half() {
     });
     assert_eq!(
         place,
-        Some(common::place_named(session.committed_doc(), patterned)),
+        Some(common::place_named(
+            session.committed_doc(),
+            patterned,
+            "bracket"
+        )),
         "the patterned body picked as itself is placed"
     );
 

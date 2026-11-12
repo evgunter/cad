@@ -1872,6 +1872,8 @@ impl core::fmt::Display for ReplayTail<'_> {
             | EditError::WitnessOnNonSketch { .. }
             | EditError::DuplicateWitnessEntry { .. }
             | EditError::TakeOverRepeatsCopy { .. }
+            | EditError::TakeOverNotASource { .. }
+            | EditError::TakeOverSharedSource { .. }
             | EditError::EmptyWitnessBulk
             | EditError::NameUnresolvedInEvaluation { .. }
             | EditError::EvaluationOfAnotherDocument { .. }

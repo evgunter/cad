@@ -356,3 +356,229 @@ fn place_on_a_body_several_sources_read_names_them() {
         "named as it is shared"
     );
 }
+
+// ---- review rows (PR 6856's dual review), pinning the fixed behaviour ----
+
+/// A revolve (body, axis and space: three ports) in a session of its own.
+fn revolved(tol: Tol) -> (DocSession, RecipeNodeId) {
+    let mut session = DocSession::inline(Doc::empty_derived("named-source-revolve", tol), tol);
+    let profile = common::session_insert(
+        &mut session,
+        SessionOp::AddProfile {
+            loops: vec![common::circle_at([0.3, 0.0], 0.07)],
+        },
+    );
+    let revolve = common::session_insert(
+        &mut session,
+        SessionOp::AddRevolve {
+            profile,
+            axis_through: [common::len(0.0), common::len(0.0)],
+            axis_heading: pncad::document::Formula::turn_over(4).expect("a quarter turn"),
+            angle: common::ang(core::f64::consts::TAU),
+        },
+    );
+    session.pump();
+    (session, revolve)
+}
+
+/// **Every gesture that places a body read by its output variable lands**
+/// through a source (VARIABLES VR4, VR9): a revolve's node defines its body
+/// beside its axis, so the viewer reads it as `Var(body)`, and Place and
+/// the pattern place it alike.
+///
+/// *Breaks if* a construction path writes the body read as given.
+#[test]
+fn a_revolve_is_placed_and_patterned_through_a_source() {
+    let tol = Tol::witness();
+    let (mut session, revolve) = revolved(tol);
+    let op = place_op(session.committed_doc(), revolve.into(), None);
+    let copy = landed(&mut session, op);
+    let doc = session.committed_doc();
+    assert_eq!(
+        copied(doc, copy),
+        doc.output(revolve, 0),
+        "Place reads the body"
+    );
+    let (mut session, revolve) = revolved(tol);
+    let family = landed(
+        &mut session,
+        SessionOp::AddPattern {
+            input: revolve.into(),
+            count: 2,
+            rule: viewer::session::PatternRuleSpec::Linear {
+                direction: viewer::PatternDirection::Axis(pncad::document::TargetAxis::X),
+                spacing: common::len(1.0),
+            },
+        },
+    );
+    let doc = session.committed_doc();
+    let source = doc.copied_read(family).expect("the pattern reads a source");
+    assert_eq!(
+        doc.source(source).map(|read| read.read),
+        doc.output(revolve, 0)
+    );
+}
+
+/// **A member placement's family source is not re-pointed onto one body**:
+/// the "copy of" row's and the variables pane's op, redefining it onto a
+/// body that is no family, refuses typed (`SlotVarKind` at the member's
+/// source seat), and the offer has no row for it.
+///
+/// *Breaks if* the session commits a document the load refuses.
+#[test]
+fn a_member_placements_source_is_not_re_pointed_onto_one_body() {
+    let tol = Tol::witness();
+    let (mut session, body) = bracket("named-source-member", tol);
+    let other = common::xy_box_in(&mut session, SIZE);
+    session.pump();
+    let family = landed(
+        &mut session,
+        SessionOp::AddPattern {
+            input: body.into(),
+            count: 2,
+            rule: viewer::session::PatternRuleSpec::Linear {
+                direction: viewer::PatternDirection::Axis(pncad::document::TargetAxis::X),
+                spacing: common::len(2.0 * SIZE[0]),
+            },
+        },
+    );
+    let (doc, member) = common::member_read(session.committed_doc(), family, 0, tol);
+    let source = doc.copied_read(member).expect("a source");
+    let mut session = common::inline_without_door(doc, tol);
+    session.pump();
+    let before = session.committed_doc().clone();
+    let out = session.perform(SessionOp::RepointPlacements {
+        source,
+        onto: other.into(),
+    });
+    assert!(
+        matches!(&out.refusal, Some(Refusal::Edit(error))
+            if matches!(**error, EditError::SlotVarKind { .. })),
+        "{:?}",
+        out.refusal
+    );
+    assert!(session.committed_doc().bit_eq(&before), "nothing written");
+    assert!(
+        viewer::world::repoint_targets(session.committed_doc(), doc_body(&before, family), other)
+            .iter()
+            .all(|row| row.source != source),
+        "no offer row re-points it onto one body"
+    );
+}
+
+/// The body variable the family `family` repeats.
+fn doc_body(doc: &Doc<ProfileProgram>, family: RecipeNodeId) -> VarId {
+    copied(doc, family).expect("the family copies a body")
+}
+
+/// **Accepting the offer and deleting F is the identity** on the written
+/// nodes and on the whole variable table — every definition and name, none
+/// added or lost.
+#[test]
+fn accept_then_delete_f_is_the_identity_on_the_variables() {
+    let tol = Tol::witness();
+    let (mut session, body, _, _) = placed_twice(tol);
+    let bracket = session.committed_doc().var_named("bracket").expect("named");
+    let table = |doc: &Doc<ProfileProgram>| {
+        doc.var_ids()
+            .iter()
+            .map(|&id| {
+                (
+                    id,
+                    doc.var(id).expect("live").def().clone(),
+                    doc.var_name(id).cloned(),
+                )
+            })
+            .collect::<Vec<_>>()
+    };
+    let nodes = |doc: &Doc<ProfileProgram>| {
+        let mut ids = doc.ids().to_vec();
+        ids.sort_unstable();
+        ids.into_iter()
+            .map(|id| format!("{id:?}: {:?}", doc.node(id).map(|n| n.written(doc))))
+            .collect::<Vec<_>>()
+    };
+    let before = (
+        nodes(session.committed_doc()),
+        table(session.committed_doc()),
+    );
+    let edge = pncad::select::all_edges(session.evaluation().expect("landed"), body)
+        .into_iter()
+        .find(|name| matches!(name.path.as_slice(), [RoleSeg::LateralEdge(_)]))
+        .expect("a lateral edge");
+    let f = landed(
+        &mut session,
+        SessionOp::AddFillet {
+            target: body,
+            radius: common::len(0.001),
+            selection: vec![edge],
+        },
+    );
+    landed(
+        &mut session,
+        SessionOp::RepointPlacements {
+            source: bracket,
+            onto: f.into(),
+        },
+    );
+    let out = session.perform(SessionOp::DeleteNode { node: f });
+    assert!(out.refusal.is_none(), "{:?}", out.refusal);
+    session.pump();
+    for row in session.tree_rows() {
+        assert_eq!(row.status, RowStatus::Ok, "{row:?}");
+    }
+    let after = (
+        nodes(session.committed_doc()),
+        table(session.committed_doc()),
+    );
+    assert_eq!(after.0, before.0, "the nodes");
+    assert_eq!(after.1, before.1, "the variables");
+}
+
+/// **Place on a body a pattern places shares the pattern's source**
+/// (rule 9 as written): without a name it is refused `SharedVarNeedsName`;
+/// with one it shares the pattern's source and names it.
+#[test]
+fn place_on_a_pattern_placed_body_shares_the_patterns_source() {
+    let tol = Tol::witness();
+    let (mut session, body) = bracket("named-source-pattern", tol);
+    let family = landed(
+        &mut session,
+        SessionOp::AddPattern {
+            input: body.into(),
+            count: 2,
+            rule: viewer::session::PatternRuleSpec::Linear {
+                direction: viewer::PatternDirection::Axis(pncad::document::TargetAxis::X),
+                spacing: common::len(2.0 * SIZE[0]),
+            },
+        },
+    );
+    let doc = session.committed_doc().clone();
+    let pattern_source = doc.copied_read(family).expect("the pattern reads a source");
+    let out = session.perform(place_op(&doc, body.into(), None));
+    assert!(
+        matches!(&out.refusal, Some(Refusal::Edit(error))
+            if matches!(**error, EditError::SharedVarNeedsName { .. })),
+        "{:?}",
+        out.refusal
+    );
+    let copy = landed(&mut session, place_op(&doc, body.into(), Some("bracket")));
+    let doc = session.committed_doc();
+    assert_eq!(doc.copied_read(copy), Some(pattern_source));
+    assert_eq!(doc.var_named("bracket"), Some(pattern_source));
+}
+
+/// **A Place given a name for a named source refuses in its own words**.
+#[test]
+fn a_place_naming_a_named_source_refuses() {
+    let tol = Tol::witness();
+    let (mut session, body, _, _) = placed_twice(tol);
+    let op = place_op(session.committed_doc(), body.into(), Some("again"));
+    let out = session.perform(op);
+    assert!(
+        matches!(&out.refusal, Some(Refusal::SourceIsNamed { source })
+            if source.name().map(VarName::as_str) == Some("bracket")),
+        "{:?}",
+        out.refusal
+    );
+}

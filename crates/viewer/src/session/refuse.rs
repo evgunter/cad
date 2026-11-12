@@ -482,11 +482,12 @@ pub enum Refusal {
         /// The first operand's space.
         into: Box<SpokenSpace>,
     },
-    /// A re-point of a body's placements asked of a body nothing places
-    /// ([`super::SessionOp::RepointPlacements`]).
-    NothingPlaced {
-        /// The body, as the document held it at the refusal.
-        body: SpokenVar,
+    /// A Place given a name for a source that has one
+    /// ([`super::SessionOp::Place`]): the copy shares a named source by
+    /// that name, and a rename is the source's own row.
+    SourceIsNamed {
+        /// The source, as the document held it at the refusal.
+        source: SpokenVar,
     },
     /// **A delete that cannot splice** (DM6,
     /// `editor_core::continuation::SpliceFault`): one member of a family
@@ -581,8 +582,8 @@ impl Refusal {
                 space: Box::new(doc.spoken_space(space.id())),
                 into: Box::new(doc.spoken_space(into.id())),
             },
-            Self::NothingPlaced { body } => Self::NothingPlaced {
-                body: body.respoken(doc),
+            Self::SourceIsNamed { source } => Self::SourceIsNamed {
+                source: source.respoken(doc),
             },
             Self::Unspliced { node, fault } => Self::Unspliced {
                 node: again(node),
@@ -676,7 +677,7 @@ impl Refusal {
             | Self::SeveralSources { .. }
             | Self::CopyInAnotherSpace { .. }
             | Self::TargetHeld { .. }
-            | Self::NothingPlaced { .. }
+            | Self::SourceIsNamed { .. }
             | Self::Unspliced { .. }
             | Self::ValueNotRemoved { .. }
             | Self::Draft(_)
@@ -729,7 +730,7 @@ impl Refusal {
             | Self::SeveralSources { .. }
             | Self::CopyInAnotherSpace { .. }
             | Self::TargetHeld { .. }
-            | Self::NothingPlaced { .. }
+            | Self::SourceIsNamed { .. }
             | Self::Unspliced { .. }
             | Self::ValueNotRemoved { .. }
             | Self::Draft(_)
@@ -1125,12 +1126,11 @@ impl Refusal {
                      cannot do; nothing was deleted"
                 ),
             },
-            Self::NothingPlaced { body } => {
-                write!(
-                    f,
-                    "nothing places {body}, so there is no placement to re-point"
-                )
-            }
+            Self::SourceIsNamed { source } => write!(
+                f,
+                "{source} is named already, so the copy shares it by that name; place it \
+                 without a name, and rename it on its own row"
+            ),
             Self::ValueNotRemoved { node } => write!(
                 f,
                 "a value of {node} sets a freedom its mates leave, and a freedom is always set; \

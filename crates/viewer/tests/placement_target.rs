@@ -39,7 +39,7 @@ fn cap(body: RecipeNodeId, end: CapEnd) -> StableName {
 
 /// One Place of `body` into its own space, landed.
 fn placed(session: &mut DocSession, body: RecipeNodeId) -> RecipeNodeId {
-    let op = common::place_named(session.committed_doc(), body);
+    let op = common::place_named(session.committed_doc(), body, "bracket");
     let out = session.perform(op);
     assert!(out.refusal.is_none(), "{:?}", out.refusal);
     session.pump();
@@ -138,7 +138,7 @@ fn the_target_row_re_targets_a_placement_in_one_step() {
         VarId::WORLD,
         "premise: a construction is in a space of its own"
     );
-    let op = common::place_named(session.committed_doc(), bolt);
+    let op = common::place_named(session.committed_doc(), bolt, "bracket");
     assert_eq!(
         op,
         SessionOp::Place {
