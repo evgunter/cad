@@ -210,7 +210,9 @@ fn split_at_the_nominal(rules: SymRules, tol: Tol) -> BTreeMap<&'static str, [u6
 /// `witness_on_surface` 36/12 -> 32/8 (40/0), `pcurve_map_residual` 0/54
 /// -> 0/36 (36/0), `carrier_matches_mapped_source` 214/56 -> 196/56
 /// (252/0). `line_span` held, and every one the algebra took before it
-/// still takes.
+/// still takes. PCERT's closed-form bound (a stated harmonic image bounded by its residual's
+/// coefficients, main's `4121c920`) moves none of these counts: the stated images sit on moved
+/// copies whose certificates are carried, so none is metered again in the measuring frame.
 #[test]
 fn m10_10_all_four_discharge_at_the_nominal_and_the_chart_phase_is_the_doors() {
     let tol = Tol::witness();

@@ -702,6 +702,9 @@ fn sym_9_the_kept_atom_ladder_recovers_what_phase_1_measured() {
     // again there, 174 to 178 symbolic and 155 numeric fewer both ways,
     // the retries holding. Then each move asks the session box of its
     // image (`Replay::moved_by`): one numeric decision more both ways.
+    // PCERT's closed-form bound (main's `4121c920`) moves none of these:
+    // the stated images sit on moved copies whose certificates are
+    // carried, so none is metered again in the measuring frame.
     let expected: [(&str, [u64; 2], [u64; 2], u64); 5] = [
         ("two_hole_plate", [1015, 670], [1015, 670], 0),
         ("r1_annulus", [535, 401], [535, 401], 0),

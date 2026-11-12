@@ -239,7 +239,10 @@ pub(crate) struct Study {
 /// finished again there: the plate 1189 -> 1015, the annulus 713 -> 535,
 /// the link 991 -> 817, the bracket 1599 -> 1421 (door shut (1528, 1226)
 /// -> (1350, 1071)) and the pad 1697 -> 1523 (door shut (1697, 1368) ->
-/// (1523, 1213)). The moves
+/// (1523, 1213)). PCERT's closed-form bound (a stated harmonic image bounded by its residual's
+/// coefficients, main's `4121c920`) moves none of these counts: the stated images sit on moved
+/// copies whose certificates are carried, so none is metered again in the measuring frame. The
+/// moves
 /// this ledger lists between PR 5728 and PR 5811
 /// are PR 5728's (the pad and the link door shut) and PR 5811's (the
 /// bracket door shut), measured at each merge and its first parent.

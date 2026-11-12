@@ -258,6 +258,11 @@ use crate::m10_8_harness::{assert_split, split_at_the_nominal};
 /// 8/8 to it: main pins it at 18/24 (four of PR 6504's decisions read
 /// numeric, the one ruling reading), and the carried verdict takes it to
 /// 10/16.
+///
+/// PCERT's closed-form bound (a stated harmonic image bounded by its
+/// residual's coefficients, main's `4121c920`, `pcurve_closed_bound`)
+/// moves none of these counts: the copy's stated images are carried with
+/// its certificates, so none is metered again where it is placed.
 const D_TAB_AT_THE_NOMINAL: &[(&str, [u64; 2])] = &[
     ("arc_apex_identity", [0, 1]),
     ("arc_diameter_clearance", [0, 6]),

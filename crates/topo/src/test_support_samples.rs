@@ -929,6 +929,9 @@ fn pcurve_certify_errors() -> Vec<PcurveCertifyError> {
             check: PcurveCheck::MapResidual,
             sample: 4,
         },
+        PcurveCertifyError::MissLocated {
+            margin: MarginDiag::value(1e-7),
+        },
         PcurveCertifyError::Escalated {
             check: PcurveCheck::Envelope,
             sample: 4,
@@ -2619,6 +2622,13 @@ mod tests {
                     },
                     K::ResidualExceeded => match &e {
                         C::ResidualExceeded { check: c, .. } => check(*c, definite),
+                        _ => unreachable!("the kind is the arm"),
+                    },
+                    K::MissLocated => match &e {
+                        C::MissLocated { margin } => check(
+                            PcurveCheck::MapResidual,
+                            RefusedArm::SignCertain(Some(*margin)),
+                        ),
                         _ => unreachable!("the kind is the arm"),
                     },
                     K::IntervalNotForward => check(PcurveCheck::ParamSpan, definite),

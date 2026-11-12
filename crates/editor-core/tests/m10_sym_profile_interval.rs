@@ -448,6 +448,10 @@ const PLATE_MAX_TERMS: usize = 38;
 /// moved hole: `Plain` 669 → 670 assertions (forms 6963 → 9047),
 /// `Early` 669 → 670 (8611 → 10422), `Door` 402 → 403 decisions (9906 →
 /// 11719), and `Plain/Decision`'s digest (forms 42005 → 41501).
+///
+/// PCERT's closed-form bound (a stated harmonic image bounded by its residual's coefficients,
+/// main's `4121c920`) moves none of these counts: the stated images sit on moved copies whose
+/// certificates are carried, so none is metered again in the measuring frame.
 const PLATE_LEDGER: &str = "\
      Plain/Decision calls 1015 forms 41501 frozen 54 digest 1b310266a1968c11616d2750affc0dfa\n\
      Plain/Assertion calls 670 forms 9047 frozen 137 digest ebdae96f526ae41ae0680df5d5bb5545\n\

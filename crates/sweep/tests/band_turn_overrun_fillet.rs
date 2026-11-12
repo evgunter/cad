@@ -1159,11 +1159,12 @@ fn a_fillet_turn_builds_at_the_chamfers_band_and_escalates_in_its_own() {
 }
 
 /// **L filleted in a later call** ends at the overrun's turn foot, in
-/// the far band's face — a cylinder, a curved end face — and refuses
-/// as one, at each of the leaning prism's overrun corners (`±0.5`,
-/// `±1`).
+/// the far band's face, where L runs on tangentially into the overrun's
+/// arc (the arc is tangent to L at the far foot): the request stops part
+/// way along a smooth run, and refuses saying so, at each of the leaning
+/// prism's overrun corners (`±0.5`, `±1`).
 #[test]
-fn a_later_fillet_of_l_refuses_at_the_far_bands_curved_face() {
+fn a_later_fillet_of_l_refuses_where_it_runs_on_into_the_overrun_arc() {
     for s in [0.5, -0.5, 1.0, -1.0] {
         let what = format!("lean {s}");
         let (body, edges) = leaning_turn(s);
@@ -1179,8 +1180,8 @@ fn a_later_fillet_of_l_refuses_at_the_far_bands_curved_face() {
         match fillet_edges(&at_rest(b, tol()), &[l], 0.1 * D, tol()) {
             Err(e) => assert!(
                 matches!(&e.error, BlendError::UnsupportedRunOut { detail, .. }
-                    if *detail == sweep::blend::battery::END_FACE_CURVED),
-                "{what}: L later refuses at a curved end face, got {}",
+                    if *detail == sweep::blend::battery::PARTIAL_TANGENT_RUN),
+                "{what}: L later refuses where it runs on into the overrun arc, got {}",
                 e.error.render(geom_brep::recourse::Reading::Build)
             ),
             Ok(_) => panic!("{what}: L later must refuse"),
