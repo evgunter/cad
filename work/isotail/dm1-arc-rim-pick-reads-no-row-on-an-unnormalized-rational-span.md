@@ -2,7 +2,8 @@
 id: dm1-arc-rim-pick-reads-no-row-on-an-unnormalized-rational-span
 kind: issue
 title: the arc-rim pick holds no row of dm1's l-bracket wall, inferred to be its unnormalized end weights 1 and 2
-status: open
+status: closed
+closed: 2026-11-04
 opened: 2026-10-29
 priority: P3
 cost: M
@@ -30,3 +31,23 @@ A rational half cone with normalized weights, split the same way, adopts its CIR
 ## Inferred, not proven
 
 `arc_rim_measured` reads the row's turn from its interior weight as `w = cos(h/2)` (`arc_rim_turn`), which holds for end weights of 1. A span with end weights 1 and 2 states the same arc with interior weight `1·√(1·2)·cos(h/2)` after normalization, so the turn read off it is wrong and no candidate holds the circle at the probe. Normalizing a row's end weights before the read (a weight reparameterization, which keeps the locus) is the likely repair. Confirm the cause before building it.
+
+## Closed (2026-11-04)
+
+The PCERT main-reds lane (`pcert/main-reds-e2-e5`) confirmed the cause
+and fixed it at the pick and at the image. Measured on dm1's own bits:
+the sub-patch's row at `v₁` has weights `(1, 1, 2)` on
+`u ∈ [0, 0.27027…]`, and it holds the quarter rim exactly (zero radial
+residual in exact rationals over 101 samples). At `u = ½` it sits at
+53.13° where the standard form sits at 45°, so `arc_rim_turn` read
+`w₁/w₀ = 1`, no turn, and the pick answered `Ok(None)`.
+
+The repair keeps the file's parameterization rather than normalizing the
+chart. `Pcurve::IsoArc` carries the row's end weights (`ends`), and its
+map applies each sub-arc's Möbius change `σ = λs/(λs + 1 − s)`,
+`λ = √(eₖ/eₖ₊₁)`. The certificate compares `ends` to the row's on the
+bits and decides `wₖ/√(eₖ·eₖ₊₁) = cos(h/2)` per span, and the pick reads
+the turn at unit end weights. The l-bracket now imports, and full dm1
+refuses one door later
+(`work/importgate/dm1s-touching-instances-refuse-at-the-aggregate-gate-unrecorded.md`).
+

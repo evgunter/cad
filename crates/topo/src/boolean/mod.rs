@@ -282,8 +282,8 @@ pub use zip::{SharedClass, swap_split_roles, take_shared_points};
 // candidate-generation mode BY CONSTRUCTION.
 pub use crate::side_reader::AimedPair;
 pub use carrier_pair::{
-    PairUnread, carrier_pair_decided, carrier_pair_relation, face_carrier, flush_pair_relation,
-    rest_locus,
+    PairUnread, carrier_pair_arm, carrier_pair_decided, carrier_pair_relation, face_carrier,
+    flush_pair_relation, rest_locus,
 };
 pub use contact_verify::{rest_pair_verdict, tangent_pair_relation};
 pub use solid_contain::{
@@ -1614,7 +1614,15 @@ fn off_ring_torus(
     refusal: geom_brep::TorusRefusal,
     pair: [(Operand, FaceKey); 2],
 ) -> BooleanError {
-    let (operand, face) = torus.of(pair);
+    torus_refusal_at(refusal, torus.of(pair))
+}
+
+/// [`BooleanError::of_torus_refusal`]'s body: a torus face `at` outside its
+/// ring convention, decided or in band.
+fn torus_refusal_at(
+    refusal: geom_brep::TorusRefusal,
+    (operand, face): (Operand, FaceKey),
+) -> BooleanError {
     match refusal.verdict {
         geom_brep::TorusVerdict::Refused(verdict) => BooleanError::DegenerateTorus {
             operand,
@@ -4758,7 +4766,39 @@ impl BooleanError {
         move |refusal| match refusal {
             DoorRefusal::Escalated(diag) => Self::Escalated { decision, diag },
             DoorRefusal::Invariant(what) => Self::ClassificationInvariant { what },
+            DoorRefusal::Torus(_) => {
+                unreachable!("only a torus door refuses a torus, and it ends at its face")
+            }
         }
+    }
+
+    /// A torus root door's refusal at the torus face `at`: the torus
+    /// outside the ring convention at its face
+    /// ([`Self::of_torus_refusal`]), every other refusal as
+    /// [`Self::of_door_refusal`] ends it.
+    pub(in crate::boolean) fn of_torus_door_refusal(
+        decision: BooleanDecision,
+        at: (Operand, FaceKey),
+    ) -> impl Fn(geom_brep::curve_face::circle_roots::DoorRefusal) -> Self {
+        use geom_brep::curve_face::circle_roots::DoorRefusal;
+        move |refusal| match refusal {
+            DoorRefusal::Torus(refusal) => Self::of_torus_refusal(refusal, at),
+            other => Self::of_door_refusal(decision)(other),
+        }
+    }
+
+    /// **A torus face outside its ring convention**, as the convention
+    /// refused it ([`geom_brep::TorusRefusal`]), at the face `at`: decided,
+    /// the shape the kernel has no representation for
+    /// ([`Self::DegenerateTorus`], an abort as
+    /// [`geom_brep::TorusRefusal::refusal`] states it); in band, the
+    /// convention half's escalation ([`BooleanDecision::Torus`]). Both end
+    /// in the half's lever.
+    pub(in crate::boolean) fn of_torus_refusal(
+        refusal: geom_brep::TorusRefusal,
+        at: (Operand, FaceKey),
+    ) -> Self {
+        torus_refusal_at(refusal, at)
     }
 
     /// An escalation of the coincidence `which` between parts of the two

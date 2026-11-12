@@ -15,12 +15,12 @@ use crate::fixture;
 
 use editor_core::{
     CapEnd, Coord, DocumentId, EntityKind, Formula, Frame, MateRef, MateSide, Node, ProfileDoc,
-    RecipeNodeId, RoleSeg, StableName, TargetAxis, VarId,
+    RecipeNodeId, RoleSeg, TargetAxis, VarId,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
 use fixture::{
-    at_the_door_of, constrain, head, in_copy, insert, insert_pinned, len, on_frame, plane, rest,
-    run, solve, step,
+    at_the_door_of, constrain, head, insert, insert_pinned, len, member_head, on_frame, plane,
+    rest, run, solve, step,
 };
 use geom_core::Tol;
 
@@ -151,26 +151,23 @@ impl Cube {
         in_part(instance, self.body, end)
     }
 
-    /// The frame at corner 0 of cap `end` as `instance` places it,
-    /// each name spelled by `wrap` ([`fixture::corner_frame`]): `z` up
-    /// its lateral edge, `x` along wall 0.
+    /// The frame at corner 0 of cap `end` as `instance` places it, or
+    /// as one member of a family of it does (`member`: the family and
+    /// the member's index values), read in that member by the part's own
+    /// names ([`fixture::corner_frame`]): `z` up its lateral edge, `x`
+    /// along wall 0.
     fn frame(
         &self,
         instance: RecipeNodeId,
         end: CapEnd,
-        wrap: &dyn Fn(StableName) -> StableName,
+        member: Option<(RecipeNodeId, &[u32])>,
     ) -> editor_core::Operand {
         let name = |kind, seg| {
             let own = fixture::resolver::in_part_of(kind, instance, self.body, seg);
-            let worn = wrap(own.name.clone());
-            // A part's own name is read at its instance; a name a
-            // family wraps, at the family that minted it.
-            let at = if worn == own.name {
-                instance
-            } else {
-                worn.node
-            };
-            fixture::read_at(at, worn)
+            match member {
+                Some((family, at)) => fixture::read_member(family, at, own.name),
+                None => fixture::read_at(instance, own.name),
+            }
         };
         fixture::corner_frame(
             name(EntityKind::Edge, RoleSeg::LateralEdge(self.corners[0])),
@@ -180,8 +177,8 @@ impl Cube {
 }
 
 /// **The seat**: one pin (FORK-S3O) equating the top's corner frame
-/// at its start cap with the copy's at its end cap (`copy` wraps the
-/// copy's part names), so the top stands on the copy flush, one unit up
+/// at its start cap with the copy's at its end cap (`copy`: the member
+/// of a family of the copy the seat reads, if any), so the top stands on the copy flush, one unit up
 /// the copy's own coordinates, whatever the copy's pose. Three plane
 /// mates (a rest and two walls) said it before the bundle rule, which
 /// refuses them.
@@ -189,15 +186,15 @@ fn seat(
     doc: ProfileDoc,
     top: RecipeNodeId,
     top_part: &Cube,
-    copy: impl Fn(StableName) -> StableName,
+    copy: Option<(RecipeNodeId, &[u32])>,
     copy_part: &Cube,
     copy_at: RecipeNodeId,
 ) -> (ProfileDoc, MateRef) {
     constrain(
         doc,
         fixture::frame_seat(
-            top_part.frame(top, CapEnd::Start, &|n| n),
-            copy_part.frame(copy_at, CapEnd::End, &copy),
+            top_part.frame(top, CapEnd::Start, None),
+            copy_part.frame(copy_at, CapEnd::End, copy),
             0.0,
             0.0,
         ),
@@ -226,13 +223,13 @@ fn four_legs(
     let o = with_resolver(store);
     let doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
     let (doc, leg) = insert_pinned(doc, crate::fixture::mated_instance(leg_part.doc_ref), &o);
-    let (doc, k, pattern) = fixture::linear(doc, leg, [1.0, 0.0, 0.0], spacing, 4);
+    let (doc, _k, pattern) = fixture::linear(doc, leg, [1.0, 0.0, 0.0], spacing, 4);
     let (doc, top) = insert(doc, fixture::mated_instance(top_part.doc_ref));
     let (doc, mate) = seat(
         doc,
         top,
         &top_part,
-        |n| in_copy(pattern, k, i, n),
+        Some((pattern, &[i][..])),
         &leg_part,
         leg,
     );
@@ -307,13 +304,13 @@ fn a_ring_member_rotates_the_solved_member() {
     let (doc, leg) = insert_pinned(doc, crate::fixture::mated_instance(leg_part.doc_ref), &o);
     let axis = axis_with(&doc, leg, [2.0, 0.0, 0.0], [0.0, 0.0, 1.0], &o);
     let theta = core::f64::consts::FRAC_PI_2;
-    let (doc, k, pattern) = fixture::circular(doc, leg, axis, theta, 4);
+    let (doc, _k, pattern) = fixture::circular(doc, leg, axis, theta, 4);
     let (doc, top) = insert(doc, fixture::mated_instance(top_part.doc_ref));
     let (doc, mate) = seat(
         doc,
         top,
         &top_part,
-        |n| in_copy(pattern, k, 1, n),
+        Some((pattern, &[1][..])),
         &leg_part,
         leg,
     );
@@ -377,7 +374,7 @@ fn mates_never_solve_a_familys_values() {
         doc,
         top,
         &top_part,
-        |n| in_copy(pattern, k, 1, n),
+        Some((pattern, &[1][..])),
         &leg_part,
         leg,
     );
@@ -437,9 +434,9 @@ fn a_second_plane_mate_on_one_copy_refuses_overconstrained_at_the_door() {
     let o = with_resolver(store);
     let doc = ProfileDoc::empty(DocumentId::derive("mate1-contra"), Tol::witness());
     let (doc, leg) = insert_pinned(doc, crate::fixture::mated_instance(leg_part.doc_ref), &o);
-    let (doc, k, pattern) = fixture::linear(doc, leg, [1.0, 0.0, 0.0], 2.0, 2);
+    let (doc, _k, pattern) = fixture::linear(doc, leg, [1.0, 0.0, 0.0], 2.0, 2);
     let (doc, top) = insert(doc, fixture::mated_instance(top_part.doc_ref));
-    let copy_end = head(in_copy(pattern, k, 1, leg_part.cap(leg, CapEnd::End)));
+    let copy_end = member_head(pattern, &[1], leg_part.cap(leg, CapEnd::End));
     let (doc, m0) = constrain(
         doc,
         rest(head(top_part.cap(top, CapEnd::Start)), copy_end.clone()),
@@ -485,14 +482,14 @@ fn out_of_vocabulary_member_heads_refuse_where_the_placement_evaluates() {
     let o = with_resolver(store);
     let doc = ProfileDoc::empty(DocumentId::derive("mate1-fence"), Tol::witness());
     let (doc, leg) = insert_pinned(doc, crate::fixture::mated_instance(leg_part.doc_ref), &o);
-    let (doc, k, pattern) = fixture::linear(doc, leg, [1.0, 0.0, 0.0], 2.0, 2);
+    let (doc, _k, pattern) = fixture::linear(doc, leg, [1.0, 0.0, 0.0], 2.0, 2);
     let (doc, top) = insert(doc, fixture::mated_instance(top_part.doc_ref));
     // Member 5 of a count-2 row: no such member.
     let (doc, mate) = constrain(
         doc,
         rest(
             head(top_part.cap(top, CapEnd::Start)),
-            head(in_copy(pattern, k, 5, leg_part.cap(leg, CapEnd::End))),
+            member_head(pattern, &[5], leg_part.cap(leg, CapEnd::End)),
         ),
     );
     let poses = solve(&doc, &o, Tol::witness());
@@ -519,8 +516,8 @@ fn one_copy_twice_is_not_on_the_copy() {
     let leg_part = cube(&mut store, "mate1-selfpair-leg");
     let doc = ProfileDoc::empty(DocumentId::derive("mate1-selfpair"), Tol::witness());
     let (doc, leg) = insert(doc, fixture::mated_instance(leg_part.doc_ref));
-    let (doc, k, pattern) = fixture::linear(doc, leg, [1.0, 0.0, 0.0], 1.0, 3);
-    let copy_end = || head(in_copy(pattern, k, 2, leg_part.cap(leg, CapEnd::End)));
+    let (doc, _k, pattern) = fixture::linear(doc, leg, [1.0, 0.0, 0.0], 1.0, 3);
+    let copy_end = || member_head(pattern, &[2], leg_part.cap(leg, CapEnd::End));
     let refusal = at_the_door_of(&doc, leg, rest(copy_end(), copy_end()));
     assert!(
         matches!(
@@ -547,13 +544,13 @@ fn sibling_members_of_one_instances_family_are_not_on_the_copy() {
     let leg_part = cube(&mut store, "mate1-siblings-leg");
     let doc = ProfileDoc::empty(DocumentId::derive("mate1-siblings"), Tol::witness());
     let (doc, leg) = insert(doc, fixture::mated_instance(leg_part.doc_ref));
-    let (doc, k, pattern) = fixture::linear(doc, leg, [1.0, 0.0, 0.0], 1.0, 3);
+    let (doc, _k, pattern) = fixture::linear(doc, leg, [1.0, 0.0, 0.0], 1.0, 3);
     let refusal = at_the_door_of(
         &doc,
         leg,
         rest(
-            head(in_copy(pattern, k, 0, leg_part.cap(leg, CapEnd::End))),
-            head(in_copy(pattern, k, 1, leg_part.cap(leg, CapEnd::End))),
+            member_head(pattern, &[0], leg_part.cap(leg, CapEnd::End)),
+            member_head(pattern, &[1], leg_part.cap(leg, CapEnd::End)),
         ),
     );
     assert!(

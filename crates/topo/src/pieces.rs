@@ -87,9 +87,9 @@ pub enum PieceSortError {
     },
     /// The point-in-solid walk refused at a witness of the shell other
     /// than in band, or no witness decided and one read in band (its
-    /// reading). No row reaches it: on the shells a verb builds today, a
-    /// walk that refuses here has refused that verb earlier, in its own
-    /// probes.
+    /// reading). A cylinder × sphere difference reaches it, the walk
+    /// refusing the result's chorded sphere face (`PartialSphereFace`;
+    /// `sweep/tests/cylinder_sphere_frame.rs`, `Door::Pieces`).
     Probe {
         /// The shell.
         shell: ShellKey,

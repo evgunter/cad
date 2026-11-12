@@ -2,7 +2,7 @@
 id: spiricarm
 kind: program
 title: SPIRICARM — the spiric and torus lanes: bands and rings with no lane, mirror tori, near-tangent ends, and the widths that grow with distance
-status: active
+status: ready
 opened: 2026-10-27
 group: kernel/props
 prefix: spiricarm/
