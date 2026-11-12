@@ -1460,6 +1460,11 @@ enum Ridge {
     Cone,
     /// The floor a ball's whole tangent plane, not a planar face's.
     BallFloor,
+    /// The ridge a hollow: its three faces turned over, the wall's
+    /// outward normal the floor's.
+    Hollow,
+    /// The wall leaving the floor across the tip at this angle.
+    Leaning(f64),
 }
 
 /// **A ridge's end on a wall tangent to its floor**, about `p`: the floor
@@ -1471,11 +1476,7 @@ enum Ridge {
 /// cap's arc edge along `+y′`. `how` varies it ([`Ridge`]).
 fn ridge_end<T: Decide>(p: Point3<T>, turn: f64, how: Ridge) -> Vec<TangentPiece<T>> {
     let (s, c) = turn.sin_cos();
-    let (x, y, z) = (
-        v::<T>(1.0, 0.0, 0.0),
-        v::<T>(0.0, c, s),
-        v::<T>(0.0, -s, c),
-    );
+    let (x, y, z) = (v::<T>(1.0, 0.0, 0.0), v::<T>(0.0, c, s), v::<T>(0.0, -s, c));
     let two = T::from_f64(2.0);
     let k = edges(3);
     let (tip, arc, up) = (k[0], k[1], k[2]);
@@ -1510,11 +1511,32 @@ fn ridge_end<T: Decide>(p: Point3<T>, turn: f64, how: Ridge) -> Vec<TangentPiece
         }
         _ => (upright_along(p, r, -1.0, z), true, 1.0 / r),
     };
+    // The wall's outward normal, and its arc edge's tangent, turned up
+    // off the floor about the tip.
+    let lean = match how {
+        Ridge::Leaning(phi) => phi,
+        _ => 0.0,
+    };
+    let (ls, lc) = lean.sin_cos();
+    let (out, along) = (
+        y * T::from_f64(ls) - x * T::from_f64(lc),
+        y * T::from_f64(lc) + x * T::from_f64(ls),
+    );
+    let wall = if lean == 0.0 {
+        wall
+    } else {
+        geom::Surface::Cylinder {
+            origin: p - out * T::from_f64(r),
+            axis: z,
+            radius: T::from_f64(r),
+            u_ref: out,
+        }
+    };
     let arc = Bound {
         edge: arc,
         line: false,
         circle: true,
-        bend: x * T::from_f64(bend),
+        bend: -out * T::from_f64(bend),
     };
     let tip_of_wall = if how == Ridge::CurvedTip {
         curve(tip, Vec3::zero())
@@ -1536,15 +1558,53 @@ fn ridge_end<T: Decide>(p: Point3<T>, turn: f64, how: Ridge) -> Vec<TangentPiece
     } else {
         whole(p, x)
     };
+    if how == Ridge::Hollow {
+        return vec![
+            corner_along(p, (wall, false), x, (y * two, z * two), [arc, tip_of_wall]),
+            floor,
+            corner_along(
+                p,
+                (plane(p, z), true),
+                z,
+                (x * two, y * two),
+                [line(up), arc],
+            ),
+            corner_along(
+                p,
+                (plane(p, y), true),
+                y,
+                (z * two, x * two),
+                [line(tip), line(up)],
+            ),
+        ];
+    }
     vec![
-        corner_along(p, (wall, sense), -x, (z * two, y * two), [tip_of_wall, arc]),
+        corner_along(
+            p,
+            (wall, sense),
+            out,
+            (z * two, along * two),
+            [tip_of_wall, arc],
+        ),
         floor,
-        corner_along(p, (plane(p, -z), true), -z, (y * two, x * two), [arc, line(up)]),
-        corner_along(p, (plane(p, -y), true), -y, (x * two, z * two), [line(up), line(tip)]),
+        corner_along(
+            p,
+            (plane(p, -z), true),
+            -z,
+            (along * two, x * two),
+            [arc, line(up)],
+        ),
+        corner_along(
+            p,
+            (plane(p, -y), true),
+            -y,
+            (x * two, z * two),
+            [line(up), line(tip)],
+        ),
     ]
 }
 
-/// **A sheet tangent to a planar face along a line is the void its bend
+/// **A sheet on a planar face along a line is the void its bend
 /// opens.** A ridge's end on a cylinder wall tangent to its floor
 /// ([`ridge_end`]) rests, whichever way its tip is turned about the
 /// floor's normal (the floor's fan need hold neither end of the wall's
@@ -1553,18 +1613,27 @@ fn ridge_end<T: Decide>(p: Point3<T>, turn: f64, how: Ridge) -> Vec<TangentPiece
 /// part from the floor at the arm (in band), though one twice the
 /// escalation off rests. A plane holding the tip's ray inside it, or one
 /// through the wedge's middle, does not rest. A wall whose tip is no
-/// line, a ball's face, and a ball's tangent plane for the floor are not
-/// read. Red where the pair is not found off the floor's own rays, the
+/// line, a ball's face, a ball's tangent plane for the floor, and a
+/// hollow ridge whose wall faces as the floor does are not read; a wall
+/// leaving the floor across its tip is no such pair, and rests at first
+/// order. Red where the pair is not found off the floor's own rays, the
 /// floor is not cut along the wall's edges, a sunk wall or one in band
 /// passes, a sheet through the tip's ray is not looked for, or a face
 /// that is not developable or a floor that is no plane is read.
-fn a_sheet_tangent_to_a_planar_face_along_a_line_is_the_void_its_bend_opens<T: Decide>() {
+fn a_sheet_on_a_planar_face_along_a_line_is_the_void_its_bend_opens<T: Decide>() {
     let unread = TouchVerdict::Unread(TouchUnread::Curved(CurvedUnread::Unreadable));
     let in_band = TouchVerdict::Unread(TouchUnread::InBand);
     let e = band().escalate();
     for p in apexes::<T>() {
         for turn in [0.0, 0.3, 1.0, 2.0, 3.5, 5.0] {
-            for (what, how) in [("a cylinder", Ridge::Rests(1.0)), ("a cone", Ridge::Cone)] {
+            for (what, how) in [
+                ("a cylinder", Ridge::Rests(1.0)),
+                ("a cone", Ridge::Cone),
+                (
+                    "a wall leaving the floor across its tip",
+                    Ridge::Leaning(0.4),
+                ),
+            ] {
                 let got = read(p, ridge_end(p, turn, how));
                 assert!(
                     matches!(got, TouchVerdict::Rest(_)),
@@ -1576,6 +1645,10 @@ fn a_sheet_tangent_to_a_planar_face_along_a_line_is_the_void_its_bend_opens<T: D
                 ("a curved tip", Ridge::CurvedTip),
                 ("a ball's face", Ridge::Ball),
                 ("a ball's tangent plane for the floor", Ridge::BallFloor),
+                (
+                    "a hollow ridge, its wall facing as the floor does",
+                    Ridge::Hollow,
+                ),
             ] {
                 assert_eq!(
                     read(p, ridge_end(p, turn, how)),
@@ -1603,7 +1676,11 @@ fn a_sheet_tangent_to_a_planar_face_along_a_line_is_the_void_its_bend_opens<T: D
             p,
             (v::<T>(1.0, 0.0, 0.0) + y) * T::from_f64(core::f64::consts::FRAC_1_SQRT_2),
         ));
-        assert_eq!(read(p, held), unread, "a plane holding the tip's ray at {p:?}");
+        assert_eq!(
+            read(p, held),
+            unread,
+            "a plane holding the tip's ray at {p:?}"
+        );
         let mut cut = ridge_end(p, 0.3, Ridge::Rests(1.0));
         cut.push(whole(
             p,
@@ -1618,13 +1695,13 @@ fn a_sheet_tangent_to_a_planar_face_along_a_line_is_the_void_its_bend_opens<T: D
 }
 
 #[test]
-fn a_sheet_tangent_to_a_planar_face_along_a_line_is_the_void_its_bend_opens_f64() {
-    a_sheet_tangent_to_a_planar_face_along_a_line_is_the_void_its_bend_opens::<f64>();
+fn a_sheet_on_a_planar_face_along_a_line_is_the_void_its_bend_opens_f64() {
+    a_sheet_on_a_planar_face_along_a_line_is_the_void_its_bend_opens::<f64>();
 }
 
 #[test]
-fn a_sheet_tangent_to_a_planar_face_along_a_line_is_the_void_its_bend_opens_interval() {
-    a_sheet_tangent_to_a_planar_face_along_a_line_is_the_void_its_bend_opens::<Interval>();
+fn a_sheet_on_a_planar_face_along_a_line_is_the_void_its_bend_opens_interval() {
+    a_sheet_on_a_planar_face_along_a_line_is_the_void_its_bend_opens::<Interval>();
 }
 
 /// `(x, y, z)` as a vector, unturned.

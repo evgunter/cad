@@ -1270,9 +1270,9 @@ names (`TouchUnread`):
   kissing balls at any pose included, `rest::first_order`); two sectors
   lying on each other where one is no plane and no lens or lune reads
   them (`rest::one_material`: a sheet on a whole tangent plane among
-  them, but the one tangent to a planar face along a line, below); a
-  sheet tangent to a planar face along a line whose ray another sector
-  holds inside it (`second_order::lenses`); a lens or lune whose bends do not decide
+  them, but one on a planar face along a line, below); a sheet on a
+  planar face along a line whose ray another sector holds inside it
+  (`second_order::lenses`); a lens or lune whose bends do not decide
   it (a pinch read off Zero, ends or middle read decided but disagreeing,
   a polar value Zero beside a curved pinch, a cap facing the wrong way,
   a face with no certified bend: `second_order::kind`), a sector in two
@@ -1491,33 +1491,35 @@ turned off a quarter from the other's the mouth falls inside a wedge,
 and the pair is refused undecided, in that pose only.
 
 The sector that runs on may also be a planar face's whole plane, the
-point inside the face, with a developable sheet (a cylinder's or a
-cone's) on it the other way round: **a sheet tangent to a planar face
-along a line** (`second_order::lenses`). `W` is the sheet's one wedge,
-and its two ends close as follows.
+point inside the face, with a curved sheet's one wedge `W` on it the
+other way round, bounded at one end by a line edge: **a sheet on a
+planar face along a line** (`second_order::lenses`). The ridge of a
+cylinder wall tangent to its floor along its tip ends so. `W`'s two ends
+close as follows.
 
-- A **tangent line**: the sheet is bounded there by a line edge. The
-  line lies in the plane as the faces keep it (first order's line edge
-  in a planar face's plane) and is a ruling of the sheet, whose tangent
-  plane is one along it. At `p` that plane is the planar face's, so the
-  two faces are tangent along the whole line, and `q` reads Zero along
-  it, as at a pinch of two lines on developable faces.
+- A **line**: the sheet is bounded there by a line edge. The line lies
+  in the plane as the faces keep it (first order's line edge in a planar
+  face's plane), so both faces hold it and `q` reads Zero along it
+  (Meusnier), as at a pinch of two lines. The plane runs on past it.
 - A **mouth** at the other end: the plane runs on past the sheet's edge
   there, and `b` reads decided, `σ`.
 
-The sheet's form is `κ(u·g)²`, `g` square to its ruling: one sign over
-all of `W`, zero along the line alone, so `b₁` reads Zero or `σ` and the
-sheets part over `W` as a lune's do. The remainder holds the plane less
-`W`, the rest of its turn from the mouth round to the line, bounded at
-each by the sheet's edge there. Cutting the plane along the line would
-hide a sheet that crosses it there, so no other sector may hold the
-line's ray inside it: such a link refuses. A sector bounded along the
-line leaves the plane at an angle `δ > 0` (in the plane it is a slit,
-a second pair or a sheet on a sheet, each refused), so it stands
-`t·tan δ` over a point `t` from the line where the lune is `κt²/2`
-thick, and does not enter it. Not read, and refused as sheets lying on
-each other: a sheet on a curved face's whole tangent plane, one whose
-both ends are mouths, and one that is not developable.
+`b₁` then reads as beside a pinch: `σ`, or Zero where the sheet is
+developable. A cylinder or a cone holds the line as a ruling, its
+tangent plane one along it and at `p` the planar face's, so the two
+faces are tangent along the whole line and the sheet's form is
+`κ(u·g)²`, `g` square to the ruling: one sign over all of `W`, zero
+along the line alone. So the sheets part over `W` as a lune's do. The
+remainder holds the plane less `W`, the rest of its turn from one end
+round to the other, bounded at each by the sheet's edge there. Cutting
+the plane along the line would hide a sheet that crosses it there, so no
+other sector may hold the line's ray inside it: such a link refuses. A
+sector bounded along the line leaves the plane at an angle `δ > 0` (in
+the plane it is a slit, a second pair or a sheet on a sheet, each
+refused), so it stands `t·tan δ` over a point `t` from the line where
+the lune is of order `t²` thick, and does not enter it. Not read, and
+refused as sheets lying on each other: a sheet on a curved face's whole
+tangent plane, and one neither of whose ends, or both, is a line.
 
 Two planar sectors on one plane holding a common area, a slit or a
 sheet doubled, are the faces' own geometry and no tie: two planes are

@@ -978,11 +978,7 @@ fn nappes_apart_or_nested_rest_where_their_kinds_alternate<T: Decide>() {
                 vec![n(20.0, 0.0, thorn), n(60.0, 60.0, thorn)],
             ),
         ] {
-            assert_eq!(
-                read(p, pieces),
-                TouchVerdict::Crossing,
-                "{what} at {p:?}"
-            );
+            assert_eq!(read(p, pieces), TouchVerdict::Crossing, "{what} at {p:?}");
         }
         assert_eq!(
             read(p, vec![n(30.0, 0.0, thorn), n(20.0, 90.0, needle)]),
@@ -1064,7 +1060,11 @@ fn two_nappes_in_band_of_each_other_refuse_in_band<T: Decide>() {
         assert_eq!(
             read(
                 p,
-                vec![n(20.0, -40.0, needle), n(30.0, 0.0, needle), whole(p, v(1.0, 0.0, 0.0))]
+                vec![
+                    n(20.0, -40.0, needle),
+                    n(30.0, 0.0, needle),
+                    whole(p, v(1.0, 0.0, 0.0))
+                ]
             ),
             TouchVerdict::Crossing,
             "a plane through the second nappe's axis at {p:?}"

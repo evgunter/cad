@@ -24,7 +24,7 @@ Each mutant below, run against
 |---|---|
 | T6: the next horn read in band → `Unreadable` | `second_order::thorns`' `next` (`crates/topo/src/link/second_order.rs:122`) |
 | T7: two rings in band of one ray → `Unreadable` | `thorns`' rays-apart check (`second_order.rs`, after the cycle loop) |
-| A4: a nappe's rulings in band of each other → `NoTangentPlane` | `rest::whole_nappe` (`crates/topo/src/link.rs`). Red only at 1e-12, on `Interval`, 1 km off |
+| A4: a nappe's rulings in band of each other → `NoTangentPlane` | `rest::whole_nappes` (`crates/topo/src/link.rs`). Red only at 1e-12, on `Interval`, 1 km off |
 | K1: a pinch's `b` in band → `Unreadable` | `second_order::kind` |
 | K4: a cap's facing in band → `Unreadable` | `second_order::kind` |
 | P2: a sheet's side in band → `Unreadable` | `second_order::parts` |

@@ -4817,9 +4817,7 @@ pub(crate) mod rest {
         let thorn = |k: usize| nappes[k].cone.material_inside();
         // A nappe nested in one of its own kind winds a third value.
         for (j, round) in inside.iter().enumerate() {
-            let least = round
-                .iter()
-                .find(|&&i| inside[i].len() + 1 == round.len());
+            let least = round.iter().find(|&&i| inside[i].len() + 1 == round.len());
             match least {
                 Some(&i) if thorn(i) == thorn(j) => return TouchVerdict::Crossing,
                 Some(_) => {}
@@ -4871,7 +4869,10 @@ pub(crate) mod rest {
                 None => refused = refused.or(Some(TouchUnread::InBand)),
             }
         }
-        refused.map_or(TouchVerdict::Rest(Rest { _sealed: () }), TouchVerdict::Unread)
+        refused.map_or(
+            TouchVerdict::Rest(Rest { _sealed: () }),
+            TouchVerdict::Unread,
+        )
     }
 
     /// One whole nappe of a link ([`whole_nappes`]): its face's cone, its
@@ -5340,7 +5341,8 @@ pub(crate) mod rest {
 
     /// **A tangent link whose lenses and lunes one order down are read**
     /// ([`super::second_order::lenses`]) over its remainder: its other
-    /// sectors, each sector a lune's wedge ends inside cut short there,
+    /// sectors, each sector a lune's wedge ends inside cut short there (a
+    /// whole plane less the wedge of a sheet tangent to it along a line),
     /// and its horns but the lunes' caps, each lens or lune cut out of the
     /// remainder's material (a void) or added to it (a sliver). The link
     /// rests where no other sector crosses a pair's wedge (a crossing,

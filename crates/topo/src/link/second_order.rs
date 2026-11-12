@@ -557,8 +557,9 @@ pub(super) enum Lens {
 
 /// **The link's lenses and lunes, one order down**: pairs of sectors on
 /// one wedge `W`, `W` the whole of one of them, `j`, and the first or
-/// last wedge of the other, `i`, taken the other way round, each end of
-/// `W` closing ([`Close`]), and not both planes (two planes on each other
+/// last wedge of the other, `i`, taken the other way round (or anywhere
+/// on `i` where it is a planar face's whole plane, [`along_a_line`]),
+/// each end of `W` closing ([`Close`]), and not both planes (two planes on each other
 /// are a slit, [`super::rest::one_material`]'s to refuse). Both ends
 /// pinches is a **lens**; a cap or a mouth at either end, a **lune**.
 /// Each pair's kind is read by [`kind`]. A candidate pair that does not
@@ -622,7 +623,7 @@ enum Close {
     Mouth,
     /// `j` is bounded there by a line edge lying in the planar face `i`'s
     /// plane, `i` running on past it ([`along_a_line`]): both faces hold
-    /// the line, and `j`, developable, is tangent to `i` along all of it.
+    /// the line, as at a pinch of two lines.
     Line,
 }
 
@@ -648,7 +649,7 @@ fn pair<T: Decide>(
         return None;
     }
     let Some([i0, i1]) = ti.bounds else {
-        return along_a_line(link, [i, j], rd);
+        return along_a_line(link, [i, j], ti.plane_exact, [j0, j1], rd);
     };
     // `j`'s two rays on two of `i`'s, on `i`'s plane, the other way round:
     // the two sectors lie on one plane, turned over, so their outward
@@ -728,30 +729,31 @@ fn pair<T: Decide>(
     }))
 }
 
-/// **The pair `(i, j)`, `j` a sheet tangent to the planar face `i` along
-/// a line** ([`pair`], which has read `j` one wedge `W` and not both
-/// planes): `i` a planar face's whole plane, `j` developable, `W` on
-/// `i`'s plane the other way round, one end of it a line edge of `j`
-/// ([`Close::Line`]) and the other a mouth. `None` where it is no such
-/// pair. No other sector may hold the line's ray inside it: cut along the
-/// line, `i` would no longer be read crossing it there
-/// ([`crate::CurvedUnread::Unreadable`]; a reading in band,
-/// [`TouchUnread::InBand`]). The remainder's sector is `i` less `W`, the
-/// rest of its turn, bounded by `j`'s edges. The argument:
-/// `crates/topo/README.md`, beside the lune's.
+/// **The pair `(i, j)`, `j` a sheet on the planar face `i`'s whole plane,
+/// bounded by a line in it** ([`pair`], which has read `i` with no bound,
+/// `j` one wedge `W` bounded by `j0` and `j1`, and the two not both
+/// planes): `i` a planar face (`plane_exact`), `W` on its plane the other
+/// way round, one end of it a line edge of `j` ([`Close::Line`]) and the
+/// other a mouth. `None` where it is no such pair. No other sector may
+/// hold the line's ray inside it: cut along the line, `i` would no longer
+/// be read crossing it there ([`crate::CurvedUnread::Unreadable`]; a
+/// reading in band, [`TouchUnread::InBand`]). The remainder's sector is
+/// `i` less `W`, the rest of its turn, bounded by `j`'s edges. The
+/// argument: `crates/topo/README.md`, beside the lune's.
 fn along_a_line<T: Decide>(
     link: &Link<T>,
     [i, j]: [usize; 2],
+    plane_exact: bool,
+    [j0, j1]: [Bound<T>; 2],
     rd: Reading<T>,
 ) -> Option<Result<OneWedge<T>, TouchUnread>> {
     let unread = TouchUnread::Curved(CurvedUnread::Unreadable);
     let p = link.cone.p;
     let (s, t) = (&link.cone.sectors[i], &link.cone.sectors[j]);
-    let (ti, tj) = (link.faces[i].tangent?, link.faces[j].tangent?);
-    let (Some([j0, j1]), &[(c, d)]) = (tj.bounds, t.wedges.as_slice()) else {
+    let &[(c, d)] = t.wedges.as_slice() else {
         return None;
     };
-    if !(s.closed && ti.plane_exact && developable(link, j)) {
+    if !plane_exact {
         return None;
     }
     // `W` runs from `c` round to `d` about `j`'s outward normal, and the
@@ -803,8 +805,8 @@ fn along_a_line<T: Decide>(
         },
         face: LinkFace {
             tangent: Some(Tangent {
+                plane_exact,
                 bounds: Some([j0, j1]),
-                ..ti
             }),
             ..link.faces[i].clone()
         },
@@ -832,11 +834,11 @@ fn developable<T: Decide>(link: &Link<T>, k: usize) -> bool {
 /// sheet past the first along the first's outward `m` is the quadratic
 /// form `q((1 − t)u₀ + t·u₁) = b₀(1 − t)² + 2b₁t(1 − t) + b₂t²`, `b₀ = q(u₀)`,
 /// `b₂ = q(u₁)`, `b₁` its polar value
-/// ([`crate::bound_side::FaceBend::section`], polarised). A pinch reads
-/// its `b` Zero; a cap or a mouth reads its `b` decided, one sign `σ` for
-/// all of them; `b₁`, as the gap it makes along the unit middle, reads
-/// `σ`, or Zero where every pinch is two lines on
-/// developable faces ([`developable`]); where no end is open, `b₁` alone
+/// ([`crate::bound_side::FaceBend::section`], polarised). A pinch or a
+/// line in the other's plane reads its `b` Zero; a cap or a mouth reads
+/// its `b` decided, one sign `σ` for all of them; `b₁`, as the gap it
+/// makes along the unit middle, reads `σ`, or Zero where every pinch is a
+/// line on developable faces ([`developable`]); where no end is open, `b₁` alone
 /// decides `σ` (a lens). Each sign is read at the arm with the two planes'
 /// parting along its ray charged. `σ` positive is a void, each sheet on
 /// the other's outward side, and a cap's horn must face into `W` for a
