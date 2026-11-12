@@ -5386,7 +5386,7 @@ where
         node,
         &crate::param_source::definitions_of(doc),
         &|var| doc.selection(var),
-        &|var| doc.pick(var),
+        &|var| doc.pick(doc.through_sources(var).read),
         &slot_values,
         &nominal_values,
         input.payload(),
@@ -5643,12 +5643,15 @@ mod tag {
         /// upstream list carries), `SELECTION` and its names, or
         /// `DEFINITION`, the arm ([`pose_arm`]), each read's role and
         /// tree in field order, then each scalar's value and its
-        /// nominal under [`slot`]'s `NOMINAL`.
+        /// nominal under [`slot`]'s `NOMINAL`; `SOURCE` for a source of a
+        /// member ([`crate::VarDef::Source`]), its number of indices and
+        /// each index's value.
         pose {
             READ = 1,
             OUTPUT = 2,
             SELECTION = 3,
             DEFINITION = 4,
+            SOURCE = 5,
         }
         /// A pose definition's arm ([`crate::pose::PoseDef`]).
         pose_arm retires [4, 8, 9] {

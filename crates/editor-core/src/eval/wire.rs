@@ -2235,7 +2235,7 @@ fn select_one<T: topo::AtRestPolicy + Decide>(
     };
     Ok((
         at,
-        resolve_in(name, doc, selection.body.read, &table, refuse)?,
+        resolve_in(name, doc, doc.selected_body(selection).read, &table, refuse)?,
     ))
 }
 
@@ -2347,14 +2347,18 @@ fn resolve_selection<K: names::interrogate::Denoted>(
         .iter()
         .enumerate()
         .map(|(reference, name)| {
-            ladder::resolve_key(name, doc, selection.body.read, table, |error| {
-                NodeErrorKind::SelectResolve {
+            ladder::resolve_key(
+                name,
+                doc,
+                doc.selected_body(selection).read,
+                table,
+                |error| NodeErrorKind::SelectResolve {
                     slot,
                     var,
                     reference,
                     error,
-                }
-            })
+                },
+            )
         })
         .collect::<Result<_, _>>()?;
     Ok(Selected {
@@ -3000,12 +3004,12 @@ pub(super) fn selection_member<T: Decide>(
     select: &crate::var::Select,
     params: &crate::expr::VarEnv<T>,
 ) -> Result<Option<(RecipeNodeId, Vec<i64>)>, NodeErrorKind> {
-    if !select.body.is_indexed() {
+    let body = doc.selected_body(select);
+    if !body.is_indexed() {
         return Ok(None);
     }
-    let family = super::read_at(doc, slot, select.body.read)?;
-    let at = select
-        .body
+    let family = super::read_at(doc, slot, body.read)?;
+    let at = body
         .at
         .iter()
         .enumerate()
@@ -3017,6 +3021,25 @@ pub(super) fn selection_member<T: Decide>(
         })
         .collect::<Result<Vec<i64>, _>>()?;
     Ok(Some((family, at)))
+}
+
+/// **The index values of a source's member read** (VARIABLES VR4), each
+/// `Count` evaluated under `params`.
+fn source_indices<T: Decide>(
+    seat: crate::OperandSlot,
+    body: &crate::BodyRead<crate::VarId>,
+    params: &crate::expr::VarEnv<T>,
+) -> Result<Vec<i64>, NodeErrorKind> {
+    body.at
+        .iter()
+        .enumerate()
+        .map(|(k, &index)| {
+            crate::expr::eval_var_count(index, params).map_err(|source| NodeErrorKind::Expr {
+                slot: SlotId::Index { seat, k },
+                source,
+            })
+        })
+        .collect()
 }
 
 /// **The place of the member a selection's body read picks** among its
@@ -3122,9 +3145,14 @@ fn reads_projected<T: topo::AtRestPolicy + Decide>(
 ) -> Result<Option<Results<T>>, NodeErrorKind> {
     let mut replaced: Vec<(RecipeNodeId, u32, super::NodeValue<T>)> = Vec::new();
     for &(seat, row) in rows {
-        // A selection is read in the body it states.
+        // A selection is read in the body it states, and a source as the
+        // body it reads: a member read of a source by its own indices.
         let select = doc.selection(row);
-        let var = select.map_or(row, |select| select.body.read);
+        let sourced = match select {
+            Some(select) => doc.selected_body(select),
+            None => doc.through_sources(row),
+        };
+        let var = sourced.read;
         if let Some(pick) = doc.pick(var) {
             let placement = super::read_at(doc, seat, var)?;
             let indexed = node
@@ -3143,6 +3171,10 @@ fn reads_projected<T: topo::AtRestPolicy + Decide>(
         // selection's, by its own indices.
         let member = match select {
             Some(select) => selection_member(doc, seat, select, params)?,
+            None if sourced.is_indexed() => Some((
+                super::read_at(doc, seat, var)?,
+                source_indices(seat, &sourced, params)?,
+            )),
             None => match node.body_read(seat).filter(|read| read.is_indexed()) {
                 Some(read) => Some((
                     super::read_at(doc, seat, var)?,
@@ -3305,7 +3337,7 @@ pub(super) fn project_selection<T: topo::AtRestPolicy + Decide>(
                 &at,
             )?],
         )),
-        None => project_ports(&[select.body.read], doc, results),
+        None => project_ports(&[doc.selected_body(select).read], doc, results),
     }
 }
 

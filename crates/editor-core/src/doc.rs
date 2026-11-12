@@ -1129,6 +1129,7 @@ impl<P> Doc<P> {
             crate::Operand::Var(var) => self.space_of(*var),
             crate::Operand::Name(name) => self.space_of(self.var_named(name.as_str())?),
             crate::Operand::Select { body, .. } => self.operand_space(&body.read),
+            crate::Operand::Source(body) => self.operand_space(&body.read),
             crate::Operand::Pick { placement, .. } => self.operand_space(placement),
             crate::Operand::Pose(def) => def
                 .reads()
@@ -1364,6 +1365,11 @@ impl<P> Doc<P> {
                     .collect();
             }
             Some(VarDef::Pick(pick)) => return vec![pick.placement],
+            Some(VarDef::Source(body)) => {
+                return core::iter::once(body.read)
+                    .chain(body.at.iter().copied())
+                    .collect();
+            }
             Some(VarDef::Pose(def)) => {
                 let mut out: Vec<VarId> = def.reads().into_iter().map(|(_, &r, _, _)| r).collect();
                 out.extend(def.scalars().into_iter().map(|(_, &s)| s));
@@ -1940,12 +1946,60 @@ impl<P> Doc<P> {
     /// **The operation `var` is an output of** ([`Self::defined_by`]
     /// without the port).
     /// A pick ([`VarDef::Pick`]) is its placement's piece, so the
-    /// operation it depends on is the placement's.
+    /// operation it depends on is the placement's; a source
+    /// ([`VarDef::Source`]) reads its body, so it depends on the body's.
     pub fn operation_of(&self, var: VarId) -> Option<RecipeNodeId> {
-        match self.pick(var) {
-            Some(pick) => self.operation_of(pick.placement),
-            None => self.defined_by(var).map(|(node, _)| node),
+        if let Some(pick) = self.pick(var) {
+            return self.operation_of(pick.placement);
         }
+        if let Some(body) = self.source(var) {
+            return self.operation_of(body.read);
+        }
+        self.defined_by(var).map(|(node, _)| node)
+    }
+
+    /// **The body read the source `var` is defined by**, if it is one
+    /// ([`VarDef::Source`]).
+    pub fn source(&self, var: VarId) -> Option<&crate::BodyRead<VarId>> {
+        self.vars.get(&var)?.def().source()
+    }
+
+    /// **What a read reaches through sources**: `var` itself where it is
+    /// no source, else the body read the source reads, down every plain
+    /// read of a further source (`spare = bracket`, `bracket = B` reaches
+    /// `B`). A member read of a source stops there: it is that family's
+    /// member. A cycle, which no door admits, stops where it repeats.
+    pub fn through_sources(&self, var: VarId) -> crate::BodyRead<VarId> {
+        let mut at = crate::BodyRead::plain(var);
+        let mut seen = BTreeSet::new();
+        while !at.is_indexed()
+            && seen.insert(at.read)
+            && let Some(body) = self.source(at.read)
+        {
+            at = body.clone();
+        }
+        at
+    }
+
+    /// **The body a selection's names are read in, through sources**: a
+    /// member read as written, a plain read as [`Self::through_sources`]
+    /// answers, so a mate's side selecting a source (`bracket.top`) reads
+    /// the body the source reads.
+    pub fn selected_body(&self, select: &crate::var::Select) -> crate::BodyRead<VarId> {
+        match select.body.is_indexed() {
+            true => select.body.clone(),
+            false => self.through_sources(select.body.read),
+        }
+    }
+
+    /// **The sources whose definitions read `var` directly**, in id
+    /// order: what re-pointing the placements of `var`'s body redefines.
+    pub fn sources_of(&self, var: VarId) -> Vec<VarId> {
+        self.vars
+            .iter()
+            .filter(|(_, held)| held.def().source().is_some_and(|body| body.read == var))
+            .map(|(&id, _)| id)
+            .collect()
     }
 
     /// **Whether the body `var` reads reaches an instance** — its
@@ -2115,6 +2169,12 @@ impl<P> Doc<P> {
             VarDef::Output { node, port } => Some((*node, *port)),
             VarDef::Select(select) => self.defined_by(select.body.read),
             VarDef::Pick(pick) => self.defined_by(pick.placement),
+            // A source reaches what it reads: through another source, to
+            // the operation defining the body.
+            VarDef::Source(body) => {
+                self.push_read_ports(body.read, out, seen);
+                None
+            }
             VarDef::Pose(def) => {
                 for (_, &read, _, _) in def.reads() {
                     self.push_read_ports(read, out, seen);
@@ -2146,6 +2206,7 @@ impl<P> Doc<P> {
                 .is_none()
                 .then_some(select.body.read),
             VarDef::Pick(pick) => self.unresolved_read(pick.placement),
+            VarDef::Source(body) => self.unresolved_read(body.read),
             VarDef::Pose(def) => def
                 .reads()
                 .into_iter()
@@ -2791,6 +2852,7 @@ impl<P> Doc<P> {
                 | crate::VarDef::Select(_)
                 | crate::VarDef::Pose(_)
                 | crate::VarDef::Pick(_)
+                | crate::VarDef::Source(_)
                 | crate::VarDef::Index(_) => None,
             }
         })
@@ -3435,8 +3497,10 @@ impl<'d, P: crate::program::SlotPayload<VarId>> SpaceWalk<'d, P> {
             _ if space_definer(held).is_some() => None,
             VarDef::Output { node, .. } => self.node(*node),
             VarDef::Select(select) => self.var(select.body.read),
-            // A piece of a copy is where the copy is.
+            // A piece of a copy is where the copy is, and a source where
+            // the body it reads is.
             VarDef::Pick(pick) => self.var(pick.placement),
+            VarDef::Source(body) => self.var(body.read),
             // A pose is in the first space it reaches.
             VarDef::Pose(_) => self.reached_all([var]).first().copied(),
             VarDef::Free(_) | VarDef::Defined(_) | VarDef::Index(_) => None,

@@ -718,9 +718,15 @@ fn remap_with_selects(
     // id, and the insert reads it as the variable authored afresh in
     // the target (or as the one an earlier reader carried).
     let pose = |var: VarId| pose_def(source, var).is_some();
+    // A source crosses with its reader as a selection does: its body
+    // read is carried, down any source it reads.
+    let sourced = |slot: crate::OperandSlot, var: VarId| {
+        rd_output(slot, source.through_sources(var).read).map(|_| var)
+    };
     let rd = |slot: crate::OperandSlot, var: VarId| match source.selection(var) {
         Some(select) => rd_output(slot, select.body.read).map(|_| var),
         None if pose(var) => Ok(var),
+        None if source.source(var).is_some() => sourced(slot, var),
         None => rd_output(slot, var),
     };
     let carried = remap_node(node, &rd)?;
@@ -818,6 +824,11 @@ fn remap_with_selects(
             );
             continue;
         }
+        if source.source(var).is_some() {
+            let operand = resourced(source, vars, slot, var, &rd_output, &mapped)?;
+            selects.insert(var, operand);
+            continue;
+        }
         if source.selection(var).is_none() {
             continue;
         }
@@ -828,6 +839,35 @@ fn remap_with_selects(
         selects.insert(var, operand);
     }
     Ok((carried, selects))
+}
+
+/// **The source `var` as a carried reader reads it**: the one an
+/// earlier reader carried, or its definition written again in place
+/// (VARIABLES VR4), its body read carried — an output by the carry, a
+/// further source the same way — and a member read's indices written
+/// as the source wrote them and re-pointed.
+fn resourced(
+    source: &ProfileDoc,
+    vars: &VarCarry<'_>,
+    slot: crate::OperandSlot,
+    var: VarId,
+    rd_output: &impl Fn(crate::OperandSlot, VarId) -> Result<VarId, RemapMiss>,
+    mapped: &impl Fn(crate::OperandSlot, VarId, Formula) -> Result<Formula, RemapMiss>,
+) -> Result<crate::Operand, RemapMiss> {
+    if let Some(&held) = vars.map.get(&var) {
+        return Ok(crate::Operand::Var(held));
+    }
+    let Some(body) = source.source(var) else {
+        return rd_output(slot, var).map(crate::Operand::Var);
+    };
+    let read = resourced(source, vars, slot, body.read, rd_output, mapped)?;
+    let at = source
+        .written_body(body, read.clone())
+        .at
+        .into_iter()
+        .map(|index| mapped(slot, var, index))
+        .collect::<Result<Vec<_>, _>>()?;
+    Ok(crate::Operand::source(crate::BodyRead::indexed(read, at)))
 }
 
 /// **Each selection and pose a carried edit minted stands for its
@@ -864,7 +904,7 @@ fn name_selections(
                     .collect();
                 pairs.extend(inner.into_iter().rev());
             }
-            _ if source.selection(from).is_some() => {}
+            _ if source.selection(from).is_some() || source.source(from).is_some() => {}
             _ => continue,
         }
         vars.map.insert(from, to);
@@ -1804,6 +1844,8 @@ impl core::fmt::Display for ReplayTail<'_> {
             | EditError::FreshUnread { .. }
             | EditError::VarKindFixed { .. }
             | EditError::Index { .. }
+            | EditError::SourceRead { .. }
+            | EditError::PlacementReadsNoSource { .. }
             | EditError::IndicesUnrelated { .. }
             | EditError::NotAFreeVar { .. }
             | EditError::VarIsAnOutput { .. }
@@ -2531,6 +2573,9 @@ impl<'s> VarCarry<'s> {
             VarDef::Pick(_) => {
                 unreachable!("a pick crosses with its reader, minted by the target's insert")
             }
+            VarDef::Source(_) => {
+                unreachable!("a source crosses with its reader, minted by the target's insert")
+            }
             VarDef::Pose(_) => {
                 unreachable!("a pose crosses with its reader, minted by the target's insert")
             }
@@ -2594,7 +2639,10 @@ impl<'s> VarCarry<'s> {
         let minted = if carried.anonymous.is_empty() {
             target.declare(name, decl)?
         } else {
-            let minted = target.declare(name, VarDecl::Free(placeholder(decl.dim())))?;
+            let Some(dim) = decl.dim() else {
+                unreachable!("a source crosses with its reader, never declared by the carry")
+            };
+            let minted = target.declare(name, VarDecl::Free(placeholder(dim)))?;
             let record = target.apply_recorded(DocEdit::DefineVar {
                 var: minted.into(),
                 def: decl,
@@ -3340,11 +3388,9 @@ pub fn split(
     // anonymous one, and a pose, crosses with the first carried edit
     // that reads it (`VarCarry`).
     let mut vars = VarCarry::new(doc);
-    for id in doc
-        .definition_order()
-        .into_iter()
-        .filter(|id| moving.contains(id) && pose_def(doc, *id).is_none())
-    {
+    for id in doc.definition_order().into_iter().filter(|id| {
+        moving.contains(id) && pose_def(doc, *id).is_none() && doc.source(*id).is_none()
+    }) {
         if let Some(name) = doc.var_name(id) {
             vars.declare(&mut part, id, name.clone())
                 .map_err(part_refused)?;
@@ -4126,6 +4172,10 @@ pub fn inline(
         // An output crosses with its node (`carry`), and a pose with
         // its first reader.
         if part.var(id).is_some_and(|var| var.def().output().is_some()) {
+            continue;
+        }
+        // A source crosses with its first reader, as a selection does.
+        if part.source(id).is_some() {
             continue;
         }
         if pose_def(&part, id).is_some() {

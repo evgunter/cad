@@ -1165,11 +1165,15 @@ fn edit_non_finite(snapshot: &ProfileDoc, edit: &DocEdit<ProfileProgram>) -> Opt
         // A definition's floats are its expression's literals, finite
         // by the construction door.
         | DocEdit::DeclareVar {
-            def: crate::var::VarDecl::Defined(_) | crate::var::VarDecl::Index { .. },
+            def: crate::var::VarDecl::Defined(_)
+                | crate::var::VarDecl::Index { .. }
+                | crate::var::VarDecl::Source(_),
             ..
         }
         | DocEdit::DefineVar {
-            def: crate::var::VarDecl::Defined(_) | crate::var::VarDecl::Index { .. },
+            def: crate::var::VarDecl::Defined(_)
+                | crate::var::VarDecl::Index { .. }
+                | crate::var::VarDecl::Source(_),
             ..
         }
         // A notation is a table code, not a float.

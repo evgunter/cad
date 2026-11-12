@@ -414,6 +414,12 @@ fn handed<P: crate::ProfilePayload>(
                 }),
             )
         }
+        Operand::Source(body) => Ok(handed(doc, dead, &body.read, at)?.map(|read| {
+            Operand::Source(Box::new(crate::BodyRead {
+                read,
+                at: body.at.clone(),
+            }))
+        })),
     }
 }
 
