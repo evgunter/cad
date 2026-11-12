@@ -2431,17 +2431,6 @@ impl<T: Real> BooleanReduction<T> {
             .iter()
             .position(|r| r.operand == pierced && r.pierces.contains(&vertex))
     }
-
-    /// Whether two pierce sites are served by one ring
-    /// ([`PierceRingRecord::pierces`]).
-    pub(crate) fn one_ring(&self, a: PairSite, b: PairSite) -> bool {
-        let ring = |site| match site {
-            PairSite::VertexAOnFaceB(c) => self.ring_of(Operand::B, c.vertex),
-            PairSite::VertexBOnFaceA(c) => self.ring_of(Operand::A, c.vertex),
-            _ => None,
-        };
-        ring(a).is_some_and(|r| ring(b) == Some(r))
-    }
 }
 
 /// **Whether two points are one vertex** (`bool_contact_vertex`, the
@@ -2713,6 +2702,22 @@ pub enum SectorRead {
     /// The vertex-vertex pass that pairs the vertex with this vertex of
     /// the other operand.
     Pair(VertexKey),
+}
+
+/// Why the pairs at a shared vertex took no choice of starts
+/// ([`BooleanError::SharedVertexCrossings`]).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum SharedStarts {
+    /// Every choice of the pairs' starts leaves a run holding another
+    /// pair's cut: a pair's curve with partner curves on both of its
+    /// sides.
+    NoneClear,
+    /// More crossing pairs share the vertex than the choice reads
+    /// (`insert::CHOICE_PAIRS`), and none was read.
+    TooMany {
+        /// How many crossing pairs share it.
+        pairs: usize,
+    },
 }
 
 /// How a partner whose link runs along a touched face meets it where
@@ -3590,9 +3595,9 @@ pub enum BooleanError {
         /// What was wrong.
         what: &'static str,
     },
-    /// The 15.11 consecutive-pairing invariant failed: two of A's
-    /// consecutive crossing-record pairs cross in B's walk order, or a
-    /// run's codes disagree at its two ends — readings no two simple
+    /// The 15.11 consecutive-pairing invariant failed: two of the
+    /// lead's consecutive crossing-record pairs cross in a solid's walk
+    /// order, or a run's codes disagree at its two ends — readings no two simple
     /// links round one point give (F12's guarded refusal — see
     /// `insert`).
     ///
@@ -3607,18 +3612,17 @@ pub enum BooleanError {
     /// there, in a way the insertion cannot place: an operand holds
     /// several vertices at one point (its own contact's) and the other
     /// operand's vertex there crosses into more than one of their
-    /// neighborhoods, and one pair has no run in the shared vertex's
-    /// orbit that holds none of another pair's cuts: a null edge both
-    /// of whose ways round hold one (`insert::reconcile_shared`). A
-    /// dangling null edge whose segment holds another's whole builds:
-    /// the inner hangs at its tip, and of two with one segment the Out
-    /// one holds (`insert::holds_whole`).
-    /// It also refuses where a run the shared vertex turned and a run of
-    /// its own pair that held it would together cover the orbit, so
-    /// neither can hang from the other (`insert::arc_holders`): a
-    /// backstop no known pose reaches. Emitted
-    /// by the insertion only: `insert::reconcile_pass` and
-    /// `insert::hang_at_shared`.
+    /// neighborhoods, and no choice of the pairs' starts leaves every
+    /// run in the shared vertex's orbit clear of the other pairs' cuts
+    /// (`insert::reconcile_shared`): [`SharedStarts::NoneClear`]. That
+    /// needs a pair's curve with other curves on both of its sides:
+    /// three nested cones of one operand at an apex, or a shell beside a
+    /// separate piece. No known pose reaches it. Or more crossing pairs
+    /// share the vertex than the choice reads (`insert::CHOICE_PAIRS`):
+    /// [`SharedStarts::TooMany`], which no known pose reaches either. A dangling null edge whose segment holds
+    /// another's whole builds: the inner hangs at its tip, and of two
+    /// with one segment the Out one holds (`insert::holds_whole`).
+    /// Emitted by the insertion only.
     ///
     /// A limit: an insertion not built (row 2).
     SharedVertexCrossings {
@@ -3628,10 +3632,14 @@ pub enum BooleanError {
         /// sweep may have minted on one of its edges.
         vertex: VertexKey,
         /// Two of the other operand's vertices at its point that it
-        /// crosses into, in classification order: the first two, when
-        /// it crosses into more. Keys of the other operand's working
-        /// copy, as `vertex` is.
+        /// crosses into: the partner of the pair whose plan the refusal
+        /// read first, and the partner of the pair whose cut blocks it
+        /// under the kept starts. Under [`SharedStarts::TooMany`] no
+        /// choice was read, and both are the first. Keys of the other
+        /// operand's working copy, as `vertex` is.
         partners: [VertexKey; 2],
+        /// Why no choice of starts was taken.
+        why: SharedStarts,
     },
     /// The operands meet along a ray where one or both hold coincident
     /// edges, pieces of that operand touching along it (a contact line),
@@ -7256,11 +7264,21 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
             });
         }
     }
+    let crossing: Vec<bool> = classified
+        .iter()
+        .map(|(_, _, _, records, ..)| records.iter().any(sectors::PairRecord::survives))
+        .collect();
+    let leads = insert::pairing_leads(
+        &classified.iter().map(|(c, ..)| *c).collect::<Vec<_>>(),
+        &crossing,
+    );
     let mut plans = classified
         .iter()
-        .map(|(c, a_sectors, b_sectors, records, raw, _)| {
+        .zip(leads)
+        .map(|((c, a_sectors, b_sectors, records, raw, _), lead)| {
             insert::plan_null_pairs(
-                &a, &b, *c, a_sectors, b_sectors, records, raw, &declared, &contacts, op, band,
+                &a, &b, *c, a_sectors, b_sectors, records, raw, &declared, &contacts, op, lead,
+                band,
             )
         })
         .collect::<Result<Vec<_>, _>>()?;
@@ -9835,6 +9853,7 @@ mod tests {
                 operand: Operand::B,
                 vertex: VertexKey::default(),
                 partners: [VertexKey::default(); 2],
+                why: SharedStarts::NoneClear,
             },
             BooleanError::PinchRaysInAFace {
                 operand: Operand::A,

@@ -272,10 +272,10 @@ fn eps_row(eps: f64) -> usize {
 /// 9809, `Plain/Assertion` 2861 → 2807, `Early/Assertion` 4295 → 4235,
 /// with the same calls; `Early/Decision` does not move.
 ///
-/// **Moved with the constructors' whole-wedge reads**: the extrude and revolve read each edge they
-/// write by its whole wedge (the fold tier 3's check 4 reads), the arm, the wedge and a corner's
-/// sign at each of the edge's 7 interior stations, where they read the class at one witness.
-/// `Plain/Assertion` and
+/// **Moved with the constructors' whole-wedge reads**: the extrude and
+/// revolve read each edge they write by its whole wedge, the arm, the
+/// wedge and a corner's sign at each of its 7 interior stations, where
+/// they read the class at one witness. `Plain/Assertion` and
 /// `Early/Assertion` 532 → 988 calls (2807 → 3503 and 4235 → 4931
 /// forms), `Plain/Decision` 9809 → 9765 forms over the same calls.
 const SLAB_LEDGER: [&str; 3] = [
@@ -403,8 +403,14 @@ const SLAB_LEDGER: [&str; 3] = [
 /// and 372 → 360, `Early/Decision` 9399 → 9117 and 8 → 0,
 /// `Early/Assertion` 4860 → 4831; every digest but `Door/Assertion`'s
 /// and the `Report` lines' moves. The slab, a polygon, does not move.
+///
+/// **When a stated harmonic image came to be bounded by its residual's
+/// coefficients** rather than metered at the nine samples, the plate's
+/// largest form grew 38 → 46 terms: the bound's coefficient sum over the
+/// residual's slots, built once per stated image, is larger than any one
+/// sample's residual. The ledger's moves are on [`PLATE_LEDGER`].
 const SLAB_MAX_TERMS: usize = 6;
-const PLATE_MAX_TERMS: usize = 38;
+const PLATE_MAX_TERMS: usize = 46;
 
 /// The plate's walk ledger at its nominal — one row, because the
 /// plate's nominal reads no ε (its dimensions are literals, not
@@ -442,20 +448,26 @@ const PLATE_MAX_TERMS: usize = 38;
 /// 1189) and the nine forms they built (55907 → 55898). No other line
 /// moves.
 ///
-/// **Moved with the constructors' whole-wedge reads**: the extrude and revolve read each edge they
-/// write by its whole wedge (the fold tier 3's check 4 reads), the arm, the wedge and a corner's
-/// sign at each of the edge's 7 interior stations, where they read the class at one witness. The
-/// assertions
-/// 824 → 1204 calls on both walks (`Plain` 9114 → 13467 forms, frozen
-/// 193 → 301; `Early` 10519 → 14872), `Door/Decision` 557 → 709 calls
-/// (13458 → 16776 forms), and `Plain/Decision` and `Early/Decision`
-/// keep their calls over fewer forms (55898 → 55186, 42505 → 41833).
+/// **Moved with the closed-form bound** (a stated harmonic image bounded
+/// over its span by its residual's coefficients, not metered at the nine
+/// samples): each of the two stated images' nine `pcurve_map_residual`
+/// decisions become one `pcurve_closed_bound`, so `Plain/Decision` calls
+/// 1189 → 1173 (forms 55898 → 55696) and `Early/Decision` 412 → 396
+/// (forms 42505 → 42225); `Early/Assertion` builds 10519 → 10543 forms.
+/// Nothing new freezes.
+///
+/// **Moved with the closed-form bound's slack** (`closed_bound.rs`
+/// `Residual::bound` is `sum / floor + slack`, the slack a unit sign's or a
+/// whole rate's residue, zero on a harmonic): each of the two stated
+/// images' bound builds one more form, its `+ 0`, so `Plain/Decision`
+/// forms 55696 → 55698 and `Early/Decision` 42225 → 42227, at the same
+/// calls. Nothing new freezes and no decision moves.
 const PLATE_LEDGER: &str = "\
-     Plain/Decision calls 1189 forms 55186 frozen 66 digest ac064c3e836a4721fac8b2b65fbca70f\n\
-     Plain/Assertion calls 1204 forms 13467 frozen 301 digest b23c1296d6d8943cdf1f8a579576a4c4\n\
-     Early/Decision calls 412 forms 41833 frozen 0 digest 3ab21ef7f87df5c369299532e304633d\n\
-     Early/Assertion calls 1204 forms 14872 frozen 0 digest 194827b821306f22ddb74e82e75a23a9\n\
-     Door/Decision calls 709 forms 16776 frozen 0 digest 2227ef10ee2bae6013584e7a8d7cf591";
+     Plain/Decision calls 1173 forms 55698 frozen 66 digest c7e403c2d84a55c49998984184e13408\n\
+     Plain/Assertion calls 824 forms 9114 frozen 193 digest dd673bfb67b01ff645a83264700b9100\n\
+     Early/Decision calls 396 forms 42227 frozen 0 digest a66f68b7a07cb987c38c6d5efe2d422b\n\
+     Early/Assertion calls 824 forms 10543 frozen 0 digest b0a635156255a9c708a608454ac55ae1\n\
+     Door/Decision calls 557 forms 13458 frozen 0 digest def6998cc3dfb007c479d6625f9c680e";
 
 /// **What the walks BUILD is pinned, not only what the tier decides.**
 /// For the slab and the plate at their nominals, every (walk, origin)

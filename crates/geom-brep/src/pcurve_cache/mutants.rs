@@ -24,7 +24,7 @@ const NAME: Option<&str> = option_env!("PCERT_RADIAL_PAIR_MUTANT");
 
 /// Every site this crate's hooks name. topo's `chord_join` declares its
 /// own one (`topo-v-var`) under the same variable.
-pub(super) const SITES: [&str; 44] = [
+pub(super) const SITES: [&str; 52] = [
     "class-circle",
     "zero-winding",
     "torus-parallel",
@@ -65,6 +65,14 @@ pub(super) const SITES: [&str; 44] = [
     "arc-rim-weight-unpaid",
     "arc-rim-span-unpaid",
     "arc-rim-tangent-under",
+    "closed-image-sampled",
+    "stated-station-computed",
+    "stated-station-mirrored",
+    "patch-remainder-dropped",
+    "focal-floor-single",
+    "spiric-floor-major",
+    "spiric-copy-divisor-high",
+    "closed-sup-half-span",
     "stated-image-sampled",
     "net-bound-sampled",
     "general-image-class-gate",
@@ -339,6 +347,55 @@ pub(super) fn net_bound_sampled() -> bool {
 /// rows are `pcurve_cache::analytic_image_rows`).
 pub(crate) fn analytic_image_sampled() -> bool {
     on("analytic-image-sampled")
+}
+
+/// A closed-form image stated on an analytic chart metered at the edge
+/// certificate's samples again, not bounded by its residual's
+/// coefficients (its rows are `pcurve_cache::closed_image_rows`).
+pub(crate) fn closed_image_sampled() -> bool {
+    on("closed-image-sampled")
+}
+
+/// A stated image's schedule read at stations computed at the scalar,
+/// not held (its row is `analytic_image_rows::a_cone_image_at_a_steep_sample_certifies`).
+pub(crate) fn stated_station_computed() -> bool {
+    on("stated-station-computed")
+}
+
+/// A stated image's held schedule run backwards over its outer ends
+/// (its row is `analytic_image_rows::a_stated_images_stations_are_the_schedules_at_f64`).
+pub(crate) fn stated_station_mirrored() -> bool {
+    on("stated-station-mirrored")
+}
+
+/// The enclosing patch's controls without their Lagrange remainder (its
+/// row is `closed_image_rows::an_enclosing_patch_holds_its_chart`).
+pub(super) fn patch_remainder_dropped() -> bool {
+    on("patch-remainder-dropped")
+}
+
+/// A focal section's multiplier floor read `1 − |β|`, not its square
+/// (`closed_image_rows::each_floor_is_its_multipliers_least_value`).
+pub(super) fn focal_floor_single() -> bool {
+    on("focal-floor-single")
+}
+
+/// A spiric wall's multiplier floor read `R`, not `R − r` (the same row).
+pub(super) fn spiric_floor_major() -> bool {
+    on("spiric-floor-major")
+}
+
+/// A spiric copy's `f_i − f_c` divisor read `2·sup f_c`, not
+/// `inf f_i + inf f_c` (the same row, and
+/// `closed_image_rows::a_spiric_copy_moved_in_band_is_certified_only_within_it`).
+pub(super) fn spiric_copy_divisor_high() -> bool {
+    on("spiric-copy-divisor-high")
+}
+
+/// A closed form's coefficient bound read over half its span
+/// (`closed_image_rows::a_closed_forms_bound_holds_its_dense_miss`).
+pub(super) fn closed_sup_half_span() -> bool {
+    on("closed-sup-half-span")
 }
 
 /// A lane choice's envelope refusal left as the envelope's own (a bound

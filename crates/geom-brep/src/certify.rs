@@ -286,7 +286,7 @@ pub enum CertCheck {
     /// **A stated chart image's miss from its carrier**,
     /// `|C(t) − S(P(t))|` for an image the description states rather
     /// than the mint derives: bounded over the span by the door its class
-    /// names, and read at the schedule's samples first. A miss is a
+    /// names. A miss is a
     /// contradiction between the image the edge states and the carrier it
     /// is read against, so it ends as one
     /// ([`crate::recourse::RefusedSide::StoredContradiction`]), with no
@@ -2460,15 +2460,16 @@ impl<T: Decide + geom_core::CertifiedBounds> EdgeCurve<T> {
     ///      `TangentIntersection`'s second-order arm folds the same
     ///      `reach`.
     ///    - `Scaffold` (a mapped source): `|carrier(t_i) − description(i/8)|`.
-    ///    - `Chart`: `|C(t_i) − S(P(t_i))|`, but for a stated image whose
-    ///      class a door certifies ([`crate::PcurveCache::certify_stated_bound`]):
-    ///      every image on a spline chart, and on an analytic chart an iso
-    ///      line or curve in UV on a plane or a cylinder's or cone's ruling,
-    ///      or a projected image. That image is bounded over the whole span
-    ///      before the schedule, by its door's envelope, a sup; its miss ends
-    ///      as [`CertCheck::StatedImage`], and a carrier off its chart by
-    ///      the carrier's incidence read. A stated image no door bounds is
-    ///      metered at the schedule as [`CertCheck::StatedImage`].
+    ///    - `Chart`: `|C(t_i) − S(P(t_i))|` for a derived image. A stated
+    ///      image is bounded over the whole span before the schedule, by
+    ///      the door its class names
+    ///      ([`crate::PcurveCache::certify_stated_bound`]), a sup: on a
+    ///      spline chart its pcurve door; on an analytic chart a closed
+    ///      form by its residual's coefficients, an iso line or curve in UV
+    ///      by the fitted composite against a patch that agrees with the
+    ///      chart along it or encloses it, a projected image by its door.
+    ///      Its miss ends as [`CertCheck::StatedImage`], and a carrier off
+    ///      its chart by the carrier's incidence read.
     /// 5. `Intersection`: the witness's implicit residuals vs both
     ///    surfaces, then the **mid-parameter pin**
     ///    `|carrier.mid_point(t₀, t₁) − witness| ≤ ε`
@@ -3462,9 +3463,15 @@ pub fn sample_param<T: Real>(t0: T, t1: T, i: u32) -> T {
 /// the held ends themselves (the carrier's own data), and every other
 /// station is the `f64` [`schedule_param`] over `domain`, a point the
 /// schedule chose, entered as the constant it is. Bit for bit
-/// [`schedule_param`] at `f64`; at an enclosure scalar an interior
-/// station stays a point rather than widening by the station's own
-/// arithmetic, which a check at a chosen point has no use for.
+/// [`schedule_param`] at `f64` when `domain` is `held`'s value, in its
+/// order; at an enclosure scalar an interior station stays a point
+/// rather than widening by the station's own arithmetic, which a check
+/// at a chosen point has no use for.
+///
+/// A read at a held station is never wider than the same read at the
+/// computed one: the point lies in the computed station's enclosure, so
+/// by inclusion isotonicity its read's enclosure lies in that read's,
+/// and a decision can only move out of the band, never across it.
 pub(crate) fn held_station<T: Real>(domain: (f64, f64), held: (T, T), i: u32, samples: u32) -> T {
     match schedule_fraction(i, samples) {
         0.0 => held.0,
@@ -3490,8 +3497,11 @@ pub(crate) fn schedule_fraction(i: u32, samples: u32) -> f64 {
 /// reader of an edge shares, so the middle sample is the parameter
 /// [`Curve3::mid_point`] evaluates at and a certificate that samples
 /// the carrier and checks its midpoint witness evaluates that point
-/// once. Every other station is `t₀ + (t₁ − t₀)·(i/(samples − 1))` in
-/// that association order (D9). `t₀ + (t₁ − t₀)·1` is not `t₁` in
+/// once. A schedule read at held stations (a stated image's) is the
+/// exception: at an enclosure scalar its middle is `mid_param` of the
+/// `f64` ends, entered as a point, not the scalar's own middle. Every
+/// other station is `t₀ + (t₁ − t₀)·(i/(samples − 1))` in that
+/// association order (D9). `t₀ + (t₁ − t₀)·1` is not `t₁` in
 /// `f64` in general, and an image re-expressed on `[t₀, t₁]` exactly
 /// has its last knot at `t₁` itself, so a last sample computed rather
 /// than assigned sits an ulp outside it.
@@ -4441,17 +4451,15 @@ fn canonical_of<T: Decide>(
 
 /// **Where a description states its chart image**, decided once
 /// ([`StatedDoor`], by structure): bounded over the span by the door its
-/// class names ([`stated_bound`]), or, on an analytic chart where no door
-/// certifies its class, metered at the schedule's samples; or not at all
-/// (a derived image, or any other description). On an analytic chart the
-/// carrier is read first either way ([`stated_analytic_read`], and at the
-/// certificate a net bounded over the span, [`stated_analytic_bound`]).
+/// class names ([`stated_bound`]); or not at all (a derived image, or any
+/// other description). On an analytic chart the carrier is read first
+/// ([`stated_analytic_read`], and at the certificate a net bounded over
+/// the span, [`stated_analytic_bound`]).
 enum StatedChart<'a, T: Real> {
     Bounded {
         surface: &'a Surface<T>,
         door: StatedDoor<'a, T>,
     },
-    Sampled(&'a Surface<T>),
     None,
 }
 
@@ -4465,21 +4473,14 @@ impl<'a, T: Real> StatedChart<'a, T> {
         else {
             return Self::None;
         };
-        let door = StatedDoor::of(surface, image);
         #[cfg(test)]
         if surface.spline_chart().is_some() && crate::pcurve_cache::mutants::stated_image_sampled()
         {
             return Self::None;
         }
-        #[cfg(test)]
-        if surface.spline_chart().is_none()
-            && crate::pcurve_cache::mutants::analytic_image_sampled()
-        {
-            return Self::Sampled(surface);
-        }
-        match door {
-            Some(door) => Self::Bounded { surface, door },
-            None => Self::Sampled(surface),
+        Self::Bounded {
+            surface,
+            door: StatedDoor::of(surface, image),
         }
     }
 
@@ -4487,12 +4488,8 @@ impl<'a, T: Real> StatedChart<'a, T> {
     /// before the image.
     fn analytic(&self) -> Option<&'a Surface<T>> {
         match *self {
-            Self::Bounded { surface, .. } | Self::Sampled(surface)
-                if surface.spline_chart().is_none() =>
-            {
-                Some(surface)
-            }
-            Self::Bounded { .. } | Self::Sampled(_) | Self::None => None,
+            Self::Bounded { surface, .. } if surface.spline_chart().is_none() => Some(surface),
+            Self::Bounded { .. } | Self::None => None,
         }
     }
 }
@@ -4501,9 +4498,10 @@ impl<'a, T: Real> StatedChart<'a, T> {
 /// construction states is certified through the door its class names
 /// ([`StatedDoor`]): on a spline chart its pcurve certificate's door
 /// ([`crate::PcurveCache::certify_stated_image`], the mint's); on an
-/// analytic chart affine along the image, the fitted door's composite
-/// against that chart's bilinear patch; a projected image through its
-/// own door. The certificate's envelope bounds `|C(t) − S(P(t))|` over
+/// analytic chart, a closed form by its residual's coefficients
+/// (`pcurve_cache::closed_bound`), an iso line or curve in UV by the
+/// fitted door's composite against the chart's patch, a projected image
+/// through its own door. The certificate's envelope bounds `|C(t) − S(P(t))|` over
 /// the whole span, so an image that leaves its carrier between any
 /// samples does not certify. A refusal ends as [`stated_refusal`] gives.
 ///
@@ -4534,8 +4532,8 @@ fn stated_bound<T: Decide>(
 ///
 /// - **The image misses its carrier**, shown: a sample of the door's
 ///   schedule past the band (at that sample), a located point of the
-///   composite (`HullValueChart`, `ImageMiss`), a closed form's or
-///   projected image's fidelity term (the stated coefficients against the
+///   composite (`HullValueChart`, `ImageMiss`) or of a closed form's
+///   residual (`MissLocated`), a projected image's fidelity term (the stated coefficients against the
 ///   image re-derived from the carrier; read over the span, so at no
 ///   sample). [`CertifyError::StatedImageMissed`]: D4 ¶1 (iv)'s culprit by
 ///   door.
@@ -4545,7 +4543,8 @@ fn stated_bound<T: Decide>(
 ///   the band with no miss located
 ///   ([`CertifyError::StatedImageUnsettled`]): the envelope is a sum of
 ///   upper bounds (an iso line's is its control-difference hull plus its
-///   snap slacks), which can exceed where the miss is small. Its
+///   snap slacks, a closed form's its residual's coefficients), which can
+///   exceed where the miss is small. Its
 ///   incidence terms take the same arms: the door has read the carrier
 ///   onto its chart first, so a term past the band is the bound's, not a
 ///   shown miss. Both end in the lever at every door.
@@ -4557,7 +4556,8 @@ fn stated_bound<T: Decide>(
 /// - **Not a miss**: the image's structure read wrong (its windings,
 ///   channel kinds, placement past a period, copied data, sector, a
 ///   domain short of the edge, a patch window the coordinates leave no
-///   width for), the carrier's own domain or enclosure, and refusals the
+///   width for, a unit sense or whole winding that is neither), the
+///   carrier's own domain or enclosure, and refusals the
 ///   route's structure rules out before the door runs: their own defect
 ///   ending ([`mint_refusal`]).
 fn stated_refusal<T: Real>(
@@ -4620,6 +4620,7 @@ fn stated_refusal<T: Real>(
             | PcurveCheck::GeneralLane
             | PcurveCheck::ParamSpan => mint_refusal(e, surface, carrier),
         },
+        PcurveCertifyError::MissLocated { margin } => missed(NOT_A_SAMPLE, Some(margin)),
         PcurveCertifyError::FittedLimb { limb, margin } => match limb {
             SsiLimb::HullValueChart | SsiLimb::ImageMiss => missed(NOT_A_SAMPLE, Some(margin)),
             _ => gap(LaneGap::Envelope),
@@ -4655,23 +4656,6 @@ fn stated_refusal<T: Real>(
         | PcurveCertifyError::PlaceholderChart
         | PcurveCertifyError::IntervalNotForward
         | PcurveCertifyError::Band(_) => mint_refusal(e, surface, carrier),
-    }
-}
-
-/// A stated image's definite miss at a sample, as the one refusal that
-/// carries it ([`CertifyError::StatedImageMissed`]); any other refusal
-/// as it stands.
-fn stated_missed(e: CertifyError) -> CertifyError {
-    match e {
-        CertifyError::ResidualExceeded {
-            check: CertCheck::StatedImage,
-            sample,
-            margin,
-        } => CertifyError::StatedImageMissed {
-            sample,
-            margin: Some(margin),
-        },
-        e => e,
     }
 }
 
@@ -4822,6 +4806,7 @@ fn mint_refusal<T: Real>(
         | PcurveCertifyError::PlacementTurnsExceeded
         | PcurveCertifyError::TubePeriodExceeded
         | PcurveCertifyError::ResidualExceeded { .. }
+        | PcurveCertifyError::MissLocated { .. }
         | PcurveCertifyError::Band(_) => CertifyError::ChartImageUnavailable {
             chart: surface.kind(),
             carrier: carrier.kind(),
@@ -5161,26 +5146,19 @@ fn run_checks<T: Decide + geom_core::CertifiedBounds>(
                     return Err(CertifyError::Unimplemented);
                 };
                 let p = spec.carrier.eval(t);
-                // A stated image whose door bounds it over the span is
-                // read above (`stated_bound`); one no door bounds is a
-                // stated image's miss at a sample, and a derived one the
-                // mint's.
-                let meter = match chart_stated {
-                    StatedChart::Bounded { .. } => None,
-                    StatedChart::Sampled(_) => Some(CertCheck::StatedImage),
-                    StatedChart::None => Some(CertCheck::ChartResidual),
-                };
-                if let Some(check) = meter {
+                // A stated image is bounded over the span above
+                // (`stated_bound`); a derived one is the mint's, metered
+                // here.
+                if let StatedChart::None = chart_stated {
                     let q = chart.pcurve.eval(t);
                     check_residual(
                         "pcurve_map_residual",
-                        check,
+                        CertCheck::ChartResidual,
                         i,
                         Margin::of(p.distance(surface.eval(q.x, q.y))),
                         band,
                         &mut max_residual,
-                    )
-                    .map_err(stated_missed)?;
+                    )?;
                 }
                 // **The declaration is metered too, or it is not a
                 // record of anything** (P-1b, reinstated in review).

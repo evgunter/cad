@@ -770,7 +770,7 @@ mod tests {
         }
         let surfaces = |k| reverted.get_surface(k).cloned();
         // The control: the unmirrored image against the reverted plane
-        // is the defect, and the meter says so where it always did.
+        // is the defect, its miss located over the span.
         assert!(
             matches!(
                 source.recertify(
@@ -781,7 +781,7 @@ mod tests {
                     band,
                     geom_brep::NurbsLane::certified()
                 ),
-                Err(CertifyError::StatedImageMissed { sample: 1, .. })
+                Err(CertifyError::StatedImageMissed { .. })
             ),
             "the source's image is wrong on the reverted plane"
         );
