@@ -3618,7 +3618,7 @@ fn iso_bounded_domain<T: Decide + CertifiedBounds>(
     ) else {
         return Err("a free-form face whose knot domain is not exact structure");
     };
-    let rows = crate::pcurves::loop_lift(body, f.outer)
+    let rows = crate::pcurves::Lift::read(body, f.outer)
         .map_err(|_| "a free-form face whose boundary stores no chart image to lift")?;
     let on_side = |(x, y): (Interval, Interval)| {
         let (x, y) = (exact(x), exact(y));
@@ -3629,15 +3629,15 @@ fn iso_bounded_domain<T: Decide + CertifiedBounds>(
             y == Some(v.1),
         ]
     };
-    let mut path: Vec<[(Interval, Interval); 2]> = Vec::with_capacity(rows.len());
+    let mut path: Vec<[(Interval, Interval); 2]> = Vec::with_capacity(rows.rows().len());
     for row in &rows {
         if !matches!(
-            row.row.pcurve(),
+            &row.pcurve,
             Pcurve::IsoLine { .. } | Pcurve::IsoArc { .. }
         ) {
             return Err(NOT_ISO);
         }
-        let (t0, t1) = row.row.params();
+        let (t0, t1) = row.params;
         let point = |t: T| {
             let p = row.pcurve.eval(t);
             (Interval::from_certified(p.x), Interval::from_certified(p.y))
@@ -3774,7 +3774,7 @@ fn boundary_of<T: Decide + CertifiedBounds>(
                     cycle = true;
                 }
             }
-            if cycle && let Ok(rows) = crate::pcurves::loop_lift(body, lk) {
+            if cycle && let Ok(rows) = crate::pcurves::Lift::read(body, lk) {
                 if role.is_outer() {
                     let surface = f.surface();
                     let periodic =
@@ -3782,7 +3782,7 @@ fn boundary_of<T: Decide + CertifiedBounds>(
                     out.extent = extent_of(
                         periodic,
                         rows.iter().map(|row| {
-                            let (t0, t1) = row.row.params();
+                            let (t0, t1) = row.params;
                             let end = |t: T| {
                                 let q = row.pcurve.eval(t);
                                 [lift.of(q.x), lift.of(q.y)]
@@ -3797,7 +3797,7 @@ fn boundary_of<T: Decide + CertifiedBounds>(
                     );
                 }
                 for row in rows {
-                    let (t0, t1) = row.row.params();
+                    let (t0, t1) = row.params;
                     let end = |t: T| {
                         let q = row.pcurve.eval(t);
                         Point2::new(lift.of(q.x), lift.of(q.y))

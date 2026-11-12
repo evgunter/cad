@@ -1693,10 +1693,11 @@ impl<T: Real> Body<T> {
         self.joints.iter().map(|(he, e)| (he, *e))
     }
 
-    /// **A loop's lift** ([`crate::pcurves::loop_lift`]): each half-edge
-    /// of `r#loop` in cycle order from its `first`, with its image moved
-    /// by the elements summed along the loop — the chain of chart curves
-    /// the loop's readers draw.
+    /// **A loop's lift, read from its stored rows**
+    /// ([`crate::pcurves::Lift::read`]): each half-edge of `r#loop` in
+    /// cycle order from its `first`, with its image moved by the
+    /// elements summed along the loop — the chain of chart curves the
+    /// loop's readers draw, the face's boundary in its chart.
     ///
     /// # Errors
     ///
@@ -1705,16 +1706,16 @@ impl<T: Real> Body<T> {
     ///
     /// # Panics
     ///
-    /// [`crate::pcurves::loop_lift`]'s.
+    /// [`crate::pcurves::Lift::read`]'s.
     #[track_caller]
     pub fn loop_lift(
         &self,
         r#loop: crate::entity::LoopKey,
-    ) -> Result<Vec<crate::pcurves::LiftedRow<'_, T>>, crate::pcurves::LiftGap>
+    ) -> Result<crate::pcurves::Lift<T>, crate::pcurves::LiftGap>
     where
         T: geom_core::Decide,
     {
-        crate::pcurves::loop_lift(self, r#loop)
+        crate::pcurves::Lift::read(self, r#loop)
     }
 
     /// Writes one row — `half_edge`'s image and the element of the joint

@@ -392,25 +392,39 @@ fn face_cover_in<T: Decide>(
     }
 }
 
-/// **Whether a face on `cone` may hold its apex**: unless every loop is
-/// decided to close in the chart ([`closes_in_chart`], over
-/// `chart_window::face_loop_azimuth_travels`). The apex is
-/// the chart's pole, and a bounded face holding it has a loop that
-/// winds round it a whole turn, where a loop that closes in the chart
-/// leaves it outside. Every loop, not the outer alone: a file's
-/// designated outer bound can be a hole, and the loop enclosing the
-/// apex then a ring. A loop not read, or a refusal reading one, may
-/// hold it.
+/// **Whether a face on `cone` may hold its apex**: unless every loop's
+/// stored lift closes in the chart
+/// ([`crate::pcurves::Lift::closes_in_chart`], an integer winding) and
+/// every vertex of it is decided off the apex. The apex is the chart's
+/// pole, and a bounded face holding it has a loop that winds round it a
+/// whole turn, or one that passes through it, where a loop that closes
+/// in the chart clear of it leaves it outside. Every loop, not the
+/// outer alone: a file's designated outer bound can be a hole, and the
+/// loop enclosing the apex then a ring. A loop with no lift to read, or
+/// a vertex whose incidence on the apex is undecided, may hold it.
 pub(crate) fn cone_may_hold_apex<T: Decide>(
     body: &Body<T>,
     face: FaceKey,
     cone: &Surface<T>,
     band: Band,
 ) -> bool {
-    let travels = constraint(|| {
-        crate::chart_window::face_loop_azimuth_travels(body, cone, face, band).map_err(|_| ())
-    });
-    travels.is_none_or(|loops| !loops.into_iter().all(|t| t.is_some_and(closes_in_chart)))
+    let Surface::Cone { apex, .. } = cone else {
+        return true;
+    };
+    let Some(view) = body.face(face) else {
+        return true;
+    };
+    view.cycles().any(|(lk, cycle)| {
+        let closes = crate::pcurves::Lift::read(body, lk).is_ok_and(|lift| lift.closes_in_chart());
+        !closes
+            || cycle.iter().any(|&he| {
+                let start = proven(&body.half_edges, he, EntityId::HalfEdge).start;
+                let vertex = body.resolve_vertex_point(start, crate::live::Proven);
+                constraint(|| {
+                    geom_brep::chart_singularity::vertex_at_singular_point(vertex, *apex, band)
+                }) != Some(false)
+            })
+    })
 }
 
 /// **Whether a loop whose net travel round a chart's period is `travel`

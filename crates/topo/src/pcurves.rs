@@ -88,7 +88,7 @@
 //! chart's joint also states its chart-space gap.
 //!
 //! A loop's **lift** — the chain of chart curves its readers draw — is
-//! its images moved by the elements summed along it ([`loop_lift`]),
+//! its images moved by the elements summed along it ([`Lift::read`]),
 //! and its **winding** is the elements composed once around
 //! ([`Winding`]). The loop must close: its winding a whole period of
 //! the first channel at most (none counted across a reset), of a
@@ -2032,7 +2032,7 @@ impl<T: Decide> ChartPeriods<T> {
     }
 
     /// The periods an element applies in where no band is at hand
-    /// ([`loop_lift`], whose rows and elements a decided walk wrote):
+    /// ([`Lift::read`], whose rows and elements a decided walk wrote):
     /// `τ` per angle channel, and a net's knot domain lengths whether or
     /// not a band would decide the net closed. Only a net decided closed
     /// carries an element with periods on it, so on every element a
@@ -2451,30 +2451,364 @@ pub(crate) fn loop_rows<T: Decide>(body: &Body<T>, r#loop: LoopKey) -> Vec<HalfE
     }
 }
 
-/// One half-edge of a loop's lift ([`loop_lift`]).
+/// One half-edge of a [`Lift`].
 #[derive(Clone, Debug)]
-pub struct LiftedRow<'a, T: Real> {
+pub struct LiftedRow<T: Real> {
     /// The half-edge.
     pub half_edge: HalfEdgeKey,
-    /// Its stored row: the edge's image in the face's chart, with its
-    /// interval and certificate.
-    pub row: &'a PcurveCache<T>,
-    /// The deck transformation the lift moves the image by: the joint
-    /// elements summed along the loop ([`lift_decks`]).
+    /// The deck transformation the lift moves the half-edge's image by:
+    /// the joint elements summed along the chain ([`lift_decks`]).
     pub lift: Deck,
-    /// The image moved by `lift`: the chart curve the loop's chain
-    /// draws on this half-edge.
+    /// The image moved by `lift`: the chart curve the chain draws on
+    /// this half-edge.
     pub pcurve: Pcurve<T>,
+    /// The carrier interval the image is over, in the edge's forward
+    /// order.
+    pub params: (T, T),
+    /// Whether the chain traverses the image forward.
+    pub plus: bool,
 }
 
-/// Why a loop has no lift ([`loop_lift`]): the first half-edge, in
-/// cycle order from the loop's `first`, that stores no image or no
-/// element on the joint into it, or whose image its lift does not
-/// apply to ([`Deck::apply`]).
+impl<T: Real> LiftedRow<T> {
+    /// The carrier parameters the chain enters and leaves the image at.
+    #[must_use]
+    pub fn entry_exit(&self) -> (T, T) {
+        entry_exit(self.plus, self.params.0, self.params.1)
+    }
+}
+
+/// Why a loop has no lift to read ([`Lift::read`]): the first
+/// half-edge, in cycle order from the loop's `first`, that stores no
+/// image or no element on the joint into it, or whose image its lift
+/// does not apply to ([`Deck::apply`]).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct LiftGap {
     /// The half-edge.
     pub half_edge: HalfEdgeKey,
+}
+
+/// **A loop's position in its face's chart**: the chain of its
+/// half-edges' chart images, each moved by the joint elements summed
+/// along it ([`lift_decks`]). Consecutive curves of the chain meet at
+/// every joint off the chart's singular set; at a joint on it (a pole,
+/// an apex) the chain runs along the singular latitude through the
+/// face's turn there (`crate::joint`), so the chain is the face's
+/// boundary in the chart.
+///
+/// Where the chain starts is gauge: the chain from another start is the
+/// same chain moved by one deck transformation, and every reader reads
+/// the chain, not its offset.
+///
+/// **Two constructors, and the caller names which.** [`Lift::read`]
+/// takes the rows a finished body stores: no band, and a hole is loud
+/// ([`LiftGap`]). [`Lift::decided`] runs the mint's own walk
+/// ([`walk_cycle`], [`decide_joint`]) at the caller's band, over a loop
+/// or an open run of one, and stores nothing: for a reader
+/// mid-operation, whose rows are not all written. The mint is "decide,
+/// then store", so the two agree wherever both answer; neither falls
+/// back to the other.
+#[derive(Clone, Debug)]
+pub struct Lift<T: Real> {
+    rows: Vec<LiftedRow<T>>,
+    /// The chain's joints composed once around, for a whole loop; `None`
+    /// for an open run, which has no closure joint.
+    winding: Option<Winding>,
+}
+
+impl<T: Real> Lift<T> {
+    /// The chain's rows, in order.
+    #[must_use]
+    pub fn rows(&self) -> &[LiftedRow<T>] {
+        &self.rows
+    }
+
+    /// The chain's rows, in order.
+    pub fn iter(&self) -> core::slice::Iter<'_, LiftedRow<T>> {
+        self.rows.iter()
+    }
+
+    /// Whether the chain has no row.
+    #[must_use]
+    pub fn is_empty(&self) -> bool {
+        self.rows.is_empty()
+    }
+
+    /// **How far the loop winds**: its joints composed once around.
+    /// `None` for an open run.
+    #[must_use]
+    pub fn winding(&self) -> Option<Winding> {
+        self.winding
+    }
+
+    /// **Whether the loop closes in the chart**: its chain ends where it
+    /// starts, an integer reading ([`Winding::is_zero`]). `false` for an
+    /// open run, and for a loop that winds a period of either channel.
+    #[must_use]
+    pub fn closes_in_chart(&self) -> bool {
+        self.winding.is_some_and(Winding::is_zero)
+    }
+
+    /// **The chain's window in the chart**: the hull of each row's
+    /// closed-form span box ([`Pcurve::closed_form_span_box`]), as
+    /// `((u_min, u_max), (v_min, v_max))`. `None` for an empty chain, or
+    /// one with a row that has no closed-form box (a projected, spiric
+    /// or fitted image).
+    #[must_use]
+    pub fn window(&self) -> Option<((T, T), (T, T))> {
+        self.rows
+            .iter()
+            .map(|row| {
+                let (t0, t1) = row.params;
+                row.pcurve
+                    .closed_form_span_box(t0, t1)
+                    .map(|b| ((b.u_min, b.u_max), (b.v_min, b.v_max)))
+            })
+            .reduce(|a, b| {
+                let ((a_u, a_v), (b_u, b_v)) = (a?, b?);
+                Some((
+                    (a_u.0.min(b_u.0), a_u.1.max(b_u.1)),
+                    (a_v.0.min(b_v.0), a_v.1.max(b_v.1)),
+                ))
+            })
+            .flatten()
+    }
+
+    /// The first channel of [`Lift::window`]: the chain's azimuth hull.
+    #[must_use]
+    pub fn azimuth_window(&self) -> Option<(T, T)> {
+        self.window().map(|(u, _)| u)
+    }
+}
+
+impl<T: Real> IntoIterator for Lift<T> {
+    type Item = LiftedRow<T>;
+    type IntoIter = std::vec::IntoIter<LiftedRow<T>>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.rows.into_iter()
+    }
+}
+
+impl<'a, T: Real> IntoIterator for &'a Lift<T> {
+    type Item = &'a LiftedRow<T>;
+    type IntoIter = core::slice::Iter<'a, LiftedRow<T>>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.rows.iter()
+    }
+}
+
+impl<T: Decide> Lift<T> {
+    /// **The lift a finished body stores**: each half-edge of `r#loop`
+    /// in cycle order from its `first` ([`loop_rows`]), its stored image
+    /// moved by the deck transformation the stored elements sum to.
+    ///
+    /// A rowless half is a gap, whatever its edge: a finished body holds
+    /// no null edge, and mid-operation a reader that steps over one asks
+    /// [`Lift::read_past_placeholders`].
+    ///
+    /// # Errors
+    ///
+    /// [`LiftGap`] naming the first half-edge, in cycle order, that
+    /// stores no image or no element on the joint into it, or whose
+    /// image its lift does not apply to.
+    ///
+    /// # Panics
+    ///
+    /// Where `r#loop`, its face or a member does not resolve, or its
+    /// walk does not close on the half-edges that claim it
+    /// ([`loop_rows`]).
+    #[track_caller]
+    pub fn read(body: &Body<T>, r#loop: LoopKey) -> Result<Self, LiftGap> {
+        Self::read_with(body, r#loop, Scaffolding::Refused)
+    }
+
+    /// **[`Lift::read`] past the loop's placeholders**
+    /// ([`crate::null::is_placeholder`]): a placeholder's rowless halves
+    /// are left out of the chain, as the analytic region reader leaves
+    /// the edge out of its boundary ([`Scaffolding::Skipped`]). The skip
+    /// is exact. The edge is one point, so the halves either side of it
+    /// meet there, and the mint gives the joints into its halves
+    /// [`JointElement::IDENTITY`](crate::joint::JointElement::IDENTITY)
+    /// while the joint out of it keeps its successor's element
+    /// (`Body::mev_fan_execute`), so every other member's lift is the
+    /// one it has with the placeholder gone. A null edge whose ends have
+    /// parted is no placeholder, and any other rowless half is a gap.
+    ///
+    /// # Errors
+    ///
+    /// [`Lift::read`]'s, but for a placeholder's half.
+    ///
+    /// # Panics
+    ///
+    /// [`Lift::read`]'s, and [`crate::null::is_placeholder`]'s.
+    #[track_caller]
+    pub(crate) fn read_past_placeholders(body: &Body<T>, r#loop: LoopKey) -> Result<Self, LiftGap> {
+        Self::read_with(body, r#loop, Scaffolding::Skipped)
+    }
+
+    /// The one read [`Lift::read`] and [`Lift::read_past_placeholders`]
+    /// make, a placeholder's half as `scaffolding` says.
+    #[track_caller]
+    fn read_with(
+        body: &Body<T>,
+        r#loop: LoopKey,
+        scaffolding: Scaffolding,
+    ) -> Result<Self, LiftGap> {
+        let cycle = loop_rows(body, r#loop);
+        let face = proven(&body.loops, r#loop, EntityId::Loop).face;
+        let surface = body.proven_face(face).surface();
+        // No band is at hand, so the periods are the chart's as stated:
+        // on every element a door wrote they are the decided ones
+        // ([`ChartPeriods::stated`]).
+        let periods = ChartPeriods::stated(surface);
+        let mut stored = Vec::with_capacity(cycle.len());
+        let mut elements = Vec::with_capacity(cycle.len());
+        for &half_edge in &cycle {
+            let Some(element) = body.joint(half_edge) else {
+                return Err(LiftGap { half_edge });
+            };
+            let row = body.pcurve(half_edge);
+            if row.is_none()
+                && !(scaffolding == Scaffolding::Skipped
+                    && crate::null::is_placeholder(body, edge_record(body, half_edge).0))
+            {
+                return Err(LiftGap { half_edge });
+            }
+            stored.push(row);
+            elements.push(element);
+        }
+        let rows = cycle
+            .into_iter()
+            .zip(stored)
+            .zip(lift_decks(&elements))
+            .filter_map(|((half_edge, row), lift)| Some((half_edge, row?, lift)))
+            .map(|(half_edge, row, lift)| {
+                let pcurve = lift
+                    .apply(row.pcurve(), surface, periods)
+                    .ok_or(LiftGap { half_edge })?;
+                Ok(LiftedRow {
+                    half_edge,
+                    lift,
+                    pcurve,
+                    params: row.params(),
+                    plus: is_plus(body, half_edge),
+                })
+            })
+            .collect::<Result<Vec<_>, LiftGap>>()?;
+        Ok(Self {
+            rows,
+            winding: Some(Winding::of(elements)),
+        })
+    }
+
+    /// **The lift decided at `band`, storing nothing**: `halves` —
+    /// consecutive members of one loop of `face`, in loop order — walked
+    /// in `surface`'s chart by the mint's own walk ([`walk_cycle`]):
+    /// each certified edge's image derived in closed form on the chart's
+    /// principal branch ([`chart_pcurve_over`]) and every joint between
+    /// two of them decided ([`decide_joint`]) on the face's side, its
+    /// stored sense. The whole loop where `closes`, with its closure
+    /// joint and its winding; otherwise an open run.
+    ///
+    /// A half of an edge with no certified curve (null scaffolding) is a
+    /// point and is left out of the chain.
+    ///
+    /// # Errors
+    ///
+    /// [`LiftRefusal`]: an image's derivation refused, or a joint
+    /// decided no element.
+    ///
+    /// # Panics
+    ///
+    /// Where `face` or a member of `halves` does not resolve.
+    #[track_caller]
+    pub(crate) fn decided(
+        body: &Body<T>,
+        face: FaceKey,
+        surface: &Surface<T>,
+        halves: &[HalfEdgeKey],
+        closes: bool,
+        band: Band,
+    ) -> Result<Self, LiftRefusal> {
+        let Some(chart) = DescribedChart::of(surface) else {
+            return Err(LiftRefusal::Placeholder);
+        };
+        let sense = proven(&body.faces, face, EntityId::Face).sense;
+        let charted: Vec<(HalfEdgeKey, geom::Curve3<T>, T, T)> = halves
+            .iter()
+            .filter_map(|&he| {
+                half_edge_carrier(body, he)
+                    .ok()
+                    .map(|(carrier, t0, t1)| (he, carrier, t0, t1))
+            })
+            .collect();
+        let item = |i: usize| -> Result<WalkItem<T, DerivedRow<T>>, LiftRefusal> {
+            let (he, carrier, t0, t1) = &charted[i];
+            let pcurve = chart_pcurve_over(carrier, *t0, *t1, surface, band)
+                .map_err(LiftRefusal::Image)?;
+            Ok(walk_item(
+                (
+                    carrier.clone(),
+                    ChartImage::Image {
+                        pcurve,
+                        t0: *t0,
+                        t1: *t1,
+                    },
+                ),
+                is_plus(body, *he),
+                entry_vertex(body, *he),
+                stored_edge(body, *he),
+            ))
+        };
+        let walked = walk_cycle(chart, sense, charted.len(), item, |_| None, band, closes)
+            .map_err(|fail| match fail {
+                WalkFail::Item(refusal) => refusal,
+                WalkFail::Miss { miss, .. } => LiftRefusal::Joint(miss),
+                WalkFail::NotClosed => LiftRefusal::NotClosed,
+            })?;
+        let periods = ChartPeriods::of(surface, band);
+        let mut lift = Deck::IDENTITY;
+        let mut elements = Vec::with_capacity(walked.len());
+        let mut rows = Vec::with_capacity(walked.len());
+        for (i, ((_, image), t0, t1, element)) in walked.into_iter().enumerate() {
+            let half_edge = charted[i].0;
+            if i > 0
+                && let Some(element) = element
+            {
+                lift = element.follow(lift);
+            }
+            elements.extend(element);
+            let pcurve = lift
+                .apply(image.pcurve(), surface, periods)
+                .ok_or(LiftRefusal::Joint(PinMiss::Discontinuity))?;
+            rows.push(LiftedRow {
+                half_edge,
+                lift,
+                pcurve,
+                params: (t0, t1),
+                plus: is_plus(body, half_edge),
+            });
+        }
+        Ok(Self {
+            rows,
+            winding: closes.then(|| Winding::of(elements)),
+        })
+    }
+}
+
+/// Why [`Lift::decided`] decided no lift.
+#[derive(Debug)]
+pub(crate) enum LiftRefusal {
+    /// The chart is the placeholder: it has no lever to decide a joint
+    /// by.
+    Placeholder,
+    /// A half-edge's closed-form image refused.
+    Image(PcurveCertifyError),
+    /// A joint of the chain decided no element.
+    Joint(PinMiss),
+    /// The loop's joints compose to a winding no loop has.
+    NotClosed,
 }
 
 /// **Each member's lift, from the elements of a cycle's joints** —
@@ -2497,130 +2831,14 @@ pub(crate) fn lift_decks(elements: &[JointElement]) -> Vec<Deck> {
         .collect()
 }
 
-/// **A loop's lift** — the readers' one accessor for where a loop's
-/// rows sit in its face's chart ([`crate::Body::loop_lift`]): each
-/// half-edge of `r#loop` in cycle order from its `first`
-/// ([`loop_rows`]), its stored image moved by the deck transformation
-/// the elements sum to along the loop ([`lift_decks`]). Consecutive
-/// curves of the chain meet at every joint off the chart's singular
-/// set; at a joint on it (a pole, an apex) the chain runs along the
-/// singular latitude, through the face's turn there, so the chain is
-/// the face's boundary in the chart. The loop's winding is the
-/// elements' ([`Winding`]): a wrapping loop's chain ends one period
-/// from where it starts.
-///
-/// Where the lift starts is gauge: the chain from another start is the
-/// same chain moved by one deck transformation, and every reader reads
-/// the chain, not its offset.
-///
-/// A rowless half is a gap, whatever its edge: a finished body holds
-/// no null edge, and mid-operation a reader that steps over one asks
-/// the crate's lift past placeholders.
-///
-/// # Errors
-///
-/// [`LiftGap`] naming the first half-edge, in cycle order, that stores
-/// no image or no element on the joint into it, or whose image its
-/// lift does not apply to.
-///
-/// # Panics
-///
-/// Where `r#loop`, its face or a member does not resolve, or its walk
-/// does not close on the half-edges that claim it ([`loop_rows`]).
-#[track_caller]
-pub fn loop_lift<T: Decide>(
-    body: &Body<T>,
-    r#loop: LoopKey,
-) -> Result<Vec<LiftedRow<'_, T>>, LiftGap> {
-    lift_loop(body, r#loop, Scaffolding::Refused)
-}
-
-/// **[`loop_lift`] past the loop's placeholders**
-/// ([`crate::null::is_placeholder`]): a placeholder's rowless halves are
-/// left out of the chain, as the analytic region reader leaves the edge
-/// out of its boundary ([`Scaffolding::Skipped`]). The skip is exact.
-/// The edge is one point, so the halves either side of it meet there,
-/// and the mint gives the joints into its halves
-/// [`JointElement::IDENTITY`](crate::joint::JointElement::IDENTITY) while
-/// the joint out of it keeps its successor's element
-/// (`Body::mev_fan_execute`), so every other member's lift is the one
-/// it has with the placeholder gone. A null edge whose ends have parted
-/// is no placeholder, and any other rowless half is a gap, as in
-/// [`loop_lift`].
-///
-/// # Errors
-///
-/// [`loop_lift`]'s, but for a placeholder's half.
-///
-/// # Panics
-///
-/// [`loop_lift`]'s, and [`crate::null::is_placeholder`]'s.
-#[track_caller]
-pub(crate) fn loop_lift_past_placeholders<T: Decide>(
-    body: &Body<T>,
-    r#loop: LoopKey,
-) -> Result<Vec<LiftedRow<'_, T>>, LiftGap> {
-    lift_loop(body, r#loop, Scaffolding::Skipped)
-}
-
-/// The one lift [`loop_lift`] and [`loop_lift_past_placeholders`]
-/// read, a placeholder's half as `scaffolding` says.
-#[track_caller]
-fn lift_loop<T: Decide>(
-    body: &Body<T>,
-    r#loop: LoopKey,
-    scaffolding: Scaffolding,
-) -> Result<Vec<LiftedRow<'_, T>>, LiftGap> {
-    let cycle = loop_rows(body, r#loop);
-    let face = proven(&body.loops, r#loop, EntityId::Loop).face;
-    let surface = body.proven_face(face).surface();
-    // No band is at hand, so the periods are the chart's as stated: on
-    // every element a door wrote they are the decided ones
-    // ([`ChartPeriods::stated`]).
-    let periods = ChartPeriods::stated(surface);
-    let mut rows = Vec::with_capacity(cycle.len());
-    let mut elements = Vec::with_capacity(cycle.len());
-    for &half_edge in &cycle {
-        let Some(element) = body.joint(half_edge) else {
-            return Err(LiftGap { half_edge });
-        };
-        let row = body.pcurve(half_edge);
-        if row.is_none()
-            && !(scaffolding == Scaffolding::Skipped
-                && crate::null::is_placeholder(body, edge_record(body, half_edge).0))
-        {
-            return Err(LiftGap { half_edge });
-        }
-        rows.push(row);
-        elements.push(element);
-    }
-    cycle
-        .into_iter()
-        .zip(rows)
-        .zip(lift_decks(&elements))
-        .filter_map(|((half_edge, row), lift)| Some((half_edge, row?, lift)))
-        .map(|(half_edge, row, lift)| {
-            let pcurve = lift
-                .apply(row.pcurve(), surface, periods)
-                .ok_or(LiftGap { half_edge })?;
-            Ok(LiftedRow {
-                half_edge,
-                row,
-                lift,
-                pcurve,
-            })
-        })
-        .collect()
-}
-
-/// [`loop_lift`] for a reader that walks `halves` — members of one
+/// [`Lift::read`] for a reader that walks `halves` — members of one
 /// loop, in the reader's own order: each one's lifted image, or `None`
-/// for every one where that loop has no lift (a member stores no image,
-/// or no element on the joint into it). Empty for no halves.
+/// for every one where that loop has no lift to read (a member stores
+/// no image, or no element on the joint into it). Empty for no halves.
 ///
 /// # Panics
 ///
-/// [`loop_lift`]'s, and where the first half does not resolve.
+/// [`Lift::read`]'s, and where the first half does not resolve.
 #[track_caller]
 pub(crate) fn lifted_images<T: Decide>(
     body: &Body<T>,
@@ -2630,7 +2848,7 @@ pub(crate) fn lifted_images<T: Decide>(
         return Vec::new();
     };
     let r#loop = proven(&body.half_edges, first, EntityId::HalfEdge).parent_loop;
-    let Ok(lift) = loop_lift(body, r#loop) else {
+    let Ok(lift) = Lift::read(body, r#loop) else {
         return vec![None; halves.len()];
     };
     let mut by_half: slotmap::SecondaryMap<HalfEdgeKey, Pcurve<T>> = slotmap::SecondaryMap::new();
@@ -4340,6 +4558,7 @@ impl core::fmt::Display for SingularMiss {
 type Pinned<T, I> = (I, T, T, Option<JointElement>);
 
 /// Why [`decide_joint`] decided no element.
+#[derive(Debug)]
 pub(crate) enum PinMiss {
     /// The image meets the predecessor's exit on no lift: its gap sits
     /// on a mark, or a spline chart's gap is definite.

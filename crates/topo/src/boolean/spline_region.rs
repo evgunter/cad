@@ -1096,7 +1096,7 @@ impl Trim {
             .fold(0.0, f64::max);
         let mut chains = Vec::new();
         for (lk, _, _) in view.loops() {
-            let lift = crate::pcurves::loop_lift_past_placeholders(body, lk).ok()?;
+            let lift = crate::pcurves::Lift::read_past_placeholders(body, lk).ok()?;
             if lift.is_empty() {
                 return None;
             }
@@ -1115,7 +1115,7 @@ impl Trim {
                 {
                     return None;
                 }
-                let (t0, t1) = row.row.params();
+                let (t0, t1) = row.params;
                 let mut run = image_pieces(&row.pcurve, t0, t1, scale)?;
                 if !walks_forward(body, row.half_edge) {
                     run = run.into_iter().rev().map(Piece::reversed).collect();

@@ -1439,7 +1439,7 @@ pub use boolean::{
     take_output_stage_points, take_shared_points,
 };
 #[cfg(feature = "sweep-testing")]
-pub use chart_window::face_azimuth_window_traces;
+pub use chart_window::{ChartWindowError, face_azimuth_window_traces};
 // The census's idealized/realized pair (its `Candidates`): the
 // vocabulary always, the door on the boolean sweep's terms.
 pub use census::{

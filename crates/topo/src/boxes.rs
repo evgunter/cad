@@ -2021,6 +2021,8 @@ pub(crate) mod tests {
             u_ref: Vec3::unit_x(),
         };
         relabel(&mut body, face, cone);
+        // The cone arm reads the wall's stored lift.
+        crate::pcurves::mint_pcurves_of(&mut body, &[face], Tol::witness()).unwrap();
         (body, face)
     }
 
