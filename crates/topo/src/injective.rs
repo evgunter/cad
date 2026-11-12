@@ -8038,6 +8038,55 @@ mod presentation_rows {
         );
     }
 
+    /// **A side on a torus's meridian reads a plane through it as zero
+    /// off the circle's closed form** ([`on_side`], [`iso_circle`]): the
+    /// meridian `u = 0.7` of [`ring`]`(2)` lies in the plane through the
+    /// axis there, and a quarter-turn side of it reads rounding, where the
+    /// centred form's error, the length squared, reads it nonzero. The
+    /// face below the side departs that plane to its negative side.
+    #[test]
+    fn a_side_on_a_meridian_reads_a_plane_through_it_off_its_closed_form() {
+        let (u0, sv) = (0.7, (0.0, 0.25));
+        let torus = ring(2.0);
+        let meridian = Psi::Carrier(Implicit::Plane {
+            o: origin(),
+            n: Vec3::new(iv0(-u0.sin()), iv0(u0.cos()), iv0(0.0)),
+        });
+        let p = Presented {
+            surface: &torus,
+            map: Map::Chart,
+            x: (u0 - 0.1, u0),
+            y: sv,
+            zero: Zero::Side(Side::XHi),
+            corner: false,
+            cache: Cache::default(),
+        };
+        let along = on_side(&meridian, &p, (u0, u0), sv).unwrap();
+        assert!(
+            is_zero(along, band()),
+            "the meridian reads zero: {along:?}"
+        );
+        let first_order = centred(&meridian, &p, (u0, u0), sv).unwrap();
+        assert!(
+            !is_zero(first_order, band()),
+            "the centred form does not read the side zero: {first_order:?}"
+        );
+        assert_eq!(
+            sign_on(&meridian, &p, None, band()),
+            Some(Sign::Negative),
+            "the face at u < 0.7 lies on the plane's negative side"
+        );
+        let tilted = Psi::Carrier(Implicit::Plane {
+            o: origin(),
+            n: Vec3::new(iv0(-(u0 + 1e-3).sin()), iv0((u0 + 1e-3).cos()), iv0(0.0)),
+        });
+        let off = on_side(&tilted, &p, (u0, u0), sv).unwrap();
+        assert!(
+            !is_zero(off, band()),
+            "a plane a milliradian off the meridian does not: {off:?}"
+        );
+    }
+
     /// **A corner of a wall and a parallel** on [`ring`]`(2)`: the wall
     /// over `t ∈ [1, 2]` from vertex 1, run forward, and the parallel
     /// `v = at` from vertex 1 to azimuth `g(1) + du` (vertex 3), run
