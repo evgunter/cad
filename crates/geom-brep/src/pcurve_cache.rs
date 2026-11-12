@@ -6520,7 +6520,7 @@ fn class_circle<T: Decide>(
 /// short (a start near the pole) its own direction is off by that ulp
 /// over its length, across the plane and toward the axis; `m` is read off
 /// the long `e` and `n`, and the short part sets only a length along it.
-/// The derivation reads its azimuth off `d̂`, and [`incidence`] models the
+/// The derivation reads its azimuth off `d̂`, and [`incidence()`] models the
 /// image with it, so the two read the one direction.
 fn sphere_meridian_direction<T: Real>(form: &Harmonic3<T>, axis: Vec3<T>, pole: bool) -> Vec3<T> {
     let part = if pole { form.b } else { form.a };
