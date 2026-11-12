@@ -73,15 +73,23 @@ pub(crate) fn same_sense<T: Decide>(
         .map(|sign| sign == NonzeroSign::Positive)
 }
 
-/// **The order's one sine**: `(g × h)·n` under `name`, levered at `arm`
+/// Which of the order's readings an [`order_sine`] is: a germ's side of another
+/// ([`GERM_SIDE`]) or two germs' turn in one half-turn ([`GERM_ORDER`]).
+#[derive(Clone, Copy)]
+enum Reading {
+    Side,
+    Order,
+}
+
+/// **The order's one sine**: `(g × h)·n` under `reading`'s name, levered at `arm`
 /// and the two directions' smaller lean ([`leaned_lever`]). Its sign where
 /// definite; `Err(diag)` inside it where it decides the two on one line.
 ///
 /// # Errors
 ///
 /// [`OrderFault::Coincident`]: the reading in the band.
-fn sine<T: Decide>(
-    name: &'static str,
+fn order_sine<T: Decide>(
+    reading: Reading,
     (g, h): (Leaned<T>, Leaned<T>),
     normal: Vec3<T>,
     arm: Lever<T>,
@@ -91,7 +99,11 @@ fn sine<T: Decide>(
         g.dir.cross(h.dir).dot(normal),
         leaned_lever(arm, (g.lean, h.lean)),
     );
-    match crate::validate::decide_nonzero(name, leaned, band) {
+    let decided = match reading {
+        Reading::Side => crate::validate::decide_nonzero(GERM_SIDE, leaned, band),
+        Reading::Order => crate::validate::decide_nonzero(GERM_ORDER, leaned, band),
+    };
+    match decided {
         Ok(sign) => Ok(Ok(sign)),
         Err(diag) if diag.margin.rejected_sign() == Some(Sign::Zero) => Ok(Err(diag)),
         Err(diag) => Err(OrderFault::Coincident(diag)),
@@ -108,14 +120,14 @@ enum Place {
     Opposite,
 }
 
-/// [`sine`] under [`GERM_SIDE`], a zero placed by its sense.
+/// [`order_sine`] under [`GERM_SIDE`], a zero placed by its sense.
 fn place<T: Decide>(
     gh: (Leaned<T>, Leaned<T>),
     normal: Vec3<T>,
     arm: Lever<T>,
     band: Band,
 ) -> Result<Place, OrderFault> {
-    match sine(GERM_SIDE, gh, normal, arm, band)? {
+    match order_sine(Reading::Side, gh, normal, arm, band)? {
         Ok(sign) => Ok(Place::Off(sign)),
         Err(diag) => Ok(
             if same_sense(gh.0.dir, gh.1.dir, arm, band).map_err(OrderFault::Sense)? {
@@ -137,23 +149,25 @@ pub(crate) enum Turn {
     Along(Indeterminate),
 }
 
-/// **How `g₁` turns from `g₀` about `normal`** ([`sine`] under
+/// **How `g₁` turns from `g₀` about `normal`** ([`order_sine`] under
 /// [`GERM_ORDER`]). Two germs it puts on one line are the caller's tie
 /// ([`Turn::Along`]).
 ///
 /// # Errors
 ///
-/// [`sine`]'s.
+/// [`order_sine`]'s.
 pub(crate) fn turn<T: Decide>(
     germs: (Leaned<T>, Leaned<T>),
     normal: Vec3<T>,
     arm: Lever<T>,
     band: Band,
 ) -> Result<Turn, OrderFault> {
-    Ok(match sine(GERM_ORDER, germs, normal, arm, band)? {
-        Ok(sign) => Turn::Off(sign),
-        Err(diag) => Turn::Along(diag),
-    })
+    Ok(
+        match order_sine(Reading::Order, germs, normal, arm, band)? {
+            Ok(sign) => Turn::Off(sign),
+            Err(diag) => Turn::Along(diag),
+        },
+    )
 }
 
 /// **Whether `germs.0` comes before `germs.1` clockwise about `normal`
@@ -166,7 +180,7 @@ pub(crate) fn turn<T: Decide>(
 /// `e`, angle 0, near; against it, π, far). A germ in the near half-turn
 /// comes first. Within one half-turn the earlier germ is the one the
 /// other follows clockwise, `(g₀ × g₁)·n < 0` ([`turn`], at `arm`).
-/// Every reading is [`sine`]: levered as a distance and by the smaller
+/// Every reading is [`order_sine`]: levered as a distance and by the smaller
 /// lean of the directions it reads; a sine is linear in the spacing at
 /// every angle, where a cosine is flat beside 0 and π. Two germs along
 /// one direction are the caller's `tie`: the sign of `(g₀ × g₁)·n` one
@@ -261,7 +275,7 @@ where
     // A germ off `germs[0]`'s line at one arm is off it at every arm a
     // comparison of it uses.
     let apart = |g: Leaned<T>, arm: Lever<T>| -> Result<(), OrderFault> {
-        match sine(GERM_SIDE, (g, from), normal, arm, band)? {
+        match order_sine(Reading::Side, (g, from), normal, arm, band)? {
             Err(diag) if same_sense(g.dir, from.dir, arm, band).map_err(OrderFault::Sense)? => {
                 Err(OrderFault::Coincident(diag))
             }
