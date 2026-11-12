@@ -90,10 +90,10 @@ fn a_join_whose_walls_part_in_band_refuses_its_sliver() {
                 Err(ExtrudeError::SliverJoin {
                     loop_index: 0,
                     vertex_index: 1,
-                    source,
+                    escalation,
                     ..
                 }) => assert_eq!(
-                    source.predicate,
+                    escalation.diag().predicate,
                     Some("tangent_second_order"),
                     "{what} at {lane}: the walls' second-order arm"
                 ),
@@ -101,7 +101,8 @@ fn a_join_whose_walls_part_in_band_refuses_its_sliver() {
             }
         }
         let margin = match extrude(&v, up(), Tol::witness()) {
-            Err(ExtrudeError::SliverJoin { source, .. }) => source
+            Err(ExtrudeError::SliverJoin { escalation, .. }) => escalation
+                .diag()
                 .margin
                 .diagnostic_f64_for_error_text()
                 .value()
