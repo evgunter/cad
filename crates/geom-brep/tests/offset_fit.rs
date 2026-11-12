@@ -876,7 +876,7 @@ fn a_bound_that_never_became_finite_refuses_with_no_number() {
 /// The floor on `‖E‖` reads the three components TOGETHER, off the
 /// coefficient vectors' hull and through the sign witness `D` (module
 /// docs), which is what keeps the bound near `|d|`'s own scale: at
-/// `d = 1e-6` the certified sup is `1.236e-5`, twelve times `|d|`, on
+/// `d = 1e-6` the certified sup is `1.231e-5`, twelve times `|d|`, on
 /// the same 308-cell grid a componentwise floor certified at
 /// `2.630e-4` (and the witness alone at `1.514e-5`). The sup cell's
 /// decomposition and the two readings of `‖E‖` behind that factor are
@@ -913,7 +913,7 @@ fn a_micron_scale_offset_certifies_and_names_its_limit() {
         cert.hull_sup
     );
     assert!(
-        (cert.hull_sup - 1.23609e-5).abs() < 5e-9,
+        (cert.hull_sup - 1.23077e-5).abs() < 5e-9,
         "the certified sup is {:e}",
         cert.hull_sup
     );
@@ -1016,12 +1016,12 @@ fn a_zero_or_non_finite_request_refuses_at_the_door() {
 /// station on the SAME 308-cell grid:
 ///
 /// ```text
-/// 1e0..1e4   1.2361e-5   flat to five figures
-/// 1e5        1.2362e-5   1.00006x the origin
-/// 1e6        1.2369e-5   1.0006x
-/// 1e7        1.2439e-5   1.0063x
-/// 1e8        1.3132e-5   1.0624x
-/// 1e9        3.0245e-5   2.447x
+/// 1e0..1e4   1.2308e-5   flat to five figures
+/// 1e5        1.2308e-5   1.00006x the origin
+/// 1e6        1.2315e-5   1.0006x
+/// 1e7        1.2384e-5   1.0062x
+/// 1e8        1.3064e-5   1.0614x
+/// 1e9        3.0245e-5   2.457x
 /// 1e10       refused: BoundNotFinite, best None — no grid reached one
 /// ```
 ///

@@ -675,16 +675,16 @@ fn cell_curvature(cell: &PatchCell) -> Option<(f64, f64)> {
     // division legal (interval arithmetic refuses a zero-touching
     // divisor).
     let mag = Interval::from_bounds(n.floor, cell.m_sup);
-    let m_ball = ball_cross(&b_u, &b_v);
+    let m_ball = b_u.cross(&b_v);
     let (l, m, nn) = (
-        ball_dot(&m_ball, &b_uu) / mag,
-        ball_dot(&m_ball, &b_uv) / mag,
-        ball_dot(&m_ball, &b_vv) / mag,
+        m_ball.dot(&b_uu) / mag,
+        m_ball.dot(&b_uv) / mag,
+        m_ball.dot(&b_vv) / mag,
     );
     let forms = FundamentalForms {
-        e: ball_norm_sq(&b_u),
-        f: ball_dot(&b_u, &b_v),
-        g: ball_norm_sq(&b_v),
+        e: b_u.norm_sq(),
+        f: b_u.dot(&b_v),
+        g: b_v.norm_sq(),
         l,
         m,
         n: nn,
@@ -728,44 +728,6 @@ fn cell_curvature(cell: &PatchCell) -> Option<(f64, f64)> {
         return None;
     }
     Some((k_lo, k_hi))
-}
-
-/// `‖centre‖` from above and below, as intervals.
-fn centre_norm(b: &Ball) -> Interval {
-    (b.centre[0].sqr() + b.centre[1].sqr() + b.centre[2].sqr()).sqrt()
-}
-
-/// The dot product of every pair of values two balls hold:
-/// `a·b = c_a·c_b + c_a·η + δ·c_b + δ·η` with `‖δ‖ ≤ r_a`, `‖η‖ ≤ r_b`,
-/// so it lies within `‖c_a‖·r_b + r_a·‖c_b‖ + r_a·r_b` of `c_a·c_b`.
-fn ball_dot(a: &Ball, b: &Ball) -> Interval {
-    let cc = a.centre[0] * b.centre[0] + a.centre[1] * b.centre[1] + a.centre[2] * b.centre[2];
-    let (ra, rb) = (Interval::point(a.reach), Interval::point(b.reach));
-    let r = (centre_norm(a) * rb + ra * centre_norm(b) + ra * rb).hi();
-    cc + Interval::from_bounds(-r, r)
-}
-
-/// `‖x‖²` over a ball: `[max(0, ‖c‖ − r)², (‖c‖ + r)²]`.
-fn ball_norm_sq(a: &Ball) -> Interval {
-    let c = centre_norm(a);
-    let r = Interval::point(a.reach);
-    let lo = (c - r).lo().max(0.0);
-    let hi = (c + r).hi();
-    Interval::from_bounds(lo, hi).sqr()
-}
-
-/// The ball holding every cross product of two balls' values: centre
-/// `c_a × c_b`, reach `‖c_a‖·r_b + r_a·‖c_b‖ + r_a·r_b` (as
-/// [`ball_dot`]'s, the cross product being bilinear and `‖x × y‖ ≤
-/// ‖x‖·‖y‖`).
-fn ball_cross(a: &Ball, b: &Ball) -> Ball {
-    let [a0, a1, a2] = a.centre;
-    let [b0, b1, b2] = b.centre;
-    let (ra, rb) = (Interval::point(a.reach), Interval::point(b.reach));
-    Ball {
-        centre: [a1 * b2 - a2 * b1, a2 * b0 - a0 * b2, a0 * b1 - a1 * b0],
-        reach: (centre_norm(a) * rb + ra * centre_norm(b) + ra * rb).hi(),
-    }
 }
 
 /// **The certified principal-curvature range over `cells`**, in the

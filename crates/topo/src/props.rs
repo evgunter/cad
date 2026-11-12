@@ -6958,6 +6958,16 @@ pub trait AtRestPolicy: Decide {
     /// (`Interval`, `Sym`). See [`AtRestPolicy::leaf`].
     type Leaf: crate::LeafBody<Scalar = Self>;
 
+    /// **Whether [`AtRestPolicy::take`] runs tier 3 on a leaf**, and so
+    /// logs the session box where it takes one: `true` at the box scalars
+    /// (`Interval`, `Sym`), whose leaf is tier 2 alone; `false` at `f64`
+    /// and `Probe`, whose taker relogs the leaf's held finish, and at a
+    /// dual, whose taker runs nothing. A move's session-box ask
+    /// ([`crate::Replay::moved_by`]) is held off the moving node's verdict
+    /// log only where the taker logs the box of the same image, so both
+    /// lanes log it once; elsewhere the move logs it itself.
+    const TAKE_FINISHES: bool;
+
     /// **THE SWITCH: a sweep door's own finish** (Ev on PR 6371,
     /// 2026-11-02: "keep aiming for this final state, but … keep it
     /// selectively disabled for now so it doesn't break everything").
@@ -7148,6 +7158,7 @@ impl AtRestPolicy for f64 {
         crate::AtRestBody::validate(body, tol).map_err(crate::NotFinished::new)
     }
     type Leaf = crate::AtRestBody<Self>;
+    const TAKE_FINISHES: bool = false;
 
     /// The finish, its decisions held off this node's verdict log and
     /// kept on the body for the taker to relog
@@ -7308,6 +7319,7 @@ impl AtRestPolicy for geom_core::Probe {
         crate::AtRestBody::validate(body, tol).map_err(crate::NotFinished::new)
     }
     type Leaf = crate::AtRestBody<Self>;
+    const TAKE_FINISHES: bool = false;
 
     /// The finish, its decisions held off this node's verdict log and
     /// kept on the body for the taker to relog
@@ -7464,6 +7476,7 @@ impl AtRestPolicy for geom_core::interval::Interval {
     }
     /// The switch's box-scalar arm ([`AtRestPolicy::leaf`]).
     type Leaf = crate::Replay<Self>;
+    const TAKE_FINISHES: bool = true;
 
     fn leaf(body: Body<Self>, _tol: Tol) -> Result<Self::Leaf, crate::NotFinished> {
         crate::Replay::of(body)
@@ -7622,6 +7635,7 @@ where
     }
     /// The switch's box-scalar arm ([`AtRestPolicy::leaf`]).
     type Leaf = crate::Replay<Self>;
+    const TAKE_FINISHES: bool = true;
 
     fn leaf(body: Body<Self>, _tol: Tol) -> Result<Self::Leaf, crate::NotFinished> {
         crate::Replay::of(body)
@@ -7793,6 +7807,7 @@ where
     }
 
     type Leaf = crate::Replay<Self>;
+    const TAKE_FINISHES: bool = false;
 
     fn leaf(body: Body<Self>, tol: Tol) -> Result<Self::Leaf, crate::NotFinished> {
         Self::finish(body, tol)

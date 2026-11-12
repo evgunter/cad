@@ -11,13 +11,16 @@
 //! (`PatchCell::balls`), never a per-coordinate box folded into a norm. So a rotation moves the
 //! certificate only by the rounding of the image itself: the image's
 //! control points are rounded at the patch's own extent, which moves the
-//! residual by a few ulps of it. Measured on the faces below at the
-//! default ε (while `‖E‖`'s floor read a ball about the vectors; the
-//! rows hold with the hull's): under these rotations the hull bound moves by up to
-//! `6.2e-4` of itself, and under ±2-ulp noise on the control points with
-//! no rotation at all by up to `3.9e-4` — the same size, so that drift is
-//! the image's rounding, not a frame reading. The curvature meter's reach
-//! moves by `9e-11` (it moved by `2.7e-3` while its forms were boxes).
+//! residual by a few ulps of it. Measured on the faces below: under
+//! these rotations the hull bound moves by up to `6.1e-4` of itself at
+//! the default ε, `5.0e-4` at 1e-6 and `4.1e-4` at 1e-12, and under
+//! ±2-ulp noise on the control points with no rotation at all by up to
+//! `3.9e-4` (measured while `‖E‖`'s floor read a ball about the vectors,
+//! where the rotations' drift was `6.2e-4`) — the same size, so that
+//! drift is the image's rounding, not a frame reading. The curvature
+//! meter's reach moves by `9e-11` (it moved by `2.7e-3` while its forms
+//! were boxes). `every_image_of_a_face_minted_near_eps_re_derives`
+//! asserts the hull drift under [`MARGIN`]`/4`.
 //!
 //! **A face within rounding of ε may flip** (`[simple.conditioned]`): a
 //! face minted closer to ε than its image's rounding is one whose
@@ -48,8 +51,9 @@ use topo::construction::FaceSurface;
 use topo::{Body, FaceKey};
 
 /// How far under ε the minted face's bound is aimed, as a fraction of
-/// ε: past the image's rounding (module docs, `6.2e-4` measured), so a
-/// rotation's image cannot cross ε.
+/// ε: past the image's rounding (module docs: the rotations move the
+/// bound by up to `6.1e-4` of itself, asserted under a quarter of this),
+/// so a rotation's image cannot cross ε.
 const MARGIN: f64 = 1.0 / 256.0;
 
 /// The fit round the minted face certifies on (module docs).
@@ -236,10 +240,12 @@ fn every_image_of_a_face_minted_near_eps_re_derives() {
             .unwrap_or_else(|e| panic!("d = {d}: the meters read: {e:?}"))
         };
         let source = read(face.description(), face.fit());
+        let mut worst_hull = 0.0f64;
         for (name, map) in rotations() {
             let (description, fit) = image(&face, &map);
             let moved = read(&description, &fit);
             let drift = |a: f64, b: f64| ((a - b) / b).abs();
+            worst_hull = worst_hull.max(drift(moved.hull_sup, source.hull_sup));
             assert!(
                 drift(moved.normal_floor, source.normal_floor) <= 1e-9
                     && drift(moved.curvature_reach, source.curvature_reach) <= 1e-9,
@@ -250,6 +256,14 @@ fn every_image_of_a_face_minted_near_eps_re_derives() {
                 moved.curvature_reach
             );
         }
+        // The image's rounding moves the hull bound (module docs); MARGIN
+        // holds four times the worst drift measured, so a rotation's image
+        // cannot cross ε.
+        assert!(
+            worst_hull <= MARGIN / 4.0,
+            "d = {d}: a rotation moved the hull bound by {worst_hull:e} of itself, past \
+             MARGIN / 4"
+        );
     }
 }
 

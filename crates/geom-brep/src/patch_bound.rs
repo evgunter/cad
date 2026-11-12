@@ -295,14 +295,22 @@ pub struct PatchCell {
 }
 
 /// **A vector enclosure as a ball**: every value lies within `reach` of
-/// `centre`. Read from a list of coefficient vectors whose convex hull
-/// holds the quantity, about their mean ([`centre`]), so it is a
+/// one exact centre, which `centre` encloses. Read from a list of
+/// coefficient vectors whose convex hull holds the quantity, about the
+/// mean of the coefficient vectors' midpoints ([`centre`]), so it is a
 /// function of the vectors and a rotation moves it only by rounding.
 /// `reach` is `NaN` when refused.
+///
+/// One type, not [`crate::ExtentBall`]: that one is a lever's extent over
+/// points, generic over the scalar and built only inside this crate,
+/// while this one carries the meters' algebra over a vector-valued
+/// quantity ([`Self::dot`], [`Self::cross`], [`Self::norm_sq`]).
 #[derive(Clone, Copy, Debug)]
 pub struct Ball {
-    /// The centre, a point (any finite centre is sound; this one is the
-    /// mean of the vectors' midpoints).
+    /// An enclosure of the exact centre: a point per coordinate where the
+    /// centre is chosen (any finite centre is sound; [`Self::of_vectors`]
+    /// takes the mean of the coefficient vectors' midpoints), and a
+    /// rounding width where it is computed ([`Self::cross`]).
     pub centre: [Interval; 3],
     /// A certified upper bound on the distance of every value from
     /// `centre`.
@@ -346,8 +354,9 @@ impl Ball {
     }
 
     /// The ball holding a signed box, about its midpoint, out to its
-    /// half-diagonal: for a reader that holds only a box (a hand-built
+    /// half-diagonal: for a test that holds only a box (a hand-built
     /// cell). Refused for a refused coordinate.
+    #[cfg(test)]
     #[must_use]
     pub fn of_box(b: &[Interval; 3]) -> Self {
         if !b.iter().all(|x| x.is_certified()) {
@@ -367,6 +376,59 @@ impl Ball {
     #[must_use]
     pub fn is_certified(&self) -> bool {
         self.reach.is_finite() && self.centre.iter().all(|c| c.is_certified())
+    }
+
+    /// `‖centre‖`, enclosed.
+    fn centre_norm(&self) -> Interval {
+        (self.centre[0].sqr() + self.centre[1].sqr() + self.centre[2].sqr()).sqrt()
+    }
+
+    /// The dot product of every pair of values two balls hold:
+    /// `a·b = c_a·c_b + c_a·η + δ·c_b + δ·η` with `‖δ‖ ≤ r_a`, `‖η‖ ≤ r_b`,
+    /// so it lies within `‖c_a‖·r_b + r_a·‖c_b‖ + r_a·r_b` of `c_a·c_b`.
+    /// Refused unless both balls certify.
+    #[must_use]
+    pub fn dot(&self, other: &Self) -> Interval {
+        if !self.is_certified() || !other.is_certified() {
+            return Interval::refused();
+        }
+        let (a, b) = (self, other);
+        let cc = a.centre[0] * b.centre[0] + a.centre[1] * b.centre[1] + a.centre[2] * b.centre[2];
+        let (ra, rb) = (Interval::point(a.reach), Interval::point(b.reach));
+        let r = (a.centre_norm() * rb + ra * b.centre_norm() + ra * rb).hi();
+        cc + Interval::from_bounds(-r, r)
+    }
+
+    /// `‖x‖²` over the ball: `[max(0, ‖c‖ − r)², (‖c‖ + r)²]`. Refused
+    /// unless the ball certifies.
+    #[must_use]
+    pub fn norm_sq(&self) -> Interval {
+        if !self.is_certified() {
+            return Interval::refused();
+        }
+        let c = self.centre_norm();
+        let r = Interval::point(self.reach);
+        let lo = (c - r).lo().max(0.0);
+        let hi = (c + r).hi();
+        Interval::from_bounds(lo, hi).sqr()
+    }
+
+    /// The ball holding every cross product of two balls' values: centre
+    /// `c_a × c_b`, reach `‖c_a‖·r_b + r_a·‖c_b‖ + r_a·r_b` (as
+    /// [`Self::dot`]'s, the cross product being bilinear and `‖x × y‖ ≤
+    /// ‖x‖·‖y‖`). Refused unless both balls certify.
+    #[must_use]
+    pub fn cross(&self, other: &Self) -> Self {
+        if !self.is_certified() || !other.is_certified() {
+            return Self::refused();
+        }
+        let [a0, a1, a2] = self.centre;
+        let [b0, b1, b2] = other.centre;
+        let (ra, rb) = (Interval::point(self.reach), Interval::point(other.reach));
+        Self {
+            centre: [a1 * b2 - a2 * b1, a2 * b0 - a0 * b2, a0 * b1 - a1 * b0],
+            reach: (self.centre_norm() * rb + ra * other.centre_norm() + ra * rb).hi(),
+        }
     }
 }
 
@@ -749,7 +811,7 @@ fn window_norm_sup(nets: [&Net; 3], wu: &RangeInclusive<usize>, wv: &RangeInclus
 /// Every term is a norm of vectors, so a rotation moves it only by
 /// rounding; the slack is the hulls' reach about their
 /// centres, which shrinks with the cell. The centres are a translation
-/// CHOICE — each coordinate's mean of the vectors' midpoints, any finite
+/// CHOICE — the mean of the coefficient vectors' midpoints, any finite
 /// value being sound — and a non-finite one is taken as `0`. `NaN` when
 /// either list is empty or a term is refused.
 fn cross_norm_sup(a: &[[Interval; 3]], b: &[[Interval; 3]]) -> f64 {
@@ -776,8 +838,8 @@ fn cross_norm_sup(a: &[[Interval; 3]], b: &[[Interval; 3]]) -> f64 {
 }
 
 /// A centre for `vectors` — a translation CHOICE, so any finite value is
-/// sound and none of it has to be enclosed: per coordinate, the mean of
-/// the vectors' midpoints in their order. A non-finite midpoint (an
+/// sound and none of it has to be enclosed: the mean of the coefficient
+/// vectors' midpoints, per coordinate in their order. A non-finite midpoint (an
 /// overflowed or refused enclosure) contributes `0`, and a non-finite
 /// mean is taken as `0`, so the centre is always finite and the reach
 /// about it is what reports the trouble.
@@ -1800,5 +1862,102 @@ pub(crate) mod tests {
                 }
             }
         }
+    }
+
+    /// A deterministic draw in `[-1, 1)` (an LCG, so the row is replayable).
+    fn draw(state: &mut u64) -> f64 {
+        *state = state
+            .wrapping_mul(6_364_136_223_846_793_005)
+            .wrapping_add(1_442_695_040_888_963_407);
+        #[allow(clippy::cast_precision_loss)]
+        let unit = (*state >> 11) as f64 / (1u64 << 53) as f64;
+        2.0 * unit - 1.0
+    }
+
+    /// **A ball and its algebra hold every value they claim to**, over
+    /// 300 drawn pairs of coefficient-vector lists (4 to 25 vectors, a
+    /// cluster a drawn distance off the origin, tight to wider than that
+    /// distance): every sampled hull point of each list lies within the
+    /// ball's reach of its centre, and every sampled pair's dot product,
+    /// squared norm and cross product lie in [`Ball::dot`],
+    /// [`Ball::norm_sq`] and [`Ball::cross`]. The form a meter reads lies
+    /// in the hull, so the sampled hull is the stronger oracle.
+    #[test]
+    fn a_ball_and_its_algebra_hold_every_sampled_value() {
+        let mut state = 0xba11_u64;
+        let list = |state: &mut u64| -> Vec<[f64; 3]> {
+            #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+            let n = 4 + (draw(state).abs() * 21.0) as usize;
+            let off = 2.0 * draw(state);
+            let spread = [1e-3, 0.1, 1.0, 3.0][(draw(state).abs() * 3.99) as usize];
+            let dir = [draw(state), draw(state), draw(state)];
+            (0..n)
+                .map(|_| core::array::from_fn(|i| off * dir[i] + spread * draw(state)))
+                .collect()
+        };
+        let sample = |vs: &[[f64; 3]], state: &mut u64| -> [f64; 3] {
+            let w: Vec<f64> = vs.iter().map(|_| draw(state).abs().powi(3)).collect();
+            let total: f64 = w.iter().sum();
+            core::array::from_fn(|i| w.iter().zip(vs).map(|(a, v)| a * v[i]).sum::<f64>() / total)
+        };
+        let iv = |vs: &[[f64; 3]]| -> Vec<[Interval; 3]> {
+            vs.iter().map(|v| v.map(Interval::point)).collect()
+        };
+        let holds = |x: Interval, v: f64| {
+            x.lo() <= v * (1.0 + 1e-12) + 1e-12 && v <= x.hi() * (1.0 + 1e-12) + 1e-12
+        };
+        for case in 0..300 {
+            let (a, b) = (list(&mut state), list(&mut state));
+            let (ba, bb) = (Ball::of_vectors(&iv(&a)), Ball::of_vectors(&iv(&b)));
+            assert!(ba.is_certified() && bb.is_certified(), "case {case}");
+            let ab = ba.cross(&bb);
+            for _ in 0..200 {
+                let (x, y) = (sample(&a, &mut state), sample(&b, &mut state));
+                let off_centre = (0..3)
+                    .map(|i| (x[i] - ba.centre[i].lo()).powi(2))
+                    .sum::<f64>()
+                    .sqrt();
+                assert!(
+                    off_centre <= ba.reach * (1.0 + 1e-12) + 1e-12,
+                    "case {case}: a hull point {off_centre:e} from the centre, reach {:e}",
+                    ba.reach
+                );
+                let d = x[0] * y[0] + x[1] * y[1] + x[2] * y[2];
+                assert!(
+                    holds(ba.dot(&bb), d),
+                    "case {case}: dot {d:e} outside {:?}",
+                    ba.dot(&bb)
+                );
+                let n2 = x[0] * x[0] + x[1] * x[1] + x[2] * x[2];
+                assert!(
+                    holds(ba.norm_sq(), n2),
+                    "case {case}: ‖x‖² {n2:e} outside {:?}",
+                    ba.norm_sq()
+                );
+                let c = [
+                    x[1] * y[2] - x[2] * y[1],
+                    x[2] * y[0] - x[0] * y[2],
+                    x[0] * y[1] - x[1] * y[0],
+                ];
+                let from = (0..3)
+                    .map(|i| {
+                        (c[i] - geom_core::mid_param(ab.centre[i].lo(), ab.centre[i].hi())).powi(2)
+                    })
+                    .sum::<f64>()
+                    .sqrt();
+                let slack = (0..3)
+                    .map(|i| ab.centre[i].hi() - ab.centre[i].lo())
+                    .sum::<f64>();
+                assert!(
+                    from <= ab.reach * (1.0 + 1e-12) + slack + 1e-12,
+                    "case {case}: a cross product {from:e} from the centre, reach {:e}",
+                    ab.reach
+                );
+            }
+        }
+        // Refused in, refused out.
+        assert!(!Ball::refused().dot(&Ball::zero()).is_certified());
+        assert!(!Ball::refused().norm_sq().is_certified());
+        assert!(!Ball::zero().cross(&Ball::refused()).is_certified());
     }
 }

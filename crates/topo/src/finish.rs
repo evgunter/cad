@@ -210,12 +210,21 @@ impl<T: AtRestPolicy> Replay<T> {
     /// whatever it moves. A replay carries no other verdict and its tier
     /// 2 is topology, which no map moves.
     ///
-    /// The ask is held off this node's verdict log, as the `f64` and
-    /// `Probe` leaf's moved finish is ([`AtRestPolicy::leaf`],
-    /// `docs/predicate-dimension-audit.md` F34): the taker's tier 3 asks
-    /// the box of the same image and logs it there, so both lanes log the
-    /// box once, at the taker, and the witness's verdict vector is the
-    /// box lane's. A refusal has no taker: its record is relogged here.
+    /// **Two logs, and which one this ask reaches.** A node's VERDICT log
+    /// (`geom_core::k_stats`' record of the decisions a node made, which a
+    /// drive compares lane against lane) is not the decision counters the
+    /// census pins read (the symbolic and numeric tallies per predicate,
+    /// which count every decision made, logged or not). The ask always
+    /// runs, so it always counts: the `+1 numeric` session-box decision per
+    /// move the pins carry, whichever log it reaches. Where this scalar's taker runs tier 3
+    /// ([`AtRestPolicy::TAKE_FINISHES`], the box scalars) it asks the box
+    /// of the same image and logs it there, so the ask is held off this
+    /// node's verdict log, as the `f64` and `Probe` leaf's moved finish is
+    /// ([`AtRestPolicy::leaf`], `docs/predicate-dimension-audit.md` F34),
+    /// and both lanes log the box once, at the taker. Where it does not
+    /// (`f64`, `Probe` and a dual, whose taker runs no tier 3), nothing
+    /// else would log it, so the ask is logged here. A refusal has no
+    /// taker: its record is relogged here at every scalar.
     ///
     /// # Errors
     ///
@@ -226,7 +235,7 @@ impl<T: AtRestPolicy> Replay<T> {
         let scope = geom_core::k_stats::Bracket::open();
         let asked = asked_after_isometry(&body, tol);
         let record = scope.finish();
-        if asked.is_err() {
+        if asked.is_err() || !T::TAKE_FINISHES {
             geom_core::k_stats::relog(&record);
         }
         asked.map_err(MoveError::NotFinished)?;

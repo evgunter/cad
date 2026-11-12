@@ -135,11 +135,13 @@
 //!
 //! It bounds it two ways and takes the larger. The first reads `Ẽ`'s
 //! coefficient vectors on the cell as a hull, `minₖ (ẽₖ·n)/‖n‖` along
-//! directions descending toward the hull's point nearest the origin
-//! (`PatchSpans::cell_norm_inf`): a function of the vectors that a
-//! rotation moves only by rounding (`[tolerance.residuals]`), and never
-//! below a per-coordinate box's mignitude once the descent has found
-//! that point. The second reads
+//! the direction of the hull's point nearest the origin
+//! (`PatchSpans::cell_norm_inf`, Wolfe's min-norm point): a function of
+//! the vectors that a rotation moves only by rounding
+//! (`[tolerance.residuals]`), and the hull's distance from the origin,
+//! which no per-coordinate box's mignitude exceeds. The larger of it and
+//! that mignitude is taken, so the floor is never looser than the box;
+//! the two differ only by the reading's rounding. The second reads
 //! the three components TOGETHER, through the sign witness the
 //! composite already carries: `|E·n| ≤ ‖E‖` for any `E`, and with
 //! `n = m/‖m‖`,
@@ -156,8 +158,8 @@
 //! component of `Ẽ` straddles zero as the normal turns across the cell,
 //! while the vectors themselves stay `≈ |d|` from the origin. On the
 //! quarter cylinder at `d = 1e-6` the sup cell's box read `1.58e-8`, the
-//! witness `5.64e-7` and the hull `7.89e-7`; the cell's bound is
-//! `1.24e-5`, where the box alone gave `2.63e-4`.
+//! witness `5.64e-7` and the hull `7.95e-7`; the cell's bound is
+//! `1.23e-5`, where the box alone gave `2.63e-4`.
 //!
 //! The `τ²/‖E‖` term takes the same floor, or `|d| − dist` when that
 //! is larger — three lower bounds on one norm, whose max is one too.
@@ -2382,8 +2384,8 @@ impl Composite {
     /// `|‖E‖² − d²|`, and falling back on `2|d|` for it both loses
     /// accuracy and, once `dist` reaches `|d|`, collapses the cell to
     /// `+∞` for no geometric reason. It reads the coefficient vectors'
-    /// distance from the origin, from below, along the directions of a
-    /// descent toward their hull's nearest point, so it sees `E ≈ d·n`
+    /// distance from the origin, from below, along the direction of their
+    /// hull's nearest point, so it sees `E ≈ d·n`
     /// at `≈ |d|` however the normal turns across the cell, where a
     /// per-coordinate box collapses.
     ///
@@ -2408,10 +2410,24 @@ impl Composite {
     fn e_floors(&self, su: usize, sv: usize) -> (Interval, Interval) {
         let wt = self.wt.cell_hull(su, sv);
         // `‖Ẽ‖` from below off its coefficient vectors' hull
-        // (`PatchSpans::cell_norm_inf`), never three channel hulls
-        // folded into a norm: a rotation moves it only by rounding (DESIGN
-        // `[tolerance.residuals]`).
-        let e_inf = PatchSpans::cell_norm_inf([&self.e[0], &self.e[1], &self.e[2]], su, sv);
+        // (`PatchSpans::cell_norm_inf`): a rotation moves it only by
+        // rounding (DESIGN `[tolerance.residuals]`). The per-coordinate
+        // box's mignitude is sound too, so the larger of the two is, and it
+        // is never looser than the box alone. The hull's distance is never
+        // below the box's, so the max differs from the hull reading only
+        // where the reading's arithmetic lands under that distance (by at
+        // most 1.1e-15 of it, measured in `cell_norm_inf`'s oracle row),
+        // and a rotation moves it by no more than that.
+        let hull = PatchSpans::cell_norm_inf([&self.e[0], &self.e[1], &self.e[2]], su, sv);
+        let boxed = (Interval::point(mig(self.e[0].cell_hull(su, sv))).sqr()
+            + Interval::point(mig(self.e[1].cell_hull(su, sv))).sqr()
+            + Interval::point(mig(self.e[2].cell_hull(su, sv))).sqr())
+        .sqrt();
+        let e_inf = if hull.is_finite() && boxed.is_certified() {
+            hull.max(boxed.lo())
+        } else {
+            f64::NAN
+        };
         let e_mig_iv = if e_inf.is_finite() {
             Interval::point(e_inf) / wt
         } else {
@@ -2667,9 +2683,9 @@ mod tests {
     /// projection through the sign witness, `|D|/(w̃·‖M̃‖)`, read
     /// `5.64e-7` there and carried the bound at `1.5141e-5`. The hull
     /// reading (`PatchSpans::cell_norm_inf`, the coefficient vectors'
-    /// distance from the origin along the descent's directions) now
-    /// reads `7.89e-7` — within 1.3x of `|d|` — and carries it at
-    /// `1.2361e-5`; the witness adds nothing at the sup cell and
+    /// distance from the origin along its nearest point's direction) now
+    /// reads `7.95e-7` — within 1.3x of `|d|` — and carries it at
+    /// `1.2308e-5`; the witness adds nothing at the sup cell and
     /// tightens other cells by up to 3%.
     ///
     /// The row measures the two readings on ONE composite, so the
@@ -2713,7 +2729,7 @@ mod tests {
             "the sup cell {:?} is one of a tie: {tie:?}",
             (su, sv)
         );
-        assert!(near(sup, 1.2361e-5), "sup cell bound is {sup:e}");
+        assert!(near(sup, 1.23077e-5), "sup cell bound is {sup:e}");
         assert!(
             near(cert.hull_sup, sup),
             "the certificate carries another cell's bound"
@@ -2723,8 +2739,8 @@ mod tests {
             e_lo > d * 0.5 && e_lo < d * 2.0,
             "the floor on ‖E‖ reads {e_lo:e} where ‖E‖ ≈ {d:e}"
         );
-        assert!(near(e_lo, 7.8916e-7), "floor is {e_lo:e}");
-        assert!(near(dist, 5.3234e-6) && near(tau, 1.9948e-6) && near(t3, 5.0426e-6));
+        assert!(near(e_lo, 7.9487e-7), "floor is {e_lo:e}");
+        assert!(near(dist, 5.3065e-6) && near(tau, 1.9948e-6) && near(t3, 5.0064e-6));
 
         // The same cell read through the hull alone: it is the reading
         // that carries the cell.

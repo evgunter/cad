@@ -447,7 +447,15 @@ const PLATE_MAX_TERMS: usize = 38;
 /// box's margin, a form over every vertex's and edge's reach of the
 /// moved hole: `Plain` 669 → 670 assertions (forms 6963 → 9047),
 /// `Early` 669 → 670 (8611 → 10422), `Door` 402 → 403 decisions (9906 →
-/// 11719), and `Plain/Decision`'s digest (forms 42005 → 41501).
+/// 11719). `Plain/Decision`'s forms fall 42005 → 41501 with its
+/// calls unchanged, and that is the memo, not a decision: the Plain walk
+/// keeps one memo for both origins, and a form is charged to the origin
+/// that first builds it (`sym::profile`'s per-`(walk, origin)` entry).
+/// The box ask's assertion runs at the move, before the decisions over
+/// the moved hole, and builds 504 of the vertex- and edge-reach forms
+/// those decisions built before; they now hit the memo. So
+/// `Plain/Assertion` gains 2084 forms, those 504 and the 1580 the
+/// assertion alone needs, and Decision plus Assertion grows by 1580.
 ///
 /// PCERT's closed-form bound (a stated harmonic image bounded by its residual's coefficients,
 /// main's `4121c920`) moves none of these counts: the stated images sit on moved copies whose

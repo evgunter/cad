@@ -421,7 +421,7 @@ fn a_window_the_certifier_cannot_honour_refuses_typed() {
 /// BOUND, and every reading it takes is a function of the geometry: its
 /// vector upper bounds are coefficient norms (D4 ¶2), and its lower
 /// bounds — the regularity floor `τ` divides by and the floors on `‖E‖`
-/// — are read along the piece's own direction and as a ball about
+/// — are read along the piece's own direction and off the hull of
 /// `Ẽ`'s coefficient vectors, never as a per-coordinate box folded into
 /// a norm (`[tolerance.residuals]`). So a rotation moves it only by the
 /// image's rounding: 3.2e-16 across these maps, where the box-assembled

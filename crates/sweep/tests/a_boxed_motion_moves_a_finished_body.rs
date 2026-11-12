@@ -107,11 +107,17 @@ fn a_boxed_translation_and_a_boxed_turn_move_a_finished_cylinder() {
 /// **A later finish of a boxed move reports undecided as undecided**
 /// (ONEHOME fork 259, Ev's fork-144 sentence): the moved cylinder's
 /// construction state, finished afresh over the boxed motion, reads its
-/// readings over the box. Each finding it makes is an undecided one,
-/// none says a datum is outside its
-/// convention, and none reads as a kernel defect. A certificate's
-/// undecided reading ends in the box scalars' recourse; a decision with
-/// its own lever (the dihedral's) ends in that.
+/// readings over the box, and the finish refuses (a finish that passed
+/// would leave this row nothing to read, so it asserts the refusal).
+/// Every finding it makes is an undecided one, none says a datum is
+/// outside its convention, none reads as a kernel defect, and each ends
+/// as its decision ends an undecided reading past a build (fork 259 item
+/// 2): one with no lever of its own (the edge certificate, the pinch
+/// corner, the datums) in the box scalars' recourse; a pcurve row's in
+/// its check's own lever, which item 2 leaves unchanged (the general
+/// lane's "not yet", the incidence lever); and a flat face's in band
+/// read, written with no door, in none. The row asserts that every
+/// finding is one of these, so a new ending fails here.
 #[test]
 fn a_later_finish_of_a_boxed_move_reports_only_undecided_findings() {
     let source = cylinder();
@@ -127,10 +133,15 @@ fn a_later_finish_of_a_boxed_move_reports_only_undecided_findings() {
     .unwrap();
     for (what, motion) in [("the boxed translation", shift), ("the boxed turn", turn)] {
         let moved = source.moved(&motion, tol()).unwrap();
-        let Err(refused) = topo::finish(moved.into_body(), tol()) else {
-            continue;
-        };
-        for finding in refused.into_findings() {
+        let refused = topo::finish(moved.into_body(), tol())
+            .map(|_| ())
+            .expect_err(&format!("{what}: a later finish over the box refuses"));
+        let findings = refused.into_findings();
+        assert!(
+            !findings.is_empty(),
+            "{what}: the refusal names its findings"
+        );
+        for finding in findings {
             let text = finding.to_string();
             assert!(
                 !text.contains("report it"),
@@ -147,6 +158,24 @@ fn a_later_finish_of_a_boxed_move_reports_only_undecided_findings() {
             assert!(
                 text.contains("undecided"),
                 "{what}: a later finish of a boxed move makes a definite finding: {text}"
+            );
+            let ends_as_its_decision = match finding {
+                topo::ValidationError::Pcurve { .. } => {
+                    text.ends_with(geom_core::not_yet_ending!())
+                        || text.ends_with(
+                            "Recourse: move the geometry so the boundary lies clearly on the \
+                             face it bounds at this tolerance",
+                        )
+                }
+                topo::ValidationError::PlanarFaceEscalated { .. }
+                | topo::ValidationError::PlanarBoundaryEscalated { .. } => {
+                    text.ends_with("is undecided")
+                }
+                _ => text.ends_with(geom_brep::recourse::BOX_SCALAR_RECOURSE),
+            };
+            assert!(
+                ends_as_its_decision,
+                "{what}: an undecided reading over the box ends in another recourse: {text}"
             );
         }
     }
