@@ -2,7 +2,9 @@
 id: a-self-touch-point-its-tangent-cones-leave-to-second-order-passes-unread
 kind: issue
 title: A self-touch point whose curved faces' tangent cones leave it to second order passes unread
-status: dispatched
+status: review
+branch: restread/self-touch-refuses
+pr: 6854
 opened: 2026-11-02
 priority: P1
 cost: H

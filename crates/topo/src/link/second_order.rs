@@ -499,10 +499,6 @@ fn misses<T: Decide>(
         )
         .map_err(|_| true)
     };
-    let read = |r: Result<Sign, bool>| match r {
-        Ok(s) => Some(s),
-        Err(_) => None,
-    };
     // Whether `r` reads `want`, unknown where it is in band.
     let reads = |r: Result<Sign, bool>, want: Sign| match r {
         Ok(s) => Some(s == want),
@@ -528,7 +524,7 @@ fn misses<T: Decide>(
     };
     match b.run {
         Run::Both(wb) => and3(decided(clear), is(toward(wb, a.normal), Sign::Zero)),
-        Run::Half(wb) => match (read(side), toward(wb, a.normal)) {
+        Run::Half(wb) => match (side.ok(), toward(wb, a.normal)) {
             (Some(s @ (Sign::Positive | Sign::Negative)), Some(Sign::Zero)) => reads(clear, s),
             (Some(s @ (Sign::Positive | Sign::Negative)), Some(g)) => Some(g == s),
             (Some(Sign::Zero), Some(Sign::Positive | Sign::Negative)) => behind(),

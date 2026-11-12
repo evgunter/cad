@@ -274,7 +274,14 @@ fn a_nappe_off_every_plane_is_the_thorn_or_needle_it_bounds<T: Decide>() {
             .into_iter()
             .collect::<Vec<_>>();
         twice.push(whole(p, up));
-        assert_eq!(read(p, twice), unread, "two whole turns at {p:?}");
+        // Two rulings on one ray read apart Zero, or, where the band
+        // cannot decide that (a kilometre off on `Interval` at the
+        // finest band), in band: refused either way.
+        let got = read(p, twice);
+        assert!(
+            got == unread || got == TouchVerdict::Unread(TouchUnread::InBand),
+            "two whole turns at {p:?}: {got:?}"
+        );
     }
 }
 
