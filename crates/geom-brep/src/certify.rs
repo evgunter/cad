@@ -978,9 +978,9 @@ impl core::fmt::Display for CertifyError {
                 "a Nurbs described surface, or a Nurbs carrier under a \
                  conventional description, cannot be certified in this build — rung-3 \
                  carriers certify as the Intersection of two analytic surfaces, or of \
-                 one plane and one described NURBS wall, or of two spline charts, through \
-                 the declare-and-check lane; a spline beside a curved analytic surface has \
-                 no certificate"
+                 one plane, sphere, cylinder or torus and one described NURBS wall, or of \
+                 two spline charts, through the declare-and-check lane; a spline beside a \
+                 cone has no certificate"
             ),
             Self::IntersectionSameSurface { key } => write!(
                 f,

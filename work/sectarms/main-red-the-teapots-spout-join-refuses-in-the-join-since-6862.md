@@ -24,3 +24,28 @@ Measured on wheels built from `7d83cdff9e^1` (`c8c2b4f70b`: `inner_kind` `germ_f
 ## Done when
 
 Tour wall 3 pins what the kernel now does: the join's refusal at the attachment gate, with its payload and the ε at which it holds. The module docs' narration of the spout's refusal reads the same. Or the attachment gate certifies a spline section edge beside a sphere, and both rows pin the built union.
+
+## The stop moved again: containment (2026-11-12, `sectarms/spline-curved-at-rest`)
+
+With the at-rest arm for a sphere, cylinder or torus beside a spline wall
+(`edge_nurbs::curved_nurbs_limbs`), the spout union's section edges
+certify at the attachment gate and the join completes. Measured on a
+wheel built from that branch, running the teapot's recipe at the default
+ε: `inner_kind` `containment`, "the Boolean cannot tell what is inside
+the solid: one of its faces is a spline (NURBS) surface, which the
+inside/outside test has no way yet to cross"
+(`work/inside/point-containments-ray-test-has-no-spline-arm.md`).
+
+- **The north-star row** is re-pinned there in that PR
+  (`TestTeapot.test_the_handle_join_builds_and_the_spout_join_refuses`:
+  the arm, the test's sentence, and neither the join's sentence nor the
+  certificate's).
+- **The tour scene** is not: `wall3_pinned` still matches the germ
+  frame, and what it has to pin is now
+  `BooleanError::Containment(PointInSolidError::KindUnsupported { kind: Nurbs })`
+  at the default ε. The tour pins "at every ε", and that is no longer
+  one stop: at ε = 1e-12 a ball's chord on a loft wall refuses at the
+  gate on the lane's own image
+  (`a-curved-partners-arc-is-imaged-at-rest-no-finer-than-the-mints-finest-rung`),
+  so wall 3's rows at 1e-6 and 1e-12 want measuring before it is pinned.
+  Not run here: the lane did not build the demos.
