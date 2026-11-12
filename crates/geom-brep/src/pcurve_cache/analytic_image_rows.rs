@@ -657,7 +657,7 @@ fn a_cone_image_at_a_steep_sample_certifies() {
         coarse,
         crate::FittedLane::certified(),
     )
-    .expect("a correct image certifies at a coarse band");
+    .unwrap_or_else(|e| panic!("a correct image certifies at a coarse band: {e:?}"));
     let width = geom_core::Bounds::hi(cert.max_residual);
     assert!(
         width < 0.5e-12,
