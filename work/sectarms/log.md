@@ -717,3 +717,15 @@ Both reds were found by PCERT's nightly lane and trace to SECTARMS merges.
 - **Bounds allowlist:** `edge_nurbs.rs` 16 → 20, entered under the M7-8 / C2 precedent with retroactive Ev review, the form PR 6532 used. It goes to Ev in the merge summary.
 - **Main red that 6862 caused:** tour teapot wall 3 (`main-red-the-teapots-spout-join-refuses-in-the-join-since-6862`, P1). SEAL's PR 6860 re-pinned the north-star row, and 6879 moves it to containment. The tour re-pin goes into 6879's fix pass, since 6879 moves the target again.
 - **Review tier:** dual, concurrent. Slot byte 31 (odd), so R1 = Fable and R2 = Opus, on `79fd8aa9f5`. Implementer arm: byte 55, drawn at dispatch. Each reviewer has its own scratch subdirectory.
+
+## 2026-11-12 — PR 6879's reviews adjudicated; fix pass dispatched
+
+- **Both reviewers approve with fixes, and neither raises a MAJOR.** Both found the arm sound, with no false pass at any scale, ε or near-tangent pose. They agree on three test gaps (bilateral):
+  - the wall's half of the curvature arm is unpinned, and its mutant survives;
+  - the 1000 ε stand-off rows let a 2–10× band loosening through;
+  - the docs say "the same image" where the image is now the climbed one.
+- **R1 alone (demonstrated): the soundness argument credits the wrong limb.** A degree-5 image can leave the knot rectangle, where limb 2 reads the polynomial extension and passes a carrier up to 10⁴ ε off. Only limb 3's tube refuses. The arm stays sound, but the stated reason is wrong. A row is added and the docs corrected.
+  - **Possible class on main:** `PcurveCache::certify_general` reads limbs 1–2 on the same image with no tube. The fix pass probes it and files on the owning program, at P0 if it reproduces.
+- **Cost, measured by both:** limb 3 takes 80–98%; the climb is about 1%. The P2 item's attribution is corrected.
+- **The image choice stays as built** (R1: likely an open decision for liveness, not for soundness). The P1 image item records that its candidate 2, where the door stores its pcurve, is a design fork for designers before anyone builds it.
+- **The fix pass is on Fable, the implementer's arm.** It also re-pins tour teapot wall 3 (the main red from 6862) and records that the join unit's done-when waits on INSIDE's containment row.
