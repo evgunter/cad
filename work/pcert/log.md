@@ -1338,3 +1338,29 @@ E1c waits on the answer.
     - P3s for the spindle, the interval mint door at pole starts, the unsigned reach, and Villarceau.
     - Both arm rows now note that a fix needs one shared reader.
 - 2026-11-12 — **`main-red-a-cone-stated-image-fuzz-seed-fails-at-1e-12` closed. PR 6857 had already fixed it.** sectarms' lane filed it at 08:44, before 6857 merged. The orchestrator ran the seed on 6857's parent, where it is red (sample 5, the computed station's width, [0, 6.8e-12]), and on main, where it is green. The seed is now pinned as a row beside 6857's cone row, and it goes red under 6857's mutant.
+
+- 2026-11-12 — **Sitting handed back: status `ready`.** No P0 or P1 is left on PCERT's slate; the top row is P2.
+  - **Landed this sitting:**
+    - 6528, 6531, 6803, 6800, 6801, 6809, 6524, 6813;
+    - 6532, the curved General image. Its body has a "For Ev (retroactive)" section on the `edge_nurbs` bounds-allowlist widening, 14 → 16;
+    - 6815, 6822, 6819, 6827, 6826, 6831, 6833;
+    - 6836, analytic stated images bounded over the span;
+    - 6845, closed forms bounded over the span;
+    - 6857, held stations on the stated route;
+    - 6864, check 4 reads by turn; spiricarm's cylinder boolean was parked on it;
+    - 6872, the closed-bound seeds' root cause;
+    - 6870, derived sphere images on their circle;
+    - 6874, the cone seed pinned;
+    - main-red mends and filings: 6839, 6841, 6842, 6853, 6863, 6876.
+  - **The tail, by priority:**
+    - P2 `a-cone-ruling-anchored-near-its-apex-reads-its-azimuth-off-a-short-radial-part`, PR 6870's reverted arm. It has a direction and a one-reader note.
+    - cost-E P3 `a-stated-spline-image-is-certified-twice-by-the-edge-certificate-and-the-mint`. Its fix moves the sheath pin back to 62.
+    - P4s from 6845 and 6864.
+  - **Main reds met this sitting that are not PCERT's**, all filed on their owners:
+    - sectarms 6811 `critical.rs` census (theirs);
+    - editor-core `assemble_one_local_battery`;
+    - tesswalk `face_normal`;
+    - spiricarm's endpoint census (PR 6808);
+    - sectarms' endpoint census (PR 6862);
+    - band, gauge and lathe sweep reds.
+  - **Roster-skip class:** recurred three times; the evidence is on green's row.
