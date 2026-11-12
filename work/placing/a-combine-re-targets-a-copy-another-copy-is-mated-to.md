@@ -2,10 +2,11 @@
 id: a-combine-re-targets-a-copy-another-copy-is-mated-to
 kind: issue
 title: The combine re-targets a copy that another copy's mate reads, stranding that copy silently
-status: review
+status: closed
 pr: 6850
 branch: placing/target-row
 opened: 2026-11-12
+closed: 2026-11-12
 ---
 
 
