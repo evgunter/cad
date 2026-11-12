@@ -199,7 +199,10 @@ fn split_at_the_nominal(rules: SymRules, tol: Tol) -> BTreeMap<&'static str, [u6
 /// `witness_on_surface` 40/16 -> 36/12 (48/0), `pcurve_map_residual`
 /// 0/72 -> 0/54 (54/0), `carrier_matches_mapped_source` 232/56 ->
 /// 214/56 (270/0). `line_span` held, and every one the algebra took
-/// before it still takes.
+/// before it still takes. A stated harmonic image bounded by its
+/// residual's coefficients, not metered at its nine samples, moved
+/// `pcurve_map_residual` 0/54 -> 0/36 (36/0): the two rims' 18 sampled
+/// reads are one `pcurve_closed_bound` each.
 #[test]
 fn m10_10_all_four_discharge_at_the_nominal_and_the_chart_phase_is_the_doors() {
     let tol = Tol::witness();
@@ -220,7 +223,7 @@ fn m10_10_all_four_discharge_at_the_nominal_and_the_chart_phase_is_the_doors() {
     assert_eq!(row(&off, "carrier_matches_mapped_source"), [214, 56]);
     assert_eq!(pair(&off, "carrier_on_surface"), [324, 108]);
     assert_eq!(pair(&off, "witness_on_surface"), [36, 12]);
-    assert_eq!(row(&off, "pcurve_map_residual"), [0, 54]);
+    assert_eq!(row(&off, "pcurve_map_residual"), [0, 36]);
     // The algebra on.
     assert_eq!(
         row(&on, "carrier_matches_mapped_source"),
@@ -240,9 +243,9 @@ fn m10_10_all_four_discharge_at_the_nominal_and_the_chart_phase_is_the_doors() {
     );
     assert_eq!(
         row(&on, "pcurve_map_residual"),
-        [54, 0],
+        [36, 0],
         "the chart's phase `atan2(0, r²/sqrt(r²))` folds to the zero form (A1) and `cos π` \
-         on the negative frame to −1; the rim folds onto |r|, so every one of the 54 is a \
+         on the negative frame to −1; the rim folds onto |r|, so every one of the 36 is a \
          THEOREM"
     );
     assert_eq!(

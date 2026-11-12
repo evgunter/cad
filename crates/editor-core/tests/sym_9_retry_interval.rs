@@ -697,12 +697,17 @@ fn sym_9_the_kept_atom_ladder_recovers_what_phase_1_measured() {
     // map's seven `transform_rigid_*` margins log no row, 7 symbolic per map
     // both ways, the numeric unmoved: the plate and the bracket −14, the
     // annulus, the boss and the link −7.
+    // Then PCERT's closed-form bound (a stated harmonic image bounded
+    // over its span by its residual's coefficients, not metered at the
+    // nine samples): each document's two stated images trade eighteen
+    // `pcurve_map_residual` theorems for two `pcurve_closed_bound` ones,
+    // −16 symbolic both ways, the numeric unmoved.
     let expected: [(&str, [u64; 2], [u64; 2], u64); 5] = [
-        ("two_hole_plate", [1189, 824], [1189, 824], 0),
-        ("r1_annulus", [713, 555], [713, 555], 0),
-        ("r1_segment_boss", [680, 539], [680, 539], 0),
-        ("r2_filleted_bracket", [1585, 1155], [1591, 1149], 6),
-        ("r2_link", [991, 821], [991, 821], 0),
+        ("two_hole_plate", [1173, 824], [1173, 824], 0),
+        ("r1_annulus", [697, 555], [697, 555], 0),
+        ("r1_segment_boss", [664, 539], [664, 539], 0),
+        ("r2_filleted_bracket", [1569, 1155], [1575, 1149], 6),
+        ("r2_link", [975, 821], [975, 821], 0),
     ];
     let mut moved: Vec<String> = Vec::new();
     for (name, want_off, want_on, want_retried) in expected {
@@ -869,10 +874,12 @@ fn sym_9_the_drive_writes_the_ladders_receipt() {
     // [1529, 1382] -> [1573, 1500], the retries holding. Then ONEHOME
     // (`mate::solve::admitted` removed: a placement composed as motions
     // decides no rigidity margin): the pad's placement's seven
-    // `transform_rigid_*` margins log no row: 1573 -> 1566 symbolic.
+    // `transform_rigid_*` margins log no row: 1573 -> 1566 symbolic. Then
+    // PCERT's closed-form bound: the pad's two stated images' nine-sample
+    // meters become one bound each, 1566 -> 1550 symbolic.
     assert_eq!(
         [d.symbolic, d.numeric, d.retried],
-        [1566, 1500, 34],
+        [1550, 1500, 34],
         "the shipped ladder's leaf receipt"
     );
     assert!(
@@ -891,8 +898,9 @@ fn sym_9_the_drive_writes_the_ladders_receipt() {
     // decisions, as the shipped receipt's. Then the run in as its own
     // segment, as the shipped receipt's: [1495, 1416, 0] -> [1539, 1534, 0].
     // Then ONEHOME's seven rigidity margins, as the shipped receipt's:
-    // [1539, 1534, 0] -> [1532, 1534, 0].
-    assert_eq!([b.symbolic, b.numeric, b.retried], [1532, 1534, 0]);
+    // [1539, 1534, 0] -> [1532, 1534, 0]. Then the closed-form bound, as
+    // the shipped receipt's: [1532, 1534, 0] -> [1516, 1534, 0].
+    assert_eq!([b.symbolic, b.numeric, b.retried], [1516, 1534, 0]);
     assert!(
         !bare.serialize().contains("retried="),
         "no ladder, no column"

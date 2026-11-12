@@ -396,8 +396,14 @@ const SLAB_LEDGER: [&str; 3] = [
 /// and 372 → 360, `Early/Decision` 9399 → 9117 and 8 → 0,
 /// `Early/Assertion` 4860 → 4831; every digest but `Door/Assertion`'s
 /// and the `Report` lines' moves. The slab, a polygon, does not move.
+///
+/// **When a stated harmonic image came to be bounded by its residual's
+/// coefficients** rather than metered at the nine samples, the plate's
+/// largest form grew 38 → 46 terms: the bound's coefficient sum over the
+/// residual's slots, built once per stated image, is larger than any one
+/// sample's residual. The ledger's moves are on [`PLATE_LEDGER`].
 const SLAB_MAX_TERMS: usize = 6;
-const PLATE_MAX_TERMS: usize = 38;
+const PLATE_MAX_TERMS: usize = 46;
 
 /// The plate's walk ledger at its nominal — one row, because the
 /// plate's nominal reads no ε (its dimensions are literals, not
@@ -434,11 +440,19 @@ const PLATE_MAX_TERMS: usize = 38;
 /// rigidity margins, so `Plain/Decision` loses those 14 calls (1203 →
 /// 1189) and the nine forms they built (55907 → 55898). No other line
 /// moves.
+///
+/// **Moved with the closed-form bound** (a stated harmonic image bounded
+/// over its span by its residual's coefficients, not metered at the nine
+/// samples): each of the two stated images' nine `pcurve_map_residual`
+/// decisions become one `pcurve_closed_bound`, so `Plain/Decision` calls
+/// 1189 → 1173 (forms 55898 → 55696) and `Early/Decision` 412 → 396
+/// (forms 42505 → 42225); `Early/Assertion` builds 10519 → 10543 forms.
+/// Nothing new freezes.
 const PLATE_LEDGER: &str = "\
-     Plain/Decision calls 1189 forms 55898 frozen 66 digest 20fc0ebc7b7a86d1655eb11d10bcece9\n\
+     Plain/Decision calls 1173 forms 55696 frozen 66 digest c6477b92c2cfdd53827a2cb8470912a2\n\
      Plain/Assertion calls 824 forms 9114 frozen 193 digest dd673bfb67b01ff645a83264700b9100\n\
-     Early/Decision calls 412 forms 42505 frozen 0 digest 2694202f7b062a10a6e74f46b875d770\n\
-     Early/Assertion calls 824 forms 10519 frozen 0 digest 2348058666416ec4901cd72db6861631\n\
+     Early/Decision calls 396 forms 42225 frozen 0 digest f3a2c1ea95e4fbfad33070f0e3d03ae2\n\
+     Early/Assertion calls 824 forms 10543 frozen 0 digest b0a635156255a9c708a608454ac55ae1\n\
      Door/Decision calls 557 forms 13458 frozen 0 digest def6998cc3dfb007c479d6625f9c680e";
 
 /// **What the walks BUILD is pinned, not only what the tier decides.**

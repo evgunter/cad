@@ -282,6 +282,7 @@ const D_TAB_AT_THE_NOMINAL: &[(&str, [u64; 2])] = &[
     // [22, 20] -> [18, 24]
     // (`work/sym/a-rigidly-copied-cylinder-walls-incidence-identity-has-no-sym-rule.md`).
     ("pcurve_chart_radial_moving", [18, 24]),
+    ("pcurve_closed_bound", [2, 0]),
     // PCERT E1c (every mint reads incidence first, PR 5889):
     // one read per carrier, the twin re-read gone: [24, 6] -> [16, 4]
     // and [28, 6] -> [20, 4].
@@ -290,7 +291,9 @@ const D_TAB_AT_THE_NOMINAL: &[(&str, [u64; 2])] = &[
     ("pcurve_interval_forward", [0, 20]),
     ("pcurve_line_chart_incident", [20, 4]),
     ("pcurve_loop_branch", [0, 42]),
-    ("pcurve_map_residual", [36, 0]),
+    // A stated harmonic image is bounded by its residual's coefficients,
+    // one theorem, not metered at its nine samples: [36, 0] -> [18, 0].
+    ("pcurve_map_residual", [18, 0]),
     ("segment_gap", [0, 2]),
     ("segment_straightness", [6, 6]),
     ("side_cylinders_cosurface", [2, 0]),
@@ -483,6 +486,7 @@ fn m10_bulge_the_bosss_split_at_the_nominal() {
             ("pcurve_chart_orientation", [0, 20]),
             ("pcurve_chart_placement", [0, 84]),
             ("pcurve_chart_radial_moving", [22, 20]),
+            ("pcurve_closed_bound", [2, 0]),
             // PCERT E1c (every mint reads incidence first, PR 5889):
             // one read per carrier, the twin re-read gone: [24, 6] -> [16, 4]
             // and [28, 6] -> [20, 4].
@@ -491,7 +495,10 @@ fn m10_bulge_the_bosss_split_at_the_nominal() {
             ("pcurve_interval_forward", [0, 20]),
             ("pcurve_line_chart_incident", [20, 4]),
             ("pcurve_loop_branch", [0, 42]),
-            ("pcurve_map_residual", [36, 0]),
+            // A stated harmonic image is bounded by its residual's
+            // coefficients, one theorem, not metered at its nine samples:
+            // [36, 0] -> [18, 0].
+            ("pcurve_map_residual", [18, 0]),
             ("segment_straightness", [2, 6]),
             ("side_cylinders_cosurface", [2, 0]),
             // Limb 2's distance bound (C2), owed by every Intersection
