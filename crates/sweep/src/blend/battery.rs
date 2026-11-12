@@ -3314,9 +3314,8 @@ fn mixed_corner_square<T: Decide + Bounds>(
         .iter()
         .filter(|l| matches!(l.convexity, Convexity::Convex))
         .count();
-    let unbuilt = || {
-        super::surgery::unbuilt_corner_config(vertex, CornerConfig::MixedConvexity { convex })
-    };
+    let unbuilt =
+        || super::surgery::unbuilt_corner_config(vertex, CornerConfig::MixedConvexity { convex });
     if links.len() != 3 || !links.iter().all(|l| l.arm.is_plane_plane()) {
         return Err(unbuilt());
     }

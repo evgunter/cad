@@ -285,7 +285,8 @@ fn mixed_corner_plan<'a, T: Decide + Bounds>(
         .filter(|o| matches!(o.convexity(), Convexity::Convex))
         .count();
     let odd_is_convex = convex == 1;
-    let is_odd = |o: &AdmittedOpen<'a, T>| matches!(o.convexity(), Convexity::Convex) == odd_is_convex;
+    let is_odd =
+        |o: &AdmittedOpen<'a, T>| matches!(o.convexity(), Convexity::Convex) == odd_is_convex;
     let pair: Vec<&Link<T>> = all
         .iter()
         .filter(|o| !is_odd(o))
@@ -1157,8 +1158,14 @@ pub(in crate::blend) fn blank_phase<'a, T: Decide + Bounds + topo::AtRestPolicy>
             }
             let mut ends = [v; 2];
             for (slot, (edge, foot)) in ends.iter_mut().zip(order) {
-                let created =
-                    strut_foot(body, station.half_edge, v, foot, "mixed host strut mev", tol)?;
+                let created = strut_foot(
+                    body,
+                    station.half_edge,
+                    v,
+                    foot,
+                    "mixed host strut mev",
+                    tol,
+                )?;
                 strut_of.entry(v).or_default().push(created.edge);
                 rec.host_feet.push((created.vertex, v, edge));
                 once(
@@ -1171,8 +1178,10 @@ pub(in crate::blend) fn blank_phase<'a, T: Decide + Bounds + topo::AtRestPolicy>
             }
             let (he1, he2) = (half_from(body, f, ends[0])?, half_from(body, f, ends[1])?);
             let (p1, p2) = (
-                point_of(body, ends[0]).ok_or_else(|| unresolved(EntityId::Vertex(ends[0]), "a foot"))?,
-                point_of(body, ends[1]).ok_or_else(|| unresolved(EntityId::Vertex(ends[1]), "a foot"))?,
+                point_of(body, ends[0])
+                    .ok_or_else(|| unresolved(EntityId::Vertex(ends[0]), "a foot"))?,
+                point_of(body, ends[1])
+                    .ok_or_else(|| unresolved(EntityId::Vertex(ends[1]), "a foot"))?,
             );
             let created = body
                 .mef(

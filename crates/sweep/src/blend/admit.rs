@@ -648,9 +648,7 @@ impl StationKind {
     /// foot).
     pub(super) fn spins_a_strut(self) -> bool {
         match self {
-            Self::Corner | Self::Joint | Self::Mitre | Self::JunctionHost | Self::MixedFoot => {
-                true
-            }
+            Self::Corner | Self::Joint | Self::Mitre | Self::JunctionHost | Self::MixedFoot => true,
             Self::CutOff | Self::TurnFoot | Self::JunctionMate | Self::MixedHost => false,
         }
     }
