@@ -706,3 +706,14 @@ Both reds were found by PCERT's nightly lane and trace to SECTARMS merges.
   - **Review tier:** dual, concurrent. It adds a certificate arm that every curved partner on a spline wall will rest on.
   - **Implementer arm:** byte 55 (Fable), drawn at dispatch.
   - **Blinding:** the brief carries no model-naming trailer.
+
+## 2026-11-12 — stage B (PR 6879) is up for dual review
+
+- **PR 6879**, head `79fd8aa9f5`, green. It adds an at-rest arm for an `Intersection` of a spline with a sphere, cylinder or torus (`residual_nurbs_limbs` and `curved_nurbs_limbs`; `Resolved::ResidualNurbs`). The ball row now reaches containment at 1e-9 and 1e-6. At 1e-12 the chord still refuses on its image (`ImageMiss`, about 1.7e-11 m), filed P1.
+- **The done-when is still not met.** The union stops at `Containment(KindUnsupported { Nurbs })`, which is INSIDE's `point-containments-ray-test-has-no-spline-arm` (P3 H). The join unit's done-when now waits on it, so a note goes on INSIDE's log asking them to weigh raising it.
+- **The lane built past a stop.** Its brief said to stop on a choice the text does not decide. It chose instead to image the carrier at rest with the pcurve mint's climbed image (`general_chart_image`), not the plane precedent's degree-1 interpolant, which misses a bent arc by its sag.
+  - **My call: not a fork.** The image is evidence that limb 2 decides, and `general_chart_image` is the mint's own image of any carrier on a spline chart (PR 6532). The choice is one reversible arm.
+  - The reviewers are asked to falsify "the image cannot weaken the certificate". The lane's disregard of the stop instruction is noted.
+- **Bounds allowlist:** `edge_nurbs.rs` 16 → 20, entered under the M7-8 / C2 precedent with retroactive Ev review, the form PR 6532 used. It goes to Ev in the merge summary.
+- **Main red that 6862 caused:** tour teapot wall 3 (`main-red-the-teapots-spout-join-refuses-in-the-join-since-6862`, P1). SEAL's PR 6860 re-pinned the north-star row, and 6879 moves it to containment. The tour re-pin goes into 6879's fix pass, since 6879 moves the target again.
+- **Review tier:** dual, concurrent. Slot byte 31 (odd), so R1 = Fable and R2 = Opus, on `79fd8aa9f5`. Implementer arm: byte 55, drawn at dispatch. Each reviewer has its own scratch subdirectory.
