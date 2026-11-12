@@ -282,12 +282,15 @@ and a fixed reference direction would read the world axes.
   helix of the tour coil's proportions (radius 0.14, pitch 0.08) the
   end roll after six turns is 9.2e-7 rad off the exact frame at 16
   stations a turn, 5.7e-8 at 32 and 3.5e-9 at 64.
-- **The carry is a function of the `f64` path and the station count.**
-  It is computed once, its decisions taken there, and every scalar lane
-  composes it onto its own start plane; station 0 is the start plane
-  itself, and a step whose two tangents are equal bit for bit is the
-  identity with no rounding (the exact law's answer: its second
-  reflection is its first).
+- **The carry is a function of the `f64` path and the station count,
+  minted at each scalar.** Every scalar lane reads the path, its data
+  entering as the constants it is, at the stations' parameters, takes
+  the carry's decisions there and composes the rotations it mints onto
+  its own start plane: a frame exists at a scalar only by being minted
+  there (`geom_core::RigidMotion`, "Crossing scalars"). Station 0 is
+  the start plane itself, and a step whose two tangents are equal bit
+  for bit at `f64` is the identity with no rounding (the exact law's
+  answer: its second reflection is its first).
 - **The pivot is the path's start point `p₀`.** Station `i` is the
   start frame turned about `p₀` by the carried rotation `Cᵢ`, then
   moved onto the path: its origin is `pᵢ + Cᵢ·(o − p₀)` for `o` the

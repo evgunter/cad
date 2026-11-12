@@ -62,10 +62,11 @@
 //! gives a wall whose weights, knots and poles are functions of them
 //! too, and at an enclosure scalar a section over a box gives walls
 //! that enclose the box's family. The sines and cosines are `Real`'s,
-//! the pure-Rust `libm` D9 prescribes. A path sweep is the exception on
-//! its path's side: the path is `f64`, so its stations' parameters
-//! (`v = i/(n − 1)`) and its carried rotations are computed in `f64`
-//! and enter the sections' scalar as the points they are (`PathCarry`).
+//! the pure-Rust `libm` D9 prescribes. A path sweep's path is `f64`
+//! data: it enters the sections' scalar as the constants it is, its
+//! stations' parameters (`v = i/(n − 1)`) are chosen in `f64`, and its
+//! points, tangents and carried rotations are computed in the sections'
+//! scalar from the path read there (`PathCarry`).
 //!
 //! A carrier's weights and knots are points at every scalar for now, so
 //! at an enclosure scalar an arc whose weight `cos(Δ/2)` is wider than a
@@ -1832,47 +1833,27 @@ pub(crate) const SWEEP_PATH_TURN: &str = "sweep_path_turn";
 /// **The path's carry**: for each station, where the path is and the
 /// rotation carrying the start frame there — `crates/sweep/README.md`
 /// `[sweep.frame]`, the rotation-minimizing frame by double reflection.
-/// It is a function of the `f64` path and the station count alone, so
-/// it is computed once and every scalar lane composes it onto its own
-/// start plane ([`Self::place`]).
+/// It is a function of the path and the station count alone, and each
+/// scalar lane mints it at its own scalar from the path's data held
+/// there ([`Self::place`]): a frame exists at a scalar only by being
+/// minted there.
 pub(crate) struct PathCarry {
-    /// The path's start point, the pivot every station's rotation
-    /// turns about.
-    start: Point3<f64>,
-    /// Each station's point on the path and the rotation carrying the
-    /// start frame there, about the coordinate origin; `None` where
-    /// that rotation is the identity with no rounding.
-    stations: Vec<(Point3<f64>, Option<RigidMotion<f64>>)>,
+    /// The path, its control net, knots and weights entering each lane
+    /// as the model constants they are.
+    path: NurbsCurve3<f64>,
+    /// Each station's parameter on the path.
+    at: Vec<f64>,
+    /// Whether the step into station `i` has two tangents equal bit for
+    /// bit at `f64` (index 0 unused): the identity with no rounding, as
+    /// the exact law makes it.
+    still: Vec<bool>,
+    band: Band,
 }
 
 impl PathCarry {
     /// The carry of `path` sampled at `stations` uniform shares of its
-    /// parameter.
-    ///
-    /// Each step from station `i` to `i + 1` is Wang, Jüttler, Zheng and
-    /// Liu's double reflection (ACM TOG 2008): the reflection in the
-    /// plane normal to the chord `c`, then the reflection carrying the
-    /// mirrored tangent onto `tᵢ₊₁`. Their product is evaluated as the
-    /// product of the half turns about `tᵢ` and about `ĉ` (the two
-    /// reflections' product with `H_tᵢ` inserted), followed by the
-    /// minimal rotation carrying `m = H_c·H_tᵢ·tᵢ` onto `tᵢ₊₁`
-    /// ([`RigidMotion::turned_between`]), whose one decision is the
-    /// second reflection's margin. A step whose two tangents are equal
-    /// bit for bit is the identity with no rounding, as the exact law
-    /// makes it (the second reflection is then the first).
-    ///
-    /// Three decisions, each under the band:
-    ///
-    /// - **the tangent** at each station (`sweep_path_tangent`): a
-    ///   vanishing, overflowed or poisoned derivative has no direction;
-    /// - **the chord** into each station after the first
-    ///   (`sweep_path_chord`): coincident stations have no chord to
-    ///   reflect in;
-    /// - **the fold-back** (`sweep_path_turn`): `1 + m·tᵢ₊₁ > 0`.
-    ///   Where `tᵢ₊₁` is `tᵢ` mirrored in the plane normal to the
-    ///   chord (the path leaves along the chord and comes back against
-    ///   it), `m` is opposed to `tᵢ₊₁` and the second reflection has no
-    ///   plane.
+    /// parameter. Its decisions are taken where it is minted
+    /// ([`Self::place`]).
     pub(crate) fn of(
         path: &NurbsCurve3<f64>,
         stations: usize,
@@ -1886,12 +1867,78 @@ impl PathCarry {
         }
         let band = Band::linear(tol).map_err(SkinError::Band)?;
         let (lo, hi) = path.domain();
-        let shares = station_shares(stations);
-        let samples = shares
+        let at: Vec<f64> = station_shares(stations)
+            .iter()
+            .map(|s| (hi - lo).mul_add(*s, lo))
+            .collect();
+        let direction = |t: f64| {
+            path.ders1(t)
+                .1
+                .checked_direction_and_length()
+                .ok()
+                .map(|(d, _)| [d.x, d.y, d.z].map(f64::to_bits))
+        };
+        let directions: Vec<_> = at.iter().map(|t| direction(*t)).collect();
+        let still = core::iter::once(false)
+            .chain(
+                directions
+                    .windows(2)
+                    .map(|pair| pair[0].is_some() && pair[0] == pair[1]),
+            )
+            .collect();
+        Ok(Self {
+            path: path.clone(),
+            at,
+            still,
+            band,
+        })
+    }
+
+    /// Each station's normalised path parameter, `i / (stations − 1)`:
+    /// the v its section sits at.
+    pub(crate) fn params(&self) -> Vec<f64> {
+        station_shares(self.at.len())
+    }
+
+    /// **The carry minted at `T`**: each station's point on the path
+    /// and the rotation carrying the start frame there, about the
+    /// coordinate origin, `None` where that rotation is the identity
+    /// with no rounding; all of it computed in `T` from the path read
+    /// at `T`.
+    ///
+    /// Each step from station `i` to `i + 1` is Wang, Jüttler, Zheng and
+    /// Liu's double reflection (ACM TOG 2008): the reflection in the
+    /// plane normal to the chord `c`, then the reflection carrying the
+    /// mirrored tangent onto `tᵢ₊₁`. Their product is evaluated as the
+    /// product of the half turns about `tᵢ` and about `ĉ` (the two
+    /// reflections' product with `H_tᵢ` inserted), followed by the
+    /// minimal rotation carrying `m = H_c·H_tᵢ·tᵢ` onto `tᵢ₊₁`
+    /// ([`RigidMotion::turned_between`]), whose one decision is the
+    /// second reflection's margin. A step whose two tangents are equal
+    /// bit for bit at `f64` is the identity with no rounding, as the
+    /// exact law makes it (the second reflection is then the first).
+    ///
+    /// Three decisions, each under the band, at `T`:
+    ///
+    /// - **the tangent** at each station (`sweep_path_tangent`): a
+    ///   vanishing, overflowed or poisoned derivative has no direction;
+    /// - **the chord** into each station after the first
+    ///   (`sweep_path_chord`): coincident stations have no chord to
+    ///   reflect in;
+    /// - **the fold-back** (`sweep_path_turn`): `1 + m·tᵢ₊₁ > 0`.
+    ///   Where `tᵢ₊₁` is `tᵢ` mirrored in the plane normal to the
+    ///   chord (the path leaves along the chord and comes back against
+    ///   it), `m` is opposed to `tᵢ₊₁` and the second reflection has no
+    ///   plane.
+    fn stations<T: Decide>(&self) -> Result<Vec<Station<T>>, SkinError> {
+        let band = self.band;
+        let path = self.path.map_scalar(T::from_f64);
+        let samples = self
+            .at
             .iter()
             .enumerate()
             .map(|(station, s)| {
-                let (p, d) = path.ders1((hi - lo).mul_add(*s, lo));
+                let (p, d) = path.ders1(T::from_f64(*s));
                 UnitVec3::new(d, SWEEP_PATH_TANGENT, band)
                     .map(|t| (p, t))
                     .map_err(|e| direction_refusal(e, station, PathDirection::Tangent))
@@ -1900,18 +1947,14 @@ impl PathCarry {
         let not_finite = |station| move |_| SkinError::StationNotFinite { station };
         let half = Turns::new(1, 2).unwrap_or_else(|| unreachable!("a nonzero denominator"));
         let o = Point3::origin();
-        let mut turn: Option<RigidMotion<f64>> = None;
+        let mut turn: Option<RigidMotion<T>> = None;
         let mut carried = vec![(samples[0].0, None)];
         for (i, pair) in samples.windows(2).enumerate() {
             let station = i + 1;
             let ((p, t), (q, next)) = (pair[0], pair[1]);
             let chord = UnitVec3::new(q - p, SWEEP_PATH_CHORD, band)
                 .map_err(|e| direction_refusal(e, station, PathDirection::Chord))?;
-            let (a, b) = (t.get(), next.get());
-            let same = [(a.x, b.x), (a.y, b.y), (a.z, b.z)]
-                .iter()
-                .all(|(x, y)| x.to_bits() == y.to_bits());
-            if !same {
+            if !self.still[station] {
                 let mirror = RigidMotion::turned(o, chord, half)
                     .compose(RigidMotion::turned(o, t, half))
                     .map_err(not_finite(station))?;
@@ -1935,45 +1978,33 @@ impl PathCarry {
             }
             carried.push((q, turn));
         }
-        Ok(Self {
-            start: samples[0].0,
-            stations: carried,
-        })
+        Ok(carried)
     }
 
-    /// Each station's normalised path parameter, `i / (stations − 1)`:
-    /// the v its section sits at.
-    pub(crate) fn params(&self) -> Vec<f64> {
-        station_shares(self.stations.len())
-    }
-
-    /// The carry composed onto `plane`: station 0 is `plane` itself;
-    /// station `i` is `plane` turned about the path's start point `p₀`
-    /// by the station's rotation `Cᵢ`, then translated onto the path —
-    /// its origin `pᵢ + Cᵢ·(o − p₀)`. The rotation enters `T` as the
-    /// computed values it is ([`RigidMotion::computed_at`]), so a lane
-    /// decides nothing again.
-    pub(crate) fn place<T: Real>(
+    /// The carry minted at `T` and composed onto `plane`: station 0 is
+    /// `plane` itself; station `i` is `plane` turned about the path's
+    /// start point `p₀` by the station's rotation `Cᵢ`, then translated
+    /// onto the path — its origin `pᵢ + Cᵢ·(o − p₀)`.
+    pub(crate) fn place<T: Decide>(
         &self,
         plane: SketchPlane<T>,
     ) -> Result<Vec<SketchPlane<T>>, SkinError> {
+        let stations = self.stations::<T>()?;
         let start = plane.frame();
-        let at = |p: Point3<f64>| p.map(T::from_computed);
-        let back = Point3::origin() - at(self.start);
-        self.stations
-            .iter()
+        let p0 = stations[0].0;
+        let back = Point3::origin() - p0;
+        stations
+            .into_iter()
             .enumerate()
             .map(|(station, (p, turn))| {
                 if station == 0 {
                     return Ok(plane);
                 }
                 match turn {
-                    None => start.translated((*p - self.start).map(T::from_computed)),
-                    Some(turn) => start.translated(back).and_then(|f| {
-                        turn.computed_at::<T>()
-                            .compose(f)?
-                            .translated(at(*p) - Point3::origin())
-                    }),
+                    None => start.translated(p - p0),
+                    Some(turn) => start
+                        .translated(back)
+                        .and_then(|f| turn.compose(f)?.translated(p - Point3::origin())),
                 }
                 .map(SketchPlane::from_frame)
                 .map_err(|_| SkinError::StationNotFinite { station })
@@ -1981,6 +2012,11 @@ impl PathCarry {
             .collect()
     }
 }
+
+/// A station of a path's carry at `T`: its point on the path and the
+/// rotation carrying the start frame there, `None` for the identity
+/// with no rounding.
+type Station<T> = (Point3<T>, Option<RigidMotion<T>>);
 
 /// `i / (stations − 1)` for each of `stations ≥ 2` stations: `0` and
 /// `1` exactly at the ends.
@@ -2033,7 +2069,7 @@ fn direction_refusal(e: UnitVec3Error, station: usize, which: PathDirection) -> 
 /// [`SkinError::PathUndecided`] naming the station and decision that
 /// could not be taken, and [`SkinError::StationNotFinite`] for a
 /// station whose placement overflows.
-pub fn sweep_places<T: Real>(
+pub fn sweep_places<T: Decide>(
     plane: SketchPlane<T>,
     path: &NurbsCurve3<f64>,
     stations: usize,

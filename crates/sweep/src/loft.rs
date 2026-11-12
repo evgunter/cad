@@ -1901,8 +1901,8 @@ pub(crate) fn sweep_body_construction<T: Decide + topo::AtRestPolicy>(
     if profile.is_empty() {
         return Err(LoftError::Skin(SkinError::EmptyProfile { section: None }));
     }
-    // One carry, composed onto the start frame in `T` and onto its
-    // point value in `f64`, where the stations' structure is selected.
+    // One carry, minted onto the start frame in `T` and onto its point
+    // value in `f64`, where the stations' structure is selected.
     let carry = PathCarry::of(path, stations, tol).map_err(LoftError::Skin)?;
     let channel = plane
         .point_value()
