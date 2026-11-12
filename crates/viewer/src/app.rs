@@ -2468,7 +2468,7 @@ impl eframe::App for ViewerApp {
         );
         // A pick that asked the placement editor for Place commits it
         // in the batch of the click that asked.
-        ops.extend(self.tools.take_place());
+        ops.extend(self.tools.take_place(self.session.committed_doc()));
         let landed = self.session.landed_pair();
         self.notices.extend(
             declined
@@ -7971,7 +7971,8 @@ mod properties_pane_tests {
             "on the copy the face was held on"
         );
         assert_eq!(
-            doc.copied_read(placement()),
+            doc.copied_read(placement())
+                .map(|s| doc.through_sources(s).read),
             doc.output(moved, 0),
             "which places the filleted body"
         );
@@ -8958,7 +8959,11 @@ mod properties_pane_tests {
         let [copy] = doc
             .placements()
             .into_iter()
-            .filter(|&at| at != placement() && doc.copied_read(at) == doc.read_of_node(extrude()))
+            .filter(|&at| {
+                at != placement()
+                    && doc.copied_read(at).map(|s| doc.through_sources(s).read)
+                        == doc.read_of_node(extrude())
+            })
             .collect::<Vec<_>>()[..]
         else {
             panic!("the second placement is one more copy")

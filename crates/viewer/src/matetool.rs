@@ -861,6 +861,8 @@ pub struct MateTool {
     /// The body a pick asked to place and the space it stands in, until
     /// the Place is taken ([`Self::take_place`]).
     placing: Option<(Operand, VarId)>,
+    /// What a Place asks the person before it is taken ([`PlaceAsk`]).
+    asking: Option<PlaceAsk>,
     /// The kind a fresh row opens with.
     kind: VarKind,
     /// Whether the next pick names the target's space rather than
@@ -872,6 +874,33 @@ impl Default for MateTool {
     fn default() -> Self {
         Self::new()
     }
+}
+
+/// **What a Place asks before it is made** (VARIABLES VR4): the source
+/// the new placement shares is the person's to name or to choose.
+#[derive(Debug, Clone, PartialEq)]
+pub enum PlaceAsk {
+    /// The body's one source is anonymous and already read: the new
+    /// placement shares it once the person names it (VR2), in the field
+    /// opened empty, since nothing proposes a name.
+    Name {
+        /// The body to place.
+        body: Operand,
+        /// The space it stands in.
+        space: VarId,
+        /// The source it shares.
+        source: VarId,
+        /// The name typed so far.
+        text: String,
+    },
+    /// Several sources read the body: each is offered as the body to
+    /// place.
+    Source {
+        /// The space the body stands in.
+        space: VarId,
+        /// The sources, in id order.
+        sources: Vec<VarId>,
+    },
 }
 
 /// A typed editor refusal (closed enum, D4 ¶3).
@@ -1376,12 +1405,12 @@ fn door_picked(
     )
 }
 
-/// **The entity `pick` names as an `on` side reads it**: off the shape
-/// a `Place` copies, by the shape's own name for it (a copy carries its
-/// body's names), on the output it copies where the shape's operation
-/// defines several (a split's halves) ([`crate::world::copy_source`]);
-/// an instance's or a body's own read otherwise, and a copy whose body
-/// does not resolve as itself.
+/// **The entity `pick` names as an `on` side reads it**: in the source a
+/// `Place` reads (VARIABLES VR4), by the shape's own name for it (a copy
+/// and a source carry the body's names), on the member of a family it
+/// copies one of ([`crate::world::copy_source`]); an instance's or a
+/// body's own read otherwise, and a copy whose body does not resolve as
+/// itself.
 fn on_read(
     doc: &Doc<ProfileProgram>,
     ev: Option<&pncad::document::Evaluation<f64>>,
@@ -1390,12 +1419,27 @@ fn on_read(
     let picked = SitedRef::new(pick.node(), pick.name().clone());
     match doc.node(pick.node()) {
         Some(Node::Place { .. }) => {
-            let (at, port) = crate::world::copy_source(doc, pick.node(), pick.on().body())
-                .map_or((pick.node(), pick.on().body()), |copied| {
-                    (copied.operation, copied.body)
-                });
+            let copied = crate::world::copy_source(doc, pick.node(), pick.on().body());
+            let (at, port) = copied.map_or((pick.node(), pick.on().body()), |copied| {
+                (copied.operation, copied.body)
+            });
             let (at, port) = crate::world::seat_read(doc, at, Some(port));
-            let body = crate::seats::Output::named(port).read(at);
+            // The `on` side selects in the source the placement reads
+            // (`bracket.top`, VARIABLES VR4), so a redefinition of the
+            // source moves no side's body; a member of a family is
+            // selected in the family's member.
+            let body = match copied {
+                Some(copied)
+                    if !copied.member
+                        && doc
+                            .var_reach(copied.var)
+                            .chain()
+                            .is_some_and(<[pncad::document::VarId]>::is_empty) =>
+                {
+                    Operand::Var(copied.var)
+                }
+                _ => crate::seats::Output::named(port).read(at),
+            };
             Some((
                 SitedRef::new(at, pick.name().clone()),
                 picked_read(doc, ev, body, pick)?,
@@ -1674,6 +1718,7 @@ impl MateTool {
         Self {
             draft: None,
             placing: None,
+            asking: None,
             kind: VarKind::Plane,
             picking_target: false,
         }
@@ -1771,14 +1816,81 @@ impl MateTool {
     }
 
     /// **The Place a pick asked for**, taken: one placement of the body
-    /// into the space it stands in ([`SessionOp::Place`]). The editor
-    /// opens on the placement it makes ([`Self::placed`]).
-    pub fn take_place(&mut self) -> Option<SessionOp> {
-        self.placing.take().map(|(body, space)| SessionOp::Place {
-            body,
-            target: Operand::Var(space),
-            name: None,
-        })
+    /// into the space it stands in ([`SessionOp::Place`]), through the
+    /// source it shares ([`crate::world::source_to_place`]). Where that
+    /// source is anonymous and read already, or several sources read the
+    /// body, the Place waits on the person instead ([`Self::asking`]). The
+    /// editor opens on the placement it makes ([`Self::placed`]).
+    pub fn take_place(&mut self, doc: &Doc<ProfileProgram>) -> Option<SessionOp> {
+        let (body, space) = self.placing.take()?;
+        match crate::world::source_to_place(doc, &body) {
+            Err(sources) => {
+                self.asking = Some(PlaceAsk::Source { space, sources });
+                None
+            }
+            Ok(Some(source))
+                if doc.var_name(source).is_none()
+                    && !crate::world::placements_of_var(doc, source).is_empty() =>
+            {
+                self.asking = Some(PlaceAsk::Name {
+                    body,
+                    space,
+                    source,
+                    text: String::new(),
+                });
+                None
+            }
+            Ok(_) => Some(SessionOp::Place {
+                body,
+                target: Operand::Var(space),
+                name: None,
+            }),
+        }
+    }
+
+    /// **What the Place waits on**, if anything ([`PlaceAsk`]).
+    #[must_use]
+    pub fn asking(&self) -> Option<&PlaceAsk> {
+        self.asking.as_ref()
+    }
+
+    /// The name field's text, where the Place asks for a name.
+    pub fn name_text_mut(&mut self) -> Option<&mut String> {
+        match &mut self.asking {
+            Some(PlaceAsk::Name { text, .. }) => Some(text),
+            _ => None,
+        }
+    }
+
+    /// **The Place named `name`**: the asked Place, sharing the source
+    /// under the name the person typed.
+    pub fn place_named(&mut self, name: pncad::document::VarName) -> Option<SessionOp> {
+        match self.asking.take() {
+            Some(PlaceAsk::Name { body, space, .. }) => Some(SessionOp::Place {
+                body,
+                target: Operand::Var(space),
+                name: Some(name),
+            }),
+            other => {
+                self.asking = other;
+                None
+            }
+        }
+    }
+
+    /// **The Place of the source the person chose** among several: placed
+    /// through it, asking for its name where it is anonymous.
+    pub fn place_through(&mut self, doc: &Doc<ProfileProgram>, source: VarId) -> Option<SessionOp> {
+        let Some(PlaceAsk::Source { space, .. }) = self.asking.take() else {
+            return None;
+        };
+        self.placing = Some((Operand::Var(source), space));
+        self.take_place(doc)
+    }
+
+    /// The asked Place abandoned.
+    pub fn cancel_ask(&mut self) {
+        self.asking = None;
     }
 
     /// **A Place landed**: the editor opens on `placement`, the

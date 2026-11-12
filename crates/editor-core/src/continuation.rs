@@ -26,9 +26,16 @@
 //! The kernel's own [`DocEdit::DeleteNode`] picks no survivor (D10): it
 //! leaves its readers unresolved. [`splice`] is the gesture's plan over
 //! the doors every edit has — `SetParam`, `SetMembers`, `SetProduct`,
-//! `Rebind`, then `DeleteNode` — so a reopened document deletes the same
-//! way, and adding a fillet then deleting it leaves the document as it
-//! was.
+//! `DefineVar`, `Rebind`, then `DeleteNode` — so a reopened document
+//! deletes the same way, and adding a fillet then deleting it leaves the
+//! document as it was.
+//!
+//! **A definition is a reader.** A placement reads its body through a
+//! source (VARIABLES VR4); a source reading a deleted operation's body is
+//! redefined as a read of what it continues, and every seat reading the
+//! deleted operation only through sources — a placement's source, a
+//! mate's side selecting the source — keeps its read, its names handed
+//! back with the copies'.
 //!
 //! **Names.** A name the deleted node carried in from the body it
 //! continues (`[From { read, of }]`, `read` that body) returns to the
@@ -774,10 +781,11 @@ fn fate<P: crate::ProfilePayload + Clone>(
 ///   target is one, and goes;
 /// - anything else goes, continuing nothing.
 ///
-/// The product slot reading a deleted operation is handed the same way.
-/// A placement whose source was handed over is followed by a `Rebind`
-/// of every name read through what carries its copy's names that a
-/// deleted node carried in.
+/// The product slot reading a deleted operation is handed the same way,
+/// and so is every source reading one ([`source_handovers`]). A placement
+/// whose source was handed over is followed by a `Rebind` of every name
+/// read through what carries its copy's names, or selected in the source,
+/// that a deleted node carried in.
 ///
 /// # Errors
 ///

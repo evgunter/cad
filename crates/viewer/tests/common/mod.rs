@@ -1277,7 +1277,7 @@ fn transform(
     let (doc, _) = session.landed_pair().expect("landed");
     let mut tool = viewer::matetool::MateTool::moving(doc, node, body)
         .unwrap_or_else(|event| panic!("the Transform tool opens on {node:?}: {event}"));
-    if let Some(place) = tool.take_place() {
+    if let Some(place) = tool.take_place(doc) {
         let placement = placed_by(session, place);
         tool.placed(session.committed_doc(), placement);
     }

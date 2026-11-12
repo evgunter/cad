@@ -610,11 +610,9 @@ fn the_mirrors_label_lands_on_the_mirror_whether_its_body_is_placed_or_not() {
 fn a_body_mirrored_across_another_bodys_face_reads_that_faces_plane() {
     let tol = Tol::witness();
     let (mut session, block) = unplaced_block(tol);
-    let place_stand_in = SessionOp::place_where_it_stands(session.committed_doc(), block.into())
-        .expect("a body in a space");
+    let place_stand_in = common::place_named(session.committed_doc(), block);
     let stand_in = common::placed_by(&mut session, place_stand_in);
-    let place_copy = SessionOp::place_where_it_stands(session.committed_doc(), block.into())
-        .expect("a body in a space");
+    let place_copy = common::place_named(session.committed_doc(), block);
     let copy = common::placed_by(&mut session, place_copy);
     let op = common::transformed(
         &mut session,

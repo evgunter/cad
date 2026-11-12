@@ -751,6 +751,28 @@ fn vars_read_at_any_depth(doc: &Doc<ProfileProgram>, node: RecipeNodeId) -> BTre
     vars
 }
 
+/// **The source a Place of `body` shares** (VARIABLES VR4): `body` itself
+/// where it reads a source; else the one source whose definition reads
+/// it; `Ok(None)` where none does, and the placement mints one of its
+/// own. Several answer `Err`, each in id order, for the person to choose
+/// among.
+pub fn source_to_place(
+    doc: &Doc<ProfileProgram>,
+    body: &Operand,
+) -> Result<Option<VarId>, Vec<VarId>> {
+    let Some(var) = read_var(doc, body) else {
+        return Ok(None);
+    };
+    if doc.source(var).is_some() {
+        return Ok(Some(var));
+    }
+    match doc.sources_of(var).as_slice() {
+        [] => Ok(None),
+        [one] => Ok(Some(*one)),
+        several => Err(several.to_vec()),
+    }
+}
+
 /// **One source a re-point offers to redefine**, and the placements that
 /// read it ([`repoint_targets`]): one button of the offer.
 #[derive(Debug, Clone, PartialEq, Eq)]

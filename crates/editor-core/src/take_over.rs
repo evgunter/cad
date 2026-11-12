@@ -1,11 +1,16 @@
 //! **A takeover** (A10): copies of a body re-pointed to a result that
 //! replaces it, with every reference read in those copies that the
 //! result still carries rebound to the result's name for it, in one
-//! action.
+//! action. A placement reads its body through a source (VARIABLES VR4),
+//! so the re-point is a redefinition of the source, `bracket = F`: one
+//! `DefineVar` per source, which every placement reading it follows, and
+//! the `Rebind`s it owes.
 //!
 //! A re-pointed copy reads the result's table, where a name of the body
 //! it copied is carried in by the result (`From { read, of }`, or a
-//! member of a `Merged` set): the old name no longer resolves there.
+//! member of a `Merged` set): the old name no longer resolves there. A
+//! selection in the source itself (a mate's `on` side, `bracket.top`)
+//! reads that table too, and is rebound the same way.
 //! Resolution does not follow descent on its own (N4, `[identity]`), so
 //! the takeover writes the repair as the person would, an explicit
 //! [`DocEdit::Rebind`] per reference, for each name that has a
@@ -30,8 +35,9 @@
 //! table, an evaluation of the staged document. The door runs one only
 //! when something reads a copy: a selection of the document (of the
 //! copy, of a copy of it — a copy carries its source's names as they
-//! are, so a placement chain from the copy reads them too — or one that
-//! embeds any of their reads), or a reader outside the document that
+//! are, so a placement chain from the copy reads them too — of the source
+//! itself, or one that embeds any of their reads), or a reader outside
+//! the document that
 //! holds a name on one of them (the caller's `held`, a viewer's picks).
 //! Otherwise it writes the re-point alone. Its evaluation rides out
 //! with the answer ([`TakenOver::evaluation`]) for the run of the

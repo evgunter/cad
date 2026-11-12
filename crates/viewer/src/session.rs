@@ -4828,7 +4828,7 @@ impl DocSession {
                     }
                     Operand::Var(source)
                 }
-                None => body,
+                None => run.doc().place_read(body),
             };
             let placement = run.insert(Node::place(
                 pncad::document::BodyRead::plain(read),
@@ -4847,30 +4847,19 @@ impl DocSession {
         }))
     }
 
-    /// **The source a Place of `body` shares** (VARIABLES VR4): `body`
-    /// itself where it is a source; else the one source reading it,
-    /// where one does; `None` where none does, and the placement mints
-    /// one of its own. Several refuse [`Refusal::SeveralSources`], each
-    /// offered as the body to place.
+    /// **The source a Place of `body` shares**
+    /// ([`crate::world::source_to_place`]); several refuse
+    /// [`Refusal::SeveralSources`], each offered as the body to place.
     fn source_to_place(&self, body: &Operand) -> Result<Option<VarId>, Refusal> {
         let doc = self.committed_doc();
-        let Some(var) = crate::world::read_var(doc, body) else {
-            return Ok(None);
-        };
-        if doc.source(var).is_some() {
-            return Ok(Some(var));
-        }
-        match doc.sources_of(var).as_slice() {
-            [] => Ok(None),
-            [one] => Ok(Some(*one)),
-            several => Err(Refusal::SeveralSources {
-                body: doc.spoken_var(var),
-                sources: several
-                    .iter()
-                    .map(|&source| doc.spoken_var(source))
-                    .collect(),
-            }),
-        }
+        crate::world::source_to_place(doc, body).map_err(|sources| Refusal::SeveralSources {
+            body: crate::world::read_var(doc, body)
+                .map_or_else(|| doc.spoken_var(sources[0]), |var| doc.spoken_var(var)),
+            sources: sources
+                .iter()
+                .map(|&source| doc.spoken_var(source))
+                .collect(),
+        })
     }
 
     /// **The document's door on the placement editor's `op`**, a
@@ -5412,7 +5401,11 @@ impl Takeover {
         let reads = |held: &pncad::document::Pick| -> Vec<VarId> {
             let mut copied = Vec::new();
             let mut at = held.placement;
-            while let Some(read) = doc.operation_of(at).and_then(|node| doc.copied_read(node)) {
+            while let Some(read) = doc
+                .operation_of(at)
+                .and_then(|node| doc.copied_read(node))
+                .map(|source| doc.through_sources(source).read)
+            {
                 if copied.contains(&read) {
                     break;
                 }

@@ -1452,6 +1452,9 @@ impl<P> Doc<P> {
             }
         }
         for var in self.vars.keys() {
+            if self.selects_in_its_own_source(*var) {
+                continue;
+            }
             for read in self
                 .definition_reads(*var)
                 .into_iter()
@@ -1461,6 +1464,39 @@ impl<P> Doc<P> {
             }
         }
         readers
+    }
+
+    /// **Whether `var` is a selection in a source that only that source's
+    /// placements read** — a copy's mate `on` side selecting its source
+    /// (`bracket.top`, VARIABLES VR4). It is part of the placements'
+    /// reading of the source, not a reader of its own, so an anonymous
+    /// source stays its one placement's own.
+    fn selects_in_its_own_source(&self, var: VarId) -> bool
+    where
+        P: crate::ProfilePayload,
+    {
+        let Some(select) = self.selection(var) else {
+            return false;
+        };
+        let source = select.body.read;
+        if self.source(source).is_none() {
+            return false;
+        }
+        let mut read_by_one = false;
+        for (&id, node) in &self.nodes {
+            let reaches = node
+                .operand_rows()
+                .into_iter()
+                .any(|(_, read)| crate::edit::seat_selections(self, read).contains(&var));
+            if !reaches {
+                continue;
+            }
+            if self.copied_read(id) != Some(source) {
+                return false;
+            }
+            read_by_one = true;
+        }
+        read_by_one
     }
 
     /// **The unnamed variables more than one reader reads**, in id

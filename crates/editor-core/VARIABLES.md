@@ -32,8 +32,9 @@ is a new variable. `def` is `Free { value, unit, distribution }` (a
 definition may not reach its own variable (refused at the edit door and
 at load). Distributions live only on free variables; a defined
 variable's uncertainty is the pushforward of its inputs'. The
-`Output { node, port }` and `Select { body, names }` definitions are
-arms of the same enum. A `Count` may be defined as an index,
+`Output { node, port }`, `Select { body, names }` and `Source(body)`
+definitions are arms of the same enum: a source is a `Body` defined as
+a read of one body (VR4), which evaluates as that body. A `Count` may be defined as an index,
 `index(N)` or `index(N) within j`, and every kind has a family keyed by
 index tuples, which no free variable holds (DESIGN `[repetition]`).
 
@@ -103,7 +104,9 @@ and set a slot from a `Formula`. Create-or-replace by name goes.
 A named variable may stand unused; it is then reported (DESIGN
 `[operations]`, the `unused` check), never removed. An output is a
 byproduct of its operation unless named, and the operation is
-reported when none of its outputs is used.
+reported when none of its outputs is used. A source is a variable like
+any other: an anonymous one goes with its placement, and redefining a
+named one re-points every placement reading it.
 
 **VR8 — Coincidence tokens and the analysis lanes read ids.**
 `ParamSource` lowers a slot to its variable expanded through
@@ -123,9 +126,11 @@ document; `ParamScope::Root` / `Part` prefix its tokens. Persistence
 holds the variable table, the names and the mint log; a file this build
 cannot read refuses typed with the regenerate recourse, and the load
 door checks VR2's uniqueness, VR3's acyclicity and kinds, VR4's slot
-kinds and VR7's unnamed-has-one-reader. The façade's slot arguments accept a
+kinds — a placement's source slot reading a source among them — and
+VR7's unnamed-has-one-reader. The façade's slot arguments accept a
 variable, a `Formula`, or a written quantity (which mints an anonymous
 variable for that call); passing a named variable is how two slots share
-one.
+one. A placement passed a body mints an anonymous source for that call,
+and passed a source reads it.
 Python mirrors it. Split moves a variable with its readers; inline
 carries every variable of the part under a new id.

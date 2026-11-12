@@ -2080,7 +2080,11 @@ is its preview.
   door. The editor's add-loop choices (circle, rectangle, path) are
   the templates.
 - **Place** on an unplaced body inserts its placement with no mates
-  and opens the placement editor on it. Every mate is added there.
+  and opens the placement editor on it. Every mate is added there. A
+  second Place of a body reads the source the first one does, so what
+  the node reads includes which source, and its name where the source
+  becomes shared (VR2): the field opens empty, as accepting an unnamed
+  offer opens it, and several sources are a choice of buttons.
 - **A creation proposes no label.** The insert stores "Kind N", and
   the node's label row renames it.
 - **Variables**: `New variable` adds the variable's row. Its name and
@@ -2312,9 +2316,22 @@ spin at zero (taking over what read the body along a seen path, never
 a copy's source), and opens the editor on it (**A create gesture
 commits the node**, above). A pick on a body picked as itself is Place
 (`MateTool::take_place`), whether nothing places it yet or the View
-pane shows it again beside its copies: a second placement is made the
-way the first is. A pick that lands on a copy opens that copy's
-placement instead. The editor opens on a placement — from Place, its
+pane shows it again beside its copies. **A placement reads its body
+through a source** (VARIABLES VR4, `world::source_to_place`): a body no
+source reads gets an anonymous source of its own; a body one source
+reads is placed through it, so the copies share it, and where that
+source is anonymous and already read the editor opens its name field,
+empty (`matetool::PlaceAsk::Name`), since a shared variable is named and
+nothing proposes a name (VR2) — the name and the placement land as one
+action, `SessionOp::Place`'s `name`; a body several sources read asks
+which, a button per source (`PlaceAsk::Source`), and Place on a source
+places through it. A pick that lands on a copy opens that copy's
+placement instead (`Refusal::PlaceOnACopy` for a Place asked of one).
+The editor's **copy of** row says the body the copy copies and the
+source it reads, named or its own, and redefines that source as a read
+of the body selected in the tree; a named source's row in the
+variables pane (`bracket = B`, `props::source_rows`) does the same for
+every placement reading it. The editor opens on a placement — from Place, its
 tree row (`edit placement`), a mate row's `remove`, or a pick on its
 copy — and **each change is offered live**: a pick seated, a kind or
 a sense chosen, a row added or struck, a value field committed, each
@@ -2432,14 +2449,18 @@ other copies of the body are untouched, and the Properties pane says
 the result belongs to that placed copy, with a button to the original
 body (`frame::placement_offers`). Picked as the body itself (in the
 tree, or shown again in the View pane), it makes a new body, and that
-body offers, as one explicit step, to re-point the variable the body's
-placements share onto it (`world::repoint_offer`,
-`SessionOp::RepointPlacements`): every placement reads the body's own
-output, the one variable they share, and the re-point sets each
-placement's source to the new body through the kernel's takeover
-(`Recording::take_over`), rebinding what read each copy and reading
-each copy's mates' `on` sides off the new body, in one action. No
-gesture re-points a placement unasked. A pattern's member 0 stands
+body offers, one explicit step per source, to redefine the sources the
+body's placements read onto it (`world::repoint_offer`,
+`SessionOp::RepointPlacements`; VARIABLES VR4): "Re-point bracket (2
+copies) onto F", or for an anonymous source "Re-point the copy C5". A
+placement reads its body through a source, `bracket = B`, so the
+re-point is one definition edit, `bracket = F`, through the kernel's
+takeover (`Recording::take_over`), with the `Rebind`s of what reads each
+copy and of what selects in the source (each copy's mates' `on` sides,
+which select the source), in one action. A source defined as another
+source follows it and has no button of its own, and a source the new
+body itself reads, at any depth, is left out: redefining it would close
+a cycle. No gesture re-points a placement unasked. A pattern's member 0 stands
 where the body stood. A split takes the seen body over by
 `above ⊔ below`, its two halves standing where that body stood. A split
 of a body that placements read writes `above ⊔ below` too: that `⊔` is
@@ -2453,9 +2474,10 @@ Every placement is a copy to the viewer, wherever its target stands
 (D10 `[placement.placement]`: "each placement is a copy of its own"):
 one placed in its body's own space or in another construction's
 space, as Place's and a pattern's are, is a copy as one in the world
-is. The body a placement copies (`world::copy_source`) is what the
-placed badge, the placement editor's `on` side, the re-point offer and
-the way to the original body read; a pick on a copy seats that copy.
+is. The body a placement copies (`world::copy_source`, down its source) is
+what the placed badge, the re-point offer and the way to the original
+body read, and the placement editor's `on` side selects in the source
+the placement reads (`bracket.top`); a pick on a copy seats that copy.
 Projecting a pattern member writes
 nothing: a pick on a drawn member seats `family[k]`. The Transform tool
 is the placement editor opened on its pick with no mate row

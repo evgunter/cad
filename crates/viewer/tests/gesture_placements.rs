@@ -1061,11 +1061,11 @@ fn member0(doc: &Doc<ProfileProgram>, family: RecipeNodeId) -> pncad::document::
 ///   a world copy reading the union still copies one body, not the
 ///   family;
 /// - `xs[0] − C` with the tool `C` deleted continues member 0: a copy of
-///   the cut, whose source is written whole, refuses typed
-///   (`Refusal::Unspliced`, naming the copy), and nothing is deleted;
+///   the cut reads it through its source, which is handed member 0 of
+///   the family (a source reads a member, VARIABLES VR4);
 /// - a fillet over a family deleted hands a `∪` reading its member 0
-///   the family's member 0, and refuses, typed, while a copy of its
-///   member 0 stands: a placement's source is written whole.
+///   the family's member 0, and a copy of its member 0 reads member 0 of
+///   the family through its source, handed the family whole.
 ///
 /// *Breaks if* a delete hands a reader of one member the whole family.
 #[test]
@@ -1105,8 +1105,7 @@ fn a_continuation_is_a_body_read_whole() {
     }
 
     // A cut of member 0 whose tool goes continues member 0: a copy of
-    // the cut, whose source the slot door writes whole, refuses typed,
-    // naming the copy; nothing is deleted.
+    // the cut reads member 0 through its source.
     let (session, _, family, copy) = family_and_copy(tol);
     let m0 = member0(session.committed_doc(), family);
     let (session, cut) = with(
@@ -1118,19 +1117,19 @@ fn a_continuation_is_a_body_read_whole() {
         tol,
     );
     let (mut session, reader) = with(&session, common::world_place(Operand::Node(cut)), tol);
-    let before = session.committed_doc().clone();
-    let refusal = session.delete_refusal(copy);
-    assert!(
-        matches!(&refusal, Some(viewer::Refusal::Unspliced { node, .. }) if node.id() == reader),
-        "{refusal:?}"
-    );
+    assert!(session.delete_refusal(copy).is_none(), "the delete splices");
     let out = session.perform(SessionOp::DeleteNode { node: copy });
+    assert!(out.refusal.is_none(), "{:?}", out.refusal);
+    let doc = session.committed_doc();
+    assert!(doc.node(cut).is_none(), "the cut goes, continuing member 0");
+    let held = doc
+        .copied_read(reader)
+        .and_then(|source| doc.source(source).cloned());
     assert!(
-        matches!(&out.refusal, Some(viewer::Refusal::Unspliced { node, .. }) if node.id() == reader),
-        "the op refuses as the button says: {:?}",
-        out.refusal
+        held.as_ref()
+            .is_some_and(|read| read.is_indexed() && Some(read.read) == doc.output(family, 0)),
+        "the copy's source reads member 0 of the family: {held:?}"
     );
-    assert!(session.committed_doc().bit_eq(&before), "nothing deleted");
 
     // A fillet over the family, read by member: a list operand is handed
     // the same member of the family; a placement's source, which the slot
@@ -1163,16 +1162,22 @@ fn a_continuation_is_a_body_read_whole() {
         ),
         tol,
     );
-    let refusal = session.delete_refusal(fillet);
     assert!(
-        matches!(&refusal, Some(viewer::Refusal::Unspliced { node, .. }) if node.id() == member_copy),
-        "the copy of a member refuses: {refusal:?}"
+        session.delete_refusal(fillet).is_none(),
+        "the delete splices"
     );
-    let out = session.perform(SessionOp::DeleteNode { node: member_copy });
-    assert!(out.refusal.is_none(), "{:?}", out.refusal);
     let out = session.perform(SessionOp::DeleteNode { node: fillet });
     assert!(out.refusal.is_none(), "{:?}", out.refusal);
     let doc = session.committed_doc();
+    assert_eq!(
+        source_of(doc, member_copy),
+        doc.output(family, 0),
+        "the member's copy reads the family through its source"
+    );
+    assert!(
+        matches!(doc.node(member_copy), Some(Node::Place { source, .. }) if source.is_indexed()),
+        "member 0 of it"
+    );
     let Some(Node::Union {
         members: pncad::document::Bodies::Spelled(members),
     }) = doc.node(u)
@@ -1539,7 +1544,7 @@ fn an_intersection_left_with_a_member_keeps_it() {
     let out = session.perform(SessionOp::DeleteNode { node: copy });
     assert!(out.refusal.is_none(), "{:?}", out.refusal);
     let doc = session.committed_doc();
-    assert_eq!(doc.copied_read(reader), doc.output(i, 0), "reads the ∩");
+    assert_eq!(source_of(doc, reader), doc.output(i, 0), "reads the ∩");
 }
 
 /// **On this copy at depth** (re-check, claim 4): a copy of a copy, four features deep with a sketch, says it

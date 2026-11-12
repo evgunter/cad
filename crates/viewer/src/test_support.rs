@@ -151,6 +151,23 @@ pub fn try_inserted(
     node: AuthoredNode,
     tol: Tol,
 ) -> Result<(Doc<ProfileProgram>, RecipeNodeId), EditError> {
+    // A placement of a body variable reads it through a source minted for
+    // it, as the façade's `place(B, …)` does (VARIABLES VR4).
+    let node = match node {
+        Node::Place {
+            source,
+            target,
+            constraints,
+        } => Node::Place {
+            source: pncad::document::BodyRead {
+                read: doc.place_read(source.read),
+                at: source.at,
+            },
+            target,
+            constraints,
+        },
+        node => node,
+    };
     let (doc, minted) = try_edited(
         doc,
         DocEdit::InsertNode {

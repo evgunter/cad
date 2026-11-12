@@ -1,0 +1,358 @@
+//! **Placements of a body share a named source, and the re-point
+//! redefines it** (Ev, PR 6581 and PR 6672; VARIABLES VR4): a placement
+//! reads its body through a source, `bracket = B`. A lone placement's
+//! source is anonymous and its own; a second Place of the body shares it
+//! only once the person names it; the offer on a feature of the body is
+//! the shortcut that redefines it, `bracket = F`, as one action; and a
+//! later Place of the body reads `bracket`.
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+
+use crate::common;
+
+use pncad::document::{
+    Doc, DocEdit, EditError, Operand, ProfileProgram, RecipeNodeId, VarDecl, VarId, VarName,
+};
+use pncad::geom_core::Tol;
+use pncad::prelude::RoleSeg;
+use viewer::session::{DocSession, Refusal, SessionOp};
+use viewer::tree::RowStatus;
+
+const SIZE: [f64; 3] = [0.02, 0.02, 0.01];
+
+/// The bracket in a session of its own, landed.
+fn bracket(name: &str, tol: Tol) -> (DocSession, RecipeNodeId) {
+    let mut session = common::inline_without_door(Doc::empty_derived(name, tol), tol);
+    let body = common::xy_box_in(&mut session, SIZE);
+    session.pump();
+    (session, body)
+}
+
+/// The viewer's Place of `body` where it stands, under `name`.
+fn place_op(doc: &Doc<ProfileProgram>, body: Operand, name: Option<&'static str>) -> SessionOp {
+    let SessionOp::Place { body, target, .. } =
+        SessionOp::place_where_it_stands(doc, body).expect("a body in a space")
+    else {
+        unreachable!("the viewer's Place")
+    };
+    SessionOp::Place {
+        body,
+        target,
+        name: name.map(VarName::from_static),
+    }
+}
+
+/// `op` performed and landed: the node it made.
+fn landed(session: &mut DocSession, op: SessionOp) -> RecipeNodeId {
+    let out = session.perform(op);
+    assert!(out.refusal.is_none(), "{:?}", out.refusal);
+    session.pump();
+    out.made.expect("a node")
+}
+
+/// The body `copy` copies, down its source.
+fn copied(doc: &Doc<ProfileProgram>, copy: RecipeNodeId) -> Option<VarId> {
+    doc.copied_read(copy)
+        .map(|source| doc.through_sources(source).read)
+}
+
+/// The bracket placed twice through the session: the first Place mints
+/// the bracket's source, and the second names it `bracket`.
+fn placed_twice(tol: Tol) -> (DocSession, RecipeNodeId, RecipeNodeId, RecipeNodeId) {
+    let (mut session, body) = bracket("named-source", tol);
+    let first = {
+        let op = place_op(session.committed_doc(), body.into(), None);
+        landed(&mut session, op)
+    };
+    let second = {
+        let op = place_op(session.committed_doc(), body.into(), Some("bracket"));
+        landed(&mut session, op)
+    };
+    (session, body, first, second)
+}
+
+/// **Placing a body twice shares one named source**: the first Place
+/// reads an anonymous source of its own (`= B`). A second Place without
+/// a name is refused `SharedVarNeedsName` and writes nothing, since a
+/// variable two readers share is named (VR2) and nothing proposes one;
+/// with the name the person typed it shares the source and names it, in
+/// one action.
+///
+/// *Breaks if* the second Place mints a second source, shares an
+/// anonymous one, or proposes a name of its own.
+#[test]
+fn placing_a_body_twice_shares_one_named_source() {
+    let tol = Tol::witness();
+    let (mut session, body) = bracket("named-source-twice", tol);
+    let first = {
+        let op = place_op(session.committed_doc(), body.into(), None);
+        landed(&mut session, op)
+    };
+    let doc = session.committed_doc().clone();
+    let source = doc
+        .copied_read(first)
+        .expect("the placement reads a source");
+    assert_eq!(
+        doc.var_name(source),
+        None,
+        "a lone placement's source is anonymous"
+    );
+    assert_eq!(
+        doc.source(source).map(|read| read.read),
+        doc.output(body, 0),
+        "and reads the bracket"
+    );
+
+    let steps = session.history().len();
+    let refused = session.perform(place_op(&doc, body.into(), None));
+    assert!(
+        matches!(
+            &refused.refusal,
+            Some(Refusal::Edit(error))
+                if matches!(**error, EditError::SharedVarNeedsName { ref var } if var.id() == source)
+        ),
+        "a second reader needs the name: {:?}",
+        refused.refusal
+    );
+    assert_eq!(session.history().len(), steps, "nothing is written");
+    assert!(
+        session.committed_doc().bit_eq(&doc),
+        "the document is as it was"
+    );
+
+    let second = landed(&mut session, place_op(&doc, body.into(), Some("bracket")));
+    assert_eq!(session.history().len(), steps + 1, "one action");
+    let doc = session.committed_doc();
+    assert_eq!(
+        doc.var_named("bracket"),
+        Some(source),
+        "the source is named"
+    );
+    assert_eq!(
+        [first, second].map(|copy| doc.copied_read(copy)),
+        [Some(source); 2],
+        "both placements read it"
+    );
+    assert_eq!(
+        doc.sources_of(doc.output(body, 0).expect("the bracket's body")),
+        [source],
+        "the bracket has one source"
+    );
+}
+
+/// **Accepting the offer writes one definition edit**: a fillet of the
+/// bracket picked as itself offers to redefine `bracket`; accepted, it is
+/// one action whose only definition edit is `bracket = F`, the `Rebind`s
+/// it owes beside it, and every placement reading `bracket` shows `F`. One
+/// undo takes it back.
+///
+/// *Breaks if* the re-point writes each placement's source, a second
+/// definition, or more than one undo step.
+#[test]
+fn accepting_the_offer_redefines_the_source_once() {
+    let tol = Tol::witness();
+    let (mut session, body, first, second) = placed_twice(tol);
+    let bracket = session
+        .committed_doc()
+        .var_named("bracket")
+        .expect("the source");
+    let edge = pncad::select::all_edges(session.evaluation().expect("landed"), body)
+        .into_iter()
+        .find(|name| matches!(name.path.as_slice(), [RoleSeg::LateralEdge(_)]))
+        .expect("a lateral edge");
+    let fillet = landed(
+        &mut session,
+        SessionOp::AddFillet {
+            target: body,
+            radius: common::len(0.001),
+            selection: vec![edge],
+        },
+    );
+    let before = session.committed_doc().clone();
+    let (_, offers) = viewer::frame::placement_offers(&before, fillet);
+    let [(label, op)] = &offers[..] else {
+        panic!("one offer: {offers:?}")
+    };
+    assert_eq!(
+        *op,
+        SessionOp::RepointPlacements {
+            source: bracket,
+            onto: fillet.into(),
+        },
+        "the offer redefines the named source"
+    );
+    assert!(
+        label.starts_with("Re-point bracket (2 copies) onto "),
+        "{label}"
+    );
+
+    let steps = session.history().len();
+    let out = session.perform(op.clone());
+    assert!(out.refusal.is_none(), "{:?}", out.refusal);
+    assert_eq!(session.history().len(), steps + 1, "one action");
+    let defines: Vec<_> = out
+        .committed
+        .iter()
+        .filter(|edit| matches!(edit, DocEdit::DefineVar { .. }))
+        .collect();
+    assert!(
+        matches!(
+            defines[..],
+            [DocEdit::DefineVar {
+                var: pncad::document::VarRef::Id(var),
+                def: VarDecl::Source(_),
+                ..
+            }] if *var == bracket
+        ),
+        "one DefineVar, of bracket: {:?}",
+        out.committed
+    );
+    assert!(
+        out.committed
+            .iter()
+            .all(|edit| matches!(edit, DocEdit::DefineVar { .. } | DocEdit::Rebind { .. })),
+        "and the Rebinds it owes, nothing else: {:?}",
+        out.committed
+    );
+    session.pump();
+    let doc = session.committed_doc();
+    assert_eq!(
+        doc.source(bracket).map(|read| read.read),
+        doc.output(fillet, 0),
+        "bracket = F"
+    );
+    assert_eq!(
+        [first, second].map(|copy| (doc.copied_read(copy), copied(doc, copy))),
+        [(Some(bracket), doc.output(fillet, 0)); 2],
+        "both copies read bracket, and show F"
+    );
+    for row in session.tree_rows() {
+        assert_eq!(row.status, RowStatus::Ok, "{row:?}");
+    }
+    assert_eq!(
+        viewer::world::repoint_offer(doc, fillet),
+        None,
+        "nothing left to offer"
+    );
+
+    assert!(session.perform(SessionOp::Undo).refusal.is_none());
+    assert!(
+        session.committed_doc().bit_eq(&before),
+        "one undo takes the redefinition back"
+    );
+}
+
+/// **A later Place of `bracket` reads `bracket`**: after `bracket = F`,
+/// Place on `F` picked as itself shares the source `F`'s placements read,
+/// as Place on the source itself does, so the new copy shows `F` and
+/// follows the next redefinition.
+///
+/// *Breaks if* the later Place reads `F`'s output, or mints a source of
+/// its own beside `bracket`.
+#[test]
+fn a_later_place_of_bracket_reads_bracket() {
+    let tol = Tol::witness();
+    let (mut session, body, _, _) = placed_twice(tol);
+    let bracket = session
+        .committed_doc()
+        .var_named("bracket")
+        .expect("the source");
+    let edge = pncad::select::all_edges(session.evaluation().expect("landed"), body)
+        .into_iter()
+        .find(|name| matches!(name.path.as_slice(), [RoleSeg::LateralEdge(_)]))
+        .expect("a lateral edge");
+    let fillet = landed(
+        &mut session,
+        SessionOp::AddFillet {
+            target: body,
+            radius: common::len(0.001),
+            selection: vec![edge],
+        },
+    );
+    landed(
+        &mut session,
+        SessionOp::RepointPlacements {
+            source: bracket,
+            onto: fillet.into(),
+        },
+    );
+    for read in [Operand::Node(fillet), Operand::Var(bracket)] {
+        let third = {
+            let op = place_op(session.committed_doc(), read.clone(), None);
+            landed(&mut session, op)
+        };
+        let doc = session.committed_doc();
+        assert_eq!(
+            doc.copied_read(third),
+            Some(bracket),
+            "{read:?}: reads bracket"
+        );
+        assert_eq!(
+            copied(doc, third),
+            doc.output(fillet, 0),
+            "{read:?}: shows F"
+        );
+        assert_eq!(
+            doc.sources_of(doc.output(fillet, 0).expect("F's body")),
+            [bracket],
+            "{read:?}: no second source"
+        );
+    }
+}
+
+/// **Place on a body several sources read refuses, naming each**: two
+/// placements made by hand through a source each (two anonymous sources
+/// of one body raise no finding); Place on the body asks which, typed,
+/// and Place on either source places through it, named as it becomes
+/// shared.
+///
+/// *Breaks if* Place picks a source unasked, or mints a third.
+#[test]
+fn place_on_a_body_several_sources_read_names_them() {
+    let tol = Tol::witness();
+    let (session, body) = bracket("named-source-several", tol);
+    let space = session.committed_doc().node_space(body).expect("its space");
+    let apart = |doc: &Doc<ProfileProgram>| {
+        viewer::test_support::inserted(
+            doc,
+            pncad::document::Node::place(
+                pncad::document::BodyRead::plain(Operand::Node(body)),
+                Operand::Var(space),
+                pncad::document::stand().bundle(),
+            ),
+            tol,
+        )
+    };
+    let (doc, a) = apart(session.committed_doc());
+    let (doc, b) = apart(&doc);
+    let mut session = common::inline_without_door(doc, tol);
+    session.pump();
+    let doc = session.committed_doc().clone();
+    let sources = [a, b].map(|copy| doc.copied_read(copy).expect("a source"));
+    assert_ne!(sources[0], sources[1], "two sources");
+    let out = session.perform(place_op(&doc, body.into(), None));
+    assert!(
+        matches!(
+            &out.refusal,
+            Some(Refusal::SeveralSources { sources: named, .. })
+                if named.iter().map(|s| s.id()).collect::<Vec<_>>() == sources
+        ),
+        "{:?}",
+        out.refusal
+    );
+    assert!(session.committed_doc().bit_eq(&doc), "nothing is written");
+    let third = landed(
+        &mut session,
+        place_op(&doc, Operand::Var(sources[1]), Some("bracket")),
+    );
+    let doc = session.committed_doc();
+    assert_eq!(
+        doc.copied_read(third),
+        Some(sources[1]),
+        "shares the one asked for"
+    );
+    assert_eq!(
+        doc.var_named("bracket"),
+        Some(sources[1]),
+        "named as it is shared"
+    );
+}

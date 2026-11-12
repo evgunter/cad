@@ -211,7 +211,50 @@ impl ViewerBehavior<'_> {
                 }
             }
         }
+        for row in crate::props::source_rows(self.session.doc()) {
+            self.source_row_ui(ui, &row);
+        }
         self.add_variable_ui(ui);
+    }
+
+    /// **A named source's row** (VARIABLES VR4): `bracket = B`, and its
+    /// body field, set by picking — the button reads the body selected in
+    /// the tree or the picture, redefining the source
+    /// ([`SessionOp::RepointPlacements`]) so every placement reading it
+    /// copies that body, as the re-point offer does.
+    fn source_row_ui(&mut self, ui: &mut egui::Ui, row: &crate::props::SourceRow) {
+        let doc = self.session.committed_doc();
+        let selected = self
+            .session
+            .selection()
+            .node()
+            .filter(|&node| doc.read_of_node(node).is_some());
+        let plural = if row.copies == 1 { "y" } else { "ies" };
+        ui.horizontal(|ui| {
+            if crate::widgets::message_link(
+                ui,
+                format!("{} = {} ({} cop{plural})", row.label, row.body, row.copies),
+            )
+            .clicked()
+            {
+                self.ops
+                    .push(SessionOp::Select(Selection::Variable(row.var)));
+            }
+            if ui
+                .add_enabled(
+                    selected.is_some(),
+                    egui::Button::new("read the selected body").small(),
+                )
+                .on_hover_text("every placement reading this source copies the selected body")
+                .clicked()
+                && let Some(node) = selected
+            {
+                self.ops.push(SessionOp::RepointPlacements {
+                    source: row.var,
+                    onto: node.into(),
+                });
+            }
+        });
     }
 
     /// **A feature's editing rows**: its slot rows — or, for a
