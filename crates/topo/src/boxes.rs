@@ -2880,7 +2880,7 @@ pub(crate) mod tests {
                     .expect("every half-edge stores a certified cache and the window reads");
                 let hull = face_window_steps(&body, face)
                     .into_iter()
-                    .flatten()
+                    .flat_map(|lp| lp.steps)
                     .map(|step| {
                         let (cache, image, _) =
                             step.expect("every half-edge stores a certified cache");
