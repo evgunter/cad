@@ -758,8 +758,9 @@ fn along_a_line<T: Decide>(
     }
     // `W` runs from `c` round to `d` about `j`'s outward normal, and the
     // other way about `i`'s: the normals are opposed.
-    let on = |q: Point3<T>| link.cone.side(s, q, rd) == Some(Sign::Zero);
-    if !(on(c) && on(d) && wedge_side(p, s.outward, d, c, rd) == Some(Sign::Positive)) {
+    if !(super::rest::in_plane_of(link, j, i, rd)
+        && wedge_side(p, s.outward, d, c, rd) == Some(Sign::Positive))
+    {
         return None;
     }
     let (ends, line) = match (j0.line, j1.line) {

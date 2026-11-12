@@ -879,8 +879,8 @@ fn nappe<T: Real>(p: Point3<T>, alpha: f64, gamma: f64, sense: bool) -> TangentP
 /// nappe nested in one of its own kind, at any depth, or an outer one on
 /// the wrong side of the rest's material, winds a third value: a
 /// crossing. Two nappes with rulings of one on both sides of the other
-/// cross, read by the far ruling outside or behind the other's axis
-/// plane. A needle inside no nappe with no rest round it is not read. Red
+/// cross, read by the far ruling outside or, for each of two nappes
+/// 20° and 60° wide and 75° apart, behind the other's axis plane. A needle inside no nappe with no rest round it is not read. Red
 /// where a second nappe is not read, the nesting is read the wrong way
 /// round or by the wrong nappe, a nappe inside another is read against
 /// the rest, or two nappes that cross pass.
@@ -975,7 +975,7 @@ fn nappes_apart_or_nested_rest_where_their_kinds_alternate<T: Decide>() {
             ),
             (
                 "a wide nappe across a narrow one, its far ruling behind the narrow one's axis plane",
-                vec![n(20.0, 0.0, thorn), n(60.0, 60.0, thorn)],
+                vec![n(20.0, 0.0, thorn), n(60.0, 75.0, thorn)],
             ),
         ] {
             assert_eq!(read(p, pieces), TouchVerdict::Crossing, "{what} at {p:?}");

@@ -1465,6 +1465,11 @@ enum Ridge {
     Hollow,
     /// The wall leaving the floor across the tip at this angle.
     Leaning(f64),
+    /// The floor a cylinder's whole tangent plane, the tip its ruling.
+    CylinderFloor,
+    /// The wall a ball's face and the tip its great circle in the plane
+    /// wall: the ridge a ball's octant, on the floor at the point alone.
+    BallTip,
 }
 
 /// **A ridge's end on a wall tangent to its floor**, about `p`: the floor
@@ -1486,7 +1491,7 @@ fn ridge_end<T: Decide>(p: Point3<T>, turn: f64, how: Ridge) -> Vec<TangentPiece
     };
     let (wall, sense, bend): (geom::Surface<T>, bool, f64) = match how {
         Ridge::Sunk => (upright_along(p, r, 1.0, z), false, -1.0 / r),
-        Ridge::Ball => (
+        Ridge::Ball | Ridge::BallTip => (
             geom::Surface::Sphere {
                 center: p + x * T::from_f64(r),
                 radius: T::from_f64(r),
@@ -1538,25 +1543,37 @@ fn ridge_end<T: Decide>(p: Point3<T>, turn: f64, how: Ridge) -> Vec<TangentPiece
         circle: true,
         bend: -out * T::from_f64(bend),
     };
-    let tip_of_wall = if how == Ridge::CurvedTip {
-        curve(tip, Vec3::zero())
+    let tip_of_wall = match how {
+        Ridge::CurvedTip => curve(tip, Vec3::zero()),
+        Ridge::BallTip => curve(tip, x * T::from_f64(1.0 / r)),
+        _ => line(tip),
+    };
+    let tip_of_plane = if how == Ridge::BallTip {
+        tip_of_wall
     } else {
         line(tip)
     };
-    let floor = if how == Ridge::BallFloor {
-        let ball = geom::Surface::Sphere {
-            center: p - x * two,
-            radius: two,
-            axis: z,
-            u_ref: x,
-        };
+    let curved_floor = |under: geom::Surface<T>| {
         let fan = TangentFan::Inside {
             reach: two,
             frame: [v(1.0, 0.0, 0.0), v(0.0, 1.0, 0.0), v(0.0, 0.0, 1.0)],
         };
-        FaceSector::tangent(ball, true, x, p, fan, band()).expect("a ball's tangent plane")
-    } else {
-        whole(p, x)
+        FaceSector::tangent(under, true, x, p, fan, band()).expect("a whole tangent plane")
+    };
+    let floor = match how {
+        Ridge::BallFloor => curved_floor(geom::Surface::Sphere {
+            center: p - x * two,
+            radius: two,
+            axis: z,
+            u_ref: x,
+        }),
+        Ridge::CylinderFloor => curved_floor(geom::Surface::Cylinder {
+            origin: p - x * two,
+            axis: z,
+            radius: two,
+            u_ref: x,
+        }),
+        _ => whole(p, x),
     };
     if how == Ridge::Hollow {
         return vec![
@@ -1599,7 +1616,7 @@ fn ridge_end<T: Decide>(p: Point3<T>, turn: f64, how: Ridge) -> Vec<TangentPiece
             (plane(p, -y), true),
             -y,
             (x * two, z * two),
-            [line(up), line(tip)],
+            [line(up), tip_of_plane],
         ),
     ]
 }
@@ -1614,9 +1631,12 @@ fn ridge_end<T: Decide>(p: Point3<T>, turn: f64, how: Ridge) -> Vec<TangentPiece
 /// escalation off rests. A plane holding the tip's ray inside it, or one
 /// through the wedge's middle, does not rest. A wall whose tip is no
 /// line, a ball's face, a ball's tangent plane for the floor, and a
-/// hollow ridge whose wall faces as the floor does are not read; a wall
-/// leaving the floor across its tip is no such pair, and rests at first
-/// order. Red where the pair is not found off the floor's own rays, the
+/// hollow ridge whose wall faces as the floor does, a cylinder's tangent
+/// plane for the floor (the tip its ruling) and a ball's octant on the
+/// floor at the point alone (both ends mouths) are not read; a wall
+/// leaving the floor across its tip, gently or steeply, is no such pair,
+/// and rests at first order. A plane in band of the tip's ray refuses in
+/// band. Red where the pair is not found off the floor's own rays, the
 /// floor is not cut along the wall's edges, a sunk wall or one in band
 /// passes, a sheet through the tip's ray is not looked for, or a face
 /// that is not developable or a floor that is no plane is read.
@@ -1633,6 +1653,7 @@ fn a_sheet_on_a_planar_face_along_a_line_is_the_void_its_bend_opens<T: Decide>()
                     "a wall leaving the floor across its tip",
                     Ridge::Leaning(0.4),
                 ),
+                ("a wall leaving the floor steeply", Ridge::Leaning(1.2)),
             ] {
                 let got = read(p, ridge_end(p, turn, how));
                 assert!(
@@ -1648,6 +1669,14 @@ fn a_sheet_on_a_planar_face_along_a_line_is_the_void_its_bend_opens<T: Decide>()
                 (
                     "a hollow ridge, its wall facing as the floor does",
                     Ridge::Hollow,
+                ),
+                (
+                    "a cylinder's tangent plane for the floor",
+                    Ridge::CylinderFloor,
+                ),
+                (
+                    "a ball's octant on the floor at the point alone",
+                    Ridge::BallTip,
                 ),
             ] {
                 assert_eq!(
@@ -1680,6 +1709,19 @@ fn a_sheet_on_a_planar_face_along_a_line_is_the_void_its_bend_opens<T: Decide>()
             read(p, held),
             unread,
             "a plane holding the tip's ray at {p:?}"
+        );
+        // The same plane leaning so the tip's ray, at the arm 2, stands
+        // half the escalation off it.
+        let mut near = ridge_end(p, 0.3, Ridge::Rests(1.0));
+        near.push(whole(
+            p,
+            (v::<T>(1.0, 0.0, 0.0) + y + z * T::from_f64(0.25 * e * core::f64::consts::SQRT_2))
+                .normalize(),
+        ));
+        assert_eq!(
+            read(p, near),
+            in_band,
+            "a plane in band of the tip's ray at {p:?}"
         );
         let mut cut = ridge_end(p, 0.3, Ridge::Rests(1.0));
         cut.push(whole(
