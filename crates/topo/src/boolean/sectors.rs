@@ -3082,7 +3082,7 @@ mod tests {
                 panic!("{arm:e}: an escalation: {err:?}");
             };
             assert_eq!(*decision, BooleanDecision::DirectionSense, "{arm:e}");
-            assert_eq!(diag.predicate, Some("bool_dir_same"), "{arm:e}");
+            assert_eq!(diag.predicate, Some("germ_sense"), "{arm:e}");
             assert_eq!(
                 diag.margin.diagnostic_f64_for_error_text().value(),
                 Some(arm),
@@ -3143,7 +3143,7 @@ mod tests {
                     .map(|v| (v.predicate, v.sign))
                     .collect::<Vec<_>>(),
                 if decided {
-                    vec![("bool_dir_same", Sign::Zero)]
+                    vec![("germ_sense", Sign::Zero)]
                 } else {
                     vec![]
                 },
