@@ -960,8 +960,7 @@ mod kernel {
             RingHomingAmbiguous, UnpairedLooseEnds, SingleSiteSectionLoop,
             SectionLoopMixed, SectionLoopUndecided, CutInvariant, Corrupt, LineageRow,
             Band, Euler, SectionEndEscalated, SectionUnresolved, Section, OpenConicChord,
-            ApexUnlifted,
-            PoleEdgesCoincide, SectionInvariant, SectionUnwalked, SectionUnarmed, RunImageNotYet,
+            SectionInvariant, SectionUnwalked, SectionUnarmed, RunImageNotYet,
             RunImageIncidence, RingIslandUnread,
             RunEdgeCarrierUnsupported,
             TangentChordEscalated, TangentChordBendEscalated, TangentChordRefuted,
@@ -2623,8 +2622,6 @@ fn split() -> Vec<(String, NodeErrorKind)> {
                     conic: geom_brep::OpenConic::Hyperbola,
                 },
             ),
-            ("ApexUnlifted", J::ApexUnlifted { face }),
-            ("PoleEdgesCoincide", J::PoleEdgesCoincide { face }),
             (
                 "SectionInvariant",
                 J::SectionInvariant {

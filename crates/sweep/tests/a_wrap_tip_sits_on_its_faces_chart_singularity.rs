@@ -44,9 +44,13 @@ fn tol() -> Tol {
 }
 
 /// Whether the joint the mint stored at `he` (into `he` from its loop's
-/// predecessor) is a reset.
+/// predecessor) is one whole turn on the principal sheet: the face
+/// wrapping a singular point at an edge's tip.
 fn resets(body: &Body<f64>, he: HalfEdgeKey) -> bool {
-    body.joint(he).is_some_and(topo::JointElement::is_reset)
+    body.joint(he).is_some_and(|e| {
+        let deck = e.deck();
+        deck.u.abs() == 1 && deck.v == 0 && !deck.twin
+    })
 }
 
 /// **A meridian spur of the unit sphere** from the equator vertex at
