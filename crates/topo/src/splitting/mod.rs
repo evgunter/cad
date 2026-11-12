@@ -127,10 +127,10 @@ pub struct SplitPlane<T: Real> {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum SectionGermReading {
     /// Whether a face meets the plane along a line there
-    /// (`split_germ_line`).
+    /// (`germ_line`, the star's germ rule).
     Line,
-    /// The order of two germs about the plane's normal
-    /// (`split_germ_side`, `split_germ_sense`, `split_germ_order`), or of
+    /// The order of two germs about the plane's normal (`germ_side`,
+    /// `germ_sense`, `germ_order`, the star's one order), or of
     /// two along one tangent by how their sections curve off it
     /// (`tangent_sector_order2`, `tangent_sector_order2_arm`).
     Order,

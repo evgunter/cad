@@ -165,6 +165,12 @@ const EXCEPTIONS: &[(&str, &Door)] = &[
     ("cover_sphere_seam", &BOOLEAN),
     ("cover_face_nearest_foot", &BOOLEAN),
     ("curve_carrier_clear", &BOOLEAN),
+    // The star's cuts and their order (`topo::star`), which both verbs
+    // read; the Boolean's is the first door to raise them.
+    ("germ_line", &BOOLEAN),
+    ("germ_order", &BOOLEAN),
+    ("germ_sense", &BOOLEAN),
+    ("germ_side", &BOOLEAN),
     ("join_regular_point", &BOOLEAN),
     ("sector_apex_tilt", &BOOLEAN),
     ("sector_apex_window", &BOOLEAN),

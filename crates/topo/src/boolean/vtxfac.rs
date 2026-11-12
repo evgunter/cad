@@ -2628,13 +2628,8 @@ fn one_carrier<T: Decide>(
 /// **The germs' order round the ring vertex**: indices into `germs`
 /// (each a direction and its arm, a run's two germs at `2r` and
 /// `2r + 1`), clockwise about the pierced face's outward `normal` from
-/// `germs[0]`. Every comparison is [`super::insert::strut_order`]'s
-/// from `germs[0]`, levered at the shortest of its three germs' arms. A
-/// germ along `germs[0]` has no place before or after it at first
-/// order, so each germ's side of `germs[0]` is read first at every arm
-/// a reading of it uses, its own pair's and each comparison's: in band
-/// with its sense along (`bool_strut_side`, `bool_dir_same`), it
-/// refuses as the sectors' coincidence rather than stand at `germs[0]`.
+/// `germs[0]`: the star's one order ([`crate::star::germ_order`]), with
+/// the ring's two tie rules.
 ///
 /// Two germs along one direction, decided so, are ordered by the rule
 /// for their tie:
@@ -2650,10 +2645,8 @@ fn one_carrier<T: Decide>(
 ///   piercing operand and the face).
 ///
 /// Any other reading that does not decide refuses; nothing orders the
-/// germs otherwise. Every reading is levered at the shortest arm among
-/// the directions it reads and their smaller lean
-/// (`sectors::leaned_lever`). Beside the order it returns each tie of
-/// different pierces, the germ first clockwise first.
+/// germs otherwise. Beside the order it returns each tie of different
+/// pierces, the germ first clockwise first.
 fn germ_order<T: Decide>(
     germs: &[(Leaned<T>, geom_core::Lever<T>)],
     member: &[usize],

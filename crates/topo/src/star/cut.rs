@@ -23,16 +23,6 @@ pub(crate) enum CutEnd {
     End,
 }
 
-impl CutEnd {
-    /// The other bound.
-    pub(crate) const fn other(self) -> Self {
-        match self {
-            Self::Start => Self::End,
-            Self::End => Self::Start,
-        }
-    }
-}
-
 /// **A cut**: a sector whose two bounds a verb reads on opposite sides of
 /// its datum, and which of them lies on the datum's positive side. Its
 /// germ is the section line's ray [`germ_line`] names by that end.

@@ -163,7 +163,7 @@ fn a_near_tangent_wedge_whose_volume_is_in_band_reads_its_role_off_a_ray() {
 /// smaller lean, that reading is the offset of a point a unit along the
 /// edge from the cube face's plane, 6.8e-9: a pair in band (D10:
 /// thinness is judged by pairs). It refuses typed as the sectors'
-/// coincidence, reported as `bool_strut_side`, in both orders: the two
+/// coincidence, reported as `germ_side`, in both orders: the two
 /// orders read the one ring. The lump's certified volume,
 /// `[1.69973e-9, 1.69973e-9]`, is never reached here.
 #[test]
@@ -188,7 +188,7 @@ fn a_sliver_lump_six_bands_thick_refuses_at_the_strut_side_in_both_orders() {
                 diag,
             }) => assert_eq!(
                 diag.predicate,
-                Some("bool_strut_side"),
+                Some("germ_side"),
                 "{order}: refused at the strut side"
             ),
             other => panic!("{order}: the ∩ refuses in band at the strut side, got {other:?}"),
