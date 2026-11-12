@@ -518,3 +518,8 @@ pub(super) fn first_reading_kept(kept: bool) -> Option<bool> {
 pub(super) fn first_reading_sym_discarded_on_pass() -> bool {
     on("first-reading-sym-discarded-on-pass")
 }
+
+/// REVIEW PROBE (6870): the compiled mutant's name, for dump files.
+pub(crate) fn name_for_review() -> &'static str {
+    NAME.unwrap_or("head")
+}
