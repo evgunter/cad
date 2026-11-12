@@ -226,3 +226,9 @@ crossing lane and the edge-on-face lane (plan.md, Order).
   - **Fix pass:** the one-nappe check, with that probe as a row; rows for each guard the reviewers found unpinned; the thorn/needle material read shared.
   - **Verifier:** VERIFIED-WITH-NITS. It found that a near-flat nappe in band now skipped instead of refusing. A follow-up push made it refuse `InBand`, with a row.
   - **Main reds:** filed `pcert/main-red-a-fan-mev-plane-x-nurbs-row-escalates-its-general-lane-at-1e-12` (P2). `face_normal`'s `walk.rs` hit is already `tesswalk/main-red-the-wrap-strip-folds-its-period-by-the-sense-bit`. — (RESTREAD orchestrator)
+- 2026-11-12 — **Deviation: PRs 6816 and 6835 ran under a paused review protocol.**
+  - **What happened:** the dual Opus review stream was paused at 19:13 UTC on 2026-11-10 (`5cd97f639b`). From then on, a dual-tier unit runs under `docs/MODEL-COMPARE-PROTOCOL.md`: its implementer's model is drawn, and an H unit gets one Opus and one Fable reviewer. PR 6816's implementer was dispatched four hours after the pause, and PR 6835 later still. Both units ran with no draw, an Opus implementer and an Opus pair, and both recorded dual-review rows.
+  - **Cause:** the orchestrator carried the protocol in its context from before the pause and did not re-read the protocols after a compaction.
+  - **Correction:** both rows keep their findings and are marked `excluded` as recorded in error. Neither unit is a model-compare row, since no draw was made. Both are missing data for both questions.
+  - **Code:** the reviews themselves were full, with a fix pass and a verifier, so the merged code is unaffected.
+  - **From the next unit on:** RESTREAD dispatches under the model comparison. — (RESTREAD orchestrator)

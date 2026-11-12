@@ -1557,9 +1557,10 @@ pub enum ValidationError {
     /// Enforcement is scoped by
     /// [`geom_brep::tangent_certificate_lane`] — the ONE home of the
     /// jet certificate's per-class boundary (C12.1: `Line` carriers
-    /// on `Plane`/`Cylinder`/`Sphere` pairs), so the demanded set and
-    /// the certifiable set are the same set by construction; a
-    /// tangency outside the lane is neither certifiable nor demanded.
+    /// on `Plane`/`Cylinder`/`Sphere` pairs), so a tangency outside the
+    /// lane is neither certifiable nor demanded. A triple inside it can
+    /// still refuse its certificate: a torus's meridian against its band,
+    /// which a construction states as a shared row instead.
     TangentNotIntrinsic {
         /// The jet-determinate tangent edge whose description is
         /// conventional.
@@ -3593,7 +3594,7 @@ fn classify_certify(e: &CertifyError) -> (&'static str, Cow<'static, str>) {
         | CertifyError::AnalyticRung3(A::CarrierEnclosure(_)) => CARRIER_ENCLOSURE,
         CertifyError::Unimplemented
         | CertifyError::Row {
-            refusal: geom_brep::RowRefusal::OffSide,
+            refusal: geom_brep::RowRefusal::OffSide | geom_brep::RowRefusal::Singular,
             ..
         }
         | CertifyError::TangentCertificateUnsupported
@@ -3647,7 +3648,7 @@ fn classify_certify(e: &CertifyError) -> (&'static str, Cow<'static, str>) {
             | CertifyError::WrapOnNonPeriodic => DEFECT,
             CertifyError::Unimplemented
             | CertifyError::Row {
-                refusal: geom_brep::RowRefusal::OffSide,
+                refusal: geom_brep::RowRefusal::OffSide | geom_brep::RowRefusal::Singular,
                 ..
             }
             | CertifyError::TangentCertificateUnsupported => NOT_YET_ENDING,
@@ -7943,10 +7944,9 @@ pub(crate) fn tier3_local_checks_marked<
         {
             // The lane condition IS the jet certificate's per-class
             // boundary, consulted from its one home
-            // (`geom_brep::tangent_certificate_lane`, C12.1): the
-            // demanded set equals the certifiable set by construction
-            // — a Line-on-Cone tangency, say, is neither certifiable
-            // nor demanded (fix pass, dev 7).
+            // (`geom_brep::tangent_certificate_lane`, C12.1): outside
+            // it nothing is demanded or certified — a Line-on-Cone
+            // tangency, say, is neither.
             errors.push(ValidationError::TangentNotIntrinsic { edge: edge_key });
         }
         marks.insert(edge_key, mark);

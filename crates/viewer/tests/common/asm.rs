@@ -189,14 +189,35 @@ pub fn instance_posed(
     instance
 }
 
-/// **Give `instance`'s copy a space of its own through the session**,
-/// and pump (`SessionOp::IntoOwnSpace`): a `new_space()`, the instance
-/// re-targeted into it at the identity. It leaves the world, and the
-/// free-move probe moves its space. Answers the space.
-pub fn unpin(session: &mut DocSession, instance: RecipeNodeId) -> pncad::document::VarId {
-    let outcome = session.perform(SessionOp::IntoOwnSpace {
+/// **`instance` given a space of its own at the identity**: one
+/// `SetBundle` into a `new_space()` writing the identity bundle
+/// (`editor_core::stand`), so whatever mates and values stood it in the
+/// world are taken off with the move — the target row set to a new space
+/// and the bundle cleared in one change.
+pub fn unpin_op(
+    doc: &pncad::document::Doc<pncad::document::ProfileProgram>,
+    instance: RecipeNodeId,
+) -> SessionOp {
+    let base = viewer::matetool::MateTool::edit(doc, instance)
+        .expect("a placement's editor")
+        .door()
+        .expect("the editor is on the placement")
+        .base
+        .clone();
+    SessionOp::SetBundle {
         placement: instance,
-    });
+        base,
+        target: viewer::session::PlaceTarget::NewSpace,
+        constraints: pncad::document::stand().bundle(),
+    }
+}
+
+/// **Give `instance`'s copy a space of its own at the identity through
+/// the session**, and pump: [`unpin_op`], one `SetBundle` into a
+/// `new_space()` writing the identity bundle. It leaves the world, and
+/// the free-move probe moves its space. Answers the space.
+pub fn unpin(session: &mut DocSession, instance: RecipeNodeId) -> pncad::document::VarId {
+    let outcome = session.perform(unpin_op(session.committed_doc(), instance));
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
     session.pump();
     session
@@ -463,7 +484,6 @@ pub fn seat_op_under(
         placement: post,
         mate: Box::new(crate::fixture::rest(post_top, shelf_bottom)),
         values,
-        into_target_space: true,
     }
 }
 
@@ -489,7 +509,6 @@ pub fn shelf_rest_op(bench: &Bench, post: RecipeNodeId, offset: f64) -> SessionO
             to,
         )),
         values: Vec::new(),
-        into_target_space: true,
     }
 }
 
@@ -508,7 +527,6 @@ pub fn no_centre_op(bench: &Bench, post: RecipeNodeId) -> SessionOp {
             crate::fixture::axis(post_top),
         )),
         values: Vec::new(),
-        into_target_space: true,
     }
 }
 
@@ -534,11 +552,12 @@ pub fn refuse_shelf_chaining(
     // Its pin off first, by a space of its own: a seat beside a mate the
     // bundle holds is refused.
     unpin(session, chained);
-    let sound = super::commit_mate(session, seat_op(bench, chained, middle_seat_values()));
+    let sound =
+        super::commit_mate_in_one_change(session, seat_op(bench, chained, middle_seat_values()));
     // The shelf's mates off, by a space of its own: a mate beside one
     // the bundle holds is refused. The refused mate places it back.
     unpin(session, bench.shelf_i);
-    let offender = super::commit_mate(session, no_centre_op(bench, rest_on));
+    let offender = super::commit_mate_after_into(session, no_centre_op(bench, rest_on));
     Refused { sound, offender }
 }
 

@@ -281,11 +281,13 @@ fn a_bridges_far_foot_keeps_its_record() {
 /// `B` a slab lying across both, its bottom `B1` glued to each. Each
 /// pair moves only its own faces, onto a record its verdict was read
 /// against: where `A` is written first, the first pair moves `B1` onto
-/// `A1`'s record and the second finds it moved and leaves it, so `A2`'s
-/// remnant keeps its own record; where `B` is, each pair moves its post
-/// top onto `B1`'s record. No face is left on a record no verdict read
-/// it against, as a union of the pairs' records would leave `A2` on
-/// `A1`'s.
+/// its post top's record and the second finds it moved and leaves it, so
+/// the other post top's remnant keeps its own record; where `B` is, each
+/// pair moves its post top onto `B1`'s record. No face is left on a
+/// record no verdict read it against, as a union of the pairs' records
+/// would leave one post top on the other's. Which pair comes first is
+/// the reduction's order, not the posts' along `x`: it moved when the
+/// insertion's two-crossing runs took the kept side.
 #[test]
 fn a_chain_of_glued_pairs_moves_no_undecided_pair() {
     let base = block("base", (0.0, 5.0), (0.0, 1.0), (0.0, 1.0));
@@ -317,8 +319,11 @@ fn a_chain_of_glued_pairs_moves_no_undecided_pair() {
             at_two(false, 1.0, 4.0),
         );
         if a_first {
-            assert_eq!(b1, a1, "{order}: B1 is moved onto A1's record");
-            assert_ne!(a2, a1, "{order}: A2 keeps its own record");
+            assert!(
+                b1 == a1 || b1 == a2,
+                "{order}: B1 is moved onto a post top's record: {b1:?}, the tops {a1:?} and {a2:?}"
+            );
+            assert_ne!(a2, a1, "{order}: the other post top keeps its own record");
         } else {
             assert_eq!(a1, b1, "{order}: A1 is moved onto B1's record");
             assert_eq!(a2, b1, "{order}: A2 is moved onto B1's record");

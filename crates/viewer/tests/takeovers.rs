@@ -426,7 +426,6 @@ fn a_face_of_a_union_of_the_copy_is_rebound() {
                 Operand::select(Operand::Var(u), vec![face]),
             )),
             values: Vec::new(),
-            into_target_space: false,
         },
     );
     let seated_at = drawn::extent(&mut session, small_copy);

@@ -2,7 +2,7 @@
 id: clear
 kind: program
 title: CLEAR — the E7 clearance engine: where it lives, what it composes with, what its refusals say, and its witness and seam tail
-status: ready
+status: active
 opened: 2026-09-20
 group: api/assembly
 prefix: clear/
