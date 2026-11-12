@@ -1325,3 +1325,15 @@ E1c waits on the answer.
     - P4 `check-4s-first-reading-states-an-envelope-up-to-twice-the-eight-parts`, which includes the two-parts-a-span floor that was not taken;
     - P4 `limb-2s-set-aside-first-reading-leaves-its-decisions-on-the-trail`;
     - spiricarm P3 for the pad drift.
+
+- 2026-11-12 — **PR 6870 merged: a derived sphere image stays on its circle at ε 1e-12.** It closes the P1 `a-derived-sphere-image-misses-its-circle-by-1e-11-near-five-half-pi-at-eps-1e-12`, a main red by seed.
+  - **Root cause:** the sphere meridian arm normalized a_r, which cancels near a pole. The seed's image missed by 1.05e-11; it now misses by under 1e-15.
+  - **Fix:** `sphere_meridian_direction` is the one reader for both the derivation and check 4's incidence lemma. Without that, the mint door gave a false definite `ResidualExceeded` on fixed images (M1).
+  - **Review:** single FULL, then fix list XX, then a delta review: APPROVE.
+  - **Reverted with evidence, then filed:** the lane reverted the planar projection on the cone ruling and on the torus/spindle arm. On the cone it falsely classed an in-band tilt as `ImageMismatch`, and on the torus it gave a winding-mismatch refusal at ε 1e-6. The spindle's mint refusal at R = 1e-7·r is a true verdict on an image that really misses.
+  - **Sweep:** across 2000 seeds × 3 fuzzes at ε 1e-12, the fix leaves 0 refusals of a correct closed-form image.
+  - **Stored bits:** 135 of 1080 sphere azimuth phases move, by at most 4.4e-16. m10 is unchanged.
+  - **Filed:**
+    - P2 `a-cone-ruling-anchored-near-its-apex-reads-its-azimuth-off-a-short-radial-part`;
+    - P3s for the spindle, the interval mint door at pole starts, the unsigned reach, and Villarceau.
+    - Both arm rows now note that a fix needs one shared reader.

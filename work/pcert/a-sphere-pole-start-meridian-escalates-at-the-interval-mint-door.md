@@ -39,3 +39,9 @@ Read `a′` and `b′` off directions with no short cancellation: `d̂` is
 already read along `m = e × n` (`sphere_meridian_direction`). The remaining width is in
 `s_r = ‖a_r‖`. Reading it as `m · a` would take `a`'s whole enclosure
 rather than the cancelled one, but its sign needs a decided read.
+
+## Notes from PR 6870's delta review
+
+- At ε 1e-9 the s = 1e-7 sphere also escalates at the interval door, so this is not confined to ε 1e-12.
+- Head-versus-main widths are listed below; the head is tighter in every case. The row `closed_image_rows.rs` ~2115 accepts any `Escalated` on the interval mint arm, so a widening cannot turn it red. Pin a ceiling of today's order when this is worked: 3.10e-10 for seed 0x6c32…, 1.69e-10 for 0x8ffe…, and 8.7e-8 at s = 1e-7.
+- `sphere_meridian_direction`'s doc says the reading is "exact" for its class. The class admits in-band tilts, so "exact to O(τ²)" is what holds. Correct it in the same pass.

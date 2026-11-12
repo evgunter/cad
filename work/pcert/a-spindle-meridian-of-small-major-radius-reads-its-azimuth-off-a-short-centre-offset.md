@@ -49,3 +49,7 @@ Read the azimuth off the better-conditioned of the two readings, which
 needs a decided choice. Alternatively, read `w_r` from the carrier's
 own points rather than its centre: the centre is itself a short
 difference of two far points.
+
+## One reader, when fixed (PR 6870 delta review)
+
+The derivation and check 4's incidence lemma read this arm's direction separately: the torus `side` against `w_r`, and the cone's `ĝ`. They agree today only because both are on main's reading. A fix must give them one shared reader, as PR 6870 did for the sphere with `sphere_meridian_direction`. Otherwise the mint door's false definite (PR 6870's M1) comes back.

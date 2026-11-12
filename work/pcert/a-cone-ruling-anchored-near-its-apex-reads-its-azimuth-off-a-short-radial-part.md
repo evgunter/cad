@@ -58,3 +58,7 @@ the parameter starts moves nothing") holds. The nappe is decided at the
 anchor, so a reference elsewhere must stay on that nappe over the span.
 That is a class-reading design change; it needs its own unit, with
 `ruling_reading_rows` as its gate.
+
+## One reader, when fixed (PR 6870 delta review)
+
+The derivation and check 4's incidence lemma read this arm's direction separately: the torus `side` against `w_r`, and the cone's `ĝ`. They agree today only because both are on main's reading. A fix must give them one shared reader, as PR 6870 did for the sphere with `sphere_meridian_direction`. Otherwise the mint door's false definite (PR 6870's M1) comes back.
