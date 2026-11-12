@@ -624,7 +624,7 @@ enum Close {
     /// `j` is bounded there by a line edge lying in the planar face `i`'s
     /// plane, `i` running on past it ([`along_a_line`]): both faces hold
     /// the line, as at a pinch of two lines.
-    Line,
+    Lying,
 }
 
 /// **The pair `(i, j)` on one wedge** ([`lenses`]): `None` where it is no
@@ -716,7 +716,7 @@ fn pair<T: Decide>(
         .iter()
         .filter_map(|&(r, e)| match e {
             Close::Cap(h) => Some((h, r)),
-            Close::Pinch { .. } | Close::Mouth | Close::Line => None,
+            Close::Pinch { .. } | Close::Mouth | Close::Lying => None,
         })
         .collect();
     Some(kind(link, [i, j], ends, rd).map(|kind| OneWedge {
@@ -733,7 +733,7 @@ fn pair<T: Decide>(
 /// bounded by a line in it** ([`pair`], which has read `i` with no bound,
 /// `j` one wedge `W` bounded by `j0` and `j1`, and the two not both
 /// planes): `i` a planar face (`plane_exact`), `W` on its plane the other
-/// way round, one end of it a line edge of `j` ([`Close::Line`]) and the
+/// way round, one end of it a line edge of `j` ([`Close::Lying`]) and the
 /// other a mouth. `None` where it is no such pair. No other sector may
 /// hold the line's ray inside it: cut along the line, `i` would no longer
 /// be read crossing it there ([`crate::CurvedUnread::Unreadable`]; a
@@ -764,8 +764,8 @@ fn along_a_line<T: Decide>(
         return None;
     }
     let (ends, line) = match (j0.line, j1.line) {
-        (true, false) => ([(c, Close::Line), (d, Close::Mouth)], c),
-        (false, true) => ([(c, Close::Mouth), (d, Close::Line)], d),
+        (true, false) => ([(c, Close::Lying), (d, Close::Mouth)], c),
+        (false, true) => ([(c, Close::Mouth), (d, Close::Lying)], d),
         _ => return None,
     };
     for (k, other) in link.cone.sectors.iter().enumerate() {
@@ -887,9 +887,9 @@ fn kind<T: Decide>(
     for (u, close) in [(u0, ends[0].1), (u1, ends[1].1)] {
         let b = gap(rise(u)?);
         match close {
-            Close::Pinch { .. } | Close::Line => {
+            Close::Pinch { .. } | Close::Lying => {
                 pinched = true;
-                straight &= matches!(close, Close::Line | Close::Pinch { straight: true });
+                straight &= matches!(close, Close::Lying | Close::Pinch { straight: true });
                 match metric::sign_as(LINK_SECOND_ORDER, b, rd.band) {
                     Some(Sign::Zero) => {}
                     Some(Sign::Positive | Sign::Negative) => return Err(unread),

@@ -33,6 +33,17 @@ Each mutant below, run against
 | P5: `misses`' undecided lean read as false | `second_order::misses` |
 | A5: a nappe's axis read on a sector (`Material::On`/`Boundary`) → `Crossing` | `rest::at_apex`. Every plane of the rest is read decidedly off the axis point before this, so no row reaches it; the arm refuses by enumeration rather than by a wildcard |
 
+## Two more, from the valid-bodies lane (branch `restread/self-touch-valid-bodies`)
+
+Run against the same filter. These two arms refuse where their mutant
+would read on, so they are guards and not labels; each was looked at
+for a way to pass, and none was found:
+
+| mutant | site |
+|---|---|
+| R14: an outer nappe's axis the rest leaves undecided (`material_round` gives `None`) is passed over | `rest::at_apex`. Every plane of the rest is read decidedly off the axis point, its tie's slack charged, before this, and the rest has read one material, so it has a reference that reads: no row reaches the arm |
+| L14: a sector whose plane is in band of a line end's ray is taken as off it | `second_order::along_a_line`. The row that reaches the arm (`lens_rows`' plane in band of the tip's ray) refuses `InBand` under the mutant too: the remainder holds the plane cut along that ray, and reads the same sector in band of its bound |
+
 ## The fix
 
 Give each arm a row that reaches it, in the style of

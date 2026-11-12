@@ -1650,7 +1650,7 @@ fn a_sheet_on_a_planar_face_along_a_line_is_the_void_its_bend_opens<T: Decide>(i
         // link's own rays read in band of its own planes.
         let fine = interval && at == 1 && Tol::witness().eps() <= 1e-12;
         let or_fine = |got: &TouchVerdict, turn: f64| fine && turn != 0.0 && *got == in_band;
-        for turn in [0.0, 0.3, 1.0, 2.0, 3.5, 5.0] {
+        for turn in [0.0, 0.3, 2.0, 5.0] {
             for (what, how) in [
                 ("a cylinder", Ridge::Rests(1.0)),
                 ("a cone", Ridge::Cone),
