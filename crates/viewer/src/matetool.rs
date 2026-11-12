@@ -841,7 +841,7 @@ enum Change {
     StrikeReading(Vec<Reading>),
     Type(Coord, Formula),
     Target(PlaceTarget),
-    /// "Into <space>" made while an earlier change lands: made over what
+    /// `Into <space>` made while an earlier change lands: made over what
     /// it writes as a target change of its own.
     IntoAlone(VarId),
     /// What a target change of its own set aside, put back whole.
