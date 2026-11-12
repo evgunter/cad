@@ -550,7 +550,7 @@ fn fitted(
         carrier: b.carrier.clone(),
         span: b.params,
         shape,
-        certificate: Some(b.certificate.clone()),
+        certificate: Some(b.certificate),
         winds: [false, false],
         pad,
         reach,
@@ -667,7 +667,10 @@ fn pad_of(b: &SsiBranch, net: &NurbsSurface<f64>) -> Result<(f64, f64), super::C
     }
     let hull_sup = b.certificate.hull_sup;
     if hull_sup.partial_cmp(&pad) == Some(core::cmp::Ordering::Greater) || hull_sup.is_nan() {
-        return Err(CarryError::Refused(CarryRefusal::PadShort { pad, hull_sup }));
+        return Err(CarryError::Refused(CarryRefusal::PadShort {
+            pad,
+            hull_sup,
+        }));
     }
     let mid = geom::mid_param(b.params.0, b.params.1);
     let witness = lifted.eval(lift(mid));
@@ -1229,7 +1232,10 @@ fn listed(
                     let chord = b.carrier.eval(t) - nodes[n].point;
                     ends.push((components.len(), start, chord.normalize()));
                 }
-                (open(side(from).or(side(to))), Err(super::NoCarrier::NodeArc))
+                (
+                    open(side(from).or(side(to))),
+                    Err(super::NoCarrier::NodeArc),
+                )
             }
             BranchEnd::Cut => {
                 return Err(SectionError::Unaccounted {

@@ -247,7 +247,7 @@ impl<T: geom_core::Decide> SectionReader<T> {
     /// the door records, so it is read on its first reader's ask, at the
     /// reader's band and through the table's march door, and an operation
     /// that refuses before any reader asks never marches it.
-    pub(crate) fn hold(
+    pub(super) fn hold(
         &mut self,
         (ka, sa): (SurfaceKey, &geom::Surface<T>),
         (kb, sb): (SurfaceKey, &geom::Surface<T>),
@@ -338,7 +338,7 @@ impl<T: geom_core::Decide> SectionTable<T> {
     /// (`ops::pair_verdict`) and the carry carries. `None` where the table
     /// holds no section for the pair; the section's own refusal, or the
     /// whole reading's.
-    pub(crate) fn listed(
+    pub(super) fn listed(
         &self,
         a: (&Body<T>, FaceKey),
         b: (&Body<T>, FaceKey),

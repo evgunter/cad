@@ -784,7 +784,9 @@ fn an_arc_to_a_node_carries_none_by_name() {
     assert!(
         matches!(
             refused,
-            Err(CarryError::Refused(CarryRefusal::Unminted(NoCarrier::NodeArc)))
+            Err(CarryError::Refused(CarryRefusal::Unminted(
+                NoCarrier::NodeArc
+            )))
         ),
         "{refused:?}"
     );

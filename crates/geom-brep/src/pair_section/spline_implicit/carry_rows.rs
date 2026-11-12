@@ -12,8 +12,8 @@ use geom_core::spline::KnotVector;
 use geom_core::{Band, Point3, Tol, Vec3};
 
 use crate::pair_section::{
-    CarriedComponent, CarryError, CarryRefusal, ChartReach, ComponentShape, NoCarrier,
-    PairSection, SectionRead, SsiLane, pair_section,
+    CarriedComponent, CarryError, CarryRefusal, ChartReach, ComponentShape, NoCarrier, PairSection,
+    SectionRead, SsiLane, pair_section,
 };
 
 fn band() -> Band {
@@ -121,7 +121,10 @@ fn a_rim_arc_is_carried_as_its_reading_fitted_it_with_its_pad_in_metres() {
                 (p - c).norm() - 0.4 * s
             };
             let (mut lo, mut hi) = (0.0, 0.5);
-            assert!(f(lo) < 0.0 && f(hi) > 0.0, "s = {s}: the iso-line {u} crosses the ball");
+            assert!(
+                f(lo) < 0.0 && f(hi) > 0.0,
+                "s = {s}: the iso-line {u} crosses the ball"
+            );
             for _ in 0..80 {
                 let mid = 0.5 * (lo + hi);
                 if f(mid) < 0.0 {
@@ -185,7 +188,9 @@ fn a_rim_arc_is_carried_as_its_reading_fitted_it_with_its_pad_in_metres() {
             );
             for &p in points {
                 assert!(
-                    comp.reads(p, band()).expect("a section point reads").is_some(),
+                    comp.reads(p, band())
+                        .expect("a section point reads")
+                        .is_some(),
                     "s = {s}, {what}: the section's point {p:?} reads on its component \
                      within the pad {}",
                     comp.pad
@@ -210,7 +215,9 @@ fn a_loop_on_the_wall_carries_none_by_name() {
     assert!(
         matches!(
             refused,
-            Err(CarryError::Refused(CarryRefusal::Unminted(NoCarrier::ChartLoop)))
+            Err(CarryError::Refused(CarryRefusal::Unminted(
+                NoCarrier::ChartLoop
+            )))
         ),
         "{refused:?}"
     );
