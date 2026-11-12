@@ -1,13 +1,21 @@
-//! **Limb 2's first reading of a net, each span in the parts its own
-//! turn needs** ([`Parts::ByTurn`]). A long span, or a short one by the
-//! chart's axis or a pole, reads the parts a fixed count read there; a
-//! short span far from both reads one. A first reading that clears is
-//! the limb's; anything else is the rounds', at
-//! [`projected::INCIDENCE_CUTS`] parts a span.
+//! **A net's first reading, each span in the parts its own turn needs**
+//! ([`Parts::ByTurn`]), at its two readers: limb 2 of the edge
+//! certificate, and check 4 of a projected row.
 //!
-//! Each fixture's band is set between its span's reading in one part and
-//! its reading in the parts its turn needs, so a schedule that reads one
-//! part everywhere leaves the first reading short of the band.
+//! A long span, or a short one by the chart's axis or a pole, reads the
+//! parts a fixed count read there; a short span far from both reads one.
+//! A first reading that clears is the limb's, and anything else is the
+//! rounds', at [`projected::INCIDENCE_CUTS`] parts a span. Each limb-2
+//! fixture's band is set between its span's reading in one part and its
+//! reading in the parts its turn needs, so a schedule that reads one part
+//! everywhere leaves the first reading short of the band.
+//!
+//! Check 4's rows hold its first reading to what it may decide: a
+//! 625-span chord's one composite of 625 parts, a first reading's bound
+//! over what it certifies, a first reading that does not pass handed to
+//! the eight parts, and check 4's decision trail, at `Interval` (k_stats)
+//! and at `Sym<f64>` (the re-valuation recorder), holding the deciding
+//! reading's decisions alone.
 
 use super::*;
 
@@ -497,31 +505,29 @@ fn check_4_reads_a_625_span_chord_in_one_part_a_span() {
 }
 
 /// Check 4's envelope of `carrier`'s projected row on `surface`, over
-/// its whole domain at `Interval`, its spans read in `parts`: the terms'
-/// total with the placement pair, its upper end.
+/// its whole domain at `Interval`, its spans read in `parts`
+/// ([`projected::check_4_terms`]): its upper end.
 fn envelope_in(carrier: &Curve3<f64>, surface: &Surface<f64>, band: Band, parts: Parts) -> f64 {
     use geom_core::Bounds;
     let at = geom_core::Interval::from_f64;
     let (c, s) = (carrier.map_scalar(at), surface.map_scalar(at));
     let image = projected::project(&c, None, &s, band).unwrap();
     let (t0, t1) = (at(0.0), at(1.0));
-    let (mut terms, name) = projected::projected_envelope(
-        &image,
-        t0,
-        t1,
-        &image.chart_box(t0, t1),
+    let boxed = image.chart_box(t0, t1);
+    let pcurve = Pcurve::Projected(Box::new(image));
+    projected::check_4_terms(
+        &pcurve,
+        (t0, t1),
+        &boxed,
         &c,
         &s,
         band,
         Some(crate::FittedLane::certified()),
         parts,
     )
-    .unwrap();
-    let pcurve = Pcurve::Projected(Box::new(image));
-    let (fu, fv) = placement_terms(&pcurve, name, (t0, t1), &c, &s, band).unwrap();
-    terms.add(EnvelopeTerm::FidelityU, fu);
-    terms.add(EnvelopeTerm::FidelityV, fv);
-    terms.total().hi()
+    .unwrap()
+    .total()
+    .hi()
 }
 
 /// **Check 4's first reading bounds the distance it certifies.** A
@@ -573,5 +579,147 @@ fn a_first_reading_that_does_not_pass_is_read_again_at_eight_parts() {
     assert!(
         envelope <= zero && (envelope - eight).abs() <= 1e-9 * eight,
         "the envelope {envelope:e} is the eight parts' {eight:e}, under {zero:e}"
+    );
+}
+
+/// Check 4's whole k_stats trail at `Interval` on `carrier`'s projected
+/// row: whether it certified, its verdicts `(predicate, sign)` and its
+/// escalations' predicates.
+#[allow(clippy::type_complexity)]
+fn trail(
+    carrier: &Curve3<f64>,
+    surface: &Surface<f64>,
+    band: Band,
+) -> (
+    bool,
+    Vec<(&'static str, geom_core::predicate::Sign)>,
+    Vec<&'static str>,
+) {
+    let at = geom_core::Interval::from_f64;
+    let (c, s) = (carrier.map_scalar(at), surface.map_scalar(at));
+    let image = projected::project(&c, None, &s, band).unwrap();
+    let (read, recorded) = geom_core::k_stats::detached(|| {
+        projected::run_projected_checks(
+            &Pcurve::Projected(Box::new(image)),
+            at(0.0),
+            at(1.0),
+            &c,
+            &s,
+            band,
+            Some(crate::FittedLane::certified()),
+        )
+    });
+    let r = recorded.recorded();
+    (
+        read.is_ok(),
+        r.verdicts.iter().map(|v| (v.predicate, v.sign)).collect(),
+        r.escalations.iter().map(|e| e.predicate()).collect(),
+    )
+}
+
+/// **Check 4's trail is the deciding reading's alone.** The bulging
+/// span certifies at its first reading against a wide band, and at
+/// eight parts a span against a band whose zero lies between the two
+/// readings, where the first reading escalates in band: both trails are
+/// one passing reading's, verdict for verdict, with no escalation. Red
+/// where a dropped first reading's recording is spliced (mutant
+/// `first-reading-spliced`: its escalation reaches the trail) or a
+/// passing one's is dropped (`first-reading-dropped`: the trail loses
+/// the check's verdicts).
+#[test]
+fn check_4s_trail_holds_the_deciding_readings_verdicts_alone() {
+    let (c, s) = (bulge(1e-4), cylinder());
+    let wide = Band::new(1e-3, 1e-2).unwrap();
+    let (first, eight) = (
+        envelope_in(&c, &s, wide, Parts::ByTurn),
+        envelope_in(&c, &s, wide, Parts::Each(projected::INCIDENCE_CUTS)),
+    );
+    assert!(
+        first > 1.05 * eight,
+        "the first reading ({first:e}) reads wider than eight parts ({eight:e})"
+    );
+    let passed = trail(&c, &s, wide);
+    assert!(passed.0, "passes at the first reading");
+    assert!(passed.2.is_empty(), "no escalation: {:?}", passed.2);
+    assert_eq!(
+        passed.1.iter().filter(|v| v.0 == "pcurve_envelope").count(),
+        1,
+        "the passing first reading's verdict is on the trail: {:?}",
+        passed.1
+    );
+    let zero = (first * eight).sqrt();
+    let again = trail(&c, &s, Band::new(zero, 10.0 * zero).unwrap());
+    assert!(again.0, "passes at eight parts a span");
+    assert!(
+        again.2.is_empty(),
+        "the dropped first reading's escalation: {:?}",
+        again.2
+    );
+    assert_eq!(again.1, passed.1, "one passing reading's trail");
+}
+
+/// Check 4 on `carrier`'s projected row at `Sym<f64>`, under the
+/// re-valuation recorder: whether it certified, and the predicates of
+/// every decision it recorded.
+fn sym_decisions(
+    carrier: &Curve3<f64>,
+    surface: &Surface<f64>,
+    band: Band,
+) -> (bool, Vec<&'static str>) {
+    use geom_core::sym::revalue::record;
+    use geom_core::sym::with_session;
+    use geom_core::{Sym, SymBudget};
+    let budget = SymBudget {
+        max_terms: 64,
+        max_degree: 8,
+    };
+    let ((read, decisions), _) = with_session(budget, || {
+        let at = Sym::<f64>::from_f64;
+        let (c, s) = (carrier.map_scalar(at), surface.map_scalar(at));
+        let image = projected::project(&c, None, &s, band).unwrap();
+        record(|| {
+            projected::run_projected_checks(
+                &Pcurve::Projected(Box::new(image)),
+                at(0.0),
+                at(1.0),
+                &c,
+                &s,
+                band,
+                Some(crate::FittedLane::certified()),
+            )
+            .is_ok()
+        })
+    });
+    (read, decisions.iter().map(|d| d.predicate).collect())
+}
+
+/// **At `Sym<f64>` a dropped first reading leaves no decision on the
+/// re-valuation recorder.** The bulging span against a band whose zero
+/// lies over its sampled distance (so check 3 passes) and under its
+/// envelope at eight parts a span (so neither of check 4's readings
+/// passes): the record holds one `pcurve_envelope` decision, the eight
+/// parts'. Red where the first reading's `Sym` decisions are kept
+/// (`sym::aside` not discarded).
+#[test]
+fn a_dropped_first_reading_leaves_no_decision_at_sym() {
+    let (c, s) = (bulge(1e-4), cylinder());
+    let off = off_cylinder(&c);
+    let eight = envelope_in(
+        &c,
+        &s,
+        Band::new(1e-3, 1e-2).unwrap(),
+        Parts::Each(projected::INCIDENCE_CUTS),
+    );
+    assert!(eight > 1.001 * off, "{eight:e} over {off:e}");
+    let zero = (off * eight).sqrt();
+    let (certified, decisions) = sym_decisions(&c, &s, Band::new(zero, 10.0 * zero).unwrap());
+    assert!(!certified, "check 4 does not pass under its envelope");
+    assert_eq!(
+        decisions
+            .iter()
+            .filter(|p| **p == "pcurve_envelope")
+            .count(),
+        1,
+        "one envelope decision, the eight parts': {decisions:?}"
     );
 }

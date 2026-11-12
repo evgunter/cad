@@ -63,12 +63,12 @@ By SPIRICARM's orchestrator, under the blocker rule (`work/README.md`, Priority)
 Branch `pcert/check4-parts-by-turn`. Check 4 reads a curved chart's net
 first with each knot span in the parts its own turn needs
 (`pcurve_cache::Parts::ByTurn`, the parts limb 2's first reading
-takes), under a `k_stats::detached` recording
-(`projected::run_projected_checks`). Each part's hull bounds `|f|` at
+takes), with its decisions set aside (`projected::run_projected_checks`: the
+k_stats channels under `k_stats::detached`, the `Sym` decision logs
+under the new `geom_core::sym::aside`). Each part's hull bounds `|f|` at
 any count, so a first-reading envelope that passes is the check's, and
-its recording is spliced in. Anything else is set aside with its
-recording, and the envelope is read whole again at `INCIDENCE_CUTS`
-parts a span. So every refusal, escalation and sector or lever ending
+its decisions are kept. Anything else is discarded with its decisions,
+and the envelope is read whole again at `INCIDENCE_CUTS` parts a span. So every refusal, escalation and sector or lever ending
 of check 4 is read on main's parts, and the sliver below the band is
 main's: `projected-check4-incidence-can-falsely-refuse-in-the-sliver-below-the-band`
 stays open, since the halving it asks for is not taken here.
@@ -84,7 +84,12 @@ Rows (`pcurve_cache/by_turn_rows.rs`):
 - a first reading's bound over a span bulging inside its part, red
   under mutant `by-turn-sampled`;
 - a first reading that does not pass, decided by the eight parts' second
-  composite.
+  composite;
+- check 4's k_stats trail holding the deciding reading's verdicts
+  alone, red under mutants `first-reading-spliced` and
+  `first-reading-dropped`;
+- at `Sym<f64>`, a dropped first reading leaving no decision on the
+  re-valuation recorder.
 
 The dominance fuzz reads both schedules.
 
@@ -96,4 +101,9 @@ seven non-rim poses the widest pads grow 1.54–1.94×, to 2.4e-11–8.0e-10
 against ceilings near 4.6e-6, and its `MEASURED_PAD` is re-measured.
 Refusals are unchanged: over the five crates' whole suites (release,
 slow set included), every test's check-4 endings match main's, apart
-from three fuzz searches that draw fresh seeds.
+from two fuzz searches that draw fresh seeds.
+
+Filed: `check-4s-first-reading-states-an-envelope-up-to-twice-the-eight-parts`
+(P4), `limb-2s-set-aside-first-reading-leaves-its-decisions-on-the-trail`
+(P4), and on spiricarm
+`the-cylinder-sphere-frame-pad-table-drifted-past-its-guard-on-main` (P3).

@@ -116,6 +116,16 @@ pub fn take_shape_report() -> Vec<DecisionShape> {
     SHAPES.with(|s| core::mem::take(&mut *s.borrow_mut()))
 }
 
+/// How many decisions the report holds ([`super::aside`]'s mark).
+pub(super) fn mark() -> usize {
+    SHAPES.with(|s| s.borrow().len())
+}
+
+/// Drops every decision recorded after `mark` ([`super::Aside::discard`]).
+pub(super) fn truncate(mark: usize) {
+    SHAPES.with(|s| s.borrow_mut().truncate(mark));
+}
+
 /// Sets how many DAG levels below a blocked residual the report
 /// EXPLAINS ([`DecisionShape::explain`]): per node its op, its early
 /// form's size and whether the early walk FROZE it. Zero (the default)

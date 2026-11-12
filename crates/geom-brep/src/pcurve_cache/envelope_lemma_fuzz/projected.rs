@@ -15,7 +15,9 @@ use geom_core::tolerance::Tol;
 use geom_core::{Bounds, Interval, Point3, Real, Vec3};
 use test_utils::fuzz;
 
-use super::super::projected::{FramedCarrier, SectorChannel, project, projected_envelope};
+use super::super::projected::{
+    FramedCarrier, SectorChannel, check_4_terms, project, projected_envelope,
+};
 use super::super::{EnvelopeTerm, Pcurve, PcurveCache, PcurveCertifyError, PcurveCheck};
 use super::{band, frame, unit};
 
@@ -1184,6 +1186,19 @@ fn dominance_row(chart: Chart, moved: Moved, s: &mut fuzz::Rng) -> Option<Domina
     let boxed = pcurve.chart_box(t0, t1);
     let lane = crate::FittedLane::<f64>::certified();
     let read = |parts| {
+        check_4_terms(
+            &pcurve,
+            (t0, t1),
+            &boxed,
+            &carrier,
+            &surf,
+            b,
+            Some(lane),
+            parts,
+        )
+    };
+    let eight = crate::pcurve_cache::Parts::Each(crate::pcurve_cache::projected::INCIDENCE_CUTS);
+    let lemma_in = |parts| {
         projected_envelope(
             &image,
             t0,
@@ -1197,27 +1212,33 @@ fn dominance_row(chart: Chart, moved: Moved, s: &mut fuzz::Rng) -> Option<Domina
         )
         .map(|(terms, _)| terms)
     };
-    let terms = read(crate::pcurve_cache::Parts::Each(
-        crate::pcurve_cache::projected::INCIDENCE_CUTS,
-    ))
-    .ok()?;
-    let by_turn = read(crate::pcurve_cache::Parts::ByTurn).ok();
+    let lemma = lemma_in(eight).ok()?;
     Some(Dominance {
         sampled: sampled(&pcurve, &carrier, &surf, t0, t1),
-        eight: terms.total(),
-        by_turn: by_turn.map(|t| t.total()),
-        term: terms.0[moved.term().slot()],
+        eight: read(eight).ok().map(|t| t.total()),
+        by_turn: read(crate::pcurve_cache::Parts::ByTurn)
+            .ok()
+            .map(|t| t.total()),
+        lemma: lemma.total(),
+        lemma_by_turn: lemma_in(crate::pcurve_cache::Parts::ByTurn)
+            .ok()
+            .map(|t| t.total()),
+        term: lemma.0[moved.term().slot()],
     })
 }
 
-/// What [`dominance_row`] read: the row's densely sampled displacement,
-/// its envelope with each knot span in eight parts and in the parts its
-/// turn needs (`None` where that reading refuses), and the moved
-/// respect's term in the first.
+/// What [`dominance_row`] read: the row's densely sampled displacement;
+/// check 4's envelope ([`check_4_terms`]) with each knot span in eight
+/// parts and in the parts its turn needs (`None` where it refuses); and
+/// the projected lemma's own envelope ([`projected_envelope`], no
+/// placement pair) at eight parts, with the moved respect's term in it,
+/// and at the parts each span's turn needs.
 struct Dominance {
     sampled: f64,
-    eight: f64,
+    eight: Option<f64>,
     by_turn: Option<f64>,
+    lemma: f64,
+    lemma_by_turn: Option<f64>,
     term: f64,
 }
 
@@ -1225,19 +1246,29 @@ const CURVED: [Chart; 4] = [Chart::Cylinder, Chart::Cone, Chart::Sphere, Chart::
 const MOVES: [Moved; 4] = [Moved::Carrier, Moved::Net, Moved::Frame, Moved::Deck];
 
 /// **The envelope dominates**: every row moved in one respect bounds
-/// its densely sampled displacement, its knot spans read in eight parts
-/// and in the parts their turn needs alike. A counterexample search.
+/// its densely sampled displacement, the lemma's envelope and check 4's,
+/// its knot spans read in eight parts and in the parts their turn needs
+/// alike. A counterexample search; most rows read an envelope, and few
+/// refuse at the parts their turn needs.
 #[test]
 fn the_projected_envelope_dominates_the_sampled_displacement() {
     let mut s = fuzz::start("projected_dominance");
+    let (mut rows, mut by_turn_refused) = (0usize, 0usize);
     for _ in 0..fuzz::scaled(10) {
         for chart in CURVED {
             for moved in MOVES {
                 let Some(row) = dominance_row(chart, moved, &mut s) else {
                     continue;
                 };
+                rows += 1;
+                by_turn_refused += usize::from(row.eight.is_some() && row.by_turn.is_none());
                 let sup = row.sampled;
-                for (parts, env) in [("eight", Some(row.eight)), ("by turn", row.by_turn)] {
+                for (parts, env) in [
+                    ("the lemma", Some(row.lemma)),
+                    ("the lemma by turn", row.lemma_by_turn),
+                    ("eight", row.eight),
+                    ("by turn", row.by_turn),
+                ] {
                     let Some(env) = env else { continue };
                     assert!(
                         env >= sup * (1.0 - 1e-9) - 1e-15,
@@ -1249,6 +1280,17 @@ fn the_projected_envelope_dominates_the_sampled_displacement() {
             }
         }
     }
+    let drawn = fuzz::scaled(10) * CURVED.len() * MOVES.len();
+    assert!(
+        3 * rows >= drawn,
+        "{rows} of {drawn} rows read an envelope — {}",
+        fuzz::replay()
+    );
+    assert!(
+        4 * by_turn_refused <= rows,
+        "{by_turn_refused} of {rows} rows refuse at the parts their turn needs — {}",
+        fuzz::replay()
+    );
 }
 
 /// **Each term is load-bearing**: on every curved chart, for each
@@ -1265,7 +1307,7 @@ fn every_projected_term_is_load_bearing_in_a_pinned_sweep() {
         for moved in MOVES {
             let bearing = (0..24).any(|_| {
                 dominance_row(chart, moved, &mut s)
-                    .is_some_and(|row| row.term > 0.0 && row.eight - row.term < row.sampled)
+                    .is_some_and(|row| row.term > 0.0 && row.lemma - row.term < row.sampled)
             });
             assert!(
                 bearing,

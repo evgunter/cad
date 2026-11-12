@@ -14,7 +14,7 @@ use geom_core::spline::KnotVector;
 use geom_core::{Bounds, Interval, Point3, Real, Vec3};
 use test_utils::fuzz;
 
-use super::super::projected::{FramedCarrier, project, projected_envelope};
+use super::super::projected::{FramedCarrier, project};
 use super::super::{Pcurve, PcurveCache};
 use super::{band, frame, unit};
 
@@ -149,7 +149,9 @@ fn net_on_path(surf: &Surface<f64>, chart: Chart, s: &mut fuzz::Rng) -> NurbsCur
 /// **The envelope dominates a certified lower bound of the displacement
 /// at the interval scalar**: generic nets near the singular sets, with
 /// the carrier's controls moved off the chart, the stored net moved off
-/// the carrier's, the frame tilted and the deck moved, independently.
+/// the carrier's, the frame tilted and the deck moved, independently;
+/// check 4's terms with each knot span in eight parts and in the parts
+/// its turn needs alike.
 #[test]
 fn the_envelope_dominates_a_certified_lower_bound_at_interval() {
     let mut s = fuzz::start("projected_interval_lower_bound");
@@ -263,21 +265,29 @@ fn the_envelope_dominates_a_certified_lower_bound_at_interval() {
             let (t0, t1) = (Interval::from_f64(0.0), Interval::from_f64(1.0));
             let pc = Pcurve::Projected(Box::new(image.clone()));
             let boxed = pc.chart_box(t0, t1);
-            let Ok(terms) = projected_envelope(
-                &image,
-                t0,
-                t1,
-                &boxed,
-                &ci,
-                &certify_on,
-                b,
-                Some(lane),
+            let envs: Vec<f64> = [
                 crate::pcurve_cache::Parts::Each(crate::pcurve_cache::projected::INCIDENCE_CUTS),
-            )
-            .map(|(terms, _)| terms) else {
+                crate::pcurve_cache::Parts::ByTurn,
+            ]
+            .into_iter()
+            .filter_map(|parts| {
+                crate::pcurve_cache::projected::check_4_terms(
+                    &pc,
+                    (t0, t1),
+                    &boxed,
+                    &ci,
+                    &certify_on,
+                    b,
+                    Some(lane),
+                    parts,
+                )
+                .ok()
+                .map(|terms| terms.total().hi())
+            })
+            .collect();
+            if envs.is_empty() {
                 continue;
-            };
-            let env = terms.total().hi();
+            }
             let low = (0..=1024)
                 .filter_map(|i| {
                     let t = Interval::from_f64(f64::from(i) / 1024.0);
@@ -286,11 +296,13 @@ fn the_envelope_dominates_a_certified_lower_bound_at_interval() {
                     lo.is_finite().then_some(lo)
                 })
                 .fold(0.0, f64::max);
-            assert!(
-                low <= env || !env.is_finite(),
-                "{chart:?}: certified lower bound {low:e} over the envelope {env:e} — {}",
-                fuzz::replay()
-            );
+            for env in envs {
+                assert!(
+                    low <= env || !env.is_finite(),
+                    "{chart:?}: certified lower bound {low:e} over the envelope {env:e} — {}",
+                    fuzz::replay()
+                );
+            }
         }
     }
 }

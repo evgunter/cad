@@ -24,7 +24,7 @@ const NAME: Option<&str> = option_env!("PCERT_RADIAL_PAIR_MUTANT");
 
 /// Every site this crate's hooks name. topo's `chord_join` declares its
 /// own one (`topo-v-var`) under the same variable.
-pub(super) const SITES: [&str; 53] = [
+pub(super) const SITES: [&str; 55] = [
     "class-circle",
     "zero-winding",
     "torus-parallel",
@@ -78,6 +78,8 @@ pub(super) const SITES: [&str; 53] = [
     "general-image-class-gate",
     "analytic-image-sampled",
     "by-turn-sampled",
+    "first-reading-spliced",
+    "first-reading-dropped",
 ];
 
 fn on(site: &str) -> bool {
@@ -479,4 +481,17 @@ pub(super) fn by_turn_sampled(
 ) -> Option<f64> {
     use geom_core::Bounds;
     (on("by-turn-sampled") && parts == super::Parts::ByTurn).then(|| a.abs().hi().max(b.abs().hi()))
+}
+
+/// Whether check 4 keeps its first reading's recording: `first-reading-spliced`
+/// keeps a dropped reading's, and `first-reading-dropped` drops a passing
+/// reading's (`projected::run_projected_checks`).
+pub(super) fn first_reading_kept(kept: bool) -> Option<bool> {
+    if on("first-reading-spliced") && !kept {
+        Some(true)
+    } else if on("first-reading-dropped") && kept {
+        Some(false)
+    } else {
+        None
+    }
 }

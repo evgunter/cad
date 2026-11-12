@@ -910,8 +910,10 @@ impl<T: SpanLocate> ProjectedImage<T> {
 /// reading, in the parts each span's turn needs
 /// (`pcurve_cache::Parts::ByTurn`, at most as many), did not pass: the
 /// incidence is read per part, and every refusal of check 4 is read on
-/// these parts. Not halved further: on honest rows eight parts read
-/// within 0.3% of a 64-cut read (`work/pcert/projected-check4-incidence-can-falsely-refuse-in-the-sliver-below-the-band.md`).
+/// these parts. Not halved further: over the five crates' suites' rows
+/// (fuzz searches aside) eight parts read within 1.0% of a 64-cut read
+/// at p99, and at most 17.5% over it (the census on
+/// `work/pcert/projected-check4-incidence-can-falsely-refuse-in-the-sliver-below-the-band.md`).
 /// Limb 2's rounds start at as many.
 pub(crate) const INCIDENCE_CUTS: usize = 8;
 
@@ -3005,6 +3007,34 @@ pub(super) fn projected_envelope<T: Decide>(
     Ok((terms, name))
 }
 
+/// Check 4's terms of a projected `pcurve` over `[t0, t1]`
+/// ([`projected_envelope`], its spans read in `parts`), with the row's
+/// placement pair
+/// (`super::placement_terms`): the projected envelope reads the image
+/// through the chart's periodic map, so it cannot see a whole period of
+/// either channel. The terms' total is what check 4 decides.
+#[allow(clippy::too_many_arguments)]
+pub(super) fn check_4_terms<T: Decide>(
+    pcurve: &super::Pcurve<T>,
+    (t0, t1): (T, T),
+    boxed: &ChartWindow<T>,
+    carrier: &Curve3<T>,
+    surface: &Surface<T>,
+    band: Band,
+    lane: Option<crate::FittedLane<T>>,
+    parts: super::Parts,
+) -> Result<EnvelopeTerms<T>, PcurveCertifyError> {
+    let super::Pcurve::Projected(image) = pcurve else {
+        unreachable!("check_4_terms: every caller holds a projected image")
+    };
+    let (mut terms, name) =
+        projected_envelope(image, t0, t1, boxed, carrier, surface, band, lane, parts)?;
+    let (fu, fv) = super::placement_terms(pcurve, name, (t0, t1), carrier, surface, band)?;
+    terms.add(EnvelopeTerm::FidelityU, fu);
+    terms.add(EnvelopeTerm::FidelityV, fv);
+    Ok(terms)
+}
+
 /// The four checks of a projected row, in the fixed order every lane
 /// keeps: the lane and its structure; the interval and the period
 /// headroom; the schedule, as the envelope's cross-check on the witness
@@ -3182,15 +3212,16 @@ pub(super) fn run_projected_checks<T: Decide>(
 
     // ---- Check 4: the envelope, the whole certified statement. ----
     let envelope = |parts| {
-        let (mut terms, name) =
-            projected_envelope(image, t0, t1, &boxed, carrier, surface, band, lane, parts)?;
-        // The projected envelope reads the image through the chart's
-        // periodic map, so it cannot see a whole period of either channel:
-        // the row's placement is its own pair of terms
-        // (`super::placement_terms`).
-        let (fu, fv) = super::placement_terms(pcurve, name, (t0, t1), carrier, surface, band)?;
-        terms.add(EnvelopeTerm::FidelityU, fu);
-        terms.add(EnvelopeTerm::FidelityV, fv);
+        let terms = check_4_terms(
+            pcurve,
+            (t0, t1),
+            &boxed,
+            carrier,
+            surface,
+            band,
+            lane,
+            parts,
+        )?;
         let envelope = terms.total();
         super::envelope_verdict(envelope, band, || {
             terms
@@ -3201,19 +3232,33 @@ pub(super) fn run_projected_checks<T: Decide>(
     };
     // A curved chart's net, with a fitted door to read it through, is
     // read first with each knot span in the parts its own turn needs
-    // (`Parts::ByTurn`), in a recording of its own. Each part's hull bounds `|f|` over the part at any count, so
-    // a first reading whose envelope passes is the check's, and its
-    // recording is spliced in; anything else (a refusal, an escalation,
-    // a sector or lever not shown at its coarser parts) is set aside
-    // with its recording, and the envelope is read whole again at
-    // `INCIDENCE_CUTS` parts a span, which takes every decision a
-    // refusal rests on.
+    // (`Parts::ByTurn`), its decisions set aside: the k_stats channels
+    // (`k_stats::detached`) and the `Sym` decision logs (`sym::aside`).
+    // Each part's hull bounds `|f|` over the part at any count, so a
+    // first reading whose envelope passes is the check's, and its
+    // decisions are kept. Anything else (a refusal, an escalation, a
+    // sector or lever not shown at its coarser parts) is discarded with
+    // its decisions, and the envelope is read whole again at
+    // `INCIDENCE_CUTS` parts a span, which takes every decision a refusal
+    // rests on. Limb 2's first reading (`limb2_offset_sup`) keeps its
+    // decisions on the trail instead, which is
+    // `work/pcert/limb-2s-set-aside-first-reading-leaves-its-decisions-on-the-trail.md`.
     let first = (matches!(image.carrier, FramedCarrier::Net(_)) && curved && lane.is_some())
-        .then(|| geom_core::k_stats::detached(|| envelope(super::Parts::ByTurn)))
-        .and_then(|(read, recording)| {
-            let read = read.ok()?;
-            geom_core::k_stats::splice(recording);
-            Some(read)
+        .then(|| {
+            geom_core::sym::aside(|| {
+                geom_core::k_stats::detached(|| envelope(super::Parts::ByTurn))
+            })
+        })
+        .and_then(|((read, recording), sym)| {
+            let kept = read.is_ok();
+            #[cfg(test)]
+            let kept = super::mutants::first_reading_kept(kept).unwrap_or(kept);
+            if kept {
+                geom_core::k_stats::splice(recording);
+            } else {
+                sym.discard();
+            }
+            read.ok()
         });
     let envelope = match first {
         Some(read) => read,
