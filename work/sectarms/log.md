@@ -644,3 +644,12 @@ Both reds were found by PCERT's nightly lane and trace to SECTARMS merges.
   - pcert's file was touched surgically, and the territory is noted.
 - **Result.** A boolean takes about half as long in debug. Merged as b8166e76; the next 1e-12 nightly is the real check.
 - **Left over.** The cost of the spline `Curve3::foot` whole-carrier sampling is filed on CPAIR at P2.
+
+## 2026-11-12 03:10 — [ev] PR 6829 approved and merged
+
+- **Ev's approval** (02:42): "i'm not sure about the considerations here, but this sounds broadly reasonable".
+- **Fork log.** The row records the decision and the mapping (bytes 145 and 0, A = Opus, B = Fable). It was renumbered from 260 to 262 because main had taken 260 in the meantime. Merged as a1cec575.
+- **The join unit is split in two.**
+  - The node carry is its own unit, `a-spline-implicit-arc-is-carried-to-its-node` (P1 H). It follows the join, since both touch `CarriedComponent::pad`.
+  - The join is unparked. Its blocker's stage 3 and 4 have landed; the arm row stays open only for the torus and cone partners, which are on other programs.
+- **Next:** dispatch the join (P0 H, dual review).
