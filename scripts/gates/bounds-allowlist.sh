@@ -953,7 +953,7 @@ BOUNDS_ALLOWLIST=(
   # it is public so the at-rest rows can run the limb directly.
   # C2 as ratified on PR 5652 adds `analytic_edge_limbs`, the analytic
   # pair's limbs for a carrier of every kind, at `analytic_rung3`'s bound.
-  'crates/geom-brep/src/edge_nurbs.rs 14 M7-8, the declare-and-check edge lane; the rung-3 tube body at M6-2; its NURBS x NURBS twin (nurbs_pair_limbs) at the same bound; its incidence alone for OnPair (plane_nurbs_incidence) at the same bound; C2 2026-10-24 (PR 5652), the analytic limbs for every carrier kind at the same bound'
+  'crates/geom-brep/src/edge_nurbs.rs 16 M7-8, the declare-and-check edge lane; the rung-3 tube body at M6-2; its NURBS x NURBS twin (nurbs_pair_limbs) at the same bound; its incidence alone for OnPair (plane_nurbs_incidence) at the same bound; C2 2026-10-24 (PR 5652), the analytic limbs for every carrier kind at the same bound; the pcurve mint'"'"'s image of every carrier on a spline chart (general_chart_image) at chart_image'"'"'s bound, PR 6532 under the M7-8 / C2 precedent, retroactive Ev review; necessity in geom-core real.rs'
   # M7-8's 2026-09-02 amendment, the lane's split as a BOUND: the one
   # DOOR that names the certified body `plane_nurbs_limbs`, the lane's
   # door value `NurbsLane::certified`'s block (`Decide +
@@ -968,7 +968,7 @@ BOUNDS_ALLOWLIST=(
   # geom-brep README's C2): the certification doors' impl block and the
   # engine they share (`run_checks`), at the lane's bound, so a scalar
   # that may not certify cannot name them.
-  'crates/geom-brep/src/certify.rs 4 M7-8 2026-09-02, the lane split as a BOUND; the lane door value `NurbsLane::certified` and its wiring row at the same bound; 2026-10-25, the edge door split as a BOUND, the certifying doors and their engine'
+  'crates/geom-brep/src/certify.rs 4 M7-8 2026-09-02, the lane split as a BOUND; the lane door value `NurbsLane::certified` and its wiring row at the same bound; 2026-10-25, the edge door split as a BOUND, the certifying doors and their engine (which reads limb 2 for a net stated on an analytic chart, PR 6826)'
   # 2026-10-25, the edge door split as a BOUND (PR 5689): the certifying
   # scalars' edge door bodies their policies run, at the certifying
   # doors' own bound, and nothing else in the file.

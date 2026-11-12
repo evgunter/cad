@@ -1276,20 +1276,20 @@ pub fn lift_sections<T: Real>(sections: &[Section]) -> Vec<Section<ProfileLoop<T
 
 /// [`lift_sections`]' placements, each minted at `T`: a frame crosses
 /// no scalar upward, so the fixture's twelve placement constants are
-/// admitted again at the decided door at `T`
-/// ([`RigidMotion::check_rigid`], at `tol`'s linear band).
+/// admitted again at `T` by the suites' own door
+/// ([`geom_core::test_support::rigid`], at `tol`'s linear band).
 ///
 /// # Panics
 ///
 /// When a placement is not admitted at `T`.
 pub fn lift_places<T: Decide>(places: &[SketchPlane<f64>], tol: Tol) -> Vec<SketchPlane<T>> {
-    let band = Band::linear(tol).expect("the run's tolerance forms a band");
     places
         .iter()
         .map(|p| {
-            let frame = RigidMotion::check_rigid(&p.placement().map(T::from_f64), band)
-                .unwrap_or_else(|e| panic!("a fixture placement is rigid at the lane scalar: {e}"));
-            SketchPlane::from_frame(frame)
+            SketchPlane::from_frame(geom_core::test_support::rigid(
+                &p.placement().map(T::from_f64),
+                tol,
+            ))
         })
         .collect()
 }

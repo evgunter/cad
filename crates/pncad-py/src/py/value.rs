@@ -2275,8 +2275,12 @@ impl FaceCensus {
 /// of each arm that carries one arrives beside it, `None` on the
 /// others: `promoted_to` is which analytic surface kind certified and
 /// `residual` is the certified deviation that let it
-/// (`surface_promotion`), and `singularity` is where the file put the
-/// pole or apex import made a vertex (`chart_singularity_vertex`).
+/// (`surface_promotion`), `singularity` is where the file put the
+/// pole or apex import made a vertex (`chart_singularity_vertex`), and
+/// `transform` and `moved_by` are the assembly placement whose frames the
+/// import built by their axes and how far that moved a point of the
+/// session box (`placement_re_minted`, whose `face` is the
+/// transformation's entity id).
 /// Present on every row, so a read never raises and a caller never has
 /// to branch on `kind` first.
 #[pyclass(frozen, module = "pncad", skip_from_py_object)]
@@ -2285,7 +2289,9 @@ pub(crate) struct StructureNormalization(pncad::step_import::StructureNormalizat
 
 #[pymethods]
 impl StructureNormalization {
-    /// The `ADVANCED_FACE` entity instance the file states.
+    /// The `ADVANCED_FACE` entity instance the file states, or on
+    /// `placement_re_minted` the `ITEM_DEFINED_TRANSFORMATION`'s, the row
+    /// naming no face.
     #[getter]
     fn face(&self) -> u64 {
         self.0.face
@@ -2329,6 +2335,30 @@ impl StructureNormalization {
         match &self.0.kind {
             pncad::step_import::NormalizationKind::ChartSingularityVertex { found } => {
                 Some(singularity_found_tag(found))
+            }
+            _ => None,
+        }
+    }
+
+    /// The `ITEM_DEFINED_TRANSFORMATION` whose frames the import built by
+    /// their axes — on `placement_re_minted` alone.
+    #[getter]
+    fn transform(&self) -> Option<u64> {
+        match &self.0.kind {
+            pncad::step_import::NormalizationKind::PlacementReMinted { transform, .. } => {
+                Some(*transform)
+            }
+            _ => None,
+        }
+    }
+
+    /// How far building the frames moved a point of the session box
+    /// (metres) — on `placement_re_minted` alone.
+    #[getter]
+    fn moved_by(&self) -> Option<f64> {
+        match &self.0.kind {
+            pncad::step_import::NormalizationKind::PlacementReMinted { moved_by, .. } => {
+                Some(*moved_by)
             }
             _ => None,
         }
@@ -3037,7 +3067,7 @@ impl Coincidence {
     /// `tangent_witness`, `coaxial_sphere`, `sphere_on_torus_axis`,
     /// `coaxial_cylinder_torus`, `coaxial_tori`, `crossing_cylinders`,
     /// `split_on`, `battery_turn`, `battery_joint`, `battery_support_axis`,
-    /// `profile_junction`, `vertex_fusion`, `iso_join` or `census_at_rest`.
+    /// `profile_junction`, `vertex_fusion`, `iso_join`, `census_at_rest` or `smooth_join`.
     #[getter]
     fn site(&self) -> &'static str {
         self.site

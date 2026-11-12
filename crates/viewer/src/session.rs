@@ -2202,7 +2202,7 @@ impl DocSession {
             SessionOp::PreviewFreeMove { node, frame } => {
                 match self
                     .display
-                    .preview_free_move(self.history.doc(), node, frame, self.tol())
+                    .preview_free_move(self.history.doc(), node, frame)
                 {
                     Ok(()) => OpOutcome::default(),
                     Err(fault) => OpOutcome::refused(Refusal::Display(fault)),
@@ -3178,7 +3178,7 @@ impl DocSession {
     /// nothing; no layout restores nothing and says nothing.
     fn restore_layout(&mut self, path: &Path) -> LayoutReport {
         let document = self.history.doc().id();
-        match layout::read(path, self.tol) {
+        match layout::read(path) {
             Ok(None) => LayoutReport::default(),
             Ok(Some((saved, skipped))) if saved.document != document => LayoutReport {
                 skipped,

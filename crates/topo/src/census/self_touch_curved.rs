@@ -9,7 +9,8 @@
 //! wall's ruling (a line the wall keeps), along an arc's tangent (a
 //! tangency the bends part one order down, [`crate::link::FaceSector::tangent`]'s
 //! second-order reading: off the post or under it a rest, into it
-//! refused), or along the wall's circle's tangent (refused).
+//! refused), or along the wall's circle's tangent (a rest: one order
+//! down the wall bends away under the corner's faces).
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use super::*;
@@ -198,7 +199,7 @@ fn rows_hold(at: Seat) {
             ("straddling", straddle, crossing),
             ("along the ruling", ruling, rest),
             ("along the ruling, into", ruling_into, crossing),
-            ("along the circle", circle, tangency),
+            ("along the circle", circle, rest),
             (
                 "along the circle, off it in band",
                 lift(3.0 * zero),
@@ -255,9 +256,9 @@ fn a_corner_inside_its_own_curved_posts_arc_reads_its_two_half_planes() {
 /// crosses; an edge along the wall's ruling lies in the wall as the
 /// wall keeps it, so the corner reads as its other edges place it; an
 /// edge along the wall's circle leaves the wall only to second order,
-/// which no reading here parts, and refuses. Red where the wall's normal
-/// reads the other way, a crossing reads as a rest, or the tangency
-/// reads at all.
+/// where the wall bends away under the corner's faces: a rest. Red where
+/// the wall's normal reads the other way, a crossing reads as a rest, or
+/// the circle's tangency is kept at first order or read the other way.
 #[test]
 fn a_corner_inside_its_own_curved_posts_wall_reads_its_tangent_plane() {
     rows_hold(Seat::Wall);
@@ -874,4 +875,28 @@ fn a_solid_touching_itself_at_a_spline_crease_corner_is_read() {
             assert!(found.is_empty(), "turned away: {found:?}");
         }
     }
+}
+
+/// **A bound is a circle's only on a circle** ([`super::on_circle`],
+/// `link::Bound::circle`): the oblique rim, an ellipse, is none, nor is
+/// a half-disc post's line; its bottom arc is one. Two ellipse arcs
+/// agreeing at a point to second order part at third, so only a circle
+/// may be kept by its bend (`link::second_order::one_circle`). Red where
+/// every edge reads as a circle's, or none does.
+#[test]
+fn a_bound_is_a_circles_only_on_a_circle() {
+    let (rim, _, _) = crate::test_support_fixtures::oblique_rim_wall_in::<f64>(0.4);
+    for (e, _) in &rim.edges {
+        assert!(!on_circle(&rim, e), "the oblique rim {e:?} is an ellipse");
+    }
+    let post = crate::tier3_tests::half_disc(R, H, (0.0, 0.0, 0.0), false, Tol::witness());
+    let kinds: Vec<bool> = post.edges.keys().map(|e| on_circle(&post, e)).collect();
+    assert!(
+        kinds.contains(&true),
+        "the post's arcs are circles': {kinds:?}"
+    );
+    assert!(
+        kinds.contains(&false),
+        "the post's lines are not: {kinds:?}"
+    );
 }

@@ -74,8 +74,11 @@ A structural selector (D2: a curve known in advance, such as a row or
 column of a swept or skinned wall, or of two analytic charts, that is
 the edge on both surfaces) owes no limb 3: it is certified through each
 surface's chart-image certificate, its on-locus residual and sup-norm
-bound read per surface. A shared row also reads its contact class over
-the whole row, never at sampled feet alone (`row_contact`). Two spline
+bound read per surface. It picks its curve by construction rather than
+by measurement, so it owes no transversality margin; what its
+certificate does measure is decided with a margin, as everything the
+kernel measures is. A shared row also reads its contact class over the
+whole row, never at sampled feet alone (`row_contact`). Two spline
 walls must cross along all of it. Two
 analytic walls must cross along all of it or touch along all of it, as
 a blend's section between two bands does; a row that does neither
@@ -683,11 +686,12 @@ whatever the carrier's kind: a spline carrier enters the composite as
 its own net, a line as its degree-1 net, and a circle, ellipse or
 spiric as a per-span enclosure in certification arithmetic (C9).
 On an analytic chart, a carrier with no closed-form image (a spline
-carrier; a circle on a sphere, cylinder, cone or torus, or a line on a
-cylinder or a cone, that the chart's class readings do not show one of
-its own) stores the *projected image*, the
+carrier; a circle or an ellipse on a sphere, cylinder, cone or torus,
+or a line on a cylinder or a cone, that the chart's class readings do
+not show one of its own) stores the *projected image*, the
 chart's own inverse applied to the carrier, `P(t) = ψ(C(t))`: the
-carrier's net in the chart frame, plus a partition of the span into
+carrier written in the chart frame (a net, a conic's harmonic form
+`c + a·cos t + b·sin t`, or a line), plus a partition of the span into
 pieces that each stay in one `atan2` sector. Its channels are the
 chart's one reading of a point's coordinates (D3; `geom::ChartChannels`,
 the table `geom::ChartInverse::point` reads), each angle named on its
@@ -761,10 +765,7 @@ A closed-form class gate is a lane choice (D3): in band or definite,
 the carrier takes the general lane, its projected image, whose
 certificate does not rest on the class; the closed form is taken only
 where the class is shown, and a pair whose general lane is not yet
-written refuses "not yet". Those pairs are: an ellipse the chart's
-class readings do not show one of its own, on any chart (on the plane,
-and as a section of a cylinder or a cone, an ellipse images in closed
-form, and needs no general lane there); a
+written refuses "not yet". Those pairs are: a
 line within the band of a sphere or a torus, which hold none; and
 every carrier on a spindle chart. Whether a line is a ruling of a
 cylinder or a cone is one reading (`ruling_miss`), shared by the mint,
@@ -783,7 +784,7 @@ ended by the door that reads it (D4 ¶1 (iv)), and a read in band, at a
 pose or undecided, ends in the decision's lever at every door. Which
 sketch entity an edge came from (`EdgeAuthority`) is provenance, and no
 ending reads it. A
-carrier whose route refuses (a spline or a circle whose projected image
+carrier whose route refuses (a spline or a conic whose projected image
 reaches a pole) refuses at the producer like any other refusal: no
 class goes unrouted, so the exemption excuses only a scalar that holds
 no certified lane, at which a net's projected row cannot read its hull. The
@@ -988,9 +989,20 @@ its value on a ceiling in metres for Zero; a cluster not decided so
 declines the sweep. A section whose decided points are touches alone,
 and whose pass found no end, is those touches, each a point component
 with its witness and a tangency decided Zero, the reading the guard's
-touch arm takes; a node, or a touch beside components with ends,
-pinches them (`spline_critical_value`), since the march that would list
-them does not start at a decided tangency.
+touch arm takes. A node, or a touch beside components with ends, is
+read whole with the decided points handed in, as a section the sweep
+finds closing about an excluded point is when every critical point is
+decided: each point's Krawczyk box, the widest the operator proves holds
+its one zero of `∇φ`, is a region seeding skips and accounting reads,
+and a march ends on entering a node's box. The node is listed with its
+point (its enclosure within the band, else `spline_node_box`), the
+wall's normal, the two null lines of `φ`'s Hessian carried to the wall's
+tangent plane and the sector side, each read off the Hessian enclosure
+that decided it; each arc end there names the ray nearest the arc's
+direction at its end, by a decided lead and a 45° floor, every ray
+claimed once (else `spline_node_ray`); a touch beside arcs is a point
+component with them. Its carriers are not minted: no component of a
+spline × implicit section is carried.
 The boolean reads the rung-3 arms cylinder×sphere and the three torus
 pairs through the section value (`pair_section`), classified, then
 carried: the classification decides the pair's pose once and, where a
@@ -1491,7 +1503,11 @@ closed form keeps its typed refusal for a door with no quadrature lane. A sphere
 by circle arcs — rims, meridians and sections tilted against its chart
 alike, holes included — has no conic or spline trim and is on the
 closed-form lane, measured by Gauss–Bonnet over all its loops
-(`props/curved.rs`, `sphere_face`). A chart
+(`props/curved.rs`, `sphere_face`). A cylinder or sphere face bounded by
+a spline chord, its pcurve the chord's projected image, takes the
+rotational-chart Green lane (`props/quad/rotational.rs`), every loop
+read: on the sphere the poles' terms come off the face's winding and
+its sense bit, which says which side of its loops the face is. A chart
 singularity in a face's closure is a vertex of it. STEP import reads
 where it lies off the face's region (`chart_singularity.rs`, `locate`);
 tier 3 places it on the boundary by the same reading
@@ -1545,6 +1561,68 @@ off the sign of its own Gauss–Bonnet area. (8) In-house SVD and
 least-squares solvers with fixed elimination order
 (`geom-core/src/linalg`). (9) The curvo audit is `docs/CURVO-AUDIT.md`
 (it has no SSI); the stance is DESIGN.md Q5.
+
+### A face's measure, read at the face `[geom-brep.face-anchored]`
+
+A face's measure reads its surface over the face alone
+(DESIGN `[tolerance.epsilon]`): no datum its record's kind forgets
+enters a face's term at a lever beyond the face.
+
+- **`[geom-brep.face-anchored.anchor]` One anchor.**
+  `props::face_anchor` reads, from a face's vertices alone, where its
+  measure is read from: `at`, the mean of the vertices, and `lever`,
+  the least corner of their box (each coordinate one of theirs). No loop order, traversal start or carrier
+  direction moves either, so a face reads the same however an
+  operation wrote its loops, and both lie within the vertices' box,
+  so every term's lever is the face's own extent. The mean is a convex
+  combination of boundary points, so it lies on the face's plane to
+  within their stand-off; the corner is read with no arithmetic, so a
+  face of grid points reads its vector area exactly and a face far from
+  the origin rounds no coordinate taking it. `at` is kept as the
+  corner plus an offset, so a reading levered from another point takes
+  `(lever − from) + offset`, never a rounded absolute coordinate. Every planar reader takes it:
+  `props::planar_face`, and `topo`'s `props::face_anchored`,
+  `props::quad_lane::planar_face_about`, `plane_cap`,
+  `polygon_face_about` and the carried faces' vector area.
+- **`[geom-brep.face-anchored.datum]` One re-anchoring.**
+  `extent::anchored_at` slides a datum along the orbit its kind's
+  symmetry forgets (`Forgets`) to the point of it nearest a given
+  point: a plane's origin to that point's foot on the plane, a
+  cylinder's axis origin to its foot on the axis. `surface_anchored_at`
+  applies it to a surface. The carrier is unmoved; only where a reading
+  takes the datum from moves. Intrinsic data stay: a sphere's or a
+  torus's centre and a cone's apex. The coincidence verdict re-anchors
+  a cylinder pair at the foot of its extent's centre (`topo`'s
+  `carrier_eq::at_consumed_extent`), and a face's measure at its
+  anchor's `at` (`topo`'s `props::face_anchored`), at every scalar. A
+  cylinder face's closed form takes its axis origin as the point its
+  vector area is summed about and its flux levered from, so an origin
+  standing far along the axis rounds the term at that distance
+  squared.
+- **`[geom-brep.face-anchored.plane]` A plane's term is its boundary's
+  flux about a point of the face.** `props::planar_face` sums the
+  vector area `A⃗` about the anchor's `lever` and takes `at·A⃗`: the fan
+  the face's own boundary spans from a point of the face. The
+  surface's origin is never read. Over a closed shell the fans meet at
+  their shared points, so the sum is the volume they bound about any
+  reference. The interval lane encloses the same flux about the same
+  anchor (`topo`'s `props::quad_lane::planar_face_about`: its part
+  along the normal and a slack for the part across it), so the two
+  scalars read one flux. A face whose loops stand off its record — a
+  face moved onto a record in band of its own — reads the fan of its
+  own boundary, whatever the record's origin, so a union whose glue
+  moves a face onto a record anchored far off measures its operands'
+  sum to within the band times the face's area.
+- **`[geom-brep.face-anchored.bound]`** `topo`'s `props::rounding_bound`
+  levers each face's terms from the same re-anchored datum.
+
+The guards are `topo`'s
+`sliding_every_record_along_its_symmetry_moves_no_reading` (every plane
+record turned off its face's loops about a corner, which is not the
+anchor, then every record slid far along its own symmetry, a tilted
+cylinder's along its axis, changes no reading beyond rounding) and
+`sweep`'s ring-on-cone rows (`one_body_reads_alike_in_both_orders`: one
+body's volume enclosure is as wide in both operand orders).
 
 ## Offsets and shell (OFFSET-DESIGN O1–O6)
 

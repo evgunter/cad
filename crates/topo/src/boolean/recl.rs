@@ -50,7 +50,7 @@ use super::sectors::{
     BoolSector, BoundSupport, FaceShape, Flank, PairRecord, crossing_flank, pair_codes,
     parallel_same_as,
 };
-use super::tables::{eq15_3_lump, kept_copy};
+use super::tables::{eq15_3_lump, surviving_copy};
 use super::{BooleanError, BooleanOp, Coincide, DeclarationRead, Operand, SideCode, SlitLineGap};
 use crate::body::Body;
 use crate::entity::EntityId;
@@ -259,7 +259,7 @@ pub(super) fn recl_sectors<T: Decide>(
                 });
             }
         };
-        if let Some(keeper) = kept_copy(op, rel) {
+        if let Some(keeper) = surviving_copy(op, rel) {
             covered.push((sa.face, sb.face));
             let (body, own, other) = match keeper {
                 Operand::A => (a_body, sa, sb),
