@@ -1459,7 +1459,10 @@ fn r2_a_pick_of_a_copy_whose_source_is_redefined_onto_a_union() {
     let bolt_var = doc.output(bolt, 0).unwrap();
     let (doc, _first) = put(
         doc,
-        fixture::stood(BodyRead::plain(Operand::pick(Operand::Node(place), vec![bolt_var]))),
+        fixture::stood(BodyRead::plain(Operand::pick(
+            Operand::Node(place),
+            vec![bolt_var],
+        ))),
     );
     let (doc, fused) = put(
         doc,

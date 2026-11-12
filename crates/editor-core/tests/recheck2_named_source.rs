@@ -54,7 +54,7 @@ fn top(b: editor_core::RecipeNodeId) -> StableName {
     }
 }
 
-pub fn refused_or_round_trips(what: &str, got: Result<ProfileDoc, EditError>) {
+pub(crate) fn refused_or_round_trips(what: &str, got: Result<ProfileDoc, EditError>) {
     match got {
         Err(e) => eprintln!("{what}: refused {e:?}"),
         Ok(doc) => {
@@ -108,7 +108,10 @@ fn r2_a_member_source_redefined_onto_another_rank() {
     let direct = define(
         &doc,
         "u",
-        VarDecl::source(BodyRead::indexed(Operand::Node(grid), vec![Formula::count(0)])),
+        VarDecl::source(BodyRead::indexed(
+            Operand::Node(grid),
+            vec![Formula::count(0)],
+        )),
     );
     eprintln!("u = grid[0] directly: {:?}", direct.as_ref().map(|_| ()));
     let (doc, c) = insert(doc, placed(name("u")));
@@ -123,7 +126,8 @@ fn r2_a_member_source_redefined_onto_another_rank() {
         );
         eprintln!(
             "rank: eval c {:?}",
-            ev.result(c).map(|r| format!("{r:?}").chars().take(200).collect::<String>())
+            ev.result(c)
+                .map(|r| format!("{r:?}").chars().take(200).collect::<String>())
         );
     }
     refused_or_round_trips("S = grid under u = S[0]", got);
