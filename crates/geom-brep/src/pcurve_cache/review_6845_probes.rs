@@ -394,3 +394,103 @@ fn probe_cost_cylinder_edges() {
         }
     }
 }
+
+/// Delta probe (SS2): copies moved within and past the band, same sense,
+/// still two ovals. A certificate must stand only where the dense miss is
+/// within the zero.
+#[test]
+fn probe_spiric_copies_moved_in_band() {
+    let b = band();
+    let mut g = fuzz::start("review_6845_spiric_band");
+    let mut tally = std::collections::BTreeMap::<String, usize>::new();
+    for _ in 0..12 {
+        let (oval, charts) = super::spiric(&mut g);
+        for chart in charts {
+            let t0 = g.range(-3.0, 3.0);
+            let span = (t0, t0 + g.range(0.3, 6.0));
+            let Ok(image) = chart_pcurve_over(&oval, span.0, span.1, &chart, band()) else {
+                continue;
+            };
+            let Pcurve::Spiric {
+                major,
+                minor,
+                offset,
+                image: im,
+            } = image
+            else {
+                continue;
+            };
+            for k in [0.3, 0.9, 1.5, 4.0, 1e3] {
+                for which in 0..3 {
+                    let d = k * b.zero() * if g.below(2) == 0 { 1.0 } else { -1.0 };
+                    let mut s = [major, minor, offset];
+                    s[which] += d;
+                    let wrong = Pcurve::Spiric {
+                        major: s[0],
+                        minor: s[1],
+                        offset: s[2],
+                        image: im,
+                    };
+                    let miss = super::dense_miss(&chart, &wrong, &oval, span);
+                    for door in DOORS {
+                        let got = (door.certify)(&chart, &wrong, &oval, span);
+                        assert!(
+                            got.is_ok() == false || miss <= b.zero() * (1.0 + 1e-6),
+                            "certified with dense miss {miss:e}: {wrong:?} ({})",
+                            fuzz::replay()
+                        );
+                        let key = format!(
+                            "{} k={k} which={which} {:?} miss<=zero:{}",
+                            door.name,
+                            ended(&got),
+                            miss <= b.zero()
+                        );
+                        *tally.entry(key).or_default() += 1;
+                    }
+                }
+            }
+        }
+    }
+    for (k, n) in &tally {
+        println!("{n:4} {k}");
+    }
+}
+
+/// Delta probe (SS1): a focal section whose stored |β| is one, or past
+/// it, ends in its own defect, not "not yet" and not the lever.
+#[test]
+fn probe_focal_beta_one() {
+    let mut g = fuzz::start("review_6845_beta");
+    let mut seen = 0;
+    for _ in 0..40 {
+        let Some((cone, ellipse)) = super::super::envelope_lemma_fuzz::cone_section(&mut g) else {
+            continue;
+        };
+        let span = (0.2, 2.0);
+        let Ok(Pcurve::FocalSection(f)) =
+            chart_pcurve_over(&ellipse, span.0, span.1, &cone, band())
+        else {
+            continue;
+        };
+        for beta in [1.0, -1.0, 1.0 + 1e-12, 1.5] {
+            let image = Pcurve::FocalSection(FocalImage {
+                beta: beta * f.beta.signum(),
+                ..f
+            });
+            for door in DOORS {
+                let got = (door.certify)(&cone, &image, &ellipse, span);
+                let ending = got
+                    .as_ref()
+                    .err()
+                    .and_then(|e| e.ending(ReadAt::Run(Reading::Build)));
+                println!("{} beta {beta}: {:?} {ending:?}", door.name, ended(&got));
+                assert_eq!(ending.as_deref(), Some(KERNEL_DEFECT_ENDING), "{got:?}");
+            }
+        }
+        seen += 1;
+        if seen == 3 {
+            break;
+        }
+    }
+    assert!(seen > 0);
+}
