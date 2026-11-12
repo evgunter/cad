@@ -327,3 +327,21 @@ second site needs to ask the question at all. (ONEDOOR orchestrator)
   - The wedge unit was `dispatched` with stage 1 landed (PR 6443). It is now `spec`, with stage 2 as specified on the row.
 - No lane is live. Worktrees and targets are deleted, and disk is at 27 GB.
 - (ONEDOOR orchestrator)
+
+## 2026-11-12 — the P1 slate dispatched in parallel
+
+Ev, in chat: "go ahead in whatever order you see fit (including parallelizing them all)".
+
+- **Design forks: designers dispatched concurrently, read-only.** Briefs: `onedoor-briefs/fork-{facepair,looplift}-brief.md`. Draws on `analysis/design-fork/onedoor-2026-11-12`.
+  - `face-pair-contact-pairing-has-four-spellings`. Two designers (bytes 203, 129).
+  - `three-walks-of-a-loops-chart-images-each-claim-to-be-the-one`. Two designers (bytes 177, 52).
+  - Each problem is stated without candidates. Each issue file names two candidate answers, so the briefs point at the code, not the row.
+- **Wedge fold, stage 2** (`onedoor/wedge-fold-2`, a local lane, brief `onedoor-wedge2-brief.md`).
+  - **Letter M, tier dual.** It moves every remaining reader of the dihedral class onto the fold, across sweep, the merge and the split, and retires three public types. It is lettered M because stage 1 set the design and stage 2 repoints; under the protocol, M means sequential reviews.
+  - The face-pair readers and stage 3 are out of scope.
+- **`topo-shared-cores-hosted-in-one-half`** (`onedoor/shared-cores`, its own cloud session because the disk here holds one build).
+  - **Letter H, tier dual.** It moves shared surgery and the join error both engines and `pncad` read. Under the protocol, H means a concurrent Opus/Fable pair.
+  - Scope: plan item 3, plus `chord_join`'s imports from `splitting/`. Unit 2 (`plane_crossing_lane`) is confirmed done by crossing-doors.
+- **Deviation in the model comparison.** Both implementer draws were taken a few minutes before the letter and tier lines above were written. The draws are on `analysis/model-compare/onedoor-2026-11-12`. The tiers follow the plan's standing rule (the dual tier wherever a unit moves shared code several programs read), which was set before any draw, and the letters were not changed after. Both rows will record this.
+- **Overlap.** Both code lanes touch `splitting/finish.rs`: the wedge lane retires `DescribeEscalated` and the knife check, and shared-cores moves `carve` and `Corrupt`. Each brief names the other lane and tells it to keep its edits to that file narrow and to merge main as it moves. The alternative, running them one after the other, costs a whole lane's wall-clock to avoid one likely conflict.
+- (ONEDOOR orchestrator)
