@@ -2582,14 +2582,24 @@ mod smooth_arm_rows {
     }
 
     /// **An opposed curved wall whose bend is in band refuses at the
-    /// bend.** At `R = 1e8` the cylinder's sagitta over the edge is in the
-    /// band, and the fold meters a tangency's bend before it reads which
+    /// bend.** Against the plane a cylinder of radius `R` along the edge
+    /// bends away at `κ_rel = 1/R`, and the bend is metered as the
+    /// sagitta `κ_rel·L²/2` over the folded arm `L`, which for so flat a
+    /// wall is the faces' extent (`crate::edge_wedge_reach`). Taking
+    /// `R = L²/(2·m)`, `m = √(zero·escalate)` the band's geometric mean,
+    /// puts the sagitta at `m`, strictly inside `(zero, escalate)` at
+    /// every ε. The fold meters a tangency's bend before it reads which
     /// end the faces make, as tier 3 does: the edge refuses
     /// `WedgeEscalated` at the bend rung, not as a knife edge.
     #[test]
     fn an_opposed_wall_whose_bend_is_in_band_refuses_at_the_bend() {
-        let (mut fx, _) = opposed_wall(1e8);
         let band = Band::linear(tol()).unwrap();
+        let reach = {
+            let fx = section_edge();
+            crate::edge_wedge_reach(&fx.body, fx.edge).unwrap().length()
+        };
+        let mean = (band.zero() * band.escalate()).sqrt();
+        let (mut fx, _) = opposed_wall(reach * reach / (2.0 * mean));
         match super::describe_section_boundary(&mut fx.body, fx.face, band, tol()) {
             Err(SplitFinishError::WedgeEscalated { edge, escalation }) => {
                 assert_eq!(edge, fx.edge, "the refusal names the edge");
