@@ -1220,9 +1220,9 @@ point tied inside a curved edge read as its faces' tangent cones
 down where it ties at a cusp corner or along a ray
 (`link::second_order`), two sheets on one wedge read as the lens or
 lune their bends make, two planar faces on each other refused as the planar link
-refuses them, a cone's apex read as the nappe of its rulings, and left
-unread where none of these decides
-(`census::SelfTouch::SecondOrder`: a cone's apex that reading does not
+refuses them, a cone's apex read as the nappe of its rulings, and refused
+undecided where none of these decides (`BoundaryCrossesItselfUndecided`,
+its cause the reading's: a cone's apex that reading does not
 decide, a horn beside a sheet
 along its ray, sheets the bends do not part, a face whose tangent
 reading does not build, or tangent sectors lying on each other that no
@@ -1389,9 +1389,8 @@ Beside a pinch, where `b₀` vanishes, `b₁` must be decided: with `b₁`
 zero too, the sheets' parting near the pinch's ray is left to third
 order, and two curves on both faces may leave the point along that ray,
 the pinch's edge and another inside `W`, where the sheets cross (a torus
-and a cylinder tangent along a curve can meet so). Such a pair is left
-unread, skipped as a second-order point is: no reading here decides it,
-crossing or rest, and the band has not been reached. Two exceptions
+and a cylinder tangent along a curve can meet so). Such a pair is
+refused undecided: no reading here decides it, crossing or rest. Two exceptions
 keep `b₁` Zero: a lune with no pinch, whose form is
 `b₀(1 − t)² + b₂t²` of one sign over all of `W`; and one whose every pinch
 is two lines on developable faces (planes, cylinders, cones). Such a
@@ -1415,7 +1414,7 @@ A lune is found only where the sector that runs on past a mouth has a
 ray of its fan at the mouth. A face's corner fan turns at quarter turns
 from its edge out (`link::corner_fan`), so with that sector's edge
 turned off a quarter from the other's the mouth falls inside a wedge,
-and the pair stays unread: conservative, a skip.
+and the pair is refused undecided, in that pose only.
 
 Two planar sectors on one plane holding a common area, a slit or a
 sheet doubled, are the faces' own geometry and no tie: two planes are
