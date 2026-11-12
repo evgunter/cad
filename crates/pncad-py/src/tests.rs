@@ -6406,6 +6406,9 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     // Coincidence, not one fact: an index variable refused as declared
     // at the edit door, and a slot of an indexed read.
     ("index", 2),
+    // One fact (VR4) at a node's member read and a source's: a member
+    // read at other than its family's rank of indices (`member_rank_fault`).
+    ("index_rank", 2),
     // One fact (D10 `[repetition]`) at the edit and evaluate doors: two
     // indices one reader reads, neither within the other.
     ("indices_unrelated", 2),
