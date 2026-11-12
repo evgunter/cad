@@ -60,14 +60,18 @@ fn ridge(b: &topo::Body<f64>) -> (FaceKey, Point3<f64>) {
 }
 
 /// **The pierce's ring is minted in the complete wall in either operand
-/// order, and the union stops at the join's germ frame** for the
-/// pyramid's planar face against the wall, which has no section frame
-/// (`work/sectarms/a-nurbs-wall-against-a-plane-has-no-germ-frame`). A
-/// ring struck by a chord `mev` into the wall refused
+/// order, and the union stops past the join's reading of the carried
+/// section** of the pyramid's planar face and the wall: at the at-rest
+/// certificate of a chord the join cuts from it, where the plane × NURBS
+/// lane's own image of the chord misses it
+/// (`work/sectarms/a-planes-carried-arc-across-a-flared-spline-wall-misses-its-own-image-at-rest.md`),
+/// or, at `ε = 1e-6`, at the ring the chords close on the wall
+/// (`work/sectarms/a-ring-on-a-spline-wall-closed-by-carried-chords-has-no-winding.md`).
+/// A ring struck by a chord `mev` into the wall refused
 /// `Euler(PcurveMint { face: wall, refusal: SplineChart })` here, as on
 /// the lily.
 #[test]
-fn a_vertex_piercing_a_lens_wall_mints_its_ring_and_reaches_the_germ_frame() {
+fn a_vertex_piercing_a_lens_wall_mints_its_ring_and_reaches_the_chords_certificate() {
     let tol = Tol::witness();
     let b = blade(tol);
     let (wall, p) = ridge(&b);
@@ -85,32 +89,40 @@ fn a_vertex_piercing_a_lens_wall_mints_its_ring_and_reaches_the_germ_frame() {
     let pose = topo::test_support::meeting::Pose::rest();
     let pyr =
         topo::test_support::meeting::posed_pyramid_at::<f64>(&base, [p.x, p.y, p.z], &pose, tol);
-    for (what, x, y, wall_first) in [
-        ("pyr ∪ blade", &pyr, &b, false),
-        ("blade ∪ pyr", &b, &pyr, true),
+    // At `ε = 1e-6` the run meets the wall's ring lane first; at every
+    // other row, the chord's at-rest certificate.
+    let at_ring = tol.eps() == 1e-6;
+    for (what, x, y, wall_operand) in [
+        ("pyr ∪ blade", &pyr, &b, topo::Operand::B),
+        ("blade ∪ pyr", &b, &pyr, topo::Operand::A),
     ] {
         let got = topo::union(x, y, tol).map(|_| ());
-        let at_frame = match &got {
-            Err(BooleanError::GermFrameUnsupported {
-                a_face,
-                a_kind,
-                b_face,
-                b_kind,
-            }) => {
-                let (w, w_kind, other_kind) = if wall_first {
-                    (a_face, a_kind, b_kind)
-                } else {
-                    (b_face, b_kind, a_kind)
-                };
-                *w == wall
-                    && *w_kind == geom::SurfaceKind::Nurbs
-                    && *other_kind == geom::SurfaceKind::Plane
-            }
-            _ => false,
-        };
-        assert!(
-            at_frame,
-            "{what}: {got:?}, not the plane × NURBS germ frame at the wall {wall:?}"
-        );
+        if at_ring {
+            assert!(
+                matches!(
+                    &got,
+                    Err(BooleanError::CurvedBooleanUnsupported {
+                        operand,
+                        face,
+                        kind: geom::SurfaceKind::Nurbs,
+                    }) if *face == wall && *operand == wall_operand
+                ),
+                "{what}: {got:?}, not the ring lane of the wall {wall:?}"
+            );
+        } else {
+            assert!(
+                matches!(
+                    &got,
+                    Err(BooleanError::Join(join)) if matches!(
+                        join.error(),
+                        topo::JoinError::Euler(topo::EulerOpError::Certification {
+                            error: geom_brep::CertifyError::PlaneNurbs(_),
+                        })
+                    )
+                ),
+                "{what}: {got:?}, not the plane × NURBS certificate of a chord the join cut on \
+                 the carried section"
+            );
+        }
     }
 }
