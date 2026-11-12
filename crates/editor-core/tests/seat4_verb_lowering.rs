@@ -772,7 +772,8 @@ fn an_empty_boolean_evaluates_to_its_committed_digest() {
     assert_eq!(
         // Re-measured when the placement came to mint its source
         // (VARIABLES VR4): the ids after it moved.
-        got, 0x1940_9a5c_6c12_d622,
+        got,
+        0x1940_9a5c_6c12_d622,
         "the empty-boolean evaluation moved — value token, bodies or name tables"
     );
 }

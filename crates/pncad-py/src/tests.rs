@@ -4736,6 +4736,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "pick_path",
             "pin_unchanged",
             "placement_axis",
+            "placement_reads_no_source",
             "pose_shape",
             "product_read",
             "profile_program_refused",
@@ -4758,6 +4759,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "slot_unknown_var_name",
             "slot_unresolved_var",
             "slot_var_kind",
+            "source_read",
             "space_mismatch",
             "step_ids_refused",
             "structural_slot_needs_structural_edit",
@@ -4784,7 +4786,16 @@ const TAG_INVENTORY: &[TagEntry] = &[
     },
     TagEntry {
         function: "edit_inner_variant_tag",
-        values: &["count_not_count", "within_no_index"],
+        values: &[
+            "count_not_count",
+            "fresh",
+            "index_not_count",
+            "kind",
+            "not_a_source",
+            "unresolved",
+            "within_no_index",
+            "written_in_place",
+        ],
         // `mate_fault_tag` once: the per-mate admission forwards the
         // solve's fault whole.
         delegates: &[
@@ -5869,6 +5880,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "output_signature",
             "payload_var_kind",
             "pick_path",
+            "placement_reads_no_source",
             "pose_shape",
             "product_read",
             "read_cycle",
@@ -5878,6 +5890,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "selection_shape",
             "shared_var_needs_name",
             "slot_var_kind",
+            "source_read_kind",
             "step_ids",
             "var_kind",
             "var_name_twice",

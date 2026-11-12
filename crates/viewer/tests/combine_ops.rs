@@ -1030,8 +1030,24 @@ fn the_transform_tool_opens_the_placement_editor_on_its_pick() {
     );
     assert_eq!(tools.take_place(&doc), None, "and asks for no Place");
     placed(&doc, a);
+    // A second copy placed by hand reads a source of its own: a body two
+    // sources read asks which one the Place shares.
     let (doc, _) = common::inserted(&doc, common::world_place(a.into()), tol);
-    placed(&doc, a);
+    let (mut tools, notices) = opened(&doc, a);
+    assert!(notices.is_empty(), "{notices:?}");
+    assert_eq!(
+        tools.take_place(&doc),
+        None,
+        "the Place waits on the choice"
+    );
+    assert!(
+        matches!(
+            tools.mate().and_then(MateTool::asking),
+            Some(viewer::matetool::PlaceAsk::Source { sources, .. }) if sources.len() == 2
+        ),
+        "a button per source: {:?}",
+        tools.mate().and_then(MateTool::asking)
+    );
 }
 
 /// **The Transform tool opens no door on what is no body**, typed: a

@@ -1888,8 +1888,13 @@ impl Doc {
     /// `Doc.set_product` names. A split's half is placed by its output,
     /// `place(doc.output(split, 1))`.
     ///
-    /// Two placements of one body are two copies. `label=` labels the
-    /// placement in the same call, as `insert`'s does.
+    /// A placement reads its body through a source (VARIABLES VR4): a
+    /// body passed here gets an anonymous source minted for this call, so
+    /// two calls are two copies through two sources; a source passed
+    /// (`VarDecl.source`, or a source named with `rename_var`) is shared,
+    /// and redefining it (`define_var`) re-points every placement reading
+    /// it. `label=` labels the placement in the same call, as `insert`'s
+    /// does.
     #[pyo3(signature = (source, target, constraints=None, *, label=None))]
     fn place(
         &mut self,
