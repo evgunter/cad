@@ -29,3 +29,8 @@ convergence test read in absolute metres would refuse it. Not checked
 which test it is.
 
 The carry row skips the sphere at `s = 1000` and cites this file.
+
+At `ε = 1e-12` the plane `z = s` against the same wall reads no whole
+section at `s = 100` either: limb 2 of the fitted carrier is undecided
+after the 20000-step budget (margin `1.26e-12` m inside the ambiguity
+band `(1e-12, 1e-11)`), so the carry row reads `s ≤ 10`.

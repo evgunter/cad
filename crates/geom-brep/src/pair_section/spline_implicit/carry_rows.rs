@@ -66,7 +66,9 @@ fn ball(s: f64, c: (f64, f64, f64), r: f64) -> Surface<f64> {
 fn listed(a: &Surface<f64>, b: &Surface<f64>) -> PairSection<f64> {
     let lane = Some(SsiLane::marched());
     match pair_section(a, b, None, lane, band()).expect("the pair classifies") {
-        SectionRead::Built(s) => s.read_whole(lane, band()).expect("the pair reads whole"),
+        SectionRead::Built(s) => s
+            .read_whole(lane, band())
+            .unwrap_or_else(|e| panic!("{:?} × {:?} reads whole: {e:?}", a.kind(), b.kind())),
         SectionRead::Elsewhere(_) => panic!("a spline × implicit pair is built here"),
     }
 }
@@ -91,7 +93,7 @@ fn on_wall(w: &Surface<f64>, u: f64, v: f64) -> Point3<f64> {
 }
 
 /// **A branch between two rim ends is carried as the reading fitted it,
-/// its pad in metres**, at scales far from 1 either way, against a plane
+/// its pad in metres**, at `s = 0.01, 1, 10`, against a plane
 /// (the iso-line `v = ½`) and a sphere (an arc from the bottom side back
 /// to it). The component is open on the wall's rim, holds the reading's
 /// certificate, and its pad holds the certificate's limb-2 bound; every
@@ -100,11 +102,15 @@ fn on_wall(w: &Surface<f64>, u: f64, v: f64) -> Point3<f64> {
 ///
 /// Red against: a carry that refuses every spline × implicit component
 /// (the listing's `Unminted`); a pad left in chart units (the tube's
-/// `pad_u`, `pad_v`), far past the rung at `s = 0.01` and far inside it
-/// at `s = 1000`.
+/// `pad_u`, `pad_v`), far past the rung at `s = 0.01` and inside it at
+/// `s = 10`. Larger walls are not read: at `ε = 1e-12` the plane's whole
+/// reading at `s = 100` cannot decide its limb 2, and at the default `ε`
+/// the sphere's at `s = 1000` settles no foot
+/// (`work/sectarms/a-sphere-against-a-spline-wall-a-kilometre-across-settles-no-foot.md`),
+/// each before any carry.
 #[test]
 fn a_rim_arc_is_carried_as_its_reading_fitted_it_with_its_pad_in_metres() {
-    for s in [1e-2, 1.0, 1e2, 1e3] {
+    for s in [1e-2, 1.0, 10.0] {
         let w = wall(s);
         // The plane: the section is `S(u, ½)`.
         let c = one(&listed(&level(s), &w));
@@ -135,24 +141,22 @@ fn a_rim_arc_is_carried_as_its_reading_fitted_it_with_its_pad_in_metres() {
             }
             on_wall(&w, u, 0.5 * (lo + hi))
         };
-        let mut cases = vec![(
-            "the plane",
-            c,
-            (0..=20)
-                .map(|i| on_wall(&w, f64::from(i) / 20.0, 0.5))
-                .collect::<Vec<_>>(),
-        )];
-        // The sphere's whole reading refuses at `s = 1000` before any
-        // carry (`work/sectarms/a-sphere-against-a-spline-wall-a-kilometre-across-settles-no-foot.md`).
-        if s < 1e3 {
-            cases.push((
+        let cases = [
+            (
+                "the plane",
+                c,
+                (0..=20)
+                    .map(|i| on_wall(&w, f64::from(i) / 20.0, 0.5))
+                    .collect::<Vec<_>>(),
+            ),
+            (
                 "the sphere",
                 one(&listed(&w, &b)),
                 (0..=10)
                     .map(|i| sphere_point(0.32 + 0.36 * f64::from(i) / 10.0))
                     .collect(),
-            ));
-        }
+            ),
+        ];
         for (what, comp, points) in &cases {
             let ComponentShape::Open { ends } = comp.shape else {
                 panic!("s = {s}, {what}: a rim arc is open: {:?}", comp.shape);

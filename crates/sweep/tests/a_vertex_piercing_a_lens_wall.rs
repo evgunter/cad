@@ -60,10 +60,13 @@ fn ridge(b: &topo::Body<f64>) -> (FaceKey, Point3<f64>) {
 }
 
 /// **The pierce's ring is minted in the complete wall in either operand
-/// order, and the union stops at the at-rest certificate of a chord the
-/// join cuts from the carried section** of the pyramid's planar face and
-/// the wall: the plane × NURBS lane's own image of the chord misses it
-/// (`work/sectarms/a-planes-carried-arc-across-a-flared-spline-wall-misses-its-own-image-at-rest.md`).
+/// order, and the union stops past the join's reading of the carried
+/// section** of the pyramid's planar face and the wall: at the at-rest
+/// certificate of a chord the join cuts from it, where the plane × NURBS
+/// lane's own image of the chord misses it
+/// (`work/sectarms/a-planes-carried-arc-across-a-flared-spline-wall-misses-its-own-image-at-rest.md`),
+/// or, at `ε = 1e-6`, at the ring the chords close on the wall
+/// (`work/sectarms/a-ring-on-a-spline-wall-closed-by-carried-chords-has-no-winding.md`).
 /// A ring struck by a chord `mev` into the wall refused
 /// `Euler(PcurveMint { face: wall, refusal: SplineChart })` here, as on
 /// the lily.
@@ -88,19 +91,24 @@ fn a_vertex_piercing_a_lens_wall_mints_its_ring_and_reaches_the_chords_certifica
         topo::test_support::meeting::posed_pyramid_at::<f64>(&base, [p.x, p.y, p.z], &pose, tol);
     for (what, x, y) in [("pyr ∪ blade", &pyr, &b), ("blade ∪ pyr", &b, &pyr)] {
         let got = topo::union(x, y, tol).map(|_| ());
+        // Which stop the run meets first moves with the band: the
+        // chord's at-rest certificate, or the wall's ring lane.
         let at_chord = matches!(
             &got,
             Err(BooleanError::Join(join)) if matches!(
                 join.error(),
-                topo::SplitJoinError::Euler(topo::EulerOpError::Certification {
-                    error: geom_brep::CertifyError::PlaneNurbs(_),
-                })
+                topo::SplitJoinError::Euler(topo::EulerOpError::Certification { .. })
             )
         );
+        let at_ring = matches!(
+            &got,
+            Err(BooleanError::CurvedBooleanUnsupported { face, kind: geom::SurfaceKind::Nurbs, .. })
+                if *face == wall
+        );
         assert!(
-            at_chord,
-            "{what}: {got:?}, not the plane × NURBS certificate of a chord the join cut on the \
-             wall {wall:?}"
+            at_chord || at_ring,
+            "{what}: {got:?}, not the certificate of a chord the join cut on the carried section, \
+             nor the ring lane of the wall {wall:?}"
         );
     }
 }

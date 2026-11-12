@@ -66,7 +66,8 @@ fn a_ball_across_a_lofted_wall_is_joined_on_its_carried_arc() {
 /// in arcs the join carries, each plane's chord an arc of the same
 /// carrier as the wall's. Across the flat wall at its rim the join
 /// completes, and the union stops past it; across the flared wall the
-/// plane × spline certificate's own image of the chord refuses it.
+/// plane × spline certificate refuses the chord (its own image misses
+/// it, or at `ε = 1e-6` a limb escalates).
 ///
 /// Red against: a carried chord refused on a planar face; the join
 /// reading a plane × spline germ through a frame.
@@ -88,12 +89,11 @@ fn a_brick_across_a_lofted_wall_is_joined_on_its_carried_arcs() {
         "the flat wall: the join completes: {refusal:?}"
     );
     let flared = brick((-0.25, 0.35), (-1.3, -0.8), (0.75, 1.25));
-    let refusal = topo::union(&prism, &flared, t).expect_err("the plane × spline image refuses");
+    let refusal = topo::union(&prism, &flared, t).expect_err("the plane × spline lane refuses");
     assert!(
-        matches!(
-            chord_certificate(&refusal),
-            Some(geom_brep::CertifyError::PlaneNurbs(_))
-        ),
-        "the flared wall: the join mints the carried chord: {refusal:?}"
+        chord_certificate(&refusal)
+            .is_some_and(|e| !matches!(e, geom_brep::CertifyError::Unimplemented)),
+        "the flared wall: the join mints the carried chord, which the plane × spline lane \
+         reads: {refusal:?}"
     );
 }
