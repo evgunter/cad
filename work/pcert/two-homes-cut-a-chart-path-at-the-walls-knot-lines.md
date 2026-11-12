@@ -21,7 +21,7 @@ interior knot lines and cut the path there.
   `ℓ(u)` at the chart's `u`-knots and at certified brackets of its
   `v`-knot crossings, in `Interval`, so that each piece is one polynomial.
 - **The curved General image.** `geom_brep::edge_nurbs`, `knot_lines`
-  and `crossings`, for `curved_chart_image`. It breaks a bending
+  and `crossings`, for `general_chart_image`. It breaks a bending
   carrier's foot path where it crosses a knot line whose continuity is
   below the image's degree. The crossing is found by halving between
   projected feet in `f64` (a structure choice), so that each piece of the

@@ -128,7 +128,7 @@ impl Patch {
 /// chordal tolerance `chordal` (δ, meters) of its exact surfaces —
 /// watertight as [`crate::validate::check_mesh`] reads it, which a body
 /// with two coincident edges between one vertex pair does not yet meet
-/// (`work/tess/two-coincident-edges-between-one-vertex-pair-mesh-non-manifold.md`).
+/// (`work/tesslie/two-coincident-edges-between-one-vertex-pair-mesh-non-manifold.md`).
 ///
 /// δ is a per-call display/export parameter, deliberately not the
 /// kernel ε — see the crate docs for the distinction, the
@@ -632,7 +632,7 @@ fn tessellate_impl(
 /// pair twice, which their four faces use four times; this census
 /// counts that as paired, and `check_mesh` refuses it as
 /// `NonManifoldEdge`
-/// (`work/tess/two-coincident-edges-between-one-vertex-pair-mesh-non-manifold.md`).
+/// (`work/tesslie/two-coincident-edges-between-one-vertex-pair-mesh-non-manifold.md`).
 ///
 /// A count of 1 on a single chord is the class this guard exists for —
 /// the two sides emitted the segment under DIFFERENT ids, so neither
@@ -664,14 +664,20 @@ fn tessellate_impl(
 /// outside what `tessellate` promises anything about, and no shipped
 /// build is made to panic by it that was not already garbage-in.
 ///
-/// **An open body is not the only input that reaches it.** A CLOSED
-/// body one of whose curved faces walks to a zero-width domain emits
-/// nothing for that face and fires this census: a torus face bounded by
-/// one meridian circle, and the one-face sphere whose loop is a single
-/// seam walked both ways (`mesh/tests/loops_the_meridian_guard_admits.rs`;
-/// `work/tess/rim-free-loop-on-a-poleless-chart-meshes-as-a-hole.md`).
-/// Neither passes tier 3, so both are outside the closed-VALID input
-/// `tessellate` is specified on, but they are input and not defect.
+/// **No closed body is known to reach it.** A closed body one of whose
+/// curved faces walks to a zero-width domain would emit nothing for
+/// that face and fire this census, and every such body measured is
+/// answered before it (`mesh/tests/loops_with_no_rim.rs`,
+/// `mesh/tests/the_one_face_ball.rs`): a rimless loop on one column
+/// refuses `SingleColumnCurvedFace` (the torus face bounded by one
+/// meridian circle,
+/// `a_rim_free_loop_on_a_chart_with_no_pole_refuses_single_column`), a
+/// slit on two coincident edges refuses `PinchWedge`
+/// (`two_coincident_edges_still_walk_to_zero_width_and_this_is_what_answers`,
+/// `a_slit_between_the_tips_is_not_the_strip`), and the one-face ball,
+/// its wrap edge whole or split, is placed as the wrap strip
+/// (`a_split_wrap_edge_is_one_strip`). A walk that put the strip's two
+/// sides on one column again is what this census would catch.
 ///
 /// **The route is documented, not demonstrated, and the difference is
 /// recorded rather than glossed.** A reviewer's probe

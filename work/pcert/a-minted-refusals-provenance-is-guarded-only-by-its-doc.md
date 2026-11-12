@@ -87,3 +87,19 @@ The mutant that relabels a `Stated` image reds them.
 `Pcurve`, so a caller outside the walk can still hand it a stored row.
 The type-level fix this row names (`minted_refusal` taking the walked
 row, or a `ChartImage`) remains.
+
+## 2026-11-11 — the witnesses moved, and only the nightly runs them
+
+PR 6815 made the edge door certify a stated image on a spline chart
+through the mint's own door, so a wrong stated `General` row is now
+refused at the build (`ChartImageUnavailable`), before the mint can
+read it. The rows above were red on main for that reason, and only the
+nightly showed it. They now reach the mint's relabel sites at rest: the
+true row is stated, then its wall is re-parametrized under it. M5 reds
+them again.
+
+The f64 row now runs on the PR gate (0.352 s hosted), so the gate runs
+M5's guard on every PR whose closure reaches topo. **The Interval row
+(0.467 s hosted, within noise of the 0.5 s bar) stays in the slow set and
+runs only in the nightly**, or on a PR whose added lines name it. A
+change that reds the gate at Interval alone waits for the nightly.

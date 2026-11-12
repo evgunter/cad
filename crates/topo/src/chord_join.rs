@@ -2595,13 +2595,7 @@ fn chord_spec<T: Decide>(
             });
             // The section face is not minted yet: only the face the
             // ruling divides names its region.
-            let rest = crate::rest_locus(
-                body,
-                [(wall_key, Some(face)), (plane_key, None)],
-                &carrier,
-                (s1, s2),
-                band,
-            );
+            let rest = crate::rest_locus([wall_key, plane_key]);
             let description = geom_brep::must_carry_description(
                 geom_brep::SmoothJoin {
                     surfaces: [(wall_key, &wall), (plane_key, plane)],

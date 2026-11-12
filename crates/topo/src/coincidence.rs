@@ -14,8 +14,9 @@
 //! does to those cells (a merge, a split into fragments).
 //!
 //! What is recorded is what a ladder decides from a margin and the
-//! result holds. A pair on one surface key is structure and is not
-//! recorded, and an ON verdict that only places topology is not a
+//! result holds. A pair on one surface key is structure, or the trace
+//! of a verdict that two records were one carrier, whose row is
+//! recorded by the act that left them one record; an ON verdict that only places topology is not a
 //! coincidence (D1): a boolean records every vertex identity it decides
 //! with a margin, as a row of the relation it decided where its inputs'
 //! cells state it and as a [`Relation::Meet`] of those cells where they
@@ -42,9 +43,10 @@ pub enum RowCell {
     /// the operation reads, not a cell of any body.
     Tool,
     /// A cell of the body the row was decided on, for a decision about
-    /// one body at rest rather than about an operation's inputs: the
-    /// at-rest census's rows ([`crate::census_rest_decision`] and its
-    /// contact rows) are the only ones that carry it.
+    /// one body rather than about an operation's inputs: the at-rest
+    /// census's rows ([`crate::census_rest_decision`] and its contact
+    /// rows), and a sweep's two faces decided one carrier across a
+    /// smooth join ([`crate::Body::one_record_across`]).
     Result {
         /// The cell, in the result's keys.
         cell: Cell,
@@ -215,6 +217,11 @@ pub enum DecisionSite {
     /// rest (two copies, two imported instances) decided one, or two
     /// placed faces decided one carrier, opposed.
     CensusAtRest,
+    /// A sweep's join decided smooth by the dihedral read across it,
+    /// between two faces whose carriers that makes one (a half
+    /// revolve's two caps across its axis edge,
+    /// [`crate::Body::one_record_across`]).
+    SmoothJoin,
 }
 
 /// **How a row's Zero was discharged**: against the band, or, in a

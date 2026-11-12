@@ -100,7 +100,7 @@ alone leave a multi-span walk evaluating each span past its knots.
 
 The same per-basis enclosure costs a narrow `t` too, at degree 5. The
 pcurve mint's degree-5 `General` image of a circle on the quarter
-cylinder (`edge_nurbs::curved_chart_image`, 129 feet), evaluated at the
+cylinder (`edge_nurbs::general_chart_image`, 129 feet), evaluated at the
 certificate's sample `t = [0.5875 − 3e-16, 0.5875 + 2e-16]`, encloses
 its chart point `u` about 1.9e-13 wide and `v` about 2.6e-13 wide.
 `S(P(t)) − C(t)` is then about 2e-12 m wide. So at ε 1e-12 check 3 of

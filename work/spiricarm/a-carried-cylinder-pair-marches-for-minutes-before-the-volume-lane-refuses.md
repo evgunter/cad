@@ -2,12 +2,12 @@
 id: a-carried-cylinder-pair-marches-for-minutes-before-the-volume-lane-refuses
 kind: issue
 title: A skew or unequal-radius cylinder boolean takes 5–12 s per operation in release, now that it builds through the volume lane
-status: dispatched
+status: parked
+blocked_on: [check-4s-projected-door-reads-every-span-of-a-chord-in-eight-parts, the-chord-joins-island-winding-crosses-every-span-of-a-chord]
 opened: 2026-11-02
 priority: P1
 cost: M
-refs: [a-projected-boundary-on-an-analytic-chart-has-no-volume-lane]
-branch: spiricarm/cylinder-pair-cost
+refs: [a-projected-boundary-on-an-analytic-chart-has-no-volume-lane, the-chord-joins-island-winding-crosses-every-span-of-a-chord, check-4s-projected-door-reads-every-span-of-a-chord-in-eight-parts]
 ---
 
 
@@ -79,3 +79,21 @@ Branch `spiricarm/cylinder-pair-cost`.
 **Then cheapen the dominant step**, if it is on SPIRICARM's ground (the volume lane, `quad/rotational.rs`, `quad_lane.rs`). If it is on another program's ground (SECT's march, SPLICE's carry), file a row on that slate with the measured split, and fix what is ours.
 
 **Review tier:** single FULL review. A speed change to certification code can certify less soundly while reading as faster. Containment rows must stay green, and any changed bound needs a mutant row.
+
+## Partly done (2026-11-11)
+
+PR 6805. SPIRICARM's own share of the cost is gone. The volume lane now gives each span the fewest pieces on which the azimuth turns through at most τ/16 (`span_schedule`), so a 625-span chord reads one piece a span. A span's count depends on that span alone, however the boundary is cut into edges. The release volume read fell from 1.6–3.4 s to 0.4–0.8 s per op, and no fixture refuses where main measured. The ops still take 11.5–13.5 s, on other programs' ground. The edge certification (5–6 s, PCERT, P1) dominates, and this row is parked on it. The island winding (up to 2.8 s, ONEHOME) is tracked at P2 by `the-chord-joins-island-winding-crosses-every-span-of-a-chord`; reopen this row when PCERT's lands and re-measure.
+
+## Re-measured (2026-11-11)
+
+PCERT's `a-chorded-edges-certification-hulls-every-span-of-a-625-span-chord`
+closed (branch `pcert/chord-hulls-by-span-geometry`). Release, one op a
+process, `cylinder_pair_cost_probe`: the four ops take 9.9–11.5 s (from
+11.4–14.3 s on the same box), with `certify_edge_spec` 2.2–3.2 s (from
+5.4–6.3 s). Of what is left there, check 4's projected door is the larger
+part: `check-4s-projected-door-reads-every-span-of-a-chord-in-eight-parts`
+(PCERT, P2), beside ONEHOME's island winding
+(`the-chord-joins-island-winding-crosses-every-span-of-a-chord`, P2).
+
+## Parked (2026-11-11)
+SPIRICARM's share is gone (PR 6805), and PCERT's chord hulls have landed. What remains of the 9.9–11.5 s is check 4's projected door (PCERT) and the island winding (ONEHOME), so the row is parked on both. Per the blocker rule (`work/README.md`, Priority), both are raised to P1, because fixing them as described is what unblocks this row. Reopen it and re-measure once both close.

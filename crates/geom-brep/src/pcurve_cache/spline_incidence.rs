@@ -251,7 +251,7 @@ fn keep(pending: &mut Option<Indeterminate>, cause: Indeterminate) {
 
 /// The escalation of a floor that could not be read at all: the poison,
 /// decided.
-fn unreadable(band: Band) -> Indeterminate {
+pub(super) fn unreadable(band: Band) -> Indeterminate {
     match decide(HULL, Margin::of(f64::NAN), band) {
         Err(cause) => cause,
         Ok(_) => unreachable!("unreadable: the poison decides no sign"),

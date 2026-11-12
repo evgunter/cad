@@ -14,7 +14,7 @@ Filed by `pcert/curved-general-image` (PR 6532, delta review N1, KK6).
 
 ## What
 
-`edge_nurbs::curved_chart_image` breaks a bending carrier's image at
+`edge_nurbs::general_chart_image` breaks a bending carrier's image at
 each crossing of a wall knot line (`crossings`, `pieces`, near
 `crates/geom-brep/src/edge_nurbs.rs:3145` and `:3192`). Breaks are kept a
 quarter step clear of the domain's ends, but not of each other. A path
