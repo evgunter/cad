@@ -88,7 +88,9 @@
 //! `INCIDENCE_CUTS` parts in the composite's own ring
 //! (`CurveCertData::with_breaks`; the net itself is never refined
 //! through an `f64` plan, which would re-round it), and further halved
-//! by the edge certificate's limb 2 (`limb2_offset_sup`). The conversion
+//! by the edge certificate's limb 2 (`limb2_offset_sup`), whose first
+//! reading cuts each span into the parts its own turn needs
+//! (`pcurve_cache::Parts::ByTurn`). The conversion
 //! divides `|f|` by a lower bound on `|∇f|` along the segment from the
 //! point to its nearest point on the chart, so each is tight to first
 //! order: `|f|` on the plane;
@@ -520,8 +522,14 @@ fn rotate_box<T: Real>(q: Quarter, x: (T, T), y: (T, T)) -> ((T, T), (T, T)) {
 /// built cannot be, so the caller refuses rather than drops a stretch.
 pub(crate) fn span_stretches(kv: &KnotVector, range: ParamRange) -> Option<Vec<ParamRange>> {
     let (a, b) = (range.start(), range.end());
+    // The knots strictly inside `range` are one run of the sorted list,
+    // found by bisection: a part of a many-span net reads the knots it
+    // crosses, not every knot (`sweep_box` boxes sixteen parts a span).
+    let knots = kv.knots();
+    let first = knots.partition_point(|&k| k <= a);
+    let inside = &knots[first..knots.partition_point(|&k| k < b).max(first)];
     let mut breaks = vec![a];
-    breaks.extend(kv.breakpoints().filter(|&k| k > a && k < b));
+    breaks.extend(inside.chunk_by(|x, y| x == y).map(|run| run[0]));
     breaks.push(b);
     breaks
         .windows(2)
@@ -900,6 +908,9 @@ impl<T: SpanLocate> ProjectedImage<T> {
 /// form along it (`pcurve_cache::projected_hull_lane`): the incidence
 /// is read per part. Not halved further: on honest rows eight parts read
 /// within 0.3% of a 64-cut read (`work/pcert/projected-check4-incidence-can-falsely-refuse-in-the-sliver-below-the-band.md`).
+/// Limb 2's rounds read a net's spans in as many, and its first reading
+/// at most as many (`pcurve_cache::Parts::ByTurn`): that ceiling is not
+/// what the 0.3% measures, which is check 4's fixed read.
 pub(crate) const INCIDENCE_CUTS: usize = 8;
 
 /// How many equal parts [`ProjectedImage::sweep_box`] cuts a piece into.
@@ -1515,7 +1526,7 @@ pub(crate) struct ProjectedHull {
     /// `x′`, and of the tube's `X′` (`+∞` off a torus).
     pub(crate) pieces: Vec<PieceHull>,
     /// Per part of the re-derived twin net (each knot span cut into
-    /// [`INCIDENCE_CUTS`], and at the caller's cuts): its parameter
+    /// equal parts, and at the caller's cuts): its parameter
     /// range, the bound of `|f|`, the floors its metre conversion reads,
     /// and its metre readings.
     pub(crate) spans: Vec<SpanHull>,
@@ -1673,6 +1684,17 @@ fn off_period<T: Real>(angle: T, shift: T, period: super::Period<T>) -> T {
         .abs()
 }
 
+/// A `z` box's least and greatest `|z|`, the least zero where the box
+/// straddles `z = 0`.
+fn abs_z((z0, z1): (f64, f64)) -> (f64, f64) {
+    let far = z0.abs().max(z1.abs());
+    if z0 <= 0.0 && 0.0 <= z1 {
+        (0.0, far)
+    } else {
+        (z0.abs().min(z1.abs()), far)
+    }
+}
+
 /// Which of [`Meters::over`]'s conditions a positivity is asked of.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum Lever {
@@ -1743,41 +1765,31 @@ impl<S: Real> Meters<S> {
         })
     }
 
-    /// **The apex reading**: a bound on a part's distance wherever the
-    /// lever does not decide positive (a part reaching an apex), for a
-    /// part whose `|f|` is at most `f`, whose `ρ` is at most `rho_hi` and
-    /// whose `z` ranges over `z`. `None` off the cone and the sheet.
-    ///
-    /// - On a cone, `√|f|` bounds the distance from the implicit cone. In
-    ///   the meridian half-plane `f = a·b`, with `a = ρ cos α − z sin α`
-    ///   and `b = ρ cos α + z sin α` the distances from the two generator
-    ///   lines, both on the implicit cone, so the distance is at most
-    ///   `min(|a|, |b|) ≤ √|f|`.
-    /// - On a spindle sheet, the distance from the nearer apex
-    ///   `(0, ±√(r² − R²))`: each apex is a point of the sheet, so a part
-    ///   is no farther from the sheet than from it. `|f|` cannot stand in
-    ///   for it, since it vanishes on the other sheet too, which meets
-    ///   this one at the apexes.
-    pub(crate) fn apex_root(self, f: S, rho_hi: S, z: (f64, f64)) -> Option<S> {
+    /// **The cone's apex reading**: `√|f|`, a bound on the distance of a
+    /// part whose `|f|` is at most `f` from the implicit cone, taken
+    /// where the lever does not decide positive (a part reaching the
+    /// apex). In the meridian half-plane `f = a·b`, with
+    /// `a = ρ cos α − z sin α` and `b = ρ cos α + z sin α` the distances
+    /// from the two generator lines, both on the implicit cone, so the
+    /// distance is at most `min(|a|, |b|) ≤ √|f|`. `None` off the cone.
+    pub(crate) fn apex_root(self, f: S) -> Option<S> {
         match self {
             Self::Cone { .. } => Some(f.sqrt()),
-            Self::Spindle { major, minor } => {
-                let height = geom::sheet_apex(major, minor).height;
-                let (z0, z1) = (S::from_computed(z.0), S::from_computed(z.1));
-                let reach = |apex: S| {
-                    let along = (z0 - apex).abs().max((z1 - apex).abs());
-                    (rho_hi.powi(2) + along.powi(2)).sqrt()
-                };
-                Some(reach(height).min(reach(-height)))
-            }
             _ => None,
         }
     }
 
     /// **A part's reading in certification arithmetic**
-    /// ([`SpanHull::meters`]): [`Self::over`] with each lever taken where
-    /// `positive` certifies it, else [`Self::apex_root`]; `None` where
-    /// neither reads.
+    /// ([`SpanHull::meters`]), for a part whose `|f|` is at most `f`,
+    /// whose `ρ` ranges over `rho` and whose `z` over `z`, each lever
+    /// taken where `positive` certifies it:
+    /// - on a sheet, the least of [`Self::over`], [`Self::sheet_at_height`]
+    ///   and [`Self::sheet_apex_reach`] that read, each a bound on the
+    ///   part's distance from this sheet; the apex reach always reads;
+    /// - elsewhere [`Self::over`], else [`Self::apex_root`]; `None` where
+    ///   neither reads. The cone's apex reading is the double cone's
+    ///   distance, which must not undercut the nappe's own reading away
+    ///   from the apex.
     pub(crate) fn certified(
         self,
         f: S,
@@ -1785,14 +1797,64 @@ impl<S: Real> Meters<S> {
         z: (f64, f64),
         positive: impl Fn(S) -> bool,
     ) -> Option<S> {
-        self.over(
-            f,
-            rho,
-            z,
-            |lever, _| if positive(lever) { Ok(lever) } else { Err(()) },
-        )
-        .ok()
-        .or_else(|| self.apex_root(f, rho.1, z))
+        let over = self
+            .over(
+                f,
+                rho,
+                z,
+                |lever, _| if positive(lever) { Ok(lever) } else { Err(()) },
+            )
+            .ok();
+        match self {
+            Self::Spindle { major, minor } => Some(
+                [over, Self::sheet_at_height(major, minor, rho, z, &positive)]
+                    .into_iter()
+                    .flatten()
+                    .fold(
+                        Self::sheet_apex_reach(major, minor, rho.1, z),
+                        |least, d| least.min(d),
+                    ),
+            ),
+            _ => over.or_else(|| self.apex_root(f)),
+        }
+    }
+
+    /// **A sheet's apex reading**: the distance of a part whose `ρ` is at
+    /// most `rho_hi` and whose `z` ranges over `z` from the nearer apex
+    /// `(0, ±h)`, a point of the sheet. `|f|` cannot stand in for it,
+    /// since it vanishes on the other sheet too, which meets this one at
+    /// the apexes.
+    fn sheet_apex_reach(major: S, minor: S, rho_hi: S, z: (f64, f64)) -> S {
+        let height = geom::sheet_apex(major, minor).height;
+        let (z0, z1) = (S::from_computed(z.0), S::from_computed(z.1));
+        let reach = |apex: S| {
+            let along = (z0 - apex).abs().max((z1 - apex).abs());
+            (rho_hi.powi(2) + along.powi(2)).sqrt()
+        };
+        reach(height).min(reach(-height))
+    }
+
+    /// **A sheet's reading at the part's own height.** On an apple or a
+    /// horn (`R > 0`), every height `h ≤ |z| < r` meets the sheet's branch
+    /// nearer the axis at `ρ_s(z) = R − √(r² − z²) = (z² − h²)/(R + √(r² − z²))`,
+    /// which is `≥ 0`, so `(ρ_s(z), z)` is a point of the sheet and a part
+    /// is within `|ρ − ρ_s(z)|` of it. `ρ_s` grows with `|z|`, so over the
+    /// box that is at most `max(ρ_hi − ρ_s(|z|_min), ρ_s(|z|_max) − ρ_lo)`.
+    /// `None` where `positive` does not certify `R > 0` and the box's `|z|`
+    /// inside `(h, r)`.
+    fn sheet_at_height(
+        major: S,
+        minor: S,
+        (rho_lo, rho_hi): (S, S),
+        z: (f64, f64),
+        positive: impl Fn(S) -> bool,
+    ) -> Option<S> {
+        let (near, far) = abs_z(z);
+        let (near, far) = (S::from_computed(near), S::from_computed(far));
+        let h = geom::sheet_apex(major, minor).height;
+        let inside = positive(major) && positive(near - h) && positive(minor - far);
+        let level = |w: S| (w.powi(2) - h.powi(2)) / (major + ((minor - w) * (minor + w)).sqrt());
+        inside.then(|| (rho_hi - level(near)).max(level(far) - rho_lo))
     }
 
     /// **Limb 2's reading of a part whose lever the band does not decide
@@ -1810,7 +1872,7 @@ impl<S: Real> Meters<S> {
                 .meters
                 .is_finite()
                 .then(|| S::from_computed(span.meters)),
-            _ => self.apex_root(f, S::from_computed(span.rho_hi), span.z),
+            _ => self.apex_root(f),
         }
     }
 
@@ -1883,15 +1945,11 @@ impl<S: Real> Meters<S> {
                 // `M² − r²` over the box: its least value where `ρ + R`
                 // keeps one sign (every apple), its greatest everywhere,
                 // weighted by the sheet's sign `σ = sgn R` (±1, exact).
+                let (near, far) = abs_z(z);
                 let z2 = |at: f64| S::from_computed(at).powi(2);
-                let z_min = if z.0 <= 0.0 && 0.0 <= z.1 {
-                    S::zero()
-                } else {
-                    z2(z.0).min(z2(z.1))
-                };
                 let (lo, hi) = ((rho + major).powi(2), (rho_hi + major).powi(2));
-                let least = lo.min(hi) + z_min - minor.powi(2);
-                let most = lo.max(hi) + z2(z.0).max(z2(z.1)) - minor.powi(2);
+                let least = lo.min(hi) + z2(near) - minor.powi(2);
+                let most = lo.max(hi) + z2(far) - minor.powi(2);
                 // `σ = sgn R`, decided at rest (`geom::meridian_side`).
                 let sigma = geom::meridian_side(major);
                 let half = S::from_f64(0.5);

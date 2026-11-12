@@ -2,11 +2,13 @@
 id: a-horns-cusp-revolved-part-way-refuses-at-its-cap-meridians-certificate
 kind: issue
 title: A horn's cusp revolved part way refuses at its cap meridians: the horn's two sheets are tangent at the cusp, so limb 2 reads only the distance from it over a stretch near it
-status: dispatched
+status: closed
 opened: 2026-11-04
 priority: P1
 cost: H
 branch: spiricarm/horn-cusp
+closed: 2026-11-11
+pr: 6806
 ---
 
 (SPIRICARM, a residue of `a-football-revolved-part-way-refuses-at-its-cap-meridians-certificate`.)
@@ -61,3 +63,7 @@ Branch `spiricarm/horn-cusp`.
 - If the answer changes a ratified clause, or has several viable answers where Ev's preference matters, stop and report the fork as a problem.
 
 **Review tier:** dual. This is a new certificate at a tangency, which is soundness-critical.
+
+## Closed (2026-11-11)
+
+PR 6806. A horn's cusp revolved part way builds as its lune: the needle, the lower needle and the four-arc horn each mesh watertight, pass tier 3 and meet their closed forms (Pappus for the horn). A sheet's edge certificate takes the least of its readings, one of them the height reading `Meters::sheet_at_height` (sound against two independent 60-digit oracles, about 180,000 Interval readings, no miss). The walk names a horn's cusp on the leaving meridian's side (`Chart::is_horn`). Residue: `limb-2s-band-decided-sheet-reading-omits-the-height-reading-beside-a-horns-cusp` (P4), `a-sheets-tube-residual-cancels-beside-a-horns-cusp` (P4).

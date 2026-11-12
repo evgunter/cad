@@ -152,10 +152,13 @@ impl Arc {
     }
 
     /// The circle as an exact rational quadratic on `[0, 1]`, in its own
-    /// parameter's direction, one segment per third of a turn or less.
+    /// parameter's direction, one segment per third of a turn or less,
+    /// and at least [`ARC_SEGMENTS`].
     fn net(self) -> NurbsCurve3<f64> {
         let (a, b) = self.phi;
-        let segments = ((b - a).abs() / (TAU / 3.0)).ceil().max(1.0);
+        #[allow(clippy::cast_precision_loss)]
+        let least = ARC_SEGMENTS.with(std::cell::Cell::get) as f64;
+        let segments = ((b - a).abs() / (TAU / 3.0)).ceil().max(least);
         #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
         let n = segments as usize;
         let half = (b - a) / (2.0 * segments);
@@ -315,7 +318,9 @@ fn sphere_face(
                 band,
                 Some(crate::FittedLane::<f64>::certified()),
             )
-            .unwrap()
+            .map_err(|_| PropsError::QuadratureUnsupported {
+                what: "the fixture's image certifies no envelope",
+            })?
             .certificate()
             .envelope
                 + e.env.unwrap_or(0.0);
@@ -368,6 +373,7 @@ fn sphere_face(
             closed: dot(closed),
             lever,
             rationals,
+            spirics: Vec::new(),
             ribbon,
         },
         loops: terms,
@@ -1112,4 +1118,67 @@ fn a_rim_standing_off_its_circle_is_paid_at_its_length() {
         ball.cap(FRAC_PI_2 - level - delta),
         about,
     );
+}
+
+thread_local! {
+    /// The fewest segments an arc's net is written in ([`Arc::net`]), so
+    /// a row can put the same circle on a net of many spans. One unless a
+    /// row sets it, on its own thread, and sets it back.
+    static ARC_SEGMENTS: std::cell::Cell<usize> = const { std::cell::Cell::new(1) };
+}
+
+/// `run` with every arc's net written in at least `segments`.
+fn with_arc_segments<R>(segments: usize, run: impl FnOnce() -> R) -> R {
+    ARC_SEGMENTS.with(|c| c.set(segments));
+    let out = run();
+    ARC_SEGMENTS.with(|c| c.set(1));
+    out
+}
+
+/// **A disc by the pole measures at every round, on one span or many**:
+/// the cap circle missing the pole by `1e-3` and by `0.02`, on its own
+/// net and on 16 and 64 spans (most of them short, those by the pole
+/// turning fast), each of rounds 0 to 2 taken whatever its width but
+/// through the face-extent gate, under both names, and to the target;
+/// the face and its complement.
+#[test]
+fn a_disc_by_the_pole_measures_at_every_round_on_one_span_or_many() {
+    let ball = Ball::tilted(Point3::new(0.4, -0.2, 0.3), 0.7);
+    let about = Point3::new(0.1, 0.5, -0.2);
+    let theta = 0.4;
+    let band = Band::linear(Tol::witness()).unwrap();
+    for segments in [1, 16, 64] {
+        for miss in [0.02, 1e-3] {
+            let at = (0.7, FRAC_PI_2 - theta - miss);
+            for (inside, area) in [
+                (true, ball.cap(theta)),
+                (false, ball.sphere_area() - ball.cap(theta)),
+            ] {
+                let tag = format!("{segments} segments, miss {miss}, inside {inside}");
+                let loops = [vec![tilted(ball, at, theta, inside)]];
+                let (flux, truth) = sphere_truth(ball, true, &loops, area, about);
+                let held = with_arc_segments(segments, || {
+                    for name in [Name::Own, Name::Twin] {
+                        for round in 0..3 {
+                            let what = format!("{tag}, twin {}, round {round}", name.twin());
+                            let got = sphere_face(ball, true, &loops, about, name)
+                                .and_then(|f| {
+                                    rotational_cut_face_rounds::<f64>(
+                                        &f,
+                                        band,
+                                        RoundWindow::at(round),
+                                        &mut to_target(1e6),
+                                    )
+                                })
+                                .unwrap_or_else(|e| panic!("{what}: refused {e:?}"));
+                            encloses(got.bounds.flux, flux, &format!("{what}: flux"));
+                            encloses(got.bounds.area, truth, &format!("{what}: area"));
+                        }
+                    }
+                    holds_or_refuses(&tag, ball, true, &loops, area, about)
+                });
+                assert!(held, "{tag}: measures to the target");
+            }
+        }
+    }
 }

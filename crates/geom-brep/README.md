@@ -24,7 +24,7 @@ escalated typed refusal, never a raw comparison.
 | Decisions | Lives in |
 |---|---|
 | C1 locus ladder | `crates/geom/src/curves.rs` (`Curve3`: Line, Circle, Ellipse, Spiric, Nurbs); `crates/geom-brep/src/intersect.rs` (`Rung`); `crates/geom-brep/src/intersect/conic_arc.rs` (the plane×cone parabola and hyperbola arcs) |
-| C2, C3 SSI and its certificate | `crates/geom-brep/src/ssi.rs` + `ssi/{march,certify,exhaust,enclose,jet,system,boundary,section,ends,pair,four}.rs`; `crates/geom-brep/src/intersect/section_bounds.rs` (the bounds a classified pair's section states, which retire the tube) |
+| C2, C3 SSI and its certificate | `crates/geom-brep/src/ssi.rs` + `ssi/{march,certify,exhaust,enclose,jet,system,boundary,section,ends,pair,four}.rs`; `crates/geom-brep/src/intersect/section_bounds.rs` (the bounds a classified pair's section states, which retire the tube); `crates/geom-brep/src/row_contact.rs` (a shared row's contact class on analytic charts) |
 | C4 pcurves | `crates/geom-brep/src/pcurve_cache.rs` (value, certificate), `pcurve.rs` (conic constructors), `crates/topo/src/pcurves.rs` (storage, minting, branch walk); description form in `description.rs` |
 | C5 dispatch table | `crates/geom-brep/src/intersect.rs` (`route`, the section functions); for curve pairs `crates/geom-brep/src/curve_pair.rs` (`method`, `meet`) and `curve_pair/{span,pose,polish,walk,on_surface}.rs`; for a curve against a face `crates/geom-brep/src/curve_face.rs` (`route`, `boundary`) and its doors `curve_face/{plane_crossing,circle_torus,ellipse_torus,circle_roots,composite,spline_face}.rs` |
 | C6 structure certified for every member, values in the scalar, generic certification | `crates/geom-core/src/spline/`, `crates/geom/src/curves/fit.rs` |
@@ -71,9 +71,19 @@ an export/tessellation form. There is no polyline rung.
 
 **C2 — The certificate of a witness-selected `Intersection` carrier has three limbs.**
 A structural selector (D2: a curve known in advance, such as a row or
-column of a swept or skinned wall that is the edge on both surfaces)
-owes no limb 3: it is certified through each surface's chart-image
-certificate, its on-locus residual and sup-norm bound read per surface.
+column of a swept or skinned wall, or of two analytic charts, that is
+the edge on both surfaces) owes no limb 3: it is certified through each
+surface's chart-image certificate, its on-locus residual and sup-norm
+bound read per surface. It picks its curve by construction rather than
+by measurement, so it owes no transversality margin; what its
+certificate does measure is decided with a margin, as everything the
+kernel measures is. A shared row also reads its contact class over the
+whole row, never at sampled feet alone (`row_contact`). Two spline
+walls must cross along all of it. Two
+analytic walls must cross along all of it or touch along all of it, as
+a blend's section between two bands does; a row that does neither
+refuses, and so does a row that reaches its chart's singular point (a
+cone's apex).
 Limbs 1 and 2 are owed by every carrier, of every kind, however it was
 minted. Limb 3 is owed unless the pair's section function, for this
 pose, states the two numbers the tube would prove: a lower bound on the
@@ -239,7 +249,19 @@ moved across onto the side, lands on its stretch at a point the
 boundary pass reads within ε of the plane and not clear. So the arc
 spans the carrier (chart edges walked in runs of one sign or monotone,
 ℝ³ faces by Krawczyk). A
-rung whose chain is a graph but not one arc gives way to a narrower one.
+rung whose chain is a graph but not one arc gives way to a narrower one. A
+chain may end at a node of the section (C5). Its radius is then read
+box by box, narrowing in proportion to the box's distance from the
+node, and the pad a site reads is the radius of the box it lies in. Its
+last box holds the node, and the claim over that box is the node's own
+reading: `∇φ`'s one zero there by the Krawczyk operator, its Hessian
+indefinite and its value decided Zero, re-read about the edge's end
+vertex at rest and stored nowhere. The chain stops where a box no
+longer holds one arc, about `√(εR)` from the node, `R` the surfaces'
+relative curvature radius: a site there and not at the node is
+assigned to no arc and escalates. The ray the arc's end names (C5) is
+the null ray of the node's Hessian whose sector holds the chain's last
+boxes, and it is the carrier's end tangent; a mismatch refuses.
 With none certified, the narrowest rung probed speaks: its band verdict
 where it straddled, `SsiError::TubeNotOneArc` with what it found where
 it was a graph but not one arc. For
@@ -979,9 +1001,22 @@ its value on a ceiling in metres for Zero; a cluster not decided so
 declines the sweep. A section whose decided points are touches alone,
 and whose pass found no end, is those touches, each a point component
 with its witness and a tangency decided Zero, the reading the guard's
-touch arm takes; a node, or a touch beside components with ends,
-pinches them (`spline_critical_value`), since the march that would list
-them does not start at a decided tangency.
+touch arm takes. A node, or a touch beside components with ends, is
+read whole with the decided points handed in, as a section the sweep
+finds closing about an excluded point is when every critical point is
+decided: each point's Krawczyk box, the widest the operator proves holds
+its one zero of `∇φ`, is a region seeding skips and accounting reads,
+and a march ends on entering a node's box. The node is listed with its
+point (its enclosure within the band, else `spline_node_box`), the
+wall's normal, the two null lines of `φ`'s Hessian carried to the wall's
+tangent plane and the sector side, each read off the Hessian enclosure
+that decided it; each arc end there names the ray whose sector holds
+its tube's last boxes (C2), every ray claimed once (else
+`spline_node_ray`); a touch beside arcs is a point component with them.
+Each arc is carried on to its node: its carrier is fitted through the
+march's states and through samples inside the box settled onto the
+section, its span ending at the node's point with the named ray as its
+end tangent, and C2's tube certifies it to the node.
 The boolean reads the rung-3 arms cylinder×sphere and the three torus
 pairs through the section value (`pair_section`), classified, then
 carried: the classification decides the pair's pose once and, where a
@@ -1028,8 +1063,9 @@ at it reads as the node. The value lists each node with `S`'s normal,
 the Hessian's two null lines and the side of each other the surfaces
 lie on in the sectors between them. A definite Hessian is a touch, an
 isolated point of the section; a degenerate one refuses, except a
-plane holding a cone's ruling, whose section is that line. Each arc end at a node names its line and the sense it
-leaves along. A germ leaving a node is minted from its arc end, and no
+plane holding a cone's ruling, whose section is that line. Each arc is its own listed component with its own carrier,
+whose span ends at the node's point, and its end there names its line
+and the sense it leaves along: that carrier's direction there. A germ leaving a node is minted from its arc end, and no
 reading of a site names an arc there.
 Arcs that share nodes are one node-joined set (`NodeSet`), the
 connected component: the set claims its winding about each surface,
@@ -1540,6 +1576,68 @@ off the sign of its own Gauss–Bonnet area. (8) In-house SVD and
 least-squares solvers with fixed elimination order
 (`geom-core/src/linalg`). (9) The curvo audit is `docs/CURVO-AUDIT.md`
 (it has no SSI); the stance is DESIGN.md Q5.
+
+### A face's measure, read at the face `[geom-brep.face-anchored]`
+
+A face's measure reads its surface over the face alone
+(DESIGN `[tolerance.epsilon]`): no datum its record's kind forgets
+enters a face's term at a lever beyond the face.
+
+- **`[geom-brep.face-anchored.anchor]` One anchor.**
+  `props::face_anchor` reads, from a face's vertices alone, where its
+  measure is read from: `at`, the mean of the vertices, and `lever`,
+  the least corner of their box (each coordinate one of theirs). No loop order, traversal start or carrier
+  direction moves either, so a face reads the same however an
+  operation wrote its loops, and both lie within the vertices' box,
+  so every term's lever is the face's own extent. The mean is a convex
+  combination of boundary points, so it lies on the face's plane to
+  within their stand-off; the corner is read with no arithmetic, so a
+  face of grid points reads its vector area exactly and a face far from
+  the origin rounds no coordinate taking it. `at` is kept as the
+  corner plus an offset, so a reading levered from another point takes
+  `(lever − from) + offset`, never a rounded absolute coordinate. Every planar reader takes it:
+  `props::planar_face`, and `topo`'s `props::face_anchored`,
+  `props::quad_lane::planar_face_about`, `plane_cap`,
+  `polygon_face_about` and the carried faces' vector area.
+- **`[geom-brep.face-anchored.datum]` One re-anchoring.**
+  `extent::anchored_at` slides a datum along the orbit its kind's
+  symmetry forgets (`Forgets`) to the point of it nearest a given
+  point: a plane's origin to that point's foot on the plane, a
+  cylinder's axis origin to its foot on the axis. `surface_anchored_at`
+  applies it to a surface. The carrier is unmoved; only where a reading
+  takes the datum from moves. Intrinsic data stay: a sphere's or a
+  torus's centre and a cone's apex. The coincidence verdict re-anchors
+  a cylinder pair at the foot of its extent's centre (`topo`'s
+  `carrier_eq::at_consumed_extent`), and a face's measure at its
+  anchor's `at` (`topo`'s `props::face_anchored`), at every scalar. A
+  cylinder face's closed form takes its axis origin as the point its
+  vector area is summed about and its flux levered from, so an origin
+  standing far along the axis rounds the term at that distance
+  squared.
+- **`[geom-brep.face-anchored.plane]` A plane's term is its boundary's
+  flux about a point of the face.** `props::planar_face` sums the
+  vector area `A⃗` about the anchor's `lever` and takes `at·A⃗`: the fan
+  the face's own boundary spans from a point of the face. The
+  surface's origin is never read. Over a closed shell the fans meet at
+  their shared points, so the sum is the volume they bound about any
+  reference. The interval lane encloses the same flux about the same
+  anchor (`topo`'s `props::quad_lane::planar_face_about`: its part
+  along the normal and a slack for the part across it), so the two
+  scalars read one flux. A face whose loops stand off its record — a
+  face moved onto a record in band of its own — reads the fan of its
+  own boundary, whatever the record's origin, so a union whose glue
+  moves a face onto a record anchored far off measures its operands'
+  sum to within the band times the face's area.
+- **`[geom-brep.face-anchored.bound]`** `topo`'s `props::rounding_bound`
+  levers each face's terms from the same re-anchored datum.
+
+The guards are `topo`'s
+`sliding_every_record_along_its_symmetry_moves_no_reading` (every plane
+record turned off its face's loops about a corner, which is not the
+anchor, then every record slid far along its own symmetry, a tilted
+cylinder's along its axis, changes no reading beyond rounding) and
+`sweep`'s ring-on-cone rows (`one_body_reads_alike_in_both_orders`: one
+body's volume enclosure is as wide in both operand orders).
 
 ## Offsets and shell (OFFSET-DESIGN O1–O6)
 

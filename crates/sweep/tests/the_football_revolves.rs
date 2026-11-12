@@ -611,12 +611,13 @@ fn a_football_with_a_sheet_faces_bit_flipped_is_refused() {
     }
 }
 
-/// **The wide apples and the lower needle measure**, where the mesh
-/// refuses them (`work/spiricarm/a-wide-apples-tube-angle-passes-the-latitude-windows-cut.md`):
-/// tier 3 and the closed form alone.
+/// **The wide apples and the lower needle mesh and measure**: sheets
+/// with `v* > π − 1`, the horn's lower side among them, each point read
+/// in `[−v*, v*]` and the horn's cusp at `−π` on a face reaching it from
+/// below.
 #[test]
-fn the_wide_apples_and_the_lower_needle_measure() {
-    measures(
+fn the_wide_apples_and_the_lower_needle_mesh_and_measure() {
+    meshes_and_measures(
         "the lower needle",
         bulge_loop(vec![
             (Point2::new(0.0, -1.0), 0.0),
@@ -631,7 +632,7 @@ fn the_wide_apples_and_the_lower_needle_measure() {
     );
     let z = geom_core::Band::linear(Tol::witness()).unwrap().zero();
     for big in [0.6_f64, 0.8, 0.99, 1.0 - (1e3 * z).max(1e-6)] {
-        measures(
+        meshes_and_measures(
             &format!("a wide apple R {big}"),
             football(big, 1.0),
             y_axis(),
@@ -726,19 +727,16 @@ fn near_the_horn_the_drawn_ends_say_which_sheet() {
     );
 }
 
-/// **A horn's cusp revolved part way holds its lune or refuses at its
-/// cap meridians**: the needle tip, and the horn's circle as four quarter
-/// arcs with a face reaching the cusp from each side. A cap meets the
-/// horn along a meridian that ends at the cusp, where the horn's two
-/// sheets are tangent, so the sheet's distance bound reads only the
-/// distance from the cusp over a stretch near it. At a band that stretch
-/// fits inside (`1e-6`) the lune builds: the needle's holds `θ/2π` of
-/// the full revolve plus two caps of the profile, and the four arcs'
-/// refuses its mesh (`UnsupportedCurvedDomain`, on the same row); at a
-/// finer band limb 2 stops past it
-/// (`work/spiricarm/a-horns-cusp-revolved-part-way-refuses-at-its-cap-meridians-certificate.md`).
+/// **A horn's cusp revolved part way is its lune**: the needle tip, the
+/// lower needle, and the horn's circle as four quarter arcs with a face
+/// reaching the cusp from each side. A cap meets the horn along a
+/// meridian that ends at the cusp, where the horn's sheet runs tangent
+/// to the axis (`ρ ≈ z²/2r`); limb 2 reads a part beside it at its own
+/// height (`Meters::certified`). Each meshes watertight inside its wedge,
+/// passes tier 3, and holds `θ/2π` of the full revolve plus two caps of
+/// the profile.
 #[test]
-fn a_horns_cusp_revolved_part_way_holds_or_refuses_at_its_cap_meridians() {
+fn a_horns_cusp_revolved_part_way_is_its_lune() {
     let quarter = -(PI / 8.0).tan();
     let theta = 2.0_f64;
     let share = theta / (2.0 * PI);
@@ -752,11 +750,10 @@ fn a_horns_cusp_revolved_part_way_holds_or_refuses_at_its_cap_meridians() {
         1.0 - PI / 4.0,
     );
     let horn = (2.0 * PI * PI, 4.0 * PI * PI, 0.0, PI);
-    for (what, faces, meshes, lp, (volume, sheet, disc, profile)) in [
+    for (what, faces, lp, (volume, sheet, disc, profile)) in [
         (
             "the needle",
             1,
-            true,
             bulge_loop(vec![
                 (Point2::new(0.0, 0.0), quarter),
                 (Point2::new(1.0, 1.0), 0.0),
@@ -765,9 +762,18 @@ fn a_horns_cusp_revolved_part_way_holds_or_refuses_at_its_cap_meridians() {
             needle,
         ),
         (
+            "the lower needle",
+            1,
+            bulge_loop(vec![
+                (Point2::new(0.0, -1.0), 0.0),
+                (Point2::new(1.0, -1.0), quarter),
+                (Point2::new(0.0, 0.0), 0.0),
+            ]),
+            needle,
+        ),
+        (
             "the horn's circle in quarters",
             4,
-            false,
             bulge_loop(vec![
                 (Point2::new(0.0, 0.0), quarter),
                 (Point2::new(1.0, 1.0), quarter),
@@ -777,47 +783,12 @@ fn a_horns_cusp_revolved_part_way_holds_or_refuses_at_its_cap_meridians() {
             horn,
         ),
     ] {
-        let got = revolve(
-            &validated(vec![lp.clone()]),
-            y_axis(),
+        holds_by(
+            what,
+            lp,
             Revolution::Partial(theta),
-            Tol::witness(),
+            (faces, 1.0),
+            (share * volume, share * (sheet + disc) + 2.0 * profile),
         );
-        match got {
-            Ok(built) if !meshes => {
-                let mesh = mesh::tessellate(&built.body, 1e-2, Tol::witness());
-                assert!(
-                    matches!(
-                        mesh,
-                        Err(mesh::TessellateError::UnsupportedCurvedDomain { .. })
-                    ),
-                    "{what}: {:?}",
-                    mesh.map(|_| ())
-                );
-            }
-            Ok(_) => holds_by(
-                what,
-                lp,
-                Revolution::Partial(theta),
-                (faces, 1.0),
-                (share * volume, share * (sheet + disc) + 2.0 * profile),
-            ),
-            Err(e) => assert!(
-                matches!(
-                    e,
-                    RevolveError::Op {
-                        source: topo::EulerOpError::Certification {
-                            error: geom_brep::CertifyError::AnalyticRung3(
-                                geom_brep::AnalyticRung3Refusal::KernelLimit {
-                                    operand: geom::SurfaceKind::Spindle,
-                                    ..
-                                }
-                            )
-                        }
-                    }
-                ),
-                "{what}: {e:?}"
-            ),
-        }
     }
 }

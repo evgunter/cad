@@ -133,9 +133,10 @@ fn a_lofted_arc_wall_is_a_function_of_the_sections_bulge() {
     );
     assert_eq!(
         rim_theorems,
-        vec![true; 10],
+        vec![true; 11],
         "every Zero the arc rims' checks answer over the bulge, the weight margin `w − cos(h/2)` \
-         among them, is a symbolic Zero, and each check is read once per build"
+         among them, is a symbolic Zero; each check is read once per build, but the stated rim \
+         image's, read by its edge certificate and again by the mint"
     );
     assert_eq!(
         winding_zeros, 10,
@@ -143,7 +144,7 @@ fn a_lofted_arc_wall_is_a_function_of_the_sections_bulge() {
     );
     assert_eq!(
         distinct, 7,
-        "the 10 Zeros are 7 distinct theorems (a node is content-addressed, so a check read \
+        "the 11 Zeros are 7 distinct theorems (a node is content-addressed, so a check read \
          again moves the count above, not this)"
     );
 }

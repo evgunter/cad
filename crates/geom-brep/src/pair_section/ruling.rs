@@ -20,7 +20,13 @@
 //!   the ball are the open components, and a loop no root cuts is one
 //!   component inside the ball or none;
 //! - **witnesses** each component it lists at a point decided inside the
-//!   ball, the march's seed.
+//!   ball, the march's seed. A loop the ball holds whole is witnessed
+//!   at its middle, halfway along its arc from either branch point, and
+//!   a loop of the whole turn at the first cut, `φ = 0`, where the
+//!   cylinder × sphere frame points at the centre and `Δ` peaks. The
+//!   march starts and ends its trace at the witness, so the fit's two
+//!   ends stand clear of the branch points and the far ruling, where a
+//!   loop near a node turns sharpest.
 //!
 //! A branch point is read sheet-wise: its cell encloses both meetings
 //! through the discriminant's root over `[0, √Δ_max]`, which decides the
@@ -604,7 +610,7 @@ pub(crate) struct Swept<T: Real> {
     /// Its two cut ends, where it is open: the certified roots where it
     /// crosses the ball's boundary, the one it enters by first.
     pub(crate) cut_ends: Option<[Point3<T>; 2]>,
-    /// A point of it decided inside the ball.
+    /// A point of it decided inside the ball (module docs: where).
     pub(crate) witness: Point3<T>,
     /// A loop of one sheet over the whole turn, which winds about the
     /// ruled side.
@@ -674,6 +680,14 @@ enum Leaf<T: Real> {
         entering: bool,
         at: Point3<T>,
     },
+}
+
+impl<T: Real> Leaf<T> {
+    fn cell(&self) -> &Cell<T> {
+        match self {
+            Self::Inside(cell) | Self::Outside(cell) | Self::Root { cell, .. } => cell,
+        }
+    }
 }
 
 /// One reading along a loop, in the loop's order.
@@ -760,7 +774,7 @@ impl<T: Decide, R: Ruled<T>> Sweeper<'_, T, R> {
                     .into_iter()
                     .map(|l| self.event(l, sheet, false))
                     .collect();
-                components.extend(cut_loop(events, true)?);
+                components.extend(cut_loop(events, true, 0)?);
             }
             return Ok(Sweep {
                 components,
@@ -919,14 +933,22 @@ impl<T: Decide, R: Ruled<T>> Sweeper<'_, T, R> {
         let mut smooth = arc.smooth.clone();
         let rise = self.branch_side(arc.rise, true, &mut smooth)?;
         let fall = self.branch_side(arc.fall, false, &mut smooth)?;
+        let plus = self.leaves(&smooth, Sheet::Plus)?;
+        // The leaf at the arc's middle, by the angle the arc spans: the
+        // leaves tile `smooth`, which runs from the rise to the fall.
+        let half = smooth.iter().map(Cell::width).sum::<f64>() / 2.0;
+        let middle = plus
+            .iter()
+            .scan(0.0, |run, l| {
+                *run += l.cell().width();
+                Some(*run)
+            })
+            .position(|run| run >= half)
+            .unwrap_or(plus.len().saturating_sub(1));
         // Along the loop: the first sheet from the rise to the fall, then
         // the second back.
         let mut events = vec![Event::Side(rise, None)];
-        events.extend(
-            self.leaves(&smooth, Sheet::Plus)?
-                .into_iter()
-                .map(|l| self.event(l, Sheet::Plus, false)),
-        );
+        events.extend(plus.into_iter().map(|l| self.event(l, Sheet::Plus, false)));
         events.push(Event::Side(fall, None));
         let back: Vec<Event<T>> = self
             .leaves(&smooth, Sheet::Minus)?
@@ -935,7 +957,7 @@ impl<T: Decide, R: Ruled<T>> Sweeper<'_, T, R> {
             .map(|l| self.event(l, Sheet::Minus, true))
             .collect();
         events.extend(back);
-        cut_loop(events, false)
+        cut_loop(events, false, 1 + middle)
     }
 
     /// **A branch point's side of the ball**, read sheet-wise: both
@@ -1198,11 +1220,12 @@ type Stretch<T> = (Point3<T>, Point3<T>, Vec<Point3<T>>);
 /// **One loop's readings cut into its components**: each stretch inside
 /// the ball between an entering cut end and the next leaving one is an
 /// open component; a loop no cut end crosses is one component where it
-/// lies inside, none where outside. `encircles` is the loop's winding
-/// about the ruled side.
+/// lies inside, none where outside, witnessed at `events[middle]`.
+/// `encircles` is the loop's winding about the ruled side.
 fn cut_loop<T: Real>(
     events: Vec<Event<T>>,
     encircles: bool,
+    middle: usize,
 ) -> Result<Vec<Swept<T>>, SweepRefusal> {
     let inconsistent =
         SweepRefusal::Inconsistent("the ruling sweep reads one stretch of a sheet on both sides");
@@ -1218,26 +1241,25 @@ fn cut_loop<T: Real>(
         if events.iter().any(|e| matches!(e, Event::Cut { .. })) {
             return Err(inconsistent);
         }
-        let sides: Vec<(bool, Option<Point3<T>>)> = events
+        let sides: Vec<bool> = events
             .iter()
             .filter_map(|e| match *e {
-                Event::Side(inside, at) => Some((inside, at)),
+                Event::Side(inside, _) => Some(inside),
                 Event::Cut { .. } => None,
             })
             .collect();
-        let inside = sides.first().is_some_and(|s| s.0);
-        if sides.iter().any(|s| s.0 != inside) {
+        let inside = sides.first().copied().unwrap_or(false);
+        if sides.iter().any(|&s| s != inside) {
             return Err(inconsistent);
         }
         if !inside {
             return Ok(Vec::new());
         }
-        let points: Vec<Point3<T>> = sides.iter().filter_map(|s| s.1).collect();
-        let witness = *points
-            .get(points.len() / 2)
-            .ok_or(SweepRefusal::Inconsistent(
-                "the ruling sweep read a loop inside the ball at no point",
-            ))?;
+        let Some(Event::Side(true, Some(witness))) = events.get(middle).copied() else {
+            return Err(SweepRefusal::Inconsistent(
+                "the ruling sweep read a loop inside the ball but no point at its middle",
+            ));
+        };
         return Ok(vec![Swept {
             cut_ends: None,
             witness,
@@ -1748,6 +1770,75 @@ mod tests {
                     "{label}: the least is the far reach, {least} against {}",
                     big_r - (d + r)
                 );
+            }
+        }
+    }
+
+    /// **A loop is witnessed where its sheets stand farthest apart**: the
+    /// march seeds at the witness and its fit ends there, so a witness at
+    /// the far ruling puts both ends of the fit on the loop's sharpest
+    /// turn when the loop runs close to the node. For one loop and two,
+    /// near the node and clear of it, on a turned wall, in both orders,
+    /// every witness's ruling angle lies within a first cell of the near
+    /// ruling, `φ = 0`.
+    #[test]
+    fn a_loop_is_witnessed_at_the_near_ruling() {
+        let sphere = |c: (f64, f64, f64), radius: f64| Surface::Sphere {
+            center: Point3::new(c.0, c.1, c.2),
+            radius,
+            axis: Vec3::unit_z(),
+            u_ref: Vec3::unit_x(),
+        };
+        let upright = wall((0.0, 0.0, 0.0), Vec3::unit_z(), 0.5);
+        let turned = wall((0.1, -0.2, 0.3), Vec3::new(0.3, -0.2, 1.0), 0.4);
+        let poses = [
+            ("one loop", &upright, sphere((0.6, 0.0, 0.2), 0.3), 1),
+            (
+                "one loop near the node",
+                &upright,
+                sphere((0.2, 0.0, 0.0), 0.699),
+                1,
+            ),
+            ("two loops", &upright, sphere((0.1, 0.0, 0.2), 0.7), 2),
+            (
+                "two loops near the node",
+                &upright,
+                sphere((0.2, 0.0, 0.0), 0.701),
+                2,
+            ),
+            (
+                "turned, one loop",
+                &turned,
+                sphere((0.6, 0.1, 0.5), 0.35),
+                1,
+            ),
+            (
+                "turned, two loops",
+                &turned,
+                sphere((0.2, -0.1, 0.0), 0.9),
+                2,
+            ),
+        ];
+        #[allow(clippy::cast_precision_loss)]
+        let first_cell = core::f64::consts::TAU / super::START as f64;
+        for (what, c, s, loops) in poses {
+            for (order, x, y) in [("cylinder, sphere", c, &s), ("sphere, cylinder", &s, c)] {
+                let label = format!("{what} ({order})");
+                let pose = CylinderSpherePose::decide(x, y, band())
+                    .expect("a cylinder and a sphere")
+                    .unwrap_or_else(|e| panic!("{label}: a decided pose: {e:?}"));
+                let ruled = pose.ruled().expect("an off-axis centre");
+                let swept = sweep(&ruled, pose.sweep_ball(band()), band())
+                    .unwrap_or_else(|e| panic!("{label}: the sweep: {e:?}"));
+                assert_eq!(swept.components.len(), loops, "{label}: its loops");
+                for c in &swept.components {
+                    let w = c.witness - ruled.foot;
+                    let phi = w.dot(ruled.v).atan2(w.dot(ruled.n));
+                    assert!(
+                        phi.abs() <= first_cell,
+                        "{label}: witnessed at φ {phi}, past {first_cell} from the near ruling"
+                    );
+                }
             }
         }
     }

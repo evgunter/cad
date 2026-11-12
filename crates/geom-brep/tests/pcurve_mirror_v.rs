@@ -22,8 +22,8 @@ use std::sync::Arc;
 
 use geom::{Curve3, NurbsCurve2, Surface};
 use geom_brep::{
-    CertCheck, CertifyError, EdgeCurve, EdgeCurveSpec, EdgeDescriptionSpec, FocalImage, Pcurve,
-    Period, SpiricImage, SurfaceKey, SurfacePair, WallTorus,
+    CertifyError, EdgeCurve, EdgeCurveSpec, EdgeDescriptionSpec, FocalImage, Pcurve, Period,
+    SpiricImage, SurfaceKey, SurfacePair, WallTorus,
 };
 use geom_core::spline::KnotVector;
 use geom_core::{Band, Point2, Point3, Tol, Vec2, Vec3};
@@ -447,11 +447,12 @@ fn chart_edge(
 
 /// At the `EdgeCurve` door: a chart image on a plane whose normal is
 /// then negated (what `Body::revert` does). The image as stored
-/// refuses `ChartResidual` on the reverted plane at sample 0 (each
+/// refuses `StatedImage` on the reverted plane at sample 0 (each
 /// image here starts off the `u_ref` axis, so its first sample already
 /// has a `v` channel to get wrong); the
-/// mirrored image certifies there with a certificate `Debug`-identical
-/// to the one it carried across; the door is an involution. Three of
+/// mirrored image certifies there with the certificate it carried
+/// across, to the rounding of a bound over the span; the door is an
+/// involution. Three of
 /// the kinds a plane can carry — a harmonic circle, an iso line, a
 /// general NURBS line — each with a non-zero `v` channel.
 #[test]
@@ -518,11 +519,7 @@ fn mirrored_chart_images_recertify_on_the_reverted_plane_with_the_same_certifica
         assert!(
             matches!(
                 stale,
-                Err(CertifyError::ResidualExceeded {
-                    check: CertCheck::ChartResidual,
-                    sample: 0,
-                    ..
-                })
+                Err(CertifyError::StatedImageMissed { sample: 0, .. })
             ),
             "{name}: the stored image on the reverted plane: {stale:?}"
         );
@@ -539,10 +536,16 @@ fn mirrored_chart_images_recertify_on_the_reverted_plane_with_the_same_certifica
                 geom_brep::NurbsLane::certified(),
             )
             .unwrap_or_else(|e| panic!("{name}: mirrored refused on the reverted plane {e:?}"));
-        assert_eq!(
-            format!("{fresh:?}"),
-            format!("{:?}", mirrored.certificate()),
-            "{name}: the travelling certificate is not the fresh run's"
+        // A sampled residual is the run's own number; a bound over the
+        // span (a stated iso line or curve in UV on a plane) bounds the same
+        // miss, its rounding read through the mirrored patch.
+        let carried = mirrored.certificate();
+        assert_eq!(fresh.samples, carried.samples, "{name}: one schedule");
+        assert!(
+            fresh.max_residual <= band.zero()
+                && (fresh.max_residual - carried.max_residual).abs() <= 1e-13,
+            "{name}: the travelling certificate is the fresh run's to rounding: \
+             {fresh:?} against {carried:?}"
         );
         assert_eq!(
             format!(

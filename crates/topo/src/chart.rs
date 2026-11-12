@@ -192,10 +192,24 @@ impl<T: Decide> Chart<T> {
 }
 
 impl Chart<f64> {
+    /// **Whether the chart is a horn's sheet**: a spindle sheet whose
+    /// apexes are one cusp (`geom::sheet_apex` closes its height at
+    /// zero), at `v = ±π` alike. [`Self::poles`] lists that cusp once, at
+    /// `π`; a face reaching it from below names it `−π` (`mesh`'s walk).
+    pub fn is_horn(&self) -> bool {
+        match self.kind {
+            ChartKind::Spindle { major, minor } => geom::sheet_apex(major, minor).height == 0.0,
+            ChartKind::Cylinder { .. }
+            | ChartKind::Cone { .. }
+            | ChartKind::Sphere { .. }
+            | ChartKind::Torus { .. } => false,
+        }
+    }
+
     /// The chart's singular points with their v values: the list
     /// [`geom_brep::chart_singularity::singular_points`] states (sphere
     /// poles, cone apex, a spindle sheet's apexes at `v = ±v*`, a
-    /// horn's one cusp once; empty otherwise).
+    /// horn's one cusp once, [`Self::is_horn`]; empty otherwise).
     pub fn poles(&self) -> Vec<(Point3<f64>, f64)> {
         use geom_brep::chart_singularity::Singularity;
         let v_star = || match self.kind {
@@ -207,16 +221,7 @@ impl Chart<f64> {
                 unreachable!("Chart::poles: only a spindle sheet has sheet apexes")
             }
         };
-        // A horn (`geom::sheet_apex` closes its height at zero) has one
-        // cusp, both of its apexes: listed once, as the upper, at
-        // `v* = π`, where the sheet's latitude window reads it.
-        let horn = match self.kind {
-            ChartKind::Spindle { major, minor } => geom::sheet_apex(major, minor).height == 0.0,
-            ChartKind::Cylinder { .. }
-            | ChartKind::Cone { .. }
-            | ChartKind::Sphere { .. }
-            | ChartKind::Torus { .. } => false,
-        };
+        let horn = self.is_horn();
         geom_brep::chart_singularity::singular_points(&self.inverse)
             .into_iter()
             .filter(|(which, _)| !(horn && *which == Singularity::SheetApexDown))

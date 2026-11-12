@@ -62,8 +62,8 @@ pub enum TangentLocusError {
     },
     /// The configuration is outside the closed-form lane (kinds other
     /// than plane×cylinder / parallel cylinders, or a non-parallel
-    /// axis relation): the demanded set IS the certifiable set — no
-    /// sampled locus, ever.
+    /// axis relation): outside the lane no closed-form locus is
+    /// demanded, and none is ever sampled.
     Unsupported {
         /// Why the configuration has no closed-form locus.
         what: &'static str,

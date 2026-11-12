@@ -29,7 +29,9 @@ fn sector<T: Decide>(
 ) -> Result<FaceSector<T>, TouchUnread> {
     match FaceSector::tangent(surface, sense, outward, apex, fan_of, band)? {
         TangentPiece::Sector(sector) => Ok(sector),
-        TangentPiece::Horn(_) => Err(TouchUnread::Curved(CurvedUnread::Unreadable)),
+        TangentPiece::Horn(_) | TangentPiece::Apex(_) => {
+            Err(TouchUnread::Curved(CurvedUnread::Unreadable))
+        }
     }
 }
 
@@ -94,6 +96,7 @@ fn tag(edge: EdgeKey, line: bool) -> Bound<f64> {
     Bound {
         edge,
         line,
+        circle: false,
         bend: Vec3::zero(),
     }
 }
