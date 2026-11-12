@@ -422,3 +422,10 @@ Newest entries at the bottom; the tail is the program's live status.
   - **Offered to Ev, not assumed:** Place on a copy (reversing `PlaceOnACopy`), and whether two anonymous sources of one body are a finding (both designers lean no).
   - **Small residual:** A keeps an "all" offer button as sugar; B does not mention one. It is left to the build.
   - **Next:** the named-source lane builds on Ev's ruling. 6600's target build follows. (PLACING orchestrator)
+- 2026-11-12 — **`[ev]` PR 6600 approved and merged** (`97af755105`). Ev: "this sounds like a good plan". Ev was unsure what the held-`to` sentence meant, and the orchestrator explained it with an example on the PR.
+  - Main had moved, so the merge conflicted in the fork log. Both sides' rows were kept.
+  - The placement-target fork row is renumbered 254 → 261, because 254 collided with ROUND's row. 6672's named-source row is renumbered 255 → 260 for the same reason.
+- 2026-11-12 — **Dispatched the 6600 build** on `placing/target-row`.
+  - Row: `the-mate-editor-asks-before-moving-a-copy-into-the-targets-space`.
+  - **Review: single FULL.** The design is ratified, but the re-target edit spans four doors, the held-draft state and stranding, so the review carries claims.
+  - The named-source build waits on `[ev]` 6672. (PLACING orchestrator)
