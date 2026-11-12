@@ -5396,18 +5396,14 @@ enum CrossingBacking {
 ///    boundary edges" read as a decided screen: an edge DIVING
 ///    through the carrier crosses in-plane edges at plane level, and
 ///    such a transverse crossing is interpenetration however the seat
-///    is declared), and the carriers not definitely transverse at the
-///    crossing ([`geom_brep::classify_dihedral`], the same all-smooth
-///    gate the tier-3 wedge pass and the rim-wedge screen run);
-/// 2. the side question is validly posed and answers
-///    [`CrossingSideVerdict::OppositeSides`] — the Smooth-site
-///    precondition is ESTABLISHED by type: the pairing is asked of
-///    the tangency token the dihedral of 1 returns
-///    ([`geom_brep::Tangency::pairing`]), decided by that one sense
-///    algebra (which mints both outward normals itself from the
-///    faces' `Face::sense` bits, levered by
-///    [`geom_brep::folded_lever_arm`] over the shorter edge — the
-///    same arm the parallel gate meters). No new numerics; and
+///    is declared);
+/// 2. the pair's two planes are one carrier, and its materials lie on
+///    opposite sides of it: the pair's carrier relation
+///    ([`crate::boolean::carrier_pair_relation`]) reads
+///    `SameOpposite`, the reading the confirm pass reads the same pair
+///    by ([`pair_contact`]), decided once over both faces. `SameOriented`
+///    is [`CrossingSideVerdict::SameSide`], and two distinct planes
+///    answer for nothing; and
 /// 3. the pair itself is CONFIRMED ([`Declared::confirmed`]): a record
 ///    that confirms ([`Declared::confirm`]), or a pair the planar
 ///    face-pair arm found, and the crossing lies in the closure of its
@@ -5459,6 +5455,7 @@ fn ee_cross_backed<T: Decide>(
     band: Band,
     errors: &mut Vec<ValidationError>,
 ) -> CrossingBacking {
+    use crate::boolean::{CarrierEqError, CarrierRelation};
     // Pass 1: one collected outcome per unordered candidate pair.
     let mut backed = false;
     let mut same_side = false;
@@ -5477,33 +5474,30 @@ fn ee_cross_backed<T: Decide>(
         {
             continue; // the pair's carrier does not hold the crossing
         }
-        // Both faces are in the snapshot, read off the live arena.
-        let (da, db) = (body.proven_face(fa), body.proven_face(fb));
-        let (sa, sb) = (da.surface(), db.surface());
-        let chord = |e: &EdgeGeo<T>| geom_brep::ExtentBall::point(e.p0).lever_from(e.p1);
-        let arm_extent = chord(ea).min(chord(eb));
-        // The last carrier screen, and the Smooth-site precondition the
-        // pairing below states. The edge screen reads points against
-        // each plane; this reads the planes against each other, at the
-        // crossing. Two edges can run within the zero band of two
-        // transverse planes where both hug the planes' common line, so a
-        // definitely transverse pair passes the edge screen and still
-        // does not hold the crossing: it answers for nothing.
-        let tangency = match geom_brep::classify_dihedral(sa, sb, q, arm_extent, band) {
-            Ok(geom_brep::Dihedral::Tangent(tangency)) => tangency,
-            Ok(geom_brep::Dihedral::Corner(_)) => continue,
-            Err(escalation) => {
-                undecided.push(escalation.diag());
+        // The pair's own carrier relation, decided once for the pair over
+        // both faces, as the confirm pass reads it ([`pair_contact`]):
+        // the edge screen reads points against each plane, and this the
+        // planes against each other. Two edges can run within the zero
+        // band of two transverse planes where both hug the planes' common
+        // line, so a pair whose planes are distinct passes the edge
+        // screen and still does not hold the crossing: it answers for
+        // nothing.
+        let side = match crate::boolean::carrier_pair_relation(body, fa, body, fb, band) {
+            Ok(Ok(CarrierRelation::SameOpposite)) => CrossingSideVerdict::OppositeSides,
+            Ok(Ok(CarrierRelation::SameOriented)) => CrossingSideVerdict::SameSide,
+            Ok(Ok(CarrierRelation::Distinct)) => continue,
+            Ok(Err(CarrierEqError::Undecided { coincidence, .. })) => {
+                undecided.push(coincidence.reported());
                 continue;
             }
-        };
-        let side = match tangency.pairing([da.sense(), db.sense()], band) {
-            Ok(geom_brep::MaterialPairing::Opposed) => CrossingSideVerdict::OppositeSides,
-            Ok(geom_brep::MaterialPairing::Aligned) => CrossingSideVerdict::SameSide,
-            Err(escalation) => {
-                undecided.push(escalation.diag());
+            Ok(Err(CarrierEqError::Escalated { diag, .. })) => {
+                undecided.push(diag);
                 continue;
             }
+            // Two planes have no ring convention to be off; a pair whose
+            // extent does not read has no relation for the crossing to
+            // stand on, and answers nothing, as [`pair_contact`] reads it.
+            Ok(Err(CarrierEqError::OffRing { .. })) | Err(_) => continue,
         };
         if side == CrossingSideVerdict::OppositeSides {
             // An opposite-sides pair that is not confirmed answers for

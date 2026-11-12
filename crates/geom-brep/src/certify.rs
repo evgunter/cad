@@ -3845,8 +3845,9 @@ fn check_residual<T: Decide>(
 }
 
 /// **σ, the orientation of the shared normal** at a tangent sample: the
-/// sign of the two unit implicit gradients' alignment, which must be
-/// definite (`decide_nonzero`). At a tangency the normals are parallel,
+/// two implicit gradients' alignment ([`crate::gradient_alignment`]),
+/// which must be `Same` or `Reversed`; a perpendicular pair is refused as
+/// the nonzero gate refuses a zero. At a tangency the normals are parallel,
 /// so the cosine is `±1`, as far from zero as it can be; it is metered
 /// over the edge's extent, the ordinary angular door, so a surface
 /// curving on a scale near ε (whose folded arm puts every angle in
@@ -3867,17 +3868,26 @@ fn gap_orientation<T: Decide>(
     sample: u32,
     band: Band,
 ) -> Result<T, CertifyError> {
-    let (g1, g2) = (
-        crate::implicit::implicit_gradient(surf1, p),
-        crate::implicit::implicit_gradient(surf2, p),
-    );
-    let (n1, n2) = (g1.normalize(), g2.normalize());
+    use crate::dihedral::GradientAlignment;
+    const TANGENT_GAP_ORIENTATION: &str = "tangent_gap_orientation";
     let (oriented, orientation) = geom_core::k_stats::detached(|| {
-        geom_core::k_stats::decide_nonzero(
-            "tangent_gap_orientation",
-            Margin::levered(n1.dot(n2), extent),
+        match crate::dihedral::gradient_alignment(
+            TANGENT_GAP_ORIENTATION,
+            surf1,
+            surf2,
+            p,
+            extent,
             band,
-        )
+        )? {
+            (GradientAlignment::Same, _) => Ok(geom_core::NonzeroSign::Positive),
+            (GradientAlignment::Reversed, _) => Ok(geom_core::NonzeroSign::Negative),
+            (GradientAlignment::Perpendicular, decided) => Err(geom_core::k_stats::gate_rejection(
+                TANGENT_GAP_ORIENTATION,
+                decided,
+                band,
+                geom_core::SizedPass::NonZero,
+            )),
+        }
     });
     let cause = match oriented {
         Ok(sign) => {
@@ -3886,6 +3896,10 @@ fn gap_orientation<T: Decide>(
         }
         Err(cause) => cause,
     };
+    let (g1, g2) = (
+        crate::implicit::implicit_gradient(surf1, p),
+        crate::implicit::implicit_gradient(surf2, p),
+    );
     let arm = crate::folded_lever_arm(surf1, surf2, p, extent);
     if let Some(margin) = named_by_parallelism(crate::tangent::normal_sine(g1, g2), arm, band) {
         geom_core::k_stats::splice_superseded(orientation);

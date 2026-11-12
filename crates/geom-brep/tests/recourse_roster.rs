@@ -48,6 +48,14 @@ use test_utils::source::{FORWARDS, NameCarrier, crate_dir, predicate_census, ros
 const CARRIERS: &[NameCarrier] = &[
     NameCarrier::Const("SQUARE_ORDER"),
     NameCarrier::Const("RADII"),
+    NameCarrier::Const("POSE_AXES_PARALLEL"),
+    NameCarrier::Const("POSE_AXIS_PARALLEL_TO_PLANE"),
+    NameCarrier::Const("POSE_PLANES_FACING"),
+    NameCarrier::Const("POSE_PLANES_PARALLEL"),
+    NameCarrier::Const("POSE_ROUND_LARGER"),
+    NameCarrier::Const("POSE_ROUND_SIDE"),
+    NameCarrier::Const("TANGENT_GAP_ORIENTATION"),
+    NameCarrier::Const("GRADIENT_ALIGNMENT_LEVER"),
     // The forwarders a `FORWARDS` line names, declared so their callers'
     // names are read (`roster_violations` holds each line to one).
     NameCarrier::Call("apart_in_order_as"),
@@ -67,7 +75,9 @@ const CARRIERS: &[NameCarrier] = &[
     NameCarrier::Call("old_pole_arc_full_as"),
     NameCarrier::Call("old_rim_only_closed_as"),
     NameCarrier::Call("old_span_as"),
-    NameCarrier::Call("pairing_reading_as"),
+    NameCarrier::Call("gradient_alignment"),
+    NameCarrier::Call("parallel_as"),
+    NameCarrier::Call("cosine_read"),
     NameCarrier::Call("plane_cone_section"),
     NameCarrier::Call("require_positive_as"),
     NameCarrier::Call("require_solid_angle_as"),
@@ -254,10 +264,9 @@ const INDIRECT: &[(&str, &str)] = &[
     ("curve_pair/walk.rs: stops: row", CLOSURE_FORWARDS),
     ("curve_pair/walk.rs: surely: name", FORWARDS),
     ("dihedral.rs: classify_edge_wedge: name", CROSS_CRATE),
-    (
-        "dihedral.rs: classify_material_pairing_as: name",
-        CROSS_CRATE,
-    ),
+    ("dihedral.rs: gradient_alignment: name", CROSS_CRATE),
+    ("dihedral.rs: cosine_read: name", FORWARDS),
+    ("carrier_pose.rs: parallel_as: name", FORWARDS),
     ("dihedral.rs: decide: name", FORWARDS),
     ("dihedral.rs: decide_magnitude: name", FORWARDS),
     ("dihedral.rs: decide_magnitude_reported: name", FORWARDS),
@@ -267,7 +276,6 @@ const INDIRECT: &[(&str, &str)] = &[
     ("dihedral.rs: decide_reported: name", FORWARDS),
     ("dihedral.rs: gate: name", FORWARDS),
     ("dihedral.rs: pairing_of_normals: name", FORWARDS),
-    ("dihedral.rs: pairing_reading_as: name", FORWARDS),
     ("dihedral_side.rs: chart_point_normal: name", FORWARDS),
     ("dihedral_side.rs: near_as: name", FORWARDS),
     (

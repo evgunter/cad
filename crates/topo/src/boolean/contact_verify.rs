@@ -54,11 +54,11 @@
 
 use geom::Curve3;
 use geom_brep::{
-    CERT_SAMPLES, PairSide, implicit_outward_normal, schedule_param, tangent_certificate_lane,
-    tangent_jet, tangent_span_bounds,
+    CERT_SAMPLES, PairSide, schedule_param, tangent_certificate_lane, tangent_jet,
+    tangent_span_bounds,
 };
 use geom_core::k_stats::Magnitude;
-use geom_core::{Band, Decide, Decided, Indeterminate, Margin, Sign, Vec3};
+use geom_core::{Band, Decide, Decided, Indeterminate, Margin, Sign};
 
 use crate::body::Body;
 use crate::contact::{
@@ -454,30 +454,22 @@ fn tangent_pass<T: Decide>(
             geom_brep::implicit_residual(s1, p),
             geom_brep::implicit_residual(s2, p),
         );
-        // (1) Which way the two OUTWARD normals point, metered over the
-        // extent as the edge certifier reads it
-        // (`tangent_gap_orientation`): a surface curving on a scale near
-        // ε still has an orientation, and its refusal is the second-order
-        // arm's, below. Perpendicular normals are definite normal
-        // INDEPENDENCE, C4's first trigger; whether they agree or oppose
-        // is read against the claim once the sample reads tangent (3).
-        let n1: Vec3<T> = implicit_outward_normal(s1, sense1, p).vec();
-        let n2: Vec3<T> = implicit_outward_normal(s2, sense2, p).vec();
+        // (1) Which way the two normals point, metered over the extent
+        // as the edge certifier reads it (`tangent_gap_orientation`,
+        // through the same door): a surface curving on a scale near ε
+        // still has an orientation, and its refusal is the second-order
+        // arm's, below. Perpendicular normals past an extent decided
+        // positive are definite normal INDEPENDENCE, C4's first trigger;
+        // whether the faces' materials agree or oppose is read against
+        // the claim once the sample reads tangent (3).
         let arm = geom_brep::folded_lever_arm(s1, s2, p, extent);
-        let senses = match crate::validate::decide_reported(
-            "contact_tangent_opposed",
-            Margin::levered(n1.dot(n2), extent),
-            band,
-        ) {
-            Ok(
-                by @ Decided {
-                    sign: Sign::Zero, ..
-                },
-            ) => return Err(ruled(TangentRow::Independent, by)),
-            Ok(by) => by,
-            Err(diag) => return Err(Unsettled::InBand(diag)),
+        let (alignment, senses) =
+            geom_brep::gradient_alignment("contact_tangent_opposed", s1, s2, p, extent, band)
+                .map_err(Unsettled::InBand)?;
+        let agree = match alignment.turned([sense1, sense2]) {
+            Some(pairing) => pairing == geom_brep::MaterialPairing::Aligned,
+            None => return Err(ruled(TangentRow::Independent, senses)),
         };
-        let agree = senses.sign == Sign::Positive;
         // (2) The touch, before the witness: the pair's separation
         // along the shared normal ([`touching`]), its orientation σ the
         // one (1) decided, the second face read as reversed where the
@@ -863,6 +855,40 @@ mod tests {
             panic!("expected the independence row, got {read:?}");
         };
         assert_eq!(by.sign, Sign::Zero, "perpendicular normals: {by:?}");
+    }
+
+    /// **Perpendicular normals over a collapsed locus are no verdict.**
+    /// The independence row's sphere and plane, read over a stretch of the
+    /// equator far under the band: the normals' cosine levered by the
+    /// locus's extent reads zero whatever the angle between them, so it is
+    /// independence only past an extent decided positive, and the
+    /// collapsed one refuses on that gate (`gradient_alignment_lever`).
+    /// Red if a collapsed extent rules the pair definitely independent.
+    #[test]
+    fn perpendicular_normals_over_a_collapsed_locus_refuse() {
+        let sphere = Surface::Sphere {
+            center: Point3::origin(),
+            radius: 1.0,
+            axis: Vec3::new(0.0, 0.0, 1.0),
+            u_ref: Vec3::new(1.0, 0.0, 0.0),
+        };
+        let flat = plane([0.0, 0.0, 0.0], [0.0, 0.0, 1.0]);
+        let equator = geom::Curve3::circle(
+            Point3::origin(),
+            Vec3::new(0.0, 0.0, 1.0),
+            1.0,
+            Vec3::new(1.0, 0.0, 0.0),
+        );
+        let span = band().zero() * 1e-3;
+        let read = tangent_locus_relation(&sphere, true, &flat, false, &equator, 0.0, span, band());
+        let TangentVerdict::InBand(diag) = read else {
+            panic!("a collapsed locus refuses, not {read:?}");
+        };
+        assert_eq!(
+            diag.predicate,
+            Some(geom_brep::GRADIENT_ALIGNMENT_LEVER),
+            "the lever gate refuses: {diag:?}"
+        );
     }
 
     /// **An exactly zero relative curvature escalates.** Two coincident
@@ -1513,7 +1539,7 @@ mod tests {
         // across the plane's normal, in the circle's normal plane.
         let across = |t: f64| {
             let (p, tau) = circle.ders1(t);
-            implicit_outward_normal(&first, true, p)
+            geom_brep::implicit_outward_normal(&first, true, p)
                 .vec()
                 .dot(tau.cross(m).normalize())
         };
@@ -1560,9 +1586,9 @@ mod tests {
             assert!(parallel(&read) || neutral, "started at {t0}: {read:?}");
         }
         let p = circle.eval(opposed + tau / 8.0);
-        let dot = implicit_outward_normal(&first, true, p)
+        let dot = geom_brep::implicit_outward_normal(&first, true, p)
             .vec()
-            .dot(implicit_outward_normal(&second, true, p).vec());
+            .dot(geom_brep::implicit_outward_normal(&second, true, p).vec());
         assert!(
             dot > 0.1,
             "the next station reads the normals aligned: {dot}"

@@ -926,18 +926,6 @@ pub struct GapAssertion {
 /// is negative.
 pub(crate) const AT_REST_QUIET_BOUND: &str = "at_rest_quiet_bound";
 
-/// The funnel site name of the quieting rule's decision that two faces'
-/// materials face each other.
-pub(crate) const AT_REST_QUIET_OPPOSED: &str = "at_rest_quiet_opposed";
-
-/// The funnel site name of the quieting rule's decision that two
-/// cylinders' axes are parallel.
-pub(crate) const AT_REST_QUIET_AXES_PARALLEL: &str = "at_rest_quiet_axes_parallel";
-
-/// The funnel site name of the quieting rule's decision that two
-/// cylinders share an axis, or two spheres a centre.
-pub(crate) const AT_REST_QUIET_CENTRED: &str = "at_rest_quiet_centred";
-
 /// **Every assertion in `doc` that can quiet an interference between
 /// two of `copies`** ([`GapAssertion`]), in document order.
 ///
@@ -1014,134 +1002,25 @@ pub(crate) fn gap_assertions<P: crate::ProfilePayload, T: Decide + topo::AtRestP
 
 /// **Whether a `Gap`'s two faces are opposed**: each faces the other's
 /// material, which is the mating configuration C5's gap is written for
-/// (two planes whose outward normals oppose, a bore about a pin, a
-/// socket about a ball). The material pairing door decides it, read at
-/// a point of the outer face and levered by the two faces' reach from
-/// it, as the census reads two faces' sides; a pairing it cannot decide
-/// is not opposed.
-///
-/// One point answers for the whole pair only where the pairing is the
-/// same at every point of the two faces ([`constant_pairing`]): two
-/// planes, two cylinders on one axis, two spheres about one centre.
-/// Any other pair is not opposed, so its finding stays loud: read at
-/// one point, two parallel shafts side by side would pair one way at
-/// one bearing and the other way at the next.
+/// (two plates face to face, a bore about a pin, a socket about a ball,
+/// two rods side by side). It is the facing of the pose the `Gap` over
+/// the two faces is read in ([`crate::eval::measure::facing`]), so the
+/// quieting rule and the measure decide the pair once, alike; a pair the
+/// measure reads in no pose (two planes not parallel, a cone) or whose
+/// facing does not decide is not opposed, and its finding stays loud.
 fn opposed<T: Decide>(body: &Body<T>, outer: FaceKey, inner: FaceKey, band: Band) -> bool {
-    let Some(read) = pairing_read(body, outer, inner, band) else {
-        return false;
-    };
-    let arm = geom_brep::folded_lever_arm(
-        read.outer.0,
-        read.inner.0,
-        read.at,
-        // Unsourced lever: the faces' wedge reach (`crate::eval::measure::reach_of`), measured as a
-        // bare length outside the extent home.
-        geom_core::Lever::unsourced(read.reach),
-    );
-    geom_brep::classify_material_pairing_as(
-        AT_REST_QUIET_OPPOSED,
-        read.outer.0,
-        read.outer.1,
-        read.inner.0,
-        read.inner.1,
-        read.at,
-        arm,
-        band,
-    ) == Ok(geom_brep::MaterialPairing::Opposed)
-}
-
-/// **Where one reading answers for two faces' pairing**
-/// ([`pairing_read`]): each face's carrier and sense, the point of the
-/// outer face it is read at, and the farther of the two faces' reach
-/// from it.
-struct PairingRead<'b, T: Decide> {
-    outer: (&'b geom::Surface<T>, bool),
-    inner: (&'b geom::Surface<T>, bool),
-    at: geom_core::Point3<T>,
-    reach: T,
-}
-
-/// **The pairing of two faces, where one reading answers for it**: the
-/// reading at a point of the outer face, or `None` where the faces do
-/// not pair their materials alike at every point ([`constant_pairing`])
-/// or do not read. [`opposed`] decides the pairing on it, which both the
-/// quieting rule and [`could_quiet`] ask.
-fn pairing_read<T: Decide>(
-    body: &Body<T>,
-    outer: FaceKey,
-    inner: FaceKey,
-    band: Band,
-) -> Option<PairingRead<'_, T>> {
-    use crate::eval::measure::reach_of;
-    let carrier = |key: FaceKey| Some((body.face_surface(key)?, body.get_face(key)?.sense));
-    let (outer_carrier, inner_carrier) = (carrier(outer)?, carrier(inner)?);
-    let at = face_point(body, outer)?;
-    let (r_outer, r_inner) = (
-        reach_of(body, outer, at, band)?,
-        reach_of(body, inner, at, band)?,
-    );
-    constant_pairing(outer_carrier.0, inner_carrier.0, r_outer + r_inner, band).then(|| {
-        PairingRead {
-            outer: outer_carrier,
-            inner: inner_carrier,
-            at,
-            reach: r_outer.max(r_inner),
-        }
-    })
-}
-
-/// **Whether two carriers pair their materials alike at every point**:
-/// two planes; two cylinders whose axes are parallel, levered by
-/// `extent`, and one line; two spheres about one centre. Every other
-/// pair, and a pair whose decision lands in band, is not.
-fn constant_pairing<T: Decide>(
-    outer: &geom::Surface<T>,
-    inner: &geom::Surface<T>,
-    extent: T,
-    band: Band,
-) -> bool {
-    use geom::Surface as S;
-    let zero_as = |name, margin| decide(name, margin, band) == Ok(Sign::Zero);
-    match (outer, inner) {
-        (S::Plane { .. }, S::Plane { .. }) => true,
-        (
-            S::Cylinder {
-                origin: o1,
-                axis: a1,
-                ..
+    let carrier = |key| {
+        crate::eval::measure::carrier_of(
+            body,
+            EntityRef {
+                body: 0,
+                key: EntityKey::Face(key),
             },
-            S::Cylinder {
-                origin: o2,
-                axis: a2,
-                ..
-            },
-        ) => {
-            let rel = *o2 - *o1;
-            zero_as(
-                AT_REST_QUIET_AXES_PARALLEL,
-                // Unsourced lever: two faces' reaches from one point summed
-                // (`crate::eval::measure::reach_of`), a sum no extent read spells.
-                Margin::levered(a1.cross(*a2).norm(), geom_core::Lever::unsourced(extent)),
-            ) && zero_as(
-                AT_REST_QUIET_CENTRED,
-                Margin::of((rel - *a1 * rel.dot(*a1)).norm()),
-            )
-        }
-        (S::Sphere { center: c1, .. }, S::Sphere { center: c2, .. }) => {
-            zero_as(AT_REST_QUIET_CENTRED, Margin::of((*c2 - *c1).norm()))
-        }
-        _ => false,
-    }
-}
-
-/// A point of face `key`: the start of its outer loop.
-fn face_point<T: Decide>(body: &Body<T>, key: FaceKey) -> Option<geom_core::Point3<T>> {
-    let (_, outer, _) = body.face(key)?.loops().next()?;
-    let vertex = match outer.boundary {
-        topo::LoopBoundary::Empty { vertex } => vertex,
-        topo::LoopBoundary::Cycle { first, .. } => body.get_half_edge(first)?.start,
+            band,
+        )
     };
-    body.get_point(body.get_vertex(vertex)?.point).copied()
+    crate::eval::measure::facing(&carrier(outer), &carrier(inner), band)
+        == Some(geom_brep::Facing::Opposed)
 }
 
 /// **The scalars the at-rest check localizes an overlap at**: one seam per

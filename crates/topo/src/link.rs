@@ -143,8 +143,9 @@ const LINK_TANGENT_FRAME: &str = "link_tangent_frame";
 /// another sheet's plane or line along the ray, in metres at the arm —
 /// its bend's Taylor term (`κ·l²/2`), the first-order residue charged.
 const LINK_SECOND_ORDER: &str = "link_second_order";
-/// K name: two coplanar faces' outward normals, one of each link,
-/// aligned or opposed ([`geom_brep::classify_material_pairing_as`]).
+/// K name: one sector's outward normal carried the links' reach off the
+/// point, against a coplanar sector's plane of the other link, in metres:
+/// the two sectors aligned or opposed ([`pairing`]).
 const LINK_NORMAL: &str = "link_normal";
 
 /// **The one door every verdict sign of the touch analysis comes
@@ -797,8 +798,7 @@ pub(crate) struct FaceSector<T: Real> {
 #[derive(Clone)]
 pub(crate) struct LinkFace<T: Real> {
     surface: geom::Surface<T>,
-    /// `Face::sense`, the bit [`geom_brep::classify_material_pairing_as`]
-    /// takes.
+    /// `Face::sense`.
     sense: bool,
     /// Where the wedges run past the face (a cleared disc): the radius
     /// about `p` inside which they are the face's own. For a ruled face's
@@ -1135,26 +1135,35 @@ enum Against<T> {
     Bound,
 }
 
-/// Two outward normals against each other, aligned or opposed, through
-/// the one classifier of that question under the K row `name`: two
-/// coplanar faces', one of each link ([`LINK_NORMAL`]). It is asked only
-/// where a piece of one face lies on the other's plane end to end and a
-/// point of it reads on that face alone ([`rest::judge`]), so the faces
-/// lie on one plane there, the magnitude is about 1, and only its sign is
-/// read.
+/// **Which way two coplanar sectors face each other**: sector `s`'s
+/// outward normal carried `reach` off the point, read against sector
+/// `t`'s plane through the link's door under the K row [`LINK_NORMAL`],
+/// on the reading `rd` that charges both links' ties. Aligned where it
+/// lands on `t`'s outward side, opposed behind it. It is asked only where
+/// a piece of `s` lies on `t`'s plane end to end and a point of it reads
+/// on that face alone ([`rest::judge`]), so the two sectors lie on one
+/// plane there and the reading is `±reach`: the sectors' own normals,
+/// the objects that coplanarity was read of, and no carrier re-read at
+/// the point.
 /// `None` is every refusal — in band, decided zero, or poisoned — and
 /// each reads as in band, ending as the touch's one in-band refusal
 /// (`TouchInBand`), which carries no margin.
 fn pairing<T: Decide>(
-    name: &'static str,
-    s: (&geom::Surface<T>, bool),
-    t: (&geom::Surface<T>, bool),
     p: Point3<T>,
-    reach: geom_core::Lever<T>,
-    band: Band,
+    s: &Sector<T>,
+    t: &Sector<T>,
+    reach: T,
+    rd: Reading<T>,
 ) -> Option<geom_brep::MaterialPairing> {
-    let arm = geom_brep::folded_lever_arm(s.0, t.0, p, reach);
-    geom_brep::classify_material_pairing_as(name, s.0, s.1, t.0, t.1, p, arm, band).ok()
+    match metric::settle_as(
+        LINK_NORMAL,
+        Distance::of(p + s.outward * reach, p, t.outward),
+        rd,
+    ) {
+        Ok(Sign::Positive) => Some(geom_brep::MaterialPairing::Aligned),
+        Ok(Sign::Negative) => Some(geom_brep::MaterialPairing::Opposed),
+        Ok(Sign::Zero) | Err(_) => None,
+    }
 }
 
 /// A chord from the touch point to `q`, as its length: a number, or a
@@ -4175,7 +4184,7 @@ pub(crate) mod rest {
         TouchVerdict,
     };
     use super::{CurvedUnread, Distance, Germ, LINK_PLANE, LINK_ROUND, Round, metric};
-    use super::{LINK_NORMAL, ahead, on_plane, pairing, wedge_side, within};
+    use super::{ahead, on_plane, pairing, wedge_side, within};
     use geom_brep::ladder::Evidence;
 
     /// The certificate of a rest: every piece of both links read, on
@@ -4383,14 +4392,12 @@ pub(crate) mod rest {
                             false
                         }
                         Some(Material::On(j)) => {
-                            let (s, t) = (&own.faces[*k], &other.faces[j]);
                             match pairing(
-                                LINK_NORMAL,
-                                (&s.surface, s.sense),
-                                (&t.surface, t.sense),
                                 own.cone.p,
-                                own.reach.max(other.reach),
-                                rd.band,
+                                &own.cone.sectors[*k],
+                                &other.cone.sectors[j],
+                                own.reach.max(other.reach).length(),
+                                rd,
                             ) {
                                 Some(geom_brep::MaterialPairing::Aligned) => true,
                                 Some(geom_brep::MaterialPairing::Opposed) => false,
@@ -6543,9 +6550,10 @@ mod tests {
     /// `boolean::vtxfac::cone_classes`), and holds:
     /// - every `Margin` door and every `decide` call lies inside `mod
     ///   metric` (one `Margin::of`);
-    /// - the classifier of unit normals is called only from `pairing`
-    ///   (`geom_brep::classify_material_pairing_as`), and no tangency
-    ///   token's pairing (`.pairing(`) is asked anywhere it reads;
+    /// - no classifier of two normals is called (`gradient_alignment`,
+    ///   `classify_material_pairing`), and no tangency token's pairing
+    ///   (`.pairing(`) is asked anywhere it reads: two coplanar sectors'
+    ///   pairing is a point against a plane (`pairing`);
     /// - nothing reads a bare sign: no `sign_within`, no
     ///   `definitely_positive(` (`validate`'s unnamed door), no
     ///   `enclosure_probe(` (an instrument nothing may branch on), no
@@ -6608,8 +6616,10 @@ mod tests {
     ///   point. Every caller passes a face's outward normal or a
     ///   normalized direction, and a real face point, a point
     ///   interpolated on a face's edge, a point of a segment `offset` is
-    ///   asked about, or the point a refused candidate's ball reaches
-    ///   toward a read one (`lowest_on`); that is checked by reading.
+    ///   asked about, the point a refused candidate's ball reaches
+    ///   toward a read one (`lowest_on`), or a sector's unit normal
+    ///   carried the links' reach off the point (`pairing`); that is
+    ///   checked by reading.
     /// - A caller outside topo: `Gap`'s cell arms only call
     ///   [`Link::offset`] and [`Link::lowest_on`].
     #[test]
@@ -6661,7 +6671,6 @@ mod tests {
             open..balanced_end(module, open).expect("its closing brace")
         };
         let metric = body("\npub(crate) mod metric");
-        let pairing = body("\nfn pairing");
         let lowest_on = body("\n    pub fn lowest_on(\n");
         let round_lowest = body(
             "\n    pub fn lowest_on(&self, (x0, x1): (Point3<T>, Point3<T>)) -> Result<T, AtTheAxis>",
@@ -6689,6 +6698,7 @@ mod tests {
             "Margin::",
             "decide(",
             "classify_material_pairing",
+            "gradient_alignment",
             ".pairing(",
         ] {
             stray.extend(outside(touch, needle, &[]));
@@ -6697,8 +6707,13 @@ mod tests {
         for needle in ["Margin::", "decide("] {
             stray.extend(outside(module, needle, &[&metric]));
         }
-        stray.extend(outside(module, "classify_material_pairing", &[&pairing]));
-        stray.extend(outside(module, ".pairing(", &[]));
+        for needle in [
+            "classify_material_pairing",
+            "gradient_alignment",
+            ".pairing(",
+        ] {
+            stray.extend(outside(module, needle, &[]));
+        }
         for needle in [
             "sign_within",
             "definitely_positive(",

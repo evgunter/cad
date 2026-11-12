@@ -878,6 +878,24 @@ it. The rule (2) spelling it checks a rostered mint's `target_len`
 against, `QUAD_TARGET_LEN_FACTOR * eps`, stays the spelling the next
 ε-coupled family is held to.
 
+**Roster change (ONEDOOR face pair): a pairing is read only behind the
+reading that decided the faces parallel.** `geom_brep::classify_material_pairing_as`
+retires. Each of its readers reads the fact its own question is about,
+so the rows it carried change meaning:
+
+| name | carrier | what moved |
+|---|---|---|
+| `link_normal` | a named `const` (`LINK_NORMAL`), decided through the link's door | was the two faces' carriers' outward normals at the point, levered by the folded arm; now one sector's outward normal carried the links' reach off the point against the coplanar sector's plane, in metres. Does not pool with its earlier samples |
+| `at_rest_quiet_opposed`, `at_rest_quiet_axes_parallel`, `at_rest_quiet_centred` | retired | the quieting rule reads the facing of the pose the `Gap` is read in (`geom_brep::carrier_pose`); their samples end |
+| `carrier_pose_planes_facing` | a named `const` (`POSE_PLANES_FACING`) | new: two parallel planes' outward normals' cosine over the gap's arm, read only where a facing is asked |
+| `bool_plane_parallel`, `carrier_cyl_axis_parallel`, `gap_round_side`, `gap_round_larger`, `gap_axis_parallel_to_plane` | named `const`s in `geom_brep::carrier_pose` | the gap's face-pair decisions, now taken by the pose reading; same margins, same names, so they pool |
+| `contact_tangent_opposed`, `tangent_gap_orientation` | the caller's name, handed to `geom_brep::gradient_alignment` | the cosine of the two carriers' unit implicit gradients, no sense folded in, over the faces' extent. `contact_tangent_opposed` read the outward normals before, so its verdict's sign flips where the two faces' senses differ, and its samples do not pool across this change |
+| `gradient_alignment_lever` | a named `const` (`GRADIENT_ALIGNMENT_LEVER`) | new: the lever a perpendicular verdict stands behind, decided positive only where the cosine read zero |
+
+`census::ee_cross_backed` reads the pair's carrier relation, so the
+`dihedral_arm`, `dihedral_wedge` and `material_wedge_side` readings it
+took at each edge crossing end there.
+
 **Roster addition (TRIM-3): the chart-boundary outside test.** Six
 names, in the crate scan's blind spot #4 — four of them are a
 `ray_walk::ParityRows` value, the carrier this document already
