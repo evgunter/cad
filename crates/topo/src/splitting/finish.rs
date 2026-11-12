@@ -802,7 +802,7 @@ pub enum SplitFinishError {
     Band(geom_core::BandError),
     /// Describing a section-boundary edge escalated on the wedge between
     /// its two faces — the dihedral at its witness, or a decision of the
-    /// whole-edge fold at a station ([`crate::edge_wedge`]), each tagged
+    /// whole-edge fold at a station ([`crate::edge_wedge()`]), each tagged
     /// with the rung that raised it: indeterminate geometry at the
     /// section boundary refuses typed, never guesses a description.
     WedgeEscalated {
@@ -1785,7 +1785,7 @@ pub(crate) fn section_plane_restatements<T: Decide>(
 /// the edge, at its carrier's mid-parameter), through the certified
 /// [`crate::Body::describe_intersection`] lane. A smooth neighbor stores
 /// what its whole wedge, the fold tier 3 reads, demands
-/// ([`crate::edge_wedge`]): the intrinsic
+/// ([`crate::edge_wedge()`]): the intrinsic
 /// `TangentIntersection` where the two surfaces determine the locus (a
 /// curved wall at a π seam), else a conventional description (D2's
 /// split — flush ON-faces, whose parallel planes under-determine it).

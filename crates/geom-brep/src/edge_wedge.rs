@@ -293,6 +293,9 @@ pub fn edge_wedge_over<T: Decide>(
     material_outcome(&reads.pairings, bend, &reads.ends)
 }
 
+/// One station's class read: its sample, the station, and the token.
+pub(crate) type ClassRead<T> = (u32, Station<T>, Dihedral<T>);
+
 /// **The class pass**: [`classify_dihedral`] at every station, in
 /// schedule order, each station with its sample; the first escalation
 /// is the pass's. The one first-order loop of the fold and of the
@@ -304,7 +307,7 @@ pub(crate) fn class_pass<T: Decide>(
     stations: impl Iterator<Item = (u32, Station<T>)>,
     reach: geom_core::Lever<T>,
     band: Band,
-) -> Result<Vec<(u32, Station<T>, Dihedral<T>)>, WedgeEscalation> {
+) -> Result<Vec<ClassRead<T>>, WedgeEscalation> {
     stations
         .map(|(i, station)| {
             classify_dihedral(s1, s2, station.point(), reach, band).map(|d| (i, station, d))
