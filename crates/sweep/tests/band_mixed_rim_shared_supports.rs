@@ -233,7 +233,10 @@ fn the_holed_plate_intersected_carves_its_ladders_first_at_the_closed_form() {
         .iter()
         .map(|&(x, y)| (Point2::new(x, y), 0.0))
         .collect();
-    let hole = vec![(Point2::new(-0.2, 0.0), -1.0), (Point2::new(0.2, 0.0), -1.0)];
+    let hole = vec![
+        (Point2::new(-0.2, 0.0), -1.0),
+        (Point2::new(0.2, 0.0), -1.0),
+    ];
     let slab = extruded(
         SketchPlane::xy_at(Point3::new(0.0, 0.0, -0.1)),
         vec![bulge_loop(square), bulge_loop(hole)],
@@ -243,7 +246,11 @@ fn the_holed_plate_intersected_carves_its_ladders_first_at_the_closed_form() {
     let body = boolean_op_with(
         BooleanOp::Intersect,
         &finished("the holed slab", slab, tol()),
-        &finished("the rounded prism", prism::<f64>(&outline(), 0.0, 0.5), tol()),
+        &finished(
+            "the rounded prism",
+            prism::<f64>(&outline(), 0.0, 0.5),
+            tol(),
+        ),
         &BooleanInputs::default(),
         SweepStrategy::Realized,
         tol(),
@@ -255,7 +262,13 @@ fn the_holed_plate_intersected_carves_its_ladders_first_at_the_closed_form() {
     .clone()
     .into_body();
     let truth = 2.0 * outline().pappus(R, true) + 2.0 * circle_rim(0.2, true, R);
-    carve("intersected holed plate", &body, &every_edge(&body), truth, Z);
+    carve(
+        "intersected holed plate",
+        &body,
+        &every_edge(&body),
+        truth,
+        Z,
+    );
 }
 
 /// **A rounded plate with a round hole fillets every edge in one call**:
