@@ -133,6 +133,7 @@ pub mod body;
 pub mod boolean;
 pub(crate) mod bound_side;
 pub(crate) mod boxes;
+pub mod carve;
 pub mod cell_region;
 pub(crate) mod census;
 pub mod chart;
@@ -1507,6 +1508,7 @@ pub use provenance::{Provenance, SplitLineageCycle};
 // The query VOCABULARY rides at the root like every other type;
 // the query DOORS (materializers, predicates) keep their module
 // identity, like `readback`'s.
+pub use carve::CarveError;
 pub use face_boxes::{FaceBox, FaceBoxes};
 #[cfg(debug_assertions)]
 pub use finish::finishes_on_this_thread;
@@ -1534,7 +1536,7 @@ pub use shell::{
     HoleRim, RimNaming, RimShell, ShellError, ShellNaming, ShellRetired, Shelled, shell, shell_open,
 };
 pub use splitting::{
-    ApexSectionReading, BoundClass, ConicCrossingsCase, Escalation, KnifeEdge, KnifeEdgeSite,
+    ApexSectionReading, BoundClass, ConicCrossingsCase, Escalation, FinishDesync, KnifeEdge, KnifeEdgeSite,
     LoopContainment, LoopDecision, NullEdgeRecord, OffPlane, OffPlaneCause, PlaneSide,
     PointInLoopError, Section, SectionEdge, SectionEndReading, SectionError, SectionGermFault,
     SectionGermReading, SectionPinMiss, SectionPolygon, SectionRegion, SectorReading,

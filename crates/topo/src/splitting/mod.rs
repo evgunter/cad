@@ -100,7 +100,7 @@ pub use containment::{
     Uncrossable, UncrossableCarrier, point_in_loop,
 };
 pub use finish::{
-    PlanePieces, SplitContacts, SplitFinishError, SplitNaming, SplitPart, SplitResult,
+    FinishDesync, PlanePieces, SplitContacts, SplitFinishError, SplitNaming, SplitPart, SplitResult,
 };
 pub use neighborhood::{BoundClass, classify_neighborhood};
 pub use section::{

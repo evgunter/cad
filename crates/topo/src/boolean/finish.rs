@@ -44,7 +44,7 @@ use crate::body::Body;
 use crate::entity::{EntityId, FaceKey, HalfEdgeKey, ShellKey, SolidKey, VertexKey};
 use crate::euler::FaceSurface;
 use crate::live::{BoundaryMember, proven};
-use crate::splitting::finish::{carve, single_solid};
+use crate::carve::{carve, single_solid};
 use geom_core::Tol;
 use std::collections::{BTreeMap, BTreeSet};
 
