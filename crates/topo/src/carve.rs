@@ -292,3 +292,26 @@ pub(crate) fn carve<T: Decide>(
     }
     Ok(body)
 }
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used)]
+mod tests {
+    use geom_core::Point3;
+
+    use super::{NotOneSolid, single_solid};
+    use crate::body::Body;
+
+    /// **The count a body is refused with is the count it holds**, and a
+    /// body of one solid answers that solid.
+    #[test]
+    fn single_solid_refuses_with_the_count() {
+        let mut body = Body::<f64>::new();
+        assert_eq!(single_solid(&body), Err(NotOneSolid { solids: 0 }));
+        let first = body.mvfs(Point3::new(0.0, 0.0, 0.0), true).unwrap().solid;
+        assert_eq!(single_solid(&body), Ok(first));
+        for (solids, x) in [(2, 2.0), (3, 3.0), (4, 4.0)] {
+            body.mvfs(Point3::new(x, 0.0, 0.0), true).unwrap();
+            assert_eq!(single_solid(&body), Err(NotOneSolid { solids }));
+        }
+    }
+}

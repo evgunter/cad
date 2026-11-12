@@ -296,11 +296,12 @@ enum KindArm {
 
 /// The kind arm of a germ face pair by its kinds, A's kind first.
 fn kind_arm(a: geom::SurfaceKind, b: geom::SurfaceKind) -> KindArm {
-    use geom::SurfaceKind::{Cone, Cylinder, Plane, Sphere, Torus};
+    use crate::meeting::plane_joins;
+    use geom::SurfaceKind::{Plane, Sphere};
     match (a, b) {
         (Plane, Plane) => KindArm::Planar,
-        (Plane, Sphere | Cylinder | Cone | Torus) => KindArm::PlaneWall,
-        (Sphere | Cylinder | Cone | Torus, Plane) => KindArm::WallPlane,
+        (Plane, wall) if plane_joins(wall) => KindArm::PlaneWall,
+        (wall, Plane) if plane_joins(wall) => KindArm::WallPlane,
         (Sphere, Sphere) => KindArm::Spheres,
         _ => KindArm::None,
     }

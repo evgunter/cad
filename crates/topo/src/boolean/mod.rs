@@ -218,12 +218,12 @@ use crate::contact::GlueClass;
 use crate::entity::{EdgeKey, FaceKey, HalfEdgeKey, ShellKey, VertexKey};
 use crate::euler::EulerOpError;
 use crate::live::{BoundaryMember, Proven};
+use crate::meeting::{CONIC_EDGES_RECOURSE, CONIC_OUTLINE_RECOURSE, meeting_recourse};
 use crate::merge_faces::MergeCoplanarError;
 #[cfg(feature = "sweep-testing")]
 use crate::sweep_trace::SweepPairs;
 use crate::validate::ValidationError;
 use geom_brep::ladder::{Answering, Evidence, Rung, climb_evidence};
-use geom_brep::recourse::{CONIC_EDGES_RECOURSE, kind_word, meeting_recourse};
 
 pub use carrier_eq::{
     CarrierDesc, CarrierEqError, CarrierRelation, CarrierVerdict, CoincidenceMeasure,
@@ -5380,8 +5380,8 @@ impl BooleanError {
                 "the Boolean cannot yet work out where one solid's {} face meets the \
                  face of the other solid it runs into: that pairing of faces is not \
                  supported yet. {}",
-                kind_word(*kind),
-                meeting_recourse(kind_word(*kind)),
+                kind.word(),
+                meeting_recourse(kind.word()),
             ),
             Self::DegenerateTorus {
                 convention,
@@ -5551,7 +5551,7 @@ impl BooleanError {
                 f,
                 "the Boolean cannot yet tell what lies inside a flat face whose outline \
                  has a {} edge near the point it asked about, so it refuses rather than \
-                 guess. Recourse: model the outline with lines, circles or ellipses",
+                 guess. Recourse: {CONIC_OUTLINE_RECOURSE}",
                 cause.carrier.word()
             ),
             // `ContainError`'s own text names the loop by arena key; the
@@ -5617,11 +5617,11 @@ impl BooleanError {
                  parts so every place they meet crosses an edge of one of them, or so the \
                  {} face stays clear of the other solid",
                 operand_word(*operand),
-                kind_word(*kind),
+                kind.word(),
                 operand_word(operand.other()),
-                kind_word(*other_kind),
+                other_kind.word(),
                 op.map_or(String::new(), |op| format!(" {}", op_noun(op))),
-                kind_word(*kind),
+                kind.word(),
             ),
             Self::CurvedPairUnsupported {
                 op,
@@ -5635,11 +5635,11 @@ impl BooleanError {
                  Boolean{} cannot yet work out where such a face meets another solid. \
                  {}",
                 operand_word(*operand),
-                kind_word(*kind),
+                kind.word(),
                 operand_word(operand.other()),
-                kind_word(*other_kind),
+                other_kind.word(),
                 op.map_or(String::new(), |op| format!(" {}", op_noun(op))),
-                meeting_recourse(kind_word(*kind)),
+                meeting_recourse(kind.word()),
             ),
             Self::NurbsExtentUnsupported { operand, .. } => write!(
                 f,
@@ -5693,17 +5693,17 @@ impl BooleanError {
                 f,
                 "the Boolean cannot build the section where the first operand's {} face meets \
                  the second operand's {} face: {}",
-                kind_word(*a_kind),
-                kind_word(*b_kind),
+                a_kind.word(),
+                b_kind.word(),
                 read_at(why, at),
             ),
             Self::GermFrameUnsupported { a_kind, b_kind, .. } => write!(
                 f,
                 "the Boolean cannot yet trace where the first operand's {} face meets \
                  the second operand's {} face, so it refuses rather than guess. {}",
-                kind_word(*a_kind),
-                kind_word(*b_kind),
-                meeting_recourse(kind_word(*a_kind)),
+                a_kind.word(),
+                b_kind.word(),
+                meeting_recourse(a_kind.word()),
             ),
             Self::GermSectionOpenConic { conic, .. } => write!(
                 f,
@@ -5722,7 +5722,7 @@ impl BooleanError {
                     SpiricLoops::AroundTube => "two loops round the tube",
                     SpiricLoops::Null => "one loop on the tube",
                 },
-                meeting_recourse(kind_word(geom::SurfaceKind::Torus)),
+                meeting_recourse(geom::SurfaceKind::Torus.word()),
             ),
             Self::NodeUnbuilt { why, .. } => {
                 let (where_, recourse) = match why {
@@ -5814,8 +5814,8 @@ impl BooleanError {
                  join that solid to the other operand first, cut any hole in that face after \
                  this join, or move the edge off the face",
                 operand_word(*operand),
-                kind_word(*kind),
-                kind_word(*pierced_kind),
+                kind.word(),
+                pierced_kind.word(),
                 if *placed {
                     "; the Boolean cannot build a vertex on that face"
                 } else {

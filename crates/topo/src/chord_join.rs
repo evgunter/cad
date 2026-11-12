@@ -52,14 +52,22 @@
 //! a slit trace from the loops' topology, and certifies every other
 //! section's area (`split_section_area`, refusing a zero-area polygon
 //! as [`JoinError::DegenerateSection`]); the
-//! boolean lane resolves them from its own germ records. Neither
-//! posture is visible here.
+//! boolean lane resolves them from its own germ records.
 //!
 //! The [`JoinLane::BoolPlanar`] arm exists because the planar side of a
 //! curved germ pair sections the OTHER operand's wall, which must arrive
 //! by value.
 //!
 //! Its home follows `[topo.homes]` (`crates/topo/README.md`).
+//!
+//! # The apex vocabulary
+//!
+//! [`ApexSectionReading`] is how the section table's reading of a plane
+//! against a cone disagrees with a walk that read the plane through the
+//! cone's apex. It is declared here because [`apex_section_ruling`]
+//! finds the disagreement and one of its arms carries the table's
+//! [`JoinError`]; the split's reduction and the Boolean's pierce each
+//! wrap it in their own refusal.
 //!
 //! # The section-chord geometry
 //!
@@ -967,18 +975,18 @@ impl JoinError {
                 why.recourse()
             ),
             Self::SectionUnarmed { divided, wall, .. } => {
-                let wall = geom_brep::recourse::kind_word(*wall);
+                let wall = wall.word();
                 write!(
                     f,
                     "the join cannot yet trace where a plane meets a {wall} face, so it cannot \
                      divide the {} face there. {}",
-                    geom_brep::recourse::kind_word(*divided),
-                    geom_brep::recourse::meeting_recourse(wall),
+                    divided.word(),
+                    crate::meeting::meeting_recourse(wall),
                 )
             }
             Self::RunImageIncidence { kind, refusal, .. } => {
                 use geom_brep::IncidenceRead as R;
-                let kind = geom_brep::recourse::kind_word(*kind);
+                let kind = kind.word();
                 // Worded by what was read and ended by the one map; a
                 // refusal that carried no read is no incidence refusal.
                 let Some(read) = R::of(refusal) else {
@@ -1002,7 +1010,7 @@ impl JoinError {
                 f,
                 "an edge of a {} face sits on the face as none of its own curves, and the \
                  join does not yet read such an edge's reach around the face. {}",
-                geom_brep::recourse::kind_word(*kind),
+                kind.word(),
                 geom_core::NOT_YET_ENDING
             ),
             Self::RingIslandUnread { kind, .. } => write!(
@@ -1016,7 +1024,7 @@ impl JoinError {
                 "a cut meets a spiric or spline (NURBS) edge on a face's boundary, and the \
                  join cannot yet read such an edge there: whether it lies in the cut, or the \
                  area it bounds in the section. Recourse: {}",
-                geom_brep::recourse::CONIC_EDGES_RECOURSE
+                crate::meeting::CONIC_EDGES_RECOURSE
             ),
             Self::TangentChordEscalated { diag, .. } => write!(
                 f,

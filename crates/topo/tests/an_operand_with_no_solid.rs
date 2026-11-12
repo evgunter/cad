@@ -1,12 +1,36 @@
-//! probe
+//! **A body with no solid, handed to an operation.** The split refuses
+//! it as the caller's, with a recourse and no kernel-defect ending: it
+//! cut nothing, so nothing of its own failed. The Boolean refuses it at
+//! its containment gate, before any of its surgery reads a solid.
+
 #![allow(clippy::expect_used, clippy::panic)]
 
+use geom_brep::recourse::{Reading, defect_ending};
 use geom_core::{Point3, Tol, Vec3};
-use topo::Body;
-use topo::test_support::{brick, finished};
+use topo::test_support::{brick, finished, split_plane};
+use topo::{Body, BooleanErrorKind, SplitError, SplitFinishError};
 
 #[test]
-fn probe() {
+fn the_split_refuses_an_empty_body_as_the_callers() {
+    let tol = Tol::witness();
+    let empty = finished("an empty body", Body::<f64>::new(), tol);
+    let plane = split_plane(Point3::new(0.0, 0.0, 0.5), Vec3::unit_z(), tol);
+    let Err(error) = topo::split(&empty, &plane, tol) else {
+        panic!("an empty body has no sides");
+    };
+    assert!(
+        matches!(error, SplitError::Finish(SplitFinishError::EmptyOperand)),
+        "{error:?}"
+    );
+    let said = error.render(Reading::Build);
+    assert!(
+        said.contains("Recourse:") && !said.contains(defect_ending(Reading::Build)),
+        "{said}"
+    );
+}
+
+#[test]
+fn the_boolean_refuses_an_empty_operand_before_its_surgery() {
     let tol = Tol::witness();
     let empty = finished("an empty body", Body::<f64>::new(), tol);
     let block = finished(
@@ -14,18 +38,27 @@ fn probe() {
         brick::<f64>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), tol),
         tol,
     );
-    let plane = topo::test_support::split_plane(Point3::new(0.0, 0.0, 0.5), Vec3::unit_z(), tol);
-    eprintln!("split: {:?}", topo::split(&empty, &plane, tol).map(|_| ()));
-    for (n, r) in [
-        ("union e,b", topo::union(&empty, &block, tol)),
-        ("union b,e", topo::union(&block, &empty, tol)),
-        ("union e,e", topo::union(&empty, &empty, tol)),
-        ("intersect e,b", topo::intersect(&empty, &block, tol)),
-        ("intersect b,e", topo::intersect(&block, &empty, tol)),
-        ("subtract e,b", topo::subtract(&empty, &block, tol)),
-        ("subtract b,e", topo::subtract(&block, &empty, tol)),
-    ] {
-        eprintln!("{n}: {:?}", r.map(|b| b.body().is_some()));
+    let ops = [topo::union, topo::intersect, topo::subtract];
+    for (i, op) in ops.into_iter().enumerate() {
+        for (a, b, one_empty) in [
+            (&empty, &block, true),
+            (&block, &empty, true),
+            (&empty, &empty, false),
+        ] {
+            let built = op(a, b, tol);
+            assert!(
+                built.is_err() || !one_empty,
+                "op {i}: an empty operand beside a block builds nothing"
+            );
+            if let Err(error) = built {
+                assert!(
+                    !matches!(
+                        error.kind(),
+                        BooleanErrorKind::Carve | BooleanErrorKind::JoinDesync
+                    ),
+                    "op {i}: {error:?}"
+                );
+            }
+        }
     }
-    panic!("probe");
 }

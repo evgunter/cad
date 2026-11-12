@@ -222,7 +222,7 @@ impl core::fmt::Display for UnreadRays<'_> {
                     f,
                     ", {} is a {} surface, which no ray can cross yet",
                     EntityId::Face(*face),
-                    geom_brep::recourse::kind_word(*kind)
+                    kind.word()
                 )?,
                 SetAsideWhy::Limit(e) => write!(f, ", {}", e.summary())?,
             }

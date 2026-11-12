@@ -3027,10 +3027,8 @@ mod whole_body_side_rows {
         split_plane(Point3::new(0.0, 1.0, 0.0) - n * offset, n, tol)
     }
 
-    /// Every arc read in band: the side escalated, typed, where main
-    /// read every in-band edge as passed over and refused as a desync.
-    /// One arc decided off the plane answers past the other's in-band
-    /// reading.
+    /// Every arc read in band: the side escalates, typed. One arc
+    /// decided off the plane answers past the other's in-band reading.
     #[test]
     fn an_in_band_edge_refuses_typed_only_where_no_edge_decides() {
         let tol = Tol::witness();
@@ -3054,8 +3052,7 @@ mod whole_body_side_rows {
 
     /// **A lone vertex is a vertex of its shell**: a bare seed, whose one
     /// vertex sits in its face's empty outer loop off the plane, lies on
-    /// that vertex's side, where a reading of edge members alone read it
-    /// ON everywhere and refused as a desync.
+    /// that vertex's side.
     #[test]
     fn a_shell_whose_one_vertex_is_lone_reads_that_vertexs_side() {
         let tol = Tol::witness();
@@ -3113,6 +3110,222 @@ mod whole_body_side_rows {
         assert!(
             matches!(got, Ok((PlaneSide::Above, true))),
             "the arcs place the component Above: {got:?}"
+        );
+    }
+}
+
+/// The finish's desync and operand arms, each from the state that makes
+/// it where a body can be built in it, and each read at a door.
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod desync_rows {
+    use geom_brep::recourse::{Reading, defect_ending};
+    use geom_core::{Band, Point3, Tol, UnitVec3, Vec3};
+    use slotmap::SecondaryMap;
+
+    use super::{
+        CompletedSection, FinishDesync, PlaneSide, SectionKind, SplitFinishError,
+        below_chord_u_ref, classify_shell, whole_body_side,
+    };
+    use crate::body::Body;
+    use crate::entity::{EntityId, FaceKey, LoopKey, ShellKey, SolidKey, VertexKey};
+    use crate::test_support_fixtures::{brick, split_plane};
+    use crate::unresolved::Unresolved;
+
+    fn z_plane(tol: Tol) -> crate::SplitPlane<f64> {
+        split_plane(Point3::new(0.0, 0.0, 0.5), Vec3::unit_z(), tol)
+    }
+
+    fn uncut(body: Body<f64>, sides: &SecondaryMap<VertexKey, PlaneSide>) -> SplitFinishError {
+        let tol = Tol::witness();
+        match whole_body_side(body, sides, &z_plane(tol), tol) {
+            Err(e) => e,
+            Ok(_) => panic!("the body has no side to land on"),
+        }
+    }
+
+    /// **The operand's solid count is three states**: none is the
+    /// caller's empty body, several is a body the split did not flatten,
+    /// and one with no shell holds nothing to place.
+    #[test]
+    fn an_operand_that_is_not_one_solid_refuses_by_its_count() {
+        let tol = Tol::witness();
+        let none = SecondaryMap::new();
+        assert!(
+            matches!(uncut(Body::new(), &none), SplitFinishError::EmptyOperand),
+            "no solid"
+        );
+        let mut two = brick::<f64>((0.0, 1.0), (0.0, 1.0), (0.0, 0.25), tol);
+        crate::test_support_fixtures::cube_into(
+            &mut two,
+            |x, y, z| Point3::new(x + 3.0, y, z),
+            tol,
+        );
+        assert!(
+            matches!(
+                uncut(two, &none),
+                SplitFinishError::Desync(FinishDesync::SolidsUnmerged { solids: 2 })
+            ),
+            "two solids"
+        );
+        let mut hollow = Body::<f64>::new();
+        let seed = hollow.mvfs(Point3::new(0.0, 0.0, 1.0), true).unwrap();
+        hollow.solids[seed.solid].shells.clear();
+        assert!(
+            matches!(
+                uncut(hollow, &none),
+                SplitFinishError::Desync(FinishDesync::NoShell { solid }) if solid == seed.solid
+            ),
+            "a solid with no shell"
+        );
+    }
+
+    /// **A shell wholly in the plane is one arm on both paths**: the
+    /// uncut body's read and the cut body's classification refuse it
+    /// alike.
+    #[test]
+    fn a_shell_in_the_plane_is_unclassifiable_cut_or_uncut() {
+        let tol = Tol::witness();
+        let band = Band::linear(tol).unwrap();
+        let mut body = Body::<f64>::new();
+        let seed = body.mvfs(Point3::new(0.0, 0.0, 0.5), true).unwrap();
+        let mut sides = SecondaryMap::new();
+        sides.insert(seed.vertex, PlaneSide::On);
+        let cut = classify_shell(
+            &body,
+            seed.shell,
+            &SecondaryMap::new(),
+            &sides,
+            &z_plane(tol),
+            band,
+        );
+        assert!(
+            matches!(
+                cut,
+                Err(SplitFinishError::UnclassifiableComponent { shell }) if shell == seed.shell
+            ),
+            "cut: {cut:?}"
+        );
+        assert!(
+            matches!(
+                uncut(body, &sides),
+                SplitFinishError::UnclassifiableComponent { shell } if shell == seed.shell
+            ),
+            "uncut"
+        );
+    }
+
+    /// **A key that does not resolve is named**, and a section loop that
+    /// holds a lone vertex is a different state from a torn one.
+    #[test]
+    fn a_dangling_key_and_a_lone_loop_are_told_apart() {
+        let tol = Tol::witness();
+        let band = Band::linear(tol).unwrap();
+        let mut body = Body::<f64>::new();
+        let seed = body.mvfs(Point3::new(0.0, 0.0, 0.5), true).unwrap();
+        let stale = classify_shell(
+            &body,
+            ShellKey::default(),
+            &SecondaryMap::new(),
+            &SecondaryMap::new(),
+            &z_plane(tol),
+            band,
+        );
+        assert!(
+            matches!(
+                stale,
+                Err(SplitFinishError::Desync(FinishDesync::Unresolved(
+                    Unresolved::Record(EntityId::Shell(_))
+                )))
+            ),
+            "a stale shell: {stale:?}"
+        );
+        let normal = UnitVec3::new(Vec3::unit_z(), "desync_rows_normal", band).unwrap();
+        let section = |below_loop| CompletedSection {
+            face: seed.face,
+            above_loop: seed.r#loop,
+            below_loop,
+            kind: SectionKind::Area { slit: Vec::new() },
+        };
+        let lone = below_chord_u_ref(&body, &section(seed.r#loop), normal);
+        assert!(
+            matches!(
+                lone,
+                Err(SplitFinishError::Desync(FinishDesync::LoopNotACycle { face }))
+                    if face == seed.face
+            ),
+            "a lone-vertex loop: {lone:?}"
+        );
+        let torn = below_chord_u_ref(&body, &section(LoopKey::default()), normal);
+        assert!(
+            matches!(
+                torn,
+                Err(SplitFinishError::Desync(FinishDesync::Unresolved(
+                    Unresolved::Record(EntityId::Loop(_))
+                )))
+            ),
+            "a stale loop: {torn:?}"
+        );
+    }
+
+    /// **Every desync arm says what it found and ends in the defect
+    /// ending at a door, and in nothing as a payload.** The arms no body
+    /// here can be built into (the merge's placeholders, a null edge's
+    /// missing copy, a section face off its loops, a side with no shell)
+    /// are read as rendered.
+    #[test]
+    fn every_desync_arm_names_its_state_and_ends_as_a_defect() {
+        let (face, vertex) = (FaceKey::default(), VertexKey::default());
+        let arms = [
+            (
+                FinishDesync::Unresolved(Unresolved::Geometry(EntityId::Vertex(vertex))),
+                "the geometry of vertex",
+            ),
+            (
+                FinishDesync::MergePlaceholders {
+                    side: PlaneSide::Above,
+                },
+                "placeholder faces",
+            ),
+            (
+                FinishDesync::NullEdgeUncopied { vertex },
+                "no copy of vertex",
+            ),
+            (
+                FinishDesync::SectionLoops { face },
+                "neither of its section's loops",
+            ),
+            (FinishDesync::LoopNotACycle { face }, "a lone vertex"),
+            (
+                FinishDesync::SideEmpty {
+                    side: PlaneSide::Below,
+                },
+                "no shell on the below side",
+            ),
+            (
+                FinishDesync::NoShell {
+                    solid: SolidKey::default(),
+                },
+                "holds no shell",
+            ),
+            (FinishDesync::SolidsUnmerged { solids: 3 }, "holds 3 solids"),
+        ];
+        for (arm, says) in arms {
+            let error = SplitFinishError::Desync(arm);
+            let payload = error.to_string();
+            assert!(payload.contains(says), "{arm:?}: {payload}");
+            assert_eq!(payload, arm.to_string(), "{arm:?} is its own sentence");
+            let ended = error.render(Reading::Build);
+            assert_eq!(
+                ended,
+                format!("{payload}. {}", defect_ending(Reading::Build)),
+                "{arm:?}"
+            );
+        }
+        let empty = SplitFinishError::EmptyOperand.render(Reading::Build);
+        assert!(
+            empty.contains("Recourse:") && !empty.contains(defect_ending(Reading::Build)),
+            "an empty operand is the caller's: {empty}"
         );
     }
 }

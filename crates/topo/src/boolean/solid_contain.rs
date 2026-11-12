@@ -653,7 +653,7 @@ impl PointInSolidError {
                  surface, which the inside/outside test has no way yet to cross. The \
                  solid itself is fine. Recourse: build the solid so no spline (NURBS) \
                  face bounds it",
-                geom_brep::recourse::kind_word(*kind)
+                kind.word()
             ),
             Self::VolumeUncertified => write!(
                 f,

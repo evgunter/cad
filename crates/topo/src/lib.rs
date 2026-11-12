@@ -178,6 +178,7 @@ pub mod link;
 pub(crate) mod live;
 pub(crate) mod loop_side;
 pub(crate) mod loop_winding;
+pub(crate) mod meeting;
 pub mod merge_faces;
 pub mod mirror;
 pub mod movefac;
@@ -1078,9 +1079,7 @@ pub mod test_support {
             .contains(geom_core::KERNEL_DEFECT_ENDING)
             || matches!(
                 err.kind(),
-                BooleanErrorKind::ClassificationInvariant
-                    | BooleanErrorKind::JoinDesync
-                    | BooleanErrorKind::Carve
+                BooleanErrorKind::ClassificationInvariant | BooleanErrorKind::JoinDesync
             );
         (key, defect)
     }
@@ -1397,7 +1396,7 @@ pub use boolean::{
     AimedPair, AlongFace, Apart, ArcEndGaps, BoolNullEdgeRecord, BooleanBody, BooleanDecision,
     BooleanError, BooleanErrorKind, BooleanInputs, BooleanJoin, BooleanMerge, BooleanNaming,
     BooleanOp, BooleanReduction, BooleanResult, BooleanResultKind, CarriedRecord, CarrierDesc,
-    CarrierEqError, CarrierRelation, CarrierVerdict, CarryRefusal, CarveStep, Cell, Coincide,
+    CarrierEqError, CarrierRelation, CarrierVerdict, CarryRefusal, Cell, Coincide,
     CoincidenceMeasure, CompletedPolygonPair, ConsumedExtent, Contact, ContactKind,
     ContactPairError, ContactRecords, ContainDecision, ContainError, DeclarationRead, DiscardRow,
     EdgeCarrierSite, EdgeInBand, EdgeInFaceGap, EdgeJoin, EdgePieceClass, EeContact, EfContact,

@@ -15,17 +15,26 @@ readings and left these.
 
 `[topo.homes]` (`crates/topo/README.md`) makes `chord_join` a crate-root
 construction, which names no type declared under an operation's
-directory. Two things in `crates/topo/src/chord_join.rs` still do, and
-they are its whole `names-boolean` pin in
-`scripts/gates/engine-leaves.counts`:
+directory. `crates/topo/src/chord_join.rs`'s `names-boolean` pin in
+`scripts/gates/engine-leaves.counts` is 15, and it is three things
+(`scripts/gates/engine-leaves.sh --lines chord_join.rs` lists the
+lines):
 
 - `crate::boolean::Branch` (declared in `boolean/mod.rs`, `pub enum
-  Branch`): the field `SectionCtx::branch`, `JoinLane::BoolPlanar`'s
-  `branch`, `section_loop`'s parameter and its match on
-  `Branch::{Positive, Negative, Only, Component, Line}`, and
-  `bool_planar_chord_spec`'s parameter. Eight sites.
-- its test module `run_edge_carrier_rows` imports
-  `crate::boolean::reduce::planar_lane_carrier_rows::{arc_sheet, spiric_cap}`.
+  Branch`), on eight lines and nine times: the field
+  `SectionCtx::branch`, `JoinLane::BoolPlanar`'s `branch`,
+  `section_loop`'s parameter and its match on `Branch::{Positive,
+  Negative, Only, Component, Line}` (the last two on one line), and
+  `bool_planar_chord_spec`'s parameter.
+- its test module `run_edge_carrier_rows`, on three lines and four
+  times: the import of
+  `crate::boolean::reduce::planar_lane_carrier_rows::{arc_sheet, spiric_cap}`
+  and one use of each.
+- a miscount, twice on one line: `lone_ring`'s local
+  closure `between`, which the gate reads as `boolean::region::between`
+  because it counts an engine item by name. Nothing there names the
+  engine. The count falls when `region::between` leaves the engine or
+  is listed `ambiguous`; the closure is not renamed for the gate.
 
 `Branch` is which loop, component or line of a pair's section a germ
 rides. It takes no `Body` and no arena key, so `[topo.homes]` rule 1
@@ -45,4 +54,4 @@ Move `Branch` to `geom-brep` under a name `census.rs` does not share,
 re-point `boolean/`, `chord_join`, `chart_region` and `offset_derive`,
 and give `arc_sheet` and `spiric_cap` a home a root test may read
 (`test_support_fixtures`). Then `chord_join.rs`'s `names-boolean` line
-leaves the counts file.
+holds the miscount alone.
