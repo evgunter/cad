@@ -1298,3 +1298,9 @@ E1c waits on the answer.
     - P1 `a-closed-form-image-at-a-fuzz-seed-reads-its-coefficient-bound-in-band-at-eps-1e-12`: 7/400 seeds.
     - P1 `a-derived-sphere-image-misses-its-circle-by-1e-11-near-five-half-pi-at-eps-1e-12`: a real derivation miss; the mint refuses in band.
     - Two P3 station rows, for the other computed-station lanes and check 4.
+
+- 2026-11-12 — **PR 6872 merged: the closed-form bound's ε 1e-12 seeds are real misses, not excess.** It closes the P1 `a-closed-form-image-at-a-fuzz-seed-reads-its-coefficient-bound-in-band-at-eps-1e-12`. Review tier: the orchestrator's read, since the change is test-only.
+  - Every refusal measured is a real miss of the stated image. The bound reads it to about 0.1%, 7% at worst, against a 20k-point dense meter, and seed 1 was also checked exactly in rational arithmetic. So `closed_bound.rs` and `trig.rs` are unchanged, and the soundness rows and mutants of 6845 and 6857 are untouched.
+  - Seed `0x4661d077090b3597` was a fixture defect. The rows' frame squared `u_ref` once, so with `b` near the axis the chart left a line drawn square to the normal by 1.02e-12. `across()` now squares twice, the seed is pinned (`fuzz::pinned_sweep`), and a frame-witness row is added. The mutant `across-once` turns both red.
+  - Seed `0x8ffe04db921f5cff` is a near-pole sphere meridian's azimuth: the same class as the derived-sphere P1, landing in band. The every-spelling row stays red by seed at ε 1e-12 until that P1 lands.
+  - Over 2000 seeds at ε 1e-12, refusals went from 9 to 4, all near-pole sphere meridians. At ε 1e-9 there were none before or after.
