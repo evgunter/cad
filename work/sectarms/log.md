@@ -680,3 +680,21 @@ Both reds were found by PCERT's nightly lane and trace to SECTARMS merges.
 - **Disclosures.**
   - R1 saw the other lane's process names in `ps`, but no output. It also read the implementer's census logs in the shared scratchpad.
   - Reviewer scratchpads are shared in this container. Later pairs need their own subdirectories, and a brief that names them.
+
+## 2026-11-12 — PR 6862 (the join's stage A) merges
+
+- **Fix pass at `45df7881c2`, green.** It took the whole adjudicated union.
+- **F1.** Close rim arcs now refuse typed at the carry, `CarryRefusal::PadsMeet`, by a certified hull gap compared against the pads and band.
+- **F2.** The pad is tightened from about 5.7 to about 1.1 rungs.
+- **F3.** The guard and the certificate's door share `section_cert::of_listed`.
+- **Cost accepted:** editor-core `wavy_loft` now stops typed at `PadsMeet`, at the germ mint. This is on the P1 pad item.
+- **Filed:** P2 `the-guards-listing-of-a-held-spline-pair-off-a-seam-or-pole-has-no-row`, and P2 `a-carried-plane-spline-chords-at-rest-certificate-costs-half-a-second`. The second covers the census going from 6.5 to 17.5 min; the at-rest certificates take 6.4 s of the brick's 7.3 s.
+- **Row:** `docs/model-compare-log/rows/PR-6862.md`.
+  - The implementer half is excluded: no draw, the orchestrator's error.
+  - The reviewer pair is kept, flagged as exposed.
+  - Blind coding found no tally candidates. The one MAJOR is bilateral, with a severity divergence.
+- **Process fix for later duals:**
+  - Draw the implementer arm at dispatch, and leave the model-naming trailer out of lane briefs.
+  - Give each reviewer its own scratchpad subdirectory.
+- **Main red seen by the fix pass, not ours:** geom-brep `recourse_roster`. pcert has mended it on main (pcert log, 2026-11-12).
+- **Next:** stage B, `a-curved-partners-arc-on-a-spline-wall-has-no-at-rest-certificate` (P0 H). It is not a fork: C2's re-derived door certificate decides it, and `plane_nurbs_limbs` is the precedent.
