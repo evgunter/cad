@@ -2,10 +2,11 @@
 id: two-germ-readers-sign-one-line-two-ways
 kind: issue
 title: The v-v crossing germ is signed by sector membership and the pierce germ by its transition's codes: two readers of one question
-status: open
+status: dispatched
 opened: 2026-10-10
 priority: P1
 cost: E
+branch: onehome/star-cut
 ---
 
 
