@@ -8932,9 +8932,7 @@ fn sweep_self_touch_points<T: Decide>(
         if !read.insert((s, least)) {
             continue;
         }
-        let verdict = self_touch_verdict(body, geo, &ties, s, &keys, at, band);
-        eprintln!("STVERDICT {} {:?}", witness(at), verdict);
-        match verdict {
+        match self_touch_verdict(body, geo, &ties, s, &keys, at, band) {
             TouchVerdict::Rest(_) => {}
             TouchVerdict::Crossing => errors.push(ValidationError::BoundaryCrossesItself {
                 solid: s,
