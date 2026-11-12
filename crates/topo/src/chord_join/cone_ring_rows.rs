@@ -374,7 +374,7 @@ fn an_island_that_leaves_its_face_is_refused() {
         let spec = edge_spec(&mut body, key, &closing);
         let got = path_island_winding(&body, face, run, Some(&spec), band());
         assert!(
-            matches!(got, Err(SplitJoinError::SectionInvariant { .. })),
+            matches!(got, Err(JoinError::SectionInvariant { .. })),
             "a sheet of half-width {a} up to {hi}, {inside} of its {} references in the lune: \
              {got:?}",
             references.len()
