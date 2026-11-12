@@ -1327,3 +1327,5 @@ E1c waits on the answer.
     - spiricarm P3 for the pad drift.
 
 - 2026-11-12 — **`main-red-a-cone-stated-image-fuzz-seed-fails-at-1e-12` closed. PR 6857 had already fixed it.** sectarms' lane filed it at 08:44, before 6857 merged. The orchestrator ran the seed on 6857's parent, where it is red (sample 5, the computed station's width, [0, 6.8e-12]), and on main, where it is green. The seed is now pinned as a row beside 6857's cone row, and it goes red under 6857's mutant.
+
+- 2026-11-12 — **Main red filed on sectarms** (orchestrator; PR 6870's lane met it). geom-core's `certified_endpoint_census` moved in `pair_section/spline_implicit.rs` from (2, 0) to (6, 4). Bisected to 81b50a0631, which reached main in PR 6862. Filed P1 as `sectarms/main-red-the-endpoint-census-moved-in-spline-implicit-rs-since-6862`. It is not PCERT's, so PCERT PRs merge over it.
