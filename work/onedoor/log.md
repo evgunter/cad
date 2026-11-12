@@ -345,3 +345,22 @@ Ev, in chat: "go ahead in whatever order you see fit (including parallelizing th
 - **Deviation in the model comparison.** Both implementer draws were taken a few minutes before the letter and tier lines above were written. The draws are on `analysis/model-compare/onedoor-2026-11-12`. The tiers follow the plan's standing rule (the dual tier wherever a unit moves shared code several programs read), which was set before any draw, and the letters were not changed after. Both rows will record this.
 - **Overlap.** Both code lanes touch `splitting/finish.rs`: the wedge lane retires `DescribeEscalated` and the knife check, and shared-cores moves `carve` and `Corrupt`. Each brief names the other lane and tells it to keep its edits to that file narrow and to merge main as it moves. The alternative, running them one after the other, costs a whole lane's wall-clock to avoid one likely conflict.
 - (ONEDOOR orchestrator)
+
+## 2026-11-12 — both design forks converged
+
+- **Loop-lift** (`three-walks-...`): converged in two rounds.
+  - Round 1 agreed on the lift, one decision (`decide_joint`), and a derived lift mid-operation. It split on the pole (recorded or layered) and on whether the element is a cache or a record.
+  - Round 2: B moved to A on the pole, because the mesh's area search is a second pole rule. A moved to B on "record" and on caller-named constructors.
+  - The agreed state changes C4's pole reset, which is Ev-reviewed text, so it went to Ev as `[ev]` PR [#6851](https://github.com/evgunter/cad/pull/6851), fork-log row 262.
+  - The four executed probes both designers asked for run in a cloud session on `onedoor/looplift-probes`. Their results go on #6851 before Ev answers.
+- **Face-pair** (`face-pair-contact-pairing-has-four-spellings`): converged in two rounds, crossing over.
+  - In round 2 A took B's link reading (off its own sector normals), and B took A's census reading (the carrier relation per pair) and at_rest reading (the gap's own facing).
+  - Nothing ratified changes, so it is a unit, not an `[ev]` fork. The design is written on the row. It is parked on wedge stage 2, since both edit `dihedral.rs` and the census. Dual tier.
+  - The two designers' draws stay on the analysis branch. The fork is not a design-fork log row, because rule 1 counts only forks put to Ev.
+- **Filed** from the designers' off-question findings, both P1 and both found by reading:
+  - `contact-verify-rules-perpendicular-on-an-undecided-extent`;
+  - `at-rest-constant-pairing-reads-two-non-parallel-planes-as-opposed`.
+  
+  Both fall to the face-pair unit, and each asks for a probe.
+- **Brief error, mine:** the loop-lift brief put `torus_chart_window` in `boolean/boxes.rs`; it is in `cover.rs`. Both designers caught it.
+- (ONEDOOR orchestrator)
