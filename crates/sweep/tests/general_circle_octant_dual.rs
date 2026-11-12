@@ -50,7 +50,6 @@ fn oblique_clip() -> Body<Dual64> {
     let c2 = topo::transform_rigid(
         &c2,
         &geom_core::RigidMotion::translation(v(-1.55, -1.55, -2.45)).unwrap(),
-        Tol::witness(),
     )
     .unwrap();
     let c2 = topo::transform_rigid(
@@ -63,7 +62,6 @@ fn oblique_clip() -> Body<Dual64> {
             ),
             Tol::witness(),
         ),
-        Tol::witness(),
     )
     .unwrap();
     boolean_op_with(

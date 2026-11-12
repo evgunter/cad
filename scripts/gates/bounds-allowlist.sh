@@ -552,8 +552,12 @@ BOUNDS_ALLOWLIST=(
   # The third is `nary_boolean_apart`, `nary_boolean` with the member
   # pairs a placement's separation certificate certifies apart: it
   # forwards to `run_members` with those pairs and reads no bracket of
-  # its own. 2 + 1 = 3.
-  'crates/topo/src/boolean/nary.rs 3 2026-07-29 (M5 PR 8), the driver amendment'
+  # its own. The fourth is `cut_by_material`, a cut whose tool's solids
+  # rest on each other (`crates/topo/README.md`, `[topo.cut-material]`):
+  # it runs the tool's fold through `run_members` and the cut through the
+  # boolean door (`boolean_op_given`), and reads no bracket of its own
+  # (without `Bounds` neither call compiles). 3 + 1 = 4.
+  'crates/topo/src/boolean/nary.rs 4 2026-07-29 (M5 PR 8), the driver amendment'
   # `separation.rs` is FIVE. The ledger entry enumerates three seams
   # (`Separation::of`, the pair certificate, `image`), and the pair
   # certificate is `Separation::apart`, every pair of placed copies the
@@ -773,7 +777,13 @@ BOUNDS_ALLOWLIST=(
   # `BlendError::BallDoesNotFit`. The next tighter
   # bound, `Decide` alone, fails there: `classified` takes `T: Bounds`.
   # Neither picks anything from a bracket.
-  'crates/sweep/src/blend/battery.rs 23 M5 PR 12 (orchestrator ruling 2026-08-03), the edge-blend battery'
+  # 23 -> 24: `chain_apart`, which takes from the support
+  # screen the pairs of one chain's links joined by a run turning
+  # less than a half turn. Its one bracket read, `(sum - π).hi() < 0`, is
+  # a SELECTION that only narrows the screen: a sum not certainly below
+  # the half turn leaves the pair screened as before, the conservative
+  # reading. `Decide` alone has no bracket to read.
+  'crates/sweep/src/blend/battery.rs 24 M5 PR 12 (orchestrator ruling 2026-08-03), the edge-blend battery'
   # build.rs 5 -> 3 (ONEHOME, finished-body doors): `fillet_edges` and
   # `chamfer_edges` take the scalar's finished body (`F: FinishedBody`),
   # so their `T: Decide + Bounds` is now `F::Scalar: Bounds` in a
@@ -839,7 +849,28 @@ BOUNDS_ALLOWLIST=(
   #   down on is left to the ring pass, which meters it whole; any
   #   reading not certain is neither, metered as before. It inherits
   #   `ring_clearance`'s DL5(b) disposition and the reach's.
-  'crates/sweep/src/blend/surgery.rs 22 M5 PR 12 (orchestrator ruling 2026-08-03), the edge-blend battery'
+  # surgery.rs 22 -> 24: the mixed rim's carve and the support-boundary
+  # meter's level, each needing `Bounds` only for callees argued above,
+  # so `Decide` alone fails to compile at those calls:
+  # - `rim_phase_mixed`, `rim_phase_annulus`'s walk with one band face
+  #   per link, calls `seam_split_param`, `split_fragment` and
+  #   `strut_foot`. It reads no bracket of its own.
+  # - `impl StripLevel`, the level `support_boundary_clearance` reads
+  #   each strip through, calls `piece_distance`, `piece_along` and
+  #   `boxed_reach`, and inherits their dispositions. It makes two
+  #   bracket reads, both SELECTIONS. `(rim_at - at_trim).lo() > 0.0`
+  #   picks which side of the trim the rim lies on, definite by a setback
+  #   (DL5(b)); an indefinite read refuses. An arc window's
+  #   `(t1 - t0).lo() > 0` and `(sweep - π).hi() < 0` admit the wedge
+  #   only when it is certainly one, since an uncertain read takes the
+  #   whole circle, a sound bound. Its margins are `max`es of the
+  #   pieces' extents, arithmetic, and `ring_clearance` decides them.
+  # 24 -> 26: `level_clearance` and `cycles_clearance` are
+  # `support_boundary_clearance`'s per-face read split out so the open
+  # band's torus link reads its supports through it too (arm (e) of
+  # `ring_clearance_pass`); they read brackets only through
+  # `StripLevel::clearance` and `ring_clearance`, as that arm did.
+  'crates/sweep/src/blend/surgery.rs 26 M5 PR 12 (orchestrator ruling 2026-08-03), the edge-blend battery'
   # reach.rs 9 -> 14: `sign` decides a reference point's side of a
   # bound past its bracket (`±1` decided, `0` -- a vacuous bound --
   # where not), replacing the self-division `x/|x|` that gave the
@@ -887,7 +918,26 @@ BOUNDS_ALLOWLIST=(
   #   `piece_distance`'s and `piece_along`'s), and its result is one term
   #   of `CapSliver::inside_point` or `ring_inside`, which only `sure`
   #   decides, so it inherits that door's disposition and no other.
-  'crates/sweep/src/blend/open/end_face.rs 9 M5 PR 12 (orchestrator ruling 2026-08-03), the edge-blend battery'
+  # 9 -> 10: `feet_in_order` is `shared_rims_clear`'s decision split
+  # out so a junction's feet meter decides through it too; it decides
+  # only through `classify`, as that meter did.
+  'crates/sweep/src/blend/open/end_face.rs 10 M5 PR 12 (orchestrator ruling 2026-08-03), the edge-blend battery'
+  # junction.rs new at 2: the junction's moves left `surgery.rs`'s
+  # mixed rim for their own file when the open band took them too.
+  # `split_mate` reads brackets only through `seam_split_param`'s window
+  # test, as the mixed rim's split did; `feet_clear` meters a straight
+  # link's two feet along it, deciding only through `classify`, as
+  # `shared_rims_clear` meters two cut-offs'. The same seam and the same
+  # reads, moved and shared; no new decision reads a bracket.
+  # 2 -> 4: `strut_foot` moved here from `surgery.rs` as a junction's
+  # own move, and `split_at` is `split_mate`'s split shared with the
+  # annulus and ladder walks; each reads brackets only through
+  # `seam_split_param`'s window test or not at all, as before the move.
+  # `surgery.rs` 26 holds: it lost `strut_foot` and gained `arc_pieces`,
+  # which reads a sweep's bracket only to select how many pieces to cut
+  # and whether each is certainly under a half turn, an uncertain read
+  # taking the whole circle.
+  'crates/sweep/src/blend/junction.rs 4 M5 PR 12 (orchestrator ruling 2026-08-03), the edge-blend battery'
   # M6-2, the SSI rung-3 certificate.
   # The fitted door's fourth body is `projected_hull_lane` (`Decide +
   # Bounds + CertifiedEnclosure`, the bound its three siblings carry):

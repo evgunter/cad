@@ -610,6 +610,10 @@ fn certify_errors() -> Vec<CertifyError> {
             surface: key,
             refusal: geom_brep::RowRefusal::OffSide,
         },
+        CertifyError::Row {
+            surface: key,
+            refusal: geom_brep::RowRefusal::Singular,
+        },
         CertifyError::WrapOnNonPeriodic,
         // Both zero-span stories: a length a smaller tolerance decides,
         // and a span of no length, which none does.
@@ -924,6 +928,9 @@ fn pcurve_certify_errors() -> Vec<PcurveCertifyError> {
         PcurveCertifyError::ResidualExceeded {
             check: PcurveCheck::MapResidual,
             sample: 4,
+        },
+        PcurveCertifyError::MissLocated {
+            margin: MarginDiag::value(1e-7),
         },
         PcurveCertifyError::Escalated {
             check: PcurveCheck::Envelope,
@@ -1684,6 +1691,24 @@ pub fn validation_error_samples() -> Vec<(String, ValidationError)> {
                     },
                 ));
             }
+            // Undecided: read over a box, and at a point.
+            for verdict in [diags()[1], diags()[0]] {
+                s.push((
+                    format!(
+                        "{}/{measure:?}/{:?}",
+                        label("SurfaceDatumUndecided", &datum),
+                        verdict.margin.kind()
+                    ),
+                    ValidationError::SurfaceDatumUndecided {
+                        face,
+                        kind,
+                        datum,
+                        measure,
+                        end: geom::ConventionEnd::Upper,
+                        verdict,
+                    },
+                ));
+            }
         }
     }
 
@@ -1710,6 +1735,23 @@ pub fn validation_error_samples() -> Vec<(String, ValidationError)> {
                     },
                 ));
             }
+            for verdict in [diags()[1], diags()[0]] {
+                s.push((
+                    format!(
+                        "{}/{measure:?}/{:?}",
+                        label("CurveDatumUndecided", &datum),
+                        verdict.margin.kind()
+                    ),
+                    ValidationError::CurveDatumUndecided {
+                        edge,
+                        kind,
+                        datum,
+                        measure,
+                        end: geom::ConventionEnd::Upper,
+                        verdict,
+                    },
+                ));
+            }
         }
     }
 
@@ -1721,6 +1763,12 @@ pub fn validation_error_samples() -> Vec<(String, ValidationError)> {
         "OutsideSessionBox".into(),
         ValidationError::OutsideSessionBox {
             margin: geom_core::MarginDiag::value(-2.5e3),
+        },
+    ));
+    s.push((
+        "Unmovable".into(),
+        ValidationError::Unmovable {
+            found: "a null scaffold",
         },
     ));
     for error in offset_fit_errors() {
@@ -2576,6 +2624,13 @@ mod tests {
                         C::ResidualExceeded { check: c, .. } => check(*c, definite),
                         _ => unreachable!("the kind is the arm"),
                     },
+                    K::MissLocated => match &e {
+                        C::MissLocated { margin } => check(
+                            PcurveCheck::MapResidual,
+                            RefusedArm::SignCertain(Some(*margin)),
+                        ),
+                        _ => unreachable!("the kind is the arm"),
+                    },
                     K::IntervalNotForward => check(PcurveCheck::ParamSpan, definite),
                     K::AzimuthPeriodExceeded => check(PcurveCheck::AzimuthPeriod, definite),
                     K::PlacementTurnsExceeded => check(PcurveCheck::ChartWinding, definite),
@@ -2989,7 +3044,7 @@ mod tests {
                     | CertifyError::TangentCertificateUnsupported
                     | CertifyError::Band(_)
                     | CertifyError::Row {
-                        refusal: geom_brep::RowRefusal::OffSide,
+                        refusal: geom_brep::RowRefusal::OffSide | geom_brep::RowRefusal::Singular,
                         ..
                     }
             )

@@ -373,8 +373,7 @@ fn half_space(n: Vec3<f64>) -> topo::AtRestBody<f64> {
             x.dot(n).clamp(-1.0, 1.0).acos(),
         )
     };
-    let moved =
-        topo::transform_rigid(&b, &geom_core::test_support::rigid(&turn, tol()), tol()).unwrap();
+    let moved = topo::transform_rigid(&b, &geom_core::test_support::rigid(&turn, tol())).unwrap();
     topo::test_support::finished("the half-space", moved, tol())
 }
 

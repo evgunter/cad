@@ -672,6 +672,7 @@ fn rendered_boolean_refusals() -> Vec<(&'static str, String)> {
                 operand: Operand::B,
                 vertex: VertexKey::default(),
                 partners: [VertexKey::default(); 2],
+                why: topo::SharedStarts::NoneClear,
             },
         ),
         (
@@ -751,10 +752,38 @@ fn rendered_boolean_refusals() -> Vec<(&'static str, String)> {
             },
         ),
         (
-            "ToolSeatCrossed",
-            BooleanError::ToolSeatCrossed {
+            "ToolSeatUnread",
+            BooleanError::ToolSeatUnread {
                 record: 0,
-                faces: [FaceKey::default(); 2],
+                cells: [topo::Cell::Face(FaceKey::default()); 2],
+            },
+        ),
+        (
+            "ToolSeatUnread (lower cells)",
+            BooleanError::ToolSeatUnread {
+                record: 0,
+                cells: [topo::Cell::Edge(topo::EdgeKey::default()); 2],
+            },
+        ),
+        (
+            "ToolFuseRefused",
+            BooleanError::ToolFuseRefused {
+                why: Box::new(topo::ToolFuseRefusal::Step(BooleanError::TouchesItself {
+                    operand: Operand::A,
+                    record: 0,
+                    faces: [FaceKey::default(); 2],
+                })),
+            },
+        ),
+        (
+            "ToolFuseRefused (holding)",
+            BooleanError::ToolFuseRefused {
+                why: Box::new(topo::ToolFuseRefusal::Holding {
+                    face: FaceKey::default(),
+                    refusal: topo::HeldRefusal::NotUnder {
+                        member_face: (0, FaceKey::default()),
+                    },
+                }),
             },
         ),
         (

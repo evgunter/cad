@@ -1429,8 +1429,8 @@ fn seam_bend(sagitta: f64) -> Result<(), BooleanError> {
     )
     .map(|_| ())
     .map_err(|refusal| match refusal {
-        super::super::ops::SeamRefusal::Undecided(reading, diag) => {
-            super::super::ops::seam_refusal(reading, diag)
+        super::super::ops::SeamRefusal::Undecided(escalation) => {
+            super::super::ops::seam_refusal(escalation)
         }
         mixed @ super::super::ops::SeamRefusal::Mixed(_) => {
             panic!("a resting cylinder reads smooth at every station, got {mixed:?}")
@@ -2174,7 +2174,8 @@ fn quoting(kind: BooleanErrorKind, diag: Indeterminate) -> Vec<BooleanError> {
         | BooleanErrorKind::VertexReadTwice
         | BooleanErrorKind::PartnerAlongFace
         | BooleanErrorKind::TouchesItself
-        | BooleanErrorKind::ToolSeatCrossed
+        | BooleanErrorKind::ToolSeatUnread
+        | BooleanErrorKind::ToolFuseRefused
         | BooleanErrorKind::ClassificationInvariant
         | BooleanErrorKind::CurvedPairUnsupported
         | BooleanErrorKind::NurbsExtentUnsupported
@@ -2185,6 +2186,7 @@ fn quoting(kind: BooleanErrorKind, diag: Indeterminate) -> Vec<BooleanError> {
         | BooleanErrorKind::GermSectionSpiric
         | BooleanErrorKind::NodeUnbuilt
         | BooleanErrorKind::JoinDesync
+        | BooleanErrorKind::Carve
         | BooleanErrorKind::LineageRow
         | BooleanErrorKind::SplitLineage
         | BooleanErrorKind::EdgeUndescribed

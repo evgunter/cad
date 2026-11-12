@@ -3754,6 +3754,7 @@ fn embedded_names(seg: &RoleSeg) -> Vec<&StableName> {
         | RoleSeg::BlendFace(x)
         | RoleSeg::CornerFace(x)
         | RoleSeg::Mitre { vertex: x }
+        | RoleSeg::BandSection { vertex: x }
         | RoleSeg::TurnFoot { vertex: x }
         | RoleSeg::BandTrim { edge: x, .. }
         | RoleSeg::BandFoot(x)
@@ -4095,8 +4096,9 @@ pub fn in_space<T: geom_core::Decide + topo::AtRestPolicy>(
 ) -> Body<T> {
     match editor_core::in_space(value) {
         None => value.body().clone(),
-        Some(map) => topo::transform_rigid(value.body(), &map, Tol::witness())
-            .expect("a body composes into its space"),
+        Some(map) => {
+            topo::transform_rigid(value.body(), &map).expect("a body composes into its space")
+        }
     }
 }
 
@@ -4120,8 +4122,9 @@ pub fn product_in_world(
     let product = editor_core::product_recorded(doc, ev, tol)?;
     Ok(match editor_core::in_space(&product) {
         None => product.body.into_body(),
-        Some(map) => topo::transform_rigid(&product.body, &map, tol)
-            .expect("a product composes into the world"),
+        Some(map) => {
+            topo::transform_rigid(&product.body, &map).expect("a product composes into the world")
+        }
     })
 }
 

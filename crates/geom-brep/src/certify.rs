@@ -194,9 +194,10 @@ pub enum CertCheck {
     /// samples alone cannot see (every point of the wrong arc also
     /// lies on both surfaces).
     WitnessMidpoint,
-    /// Intersection: the crossing angle at an interior sample, levered
-    /// to the dihedral displacement margin — must be definitely
-    /// transverse.
+    /// A witness `Intersection`: the crossing angle at an interior
+    /// sample, levered to the dihedral displacement margin — must be
+    /// definitely transverse. A shared row's contact reading
+    /// (`row_contact`) escalates under it too.
     Transversality,
     /// Intersection, rung 3: the uniqueness tube's lower bound on the
     /// crossing angle over its box chain, its certified clearance from
@@ -285,7 +286,7 @@ pub enum CertCheck {
     /// **A stated chart image's miss from its carrier**,
     /// `|C(t) − S(P(t))|` for an image the description states rather
     /// than the mint derives: bounded over the span by the door its class
-    /// names, and read at the schedule's samples first. A miss is a
+    /// names. A miss is a
     /// contradiction between the image the edge states and the carrier it
     /// is read against, so it ends as one
     /// ([`crate::recourse::RefusedSide::StoredContradiction`]), with no
@@ -776,22 +777,28 @@ pub enum RowRefusal {
         /// The classifier's diagnostic.
         cause: Indeterminate,
     },
-    /// The row is not on a side of the wall's chart domain. The shared
-    /// row is built for boundary rows; a structural selector for any
-    /// other row or column known in advance (D2) has no certificate yet.
+    /// The row is not on a side of the wall's spline chart domain. A
+    /// spline wall's shared row is read on a domain side only; an
+    /// analytic chart's row is read anywhere on it.
     OffSide,
     /// The wall's chart has no speeds to read the walls' crossing along
     /// the row in ([`crate::ssi::ChartSpeedRefusal`]).
     ChartSpeed(crate::ssi::ChartSpeedRefusal),
+    /// The row reaches a singular point of the wall's analytic chart (a
+    /// cone's apex, or the axis of a torus that is no ring torus), where
+    /// its normal is no first harmonic along the row
+    /// ([`crate::row_contact`]).
+    Singular,
 }
 
 impl RowRefusal {
     /// The decision this refusal is a refused arm of, `None` for the
-    /// structural [`RowRefusal::OffSide`]. The row image is an `IsoArc`'s
-    /// or an `IsoLine`'s certificate, so its check reads as an arc rim's
-    /// does ([`arc_rim_check`]): definite on the incidence limb it names
-    /// (the hull bound for one that names none), undecided at the same
-    /// routing; a chart speed reads as the spline lanes' does.
+    /// structural [`RowRefusal::OffSide`] and [`RowRefusal::Singular`]. The row image's certificate (an
+    /// `IsoArc`'s or an `IsoLine`'s on a spline chart, a closed form's on
+    /// an analytic one) reads as an arc rim's does ([`arc_rim_check`]):
+    /// definite on the incidence limb it names (the hull bound for one
+    /// that names none), undecided at the same routing; a chart speed
+    /// reads as the spline lanes' does.
     #[must_use]
     pub fn decision(&self) -> Option<(CertCheck, RefusedArm<'_>)> {
         Some(match self {
@@ -803,7 +810,7 @@ impl RowRefusal {
                 (arc_rim_check(*check), RefusedArm::Undecided(cause))
             }
             Self::ChartSpeed(r) => (r.check(), RefusedArm::SignCertain(None)),
-            Self::OffSide => return None,
+            Self::OffSide | Self::Singular => return None,
         })
     }
 }
@@ -1041,9 +1048,16 @@ impl core::fmt::Display for CertifyError {
                 refusal: RowRefusal::OffSide,
             } => write!(
                 f,
-                "the shared row on surface {surface:?} is not on a side of its chart's domain: \
-                 the shared row is built for boundary rows, and D2's structural selector for \
-                 any other row or column known in advance has no certificate yet"
+                "the shared row on surface {surface:?} is not on a side of its spline chart's \
+                 domain: a spline wall's shared row is read on a domain side only"
+            ),
+            Self::Row {
+                surface,
+                refusal: RowRefusal::Singular,
+            } => write!(
+                f,
+                "the shared row on surface {surface:?} reaches a singular point of its chart \
+                 (a cone's apex, or the axis of a torus that is no ring torus)"
             ),
             Self::Row {
                 surface,
@@ -1853,7 +1867,8 @@ impl DoorCheck for CertCheck {
     ///   D4 ¶1 (iv)).
     /// - A residual or a form selection has no size. Every arm ends in the
     ///   kernel-defect ending where the kernel built the geometry exactly
-    ///   (the file's too, at rest). Where the kernel
+    ///   (the file's too, at rest), except an undecided arm past a build,
+    ///   which is reported as undecided ([`Unsized::recourse`]). Where the kernel
     ///   approximated, an arm read at a build, and an undecided arm read at
     ///   rest, end in the last resort; a definite arm at rest ends in the
     ///   file's defect ending, since no loosening repairs a stored
@@ -2276,7 +2291,7 @@ const WINDING_ROWS: TurnRows<&str> = crate::rows::INTERVAL_SPAN_WINDING.rows();
 /// [`EdgeCurve::uncertified`] where it never does), or from such a value
 /// by a map that carries what it carries
 /// ([`EdgeCurve::with_remapped_surfaces`],
-/// [`EdgeCurve::with_chart_v_mirrored`]) — fields are private, so an
+/// [`EdgeCurve::with_chart_v_mirrored`], [`EdgeCurve::carried`]) — fields are private, so an
 /// uncertified value at a certifying scalar is unrepresentable (D4 ¶2
 /// made structural).
 #[derive(Clone, Debug)]
@@ -2446,15 +2461,16 @@ impl<T: Decide + geom_core::CertifiedBounds> EdgeCurve<T> {
     ///      `TangentIntersection`'s second-order arm folds the same
     ///      `reach`.
     ///    - `Scaffold` (a mapped source): `|carrier(t_i) − description(i/8)|`.
-    ///    - `Chart`: `|C(t_i) − S(P(t_i))|`, but for a stated image whose
-    ///      class a door certifies ([`crate::PcurveCache::certify_stated_bound`]):
-    ///      every image on a spline chart, and on an analytic chart an iso
-    ///      line or curve in UV on a plane or a cylinder's or cone's ruling,
-    ///      or a projected image. That image is bounded over the whole span
-    ///      before the schedule, by its door's envelope, a sup; its miss ends
-    ///      as [`CertCheck::StatedImage`], and a carrier off its chart by
-    ///      the carrier's incidence read. A stated image no door bounds is
-    ///      metered at the schedule as [`CertCheck::StatedImage`].
+    ///    - `Chart`: `|C(t_i) − S(P(t_i))|` for a derived image. A stated
+    ///      image is bounded over the whole span before the schedule, by
+    ///      the door its class names
+    ///      ([`crate::PcurveCache::certify_stated_bound`]), a sup: on a
+    ///      spline chart its pcurve door; on an analytic chart a closed
+    ///      form by its residual's coefficients, an iso line or curve in UV
+    ///      by the fitted composite against a patch that agrees with the
+    ///      chart along it or encloses it, a projected image by its door.
+    ///      Its miss ends as [`CertCheck::StatedImage`], and a carrier off
+    ///      its chart by the carrier's incidence read.
     /// 5. `Intersection`: the witness's implicit residuals vs both
     ///    surfaces, then the **mid-parameter pin**
     ///    `|carrier.mid_point(t₀, t₁) − witness| ≤ ε`
@@ -3237,6 +3253,36 @@ impl<T: Real> EdgeCurve<T> {
         })
     }
 
+    /// **This edge under an isometry, its certificate carried**: the
+    /// mapped `carrier`, `description` and `authority` on this edge's
+    /// own interval, with its turn and certificate verbatim.
+    ///
+    /// The certificate is `{samples, max_residual}`, a distance between
+    /// the description and its carrier at the schedule's parameters, and
+    /// the turn is the interval against one period. An isometry keeps
+    /// both, and a map keeps the carrier's parameter, so both are the
+    /// image's. That holds only where the three arguments are this
+    /// edge's data under one isometry, exact apart from rounding: the
+    /// caller's to keep, and `topo`'s data map (`map_isometry`) is the
+    /// one caller.
+    #[must_use]
+    pub fn carried(
+        &self,
+        carrier: Curve3<T>,
+        description: EdgeDescription<T>,
+        authority: EdgeAuthority<T>,
+    ) -> Self {
+        Self {
+            description,
+            authority,
+            carrier,
+            param_start: self.param_start,
+            param_end: self.param_end,
+            turn: self.turn,
+            certificate: self.certificate,
+        }
+    }
+
     /// The carrier parameter at schedule sample `i` (i ∈ 0…8): the
     /// module-doc schedule ([`sample_param`]). Exposed so the
     /// tier-3 validator samples the *same* parameters the certification
@@ -3448,9 +3494,15 @@ pub fn sample_param<T: Real>(t0: T, t1: T, i: u32) -> T {
 /// the held ends themselves (the carrier's own data), and every other
 /// station is the `f64` [`schedule_param`] over `domain`, a point the
 /// schedule chose, entered as the constant it is. Bit for bit
-/// [`schedule_param`] at `f64`; at an enclosure scalar an interior
-/// station stays a point rather than widening by the station's own
-/// arithmetic, which a check at a chosen point has no use for.
+/// [`schedule_param`] at `f64` when `domain` is `held`'s value, in its
+/// order; at an enclosure scalar an interior station stays a point
+/// rather than widening by the station's own arithmetic, which a check
+/// at a chosen point has no use for.
+///
+/// A read at a held station is never wider than the same read at the
+/// computed one: the point lies in the computed station's enclosure, so
+/// by inclusion isotonicity its read's enclosure lies in that read's,
+/// and a decision can only move out of the band, never across it.
 pub(crate) fn held_station<T: Real>(domain: (f64, f64), held: (T, T), i: u32, samples: u32) -> T {
     match schedule_fraction(i, samples) {
         0.0 => held.0,
@@ -3476,8 +3528,11 @@ pub(crate) fn schedule_fraction(i: u32, samples: u32) -> f64 {
 /// reader of an edge shares, so the middle sample is the parameter
 /// [`Curve3::mid_point`] evaluates at and a certificate that samples
 /// the carrier and checks its midpoint witness evaluates that point
-/// once. Every other station is `t₀ + (t₁ − t₀)·(i/(samples − 1))` in
-/// that association order (D9). `t₀ + (t₁ − t₀)·1` is not `t₁` in
+/// once. A schedule read at held stations (a stated image's) is the
+/// exception: at an enclosure scalar its middle is `mid_param` of the
+/// `f64` ends, entered as a point, not the scalar's own middle. Every
+/// other station is `t₀ + (t₁ − t₀)·(i/(samples − 1))` in that
+/// association order (D9). `t₀ + (t₁ − t₀)·1` is not `t₁` in
 /// `f64` in general, and an image re-expressed on `[t₀, t₁]` exactly
 /// has its last knot at `t₁` itself, so a last sample computed rather
 /// than assigned sits an ulp outside it.
@@ -3594,14 +3649,17 @@ impl<T: Real> IntersectionDraft<T> {
 }
 
 impl<T: Decide> IntersectionDraft<T> {
-    /// **D2's question of a seam between two spline walls: is its curve
-    /// known in advance?** `Some` where it is a row on each wall's chart
-    /// boundary: `walls` are the seam's two surfaces, each with the edge's
-    /// image on it, and each image is an iso row along a domain side of
-    /// that wall's chart and certifies there over the draft's own carrier
-    /// and interval (the wall's chart-image certificate, which the
-    /// structural selector's own certificate reads). `None` otherwise,
-    /// and for a draft that drew a chord: no row is stated over one.
+    /// **D2's question of a seam between two walls: is its curve known in
+    /// advance?** `Some` where it is a row of each wall's chart: `walls`
+    /// are the seam's two surfaces, each with the edge's image on it, both
+    /// spline or both analytic, and each image certifies there over the
+    /// draft's own carrier and interval (the wall's chart-image
+    /// certificate, which the structural selector's own certificate
+    /// reads). On a spline wall the image is an iso row along a domain
+    /// side of its chart; on an analytic wall, any row of its chart
+    /// ([`pair_row_certifies`]). `None`
+    /// otherwise, and for a draft that drew a chord: no row is stated over
+    /// one.
     ///
     /// Asked of the geometry alone: the images are what the walls' charts
     /// state for this carrier, whoever built the edge. An image handed in
@@ -3609,10 +3667,11 @@ impl<T: Decide> IntersectionDraft<T> {
     /// edge's own carrier and interval, which a kept draft states, and is
     /// not certified again ([`side_row_certifies`]).
     ///
-    /// Built for boundary rows, which a rim between two walls grafted at a
-    /// shared section needs. D2's structural selector covers any row or
-    /// column known in advance; the domain-side restriction is this
-    /// reader's scope, not the selector's definition.
+    /// A spline wall's row is read on a domain side only, which a rim
+    /// between two walls grafted at a shared section needs. D2's
+    /// structural selector covers any row or column known in advance; the
+    /// domain-side restriction is this reader's scope, not the selector's
+    /// definition.
     pub fn shared_row(
         &self,
         pair: SurfacePair,
@@ -3624,12 +3683,7 @@ impl<T: Decide> IntersectionDraft<T> {
         }
         let [(ka, wa, ia), (kb, wb, ib)] = walls;
         let span = (self.param_start, self.param_end);
-        let on_side = |wall: &Surface<T>, image: &crate::ChartImage<T>| {
-            side_row_certifies(wall, image, (&self.carrier, span), band)
-        };
-        if !(on_side(wa, &ia) && on_side(wb, &ib)) {
-            return None;
-        }
+        pair_row_certifies([(wa, &ia), (wb, &ib)], (&self.carrier, span), band)?;
         let row = crate::description::SharedRow::new(
             pair,
             (ka, ia.into_pcurve()),
@@ -3639,12 +3693,11 @@ impl<T: Decide> IntersectionDraft<T> {
     }
 }
 
-/// **A shared row's one admission test, per wall**: `image` is a row on a
-/// domain side of `wall`'s spline chart (`description::on_domain_side`)
-/// and certifies there as the image of `carrier` over `span`
-/// ([`crate::PcurveCache::certify`]). [`IntersectionDraft::shared_row`]
-/// reads each wall by it, and so does the boolean's interior-loop guard
-/// when it hands a rim two spline faces share to their section's reading.
+/// **A shared row's per-wall certifier**: `image` is a row of `wall`'s
+/// chart (`description::wall_row`, the one admission rule) and certifies
+/// there as the image of `carrier` over `span`
+/// ([`crate::PcurveCache::certify`]). The kind of row it is, where it is
+/// one.
 ///
 /// A [`ChartImage::Certified`](crate::ChartImage::Certified) image whose certificate is over exactly
 /// `span` (the same scalars, [`geom_core::bit_identity::eq_bits`]) is
@@ -3654,26 +3707,67 @@ impl<T: Decide> IntersectionDraft<T> {
 /// for another span does not pass by agreeing with the image alone.
 /// The identity only chooses between the two sound paths; a false "no"
 /// costs the certify.
-pub fn side_row_certifies<T: Decide>(
+fn row_certifies<T: Decide>(
     wall: &Surface<T>,
     image: &crate::ChartImage<T>,
     (carrier, (t0, t1)): (&Curve3<T>, (T, T)),
     band: Band,
+) -> Option<crate::description::WallRow> {
+    let row = crate::description::wall_row(wall, image.pcurve()).ok()?;
+    if row == crate::description::WallRow::Analytic
+        && !matches!(
+            crate::description::harmonic_row(image.pcurve(), (t0, t1), band),
+            Ok(Some(_))
+        )
+    {
+        return None;
+    }
+    let certified = match image {
+        crate::ChartImage::Certified(cache) if same_span(cache.params(), (t0, t1)) => true,
+        other => crate::pcurve_cache::PcurveCache::certify(
+            other.pcurve().clone(),
+            t0,
+            t1,
+            carrier,
+            wall,
+            band,
+        )
+        .is_ok(),
+    };
+    certified.then_some(row)
+}
+
+/// **A shared row's admission, both walls**: both are spline walls or both
+/// analytic ones, and each image certifies as a row of its wall's chart
+/// ([`row_certifies`]). The rows' kinds, where they are.
+pub(crate) fn pair_row_certifies<T: Decide>(
+    [(wa, ia), (wb, ib)]: [(&Surface<T>, &crate::ChartImage<T>); 2],
+    over: (&Curve3<T>, (T, T)),
+    band: Band,
+) -> Option<[crate::description::WallRow; 2]> {
+    if wa.spline_chart().is_some() != wb.spline_chart().is_some() {
+        return None;
+    }
+    Some([
+        row_certifies(wa, ia, over, band)?,
+        row_certifies(wb, ib, over, band)?,
+    ])
+}
+
+/// **A spline wall's shared-row test**: `image` is an iso row on a domain
+/// side of `wall`'s spline chart and certifies there ([`row_certifies`]).
+/// The boolean's interior-loop guard reads a rim two spline faces share
+/// by it, and so does the arc-rim pick.
+pub fn side_row_certifies<T: Decide>(
+    wall: &Surface<T>,
+    image: &crate::ChartImage<T>,
+    over: (&Curve3<T>, (T, T)),
+    band: Band,
 ) -> bool {
-    wall.spline_chart()
-        .is_some_and(|chart| crate::description::on_domain_side(chart, image.pcurve()))
-        && match image {
-            crate::ChartImage::Certified(cache) if same_span(cache.params(), (t0, t1)) => true,
-            other => crate::pcurve_cache::PcurveCache::certify(
-                other.pcurve().clone(),
-                t0,
-                t1,
-                carrier,
-                wall,
-                band,
-            )
-            .is_ok(),
-        }
+    matches!(
+        row_certifies(wall, image, over, band),
+        Some(crate::description::WallRow::Spline)
+    )
 }
 
 /// Whether two carrier intervals are the same scalars, end for end
@@ -3954,25 +4048,29 @@ fn resolve_spec<T: Decide>(
             if k1 == k2 {
                 return Err(CertifyError::IntersectionSameSurface { key: k1 });
             }
-            // Each wall states its row on its own chart, which is
-            // evaluated as a stated chart image is: a described spline
-            // chart and nothing else.
-            let wall = |k: SurfaceKey, image: &Pcurve<T>| {
-                let s = resolve_iso(k)?;
-                let Some(chart) = s.spline_chart() else {
-                    return Err(CertifyError::Unimplemented);
-                };
-                if !crate::description::on_domain_side(chart, image) {
-                    return Err(CertifyError::Row {
+            // Each wall states its row on its own chart, by the one
+            // admission rule (`description::wall_row`). The walls are both
+            // spline or both analytic, read first so either key order
+            // refuses alike.
+            let (s1, s2) = (resolve_iso(k1)?, resolve_iso(k2)?);
+            if s1.spline_chart().is_some() != s2.spline_chart().is_some() {
+                return Err(CertifyError::Unimplemented);
+            }
+            let wall = |k: SurfaceKey, s: Surface<T>, image: &Pcurve<T>| {
+                match crate::description::wall_row(&s, image) {
+                    Ok(_) => Ok((k, s, image.clone())),
+                    Err(crate::description::NotARow::OffSide) => Err(CertifyError::Row {
                         surface: k,
                         refusal: RowRefusal::OffSide,
-                    });
+                    }),
+                    Err(crate::description::NotARow::Unadmitted) => {
+                        Err(CertifyError::Unimplemented)
+                    }
                 }
-                Ok((k, s, image.clone()))
             };
             let [ia, ib] = row.images();
             Resolved::SharedRow {
-                walls: [wall(k1, ia)?, wall(k2, ib)?],
+                walls: [wall(k1, s1, ia)?, wall(k2, s2, ib)?],
             }
         }
         EdgeDescriptionSpec::Intersection {
@@ -4384,17 +4482,15 @@ fn canonical_of<T: Decide>(
 
 /// **Where a description states its chart image**, decided once
 /// ([`StatedDoor`], by structure): bounded over the span by the door its
-/// class names ([`stated_bound`]), or, on an analytic chart where no door
-/// certifies its class, metered at the schedule's samples; or not at all
-/// (a derived image, or any other description). On an analytic chart the
-/// carrier is read first either way ([`stated_analytic_read`], and at the
-/// certificate a net bounded over the span, [`stated_analytic_bound`]).
+/// class names ([`stated_bound`]); or not at all (a derived image, or any
+/// other description). On an analytic chart the carrier is read first
+/// ([`stated_analytic_read`], and at the certificate a net bounded over
+/// the span, [`stated_analytic_bound`]).
 enum StatedChart<'a, T: Real> {
     Bounded {
         surface: &'a Surface<T>,
         door: StatedDoor<'a, T>,
     },
-    Sampled(&'a Surface<T>),
     None,
 }
 
@@ -4408,21 +4504,14 @@ impl<'a, T: Real> StatedChart<'a, T> {
         else {
             return Self::None;
         };
-        let door = StatedDoor::of(surface, image);
         #[cfg(test)]
         if surface.spline_chart().is_some() && crate::pcurve_cache::mutants::stated_image_sampled()
         {
             return Self::None;
         }
-        #[cfg(test)]
-        if surface.spline_chart().is_none()
-            && crate::pcurve_cache::mutants::analytic_image_sampled()
-        {
-            return Self::Sampled(surface);
-        }
-        match door {
-            Some(door) => Self::Bounded { surface, door },
-            None => Self::Sampled(surface),
+        Self::Bounded {
+            surface,
+            door: StatedDoor::of(surface, image),
         }
     }
 
@@ -4430,12 +4519,8 @@ impl<'a, T: Real> StatedChart<'a, T> {
     /// before the image.
     fn analytic(&self) -> Option<&'a Surface<T>> {
         match *self {
-            Self::Bounded { surface, .. } | Self::Sampled(surface)
-                if surface.spline_chart().is_none() =>
-            {
-                Some(surface)
-            }
-            Self::Bounded { .. } | Self::Sampled(_) | Self::None => None,
+            Self::Bounded { surface, .. } if surface.spline_chart().is_none() => Some(surface),
+            Self::Bounded { .. } | Self::None => None,
         }
     }
 }
@@ -4444,9 +4529,10 @@ impl<'a, T: Real> StatedChart<'a, T> {
 /// construction states is certified through the door its class names
 /// ([`StatedDoor`]): on a spline chart its pcurve certificate's door
 /// ([`crate::PcurveCache::certify_stated_image`], the mint's); on an
-/// analytic chart affine along the image, the fitted door's composite
-/// against that chart's bilinear patch; a projected image through its
-/// own door. The certificate's envelope bounds `|C(t) − S(P(t))|` over
+/// analytic chart, a closed form by its residual's coefficients
+/// (`pcurve_cache::closed_bound`), an iso line or curve in UV by the
+/// fitted door's composite against the chart's patch, a projected image
+/// through its own door. The certificate's envelope bounds `|C(t) − S(P(t))|` over
 /// the whole span, so an image that leaves its carrier between any
 /// samples does not certify. A refusal ends as [`stated_refusal`] gives.
 ///
@@ -4477,8 +4563,8 @@ fn stated_bound<T: Decide>(
 ///
 /// - **The image misses its carrier**, shown: a sample of the door's
 ///   schedule past the band (at that sample), a located point of the
-///   composite (`HullValueChart`, `ImageMiss`), a closed form's or
-///   projected image's fidelity term (the stated coefficients against the
+///   composite (`HullValueChart`, `ImageMiss`) or of a closed form's
+///   residual (`MissLocated`), a projected image's fidelity term (the stated coefficients against the
 ///   image re-derived from the carrier; read over the span, so at no
 ///   sample). [`CertifyError::StatedImageMissed`]: D4 ¶1 (iv)'s culprit by
 ///   door.
@@ -4488,7 +4574,8 @@ fn stated_bound<T: Decide>(
 ///   the band with no miss located
 ///   ([`CertifyError::StatedImageUnsettled`]): the envelope is a sum of
 ///   upper bounds (an iso line's is its control-difference hull plus its
-///   snap slacks), which can exceed where the miss is small. Its
+///   snap slacks, a closed form's its residual's coefficients), which can
+///   exceed where the miss is small. Its
 ///   incidence terms take the same arms: the door has read the carrier
 ///   onto its chart first, so a term past the band is the bound's, not a
 ///   shown miss. Both end in the lever at every door.
@@ -4500,7 +4587,8 @@ fn stated_bound<T: Decide>(
 /// - **Not a miss**: the image's structure read wrong (its windings,
 ///   channel kinds, placement past a period, copied data, sector, a
 ///   domain short of the edge, a patch window the coordinates leave no
-///   width for), the carrier's own domain or enclosure, and refusals the
+///   width for, a unit sense or whole winding that is neither), the
+///   carrier's own domain or enclosure, and refusals the
 ///   route's structure rules out before the door runs: their own defect
 ///   ending ([`mint_refusal`]).
 fn stated_refusal<T: Real>(
@@ -4563,6 +4651,7 @@ fn stated_refusal<T: Real>(
             | PcurveCheck::GeneralLane
             | PcurveCheck::ParamSpan => mint_refusal(e, surface, carrier),
         },
+        PcurveCertifyError::MissLocated { margin } => missed(NOT_A_SAMPLE, Some(margin)),
         PcurveCertifyError::FittedLimb { limb, margin } => match limb {
             SsiLimb::HullValueChart | SsiLimb::ImageMiss => missed(NOT_A_SAMPLE, Some(margin)),
             _ => gap(LaneGap::Envelope),
@@ -4598,23 +4687,6 @@ fn stated_refusal<T: Real>(
         | PcurveCertifyError::PlaceholderChart
         | PcurveCertifyError::IntervalNotForward
         | PcurveCertifyError::Band(_) => mint_refusal(e, surface, carrier),
-    }
-}
-
-/// A stated image's definite miss at a sample, as the one refusal that
-/// carries it ([`CertifyError::StatedImageMissed`]); any other refusal
-/// as it stands.
-fn stated_missed(e: CertifyError) -> CertifyError {
-    match e {
-        CertifyError::ResidualExceeded {
-            check: CertCheck::StatedImage,
-            sample,
-            margin,
-        } => CertifyError::StatedImageMissed {
-            sample,
-            margin: Some(margin),
-        },
-        e => e,
     }
 }
 
@@ -4765,6 +4837,7 @@ fn mint_refusal<T: Real>(
         | PcurveCertifyError::PlacementTurnsExceeded
         | PcurveCertifyError::TubePeriodExceeded
         | PcurveCertifyError::ResidualExceeded { .. }
+        | PcurveCertifyError::MissLocated { .. }
         | PcurveCertifyError::Band(_) => CertifyError::ChartImageUnavailable {
             chart: surface.kind(),
             carrier: carrier.kind(),
@@ -5104,26 +5177,19 @@ fn run_checks<T: Decide + geom_core::CertifiedBounds>(
                     return Err(CertifyError::Unimplemented);
                 };
                 let p = spec.carrier.eval(t);
-                // A stated image whose door bounds it over the span is
-                // read above (`stated_bound`); one no door bounds is a
-                // stated image's miss at a sample, and a derived one the
-                // mint's.
-                let meter = match chart_stated {
-                    StatedChart::Bounded { .. } => None,
-                    StatedChart::Sampled(_) => Some(CertCheck::StatedImage),
-                    StatedChart::None => Some(CertCheck::ChartResidual),
-                };
-                if let Some(check) = meter {
+                // A stated image is bounded over the span above
+                // (`stated_bound`); a derived one is the mint's, metered
+                // here.
+                if let StatedChart::None = chart_stated {
                     let q = chart.pcurve.eval(t);
                     check_residual(
                         "pcurve_map_residual",
-                        check,
+                        CertCheck::ChartResidual,
                         i,
                         Margin::of(p.distance(surface.eval(q.x, q.y))),
                         band,
                         &mut max_residual,
-                    )
-                    .map_err(stated_missed)?;
+                    )?;
                 }
                 // **The declaration is metered too, or it is not a
                 // record of anything** (P-1b, reinstated in review).
@@ -5293,9 +5359,22 @@ fn run_checks<T: Decide + geom_core::CertifiedBounds>(
 
     // ---- Intersection under a shared row (D2's structural selector):
     // each wall's certificate of its own row image, limbs 1 and 2 on
-    // that chart (C2), and the walls definitely transverse along the
-    // row at the feet it states. No limb 3: the row is the curve. ----
+    // that chart (C2), and the row's contact class over the whole row.
+    // Two spline walls cross definitely along it; two analytic walls
+    // cross or touch along all of it (`row_contact`). No limb 3: the
+    // row is the curve. ----
     if let Resolved::SharedRow { walls } = &resolved {
+        // An analytic row is read clear of its chart's singular points
+        // first: past one, its image certificate reads a chart the
+        // contact reading's premise does not hold on.
+        let rows = if walls[0].1.spline_chart().is_none() {
+            let row = |(key, wall, image): &(SurfaceKey, Surface<T>, Pcurve<T>)| {
+                crate::row_contact::row_clear_of_singularities(*key, wall, image, (t0, t1), band)
+            };
+            Some([row(&walls[0])?, row(&walls[1])?])
+        } else {
+            None
+        };
         for (key, wall, image) in walls {
             let cache = crate::pcurve_cache::PcurveCache::certify(
                 image.clone(),
@@ -5310,39 +5389,59 @@ fn run_checks<T: Decide + geom_core::CertifiedBounds>(
             max_residual = max_residual.max(on_locus.abs()).max(hull.abs());
         }
         let [(_, a, image_a), (_, b, image_b)] = walls;
-        let (Some(a), Some(b)) = (a.spline_chart(), b.spline_chart()) else {
-            return Err(CertifyError::Unimplemented);
-        };
-        crate::edge_nurbs::row_transversality((t0, t1), (a, image_a), (b, image_b), extent, band)
-            .map_err(|e| from_plane_nurbs(e.lane()))?;
-        let span = (t0.lo(), t1.hi());
-        // A row image moves monotonically along one coordinate
-        // (`description::row_of`, the admission guard), so over a piece it
-        // lies in the hull of its two ends' images.
-        let read = |lo: f64, hi: f64| {
-            let (lo_t, hi_t) = (T::from_computed(lo), T::from_computed(hi));
-            let bracket = |x: T| (x.lo(), x.hi());
-            let ends = |image: &Pcurve<T>, k: usize| {
-                let at = |t: T| {
-                    let p = image.eval(t);
-                    bracket(if k == 0 { p.x } else { p.y })
+        match (a.spline_chart(), b.spline_chart()) {
+            (Some(a), Some(b)) => {
+                crate::edge_nurbs::row_transversality(
+                    (t0, t1),
+                    (a, image_a),
+                    (b, image_b),
+                    extent,
+                    band,
+                )
+                .map_err(|e| from_plane_nurbs(e.lane()))?;
+                let span = (t0.lo(), t1.hi());
+                // A row image moves monotonically along one coordinate
+                // (`description::row_of`, the admission guard), so over a
+                // piece it lies in the hull of its two ends' images.
+                let read = |lo: f64, hi: f64| {
+                    let (lo_t, hi_t) = (T::from_computed(lo), T::from_computed(hi));
+                    let bracket = |x: T| (x.lo(), x.hi());
+                    let ends = |image: &Pcurve<T>, k: usize| {
+                        let at = |t: T| {
+                            let p = image.eval(t);
+                            bracket(if k == 0 { p.x } else { p.y })
+                        };
+                        [at(lo_t), at(hi_t)]
+                    };
+                    crate::ssi::row_piece([
+                        ends(image_a, 0),
+                        ends(image_a, 1),
+                        ends(image_b, 0),
+                        ends(image_b, 1),
+                    ])
                 };
-                [at(lo_t), at(hi_t)]
-            };
-            crate::ssi::row_piece([
-                ends(image_a, 0),
-                ends(image_a, 1),
-                ends(image_b, 0),
-                ends(image_b, 1),
-            ])
-        };
-        let crossing = crate::ssi::row_crossing((a, b), span, read).map_err(
-            |crate::ssi::RowUnreadable(wall, refusal)| CertifyError::Row {
-                surface: walls[wall].0,
-                refusal: RowRefusal::ChartSpeed(refusal),
-            },
-        )?;
-        row_crossing_verdict(crossing, extent, band)?;
+                let crossing = crate::ssi::row_crossing((a, b), span, read).map_err(
+                    |crate::ssi::RowUnreadable(wall, refusal)| CertifyError::Row {
+                        surface: walls[wall].0,
+                        refusal: RowRefusal::ChartSpeed(refusal),
+                    },
+                )?;
+                row_crossing_verdict(crossing, extent, band)?;
+            }
+            // Both analytic: the resolution admits no mixed pair, and
+            // the rows were read clear of their singular points above.
+            _ => {
+                let Some([ra, rb]) = rows else {
+                    return Err(CertifyError::Unimplemented);
+                };
+                crate::row_contact::read_contact(
+                    [(a, image_a, ra), (b, image_b, rb)],
+                    (t0, t1),
+                    extent,
+                    band,
+                )?;
+            }
+        }
     }
 
     // ---- Intersection of two analytic surfaces: C2's limbs, through
@@ -8860,15 +8959,19 @@ mod tests {
                 KERNEL_LIMIT_RECOURSE,
                 KERNEL_LIMIT_RECOURSE,
                 KERNEL_DEFECT_ENDING,
+                KERNEL_DEFECT_ENDING,
             ),
+            // The chart image read at rest and not decided is reported as
+            // undecided (ONEHOME fork 259): at a point, the last resort.
             (
                 Reading::AtRest,
                 KERNEL_OR_FILE_DEFECT_ENDING,
                 KERNEL_LIMIT_RECOURSE,
                 KERNEL_OR_FILE_DEFECT_ENDING,
+                KERNEL_LIMIT_RECOURSE,
             ),
         ];
-        for (reading, definite, undecided, exact) in rows {
+        for (reading, definite, undecided, exact, chart_undecided) in rows {
             assert_eq!(limb.ending(reading), definite, "{reading:?}");
             assert_eq!(
                 P::Escalated {
@@ -8880,7 +8983,11 @@ mod tests {
                 "{reading:?}"
             );
             assert_eq!(unavailable.ending(reading).unwrap(), exact, "{reading:?}");
-            assert_eq!(chart.ending(reading).unwrap(), exact, "{reading:?}");
+            assert_eq!(
+                chart.ending(reading).unwrap(),
+                chart_undecided,
+                "{reading:?}"
+            );
         }
     }
 

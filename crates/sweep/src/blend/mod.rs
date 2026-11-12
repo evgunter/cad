@@ -147,6 +147,7 @@ pub mod arms;
 pub mod battery;
 pub mod build;
 mod consume;
+mod junction;
 pub mod naming;
 mod open;
 pub(crate) mod reach;
@@ -154,12 +155,11 @@ pub mod surgery;
 
 use core::fmt;
 
-use geom_brep::LeverRung;
 use geom_brep::recourse::{
     Classified, LeverOnly, RefusedArm, RefusedSide, SizedDecision, SizedPass,
 };
 use geom_core::{Band, BandError, Decide, Indeterminate, Margin, MarginDiag, MarginKind, Sign};
-use topo::{DihedralReading, EdgeKey, EntityId, FaceKey, VertexKey};
+use topo::{EdgeKey, EntityId, FaceKey, VertexKey};
 
 pub use arms::{BlendArm, CornerBall, EdgeBlend, RimBlend};
 pub use battery::{
@@ -297,7 +297,7 @@ pub enum BlendDecision {
     /// contact edge the surgery is about to describe — whether the
     /// edge is [`geom_brep::DIHEDRAL_ARM_CLAUSE`]. Decided in
     /// `geom_brep` (`must_carry_over_edge`), whose in-band verdict names
-    /// the rung ([`geom_brep::MustCarryEscalation::FirstOrder`]).
+    /// the rung ([`geom_brep::WedgeRung::Arm`]).
     ContactArm,
     /// `dihedral_wedge`: the must-carry rule's first-order wedge at a
     /// contact edge — whether the faces meet smoothly or at an angle.
@@ -306,7 +306,7 @@ pub enum BlendDecision {
     ContactWedge,
     /// `tangent_second_order`: the must-carry rule's second-order
     /// separation at a contact edge, read once every station is
-    /// smooth first-order ([`geom_brep::MustCarryEscalation::SecondOrder`]).
+    /// smooth first-order ([`geom_brep::WedgeRung::Bend`]).
     ContactSecondOrder,
     /// `fillet3_corner_independence`: a uniform trivalent corner's three
     /// support normals are independent.
@@ -319,7 +319,9 @@ pub enum BlendDecision {
     CapTransverse,
     /// `fillet3_cut_off_feet`: two cut-offs at the two ends of one rim
     /// put their feet on it in order and definitely apart, so the
-    /// second split lands on the piece the first leaves.
+    /// second split lands on the piece the first leaves; and a straight
+    /// link's two ends, one of them a junction, put theirs in order on
+    /// each trimline, so the chord between them runs forward.
     CutOffFeet,
     /// `fillet3_turn_feet_gap`: at a turn, how far apart the two bands'
     /// feet on the unrequested edge stand, signed by which is further.
@@ -370,14 +372,14 @@ impl BlendDecision {
         Self::MitreSection,
     ];
 
-    /// The contact-edge decision the reading a must-carry station
-    /// escalated asks ([`topo::DihedralReading::of_must_carry`]): the
-    /// first-order arm or wedge by rung, or the second-order separation.
-    pub(crate) const fn of_contact(reading: DihedralReading) -> Self {
-        match reading {
-            DihedralReading::Lever(LeverRung::Arm) => Self::ContactArm,
-            DihedralReading::Lever(LeverRung::Reading) => Self::ContactWedge,
-            DihedralReading::Bend => Self::ContactSecondOrder,
+    /// The contact-edge decision the rung a must-carry station escalated
+    /// at asks: the first-order arm or wedge, or the second-order
+    /// separation.
+    pub(crate) const fn of_contact(rung: geom_brep::MustCarryRung) -> Self {
+        match rung {
+            geom_brep::MustCarryRung::Arm => Self::ContactArm,
+            geom_brep::MustCarryRung::Wedge => Self::ContactWedge,
+            geom_brep::MustCarryRung::Bend => Self::ContactSecondOrder,
         }
     }
 
@@ -453,7 +455,9 @@ impl BlendDecision {
                  the sine of the tilt, levered at the link's length)"
             }
             Self::CutOffFeet => {
-                "whether two cut-offs' feet on the rim they share stand definitely apart"
+                "whether a band's two ends put their feet in order and definitely apart: two \
+                 cut-offs' on the rim they share, or a straight link's on each trimline where one \
+                 end is a junction"
             }
             Self::TurnFeetGap => {
                 "whether the two bands turning at a vertex meet its third edge at one point \
@@ -1197,7 +1201,10 @@ pub const FILLET3_CONVEXITY_RECOURSE: &str =
 /// viewer can act on — it names the ends that DO carve: all three
 /// edges where they round alike, two that round alike (meeting in the
 /// mitre where their feet on the third edge are one point, the far band
-/// overrunning it where they stand clearly apart), and one alone. Its last clause, "in one
+/// overrunning it where they stand clearly apart), and one alone; and
+/// it asks for the whole of a smooth run, since a band that stops where
+/// its edge runs on tangentially into an unrequested one stops against
+/// a face tangent to it, which no end builds. Its last clause, "in one
 /// operation", answers the four-edge vertex a mitre leaves where the third
 /// edge ends: that edge blended in a later call ends at a valence-4
 /// vertex, and requested in the mitre's own call it builds the corner
@@ -1215,7 +1222,8 @@ pub const FILLET3_CONVEXITY_RECOURSE: &str =
 /// and `band_planar_cut_off`, which build each end it names.
 pub const FILLET3_CORNER_RECOURSE: &str = "end the blend at a flat-faced corner, \
      blending all three edges where they round alike, two that round alike meeting on the third \
-     or clearly apart, or one ending at a flat face, in one operation";
+     or clearly apart, or one ending at a flat face, requesting its whole smooth run, in one \
+     operation";
 /// The recourse at a mixed-convexity corner whose odd edge is requested
 /// with another of its edges ([`CornerConfig::MixedConvexity`]). It
 /// names the two requests there that build, one edge alone (the
@@ -2435,8 +2443,8 @@ mod recourse_tests {
             (wedge(), BlendDecision::ContactWedge, false),
             (second_order(), BlendDecision::ContactSecondOrder, true),
         ] {
-            let (reading, source) = topo::DihedralReading::of_must_carry(escalation);
-            let decision = BlendDecision::of_contact(reading);
+            let source = escalation.diag();
+            let decision = BlendDecision::of_contact(escalation.rung());
             assert_eq!(
                 (decision, source),
                 (want, escalation.diag()),

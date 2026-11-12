@@ -428,7 +428,7 @@ fn a_lens_the_bends_do_not_decide_is_not_read<T: Decide>() {
         );
         assert_eq!(
             read(p, thin(lean)),
-            unread,
+            TouchVerdict::Unread(TouchUnread::InBand),
             "the void with its second plane leaning at {p:?}"
         );
     }
@@ -1199,7 +1199,7 @@ fn capped<T: Decide>(
 /// whose second sheet does not hold the cusp line (its cylinder turned
 /// 30° off it) is not read. A void just past the escalation at its cap
 /// rests, and with its second plane leaning off the first by nine tenths
-/// of the band's zero there it is not read: the lean is charged. A curved
+/// of the band's zero there it refuses in band: the lean is charged. A curved
 /// sheet tangent to the floor along the cap's ray, bending away under it,
 /// refuses in band: the cut there does not read the cap. Red where the
 /// polar value, the pinch, the caps' agreement or the charge is not read,
@@ -1310,7 +1310,7 @@ fn a_lune_the_bends_do_not_decide_is_not_read<T: Decide>() {
         );
         assert_eq!(
             read(p, thin(lean)),
-            unread,
+            TouchVerdict::Unread(TouchUnread::InBand),
             "the void with its second plane leaning at {p:?}"
         );
         // A cylinder along `x` under the floor, tangent to it at `p`,
@@ -1542,11 +1542,10 @@ fn a_curved_pinch_whose_polar_value_reads_zero_is_not_read_interval() {
 /// pinched on `tan ψ = √(kr/kb)` either side of `z`, their rays √2 long
 /// (`l²/2 = 1`). The gap at the middle is `kr`, the form's polar value on
 /// the two bounds `2kr·cos²ψ`, nearly twice it. With the middle's gap at
-/// 0.55, 0.7 and 0.9 of the escalation the lens is in band and not read;
-/// at 1.2 it rests. Red where the polar value is read raw, not as the gap
-/// it makes at the middle.
+/// 0.55, 0.7 and 0.9 of the escalation the lens refuses in band; at 1.2
+/// it rests. Red where the polar value is read raw, not as the gap it
+/// makes at the middle.
 fn a_narrow_lens_is_read_by_its_middles_gap<T: Decide>() {
-    let unread = TouchVerdict::Unread(TouchUnread::Curved(CurvedUnread::Unreadable));
     let e = band().escalate();
     for p in apexes::<T>() {
         for (frac, rests) in [(0.55, false), (0.7, false), (0.9, false), (1.2, true)] {
@@ -1572,7 +1571,8 @@ fn a_narrow_lens_is_read_by_its_middles_gap<T: Decide>() {
                 );
             } else {
                 assert_eq!(
-                    got, unread,
+                    got,
+                    TouchVerdict::Unread(TouchUnread::InBand),
                     "a narrow lens {frac} of the escalation at {p:?}"
                 );
             }
