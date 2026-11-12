@@ -18,6 +18,14 @@ Today the curved seat is read by no gate (the referenced row). No planar flush a
 
 Done when the gate compares solids, or a reason is recorded why shells suffice, with a pinned planar or curved flush row.
 
-## Narrowed (2026-11-12): the flush cut no longer reaches the gate
+## Narrowed (2026-11-12, corrected on PR 6860's fix pass): the flush cut no longer reaches the gate
 
-The flush coaxial cut this row measured is a cut by a tool whose solids rest on each other, which the cut now reads as material (`crates/topo/README.md` `[topo.cut-material]`). The tool's curved record refuses `ToolSeatUnread` at the cut's door (`crates/sweep/tests/a_cut_by_a_curved_seat_refuses_its_material.rs`, the `flush` case), and a planar flush tool is fused before the cut, so no cut reaches `Held::apart` with a tool's record. The row narrows to the ops that keep the pieces: a `∪` that bridges a seat and leaves its two faces in two shells of one solid.
+The flush coaxial cut this row measured is a cut by a tool whose solids rest on each other, which the cut now reads as material (`crates/topo/README.md` `[topo.cut-material]`). The tool's curved record between its two solids refuses `ToolSeatUnread` at the cut's door (`crates/sweep/tests/a_cut_by_a_curved_seat_refuses_its_material.rs`, the `flush` case). A planar record between two solids is fused before the cut.
+
+A face–face record inside one solid, this row's two-shells shape, is handled at the door as follows:
+- **Planar**: it refuses `TouchesItself` naming the record, whatever the cut reaches (`a_forged_record_of_the_seat_refuses_loudly`). On main, a cut refused only where a vertex crossed both faces or a result shell held both.
+- **Curved**: it rides into the plain cut as on main.
+
+Not measured: whether a finished body can hold a planar one. No fixture was built, since an operator whose result holds an area self-touch inside one shell refuses `TouchesItself`. The refusal is pinned with a caller's forged record.
+
+The row narrows to the ops that keep the pieces: a `∪` that bridges a seat and leaves its two faces in two shells of one solid, and a curved record inside one solid, which no gate reads.

@@ -24,3 +24,9 @@ Not measured: whether any cut's row names such a face. `respell_through_cuts` re
 ## Done when
 
 A row on a merged face of a cut's material is stated by the faces that hold it, or refuses as `respell_through_cuts` does, pinned by a row whose cut decides a vertex on the merged face.
+
+- 2026-11-12 (PR 6860's fix pass): "the first face it holds" is the first by key, which is arena order: a replay-stable choice, but not one the geometry makes. Two readings take it.
+  - The minted face's division row (`Through::pieces`) roots the face at that tool face.
+  - A seam the union minted with no split parent (`Through::seam_faces`) is restated, in a row, as the meeting of the first tool face on each side.
+
+  The editor names a face holding several tool faces from its holdings (`Merged`), not from that root. Not measured: whether any name reads the root of such a face's division row; the editor's fragment grouping (`descend_face`) is the reader to check.

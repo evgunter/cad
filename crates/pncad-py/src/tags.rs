@@ -1518,6 +1518,7 @@ pub fn boolean_error_tag(kind: BooleanErrorKind) -> &'static str {
         BooleanErrorKind::PartnerAlongFace => "partner_along_face",
         BooleanErrorKind::TouchesItself => "touches_itself",
         BooleanErrorKind::ToolSeatUnread => "tool_seat_unread",
+        BooleanErrorKind::ToolFuseRefused => "tool_fuse_refused",
         BooleanErrorKind::NonManifoldResult => "non_manifold_result",
         BooleanErrorKind::ClassificationInvariant => "classification_invariant",
         BooleanErrorKind::CrossingInsertion => "crossing_insertion",

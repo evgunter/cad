@@ -611,13 +611,14 @@ fn a_seat_as_a_cuts_tool_is_read_as_its_material() {
     let table = ev
         .table(doc.output(capped, 0).unwrap())
         .expect("the cut is named");
-    // A face of the cut named as a face of `piece`, as the seat names
-    // that piece's faces, and its own path there.
+    // Each face of the cut named as a face of `piece`, as the seat names
+    // that piece's faces: its own path there.
     let seat_read = doc.output(seat, 0).unwrap();
     let of_piece = |piece: RecipeNodeId| {
         let read = doc.output(piece, 0).unwrap();
         table
             .iter()
+            .filter(|(name, _)| name.kind == editor_core::EntityKind::Face)
             .filter_map(move |(name, _)| match name.path.as_slice() {
                 [RoleSeg::From { read: s, of }] if *s == seat_read => match of.path.as_slice() {
                     [RoleSeg::From { read: r, of }] if *r == read => Some(of.path.clone()),
@@ -634,9 +635,34 @@ fn a_seat_as_a_cuts_tool_is_read_as_its_material() {
         "the floor is the plate's top, named through the seat: {:?}",
         of_piece(plate)
     );
-    assert!(
-        !of_piece(bolt).is_empty(),
-        "the hole's walls are the bolt's sides, named through the seat"
+    assert_eq!(
+        of_piece(bolt).len(),
+        4,
+        "the hole's four walls are the bolt's sides, named through the seat: {:?}",
+        of_piece(bolt)
+    );
+    // The piece a face name of the cut names through the seat.
+    let piece_of = |name: &editor_core::StableName| match name.path.as_slice() {
+        [RoleSeg::From { read: s, of }] if *s == seat_read => match of.path.as_slice() {
+            [RoleSeg::From { read: r, .. }] => Some(*r),
+            _ => None,
+        },
+        _ => None,
+    };
+    // Where the fuse joined the bolt to the plate: the seams between the
+    // floor and the walls, both the tool's faces.
+    let [plate_read, bolt_read] = [plate, bolt].map(|n| doc.output(n, 0).unwrap());
+    let fused_seams = table
+        .iter()
+        .filter(|(name, _)| {
+            matches!(name.path.as_slice(), [RoleSeg::Seam { a, b }]
+                if [a.name(), b.name()].map(piece_of) == [Some(plate_read), Some(bolt_read)]
+                    || [a.name(), b.name()].map(piece_of) == [Some(bolt_read), Some(plate_read)])
+        })
+        .count();
+    assert_eq!(
+        fused_seams, 4,
+        "the foot's outline is four seams between the plate's top and the bolt's sides"
     );
 }
 

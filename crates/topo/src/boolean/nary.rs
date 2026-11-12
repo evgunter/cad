@@ -601,9 +601,11 @@ fn run_members<T: Decide + Bounds + AtRestPolicy>(
              bodies and their union holds each"
         ),
     };
-    let mut judged = Vec::new();
-    if pairwise {
-        let hulls = members
+    // Each member's box, read wherever the run judges its own pairs, its
+    // two members' one step included: given verdicts judge none.
+    let hulls = match given {
+        Some(_) => Vec::new(),
+        None => members
             .iter()
             .enumerate()
             .map(|(member, m)| {
@@ -616,7 +618,10 @@ fn run_members<T: Decide + Bounds + AtRestPolicy>(
                         })
                     })
             })
-            .collect::<Result<Vec<_>, _>>()?;
+            .collect::<Result<Vec<_>, _>>()?,
+    };
+    let mut judged = Vec::new();
+    if pairwise {
         let ranks: Vec<u32> = members.iter().map(|m| m.inputs.rank).collect();
         for (a, b) in judged_pairs(&hulls, &ranks).filter(|&(a, b)| !apart.holds(a, b)) {
             let judgement = boolean_op_given(

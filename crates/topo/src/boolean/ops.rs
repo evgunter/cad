@@ -1395,7 +1395,7 @@ pub(super) fn through_the_join<T: Decide + Bounds + crate::props::AtRestPolicy>(
         let (mut a2, mut b2, recharted) = apply_recuts(a, b, &recuts.rechart, tol)?;
         // The cut-ins name faces of `a` and `b`; the re-charts carve
         // and graft other shells, and `carve` keeps every kept
-        // entity's key (`splitting::finish`'s `carve`), so those
+        // entity's key (`crate::carve::carve`), so those
         // names still hold on `a2` and `b2`.
         let cuts = apply_cut_ins(&mut a2, &mut b2, &recuts.cut_in, band, tol)?;
         // The re-entry's operands are not finished (the cut-ins leave

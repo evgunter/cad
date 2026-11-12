@@ -5966,16 +5966,14 @@ impl BooleanError {
             Self::ToolFuseRefused { why } => match why.as_ref() {
                 ToolFuseRefusal::Step(error) => write!(
                     f,
-                    "the cut's tool is pieces resting on each other, which the Boolean fuses \
-                     into one material before it cuts, and that fuse refused, its keys the \
-                     pieces' own: {error}",
+                    "fusing the cut's resting tool pieces into one material refused: {error}",
                 ),
-                ToolFuseRefusal::Holding { face, refusal } => write!(
+                ToolFuseRefusal::Holding { .. } => write!(
                     f,
                     "the cut's tool is pieces resting on each other, which the Boolean fuses \
-                     into one material before it cuts, and which of the pieces' faces the \
-                     fused face {face:?} holds could not be read ({refusal:?}), so the cut \
-                     cannot name the tool's faces it would cut along",
+                     into one material before it cuts, and which of the pieces' faces one fused \
+                     face holds could not be read, so the cut cannot name the tool's faces it \
+                     would cut along",
                 ),
             },
             Self::NonManifoldResult { .. } => write!(

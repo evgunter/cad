@@ -670,14 +670,25 @@ impl Through {
         Ok(out)
     }
 
+    /// The tool's key of a B-clone face of the cut that is one face of
+    /// the tool; any other key comes back as it is. That other key is a
+    /// face the union or the cut minted: a key fresh in the material's
+    /// arena, or in its clone, which no key of the tool equals (the
+    /// material's arena is carved from the tool's, so a slot the tool
+    /// used comes back only under a later version), and whose lineage is
+    /// a division row ([`Self::pieces`], the cut's own).
     fn face(&self, f: FaceKey) -> FaceKey {
         self.faces.get(&f).copied().unwrap_or(f)
     }
 
+    /// As [`Self::face`], for an edge: a minted one's lineage is a hop
+    /// ([`Self::hops`], the cut's own) or a seam ([`Self::seams`]).
     fn edge(&self, e: EdgeKey) -> EdgeKey {
         self.edges.get(&e).copied().unwrap_or(e)
     }
 
+    /// As [`Self::face`], for a vertex: a minted one is a crossing
+    /// ([`Self::crossings`]) or the cut's own.
     fn vertex(&self, v: VertexKey) -> VertexKey {
         self.vertices.get(&v).copied().unwrap_or(v)
     }
@@ -737,6 +748,48 @@ impl Through {
     ) -> Result<(), BooleanError> {
         let unread = || BooleanError::JoinDesync { what: UNREAD };
         let b = Operand::B;
+        // Every field of the naming, by the key space it is in: a field in
+        // result keys, or in A's clone keys, reads nothing of the tool and
+        // is left as it is; every field in B's clone keys is read back
+        // below, or refused where it holds a row.
+        let super::BooleanNaming {
+            a_keys: _,
+            b_keys: _,
+            graft_vertices: _,
+            graft_edges: _,
+            graft_dead_edges: _,
+            graft_faces: _,
+            seam_edges: _,
+            vertex_merges: _,
+            merge_groups: _,
+            substitutions: _,
+            merge_skipped: _,
+            face_fragments_a: _,
+            face_fragments_b: _,
+            reduction_contacts: _,
+            discards: _,
+            substituted: _,
+            uncut: _,
+            edge_classes: _,
+            unread_partners: _,
+            chart_cuts: _,
+            recharted,
+            null_copies: _,
+            cone_splits: _,
+            edge_joins: _,
+            killed_lineage: _,
+            carved_lineage: _,
+            fused_seams: _,
+        } = &out.naming;
+        // A sphere shell of the material the cut re-charted holds cells
+        // under keys its re-chart minted, which the read-back has no
+        // lineage for.
+        if !recharted[1].is_empty() {
+            return Err(BooleanError::JoinDesync {
+                what: "a cut by its tool's material re-charted a sphere shell of the material, \
+                       whose turned cells read back to no cell of the tool",
+            });
+        }
         let n = &mut out.naming;
         for (s, _) in &mut n.graft_faces {
             *s = self.face(*s);
