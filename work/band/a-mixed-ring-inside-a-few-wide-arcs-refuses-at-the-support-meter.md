@@ -7,6 +7,7 @@ opened: 2026-11-12
 priority: P1
 cost: H
 closed: 2026-11-12
+pr: 6887
 refs: [an-annulus-rim-around-a-mixed-rim-refuses-in-one-call]
 ---
 
