@@ -24,7 +24,7 @@ const NAME: Option<&str> = option_env!("PCERT_RADIAL_PAIR_MUTANT");
 
 /// Every site this crate's hooks name. topo's `chord_join` declares its
 /// own one (`topo-v-var`) under the same variable.
-pub(super) const SITES: [&str; 60] = [
+pub(super) const SITES: [&str; 58] = [
     "class-circle",
     "zero-winding",
     "torus-parallel",
@@ -83,8 +83,6 @@ pub(super) const SITES: [&str; 60] = [
     "first-reading-sym-discarded-on-pass",
     "across-once",
     "sphere-meridian-unprojected",
-    "torus-meridian-unprojected",
-    "cone-anchor-unprojected",
 ];
 
 fn on(site: &str) -> bool {
@@ -320,18 +318,6 @@ pub(super) fn cone_ruling_gate() -> bool {
 /// pole-start meridians and the far-shown azimuths' sphere).
 pub(super) fn sphere_meridian_unprojected() -> bool {
     on("sphere-meridian-unprojected")
-}
-
-/// The torus or spindle meridian's direction read off its centre's
-/// radial part as it is (its rows are the far-shown azimuths' spindle).
-pub(super) fn torus_meridian_unprojected() -> bool {
-    on("torus-meridian-unprojected")
-}
-
-/// A cone ruling's anchor datum read off its radial part as it is (its
-/// rows are `closed_image_rows`' rulings near the apex).
-pub(super) fn cone_anchor_unprojected() -> bool {
-    on("cone-anchor-unprojected")
 }
 
 /// A line's chart form read at the segment's two ends only, dropping

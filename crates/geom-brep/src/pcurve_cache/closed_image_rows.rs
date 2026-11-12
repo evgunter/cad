@@ -2254,15 +2254,14 @@ fn a_pole_start_meridian_at_a_fuzz_seed_certifies() {
 /// - a great circle of a sphere of radius `r` starting `s` rad from the
 ///   pole, over a turn, whose image shows its azimuth at `t ≡ π/2`, the
 ///   equator;
-/// - a meridian of a spindle of minor radius `r` and major radius `s·r`,
-///   over the half on the sheet;
 /// - a Villarceau circle of a torus of major radius `r` and minor radius
 ///   `s·r`, over a turn, its azimuth read off its centre's offset (its
 ///   phase along the circle is read off the same direction, so the two
 ///   move together and the image stays on its circle).
 ///
 /// Each image's enclosed miss stays at rounding, at every `s` past the
-/// band.
+/// band, and the mint door certifies it at `f64` (at `Interval` it
+/// certifies or escalates).
 #[test]
 fn a_derived_circle_image_is_on_its_circle_where_its_azimuth_shows_most() {
     let b = band();
@@ -2288,14 +2287,6 @@ fn a_derived_circle_image_is_on_its_circle_where_its_azimuth_shows_most() {
             };
             let great =
                 Curve3::circle(centre, normal, r, axis * f64::cos(s) + radial * f64::sin(s));
-            let spindle = Surface::Spindle {
-                center: centre,
-                axis,
-                major_radius: s * r,
-                minor_radius: r,
-                u_ref,
-            };
-            let meridian = Curve3::circle(centre + radial * (s * r), normal, r, radial);
             let torus = Surface::Torus {
                 center: centre,
                 axis,
@@ -2312,7 +2303,6 @@ fn a_derived_circle_image_is_on_its_circle_where_its_azimuth_shows_most() {
             );
             for (what, surface, carrier, span) in [
                 ("sphere", sphere, great, (-0.4, TAU - 0.4)),
-                ("spindle", spindle, meridian, (-1.5, 1.5)),
                 ("villarceau", torus, villarceau, (-0.4, TAU - 0.4)),
             ] {
                 let image = chart_pcurve_over(&carrier, span.0, span.1, &surface, b)
@@ -2336,64 +2326,3 @@ fn a_derived_circle_image_is_on_its_circle_where_its_azimuth_shows_most() {
         "derived images off their circles: {missed:#?}"
     );
 }
-
-/// **A cone ruling anchored near its apex is derived on its line**
-/// (shape 2, an edge-value table): a ruling whose origin lies `d` from
-/// the apex reads its azimuth off its anchor's radial part, of length
-/// `d·sin α`, and shows it at the span's far radius. Its image is on its
-/// line to rounding, certifies at both stated doors, and certifies at
-/// the mint door (at `Interval`, or escalates), at every `d` past the
-/// band.
-#[test]
-fn a_cone_ruling_anchored_near_its_apex_is_derived_on_its_line() {
-    let b = band();
-    let apex = Point3::new(-6.5, 4.25, 8.75);
-    let axis = Vec3::new(0.36, -0.48, 0.8);
-    let u_ref = Vec3::new(0.8, 0.6, 0.0);
-    let v_ref = axis.cross(u_ref);
-    let mut read = 0;
-    let mut off = Vec::new();
-    for (half_angle, u0) in [(0.5, 0.3), (0.1, 2.9), (1.2, -1.7)] {
-        let radial = u_ref * f64::cos(u0) + v_ref * f64::sin(u0);
-        let g = axis * f64::cos(half_angle) + radial * f64::sin(half_angle);
-        let cone = Surface::Cone {
-            apex,
-            axis,
-            half_angle,
-            u_ref,
-        };
-        for d in [1e-3, 1e-5, 1e-7, 1e-9]
-            .into_iter()
-            .filter(|d| d * f64::sin(half_angle) > 8.0 * b.escalate())
-        {
-            let line = Curve3::line(apex + g * d, g);
-            for span in [(0.0, 2.0), (0.5, 5.0)] {
-                let image =
-                    chart_pcurve_over(&line, span.0, span.1, &cone, b).unwrap_or_else(|e| {
-                        panic!("the ruling at α = {half_angle}, d = {d:e} derives: {e:?}")
-                    });
-                let at = format!("α = {half_angle}, d = {d:e}, over {span:?}");
-                let miss = enclosed_miss(&cone, &line, &image, span, 256);
-                if miss >= 1e-13 {
-                    off.push(format!("{at}: {image:?} misses by {miss:e}"));
-                }
-                for door in DOORS {
-                    let got = (door.certify)(&cone, &image, &line, span);
-                    if got.is_err() {
-                        off.push(format!("{at} at {}: {got:?}", door.name));
-                    }
-                }
-                for refusal in mint_refusals(&cone, &line, &image, span) {
-                    off.push(format!("{at} at the {refusal}"));
-                }
-                read += 1;
-            }
-        }
-    }
-    assert!(read > 0);
-    assert!(
-        off.is_empty(),
-        "rulings near the apex off their lines: {off:#?}"
-    );
-}
-

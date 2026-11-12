@@ -6510,24 +6510,18 @@ fn class_circle<T: Decide>(
     }
 }
 
-/// A circle's horizontal azimuth direction, read off a radial part
-/// `radial` of it: `radial`'s part along `m = e × n`, the one horizontal
-/// direction in the circle's plane (normal `n`, chart axis `e`). A
-/// radial part is a cancellation (`v − e·(v·e)`) whose error is an ulp of
-/// the carrier's size and place, so where it is short beside the lever
-/// its azimuth shows at, its own direction is off by that ulp over its
-/// length: across the plane, and along it toward the axis. `m` is read
-/// off the long `e` and `n`, so only `radial`'s length along it is read
-/// off the short part, and that moves no direction.
-fn in_carrier_plane<T: Real>(radial: Vec3<T>, normal: Vec3<T>, axis: Vec3<T>) -> Vec3<T> {
-    let m = axis.cross(normal);
-    m * (m.dot(radial) / m.norm_squared())
-}
-
-/// A sphere meridian's azimuth direction `d̂`: `â_r`, or `b̂_r` at a pole
-/// start, in the carrier's plane. The derivation reads its azimuth off
-/// it and [`incidence`] models the image with it, so the two read the
-/// one direction.
+/// A sphere meridian's azimuth direction `d̂`: the direction of `â_r`, or
+/// of `b̂_r` at a pole start, read as that radial part's length along
+/// `m = e × n`, the one horizontal direction in the carrier's plane
+/// (normal `n = a × b`, chart axis `e`). The class holds a centred great
+/// circle whose plane contains the axis, so `a` and `b`, and their radial
+/// parts, lie in that plane. A radial part is a cancellation
+/// (`v − e·(v·e)`) whose error is an ulp of the radius, so where it is
+/// short (a start near the pole) its own direction is off by that ulp
+/// over its length, across the plane and toward the axis; `m` is read off
+/// the long `e` and `n`, and the short part sets only a length along it.
+/// The derivation reads its azimuth off `d̂`, and [`incidence`] models the
+/// image with it, so the two read the one direction.
 fn sphere_meridian_direction<T: Real>(form: &Harmonic3<T>, axis: Vec3<T>, pole: bool) -> Vec3<T> {
     let part = if pole { form.b } else { form.a };
     let radial = part - axis * part.dot(axis);
@@ -6535,42 +6529,8 @@ fn sphere_meridian_direction<T: Real>(form: &Harmonic3<T>, axis: Vec3<T>, pole: 
     if mutants::sphere_meridian_unprojected() {
         return radial.normalize();
     }
-    in_carrier_plane(radial, form.a.cross(form.b), axis).normalize()
-}
-
-/// A torus or spindle meridian's azimuth direction `ŵ_r`, its centre's
-/// radial part from the chart's centre, in the carrier's plane: short
-/// on a spindle whose major radius is small beside its minor. Read by
-/// the derivation and by [`incidence`] alike.
-fn torus_meridian_direction<T: Real>(
-    form: &Harmonic3<T>,
-    center: Point3<T>,
-    axis: Vec3<T>,
-) -> Vec3<T> {
-    let w = form.c - center;
-    let radial = w - axis * w.dot(axis);
-    #[cfg(test)]
-    if mutants::torus_meridian_unprojected() {
-        return radial.normalize();
-    }
-    in_carrier_plane(radial, form.a.cross(form.b), axis).normalize()
-}
-
-/// A cone ruling's anchor datum `radial(w)`, in the plane of the axis and
-/// the line (normal `axis × dir`): short near the apex, while the
-/// ruling's azimuth shows at the span's far radius. A line along the
-/// axis has no such plane, and keeps its radial part. Read by the
-/// derivation and by [`incidence`] alike.
-fn cone_anchor_radial<T: Decide>(radial: Vec3<T>, axis: Vec3<T>, dir: Vec3<T>) -> Vec3<T> {
-    let normal = axis.cross(dir);
-    #[cfg(test)]
-    if mutants::cone_anchor_unprojected() {
-        return radial;
-    }
-    if !geom_core::structure_nonzero(normal.norm_squared()) {
-        return radial;
-    }
-    in_carrier_plane(radial, normal, axis)
+    let m = axis.cross(form.a.cross(form.b));
+    (m * (m.dot(radial) / m.norm_squared())).normalize()
 }
 
 /// Check 4's **incidence** terms: a bound on `sup |S(P_d(t)) − C(t)|`
@@ -6645,21 +6605,15 @@ fn incidence<T: Decide>(
                     // length. The reference datum has `m = 0` and `p =
                     // n·‖q‖`, `n·h = |h|`, so its own is the polynomial
                     // gap `||h|·sin α − ‖q‖·cos α|`.
-                    // An anchored reference is the derivation's
-                    // ([`cone_anchor_radial`]), in the plane of the axis
-                    // and the line; the anchor's part across it is one
-                    // more part off the generator.
                     let datum = |x: Vec3<T>| (x.dot(axis), radial(x));
                     let (anchor, direction) = (datum(w), datum(l));
-                    let ((h_ref, r_ref), other, across) = if anchored {
-                        let r_ref = cone_anchor_radial(anchor.1, axis, l);
-                        ((anchor.0, r_ref), direction, (anchor.1 - r_ref).norm())
+                    let ((h_ref, r_ref), other) = if anchored {
+                        (anchor, direction)
                     } else {
-                        (direction, anchor, T::zero())
+                        (direction, anchor)
                     };
                     let rise = h_ref * nappe.value() * s_ha;
-                    let own =
-                        harmonic_sup_scalar(norm_gap(rise, rise.powi(2), r_ref * c_ha), across);
+                    let own = norm_gap(rise, rise.powi(2), r_ref * c_ha);
                     let q = r_ref * nappe.value();
                     let q_len = q.norm();
                     let (h_o, r_o) = other;
@@ -6844,21 +6798,12 @@ fn incidence<T: Decide>(
                     }
                 }
                 Derivation::TorusMeridian { sigma } => {
-                    // `d̂` the azimuth direction the derivation read
-                    // ([`torus_meridian_direction`]), `ŵ_r` in the
-                    // carrier's plane.
-                    let d = torus_meridian_direction(&form, center, axis);
-                    let ad = a.dot(d);
-                    let n_sq = ad.powi(2) + aa.powi(2);
-                    // `|R|·d̂ − w`: its radial and axial parts, one vector
-                    // (a lemon's centre sits `|R|` across the axis). The
-                    // radial part is `w_r`'s gap from `|R|` along `d̂` and
-                    // its part across `d̂`.
-                    let along = w_r.dot(d);
-                    let spine = harmonic_sup_scalar(
-                        norm_gap(major_radius.abs(), major_radius.powi(2), d * along),
-                        (w_r - d * along).norm(),
-                    );
+                    let wr_sq = w_r.dot(w_r);
+                    let aw = a.dot(w_r);
+                    let n_sq = aw.powi(2) / wr_sq + aa.powi(2);
+                    // `|R|·ŵ_r − w`: its radial and axial parts, one
+                    // vector (a lemon's centre sits `|R|` across the axis).
+                    let spine = norm_gap(major_radius.abs(), major_radius.powi(2), w_r);
                     let centre = harmonic_sup_scalar(spine, h);
                     #[cfg(test)]
                     let centre = mutants::torus_meridian_centre(spine, h).unwrap_or(centre);
@@ -6870,18 +6815,20 @@ fn incidence<T: Decide>(
                     // refuses at the envelope's decision.
                     let n = n_sq.sqrt();
                     let k = (minor_sq - n_sq) / ((minor_radius + n) * n);
-                    let a_star = d * ad + axis * aa;
+                    let a_star = w_r * (aw / wr_sq) + axis * aa;
                     // `b*` turns `a*` in the meridian's half-plane, the
                     // centre's or, on a lemon, the opposite one: `σ = sgn R`,
                     // decided at rest on both kinds (`geom::meridian_side`).
                     let sign = geom::meridian_side(major_radius);
-                    let b_star = (axis * ad - d * aa) * sign * angle_rate::<T>(sigma);
+                    let (aw_side, side) = (aw * sign, w_r * sign);
+                    let b_star =
+                        (axis * aw_side - side * aa) / wr_sq.sqrt() * angle_rate::<T>(sigma);
                     let pair = harmonic_sup(a_star * k + (a_star - a), b_star * k + (b_star - b));
                     #[cfg(test)]
                     let pair = mutants::torus_meridian(
                         (minor_radius, minor_sq),
                         (n, n_sq),
-                        a_r - d * ad,
+                        a_r - w_r * (aw / wr_sq),
                         b_star - b,
                     )
                     .unwrap_or(pair);
@@ -11017,12 +10964,8 @@ fn derive_class_zero<T: Decide>(
                         match decide("pcurve_cone_chart_nappe", Margin::of(h0), band)
                             .map_err(incidence::undecided(shown))?
                         {
-                            Sign::Positive => {
-                                (cone_anchor_radial(radial(w), axis, dir), Nappe::Pos, true)
-                            }
-                            Sign::Negative => {
-                                (cone_anchor_radial(radial(w), axis, dir), Nappe::Neg, true)
-                            }
+                            Sign::Positive => (radial(w), Nappe::Pos, true),
+                            Sign::Negative => (radial(w), Nappe::Neg, true),
                             Sign::Zero => {
                                 match geom_core::k_stats::decide_flagged_reported(
                                     "pcurve_cone_chart_nappe",
@@ -11748,8 +11691,7 @@ fn derive_class_zero<T: Decide>(
                     // The meridian's half-plane: its centre's, or on a
                     // lemon the opposite one, where `R < 0` lies
                     // (`geom::meridian_side`, decided at rest).
-                    let side = torus_meridian_direction(&form, t_center, axis)
-                        * geom::meridian_side(major_radius);
+                    let side = w_r * geom::meridian_side(major_radius);
                     let alpha = place.phase(
                         Along::Azimuth,
                         Azimuth::of(side.dot(cv), side.dot(u_ref)),

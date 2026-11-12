@@ -36,6 +36,6 @@ It ends in the lever, so nothing false is certified.
 ## Direction
 
 Read `a′` and `b′` off directions with no short cancellation: `d̂` is
-already `m = e × n` (`in_carrier_plane`). The remaining width is in
+already read along `m = e × n` (`sphere_meridian_direction`). The remaining width is in
 `s_r = ‖a_r‖`. Reading it as `m · a` would take `a`'s whole enclosure
 rather than the cancelled one, but its sign needs a decided read.
