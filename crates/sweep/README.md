@@ -519,13 +519,17 @@ vocabulary only); the ball-cap is the presumptive first pick when a
 consumer arrives.
 
 **Where a straight band ends, and where it turns.** One rule: a band
-ends where it meets the face it runs into. At a trivalent vertex of one
-convexity between planes the request decides which face that is, by how
-many of the vertex's three edges it names, and every answer is exact on
-stored kinds (plane, cylinder, line, circle, ellipse).
+ends where it meets the face it runs into. At a trivalent vertex between
+planes the request decides which face that is, by how many of the
+vertex's three edges it names, and every answer is exact on stored kinds
+(plane, cylinder, line, circle, ellipse). Only the corner patch needs
+the three edges to round one way; at a vertex where they mix, the ODD
+edge being the one that rounds unlike the other two, one requested edge
+and the other two alone end as below.
 
 - *All three* — the corner patch: the ball at rest (a sphere octant),
-  or the chamfer's plane through the three feet.
+  or the chamfer's plane through the three feet. Uniform convexity
+  only.
 - *One* — the CUT-OFF: the band ends in the end face's plane section of
   it (`CornerConfig::EndFace`, `RunOutPolicy::CutOffAtEndFace`). A
   chamfer ends in a chord at any angle; a fillet in a circle when the
@@ -577,6 +581,12 @@ stored kinds (plane, cylinder, line, circle, ellipse).
   `Blended::coincidences` carries the rows to the document's coincidence
   door. No ball rests at a turn, so the mitre is G0 between the bands;
   it never competes with the patch, because the request count decides.
+  Where the shared face's sector at the vertex is reflex, as for the two
+  edges that round alike at a mixed vertex, the bands extend past it and
+  the mitre is a join over the wedge their extensions overlap in (at
+  right angles `d³/3` for a chamfer, `(5/3 − π/2)·r³` for a fillet),
+  which it removes past a convex pair and fills past a concave one
+  (`band_mixed_vertex`).
 
 Chain G1 (predicate 4) is a classifier at a junction of two plane–plane
 links: Zero, one band through a joint; definite, two chain ends at a
@@ -657,10 +667,10 @@ shared face reaches it, the other foot of `k`'s sliver landing inside a
 face (a short near edge at an obtuse shared-face angle, which refuses
 where the overrun itself fits); an end vertex of valence other than
 three. A vertex whose three edges do not round
-one way refuses `UnsupportedCorner { MixedConvexity }` whatever the
-request names there: an edge cut off where its unrequested edges round
-the other way, a turn whose two edges round opposite ways, or one whose
-L does.
+one way refuses `UnsupportedCorner { MixedConvexity }` where the request
+names its odd edge together with another of its edges, all three
+included: that wants the mixed corner's own rule, the odd band cut off
+and the other two carried through, which is not built.
 
 Naming: the cut-off curve is `EndArc { vertex, edge }` and the feet
 `FootVertex { vertex, support }`, as the ruled cut-off names them; the

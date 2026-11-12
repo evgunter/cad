@@ -287,7 +287,7 @@ pub(crate) enum Held {
     /// A selection: the body read and the names, in stored order.
     Select {
         /// The body.
-        body: VarId,
+        body: crate::BodyRead<VarId>,
         /// The names.
         names: Vec<crate::names::StableName>,
     },
@@ -310,7 +310,7 @@ impl Held {
             WrittenDef::Free(crate::doc::FreeVar::Count { value }) => Self::Count(*value),
             WrittenDef::Defined(expr) => Self::Defined(expr.clone()),
             WrittenDef::Select(_, select) => Self::Select {
-                body: select.body,
+                body: select.body.clone(),
                 names: select.names.clone(),
             },
             WrittenDef::Pose(_, def) => Self::Pose(def.clone()),

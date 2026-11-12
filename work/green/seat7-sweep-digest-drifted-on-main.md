@@ -29,3 +29,13 @@ First-parent at ε 1e-9, `corner_table` moved twice:
 - `0xfa506ba6d180fc96` → `0xc19eae46ab271546` at PR 6328 (`onehome/geom-readings`, merge `0da3e56b97`, 2026-11-02): the `Line(Line { .. })` spelling of the digest feed, disclosed above in ONEHOME's note. It is a spelling only, so `0xc19e…` is the value to bless once the first move is judged.
 
 `work/green/main-red-two-slow-digest-rows-at-8ae2b9b.md`'s seat7 half is this same reading.
+- 2026-11-10 — measured on main at `151631cc` by ONEHOME's rigid-motion lane (PR 6717), in its own build: `boss_union` is red here too, reading `0x74fcab092e34e83b` against the pinned `0x65453fae8b1d55d3`, beside `corner_table`'s `0xc19eae46ab271546`. PR 6717 moves neither.
+
+## Note from ONEDOOR (2026-11-11, PR 6505)
+
+PR 6505 re-pins `corner_table` at `0x3676c700af58ca2d`. Over main's
+`0xc19eae46ab271546` it moves only arena keys: with every curve,
+surface, face, edge and point key masked, its document dump is main's
+line for line. The first move above (PR 5848) is still unjudged; when
+it is, the value to compare is the one PR 6505's dump gives with keys
+masked, not the pin.

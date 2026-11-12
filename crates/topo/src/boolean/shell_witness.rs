@@ -354,9 +354,9 @@ fn on_verdict<T: Decide>(
 
 /// **The keep rule for an `On` shell**, per operand: Eq. 15.3's lump
 /// for a coincident face pair keeps `operand`'s copy where it keeps the
-/// glue's kept side's ([`super::tables::kept_copy`]).
+/// first-written side's ([`super::tables::surviving_copy`]).
 pub(super) fn on_kept(op: BooleanOp, operand: Operand, relation: CarrierRelation) -> bool {
-    super::tables::kept_copy(op, relation) == Some(operand)
+    super::tables::surviving_copy(op, relation) == Some(operand)
 }
 
 /// The shells of `verdicts` that `op` keeps for `operand`, in order.

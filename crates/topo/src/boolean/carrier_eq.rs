@@ -705,6 +705,17 @@ fn perpendicular<T: geom_core::Real>(v: Vec3<T>, axis: Vec3<T>) -> Vec3<T> {
 
 pub(crate) use geom_brep::line_tilt;
 
+/// **The arm the ladder levers a pair's angular data at** over
+/// `reach` ([`at_consumed_extent`]'s third part): the reach from the
+/// pivot each kind's position datum is read at.
+pub(super) fn consumed_arm<T: geom_core::Real>(
+    c1: &CarrierDesc<T>,
+    c2: &CarrierDesc<T>,
+    reach: geom_brep::ExtentBall<T>,
+) -> geom_core::Lever<T> {
+    at_consumed_extent(c1, c2, reach).2
+}
+
 /// **The pair as the ladder reads it when its verdict is
 /// consumed over `reach`**: each description anchored where its
 /// position datum is read nearest the extent's centre, and the lever
@@ -717,8 +728,9 @@ pub(crate) use geom_brep::line_tilt;
 /// - plane — the plane ladder reads the extent itself (offsets at its
 ///   centre, the arm its radius) and the pair passes through;
 /// - cylinder — the axis offset is read at the second description's
-///   axis point, which moves along its axis to the foot of the
-///   extent's centre;
+///   axis point, re-anchored along its axis at the foot of the
+///   extent's centre ([`geom_brep::anchored_at`], the one re-anchoring a
+///   face's measure takes too);
 /// - torus — the pair's coincidence reads no extent
 ///   ([`geom_brep::tori_coincide`]), and the pair passes through;
 /// - cone — the angular data are read from the first apex, widened by
@@ -742,7 +754,7 @@ fn at_consumed_extent<T: geom_core::Real>(
                 outward,
             },
         ) if matches!(c1, CarrierDesc::Cylinder { .. }) => {
-            let foot = reach.foot_on(geom::Line { origin, dir: axis });
+            let foot = geom_brep::anchored_at(origin, geom_brep::Forgets::Axis(axis), centre);
             (
                 c1,
                 CarrierDesc::Cylinder {

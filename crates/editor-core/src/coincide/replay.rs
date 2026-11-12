@@ -282,7 +282,9 @@ fn prove_row(
         return Ok(match carrier_verdict(ev, row, band, tol, stated) {
             Some(Ok(())) => Ok(Rung::CarrierVerdict),
             Some(Err(CarrierFail::Undischarged(why))) => Err((numeric(why), None)),
-            Some(Err(CarrierFail::Left(component, why))) => Err((numeric(why), Some(component))),
+            Some(Err(CarrierFail::Left(component, why))) => {
+                Err((unestablished(why), Some(component)))
+            }
             Some(Err(CarrierFail::Frame)) => Err(((Unreplayed::Frame, Recourse::Assert), None)),
             None => Err(((Unreplayed::OtherDecisions, Recourse::Assert), None)),
         });
@@ -379,7 +381,28 @@ enum CarrierFail {
     /// Two cylinders, read as one axis, one radius and one sense
     /// ([`one_cylinder`]): this component is not established, for this
     /// reason.
-    Left(Component, deferred::Undischarged),
+    Left(Component, Unestablished),
+}
+
+/// Why [`one_cylinder`] did not establish a component.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Unestablished {
+    /// Its Zero is not discharged, or its datum is not Zero.
+    Undischarged(deferred::Undischarged),
+    /// The two faces' extent, the axes' tilt is levered over, does not
+    /// read ([`topo::boolean::carrier_pair_arm`]), for the pair door's
+    /// own reason.
+    ExtentUnread(topo::boolean::PairUnread),
+}
+
+/// What a component [`one_cylinder`] did not establish leaves the row:
+/// a coincidence of values ([`numeric`]), or the extent the tilt is
+/// levered over unread, with its reason.
+fn unestablished(why: Unestablished) -> Left {
+    match why {
+        Unestablished::Undischarged(why) => numeric(why),
+        Unestablished::ExtentUnread(unread) => (Unreplayed::Extent(unread), Recourse::Assert),
+    }
 }
 
 /// **The kernel's carrier-pair verdict on the row's two cells**, where
@@ -437,7 +460,8 @@ fn carrier_verdict(
 /// The name [`one_cylinder`]'s metre data — the axes' offset, the
 /// radii's differences — are each decided Zero under.
 const ONE_CYLINDER: &str = "replay_one_cylinder";
-/// The name [`one_cylinder`]'s axis parallelism is decided Zero under.
+/// The name [`one_cylinder`]'s axis parallelism is decided Zero under:
+/// the axes' tilt `|da × db|`, levered at the pair's reach.
 const ONE_CYLINDER_AXIS: &str = "replay_one_cylinder_axis";
 
 /// **Two faces on cylinders, read as one axis, one radius and one
@@ -455,7 +479,7 @@ fn one_cylinder(
     wanted: CarrierRelation,
     band: Band,
     stated: bool,
-) -> Option<Result<(), (Component, deferred::Undischarged)>> {
+) -> Option<Result<(), (Component, Unestablished)>> {
     use topo::boolean::CarrierDesc::Cylinder;
     let (
         Some(Cylinder {
@@ -482,19 +506,24 @@ fn one_cylinder(
             .map_or(Err(deferred::Undischarged::Otherwise), |d| {
                 deferred::discharge_or_why(d.margin)
             })
+            .map_err(Unestablished::Undischarged)
     };
-    // Unsourced lever: one metre, what the raw read it replaced took the
-    // axes' cross product (a sine of two unit directions) against; the
-    // arm the band means is the-replays-cylinder-axis-is-levered-at-an-
-    // unsourced-metre (audit F40).
-    let metre = geom_core::Lever::unsourced(<Lane as geom_core::Real>::one());
     let established = || {
         if !stated {
-            let (cross, off) = (da.cross(db), (ob - oa).cross(db));
-            for s in [cross.x, cross.y, cross.z] {
-                zero_as(ONE_CYLINDER_AXIS, geom_core::Margin::levered(s, metre))
-                    .map_err(|why| (Component::Axis, why))?;
-            }
+            // The tilt, one datum (`|da × db|`, the sine of the angle
+            // between the axes), levered at the arm the kernel's pair
+            // door reads it at: the reach of the ball enclosing both
+            // faces from the foot of its centre on the second axis
+            // (`topo::boolean::carrier_pair_arm`), so the replay and the
+            // kernel judge one tilt alike.
+            let arm = topo::boolean::carrier_pair_arm(a, fa, b, fb, band)
+                .map_err(|unread| (Component::Axis, Unestablished::ExtentUnread(unread)))?;
+            zero_as(
+                ONE_CYLINDER_AXIS,
+                geom_core::Margin::levered(da.cross(db).norm(), arm),
+            )
+            .map_err(|why| (Component::Axis, why))?;
+            let off = (ob - oa).cross(db);
             for r in [off.x, off.y, off.z] {
                 zero_as(ONE_CYLINDER, geom_core::Margin::of(r))
                     .map_err(|why| (Component::Axis, why))?;
@@ -504,7 +533,9 @@ fn one_cylinder(
         for ((body, face), r) in [((a, fa), &ra), ((b, fb), &rb)] {
             let rims = rim_radii(body, face);
             if rims.len() < 2 {
-                return Err(radius(deferred::Undischarged::Otherwise));
+                return Err(radius(Unestablished::Undischarged(
+                    deferred::Undischarged::Otherwise,
+                )));
             }
             for rim in rims {
                 zero_as(ONE_CYLINDER, geom_core::Margin::of(rim - *r)).map_err(radius)?;
@@ -512,7 +543,10 @@ fn one_cylinder(
         }
         zero_as(ONE_CYLINDER, geom_core::Margin::of(ra - rb)).map_err(radius)?;
         if (sa == sb) != (wanted == CarrierRelation::SameOriented) {
-            return Err((Component::Sense, deferred::Undischarged::Otherwise));
+            return Err((
+                Component::Sense,
+                Unestablished::Undischarged(deferred::Undischarged::Otherwise),
+            ));
         }
         Ok(())
     };
@@ -568,4 +602,68 @@ fn face_of<'e>(
     };
     let body = ev.read_body(*input, *body).ok()?.ok()?;
     Some((body, *face))
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used)]
+mod tests {
+    use super::*;
+    use topo::test_support::{CylFrame, cyl_wall_sheet};
+
+    /// **The axis tilt is levered at the pair's reach, not at a metre.**
+    /// Two 2 cm walls of a 1 cm cylinder, the second tilted about `y`
+    /// through their shared axis point by `2·escalate`: at a metre that
+    /// tilt reads past the band, and at the pair's reach (a few cm) it
+    /// reads Zero. The replay's axis datum decides it Zero, so it reads
+    /// it at the reach. The tilt is a number, not a symbol, so the Zero
+    /// does not discharge, and the row keeps the axis unestablished either
+    /// way: the lever shows in the verdict, not in the result.
+    #[test]
+    fn the_axis_tilt_is_levered_at_the_pairs_reach_not_a_metre() {
+        let tol = Tol::witness();
+        let band = Band::linear(tol).unwrap();
+        let theta = 2.0 * band.escalate();
+        let ((u, v), radius) = (((0.2, 1.6), (0.0, 0.02)), 0.01);
+        let ((read, arm), recording) = geom_core::k_stats::detached(|| {
+            deferred::with_deferred_session(
+                BUDGET,
+                SymRules::shipped(),
+                crate::drive::DEFAULT_SYM_RETRY,
+                || {
+                    let mut a = topo::Body::<Lane>::new();
+                    let fa = cyl_wall_sheet(&mut a, CylFrame::canonical(radius), u, v, tol);
+                    let mut b = topo::Body::<Lane>::new();
+                    let fb = cyl_wall_sheet(&mut b, CylFrame::tilted(radius, theta), u, v, tol);
+                    let arm = topo::boolean::carrier_pair_arm(&a, fa, &b, fb, band)
+                        .map(|arm| <Lane as geom_core::Bounds>::hi(arm.length()));
+                    let read = one_cylinder(
+                        (&a, fa),
+                        (&b, fb),
+                        CarrierRelation::SameOriented,
+                        band,
+                        false,
+                    );
+                    (read, arm)
+                },
+            )
+            .0
+        });
+        let arm = arm.expect("two cylinder walls have a pair extent");
+        assert!(
+            theta * arm <= band.zero() && theta >= band.escalate(),
+            "the tilt is Zero at the reach ({arm} m) and past the band at a metre: θ = {theta:e}"
+        );
+        let axis: Vec<_> = recording
+            .recorded()
+            .verdicts
+            .iter()
+            .filter(|v| v.predicate == ONE_CYLINDER_AXIS)
+            .map(|v| v.sign)
+            .collect();
+        assert_eq!(axis, [geom_core::Sign::Zero], "one tilt, read at the reach");
+        assert!(
+            matches!(read, Some(Err((Component::Axis, _)))),
+            "a numeric tilt does not discharge: {read:?}"
+        );
+    }
 }

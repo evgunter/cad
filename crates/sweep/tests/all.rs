@@ -455,6 +455,8 @@ mod band_co_requested_boundary;
 mod band_concave_bar;
 #[path = "band_dihedral_cups.rs"]
 mod band_dihedral_cups;
+#[path = "band_mixed_vertex.rs"]
+mod band_mixed_vertex;
 #[path = "band_one_cycle_members.rs"]
 mod band_one_cycle_members;
 #[path = "band_planar_consume.rs"]
@@ -1358,6 +1360,8 @@ mod a_closed_conic_in_the_partners_face;
 mod a_cone_with_a_tilted_seam;
 #[path = "a_cylinder_through_a_hole_tangent_to_its_wall.rs"]
 mod a_cylinder_through_a_hole_tangent_to_its_wall;
+#[path = "a_frame_within_its_rounding_is_kept_and_one_beyond_it_refuses.rs"]
+mod a_frame_within_its_rounding_is_kept_and_one_beyond_it_refuses;
 #[path = "a_mirrored_body_is_its_image.rs"]
 mod a_mirrored_body_is_its_image;
 #[path = "a_revolved_wall_arc_join_reads_its_reach.rs"]
@@ -1413,3 +1417,5 @@ mod the_football_revolves;
 
 #[path = "a_ball_with_no_room_at_its_rim_refuses_typed.rs"]
 mod a_ball_with_no_room_at_its_rim_refuses_typed;
+#[path = "a_peg_in_a_two_segment_bore_moves_only_its_wall.rs"]
+mod a_peg_in_a_two_segment_bore_moves_only_its_wall;
