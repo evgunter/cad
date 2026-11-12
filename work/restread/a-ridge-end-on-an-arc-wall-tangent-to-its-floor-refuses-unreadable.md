@@ -2,10 +2,12 @@
 id: a-ridge-end-on-an-arc-wall-tangent-to-its-floor-refuses-unreadable
 kind: issue
 title: A ridge's ends on an arc wall tangent to its floor refuse Unreadable on a valid body
-status: dispatched
+status: review
 opened: 2026-11-12
 priority: P1
 cost: M
+pr: 6878
+branch: restread/self-touch-valid-bodies
 ---
 
 

@@ -2,10 +2,12 @@
 id: two-cones-apex-lobes-on-two-carriers-refuse-a-valid-body
 kind: issue
 title: Two cones' apex lobes on two carriers in one self-touch link refuse a valid body
-status: dispatched
+status: review
 opened: 2026-11-12
 priority: P1
 cost: H
+pr: 6878
+branch: restread/self-touch-valid-bodies
 ---
 
 
