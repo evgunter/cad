@@ -619,7 +619,15 @@ links turning less than a half turn are not a clearance pair of the
 battery's support screen, their windows lying on either side of that
 run. A convex rim removes, and a concave
 one adds, the section `r²(1 − π/4)` along the path its centroid takes
-(`band_closed_mixed_chain`). A run of two links on one support pair
+(`band_closed_mixed_chain`). A mate's rings stay on the mate the trim
+shrinks, each metered against its link's strip (a cross-drilled wall
+keeps its bore), and a ladder rim on the shared face (a round hole
+through the plate) carves in the same call
+(`band_mixed_rim_shared_supports`). An annulus rim sharing a support
+with a mixed rim refuses `UnsupportedChain` with the sequential
+recourse
+(`work/band/an-annulus-rim-around-a-mixed-rim-refuses-in-one-call.md`).
+A run of two links on one support pair
 inside such a chain, a chain sharing no one face, and an OPEN mixed
 chain refuse `UnsupportedChain`
 (`work/band/an-open-tangent-chain-of-mixed-links-refuses-at-the-open-carve.md`);

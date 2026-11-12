@@ -2,8 +2,9 @@
 id: a-mixed-rims-mate-with-a-ring-refuses-at-the-mate-gate
 kind: issue
 title: A mixed rim whose mate carries a ring refuses at the mate gate
-status: open
+status: closed
 opened: 2026-11-04
+closed: 2026-11-12
 priority: P1
 cost: M
 refs: [a-rounded-outline-is-a-closed-chain-of-mixed-links-the-blend-refuses]
@@ -22,3 +23,5 @@ Witness: a cross-drilled plate.
 Sequential calls do not help, because the ring is on the wall either way. Filleting the rim before drilling builds.
 
 `support_boundary_clearance` already meters every ring of every support against its link's strip. What is unmeasured is the carve's move: whether the mate trim's `mef` leaves a ring on the shrunk mate face, or the ring needs moving there (as `lone_host_trim` moves one). Measure that, then drop the gate.
+
+Closed by the band-mixgates lane (2026-11-12). The mate trim's `mef` hands the strip to the new face, and the mate keeps its key and its rings. Lifting the gate built the witness at tier 3, its two rings on the two walls, at Pappus's ΔV, equal to filleting first and drilling after. The gate is dropped, pinned at f64 and Interval with a bore moved into the strip that refuses at a clearance meter (`crates/sweep/tests/band_mixed_rim_shared_supports.rs`).
