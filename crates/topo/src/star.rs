@@ -110,7 +110,10 @@
 //! germ), whose one comparison ([`before`]) places each germ in its
 //! half-turn by its side of the first and orders two in one half-turn by
 //! their sine, every reading levered as a distance and by the smaller
-//! lean of the directions it reads ([`leaned_lever`]). Its ties are the
+//! lean of the directions it reads ([`leaned_lever`]). A leaned zero
+//! puts two germs on one line only where the bare sine does not read them
+//! apart; where it does, the order cannot place them within the
+//! tolerance, and refuses as their coincidence. Its ties are the
 //! verb's ([`Ties`]): the split reads two sectors' germs along one
 //! tangent one order down and refuses alike ones; the pierce ring reads
 //! one pierce's the same way and two pierces' by their chords' nesting.
