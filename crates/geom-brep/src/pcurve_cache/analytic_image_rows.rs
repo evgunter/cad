@@ -458,7 +458,7 @@ fn frame(g: &mut fuzz::Rng) -> (Point3<f64>, Vec3<f64>, Vec3<f64>) {
     let mut v = || Vec3::new(g.range(-1.0, 1.0), g.range(-1.0, 1.0), g.range(-1.0, 1.0));
     let (a, b) = (v(), v());
     let normal = a.normalize();
-    let u_ref = (b - normal * b.dot(normal)).normalize();
+    let u_ref = super::closed_image_rows::across(b, normal);
     let mut p = || g.range(-10.0, 10.0);
     (Point3::new(p(), p(), p()), normal, u_ref)
 }

@@ -327,3 +327,13 @@ second site needs to ask the question at all. (ONEDOOR orchestrator)
   - The wedge unit was `dispatched` with stage 1 landed (PR 6443). It is now `spec`, with stage 2 as specified on the row.
 - No lane is live. Worktrees and targets are deleted, and disk is at 27 GB.
 - (ONEDOOR orchestrator)
+- 2026-11-12 — **PR [#6858](https://github.com/evgunter/cad/pull/6858) fix pass accepted** (`79f9e088`). All 23 items of the adjudicated union were taken. Two were argued down: `JoinError` as `chart_window`'s refusal type, because three-walks deletes that walk, and the named `RingHoming` exception.
+  - **Two deviations, both accepted.** `ConeCornerUnread` and the empty `ResultInvalid` keep the defect ending spelled inline, because they name a different culprit. `CarveStep` is reachable only as `topo::boolean::CarveStep`, because a root re-export would raise a `names-boolean` pin.
+  - **Not done:** the roughly 100 old `corrupt_*` sites map to `Unresolved::Walk` without a Record-vs-Geometry audit. Recorded in the PR body.
+  - **Class finding:** a refusal arm that both a user's input and a kernel defect can reach is the fail-loud honesty defect. The empty-body split read "report it" until `single_solid`'s count got its own arm. The rule is one state, one arm, one ending. It is already the reviewer brief's claim 2; no new row.
+  - (ONEDOOR orchestrator)
+- 2026-11-12 — **Filed a main red at P0: `the-boolean-corpus-name-digests-are-red-on-main`.** It covers three editor-core slow-set rows that read `crossing_slots`. They are red at pure main `5589777fd` and filed nowhere. This program owns the filing, not the bisect owner. (ONEDOOR orchestrator)
+- 2026-11-12 — **`topo-shared-cores-hosted-in-one-half` closed** with PR 6858.
+  - Unit 2, `plane_crossing_lane`, was already in geom-brep with `plane_crossing_*` K names.
+  - **`S5` re-parked** on `engine-leaves-by-visibility` and re-banded P1 → P2. Its residue is the engine-to-engine edges, which the P2 `[topo.homes]` move rows carry, and a P1 parked on P2 work waits at the wrong band.
+  - (ONEDOOR orchestrator)

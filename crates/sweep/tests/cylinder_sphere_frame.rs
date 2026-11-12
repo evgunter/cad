@@ -465,10 +465,18 @@ pub(crate) fn pad_ceiling(area: f64) -> f64 {
 }
 
 /// The widest volume half-width measured on each pose at ε `1e-9`,
-/// debug, over its runs that build: the rim poses accept a round only
-/// just inside the pinned resolution, the others far inside it.
+/// over its runs that build: the rim poses accept a round only just
+/// inside the pinned resolution, the others far inside it. Measured in
+/// release on PCERT's `pcert/check4-parts-by-turn` (the last two, the
+/// rim poses', in debug by spiricarm's `795dc76fab`). The non-rim
+/// entries carry check 4's first reading (`Parts::ByTurn`), whose
+/// stated envelope is up to about twice the eight parts' and widens
+/// the volume enclosure with it
+/// (`work/pcert/check-4s-first-reading-states-an-envelope-up-to-twice-the-eight-parts.md`);
+/// the drift before it is
+/// `work/spiricarm/the-cylinder-sphere-frame-pad-table-drifted-past-its-guard-on-main.md`.
 const MEASURED_PAD: [f64; 9] = [
-    1.4e-11, 6.9e-11, 6.6e-12, 1.0e-10, 4.5e-10, 1.7e-10, 3.3e-10, 7.6e-7, 1.2e-7,
+    9.1e-11, 1.8e-10, 2.4e-11, 5.3e-10, 7.1e-10, 3.9e-10, 8.0e-10, 7.6e-7, 1.2e-7,
 ];
 
 /// **Every run of pose `index` ends as pinned** ([`at_its_volume`]): the

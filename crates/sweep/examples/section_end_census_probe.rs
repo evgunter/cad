@@ -30,7 +30,7 @@
 
 use geom_core::{Affine3, Point2, Point3, Tol, Vec3};
 use topo::splitting::{SplitError, split};
-use topo::{AtRestBody, Body, BooleanError, EulerOpError, SplitJoinError};
+use topo::{AtRestBody, Body, BooleanError, EulerOpError, JoinError};
 
 fn tol() -> Tol {
     Tol::witness()
@@ -52,11 +52,11 @@ fn unresolved(miss: topo::SectionPinMiss) -> String {
 fn outcome(r: Result<topo::SplitResult<f64>, SplitError>) -> String {
     match r {
         Ok(_) => "ok".to_owned(),
-        Err(SplitError::Join(SplitJoinError::SectionEndEscalated { reading, diag, .. })) => {
+        Err(SplitError::Join(JoinError::SectionEndEscalated { reading, diag, .. })) => {
             format!("END {reading:?} {:?}", diag.margin)
         }
-        Err(SplitError::Join(SplitJoinError::SectionUnresolved { miss, .. })) => unresolved(miss),
-        Err(SplitError::Join(SplitJoinError::Euler(EulerOpError::Certification { error }))) => {
+        Err(SplitError::Join(JoinError::SectionUnresolved { miss, .. })) => unresolved(miss),
+        Err(SplitError::Join(JoinError::Euler(EulerOpError::Certification { error }))) => {
             match error {
                 geom_brep::CertifyError::Escalated { check, cause, .. } => {
                     format!("EULER {check:?} escalated {:?}", cause.margin)
@@ -115,10 +115,10 @@ fn boolean(tag: &str, a: &AtRestBody<f64>, b: &AtRestBody<f64>) {
                     )
                 }
                 Err(BooleanError::Join(e)) => match e.error() {
-                    SplitJoinError::SectionEndEscalated { reading, diag, .. } => {
+                    JoinError::SectionEndEscalated { reading, diag, .. } => {
                         format!("END {reading:?} {:?}", diag.margin)
                     }
-                    SplitJoinError::SectionUnresolved { miss, .. } => unresolved(*miss),
+                    JoinError::SectionUnresolved { miss, .. } => unresolved(*miss),
                     other => {
                         let text = format!("{other:?}");
                         format!("REFUSED join {}", text.chars().take(90).collect::<String>())
