@@ -19,6 +19,8 @@
 //!   on the shared cell, and their minimum separation is `[0, 0]`;
 //! - large curved bodies certify within the default budget, their
 //!   cell-pair counts printed;
+//! - a windowed tube holds across its caps' circles, where each cap's
+//!   two semicircles meet on the walls' seams;
 //! - lofts whose walls reach every extreme in one half of an axis are
 //!   admitted and decided: the arc spine past a full turn, the closed
 //!   spine and the carvetail loft read `Violated`, and the arc spine
@@ -756,6 +758,41 @@ fn a_full_torus_certifies_by_kind() {
             report.receipt
         );
     }
+}
+
+/// **A windowed tube holds across its caps' circles at both scalars**
+/// (the tour's `tube_along_arc` wedge: `R = 2`, `r = 1/2`, the spine
+/// from `1/4` to `7/4` rad). Each cap is a disc on two semicircles,
+/// which meet where the two half-tube walls' seams land. A cap cell at
+/// such a vertex has no presentation, so the pair is decided by the
+/// cap's carrier against the wall alone, whose side on the shared
+/// meridian is read off the meridian's closed form: the centred form's
+/// error there shrinks only with the cell's length squared, and the
+/// pair ran to the depth floor.
+#[test]
+fn a_windowed_tubes_caps_hold_against_its_walls_at_both_scalars() {
+    fn tube<T: Scalar>() -> Body<T> {
+        let at = T::from_f64;
+        sweep::tube_along_arc(
+            sweep::test_support::tube_frame(
+                Point3::new(at(0.0), at(0.0), at(0.0)),
+                geom_core::Vec3::new(at(0.0), at(1.0), at(0.0)),
+                geom_core::Vec3::new(at(1.0), at(0.0), at(0.0)),
+                tol(),
+            ),
+            at(2.0),
+            sweep::TubeWindow::Arc {
+                t0: at(0.25),
+                t1: at(1.75),
+            },
+            at(0.5),
+            tol(),
+        )
+        .expect("the wedge builds")
+        .body
+        .into_body()
+    }
+    holds_at_both("the windowed tube", tube(), tube());
 }
 
 /// **A long helical sweep certifies within the default budget**: a
