@@ -576,13 +576,13 @@ fn a_stated_image_on_its_carrier_certifies() {
 /// `[0.0968, 0.6776]`. At `Interval` its schedule's sample 5 read
 /// `[0, 1.03e-12]` when the station was computed at the scalar: the
 /// station's few ulps, taken through each de Boor level of the image
-/// and of the carrier apart, gave each point a width of about 5e-13. The
-/// read held to its own evaluation stays far under the finest band, and
-/// the image certifies at both scalars.
+/// and of the carrier apart, gave each point a width of about 5e-13. Read
+/// at a point the widest sample is 2.0e-13, its evaluation's own width,
+/// under half the finest band, and the image certifies at both scalars.
 ///
 /// Built with `PCERT_RADIAL_PAIR_MUTANT=stated-station-computed` (the
-/// stations computed at the scalar again) both halves go red, the read's
-/// width at every ε.
+/// stations computed at the scalar again) the width goes red at every ε,
+/// and the certificate at ε 1e-12.
 #[test]
 fn a_cone_image_at_a_steep_sample_certifies() {
     let surface = Surface::Cone {
@@ -660,8 +660,8 @@ fn a_cone_image_at_a_steep_sample_certifies() {
     .expect("a correct image certifies at a coarse band");
     let width = geom_core::Bounds::hi(cert.max_residual);
     assert!(
-        width < 1e-13,
-        "the schedule's read at Interval is its evaluation's width, far under 1e-12: {width:e}"
+        width < 0.5e-12,
+        "the schedule's read at Interval is its evaluation's width, under half of 1e-12: {width:e}"
     );
 
     let stated = Image::General(Arc::new(image));
