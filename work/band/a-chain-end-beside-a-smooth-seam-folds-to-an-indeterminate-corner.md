@@ -2,10 +2,12 @@
 id: a-chain-end-beside-a-smooth-seam-folds-to-an-indeterminate-corner
 kind: issue
 title: A blend chain ending at a vertex where a smooth seam meets folds the seam into CornerConfig::Indeterminate
-status: open
+status: review
 opened: 2026-11-02
 priority: P3
 cost: E
+pr: 6810
+branch: band/open-mixed-chain
 ---
 
 Filed by the REFS lane (`work/refs/select-all-edges-picks-edges-a-fillet-refuses.md`, PR 6344), from its sweep for blend doors that read a Zero dihedral as a refusal; measurements corrected by that PR's review.
@@ -21,3 +23,4 @@ At an OPEN chain's end, `battery::corner_at` (`crates/sweep/src/blend/battery.rs
 - On a rounded rectangle, a straight cap edge requested alone refuses `END_FACE_CURVED` first (its end face is the corner arc's cylinder), before any corner read.
 
 - 2026-11-02 — moved from BANDRULE to BAND by `git mv` when BANDRULE merged into BAND, id and body unchanged (the track budget now counts only P0, P1 and unbanded rows, and BANDRULE had fallen far under it).
+- 2026-11-11 — PR 6810 (band-openmix fix pass, item 9): `corner_at` now reads, before any cut-off or corner reading, whether an unrequested edge at a chain's end meets one of the link's supports smoothly, and refuses `UnsupportedRunOut { PARTIAL_TANGENT_RUN }`. At a trivalent end that is always a tangent run requested in part: the edge between the other support and the face continuing the smooth one runs on tangent to the link. The recourse names the whole run. The slot's end arc alone flips to it (`pins_of_todays_blend_refusals::a_slot_end_arc_alone_refuses_as_a_tangent_run_requested_in_part`). A smooth seam at an end of another valence still reaches `corner_config`.

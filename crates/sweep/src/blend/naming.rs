@@ -220,10 +220,14 @@ pub struct BlendNaming {
     pub rim_trims: Vec<(EdgeKey, EdgeKey, RimSide)>,
     /// Rim foot vertex ← the source rim vertex it retracts from, on
     /// the HOST support (planar wherever the rim has one, and a rim
-    /// between two curved walls still mints these).
+    /// between two curved walls still mints these); at an open band's
+    /// junction, the host foot of the junction vertex.
     pub rim_feet: Vec<(VertexKey, VertexKey)>,
     /// Meridian split vertex ← (the source meridian edge it split, the
-    /// splitting band's identity). Two bands whose rims are the two
+    /// splitting band's identity): where the band's MATE trimline crosses
+    /// a source edge running off the rim — a seam meridian, or a
+    /// junction's edge between two mates (its mate foot), on a mixed rim
+    /// or an open band. Two bands whose rims are the two
     /// ends of one meridian segment each split that segment's seam, so
     /// the band discriminates.
     pub meridian_splits: Vec<(VertexKey, EdgeKey, Vec<EdgeKey>)>,
@@ -244,6 +248,13 @@ pub struct BlendNaming {
     /// source meridian's surviving pieces are recorded once each, and
     /// their names are unique by that alone.
     pub slits: Vec<(EdgeKey, EdgeKey, Vec<EdgeKey>)>,
+    /// A junction's SECTION, on a mixed rim or an open band ← (the source
+    /// edge whose chain-side piece
+    /// became it, the source junction vertex it replaces): the circle arc
+    /// along which the bands of the junction's two links meet, G1, from
+    /// the host foot to the mate foot. Like a slit, it is a surviving
+    /// piece of the edge the carve split there.
+    pub sections: Vec<(EdgeKey, EdgeKey, VertexKey)>,
 
     /// What the blend retired from the source.
     pub dead: Retired,
@@ -274,7 +285,7 @@ impl BlendNaming {
     /// none of the points of the cell it replaces, so it takes no record
     /// from it. A source edge the band's carve split is divided into its
     /// surviving pieces ([`Self::meridian_remnants`],
-    /// [`Self::slits`]) and the vertices that split
+    /// [`Self::slits`], [`Self::sections`]) and the vertices that split
     /// it, the carved span removed; a support face is divided into itself
     /// and the trimlines and feet the blend minted in it, the strip it
     /// carved away removed. Every other cell whose geometry the blend
@@ -337,6 +348,9 @@ impl BlendNaming {
         }
         for &(slit, source, _) in &self.slits {
             piece(source, Cell::Edge(slit), false);
+        }
+        for &(section, source, _) in &self.sections {
+            piece(source, Cell::Edge(section), false);
         }
         for &(v, source, _) in &self.meridian_splits {
             piece(source, Cell::Vertex(v), true);

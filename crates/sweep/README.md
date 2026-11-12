@@ -33,10 +33,11 @@ chamfers) is registered in `docs/KERNEL-VERBS.md`; the canal blend is
 | Analytic arms: sheet derivation, `BlendArm`, chamfer strip, corner ball | `crates/sweep/src/blend/arms.rs` |
 | Admission tokens (holding the value is the fact) | `crates/sweep/src/blend/admit.rs` |
 | Assembly front doors, `Blended` result type, octant charts | `crates/sweep/src/blend/build.rs` |
-| In-place composition surgery: the door, the plans, the ring check, the description pass, the one `kef` door; the closed-rim walks (ladder rims, annulus rims across seams) | `crates/sweep/src/blend/surgery.rs` |
+| In-place composition surgery: the door, the plans, the ring check, the description pass, the one `kef` door; the closed-rim walks (ladder rims, annulus rims across seams, mixed rims) | `crates/sweep/src/blend/surgery.rs` |
 | Predicate 2's reach: every band against every face of the body that is not a support of its chain, in any shell, before any mutation | `crates/sweep/src/blend/reach.rs` |
 | The carve that takes a feature wholly inside a straight band's material, removed or filled: the grouping into features, and the walk that removes one | `crates/sweep/src/blend/consume.rs` |
 | The open bands: the plane–plane band with its trihedral corners, the ruled band with its transverse cut-off | `crates/sweep/src/blend/open/planar.rs`, `crates/sweep/src/blend/open/ruled.rs` |
+| A junction between links on different supports: its feet and section, the mate split, the retiring `kev` and its records, for the closed mixed rim and the open band alike | `crates/sweep/src/blend/junction.rs` |
 | Birth records (`BlendNaming`) the document layer turns into names | `crates/sweep/src/blend/naming.rs` |
 
 ## The band's reach (predicate 2)
@@ -593,7 +594,68 @@ links: Zero, one band through a joint; definite, two chain ends at a
 turn; sliver, escalated. Tangency is what lets one band run through a
 junction, not a condition on the request. It keeps its name and its
 place in the order, and still refuses at a junction involving a curved
-link. The planar band carves locally, as the ruled band does: the end
+link where it reads a definite turn. Where a tangent junction joins
+links on different supports (a line into an arc of a rounded outline)
+it reads the BANDS as well: the two links' balls at the junction rest
+in one section, margin the distance between their section centres.
+Zero is a section the two bands share and meet G1 along; definite is
+supports creasing there, refused `UnsupportedChain`; in band, escalated.
+
+**A closed chain of mixed links** — a rounded outline's lines and arcs,
+a cylinder band over each line and a torus band over each arc — is
+carved on the one face its links share, whose whole cycle (outer or a
+ring) it is, as the annulus rim is: at each junction the edge between
+the two mates splits at the mate foot, a strut reaches the host foot,
+each link's trims are cut and its arc excised, and the strut's `kev`
+re-bases the split piece into the SECTION, the ball's circle between
+the two feet. Each link keeps its own band face, and the section is
+described as the shared row of the two bands' charts (a cylinder's
+transverse circle, a torus's meridian;
+`geom_brep::analytic_shared_row`); a section whose row does not certify
+at the scalar refuses `UnsupportedGeometry` at its link. Each link's
+strip is read within its own window, the slab between a straight
+link's end normals or an arc's wedges (the union of its pieces', each
+under a half turn), by the support-boundary meter and
+by the reach; and two links of one chain, closed or open, joined along it by
+links turning less than a half turn are not a clearance pair of the
+battery's support screen, their windows lying on either side of that
+run (which holds while every arc's radius exceeds twice the ball's, the
+spine bound predicate 3 enforces). On an open chain, an edge at either
+end that the chain does not hold (an end face's rim) is no screen pair
+either with each link the run to that end turns less than a half turn
+from: the plan meters it against those links' strips in closed form,
+each within its own window (arms (d) and (e) of the ring carry-through
+pass). A convex rim removes, and a concave
+one adds, the section `r²(1 − π/4)` along the path its centroid takes
+(`band_closed_mixed_chain`). A run of two links on one support pair
+inside such a chain and a chain sharing no one face refuse
+`UnsupportedChain`; a chamfer has no arm over an arc, so its rounded
+outlines refuse at the arc. The section is named `BandSection { vertex }`,
+after the junction vertex it replaces.
+
+**An open chain of mixed links** — a run of an outline's lines and arcs
+ending at cut-offs, turns or corners — is carved by the planar band
+below, a junction being one more station of each support beside the
+corner, the joint, the cut-off and the turn: on the face its two links
+share, a plane, a strut out to the host foot; on each link's other
+support, the foot on the edge between the two, split there. Each link
+keeps its own band face, a torus link's trims are its circles, and the
+junction's moves are the closed rim's, one home for both carves
+(`blend/junction.rs`). A torus link is carved only between two
+junctions; one at an end refuses `UnsupportedChain`, since its cut-off
+is a circle only in a plane through its axis
+(`work/band/an-end-torus-link-cut-off-in-its-meridian-plane-is-unbuilt.md`).
+A straight link's two ends put their feet on each trimline in order,
+metered before any mutation under `fillet3_cut_off_feet` where one is a
+junction. A torus link's strips are metered within its own window, as a
+mixed rim's link is, and a joint inside an open mixed chain refuses. A
+request that stops where its edge runs on smoothly into one it does not
+name refuses `UnsupportedRunOut` at the battery, whatever the arm of the
+link that stops there, its recourse naming the whole smooth run
+(`work/band/a-smooth-outline-filleted-in-part-stops-at-a-tangent-junction.md`).
+The teardrop's rim, which turns once, the L-plate's rounded corner run
+and a notch's rounded floor build at Pappus by pieces
+(`band_open_mixed_chain`). The planar band carves locally, as the ruled band does: the end
 face's rim edges split at the feet, the end curve `mef`'d across it, one
 trimline per support; at a turn, L split at its foot, a strut out to the
 trimlines' crossing on the shared face, and the mitre `mef`'d across one
@@ -654,8 +716,11 @@ for the ruling a cylinder band is. A self-closed
 link's own seam is one cell, not two, and records nothing.
 
 What still refuses, typed `UnsupportedRunOut` with a detail naming the
-shape: a curved end face (a fillet against a cylinder meets it in a
-quartic with no stored carrier); a foot that lands inside a support
+shape: a request that stops where its edge runs on smoothly into one it
+does not name, its end face tangent to the band's support
+(`PARTIAL_TANGENT_RUN`, read before any other end); a curved end face (a
+fillet against a cylinder meets it in a quartic with no stored
+carrier); a foot that lands inside a support
 rather than on a rim edge (a band running into a wall or a step, and the
 inner corner of an L-shaped rim, where the shared face's sector is
 reflex); two cut-offs at the two ends of one rim whose feet on it cross
@@ -687,7 +752,9 @@ coincide the turn foot has four edges, so blending L in a later call
 refuses. At an overrun the turn foot is trivalent and L's later band
 ends in band `k`'s face: a chamfer's is a plane, and it builds only
 where L's foot lands on the overrun edge, which takes a much smaller
-second setback; a fillet's is a cylinder, a curved end face. Every such
+second setback; a fillet's is a cylinder tangent to L's support, so L
+runs on there smoothly into the overrun arc and refuses as a tangent run
+requested in part (`PARTIAL_TANGENT_RUN`). Every such
 refusal's recourse is to request L in the same call, which builds the
 patch.
 

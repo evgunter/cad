@@ -2061,7 +2061,7 @@ fn the_closed_form_tables_compose_back_to_the_carrier() {
 }
 
 /// A random tilted plane section of a random cone, and the cone.
-fn cone_section(s: &mut fuzz::Rng) -> Option<(Surface<f64>, Curve3<f64>)> {
+pub(super) fn cone_section(s: &mut fuzz::Rng) -> Option<(Surface<f64>, Curve3<f64>)> {
     let (axis, u_ref) = frame(s);
     let apex = Point3::new(s.range(-3.0, 3.0), s.range(-3.0, 3.0), s.range(-3.0, 3.0));
     let half_angle = s.range(0.15, 1.3);
@@ -2090,7 +2090,7 @@ fn cone_section(s: &mut fuzz::Rng) -> Option<(Surface<f64>, Curve3<f64>)> {
 
 /// A random ring torus and one of its Villarceau circles, on either
 /// family and traversal, from any start.
-fn villarceau(s: &mut fuzz::Rng) -> (Surface<f64>, Curve3<f64>) {
+pub(super) fn villarceau(s: &mut fuzz::Rng) -> (Surface<f64>, Curve3<f64>) {
     let (axis, u_ref) = frame(s);
     let center = Point3::new(s.range(-3.0, 3.0), s.range(-3.0, 3.0), s.range(-3.0, 3.0));
     let major = s.range(0.5, 3.0);

@@ -2854,6 +2854,7 @@ fn embedded<'a>(name: &'a StableName, partners: Partners, f: &mut Vec<(&'a Stabl
             | RoleSeg::CornerFace(n)
             | RoleSeg::Mitre { vertex: n }
             | RoleSeg::TurnFoot { vertex: n }
+            | RoleSeg::BandSection { vertex: n }
             | RoleSeg::BandTrim { edge: n, support: _ }
             | RoleSeg::BandFoot(n)
             | RoleSeg::BandCut(n)

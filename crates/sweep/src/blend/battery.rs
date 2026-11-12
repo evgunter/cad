@@ -41,14 +41,14 @@ use geom_core::{Band, Bounds, Decide, Lever, Margin, MarginDiag, Point3, Real, S
 use topo::{Body, EdgeKey, EntityId, FaceKey, HalfEdgeKey, SurfaceKey, VertexKey};
 
 use super::arms::{
-    BlendArm, Branch, EdgeBlend, Meridian, Ruling, SupportTrace, chamfer_strip, inward_unit,
-    line_meet, offset_room, plane_plane_blend, plane_sphere_blend, plane_sphere_room,
+    BallSection, BlendArm, Branch, EdgeBlend, Meridian, Ruling, SupportTrace, chamfer_strip,
+    inward_unit, line_meet, offset_room, plane_plane_blend, plane_sphere_blend, plane_sphere_room,
 };
 use super::build::fan_at;
 use super::open::end_face::CycleReading;
 use super::surgery::{
     CORNER_SUPPORT_NOT_PLANAR, certified_curve, disagrees, scaffolding, strip_frame, strip_reading,
-    strip_ring, unbuilt_geometry, unresolved, unwalked,
+    strip_ring, unbuilt_chain, unbuilt_geometry, unresolved, unwalked,
 };
 use super::{
     BlendDecision, BlendError, BlendKind, BlendSite, ClassifiedMargin, CornerConfig, KnifeRefusal,
@@ -1952,7 +1952,11 @@ fn chain_turns<T: Decide + Bounds>(
         // Each tangent heads INTO the junction, so a smooth joint reads
         // them opposed.
         let (tau_a, tau_b) = (pick(&ca, ta0, ta1), pick(&cb, tb0, tb1));
-        match chain_g1(tau_a, tau_b, a.arm_len.min(b.arm_len), *v, band) {
+        let g1 = chain_g1(tau_a, tau_b, a.arm_len.min(b.arm_len), *v, band);
+        if g1.is_ok() && !same_supports(body, a, b)? {
+            band_g1(body, a, b, *v, band)?;
+        }
+        match g1 {
             // At a Zero `sin θ` over a definitely positive arm the two
             // unit tangents are within the band of `±1` apart, so the
             // dot's sign is certain on any enclosure; it is read, not
@@ -1995,6 +1999,73 @@ fn chain_turns<T: Decide + Bounds>(
         }
     }
     Ok((turns, tangent))
+}
+
+/// Whether two links lie between the same two support SURFACES, in
+/// either slot order: then one arm of one pair blends both, and their
+/// bands are one surface through the junction. Surfaces and not faces,
+/// because the band is a function of the surfaces: two faces of one
+/// surface (a seam-split wall's half-bands) give one band. Which FACE a
+/// mixed rim's links share is the carve's question, and
+/// `surgery::resolve_mixed_rim` asks it of faces.
+pub(crate) fn same_supports<T: Real>(
+    body: &Body<T>,
+    a: &Link<T>,
+    b: &Link<T>,
+) -> Result<bool, BlendError> {
+    let surface = |f: FaceKey| -> Result<SurfaceKey, BlendError> {
+        body.get_face(f)
+            .map(|fd| fd.surface)
+            .ok_or_else(|| unresolved(EntityId::Face(f), "a link's support"))
+    };
+    let (a0, a1) = (surface(a.face_a)?, surface(a.face_b)?);
+    let (b0, b1) = (surface(b.face_a)?, surface(b.face_b)?);
+    Ok((a0, a1) == (b0, b1) || (a0, a1) == (b1, b0))
+}
+
+/// **`fillet3_chain_g1` over the BANDS at a junction between links on
+/// different supports**: the two links' balls at the junction rest in
+/// one section, margin the distance between their section centres in
+/// meters. Zero is the shared section along which the two bands meet
+/// G1; a definite distance is supports creasing at the junction, where
+/// the two bands share no section.
+///
+/// # Errors
+///
+/// [`BlendError::UnsupportedChain`] on a definite distance or a band
+/// with no section, [`BlendError::Escalated`] in band.
+fn band_g1<T: Decide>(
+    body: &Body<T>,
+    a: &Link<T>,
+    b: &Link<T>,
+    vertex: VertexKey,
+    band: Band,
+) -> Result<(), BlendError> {
+    let p = body
+        .get_vertex(vertex)
+        .and_then(|x| body.get_point(x.point))
+        .copied()
+        .ok_or_else(|| unresolved(EntityId::Vertex(vertex), "a junction"))?;
+    let (Some(ca), Some(cb)) = (BallSection::of(&a.blend, p), BallSection::of(&b.blend, p)) else {
+        return Err(unbuilt_chain(
+            a.edge,
+            "a chain's links meet on different supports where a band has no rolling-ball \
+             section",
+        ));
+    };
+    let site = BlendSite::Joint { vertex };
+    match classify(
+        site,
+        BlendDecision::ChainG1,
+        Margin::of(ca.centre.distance(cb.centre)),
+        band,
+    )? {
+        Sign::Zero => Ok(()),
+        Sign::Positive | Sign::Negative => Err(unbuilt_chain(
+            a.edge,
+            "the supports crease at a junction, so its two bands share no section",
+        )),
+    }
 }
 
 /// **The chains the verdict carries**: each walked chain classified at
@@ -2063,7 +2134,7 @@ fn break_at_turns<T: Real>(chain: Chain<T>, turns: &[usize]) -> Vec<Chain<T>> {
         // lines meet at one corner and are closed by an arc tangent to
         // both, so its one run starts and ends at that corner, where the
         // end names two of three edges, the turn
-        // (`band_planar_cut_off::a_closed_rim_with_one_turn_breaks_there_and_refuses_its_mixed_chain`).
+        // (`band_planar_cut_off::a_closed_rim_with_one_turn_breaks_there_into_one_open_mixed_chain`).
         debug_assert!(run.is_empty(), "a closed chain's runs end at turns");
     }
     runs.into_iter()
@@ -2373,6 +2444,13 @@ fn is_seam_vertex<T: Decide>(
         _ => false,
     }
 }
+
+/// The refusal for a request that stops where its edge runs on
+/// smoothly into an edge it does not name: part of a tangent run
+/// (`work/band/a-smooth-outline-filleted-in-part-stops-at-a-tangent-junction.md`).
+/// Its recourse asks for the whole run.
+pub const PARTIAL_TANGENT_RUN: &str = "the request stops where its edge runs smoothly into an \
+     unrequested one, against a face tangent to its support";
 
 /// The refusal for a straight band — either open band — ending at a
 /// curved end face.
@@ -3059,6 +3137,29 @@ fn corner_at<T: Decide + Bounds>(
         )
         .map(|()| None);
     }
+    // A request that stops where its edge runs on smoothly: an edge at
+    // the end it does not name meets one of the link's supports
+    // smoothly, so the outline runs on past the end, tangentially, and
+    // the band would stop against a face tangent to its own support.
+    // That is the end's situation whatever the link's arm, and it is
+    // read before anything a cut-off or a corner would read.
+    for e in edges.iter().filter(|e| !requested.contains(e)) {
+        if let Ok(Resolved::Smooth(..)) = resolve_link(body, *e, radius, band, kind) {
+            let sides = topo::readback::edge_sides(body, *e).map_err(|_| {
+                unresolved(
+                    EntityId::Edge(*e),
+                    "a smooth edge's two faces at a chain end",
+                )
+            })?;
+            let (f, g) = sides.faces();
+            if [f, g].iter().any(|&x| x == link.face_a || x == link.face_b) {
+                return Err(super::surgery::unbuilt_run_out(
+                    EntityId::Vertex(vertex),
+                    PARTIAL_TANGENT_RUN,
+                ));
+            }
+        }
+    }
     // Between planes, how many of the three edges the request names
     // decides the end; the link's own edge is one of them. Any other
     // band's end is judged as a corner alone, and the surgery's door
@@ -3357,6 +3458,15 @@ fn consumption_sweep<T: Decide + Bounds>(
             run_of.push((l.edge, ids[i]));
         }
     }
+    // Links of one chain whose bands cannot meet: those joined along the
+    // chain (either way round on a closed one) by links turning less
+    // than a half turn in all. Each link's band lies within its own window (the
+    // slab between a straight link's end normals, the wedge of an arc's),
+    // and the windows of two links joined by such a run lie on either side
+    // of it, so the pair is not a question; their sampled gap against
+    // both setbacks would refuse two arcs flanking a short flat whatever
+    // the flat's own length. A turning read near the half turn screens.
+    let apart = chain_apart(body, chains)?;
     let run =
         |e: EdgeKey| -> Option<usize> { run_of.iter().find(|(ee, _)| *ee == e).map(|(_, r)| *r) };
     let members = |e: EdgeKey| -> Vec<EdgeKey> {
@@ -3405,6 +3515,9 @@ fn consumption_sweep<T: Decide + Bounds>(
                     continue;
                 }
                 if decided.contains(&(*ei, *ej)) || decided.contains(&(*ej, *ei)) {
+                    continue;
+                }
+                if apart.contains(&(*ei, *ej)) || apart.contains(&(*ej, *ei)) {
                     continue;
                 }
                 // The closest approach of the two sampled boundaries,
@@ -3471,6 +3584,98 @@ fn consumption_sweep<T: Decide + Bounds>(
         }
     }
     Ok(())
+}
+
+/// **The pairs of one chain's links that are not a clearance question**
+/// ([`consumption_sweep`]): two links joined along the chain — on a
+/// closed chain one way round or the other, on an open one along it —
+/// by links whose turnings sum to less than a half turn; and on an open
+/// chain, an edge at either end that the chain does not hold against
+/// each link the run to that end turns less than a half turn from, which
+/// the plan meters in closed form (below). A link's turning is its arc's sweep, a line's zero; a
+/// carrier of another kind turns a half turn, so it joins nothing. The
+/// sum is read for selection only: a sum not certainly below the half
+/// turn leaves the pair to the screen.
+///
+/// **What it rests on: the spine bound `r < ρ/2`** that predicate 3
+/// (spine regularity) enforces on every arc of radius `ρ`, so no spindle
+/// torus is built. A
+/// link's band then lies within its own window, the slab between a
+/// straight link's end normals or the wedge of an arc's, and windows of
+/// links joined by a run turning less than a half turn lie on either
+/// side of it. A spindle torus's band would reach back across its own
+/// wedge's planes, and two such windows could meet; admitting spindle
+/// tori would take this argument's margin away. The argument reads only
+/// the links between the pair, so it holds on an open chain as on a
+/// closed one: where the chain ends is no part of it.
+// Premise, enforced upstream: every arc of radius `ρ` carries a ball of
+// radius `r < ρ/2` (predicate 3, spine regularity), so each link's band
+// stays inside its own window and no spindle torus reaches back across
+// its wedge's planes.
+fn chain_apart<T: Decide + Bounds>(
+    body: &Body<T>,
+    chains: &[Chain<T>],
+) -> Result<Vec<(EdgeKey, EdgeKey)>, BlendError> {
+    let mut apart = Vec::new();
+    for chain in chains {
+        let closed = matches!(chain.closure, ChainClosure::Closed);
+        let links: Vec<&Link<T>> = chain.links().collect();
+        let n = links.len();
+        let mut turning = Vec::with_capacity(n);
+        for l in &links {
+            let (c, t0, t1) = carrier_of(body, l.edge)?;
+            turning.push(match c {
+                Curve3::Line(_) => T::zero(),
+                Curve3::Circle(_) => (t1 - t0).abs(),
+                _ => T::pi(),
+            });
+        }
+        // Walk order along the chain, so links `i` and `i + 1` meet.
+        let half = T::pi();
+        let below = |sum: T| (sum - half).hi() < 0.0;
+        // A closed chain's pair `(i, i + k)` is joined one way round by
+        // the links between; an open chain's only by those before `n`.
+        for i in 0..n {
+            let reach = if closed { n.saturating_sub(1) } else { n - i };
+            for k in 2..reach {
+                let j = (i + k) % n;
+                let ahead = (1..k)
+                    .map(|m| turning[(i + m) % n])
+                    .fold(T::zero(), |a, b| a + b);
+                if below(ahead) {
+                    apart.push((links[i].edge, links[j].edge));
+                }
+            }
+        }
+        // An open chain's END: an edge the chain does not hold at its
+        // first or last vertex (an end face's rim) against each other
+        // link the run to that end turns less than a half turn from.
+        // The link at the end meets that edge, and the chain's other
+        // links' strips on their supports are metered against it in
+        // closed form by the plan (`surgery::ring_clearance_pass`, arms
+        // (d) and (e)), each within its own window, so the screen's
+        // sampled gap against a setback is no question there.
+        if let ChainClosure::Open { head, tail } = chain.closure {
+            let chain_edges: Vec<EdgeKey> = links.iter().map(|l| l.edge).collect();
+            for (v, end) in [(head, 0), (tail, n - 1)] {
+                let at = fan_at(body.edges_of_vertex(v)).ok_or_else(|| {
+                    unwalked(EntityId::Vertex(v), "an open chain's end, for its edges")
+                })?;
+                let others: Vec<EdgeKey> = at
+                    .into_iter()
+                    .filter(|e| !chain_edges.contains(e))
+                    .collect();
+                for i in (0..n).filter(|&i| i != end) {
+                    let between = if i < end { i + 1..end + 1 } else { end..i };
+                    let turned = between.map(|m| turning[m]).fold(T::zero(), |a, b| a + b);
+                    if below(turned) {
+                        apart.extend(others.iter().map(|&e| (links[i].edge, e)));
+                    }
+                }
+            }
+        }
+    }
+    Ok(apart)
 }
 
 /// **The rings of a support `face` that the strip meter decides**, each

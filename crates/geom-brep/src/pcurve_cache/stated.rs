@@ -6,7 +6,7 @@
 //!
 //! The edge certificate reaches a stated image's bound through
 //! [`StatedDoor`]: the door that certifies the image's class on its
-//! chart, or none, where the class has no door yet.
+//! chart.
 
 use std::sync::Arc;
 
@@ -14,6 +14,7 @@ use geom::{Curve3, NurbsCurve2, Surface};
 use geom_core::spline::{Knots, SpanLocate};
 use geom_core::{Band, Decide, Point2, Real};
 
+use super::closed_bound::ClosedForm;
 use super::patch::{PatchClass, PatchImage};
 use super::{
     CertifyingDoor, EnvelopeStatement, Pcurve, PcurveCache, PcurveCertificate, PcurveCertifyError,
@@ -29,12 +30,18 @@ use crate::certify::CERT_SAMPLES;
 #[derive(Clone, Copy, Debug)]
 pub(crate) enum StatedDoor<'a, T: Real> {
     /// The image's own pcurve door ([`PcurveCache::certify_stated_image`]):
-    /// every image on a spline chart, and a projected image on an
-    /// analytic one, which is that door's class there.
+    /// every image on a spline chart, and on an analytic one a projected
+    /// image, which is that door's class there.
     Pcurve(&'a Pcurve<T>),
-    /// The fitted door's composite against the bilinear patch that agrees
-    /// with an analytic chart along the image ([`PatchClass`]): an iso line
-    /// or a curve in UV on a plane, or on a cylinder's or cone's ruling.
+    /// A closed-form image on an analytic chart (harmonic, spiric, focal
+    /// section), bounded by the coefficients of its residual against the
+    /// carrier ([`super::closed_bound`]); an iso arc there, a spline
+    /// chart's image, refused as its structure.
+    Closed(&'a Pcurve<T>, ClosedForm<T>),
+    /// An iso line or a curve in UV on an analytic chart: the fitted
+    /// door's composite against the patch of its [`PatchClass`], which
+    /// agrees with the chart along the image (a plane; a cylinder's or
+    /// cone's ruling) or encloses the chart over the image's window.
     Patch {
         /// The image as stated, which the schedule reads.
         image: &'a Pcurve<T>,
@@ -46,17 +53,19 @@ pub(crate) enum StatedDoor<'a, T: Real> {
 }
 
 impl<'a, T: Real> StatedDoor<'a, T> {
-    /// The door of `image` stated on `surface`, or `None` where no door
-    /// certifies its class: a closed-form image (harmonic, spiric, focal
-    /// section, iso arc) on an analytic chart, and a curve in UV on a
-    /// curved analytic chart off one ruling. Those are metered at the
-    /// edge certificate's samples
-    /// (`work/pcert/a-closed-form-image-stated-on-an-analytic-chart-is-metered-at-nine-samples.md`).
-    pub(crate) fn of(surface: &Surface<T>, image: &'a Pcurve<T>) -> Option<Self> {
-        if surface.spline_chart().is_some() || matches!(image, Pcurve::Projected(_)) {
-            return Some(Self::Pcurve(image));
+    /// The door of `image` stated on `surface`: every stated image has
+    /// one.
+    pub(crate) fn of(surface: &Surface<T>, image: &'a Pcurve<T>) -> Self {
+        if surface.spline_chart().is_some() {
+            return Self::Pcurve(image);
         }
-        PatchClass::of(surface, image).map(|(class, form)| Self::Patch { image, class, form })
+        if let Some(form) = ClosedForm::of(image) {
+            return Self::Closed(image, form);
+        }
+        match PatchClass::of(surface, image) {
+            Some((class, form)) => Self::Patch { image, class, form },
+            None => Self::Pcurve(image),
+        }
     }
 }
 
@@ -151,10 +160,12 @@ impl<T: Decide> PcurveCache<T> {
     /// ([`StatedDoor`]), over `span`: the certificate's envelope bounds
     /// `|C(t) − S(P(t))|` over the whole span.
     ///
-    /// On a patch, the fitted lane's checks 3 and 4: the schedule, then
-    /// the composite's sup against the patch, which agrees with the chart
-    /// wherever the image runs, so the sup bounds the image's miss with no
-    /// remainder. An iso line enters as the degree-1 curve in UV, the
+    /// A closed form: its residual's coefficient bound
+    /// ([`super::closed_bound`]). On a patch, the fitted lane's checks 3
+    /// and 4: the schedule, then the composite's sup against the patch,
+    /// which agrees with the chart wherever the image runs or encloses it
+    /// with its remainder in its controls, so the sup bounds the image's
+    /// miss. An iso line enters as the degree-1 curve in UV, the
     /// same map, over a spline carrier's knot domain or else the span's
     /// outer ends. The carrier's incidence is the caller's to read first:
     /// this door reads the image against the carrier, not the carrier
@@ -163,7 +174,9 @@ impl<T: Decide> PcurveCache<T> {
     /// # Errors
     ///
     /// The door's refusal: [`PcurveCertifyError::ResidualExceeded`] or
-    /// [`PcurveCertifyError::Escalated`] at a sample, the composite's
+    /// [`PcurveCertifyError::Escalated`] at a sample or of a bound,
+    /// [`PcurveCertifyError::MissLocated`] at a located point, the
+    /// composite's
     /// ([`PcurveCertifyError::FittedLimb`],
     /// [`PcurveCertifyError::FittedEscalated`], and its structural
     /// refusals) over the span.
@@ -176,6 +189,10 @@ impl<T: Decide> PcurveCache<T> {
         lane: crate::FittedLane<T>,
     ) -> Result<PcurveCertificate<T>, PcurveCertifyError> {
         let (t0, t1) = span.params;
+        #[cfg(test)]
+        if let Some(image) = sampled_mutant(door, surface) {
+            return sampled(image, span, carrier, surface, band);
+        }
         let (image, class, form) = match door {
             StatedDoor::Pcurve(image) => {
                 return Self::certify_stated_image(
@@ -187,6 +204,9 @@ impl<T: Decide> PcurveCache<T> {
                     Some(lane),
                 )
                 .map(|cache| cache.certificate);
+            }
+            StatedDoor::Closed(image, form) => {
+                return super::closed_bound::certify((image, form), span, carrier, surface, band);
             }
             StatedDoor::Patch { image, class, form } => (image, class, form),
         };
@@ -224,6 +244,54 @@ impl<T: Decide> PcurveCache<T> {
             EnvelopeStatement::MapResidualComposite,
         ))
     }
+}
+
+/// The image a mutant meters at the schedule's samples again, not
+/// over the span: an analytic chart's stated image
+/// (`analytic-image-sampled`), or its closed form alone
+/// (`closed-image-sampled`).
+#[cfg(test)]
+fn sampled_mutant<'a, T: Real>(
+    door: StatedDoor<'a, T>,
+    surface: &Surface<T>,
+) -> Option<&'a Pcurve<T>> {
+    let analytic = surface.spline_chart().is_none() && super::mutants::analytic_image_sampled();
+    match door {
+        StatedDoor::Closed(image, _) if analytic || super::mutants::closed_image_sampled() => {
+            Some(image)
+        }
+        StatedDoor::Pcurve(image) | StatedDoor::Patch { image, .. } if analytic => Some(image),
+        StatedDoor::Pcurve(_) | StatedDoor::Closed(..) | StatedDoor::Patch { .. } => None,
+    }
+}
+
+/// The schedule's samples alone, as the mutants read a stated image.
+#[cfg(test)]
+fn sampled<T: Decide>(
+    image: &Pcurve<T>,
+    span: EdgeSpan<T>,
+    carrier: &Curve3<T>,
+    surface: &Surface<T>,
+    band: Band,
+) -> Result<PcurveCertificate<T>, PcurveCertifyError> {
+    let mut max_residual = T::zero();
+    let (t0, t1) = span.params;
+    super::schedule_residuals(
+        Record::Verdict,
+        image,
+        t0,
+        t1,
+        carrier,
+        surface,
+        band,
+        &mut max_residual,
+    )?;
+    Ok(PcurveCertificate::closed(
+        CERT_SAMPLES,
+        max_residual,
+        T::zero(),
+        EnvelopeStatement::MapResidualComposite,
+    ))
 }
 
 /// **An iso line as a curve in UV**: `p0 + pl·t` over `[lo, hi]`, the
