@@ -585,6 +585,8 @@ fn a_stated_image_on_its_carrier_certifies() {
 /// and the certificate at ε 1e-12.
 #[test]
 fn a_cone_image_at_a_steep_sample_certifies() {
+    /// The schedule's widest read at `f64`, at the computed stations.
+    const F64_MAX_RESIDUAL: f64 = 3.552_713_678_800_501e-15;
     let surface = Surface::Cone {
         apex: Point3::new(1.2322203379484655, 8.256594057242634, -7.770083324538339),
         axis: Vec3::new(0.703363688854479, -0.5626911754625069, -0.4343479737003985),
@@ -663,6 +665,28 @@ fn a_cone_image_at_a_steep_sample_certifies() {
         width < 0.5e-12,
         "the schedule's read at Interval is its evaluation's width, under half of 1e-12: {width:e}"
     );
+    // At `f64` the held stations are the schedule's own, so its read is
+    // the one the computed stations gave, to the bit.
+    let carrier_f64 = Curve3::Nurbs(Arc::new(net.clone()));
+    let pcurve_f64 = Pcurve::General(Arc::new(image.clone()));
+    let f64_cert = super::PcurveCache::certify_stated_bound(
+        super::stated::StatedDoor::of(&surface, &pcurve_f64),
+        super::stated::EdgeSpan {
+            params: span,
+            outer: span,
+        },
+        &carrier_f64,
+        &surface,
+        coarse,
+        crate::FittedLane::certified(),
+    )
+    .unwrap_or_else(|e| panic!("a correct image certifies at f64: {e:?}"));
+    assert_eq!(
+        f64_cert.max_residual.to_bits(),
+        F64_MAX_RESIDUAL.to_bits(),
+        "the schedule's read at f64 is the computed stations' own: {:e}",
+        f64_cert.max_residual
+    );
 
     let stated = Image::General(Arc::new(image));
     for door in DOORS {
@@ -672,6 +696,40 @@ fn a_cone_image_at_a_steep_sample_certifies() {
             "at {}: a correct cone image certifies: {got:?}",
             door.name
         );
+    }
+}
+
+/// **A stated image's stations at `f64` are the schedule's**: the held
+/// schedule the stated route reads (`EdgeSpan::stations`, over the edge's
+/// outer ends as the edge certificate passes them) is bit for bit
+/// [`crate::certify::sample_param`] over `[t0, t1]` at every sample, on a
+/// whole span, a sub-span, a span off the unit interval and one far from
+/// zero, so holding the stations moves no `f64` read.
+///
+/// Built with `PCERT_RADIAL_PAIR_MUTANT=stated-station-mirrored` (the
+/// held schedule run backwards over its ends) this row goes red.
+#[test]
+fn a_stated_images_stations_are_the_schedules_at_f64() {
+    let spans = [
+        (0.0, 1.0),
+        (0.09677920633227259, 0.6775887288383383),
+        (-3.7, 12.1),
+        (1000.0, 1000.3),
+    ];
+    for (t0, t1) in spans {
+        let span = super::stated::EdgeSpan {
+            params: (t0, t1),
+            outer: crate::carrier_net::outer_ends((t0, t1)),
+        };
+        let stations = span.stations();
+        for i in 0..crate::certify::CERT_SAMPLES {
+            let (held, computed) = (stations.at(i), crate::certify::sample_param(t0, t1, i));
+            assert_eq!(
+                held.to_bits(),
+                computed.to_bits(),
+                "over [{t0}, {t1}], station {i}: held {held} is the schedule's {computed}"
+            );
+        }
     }
 }
 

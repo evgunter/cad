@@ -41,10 +41,19 @@ door.
 ## Why P1
 
 The seed is drawn per run, like the cone row's
-(`a-cone-stated-image-at-a-fuzz-seed-reads-in-band-at-eps-1e-12`), so
-a PR whose diff puts geom-brep in the ε 1e-12 step goes red at about
-1 seed in 200. Nothing false is certified, because the read ends in its
-lever.
+(`a-cone-stated-image-at-a-fuzz-seed-reads-in-band-at-eps-1e-12`), so a
+PR whose diff puts geom-brep in the ε 1e-12 step can go red here by
+chance.
+
+- PR 6857's FULL review ran its own 400 seeds and found 7 refusing,
+  about 1 in 57, all identical on main. This branch's 400 seeds found
+  the 2 above.
+- Each refusal of the bound's kind ends in its lever (`Escalated` on
+  `pcurve_closed_bound`), so nothing false is certified.
+- One of the review's seeds, `0x6c321abd1c3c3bb8`, is a different shape.
+  It ends `StatedImageMissed` because the derived image really misses,
+  so no fix to the bound turns it green. It is filed as
+  `a-derived-sphere-image-misses-its-circle-by-1e-11-near-five-half-pi-at-eps-1e-12`.
 
 ## Regime
 

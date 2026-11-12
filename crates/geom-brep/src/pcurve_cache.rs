@@ -8229,7 +8229,9 @@ pub(crate) enum Stations<T> {
     /// width is their evaluation's and not the station's arithmetic
     /// taken twice through a steep map.
     Held {
-        /// The span's `f64` ends, in the order of `held`.
+        /// The span's `f64` ends. The caller passes them in the order of
+        /// `held`; the stated route's are the sorted outer ends of a span
+        /// already decided forward ([`stated::EdgeSpan`]).
         domain: (f64, f64),
         /// The span's ends at the scalar.
         held: (T, T),

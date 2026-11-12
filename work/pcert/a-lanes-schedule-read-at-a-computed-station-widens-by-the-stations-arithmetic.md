@@ -50,6 +50,10 @@ the span's `f64` ends in (as `EdgeSpan::outer` does for the stated
 route), or `Decide` gains `Bounds` (every scalar that implements
 `Decide` already implements `Bounds`).
 
+A held station is `T::from_f64` of a point. At `Dual` or `Sym` that point
+carries no derivative or symbolic channel, so a caller whose read
+differentiates through `t` needs its station's channel kept.
+
 ## Why P3
 
 No row has been seen red on these lanes. Their images are fitted or

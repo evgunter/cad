@@ -82,10 +82,25 @@ pub(crate) struct EdgeSpan<T> {
 impl<T: Real> EdgeSpan<T> {
     /// The schedule's stations over the span: its ends as held, every
     /// other one a point of the outer ends' `f64` schedule.
-    fn stations(self) -> super::Stations<T> {
+    ///
+    /// The schedule is the edge's own, so it is held over the edge's
+    /// interval (its outer ends), not over the carrier's span as the SSI
+    /// certificate's and the plane × NURBS fit's are (`carrier_span`): a
+    /// stated image is certified over `[t0, t1]` alone. `outer` is sorted
+    /// and `params` is in the edge's order. They agree because the edge
+    /// certificate decides its span forward (check 2, `decide_turn`)
+    /// before it reads a stated image.
+    pub(crate) fn stations(self) -> super::Stations<T> {
         #[cfg(test)]
         if super::mutants::stated_station_computed() {
             return super::Stations::Computed(self.params.0, self.params.1);
+        }
+        #[cfg(test)]
+        if super::mutants::stated_station_mirrored() {
+            return super::Stations::Held {
+                domain: (self.outer.1, self.outer.0),
+                held: self.params,
+            };
         }
         super::Stations::Held {
             domain: self.outer,

@@ -35,9 +35,13 @@ station and not the map residual: at `Interval`, the station
 `t0 + (t1 − t0)·5/8` was 3 ulps wide. The image and the carrier were each
 evaluated at that box, and each de Boor level carried its width, so the two
 points were each about 5e-13 wide and their distance was [0, 1.03e-12]. The
-stated route now reads its schedule at held stations
-(`pcurve_cache.rs` `Stations::Held`, `certify.rs` `held_station`): its
-ends as held, every interior station the `f64` schedule entered as a point.
+stated route's patch door (`StatedDoor::Patch`), and the mutants' sampled
+read, now read their schedule at held stations
+(`pcurve_cache.rs` `Stations::Held`, `certify.rs` `held_station`): the ends
+as held, every interior station the `f64` schedule entered as a point. A
+stated image that goes through its own pcurve door (`StatedDoor::Pcurve`,
+`certify_general`) still reads `Computed`, and so does a closed form's
+cross-check. Both are in the P3 station row below.
 The same read is now 2.0e-13, the cone's evaluation at 13 m.
 
 The seed is pinned as `analytic_image_rows.rs`

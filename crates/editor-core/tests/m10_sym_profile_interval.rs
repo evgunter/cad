@@ -448,10 +448,17 @@ const PLATE_MAX_TERMS: usize = 46;
 /// 1189 → 1173 (forms 55898 → 55696) and `Early/Decision` 412 → 396
 /// (forms 42505 → 42225); `Early/Assertion` builds 10519 → 10543 forms.
 /// Nothing new freezes.
+///
+/// **Moved with the closed-form bound's slack** (`closed_bound.rs`
+/// `Residual::bound` is `sum / floor + slack`, the slack a unit sign's or a
+/// whole rate's residue, zero on a harmonic): each of the two stated
+/// images' bound builds one more form, its `+ 0`, so `Plain/Decision`
+/// forms 55696 → 55698 and `Early/Decision` 42225 → 42227, at the same
+/// calls. Nothing new freezes and no decision moves.
 const PLATE_LEDGER: &str = "\
-     Plain/Decision calls 1173 forms 55696 frozen 66 digest c6477b92c2cfdd53827a2cb8470912a2\n\
+     Plain/Decision calls 1173 forms 55698 frozen 66 digest c7e403c2d84a55c49998984184e13408\n\
      Plain/Assertion calls 824 forms 9114 frozen 193 digest dd673bfb67b01ff645a83264700b9100\n\
-     Early/Decision calls 396 forms 42225 frozen 0 digest f3a2c1ea95e4fbfad33070f0e3d03ae2\n\
+     Early/Decision calls 396 forms 42227 frozen 0 digest a66f68b7a07cb987c38c6d5efe2d422b\n\
      Early/Assertion calls 824 forms 10543 frozen 0 digest b0a635156255a9c708a608454ac55ae1\n\
      Door/Decision calls 557 forms 13458 frozen 0 digest def6998cc3dfb007c479d6625f9c680e";
 
