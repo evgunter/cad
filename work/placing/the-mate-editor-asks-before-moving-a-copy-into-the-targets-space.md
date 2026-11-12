@@ -2,7 +2,9 @@
 id: the-mate-editor-asks-before-moving-a-copy-into-the-targets-space
 kind: issue
 title: A mate can move its placement into another space (the 'move the copy into the target's space' checkbox); a mate belongs to an existing placement and never changes its target
-status: open
+status: review
+pr: 6850
+branch: placing/target-row
 opened: 2026-11-01
 ---
 
