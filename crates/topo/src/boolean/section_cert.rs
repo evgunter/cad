@@ -860,8 +860,11 @@ fn spline_implicit<T: Decide>(
 /// by the guard on a pair the section table holds
 /// (`ops::pair_verdict`), whose whole reading is the table's: never its
 /// carry, which reads every component's ends as unbounded.
-pub(super) fn of_listed<T: Decide, W: core::borrow::Borrow<PairRead<T>>>(
-    read: &PairRead<T>,
+pub(super) fn of_listed<
+    T: Decide,
+    W: core::borrow::Borrow<Result<geom_brep::PairSection<T>, geom_brep::SectionError>>,
+>(
+    read: &Result<geom_brep::PairSection<T>, geom_brep::SectionError>,
     band: Band,
     whole: impl FnOnce(&geom_brep::PairSection<T>) -> Option<W>,
 ) -> Section<T> {
@@ -870,9 +873,6 @@ pub(super) fn of_listed<T: Decide, W: core::borrow::Borrow<PairRead<T>>>(
         None => Section::Unmarched,
     })
 }
-
-/// A pair's section as the value reads it, or its refusal.
-type PairRead<T> = Result<geom_brep::PairSection<T>, geom_brep::SectionError>;
 
 /// The torus arms the section value does not build: `t` is a torus, `p`
 /// a plane or a cone.

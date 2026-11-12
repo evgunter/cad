@@ -742,7 +742,7 @@ fn box_gap(a: Box3, b: Box3) -> f64 {
         }
     };
     let [x, y, z] = [gap(a.x, b.x), gap(a.y, b.y), gap(a.z, b.z)];
-    (x * x + y * y + z * z).sqrt() * (1.0 - 1e-12)
+    x.hypot(y).hypot(z) * (1.0 - 1e-12)
 }
 
 /// **A branch's witness and how far it may stand from its arc**: the
