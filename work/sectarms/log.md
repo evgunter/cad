@@ -758,3 +758,7 @@ Both reds were found by PCERT's nightly lane and trace to SECTARMS merges.
 - The node lane had committed nothing; it is re-dispatched fresh on the same arm (Opus, byte 214), per the model-compare rule that a lost agent re-dispatches on its own arm. The row will record the interruption.
 - The ring lane had 25 uncommitted lines; they were saved as `83bf9e59f2` on its branch, and the lane is re-dispatched on the same arm (Fable, byte 147) to keep or discard them. The row will record the interruption.
 - Both briefs now say to push early, since only pushed work survives a restart.
+
+## 2026-11-12 — PR 6889 merged (endpoint census main red)
+
+- Orchestrator's read: the roster entry for `spline_implicit.rs` re-pinned (2, 0) → (6, 4). The four new reads are `box_gap`'s, gated on `is_certified()` with NaN otherwise, and a NaN gap is never apart (`PadsMeet`). The two older reads are re-argued at their sites; the old note named functions that no longer exist and called the `at` lift quotient-free, which it is not. CI green. Main-red item closed.
