@@ -1496,6 +1496,15 @@ pub enum RoleSeg {
     /// The surviving piece of a source edge the band's trimline cut —
     /// on a ladder rim a cap meridian, on a ruled band a cap rim edge.
     BandCut(NameRef),
+    /// **A mixed rim's section**: the circle arc along which the bands
+    /// of a closed chain's two links on different supports meet, G1, at
+    /// the source vertex the links joined at — from the host foot there
+    /// to the mate foot. Keyed by that vertex alone: a junction joins two
+    /// links of one chain.
+    BandSection {
+        /// The source junction vertex.
+        vertex: NameRef,
+    },
     /// A band's SLIT: the double-traversed torus meridian that keeps
     /// the annular band RING-FREE (`sweep::blend::surgery`'s donut
     /// representation). Both arguments are needed: two rims at the two
@@ -1694,6 +1703,7 @@ pub(crate) fn read_edge(seg: &RoleSeg) -> Option<VarId> {
         | RoleSeg::EndArc { .. }
         | RoleSeg::Mitre { .. }
         | RoleSeg::TurnFoot { .. }
+        | RoleSeg::BandSection { .. }
         | RoleSeg::BandFace(_)
         | RoleSeg::BandTrim { .. }
         | RoleSeg::BandFoot(_)
@@ -2325,6 +2335,9 @@ impl RoleSeg {
             R::TurnFoot { vertex } => R::TurnFoot {
                 vertex: rewrite_ref(vertex, w)?,
             },
+            R::BandSection { vertex } => R::BandSection {
+                vertex: rewrite_ref(vertex, w)?,
+            },
             R::BandFace(v) => R::BandFace(rewrite_set(v, w)?),
             R::BandTrim { edge, support } => R::BandTrim {
                 edge: rewrite_ref(edge, w)?,
@@ -2593,6 +2606,7 @@ macro_rules! never_in_a_boolean_table {
             | $crate::names::RoleSeg::EndArc { .. }
             | $crate::names::RoleSeg::Mitre { .. }
             | $crate::names::RoleSeg::TurnFoot { .. }
+            | $crate::names::RoleSeg::BandSection { .. }
             | $crate::names::RoleSeg::BandFace(_)
             | $crate::names::RoleSeg::BandTrim { .. }
             | $crate::names::RoleSeg::BandFoot(_)

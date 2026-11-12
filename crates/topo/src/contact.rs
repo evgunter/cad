@@ -135,9 +135,9 @@ pub enum ContactRefusal {
         /// The escalating predicate's diagnostics.
         diag: Indeterminate,
     },
-    /// The configuration is outside the class's certifiable set — the
-    /// demanded set IS the certifiable set (C3's order-k boundary),
-    /// so this refuses typed rather than sampling. Carries what was
+    /// The configuration is outside the class's certificate lane, where
+    /// nothing is demanded or certified (C3's order-k boundary), so this
+    /// refuses typed rather than sampling. Carries what was
     /// asked for, never a fallback verdict.
     NotCertifiable {
         /// Why the configuration is outside the lane.

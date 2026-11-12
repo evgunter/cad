@@ -1040,12 +1040,17 @@ EdgeDescription =
   native or imported geometry: import adopts extensional input by
   recovering the selector a native body would carry, or refuses typed
   where no lane recovers one ([import]).
-- **Validity is margined.** `Intersection` requires transversality along
-  the locus; a tangency of order k is read through its k-jet, with its
-  margin at order k+1, transverse to the locus. A locus in the ambiguous
-  band, certifiable as neither, fails loudly at construction exactly as
-  at import, and so does an edge read definitely transverse at some
-  stations and definitely smooth at others.
+- **Validity is margined.** Whatever the kernel measures to admit an
+  edge is admitted only with a margin. A witness-selected `Intersection`
+  requires transversality along the locus; a tangency of order k is read
+  through its k-jet, with its margin at order k+1, transverse to the
+  locus. A locus in the ambiguous band, certifiable as neither, fails
+  loudly at construction exactly as at import, and so does an edge read
+  definitely transverse at some stations and definitely smooth at
+  others.
+- **What is true by construction is not measured.** A structural
+  selector's curve is known in advance (the selector's question, above),
+  so it owes no transversality margin.
 - **Prefer-intrinsic, enforced at tier 3.** Every two-surface edge is
   intrinsic and its selector is decided by the geometry alone; at rest a
   witness selector must certify its reading (`TransverseNotIntrinsic`,
