@@ -405,19 +405,33 @@ fn frame(g: &mut fuzz::Rng) -> (Point3<f64>, Vec3<f64>, Vec3<f64>) {
     let mut v = || Vec3::new(g.range(-1.0, 1.0), g.range(-1.0, 1.0), g.range(-1.0, 1.0));
     let (a, b) = (v(), v());
     let axis = a.normalize();
-    let u_ref = (b - axis * b.dot(axis)).normalize();
+    let u_ref = across(b, axis);
     let mut p = || g.range(-10.0, 10.0);
     (Point3::new(p(), p(), p()), axis, u_ref)
+}
+
+/// **The unit part of `b` across the unit `n`**, square to `n` to
+/// rounding. One pass leaves `n·u ≈ ulp/‖b − n·(b·n)‖`, which a `b`
+/// near `±n` makes large: a plane whose `u_ref` leans off its normal by
+/// `c` has a chart that leaves its normal's plane by `c` per metre, so a
+/// curve drawn square to the normal is off the chart at the band within
+/// the rows' reach, and its correct-looking image misses it. The second
+/// pass takes `n·u` back to rounding.
+pub(super) fn across(b: Vec3<f64>, n: Vec3<f64>) -> Vec3<f64> {
+    let once = (b - n * b.dot(n)).normalize();
+    if super::mutants::across_once() {
+        return once;
+    }
+    (once - n * once.dot(n)).normalize()
 }
 
 /// A unit vector `⊥ n`.
 fn perpendicular(g: &mut fuzz::Rng, n: Vec3<f64>) -> Vec3<f64> {
     let b = Vec3::new(g.range(-1.0, 1.0), g.range(-1.0, 1.0), g.range(-1.0, 1.0));
-    let p = b - n * b.dot(n);
-    if p.norm() < 1e-3 {
+    if (b - n * b.dot(n)).norm() < 1e-3 {
         perpendicular(g, n)
     } else {
-        p.normalize()
+        across(b, n)
     }
 }
 
@@ -810,20 +824,60 @@ fn spellings(
 /// spelling ([`spellings`]), certifies at both scalars.
 #[test]
 fn a_closed_form_on_its_carrier_certifies_in_every_spelling() {
-    let mut g = fuzz::start("closed_form_on_its_carrier");
+    every_spelling(&mut fuzz::start(EVERY_SPELLING));
+}
+
+/// The every-spelling row's sweep label.
+const EVERY_SPELLING: &str = "closed_form_on_its_carrier";
+
+/// **A plane line 20 m along its chart, whose drawn `u_ref` leaned off
+/// the normal by 5.4e-14**: the every-spelling row at the sweep seed
+/// that drew it. Squared once, the chart left the line by 1.02e-12 at
+/// the span's far end, and the bound read that miss in band at
+/// ε 1e-12; squared twice the line is on its chart and certifies.
+#[test]
+fn a_plane_line_on_a_frame_drawn_near_its_axis_certifies_in_every_spelling() {
+    every_spelling(&mut fuzz::pinned_sweep(
+        EVERY_SPELLING,
+        0x4661_d077_090b_3597,
+    ));
+}
+
+/// **A frame drawn with `b` near its axis is square to rounding**: the
+/// sweep's `u_ref` for a `b` 2e-3 off the axis leans off it by an ulp,
+/// not by `ulp/2e-3`.
+#[test]
+fn a_frame_drawn_near_its_axis_is_square_to_rounding() {
+    let n = Vec3::new(0.3, -0.5, 0.8).normalize();
+    for off in [2e-3, 1e-4, 1e-6] {
+        let b = n * 0.7 + perpendicular_witness(n) * off;
+        let u = across(b, n);
+        assert!(
+            u.dot(n).abs() <= 4.0 * f64::EPSILON,
+            "a u_ref drawn {off:e} off its axis leans off it by {:e}",
+            u.dot(n)
+        );
+    }
+}
+
+/// A fixed unit vector `⊥ n`, for the frame witness.
+fn perpendicular_witness(n: Vec3<f64>) -> Vec3<f64> {
+    let e = Vec3::unit_x();
+    (e - n * e.dot(n)).normalize()
+}
+
+fn every_spelling(g: &mut fuzz::Rng) {
     let mut read = 0usize;
     for _ in 0..fuzz::scaled(24) {
         for kind in KINDS {
-            let (surface, carrier, span) = drawn(&mut g, kind);
+            let (surface, carrier, span) = drawn(g, kind);
             let Ok(image) = chart_pcurve_over(&carrier, span.0, span.1, &surface, band()) else {
                 continue;
             };
             if !matches!(image, Pcurve::Harmonic { .. }) {
                 continue;
             }
-            for (how, surface, carrier, image) in
-                spellings(&mut g, &surface, &carrier, span, &image)
-            {
+            for (how, surface, carrier, image) in spellings(g, &surface, &carrier, span, &image) {
                 for door in DOORS {
                     let got = (door.certify)(&surface, &image, &carrier, span);
                     assert!(
