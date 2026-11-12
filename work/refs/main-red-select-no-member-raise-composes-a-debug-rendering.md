@@ -2,7 +2,8 @@
 id: main-red-select-no-member-raise-composes-a-debug-rendering
 kind: issue
 title: main red: select.rs's NoMember refusal composes {member:?} into its message (PR 6555), and the prose census allows no Debug raise
-status: open
+status: closed
+closed: 2026-11-12
 opened: 2026-11-10
 priority: P1
 cost: E
@@ -15,3 +16,11 @@ cost: E
 **Fix.** Render `member` through its prose (a `Display`/sentence renderer for the member index, or the index spelled as the user wrote it, `xs[i]`) instead of `{member:?}`. Do not list the site in `KNOWN_DEBUG_RAISES`: the allowance is for a site that cannot do better.
 
 Found by the ONEHOME stage-2 lane's full-suite run. Stage 2 does not touch `crates/pncad-py`.
+
+## Closed
+
+`select.rs`'s `select_refusal`, the `R::NoMember` arm, now spells the index values the way the kernel's `MemberOutOfRange` sentence does (`eval/mod.rs`): each value through `u32::to_string`, joined by `", "` inside brackets. The message reads `the read holds no member at [3]: …`, the same text as before, built without a `Debug` rendering. `KNOWN_DEBUG_RAISES` stays empty. No `Display` for a member index exists to reuse: `IndexedRead.__repr__` (`py/doc.rs`) and the kernel spell `[a, b]` inline.
+
+Pins: the census test `no_raise_site_composes_a_debug_rendering_into_its_message` is green. `test_pattern.py`'s `test_a_member_answers_its_own_names`, which already reached `no_member`, now also asserts `no member at [3]:` in the raised text.
+
+Sweep of `crates/pncad-py/src/` for `:?}` and `:#?}` (115 hits, plus `Debug::fmt` and `dbg!`, which have none): no other one reaches `typed_err`. In `py/`, 12 hits are in raised messages. All of them quote a caller's `&str` through `PyValueError`/`PyAttributeError::new_err`, not `typed_err`, so the prose assertion never reads them. The rest are `__repr__`, `__hash__`, an `unreachable!`, and test or census assertion text. No row filed.

@@ -73,4 +73,21 @@ Re-banded P0: the at-rest gate (P0) refuses these bodies at their
 doors until this row lands, and a blocker inherits the band of what
 waits on it.
 
+## Further evidence: a plane cap's two semicircles (CLEAR, lane clear-planecap, 2026-11-12)
+
+The tour's seven plane-cap bodies (`the-certificate-refuses-a-plane-cap-on-a-torus-or-cone-wall-at-their-circle`)
+have this row's second bullet on the cap. Each cap is a disc on two
+arcs of one circle, meeting where the walls' seams land, and a cap
+cell at that vertex is `beside_curve`'s `Structural`. Their refusal
+was not this row's, though. The carrier arm decides such a pair with
+no presentation of the cap, and it lacked only a tight reading of the
+cap's plane along the wall's side. That reading has landed, and the
+seven certify with the cap still unpresented at its vertices.
+
+A reading for a corner of two arcs of one closed conic would still
+pay where no carrier arm applies, as on a curved face whose two
+arcs meet on a non-planar partner. In that reading, the corner's
+other edge is the read edge's own continuation, so `continued` holds
+both.
+
 - 2026-11-02 — moved from CLEARTAIL to CLEAR when CLEARTAIL merged back into CLEAR (the budget rule now counts P0/P1 only); id and body unchanged.
