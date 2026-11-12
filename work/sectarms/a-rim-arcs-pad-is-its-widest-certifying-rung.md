@@ -54,12 +54,23 @@ What remains is valid input refused:
 - **Two arcs within about two rungs carry neither.** On the carry rows'
   wall at `s = 1`, rods of radius `0.09` and `0.095` refuse `PadsMeet`
   (radius `0.09`: arcs `0.180` m apart, pads `0.098` m at the rung
-  `0.089` m), and the prism and ball above refuse.
+  `0.089` m), and the prism and ball above refuse. So does editor-core's
+  wavy loft against a box face (`emit_topo`'s
+  `wavy_loft::a_union_across_a_nurbs_edge_refuses_where_two_arcs_pads_meet`:
+  arcs `1.25` m apart, pads `0.91` and `0.94` m), which at the
+  reviewed head reached the join and stopped at rest.
 - **The reach is half the arc**: the witness's reach is the farthest
   its window's image stands from it, so for one window about half the
   wall across.
 
 ## Remedy
+
+The refusal is at the carry, which refuses a section whose arcs' pads
+meet anywhere, though a true point of the section that reads on one arc
+alone is read right (it lies within its own arc's pad). Refusing at the
+site read instead, only where a site reads on two arcs whose pads meet,
+would let such runs on; it needs a typed site refusal the join maps
+with the pair's faces. Either way the pads are what to narrow:
 
 Windows over sub-spans: refine the pcurve and read limb 3's one-arc
 proof over the narrower windows (a sub-arc spanning the same end

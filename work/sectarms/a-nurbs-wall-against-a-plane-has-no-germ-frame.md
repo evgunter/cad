@@ -69,11 +69,14 @@ value carries, and cuts both chords from the carried arc. Every
 tripwire above went red and is re-pinned to its next stop:
 
 - `a_vertex_piercing_a_lens_wall_mints_its_ring_and_reaches_the_chords_certificate`
-  and editor-core's
-  `wavy_loft::a_union_across_a_nurbs_edge_refuses_at_a_carried_chords_certificate`
-  stop at rest, where the plane × NURBS lane's own image of a carried
+  stops at rest, where the plane × NURBS lane's own image of a carried
   chord misses it
-  (`a-planes-carried-arc-across-a-flared-spline-wall-misses-its-own-image-at-rest`);
+  (`a-planes-carried-arc-across-a-flared-spline-wall-misses-its-own-image-at-rest`),
+  or at `ε = 1e-6` at the wall's ring lane;
+- editor-core's
+  `wavy_loft::a_union_across_a_nurbs_edge_refuses_where_two_arcs_pads_meet`
+  stops at the carry, whose two arcs on the wall stand closer than their
+  pads (`a-rim-arcs-pad-is-its-widest-certifying-rung`);
 - `a_saddle_cut_by_its_tangent_plane_refuses_at_its_node_arcs_under_every_op`
   stops at the carry, which lists the arcs to the saddle's node and
   carries none (`a-spline-implicit-arc-is-carried-to-its-node`).

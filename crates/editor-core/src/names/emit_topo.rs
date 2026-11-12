@@ -6911,9 +6911,10 @@ mod wavy_loft {
     //! around each crossing vertex, the spline walls' trims place the
     //! pierce points past the sweep's null edges, the join reads each
     //! spline wall × plane pair on its section value, and the union
-    //! refuses at rest on a chord the join cut from a carried arc
-    //! ([`a_union_across_a_nurbs_edge_refuses_at_a_carried_chords_certificate`],
-    //! which reds the day that chord certifies).
+    //! refuses where the carry cannot hold two arcs of the wall's section
+    //! apart
+    //! ([`a_union_across_a_nurbs_edge_refuses_where_two_arcs_pads_meet`],
+    //! which reds the day those pads narrow).
     #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
     use crate::edit::DocEdit;
@@ -7055,20 +7056,23 @@ mod wavy_loft {
     /// (`topo::sector_face`'s spline arm), and `vtxfac::faces_holding_pierce`
     /// reads the loft's walls at the box's pierce points, each spline
     /// wall's trim lifted past the sweep's null edges
-    /// (`topo::null::Scaffolding::Skipped`). The join reads each spline
-    /// wall against the face `x = 1` on the pair's section value and cuts
-    /// its chords from the carried arcs, and the union refuses at rest:
-    /// the plane × NURBS lane's own image of a chord misses it
-    /// (`CertifyError::PlaneNurbs`;
-    /// `work/sectarms/a-planes-carried-arc-across-a-flared-spline-wall-misses-its-own-image-at-rest.md`).
+    /// (`topo::null::Scaffolding::Skipped`). The join reads the loft's
+    /// side wall `y = −1` against the face `x = 1` on the pair's section
+    /// value, whose two arcs stand closer than the pads their points are
+    /// read within, so the carry refuses them (`GermSectionUnbuilt`,
+    /// `Nurbs` × `Plane`, `CarryRefusal::PadsMeet`;
+    /// `work/sectarms/a-rim-arcs-pad-is-its-widest-certifying-rung.md`).
+    /// Past it, the plane × NURBS lane's own image of a chord misses it at
+    /// rest
+    /// (`work/sectarms/a-planes-carried-arc-across-a-flared-spline-wall-misses-its-own-image-at-rest.md`).
     ///
-    /// It reds the day that chord certifies. The end-to-end row, the
+    /// It reds the day those pads narrow. The end-to-end row, the
     /// crossings named through the boolean (the first and third, of one
     /// sense, tie), is
     /// `work/splice/a-spline-wall-cannot-say-whether-it-holds-a-pierce-point.md`'s,
     /// carried on that stop's row.
     #[test]
-    fn a_union_across_a_nurbs_edge_refuses_at_a_carried_chords_certificate() {
+    fn a_union_across_a_nurbs_edge_refuses_where_two_arcs_pads_meet() {
         let (doc, loft) = wavy_doc(0.3);
         let (doc, profile) = ins(
             doc,
@@ -7131,20 +7135,74 @@ mod wavy_loft {
                  {senses:?}"
             );
         }
-        let refusal = ev.node_error(union).map(|e| &e.kind);
+        let Some(crate::eval::NodeError {
+            kind:
+                crate::eval::NodeErrorKind::Boolean(topo::BooleanError::GermSectionUnbuilt {
+                    a_face: face,
+                    a_kind: geom::SurfaceKind::Nurbs,
+                    b_face: pierced,
+                    b_kind: geom::SurfaceKind::Plane,
+                    why: topo::SectionUnbuilt::Carry(geom_brep::CarryRefusal::PadsMeet { .. }),
+                }),
+            ..
+        }) = ev.node_error(union)
+        else {
+            panic!(
+                "the union refuses where the carry cannot hold two arcs of a spline wall of \
+                 the loft against the box's face apart, got {:?}",
+                ev.node_error(union).map(|e| &e.kind)
+            );
+        };
+        // The recipe mints both bodies fresh, so their keys collide: the
+        // A face is read in the loft, the first member, and the B face
+        // in the box.
+        assert!(
+            matches!(body.face_surface(*face), Some(geom::Surface::Nurbs(_))),
+            "the refusal names a spline wall of the loft"
+        );
+        let block = ev
+            .value(copy)
+            .expect("the box evaluates")
+            .payload
+            .output_body(0)
+            .expect("the placed box");
+        // Where the placed box stands: its body is its source's, in its
+        // own coordinates, under its frame (D10 `[placement.frame]`).
+        let plane = block.body().face_surface(*pierced);
         assert!(
             matches!(
-                refusal,
-                Some(crate::eval::NodeErrorKind::Boolean(topo::BooleanError::Join(join)))
-                    if matches!(
-                        join.error(),
-                        topo::SplitJoinError::Euler(topo::EulerOpError::Certification {
-                            error: geom_brep::CertifyError::PlaneNurbs(_),
-                        })
-                    )
+                plane,
+                Some(geom::Surface::Plane { origin, normal, .. })
+                    if (block.point_in_space(*origin).x - 1.0).abs() < 1e-9
+                        && block.vec_in_space(*normal).x.abs() > 1.0 - 1e-9
             ),
-            "the union refuses at rest on a chord the join cut from a spline wall's carried \
-             section against the box's face, got {refusal:?}"
+            "the pierced face is the box's face x = 1"
+        );
+        let walls: Vec<_> = near
+            .iter()
+            .filter_map(|&e| body.get_edge(e))
+            .flat_map(|e| [e.he_plus, e.he_minus])
+            .filter_map(|he| body.face_of_half_edge(he))
+            .collect();
+        assert!(
+            walls.contains(face),
+            "the refusal names a wall on a crossed corner: {face:?} of {walls:?}"
+        );
+        // Of those, the side wall `y = −1` the face `x = 1` cuts across:
+        // its corners stand at `x = ±1 ± a`, on both sides of `x = 1`.
+        let corners: Vec<_> = body
+            .half_edges()
+            .filter(|&(he, _)| body.face_of_half_edge(he) == Some(*face))
+            .filter_map(|(_, h)| body.get_vertex(h.start))
+            .filter_map(|v| body.get_point(v.point))
+            .collect();
+        assert!(
+            !corners.is_empty()
+                && corners.iter().all(|p| (p.y + 1.0).abs() < 1e-9)
+                && corners.iter().any(|p| p.x > 1.0)
+                && corners.iter().any(|p| p.x < 1.0),
+            "the refusal names the loft's side wall y = −1, which x = 1 cuts across: \
+             {corners:?}"
         );
     }
 }
