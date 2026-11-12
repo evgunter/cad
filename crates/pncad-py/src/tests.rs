@@ -6417,9 +6417,10 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     // tags it by its stage (the boolean's, the split's, the import's).
     ("join", 3),
     // A coincidence: a pose read of another kind than its role reads
-    // (`pose_fault_tag`) and a product read of a variable that is no
-    // body (`product_read_fault_tag`).
-    ("kind", 2),
+    // (`pose_fault_tag`), a product read of a variable that is no body
+    // (`product_read_fault_tag`), and a source read of one
+    // (`edit_inner_variant_tag`'s `SourceFault::Kind`).
+    ("kind", 3),
     // One fact at the edit and load doors: a loft written as no loft
     // can be. The edit door publishes its fault on `inner_variant`;
     // the load door says it in the message alone.
@@ -6469,6 +6470,9 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     // (`topo::PieceSortError`) could not read a shell's piece, carried
     // whole by each verb.
     ("pieces", 2),
+    // One fact (VR4) at the edit and load doors: a placement reading its
+    // body directly, not through a source.
+    ("placement_reads_no_source", 2),
     ("plane", 2),
     ("poisoned", 3),
     // One fact at the edit and load doors: a pose definition of a shape
@@ -6550,6 +6554,9 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     ("unminted", 3),
     ("unnamed", 3),
     ("unreadable", 2),
+    // One fact: a read naming no variable the document holds, of a source's
+    // definition or of the product slot.
+    ("unresolved", 2),
     // One fact at the two doors that cross a document seam: a split's
     // part and an inline's host would have to point a reader at a
     // variable its document no longer holds (VR7).
