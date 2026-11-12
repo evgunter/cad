@@ -2414,6 +2414,23 @@ impl<P> Doc<P> {
         (!expected.admits(held) && !family()).then_some(ReadFault::Kind { found: held.kind() })
     }
 
+    /// **The rank a member read of `read` at `found` indices misses**:
+    /// the family's rank of indices where `found` is not it, `None` where
+    /// it is, where the read is whole, or where its body is gone (a strand,
+    /// VR7, asked no rank at rest). One rule for a node seat's member read
+    /// ([`crate::Node::input_fault`]) and a source's (`u = grid[0]`), at
+    /// both doors.
+    pub(crate) fn member_rank_fault(&self, read: VarId, found: usize) -> Option<usize>
+    where
+        P: crate::ProfilePayload,
+    {
+        if found == 0 || self.unresolved_read(read).is_some() {
+            return None;
+        }
+        let rank = self.var_reach(read).chain().map_or(0, <[VarId]>::len);
+        (found != rank).then_some(rank)
+    }
+
     /// **The variable port `port` of `node` defines**
     /// ([`crate::VarDef::Output`]), if `node` is live and has that port.
     pub fn output(&self, node: RecipeNodeId, port: u8) -> Option<VarId> {

@@ -85,7 +85,10 @@ fn top(b: editor_core::RecipeNodeId) -> StableName {
 /// the definition reading the source.
 fn reader_refusal(got: Result<ProfileDoc, EditError>) -> editor_core::SnapshotError {
     match got {
-        Err(EditError::SourceReaderRefused { reader, .. }) => *reader,
+        Err(EditError::SourceReaderRefused { reader, .. }) => match *reader {
+            editor_core::PersistError::Snapshot(fault) => fault,
+            other => panic!("the load's refusal is no snapshot fault: {other:?}"),
+        },
         other => panic!("expected SourceReaderRefused: {:?}", other.map(|_| ())),
     }
 }
@@ -456,4 +459,185 @@ fn a_selection_of_a_source_orders_after_the_sources_body() {
         crate::blocks::failure(&evaluated(&after), shell).is_none(),
         "the shell evaluates after c"
     );
+}
+
+/// **A family of two indices of `b`**, `i` and `j` within it.
+fn grid(doc: ProfileDoc, b: editor_core::RecipeNodeId) -> (ProfileDoc, editor_core::RecipeNodeId) {
+    use crate::fixture::{family_of, index, index_of, scalar_of};
+    let (doc, i) = index(doc, "i", 2);
+    let (doc, j) = index_of(doc, "j", Formula::count(2), Some(i));
+    family_of(
+        doc,
+        b,
+        vec![
+            (
+                editor_core::Coord::slide(editor_core::TargetAxis::X),
+                Formula::mul(scalar_of(i), len(2.0)).unwrap(),
+            ),
+            (
+                editor_core::Coord::slide(editor_core::TargetAxis::Y),
+                Formula::mul(scalar_of(j), len(2.0)).unwrap(),
+            ),
+        ],
+    )
+}
+
+/// **A member source is read at its family's rank**, at both doors: `u =
+/// grid[0]` (one index of a family of two) refuses at the declaration, and
+/// `S = row`, `u = S[0]`, then `S = grid` refuses as the load refuses the
+/// file (`SourceReadRank`), never evaluating to `MemberOutOfRange`.
+#[test]
+fn a_member_source_redefined_onto_another_rank() {
+    let doc = ProfileDoc::empty_derived("r2-member-rank", Tol::witness());
+    let (doc, b) = block(doc, (0.0, 1.0), (0.0, 1.0), 1.0);
+    let (doc, _, row) = crate::fixture::row(doc, b, ("k", 2), editor_core::TargetAxis::X, 2.0);
+    let (doc, grid) = grid(doc, b);
+    let doc = declared(doc, "S", VarDecl::source(Operand::Node(row)));
+    let doc = declared(
+        doc,
+        "u",
+        VarDecl::source(BodyRead::indexed(name("S"), vec![Formula::count(0)])),
+    );
+    let direct = define(
+        &doc,
+        "u",
+        VarDecl::source(BodyRead::indexed(
+            Operand::Node(grid),
+            vec![Formula::count(0)],
+        )),
+    );
+    assert!(
+        matches!(
+            direct,
+            Err(EditError::SourceRead {
+                fault: editor_core::SourceFault::IndexRank { found: 1, rank: 2 },
+                ..
+            })
+        ),
+        "{:?}",
+        direct.map(|_| ())
+    );
+    let (doc, _) = insert(doc, placed(name("u")));
+    let refused = reader_refusal(define(&doc, "S", VarDecl::source(Operand::Node(grid))));
+    assert!(
+        matches!(
+            refused,
+            editor_core::SnapshotError::SourceReadRank {
+                found: 1,
+                rank: 2,
+                ..
+            }
+        ),
+        "{refused:?}"
+    );
+}
+
+/// A selection through a chain: `S = row`, `T = S`, a shell of
+/// `T[0].top`; `S = D` refuses as the load refuses the selection.
+#[test]
+fn a_member_selection_through_a_chain() {
+    let doc = ProfileDoc::empty_derived("r2-select-chain", Tol::witness());
+    let (doc, b) = block(doc, (0.0, 1.0), (0.0, 1.0), 1.0);
+    let (doc, d) = block(doc, (0.0, 2.0), (0.0, 1.0), 1.0);
+    let (doc, _, row) = crate::fixture::row(doc, b, ("k", 2), editor_core::TargetAxis::X, 2.0);
+    let doc = declared(doc, "S", VarDecl::source(Operand::Node(row)));
+    let doc = declared(doc, "T", VarDecl::source(name("S")));
+    let (doc, _) = insert(
+        doc,
+        Node::Shell {
+            thickness: len(0.1),
+            open: Operand::select(
+                BodyRead::indexed(name("T"), vec![Formula::count(0)]),
+                vec![top(b)],
+            ),
+        },
+    );
+    let refused = reader_refusal(define(&doc, "S", VarDecl::source(Operand::Node(d))));
+    assert!(
+        matches!(
+            refused,
+            editor_core::SnapshotError::SelectionShape { .. }
+                | editor_core::SnapshotError::SelectionBody { .. }
+        ),
+        "{refused:?}"
+    );
+}
+
+/// No member of a member is written: `S = grid`, and `u = S[0]` (one
+/// index of a family of two, which would leave `u` a family whose member
+/// `u[1]` is a member of a member) refuses its rank at its declaration.
+#[test]
+fn a_member_of_a_member_source_refuses() {
+    let doc = ProfileDoc::empty_derived("r2-member-member", Tol::witness());
+    let (doc, b) = block(doc, (0.0, 1.0), (0.0, 1.0), 1.0);
+    let (doc, grid) = grid(doc, b);
+    let doc = declared(doc, "S", VarDecl::source(Operand::Node(grid)));
+    let u = doc.apply(
+        &DocEdit::DeclareVar {
+            name: VarName::from_static("u"),
+            def: VarDecl::source(BodyRead::indexed(name("S"), vec![Formula::count(0)])),
+        },
+        Tol::witness(),
+    );
+    assert!(
+        matches!(
+            u,
+            Err(EditError::SourceRead {
+                fault: editor_core::SourceFault::IndexRank { .. },
+                ..
+            })
+        ),
+        "{:?}",
+        u.map(|_| ())
+    );
+}
+
+/// **What the redefinition door costs as the document grows**: N blocks,
+/// each a named source, a placement and a shell of its top, and one
+/// `DefineVar` of the first source (the edit the re-point offer's dry run
+/// writes). A measurement, run on request
+/// (`cargo nextest run -p editor-core --run-ignored only -E
+/// 'test(=source_readers::the_redefinition_door_cost_scales)'`): it
+/// prints the time per door run, and asserts only that the door admits.
+#[test]
+#[ignore = "a measurement, printed; run on request"]
+fn the_redefinition_door_cost_scales() {
+    for n in [10usize, 40, 160] {
+        let mut doc = ProfileDoc::empty_derived("r2-cost", Tol::witness());
+        let names: Vec<&'static str> = (0..n)
+            .map(|i| &*Box::leak(format!("s{i}").into_boxed_str()))
+            .collect();
+        let mut blocks = Vec::new();
+        for (i, nm) in names.iter().enumerate() {
+            let x = i as f64 * 3.0;
+            let (d, b) = block(doc, (x, x + 1.0), (0.0, 1.0), 1.0);
+            let d = declared(d, nm, VarDecl::source(Operand::Node(b)));
+            let (d, _) = insert(d, placed(name(nm)));
+            let (d, _) = insert(
+                d,
+                Node::Shell {
+                    thickness: len(0.1),
+                    open: Operand::select(name(nm), vec![top(b)]),
+                },
+            );
+            doc = d;
+            blocks.push(b);
+        }
+        let t = std::time::Instant::now();
+        let reps = 5;
+        for _ in 0..reps {
+            define(&doc, names[0], VarDecl::source(Operand::Node(blocks[0]))).expect("admitted");
+        }
+        let door = t.elapsed() / reps;
+        let t = std::time::Instant::now();
+        for _ in 0..reps {
+            editor_core::save(&doc, &[], Tol::witness()).expect("saves");
+        }
+        eprintln!(
+            "N = {n} ({} nodes): one DefineVar door run {door:?}; one save (the load's \
+             whole check, and the writing) {:?}",
+            doc.ids().len(),
+            t.elapsed() / reps
+        );
+    }
 }

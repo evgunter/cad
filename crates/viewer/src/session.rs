@@ -470,7 +470,21 @@ pub struct DocSession {
     /// read such values. Per person and never in
     /// the document, so no `Open` or new document resets it.
     notation: Notation,
+    /// **The placement offers last read, with the generation and node they
+    /// were read for** ([`DocSession::placement_offers`]): the properties
+    /// pane asks every frame, and the offer's rows each ask the
+    /// re-point's own checks (a definition door run with the load's whole
+    /// check behind it), so they are read once per document change and
+    /// selected node, not once per frame. Keyed by
+    /// [`DocSession::generation`], which every route that changes the
+    /// shown document moves ([`DocSession::request_eval`]). Behind a
+    /// mutex because the panes ask through a shared borrow.
+    offers: std::sync::Mutex<Option<(Generation, RecipeNodeId, PlacementOffers)>>,
 }
+
+/// **What [`crate::frame::placement_offers`] answers**: the sentence and
+/// each button's label and op.
+pub type PlacementOffers = (Option<String>, Vec<(String, SessionOp)>);
 
 /// What the session knows because of the document under it: what is
 /// picked out of it, what a drag is previewing over it, what the last
@@ -1012,6 +1026,7 @@ impl DocSession {
             inserts: std::collections::BTreeMap::new(),
             resolver: None,
             notation: Notation::DEFAULT,
+            offers: std::sync::Mutex::new(None),
         };
         session.request_eval();
         session
@@ -1573,6 +1588,25 @@ impl DocSession {
     /// The generation the session is waiting for a result on.
     pub fn generation(&self) -> Generation {
         self.generation
+    }
+
+    /// **The placement offers for `node`** ([`crate::frame::placement_offers`])
+    /// of the committed document, read once per generation and node and
+    /// kept (`DocSession::offers`).
+    pub fn placement_offers(&self, node: RecipeNodeId) -> PlacementOffers {
+        let mut memo = self
+            .offers
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        if let Some((generation, at, offers)) = memo.as_ref()
+            && *generation == self.generation
+            && *at == node
+        {
+            return offers.clone();
+        }
+        let offers = crate::frame::placement_offers(self.committed_doc(), node, self.tol);
+        *memo = Some((self.generation, node, offers.clone()));
+        offers
     }
 
     /// The generation of the result currently on screen — what a
@@ -4092,19 +4126,7 @@ impl DocSession {
     /// (`EditError::WouldCycle`).
     fn repoint_placements(&self, source: VarId, onto: &Operand) -> Result<Creating, Refusal> {
         let doc = self.committed_doc();
-        if doc.source(source).is_none() {
-            return Err(Refusal::NotABodyRead {
-                read: Box::new(Operand::Var(source)),
-            });
-        }
-        let onto = as_body(doc, onto.clone());
-        self.require_read(&onto, NodeKindWanted::Body)?;
-        let Some((onto_node, _)) = crate::world::read_output(doc, &onto) else {
-            return Err(Refusal::NotABodyRead {
-                read: Box::new(onto),
-            });
-        };
-        Takeover::source(doc, source).stranded_pick(doc)?;
+        let (onto, onto_node) = repoint_refusal(doc, source, onto, self.tol)?;
         let resolver = self.run_resolver();
         let prior = self.memo_under(&resolver);
         // A split's halves carry the body's entities as themselves: the
@@ -4210,22 +4232,7 @@ impl DocSession {
     /// [`Self::require_kind`] of a seat's read: a node named alone, or
     /// one of its ports ([`admits_read`]).
     fn require_read(&self, read: &Operand, wanted: NodeKindWanted) -> Result<(), Refusal> {
-        let doc = self.committed_doc();
-        if admits_read(doc, read, wanted) {
-            return Ok(());
-        }
-        match crate::world::read_output(doc, read) {
-            Some((node, _)) => Err(Refusal::WrongNodeKind {
-                node: doc.spoken(node),
-                wanted,
-            }),
-            None => match read {
-                Operand::Var(var) => Err(Refusal::NoSuchVariable(*var)),
-                _ => Err(Refusal::NotABodyRead {
-                    read: Box::new(read.clone()),
-                }),
-            },
-        }
+        required_read(self.committed_doc(), read, wanted)
     }
 
     /// **The gate a placer's input asks**: a body, or a placement's
@@ -5630,6 +5637,74 @@ fn body_outputs(doc: &Doc<ProfileProgram>, node: RecipeNodeId) -> Vec<VarId> {
         .collect()
 }
 
+/// **The gate a seat reading `read` as `wanted` asks**
+/// ([`DocSession::require_read`]), of `doc`.
+fn required_read(
+    doc: &Doc<ProfileProgram>,
+    read: &Operand,
+    wanted: NodeKindWanted,
+) -> Result<(), Refusal> {
+    if admits_read(doc, read, wanted) {
+        return Ok(());
+    }
+    match crate::world::read_output(doc, read) {
+        Some((node, _)) => Err(Refusal::WrongNodeKind {
+            node: doc.spoken(node),
+            wanted,
+        }),
+        None => match read {
+            Operand::Var(var) => Err(Refusal::NoSuchVariable(*var)),
+            _ => Err(Refusal::NotABodyRead {
+                read: Box::new(read.clone()),
+            }),
+        },
+    }
+}
+
+/// **Why re-pointing `source` onto `onto` refuses in `doc`**, or the body
+/// read and node the re-point writes: every check
+/// [`SessionOp::RepointPlacements`] asks before its takeover, then the
+/// takeover's first edit (`source = onto`, the definition door with the
+/// load's own whole-document check behind it) on a scratch copy. The
+/// action asks this and the offer asks this
+/// ([`crate::world::repoint_targets`]), so a row the offer shows is one the
+/// action lands.
+///
+/// # Errors
+///
+/// The action's own refusal: no source, no body to re-point onto, a pick
+/// the takeover would strand ([`Refusal::StrandedPick`]), or the door's.
+pub(crate) fn repoint_refusal(
+    doc: &Doc<ProfileProgram>,
+    source: VarId,
+    onto: &Operand,
+    tol: Tol,
+) -> Result<(Operand, RecipeNodeId), Refusal> {
+    if doc.source(source).is_none() {
+        return Err(Refusal::NotABodyRead {
+            read: Box::new(Operand::Var(source)),
+        });
+    }
+    let onto = as_body(doc, onto.clone());
+    required_read(doc, &onto, NodeKindWanted::Body)?;
+    let Some((onto_node, _)) = crate::world::read_output(doc, &onto) else {
+        return Err(Refusal::NotABodyRead {
+            read: Box::new(onto),
+        });
+    };
+    Takeover::source(doc, source).stranded_pick(doc)?;
+    doc.apply(
+        &DocEdit::DefineVar {
+            var: source.into(),
+            def: pncad::document::VarDecl::Source(pncad::document::BodyRead::plain(onto.clone())),
+            fresh: Vec::new(),
+        },
+        tol,
+    )
+    .map_err(|e| Refusal::Edit(Box::new(e)))?;
+    Ok((onto, onto_node))
+}
+
 /// **A body seat's read of `read`**: a node named alone that is no body
 /// itself but defines exactly one, a revolve beside its axis say, read
 /// as that body ([`body_of`]); any other read as it is, so a split's two
@@ -6214,6 +6289,7 @@ impl core::fmt::Debug for DocSession {
             inserts: _,
             resolver,
             notation,
+            offers: _,
         } = self;
         f.debug_struct("DocSession")
             .field("generation", generation)

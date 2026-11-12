@@ -693,14 +693,17 @@ fn copy_downstream_of(
 /// and some placement reads, with the placements it re-points — every
 /// placement reading it, through a source defined as a read of it too
 /// (`spare = bracket` follows `bracket` and is no row of its own). A row
-/// is one the definition door takes: the redefinition the action writes
-/// (`bracket = onto`, `editor_core::take_over`'s `DefineVar`) is asked of
-/// the door on a scratch copy, so a source the offer lists is one the
-/// action lands — a cycle through `onto`, a member placement left reading
-/// a member of no family or of another rank, a pattern left repeating a
-/// family are all refused there and are no row. The one list the offer
-/// names and the action writes ([`repoint_offer`],
-/// `SessionOp::RepointPlacements`).
+/// is one the action lands: each is asked the re-point's own checks
+/// (`session::repoint_refusal`, which `SessionOp::RepointPlacements`
+/// asks before its takeover), the takeover's first edit (`bracket =
+/// onto`) through the definition door included, with the load's own
+/// whole-document check behind it — so a cycle through `onto`, a member
+/// left reading a member of no family or of another rank, a pattern left
+/// repeating a family, and a pick the re-point would strand are all no
+/// row. The one list the offer names and the action writes
+/// ([`repoint_offer`], `SessionOp::RepointPlacements`); the properties
+/// pane reads it once per document change
+/// (`session::DocSession::placement_offers`).
 pub fn repoint_targets(
     doc: &Doc<ProfileProgram>,
     body: VarId,
@@ -718,25 +721,16 @@ pub fn repoint_targets(
         .collect()
 }
 
-/// **Whether the definition door takes `source = onto`**, asked on a
-/// scratch copy of `doc` with the edit the re-point writes.
+/// **Whether the re-point of `source` onto `onto` lands**: the action's
+/// own checks, its takeover's first edit included
+/// (`session::repoint_refusal`), asked of `doc`.
 fn redefinable(
     doc: &Doc<ProfileProgram>,
     source: VarId,
     onto: RecipeNodeId,
     tol: pncad::geom_core::Tol,
 ) -> bool {
-    doc.apply(
-        &pncad::document::DocEdit::DefineVar {
-            var: source.into(),
-            def: pncad::document::VarDecl::Source(pncad::document::BodyRead::plain(Operand::Node(
-                onto,
-            ))),
-            fresh: Vec::new(),
-        },
-        tol,
-    )
-    .is_ok()
+    crate::session::repoint_refusal(doc, source, &Operand::Node(onto), tol).is_ok()
 }
 
 /// **The source a Place of `body` shares** (VARIABLES VR4): `body` itself

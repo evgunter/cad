@@ -1932,6 +1932,12 @@ fn lower_source_decl<P: crate::ProfilePayload>(
     {
         return Err(refused(SourceFault::Kind { found }));
     }
+    if let Some(rank) = doc.member_rank_fault(read, body.at.len()) {
+        return Err(refused(SourceFault::IndexRank {
+            found: body.at.len(),
+            rank,
+        }));
+    }
     let mut at = Vec::with_capacity(body.at.len());
     for (k, formula) in body.rows() {
         let expr = lowering.lower_definition(doc, var, formula)?;
@@ -2242,6 +2248,14 @@ pub enum SourceFault {
     Kind {
         /// The read's kind.
         found: VarKind,
+    },
+    /// A member read at `found` indices of a family of `rank` (VR4: a
+    /// member is read at its family's rank).
+    IndexRank {
+        /// The indices written.
+        found: usize,
+        /// The family's rank.
+        rank: usize,
     },
     /// Index `k` of a member read is no `Count`.
     IndexNotCount {
@@ -3439,16 +3453,15 @@ pub enum EditError {
         /// A copy reading the same source, not named.
         other: Box<SpokenNode>,
     },
-    /// Redefining the source `source` would leave a definition reading
-    /// it — a further source, a selection in it — holding what the load
-    /// refuses (`reader`, by the load's own check of that definition): a
-    /// member of a family the source no longer reads, at any depth down
-    /// further sources.
+    /// Redefining the source `source` would write a document the load
+    /// refuses (`reader`, the load's own whole-document check): a reader
+    /// of it — a further source, a selection in it, a pick of its copy —
+    /// left holding what no document holds.
     SourceReaderRefused {
         /// The source redefined.
         source: SpokenVar,
-        /// The load's refusal of the definition reading it.
-        reader: Box<crate::SnapshotError>,
+        /// The load's own refusal of the document as redefined.
+        reader: Box<crate::PersistError>,
     },
     /// Name-level edit-time validation (M4 PR 4, the PR 3 R6 banked
     /// obligation, via [`crate::resolve::apply_with_names`]): the
@@ -4786,6 +4799,12 @@ impl EditError {
                         f,
                         "{var} is a source reading {} {found}, and a source reads one body",
                         crate::sentence::article(&found.to_string())
+                    )?,
+                    SourceFault::IndexRank { found, rank } => write!(
+                        f,
+                        "{var} is a source reading a member by {found} {}, where its \
+                         family has {rank}, and a member is read at its family's rank",
+                        if *found == 1 { "index" } else { "indices" }
                     )?,
                     SourceFault::IndexNotCount { k, found } => write!(
                         f,
@@ -6680,7 +6699,11 @@ fn standing_var<P>(
 /// document holds, at its kind; it does not read itself back (VR3);
 /// and no variable's expansion outgrows [`DEFINITION_NODE_BOUND`].
 /// A free definition reads nothing and passes.
-fn check_definition<P: crate::ProfilePayload>(new: &Doc<P>, id: VarId) -> Result<(), EditError> {
+fn check_definition<P: crate::ProfilePayload>(
+    new: &Doc<P>,
+    id: VarId,
+    tol: Tol,
+) -> Result<(), EditError> {
     // A source joins the recipe graph: what reads it reads its body, so
     // a definition reading downstream of its own placements is a cycle
     // through nodes (`bracket = F`, `F = fillet(C)`, `C = place(bracket)`)
@@ -6688,7 +6711,7 @@ fn check_definition<P: crate::ProfilePayload>(new: &Doc<P>, id: VarId) -> Result
     if new.source(id).is_some() {
         expansion_refusal(new)?;
         check_acyclic(new)?;
-        return check_source_readers(new, id);
+        return check_source_readers(new, id, tol);
     }
     let Some(expr) = new.var(id).and_then(|v| v.def().defined()) else {
         return Ok(());
@@ -6722,40 +6745,29 @@ fn check_definition<P: crate::ProfilePayload>(new: &Doc<P>, id: VarId) -> Result
 
 /// **Every reader of the source `id` still admits what it reads**
 /// (VARIABLES VR4): a redefinition changes the body behind each reader,
-/// so each is asked again what the load asks of it.
+/// so the document it writes is asked again what the load asks of it.
 ///
-/// - Every definition reading `id`, at any depth down further sources —
-///   a source (`u = S[0]`), a selection in it (`S[0].top`) — by the
-///   load's own check of that definition
-///   (`persist::check::source_read_fault`, `persist::check::selection_fault`),
-///   so the two doors cannot drift: [`EditError::SourceReaderRefused`].
-/// - Every node seat reading `id` so, or a selection or pose reaching it,
-///   by the load's read predicate ([`Doc::read_fault`]) and the node's own
-///   input rules ([`check_node_inputs`]): a member read of a family's
-///   source redefined onto one body is refused here, never written for
-///   the load to refuse.
+/// - Each node seat reading `id`, directly or down further sources, or
+///   through a selection or pose reaching it, first in this door's own
+///   words: the load's read predicate ([`Doc::read_fault`]) and the
+///   node's input rules ([`check_node_inputs`]).
+/// - Then the **load's own whole-document check**
+///   (`persist::check::validate_document`, the function `load` and
+///   `save` run) of the document as redefined, its first fault refused
+///   as [`EditError::SourceReaderRefused`]. A source's readers are of
+///   every kind a document holds (a placement, a further source, a
+///   selection, a pose, a pick, a delete's hand-over), and a list of
+///   them here would miss the next kind as each review round found; the
+///   load's check reads every one, so the door writes nothing the load
+///   refuses, by construction. A payload no load reads (a test's own
+///   profile type, [`crate::ProfilePayload::evaluable`]) has no load
+///   check to ask.
 pub(crate) fn check_source_readers<P: crate::ProfilePayload>(
     new: &Doc<P>,
     id: VarId,
+    tol: Tol,
 ) -> Result<(), EditError> {
     let reaches = |read: VarId| new.source_steps(read).iter().any(|&(at, _)| at == id);
-    for (&var, held) in &new.vars {
-        let fault = match held.def() {
-            VarDef::Source(body) if var != id && reaches(body.read) => {
-                crate::persist::check::source_read_fault(new, var, body)
-            }
-            VarDef::Select(select) if reaches(select.body.read) => {
-                crate::persist::check::selection_fault(new, var, held)
-            }
-            _ => None,
-        };
-        if let Some(reader) = fault {
-            return Err(EditError::SourceReaderRefused {
-                source: new.spoken_var(id),
-                reader: Box::new(reader),
-            });
-        }
-    }
     for (&node_id, node) in &new.nodes {
         let mut reads = false;
         for (seat, var) in node.operand_rows() {
@@ -6786,6 +6798,14 @@ pub(crate) fn check_source_readers<P: crate::ProfilePayload>(
         if reads {
             check_node_inputs(new, node_id, node)?;
         }
+    }
+    if let Some(doc) = P::evaluable(new)
+        && let Err(reader) = crate::persist::check::validate_document(doc, &[], tol)
+    {
+        return Err(EditError::SourceReaderRefused {
+            source: new.spoken_var(id),
+            reader: Box::new(reader),
+        });
     }
     Ok(())
 }
@@ -8984,7 +9004,7 @@ fn write_edit<P: Clone + crate::ProfilePayload>(
             let def = lower_decl(new, &Lowering::none(), &spoken, def)?;
             new.vars.insert(id, Var::written(def.clone()));
             new.var_names.insert(id, name.clone());
-            check_definition(new, id)?;
+            check_definition(new, id, tol)?;
             EditRecord {
                 minted: None,
                 minted_constraints: Vec::new(),
@@ -9022,7 +9042,7 @@ fn write_edit<P: Clone + crate::ProfilePayload>(
                 WrittenDef::Defined(_) | WrittenDef::Index(_) | WrittenDef::Source(_) => {
                     check_var_def(&spoken, &def)?;
                     new.vars.insert(id, Var::written(def));
-                    check_definition(new, id)?;
+                    check_definition(new, id, tol)?;
                     EditRecord {
                         minted: None,
                         minted_constraints: Vec::new(),

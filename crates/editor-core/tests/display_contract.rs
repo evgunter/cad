@@ -997,6 +997,7 @@ test_utils::f6_variants! {
         OperandUnminted,
         PlacementReadsNoSource,
         SourceReadKind,
+        SourceReadRank,
         SlotVarKind,
         SelectionShape,
         SelectionBody,
@@ -1108,6 +1109,17 @@ fn snapshot_error_display_names_its_content_not_its_struct() {
                 found: editor_core::VarKind::Profile,
             },
             vec!["is a source reading a profile", "a source reads one body"],
+        ),
+        (
+            SnapshotError::SourceReadRank {
+                var: editor_core::SpokenVar::new(editor_core::VarId::new(9, tagged(9)), None),
+                found: 1,
+                rank: 2,
+            },
+            vec![
+                "a member by 1 index, where its family has 2",
+                "read at its family's rank",
+            ],
         ),
         (
             SnapshotError::OperandUnminted {

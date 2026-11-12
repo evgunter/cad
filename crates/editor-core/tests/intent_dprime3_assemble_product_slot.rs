@@ -1440,12 +1440,14 @@ fn a_pick_into_a_part_naming_no_piece_refuses_at_evaluation() {
     );
 }
 
-/// Re-check round 2 (PR 6856): a source reading a pick, whose placement's
-/// source is redefined onto a union: the pick now walks through a `∪`,
-/// which the pick door refuses. The redefinition refuses, or what it
-/// writes loads.
+/// **A pick of a copy is a reader of the copy's source** (VARIABLES VR4):
+/// a placement reads `pick(place, [bolt])` of the copy of `bolt ⊔ plate`;
+/// redefining that copy's source `T` onto `bolt ∪ plate` would leave the
+/// pick walking through a `∪`, which no pick reads. The definition door
+/// asks the load's own whole-document check, so it refuses with the
+/// load's pick fault (first found by PR 6856's re-check, round 2).
 #[test]
-fn r2_a_pick_of_a_copy_whose_source_is_redefined_onto_a_union() {
+fn a_pick_of_a_copy_whose_source_is_redefined_onto_a_union() {
     let doc = doc("r2-pick-redefine");
     let (doc, bolt) = block(doc, [0.0; 2], 0.2, 1.0);
     let (doc, plate) = beside(doc, bolt, [2.0, 0.0, 0.0], 0.5, 0.2);
@@ -1491,5 +1493,16 @@ fn r2_a_pick_of_a_copy_whose_source_is_redefined_onto_a_union() {
             Tol::witness(),
         )
         .map(|a| a.doc);
-    crate::recheck2_named_source::refused_or_round_trips("T = union under a pick", got);
+    assert!(
+        matches!(
+            &got,
+            Err(editor_core::EditError::SourceReaderRefused { reader, .. })
+                if matches!(
+                    **reader,
+                    editor_core::PersistError::Snapshot(editor_core::SnapshotError::PickPath { .. })
+                )
+        ),
+        "{:?}",
+        got.map(|_| ())
+    );
 }

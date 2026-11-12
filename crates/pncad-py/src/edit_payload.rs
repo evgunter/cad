@@ -526,6 +526,7 @@ pub fn edit_payload(err: &EditError) -> EditPayload<'_> {
                 pncad::document::SourceFault::Kind { found } => Some(var_kind_tag(*found)),
                 pncad::document::SourceFault::IndexNotCount { found, .. } => Some(dim(*found)),
                 pncad::document::SourceFault::Unresolved { .. }
+                | pncad::document::SourceFault::IndexRank { .. }
                 | pncad::document::SourceFault::WrittenInPlace
                 | pncad::document::SourceFault::Fresh => None,
             },

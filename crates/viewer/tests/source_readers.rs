@@ -31,14 +31,14 @@ fn pattern(input: RecipeNodeId, axis: TargetAxis) -> SessionOp {
     }
 }
 
-/// The re-point of `source` onto `onto` refuses at the door, and the
-/// offer for `body` onto `onto` has no row for it.
+/// The re-point of `source` onto `onto` refuses, writing nothing, and
+/// the offer for `body` onto `onto` has no row for it: the refusal.
 fn refused_and_not_offered(
     session: &mut DocSession,
     body: VarId,
     source: VarId,
     onto: RecipeNodeId,
-) {
+) -> Refusal {
     let doc = session.committed_doc().clone();
     let offered =
         viewer::world::repoint_targets(&doc, body, onto, pncad::geom_core::Tol::witness())
@@ -48,17 +48,13 @@ fn refused_and_not_offered(
         source,
         onto: onto.into(),
     });
-    assert!(
-        matches!(out.refusal, Some(Refusal::Edit(_))),
-        "the door takes it: {:?}",
-        out.refusal
-    );
-    assert!(!offered, "the offer has a row the door refuses");
+    assert!(!offered, "the offer has a row the action refuses");
     assert_eq!(
         session.committed_doc().var_ids(),
         doc.var_ids(),
         "nothing written"
     );
+    out.refusal.expect("the action refuses")
 }
 
 /// A plain copy `c` of `body` and a pattern of `c`: re-pointing `c`'s
@@ -79,7 +75,8 @@ fn the_offer_has_no_row_the_door_refuses() {
     let doc = session.committed_doc().clone();
     let source = doc.copied_read(c).expect("a source");
     let body_var = doc.through_sources(source).read;
-    refused_and_not_offered(&mut session, body_var, source, row);
+    let refused = refused_and_not_offered(&mut session, body_var, source, row);
+    assert!(matches!(refused, Refusal::Edit(_)), "{refused:?}");
 }
 
 /// **A family of two indices of `body`**, `i` and `j` within it, each
@@ -159,5 +156,75 @@ fn the_offer_has_no_row_for_a_family_of_another_rank() {
     );
     let source = doc.copied_read(member).expect("a source");
     let family_var = doc.through_sources(source).read;
-    refused_and_not_offered(&mut session, family_var, source, grid);
+    let refused = refused_and_not_offered(&mut session, family_var, source, grid);
+    assert!(matches!(refused, Refusal::Edit(_)), "{refused:?}");
+}
+
+/// **A source whose copy a pick reads is not offered where the re-point
+/// strands the pick**: a copy of `bolt ⊔ plate`, a second placement of
+/// the pick of its `bolt`, and `bolt ∪ plate` built beside. Re-pointing
+/// the copy's source onto the union would leave the pick naming a piece
+/// no copy of a `∪` holds; the action refuses, and so the offer, which
+/// asks the action's own checks, has no row for it.
+#[test]
+fn the_offer_has_no_row_that_strands_a_pick() {
+    use pncad::document::{Bodies, BodyRead, Node};
+    let tol = Tol::witness();
+    let mut session = common::inline_without_door(Doc::empty_derived("rc-pick", tol), tol);
+    let bolt = common::xy_box_in(&mut session, SIZE);
+    let plate = common::xy_box_in(&mut session, SIZE);
+    session.pump();
+    let doc = session.committed_doc().clone();
+    // Both bodies into the world, so one `⊔` reads them.
+    let (doc, bolt) =
+        viewer::test_support::inserted(&doc, common::world_place(Operand::Node(bolt)), tol);
+    let (doc, plate) =
+        viewer::test_support::inserted(&doc, common::world_place(Operand::Node(plate)), tol);
+    let space = VarId::WORLD;
+    let spelled = |reads: &[RecipeNodeId]| {
+        Bodies::Spelled(
+            reads
+                .iter()
+                .map(|&read| Operand::Node(read).into())
+                .collect(),
+        )
+    };
+    let stood = |read: Operand| {
+        Node::place(
+            BodyRead::plain(read),
+            Operand::Var(space),
+            pncad::document::stand().bundle(),
+        )
+    };
+    let (doc, seat) = viewer::test_support::inserted(
+        &doc,
+        Node::Assemble {
+            members: spelled(&[bolt, plate]),
+        },
+        tol,
+    );
+    let (doc, copy) = viewer::test_support::inserted(&doc, stood(Operand::Node(seat)), tol);
+    let bolt_var = doc.output(bolt, 0).expect("bolt's body");
+    let (doc, _) = viewer::test_support::inserted(
+        &doc,
+        stood(Operand::pick(Operand::Node(copy), vec![bolt_var])),
+        tol,
+    );
+    let (doc, fused) = viewer::test_support::inserted(
+        &doc,
+        Node::Union {
+            members: spelled(&[bolt, plate]),
+        },
+        tol,
+    );
+    let mut session = common::inline_without_door(doc, tol);
+    session.pump();
+    let doc = session.committed_doc().clone();
+    let source = doc.copied_read(copy).expect("a source");
+    let seat_var = doc.through_sources(source).read;
+    let refused = refused_and_not_offered(&mut session, seat_var, source, fused);
+    assert!(
+        matches!(refused, Refusal::StrandedPick { .. }),
+        "{refused:?}"
+    );
 }

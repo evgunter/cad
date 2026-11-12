@@ -420,6 +420,44 @@ fn a_revolve_is_placed_and_patterned_through_a_source() {
     );
 }
 
+/// **The combine places a revolve off its space through a source**
+/// (`session::in_one_space`): a union of a box and a revolve in a space of
+/// its own places the revolve into the box's space, its body read as the
+/// revolve's body variable (`as_body`), which the placement reads through
+/// a source it mints. The union lands and evaluates.
+#[test]
+fn the_combine_places_a_revolve_off_its_space_through_a_source() {
+    let tol = Tol::witness();
+    let (mut session, revolve) = revolved(tol);
+    let boxed = common::xy_box_in(&mut session, SIZE);
+    session.pump();
+    let union = landed(
+        &mut session,
+        SessionOp::AddBoolean {
+            spec: viewer::session::BooleanSpec::Union(vec![boxed.into(), revolve.into()]),
+        },
+    );
+    let doc = session.committed_doc();
+    let body = doc.output(revolve, 0).expect("the revolve's body");
+    let placed: Vec<_> = doc
+        .placements()
+        .into_iter()
+        .filter(|&p| copied(doc, p) == Some(body))
+        .collect();
+    assert_eq!(placed.len(), 1, "one placement of the revolve");
+    assert!(
+        doc.copied_read(placed[0])
+            .is_some_and(|source| doc.source(source).is_some()),
+        "it reads the revolve through a source"
+    );
+    assert!(
+        session
+            .evaluation()
+            .is_some_and(|ev| ev.node_error(union).is_none()),
+        "the union evaluates"
+    );
+}
+
 /// **A member placement's family source is not re-pointed onto one body**:
 /// the "copy of" row's and the variables pane's op, redefining it onto a
 /// body that is no family, refuses typed (`SlotVarKind` at the member's

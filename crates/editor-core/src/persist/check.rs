@@ -711,20 +711,36 @@ fn first_pose_fault(snapshot: &ProfileDoc) -> Option<SnapshotError> {
 /// The first selection, in id order, no door could have written
 /// ([`Walk::Selection`]).
 fn first_selection_fault(snapshot: &ProfileDoc) -> Option<SnapshotError> {
-    snapshot
-        .vars
-        .iter()
-        .find_map(|(&id, var)| selection_fault(snapshot, id, var))
+    // Each selection's seats, gathered in one pass over every seat: a
+    // seat reads the selections it reaches, directly or through a pose
+    // (`edit::seat_selections`), so asking per selection would scan every
+    // seat once for each.
+    let mut seats: std::collections::BTreeMap<VarId, Vec<crate::OperandSlot>> =
+        std::collections::BTreeMap::new();
+    for node in snapshot.nodes.values() {
+        for (slot, read) in node.operand_rows() {
+            for selection in crate::edit::seat_selections(snapshot, read) {
+                seats.entry(selection).or_default().push(slot);
+            }
+        }
+    }
+    snapshot.vars.iter().find_map(|(&id, var)| {
+        selection_fault(
+            snapshot,
+            id,
+            var,
+            seats.get(&id).map_or(&[][..], Vec::as_slice),
+        )
+    })
 }
 
-/// **What the selection `id` holds that no door writes**, by the rules
-/// both doors ask: the load of every selection ([`first_selection_fault`]),
-/// the edit door of every selection a redefined source reaches
-/// (`edit::check_source_readers`), so the two cannot drift.
-pub(crate) fn selection_fault<P: crate::ProfilePayload>(
-    snapshot: &crate::Doc<P>,
+/// **What the selection `id`, read at `seats`, holds that no door
+/// writes** ([`first_selection_fault`]).
+fn selection_fault(
+    snapshot: &ProfileDoc,
     id: VarId,
     var: &crate::Var,
+    seats: &[crate::OperandSlot],
 ) -> Option<SnapshotError> {
     let select = var.def().select()?;
     let spoken = || snapshot.spoken_var(id);
@@ -740,13 +756,6 @@ pub(crate) fn selection_fault<P: crate::ProfilePayload>(
     // A pose read at a seat, named or written in place, reads the
     // selections it reaches there (`edit::seat_selections`): a mate
     // side's plane is its face's.
-    let seats: Vec<crate::OperandSlot> = snapshot
-        .nodes
-        .values()
-        .flat_map(|node| node.operand_rows())
-        .filter(|&(_, read)| crate::edit::seat_selections(snapshot, read).contains(&id))
-        .map(|(slot, _)| slot)
-        .collect();
     if let Some(fault) = seats.iter().find_map(|&slot| {
         crate::edit::selection_body_fault(snapshot, crate::SlotId::Operand(slot), &select.body)
     }) {
@@ -916,11 +925,17 @@ pub(crate) fn source_read_fault<P: crate::ProfilePayload>(
         true => crate::VarKind::Bodies,
         false => crate::VarKind::Body,
     });
-    match snapshot.read_fault(body.read, held, expected, crate::doc::Reader::Constructs)? {
-        crate::doc::ReadFault::Kind { found } => {
-            Some(SnapshotError::SourceReadKind { var: var(), found })
-        }
+    if let Some(crate::doc::ReadFault::Kind { found }) =
+        snapshot.read_fault(body.read, held, expected, crate::doc::Reader::Constructs)
+    {
+        return Some(SnapshotError::SourceReadKind { var: var(), found });
     }
+    let rank = snapshot.member_rank_fault(body.read, body.at.len())?;
+    Some(SnapshotError::SourceReadRank {
+        var: var(),
+        found: body.at.len(),
+        rank,
+    })
 }
 
 /// The first variable, in declaration order, whose definition reads it
@@ -1472,6 +1487,18 @@ pub enum SnapshotError {
         /// The read's kind.
         found: crate::VarKind,
     },
+    /// A source reading a member at other than its family's rank of
+    /// indices (`u = grid[0]` of a family of two) — the edit doors'
+    /// [`crate::EditError::SourceRead`], as a node seat's member read is
+    /// [`SnapshotError::InputList`]'s `IndexRank`.
+    SourceReadRank {
+        /// The source.
+        var: SpokenVar,
+        /// The indices it reads at.
+        found: usize,
+        /// The family's rank.
+        rank: usize,
+    },
     /// A selection whose names are not in a stored form of its kind —
     /// the edit doors' [`crate::EditError::SelectionShape`].
     SelectionShape {
@@ -1849,6 +1876,12 @@ impl core::fmt::Display for SnapshotError {
                 f,
                 "{var} is a source reading {} {found}, and a source reads one body",
                 crate::sentence::article(&found.to_string())
+            ),
+            Self::SourceReadRank { var, found, rank } => write!(
+                f,
+                "{var} is a source reading a member by {found} {}, where its family has {rank}, \
+                 and a member is read at its family's rank",
+                if *found == 1 { "index" } else { "indices" }
             ),
             Self::SelectionShape { var, fault } => {
                 write!(f, "{var} is not a selection a door writes: {fault}")
@@ -2564,6 +2597,7 @@ mod tests {
             OperandUnminted,
             PlacementReadsNoSource,
             SourceReadKind,
+            SourceReadRank,
             SelectionShape,
             SelectionBody,
             PoseShape,
@@ -2634,7 +2668,8 @@ mod tests {
             }
             SnapshotError::DefinitionReadsUnmintedVar { .. }
             | SnapshotError::DefinitionVarKind { .. }
-            | SnapshotError::SourceReadKind { .. } => Walk::DefinitionRead,
+            | SnapshotError::SourceReadKind { .. }
+            | SnapshotError::SourceReadRank { .. } => Walk::DefinitionRead,
             SnapshotError::ObservedRead { .. } => Walk::ObservedRead,
             SnapshotError::DefinitionCycle { .. } | SnapshotError::DefinitionTooLarge { .. } => {
                 Walk::DefinitionCycle
@@ -2733,6 +2768,11 @@ mod tests {
             SnapshotError::SourceReadKind {
                 var: crate::SpokenVar::new(crate::VarId::new(0, 7), None),
                 found: crate::VarKind::Profile,
+            },
+            SnapshotError::SourceReadRank {
+                var: crate::SpokenVar::new(crate::VarId::new(0, 7), None),
+                found: 1,
+                rank: 2,
             },
             SnapshotError::SlotVarKind {
                 node: node(),

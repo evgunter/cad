@@ -2459,10 +2459,13 @@ takeover (`Recording::take_over`), with the `Rebind`s of what reads each
 copy and of what selects in the source (each copy's mates' `on` sides,
 which select the source), in one action. A source defined as another
 source follows it and has no button of its own, and a source whose
-redefinition the definition door would refuse is left out: the offer
-asks the door the edit the button writes, so a source the new body
-itself reads (a cycle), or one a reader could not take (a member left
-reading a member of no family), has no button. No gesture re-points a placement unasked. A pattern's member 0 stands
+re-point would refuse is left out: the offer asks the button's own
+checks (`session::repoint_refusal`, the takeover's first edit through
+the definition door and the load's whole-document check), so a source
+the new body itself reads (a cycle), one a reader could not take (a
+member left reading a member of no family), or one whose copies a pick
+reads that the re-point would strand has no button. The offer is read
+once per document change, not per frame. No gesture re-points a placement unasked. A pattern's member 0 stands
 where the body stood. A split takes the seen body over by
 `above ⊔ below`, its two halves standing where that body stood. A split
 of a body that placements read writes `above ⊔ below` too: that `⊔` is
