@@ -16,7 +16,7 @@
 //!
 //! # The target
 //!
-//! The draft's first row is the placement's target, "into: <space>"
+//! The draft's first row is the placement's target, `into: <space>`
 //! ([`MateTool::target`]). A placement's target is its own property and
 //! no mate changes it: re-seating the row ([`MateTool::set_target`], a
 //! body picked after [`MateTool::pick_target`], the world, a new space,
@@ -773,7 +773,7 @@ struct PlaceDraft {
     /// first row is re-seated.
     target: PlaceTarget,
     /// The rows a target change of its own set aside
-    /// ([`MateTool::into_space`]), made again once it lands.
+    /// ([`MateTool::retarget_into`]), made again once it lands.
     held_back: Option<Change>,
     offer: Offer,
 }
@@ -1849,7 +1849,7 @@ impl MateTool {
         self.make(None, Change::Target(target));
     }
 
-    /// **"Into <space>"**, offered beside a row whose `to` reads `space`:
+    /// **`Into <space>`**, offered beside a row whose `to` reads `space`:
     /// a target change of its own. The draft's other changes are set
     /// aside while the target alone is offered, and made again once it
     /// lands, so the target and the held mate are two steps; where the
@@ -1923,7 +1923,7 @@ impl MateTool {
     }
 
     /// **Strike every live row whose `to` reads `space`**, as one change
-    /// ("strike the N that read <space>"): their freed values are
+    /// (`strike the N that read <space>`): their freed values are
     /// measured where the copy stands, as `remove` measures them.
     pub fn strike_reading(
         &mut self,

@@ -1242,7 +1242,7 @@ impl GestureName {
 }
 
 /// **The space a placement's copy is placed into**, as the placement
-/// editor's first row ("into: <space>") and [`SessionOp::SetBundle`]
+/// editor's first row (`into: <space>`) and [`SessionOp::SetBundle`]
 /// name it.
 #[derive(Clone, Debug, PartialEq)]
 pub enum PlaceTarget {
