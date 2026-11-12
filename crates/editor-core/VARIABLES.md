@@ -66,7 +66,10 @@ anonymous and its own, and two or more placements share it only by
 its name, which the person gives when the body is placed a second
 time. Re-pointing the placements of a body is redefining their source
 (`bracket = F`), one action with the rebinds of what reads the copies;
-a later placement of `bracket` reads `bracket`. A source adds no name
+a later placement of `bracket` reads `bracket`. Whatever reads a
+source — a placement, a selection in it (`bracket.top`), a further
+source (`u = bracket[0]`) — reads its body, so it evaluates after that
+body, and a redefinition is held to the load's rules at every reader. A source adds no name
 segment, so a copy's mate `on` sides select the source
 (`bracket.top`). An operation's output keeps its exemption from
 naming everywhere else. Ev chose this design on PR 6672 (2026-11-12) knowing

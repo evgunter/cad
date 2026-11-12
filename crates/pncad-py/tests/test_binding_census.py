@@ -3733,6 +3733,7 @@ MEMBERS_BOUND_AS = {
     "EditError::TakeOverRepeatsCopy": "EditError.variant",
     "EditError::TakeOverNotASource": "EditError.variant",
     "EditError::TakeOverSharedSource": "EditError.variant",
+    "EditError::SourceReaderRefused": "EditError.variant",
     "EditError::EmptyWitnessBulk": "EditError.variant",
     "EditError::NameUnresolvedInEvaluation": "EditError.variant",
     "EditError::EvaluationOfAnotherDocument": "EditError.variant",

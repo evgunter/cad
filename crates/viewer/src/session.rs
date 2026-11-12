@@ -3947,6 +3947,18 @@ impl DocSession {
             &opts,
             self.tol,
         );
+        // The placement the candidates are written on, once: its source is
+        // the door's to mint or share for `input` (VARIABLES VR4), and a
+        // refusal here is no candidate's, so it fails loud.
+        let mut base = Recording::start(doc, self.tol);
+        let probe = base
+            .insert(Node::place(
+                pncad::document::BodyRead::plain(input.clone()),
+                Operand::Var(target),
+                pncad::document::Placed::unmated(Vec::new()).bundle(),
+            ))
+            .map_err(|e| Refusal::Edit(Box::new(e)))?;
+        let placed = base.doc().clone();
         let read = |read: &RoleRead<Operand>| {
             let coord = if axis {
                 pncad::document::Coord::SpinAbout(read.clone())
@@ -3954,19 +3966,16 @@ impl DocSession {
                 pncad::document::Coord::SlideAlong(read.clone())
             };
             let zero = Formula::zero(coord.dimension());
-            let mut run = Recording::start(doc, self.tol);
-            // A refusal here is the candidate's: a read the door does not
-            // take at this value (a role its pose cannot give) is no
-            // candidate, and the next is asked. The placement itself is
-            // `Node::place`'s, whose source the door mints for any body
-            // `input` names (VARIABLES VR4), so it refuses no candidate.
-            let probe = run
-                .insert(Node::place(
-                    pncad::document::BodyRead::plain(input.clone()),
-                    Operand::Var(target),
-                    pncad::document::Placed::unmated(vec![(coord, zero)]).bundle(),
-                ))
-                .ok()?;
+            let mut run = Recording::start(&placed, self.tol);
+            // A refusal here is the candidate's alone: a read the door does
+            // not take at this value (a role its pose cannot give) is no
+            // candidate, and the next is asked.
+            run.apply(DocEdit::SetConstraints {
+                placement: probe,
+                constraints: pncad::document::Placed::unmated(vec![(coord, zero)]).bundle(),
+                fresh: Vec::new(),
+            })
+            .ok()?;
             let scratch = run.doc();
             let Some(Node::Place { constraints, .. }) = scratch.node(probe) else {
                 return None;

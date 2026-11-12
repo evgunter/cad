@@ -1608,7 +1608,8 @@ pub(crate) fn selection_body_fault<P: crate::ProfilePayload>(
     slot: SlotId,
     body: &crate::BodyRead<VarId>,
 ) -> Option<crate::var::SelectionFault> {
-    if !body.is_indexed() {
+    // A body whose operation is gone is a strand (VR7), asked no rank.
+    if !body.is_indexed() || doc.unresolved_read(body.read).is_some() {
         return None;
     }
     // Only an operand seat reads a selection or a pose: every other slot
@@ -3438,6 +3439,17 @@ pub enum EditError {
         /// A copy reading the same source, not named.
         other: Box<SpokenNode>,
     },
+    /// Redefining the source `source` would leave a definition reading
+    /// it — a further source, a selection in it — holding what the load
+    /// refuses (`reader`, by the load's own check of that definition): a
+    /// member of a family the source no longer reads, at any depth down
+    /// further sources.
+    SourceReaderRefused {
+        /// The source redefined.
+        source: SpokenVar,
+        /// The load's refusal of the definition reading it.
+        reader: Box<crate::SnapshotError>,
+    },
     /// Name-level edit-time validation (M4 PR 4, the PR 3 R6 banked
     /// obligation, via [`crate::resolve::apply_with_names`]): the
     /// name's minting node HAS an Ok value in the supplied
@@ -3919,6 +3931,9 @@ impl EditError {
             }
             Self::TakeOverNotASource { var } => {
                 *var = var.respoken(doc);
+            }
+            Self::SourceReaderRefused { source, .. } => {
+                *source = source.respoken(doc);
             }
             Self::TakeOverSharedSource {
                 copy,
@@ -5009,6 +5024,20 @@ impl EditError {
                 tail.recourse(
                     f,
                     format_args!("name every copy reading {source}, or redefine {source} itself"),
+                )
+            }
+            Self::SourceReaderRefused { source, reader } => {
+                write!(
+                    f,
+                    "redefining {source} so would leave what reads it holding what no \
+                     document holds: {reader}"
+                )?;
+                tail.recourse(
+                    f,
+                    format_args!(
+                        "redefine {source} as a read of what its readers read, or change \
+                         the readers first"
+                    ),
                 )
             }
             Self::EmptyWitnessBulk => {
@@ -6691,20 +6720,50 @@ fn check_definition<P: crate::ProfilePayload>(new: &Doc<P>, id: VarId) -> Result
     expansion_refusal(new)
 }
 
-/// **Every seat reading the source `id` still admits what it reads**
-/// (VARIABLES VR4): a redefinition changes the body behind each reader, so
-/// each seat reading `id`, directly or down further sources, is asked
-/// again what the load asks of it ([`Doc::read_fault`], and the node's
-/// member reads' rank): a member read of a family's source redefined onto
-/// one body is refused here, never written for the load to refuse.
-fn check_source_readers<P: crate::ProfilePayload>(
+/// **Every reader of the source `id` still admits what it reads**
+/// (VARIABLES VR4): a redefinition changes the body behind each reader,
+/// so each is asked again what the load asks of it.
+///
+/// - Every definition reading `id`, at any depth down further sources —
+///   a source (`u = S[0]`), a selection in it (`S[0].top`) — by the
+///   load's own check of that definition
+///   (`persist::check::source_read_fault`, `persist::check::selection_fault`),
+///   so the two doors cannot drift: [`EditError::SourceReaderRefused`].
+/// - Every node seat reading `id` so, or a selection or pose reaching it,
+///   by the load's read predicate ([`Doc::read_fault`]) and the node's own
+///   input rules ([`check_node_inputs`]): a member read of a family's
+///   source redefined onto one body is refused here, never written for
+///   the load to refuse.
+pub(crate) fn check_source_readers<P: crate::ProfilePayload>(
     new: &Doc<P>,
     id: VarId,
 ) -> Result<(), EditError> {
+    let reaches = |read: VarId| new.source_steps(read).iter().any(|&(at, _)| at == id);
+    for (&var, held) in &new.vars {
+        let fault = match held.def() {
+            VarDef::Source(body) if var != id && reaches(body.read) => {
+                crate::persist::check::source_read_fault(new, var, body)
+            }
+            VarDef::Select(select) if reaches(select.body.read) => {
+                crate::persist::check::selection_fault(new, var, held)
+            }
+            _ => None,
+        };
+        if let Some(reader) = fault {
+            return Err(EditError::SourceReaderRefused {
+                source: new.spoken_var(id),
+                reader: Box::new(reader),
+            });
+        }
+    }
     for (&node_id, node) in &new.nodes {
         let mut reads = false;
         for (seat, var) in node.operand_rows() {
-            if !new.source_steps(var).iter().any(|&(at, _)| at == id) {
+            let selects = seat_selections(new, var).into_iter().any(|selection| {
+                new.selection(selection)
+                    .is_some_and(|select| reaches(select.body.read))
+            });
+            if !reaches(var) && !selects {
                 continue;
             }
             reads = true;

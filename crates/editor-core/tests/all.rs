@@ -904,16 +904,12 @@ mod intent_value_chart_orientation;
 mod intent_vars_2_table;
 #[path = "intent_vars_3_readers.rs"]
 mod intent_vars_3_readers;
-#[path = "recheck_named_source.rs"]
-mod recheck_named_source;
-#[path = "review_named_source_r1.rs"]
-mod review_named_source_r1;
-#[path = "review_named_source_r2.rs"]
-mod review_named_source_r2;
 #[path = "review_s5b_r2_probes.rs"]
 mod review_s5b_r2_probes;
 #[path = "run_wall_offers.rs"]
 mod run_wall_offers;
+#[path = "source_readers.rs"]
+mod source_readers;
 #[path = "split_joined_keys_tie.rs"]
 mod split_joined_keys_tie;
 #[path = "union_flush_fuses.rs"]

@@ -1,5 +1,10 @@
-//! Re-check probes for PR 6856's fix pass (lane `placing-recheck-6856`).
-//! Each row asserts what the fix pass claims; a red row is a finding.
+//! **What reads a source is asked again when the source is redefined**
+//! (VARIABLES VR3, VR4): a selection of a source depends on the source's
+//! body, so a cycle through it is refused and it evaluates after the
+//! body; every definition and seat reading a redefined source, at any
+//! depth, is held to what the load holds it to; a delete leaving a
+//! source stranded writes what loads. Rows first written as the
+//! re-check probes of PR 6856's fix pass (lane `placing-recheck-6856`).
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::blocks::block;
@@ -46,23 +51,48 @@ fn name(n: &'static str) -> Operand {
     Operand::Name(VarName::from_static(n))
 }
 
-/// The door either refuses, or what it writes saves and loads.
-fn refused_or_round_trips(what: &str, got: Result<ProfileDoc, EditError>) {
-    if let Ok(doc) = got {
-        let text = editor_core::save(&doc, &[], Tol::witness());
-        let text = text.unwrap_or_else(|e| panic!("{what}: admitted, save refuses: {e:?}"));
-        let loaded = editor_core::load(&text, Tol::witness());
-        assert!(
-            loaded.is_ok(),
-            "{what}: admitted, load refuses: {:?}",
-            loaded.map(|_| ())
-        );
+/// What `doc` writes saves and loads back.
+fn round_trips(what: &str, doc: &ProfileDoc) {
+    let text = editor_core::save(doc, &[], Tol::witness())
+        .unwrap_or_else(|e| panic!("{what}: save refuses: {e:?}"));
+    let loaded = editor_core::load(&text, Tol::witness());
+    assert!(
+        loaded.is_ok(),
+        "{what}: load refuses: {:?}",
+        loaded.map(|_| ())
+    );
+}
+
+fn evaluated(doc: &ProfileDoc) -> editor_core::Evaluation<f64> {
+    editor_core::evaluate(
+        doc,
+        None,
+        &editor_core::CancelToken::new(),
+        &editor_core::EvalOptions::default(),
+        Tol::witness(),
+    )
+}
+
+fn top(b: editor_core::RecipeNodeId) -> StableName {
+    StableName {
+        kind: EntityKind::Face,
+        node: b,
+        path: vec![RoleSeg::Cap(CapEnd::End)],
+    }
+}
+
+/// The reader refusal a redefinition answers: the load's own refusal of
+/// the definition reading the source.
+fn reader_refusal(got: Result<ProfileDoc, EditError>) -> editor_core::SnapshotError {
+    match got {
+        Err(EditError::SourceReaderRefused { reader, .. }) => *reader,
+        other => panic!("expected SourceReaderRefused: {:?}", other.map(|_| ())),
     }
 }
 
 /// `a = B`, `b = a`, `c = b`, then `a = c`: a three-long source cycle.
 #[test]
-fn recheck_a_three_long_source_cycle_is_refused() {
+fn a_three_long_source_cycle_is_refused() {
     let doc = ProfileDoc::empty_derived("rc-three", Tol::witness());
     let (doc, b) = block(doc, (0.0, 1.0), (0.0, 1.0), 1.0);
     let doc = declared(doc, "a", VarDecl::source(Operand::Node(b)));
@@ -76,13 +106,17 @@ fn recheck_a_three_long_source_cycle_is_refused() {
         got.map(|_| ())
     );
     let got = define(&doc, "b", VarDecl::source(name("b")));
-    assert!(got.is_err(), "b = b admitted");
+    assert!(
+        matches!(got, Err(EditError::DefinitionCycle { .. })),
+        "{:?}",
+        got.map(|_| ())
+    );
 }
 
 /// A source cycle through a member read: `a = row`, `b = a[0]`, then
 /// `a = b`.
 #[test]
-fn recheck_a_cycle_through_a_member_read_is_refused() {
+fn a_cycle_through_a_member_read_is_refused() {
     let doc = ProfileDoc::empty_derived("rc-member-cycle", Tol::witness());
     let (doc, b) = block(doc, (0.0, 1.0), (0.0, 1.0), 1.0);
     let (doc, _, row) = crate::fixture::row(doc, b, ("k", 2), editor_core::TargetAxis::X, 2.0);
@@ -93,61 +127,41 @@ fn recheck_a_cycle_through_a_member_read_is_refused() {
         VarDecl::source(BodyRead::indexed(name("a"), vec![Formula::count(0)])),
     );
     let got = define(&doc, "a", VarDecl::source(name("b")));
-    assert!(got.is_err(), "a = b = a[0] admitted");
+    assert!(
+        matches!(got, Err(EditError::DefinitionCycle { .. })),
+        "{:?}",
+        got.map(|_| ())
+    );
 }
 
-/// A source cycle mixing a selection: `a = B`; a shell of `a.top`;
-/// `a = shell`. A cycle through a node reading a selection of the source.
+/// **A selection of a source depends on the source's body**: `a = B`; a
+/// shell of `a.top`; `a = shell` is a cycle through the shell, refused.
 #[test]
-fn recheck_a_cycle_through_a_selection_of_the_source_is_refused() {
+fn a_cycle_through_a_selection_of_the_source_is_refused() {
     let doc = ProfileDoc::empty_derived("rc-select-cycle", Tol::witness());
     let (doc, b) = block(doc, (0.0, 1.0), (0.0, 1.0), 1.0);
     let doc = declared(doc, "a", VarDecl::source(Operand::Node(b)));
-    let top = StableName {
-        kind: EntityKind::Face,
-        node: b,
-        path: vec![RoleSeg::Cap(CapEnd::End)],
-    };
     let (doc, shell) = insert(
         doc,
         Node::Shell {
             thickness: len(0.1),
-            open: Operand::select(name("a"), vec![top]),
+            open: Operand::select(name("a"), vec![top(b)]),
         },
     );
+    assert_eq!(doc.upstream(shell), vec![b], "the shell reads a's body");
     let got = define(&doc, "a", VarDecl::source(Operand::Node(shell)));
-    if let Ok(after) = &got {
-        let a = after.var_named("a").expect("a");
-        eprintln!("a = {:?}; shell = {:?}", after.source(a), after.node(shell));
-        let ev: editor_core::Evaluation<f64> = editor_core::evaluate(
-            after,
-            None,
-            &editor_core::CancelToken::new(),
-            &editor_core::EvalOptions::default(),
-            Tol::witness(),
-        );
-        eprintln!(
-            "evaluated: shell {:?}",
-            ev.result(shell)
-                .map(|r| format!("{r:?}").chars().take(200).collect::<String>())
-        );
-        let text = editor_core::save(after, &[], Tol::witness());
-        eprintln!("save: {:?}", text.as_ref().map(|_| ()));
-        if let Ok(text) = text {
-            eprintln!(
-                "load: {:?}",
-                editor_core::load(&text, Tol::witness()).map(|_| ())
-            );
-        }
-    }
-    assert!(got.is_err(), "a = shell(a.top) admitted");
+    assert!(
+        matches!(got, Err(EditError::WouldCycle { .. })),
+        "{:?}",
+        got.map(|_| ())
+    );
 }
 
 /// A source declared as a member of a family source: `S = row`,
-/// `u = S[0]`, `p = place(u)`. Redefining `S` onto one body leaves `u`
-/// reading a member of no family. Refuse, or write what loads.
+/// `u = S[0]`. Redefining `S` onto one body leaves `u` reading a member
+/// of no family: refused by the load's own check of `u`, placed or not.
 #[test]
-fn recheck_a_member_source_of_a_family_source_redefined_onto_a_body() {
+fn a_member_source_of_a_family_source_redefined_onto_a_body() {
     let doc = ProfileDoc::empty_derived("rc-member-of-source", Tol::witness());
     let (doc, b) = block(doc, (0.0, 1.0), (0.0, 1.0), 1.0);
     let (doc, d) = block(doc, (0.0, 2.0), (0.0, 1.0), 1.0);
@@ -158,45 +172,55 @@ fn recheck_a_member_source_of_a_family_source_redefined_onto_a_body() {
         "u",
         VarDecl::source(BodyRead::indexed(name("S"), vec![Formula::count(0)])),
     );
-    let unread = define(&doc, "S", VarDecl::source(Operand::Node(d)));
-    refused_or_round_trips("u unread", unread);
+    let u = doc.var_named("u").expect("u");
+    let refused = reader_refusal(define(&doc, "S", VarDecl::source(Operand::Node(d))));
+    assert!(
+        matches!(&refused, editor_core::SnapshotError::SourceReadKind { var, .. } if var.id() == u),
+        "{refused:?}"
+    );
     let (doc, _) = insert(doc, placed(name("u")));
-    let read = define(&doc, "S", VarDecl::source(Operand::Node(d)));
-    refused_or_round_trips("u placed", read);
+    let refused = reader_refusal(define(&doc, "S", VarDecl::source(Operand::Node(d))));
+    assert!(
+        matches!(&refused, editor_core::SnapshotError::SourceReadKind { var, .. } if var.id() == u),
+        "{refused:?}"
+    );
 }
 
 /// A selection of a member of a family source: a shell of `S[0].top`.
-/// Redefining `S` onto one body leaves the selection reading a member of no
-/// family. Refuse, or write what loads.
+/// Redefining `S` onto one body leaves the selection reading a member of
+/// no family: refused by the load's own check of the selection.
 #[test]
-fn recheck_a_member_selection_of_a_family_source_redefined_onto_a_body() {
+fn a_member_selection_of_a_family_source_redefined_onto_a_body() {
     let doc = ProfileDoc::empty_derived("rc-select-member", Tol::witness());
     let (doc, b) = block(doc, (0.0, 1.0), (0.0, 1.0), 1.0);
     let (doc, d) = block(doc, (0.0, 2.0), (0.0, 1.0), 1.0);
     let (doc, _, row) = crate::fixture::row(doc, b, ("k", 2), editor_core::TargetAxis::X, 2.0);
     let doc = declared(doc, "S", VarDecl::source(Operand::Node(row)));
-    let top = StableName {
-        kind: EntityKind::Face,
-        node: b,
-        path: vec![RoleSeg::Cap(CapEnd::End)],
-    };
     let (doc, _) = insert(
         doc,
         Node::Shell {
             thickness: len(0.1),
             open: Operand::select(
                 BodyRead::indexed(name("S"), vec![Formula::count(0)]),
-                vec![top],
+                vec![top(b)],
             ),
         },
     );
-    let got = define(&doc, "S", VarDecl::source(Operand::Node(d)));
-    refused_or_round_trips("shell of S[0].top", got);
+    let refused = reader_refusal(define(&doc, "S", VarDecl::source(Operand::Node(d))));
+    assert!(
+        matches!(
+            refused,
+            editor_core::SnapshotError::SelectionShape { .. }
+                | editor_core::SnapshotError::SelectionBody { .. }
+        ),
+        "{refused:?}"
+    );
 }
 
-/// Through a chain: `S = row`, `T = S`, `m = place(T[0])`; `S = D`.
+/// Through a chain: `S = row`, `T = S`, `m = place(T[0])`; `S = D` is
+/// refused at the member's seat.
 #[test]
-fn recheck_a_chain_member_placement_redefined_onto_a_body() {
+fn a_chain_member_placement_redefined_onto_a_body() {
     let doc = ProfileDoc::empty_derived("rc-chain-member", Tol::witness());
     let (doc, b) = block(doc, (0.0, 1.0), (0.0, 1.0), 1.0);
     let (doc, d) = block(doc, (0.0, 2.0), (0.0, 1.0), 1.0);
@@ -219,50 +243,70 @@ fn recheck_a_chain_member_placement_redefined_onto_a_body() {
     );
 }
 
-/// The delete door hands a source's definition back (DM6): `S = row`,
-/// `m = place(S[0])`, delete `row`, so `S = B` with `m` reading `S[0]`.
-/// The delete either refuses or writes what loads.
-#[test]
-fn recheck_deleting_the_family_under_a_member_placement() {
+/// `S = row`, `m = place(S[0])`, the family under it deleted.
+fn member_over_a_deleted_family(
+    named: bool,
+) -> (
+    ProfileDoc,
+    editor_core::RecipeNodeId,
+    editor_core::RecipeNodeId,
+) {
     let doc = ProfileDoc::empty_derived("rc-delete-family", Tol::witness());
     let (doc, b) = block(doc, (0.0, 1.0), (0.0, 1.0), 1.0);
     let (doc, _, row) = crate::fixture::row(doc, b, ("k", 2), editor_core::TargetAxis::X, 2.0);
-    let doc = declared(doc, "S", VarDecl::source(Operand::Node(row)));
-    let (doc, _) = insert(
-        doc,
-        Node::place(
-            BodyRead::indexed(name("S"), vec![Formula::count(0)]),
-            Operand::Var(VarId::WORLD),
-            editor_core::stand().bundle(),
-        ),
-    );
-    let got = doc
-        .apply(&DocEdit::DeleteNode { id: row }, Tol::witness())
-        .map(|a| a.doc);
-    if let Ok(after) = &got {
-        let s = after.var_named("S").expect("S");
-        eprintln!("S after delete: {:?}", after.source(s));
-    }
-    refused_or_round_trips("delete row", got);
+    let (doc, m) = if named {
+        let doc = declared(doc, "S", VarDecl::source(Operand::Node(row)));
+        insert(
+            doc,
+            Node::place(
+                BodyRead::indexed(name("S"), vec![Formula::count(0)]),
+                Operand::Var(VarId::WORLD),
+                editor_core::stand().bundle(),
+            ),
+        )
+    } else {
+        crate::fixture::member(doc, row, 0)
+    };
+    (doc, row, m)
 }
 
-/// Anonymous member placement (`fixture::member`): delete the family.
+/// **A delete strands a source, and writes what loads** (VR7): the
+/// family under a member placement deleted, its source reads a body no
+/// operation defines, which the member's seat is asked no kind and no
+/// rank of at rest; the member refuses at evaluation. The delete by
+/// continuation (DM6) takes the member with its family, and what it
+/// writes loads too. (A source it hands over is a `DefineVar` through
+/// the definition door, which asks every reader again.)
 #[test]
-fn recheck_deleting_the_family_under_an_anonymous_member_placement() {
-    let doc = ProfileDoc::empty_derived("rc-delete-family-anon", Tol::witness());
-    let (doc, b) = block(doc, (0.0, 1.0), (0.0, 1.0), 1.0);
-    let (doc, _, row) = crate::fixture::row(doc, b, ("k", 2), editor_core::TargetAxis::X, 2.0);
-    let (doc, _) = crate::fixture::member(doc, row, 0);
-    let got = doc
-        .apply(&DocEdit::DeleteNode { id: row }, Tol::witness())
-        .map(|a| a.doc);
-    refused_or_round_trips("delete row (anonymous)", got);
+fn deleting_the_family_under_a_member_placement() {
+    for named in [true, false] {
+        let (doc, row, m) = member_over_a_deleted_family(named);
+        let after = doc
+            .apply(&DocEdit::DeleteNode { id: row }, Tol::witness())
+            .expect("a delete strands its readers")
+            .doc;
+        round_trips("delete row", &after);
+        assert!(
+            crate::blocks::failure(&evaluated(&after), m).is_some(),
+            "the stranded member refuses at evaluation"
+        );
+        let splice = editor_core::continuation::splice(&doc, row)
+            .expect("plans")
+            .expect("row is live");
+        assert!(
+            splice.deleted.contains(&m),
+            "the member goes with its family"
+        );
+        let mut run = editor_core::Recording::start(&doc, Tol::witness());
+        splice.apply(&mut run).expect("the splice lands");
+        round_trips("delete by continuation", run.doc());
+    }
 }
 
 /// A hand-written file with an anonymous source cycle under a placement:
 /// the placement's anonymous source re-pointed at itself.
 #[test]
-fn recheck_the_load_refuses_an_anonymous_self_source() {
+fn the_load_refuses_an_anonymous_self_source() {
     let doc = ProfileDoc::empty_derived("rc-anon-self", Tol::witness());
     let (doc, b) = block(doc, (0.0, 1.0), (0.0, 1.0), 1.0);
     let (doc, c) = insert(doc, placed(Operand::Node(b)));
@@ -273,13 +317,22 @@ fn recheck_the_load_refuses_an_anonymous_self_source() {
     assert_eq!(text.matches(&needle).count(), 1);
     let edited = text.replace(&needle, &format!("\"Source\": {}", spell(s)));
     let loaded = editor_core::load(&edited, Tol::witness());
-    assert!(loaded.is_err(), "an anonymous s = s loads");
+    assert!(
+        matches!(
+            loaded,
+            Err(editor_core::PersistError::Snapshot(
+                editor_core::SnapshotError::DefinitionCycle { .. }
+            ))
+        ),
+        "{:?}",
+        loaded.map(|_| ())
+    );
 }
 
 /// A member placement of a 1-D family's source, the source redefined onto
 /// a 2-D family: the member's one index no longer matches the rank.
 #[test]
-fn recheck_a_member_source_redefined_onto_a_family_of_another_rank() {
+fn a_member_source_redefined_onto_a_family_of_another_rank() {
     use crate::fixture::{family_of, index, scalar_of};
     let doc = ProfileDoc::empty_derived("rc-rank", Tol::witness());
     let (doc, b) = block(doc, (0.0, 1.0), (0.0, 1.0), 1.0);
@@ -310,14 +363,17 @@ fn recheck_a_member_source_redefined_onto_a_family_of_another_rank() {
         ),
     );
     let got = define(&doc, "S", VarDecl::source(Operand::Node(grid)));
-    eprintln!("rank: {:?}", got.as_ref().map(|_| ()));
-    refused_or_round_trips("S = grid under S[0]", got);
+    assert!(
+        matches!(got, Err(EditError::IndexedRead { .. })),
+        "{:?}",
+        got.map(|_| ())
+    );
 }
 
 /// A pattern of a plain copy of a body source, the source redefined onto a
 /// family: the pattern would repeat a family.
 #[test]
-fn recheck_a_pattern_of_a_copy_whose_source_becomes_a_family() {
+fn a_pattern_of_a_copy_whose_source_becomes_a_family() {
     let doc = ProfileDoc::empty_derived("rc-pattern-of-copy", Tol::witness());
     let (doc, b) = block(doc, (0.0, 1.0), (0.0, 1.0), 1.0);
     let (doc, _, row) = crate::fixture::row(doc, b, ("k", 2), editor_core::TargetAxis::X, 2.0);
@@ -325,17 +381,20 @@ fn recheck_a_pattern_of_a_copy_whose_source_becomes_a_family() {
     let (doc, c) = insert(doc, placed(name("S")));
     let (doc, _, _) = crate::fixture::row(doc, c, ("m", 2), editor_core::TargetAxis::Y, 2.0);
     let got = define(&doc, "S", VarDecl::source(Operand::Node(row)));
-    eprintln!("pattern-of-copy: {:?}", got.as_ref().map(|_| ()));
-    refused_or_round_trips("S = row under a pattern of place(S)", got);
+    assert!(
+        matches!(got, Err(EditError::IndicesUnrelated { .. })),
+        "{:?}",
+        got.map(|_| ())
+    );
 }
 
-/// **A member placement's `on` side selecting its family source** (fix
-/// item 4: `matetool::on_read` now writes `Var(source)` for members too):
-/// `m = place(S[0])` into the world, its mate `on` side a plane of
-/// `S.bottom` (the family source, no index), onto the floor. Admitted, and
-/// it evaluates; and does it land where `S[0].bottom` would put it?
+/// **A member placement's `on` side selecting its family source**
+/// (`matetool::on_read` writes `Var(source)` for members too):
+/// `m = place(S[2])` into the world, its mate `on` side a plane of
+/// `S.bottom` (the family source whole, as the placement editor writes
+/// it), onto the floor: admitted, and it evaluates.
 #[test]
-fn recheck_a_member_placements_on_side_in_its_family_source() {
+fn a_member_placements_on_side_in_its_family_source() {
     use crate::fixture::{flip, floor, fname, mate, plane, squared};
     let doc = ProfileDoc::empty_derived("rc-member-on", Tol::witness());
     let (doc, b) = block(doc, (0.0, 1.0), (0.0, 1.0), 1.0);
@@ -351,93 +410,50 @@ fn recheck_a_member_placements_on_side_in_its_family_source() {
     );
     let source = doc.copied_read(copy).expect("a source");
     let bottom = fname(b, RoleSeg::Cap(CapEnd::Start));
-    for (what, on) in [
-        (
-            "whole",
-            Operand::select(Operand::Var(source), vec![bottom.clone()]),
-        ),
-        (
-            "member",
-            Operand::select(
-                BodyRead::indexed(Operand::Var(source), vec![Formula::count(2)]),
-                vec![bottom.clone()],
-            ),
-        ),
-    ] {
-        let m = mate(plane(on), flip(ground.clone()));
-        let placed_by = std::panic::catch_unwind(|| squared(&doc, m, &[]));
-        let Ok(placed_by) = placed_by else {
-            eprintln!("{what}: squared panicked");
-            continue;
-        };
-        let written = doc.apply(
+    let on = Operand::select(Operand::Var(source), vec![bottom]);
+    let placed_by = squared(&doc, mate(plane(on), flip(ground)), &[]);
+    let written = doc
+        .apply(
             &DocEdit::SetConstraints {
                 placement: copy,
                 constraints: placed_by.bundle(),
                 fresh: Vec::new(),
             },
             Tol::witness(),
-        );
-        eprintln!("{what}: write {:?}", written.as_ref().map(|_| ()));
-        if let Ok(a) = written {
-            let ev: editor_core::Evaluation<f64> = editor_core::evaluate(
-                &a.doc,
-                None,
-                &editor_core::CancelToken::new(),
-                &editor_core::EvalOptions::default(),
-                Tol::witness(),
-            );
-            eprintln!(
-                "{what}: eval {:?}",
-                ev.result(copy)
-                    .map(|r| format!("{r:?}").chars().take(300).collect::<String>())
-            );
-        }
-    }
+        )
+        .expect("admitted");
+    let ev = evaluated(&written.doc);
+    assert!(
+        crate::blocks::failure(&ev, copy).is_none(),
+        "the member evaluates: {:?}",
+        crate::blocks::failure(&ev, copy)
+    );
 }
 
 /// **A selection of a source is an edge to the source's body**: `a = B`;
 /// a shell of `a.top`; a copy `c` of B inserted after the shell; `a = c`.
-/// The shell now reads `c`, inserted after it: does it evaluate?
+/// The shell now depends on `c`, and evaluates after it.
 #[test]
-fn recheck_a_selection_of_a_source_orders_after_the_sources_body() {
+fn a_selection_of_a_source_orders_after_the_sources_body() {
     let doc = ProfileDoc::empty_derived("rc-select-order", Tol::witness());
     let (doc, b) = block(doc, (0.0, 1.0), (0.0, 1.0), 1.0);
     let doc = declared(doc, "a", VarDecl::source(Operand::Node(b)));
-    let top = StableName {
-        kind: EntityKind::Face,
-        node: b,
-        path: vec![RoleSeg::Cap(CapEnd::End)],
-    };
     let (doc, shell) = insert(
         doc,
         Node::Shell {
             thickness: len(0.1),
-            open: Operand::select(name("a"), vec![top]),
+            open: Operand::select(name("a"), vec![top(b)]),
         },
     );
     let (doc, c) = insert(doc, placed(Operand::Node(b)));
-    let eval = |doc: &ProfileDoc| {
-        let ev: editor_core::Evaluation<f64> = editor_core::evaluate(
-            doc,
-            None,
-            &editor_core::CancelToken::new(),
-            &editor_core::EvalOptions::default(),
-            Tol::witness(),
-        );
-        ev.result(shell)
-            .map(|r| format!("{r:?}").chars().take(160).collect::<String>())
-    };
-    eprintln!("before: {:?}", eval(&doc));
-    eprintln!("upstream of shell: {:?}", doc.upstream(shell));
     let after = define(&doc, "a", VarDecl::source(Operand::Node(c))).expect("admitted");
-    eprintln!("after: {:?}", eval(&after));
-    eprintln!(
-        "upstream of shell after: {:?}; c = {c:?}",
+    assert!(
+        after.upstream(shell).contains(&c),
+        "the shell depends on c: {:?}",
         after.upstream(shell)
     );
     assert!(
-        after.upstream(shell).contains(&c),
-        "the shell does not depend on c"
+        crate::blocks::failure(&evaluated(&after), shell).is_none(),
+        "the shell evaluates after c"
     );
 }

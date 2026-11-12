@@ -4760,6 +4760,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "slot_unresolved_var",
             "slot_var_kind",
             "source_read",
+            "source_reader_refused",
             "space_mismatch",
             "step_ids_refused",
             "structural_slot_needs_structural_edit",

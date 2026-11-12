@@ -125,8 +125,9 @@ fn taken_by(
         VarDef::Select(select) => taken_by(doc, reader, select.body.read, &select.body.at),
         VarDef::Pick(pick) => taken_by(doc, reader, pick.placement, &[]),
         // A source is read as the body it reads, a member by the source's
-        // own indices where the reader's are none.
-        VarDef::Source(body) => {
+        // own indices where the reader's are none; a chain that repeats
+        // (which no door admits) reaches nothing, so the walk ends.
+        VarDef::Source(body) if doc.source_root(var).is_some() => {
             let at = if at.is_empty() { &body.at[..] } else { at };
             taken_by(doc, reader, body.read, at)
         }
@@ -691,68 +692,45 @@ fn copy_downstream_of(
 /// (VARIABLES VR4): each source whose definition reads `body` directly
 /// and some placement reads, with the placements it re-points — every
 /// placement reading it, through a source defined as a read of it too
-/// (`spare = bracket` follows `bracket` and is no row of its own). A
-/// source `onto` itself reads, at any depth, is left out: redefining it
-/// would close a cycle. So is a source a member placement reads where
-/// `onto` is one body, not a family: the member would read a member of no
-/// family. The one list the offer names and the action
-/// writes ([`repoint_offer`], `SessionOp::RepointPlacements`).
+/// (`spare = bracket` follows `bracket` and is no row of its own). A row
+/// is one the definition door takes: the redefinition the action writes
+/// (`bracket = onto`, `editor_core::take_over`'s `DefineVar`) is asked of
+/// the door on a scratch copy, so a source the offer lists is one the
+/// action lands — a cycle through `onto`, a member placement left reading
+/// a member of no family or of another rank, a pattern left repeating a
+/// family are all refused there and are no row. The one list the offer
+/// names and the action writes ([`repoint_offer`],
+/// `SessionOp::RepointPlacements`).
 pub fn repoint_targets(
     doc: &Doc<ProfileProgram>,
     body: VarId,
     onto: RecipeNodeId,
 ) -> Vec<RepointRow> {
-    let read = vars_read_at_any_depth(doc, onto);
-    let onto_family = doc.read_of_node(onto).is_some_and(|var| {
-        doc.var_reach(var)
-            .chain()
-            .is_some_and(|chain| !chain.is_empty())
-    });
     doc.sources_of(body)
         .into_iter()
         .filter(|&source| doc.source(source).is_some_and(|read| !read.is_indexed()))
-        .filter(|source| !read.contains(source))
         .filter_map(|source| {
             let placements = placements_of_var(doc, source);
-            // A member placement reads a member of its source's family:
-            // redefined onto one body it would read a member of no family,
-            // which the definition door refuses, so it is no row.
-            let member = placements.iter().any(|&placement| {
-                matches!(doc.node(placement), Some(Node::Place { source, .. }) if source.is_indexed())
-            });
-            (!placements.is_empty() && !(member && !onto_family))
+            (!placements.is_empty() && redefinable(doc, source, onto))
                 .then_some(RepointRow { source, placements })
         })
         .collect()
 }
 
-/// **Every variable `node` reads, at any depth**: through each read's
-/// definition and through the operations its reads reach, so a source
-/// it reads through a placement or a fillet of it is among them.
-fn vars_read_at_any_depth(doc: &Doc<ProfileProgram>, node: RecipeNodeId) -> BTreeSet<VarId> {
-    let mut vars = BTreeSet::new();
-    let mut nodes = BTreeSet::from([node]);
-    let mut next_nodes = vec![node];
-    while let Some(at) = next_nodes.pop() {
-        let mut next_vars: Vec<VarId> = doc
-            .node(at)
-            .into_iter()
-            .flat_map(Node::operand_rows)
-            .map(|(_, var)| var)
-            .collect();
-        while let Some(var) = next_vars.pop() {
-            if !vars.insert(var) {
-                continue;
-            }
-            next_vars.extend(doc.definition_reads(var));
-            for (read, _) in doc.read_ports(var) {
-                if nodes.insert(read) {
-                    next_nodes.push(read);
-                }
-            }
-        }
-    }
-    vars
+/// **Whether the definition door takes `source = onto`**, asked on a
+/// scratch copy of `doc` with the edit the re-point writes.
+fn redefinable(doc: &Doc<ProfileProgram>, source: VarId, onto: RecipeNodeId) -> bool {
+    doc.apply(
+        &pncad::document::DocEdit::DefineVar {
+            var: source.into(),
+            def: pncad::document::VarDecl::Source(pncad::document::BodyRead::plain(Operand::Node(
+                onto,
+            ))),
+            fresh: Vec::new(),
+        },
+        pncad::geom_core::Tol::witness(),
+    )
+    .is_ok()
 }
 
 /// **The source a Place of `body` shares** (VARIABLES VR4): `body` itself

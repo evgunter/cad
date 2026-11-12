@@ -535,6 +535,10 @@ pub fn edit_payload(err: &EditError) -> EditPayload<'_> {
             param: var.name(),
             ..none
         },
+        EditError::SourceReaderRefused { source, .. } => EditPayload {
+            param: source.name(),
+            ..none
+        },
         EditError::TakeOverSharedSource {
             copy,
             source,

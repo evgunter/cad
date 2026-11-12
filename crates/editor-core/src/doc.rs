@@ -1453,8 +1453,9 @@ impl<P> Doc<P> {
                 *readers.entry(var).or_default() += 1;
             }
         }
+        let own = self.own_source_selections();
         for var in self.vars.keys() {
-            if self.selects_in_its_own_source(*var) {
+            if own.contains(var) {
                 continue;
             }
             for read in self
@@ -1468,29 +1469,23 @@ impl<P> Doc<P> {
         readers
     }
 
-    /// **Whether `var` is a selection in a source that only that source's
-    /// placements' own `on` sides read** — a copy's mate side selecting
-    /// its source (`bracket.top`, VARIABLES VR2 and VR4). It is part of the
+    /// **The selections in a source that only that source's placements'
+    /// own `on` sides read** — a copy's mate side selecting its source
+    /// (`bracket.top`, VARIABLES VR2 and VR4). Each is part of the
     /// placement's reading of its source, not a reader of its own, so an
     /// anonymous source stays its one placement's own. Read at any other
-    /// seat — another node, the placement's own `to` side — it is a reader.
-    fn selects_in_its_own_source(&self, var: VarId) -> bool
+    /// seat — another node, the placement's own `to` side — it is a
+    /// reader. One pass over every seat, each selection it reaches given
+    /// its verdict there: a selection is exempt where every seat reaching
+    /// it is an own `on` side, and at least one does.
+    fn own_source_selections(&self) -> BTreeSet<VarId>
     where
         P: crate::ProfilePayload,
     {
-        let Some(select) = self.selection(var) else {
-            return false;
-        };
-        let source = select.body.read;
-        if self.source(source).is_none() {
-            return false;
-        }
-        let mut read_by_one = false;
+        let mut verdict: BTreeMap<VarId, bool> = BTreeMap::new();
         for (&id, node) in &self.nodes {
+            let copied = self.copied_read(id);
             for (seat, read) in node.operand_rows() {
-                if !crate::edit::seat_selections(self, read).contains(&var) {
-                    continue;
-                }
                 let on_side = matches!(
                     seat,
                     crate::OperandSlot::Side {
@@ -1498,13 +1493,22 @@ impl<P> Doc<P> {
                         ..
                     }
                 );
-                if !on_side || self.copied_read(id) != Some(source) {
-                    return false;
+                for var in crate::edit::seat_selections(self, read) {
+                    let Some(select) = self.selection(var) else {
+                        continue;
+                    };
+                    let own = on_side
+                        && self.source(select.body.read).is_some()
+                        && copied == Some(select.body.read);
+                    let held = verdict.entry(var).or_insert(true);
+                    *held = *held && own;
                 }
-                read_by_one = true;
             }
         }
-        read_by_one
+        verdict
+            .into_iter()
+            .filter_map(|(var, own)| own.then_some(var))
+            .collect()
     }
 
     /// **The unnamed variables more than one reader reads**, in id
@@ -2206,8 +2210,9 @@ impl<P> Doc<P> {
             }
             // An anonymous source is its placement's own, written in place
             // as a selection is: its read as written, a further source in
-            // place too where it is anonymous.
-            Some(VarDef::Source(body)) => {
+            // place too where it is anonymous. A chain that repeats (which
+            // no door writes) is written by id, so the walk ends.
+            Some(VarDef::Source(body)) if self.source_root(var).is_some() => {
                 crate::Operand::source(self.written_body(body, self.written_operand(body.read)))
             }
             _ => crate::Operand::Var(var),
@@ -2259,6 +2264,14 @@ impl<P> Doc<P> {
             // alone ([`Self::spaces_read`]).
             _ if space_definer(held).is_some() => None,
             VarDef::Output { node, port } => Some((*node, *port)),
+            // A selection of a source reaches what the source reads, as
+            // a read of the source does: `shell(bracket.top)` depends on
+            // `bracket`'s body, so redefining `bracket` downstream of the
+            // shell is a cycle and the shell evaluates after the body.
+            VarDef::Select(select) if self.source(select.body.read).is_some() => {
+                self.push_read_ports(select.body.read, out, seen);
+                None
+            }
             VarDef::Select(select) => self.defined_by(select.body.read),
             VarDef::Pick(pick) => self.defined_by(pick.placement),
             // A source reaches what it reads: through another source, to
@@ -2388,10 +2401,15 @@ impl<P> Doc<P> {
     where
         P: crate::ProfilePayload,
     {
+        // A source read where a family is read is one when what it reads
+        // reaches an index; a source whose body is gone is its readers'
+        // strand (VR7), which refuses at evaluation and is asked no kind at
+        // rest: a delete leaves it, and the load keeps what the delete left.
         let family = || {
             held.kind() == crate::VarKind::Body
                 && expected == crate::SlotKind::Is(crate::VarKind::Bodies)
-                && !self.var_reach(var).is_none()
+                && (!self.var_reach(var).is_none()
+                    || (held.def().source().is_some() && self.unresolved_read(var).is_some()))
         };
         (!expected.admits(held) && !family()).then_some(ReadFault::Kind { found: held.kind() })
     }

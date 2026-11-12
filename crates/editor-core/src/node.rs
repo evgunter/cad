@@ -2573,7 +2573,9 @@ impl<P> Node<P> {
             return Some(InputFault::IndexedFamily);
         }
         self.body_reads().into_iter().find_map(|(seat, read)| {
-            if !read.is_member() {
+            // A read whose body is gone is a strand (VR7): it refuses at
+            // evaluation, and its family's rank is no longer there to ask.
+            if !read.is_member() || doc.unresolved_read(read.read).is_some() {
                 return None;
             }
             let rank = doc.var_reach(read.read).chain().map_or(0, <[VarId]>::len);

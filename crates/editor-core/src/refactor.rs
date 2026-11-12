@@ -857,7 +857,13 @@ fn resourced(
     if let Some(&held) = vars.map.get(&var) {
         return Ok(crate::Operand::Var(held));
     }
-    let Some(body) = source.source(var) else {
+    // A source chain that repeats (which no door or load admits) is
+    // carried as the read it is, so the walk ends: each step down a
+    // chain that does not repeat reaches its root.
+    let Some(body) = source
+        .source(var)
+        .filter(|_| source.source_root(var).is_some())
+    else {
         return rd_output(slot, var).map(crate::Operand::Var);
     };
     let read = resourced(source, vars, slot, body.read, rd_output, mapped)?;
@@ -1874,6 +1880,7 @@ impl core::fmt::Display for ReplayTail<'_> {
             | EditError::TakeOverRepeatsCopy { .. }
             | EditError::TakeOverNotASource { .. }
             | EditError::TakeOverSharedSource { .. }
+            | EditError::SourceReaderRefused { .. }
             | EditError::EmptyWitnessBulk
             | EditError::NameUnresolvedInEvaluation { .. }
             | EditError::EvaluationOfAnotherDocument { .. }
