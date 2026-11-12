@@ -1232,7 +1232,7 @@ fn end_before<T: Decide>(
 ) -> Result<bool, BooleanError> {
     let end = |k: usize| {
         let (lo, hi, _) = segments[k / 2];
-        if k % 2 == 0 { lo } else { hi }
+        if k.is_multiple_of(2) { lo } else { hi }
     };
     let before = |p: usize, q: usize| walks_before(secs, end(p), end(q), band);
     if let Some(b) = before(x, y)? {
@@ -1860,15 +1860,16 @@ fn walks_after<T: Decide>(
     // start bound to its end bound as a planar sector's turn about its
     // normal does: `y` after `x` is the face's turn from `x`'s ruling to
     // `y`'s ([`crate::sector_face::ConeApex::turn`]).
-    let m = match s.apex() {
-        Some(apex) => fan_turn(s, apex, x, y),
-        None => Margin::levered(
-            x.dir.cross(y.dir).dot(s.tangent().vec()),
-            leaned_lever(s.arm, (x.lean, y.lean)),
-        ),
-    };
-    crate::validate::decide("bool_shared_cut_order", m, band)
-        .map_err(|diag| BooleanError::coincidence(Coincide::Sectors, DeclarationRead::Moot, diag))
+    let refuse = |diag| BooleanError::coincidence(Coincide::Sectors, DeclarationRead::Moot, diag);
+    match s.apex() {
+        Some(apex) => crate::validate::decide("bool_shared_cut_order", fan_turn(s, apex, x, y), band)
+            .map_err(refuse),
+        // The star's one sine of two germs' order.
+        None => match crate::star::turn((x, y), s.tangent().vec(), s.arm, band).map_err(refuse)? {
+            crate::star::Turn::Apart(sign) => Ok(sign.into()),
+            crate::star::Turn::Along(_) => Ok(Sign::Zero),
+        },
+    }
 }
 
 /// **A fan's turn from `x`'s ruling to `y`'s**, levered as the sector's

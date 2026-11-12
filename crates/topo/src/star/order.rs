@@ -59,6 +59,39 @@ fn same_sense<T: Decide>(
         .map_err(OrderFault::Sense)
 }
 
+/// Two germs' turn: off each other's line (the sign of `(g₀ × g₁)·n`) or
+/// along one direction, decided so ([`turn`]).
+#[derive(Clone, Copy, Debug)]
+pub(crate) enum Turn {
+    /// `Negative` where `g₁` follows `g₀` clockwise about `n`.
+    Apart(NonzeroSign),
+    /// Along one line, decided so by the reading.
+    Along(Indeterminate),
+}
+
+/// **How `g₁` turns from `g₀` about `normal`**, the order's one sine
+/// ([`GERM_ORDER`]): `(g₀ × g₁)·n` levered at `arm` and the smaller lean
+/// ([`leaned_lever`]). Two germs a reading puts on one line are the
+/// caller's tie ([`Turn::Along`]).
+///
+/// # Errors
+///
+/// The reading in the band.
+pub(crate) fn turn<T: Decide>(
+    (g0, g1): (Leaned<T>, Leaned<T>),
+    normal: Vec3<T>,
+    arm: Lever<T>,
+    band: Band,
+) -> Result<Turn, Indeterminate> {
+    let lever = leaned_lever(arm, (g0.lean, g1.lean));
+    let order = Margin::levered(g0.dir.cross(g1.dir).dot(normal), lever);
+    match crate::validate::decide_nonzero(GERM_ORDER, order, band) {
+        Ok(sign) => Ok(Turn::Apart(sign)),
+        Err(diag) if diag.margin.rejected_sign() == Some(Sign::Zero) => Ok(Turn::Along(diag)),
+        Err(diag) => Err(diag),
+    }
+}
+
 /// **Whether `germs.0` comes before `germs.1` clockwise about `normal`
 /// from `e`**, the order's one comparison.
 ///
@@ -101,17 +134,13 @@ pub(crate) fn before<T: Decide, E>(
     if far0 != far1 {
         return Ok(far1);
     }
-    let (g0, g1) = germs;
-    let lever = leaned_lever(arm, (g0.lean, g1.lean));
-    let order = Margin::levered(g0.dir.cross(g1.dir).dot(normal), lever);
-    match crate::validate::decide_nonzero(GERM_ORDER, order, band) {
-        Ok(sign) => Ok(sign == NonzeroSign::Negative),
-        Err(diag) if diag.margin.rejected_sign() == Some(Sign::Zero) => match tie()? {
+    match turn(germs, normal, arm, band).map_err(|diag| fault(OrderFault::Coincident(diag)))? {
+        Turn::Apart(sign) => Ok(sign == NonzeroSign::Negative),
+        Turn::Along(diag) => match tie()? {
             Some(Sign::Negative) => Ok(true),
             Some(Sign::Positive) => Ok(false),
             Some(Sign::Zero) | None => Err(fault(OrderFault::Coincident(diag))),
         },
-        Err(diag) => Err(fault(OrderFault::Coincident(diag))),
     }
 }
 
