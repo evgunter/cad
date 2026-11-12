@@ -2008,3 +2008,46 @@ fn a_closed_forms_bound_holds_its_dense_miss() {
     }
     assert!(read > 0, "the search reads some bound ({})", fuzz::replay());
 }
+
+/// Review 6857 probe: every reading of every spelling at the replayed
+/// seed, without asserting; and the derived image's own certificate.
+#[test]
+fn review_6857_closed_form_every_reading() {
+    let mut g = fuzz::start("closed_form_on_its_carrier");
+    for _ in 0..fuzz::scaled(24) {
+        for kind in KINDS {
+            let (surface, carrier, span) = drawn(&mut g, kind);
+            let Ok(image) = chart_pcurve_over(&carrier, span.0, span.1, &surface, band()) else {
+                continue;
+            };
+            if !matches!(image, Pcurve::Harmonic { .. }) {
+                continue;
+            }
+            for (how, surface, carrier, image) in
+                spellings(&mut g, &surface, &carrier, span, &image)
+            {
+                for door in DOORS {
+                    let got = (door.certify)(&surface, &image, &carrier, span);
+                    if got.is_err() {
+                        eprintln!("REVC {kind:?} {how} at {}: {got:?}", door.name);
+                        // The direct miss at a fine grid, f64 and at Interval.
+                        let mut worst: f64 = 0.0;
+                        let mut worst_i = (0.0f64, 0.0f64);
+                        for i in 0..=20000 {
+                            let t = span.0 + (span.1 - span.0) * (f64::from(i) / 20000.0);
+                            let p = image.eval(t);
+                            let d = surface.eval(p.x, p.y).distance(carrier.eval(t));
+                            if d > worst {
+                                worst = d;
+                                worst_i = (t, d);
+                            }
+                        }
+                        let mint = super::PcurveCache::certify(image.clone(), span.0, span.1, &carrier, &surface, band());
+                        eprintln!("REVC   the mint's own certify at f64: {:?}", mint.as_ref().map(|c| (c.certificate.max_residual, c.certificate.envelope)).map_err(|e| format!("{e:?}")));
+                        eprintln!("REVC   direct f64 grid max {worst:e} at t {}", worst_i.0);
+                    }
+                }
+            }
+        }
+    }
+}
