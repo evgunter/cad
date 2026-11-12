@@ -3571,7 +3571,7 @@ const APPROXIMATED: &str = "an approximated face";
 /// face's boundary IS that domain's boundary, traversed once.
 ///
 /// The test reads the face's one loop through its lift
-/// ([`crate::pcurves::loop_lift`]): each half-edge's stored chart image,
+/// ([`crate::pcurves::Lift::read`]): each half-edge's stored chart image,
 /// moved by the joint elements summed along the loop, so the two halves
 /// of a seam sit on the two columns they bound. It admits when
 ///
@@ -3742,7 +3742,7 @@ fn narrows(whole: &Aabb, half: &Aabb) -> bool {
 /// The lifted boundary carries each edge's carrier and span, its two
 /// end vertices, and each of the face's half-edges on it with that
 /// half-edge's chart image off the loop's lift
-/// ([`crate::pcurves::loop_lift`]): its two end points and, where the
+/// ([`crate::pcurves::Lift::read`]): its two end points and, where the
 /// image is a coordinate line by variant, which coordinate it holds. A
 /// loop with no lift carries no images, which leaves the face
 /// unpresented rather than misread.

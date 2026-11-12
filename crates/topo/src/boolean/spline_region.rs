@@ -35,7 +35,7 @@
 //!
 //! The trim is read in the face's chart from C4's derived pcurves, lifted
 //! along each loop past its placeholders
-//! ([`crate::pcurves::loop_lift_past_placeholders`]: mid-boolean, the
+//! ([`crate::pcurves::Lift::read_past_placeholders`]: mid-boolean, the
 //! sweep's null edges at the crossing vertices), each half-edge's image
 //! taken over its edge's span and in its walk's direction, and the
 //! chart-space gap at a joint closed by a segment. A loop that winds a
@@ -1057,7 +1057,7 @@ impl Trim {
         let view = body.proven_face(face);
         let surface = view.surface();
         // The lift moves a row by the periods the chart STATES
-        // ([`crate::pcurves::loop_lift`]), and a copy of a query is read a
+        // ([`crate::pcurves::Lift::read`]), and a copy of a query is read a
         // period apart only on a channel the chart is DECIDED closed in.
         // The two agree wherever an element carries a period, since only
         // a net decided closed carries one; a channel where they part is
@@ -1101,7 +1101,7 @@ impl Trim {
                 return None;
             }
             // A skipped placeholder's joints are the identity
-            // (`loop_lift_past_placeholders`), so the members' elements
+            // (`Lift::read_past_placeholders`), so the members' elements
             // wind as the whole loop's.
             let elements: Option<Vec<_>> = lift.iter().map(|r| body.joint(r.half_edge)).collect();
             if !Winding::of(elements?).is_zero() {

@@ -2275,9 +2275,8 @@ pub trait Construct<T: geom_core::Real> {
     /// Attaches the element of the joint into `half_edge`, returning the
     /// one it replaced — [`Body::attach_pcurve`](crate::construction::Construct::attach_pcurve)'s companion, under the
     /// same trust posture: the tier-3 pcurve pass re-decides every joint
-    /// ([`crate::pcurves::validate_pcurves`]). The element is stored in
-    /// its canonical form ([`JointElement::canonical`]: a reset's
-    /// azimuth periods dropped).
+    /// ([`crate::pcurves::validate_pcurves`]). The element is stored as
+    /// given.
     fn attach_joint(
         &mut self,
         half_edge: HalfEdgeKey,
