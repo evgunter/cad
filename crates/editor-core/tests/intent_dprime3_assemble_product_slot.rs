@@ -568,11 +568,14 @@ fn a_meet_with_a_seat_meets_each_piece() {
 /// before it cuts (`crates/topo/README.md`, `[topo.cut-material]`).
 /// A post standing through the bolt's foot is the typed empty result. A
 /// cap over the whole foot keeps one solid above the plate, its floor a
-/// piece of the plate's top and its hole the bolt's sides, each named
-/// through the read the `⊔` took its piece in by.
+/// piece of the plate's top and its hole the bolt's four sides, each
+/// named through the read the `⊔` took its piece in by, and the foot's
+/// outline four seams between the floor and the walls, where the fuse
+/// joined the two pieces.
 ///
-/// *Breaks if* the cut refuses at the seat, or names a face of the
-/// fused tool that is no piece's.
+/// *Breaks if* the cut refuses at the seat, names a face of the fused
+/// tool that is no piece's, or names a fused seam as an edge of one
+/// piece.
 #[test]
 fn a_seat_as_a_cuts_tool_is_read_as_its_material() {
     let (doc, seat, bolt, plate) = seat("dprime3-seat-tool");
