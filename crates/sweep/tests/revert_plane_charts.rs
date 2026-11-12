@@ -31,7 +31,7 @@ use topo::construction::Construct;
 
 use geom::{Curve3, NurbsCurve2, Surface};
 use geom_brep::{
-    CertCheck, CertifyError, EdgeCurve, EdgeCurveSpec, EdgeDescriptionSpec, Pcurve, PcurveCache,
+    CertifyError, EdgeCurve, EdgeCurveSpec, EdgeDescriptionSpec, Pcurve, PcurveCache,
     PcurveCertifyError, PcurveCheck,
 };
 use geom_core::spline::KnotVector;
@@ -328,8 +328,8 @@ fn image_of(c: &EdgeCurve<f64>) -> Pcurve<f64> {
 /// 60° (so `v ≠ 0`) on a plane face: after `revert` the image keeps
 /// its kind and is the stored one with `v` negated at nine samples,
 /// the SOURCE curve re-certified on the reverted plane refuses
-/// `ChartResidual` at sample 1 (the control), the mirrored curve's
-/// fresh certificate is the one it carries, and `revert ∘ revert`
+/// `StatedImage` at sample 1 (the control), the mirrored curve's
+/// fresh certificate is the one it carries to rounding, and `revert ∘ revert`
 /// restores the body. `IsoArc` has no plane producer and no plane
 /// carrier — its parameter map is a rational-quadratic Bézier's,
 /// which no `Curve3` matches — so it is pinned at the `geom-brep`
@@ -384,11 +384,7 @@ fn a_plane_face_with_an_iso_line_or_nurbs_image_reverts_and_recertifies() {
         assert!(
             matches!(
                 control,
-                Err(CertifyError::ResidualExceeded {
-                    check: CertCheck::ChartResidual,
-                    sample: 1,
-                    ..
-                })
+                Err(CertifyError::StatedImageMissed { sample: 1, .. })
             ),
             "{label}: the source's image on the reverted plane: {control:?}"
         );
@@ -402,10 +398,15 @@ fn a_plane_face_with_an_iso_line_or_nurbs_image_reverts_and_recertifies() {
                 geom_brep::NurbsLane::certified(),
             )
             .expect(label);
-        assert_eq!(
-            format!("{rerun:?}"),
-            format!("{:?}", mirrored.certificate()),
-            "{label}: the certificate that travelled verbatim is the fresh run's"
+        // The fresh run bounds the same miss over the span through the
+        // mirrored patch: the travelling certificate is its to rounding.
+        let carried = mirrored.certificate();
+        assert!(
+            rerun.samples == carried.samples
+                && rerun.max_residual <= band.zero()
+                && (rerun.max_residual - carried.max_residual).abs() <= 1e-13,
+            "{label}: the certificate that travelled verbatim is the fresh run's to rounding: \
+             {rerun:?} against {carried:?}"
         );
         assert_eq!(
             format!("{:?}", reverted.revert().unwrap()),

@@ -2,7 +2,8 @@
 id: a-chorded-edges-certification-hulls-every-span-of-a-625-span-chord
 kind: issue
 title: Certifying a cylinder pair's chorded edges costs 5.5–7.6 s per boolean in release: the span hulls of 625-span chords
-status: open
+status: closed
+closed: 2026-11-11
 opened: 2026-11-10
 priority: P1
 cost: M
@@ -58,3 +59,26 @@ not a share of a count, with rows on a long span and one by the axis.
 
 The P1 row's operations take 7–17 s each in release; this step is
 about 40–50% of each.
+
+## Closed
+
+Branch `pcert/chord-hulls-by-span-geometry`. Limb 2 reads a net first
+with each knot span in the parts its own geometry needs
+(`pcurve_cache::Parts::ByTurn`): the fewest, a power of two up to
+`INCIDENCE_CUTS`, on each of which the part's control box spans at most
+`PIECE_TURN` (τ/16, the rotational lane's) times its distance from the
+chart's axis. The count search is the rotational lane's own
+(`props::taylor::pieces_where`), now shared with its turn constant. A
+first reading that clears is the limb's; anything else goes to the
+rounds at eight parts a span, so every refusal is read as before.
+
+A 625-span chord's first reading is 625 parts, where it was 5,000, and
+every chord of the cylinder pair clears on it. Release, one op a
+process (`cylinder_pair_cost_probe`): `certify_edge_spec` 2.2–3.2 s per
+op, from 5.4–6.3 s; the ops 9.9–11.5 s, from 11.4–14.3 s. Rows:
+`pcurve_cache/by_turn_rows.rs` (a long span, a span by the pole, short
+spans far from both, and a first reading that does not clear).
+
+Check 4's projected door reads the same hulls at eight parts a span and
+never halves, so it is filed, not cut here:
+`check-4s-projected-door-reads-every-span-of-a-chord-in-eight-parts`.

@@ -389,6 +389,9 @@ const GROW_SHARE: f64 = 1.0 / 32.0;
 fn grown(jets: &Jets, phi: Phi<'_>, b: [Interval; 2], piece: UvRect) -> [Interval; 2] {
     let m = [mid(b[0]), mid(b[1])];
     let cap = GROW_SHARE * (piece.u.1 - piece.u.0).min(piece.v.1 - piece.v.0);
+    // `b`'s ends only seed the doubling: every box kept is proved again by
+    // `krawczyk`, which asks `is_certified()`, so a refused `b` moves
+    // where the doubling starts, never what a kept box claims.
     let mut half = [0.5 * (b[0].hi() - b[0].lo()), 0.5 * (b[1].hi() - b[1].lo())];
     let mut best = b;
     for _ in 0..GROW_ROUNDS {
@@ -462,14 +465,22 @@ fn node_frame(
     let along = sign(phi.gradient(phi.framed(box3)).dot(n))?;
     let point = geom_core::Point3::new(mid(jet.point.x), mid(jet.point.y), mid(jet.point.z));
     let f64_unit = |w: Vec3<Interval>| Vec3::new(mid(w.x), mid(w.y), mid(w.z)).normalize();
+    // NaN (which `listed` refuses, `NODE_BOX`) unless every coordinate of
+    // `S(b)` certifies: the rational net's point divides by its weight sum.
+    let coords = [jet.point.x, jet.point.y, jet.point.z];
+    let width = if coords.iter().all(|i| i.is_certified()) {
+        coords
+            .map(|i| i.hi() - i.lo())
+            .into_iter()
+            .fold(0.0, f64::max)
+    } else {
+        f64::NAN
+    };
     Some(NodeFrame {
         point,
         normal: f64_unit(n),
         lines: [f64_unit(unit[first]), f64_unit(unit[second])],
         wall_above: sector == along,
-        width: [jet.point.x, jet.point.y, jet.point.z]
-            .map(|i| i.hi() - i.lo())
-            .into_iter()
-            .fold(0.0, f64::max),
+        width,
     })
 }
