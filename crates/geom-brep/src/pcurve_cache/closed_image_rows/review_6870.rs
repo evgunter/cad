@@ -335,7 +335,7 @@ fn probe_mint_pole_start() {
     let axis = Vec3::new(0.36, -0.48, 0.8);
     let u_ref = Vec3::new(0.8, 0.6, 0.0);
     let v_ref = axis.cross(u_ref);
-    for s in [1e-3, 1e-5, 1e-7] {
+    for s in [1e-3, 1e-5, 1e-7, 0.0, 1e-1] {
         let u0 = 0.3f64;
         let radial = u_ref * u0.cos() + v_ref * u0.sin();
         let normal = v_ref * u0.cos() - u_ref * u0.sin();
