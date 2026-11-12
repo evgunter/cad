@@ -2,9 +2,10 @@
 id: a-skin-stations-turn-crosses-up-from-f64-through-computed-at
 kind: issue
 title: a skin's station turn crosses up from f64 through RigidMotion::computed_at, the one up door Ev's ruling on PR 5068 leaves no room for
-status: open
+status: dispatched
 opened: 2026-11-10
 priority: P1
+branch: onehome/skin-turn
 ---
 
 
