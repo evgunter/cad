@@ -1,0 +1,26 @@
+---
+id: main-red-the-teapots-spout-join-refuses-in-the-join-since-6862
+kind: issue
+title: main red: the teapot's spout union refuses at the join's attachment gate since PR 6862, where the tour and the north-star rows pin the germ frame refusal
+status: open
+opened: 2026-11-12
+priority: P1
+cost: E
+---
+
+
+
+Found by SEAL's lane on PR 6860 (`seal/cut-tool-material`): CI's python suite on the PR's merge with main. Main's push CI does not run the python suite, so the red shows on the next PR that runs it. PR `placing/named-source` hit it too.
+
+## What
+
+The teapot's spout union (the belly's sphere against the spout's lofted NURBS walls) used to stop at the join, which found no frame for that germ pair (`BooleanError::GermFrameUnsupported { a_kind: Sphere, b_kind: Nurbs }`). Since the merge of PR 6862 (`sectarms/join-reads-spline-implicit`, `7d83cdff9e`), the spline-implicit lane traces that section. The union now refuses one step later, in the join's attachment gate: `BooleanError::Join`, "the operands' sections could not be joined: an Euler operation refused: geometry attachment gate: … a spline beside a curved analytic surface has no certificate".
+
+Measured on wheels built from `7d83cdff9e^1` (`c8c2b4f70b`: `inner_kind` `germ_frame_unsupported`) and from `7d83cdff9e` (`inner_kind` `join`), the debug cdylib, running the teapot's own recipe.
+
+- **The north-star row.** `crates/pncad-py/tests/test_north_star.py`, `TestTeapot.test_the_handle_join_builds_and_the_spout_join_refuses`, pinned the old arm. PR 6860 re-pins it to the join's arm and the gate's sentence, and asserts the germ frame text is gone.
+- **The tour scene.** `demos/tour/src/teapot.rs` `wall3_pinned` still matches `GermFrameUnsupported { Sphere, Nurbs }`, so the tour's teapot wall 3 is expected red at the next nightly. Not run here: the lane did not build the demos.
+
+## Done when
+
+Tour wall 3 pins what the kernel now does: the join's refusal at the attachment gate, with its payload and the ε at which it holds. The module docs' narration of the spout's refusal reads the same. Or the attachment gate certifies a spline section edge beside a sphere, and both rows pin the built union.

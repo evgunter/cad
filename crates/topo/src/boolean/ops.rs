@@ -391,6 +391,11 @@ pub struct BooleanNaming {
     /// [`Self::discards`] (`boolean::discard`'s `carved_lineage`). Only
     /// the section path carves.
     pub carved_lineage: [BTreeMap<EdgeKey, EdgeKey>; 2],
+    /// Where a cut read its tool as material (`crates/topo/README.md`,
+    /// `[topo.cut-material]`): the edges of B's clone along which the
+    /// tool's solids were fused, in B's clone keys. Each lies between
+    /// two faces of the tool that share no edge of it.
+    pub fused_seams: Vec<EdgeKey>,
 }
 
 impl Default for BooleanNaming {
@@ -429,6 +434,7 @@ impl Default for BooleanNaming {
             edge_joins: Default::default(),
             killed_lineage: Default::default(),
             carved_lineage: Default::default(),
+            fused_seams: Vec::new(),
         }
     }
 }
@@ -762,6 +768,11 @@ pub fn boolean_op_with<F: crate::FinishedBody>(
 where
     F::Scalar: Decide + Bounds,
 {
+    if op == BooleanOp::Subtract
+        && let Some(result) = super::nary::cut_by_material(a, b, inputs, strategy, tol)?
+    {
+        return Ok(result);
+    }
     boolean_op_given(op, a, b, inputs, (None, None), strategy, tol)
 }
 
@@ -1167,7 +1178,7 @@ pub(super) fn boolean_op_recut<T: Decide + Bounds + crate::props::AtRestPolicy>(
     // Each parted edge now bounds a face of each operand, as a seam does.
     seam_edges.extend(parted.iter().flat_map(|p| [p.kept, p.minted]));
     body.sweep_and_close();
-    let body = gate(finished, &Held::of(op, &contacts, decls), band, tol)?;
+    let body = gate(finished, &Held::of(&contacts, decls), band, tol)?;
     interior_loops?;
     let (graft_vertices, graft_edges, graft_dead_edges, mut graft_faces) = graft_rows(&fin.graft);
     let [mut face_fragments_a, face_fragments_b] = fragments;
@@ -1197,6 +1208,7 @@ pub(super) fn boolean_op_recut<T: Decide + Bounds + crate::props::AtRestPolicy>(
         reduction_contacts,
         discards,
         carved_lineage: fin.carved_lineage,
+        fused_seams: Vec::new(),
         substituted,
         uncut: Vec::new(),
         edge_classes,
@@ -4097,7 +4109,7 @@ impl Rows {
 
 /// One end of a record entering [`carry`]: the arena it is keyed in
 /// and the cell.
-type End = (Operand, Cell);
+pub(super) type End = (Operand, Cell);
 
 /// A record entering [`carry`], operand-tagged: its two ends and what
 /// it cites.
@@ -4841,7 +4853,7 @@ type Carried = (ContactRecords, Vec<crate::Coincidence>);
 /// more cells than a row holds, which no reading makes: two cells read
 /// with a minting cell each and one `through`, or two read with none
 /// and a meeting's three.
-fn spell(
+pub(super) fn spell(
     cells: [End; 2],
     through: &[End],
     relation: crate::Relation,
@@ -4909,7 +4921,7 @@ fn spell(
 /// What [`spell`]'s `read` makes of a cell: the cell of the op's input
 /// it lies in, and the cell of the other input whose crossing minted it,
 /// where the op minted it on an edge.
-type Read = (End, Option<End>);
+pub(super) type Read = (End, Option<End>);
 
 /// What [`spell`] makes of a decision: its row's two cells, its further
 /// ones ([`crate::Coincidence::more`]) and its relation.
@@ -5691,7 +5703,6 @@ fn lowered_faces<T: Real>(
 /// the result gate reads once the result is sorted into solids
 /// ([`gate`]): each record's two faces, carried, must lie in two shells.
 pub(super) struct Held<'a> {
-    op: BooleanOp,
     contacts: &'a ContactRecords,
     records: [&'a OperandRecords; 2],
 }
@@ -5701,7 +5712,6 @@ impl Held<'static> {
     /// No record carried: a row that gates a body built by hand.
     fn nothing() -> Self {
         Self {
-            op: BooleanOp::Union,
             contacts: Box::leak(Box::default()),
             records: [Box::leak(Box::default()), Box::leak(Box::default())],
         }
@@ -5709,14 +5719,9 @@ impl Held<'static> {
 }
 
 impl<'a> Held<'a> {
-    /// The records `contacts` carries from `decls`' operands, in `op`.
-    pub(super) fn of<T: Real>(
-        op: BooleanOp,
-        contacts: &'a ContactRecords,
-        decls: &'a Glue<T>,
-    ) -> Self {
+    /// The records `contacts` carries from `decls`' operands.
+    pub(super) fn of<T: Real>(contacts: &'a ContactRecords, decls: &'a Glue<T>) -> Self {
         Self {
-            op,
             contacts,
             records: [&decls.records_a, &decls.records_b],
         }
@@ -5726,8 +5731,7 @@ impl<'a> Held<'a> {
     /// ([`crate::contact::area_record`]). Two pieces an operand held
     /// apart over an area, joined into one solid elsewhere, lie on each
     /// other inside one shell, which the census and tier 3′ do not read:
-    /// [`BooleanError::TouchesItself`], or in a cut by the record's
-    /// holder [`BooleanError::ToolSeatCrossed`] ([`super::seat_crossed`]).
+    /// [`BooleanError::TouchesItself`].
     fn apart<T: Decide>(&self, body: &Body<T>) -> Result<(), BooleanError> {
         let shell = |f: FaceKey| body.get_face(f).map(|d| d.shell);
         for row in self.contacts.rows() {
@@ -5753,14 +5757,10 @@ impl<'a> Held<'a> {
                     continue;
                 };
                 let faces = [carried.contact.a, carried.contact.b];
-                return Err(if super::seat_crossed(self.op, operand) {
-                    BooleanError::ToolSeatCrossed { record, faces }
-                } else {
-                    BooleanError::TouchesItself {
-                        operand,
-                        record,
-                        faces,
-                    }
+                return Err(BooleanError::TouchesItself {
+                    operand,
+                    record,
+                    faces,
                 });
             }
         }
@@ -7837,7 +7837,7 @@ fn fallback<T: Decide + Bounds + crate::props::AtRestPolicy>(
                 crate::pcurves::mint_pcurves(&mut body, tol)
                     .map_err(|source| BooleanError::Pcurves { source })?;
             }
-            let body = gate(body, &Held::of(op, &contacts, decls), band, tol)?;
+            let body = gate(body, &Held::of(&contacts, decls), band, tol)?;
             let FallbackFates {
                 substituted,
                 uncut,
@@ -8189,7 +8189,7 @@ fn finish_fallback<T: Decide + Bounds + AtRestPolicy>(
         [&a_view, &b_view],
         band,
     )?;
-    let body = gate(body, &Held::of(op, &contacts, decls), band, tol)?;
+    let body = gate(body, &Held::of(&contacts, decls), band, tol)?;
     let own = |v: VertexKey| carved.contains(&v).then_some(v);
     let absent = |_: VertexKey| None;
     let kept: [super::discard::InResult<'_>; 2] = match kind {

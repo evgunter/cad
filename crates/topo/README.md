@@ -61,7 +61,7 @@ that what you need belongs at the root or below.
 | What the Boolean's join meets | `src/meeting.rs` (`PLANE_WALLS`, `plane_joins`, `meeting_recourse`, `CONIC_EDGES_RECOURSE`, `CONIC_OUTLINE_RECOURSE`): the face pairs the germ-pair join takes and the edge kinds every lane walks, stated once with the recourses that name them; the join's lane dispatch reads the same table |
 | A key that did not resolve | `src/unresolved.rs` (`Unresolved`): the one statement of a dangling key, carried by `CarveError`, `FinishDesync` and `JoinError::Corrupt` |
 | How far a face reaches | `src/face_reach.rs` (`face_extent`, `face_reach_from`, `face_reach_round_from`, `face_axial_range`, `cone_axial_window`, `cone_face_reach`): the lever arms read off a face's boundary, from a point, along an axis and against a cone's axis |
-| Booleans | `src/boolean/mod.rs` (reduction, classification, `ReductionContacts`, `BooleanInputs`, the glue), `records.rs` (`ContactRecords`, `Contact`), `reduce.rs`, `vtxfac.rs`, `sectors.rs` (a slit's tip read as its face's full turn, `SlitTips`), `recl.rs`, `tables.rs`, `insert.rs`, `join.rs`, `finish.rs`, `zip.rs`, `slit.rs` (an edge lying in one of the result's faces, parted as the material decides, a glued slit's two edges merged across the sliver between them, and a face closed across the strut a slit's two edges leave where the result drops both walls), `ops.rs`, `carrier_pair.rs`, `combine.rs`, `voids.rs`, `contain.rs`, `solid_contain.rs`, `surface_group.rs`, `rim_wedge.rs` |
+| Booleans | `src/boolean/mod.rs` (reduction, classification, `ReductionContacts`, `BooleanInputs`, the glue), `records.rs` (`ContactRecords`, `Contact`), `reduce.rs`, `vtxfac.rs`, `sectors.rs` (a slit's tip read as its face's full turn, `SlitTips`), `recl.rs`, `tables.rs`, `insert.rs`, `join.rs`, `finish.rs`, `zip.rs`, `slit.rs` (an edge lying in one of the result's faces, parted as the material decides, a glued slit's two edges merged across the sliver between them, and a face closed across the strut a slit's two edges leave where the result drops both walls), `ops.rs`, `nary.rs` (the n-ary union and intersect, and a cut's tool read as its material), `material.rs` (that cut read back to the tool's cells), `carrier_pair.rs`, `combine.rs`, `voids.rs`, `contain.rs`, `solid_contain.rs`, `surface_group.rs`, `rim_wedge.rs` |
 | Instances, separation | `src/instance.rs` (disjoint graft), `src/separation.rs` (certified no-touch), `src/boxes.rs` (the certified-conservative boxes of faces and edges, `sweep_pad`), `src/separating.rs` (the narrow phase's separating axes, `apart`), `src/transform.rs` (rigid placement) |
 | Shell and offset surgery | `src/shell.rs`, `src/replace_face.rs`, `src/offset_general.rs`, `src/offset_together.rs`, `src/offset_axial.rs`, `src/merge_faces.rs` — decisions in `crates/geom-brep/README.md` (OFFSET-DESIGN). `shell` and `shell_open` take a finished body (`AtRestBody`): their thickness is measured into the solid's material. `replace_face_offset`, `replace_faces_offset`, `offset_surfaces_together`, `offset_planes_together` and `offset_charts_together` take construction state (`Body`), tier 2 in and tier 2 out: their argument is a distance along each chart's stored normal, which no face's sense decides, and `shell` runs them over a clone mid-construction. Their result becomes finished only through `AtRestBody::validate`, where an inside-out result refuses `NegativeVolume`. A move that carries a face through its neighbours inverts the body too, and refuses there on the rings it leaves outside the moved face (`RingOutsideOuter`) |
 | Queries, flush detection, read-back | `src/query.rs` (the EXACT/DECIDED atoms and `rim_of`; `crates/verbs/README.md` S1), `src/flush.rs`, `src/readback.rs`, `src/props.rs` (mass properties, `AtRestPolicy`), `src/ray_walk.rs` |
@@ -1135,9 +1135,11 @@ A boolean's face pairs are the glue its margins decide (`boolean::glue`),
 or, at a fold step of the n-ary union or intersect (`nary_boolean`), the
 verdicts that operation's own pairwise judgements decided over the
 members it holds, read through the face lineage it advances from each
-step's naming (`MemberLineage`); no public input states a glue, so no
-glue goes unrecorded by the judgement that decided it. A fold step reads
-a given pair's own record. No node declares a contact, a mate included
+step's naming (`MemberLineage`), or, at a fold step of a cut's tool read
+as its material, the meaning of the tool's own records
+(`[topo.cut-material]`); no public input states a glue, so no glue goes
+unrecorded by the judgement or the record that stated it. A fold step
+reads a given pair's own record. No node declares a contact, a mate included
 (`crates/editor-core/ASSEMBLY.md` A3). Bodies carry only verified records,
 in the `BooleanBody` wrapper, never persisted. Replay is scalar-generic;
 an indeterminate verification at an interval scalar aborts.
@@ -1146,6 +1148,48 @@ Failures, all typed: `UnrecordedContact` (the census);
 `ContactContradicted` (a record at rest); `StaleContactDeclaration`; `CensusEscalated`. Invariant: a
 pair is decided once, where it is glued, and every later read of it is
 that decision.
+
+**A cut reads its tool as material.** `[topo.cut-material]` A cut
+whose tool's solids rest on each other, the face–face records between
+them stating where, unites those solids before it cuts, and then runs
+the ordinary cut: `t − (p ⊔ q)` is computed as `t − (p ∪ q)`
+(`boolean::nary::cut_by_material`). A planar face–face record between
+two solids is the union's given verdict, its meaning: a `⊔` records a
+touch, the two materials on the two sides of where the faces meet, and
+two planar faces a record holds apart lie on one plane, so the record
+is one carrier with senses opposed, a `Rest` pair
+(`contact::area_record`). The solids those verdicts join are folded,
+one group at a time, each solid carved out of the tool with its keys
+(`carve::solids_alone`), every step given the verdicts and judging no
+pair of its own. A solid no verdict joins stands as it is, and the
+material is each group's union beside the standing solids
+(`boolean::material::assembled`). A record within one solid rides with
+it, and one between two solids that stay apart rides on the material,
+as a record of the `⊔` they stay. It is sound for three reasons:
+- `−` removes its tool's material, and a `⊔`'s material is its pieces'
+  ([operations.operators]), so the point set is the cut by the tool;
+- each meeting's record is taken as the union's verdict and nothing is
+  decided again, so the meeting is the tool's decision, carried
+  ([coincidence.booleans]);
+- nothing of the tool's fused meetings reaches the result, whose
+  material is the cut part's, so a meeting inside an operand is never
+  changed by an operator above it: the `⊔` value is not touched.
+
+What a caller observes:
+- **Refusals.**
+  - A fold step's refusal is `BooleanError::ToolFuseRefused`, wrapping the union's own: a seat the union has no glue arm for refuses there, naming the carrier pair in the keys of the tool's carved solids.
+  - A record the door cannot take refuses `ToolSeatUnread` naming it: a face–face record of curved faces between two solids, which may be an area or a line tangency; or a lower-cell record between two solids one group fuses, a meeting inside the solid they become that no verdict states.
+  - A planar face–face record inside one solid is a solid touching itself over an area, `TouchesItself`.
+  - A record key the tool does not hold is `InvalidInput`, as for any carried record.
+  - A record the fold cannot carry onto the material is `ToolSeatUnread` naming it.
+- **A caller's face–face record is taken at its word.** One handed in through `BooleanInputs` between two planar faces of two solids is glued as `Rest`. One that is no touch fails loudly, where the union certifies the glue (`ToolFuseRefused`, the union's `OneRecordUncertified`), and never builds.
+- **Names.** The result names the tool's cells: every operand-B cell of the cut's naming, rows, holdings and records is read back through the union to the tool's (`boolean::material::Through`).
+  - A face the union divided is a piece of the tool's face, and a merged face holds each face it holds.
+  - An edge along which the union fused two solids is a seam between two of the tool's faces (`BooleanNaming::fused_seams`), as a union's is.
+  - A row on a cell the union minted is stated as the meeting of the tool's cells it lies on: a vertex where two of the tool's edges cross, a seam between two faces.
+
+The record keeps "the pair and nothing else" ([topology.records]): the class
+is what a planar record means, not a stored or carried class.
 
 ### At-rest census identity (CENSUS-REST-CLOSURE)
 

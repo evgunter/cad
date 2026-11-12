@@ -259,9 +259,13 @@ fn each_class_and_each_delegate_reads_as_its_doc_states() {
         "an area self-touch inside one shell, not read yet"
     );
     assert_eq!(
-        BooleanError::ToolSeatCrossed { record: 0, faces }.refusal(),
+        BooleanError::ToolSeatUnread {
+            record: 0,
+            cells: faces.map(super::Cell::Face),
+        }
+        .refusal(),
         Ok(Refusal::Limit),
-        "a cut across its tool's seat, not built yet"
+        "a cut by a tool whose pieces meet other than over a planar area, not built yet"
     );
     let crease = |reading| BooleanError::NormalAtSplineCrease {
         operand: op,
