@@ -8062,10 +8062,7 @@ mod presentation_rows {
             cache: Cache::default(),
         };
         let along = on_side(&meridian, &p, (u0, u0), sv).unwrap();
-        assert!(
-            is_zero(along, band()),
-            "the meridian reads zero: {along:?}"
-        );
+        assert!(is_zero(along, band()), "the meridian reads zero: {along:?}");
         let first_order = centred(&meridian, &p, (u0, u0), sv).unwrap();
         assert!(
             !is_zero(first_order, band()),
