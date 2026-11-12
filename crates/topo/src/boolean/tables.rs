@@ -39,16 +39,16 @@ use crate::boolean::plane_eq::PlaneRelation;
 /// Reading: for an A-sector on B, `Out` means "treated as AoutB";
 /// for a B-sector on A, `Out` means "treated as BoutA".
 ///
-/// Stated for the glue's kept side ([`super::glue::KEPT`]): where the
-/// lump keeps one copy of the region ([`lump_keeps_one`]), the kept
-/// side's sector lumps to the side `op` keeps for its operand and the
-/// other's to the side `op` drops; elsewhere both lump to the side
+/// Stated for the first-written side ([`super::glue::FIRST_WRITTEN`]):
+/// where the lump keeps one copy of the region ([`lump_keeps_one`]),
+/// that side's sector lumps to the side `op` keeps for its operand and
+/// the other's to the side `op` drops; elsewhere both lump to the side
 /// dropped. With A kept this is the book's table, cell for cell:
 /// ∪: AonB⁺→AoutB, AonB⁻→AinB; BonA±→BinA. ∩ and ∖ share a row
 /// (A∖B ≡ A∩revert(B)): AonB⁺→AinB, AonB⁻→AoutB; BonA±→BoutA.
 pub fn eq15_3_lump(op: BooleanOp, on_side: Operand, relation: PlaneRelation) -> SideCode {
     let kept = super::finish::kept_side(op, on_side);
-    if kept_copy(op, relation) == Some(on_side) {
+    if surviving_copy(op, relation) == Some(on_side) {
         kept
     } else {
         kept.opposite()
@@ -75,10 +75,12 @@ pub fn lump_keeps_one(op: BooleanOp, relation: PlaneRelation) -> bool {
 
 /// Which operand's copy of a coincident sector pair's region the Eq.
 /// 15.3 lump keeps, when it keeps exactly one ([`lump_keeps_one`]): the
-/// glue's kept side ([`super::glue::KEPT`]), whose description the
-/// overlap carries into the merge.
-pub fn kept_copy(op: BooleanOp, relation: PlaneRelation) -> Option<Operand> {
-    lump_keeps_one(op, relation).then_some(super::glue::KEPT)
+/// first-written side's ([`super::glue::FIRST_WRITTEN`]). The face it
+/// keeps ends on the record the glue's census keeps
+/// ([`super::glue::GlueCensus`]), moved there by the one-record act
+/// where that is the other side's.
+pub fn surviving_copy(op: BooleanOp, relation: PlaneRelation) -> Option<Operand> {
+    lump_keeps_one(op, relation).then_some(super::glue::FIRST_WRITTEN)
 }
 
 #[cfg(test)]
