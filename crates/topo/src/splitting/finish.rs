@@ -1219,8 +1219,11 @@ impl SplitFinishError {
                         "whether two faces touching along the cut close a cusp or a slit"
                     }
                 };
+                let at_station = escalation
+                    .station()
+                    .map_or_else(String::new, |i| format!(" at sample {i}"));
                 diag.undecided(
-                    question,
+                    format_args!("{question}{at_station}"),
                     diag.lever_ending(super::SPLIT_COINCIDENCE_RECOURSE),
                 )
                 .fmt(f)
@@ -2035,9 +2038,10 @@ pub(crate) fn describe_section_boundary<T: Decide + crate::props::AtRestPolicy>(
                              chord fails the dihedral's arm gate before this arm"
                     )
                 });
-                let verdict = crate::edge_wedge(body, edge, band).unwrap_or_else(|| {
-                    unreachable!("{edge:?} has a certified carrier and two live faces")
-                });
+                let (verdict, demanded) = crate::edge_wedge::edge_wedge_read(body, edge, band)
+                    .unwrap_or_else(|| {
+                        unreachable!("{edge:?} has a certified carrier and two live faces")
+                    });
                 match verdict {
                     geom_brep::WedgeVerdict::InBand(escalation) => {
                         return Err(SplitFinishError::WedgeEscalated { edge, escalation });
@@ -2065,8 +2069,7 @@ pub(crate) fn describe_section_boundary<T: Decide + crate::props::AtRestPolicy>(
                 }
                 // What the join stores is what its wedge demands, and
                 // a settled tangency demands a description.
-                let Some(Ok(demanded)) = crate::edge_wedge::demanded(body, edge, verdict, witness)
-                else {
+                let Ok(demanded) = demanded else {
                     unreachable!("{edge:?}'s settled tangency demands a description")
                 };
                 // A description of the demanded kind that names

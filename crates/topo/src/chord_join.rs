@@ -2610,13 +2610,15 @@ fn chord_spec<T: Decide>(
                     witness,
                 },
                 band,
-                |escalation| {
+                |escalation: geom_brep::MustCarryEscalation| {
                     let diag = escalation.diag();
                     match escalation.rung() {
-                        geom_brep::WedgeRung::Bend => {
+                        geom_brep::MustCarryRung::Bend => {
                             JoinError::TangentChordBendEscalated { face, diag }
                         }
-                        _ => JoinError::TangentChordEscalated { face, diag },
+                        geom_brep::MustCarryRung::Arm | geom_brep::MustCarryRung::Wedge => {
+                            JoinError::TangentChordEscalated { face, diag }
+                        }
                     }
                 },
                 |mixed| JoinError::TangentChordRefuted { face, mixed },

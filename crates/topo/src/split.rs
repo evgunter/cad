@@ -166,11 +166,15 @@ impl<T: Decide> Body<T> {
         };
         // The rule's escalation by the order that raised it: the bend, or
         // the first-order class.
-        let escalated = |escalation: geom_brep::WedgeEscalation| {
+        let escalated = |escalation: geom_brep::MustCarryEscalation| {
             let diag = escalation.diag();
             match escalation.rung() {
-                geom_brep::WedgeRung::Bend => EulerOpError::SplitSmoothBendEscalated { edge, diag },
-                _ => EulerOpError::SplitSmoothEscalated { edge, diag },
+                geom_brep::MustCarryRung::Bend => {
+                    EulerOpError::SplitSmoothBendEscalated { edge, diag }
+                }
+                geom_brep::MustCarryRung::Arm | geom_brep::MustCarryRung::Wedge => {
+                    EulerOpError::SplitSmoothEscalated { edge, diag }
+                }
             }
         };
         let refused = |refusal| match refusal {

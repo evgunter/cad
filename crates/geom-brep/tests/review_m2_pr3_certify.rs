@@ -19,22 +19,11 @@ use geom::Surface;
 use geom_brep::recourse::Refused;
 use geom_brep::{
     CertCheck, CertifyError, DihedralClass, EdgeCurve, EdgeCurveSpec, EdgeDescriptionSpec,
-    MappedCurve, MappedSource, NewellError, SketchSegment, SurfacePair, WedgeEscalation,
-    classify_dihedral, newell_plane,
+    MappedCurve, MappedSource, NewellError, SketchSegment, SurfacePair, classify_dihedral,
+    newell_plane,
 };
 use geom_brep::{ForwardReading, StatedSpan, WindingReading};
 use geom_core::{Affine3, Arc2, Point2, Point3, Vec3};
-
-/// The class [`classify_dihedral`] reads, as these rows compare it.
-fn dihedral_class<T: geom_core::Decide>(
-    s1: &Surface<T>,
-    s2: &Surface<T>,
-    p: Point3<T>,
-    reach: geom_core::Lever<T>,
-    band: geom_core::Band,
-) -> Result<DihedralClass, WedgeEscalation> {
-    classify_dihedral(s1, s2, p, reach, band).map(|d| d.class())
-}
 
 // =====================================================================
 // Target 1 — certification aliasing: is the 9-sample schedule enough?
@@ -524,7 +513,9 @@ fn survives_exact_tangency_and_true_corner_classify_definitely() {
         u_ref: Vec3::unit_x(),
     };
     assert_eq!(
-        dihedral_class(&plane, &cyl, Point3::origin(), fixture_lever(10.0), band()).unwrap(),
+        classify_dihedral(&plane, &cyl, Point3::origin(), fixture_lever(10.0), band())
+            .map(|d| d.class())
+            .unwrap(),
         DihedralClass::Smooth
     );
     // True corner: perpendicular planes at arm 1.
@@ -534,7 +525,9 @@ fn survives_exact_tangency_and_true_corner_classify_definitely() {
         u_ref: Vec3::unit_y(),
     };
     assert_eq!(
-        dihedral_class(&plane, &wall, Point3::origin(), fixture_lever(1.0), band()).unwrap(),
+        classify_dihedral(&plane, &wall, Point3::origin(), fixture_lever(1.0), band())
+            .map(|d| d.class())
+            .unwrap(),
         DihedralClass::Transverse
     );
 }
@@ -544,7 +537,7 @@ fn survives_exact_tangency_and_true_corner_classify_definitely() {
 /// cone apex the arms collapse; a collapsed lever arm used to map
 /// every angle into the Zero band, so a ~60-degree transverse wedge at
 /// rho <= eps read **definitely Smooth**. The fix (B2): the
-/// collapsed-arm gate — `dihedral_class` decides the arm first
+/// collapsed-arm gate — `classify_dihedral` decides the arm first
 /// (predicate "dihedral_arm") and a coincident-with-zero arm ESCALATES
 /// (Indeterminate), never classifies definitely.
 #[test]
@@ -566,17 +559,25 @@ fn fixed_sub_epsilon_cone_arm_escalates() {
     // Healthy arm: definitely transverse (sin theta = cos alpha ~ 0.87).
     let p = at(1.0);
     assert_eq!(
-        dihedral_class(&cone, &plane_through(p), p, fixture_lever(1.0), band()).unwrap(),
+        classify_dihedral(&cone, &plane_through(p), p, fixture_lever(1.0), band())
+            .map(|d| d.class())
+            .unwrap(),
         DihedralClass::Transverse
     );
     // In-band arm: honest escalation, as before.
     let p = at(3.0 * eps());
-    assert!(dihedral_class(&cone, &plane_through(p), p, fixture_lever(1.0), band()).is_err());
+    assert!(
+        classify_dihedral(&cone, &plane_through(p), p, fixture_lever(1.0), band())
+            .map(|d| d.class())
+            .is_err()
+    );
     // Collapsed arm: now an honest escalation naming the arm gate —
     // never a definite classification. It quotes the wedge the arm
     // meters (PR 3513's fifth fix pass), under that reading's own name.
     let p = at(0.5 * eps());
-    let err = dihedral_class(&cone, &plane_through(p), p, fixture_lever(1.0), band()).unwrap_err();
+    let err = classify_dihedral(&cone, &plane_through(p), p, fixture_lever(1.0), band())
+        .map(|d| d.class())
+        .unwrap_err();
     assert_eq!(
         (err.rung(), err.diag().predicate),
         (geom_brep::WedgeRung::Arm, Some(sub_eps_arm_quotes()))
@@ -619,21 +620,23 @@ fn fixed_sub_epsilon_extent_true_corner_escalates() {
     // The arm gate escalates, quoting the wedge it meters where that is
     // nonzero and the arm offers a tolerance, and its own decided zero
     // where the arm is exactly zero.
-    let err = dihedral_class(
+    let err = classify_dihedral(
         &floor,
         &wall,
         Point3::origin(),
         fixture_lever(0.5 * eps()),
         band(),
     )
+    .map(|d| d.class())
     .unwrap_err();
     assert_eq!(
         (err.rung(), err.diag().predicate),
         (geom_brep::WedgeRung::Arm, Some(sub_eps_arm_quotes())),
         "sub-eps extent"
     );
-    let err =
-        dihedral_class(&floor, &wall, Point3::origin(), fixture_lever(0.0), band()).unwrap_err();
+    let err = classify_dihedral(&floor, &wall, Point3::origin(), fixture_lever(0.0), band())
+        .map(|d| d.class())
+        .unwrap_err();
     assert_eq!(
         (err.rung(), err.diag().predicate),
         (geom_brep::WedgeRung::Arm, Some("dihedral_arm")),
@@ -775,13 +778,14 @@ fn survives_curvature_arm_caps_huge_chord() {
     };
     // sin(theta) = 1, arm = min(r, 1000.0) = r = 3 eps -> in band.
     assert!(
-        dihedral_class(
+        classify_dihedral(
             &tilted,
             &cyl,
             Point3::origin(),
             fixture_lever(1000.0),
             band()
         )
+        .map(|d| d.class())
         .is_err(),
         "tiny curvature arm must dominate a huge chord"
     );
@@ -1019,13 +1023,14 @@ mod interval_lane {
             normal: v3(1.0, 0.0, 0.0),
             u_ref: v3(0.0, 1.0, 0.0),
         };
-        let c = dihedral_class(
+        let c = classify_dihedral(
             &floor,
             &wall,
             p3(0.0, 0.0, 0.0),
             fixture_lever(Interval::from_f64(1.0)),
             band(),
         )
+        .map(|d| d.class())
         .unwrap();
         assert_eq!(c, DihedralClass::Transverse);
         // Coplanar pair: definite Smooth (no poison, no escalation).
@@ -1034,13 +1039,14 @@ mod interval_lane {
             normal: v3(0.0, 0.0, 1.0),
             u_ref: v3(0.0, 1.0, 0.0),
         };
-        let c = dihedral_class(
+        let c = classify_dihedral(
             &floor,
             &coplanar,
             p3(0.0, 0.0, 0.0),
             fixture_lever(Interval::from_f64(1.0)),
             band(),
         )
+        .map(|d| d.class())
         .unwrap();
         assert_eq!(c, DihedralClass::Smooth);
     }

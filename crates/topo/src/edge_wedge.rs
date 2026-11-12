@@ -1,9 +1,12 @@
 //! **An edge's wedge, read whole**: the one door from an edge to its
-//! wedge's faces and walk ([`edge_wedge_walk`]), the whole-edge fold over
-//! it levered at its faces' extent ([`edge_wedge`]), and what that
-//! verdict demands the edge store ([`edge_wedge_description`]). Tier 3's
-//! check 4 reads the same fold over the same walk, so what a constructor
-//! stores and what tier 3 accepts are read from one verdict.
+//! wedge's faces and walk ([`edge_wedge_walk`]), and the one composition
+//! of its verdict ([`edge_wedge`]): the seam read by identity where the
+//! two sides are one surface record ([`one_surface_seam`]), else the
+//! whole-edge fold over the walk levered at its faces' extent. What the
+//! verdict demands the edge store is read off the same walk
+//! ([`edge_wedge_description`]). Tier 3's check 4 reads its edges
+//! through this composition, so what a constructor stores and what tier
+//! 3 accepts are read from one verdict.
 
 use geom_core::{Band, Decide};
 
@@ -22,6 +25,17 @@ pub fn edge_wedge_walk<T: Decide>(
     body: &Body<T>,
     edge: EdgeKey,
 ) -> Option<geom_brep::WedgeWalk<'_, T>> {
+    walk_of(body, edge).map(|read| read.walk)
+}
+
+/// An edge's walk with the sides it was built from.
+struct EdgeRead<'a, T: Decide> {
+    walk: geom_brep::WedgeWalk<'a, T>,
+    sides: crate::readback::EdgeSides,
+}
+
+/// [`edge_wedge_walk`], keeping the sides.
+fn walk_of<T: Decide>(body: &Body<T>, edge: EdgeKey) -> Option<EdgeRead<'_, T>> {
     let e = body.get_edge(edge)?;
     let curve = body
         .curves
@@ -35,17 +49,55 @@ pub fn edge_wedge_walk<T: Decide>(
         })
     };
     let (t0, t1) = curve.params();
-    Some(geom_brep::WedgeWalk::along_edge(
-        side(sides.plus)?,
-        side(sides.minus)?,
-        curve.carrier(),
-        t0,
-        t1,
-    ))
+    Some(EdgeRead {
+        walk: geom_brep::WedgeWalk::along_edge(
+            side(sides.plus)?,
+            side(sides.minus)?,
+            curve.carrier(),
+            t0,
+            t1,
+        ),
+        sides,
+    })
 }
 
-/// **An edge's wedge**: the whole-edge fold ([`geom_brep::edge_wedge_over`])
-/// over its walk ([`edge_wedge_walk`]), levered at its faces' extent
+/// **A seam read by identity**: an edge whose two sides lie on ONE
+/// surface record with one sense is interior to that surface, which is
+/// smooth and shares its own curvature there, so its wedge is the seam
+/// with an under-determined bend — what the whole-edge fold reads at
+/// `f64`, where the sagitta of a surface against itself is an exact zero
+/// — and no margin is read for it. Keyed on the record, not on a value,
+/// so it answers alike at every scalar: over a box the two evaluations
+/// of one surface do not cancel, and the fold would read the zero as an
+/// enclosure `[0, w]` in band (ONEHOME fork 259: a cylinder leaf taken
+/// alone at `Sym`). `None` where the sides are two records or two
+/// senses: the fold reads them.
+fn one_surface_seam<T: geom_core::Real>(
+    body: &Body<T>,
+    sides: crate::readback::EdgeSides,
+) -> Option<geom_brep::WedgeVerdict> {
+    let sense = |face| body.get_face(face).map(|f| f.sense);
+    (sides.plus.surface == sides.minus.surface
+        && sense(sides.plus.face)? == sense(sides.minus.face)?)
+    .then_some(geom_brep::WedgeVerdict::Seam {
+        bend: geom_brep::Bend::UnderDetermined,
+        margin: None,
+    })
+}
+
+/// The one composition of an edge's verdict over its walk, levered at
+/// `reach`.
+fn verdict_of<T: Decide>(
+    body: &Body<T>,
+    read: &EdgeRead<'_, T>,
+    reach: geom_core::Lever<T>,
+    band: Band,
+) -> geom_brep::WedgeVerdict {
+    one_surface_seam(body, read.sides)
+        .unwrap_or_else(|| geom_brep::edge_wedge_over(&read.walk, reach, band))
+}
+
+/// **An edge's wedge** (module docs), levered at its faces' extent
 /// ([`crate::edge_wedge_reach`]). `None` where the edge carries no
 /// certified curve or a record on the way does not resolve.
 #[must_use]
@@ -54,42 +106,47 @@ pub fn edge_wedge<T: Decide>(
     edge: EdgeKey,
     band: Band,
 ) -> Option<geom_brep::WedgeVerdict> {
-    let walk = edge_wedge_walk(body, edge)?;
-    let reach = crate::edge_wedge_reach(body, edge)?;
-    Some(geom_brep::edge_wedge_over(&walk, reach, band))
+    edge_wedge_at(body, edge, crate::edge_wedge_reach(body, edge)?, band)
+}
+
+/// [`edge_wedge`] levered at a `reach` the caller has read for the edge
+/// already (check 4 reads every edge's once).
+pub(crate) fn edge_wedge_at<T: Decide>(
+    body: &Body<T>,
+    edge: EdgeKey,
+    reach: geom_core::Lever<T>,
+    band: Band,
+) -> Option<geom_brep::WedgeVerdict> {
+    let read = walk_of(body, edge)?;
+    Some(verdict_of(body, &read, reach, band))
 }
 
 /// **What an edge's wedge demands it store**
-/// ([`geom_brep::WedgeVerdict::description`]): its [`edge_wedge`] over
-/// its two faces' surface records, witnessed at `witness`, a point of
-/// its carrier, with the jet certificate's lane read over its carrier
-/// ([`geom_brep::tangent_certificate_lane`]). A constructor that wrote
-/// the edge restates it with this. `None` as [`edge_wedge`].
+/// ([`geom_brep::WedgeWalk::description`]): its [`edge_wedge`] over its
+/// two faces' surface records, read off the walk the verdict was read
+/// over. A constructor that wrote the edge restates it with this. `None`
+/// as [`edge_wedge`].
 #[must_use]
 pub fn edge_wedge_description<T: Decide>(
     body: &Body<T>,
     edge: EdgeKey,
-    witness: geom_core::Point3<T>,
     band: Band,
-) -> Option<Result<geom_brep::MustCarryDescription<T>, geom_brep::PairRefusal>> {
-    demanded(body, edge, edge_wedge(body, edge, band)?, witness)
+) -> Option<Result<geom_brep::MustCarryDescription<T>, geom_brep::WedgeRefusal>> {
+    edge_wedge_read(body, edge, band).map(|(_, description)| description)
 }
 
-/// What `verdict`, `edge`'s wedge, demands it store, witnessed at
-/// `witness` ([`edge_wedge_description`]).
-pub(crate) fn demanded<T: Decide>(
+/// [`edge_wedge`] with what it demands the edge store
+/// ([`edge_wedge_description`]), both off one walk.
+pub(crate) fn edge_wedge_read<T: Decide>(
     body: &Body<T>,
     edge: EdgeKey,
-    verdict: geom_brep::WedgeVerdict,
-    witness: geom_core::Point3<T>,
-) -> Option<Result<geom_brep::MustCarryDescription<T>, geom_brep::PairRefusal>> {
-    let curve = body.stored_curve(edge).ok()?;
-    let sides = crate::readback::edge_sides(body, edge).ok()?;
-    let lane = geom_brep::tangent_certificate_lane(
-        curve.carrier(),
-        body.get_surface(sides.plus.surface)?,
-        body.get_surface(sides.minus.surface)?,
-    );
-    let pair = geom_brep::SurfacePair::new(sides.plus.surface, sides.minus.surface);
-    Some(verdict.description(lane, pair, witness))
+    band: Band,
+) -> Option<(
+    geom_brep::WedgeVerdict,
+    Result<geom_brep::MustCarryDescription<T>, geom_brep::WedgeRefusal>,
+)> {
+    let read = walk_of(body, edge)?;
+    let verdict = verdict_of(body, &read, crate::edge_wedge_reach(body, edge)?, band);
+    let pair = geom_brep::SurfacePair::new(read.sides.plus.surface, read.sides.minus.surface);
+    Some((verdict, read.walk.description(verdict, pair)))
 }

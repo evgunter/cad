@@ -1429,8 +1429,8 @@ fn seam_bend(sagitta: f64) -> Result<(), BooleanError> {
     )
     .map(|_| ())
     .map_err(|refusal| match refusal {
-        super::super::ops::SeamRefusal::Undecided(reading, diag) => {
-            super::super::ops::seam_refusal(reading, diag)
+        super::super::ops::SeamRefusal::Undecided(escalation) => {
+            super::super::ops::seam_refusal(escalation)
         }
         mixed @ super::super::ops::SeamRefusal::Mixed(_) => {
             panic!("a resting cylinder reads smooth at every station, got {mixed:?}")

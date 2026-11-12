@@ -8,7 +8,7 @@
 //! interval verbatim (`topo::Body::restate_stored_edge`, or
 //! `describe_at_rest`).
 
-use geom_brep::{MustCarryDescription, PairRefusal};
+use geom_brep::{MustCarryDescription, WedgeRefusal};
 use geom_core::Decide;
 use topo::construction::Construct;
 use topo::{Body, EdgeKey, SurfaceKey};
@@ -29,7 +29,7 @@ use geom_core::Tol;
 /// G2 conventional join, a same-surface split: `κ_rel` at zero) rests as
 /// the pair it lies on (D3's transience fence), its scaffolding
 /// pushforward kept beside it as the authority record. In band is the
-/// typed error `sliver` builds from the rung that escalated, and stations
+/// typed error `sliver` builds from the escalation, and stations
 /// that disagree refuse [`RevolveError::SmoothJoinRefuted`]. Two planes
 /// at the π seam return the verdict that the two faces are one carrier.
 pub(super) fn upgrade_intersection<T: Decide + topo::AtRestPolicy>(
@@ -38,15 +38,15 @@ pub(super) fn upgrade_intersection<T: Decide + topo::AtRestPolicy>(
     s1: SurfaceKey,
     s2: SurfaceKey,
     band: geom_core::Band,
-    sliver: impl Fn(geom_brep::WedgeRung, geom_core::Indeterminate) -> RevolveError,
+    sliver: impl Fn(geom_brep::WedgeEscalation) -> RevolveError,
     tol: Tol,
 ) -> Result<Option<topo::SmoothAcross>, RevolveError> {
     let across = match body.dihedral_across(edge, [s1, s2], band)? {
         Ok(across) => across,
-        Err(PairRefusal::InBand(escalation)) => {
-            return Err(sliver(escalation.rung(), escalation.diag()));
+        Err(WedgeRefusal::InBand(escalation)) => {
+            return Err(sliver(escalation));
         }
-        Err(PairRefusal::Mixed(mixed)) => {
+        Err(WedgeRefusal::Mixed(mixed)) => {
             return Err(RevolveError::SmoothJoinRefuted { edge, mixed });
         }
     };

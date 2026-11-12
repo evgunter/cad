@@ -93,7 +93,7 @@ use geom::Curve3;
 use geom::Surface;
 use geom_brep::{
     EdgeCurveSpec, EdgeDescriptionSpec, MappedCurve, MappedSource, MustCarryDescription,
-    NewellError, PairRefusal, newell_plane,
+    NewellError, WedgeRefusal, newell_plane,
 };
 use geom_core::{
     Affine3, Band, BandError, Decide, Indeterminate, Margin, Point2, Point3, Real, Sign, Tol, Vec3,
@@ -399,16 +399,14 @@ pub enum ExtrudeError {
     /// certifiable as neither a corner nor a smooth join (D2's ratified
     /// text — a conventional description is not an escape hatch from
     /// ill-conditioned geometry), or, past the class, a corner's sign or
-    /// a smooth join's pairing, bend or end (its `reading`).
+    /// a smooth join's pairing, bend or end (its `escalation`'s rung).
     SliverJoin {
         /// Canonical index of the loop.
         loop_index: usize,
         /// Canonical index of the join vertex.
         vertex_index: usize,
-        /// The rung of the join's wedge that escalated.
-        reading: geom_brep::WedgeRung,
-        /// The classifier's diagnostic.
-        source: Indeterminate,
+        /// The join's wedge's escalation, whole.
+        escalation: geom_brep::WedgeEscalation,
     },
     /// The dihedral classification at a cap–wall rim edge escalated
     /// during the rim upgrade pass (module docs, step 6), or, on a rim
@@ -429,10 +427,8 @@ pub enum ExtrudeError {
         loop_index: usize,
         /// Canonical index of the rim's segment.
         segment_index: usize,
-        /// The rung of the rim's wedge that escalated.
-        reading: geom_brep::WedgeRung,
-        /// The classifier's diagnostic.
-        source: Indeterminate,
+        /// The rim's wedge's escalation, whole.
+        escalation: geom_brep::WedgeEscalation,
     },
     /// Two neighbouring stations of a strut's or a cap rim's whole wedge
     /// disagree ([`geom_brep::WedgeVerdict::Mixed`]): a corner beside a
@@ -544,22 +540,20 @@ impl ExtrudeError {
             Self::SliverJoin {
                 loop_index,
                 vertex_index,
-                reading,
-                source,
+                escalation,
             } => {
                 let join = format!("the wall join at loop {loop_index} vertex {vertex_index}");
-                swept::sliver_text(f, &join, *reading, source)
+                swept::sliver_text(f, &join, *escalation)
             }
             Self::SliverRim {
                 loop_index,
                 segment_index,
-                reading,
-                source,
+                escalation,
             } => {
                 let rim = format!(
                     "the rim where loop {loop_index} segment {segment_index}'s wall meets a cap"
                 );
-                swept::sliver_text(f, &rim, *reading, source)
+                swept::sliver_text(f, &rim, *escalation)
             }
             Self::SmoothJoinRefuted { edge, mixed } => write!(
                 f,
@@ -1227,28 +1221,25 @@ fn sweep_loop<T: Decide + topo::AtRestPolicy>(
         // stations that disagree refuse rather than store a description
         // no reading chose.
         let vertex_index = segs[j].chord.canonical_vertex;
-        let mid = qs[j] + w * T::from_f64(0.5);
-        let demanded =
-            topo::edge_wedge_description(body, strut.edge, mid, band).unwrap_or_else(|| {
-                unreachable!(
-                    "strut {:?} was minted with a certified line between two live walls",
-                    strut.edge
-                )
-            });
+        let demanded = topo::edge_wedge_description(body, strut.edge, band).unwrap_or_else(|| {
+            unreachable!(
+                "strut {:?} was minted with a certified line between two live walls",
+                strut.edge
+            )
+        });
         match demanded {
             Ok(MustCarryDescription::Intrinsic(description)) => {
                 body.restate_stored_edge(strut.edge, description, tol)?;
             }
             Ok(MustCarryDescription::Conventional) => body.describe_at_rest(strut.edge, tol)?,
-            Err(PairRefusal::InBand(escalation)) => {
+            Err(WedgeRefusal::InBand(escalation)) => {
                 return Err(ExtrudeError::SliverJoin {
                     loop_index,
                     vertex_index,
-                    reading: escalation.rung(),
-                    source: escalation.diag(),
+                    escalation,
                 });
             }
-            Err(PairRefusal::Mixed(mixed)) => {
+            Err(WedgeRefusal::Mixed(mixed)) => {
                 return Err(ExtrudeError::SmoothJoinRefuted {
                     edge: strut.edge,
                     mixed,
@@ -1489,14 +1480,7 @@ fn upgrade_rim<T: Decide + topo::AtRestPolicy>(
     band: Band,
     tol: Tol,
 ) -> Result<(), ExtrudeError> {
-    let stored = body.stored_curve(edge).map_err(|e| match e {
-        EulerOpError::Argument(_) => {
-            unreachable!("rim {edge:?} was minted by this extrude and is live")
-        }
-        e => e,
-    })?;
-    let witness = stored.mid_point();
-    let demanded = topo::edge_wedge_description(body, edge, witness, band).unwrap_or_else(|| {
+    let demanded = topo::edge_wedge_description(body, edge, band).unwrap_or_else(|| {
         unreachable!("rim {edge:?} was minted by this extrude with a certified carrier")
     });
     match demanded {
@@ -1504,15 +1488,14 @@ fn upgrade_rim<T: Decide + topo::AtRestPolicy>(
             body.restate_stored_edge(edge, description, tol)?;
         }
         Ok(MustCarryDescription::Conventional) => body.describe_at_rest(edge, tol)?,
-        Err(PairRefusal::InBand(escalation)) => {
+        Err(WedgeRefusal::InBand(escalation)) => {
             return Err(ExtrudeError::SliverRim {
                 loop_index,
                 segment_index,
-                reading: escalation.rung(),
-                source: escalation.diag(),
+                escalation,
             });
         }
-        Err(PairRefusal::Mixed(mixed)) => {
+        Err(WedgeRefusal::Mixed(mixed)) => {
             return Err(ExtrudeError::SmoothJoinRefuted { edge, mixed });
         }
     }
@@ -1563,20 +1546,18 @@ mod tests {
     fn a_must_carry_escalation_ends_by_the_reading_that_raised_it() {
         use crate::swept::must_carry_fixtures::{arm, second_order, wedge};
         for (escalation, bend) in [(arm(), false), (wedge(), false), (second_order(), true)] {
-            let (reading, source) = (escalation.rung(), escalation.diag());
+            let escalation = escalation.escalation();
             for text in [
                 ExtrudeError::SliverJoin {
                     loop_index: 0,
                     vertex_index: 1,
-                    reading,
-                    source,
+                    escalation,
                 }
                 .render(geom_brep::recourse::Reading::Build),
                 ExtrudeError::SliverRim {
                     loop_index: 0,
                     segment_index: 1,
-                    reading,
-                    source,
+                    escalation,
                 }
                 .render(geom_brep::recourse::Reading::Build),
             ] {

@@ -1989,8 +1989,10 @@ fn extrude() -> Vec<(String, NodeErrorKind)> {
             E::SliverJoin {
                 loop_index: 0,
                 vertex_index: 3,
-                reading: geom_brep::WedgeRung::Wedge,
-                source: named("dihedral_wedge"),
+                escalation: geom_brep::WedgeEscalation::at(
+                    geom_brep::WedgeRung::Wedge,
+                    named("dihedral_wedge"),
+                ),
             },
         ),
         (
@@ -1998,8 +2000,10 @@ fn extrude() -> Vec<(String, NodeErrorKind)> {
             E::SliverJoin {
                 loop_index: 0,
                 vertex_index: 3,
-                reading: geom_brep::WedgeRung::Bend,
-                source: named("tangent_second_order"),
+                escalation: geom_brep::WedgeEscalation::at(
+                    geom_brep::WedgeRung::Bend,
+                    named("tangent_second_order"),
+                ),
             },
         ),
         (
@@ -2007,8 +2011,10 @@ fn extrude() -> Vec<(String, NodeErrorKind)> {
             E::SliverRim {
                 loop_index: 0,
                 segment_index: 3,
-                reading: geom_brep::WedgeRung::Wedge,
-                source: named("dihedral_wedge"),
+                escalation: geom_brep::WedgeEscalation::at(
+                    geom_brep::WedgeRung::Wedge,
+                    named("dihedral_wedge"),
+                ),
             },
         ),
         (
@@ -2016,8 +2022,10 @@ fn extrude() -> Vec<(String, NodeErrorKind)> {
             E::SliverRim {
                 loop_index: 0,
                 segment_index: 3,
-                reading: geom_brep::WedgeRung::Bend,
-                source: named("tangent_second_order"),
+                escalation: geom_brep::WedgeEscalation::at(
+                    geom_brep::WedgeRung::Bend,
+                    named("tangent_second_order"),
+                ),
             },
         ),
         (
@@ -2163,8 +2171,10 @@ fn revolve_arms() -> Vec<(&'static str, sweep::RevolveError)> {
             E::SliverJoin {
                 loop_index: 0,
                 vertex_index: 3,
-                reading: geom_brep::WedgeRung::Wedge,
-                source: named("dihedral_wedge"),
+                escalation: geom_brep::WedgeEscalation::at(
+                    geom_brep::WedgeRung::Wedge,
+                    named("dihedral_wedge"),
+                ),
             },
         ),
         (
@@ -2172,8 +2182,10 @@ fn revolve_arms() -> Vec<(&'static str, sweep::RevolveError)> {
             E::SliverJoin {
                 loop_index: 0,
                 vertex_index: 3,
-                reading: geom_brep::WedgeRung::Bend,
-                source: named("tangent_second_order"),
+                escalation: geom_brep::WedgeEscalation::at(
+                    geom_brep::WedgeRung::Bend,
+                    named("tangent_second_order"),
+                ),
             },
         ),
         (
@@ -2181,8 +2193,10 @@ fn revolve_arms() -> Vec<(&'static str, sweep::RevolveError)> {
             E::SliverRim {
                 loop_index: 0,
                 segment_index: 3,
-                reading: geom_brep::WedgeRung::Wedge,
-                source: named("dihedral_wedge"),
+                escalation: geom_brep::WedgeEscalation::at(
+                    geom_brep::WedgeRung::Wedge,
+                    named("dihedral_wedge"),
+                ),
             },
         ),
         (
@@ -2190,8 +2204,10 @@ fn revolve_arms() -> Vec<(&'static str, sweep::RevolveError)> {
             E::SliverRim {
                 loop_index: 0,
                 segment_index: 3,
-                reading: geom_brep::WedgeRung::Bend,
-                source: named("tangent_second_order"),
+                escalation: geom_brep::WedgeEscalation::at(
+                    geom_brep::WedgeRung::Bend,
+                    named("tangent_second_order"),
+                ),
             },
         ),
         (

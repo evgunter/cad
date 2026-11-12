@@ -374,17 +374,12 @@ impl BlendDecision {
 
     /// The contact-edge decision the rung a must-carry station escalated
     /// at asks: the first-order arm or wedge, or the second-order
-    /// separation. The rule asks no sign, pairing or end.
-    pub(crate) fn of_contact(rung: geom_brep::WedgeRung) -> Self {
+    /// separation.
+    pub(crate) const fn of_contact(rung: geom_brep::MustCarryRung) -> Self {
         match rung {
-            geom_brep::WedgeRung::Arm => Self::ContactArm,
-            geom_brep::WedgeRung::Wedge => Self::ContactWedge,
-            geom_brep::WedgeRung::Bend => Self::ContactSecondOrder,
-            geom_brep::WedgeRung::Sign
-            | geom_brep::WedgeRung::Pairing
-            | geom_brep::WedgeRung::End => {
-                unreachable!("the must-carry rule raises the arm, the wedge and the bend")
-            }
+            geom_brep::MustCarryRung::Arm => Self::ContactArm,
+            geom_brep::MustCarryRung::Wedge => Self::ContactWedge,
+            geom_brep::MustCarryRung::Bend => Self::ContactSecondOrder,
         }
     }
 

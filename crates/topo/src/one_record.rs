@@ -216,9 +216,8 @@ impl<T: Decide> Body<T> {
     /// ([`crate::edge_wedge_description`]), the reading a sweep takes at
     /// an edge it wrote. Two planes at the π seam come back with the
     /// verdict that its two faces are one carrier ([`SmoothAcross`]), on
-    /// the wedge decision's margin at the carrier's middle: two planes'
-    /// normals are constant along their line, so every station decides
-    /// on that margin.
+    /// the margin the fold decided the first station's class smooth on
+    /// (`geom_brep::WedgeVerdict::Seam`).
     ///
     /// # Errors
     ///
@@ -231,8 +230,8 @@ impl<T: Decide> Body<T> {
         edge: crate::entity::EdgeKey,
         surfaces: [SurfaceKey; 2],
         band: geom_core::Band,
-    ) -> Result<Result<DihedralAcross<T>, geom_brep::PairRefusal>, EulerOpError> {
-        let curve = self.stored_curve(edge)?;
+    ) -> Result<Result<DihedralAcross<T>, geom_brep::WedgeRefusal>, EulerOpError> {
+        self.stored_curve(edge)?;
         let stale = || {
             EulerOpError::Argument(crate::euler::BadArgument::Stale {
                 role: "surfaces",
@@ -253,9 +252,8 @@ impl<T: Decide> Body<T> {
         }
         let surface = |s: SurfaceKey| self.get_surface(s).ok_or_else(stale);
         let (s1, s2) = (surface(surfaces[0])?, surface(surfaces[1])?);
-        let verdict = crate::edge_wedge(self, edge, band).ok_or_else(stale)?;
-        let description = crate::edge_wedge::demanded(self, edge, verdict, curve.mid_point())
-            .ok_or_else(stale)?;
+        let (verdict, description) =
+            crate::edge_wedge::edge_wedge_read(self, edge, band).ok_or_else(stale)?;
         let description = match description {
             Ok(description) => description,
             Err(refusal) => return Ok(Err(refusal)),
@@ -264,19 +262,16 @@ impl<T: Decide> Body<T> {
             (s1, s2),
             (geom::Surface::Plane { .. }, geom::Surface::Plane { .. })
         );
-        let one_carrier = if planes && matches!(verdict, geom_brep::WedgeVerdict::Seam { .. }) {
-            let reach =
-                crate::wedge_reach::wedge_reach(self, sides, curve.carrier(), curve.params());
-            match geom_brep::classify_dihedral_reported(s1, s2, curve.mid_point(), reach, band) {
-                Ok((_, margin)) => Some(SmoothAcross {
-                    edge,
-                    faces: [f1, f2],
-                    margin,
-                }),
-                Err(escalation) => return Ok(Err(geom_brep::PairRefusal::InBand(escalation))),
-            }
-        } else {
-            None
+        let one_carrier = match verdict {
+            geom_brep::WedgeVerdict::Seam {
+                margin: Some(margin),
+                ..
+            } if planes => Some(SmoothAcross {
+                edge,
+                faces: [f1, f2],
+                margin,
+            }),
+            _ => None,
         };
         Ok(Ok(DihedralAcross {
             description,

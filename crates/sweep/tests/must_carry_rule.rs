@@ -60,7 +60,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom::{Curve3, Surface};
-use geom_brep::{EdgeDescription, MustCarryVerdict, WedgeRung, must_carry_over_edge};
+use geom_brep::{EdgeDescription, MustCarryRung, MustCarryVerdict, must_carry_over_edge};
 use geom_core::{Band, ErrorTextReading, Point2, Point3, Tol, Vec2, Vec3};
 use profile::{
     EscalationSite, Profile, ProfileError, SegmentRef, SketchPlane, ValidatedProfile,
@@ -413,12 +413,11 @@ fn a_revolve_latitude_join_with_a_definite_zero_margin_stores_the_conventional_d
 #[test]
 fn a_revolve_latitude_join_with_an_in_band_margin_refuses_typed() {
     match bored_ring(free_length_for(in_band_margin())) {
-        Err(sweep::RevolveError::SliverJoin {
-            reading, source, ..
-        }) => {
+        Err(sweep::RevolveError::SliverJoin { escalation, .. }) => {
+            let source = escalation.diag();
             assert_eq!(
-                reading,
-                WedgeRung::Bend,
+                escalation.rung(),
+                geom_brep::WedgeRung::Bend,
                 "the latitude join's in-band station is the second-order bend's"
             );
             assert_in_band_payload(source);
@@ -643,7 +642,7 @@ fn the_rule_answers_one_pair_the_same_way_in_both_surface_orders() {
             MustCarryVerdict::InBand(escalation) => {
                 assert_eq!(
                     escalation.rung(),
-                    WedgeRung::Wedge,
+                    MustCarryRung::Wedge,
                     "{order}: the sliver is the wedge's rung, not the arm's"
                 );
                 assert_eq!(
@@ -699,7 +698,7 @@ fn a_tangency_over_a_collapsed_arm_escalates_at_the_arm_in_both_orders() {
             };
             assert_eq!(
                 escalation.rung(),
-                WedgeRung::Arm,
+                MustCarryRung::Arm,
                 "{order}, extent {extent:e}: a collapsed arm escalates at the arm rung"
             );
             let source = escalation.diag();

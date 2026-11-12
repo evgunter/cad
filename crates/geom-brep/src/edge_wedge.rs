@@ -32,7 +32,7 @@ use geom_core::{Band, Decide, Margin, Real};
 
 use crate::dihedral::{
     Convexity, Dihedral, JetStation, MaterialPairing, MixedStations, SecondOrderWalk, Station,
-    StationHook, Tangency, WedgeEnd, WedgeEscalation, WedgeRung, classify_dihedral, decide_nonzero,
+    StationHook, Tangency, WedgeEnd, WedgeEscalation, WedgeRung, classify_levered, decide_nonzero,
     interior_stations, material_kappa_rel, second_order_walk,
 };
 
@@ -79,6 +79,10 @@ pub enum WedgeVerdict {
     Seam {
         /// Whether the surfaces determine the locus along the edge.
         bend: Bend,
+        /// The margin the first station's class was decided smooth on;
+        /// `None` where the seam is read by the faces' identity, with no
+        /// margin read (`topo`'s one-surface seam).
+        margin: Option<geom_core::MarginDiag>,
     },
     /// Tangent at every station with the outward normals opposed and the
     /// jets separating at every station: one end of the wedge range,
@@ -94,47 +98,14 @@ pub enum WedgeVerdict {
     InBand(WedgeEscalation),
 }
 
-impl WedgeVerdict {
-    /// **What the edge stores, by its wedge** (D2's prefer-intrinsic):
-    /// a crease is the pair's `Intersection` and a tangency the
-    /// must-carry rule's description, intrinsic where the bend is
-    /// jet-determinate and the pair is inside `lane`
-    /// ([`crate::tangent_certificate_lane`] over the edge's carrier), and
-    /// conventional otherwise. `pair` names the edge's two surfaces and
-    /// `witness` is a point of its carrier. The material verdict of a
-    /// tangency (the seam, an end, the lamina) is tier 3's to judge, so a
-    /// constructor stores each by its bend alone.
-    ///
-    /// # Errors
-    ///
-    /// [`crate::PairRefusal`] on an in-band or mixed verdict.
-    pub fn description<T: Real>(
-        self,
-        lane: bool,
-        pair: crate::SurfacePair,
-        witness: geom_core::Point3<T>,
-    ) -> Result<crate::MustCarryDescription<T>, crate::PairRefusal> {
-        use crate::MustCarryDescription as D;
-        match self {
-            Self::Crease(_) => Ok(D::Intrinsic(crate::EdgeDescriptionSpec::Intersection {
-                pair,
-                selector: crate::CurveSelector::Witness(witness),
-            })),
-            Self::Seam {
-                bend: Bend::Determinate,
-            }
-            | Self::End(_)
-                if lane =>
-            {
-                Ok(D::Intrinsic(
-                    crate::EdgeDescriptionSpec::TangentIntersection { pair, witness },
-                ))
-            }
-            Self::Seam { .. } | Self::End(_) | Self::Lamina => Ok(D::Conventional),
-            Self::Mixed(stations) => Err(crate::PairRefusal::Mixed(stations)),
-            Self::InBand(escalation) => Err(crate::PairRefusal::InBand(escalation)),
-        }
-    }
+/// Why an edge's wedge read whole demands no description
+/// ([`WedgeWalk::description`]).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum WedgeRefusal {
+    /// A decision at a station escalated.
+    InBand(WedgeEscalation),
+    /// Neighbouring stations disagree ([`MixedStations`]).
+    Mixed(MixedStations),
 }
 
 /// **The faces and stations of one wedge read, built together**, so the
@@ -145,6 +116,9 @@ impl WedgeVerdict {
 pub struct WedgeWalk<'a, T: Real> {
     plus: crate::SideFace<'a, T>,
     minus: crate::SideFace<'a, T>,
+    /// The curve the stations lie on, and the span they are read over.
+    carrier: &'a geom::Curve3<T>,
+    span: (T, T),
     first: (u32, Station<T>),
     rest: Vec<(u32, Station<T>)>,
 }
@@ -160,19 +134,20 @@ impl<'a, T: Decide> WedgeWalk<'a, T> {
     pub fn along_edge(
         plus: crate::SideFace<'a, T>,
         minus: crate::SideFace<'a, T>,
-        carrier: &geom::Curve3<T>,
+        carrier: &'a geom::Curve3<T>,
         t0: T,
         t1: T,
     ) -> Self {
-        let first = (1, Station::on(carrier, crate::sample_param(t0, t1, 1)));
-        let rest = interior_stations(carrier, t0, t1)
-            .zip(1_u32..)
-            .skip(1)
-            .map(|(station, i)| (i, station))
-            .collect();
+        let mut stations = interior_stations(carrier, t0, t1);
+        let Some(first) = stations.next() else {
+            unreachable!("the certification schedule has an interior")
+        };
+        let rest = stations.collect();
         Self {
             plus,
             minus,
+            carrier,
+            span: (t0, t1),
             first,
             rest,
         }
@@ -188,7 +163,7 @@ impl<'a, T: Decide> WedgeWalk<'a, T> {
     pub fn around_circle(
         plus: crate::SideFace<'a, T>,
         minus: crate::SideFace<'a, T>,
-        circle: &geom::Curve3<T>,
+        circle: &'a geom::Curve3<T>,
         n: core::num::NonZeroU32,
     ) -> Self {
         let phase = |i: u32| {
@@ -198,6 +173,8 @@ impl<'a, T: Decide> WedgeWalk<'a, T> {
         Self {
             plus,
             minus,
+            carrier: circle,
+            span: (T::from_f64(0.0), T::from_f64(core::f64::consts::TAU)),
             first: (0, phase(0)),
             rest: (1..n.get()).map(|i| (i, phase(i))).collect(),
         }
@@ -206,6 +183,42 @@ impl<'a, T: Decide> WedgeWalk<'a, T> {
     /// The stations in schedule order, each with its sample.
     fn stations(&self) -> impl Iterator<Item = (u32, Station<T>)> + '_ {
         core::iter::once(self.first).chain(self.rest.iter().copied())
+    }
+
+    /// **What the walked edge stores, by its wedge** (D2's
+    /// prefer-intrinsic), `verdict` being [`edge_wedge_over`]'s over this
+    /// walk: a crease is the pair's `Intersection` and a tangency the
+    /// must-carry rule's description, intrinsic where the bend is
+    /// jet-determinate and the pair inside the certificate's lane over
+    /// the walk's carrier, conventional otherwise. `pair` names the
+    /// walk's two surfaces; the witness is the carrier's middle over the
+    /// walk's span. A settled tangency (the seam, an end, the lamina) is
+    /// stored by its bend, and its material verdict is tier 3's to judge;
+    /// a tangency the fold could not settle, its pairing or end in band
+    /// or mixed between stations, is refused like any other.
+    ///
+    /// # Errors
+    ///
+    /// [`WedgeRefusal`] on an in-band or mixed verdict.
+    pub fn description(
+        &self,
+        verdict: WedgeVerdict,
+        pair: crate::SurfacePair,
+    ) -> Result<crate::MustCarryDescription<T>, WedgeRefusal> {
+        use crate::dihedral::Settled;
+        let bend = match verdict {
+            WedgeVerdict::Crease(_) => None,
+            WedgeVerdict::Seam { bend, .. } => Some(bend),
+            WedgeVerdict::End(_) => Some(Bend::Determinate),
+            WedgeVerdict::Lamina => Some(Bend::UnderDetermined),
+            WedgeVerdict::Mixed(stations) => return Err(WedgeRefusal::Mixed(stations)),
+            WedgeVerdict::InBand(escalation) => return Err(WedgeRefusal::InBand(escalation)),
+        };
+        let settled = bend.map_or(Settled::Corner, |bend| {
+            Settled::tangency(bend, self.carrier, self.plus.surface, self.minus.surface)
+        });
+        let (t0, t1) = self.span;
+        Ok(settled.description(pair, self.carrier.mid_point(t0, t1)))
     }
 }
 
@@ -236,13 +249,19 @@ pub fn edge_wedge_over<T: Decide>(
     let senses = [plus.sense, minus.sense];
     let classes = match class_pass(plus.surface, minus.surface, walk.stations(), reach, band) {
         Ok(classes) => classes,
-        Err(escalation) => return WedgeVerdict::InBand(escalation),
+        Err((i, escalation)) => {
+            return WedgeVerdict::InBand(WedgeEscalation::from(escalation).at_station(i));
+        }
     };
+    let margin = classes.first().map(|read| read.margin);
     let reads: Result<Vec<_>, WedgeEscalation> = classes
         .into_iter()
-        .map(|(i, station, dihedral)| match dihedral {
-            Dihedral::Corner(c) => Ok((i, Read::Corner(c.convexity(&station, senses, band)?))),
-            Dihedral::Tangent(t) => Ok((i, Read::Tangent(station, t))),
+        .map(|read| match read.dihedral {
+            Dihedral::Corner(c) => c
+                .convexity(&read.station, senses, band)
+                .map(|sign| (read.sample, Read::Corner(sign)))
+                .map_err(|e| e.at_station(read.sample)),
+            Dihedral::Tangent(t) => Ok((read.sample, Read::Tangent(read.station, t))),
         })
         .collect();
     let reads = match reads {
@@ -290,27 +309,44 @@ pub fn edge_wedge_over<T: Decide>(
         }
         SecondOrderWalk::Stopped(escalation) => return WedgeVerdict::InBand(escalation),
     };
-    material_outcome(&reads.pairings, bend, &reads.ends)
+    material_outcome(&reads.pairings, bend, &reads.ends, margin)
 }
 
-/// One station's class read: its sample, the station, and the token.
-pub(crate) type ClassRead<T> = (u32, Station<T>, Dihedral<T>);
+/// One station's class read.
+pub(crate) struct ClassRead<T: Real> {
+    /// The station's schedule sample.
+    pub(crate) sample: u32,
+    /// The station.
+    pub(crate) station: Station<T>,
+    /// Its class's token.
+    pub(crate) dihedral: Dihedral<T>,
+    /// The margin the class was decided on.
+    pub(crate) margin: geom_core::MarginDiag,
+}
 
-/// **The class pass**: [`classify_dihedral`] at every station, in
-/// schedule order, each station with its sample; the first escalation
-/// is the pass's. The one first-order loop of the fold and of the
+/// **The class pass**: [`crate::classify_dihedral`] at every station, in
+/// schedule order; the first escalation is the pass's, with its
+/// station's sample. The one first-order loop of the fold and of the
 /// must-carry rule over an edge ([`crate::must_carry_over_edge`]), so
-/// the two read one class at one schedule.
+/// the two read one class at one schedule. Its escalation is the levered
+/// reading's, the arm or the wedge, the only rungs a class raises.
 pub(crate) fn class_pass<T: Decide>(
     s1: &geom::Surface<T>,
     s2: &geom::Surface<T>,
     stations: impl Iterator<Item = (u32, Station<T>)>,
     reach: geom_core::Lever<T>,
     band: Band,
-) -> Result<Vec<ClassRead<T>>, WedgeEscalation> {
+) -> Result<Vec<ClassRead<T>>, (u32, crate::LeverEscalation)> {
     stations
-        .map(|(i, station)| {
-            classify_dihedral(s1, s2, station.point(), reach, band).map(|d| (i, station, d))
+        .map(|(sample, station)| {
+            classify_levered(s1, s2, station.point(), reach, band)
+                .map(|(dihedral, margin)| ClassRead {
+                    sample,
+                    station,
+                    dihedral,
+                    margin,
+                })
+                .map_err(|e| (sample, e))
         })
         .collect()
 }
@@ -352,7 +388,7 @@ impl<T: Decide> StationHook<T> for MaterialReads {
     ) -> ControlFlow<WedgeEscalation> {
         match tangency.pairing(self.senses, self.band) {
             Ok(pairing) => self.pairings.push((i, pairing)),
-            Err(escalation) => return ControlFlow::Break(escalation),
+            Err(escalation) => return ControlFlow::Break(escalation.at_station(i)),
         }
         ControlFlow::Continue(())
     }
@@ -376,7 +412,9 @@ impl<T: Decide> StationHook<T> for MaterialReads {
             Ok(NonzeroSign::Positive) => WedgeEnd::Cusp,
             Ok(NonzeroSign::Negative) => WedgeEnd::Slit,
             Err(cause) => {
-                return ControlFlow::Break(WedgeEscalation::at(WedgeRung::End, cause));
+                return ControlFlow::Break(
+                    WedgeEscalation::at(WedgeRung::End, cause).at_station(i),
+                );
             }
         };
         self.ends.push((i, end));
@@ -397,12 +435,13 @@ pub(crate) fn material_outcome(
     pairings: &[(u32, MaterialPairing)],
     bend: Bend,
     ends: &[(u32, WedgeEnd)],
+    margin: Option<geom_core::MarginDiag>,
 ) -> WedgeVerdict {
     if let Some(mixed) = MixedStations::pairing(pairings) {
         return WedgeVerdict::Mixed(mixed);
     }
     match pairings.first() {
-        Some((_, MaterialPairing::Aligned)) => WedgeVerdict::Seam { bend },
+        Some((_, MaterialPairing::Aligned)) => WedgeVerdict::Seam { bend, margin },
         _ if bend == Bend::UnderDetermined => WedgeVerdict::Lamina,
         _ => match (MixedStations::end(ends), ends.first()) {
             (Some(mixed), _) => WedgeVerdict::Mixed(mixed),
@@ -429,7 +468,7 @@ pub fn zero_end_stop(band: Band) -> WedgeEscalation {
         u_ref: geom_core::Vec3::unit_x(),
     };
     let arm = geom_core::test_support::fixture_lever(1.0);
-    let Ok(Dihedral::Tangent(tangency)) = classify_dihedral(
+    let Ok(Dihedral::Tangent(tangency)) = crate::classify_dihedral(
         &floor,
         &floor,
         geom_core::Point3::new(0.0, 0.0, 0.0),
@@ -474,9 +513,20 @@ mod tests {
                 &[(1, Aligned), (2, Aligned)],
                 det,
                 &[(1, Cusp)],
-                V::Seam { bend: det },
+                V::Seam {
+                    bend: det,
+                    margin: None,
+                },
             ),
-            (&[(1, Aligned)], under, &[], V::Seam { bend: under }),
+            (
+                &[(1, Aligned)],
+                under,
+                &[],
+                V::Seam {
+                    bend: under,
+                    margin: None,
+                },
+            ),
             (
                 &[(1, Opposed), (2, Opposed)],
                 det,
@@ -510,7 +560,7 @@ mod tests {
         ];
         for (pairings, bend, ends, want) in rows {
             assert_eq!(
-                material_outcome(pairings, bend, ends),
+                material_outcome(pairings, bend, ends, None),
                 want,
                 "{pairings:?} {bend:?} {ends:?}"
             );
@@ -591,11 +641,16 @@ mod tests {
     fn coplanar_faces_read_the_seam_or_the_lamina_by_their_senses() {
         let floor = plane(Vec3::unit_z());
         let axis = line(0.0, 1.0);
-        assert_eq!(
-            read(face(&floor, true), face(&floor, true), &axis),
-            WedgeVerdict::Seam {
-                bend: Bend::UnderDetermined
-            }
+        let seam = read(face(&floor, true), face(&floor, true), &axis);
+        assert!(
+            matches!(
+                seam,
+                WedgeVerdict::Seam {
+                    bend: Bend::UnderDetermined,
+                    margin: Some(_)
+                }
+            ),
+            "the seam, under-determined, on its first station's margin: {seam:?}"
         );
         assert_eq!(
             read(face(&floor, true), face(&floor, false), &axis),
@@ -609,13 +664,8 @@ mod tests {
     #[test]
     fn the_walks_number_their_stations_by_their_schedules() {
         let floor = plane(Vec3::unit_z());
-        let edge = WedgeWalk::along_edge(
-            face(&floor, true),
-            face(&floor, true),
-            &line(0.0, 1.0),
-            0.0,
-            1.0,
-        );
+        let axis = line(0.0, 1.0);
+        let edge = WedgeWalk::along_edge(face(&floor, true), face(&floor, true), &axis, 0.0, 1.0);
         let samples: Vec<u32> = edge.stations().map(|(i, _)| i).collect();
         assert_eq!(samples, (1..crate::CERT_SAMPLES - 1).collect::<Vec<_>>());
         let circle = geom::Curve3::circle(

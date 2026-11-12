@@ -236,25 +236,28 @@ pub(crate) fn centre_on_material_side(canonical_turn: Sign) -> bool {
 pub(crate) fn sliver_text(
     f: &mut core::fmt::Formatter<'_>,
     what: &str,
-    reading: geom_brep::WedgeRung,
-    source: &Indeterminate,
+    escalation: geom_brep::WedgeEscalation,
 ) -> core::fmt::Result {
     use geom_brep::WedgeRung;
-    let question = match reading {
+    let source = &escalation.diag();
+    let at = escalation
+        .station()
+        .map_or_else(String::new, |i| format!(" at sample {i}"));
+    let question = match escalation.rung() {
         WedgeRung::Arm | WedgeRung::Wedge => {
             return write!(
                 f,
-                "{what} is neither a definite corner nor definitely smooth: {source}"
+                "{what} is neither a definite corner nor definitely smooth{at}: {source}"
             );
         }
-        WedgeRung::Sign => format!("whether the corner at {what} is convex or concave"),
+        WedgeRung::Sign => format!("whether the corner at {what} is convex or concave{at}"),
         WedgeRung::Pairing => {
-            format!("whether the material of the smooth faces at {what} lies on one side")
+            format!("whether the material of the smooth faces at {what} lies on one side{at}")
         }
         WedgeRung::Bend => {
             format!("whether the faces at {what} curve apart there or share their curvature")
         }
-        WedgeRung::End => format!("whether the faces at {what} close a cusp or a slit"),
+        WedgeRung::End => format!("whether the faces at {what} close a cusp or a slit{at}"),
     };
     write!(
         f,
@@ -1495,9 +1498,9 @@ mod tests {
     /// first-order arm and wedge each at its rung, read off the rule.
     #[test]
     fn the_must_carry_reading_keeps_which_question_escalated() {
-        use geom_brep::WedgeRung;
+        use geom_brep::MustCarryRung;
         use must_carry_fixtures::{arm, wedge};
-        for (escalation, want) in [(arm(), WedgeRung::Arm), (wedge(), WedgeRung::Wedge)] {
+        for (escalation, want) in [(arm(), MustCarryRung::Arm), (wedge(), MustCarryRung::Wedge)] {
             assert_eq!(escalation.rung(), want, "{escalation:?}");
         }
     }
@@ -1931,7 +1934,7 @@ mod tests {
 #[allow(clippy::expect_used, clippy::panic)]
 pub(crate) mod must_carry_fixtures {
     use geom::{Curve3, Surface};
-    use geom_brep::{MustCarryVerdict, WedgeEscalation, WedgeRung, must_carry_over_edge};
+    use geom_brep::{MustCarryEscalation, MustCarryRung, MustCarryVerdict, must_carry_over_edge};
     use geom_core::{Band, Indeterminate, MarginDiag, Point3, Tol, Vec3};
 
     fn band() -> Band {
@@ -1948,7 +1951,7 @@ pub(crate) mod must_carry_fixtures {
         s2: &Surface<f64>,
         line: &Curve3<f64>,
         extent: f64,
-    ) -> WedgeEscalation {
+    ) -> MustCarryEscalation {
         let reach = geom_core::test_support::fixture_lever(extent);
         match must_carry_over_edge(s1, s2, line, 0.0, extent, reach, band()) {
             MustCarryVerdict::InBand(escalation) => escalation,
@@ -1958,7 +1961,7 @@ pub(crate) mod must_carry_fixtures {
 
     /// The first-order arm: a cylinder resting on a plane, over an
     /// extent in band.
-    pub(crate) fn arm() -> WedgeEscalation {
+    pub(crate) fn arm() -> MustCarryEscalation {
         let plane = Surface::Plane {
             origin: Point3::new(0.0, 0.0, 0.0),
             normal: Vec3::new(0.0, 1.0, 0.0),
@@ -1975,7 +1978,7 @@ pub(crate) mod must_carry_fixtures {
 
     /// The first-order wedge: two planes through the z axis at a sliver
     /// angle whose wedge over the extent is in band.
-    pub(crate) fn wedge() -> WedgeEscalation {
+    pub(crate) fn wedge() -> MustCarryEscalation {
         let extent = 0.25;
         let sin_theta = in_band() / extent;
         let cos_theta = (1.0 - sin_theta * sin_theta).sqrt();
@@ -1993,9 +1996,9 @@ pub(crate) mod must_carry_fixtures {
     }
 
     /// The second-order sagitta, in band.
-    pub(crate) fn second_order() -> WedgeEscalation {
-        WedgeEscalation::at(
-            WedgeRung::Bend,
+    pub(crate) fn second_order() -> MustCarryEscalation {
+        MustCarryEscalation::at(
+            MustCarryRung::Bend,
             Indeterminate {
                 margin: MarginDiag::value(in_band()),
                 band: band(),

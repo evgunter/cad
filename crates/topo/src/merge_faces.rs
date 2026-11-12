@@ -587,10 +587,8 @@ pub enum MergeCoplanarError {
         face: FaceKey,
         /// Its boundary edge.
         edge: EdgeKey,
-        /// The reading that could not decide.
-        reading: geom_brep::WedgeRung,
-        /// Its diagnostics.
-        diag: Indeterminate,
+        /// The must-carry rule's escalation, whole.
+        escalation: geom_brep::MustCarryEscalation,
     },
 }
 
@@ -671,8 +669,7 @@ pub(crate) enum DescribeRefusal {
     /// A reading of its two faces could not decide.
     Undecided {
         edge: EdgeKey,
-        reading: geom_brep::WedgeRung,
-        diag: Indeterminate,
+        escalation: geom_brep::MustCarryEscalation,
     },
     /// Its line chord reads within the band of one of its two faces'
     /// surfaces, and not clearly on it ([`edge_on_faces_reading`]).
@@ -847,14 +844,9 @@ impl DescribeRefusal {
 
     pub(crate) const fn undecided(
         edge: EdgeKey,
-        reading: geom_brep::WedgeRung,
-        diag: Indeterminate,
+        escalation: geom_brep::MustCarryEscalation,
     ) -> Self {
-        Self::Undecided {
-            edge,
-            reading,
-            diag,
-        }
+        Self::Undecided { edge, escalation }
     }
 
     const fn edge(&self) -> EdgeKey {
@@ -899,15 +891,10 @@ impl MergeCoplanarError {
                 cause,
                 fitted,
             },
-            DescribeRefusal::Undecided {
-                edge,
-                reading,
-                diag,
-            } => Self::KeptBoundaryUndecided {
+            DescribeRefusal::Undecided { edge, escalation } => Self::KeptBoundaryUndecided {
                 face,
                 edge,
-                reading,
-                diag,
+                escalation,
             },
             DescribeRefusal::OffFace { edge, diag } => {
                 Self::KeptBoundaryOffFace { face, edge, diag }
@@ -937,11 +924,8 @@ impl MergeCoplanarError {
                 fitted: *fitted,
             }),
             Self::KeptBoundaryUndecided {
-                edge,
-                reading,
-                diag,
-                ..
-            } => Some(DescribeRefusal::undecided(*edge, *reading, *diag)),
+                edge, escalation, ..
+            } => Some(DescribeRefusal::undecided(*edge, *escalation)),
             Self::KeptBoundaryOffFace { edge, diag, .. } => {
                 Some(DescribeRefusal::off_face(*edge, *diag))
             }
@@ -1240,36 +1224,22 @@ impl MergeCoplanarError {
             Self::KeptBoundaryUndecided {
                 face,
                 edge,
-                reading,
-                diag,
+                escalation,
             } => {
-                let (question, ending) = match reading {
-                    geom_brep::WedgeRung::Arm => (
+                let diag = &escalation.diag();
+                let (question, ending) = match escalation.rung() {
+                    geom_brep::MustCarryRung::Arm => (
                         concat!("whether the edge is ", geom_brep::dihedral_arm_clause!()),
                         at.map(|at| {
                             geom_brep::DIHEDRAL_ARM.recourse(RefusedArm::Undecided(diag), at)
                         }),
                     ),
-                    geom_brep::WedgeRung::Wedge => (
+                    geom_brep::MustCarryRung::Wedge => (
                         "whether the faces at it cross or meet smoothly",
                         Some(CROSS_OR_SMOOTH.to_owned()),
                     ),
-                    geom_brep::WedgeRung::Sign => (
-                        "whether the corner at it is convex or concave",
-                        Some(CROSS_OR_SMOOTH.to_owned()),
-                    ),
-                    geom_brep::WedgeRung::Pairing => (
-                        geom_brep::MATERIAL_PAIRING_CLAUSE,
-                        at.map(|at| {
-                            geom_brep::MATERIAL_PAIRING.recourse(RefusedArm::Undecided(diag), at)
-                        }),
-                    ),
-                    geom_brep::WedgeRung::Bend => (
+                    geom_brep::MustCarryRung::Bend => (
                         "whether the faces at it bend apart",
-                        Some(CROSS_OR_SMOOTH.to_owned()),
-                    ),
-                    geom_brep::WedgeRung::End => (
-                        "which end of the wedge its opposed faces close",
                         Some(CROSS_OR_SMOOTH.to_owned()),
                     ),
                 };

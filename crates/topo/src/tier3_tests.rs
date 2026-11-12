@@ -2421,7 +2421,7 @@ fn check_4_and_the_rim_read_the_wedge_through_the_one_fold() {
     scan(
         "src/validate.rs",
         &[
-            ("edge_wedge_over(", 1),
+            ("edge_wedge_over(", 0),
             ("WedgeWalk::along_edge(", 0),
             ("WedgeWalk::around_circle(", 0),
         ],
@@ -2466,7 +2466,7 @@ fn check_4_and_the_rim_read_the_wedge_through_the_one_fold() {
 /// moves both halves of a row together.
 #[test]
 fn the_must_carry_rule_and_tier_3_answer_one_family_through_one_walk() {
-    use geom_brep::{MustCarryVerdict, WedgeRung, must_carry_over_edge};
+    use geom_brep::{MustCarryRung, MustCarryVerdict, must_carry_over_edge};
     let tol = Tol::witness();
     let eps = tol.get().eps;
     let band = geom_core::Band::linear(tol).expect("the witness band");
@@ -2525,7 +2525,7 @@ fn the_must_carry_rule_and_tier_3_answer_one_family_through_one_walk() {
     assert!(
         matches!(
             rule(r2),
-            MustCarryVerdict::InBand(e) if e.rung() == WedgeRung::Bend
+            MustCarryVerdict::InBand(e) if e.rung() == MustCarryRung::Bend
                 && e.diag().predicate == Some("tangent_second_order")
         ),
         "in band: the rule escalates second-order: {:?}",
@@ -2720,12 +2720,14 @@ fn wedge_reading_table() {
         (
             V::Seam {
                 bend: Bend::Determinate,
+                margin: None,
             },
             M::Tangent,
         ),
         (
             V::Seam {
                 bend: Bend::UnderDetermined,
+                margin: None,
             },
             M::SmoothUnderdetermined,
         ),

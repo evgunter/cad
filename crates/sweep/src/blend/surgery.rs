@@ -5893,7 +5893,7 @@ fn attach_contact<T: Decide + Bounds + topo::AtRestPolicy>(
         // contradicting its own routing, announced rather than
         // repaired by storing a description the routing did not
         // choose.
-        let escalated = |escalation: geom_brep::WedgeEscalation| BlendError::Escalated {
+        let escalated = |escalation: geom_brep::MustCarryEscalation| BlendError::Escalated {
             site: BlendSite::Link { edge: link },
             decision: BlendDecision::of_contact(escalation.rung()),
             source: escalation.diag(),

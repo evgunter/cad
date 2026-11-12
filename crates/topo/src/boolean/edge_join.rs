@@ -1241,9 +1241,7 @@ fn joined_spec<T: Decide>(
     // The join's refusal of a pair or an image the rule refuses over
     // the joined span.
     let refused = |refusal| match refusal {
-        geom_brep::PairRefusal::InBand(escalation) => {
-            super::ops::seam_refusal(escalation.rung(), escalation.diag())
-        }
+        geom_brep::PairRefusal::InBand(escalation) => super::ops::seam_refusal(escalation),
         geom_brep::PairRefusal::Mixed(stations) => BooleanError::MixedSeam {
             edge: join.kept,
             stations: Some(stations),

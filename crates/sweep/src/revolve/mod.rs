@@ -696,29 +696,25 @@ pub enum RevolveError {
     /// of its whole-edge fold ([`topo::edge_wedge`]): a sliver dihedral,
     /// certifiable as neither a corner nor a smooth join (D2's ratified
     /// text), or, past the class, a corner's sign or a smooth join's
-    /// pairing, bend or end (its `reading`).
+    /// pairing, bend or end (its `escalation`'s rung).
     SliverJoin {
         /// Canonical index of the loop.
         loop_index: usize,
         /// Canonical index of the join vertex.
         vertex_index: usize,
-        /// The rung of the join's wedge that escalated.
-        reading: geom_brep::WedgeRung,
-        /// The classifier's diagnostic.
-        source: Indeterminate,
+        /// The join's wedge's escalation, whole.
+        escalation: geom_brep::WedgeEscalation,
     },
     /// The wedge of a cap–wall meridian rim (or a partial revolve's
     /// cap–cap axis edge) escalated during the upgrade pass, at the rung
-    /// its `reading` names.
+    /// its `escalation` names.
     SliverRim {
         /// Canonical index of the loop.
         loop_index: usize,
         /// Canonical index of the rim's segment.
         segment_index: usize,
-        /// The rung of the rim's wedge that escalated.
-        reading: geom_brep::WedgeRung,
-        /// The classifier's diagnostic.
-        source: Indeterminate,
+        /// The rim's wedge's escalation, whole.
+        escalation: geom_brep::WedgeEscalation,
     },
     /// Two neighbouring stations of a latitude join's or a cap rim's
     /// whole wedge disagree ([`geom_brep::WedgeVerdict::Mixed`]): a
@@ -1023,20 +1019,18 @@ impl RevolveError {
             Self::SliverJoin {
                 loop_index,
                 vertex_index,
-                reading,
-                source,
+                escalation,
             } => {
                 let join = format!("the join at loop {loop_index} vertex {vertex_index}");
-                crate::swept::sliver_text(f, &join, *reading, source)
+                crate::swept::sliver_text(f, &join, *escalation)
             }
             Self::SliverRim {
                 loop_index,
                 segment_index,
-                reading,
-                source,
+                escalation,
             } => {
                 let rim = format!("the cap rim at loop {loop_index} segment {segment_index}");
-                crate::swept::sliver_text(f, &rim, *reading, source)
+                crate::swept::sliver_text(f, &rim, *escalation)
             }
             Self::SmoothJoinRefuted { edge, mixed } => write!(
                 f,
@@ -1326,20 +1320,18 @@ mod tests {
     fn a_must_carry_escalation_ends_by_the_reading_that_raised_it() {
         use crate::swept::must_carry_fixtures::{arm, second_order, wedge};
         for (escalation, bend) in [(arm(), false), (wedge(), false), (second_order(), true)] {
-            let (reading, source) = (escalation.rung(), escalation.diag());
+            let escalation = escalation.escalation();
             for text in [
                 RevolveError::SliverJoin {
                     loop_index: 0,
                     vertex_index: 1,
-                    reading,
-                    source,
+                    escalation,
                 }
                 .render(geom_brep::recourse::Reading::Build),
                 RevolveError::SliverRim {
                     loop_index: 0,
                     segment_index: 1,
-                    reading,
-                    source,
+                    escalation,
                 }
                 .render(geom_brep::recourse::Reading::Build),
             ] {
