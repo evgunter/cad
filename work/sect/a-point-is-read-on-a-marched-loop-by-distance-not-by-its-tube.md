@@ -48,3 +48,15 @@ padded by the escalation band does, and in band otherwise. The foot is
 then read on the carrier as now. The marched component carries its
 boxes. Then measure what it moves: the germ join's site feet and the
 counted cross-check read `reads`.
+
+## The same class on a spline wall (sectarms, 2026-11-12)
+
+A fitted spline × implicit rim arc's pad is read the same way, and
+there it bit: two rim arcs whose pads reached across to each other read
+a site on both, and the join aborted `JoinDesync`
+(`work/sectarms/a-rim-arcs-pad-is-its-widest-certifying-rung.md`). The
+carry now holds every two fitted spline arcs apart by more than both
+pads and both bands, or refuses `CarryRefusal::PadsMeet`
+(`pair_section::spline_implicit::apart`). Marched loops are not held
+apart that way: two loops within a pad of each other still desync on a
+site between them.
