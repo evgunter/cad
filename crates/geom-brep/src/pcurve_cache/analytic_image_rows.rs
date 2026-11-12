@@ -1055,3 +1055,209 @@ fn an_iso_line_off_its_column_between_the_samples_ends_in_its_lever() {
         }
     }
 }
+
+/// Review 6857 probe: the pinned cone seed translated far out, correct
+/// and with a stated image bumped off its carrier along the ruling.
+/// A correct image certifies or ends in its lever, never a miss; a bump
+/// past the escalation never certifies.
+#[test]
+fn review_6857_cone_far_out_and_bumped() {
+    let base_apex = Point3::new(1.2322203379484655, 8.256594057242634, -7.770083324538339);
+    let knots = vec![
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.1448541102786573,
+        0.38149502320106765,
+        0.4138752100816112,
+        0.46603094511314475,
+        0.7183742614667262,
+        0.9279904547268244,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+    ];
+    let v = [
+        3.78504987258565,
+        5.549067600844245,
+        6.367562884966736,
+        6.785334441285725,
+        7.91473224335402,
+        8.866765782593482,
+        9.885385134220844,
+        10.652871665246401,
+        12.245560720605674,
+        13.501791563036706,
+    ];
+    let span = (0.09677920633227259, 0.6775887288383383);
+    let b = band();
+    let dir = Vec3::new(0.3, -0.5, 0.8).normalize();
+    for far in [0.0, 1e2, 1e3, 1e4] {
+        let surface = Surface::Cone {
+            apex: base_apex + dir * far,
+            axis: Vec3::new(0.703363688854479, -0.5626911754625069, -0.4343479737003985),
+            half_angle: 0.8623104825780505,
+            u_ref: Vec3::new(
+                -0.6624868025539791,
+                -0.7404071868429866,
+                -0.11361528996160745,
+            ),
+        };
+        let control: Vec<Point2<f64>> = v
+            .iter()
+            .map(|&v| Point2::new(2.87484430612695, v))
+            .collect();
+        let weights = vec![1.0; control.len()];
+        let kv = KnotVector::clamped(knots.clone(), 3).unwrap();
+        let net = NurbsCurve3::new(
+            kv.clone(),
+            control.iter().map(|p| surface.eval(p.x, p.y)).collect(),
+            weights.clone(),
+        )
+        .unwrap();
+        for bump in [
+            0.0,
+            1e-3,
+            1e3 * b.escalate(),
+            4.0 * b.escalate(),
+            0.25 * b.zero(),
+        ] {
+            let mut c2 = control.clone();
+            // Control 5's support covers the span's middle; bump along the ruling.
+            c2[5].y += bump;
+            let image = NurbsCurve2::new(kv.clone(), c2, weights.clone()).unwrap();
+            let stated = Image::General(Arc::new(image));
+            for door in DOORS {
+                let got = (door.certify)(&surface, &stated, &net, span);
+                let e = ended(&got);
+                eprintln!(
+                    "REV far {far:e} bump {bump:e} at {}: {e:?} {}",
+                    door.name,
+                    match &got {
+                        Err(err) => format!("{err:?}").chars().take(600).collect::<String>(),
+                        Ok(()) => String::new(),
+                    }
+                );
+                if bump == 0.0 {
+                    let lever = matches!(got, Err(CertifyError::Escalated { .. }));
+                    assert!(
+                        e == Ended::Certified || lever,
+                        "far {far:e} at {}: a correct image: {got:?}",
+                        door.name
+                    );
+                } else if bump > 2.0 * b.escalate() {
+                    assert!(
+                        e != Ended::Certified,
+                        "far {far:e} bump {bump:e} at {}: a miss past the escalation certified",
+                        door.name
+                    );
+                    assert!(
+                        e != Ended::Certified && e != Ended::Unsettled || e == Ended::Unsettled,
+                        "unreachable"
+                    );
+                }
+            }
+        }
+    }
+}
+
+/// Review 6857 probe: the stated route alone (no endpoint pins), the
+/// cone seed far out at Interval: the read's width, and a bump's ending.
+#[test]
+fn review_6857_stated_route_far_out_direct() {
+    let base_apex = Point3::new(1.2322203379484655, 8.256594057242634, -7.770083324538339);
+    let knots = vec![
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.1448541102786573,
+        0.38149502320106765,
+        0.4138752100816112,
+        0.46603094511314475,
+        0.7183742614667262,
+        0.9279904547268244,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+    ];
+    let v = [
+        3.78504987258565,
+        5.549067600844245,
+        6.367562884966736,
+        6.785334441285725,
+        7.91473224335402,
+        8.866765782593482,
+        9.885385134220844,
+        10.652871665246401,
+        12.245560720605674,
+        13.501791563036706,
+    ];
+    let span = (0.09677920633227259, 0.6775887288383383);
+    let dir = Vec3::new(0.3, -0.5, 0.8).normalize();
+    let c = Interval::from_f64;
+    for far in [0.0, 1e2, 1e3, 1e4] {
+        let surface = Surface::Cone {
+            apex: base_apex + dir * far,
+            axis: Vec3::new(0.703363688854479, -0.5626911754625069, -0.4343479737003985),
+            half_angle: 0.8623104825780505,
+            u_ref: Vec3::new(
+                -0.6624868025539791,
+                -0.7404071868429866,
+                -0.11361528996160745,
+            ),
+        };
+        let control: Vec<Point2<f64>> = v
+            .iter()
+            .map(|&v| Point2::new(2.87484430612695, v))
+            .collect();
+        let weights = vec![1.0; control.len()];
+        let kv = KnotVector::clamped(knots.clone(), 3).unwrap();
+        let net = NurbsCurve3::new(
+            kv.clone(),
+            control.iter().map(|p| surface.eval(p.x, p.y)).collect(),
+            weights.clone(),
+        )
+        .unwrap();
+        let surface_i = surface.map_scalar(c);
+        let carrier = Curve3::Nurbs(Arc::new(net.map_scalar(c)));
+        for eps in [1e-6, 1e-9, 1e-12] {
+            let b = geom_core::Band::linear_at(geom_core::Tol::witness(), eps).unwrap();
+            for bump in [0.0, 1e-3, 4.0 * b.escalate(), 1e3 * b.escalate()] {
+                let mut c2 = control.clone();
+                c2[5].y += bump;
+                let image = NurbsCurve2::new(kv.clone(), c2, weights.clone()).unwrap();
+                let pcurve = Pcurve::General(Arc::new(image.map_scalar(c)));
+                let got = super::PcurveCache::certify_stated_bound(
+                    super::stated::StatedDoor::of(&surface_i, &pcurve),
+                    super::stated::EdgeSpan {
+                        params: (c(span.0), c(span.1)),
+                        outer: span,
+                    },
+                    &carrier,
+                    &surface_i,
+                    b,
+                    crate::FittedLane::certified(),
+                );
+                let s = match &got {
+                    Ok(cert) => format!(
+                        "Ok max_residual hi {:e} envelope hi {:e}",
+                        geom_core::Bounds::hi(cert.max_residual),
+                        geom_core::Bounds::hi(cert.envelope)
+                    ),
+                    Err(e) => format!("{e:?}").chars().take(260).collect(),
+                };
+                eprintln!("REVD far {far:e} eps {eps:e} bump {bump:e}: {s}");
+                if bump > 0.0 {
+                    assert!(
+                        got.is_err(),
+                        "far {far:e} eps {eps:e} bump {bump:e}: a miss certified"
+                    );
+                }
+            }
+        }
+    }
+}
