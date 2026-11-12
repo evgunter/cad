@@ -39,6 +39,10 @@ stations removed all 333.
   (two sites), the fitted lane (`run_fitted_checks`), and the general,
   chart-foot and projected-hull lanes.
 - `pcurve_cache/projected.rs`: the projected envelope's cross-check.
+- `pcurve_cache/spline_incidence.rs` (the even schedule and the
+  carrier's own fractions): `carrier.eval(t0 + (t1 − t0)·f)` at the
+  scalar, which is the incidence read's station computed by hand, outside
+  `schedule_param`.
 
 These doors are `T: Decide` doors without `Bounds`, so they have no
 `f64` view of their ends to hold a station at. Either the callers pass
