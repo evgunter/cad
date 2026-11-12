@@ -348,7 +348,9 @@ fn pairs_among(
 /// **The section door**: the operation's section table
 /// ([`super::section_table::SectionTable`]), read over every cross pair
 /// of faces whose boxes overlap and whose kinds the section value builds
-/// ([`geom_brep::pair_section::serves`]) at the operation's band and
+/// by classification ([`geom_brep::pair_section::serves`]), or that are a
+/// spline wall and a partner with an implicit residual
+/// ([`geom_brep::SplineImplicitPose::of`]), at the operation's band and
 /// region, and the coincidences the join reads,
 /// per face pair of the two operands: each coincidence decided `Zero`
 /// that the pair's section stands on one row, read from the table, at
@@ -382,7 +384,18 @@ pub(crate) fn section_door<T: Decide + Bounds>(
         let face = body.proven_face(f);
         (face.record().surface, face.surface().clone())
     };
-    let read = |s: &geom::Surface<T>| geom_brep::pair_section::serves(s.kind());
+    // A face that is a side of a pair read here: a kind the value builds
+    // by classification, a spline wall, or a plane, which is read against
+    // a spline wall alone.
+    let read = |s: &geom::Surface<T>| {
+        geom_brep::pair_section::serves(s.kind())
+            || s.spline_chart().is_some()
+            || matches!(s, geom::Surface::Plane { .. })
+    };
+    let pair_read = |sa: &geom::Surface<T>, sb: &geom::Surface<T>| {
+        (geom_brep::pair_section::serves(sa.kind()) && geom_brep::pair_section::serves(sb.kind()))
+            || geom_brep::SplineImplicitPose::of(sa, sb).is_some()
+    };
     let row = |(fa, fb), relation, site, margin| crate::Coincidence {
         cells: [
             crate::RowCell::face(Operand::A, fa),
@@ -437,6 +450,9 @@ pub(crate) fn section_door<T: Decide + Bounds>(
     let mut rows = Vec::new();
     for (fa, fb) in pairs_among(&served(a, &a_boxes), &served(b, &b_boxes))? {
         let ((ka, sa), (kb, sb)) = (surface(a, fa), surface(b, fb));
+        if !pair_read(&sa, &sb) {
+            continue;
+        }
         // A refusal adds no row: where the faces meet, a later reading of
         // the pair refuses (`honeone/coaxiality-of-two-revolution-carriers-is-tested-five-ways`).
         let Some(Ok(section)) = table.read((ka, &sa), (kb, &sb)) else {

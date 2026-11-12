@@ -2495,11 +2495,11 @@ fn chord_spec<T: Decide>(
                 leave,
             ),
             JoinLane::Planar | JoinLane::Split(_) => Ok(None),
-            JoinLane::Carried(_) => Err(SplitJoinError::SectionInvariant {
-                face,
-                what: "a carried chord asked of a planar face (a carried section's faces are a \
-                       cylinder's and a sphere's)",
-            }),
+            // A plane against a spline wall: its chord is an arc of the
+            // carried component, as the wall's is.
+            JoinLane::Carried(ctx) => {
+                carried_chord_spec(body, band, face, ctx, (u1, u2), leave).map(Some)
+            }
             JoinLane::AlongEdge => Err(SplitJoinError::SectionInvariant {
                 face,
                 what: "a chord along an edge asked for a section: it copies the edge",

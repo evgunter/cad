@@ -82,9 +82,12 @@
 //! segment's own box, so the pad shrinks with the band. A branch no
 //! bracket fits carries no witness.
 //!
-//! The fitted carriers the reading certifies are not kept: no reader
-//! carries a plane × spline section ([`super::NoCarrier::SplineImplicitWhole`]), and a carried
-//! component's pad is a closeness bound a chart tube does not give.
+//! **A branch between two rim ends is carried as the reading fitted
+//! it** ([`super::ClassCarrier::Fitted`]): its certified carrier, its
+//! certificate, and its pad and reach in metres, each the chart tube's
+//! padded windows read through the wall's chart speeds ([`pad_of`]). A
+//! loop on the chart ([`super::NoCarrier::ChartLoop`]) and an arc to a
+//! node ([`super::NoCarrier::NodeArc`]) are listed with no carrier.
 //!
 //! A refusal maps by name: a tangency the reading reports (the march's
 //! transversality, a graze of a side, a side held tangent) is a pinch
@@ -528,6 +531,131 @@ impl Bracketed<'_> {
             f64::EPSILON * geom_core::interval::norm_sup(&[q.x, q.y, q.z]),
         )
     }
+}
+
+/// **A branch between two rim ends as the component it carries**
+/// (`ClassCarrier::Fitted`): its certified carrier over its span, its
+/// certificate, its witness `carrier(mid)`, and its pad and reach in
+/// metres ([`pad_of`]). It claims no winding: an open arc winds about
+/// neither surface.
+fn fitted(
+    b: &SsiBranch,
+    shape: ComponentShape,
+    net: &NurbsSurface<f64>,
+) -> Result<super::CarriedComponent<f64>, super::CarryError> {
+    let (pad, reach) = pad_of(b, net)?;
+    Ok(super::CarriedComponent {
+        carrier: b.carrier.clone(),
+        span: b.params,
+        shape,
+        certificate: Some(b.certificate.clone()),
+        winds: [false, false],
+        pad,
+        reach,
+        witness: b.witness,
+    })
+}
+
+/// **A chart-tubed branch's pad and reach in metres**
+/// ([`super::CarriedComponent::pad`], [`super::CarriedComponent::reach`]),
+/// the chart's per-axis pads read through the wall's chart speeds: each
+/// window of the certificate's chart tube (the pcurve's span hull padded
+/// by `pad_u` and `pad_v`, `ssi::certify::chart_tube_windows`) is imaged
+/// on the wall by its chart speeds (`NurbsBoxes::rect_box`: the
+/// midpoint's enclosure plus the window's half-widths times the
+/// certified partials over it), a box holding every point of the
+/// section the window holds.
+///
+/// - **The pad** is the farthest a point of any image box stands from
+///   the carrier over the window's span, each box halved as the ℝ³
+///   loop's is (`super::parts`) and read against the carrier's samples
+///   there (`super::farthest`). Limb 3 holds the section in the windows
+///   one arc, the branch's, and the reading's accounting banks every
+///   other cell of the wall's rectangle, so every point of the
+///   component lies within the pad of the carrier. The carrier's limb-2
+///   bound must lie within it too ([`super::CarryRefusal::PadShort`]).
+/// - **The reach** bounds the witness's distance from the component:
+///   the least, over the windows whose span holds the witness's
+///   parameter, of the farthest their image reaches from it.
+///
+/// # Errors
+///
+/// A desync where the certificate is not a chart tube or the branch
+/// carries no wall pcurve; [`super::CarryRefusal::TubeUnread`] where a
+/// window or carrier point does not read; and
+/// [`super::CarryRefusal::PadShort`].
+fn pad_of(b: &SsiBranch, net: &NurbsSurface<f64>) -> Result<(f64, f64), super::CarryError> {
+    use super::{CarryError, CarryRefusal, LoopTubeRefusal, PAD_SAMPLES, farthest, parts};
+    let (SsiTube::Chart { pad_u, pad_v, .. }, Some(pcurve)) =
+        (b.certificate.tube, b.pcurve_b.as_ref())
+    else {
+        return Err(CarryError::Desync(
+            "a spline × implicit branch holds no chart tube on the wall's pcurve",
+        ));
+    };
+    let unread = |why| CarryError::Refused(CarryRefusal::TubeUnread(why));
+    let windows = crate::ssi::certify::chart_tube_windows(pcurve, (pad_u, pad_v))
+        .ok_or(unread(LoopTubeRefusal::Uncertified))?;
+    if windows.is_empty() {
+        return Err(unread(LoopTubeRefusal::Empty));
+    }
+    let boxes = NurbsBoxes::new(net);
+    let lift = <Interval as Real>::from_computed;
+    let lifted = match &b.carrier {
+        geom::Curve3::Nurbs(curve) => curve.map_scalar(lift),
+        _ => {
+            return Err(CarryError::Desync(
+                "a spline × implicit branch's carrier is not a spline",
+            ));
+        }
+    };
+    let imaged: Vec<(Box3, (f64, f64))> = windows
+        .iter()
+        .map(|w| {
+            UvWindow::new(w.rect.u.0, w.rect.u.1, w.rect.v.0, w.rect.v.1)
+                .map(|uv| (boxes.rect_box(uv), w.ends))
+                .ok_or(unread(LoopTubeRefusal::NotFinite))
+        })
+        .collect::<Result<_, _>>()?;
+    let mut pad = 0.0f64;
+    for &(image, (lo, hi)) in &imaged {
+        #[allow(clippy::cast_precision_loss)]
+        let samples: Vec<Point3<Interval>> = (0..PAD_SAMPLES)
+            .map(|j| lifted.eval(lift(lo + (hi - lo) * j as f64 / (PAD_SAMPLES - 1) as f64)))
+            .collect();
+        for part in parts(image) {
+            let far = samples
+                .iter()
+                .map(|&p| farthest(part, p))
+                .fold(f64::INFINITY, f64::min);
+            if !far.is_finite() {
+                return Err(unread(LoopTubeRefusal::of(part, &samples)));
+            }
+            pad = pad.max(far);
+        }
+    }
+    let hull_sup = b.certificate.hull_sup;
+    if hull_sup.partial_cmp(&pad) == Some(core::cmp::Ordering::Greater) || hull_sup.is_nan() {
+        return Err(CarryError::Refused(CarryRefusal::PadShort { pad, hull_sup }));
+    }
+    let mid = geom::mid_param(b.params.0, b.params.1);
+    let witness = lifted.eval(lift(mid));
+    let reach = imaged
+        .iter()
+        .filter(|(_, (lo, hi))| *lo <= mid && mid <= *hi)
+        .map(|&(image, _)| farthest(image, witness))
+        .filter(|r| r.is_finite())
+        .fold(f64::INFINITY, f64::min);
+    if !reach.is_finite() {
+        return Err(unread(LoopTubeRefusal::of(
+            imaged
+                .iter()
+                .find(|(_, (lo, hi))| *lo <= mid && mid <= *hi)
+                .map_or(imaged[0].0, |&(image, _)| image),
+            core::slice::from_ref(&witness),
+        )));
+    }
+    Ok((pad, reach))
 }
 
 /// **A branch's witness and how far it may stand from its arc**: the
@@ -989,8 +1117,8 @@ const RAY_FLOOR: f64 = core::f64::consts::FRAC_1_SQRT_2;
 /// - each point a tangency decided Zero, and the arcs sharing nodes one
 ///   node-joined set ([`NodeSet`]).
 ///
-/// Carriers stay unminted: no component of a spline × implicit section
-/// is carried yet.
+/// - each branch between two rim ends carried as the reading fitted it
+///   ([`fitted`]); a loop and an arc to a node with no carrier.
 ///
 /// # Errors
 ///
@@ -1045,11 +1173,12 @@ fn listed(
     let mut at_node: Vec<Vec<(usize, bool, Vec3<f64>)>> = vec![Vec::new(); nodes.len()];
     let mut components = Vec::with_capacity(out.branches.len() + out.boundary.len());
     for b in out.branches {
-        let shape = match b.end {
-            BranchEnd::Closed => ComponentShape::Loop,
-            BranchEnd::Rim { from, to } => {
-                open(ChartReach::side(from.side).or(ChartReach::side(to.side)))
-            }
+        let (shape, minted) = match b.end {
+            BranchEnd::Closed => (ComponentShape::Loop, Err(super::NoCarrier::ChartLoop)),
+            BranchEnd::Rim { from, to } => (
+                open(ChartReach::side(from.side).or(ChartReach::side(to.side))),
+                Ok(()),
+            ),
             BranchEnd::Node { from, to } => {
                 for (tip, start) in [(from, true), (to, false)] {
                     let BranchTip::Node(n) = tip else {
@@ -1062,7 +1191,7 @@ fn listed(
                     let chord = b.carrier.eval(t) - nodes[n].point;
                     ends.push((components.len(), start, chord.normalize()));
                 }
-                open(side(from).or(side(to)))
+                (open(side(from).or(side(to))), Err(super::NoCarrier::NodeArc))
             }
             BranchEnd::Cut => {
                 return Err(SectionError::Unaccounted {
@@ -1073,12 +1202,16 @@ fn listed(
             }
         };
         let witness = witness(&b, pose.net(), partner);
+        let carrier = match minted {
+            Ok(()) => ClassCarrier::Fitted(Box::new(fitted(&b, shape, pose.net()))),
+            Err(why) => ClassCarrier::Unminted(why),
+        };
         components.push(SectionComponent {
             shape,
             winds: [false, false],
             witness: witness.map(|(q, _)| q),
             pad: witness.map_or(0.0, |(_, pad)| pad),
-            carrier: ClassCarrier::Unminted(super::NoCarrier::SplineImplicitWhole),
+            carrier,
             cut_ends: None,
         });
     }

@@ -63,6 +63,10 @@ use crate::live::proven;
 struct Held<T: Real> {
     read: Result<PairSection<T>, SectionError>,
     band: Band,
+    /// The section read whole where its classification reaches
+    /// ([`PairSection::read_whole`]), on the first read that needs its
+    /// list ([`SectionTable::listed`]).
+    whole: OnceCell<Result<PairSection<T>, SectionError>>,
     carried: OnceCell<Result<CarriedSection<T>, CarryError>>,
     /// Each carried component, seated on the first ask for it
     /// ([`SectionTable::seated`]).
@@ -166,16 +170,14 @@ impl<T: Real> Default for SectionTable<T> {
 
 impl<T: geom_core::Decide> SectionReader<T> {
     /// Reads surface `ka` of A against `kb` of B at the reader's band,
-    /// the band the pair is classified and carried at: the section on the
-    /// pair's first read, the held one after, at the same band. `None`
-    /// where the value does not build the kind pair. The glue door's
-    /// filter (`pair_section::serves`) keeps a spline out, against a plane
-    /// or another spline: read here, with no march door, a plane and a
-    /// spline would be the hull's where it decides the pose (apart,
-    /// coincident, or in band) and otherwise `SectionError::NoMarch`, and
-    /// two splines `NoMarch`, which the guard would read as R-lane
-    /// (`Section::NoLane`), with no shared row handed in. The guard
-    /// refuses a held spline pair rather than read it.
+    /// the band the pair is classified and carried at, through the
+    /// table's march door: the section on the pair's first read, the held
+    /// one after, at the same band. `None` where the value does not build
+    /// the kind pair. The glue door keeps two splines out
+    /// (`glue::section_door`): their section is read with the rows and
+    /// corners they share handed in, which the guard reads and the table
+    /// does not, and the guard refuses a held spline pair rather than
+    /// read it.
     pub(crate) fn read(
         &mut self,
         (ka, sa): (SurfaceKey, &geom::Surface<T>),
@@ -187,7 +189,8 @@ impl<T: geom_core::Decide> SectionReader<T> {
         match self.table.pairs.entry(PairKey { a: ka, b: kb }) {
             Entry::Occupied(held) => Some(&held.into_mut().read),
             Entry::Vacant(slot) => {
-                let read = match geom_brep::pair_section(sa, sb, region, None, band) {
+                let lane = self.table.lane;
+                let read = match geom_brep::pair_section(sa, sb, region, lane, band) {
                     Ok(geom_brep::SectionRead::Elsewhere(_)) => return None,
                     Ok(geom_brep::SectionRead::Built(section)) => Ok(section),
                     Err(e) => Err(e),
@@ -197,6 +200,7 @@ impl<T: geom_core::Decide> SectionReader<T> {
                         .insert(Held {
                             read,
                             band,
+                            whole: OnceCell::new(),
                             carried: OnceCell::new(),
                             seated: OnceCell::new(),
                         })
@@ -278,6 +282,31 @@ impl<T: geom_core::Decide> SectionTable<T> {
         self.entry(a, b).map(|h| &h.read)
     }
 
+    /// **The pair's section as it lists its components**: the held
+    /// section, or its whole reading where its classification reaches
+    /// ([`PairSection::read_whole`], through the table's march door), read
+    /// once for the operation: the one listing the guard reads
+    /// (`ops::pair_verdict`) and the carry carries. `None` where the table
+    /// holds no section for the pair; the section's own refusal, or the
+    /// whole reading's.
+    pub(crate) fn listed(
+        &self,
+        a: (&Body<T>, FaceKey),
+        b: (&Body<T>, FaceKey),
+    ) -> Option<&Result<PairSection<T>, SectionError>> {
+        let held = self.entry(a, b)?;
+        let Ok(section) = &held.read else {
+            return Some(&held.read);
+        };
+        if !matches!(section.components(), geom_brep::Components::Reaching(_)) {
+            return Some(&held.read);
+        }
+        Some(
+            held.whole
+                .get_or_init(|| section.read_whole(self.lane, held.band)),
+        )
+    }
+
     /// **The pair's section carried** ([`PairSection::carry`]), on the
     /// first read, at the band the pair was read at: `None` where the
     /// table holds no section for the pair, the section's own refusal
@@ -288,7 +317,7 @@ impl<T: geom_core::Decide> SectionTable<T> {
         b: (&Body<T>, FaceKey),
     ) -> Option<Result<&CarriedSection<T>, Uncarried<'_>>> {
         let held = self.entry(a, b)?;
-        let section = match &held.read {
+        let section = match self.listed(a, b)? {
             Ok(section) => section,
             Err(e) => return Some(Err(Uncarried::Section(e))),
         };

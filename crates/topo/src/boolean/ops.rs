@@ -1960,8 +1960,8 @@ fn pair_verdict<T: Decide + Bounds + crate::props::AtRestPolicy>(
     let held = sections.held((a, fa.face), (b, fb.face));
     // A spline pair is read here, with the rows and corners its faces
     // share handed in; the glue door's table never holds one
-    // (`geom_brep::pair_section::serves`), and one held would be read with
-    // no lane and none of them.
+    // (`glue::section_door`), and one held would be read with none of
+    // them.
     if held.is_some() && spline(&fa.surface) && spline(&fb.surface) {
         return Err(BooleanError::ClassificationInvariant {
             what: "the section table holds a spline pair, which the guard reads only with its \
@@ -1969,6 +1969,20 @@ fn pair_verdict<T: Decide + Bounds + crate::props::AtRestPolicy>(
         });
     }
     let section = match held {
+        // A spline wall against an implicit partner is read off its
+        // listing, the whole reading where its classification reaches, as
+        // an unheld one is (`section_cert::spline_implicit`): the table's,
+        // which the join carries.
+        Some(held) if spline(&fa.surface) || spline(&fb.surface) => {
+            of_pair_section(held, band, |_| {
+                match sections.listed((a, fa.face), (b, fb.face)) {
+                    Some(listed) => {
+                        of_pair_section(listed, band, |_| super::section_cert::Section::Unmarched)
+                    }
+                    None => super::section_cert::Section::Unmarched,
+                }
+            })
+        }
         Some(held) => of_pair_section(held, band, |_| {
             match sections.carried((a, fa.face), (b, fb.face)) {
                 Some(Ok(carried)) => of_carried(Ok(carried)),

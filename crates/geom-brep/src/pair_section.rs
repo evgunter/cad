@@ -929,6 +929,10 @@ pub enum ClassCarrier<T: Real> {
     },
     /// The general rung's: marched and fitted by [`PairSection::carry`].
     General,
+    /// Fitted and certified by the reading that listed it, a spline ×
+    /// implicit section's whole reading, which carries it as it is: the
+    /// component, or why it carries none.
+    Fitted(Box<Result<CarriedComponent<T>, CarryError>>),
     /// None mints: the component is classification data, for the reason
     /// given.
     Unminted(NoCarrier),
@@ -954,10 +958,11 @@ pub enum NoCarrier {
     /// A spline pair's section is a handed-in row, or leaves the domain at
     /// a handed-in corner.
     RowRegion,
-    /// A spline × implicit section is read whole for its certificate
-    /// alone, which carries none of its components: the glue door's table
-    /// never holds it, and no seat certifies against a wall's chart.
-    SplineImplicitWhole,
+    /// A spline × implicit arc ends at a node, and is not carried to it.
+    NodeArc,
+    /// A spline × implicit loop closes inside the wall's chart, and no
+    /// seat opens a loop certified on a chart.
+    ChartLoop,
     /// A spline pair's section is read whole for its certificate alone,
     /// which carries none of its components.
     SplinePairWhole,
@@ -988,9 +993,13 @@ impl NoCarrier {
                 "a Side or Corner region of a handed-in row or corner: the section there is the \
                  row, or leaves the domain at the corner, and no carrier is minted for it"
             }
-            Self::SplineImplicitWhole => {
-                "a spline × implicit section is read whole for the section certificate alone, \
-                 which carries none of its components"
+            Self::NodeArc => {
+                "an arc of a spline × implicit section ends at a node, and no arc is carried to \
+                 its node"
+            }
+            Self::ChartLoop => {
+                "a loop of a spline × implicit section closes inside the spline's chart, and no \
+                 seat opens a loop certified on a chart"
             }
             Self::SplinePairWhole => {
                 "a spline pair's section is read whole for the section certificate alone, which \
@@ -1003,22 +1012,24 @@ impl NoCarrier {
     /// tangency and an inner pinch are each a meeting the surfaces can be
     /// moved off, to cross or to part clearly; a spline × implicit touch,
     /// only to part.
-    /// A section read whole is a pair whose components the kernel does
-    /// not carry yet, and a section along a wall's side or a handed-in
-    /// row is one it mints no carrier for yet.
+    /// An arc to a node, a loop on a chart and a spline pair's section
+    /// are components the kernel does not carry yet, and a section along
+    /// a wall's side or a handed-in row is one it mints no carrier for
+    /// yet.
     #[must_use]
     pub const fn recourse(self) -> &'static str {
         match self {
             Self::Tangent | Self::Pinch => {
                 geom_core::move_recourse!("so the surfaces clearly cross or clearly part")
             }
-            // A spline × implicit pair that clearly crosses is not carried
-            // either (`SplineImplicitWhole`), so parting is the one way
-            // through.
+            // A touch moved to cross opens a loop on the wall's chart,
+            // which is not carried (`ChartLoop`), so parting is the one
+            // way through.
             Self::Touch => geom_core::move_recourse!("so the surfaces clearly part"),
             Self::WallRegion
             | Self::RowRegion
-            | Self::SplineImplicitWhole
+            | Self::NodeArc
+            | Self::ChartLoop
             | Self::SplinePairWhole => geom_core::NOT_YET_ENDING,
         }
     }
@@ -1709,8 +1720,11 @@ impl<T: Decide> PairSection<T> {
     /// **The section carried** (module docs): every component holding a
     /// carrier. Marched, the components are the march's closed branches,
     /// in the march's order. Counted, they are the classification's, in
-    /// its order: a closed form as classified, and the general rung's
-    /// marched, the march's branches matched to them ([`Self::matched`]).
+    /// its order: a closed form as classified, the general rung's
+    /// marched, the march's branches matched to them ([`Self::matched`]),
+    /// and a whole reading's as it fitted them ([`ClassCarrier::Fitted`]).
+    /// A section whose classification reaches is carried from its whole
+    /// reading ([`Self::read_whole`]), never from the classification.
     ///
     /// # Errors
     ///
@@ -1766,9 +1780,9 @@ impl<T: Decide> PairSection<T> {
                 band,
             )?,
             Components::Reaching(_) => {
-                return Err(CarryError::Refused(CarryRefusal::Unminted(
-                    NoCarrier::SplineImplicitWhole,
-                )));
+                return Err(CarryError::Desync(
+                    "a section whose classification reaches is carried from its whole reading",
+                ));
             }
             Components::Counted(listed) => {
                 for c in listed {
@@ -1782,7 +1796,16 @@ impl<T: Decide> PairSection<T> {
                 let fitted = if general { branches()? } else { Vec::new() };
                 let carried = Self::matched(listed, fitted, self.pose.cut(), band)?;
                 held_per_set(&self.node_sets, listed, &carried)?;
-                carried
+                // A reading's own carriers are distinct as the march's
+                // are: each witness on its component alone.
+                if listed
+                    .iter()
+                    .any(|c| matches!(c.carrier, ClassCarrier::Fitted(_)))
+                {
+                    distinct(carried, band)?
+                } else {
+                    carried
+                }
             }
         };
         Ok(CarriedSection {
@@ -1941,6 +1964,7 @@ impl<T: Decide> PairSection<T> {
                     reach: 0.0,
                     witness: curve.eval(geom::mid_param(span.0, span.1)),
                 }),
+                (ClassCarrier::Fitted(fitted), _) => fitted.as_ref().clone(),
                 (ClassCarrier::General, Some(f)) => Ok(f),
                 (ClassCarrier::General, None) => Err(CarryError::Desync(
                     "the march found no branch on a component the classification names",
@@ -2223,12 +2247,12 @@ fn march_over_the_ball(
         PairPose::CylinderCylinder(p) => {
             crate::ssi::march_cylinder_cylinder(p, &section.seeds(), domain, band)
         }
-        // Its components are read whole when the section is built, and
-        // none is carried.
+        // Its whole reading marches it and lists every component with
+        // its carrier or why it has none, so no component asks the march.
         PairPose::SplineImplicit(_) => {
-            return Err(CarryError::Refused(CarryRefusal::Unminted(
-                NoCarrier::SplineImplicitWhole,
-            )));
+            return Err(CarryError::Desync(
+                "a spline × implicit section's march asked past its whole reading",
+            ));
         }
         PairPose::SplinePair(_) => {
             return Err(CarryError::Refused(CarryRefusal::Unminted(
@@ -2431,7 +2455,7 @@ fn seat_at(
     match pose {
         PairPose::SplineImplicit(_) => {
             return Err(CarryError::Refused(CarryRefusal::Unminted(
-                NoCarrier::SplineImplicitWhole,
+                NoCarrier::ChartLoop,
             )));
         }
         PairPose::SplinePair(_) => {
