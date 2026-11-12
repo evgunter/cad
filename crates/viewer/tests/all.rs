@@ -237,3 +237,9 @@ mod view_toggles;
 mod whole_rim_pick;
 
 test_utils::every_suite_file_is_aggregated!();
+#[path = "review_named_source_r1.rs"]
+mod review_named_source_r1;
+#[path = "review_named_source_r2.rs"]
+mod review_named_source_r2;
+#[path = "recheck_named_source.rs"]
+mod recheck_named_source;

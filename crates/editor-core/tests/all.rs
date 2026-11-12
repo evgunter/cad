@@ -918,3 +918,9 @@ mod union_member_orders_decide_alike;
 mod value_chart_sweeps;
 #[path = "vessel_cavity_interval.rs"]
 mod vessel_cavity_interval;
+#[path = "review_named_source_r1.rs"]
+mod review_named_source_r1;
+#[path = "review_named_source_r2.rs"]
+mod review_named_source_r2;
+#[path = "recheck_named_source.rs"]
+mod recheck_named_source;
