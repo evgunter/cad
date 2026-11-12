@@ -5302,6 +5302,18 @@ fn unsettled_crossing(why: geom_brep::roots::Unsettled) -> &'static str {
 }
 
 /// Which of the Boolean's surgeries a [`BooleanError::Carve`] refused in.
+///
+/// **NOT carried to the façade's curated list, and that is a decision
+/// rather than an omission** (`scripts/payload-rung-sweep.py` names
+/// this rung; the disposition table cites this paragraph as its home).
+/// A Rust caller can already name and match it — `pncad` re-exports
+/// `topo` whole — and every step is a kernel defect that ends in one
+/// ending: the step says where in the Boolean a bug report should look,
+/// and no caller has a different recourse for one step than another.
+///
+/// **The falsifier is a caller that acts on the step by itself**: a
+/// driver that retries or re-poses on `Recut` and not on `Kept`. Then
+/// carry it and delete this paragraph and the disposition row with it.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum CarveStep {
     /// An operand's kept component, carved out of its cut clone.
