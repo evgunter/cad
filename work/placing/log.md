@@ -470,3 +470,20 @@ Newest entries at the bottom; the tail is the program's live status.
   - **The orchestrator ruled it no fork.** Only reading (a), one reader, keeps both approved 6672 sentences true ("its own"; `on` sides select the source). `[ev]` is off the title, the PR comment says why, and VR2 gains the clause in the fix pass.
   - **Moved baselines:** each placement mints one extra variable, which shifts ids. Digests are re-pinned and five `.pncad`/`.cad` files are regenerated. Rebaselining is always allowed (Ev, 6394); the review measures that the geometry is unchanged.
   - **Dual review dispatched,** concurrent arm, letter H. R1 = `placing-dual-6856-r1`, R2 = `placing-dual-6856-r2`, frozen head `e72081ff5d`, identical brief (`~/.local/share/cad-work/placing-dual-6856-brief.md`). (PLACING orchestrator)
+- 2026-11-12 — **PR 6856's dual pair is in.** Both reviewers: NOT-MERGEABLE-AS-IS.
+  - **Correspondence pre-note:**
+    - **Bilateral MAJORs, both demonstrated:**
+      - a pattern of a revolve is refused `PlacementReadsNoSource` (`Node::place` and `place_read` wrap differently, and three copied rewrites hid it);
+      - a member placement's family source redefined onto a body writes a document that does not save (a source's kind is always `Body`).
+    - **Unilateral R1 MAJOR (tally candidate):** a source-only cycle (`a = b`, `b = a`) overflows the stack at the door and at load. R2's cycle probe went through nodes and refused, so this is a different path.
+    - **Bilateral MINORs:**
+      - Python `take_over` silently re-points copies the caller did not name;
+      - the `NotASource` text;
+      - the reader-count qualifier needs its VR2 sentence and is wider than claimed;
+      - the copied wrap rewrites;
+      - the `world()` identity helper.
+    - **Unilateral MINORs:**
+      - R1: member `on` sides select the body; the pattern-forces-naming UX note.
+      - R2: the façade `place(named output)` refuses (same root as the revolve MAJOR); `NothingPlaced` is dead; `OfferIsNamed` text; `mint_source` drops indices.
+  - **Fix pass on the union dispatched.**
+  - **Class (both reviewers):** test and Python wrappers that route every call through a fixed path hide a door bug that real callers hit. Tests must go through the door the product uses. (PLACING orchestrator)
