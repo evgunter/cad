@@ -1439,3 +1439,54 @@ fn a_pick_into_a_part_naming_no_piece_refuses_at_evaluation() {
         ev.node_error(read)
     );
 }
+
+/// Re-check round 2 (PR 6856): a source reading a pick, whose placement's
+/// source is redefined onto a union: the pick now walks through a `∪`,
+/// which the pick door refuses. The redefinition refuses, or what it
+/// writes loads.
+#[test]
+fn r2_a_pick_of_a_copy_whose_source_is_redefined_onto_a_union() {
+    let doc = doc("r2-pick-redefine");
+    let (doc, bolt) = block(doc, [0.0; 2], 0.2, 1.0);
+    let (doc, plate) = beside(doc, bolt, [2.0, 0.0, 0.0], 0.5, 0.2);
+    let (doc, seat) = put(
+        doc,
+        Node::Assemble {
+            members: spelled(&[bolt, plate]),
+        },
+    );
+    let (doc, place) = put(doc, fixture::stood(seat));
+    let bolt_var = doc.output(bolt, 0).unwrap();
+    let (doc, _first) = put(
+        doc,
+        fixture::stood(BodyRead::plain(Operand::pick(Operand::Node(place), vec![bolt_var]))),
+    );
+    let (doc, fused) = put(
+        doc,
+        Node::Union {
+            members: spelled(&[bolt, plate]),
+        },
+    );
+    let source = doc.copied_read(place).expect("a source");
+    let doc = doc
+        .apply(
+            &editor_core::DocEdit::RenameVar {
+                var: source.into(),
+                name: Some(editor_core::VarName::from_static("T")),
+            },
+            Tol::witness(),
+        )
+        .unwrap()
+        .doc;
+    let got = doc
+        .apply(
+            &editor_core::DocEdit::DefineVar {
+                var: source.into(),
+                def: editor_core::VarDecl::source(Operand::Node(fused)),
+                fresh: Vec::new(),
+            },
+            Tol::witness(),
+        )
+        .map(|a| a.doc);
+    crate::recheck2_named_source::refused_or_round_trips("T = union under a pick", got);
+}
