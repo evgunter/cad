@@ -4386,7 +4386,7 @@ pub(crate) fn classify_point_in_solid(
         S::KindUnsupported { kind, .. } => (
             format!(
                 "a face the check read is a {} surface, which it has no way yet to cross",
-                crate::boolean::kind_word(*kind)
+                kind.word()
             )
             .into(),
             NOT_YET_ENDING.into(),

@@ -34,7 +34,7 @@ use super::super::section_table::SectionTable;
 use super::super::{BooleanError, Branch, HalfGerm, Locus};
 use super::{Faced, PartnerDistance, Turn, along_facing, along_sign, germ_arm, nearest_of};
 use crate::HalfEdgeKey;
-use crate::chord_join::SplitJoinError;
+use crate::chord_join::JoinError;
 use geom::{Curve3, Surface};
 use geom_core::{Band, Point3, Tol, Vec3};
 
@@ -134,7 +134,7 @@ fn ranked(mut left: Vec<(usize, PartnerDistance<f64>)>) -> Result<Vec<usize>, Bo
 /// non-germ sites in the lanes' insertion order.
 struct Lanes {
     walk: Vec<usize>,
-    split: Result<Vec<usize>, SplitJoinError>,
+    split: Result<Vec<usize>, JoinError>,
     turn: Result<Vec<usize>, BooleanError>,
     germ: Site,
     partners: Vec<(usize, Site)>,
@@ -451,7 +451,7 @@ fn off_a_steep_flank_the_walk_escalates_where_it_cannot_order() {
         let ts = [-1.0, FRAC_PI_4, on(&conic, FRAC_PI_4, bands), 2.5];
         let read = lanes(&wall, &conic, &ts, 1.0, 0.9);
         assert!(
-            matches!(read.split, Err(SplitJoinError::Escalated { .. })),
+            matches!(read.split, Err(JoinError::Escalated { .. })),
             "Δ {bands} bands: the walk's refusal is not an escalation: {:?}",
             read.split
         );

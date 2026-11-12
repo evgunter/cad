@@ -682,7 +682,7 @@ fn a_re_homing_no_path_decides_escalates_with_the_first_reading() {
             )
             .unwrap();
         let remainder = body.get_half_edge(after).unwrap().parent_loop;
-        let Err(SplitJoinError::Escalated { diag: got, .. }) =
+        let Err(JoinError::Escalated { diag: got, .. }) =
             ChordJoiner::new(band()).rehome_rings(&mut body, face, made.face, remainder)
         else {
             continue;
