@@ -4678,6 +4678,9 @@ fn walk_cycle<T: Decide, I: WalkImage<T>, E>(
     };
     let mut ends: Vec<Traversed<T>> = Vec::with_capacity(len);
     let mut out: Vec<Pinned<T, I>> = Vec::with_capacity(len);
+    // The one joint of a closed loop where two distinct edges leave a
+    // singular point along one direction ([`slit_turn`]).
+    let mut slit: Option<usize> = None;
     for index in 0..len {
         let WalkItem {
             image,
@@ -4698,10 +4701,16 @@ fn walk_cycle<T: Decide, I: WalkImage<T>, E>(
         let element = match (out.last().zip(ends.last()), kept(index)) {
             (None, _) => None,
             (Some(_), Some(element)) => Some(element),
-            (Some((placed, prev)), None) => Some(
-                joint((&placed.0, prev), &image, &this)
-                    .map_err(|miss| WalkFail::Miss { index, miss })?,
-            ),
+            (Some((placed, prev)), None) => match joint((&placed.0, prev), &image, &this) {
+                Ok(element) => Some(element),
+                Err(PinMiss::Singular(SingularMiss::EdgesCoincide))
+                    if closes && slit.is_none() =>
+                {
+                    slit = Some(index);
+                    None
+                }
+                Err(miss) => return Err(WalkFail::Miss { index, miss }),
+            },
         };
         ends.push(this);
         out.push((image, t0, t1, element));
@@ -4710,11 +4719,24 @@ fn walk_cycle<T: Decide, I: WalkImage<T>, E>(
         // The closure joint: the first image's entry carried onto the
         // last image's exit, decided exactly as every other joint.
         let closure = match kept(0) {
-            Some(element) => element,
-            None => joint((&placed.0, prev), &out[0].0, &ends[0])
-                .map_err(|miss| WalkFail::Miss { index: 0, miss })?,
+            Some(element) => Some(element),
+            None => match joint((&placed.0, prev), &out[0].0, &ends[0]) {
+                Ok(element) => Some(element),
+                Err(PinMiss::Singular(SingularMiss::EdgesCoincide)) if slit.is_none() => {
+                    slit = Some(0);
+                    None
+                }
+                Err(miss) => return Err(WalkFail::Miss { index: 0, miss }),
+            },
         };
-        out[0].3 = Some(closure);
+        out[0].3 = closure;
+        if let Some(index) = slit {
+            let rest = Winding::of(out.iter().filter_map(|pinned| pinned.3));
+            out[index].3 = Some(slit_turn(rest).ok_or(WalkFail::Miss {
+                index,
+                miss: PinMiss::Singular(SingularMiss::EdgesCoincide),
+            })?);
+        }
         if !Winding::of(out.iter().filter_map(|pinned| pinned.3)).closes() {
             return Err(WalkFail::NotClosed);
         }
@@ -4945,6 +4967,15 @@ fn singular_turn<T: Decide>(
     if sides.mates {
         return Ok(if advancing { 1 } else { -1 });
     }
+    // One straight edge continuing through the vertex (a split's two
+    // children of a ruling): it stays on its ruling and on its nappe, so
+    // the vertex is in the band of the singular point and not the corner
+    // of a sector, and the children's one image meets itself.
+    if core::ptr::eq(sides.arrived.carrier, sides.leaving.carrier)
+        && matches!(sides.leaving.carrier, geom::Curve3::Line(_))
+    {
+        return Ok(0);
+    }
     let (Some(a), Some(b)) = (
         singular_lever(chart, sides.arrived),
         singular_lever(chart, sides.leaving),
@@ -4976,6 +5007,24 @@ fn singular_turn<T: Decide>(
             BranchMiss::Undecided(cause) => PinMiss::Escalated(cause),
             BranchMiss::OnMark => PinMiss::Singular(SingularMiss::EdgesCoincide),
         })
+}
+
+/// **The turn at a slit's tip on a singular point**: two distinct edges
+/// of one loop leave the point along one direction, so the turn between
+/// them is none or a whole one, and no value at the joint says which.
+/// The rest of the loop does, where it winds the chart once (`rest`, its
+/// other joints composed): the face then wraps the point, the two edges
+/// are a slit in it, and the turn is the whole one against that winding,
+/// so the chain closes on its start as the face's boundary through the
+/// point. `None` where the rest does not wind once: the face is a sector
+/// of no decided width, or its complement.
+fn slit_turn(rest: Winding) -> Option<JointElement> {
+    let Deck { u, v, twin } = rest.deck;
+    (u.abs() == 1 && v == 0 && !twin).then_some(JointElement(Deck {
+        u: -u,
+        v: 0,
+        twin: false,
+    }))
 }
 
 /// A chart's axis, as a line: the axis its azimuth turns about. `None`
@@ -6232,6 +6281,7 @@ pub(crate) fn pcurve_pass<T: AtRestPolicy>(body: &Body<T>, band: Band) -> Pcurve
             let images: Vec<Option<(Pcurve<T>, T, T)>> =
                 cycle.iter().map(|&he| image_of(he)).collect();
             let mut elements: Vec<Option<JointElement>> = vec![None; n];
+            let mut slits: Vec<usize> = Vec::new();
             for (i, &he) in cycle.iter().enumerate() {
                 let arrived_on = cycle[(i + n - 1) % n];
                 let (
@@ -6282,6 +6332,12 @@ pub(crate) fn pcurve_pass<T: AtRestPolicy>(body: &Body<T>, band: Band) -> Pcurve
                     body.pcurve(he).is_some() && body.pcurve(cycle[(i + n - 1) % n]).is_some()
                 });
                 let read = match (stored, decided) {
+                    // A slit's tip: the stored turn is read with the
+                    // loop's winding, below ([`slit_turn`]).
+                    (Some(stored), Err(PinMiss::Singular(SingularMiss::EdgesCoincide))) => {
+                        slits.push(i);
+                        Ok(stored)
+                    }
                     (Some(stored), Ok(element)) if stored == element => Ok(stored),
                     (Some(_), Ok(_)) => Err(PinMiss::Discontinuity),
                     (None, decided) => decided,
@@ -6307,6 +6363,27 @@ pub(crate) fn pcurve_pass<T: AtRestPolicy>(body: &Body<T>, band: Band) -> Pcurve
                     }
                     Err(miss) => findings.push(joint_refusal(he, miss)),
                 }
+            }
+            // A slit's stored turn is the one the rest of the loop gives.
+            if let [slit] = slits[..]
+                && elements.iter().all(Option::is_some)
+            {
+                let rest = Winding::of(
+                    (0..n)
+                        .filter(|&i| i != slit)
+                        .filter_map(|i| elements[i]),
+                );
+                if slit_turn(rest) != elements[slit] {
+                    findings.push(joint_refusal(
+                        cycle[slit],
+                        PinMiss::Singular(SingularMiss::EdgesCoincide),
+                    ));
+                }
+            } else if let Some(&slit) = slits.first() {
+                findings.push(joint_refusal(
+                    cycle[slit],
+                    PinMiss::Singular(SingularMiss::EdgesCoincide),
+                ));
             }
             if n > 0
                 && elements.iter().all(Option::is_some)
