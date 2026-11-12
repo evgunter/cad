@@ -752,10 +752,10 @@ fn rendered_boolean_refusals() -> Vec<(&'static str, String)> {
             },
         ),
         (
-            "ToolSeatCrossed",
-            BooleanError::ToolSeatCrossed {
+            "ToolSeatUnread",
+            BooleanError::ToolSeatUnread {
                 record: 0,
-                faces: [FaceKey::default(); 2],
+                cells: [topo::Cell::Face(FaceKey::default()); 2],
             },
         ),
         (

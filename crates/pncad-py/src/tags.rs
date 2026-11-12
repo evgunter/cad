@@ -1517,7 +1517,7 @@ pub fn boolean_error_tag(kind: BooleanErrorKind) -> &'static str {
         BooleanErrorKind::VertexReadTwice => "vertex_read_twice",
         BooleanErrorKind::PartnerAlongFace => "partner_along_face",
         BooleanErrorKind::TouchesItself => "touches_itself",
-        BooleanErrorKind::ToolSeatCrossed => "tool_seat_crossed",
+        BooleanErrorKind::ToolSeatUnread => "tool_seat_unread",
         BooleanErrorKind::NonManifoldResult => "non_manifold_result",
         BooleanErrorKind::ClassificationInvariant => "classification_invariant",
         BooleanErrorKind::CrossingInsertion => "crossing_insertion",

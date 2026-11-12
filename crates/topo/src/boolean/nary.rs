@@ -39,8 +39,8 @@ use super::holdings::{Held, HeldRefusal, Holdings};
 use super::ops::boolean_op_given;
 use super::overlap::overlap;
 use super::{
-    BooleanBody, BooleanError, BooleanInputs, BooleanNaming, BooleanOp, BooleanResult, GlueVerdict,
-    GluedPair, Operand, OperandRecords, SweepStrategy,
+    BooleanBody, BooleanError, BooleanInputs, BooleanNaming, BooleanOp, BooleanResult, GivenDecision,
+    GlueVerdict, GluedPair, Operand, OperandRecords, SweepStrategy,
 };
 use crate::body::Body;
 use crate::entity::FaceKey;
@@ -472,13 +472,16 @@ geom_brep::ended_by_write!(NaryRefusal);
 
 impl core::error::Error for NaryRefusal {}
 
-/// **One carrier pair a judgement glued**: the kernel's verdict, the
-/// two members it judged, and the judgement row recording it.
+/// **One carrier pair a step is given**: the two members and a face of
+/// each, `a`'s then `b`'s, the decision, and the judgement row that
+/// recorded it, none for a face–face record's meaning
+/// ([`record_verdicts`]).
 struct PairVerdict<T: Real> {
     a: usize,
     b: usize,
-    verdict: GlueVerdict<T>,
-    row: JudgedRow,
+    faces: (FaceKey, FaceKey),
+    decision: GivenDecision<T>,
+    row: Option<JudgedRow>,
 }
 
 /// **The n-ary union or intersect of `members`, in their order**
@@ -504,7 +507,7 @@ struct PairVerdict<T: Real> {
 /// holds. Outside the crate no route states one. There is no public
 /// given pair, and that privacy is the fence on both crate-private
 /// routes that would state one: making one from a verdict
-/// (`GlueVerdict::given_at` returns one) and the pair boolean that takes
+/// (`GluedPair::given_as` returns one) and the pair boolean that takes
 /// them (`boolean_op_given`'s signature names them), so neither could be
 /// named outside the crate were it public.
 ///
@@ -633,27 +636,59 @@ fn run_members<T: Decide + Bounds + AtRestPolicy>(
                 return empty("pairwise judgement");
             };
             let judgement = judgements.len();
-            verdicts.extend(body.verdicts.iter().map(|&verdict| PairVerdict {
+            verdicts.extend(body.verdicts.iter().map(|verdict| PairVerdict {
                 a,
                 b,
-                verdict,
-                row: JudgedRow {
+                faces: (verdict.a(), verdict.b()),
+                decision: verdict.decision(),
+                row: Some(JudgedRow {
                     judgement,
-                    row: verdict_row(&body.coincidences, &verdict, (a, b)),
-                },
+                    row: verdict_row(&body.coincidences, verdict, (a, b)),
+                }),
             }));
             judgements.push(NaryJudgement { a, b, body });
         }
     }
+    fold(
+        op,
+        members,
+        pairwise.then_some(verdicts.as_slice()),
+        sweep,
+        tol,
+        steps,
+    )
+}
+
+/// **The fold** `((m0 ∘ m1) ∘ m2) ∘ …`, each step given `verdicts` on the
+/// member it joins, read through the lineage the fold advances, or,
+/// where `verdicts` is `None`, the one step of two members deciding its
+/// own. It fills `steps` as it runs and ends early with how it stopped.
+fn fold<T: Decide + Bounds + AtRestPolicy>(
+    op: NaryOp,
+    members: &[NaryMember<'_, T>],
+    verdicts: Option<&[PairVerdict<T>]>,
+    sweep: SweepStrategy,
+    tol: Tol,
+    steps: &mut Vec<NaryStep<T>>,
+) -> Result<(), NaryEnd> {
+    let refused = NaryEnd::Refused;
+    let empty = |what: &str| match op {
+        NaryOp::Intersect => Err(NaryEnd::Empty),
+        NaryOp::Union => unreachable!(
+            "a union's {what} returned empty, though both operands are finished non-empty \
+             bodies and their union holds each"
+        ),
+    };
     let mut lineage = MemberLineage::of_member(0, members[0].body);
     let mut holdings = Holdings::of_member(0, members[0].body);
     let mut records_a = members[0].inputs.records.clone();
     for member in 1..members.len() {
         let acc = steps.last().map_or(members[0].body, |s| &s.body.body);
-        let given = if pairwise {
-            Some(given_pairs(&verdicts, member, &lineage, acc).map_err(refused)?)
-        } else {
-            None
+        let given = match verdicts {
+            Some(verdicts) => {
+                Some(given_pairs(verdicts, member, &lineage, acc).map_err(refused)?)
+            }
+            None => None,
         };
         let inputs = BooleanInputs {
             records_a,
@@ -671,7 +706,7 @@ fn run_members<T: Decide + Bounds + AtRestPolicy>(
         )
         .map_err(|error| {
             let error = Box::new(error);
-            refused(if pairwise {
+            refused(if verdicts.is_some() {
                 NaryRefusal::Step { member, error }
             } else {
                 NaryRefusal::Judgement { a: 0, b: 1, error }
@@ -680,9 +715,11 @@ fn run_members<T: Decide + Bounds + AtRestPolicy>(
         let BooleanResult::Body(body) = stepped else {
             return empty("fold step");
         };
-        let restated = match &given {
-            Some(given) => restated_rows(&body.coincidences, given, &verdicts, member, &lineage),
-            None => Vec::new(),
+        let restated = match (&given, verdicts) {
+            (Some(given), Some(verdicts)) => {
+                restated_rows(&body.coincidences, given, verdicts, member, &lineage)
+            }
+            _ => Vec::new(),
         };
         lineage = lineage.step(member, &body.naming, &body.body);
         let clone_a = clones
@@ -943,11 +980,11 @@ fn verdict_row<T: Real>(
 /// The face of `v` on `member`'s side and the other member's face, or
 /// `None` where `v` is not on `member`: which side of the verdict the
 /// accumulation holds, the other member's face, and `member`'s face.
-fn sides<T: Real>(v: &PairVerdict<T>, member: usize) -> Option<(Operand, MemberFace, FaceKey)> {
+fn sides<T: Real>(v: &PairVerdict<T>, member: usize) -> Option<(MemberFace, FaceKey)> {
     if v.b == member {
-        Some((Operand::A, (v.a, v.verdict.a()), v.verdict.b()))
+        Some(((v.a, v.faces.0), v.faces.1))
     } else if v.a == member {
-        Some((Operand::B, (v.b, v.verdict.b()), v.verdict.a()))
+        Some(((v.b, v.faces.1), v.faces.0))
     } else {
         None
     }
@@ -970,18 +1007,18 @@ fn given_pairs<T: Real>(
     lineage: &MemberLineage,
     acc: &Body<T>,
 ) -> Result<Vec<GluedPair<T>>, NaryRefusal> {
-    let mut given: BTreeMap<(FaceKey, FaceKey), (Operand, GlueVerdict<T>)> = BTreeMap::new();
+    let mut given: BTreeMap<(FaceKey, FaceKey), GivenDecision<T>> = BTreeMap::new();
     for (f, _) in acc.faces() {
         let parents = lineage.of(f);
         for v in verdicts {
-            let Some((held, at, joining)) = sides(v, member) else {
+            let Some((at, joining)) = sides(v, member) else {
                 continue;
             };
             if !parents.contains(&at) {
                 continue;
             }
-            let prior = given.entry((f, joining)).or_insert((held, v.verdict));
-            if prior.1.relation() != v.verdict.relation() {
+            let prior = given.entry((f, joining)).or_insert(v.decision);
+            if prior.class() != v.decision.class() {
                 return Err(NaryRefusal::VerdictsDisagree {
                     member,
                     face: f,
@@ -992,7 +1029,7 @@ fn given_pairs<T: Real>(
     }
     Ok(given
         .into_iter()
-        .map(|((f, _), (held, verdict))| verdict.given_at(held, f))
+        .map(|((f, joining), decision)| GluedPair::given_as(f, joining, decision))
         .collect())
 }
 
@@ -1029,15 +1066,18 @@ fn restated_rows<T: Real>(
         let parents = lineage.of(f);
         let mut judged: Vec<JudgedRow> = Vec::new();
         for v in verdicts {
-            let Some((_, at, other)) = sides(v, member) else {
+            let Some((at, other)) = sides(v, member) else {
+                continue;
+            };
+            let Some(judged_row) = v.row else {
                 continue;
             };
             if other == joining
-                && v.verdict.relation() == row.relation
+                && v.decision.class().relation() == row.relation
                 && parents.contains(&at)
-                && !judged.contains(&v.row)
+                && !judged.contains(&judged_row)
             {
-                judged.push(v.row);
+                judged.push(judged_row);
             }
         }
         if judged.is_empty() {
@@ -1049,6 +1089,166 @@ fn restated_rows<T: Real>(
         restated.push((k, judged));
     }
     restated
+}
+
+/// **A cut's tool read as its material** (`crates/topo/README.md`,
+/// `[operations.cut-material]`): the tool's solids, each carved out of it
+/// with its keys, so a member face is the tool's face, and the fold that
+/// united them, each step given the meaning of the face–face records
+/// between the solids it joins. The last step's body is the material.
+pub(crate) struct ToolMaterial<T: AtRestPolicy> {
+    /// The members, the tool's solids in its solid order, each in the
+    /// tool's keys.
+    pub(crate) members: Vec<T::Finished>,
+    /// The fold's steps, in order: step `k` joins member `k + 1`.
+    pub(crate) steps: Vec<NaryStep<T>>,
+}
+
+impl<T: AtRestPolicy> ToolMaterial<T> {
+    /// The material: the last step's body.
+    pub(crate) fn body(&self) -> &BooleanBody<T> {
+        &self
+            .steps
+            .last()
+            .unwrap_or_else(|| unreachable!("a tool of two or more solids folds at least once"))
+            .body
+    }
+}
+
+/// **The tool `tool` of a cut, read as its material**, where its solids
+/// rest on each other: `None` where no face–face record of `records`
+/// joins two of its solids, so the cut reads it as it stands.
+///
+/// Every solid of the tool is a member, in the tool's solid order, and
+/// the members are united, each step given, on every pair of a face of
+/// the accumulation whose lineage holds one face of such a record and the
+/// joining member's other face, the record's meaning: two planar faces a
+/// record holds apart lie on one plane with the materials on its two
+/// sides ([`crate::contact::area_record`]), one carrier with opposed
+/// senses, a [`GivenDecision::Rest`]. No step decides a carrier pair of
+/// its own. A record within one solid rides with its member.
+///
+/// # Errors
+///
+/// [`BooleanError::ToolSeatUnread`] for a record between two solids that
+/// is not one of two planar faces: of curved faces, which may be an area
+/// or a line tangency, or of lower cells. A fold step's own refusal, the
+/// union's typed refusal for a seat it has no glue arm for.
+/// [`BooleanError::ResultInvalid`] where a solid carved out of the
+/// finished tool does not finish, a kernel defect.
+pub(crate) fn tool_material<T: Decide + Bounds + AtRestPolicy>(
+    tool: &T::Finished,
+    records: &OperandRecords,
+    sweep: SweepStrategy,
+    tol: Tol,
+) -> Result<Option<ToolMaterial<T>>, BooleanError> {
+    let solids: Vec<crate::SolidKey> = tool.solids().map(|(s, _)| s).collect();
+    if solids.len() < 2 {
+        return Ok(None);
+    }
+    let place = |cell: super::Cell| {
+        crate::census_cell_solid(tool, cell).and_then(|s| solids.iter().position(|&k| k == s))
+    };
+    let unread = |record: u32, cells: [super::Cell; 2]| BooleanError::ToolSeatUnread { record, cells };
+    let mut verdicts: Vec<PairVerdict<T>> = Vec::new();
+    for carried in &records.ff {
+        let (x, y) = (carried.contact.a, carried.contact.b);
+        let cells = [super::Cell::Face(x), super::Cell::Face(y)];
+        let (Some(i), Some(j)) = (place(cells[0]), place(cells[1])) else {
+            continue;
+        };
+        if i == j {
+            continue;
+        }
+        if !crate::contact::area_record(tool, x, y) {
+            return Err(unread(carried.record, cells));
+        }
+        verdicts.push(PairVerdict {
+            a: i,
+            b: j,
+            faces: (x, y),
+            decision: GivenDecision::Rest,
+            row: None,
+        });
+    }
+    if verdicts.is_empty() {
+        return Ok(None);
+    }
+    // Each record within one solid rides with its member; one between
+    // two is a planar face pair's, which the fold takes as its verdict.
+    let n = solids.len();
+    let split = |cells: [super::Cell; 2], record: u32, face_pair: bool| {
+        match (place(cells[0]), place(cells[1])) {
+            (Some(i), Some(j)) if i == j => Ok(Some(i)),
+            (Some(_), Some(_)) if !face_pair => Err(unread(record, cells)),
+            _ => Ok(None),
+        }
+    };
+    use super::Cell::{Edge, Face, Vertex};
+    let mut own: Vec<OperandRecords> = vec![OperandRecords::default(); n];
+    for c in &records.vv {
+        if let Some(i) = split([Vertex(c.contact.a), Vertex(c.contact.b)], c.record, false)? {
+            own[i].vv.push(*c);
+        }
+    }
+    for c in &records.vf {
+        if let Some(i) = split([Vertex(c.contact.vertex), Face(c.contact.face)], c.record, false)? {
+            own[i].vf.push(*c);
+        }
+    }
+    for c in &records.ve {
+        if let Some(i) = split([Vertex(c.contact.vertex), Edge(c.contact.edge)], c.record, false)? {
+            own[i].ve.push(*c);
+        }
+    }
+    for c in &records.ee {
+        if let Some(i) = split([Edge(c.contact.a), Edge(c.contact.b)], c.record, false)? {
+            own[i].ee.push(*c);
+        }
+    }
+    for c in &records.ef {
+        if let Some(i) = split([Edge(c.contact.edge), Face(c.contact.face)], c.record, false)? {
+            own[i].ef.push(*c);
+        }
+    }
+    for c in &records.ff {
+        if let Some(i) = split([Face(c.contact.a), Face(c.contact.b)], c.record, true)? {
+            own[i].ff.push(*c);
+        }
+    }
+    let members: Vec<T::Finished> = solids
+        .iter()
+        .map(|&keep| {
+            let mut body: Body<T> = (**tool).clone();
+            for &other in solids.iter().filter(|&&s| s != keep) {
+                body = crate::splitting::finish::carve(&body, other, &[]).map_err(|_| {
+                    BooleanError::ClassificationInvariant {
+                        what: "a finished tool's solid does not carve out of it",
+                    }
+                })?;
+                body.solids.remove(other);
+                body.solid_provenance.remove(other);
+            }
+            T::finish(body, tol).map_err(|findings| BooleanError::ResultInvalid { findings })
+        })
+        .collect::<Result<_, _>>()?;
+    let inputs: Vec<MemberInputs> = own
+        .into_iter()
+        .map(|records| MemberInputs { records, rank: 0 })
+        .collect();
+    let views: Vec<NaryMember<'_, T>> = members
+        .iter()
+        .zip(&inputs)
+        .map(|(body, inputs)| NaryMember { body, inputs })
+        .collect();
+    let mut steps = Vec::new();
+    match fold(NaryOp::Union, &views, Some(&verdicts), sweep, tol, &mut steps) {
+        Ok(()) => Ok(Some(ToolMaterial { members, steps })),
+        Err(NaryEnd::Refused(NaryRefusal::Step { error, .. })) => Err(*error),
+        Err(_) => Err(BooleanError::ClassificationInvariant {
+            what: "a cut's tool's fold of its solids ends other than built or refused at a step",
+        }),
+    }
 }
 
 #[cfg(test)]

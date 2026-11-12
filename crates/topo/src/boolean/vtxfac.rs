@@ -194,8 +194,7 @@ pub(super) fn pierced_and_paired<T: Decide>(
 /// mints as any pierce's, the second face reads the orbit as no pierce
 /// wrote it and mints its runs on the other side ([`WallRead`]), and an
 /// edge of the vertex is In where either face reads it In
-/// ([`gathered`]). Where the two reads do not mirror each other, or the
-/// vertex crosses its tool's seat in a cut ([`super::seat_crossed`]), it
+/// ([`gathered`]). Where the two reads do not mirror each other it
 /// refuses when the second face is read, before any pierce writes; where
 /// the second face's runs would mint a strut, an invariant, it refuses
 /// at that face's mint ([`mint_pierce`]).
@@ -1159,28 +1158,17 @@ pub(super) fn read_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
         // edge, runs that are not the first face's), the second face's
         // runs are not the first's copy, and the vertex is read twice.
         let runs_of = |m: &[Vec<HalfEdgeKey>]| m.iter().cloned().collect::<BTreeSet<_>>();
-        let touches = moved.is_empty() && w.first.moved.is_empty();
-        let cut_by_the_seat = super::seat_crossed(op, pierced_op);
         // A vertex touching the wall writes nothing on either face, but
         // its edges may lie in the wall, which no line reader reads as
         // one, and an operation keeping them keeps that line: it is read
-        // twice. A cut by the seat keeps nothing of the cut part at the
-        // wall, whose material lies on both sides there, so it reads the
-        // touch on both faces.
+        // twice.
+        let touches = moved.is_empty() && w.first.moved.is_empty();
         if flush
             || moved.iter().any(Vec::is_empty)
             || runs_of(&moved) != runs_of(&w.first.moved)
-            || (touches && !cut_by_the_seat)
+            || touches
         {
             return Err(BooleanError::pierced_twice(piercing, vertex, w.wall.faces));
-        }
-        // A cut crossing its tool's seat leaves the sliver of the cut part
-        // between the two faces' sections, which the finish keeps.
-        if cut_by_the_seat && !touches {
-            return Err(BooleanError::ToolSeatCrossed {
-                record: w.wall.record,
-                faces: w.wall.seat,
-            });
         }
     }
     let mut read_pierce = PierceRead {

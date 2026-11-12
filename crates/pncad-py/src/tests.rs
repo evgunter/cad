@@ -4484,7 +4484,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "spline_crossing_unsettled",
             "split_lineage_cycle",
             "tangency_unsupported",
-            "tool_seat_crossed",
+            "tool_seat_unread",
             "torn_component",
             "touches_itself",
             "underflowed_sector_chord",
