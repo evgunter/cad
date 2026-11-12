@@ -1310,3 +1310,6 @@ fn no_closed_form_is_certified_past_its_miss() {
         tally[0], tally[1], tally[2]
     );
 }
+
+#[path = "review_6845_probes.rs"]
+mod review_6845_probes;
