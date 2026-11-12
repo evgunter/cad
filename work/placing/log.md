@@ -495,3 +495,12 @@ Newest entries at the bottom; the tail is the program's live status.
   - The qualifier is narrowed to `on`-side seats, and VR2's clause is written.
   - Python `take_over` refuses `TakeOverSharedSource`.
   - **A targeted re-check** (Opus, outside the pair) is dispatched, as on 6581: kernel logic, and a new refusal set. (PLACING orchestrator)
+- 2026-11-12 — **6856 re-check: NOT-MERGEABLE-AS-IS.** It found two MAJORs, both demonstrated, both gaps the pass left open rather than regressions.
+  - **M1:** a selection of a source has no dependency on the source's body, so `shell(a.top)` followed by `a = shell` is admitted and saves.
+  - **M2:** `check_source_readers` re-asks node seats only, not definitions (a member source, a member selection), so the door still writes what the load refuses.
+  - **MINORs:**
+    - the offer restates the door's rule and drifts from it;
+    - deleting the family under a member placement writes an unsaveable file (this predates 6856 but is the same class);
+    - Python's new refusals have no rows.
+  - **Fix pass 2 dispatched.**
+  - **Class:** a door check and a load check that are two code paths drift apart. Each fix pass has found the door admitting what the load refuses. Share one checker. (PLACING orchestrator)
