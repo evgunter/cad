@@ -285,7 +285,7 @@ pub enum BooleanDecision {
     /// the attachment gate that certifies its description
     /// ([`crate::merge_faces::edge_on_faces_reading`]), or a section
     /// chord's end against its vertex where the join mints it, on a
-    /// carrier that resolves the end ([`crate::SplitJoinError::SectionEndEscalated`]).
+    /// carrier that resolves the end ([`crate::JoinError::SectionEndEscalated`]).
     /// A residual
     /// passes only at zero, so no tolerance is its recourse. Its ends are
     /// vertices an earlier reading placed on the faces they meet, so a
@@ -2754,7 +2754,7 @@ pub(in crate::boolean) mod tests {
                 predicate: Some(predicate),
                 ..diag_of(MarginDiag::value((b.zero() + b.escalate()) / 2.0))
             };
-            let join = || crate::SplitJoinError::Section {
+            let join = || crate::JoinError::Section {
                 face: crate::entity::FaceKey::default(),
                 source: geom_brep::SectionError::Carrier(geom::EllipseInvalid::Escalated(diag)),
             };
@@ -3032,7 +3032,7 @@ pub(in crate::boolean) mod tests {
     /// the planes part by many bands at the world origin.
     #[test]
     fn the_maximal_faces_gate_reads_a_tilted_neighbour_alike_wherever_it_stands() {
-        let (b, tol) = (band(), Tol::witness());
+        let b = band();
         for share in [0.5, 0.9] {
             let body = top_split_redescribed(|p0, along, diagonal| {
                 let theta = share * b.zero() / diagonal;
@@ -3051,7 +3051,6 @@ pub(in crate::boolean) mod tests {
                 let moved = crate::transform::transform_rigid(
                     &body,
                     &geom_core::RigidMotion::translation(shift).unwrap(),
-                    tol,
                 )
                 .expect("a translation is rigid");
                 let read = super::super::reduce::gate_maximal_faces(&moved, Operand::A, b);

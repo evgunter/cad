@@ -137,6 +137,7 @@ MINT_ALLOWLIST=(
   'crates/sweep/src/blend/battery.rs 2 the blend payload reports its companion quantities as its own scalar reads them (the M5 PR 12 seam)'
   'crates/topo/src/boolean/recl.rs 1 a grazing bisector between definite keys rides a record code that keeps no margin, so its On reports the zero band (residue on hand-minted-indeterminate-ratchet-gate)'
   'crates/topo/src/chart_region.rs 1 a definite deduction that cannot certify its outcome echoes the value it classified'
+  'crates/topo/src/validate.rs 1 a datum convention margin the check leaves undecided (its bracket straddles zero) reports the bracket it read, in the refusal and nothing else'
 )
 # `MarginDiag>?::` so the qualified-path form `<…MarginDiag>::value`
 # is one spelling with the plain one.

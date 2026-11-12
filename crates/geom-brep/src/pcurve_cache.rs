@@ -13488,10 +13488,7 @@ mod tests {
     /// reads a build.
     #[test]
     fn a_pcurve_escalation_renders_at_its_door() {
-        use geom_core::{
-            DAMAGED_FILE_ENDING, FileCoincidence, KERNEL_DEFECT_ENDING,
-            KERNEL_OR_FILE_DEFECT_ENDING, MarginDiag,
-        };
+        use geom_core::{FileCoincidence, KERNEL_DEFECT_ENDING, KERNEL_LIMIT_RECOURSE, MarginDiag};
 
         let error = PcurveCertifyError::Escalated {
             check: PcurveCheck::ChartWinding,
@@ -13512,10 +13509,13 @@ mod tests {
         );
         for (at, want) in [
             (ReadAt::Run(Reading::Build), KERNEL_DEFECT_ENDING),
-            (ReadAt::Run(Reading::AtRest), KERNEL_OR_FILE_DEFECT_ENDING),
+            // Read at rest and not decided, it is reported as undecided
+            // (ONEHOME fork 259): at a point, the last resort.
+            (ReadAt::Run(Reading::AtRest), KERNEL_LIMIT_RECOURSE),
+            // The import door reads as rest does.
             (
                 ReadAt::File(FileCoincidence::new(1e-6)),
-                DAMAGED_FILE_ENDING,
+                KERNEL_LIMIT_RECOURSE,
             ),
         ] {
             let text = error.render(at);

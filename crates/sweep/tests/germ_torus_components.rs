@@ -43,7 +43,6 @@ fn placed(b: &Body<f64>, (angle, axis, t): (f64, Vec3<f64>, Vec3<f64>)) -> AtRes
             &Affine3::from_parts(r.linear, r.translation + t),
             Tol::witness(),
         ),
-        Tol::witness(),
     )
     .unwrap();
     finished("the moved shape", moved, Tol::witness())

@@ -910,7 +910,7 @@ pub enum JoinRefusal {
 }
 
 /// A refusal kind as its variant's name.
-fn kind_word(kind: super::BooleanErrorKind) -> String {
+fn error_kind_word(kind: super::BooleanErrorKind) -> String {
     format!("{kind:?}")
 }
 
@@ -944,7 +944,7 @@ impl JoinRefusal {
         f: &mut core::fmt::Formatter<'_>,
         at: Option<geom_brep::recourse::ReadAt>,
     ) -> core::fmt::Result {
-        use geom_brep::recourse::{defect_ending, unreadable_margin_note};
+        use geom_brep::recourse::unreadable_margin_note;
         const IMAGE: &str = "two edges meeting at a vertex on one surface read their family off a chart image \
              that did not derive";
         match self {
@@ -993,14 +993,13 @@ impl JoinRefusal {
                 write!(
                     f,
                     "the join of two edges meeting at a vertex on one curve refused ({})",
-                    kind_word(*kind)
+                    error_kind_word(*kind)
                 )?;
                 match at {
-                    None => Ok(()),
                     Some(at) if at.is_build() => {
                         write!(f, ". {}", geom_core::KERNEL_LIMIT_RECOURSE)
                     }
-                    Some(at) => write!(f, ". {}", defect_ending(at)),
+                    at => geom_brep::recourse::defect_ended(f, at),
                 }
             }
         }
@@ -2112,8 +2111,29 @@ mod undecided_text {
                     !ending.is_empty() && text.ends_with(&ending),
                     "{e:?} at {at:?}: {text}"
                 );
-                assert_eq!(text.matches("There is no way through").count(), 1, "{text}");
-                assert_eq!(text.contains("defect"), defect, "{e:?} at {at:?}: {text}");
+                // The winding escalation, read at rest, is reported as
+                // undecided (ONEHOME fork 259): the last resort, no dead
+                // end. The class escalation's ending is "not yet" at both.
+                let undecided_at_rest = matches!(
+                    (&e, at),
+                    (
+                        geom_brep::PcurveCertifyError::Escalated {
+                            check: geom_brep::PcurveCheck::ChartWinding,
+                            ..
+                        },
+                        Reading::AtRest
+                    )
+                );
+                assert_eq!(
+                    text.matches("There is no way through").count(),
+                    usize::from(!undecided_at_rest),
+                    "{text}"
+                );
+                assert_eq!(
+                    text.contains("defect"),
+                    defect && !undecided_at_rest,
+                    "{e:?} at {at:?}: {text}"
+                );
             }
         }
     }

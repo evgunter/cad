@@ -386,7 +386,7 @@ pub fn build<S: Scalar>(tol: Tol) -> (AtRestBody<S>, AtRestBody<S>, BooleanBody<
     // The apart framing: Q lifted by a rigid transform (#84 — every
     // moved edge witness is re-minted, and the moved body revalidates).
     let lift = RigidMotion::translation(v3(0.0, 0.0, 1.6)).expect("a finite lift");
-    let q_lifted = pncad::topo::transform_rigid(&q, &lift, tol).expect("lift plate Q");
+    let q_lifted = pncad::topo::transform_rigid(&q, &lift).expect("lift plate Q");
     (p, q, mated, q_lifted)
 }
 
@@ -421,8 +421,8 @@ pub fn stops(tol: Tol) -> Vec<TourStop> {
     // "and every arena key untouched", so a contact-carrying body
     // survives it. What it re-mints is each moved edge's WITNESS, #84.)
     let aside = RigidMotion::translation(Vec3::new(APART_GAP, 0.0, 0.0)).expect("a finite offset");
-    let p_aside = pncad::topo::transform_rigid(&p, &aside, tol).expect("place P aside");
-    let q_aside = pncad::topo::transform_rigid(&q_lifted, &aside, tol).expect("place Q aside");
+    let p_aside = pncad::topo::transform_rigid(&p, &aside).expect("place P aside");
+    let q_aside = pncad::topo::transform_rigid(&q_lifted, &aside).expect("place Q aside");
     vec![TourStop {
         name: "twopeg",
         caption: "two-peg plate — mated, and apart".to_string(),

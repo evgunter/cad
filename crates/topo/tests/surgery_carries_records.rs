@@ -94,7 +94,6 @@ fn every_surgery_verb_carries_a_corner_kiss() {
     let moved = topo::transform_rigid(
         &base.body,
         &geom_core::RigidMotion::translation(Vec3::new(0.3, 0.2, 0.1)).unwrap(),
-        tol(),
     )
     .expect("a rigid move");
     let carried = base.contacts.carried_from(0);

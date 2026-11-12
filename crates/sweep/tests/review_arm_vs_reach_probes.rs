@@ -55,8 +55,7 @@ fn prism(
     if let Some(t) = turn {
         map = t * map;
     }
-    let body =
-        topo::transform_rigid(&body, &geom_core::test_support::rigid(&map, tol()), tol()).unwrap();
+    let body = topo::transform_rigid(&body, &geom_core::test_support::rigid(&map, tol())).unwrap();
     topo::test_support::finished("a prism", body, tol())
 }
 
