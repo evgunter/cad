@@ -4703,9 +4703,7 @@ fn walk_cycle<T: Decide, I: WalkImage<T>, E>(
             (Some(_), Some(element)) => Some(element),
             (Some((placed, prev)), None) => match joint((&placed.0, prev), &image, &this) {
                 Ok(element) => Some(element),
-                Err(PinMiss::Singular(SingularMiss::EdgesCoincide))
-                    if closes && slit.is_none() =>
-                {
+                Err(PinMiss::Singular(SingularMiss::EdgesCoincide)) if closes && slit.is_none() => {
                     slit = Some(index);
                     None
                 }
@@ -6368,11 +6366,7 @@ pub(crate) fn pcurve_pass<T: AtRestPolicy>(body: &Body<T>, band: Band) -> Pcurve
             if let [slit] = slits[..]
                 && elements.iter().all(Option::is_some)
             {
-                let rest = Winding::of(
-                    (0..n)
-                        .filter(|&i| i != slit)
-                        .filter_map(|i| elements[i]),
-                );
+                let rest = Winding::of((0..n).filter(|&i| i != slit).filter_map(|i| elements[i]));
                 if slit_turn(rest) != elements[slit] {
                     findings.push(joint_refusal(
                         cycle[slit],

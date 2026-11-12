@@ -146,3 +146,119 @@ fn the_decided_lift_is_the_read_lift_through_a_twin_and_a_pole() {
     );
     assert_eq!(turns, 2, "each face's loop turns once at the pole vertex");
 }
+
+/// **No file outside the mint pins a chart branch.** A loop's position
+/// in its face's chart is its lift, and the one decision of a joint's
+/// branch is `decide_joint` (DESIGN `[one-way.places]`). A second pin is
+/// spelled with the movers and readers the decision is built from, so
+/// every use of one outside `pcurves.rs` is listed here with what it is,
+/// and a new one fails until it is read and listed, or goes through
+/// `Lift`.
+///
+/// The pinned exception is `mesh::walk`'s `unwrap_tie`, the curved
+/// lane's own placement of a pole junction
+/// (`work/tesswalk/mesh-pole-junction-unwrap-picks-a-whole-turn-off-numbers.md`).
+///
+/// **What these spellings cannot see**: a walk that places a loop's
+/// edges on a branch with arithmetic of its own. Two are known, both
+/// below `topo` and reading no body:
+/// `geom_brep::props::quad::rotational`'s `loop_lifts`, and
+/// `geom_brep::chart_singularity::walk_loop`
+/// (`work/quad/props-and-tier-3-each-derive-a-loops-chart-position-again.md`).
+#[test]
+fn no_file_outside_the_mint_pins_a_chart_branch() {
+    const SPELLINGS: [&str; 6] = [
+        ".shift_branch(",
+        "shift_v_branch(",
+        "sphere_twin(",
+        "lever_periods(",
+        "branches_astride_as(",
+        "unwrap_tie(",
+    ];
+    // (file, uses, what they are).
+    const LISTED: [(&str, usize, &str); 5] = [
+        (
+            "geom-brep/src/pcurve_cache.rs",
+            1,
+            "a certification row moving an image a period, to show the certificate follows",
+        ),
+        (
+            "geom-brep/src/pcurve_cache/envelope_lemma_fuzz.rs",
+            3,
+            "the envelope lemma's fuzz, moving images it then certifies",
+        ),
+        (
+            "mesh/src/walk.rs",
+            2,
+            "PINNED EXCEPTION: unwrap_tie, the curved lane's pole junction (tesswalk)",
+        ),
+        (
+            "topo/src/chart_region.rs",
+            1,
+            "the fold between two faces' azimuth windows: no joint of a loop",
+        ),
+        (
+            "topo/src/joint.rs",
+            3,
+            "Deck::apply, the lift's own mover of an image by a decided element",
+        ),
+    ];
+    fn walk(dir: &std::path::Path, out: &mut Vec<std::path::PathBuf>) {
+        for entry in std::fs::read_dir(dir).unwrap() {
+            let path = entry.unwrap().path();
+            if path.is_dir() {
+                walk(&path, out);
+            } else if path.extension().is_some_and(|e| e == "rs") {
+                out.push(path);
+            }
+        }
+    }
+    let crates = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .parent()
+        .unwrap()
+        .to_path_buf();
+    let mut found: Vec<(String, usize)> = Vec::new();
+    for member in std::fs::read_dir(&crates).unwrap() {
+        let src = member.unwrap().path().join("src");
+        if !src.is_dir() {
+            continue;
+        }
+        let mut files = Vec::new();
+        walk(&src, &mut files);
+        for file in files {
+            let name = file
+                .strip_prefix(&crates)
+                .unwrap()
+                .to_string_lossy()
+                .replace('\\', "/");
+            if name == "topo/src/pcurves.rs" || name == "topo/src/pcurves_lift_rows.rs" {
+                continue;
+            }
+            let uses: usize = std::fs::read_to_string(&file)
+                .unwrap()
+                .lines()
+                .filter(|line| !line.trim_start().starts_with("//"))
+                .map(|line| {
+                    SPELLINGS
+                        .iter()
+                        .map(|s| line.matches(s).count())
+                        .sum::<usize>()
+                })
+                .sum();
+            if uses > 0 {
+                found.push((name, uses));
+            }
+        }
+    }
+    found.sort();
+    let listed: Vec<(String, usize)> = LISTED
+        .iter()
+        .map(|&(file, uses, _)| (file.to_owned(), uses))
+        .collect();
+    assert_eq!(
+        found, listed,
+        "the uses of a chart-branch mover or reader outside `pcurves.rs` are not the listed \
+         ones. A new one is a second pin of a joint's branch: read the loop's `Lift` instead, \
+         or list the use with what it is. A listed one gone: strike its row."
+    );
+}

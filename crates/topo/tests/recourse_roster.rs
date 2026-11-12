@@ -192,8 +192,6 @@ const EXCEPTIONS: &[(&str, &Door)] = &[
     ("keep_turn_row", &REPLACE_FACE),
     ("positive_volume", &VALIDATION),
     ("positive_volume_enclosure", &VALIDATION),
-    ("cone_row_apex", &CHART_REGION),
-    ("nearest_branch_row", &CHART_REGION),
     ("period_fold_row", &CHART_REGION),
     ("each_branch_row", &PCURVES),
     ("first_within_row", &PCURVES),
@@ -795,7 +793,9 @@ const INDIRECT: &[(&str, &str)] = &[
         "pcurves.rs: only_a_net_closed_in_v_decides_a_v_element: super::DescribedChart::of(s).unwrap()",
         NOT_A_NAME,
     ),
+    ("pcurves.rs: decide_plain_joint: chart", NOT_A_NAME),
     ("pcurves.rs: pcurve_pass: chart", NOT_A_NAME),
+    ("pcurves.rs: restate_joints: chart", NOT_A_NAME),
     ("pcurves.rs: split_cache: chart", NOT_A_NAME),
     ("pcurves.rs: turn_element: chart", NOT_A_NAME),
     (
