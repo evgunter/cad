@@ -751,3 +751,10 @@ Both reds were found by PCERT's nightly lane and trace to SECTARMS merges.
 - **Dispatched** `a-spline-implicit-arc-is-carried-to-its-node` (P1 H) on `sectarms/spline-node-carry`. **Tier: dual** — limb 3's per-box tube and the node end are the lane every node of every partner will read. Implementer arm byte 214 (Opus). It says whether its per-box pad closes the P1 pad item.
 - **Dispatched** `a-ring-on-a-spline-wall-closed-by-carried-chords-has-no-winding` (P1 M) on `sectarms/spline-ring-winding`. **Tier: single FULL review** — winding on a spline chart carries real chance of sign and seam bugs, but the lane follows the cylinder's. Implementer arm byte 147 (Fable).
 - **Held:** the P1 image item and the flared-wall P1 (same cause, the at-rest image) wait for the node unit, which reads the same tube; the image item's candidate 2 goes to designers if it is chosen.
+
+## 2026-11-12 — container restart; lanes re-dispatched
+
+- A container restart stopped all three lanes. The census lane had pushed its re-pin (`cd12ab09d8`) and is resumed from its transcript.
+- The node lane had committed nothing; it is re-dispatched fresh on the same arm (Opus, byte 214), per the model-compare rule that a lost agent re-dispatches on its own arm. The row will record the interruption.
+- The ring lane had 25 uncommitted lines; they were saved as `83bf9e59f2` on its branch, and the lane is re-dispatched on the same arm (Fable, byte 147) to keep or discard them. The row will record the interruption.
+- Both briefs now say to push early, since only pushed work survives a restart.
