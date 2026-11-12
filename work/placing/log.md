@@ -465,3 +465,8 @@ Newest entries at the bottom; the tail is the program's live status.
   - Cross-space test helpers are opt-in.
   - Two rows closed.
 - 2026-11-12 — **The named-source lane resumed**, building the ratified 6672 design. **Review tier: dual, letter H.** (PLACING orchestrator)
+- 2026-11-12 — **PR 6856 is open** (the 6672 named-source build), green at `e72081ff5d`.
+  - The lane put an `[ev]` question in the title: does a placement's own `on`-side selection of its source count as a second reader?
+  - **The orchestrator ruled it no fork.** Only reading (a), one reader, keeps both approved 6672 sentences true ("its own"; `on` sides select the source). `[ev]` is off the title, the PR comment says why, and VR2 gains the clause in the fix pass.
+  - **Moved baselines:** each placement mints one extra variable, which shifts ids. Digests are re-pinned and five `.pncad`/`.cad` files are regenerated. Rebaselining is always allowed (Ev, 6394); the review measures that the geometry is unchanged.
+  - **Dual review dispatched,** concurrent arm, letter H. R1 = `placing-dual-6856-r1`, R2 = `placing-dual-6856-r2`, frozen head `e72081ff5d`, identical brief (`~/.local/share/cad-work/placing-dual-6856-brief.md`). (PLACING orchestrator)
