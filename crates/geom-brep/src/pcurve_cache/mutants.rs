@@ -24,7 +24,7 @@ const NAME: Option<&str> = option_env!("PCERT_RADIAL_PAIR_MUTANT");
 
 /// Every site this crate's hooks name. topo's `chord_join` declares its
 /// own one (`topo-v-var`) under the same variable.
-pub(super) const SITES: [&str; 53] = [
+pub(super) const SITES: [&str; 54] = [
     "class-circle",
     "zero-winding",
     "torus-parallel",
@@ -77,6 +77,7 @@ pub(super) const SITES: [&str; 53] = [
     "net-bound-sampled",
     "general-image-class-gate",
     "analytic-image-sampled",
+    "across-once",
     "meridian-direction-unprojected",
 ];
 
@@ -399,6 +400,12 @@ pub(super) fn spiric_floor_major() -> bool {
 /// `closed_image_rows::a_spiric_copy_moved_in_band_is_certified_only_within_it`).
 pub(super) fn spiric_copy_divisor_high() -> bool {
     on("spiric-copy-divisor-high")
+}
+
+/// The rows' frames squared once, not twice
+/// (`closed_image_rows::a_frame_drawn_near_its_axis_is_square_to_rounding`).
+pub(super) fn across_once() -> bool {
+    on("across-once")
 }
 
 /// A closed form's coefficient bound read over half its span
