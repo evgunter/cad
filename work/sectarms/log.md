@@ -729,3 +729,16 @@ Both reds were found by PCERT's nightly lane and trace to SECTARMS merges.
 - **Cost, measured by both:** limb 3 takes 80–98%; the climb is about 1%. The P2 item's attribution is corrected.
 - **The image choice stays as built** (R1: likely an open decision for liveness, not for soundness). The P1 image item records that its candidate 2, where the door stores its pcurve, is a design fork for designers before anyone builds it.
 - **The fix pass is on Fable, the implementer's arm.** It also re-pins tour teapot wall 3 (the main red from 6862) and records that the join unit's done-when waits on INSIDE's containment row.
+
+## 2026-11-12 — PR 6879's fix pass is green; blind-coded; merging
+
+- **Fix pass** (Fable, the implementer's arm), head `9b955999f7`, CI green (run 43308503535). Every item was taken:
+  - T1–T4: rows and mutants (the wall-curvature row, the stand-off ladder killing band ×0.5/×1.5/×2/×10, the rim-excursion row, test honesty);
+  - D1–D2: docs; S1–S4: structure (S2 in part: the image `match` stays in the door, since moving it would move the bounds pin again);
+  - the tour teapot wall 3 re-pin, which closes `main-red-the-teapots-spout-join-refuses-in-the-join-since-6862`.
+- **F1 reproduced:** `PcurveCache::certify_general` certifies a general image's row 3e-9 to 1e-5 m off the wall past the rim. Filed P0 on PCERT (`a-general-image-that-leaves-the-knot-rectangle-between-two-nodes-certifies-its-row-off-the-wall`), with a note on its log. The lane did not probe whether a stored body can carry such a row, so the P0 may be high; that is PCERT's to weigh.
+- **F4** filed P3 on SELECT (the residual lane's refusals are named for the plane). **F5:** the join unit stays open with `blocked_on` INSIDE's containment row.
+- **README C2/C3/C5 edits** in the fix pass re-describe the code and decide nothing. My call: they land with the change.
+- **Blind coding** (byte 39, A = R2, B = R1): 15 bilateral, no MAJOR either side, **no tally candidates**. R1's rim-excursion finding is unilateral and refutes R2's NOTE crediting limb 2.
+- **Main red, also from 6862:** geom-core's slow `certified_endpoint_census` (`spline_implicit.rs` 2,0 → 6,4), filed by PCERT on our track. A lane is re-pinning it on `sectarms/endpoint-census`, orchestrator's-read tier (a mechanical re-pin, each new read argued at its site).
+- **Friction:** the python suite job took 37 min on run 43308503535, over the 25 min bar for a geom-brep diff.
