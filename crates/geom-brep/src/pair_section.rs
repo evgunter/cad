@@ -960,8 +960,6 @@ pub enum NoCarrier {
     /// A spline pair's section is a handed-in row, or leaves the domain at
     /// a handed-in corner.
     RowRegion,
-    /// A spline × implicit arc ends at a node, and is not carried to it.
-    NodeArc,
     /// A spline × implicit loop closes inside the wall's chart, and no
     /// seat opens a loop certified on a chart.
     ChartLoop,
@@ -995,10 +993,6 @@ impl NoCarrier {
                 "a Side or Corner region of a handed-in row or corner: the section there is the \
                  row, or leaves the domain at the corner, and no carrier is minted for it"
             }
-            Self::NodeArc => {
-                "an arc of a spline × implicit section ends at a node, and no arc is carried to \
-                 its node"
-            }
             Self::ChartLoop => {
                 "a loop of a spline × implicit section closes inside the spline's chart, and no \
                  seat opens a loop certified on a chart"
@@ -1014,8 +1008,8 @@ impl NoCarrier {
     /// tangency and an inner pinch are each a meeting the surfaces can be
     /// moved off, to cross or to part clearly; a spline × implicit touch,
     /// only to part.
-    /// An arc to a node, a loop on a chart and a spline pair's section
-    /// are components the kernel does not carry yet, and a section along
+    /// A loop on a chart and a spline pair's section are components the
+    /// kernel does not carry yet, and a section along
     /// a wall's side or a handed-in row is one it mints no carrier for
     /// yet.
     #[must_use]
@@ -1028,11 +1022,9 @@ impl NoCarrier {
             // which is not carried (`ChartLoop`), so parting is the one
             // way through.
             Self::Touch => geom_core::move_recourse!("so the surfaces clearly part"),
-            Self::WallRegion
-            | Self::RowRegion
-            | Self::NodeArc
-            | Self::ChartLoop
-            | Self::SplinePairWhole => geom_core::NOT_YET_ENDING,
+            Self::WallRegion | Self::RowRegion | Self::ChartLoop | Self::SplinePairWhole => {
+                geom_core::NOT_YET_ENDING
+            }
         }
     }
 }

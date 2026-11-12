@@ -613,21 +613,23 @@ fn a_spline_wall_touching_a_sphere_is_read_as_a_touch() {
     );
 }
 
-/// **A spline node reads as a tangency until its arcs are carried.**
-/// The cross saddle `z = 4(x − ½)(y − ½)` against `z = 0`: the value lists
-/// the node at the centre and its four arcs (C5), but no component of a
-/// spline × implicit section is carried yet
-/// (`work/sectarms/the-join-reads-a-spline-implicit-section.md`), so the
-/// certificate reads the tangency the node was decided by, R-tan, rather
-/// than components it cannot chord. Red against a node read as crossed
-/// while its carriers are unminted (the certificate would clear arcs the
-/// join cannot build).
+/// **A spline node reads through its carried arcs.** The cross saddle
+/// `z = 4(x − ½)(y − ½)` against `z = 0`: the value lists the node at the
+/// centre and its four arcs, each carried on to the node (C5), so the
+/// certificate reads the section through its components, the four arcs
+/// one node-joined part reaching the wall's sides, rather than the
+/// tangency the node was decided by. Red against a node read as R-tan
+/// whose arcs are all carried (the certificate would refuse a section
+/// the join builds).
 #[test]
-fn a_spline_node_reads_as_a_tangency_until_carried() {
+fn a_spline_node_reads_through_its_carried_arcs() {
     let a = [-0.5, 0.0, 0.5];
     let s = read(&level(0.0), &net(&|i, j| 4.0 * a[i] * a[j]));
+    let Section::Components { parts, single } = &s else {
+        panic!("read through its components: {s:?}");
+    };
     assert!(
-        matches!(s, Section::Tangent("spline_critical_value")),
-        "{s:?}"
+        *single && parts.len() == 1 && parts[0].reaches.is_some() && !parts[0].unbounded,
+        "the four arcs one node-joined part reaching a side: {s:?}"
     );
 }

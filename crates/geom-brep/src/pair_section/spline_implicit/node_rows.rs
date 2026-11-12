@@ -1,8 +1,8 @@
 //! **The node and touch rows** (C5, NURBS × implicit stage 3b): a node
 //! decided on the classification's sweep is listed with its point, the
 //! wall's normal, its two lines and its sector side, read off the
-//! Hessian that decided it; its arcs are read whole, each ending on
-//! entering the node's box and naming the ray it leaves along; a touch
+//! Hessian that decided it; its arcs are read whole, each carried on to
+//! the node and naming the ray it leaves along (C2's node end); a touch
 //! beside arcs is listed with them. Each row names the mutant that turns
 //! it red, and runs at the run's ε (the suite runs 1e-9, 1e-6 and 1e-12).
 
@@ -829,4 +829,65 @@ fn an_arc_carried_to_its_node_reads_its_sites_box_by_box() {
         carried.site(node, band()),
         Ok(SiteReading::AtNode(0))
     ));
+}
+
+/// **A nearly osculating node is carried to.** A sphere of radius 1
+/// resting on the wall `z = 0.505x² + 0.495y²` over `[−0.1, 0.1]²` at the
+/// origin: the wall's curvatures there, `1.01` and `0.99`, are within 1%
+/// of the sphere's, so `φ`'s Hessian at the node is about a hundredth of
+/// either surface's, the surfaces' relative curvature radius about
+/// 100 m, and the node's lines `y = ±x` cross where the surfaces stand
+/// within `r²/200` of each other. The node is listed with its four arcs,
+/// each carried to it, its last box the node's.
+///
+/// Red against the tube read at one radius to the node: its last windows
+/// straddle.
+#[test]
+fn a_nearly_osculating_node_is_carried_to() {
+    let wall = separable(
+        &[0.0, 0.0, 0.505],
+        (-0.1, 0.2),
+        &[0.0, 0.0, 0.495],
+        (-0.1, 0.2),
+    );
+    let ball = Surface::Sphere {
+        center: pt(0.0, 0.0, 1.0),
+        radius: 1.0,
+        axis: Vec3::unit_z(),
+        u_ref: Vec3::unit_x(),
+    };
+    let s = built(&ball, &wall).unwrap_or_else(|e| panic!("the osculating node: {e:?}"));
+    let [node] = s.nodes() else {
+        panic!("one node: {:?}", s.nodes());
+    };
+    assert!(
+        node.point.distance(pt(0.0, 0.0, 0.0)) <= 1e-9,
+        "{:?}",
+        node.point
+    );
+    let ends = ends_at(&s, 0);
+    assert_eq!(ends.len(), 4, "four arcs at the node: {ends:?}");
+    let Components::Counted(c) = s.components() else {
+        unreachable!()
+    };
+    for &(k, _, _) in &ends {
+        let crate::pair_section::ClassCarrier::Fitted(arc) = &c[k].carrier else {
+            panic!("arc {k} is carried: {:?}", c[k].carrier);
+        };
+        let arc = arc.as_ref().as_ref().expect("arc carried to its node");
+        let t = if ends_at_start(c, k) {
+            arc.span.0
+        } else {
+            arc.span.1
+        };
+        assert!(
+            arc.carrier.eval(t).distance(node.point) <= 1e-9,
+            "arc {k} ends at the node"
+        );
+        assert_eq!(
+            arc.boxes.iter().filter(|b| b.node == Some(0)).count(),
+            1,
+            "arc {k}'s last box is the node's"
+        );
+    }
 }

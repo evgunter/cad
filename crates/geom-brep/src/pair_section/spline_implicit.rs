@@ -82,12 +82,16 @@
 //! segment's own box, so the pad shrinks with the band. A branch no
 //! bracket fits carries no witness.
 //!
-//! **A branch between two rim ends is carried as the reading fitted
-//! it** ([`super::ClassCarrier::Fitted`]): its certified carrier, its
+//! **An open branch is carried as the reading fitted it**
+//! ([`super::ClassCarrier::Fitted`]): its certified carrier, its
 //! certificate, and its pad and reach in metres, each the chart tube's
-//! padded windows read through the wall's chart speeds ([`pad_of`]). A
-//! loop on the chart ([`super::NoCarrier::ChartLoop`]) and an arc to a
-//! node ([`super::NoCarrier::NodeArc`]) are listed with no carrier.
+//! padded windows read through the wall's chart speeds ([`pad_of`]). An
+//! arc to a node is carried on to it (C5's node end): its carrier runs
+//! to the node's point, its tube is graded toward the node and ends in
+//! the node's own box, its pad is read box by box, and the ray it names
+//! is the one whose sector holds its tube's last box ([`ray_at`]). A
+//! loop on the chart ([`super::NoCarrier::ChartLoop`]) is listed with no
+//! carrier.
 //!
 //! A refusal maps by name: a tangency the reading reports (the march's
 //! transversality, a graze of a side, a side held tangent) is a pinch
@@ -1261,18 +1265,17 @@ pub(super) const NODE_RAY: &str = "spline_node_ray";
 ///   and the side of each other the surfaces lie on in sector 0, read off
 ///   the Hessian that decided it; refused ([`sweep::NODE_BOX`]) where its point
 ///   is not placed within the band;
-/// - each arc end at a node named by the ray it leaves along: the ray of
-///   the four nearest the end's direction, by the largest `t·ray`, its
-///   lead over the next decided and its own clear of 45° decided, each
-///   levered by the feature extent; in the band the listing escalates,
-///   and a node whose rays are not each claimed by exactly one end
-///   refuses ([`NODE_RAY`]);
+/// - each arc end at a node named by the ray it leaves along: the ray
+///   whose sector holds its tube's last box before the node's, checked
+///   against its end tangent ([`ray_at`]); a node whose rays are not each
+///   claimed by exactly one end refuses ([`NODE_RAY`]);
 /// - each touch a point component with its witness;
 /// - each point a tangency decided Zero, and the arcs sharing nodes one
 ///   node-joined set ([`NodeSet`]).
 ///
-/// - each branch between two rim ends carried as the reading fitted it
-///   ([`fitted`]); a loop and an arc to a node with no carrier.
+/// - each open branch carried as the reading fitted it ([`fitted`]), an
+///   arc to a node carried on to it, its pad read box by box; a loop
+///   with no carrier.
 ///
 /// # Errors
 ///
@@ -1400,6 +1403,14 @@ fn listed(
             return Err(SectionError::Pinched {
                 predicate: NODE_RAY,
             });
+        }
+    }
+    // A carried arc's ends at its nodes are the listing's.
+    for c in &mut components {
+        if let ClassCarrier::Fitted(fitted) = &mut c.carrier
+            && let Ok(arc) = fitted.as_mut()
+        {
+            arc.shape = c.shape;
         }
     }
     components.extend(out.boundary.iter().map(|region| SectionComponent {
