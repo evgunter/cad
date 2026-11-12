@@ -6,7 +6,7 @@ status: open
 opened: 2026-11-04
 priority: P1
 cost: M
-design: true
+pr: 6807
 refs: [6510]
 ---
 
@@ -38,6 +38,9 @@ A blend site is an edge or a recorded **line contact**: a place where two pieces
 - **An edge request is unchanged.** A smooth edge that lies on a contact (a chart seam that happens to fall on the touch line) is a seam of its own solid, and its blend is the identity, as every requested smooth edge's is.
 - **The union is unchanged.** Pieces that only touch are distinct solids (`[topology.conventions]`).
 - **Not built yet:** filling one side only (a one-sided weld bead). In the face–face form both crescents lie between the same two faces, so a face pair names no side. That waits for a consumer.
+- **The request's type.** The request, `battery::Link` and the refusal site `BlendSite` name where two faces meet by one key enum, an edge or a contact (Ev, PR 6807). `Link` already bundles the two supports every arm and predicate reads, so a contact lowers to the same link with no parallel pipeline. A contact is one link with its own ends, joined to no other link, until something needs a chain of them; the surgery merges the band's caps across the two pieces.
 - **Prerequisite:** the blend door must see its operand's contact records, which the ratified heldrecords unit provides (`AtRestBody` holding the records, PR 5967).
 
 Measured by the designers: with the tubes bridged by a block away from the kiss, the union is ONE solid with no edge on the kiss and a face–face record. A rod on a plate gives a face–face record (seam elsewhere) or an edge–face record (seam on the line), so whether an edge lies on the touch is an accident of where a circle's chart is split.
+
+- 2026-11-12 — the rule approved by Ev on PR 6807; built by `a-blend-names-a-line-contact-as-its-site`.
