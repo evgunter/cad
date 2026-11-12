@@ -246,6 +246,8 @@ mod periodic_chart_closure;
 mod r1_pxn_probes;
 #[path = "r2_cert3_e2e.rs"]
 mod r2_cert3_e2e;
+#[path = "recourse_roster.rs"]
+mod recourse_roster;
 #[path = "review_4553_pxn_probes.rs"]
 mod review_4553_pxn_probes;
 #[path = "review_6092_delta_probes.rs"]

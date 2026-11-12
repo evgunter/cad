@@ -148,7 +148,7 @@ pub(crate) type Winding = Result<Result<Decided, Indeterminate>, Unwound>;
 /// the arc and its chord (the cross-sum's `2A` convention, odd in the
 /// signed span `Δ`) and the edge's boundary length (exact for a circle,
 /// an upper bound for an ellipse: `|Δ|` times its larger semi-axis,
-/// [`Conic::speed_hi`]). `forward` is whether the traversal runs with
+/// [`Conic::speed_hi`](geom::Conic::speed_hi)). `forward` is whether the traversal runs with
 /// increasing carrier parameter — the edge's plus half; `(t0, t1)` the
 /// carrier interval the edge spans. `None` for every carrier that is not
 /// a conic: its term is its chord's, which the caller owns.
@@ -206,7 +206,6 @@ fn spiric_segment_term(
         t0,
         t1,
         forward,
-        wall: None,
     };
     let length = spiric::spiric_length_bound(&edge, pieces)?;
     let [x, y, z] = spiric::spiric_vector_area(&edge, pieces);

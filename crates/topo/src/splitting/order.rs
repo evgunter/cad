@@ -245,7 +245,7 @@ fn axis_plane<T: Decide>(n: Vec3<T>, arm: Lever<T>, exact: Band) -> Result<bool,
 /// [`Indeterminate`] only on the interval lane (an enclosure pair
 /// whose difference straddles the hairline without being an exact
 /// tie).
-pub(super) fn lex_cmp<T: Decide>(
+pub(super) fn lex_cmp_as<T: Decide>(
     p: &Point3<T>,
     q: &Point3<T>,
     origin: &Point3<T>,
@@ -254,9 +254,11 @@ pub(super) fn lex_cmp<T: Decide>(
 ) -> Result<core::cmp::Ordering, Indeterminate> {
     use core::cmp::Ordering;
     let (wp, wq) = (*p - *origin, *q - *origin);
+    const SPLIT_JOIN_ORDER_U: &str = "split_join_order_u";
+    const SPLIT_JOIN_ORDER_V: &str = "split_join_order_v";
     for (name, a, b) in [
-        ("split_join_order_u", wp.dot(frame.0), wq.dot(frame.0)),
-        ("split_join_order_v", wp.dot(frame.1), wq.dot(frame.1)),
+        (SPLIT_JOIN_ORDER_U, wp.dot(frame.0), wq.dot(frame.0)),
+        (SPLIT_JOIN_ORDER_V, wp.dot(frame.1), wq.dot(frame.1)),
     ] {
         match decide(name, Margin::of(a - b), exact)? {
             Sign::Negative => return Ok(Ordering::Less),
@@ -296,7 +298,7 @@ pub(super) fn sort_indices_by_point<T: Decide>(
     let mut order: Vec<usize> = (0..points.len()).collect();
     insertion_sort_by(&mut order, |&a, &b| {
         Ok(
-            lex_cmp(&points[b], &points[a], &plane.origin, frame, exact)?
+            lex_cmp_as(&points[b], &points[a], &plane.origin, frame, exact)?
                 == core::cmp::Ordering::Less,
         )
     })?;
@@ -503,8 +505,11 @@ mod tests {
                     .render(geom_brep::recourse::Reading::Build);
                 assert!(
                     said.starts_with("which direction in the section plane to order points along")
-                        && said
-                            .ends_with(&format!("{}. Recourse: move the geometry", diag.payload())),
+                        && said.ends_with(&format!(
+                            "{}. {}",
+                            diag.payload(),
+                            geom_core::MOVE_RECOURSE
+                        )),
                     "{label}, {spread}: {said}"
                 );
             }
@@ -549,7 +554,7 @@ mod tests {
         let frame = in_plane_frame(&plane, fixture_lever(1.0), band, exact).unwrap();
         let a = Point3::new(1.0, 1.0, 0.0);
         let b = Point3::new(f64::from_bits(1.0f64.to_bits() + 1), 1.0, 0.0);
-        let cmp = |p, q| lex_cmp(&p, &q, &plane.origin, frame, exact).unwrap();
+        let cmp = |p, q| lex_cmp_as(&p, &q, &plane.origin, frame, exact).unwrap();
         assert_eq!(cmp(a, b), core::cmp::Ordering::Less);
         assert_eq!(cmp(b, a), core::cmp::Ordering::Greater);
         assert_eq!(cmp(a, a), core::cmp::Ordering::Equal);

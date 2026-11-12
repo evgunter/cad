@@ -533,9 +533,15 @@ fn a_non_lane_defect_on_this_class_is_reported() {
 ///   the schedule's 32 steps: every foot converges and the
 ///   interpolation succeeds, and re-expressing the image on that domain
 ///   collapses its knots under `f64` rounding;
-/// - `[−f64::MAX, f64::MAX]`, whose width overflows: the door is asked
-///   before the schedule, so the carrier's own fault is reported rather
-///   than a foot that did not converge at a NaN parameter.
+/// - `[−f64::MAX, f64::MAX]`, whose width overflows: no knot vector
+///   admits it, and a line's image over it is refused at the door with
+///   the interval's fault (`DomainInvalid`, the span check), before the
+///   schedule, rather than as a foot that did not converge at a NaN
+///   parameter;
+/// - `[6e307, 1.7e308]`, of finite width with an end past half the
+///   largest finite number: no knot vector admits it either, and a
+///   line's image over it is refused with the same fault, from the
+///   knots' magnitude rule (`PastHalfMax`).
 ///
 /// The plane × NURBS lane and the pcurve mint both refuse with the
 /// door's fault and the carrier's exact domain, never the
@@ -554,22 +560,63 @@ fn a_carrier_domain_the_door_refuses_refuses_as_the_domain_door() {
             false,
             "not a finite increasing interval",
         ),
+        (
+            6.0e307,
+            1.7e308,
+            false,
+            "within half the largest finite number",
+        ),
     ];
     for (lo, hi, collapse, says) in rows {
         let fault = |f: &CarrierDomainFault| match f {
             CarrierDomainFault::Merge => collapse,
             CarrierDomainFault::Interval => !collapse,
         };
-        let knots = KnotVector::clamped(vec![lo, lo, hi, hi], 1).unwrap();
+        let refused = |r: &CarrierDomainRefusal| {
+            r.lo.to_bits() == lo.to_bits() && r.hi.to_bits() == hi.to_bits() && fault(&r.fault)
+        };
+        let line = Curve3::line(Point3::new(1.0, 0.0, 0.0), Vec3::new(0.0, 0.0, 1.0));
+        let mint_refuses = |name: &str, carrier: &Curve3<f64>| {
+            let mint =
+                FittedLane::<f64>::certified().general_image(carrier, (lo, hi), &wall, band());
+            let Err(PcurveCertifyError::CarrierDomain(r)) = mint else {
+                panic!(
+                    "[{lo:e}, {hi:e}] {name}: the mint must refuse as the domain door: {mint:?}"
+                );
+            };
+            assert!(
+                refused(&r),
+                "[{lo:e}, {hi:e}] {name} mint: domain and fault: {r:?}"
+            );
+            let text = r.to_string();
+            assert!(
+                text.contains(says),
+                "[{lo:e}, {hi:e}] {name} mint: the door's own condition: {text}"
+            );
+        };
+        let knots = match KnotVector::clamped(vec![lo, lo, hi, hi], 1) {
+            Ok(knots) => knots,
+            Err(e) => {
+                assert!(
+                    !collapse
+                        && matches!(
+                            e,
+                            geom_core::spline::SplineError::KnotVectorInvalid {
+                                reason: geom_core::spline::KnotVectorIssue::PastHalfMax { .. }
+                            }
+                        ),
+                    "[{lo:e}, {hi:e}] only an end past f64::MAX / 2 refuses the knots: {e:?}"
+                );
+                mint_refuses("line", &line);
+                continue;
+            }
+        };
         let carrier = NurbsCurve3::new(
             knots,
             vec![Point3::new(1.0, 0.0, 0.0), Point3::new(1.0, 0.0, 1.0)],
             vec![1.0, 1.0],
         )
         .unwrap();
-        let refused = |r: &CarrierDomainRefusal| {
-            r.lo.to_bits() == lo.to_bits() && r.hi.to_bits() == hi.to_bits() && fault(&r.fault)
-        };
 
         let lane = plane_nurbs_limbs::<f64>(
             &geom::Curve3::Nurbs(std::sync::Arc::new(carrier.clone())),
@@ -606,24 +653,10 @@ fn a_carrier_domain_the_door_refuses_refuses_as_the_domain_door() {
 
         // The mint's image of the spline over its own domain, and of a
         // line over the same interval: one domain door for both.
-        let line = Curve3::line(Point3::new(1.0, 0.0, 0.0), Vec3::new(0.0, 0.0, 1.0));
-        for (name, carrier) in [
-            (
-                "spline",
-                Curve3::Nurbs(std::sync::Arc::new(carrier.clone())),
-            ),
-            ("line", line),
-        ] {
-            let mint = FittedLane::<f64>::certified().general_image(&carrier, (lo, hi), &wall);
-            let Err(PcurveCertifyError::CarrierDomain(r)) = mint else {
-                panic!(
-                    "[{lo:e}, {hi:e}] {name}: the mint must refuse as the domain door: {mint:?}"
-                );
-            };
-            assert!(
-                refused(&r),
-                "[{lo:e}, {hi:e}] {name} mint: domain and fault: {r:?}"
-            );
-        }
+        mint_refuses(
+            "spline",
+            &Curve3::Nurbs(std::sync::Arc::new(carrier.clone())),
+        );
+        mint_refuses("line", &line);
     }
 }

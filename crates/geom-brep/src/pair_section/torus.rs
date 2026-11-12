@@ -363,25 +363,9 @@ fn radius_guard<T: Decide>(
 }
 
 /// The cylinder × torus gap's rows.
-pub(super) const CT_GAP: GapRows = GapRows {
-    gap: "ct_critical_gap",
-    clear: "ct_critical_gap_clear",
-    monotone: "ct_critical_gap_monotone",
-    smooth: "ct_critical_gap_smooth",
-    turn: "ct_critical_gap_turn",
-    floor: "ct_critical_gap_floor",
-    straddle: "ct_critical_gap_straddle",
-};
+pub(super) const CT_GAP: GapRows = crate::rows::CT_GAP;
 /// The torus × torus gap's rows.
-pub(super) const TT_GAP: GapRows = GapRows {
-    gap: "tt_critical_gap",
-    clear: "tt_critical_gap_clear",
-    monotone: "tt_critical_gap_monotone",
-    smooth: "tt_critical_gap_smooth",
-    turn: "tt_critical_gap_turn",
-    floor: "tt_critical_gap_floor",
-    straddle: "tt_critical_gap_straddle",
-};
+pub(super) const TT_GAP: GapRows = crate::rows::TT_GAP;
 /// The sphere × torus gap's row: the closed form's, read across its
 /// rounding.
 const ST_GAP: [&str; 2] = ["st_critical_gap", "st_critical_gap_floor"];
@@ -397,7 +381,7 @@ fn swept<T: Decide>(
     match critical_gap(ring.core(), spine, radii, rows, band) {
         Ok(Gap::Transverse) => Ok(TorusGap::Transverse),
         Ok(Gap::Tangent { margin, at }) => Ok(TorusGap::Tangent {
-            row: rows.gap,
+            row: rows.gap(),
             margin,
             at: Some(at),
         }),
@@ -963,7 +947,7 @@ pub(super) fn cylinder_torus<T: Decide>(
 ) -> Result<PairSection<T>, SectionError> {
     let ring = pose.ring;
     let torus_first = !pose.cylinder_first;
-    let (c, a, radii, rc) = (ring.center, ring.axis, ring.radii(), pose.radius);
+    let (axis, radii, rc) = (ring.frame().axis_line(), ring.radii(), pose.radius);
     let mut decided = Vec::new();
     let tangent = |touch| {
         Components::Counted(vec![tangent_component(
@@ -1002,27 +986,26 @@ pub(super) fn cylinder_torus<T: Decide>(
         }
         (CtStance::Parallel { e, toward, slack }, TorusGap::Transverse) => {
             let parts =
-                torus_arms::parallel_cylinder_arm(c, a, radii, (e, slack), toward, rc, band)
+                torus_arms::parallel_cylinder_arm(axis, radii, (e, slack), toward, rc, band)
                     .map_err(pinched)?;
             Components::Counted(in_order(parts, torus_first))
         }
         (CtStance::Parallel { e, toward, slack }, TorusGap::Tangent { .. }) => {
             let touch = match torus_arms::parallel_cylinder_arm(
-                c,
-                a,
+                axis,
                 radii,
                 (e, slack),
                 toward,
                 rc,
                 band,
             ) {
-                Err(tan) => torus_arms::parallel_cylinder_touch(tan, c, (e, toward), rc),
+                Err(tan) => torus_arms::parallel_cylinder_touch(tan, axis.origin, (e, toward), rc),
                 Ok(_) => None,
             };
             tangent(touch)
         }
         (CtStance::Square(wall), TorusGap::Transverse) => {
-            let parts = torus_arms::square_cylinder_arm(c, a, radii, &wall, rc, band)
+            let parts = torus_arms::square_cylinder_arm(axis, radii, &wall, rc, band)
                 .map_err(arm_refused)?;
             Components::Counted(in_order(parts, torus_first))
         }
@@ -1233,8 +1216,7 @@ fn torus_gap<T: Decide>([a, b]: [Ring<T>; 2], band: Band) -> Result<TorusGap<T>,
 
 fn circle<T: Real>(ring: Ring<T>) -> Spine<T> {
     Spine::Circle {
-        center: ring.center,
-        axis: ring.axis,
+        axis: ring.frame().axis_line(),
         radius: ring.big_r,
     }
 }
@@ -1264,8 +1246,7 @@ pub(super) fn torus_torus<T: Decide>(
         (TtStance::Parallel { e, toward, slack }, TorusGap::Transverse) => {
             let h = (r2.center - r1.center).dot(r1.axis);
             let parts = torus_arms::parallel_torus_arm(
-                r1.center,
-                r1.axis,
+                r1.frame().axis_line(),
                 [r1.radii(), r2.radii()],
                 h,
                 (e, slack),

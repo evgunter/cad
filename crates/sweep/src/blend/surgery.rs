@@ -2424,7 +2424,7 @@ pub(super) fn piece_distance<T: Decide + Bounds>(
                 dir: pb - pa,
             };
             Some((
-                (chord.foot_within(c, (T::zero(), T::one())) - c).norm(),
+                chord.distance_within(c, (T::zero(), T::one())),
                 (pa - c).norm().max((pb - c).norm()),
             ))
         }
@@ -3530,7 +3530,10 @@ pub(super) fn split_param_in_span<T: Decide + Bounds>(
     // stays a BOUNDS-lane read rather than a `decide` row (the
     // battery's junction-end pick precedent): a parameter whose whole
     // enclosure is not strictly inside the stored span refuses typed
-    // rather than cutting blind.
+    // rather than cutting blind. A box astride the window's antipode,
+    // which `param_near` names whole on one copy, reads outside on that
+    // copy and so refuses: the test never answers inside for a parameter
+    // it holds a turn away, and the window is under one period (above).
     let inside = (t - st0).lo() > 0.0 && (st1 - t).lo() > 0.0;
     Ok(inside.then_some(t))
 }
@@ -5156,11 +5159,9 @@ fn attach_contact<T: Decide + Bounds + topo::AtRestPolicy>(
     let he_plus = sides.plus.half_edge;
     let (s1, s2) = sides.surfaces();
     let (p0, p1) = {
-        let start = body
-            .get_half_edge(he_plus)
-            .map(|h| h.start)
-            .and_then(|v| point_of(body, v));
-        let end = body.half_edge_end(he_plus).and_then(|v| point_of(body, v));
+        let ends = body.edge_vertices(edge);
+        let start = ends.and_then(|(v, _)| point_of(body, v));
+        let end = ends.and_then(|(_, v)| point_of(body, v));
         match (start, end) {
             (Some(a), Some(b)) => (a, b),
             _ => {

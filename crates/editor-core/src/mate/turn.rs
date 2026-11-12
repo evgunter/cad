@@ -25,16 +25,12 @@ impl<T: SolveScalar> LeastTurn<T> {
     /// The least turn carrying `from` onto `to`.
     #[must_use]
     pub fn between(from: Vec3<T>, to: Vec3<T>) -> Self {
-        let one = T::one();
         let k = from.cross(to);
         let c = from.dot(to);
         // Which formula is a choice of arithmetic, not a verdict: the two
-        // are one number, and the first loses no digit near the pole.
-        let one_plus_c = if c.quoted() < 0.0 {
-            k.dot(k) / (one - c)
-        } else {
-            one + c
-        };
+        // are one number, and the mint's own choice loses no digit near
+        // the pole (`geom_core::least_turn_one_plus_c`, the one spelling).
+        let one_plus_c = geom_core::least_turn_one_plus_c(k, c);
         Self { c, k, one_plus_c }
     }
 

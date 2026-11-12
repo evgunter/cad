@@ -9,6 +9,7 @@ use core::convert::Infallible;
 use core::ops::{Add, Div, Mul, Neg, Sub};
 
 use crate::real::{Real, is_finite_length, is_underflowed_length, is_zero_length, pow2};
+use crate::spline::SpanLocate;
 
 /// A vector of the 2-D linear (tangent) space.
 #[derive(Clone, Copy, Debug)]
@@ -158,7 +159,7 @@ fn unscaled<T: Real>(n: T, k: Option<f64>) -> T {
 }
 
 /// **Why a vector names no direction**: its length leaves the format,
-/// or it is the zero vector. The refusal of
+/// or it may be the zero vector. The refusal of
 /// [`Vec3::checked_direction`], [`Vec3::checked_nonzero_length`] and
 /// their 2-D twins, so a door that needs a direction asks the zero
 /// question at the home rather than restating it.
@@ -166,8 +167,12 @@ fn unscaled<T: Real>(n: T, k: Option<f64>) -> T {
 pub enum NoDirection {
     /// The length leaves the format ([`LengthOutOfFormat`]).
     OutOfFormat(LengthOutOfFormat),
-    /// The vector is the zero vector: every component is zero
-    /// ([`is_zero_length`]).
+    /// The vector may be the zero vector, as a structure decision (C6,
+    /// [`crate::structure_nonzero`] read of the length, its one home): at a
+    /// point scalar every component is zero ([`is_zero_length`]); at the
+    /// interval scalar the length's enclosure holds zero, so some vector
+    /// it stands for has no direction, and a direction read from it
+    /// would be unbounded.
     Zero,
 }
 
@@ -194,8 +199,15 @@ impl<T: Real, V: Prescale<T>> Checked<V, T> {
         unscaled(self.norm, self.power)
     }
 
-    fn nonzero(self) -> Result<Self, NoDirection> {
-        if self.zero {
+    /// The vector less one that may be zero: the zero vector, or (at the
+    /// interval scalar) a length whose enclosure holds zero, the C6
+    /// structure decision of [`crate::structure_nonzero`], read on the
+    /// prescaled norm, which no range flushes.
+    fn nonzero(self) -> Result<Self, NoDirection>
+    where
+        T: SpanLocate,
+    {
+        if self.zero || !crate::structure_nonzero(self.norm) {
             Err(NoDirection::Zero)
         } else {
             Ok(self)
@@ -223,6 +235,36 @@ fn checked<T: Real, V: Prescale<T>>(v: V) -> Result<Checked<V, T>, LengthOutOfFo
             power,
             zero: is_zero_length(plain, witness),
         })
+    }
+}
+
+impl<T: SpanLocate> Vec2<T> {
+    /// [`checked_direction_and_length`](Self::checked_direction_and_length)
+    /// that also refuses a vector that may be the zero vector: the door
+    /// for a site that needs a direction, so no caller restates the zero
+    /// question. At the interval scalar "may be" is the structure
+    /// decision ([`NoDirection::Zero`]): a length whose enclosure holds
+    /// zero is refused, never read into an unbounded direction.
+    ///
+    /// # Errors
+    ///
+    /// [`NoDirection::OutOfFormat`] as
+    /// [`checked_direction_and_length`](Self::checked_direction_and_length),
+    /// [`NoDirection::Zero`] for a vector that may be the zero vector.
+    pub fn checked_direction(self) -> Result<(Self, T), NoDirection> {
+        let c = checked(self)?.nonzero()?;
+        Ok((c.direction(), c.length()))
+    }
+
+    /// The length half of [`checked_direction`](Self::checked_direction),
+    /// for a door that refuses a zero or out-of-format vector and reads
+    /// only its length.
+    ///
+    /// # Errors
+    ///
+    /// As [`checked_direction`](Self::checked_direction).
+    pub fn checked_nonzero_length(self) -> Result<T, NoDirection> {
+        Ok(checked(self)?.nonzero()?.length())
     }
 }
 
@@ -407,20 +449,6 @@ impl<T: Real> Vec2<T> {
         checked(self).map(|c| (c.direction(), c.length()))
     }
 
-    /// [`checked_direction_and_length`](Self::checked_direction_and_length)
-    /// that also refuses the zero vector: the door for a site that needs
-    /// a direction, so no caller restates the zero question.
-    ///
-    /// # Errors
-    ///
-    /// [`NoDirection::OutOfFormat`] as
-    /// [`checked_direction_and_length`](Self::checked_direction_and_length),
-    /// [`NoDirection::Zero`] for the zero vector.
-    pub fn checked_direction(self) -> Result<(Self, T), NoDirection> {
-        let c = checked(self)?.nonzero()?;
-        Ok((c.direction(), c.length()))
-    }
-
     /// The length half of
     /// [`checked_direction_and_length`](Self::checked_direction_and_length),
     /// for a door that refuses such a vector and reads only its length.
@@ -430,17 +458,6 @@ impl<T: Real> Vec2<T> {
     /// As [`checked_direction_and_length`](Self::checked_direction_and_length).
     pub fn checked_length(self) -> Result<T, LengthOutOfFormat> {
         checked(self).map(|c| c.length())
-    }
-
-    /// The length half of [`checked_direction`](Self::checked_direction),
-    /// for a door that refuses a zero or out-of-format vector and reads
-    /// only its length.
-    ///
-    /// # Errors
-    ///
-    /// As [`checked_direction`](Self::checked_direction).
-    pub fn checked_nonzero_length(self) -> Result<T, NoDirection> {
-        Ok(checked(self)?.nonzero()?.length())
     }
 
     /// The componentwise minimum (bounding-box support). Inherits
@@ -456,6 +473,36 @@ impl<T: Real> Vec2<T> {
     /// keep `self`'s component, NaN propagates per component.
     pub fn max(self, rhs: Self) -> Self {
         Self::new(self.x.max(rhs.x), self.y.max(rhs.y))
+    }
+}
+
+impl<T: SpanLocate> Vec3<T> {
+    /// [`checked_direction_and_length`](Self::checked_direction_and_length)
+    /// that also refuses a vector that may be the zero vector: the door
+    /// for a site that needs a direction, so no caller restates the zero
+    /// question. At the interval scalar "may be" is the structure
+    /// decision ([`NoDirection::Zero`]): a length whose enclosure holds
+    /// zero is refused, never read into an unbounded direction.
+    ///
+    /// # Errors
+    ///
+    /// [`NoDirection::OutOfFormat`] as
+    /// [`checked_direction_and_length`](Self::checked_direction_and_length),
+    /// [`NoDirection::Zero`] for a vector that may be the zero vector.
+    pub fn checked_direction(self) -> Result<(Self, T), NoDirection> {
+        let c = checked(self)?.nonzero()?;
+        Ok((c.direction(), c.length()))
+    }
+
+    /// The length half of [`checked_direction`](Self::checked_direction),
+    /// for a door that refuses a zero or out-of-format vector and reads
+    /// only its length.
+    ///
+    /// # Errors
+    ///
+    /// As [`checked_direction`](Self::checked_direction).
+    pub fn checked_nonzero_length(self) -> Result<T, NoDirection> {
+        Ok(checked(self)?.nonzero()?.length())
     }
 }
 
@@ -674,20 +721,6 @@ impl<T: Real> Vec3<T> {
         checked(self).map(|c| (c.direction(), c.length()))
     }
 
-    /// [`checked_direction_and_length`](Self::checked_direction_and_length)
-    /// that also refuses the zero vector: the door for a site that needs
-    /// a direction, so no caller restates the zero question.
-    ///
-    /// # Errors
-    ///
-    /// [`NoDirection::OutOfFormat`] as
-    /// [`checked_direction_and_length`](Self::checked_direction_and_length),
-    /// [`NoDirection::Zero`] for the zero vector.
-    pub fn checked_direction(self) -> Result<(Self, T), NoDirection> {
-        let c = checked(self)?.nonzero()?;
-        Ok((c.direction(), c.length()))
-    }
-
     /// The length half of
     /// [`checked_direction_and_length`](Self::checked_direction_and_length),
     /// for a door that refuses such a vector and reads only its length.
@@ -697,17 +730,6 @@ impl<T: Real> Vec3<T> {
     /// As [`checked_direction_and_length`](Self::checked_direction_and_length).
     pub fn checked_length(self) -> Result<T, LengthOutOfFormat> {
         checked(self).map(|c| c.length())
-    }
-
-    /// The length half of [`checked_direction`](Self::checked_direction),
-    /// for a door that refuses a zero or out-of-format vector and reads
-    /// only its length.
-    ///
-    /// # Errors
-    ///
-    /// As [`checked_direction`](Self::checked_direction).
-    pub fn checked_nonzero_length(self) -> Result<T, NoDirection> {
-        Ok(checked(self)?.nonzero()?.length())
     }
 
     /// The componentwise minimum (bounding-box support). Inherits
@@ -1001,6 +1023,42 @@ impl<T: Real> Vec3<T> {
     }
 }
 
+/// [`Point3`](crate::Point3)'s two exact equalities
+/// ([`Point3::equals_exactly`](crate::Point3::equals_exactly),
+/// [`Point3::same_bits`](crate::Point3::same_bits)), for a vector.
+impl Vec3<f64> {
+    /// Every component `==` ([`crate::Point3::equals_exactly`]).
+    #[must_use]
+    pub fn equals_exactly(self, other: Self) -> bool {
+        let (Self { x, y, z }, Self { x: u, y: v, z: w }) = (self, other);
+        x == u && y == v && z == w
+    }
+
+    /// Every component's bits equal ([`crate::Point3::same_bits`]).
+    #[must_use]
+    pub fn same_bits(self, other: Self) -> bool {
+        let (Self { x, y, z }, Self { x: u, y: v, z: w }) = (self, other);
+        x.to_bits() == u.to_bits() && y.to_bits() == v.to_bits() && z.to_bits() == w.to_bits()
+    }
+}
+
+/// [`Vec3`]'s two exact equalities, in the plane.
+impl Vec2<f64> {
+    /// Every component `==` ([`crate::Point3::equals_exactly`]).
+    #[must_use]
+    pub fn equals_exactly(self, other: Self) -> bool {
+        let (Self { x, y }, Self { x: u, y: v }) = (self, other);
+        x == u && y == v
+    }
+
+    /// Every component's bits equal ([`crate::Point3::same_bits`]).
+    #[must_use]
+    pub fn same_bits(self, other: Self) -> bool {
+        let (Self { x, y }, Self { x: u, y: v }) = (self, other);
+        x.to_bits() == u.to_bits() && y.to_bits() == v.to_bits()
+    }
+}
+
 impl<T: Real> Add for Vec2<T> {
     type Output = Self;
 
@@ -1098,6 +1156,50 @@ impl<T: Real> Div<T> for Vec3<T> {
 mod tests {
     use super::*;
     use proptest::prelude::*;
+
+    /// **At the interval scalar a length whose enclosure holds zero names
+    /// no direction** (C6): a vector straddling the origin, in one
+    /// dimension or all three, is `Zero` to the direction readers, where
+    /// the value channel alone reads a length of zero only for the exact
+    /// zero vector; a vector whose length is certainly above zero reads
+    /// its direction. A point scalar's answer is the value's.
+    #[test]
+    fn an_enclosure_that_holds_zero_names_no_direction() {
+        use crate::Interval;
+        let wide = Interval::from_bounds(-1e-15, 1e-15);
+        let iv = Interval::from_f64;
+        for v in [
+            Vec3::new(wide, iv(0.0), iv(0.0)),
+            Vec3::new(wide, wide, wide),
+            Vec3::new(Interval::from_bounds(0.0, 1e-9), iv(0.0), iv(0.0)),
+        ] {
+            assert_eq!(
+                v.checked_direction().map(|_| ()),
+                Err(NoDirection::Zero),
+                "{v:?}"
+            );
+            assert_eq!(
+                v.checked_nonzero_length().map(|_| ()),
+                Err(NoDirection::Zero),
+                "{v:?}"
+            );
+            assert_eq!(
+                Vec2::new(v.x, v.y).checked_direction().map(|_| ()),
+                Err(NoDirection::Zero),
+                "{v:?}"
+            );
+        }
+        let clear = Vec3::new(Interval::from_bounds(1e-9, 2e-9), wide, iv(0.0));
+        assert!(clear.checked_direction().is_ok(), "a length above zero");
+        assert_eq!(
+            Vec3::new(1e-100, 0.0, 0.0).checked_direction().map(|_| ()),
+            Ok(())
+        );
+        assert_eq!(
+            Vec3::new(0.0, 0.0, 0.0).checked_direction().map(|_| ()),
+            Err(NoDirection::Zero)
+        );
+    }
 
     /// **The checked readers, both dimensions, at every refusal.** An
     /// overflowed or poisoned plain norm is `NonFinite`, an underflowed
@@ -2207,7 +2309,7 @@ mod tests {
         let ivb = Interval::from_bounds;
         // The seam's elevation at the azimuths this row sweeps.
         let seam = 0.5 * 2.0 / 5.0f64.sqrt();
-        let bounded = |e: Interval, which: &str, what: &str| {
+        let stays_bounded = |e: Interval, which: &str, what: &str| {
             assert!(
                 e.lo().is_finite() && e.hi().is_finite(),
                 "{which} at {what} is unbounded: [{}, {}]",
@@ -2260,7 +2362,7 @@ mod tests {
                         (b2.y, "b2.y"),
                         (b2.z, "b2.z"),
                     ] {
-                        bounded(e, which, &what);
+                        stays_bounded(e, which, &what);
                     }
                 }
             }
@@ -2294,7 +2396,7 @@ mod tests {
                 (b2.y, "b2.y"),
                 (b2.z, "b2.z"),
             ] {
-                bounded(e, which, name);
+                stays_bounded(e, which, name);
             }
         }
         // A whole meridian at the azimuth whose `e_y` candidate
@@ -2347,7 +2449,7 @@ mod tests {
         );
         // …and the shipped ordering is bounded and certified there.
         let (b1, _) = n.orthonormal_basis();
-        bounded(b1.x, "b1.x", "the straddled seam");
+        stays_bounded(b1.x, "b1.x", "the straddled seam");
     }
 
     /// **The enclosure property over boxes that straddle the seam**: for

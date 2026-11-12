@@ -3,9 +3,9 @@
 //! predicate (§1's D4 ¶1 addendum obligation, on every arm including
 //! the definite ones).
 //!
-//! `UnsupportedCorner` has zero constructor surface: neither
-//! `RunOutPolicy` variant is ever taken, both are only NAMED, and the
-//! rows below are what keeps that vocabulary from being decorative.
+//! `UnsupportedCorner` has zero constructor surface: the run-out policy
+//! it carries is only NAMED, and the rows below are what keeps that
+//! vocabulary from being decorative.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -54,7 +54,7 @@ fn keys(body: &Body<f64>) -> (FaceKey, VertexKey, EdgeKey) {
 
 // ---------------------------------------------------------------------
 // §3 — every `CornerConfig` tag `corner_config` itself can reach, and
-// both `RunOutPolicy` names. The one tag that is NOT reachable here is
+// the run-out policy each names. The one tag that is NOT reachable here is
 // `SeamVertex`: it is recognized from the vertex's own structure before
 // any valence is read as a corner configuration, so it is pinned
 // through the front door instead (`verbs_arms3`).
@@ -102,11 +102,10 @@ fn corner_tag_dependent_normals_refuses_definitely() {
     }
 }
 
-/// Mixed convexity names the FEATHER policy: a corner patch cannot
-/// help a vertex where the ball must change sides, but a radius that
-/// decays to zero before the vertex can.
+/// Mixed convexity names no run-out policy: its own rule, the odd band
+/// cut off and the other two carried through, is none of them.
 #[test]
-fn corner_tag_mixed_convexity_names_feather() {
+fn corner_tag_mixed_convexity_names_no_policy() {
     let body = cube(1.0, Tol::witness());
     let (_, v, _) = keys(&body);
     let normals = [
@@ -121,7 +120,7 @@ fn corner_tag_mixed_convexity_names_feather() {
             ..
         }) => {
             assert_eq!(convex, 1);
-            assert_eq!(policy, Some(RunOutPolicy::RunOutFeather));
+            assert_eq!(policy, None);
         }
         other => panic!("expected a mixed-convexity refusal, got {other:?}"),
     }
@@ -153,7 +152,7 @@ fn corner_config_admits_either_uniform_trihedron() {
                 corner: CornerConfig::MixedConvexity { convex: got },
                 ..
             }) => assert_eq!(got, convex),
-            other => panic!("a mixed trihedron is out of scope for every band, got {other:?}"),
+            other => panic!("a mixed trihedron has no corner patch, got {other:?}"),
         }
     }
 }

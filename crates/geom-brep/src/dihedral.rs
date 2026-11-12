@@ -125,7 +125,8 @@ use core::ops::ControlFlow;
 
 use crate::enters::{LeverEscalation, OutwardNormal};
 use geom::Surface;
-use geom_core::k_stats::{Magnitude, NonzeroSign};
+use geom_core::NonzeroSign;
+use geom_core::k_stats::Magnitude;
 use geom_core::{Band, Decide, Decided, Indeterminate, Margin, MarginDiag, Point3, Real, Sign};
 
 use crate::implicit::{curvature_lever_arm, implicit_gradient, implicit_outward_normal};
@@ -147,8 +148,10 @@ use crate::recourse::{RefusedSide, SizedDecision, SizedPass};
 /// zero needs a stored radius below zero, which a profile refuses at a
 /// build and the at-rest representability check reports first.
 pub const DIHEDRAL_ARM: SizedDecision = SizedDecision {
-    lever: "move the geometry so that edge's faces clearly run farther and none curves tightly \
-            there",
+    lever: geom_core::move_lever!(
+        "so that edge's faces clearly run farther and none curves tightly \
+            there"
+    ),
     size: "width or the gap its faces open",
     passes: SizedPass::Positive,
     side: RefusedSide::Lever,
@@ -457,7 +460,7 @@ pub struct Tangency<T: Real>(Reading<T>);
 /// normal is `+z` (the plus face) meeting a wall whose outward normal is
 /// `+y` along an edge the floor walks in `−x` is the top front edge of a
 /// block: convex. The pair of faces and the walk are produced together
-/// ([`WedgeWalk`]), so no reader orders one against the other by hand.
+/// ([`WedgeWalk`](crate::WedgeWalk)), so no reader orders one against the other by hand.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Convexity {
     /// Material wedge below π.
@@ -518,7 +521,7 @@ impl<T: Decide> Corner<T> {
     /// margin toward the band, where this escalates. A `τ̂` REVERSED, or
     /// the faces swapped against the walk, decides the opposite sign
     /// definitely: nothing here can tell. That is why the faces and the
-    /// stations are built together ([`WedgeWalk`]) and read only through
+    /// stations are built together ([`WedgeWalk`](crate::WedgeWalk)) and read only through
     /// the fold.
     ///
     /// # Errors
@@ -1128,7 +1131,7 @@ fn second_order_verdict<T: Decide>(
 /// home of the schedule the must-carry rule's first-order gate,
 /// [`second_order_walk`] and tier 3's check 4 read.
 ///
-/// An edge's wedge reads them through [`WedgeWalk::along_edge`], which
+/// An edge's wedge reads them through [`WedgeWalk::along_edge`](crate::WedgeWalk::along_edge), which
 /// pairs them with the edge's faces.
 pub(crate) fn interior_stations<T: Decide>(
     carrier: &geom::Curve3<T>,
@@ -2111,13 +2114,13 @@ pub fn classify_material_pairing_as<T: Decide>(
     arm: geom_core::Lever<T>,
     band: Band,
 ) -> Result<MaterialPairing, Indeterminate> {
-    pairing_reading(name, s_plus, sense_plus, s_minus, sense_minus, p, arm, band).0
+    pairing_reading_as(name, s_plus, sense_plus, s_minus, sense_minus, p, arm, band).0
 }
 
 /// The pairing decided as `name`, with the `cos θ` it decided on and the
 /// `sin θ` of the same normals.
 #[allow(clippy::too_many_arguments)]
-fn pairing_reading<T: Decide>(
+fn pairing_reading_as<T: Decide>(
     name: &'static str,
     s_plus: &Surface<T>,
     sense_plus: bool,
@@ -2136,7 +2139,7 @@ fn pairing_reading<T: Decide>(
     )
 }
 
-/// [`pairing_reading`] on two outward normals already read.
+/// [`pairing_reading_as`] on two outward normals already read.
 fn pairing_of_normals<T: Decide>(
     name: &'static str,
     n_plus: geom_core::Vec3<T>,
@@ -2638,7 +2641,7 @@ mod tests {
                     pair: got,
                     witness: w,
                 },
-            )) => assert!(got == pair && w.distance(witness) == 0.0, "{got:?} {w:?}"),
+            )) => assert!(got == pair && w.equals_exactly(witness), "{got:?} {w:?}"),
             other => panic!("jet-determinate must be the intrinsic tangency: {other:?}"),
         }
         assert!(matches!(

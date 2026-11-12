@@ -53,7 +53,7 @@ use crate::body::Body;
 use crate::entity::FaceKey;
 use crate::ray_walk::RayFault;
 use crate::validate::decide;
-use geom_core::{Band, Decide, Margin, Point3, Sign, Vec3};
+use geom_core::{Band, Decide, Margin, Point3, Sign};
 
 /// The alternate feet that carry a crossing's point to the ray's closest
 /// approach to an edge's carrier. Each foot is never farther than the one
@@ -88,11 +88,12 @@ pub(super) fn read<T: Decide>(
     planes: &[PlaneCross<T>],
     roots: &[RootCross<T>],
     missed: &[FaceKey],
-    (q, d, reach): (Point3<T>, Vec3<T>, T),
+    (ray, reach): (&geom::Ray<T>, T),
     band: Band,
     rows: RayRows,
     meets: &mut EdgeMeets<T>,
 ) -> Result<(), RayFault<PointInSolidError>> {
+    let geom::Line { origin: q, dir: d } = ray.line;
     let top = reach * T::from_f64(2.0);
     // A face's own carrier crossings on this ray, where it reads them:
     // `None` for a face read whole or not at all (a closed sphere or torus
@@ -155,7 +156,7 @@ pub(super) fn read<T: Decide>(
             let mut found: Vec<(T, Gap)> = Vec::new();
             let (mut decided, mut clear) = (true, true);
             for &(_, t) in ca.iter().chain(&cb) {
-                match passes(&span, q, d, q + d * t, band) {
+                match passes(&span, ray, q + d * t, band) {
                     Passes::Met(s, gap) => found.push((s, gap)),
                     Passes::End(s) => {
                         clear = false;
@@ -179,7 +180,7 @@ pub(super) fn read<T: Decide>(
                 .fold((first, first), |(lo, hi), &(s, _)| (lo.min(s), hi.max(s)));
             // Met at two places along the ray, definitely apart: no one
             // half crossing stands for both.
-            if geom_core::k_stats::decide_magnitude(rows.order, Margin::of(hi - lo), band)
+            if geom_core::k_stats::decide_magnitude(rows.order(), Margin::of(hi - lo), band)
                 == Ok(geom_core::k_stats::Magnitude::Positive)
             {
                 for s in [lo, hi] {
@@ -192,10 +193,10 @@ pub(super) fn read<T: Decide>(
             // nearest the edge at `q`, which the boundary pre-pass holds
             // clear of both its faces; a passage whose span straddles `q`
             // is read nowhere.
-            if decide(rows.advance, Margin::of(hi), band) == Ok(Sign::Negative) {
+            if ray.ahead(hi, rows.advance(), band) == Ok(Sign::Negative) {
                 continue;
             }
-            if decide(rows.advance, Margin::of(lo), band) == Ok(Sign::Negative) {
+            if ray.ahead(lo, rows.advance(), band) == Ok(Sign::Negative) {
                 meets.marks.push(RayHit::marked(faces, at, Mark::Graze));
                 continue;
             }
@@ -221,7 +222,7 @@ pub(super) fn read<T: Decide>(
             });
         }
     }
-    narrow(body, (q, d), band, meets)
+    narrow(body, ray, band, meets)
 }
 
 /// **A face met at one edge, read again at its other edges from where
@@ -235,10 +236,11 @@ pub(super) fn read<T: Decide>(
 /// edge of a face narrower than the band there is near.
 fn narrow<T: Decide>(
     body: &Body<T>,
-    (q, d): (Point3<T>, Vec3<T>),
+    ray: &geom::Ray<T>,
     band: Band,
     meets: &mut EdgeMeets<T>,
 ) -> Result<(), RayFault<PointInSolidError>> {
+    let geom::Line { origin: q, dir: d } = ray.line;
     let met = meets.met.clone();
     for m in &met {
         for &face in &m.faces {
@@ -256,7 +258,7 @@ fn narrow<T: Decide>(
                 };
                 let faces = [face, fe.across];
                 for seed in [m.span.0, m.span.1] {
-                    match passes(&span, q, d, q + d * seed, band) {
+                    match passes(&span, ray, q + d * seed, band) {
                         Passes::Met(s, gap) => {
                             let mark = gap.mark(m.gap);
                             meets.marks.push(RayHit::marked(faces, s, mark));
@@ -277,7 +279,7 @@ fn narrow<T: Decide>(
     Ok(())
 }
 
-/// **What the ray `q + s·d` reads against `span` from `seed`**, a point
+/// **What `ray` reads against `span` from `seed`**, a point
 /// of it (module docs). A point definitely off the edge's carrier (on the
 /// carrier's lower bound, where it has a closed form) is clear of it
 /// there. One that is not lies near the carrier, where its foot is well
@@ -285,8 +287,7 @@ fn narrow<T: Decide>(
 /// feet, which the point-on-span reading reads ([`geom_brep::curve_pair::Span::read`]).
 fn passes<T: Decide>(
     span: &crate::census::EdgeSpan<T>,
-    q: Point3<T>,
-    d: Vec3<T>,
+    ray: &geom::Ray<T>,
     seed: Point3<T>,
     band: Band,
 ) -> Passes<T> {
@@ -305,7 +306,7 @@ fn passes<T: Decide>(
     if clear {
         return Passes::Clear;
     }
-    let ray = geom::Line { origin: q, dir: d };
+    let ray = ray.line;
     let mut r = seed;
     for _ in 0..FEET {
         near = carrier.foot(r, near).seed();
@@ -346,7 +347,7 @@ fn nearest<T: Decide>(
                 j == i
                     || [lo, hi].iter().all(|&at| {
                         decide(
-                            rows.order,
+                            rows.order(),
                             Margin::of((u - at).abs() - (t - at).abs()),
                             band,
                         ) == Ok(Sign::Positive)
@@ -387,7 +388,7 @@ mod straddle_rows {
         let through = EdgeSpan::of(ellipse.clone(), (-0.5, 0.5));
         assert!(
             matches!(
-                passes(&through, q, d, at, band),
+                passes(&through, &geom::Ray::new(q, d), at, band),
                 Passes::Met(_, Gap::InBand(_))
             ),
             "an arc through the vertex"
@@ -407,7 +408,10 @@ mod straddle_rows {
         );
         let past = EdgeSpan::of(ellipse, (t0, t1));
         assert!(
-            matches!(passes(&past, q, d, at, band), Passes::Clear),
+            matches!(
+                passes(&past, &geom::Ray::new(q, d), at, band),
+                Passes::Clear
+            ),
             "an arc past the closest approach"
         );
     }
@@ -436,7 +440,10 @@ mod straddle_rows {
         );
         let radial = (at - centre).normalize();
         assert!(
-            matches!(passes(&arc, at - radial, radial, at, band), Passes::End(_)),
+            matches!(
+                passes(&arc, &geom::Ray::new(at - radial, radial), at, band),
+                Passes::End(_)
+            ),
             "the ray grazes the arc's start"
         );
     }

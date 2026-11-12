@@ -2,10 +2,14 @@
 # continue | break | {}`), counted per file (scripts/gates/escalation-discards.sh).
 # A search over readings that keeps nothing refuses, where none decides,
 # with a cause that is not the reading that stopped it: that is
-# `geom_brep::ladder::climb`'s job, which keeps and ranks what it passes
+# `geom_core::ladder::climb`'s job, which keeps and ranks what it passes
 # over. A new discard reds until it is registered here with why it is not
 # a search's kept reading; a count that falls reds until it is lowered.
 #
+# edge_nurbs curved_chart_image: a finer rung whose foot projection does
+# not converge keeps the coarser rung's image, a structure choice the
+# image's certificate then reads; the first rung's foot refuses.
+crates/geom-brep/src/edge_nurbs.rs 1
 # half_angle: the noise meter's reading in the gap runs the ladder, which
 # then reads (and keeps) its own margins; no search passes over it.
 crates/geom-brep/src/half_angle.rs 1

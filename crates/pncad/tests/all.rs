@@ -150,15 +150,16 @@ fn section_payload(e: &pncad::geom_brep::SectionError) {
 
 // sweep::SkinError carries geom::FitError and — the first of
 // the three payloads that are NOT at their owning crate's root —
-// geom_core::spline::KnotAlgebraError.
+// geom_core::spline::Built over geom_core::spline::KnotAlgebraError.
 fn skin_payload(e: &pncad::sweep::SkinError) {
+    use pncad::geom_core::spline::Built;
     match e {
-        pncad::sweep::SkinError::Fit(inner) => named::<&pncad::geom::FitError>(inner),
+        pncad::sweep::SkinError::Fit(inner) => named::<&Built<pncad::geom::FitError>>(inner),
         pncad::sweep::SkinError::KnotAlgebra(inner) => {
-            named::<&pncad::geom_core::spline::KnotAlgebraError>(inner);
+            named::<&Built<pncad::geom_core::spline::KnotAlgebraError>>(inner);
         }
         pncad::sweep::SkinError::Structure(inner) => {
-            named::<&pncad::geom_core::SplineError>(inner);
+            named::<&Built<pncad::geom_core::SplineError>>(inner);
         }
         _ => {}
     }
@@ -169,13 +170,20 @@ fn skin_payload(e: &pncad::sweep::SkinError) {
 fn fit_payload(e: &pncad::geom::FitError) {
     match e {
         pncad::geom::FitError::Lsq(inner) => {
-            named::<&pncad::geom_core::linalg::lsq::LsqError>(inner);
+            named::<&pncad::geom_core::spline::Built<pncad::geom_core::linalg::lsq::LsqError>>(
+                inner,
+            );
         }
         pncad::geom::FitError::KnotAlgebra(inner) => {
-            named::<&pncad::geom_core::spline::KnotAlgebraError>(inner);
+            named::<&pncad::geom_core::spline::Built<pncad::geom_core::spline::KnotAlgebraError>>(
+                inner,
+            );
         }
         pncad::geom::FitError::Structure(inner) => {
             named::<&pncad::geom_core::SplineError>(inner);
+        }
+        pncad::geom::FitError::Assembly(inner) => {
+            named::<&pncad::geom_core::spline::Built<pncad::geom_core::SplineError>>(inner);
         }
         _ => {}
     }
@@ -383,6 +391,7 @@ fn blend_decision_is_matchable(decision: BlendDecision) -> &'static str {
         BlendDecision::MaterialSide => "material_side",
         BlendDecision::KnifeEnd => "knife_end",
         BlendDecision::KnifeRoom => "knife_room",
+        BlendDecision::BallRoom => "ball_room",
         BlendDecision::RingClearance => "ring_clearance",
         BlendDecision::SupportCoaxiality => "support_coaxiality",
         BlendDecision::ContactArm => "contact_arm",
@@ -625,10 +634,7 @@ fn carried_refusal_payloads_are_matchable_through_the_prelude() {
         CornerConfig::NEdgeVertex { valence: 4 }.policy(),
         Some(RunOutPolicy::RunOutStopAtVertex)
     );
-    assert_eq!(
-        CornerConfig::MixedConvexity { convex: 2 }.policy(),
-        Some(RunOutPolicy::RunOutFeather)
-    );
+    assert_eq!(CornerConfig::MixedConvexity { convex: 2 }.policy(), None);
 
     assert_eq!(
         blend_site_and_convexity_are_matchable(BlendSite::Chain, Convexity::Convex),
@@ -682,6 +688,7 @@ fn carried_refusal_payloads_are_matchable_through_the_prelude() {
         escalation_is_readable(&Indeterminate {
             margin: MarginDiag::enclosure(-1e-9, 1e-9),
             band,
+            // UNDECIDED-NAME: an enclosure cause built to read its escalation sentence
             predicate: Some("face_orientation"),
             terminal_sliver: false,
         }),
@@ -1528,6 +1535,14 @@ fn normalization_kind_is_readable(kind: &NormalizationKind) -> &'static str {
         NormalizationKind::JoinedEdges => "joined_edges",
         NormalizationKind::EdgeSplitAtC0Knot => "edge_split_at_c0_knot",
         NormalizationKind::FaceSplitAtC0Knot => "face_split_at_c0_knot",
+        NormalizationKind::PlacementReMinted {
+            transform,
+            moved_by,
+        } => {
+            named::<&u64>(transform);
+            named::<&f64>(moved_by);
+            "placement_re_minted"
+        }
         NormalizationKind::SurfacePromotion { to, residual } => {
             named::<&f64>(residual);
             match to {
@@ -7027,7 +7042,22 @@ mod the_hollowed_box_through_the_facade {
     #[test]
     fn the_box_refuses_typed_at_a_dual_and_there_alone() {
         let (doc, cup) = open_box();
-        let ev: Evaluation<pncad::geom_core::Dual64> = run!(pncad::geom_core::Dual64, &doc);
+        // A dual evaluates bound to the build of record (DUAL-DESIGN DL3).
+        let record: Evaluation<f64> = evaluate::<f64>(
+            &doc,
+            None,
+            &CancelToken::new(),
+            &EvalOptions::default().of_record(),
+            Tol::witness(),
+        );
+        let ev: Evaluation<pncad::geom_core::Dual64> = pncad::document::evaluate_recorded(
+            &doc,
+            None,
+            &record,
+            &CancelToken::new(),
+            &EvalOptions::default(),
+            Tol::witness(),
+        );
         let head = ev.nodes.get(&cup).expect("the shell node ran");
         let NodeResult::Failed(e) = head else {
             panic!("the shell did not refuse at a dual: {head:?}");
@@ -7486,7 +7516,7 @@ mod pattern_presets_are_recognised_as_themselves {
     fn cap_axis(body: RecipeNodeId) -> Operand {
         Operand::Pose(Box::new(pncad::document::pose::PoseDef::Axis {
             of: Operand::Select {
-                body: Box::new(Operand::Node(body)),
+                body: Box::new(Operand::Node(body).into()),
                 names: vec![pncad::prelude::StableName {
                     kind: pncad::select::EntityKind::Face,
                     node: body,

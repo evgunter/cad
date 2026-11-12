@@ -76,8 +76,10 @@ fn ball<T: Real>(c: Point3<T>, r: T) -> Cover<T> {
 /// The circle of radius `radius` about `center` normal to `axis`.
 fn core_about(center: Point3<f64>, axis: Vec3<f64>, radius: f64) -> Around<f64> {
     Around::Circle(Core {
-        center,
-        axis,
+        axis: crate::Line {
+            origin: center,
+            dir: axis,
+        },
         radius,
     })
 }
@@ -1797,8 +1799,10 @@ fn a_shell_reads_a_nearby_core_no_nearer_than_its_points() {
     let frame = Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x());
     let torus = Cover::torus(&frame, 1.0, 0.25).unwrap();
     let other = Core {
-        center: Point3::new(0.3, 0.0, 0.0),
-        axis: Vec3::unit_z(),
+        axis: crate::Line {
+            origin: Point3::new(0.3, 0.0, 0.0),
+            dir: Vec3::unit_z(),
+        },
         radius: 1.0,
     };
     let (near, far) = torus.range_about(&Around::Circle(other));
@@ -2059,8 +2063,10 @@ fn a_hull_of_small_pieces_reads_the_ball_about_its_box() {
 fn a_whole_circle_is_its_turn_whatever_its_seam() {
     let (c, axis, r) = (Point3::new(1.0, -2.0, 3.0), Vec3::new(0.0, 0.6, 0.8), 2.5);
     let circle = Cover::circle(Core {
-        center: c,
-        axis,
+        axis: Line {
+            origin: c,
+            dir: axis,
+        },
         radius: r,
     })
     .unwrap();
@@ -2083,8 +2089,10 @@ fn a_whole_circle_is_its_turn_whatever_its_seam() {
     );
     assert!(
         Cover::circle(Core {
-            center: Point3::new(f64::NAN, 0.0, 0.0),
-            axis,
+            axis: Line {
+                origin: Point3::new(f64::NAN, 0.0, 0.0),
+                dir: axis,
+            },
             radius: r,
         })
         .is_none(),
@@ -2168,4 +2176,39 @@ fn an_arcs_cover_reads_no_farther_than_its_whole_conics_piece() {
             "the arc over [{t0}, {t1}]: its cover reads {got}, past its whole conic's {whole}"
         );
     }
+}
+
+/// **A chain as long as the entities it joins is one node** (`Node`): a
+/// hull of a hundred thousand point covers, built left to right as an
+/// operand's faces are, is cloned, read and dropped on a thread with a
+/// 256 KiB stack. As a left-deep tree, its clone and drop recursed once
+/// per operand and overflowed a test thread's 2 MiB stack at about a
+/// hundred (the `Dual<Interval>` corpus rows that filed
+/// `main-red-two-dual-interval-corpus-rows-overflow-the-stack`). Its
+/// support reads the greatest point's coordinate, as the fold over every
+/// operand must.
+#[test]
+fn a_hull_of_a_hundred_thousand_covers_is_read_and_dropped_on_a_small_stack() {
+    let run = std::thread::Builder::new()
+        .stack_size(256 * 1024)
+        .spawn(|| {
+            let n = 100_000;
+            let chain = (0..n)
+                .map(|i| Cover::points(vec![Point3::new(f64::from(i), 0.0, 0.0)]).unwrap())
+                .reduce(Cover::hull)
+                .unwrap();
+            let copy = chain.clone();
+            let far = copy.support(Vec3::new(1.0, 0.0, 0.0));
+            let near = chain
+                .meet(Cover::points(vec![Point3::new(0.5, 0.0, 0.0)]).unwrap())
+                .support(Vec3::new(1.0, 0.0, 0.0));
+            (far, near)
+        })
+        .unwrap();
+    let (far, near) = run.join().expect("the chain is read on a small stack");
+    assert_eq!(
+        far, 99_999.0,
+        "the hull's support is its greatest operand's"
+    );
+    assert_eq!(near, 0.5, "a meet with a point reads that point's support");
 }

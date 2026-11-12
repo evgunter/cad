@@ -246,6 +246,13 @@ fn listed(
                 let [ta, tb] = on(to);
                 open([fa.or(ta), fb.or(tb)])
             }
+            BranchEnd::Node { .. } => {
+                return Err(SectionError::Unaccounted {
+                    cause: "a branch of the spline pair's reading ended at a node, which the \
+                            pair's reading hands no march"
+                        .to_owned(),
+                });
+            }
             BranchEnd::Cut => {
                 return Err(SectionError::Unaccounted {
                     cause: "a branch of the spline pair's reading ended off both rectangles, \

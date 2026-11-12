@@ -99,8 +99,10 @@ impl<T: geom_core::spline::SpanLocate> TorusDisplacement<T> {
     pub fn of(a: TorusData<T>, b: TorusData<T>) -> Self {
         let spine = |t: TorusData<T>| {
             let circle = geom::cover::Cover::circle(geom::cover::Core {
-                center: t.center,
-                axis: t.axis,
+                axis: geom::Line {
+                    origin: t.center,
+                    dir: t.axis,
+                },
                 radius: t.major_radius,
             });
             crate::ExtentBall::of_covered(circle.as_ref()).lever()

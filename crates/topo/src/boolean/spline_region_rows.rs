@@ -252,7 +252,11 @@ fn a_point_of_a_spline_face_is_placed_in_or_out_by_its_trim() {
     let Err(crate::boolean::ContainError::Escalated { diag, .. }) = in_band else {
         panic!("a point in the band of the carrier escalates: {in_band:?}");
     };
-    assert_eq!(diag.predicate, Some(super::CARRIER), "{diag:?}");
+    assert_eq!(
+        diag.predicate,
+        Some(super::SPLINE_REGION_CARRIER),
+        "{diag:?}"
+    );
 }
 
 /// **A point on the trim's boundary within the band** is the boundary
@@ -281,7 +285,7 @@ fn a_point_within_the_band_of_the_trim_is_never_given_a_side() {
     for u in [0.75 - step, 0.75 + step] {
         let near = trim.place(&cells, super::Rect::point(u, 0.5), b);
         assert!(
-            matches!(near, Place::Near(Some(ref d)) if d.predicate == Some(super::TRIM)),
+            matches!(near, Place::Near(Some(ref d)) if d.predicate == Some(super::SPLINE_REGION_TRIM)),
             "a chart point within the band of the trim at u = {u}: {near:?}"
         );
     }
@@ -717,7 +721,7 @@ fn a_way_out_of_the_window_within_the_band_keeps_a_query_near() {
     let trim = Trim::from_pieces(square, unit, [None, None], Caps::READ).unwrap();
     let near = trim.place(&cells, super::Rect::point(0.5, 0.35), b);
     assert!(
-        matches!(near, Place::Near(Some(ref d)) if d.predicate == Some(super::TRIM)),
+        matches!(near, Place::Near(Some(ref d)) if d.predicate == Some(super::SPLINE_REGION_TRIM)),
         "the way out of the window is in the band: {near:?}"
     );
 }
@@ -1873,4 +1877,36 @@ fn an_iso_images_ends_hold_their_evaluations_rounding() {
         "an iso end drifts {worst} times its bound; {}",
         test_utils::fuzz::replay()
     );
+}
+
+/// **A spline face's stations read on its own chart, never off its
+/// carrier** (`crate::cell_region`'s held door). The twisted bilinear
+/// patch `(u, v, u·v)`, a sheet over `[0.1, 0.9]²` of it: every station
+/// of an 11 × 11 grid over the whole chart is placed by the curved door,
+/// and none reads `OffCarrier`. A station is a point of the chart, and
+/// the spline arm reads it by its own search, which `Held::check` does
+/// not guard. `cell_region::station_region` answers `In` well inside the
+/// sheet and `Out` well outside it, and panics nowhere.
+#[test]
+fn a_spline_faces_stations_read_on_its_own_chart() {
+    let (body, face) = sheet(
+        &twisted(1.0),
+        &[(0.1, 0.1), (0.9, 0.1), (0.9, 0.9), (0.1, 0.9)],
+    );
+    let surface = body.face(face).unwrap().surface().clone();
+    let n = 10;
+    for i in 0..=n {
+        for j in 0..=n {
+            let (u, v) = (f64::from(i) / f64::from(n), f64::from(j) / f64::from(n));
+            let at = curved_face_placement(&body, face, surface.eval(u, v), band());
+            assert!(
+                !matches!(at, Ok(CurvedPlacement::OffCarrier)),
+                "the station ({u}, {v}) reads off its own carrier: {at:?}"
+            );
+            let _ = crate::cell_region::station_region(&body, face, (u, v), band());
+        }
+    }
+    let region = |uv| crate::cell_region::station_region(&body, face, uv, band());
+    assert_eq!(region((0.5, 0.5)), Some(FaceContainment::In));
+    assert_eq!(region((0.02, 0.5)), Some(FaceContainment::Out));
 }

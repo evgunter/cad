@@ -50,3 +50,11 @@ instance of one class can sit on a different program's slate.
 
 INSTR — `docs/K-REPORT.md` is instr's territory
 (`scripts/work.py territory`).
+
+## A sixth site (2026-11-10, `instr/klint-large-k`)
+
+"The row is a GATE" says to demote the row "in both wirings". The two
+wirings were hosted `ci.yml` and `scripts/ci-local.sh` (`f6cd8d89a`,
+2026-08-08). Today only `nightly.yml`'s `dev-probe` row runs the
+large-K lint, and the local script is gone. K-REPORT's 2026-11-10
+INSTR addendum notes the drift; the re-wording is this row's.

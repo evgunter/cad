@@ -19,6 +19,12 @@
 //! layer, under a placement rule stated and argued in `geom-brep`'s
 //! `nurbs_iso` module docs.
 //!
+//! **One roster of the readers' funnel rows** lives in the
+//! module [`rows`]: every reader of the ring convention
+//! ([`RingReader`], the only minter of [`RingSites`]) and of the spiric
+//! regime ([`SpiricReader`], the only minter of [`SpiricRegimeSites`]),
+//! read off the two enums and checked distinct when this crate compiles.
+//!
 //! # Conventions (normative, stated once)
 //!
 //! These are the parameterization conventions every consumer — edges,
@@ -155,6 +161,7 @@ mod net;
 mod periodic;
 pub mod pole_form;
 mod projection_policy;
+pub mod rows;
 mod scalar_lift;
 pub mod surfaces;
 // Test fixtures; see the module's docs. `doc(hidden)` because the
@@ -176,8 +183,8 @@ pub use curves::{
     CurveData, CurveDatum, CurveKind, CurveWindow2, CurveWindow3, Ellipse, EllipseInvalid,
     FIT_REMOVAL_BUDGET, FitError, FitOutcome, Foot, Line, LinePair, MajorFrame, NurbsCurve2,
     NurbsCurve3, OnCarrier, PieceRead, PieceStep, PieceWalkRefusal, Projection2, Projection3,
-    ProjectionInconclusive, RefitSkip, SeamSide, SpiricInvalid, SpiricRegime, SpiricRegimeSites,
-    compose_chain, ellipse_level_clearance, spiric_curvature_sup, spiric_f_range,
+    ProjectionInconclusive, Ray, RefitSkip, SeamSide, SpiricInvalid, SpiricRegime, compose_chain,
+    conic_period, ellipse_level_clearance, spiric_curvature_sup, spiric_f_range, spiric_period,
     spiric_period_rate_bounds, spiric_radial, spiric_rate_bounds, spiric_regime,
     spiric_window_rate_bounds,
 };
@@ -185,6 +192,7 @@ pub use datum::{AnalyticData, DatumValue};
 pub use frame::{Frame, plane_offset, plane_offset_rounded};
 pub use geom_core::{bracket_mid, mid_param};
 pub use periodic::periodic_window_may_hold;
+pub use rows::{RingReader, RingSites, SpiricReader, SpiricRegimeSites};
 // The §6.1 policy module is interior — its body is the argument for
 // these four values, not API — but the values themselves are the
 // public names both halves' callers have always used.
@@ -192,26 +200,10 @@ pub use projection_policy::{
     PROJECT_EPS_COSINE, PROJECT_EPS_POINT, PROJECT_MAX_ITERS, PROJECT_SEEDS_PER_SPAN,
 };
 pub use surfaces::{
-    AnalyticPairs, ApproxSurface, ApproxWindow, NetState, NotARing, NurbsSurface,
-    OffsetCertificate, PLACEHOLDER_SURFACE, RingSites, RingTorus, SheetApex, SpindleEnd,
+    AnalyticPairs, AnglePeriods, ApproxSurface, ApproxWindow, NetState, NotARing, NurbsSurface,
+    OffsetCertificate, PLACEHOLDER_SURFACE, RingTorus, RunSide, SheetApex, SpanBeside, SpindleEnd,
     SpindleMiss, Surface, SurfaceData, SurfaceDatum, SurfaceDescription, SurfaceJet, SurfaceJet3,
     SurfaceKind, SurfacePairing, SurfaceProjection, SurfaceProjectionInconclusive, SurfaceSpec,
     SurfaceWindow, is_ring_torus, meridian_side, require_ring_torus, ring_torus, sheet_apex,
     spindle_sheet, torus_tube,
 };
-
-/// `a == b`, in a `const` context.
-pub(crate) const fn str_eq(a: &str, b: &str) -> bool {
-    let (a, b) = (a.as_bytes(), b.as_bytes());
-    if a.len() != b.len() {
-        return false;
-    }
-    let mut k = 0;
-    while k < a.len() {
-        if a[k] != b[k] {
-            return false;
-        }
-        k += 1;
-    }
-    true
-}

@@ -60,9 +60,18 @@ The typed surface records as it lowers: a closing verb returns
 steps to geometry: `replay`, `replay_recording`, `replay_guided`,
 `replay_drawn` and `pen` are one driver walk over the steps, and serde
 (in `editor-core`) is transport, never a constructor. `replay_drawn`
-also records, at the call that hands each fused fillet's fit its two
-sides, those sides and the fillet circle the fit finds — so a refused
-fit still has them for the editor to draw. Two refusal classes
+also returns, beside the replay's result, one `FilletConstruction` per
+fillet step, every fillet verb's (the bare `fillet(r)` included),
+recorded at the raising site as each thing is bound: the incoming side
+when the step opens it, the arrival side when its binder fixes it (which
+may be a later step), then the fit's answer — the fillet circle, or, on
+an anchor-fit refusal, the overrunning candidate circle and its tangent
+points. A step refused between its two sides still has the first. The
+record is filed against the fillet step and a refusal against the step
+that refused, so a refused fit's record is the last one of its step
+with no fillet circle. The editor draws the record in its construction
+colour and marks each refused corner (`CornerRefusal::at`); nothing
+decides on it. Two refusal classes
 (`ReplayErrorKind`):
 
 - `Transition` — a verb or arc mode ill-typed at the tip's `TipState`.
@@ -431,9 +440,10 @@ it was resolving with that lever and no coincidence tail: a fillet the
 caller asked for constructs its joints, so "declare the coincidence"
 names a declaration that does not exist. A gate whose margin is a size
 the user may intend, and which a smaller ε decides in the request's
-favour, adds the conditional, valued tighten. Every other gate ends in
-its lever alone: the two classified against the exact-order band,
-`fillet_leg_fit` and `fillet_leg_reach`, which no ε moves, and
+favour, adds the conditional, valued tighten — `fillet_leg_fit` on a run
+in band only, since an overrun in band refuses at every smaller ε. Every
+other gate ends in its lever alone: `fillet_leg_reach`, classified
+against the exact-order band, which no ε moves, and
 `fillet_offset_lever`, whose least lever grows as ε shrinks, so a smaller
 tolerance decides it against the request. The
 stored-form read is a site of its own (`EscalatedAt::StoredForm`),
@@ -442,15 +452,16 @@ and a guided replay names the parameter box first and the gate's lever
 after it. `tests/recourse_roster.rs` holds the table against `src`: no
 funnel call there names a decision anywhere but the table.
 
-Six of the nine take an in-band verdict from a request a caller can
-author. Of the other three, `fillet_corner_arm` is shadowed by
-magnitude — its margin IS the lever arm, so putting it in the band puts
-a length-shaped path gate in the band on the same request — and
-`fillet_leg_fit` and `fillet_leg_reach` classify against the exact-order
-band, which no representable `f64` lies inside. That last is a statement
-about `f64` alone: the interval lane already drives `fillet_leg_fit` in
-band. Two of the six are levered or scene-scaled rather than
-radius-scaled, which is why their sentences name the leg extent and the
+Seven of the nine take an in-band verdict from a request a caller can
+author. `fillet_leg_fit` reads the run a fillet leaves on a leg against
+the run's linear band, the band validation reads a segment's length on,
+so a run validation would call degenerate is a Zero fit and is never
+built, and one in the band escalates at the fit. Of the other two,
+`fillet_corner_arm` is shadowed by magnitude — its margin IS the lever
+arm, so putting it in the band puts a length-shaped path gate in the
+band on the same request — and `fillet_leg_reach` classifies against
+the exact-order band, which no representable `f64` lies inside. Two of
+the seven are levered or scene-scaled rather than radius-scaled, which is why their sentences name the leg extent and the
 bound on the lever's own window.
 
 ## The refusal envelope: every refusing crossing, named
@@ -512,28 +523,42 @@ order, and no entry outranks another. The pins are
 **One level down, the candidate.** At an arc-carrier corner the offset
 carriers admit up to two candidate circles, and an anchor-fit entry
 (`AnchorOutsideTrimmedExtent`) can have both of them round the corner
-and overrun a leg. The entry's numbers are those of the candidate
-nearest to fitting IN THE SETBACK METRIC, on that candidate's worse leg:
+and overrun a leg. The entry reports the candidate nearest to fitting:
+`fillet_select::nearest_candidate`'s ladder over the candidates' setback
+pairs, the one home of "the nearest candidate at one corner" (a
+candidate tie is unreachable by geometry, one candidate being shallower
+on both legs). For that candidate it carries both legs' setback and the
+extent each leg's anchor pins, and `radius_at_anchor`: the radius of the
+fillet tangent to an overrun leg's carrier exactly at its anchor and to
+the other carrier, the smaller over the candidate's overrun legs, each
+leg's solution taken on the branch of the candidate it belongs to. The
+tangency condition is linear in the radius on both leg kinds, so it is
+a closed form at the site, not a search; it is `None` only where that
+form degenerates. Beside it rides the same form with the anchor moved
+toward the corner by half the fit band's coincidence threshold, the
+far edge of the exact-fit band the rendering lands in.
 
-- *nearest candidate* — `fillet_select::nearest_candidate`'s ladder over
-  the candidates' setback pairs, the one home of "the nearest candidate
-  at one corner"; a candidate tie is unreachable by geometry, one
-  candidate being shallower on both legs;
-- *worse leg* — the one whose setback outruns its extent by more; ties
-  name the incoming leg.
-
-The construction (`sugar::arc_fillet_trims`) carries every overrunning
-candidate out at the scalar and compares nothing; the pick is the
-door's (`path::arc_fillet::map_refusal`), an `f64` enclosure read off
-the diagnostic channel like the sort key above, and nothing branches on
-it. The numbers are NOT a radius amount: `setback − available` is the
-leg's overrun in the setback metric, and a setback does not scale 1:1
-with the radius on either leg kind. The recourse "reduce the radius or
-move the anchor" is un-metered and true. The pins are
+The two numbers meter the two levers, each stated as the value to set
+rather than an amount to add. A leg fits when its anchor lies at least
+`setback` from the corner along the side, and moving the anchor along a
+carrier that stays put changes `available` one for one, so `setback` is
+the anchor's target; `radius_at_anchor` is this corner's bound for the
+radius. The sentence names, for each overrunning leg, where its anchor
+must lie, and the radius, each rendered strictly on the fitting side of
+the exact value (the exact value's float can land on the overrun side,
+so the rendering lands within the exact-fit band on the fitting side,
+and the named fillet ends at the anchor):
+"anchor that leg at least S m from the corner, or use a radius of X m or
+less" (the sentence's cause clause has already given each overrunning
+leg's setback and where its anchor is). It promises this corner's
+anchor fit and nothing more; a smaller radius can still refuse at
+another gate, in that gate's own words. Where `radius_at_anchor` is
+`None` the radius lever is named without a value. A corner's recourse
+is a closed `Recourse`, and a pair's one recourse is their exhaustive
+merge, taking the largest radius bound among its corners. The pins are
 `tests/fillet_overrun_nearest_fit.rs` and the two review probe suites
 beside it (`review_fillet_overrun_nearest_fit_r1_probes`, `_r2_probes`),
-whose grid-A recourse census says which way reading the number as a
-radius reduction errs.
+and the radius lever's `tests/fillet_radius_at_anchor.rs`.
 
 ## The profile loop: format and tangency
 

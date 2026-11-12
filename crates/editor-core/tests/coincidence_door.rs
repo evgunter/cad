@@ -463,9 +463,9 @@ fn edge_named(ev: &Evaluation<f64>, node: RecipeNodeId, a: [f64; 3], b: [f64; 3]
         .find_map(|(n, entry)| match entry {
             Entry::Unique(r) => match r.key {
                 EntityKey::Edge(e) => {
-                    let he = body.get_edge(e).unwrap().he_plus;
-                    let s = point(body.get_half_edge(he).unwrap().start);
-                    let t = point(body.half_edge_end(he).unwrap());
+                    let (v0, v1) = body.edge_vertices(e).unwrap();
+                    let s = point(v0);
+                    let t = point(v1);
                     ((at(s, a) && at(t, b)) || (at(s, b) && at(t, a))).then(|| n.clone())
                 }
                 _ => None,
@@ -1021,7 +1021,7 @@ fn a_corner_the_tool_passes_through_is_not_on_it_by_construction() {
                 .into_iter()
                 .flat_map(move |y| [0.0, 1.0].map(|z| [x, y, z]))
         })
-        .map(|[x, y, z]| turn.affine::<f64>().transform_point(Point3::new(x, y, z)).z)
+        .map(|[x, y, z]| turn.affine().transform_point(Point3::new(x, y, z)).z)
         .collect();
     heights.sort_by(f64::total_cmp);
     let level = heights[3];
@@ -1453,11 +1453,8 @@ fn rim_named(ev: &Evaluation<f64>, node: RecipeNodeId, z: f64) -> Vec<StableName
         .filter_map(|(n, entry)| match entry {
             Entry::Unique(r) => match r.key {
                 EntityKey::Edge(e) => {
-                    let he = body.get_edge(e).unwrap().he_plus;
-                    let ends = [
-                        body.get_half_edge(he).unwrap().start,
-                        body.half_edge_end(he).unwrap(),
-                    ];
+                    let (v0, v1) = body.edge_vertices(e).unwrap();
+                    let ends = [v0, v1];
                     ends.iter()
                         .all(|&v| (height(v) - z).abs() < 1e-12)
                         .then(|| n.clone())
@@ -2034,9 +2031,16 @@ fn an_unproven_row_says_why_the_replay_left_it() {
 }
 
 /// **What the door proves on the tour's composed dies**: the blend
-/// joints whose `fillet3_chain_g1` margin is the zero polynomial. One of
-/// `die_composed`'s two and 14 of `die_composed_tour`'s 42 prove as
-/// theorems, and the rest stay unproven. The tour's pips are copies
+/// joints whose `fillet3_chain_g1` margin is the zero polynomial. Both
+/// of `die_composed`'s two and 21 of `die_composed_tour`'s 42 prove as
+/// theorems, and the rest stay unproven. They proved one and 14 until
+/// the angle reductions read `geom_core::period::Period::at_or_above`
+/// (PR 6710, commit `4445b9cb`). The reduction it replaced,
+/// `lo + (t − lo).reduce_periodic(τ)`, names the same copy of the angle,
+/// but spells a margin the symbolic replay did not cancel within its
+/// budget (`Unproven`, recourse `Budget`). The margins are the same
+/// functions, so the new theorems are true ones the door now reaches.
+/// The tour's pips are copies
 /// placed against the die's faces; a copy placed by a frame turned off
 /// the die's own axes reaches its rim through that turn's sine and
 /// cosine, and its joints stay unproven
@@ -2049,7 +2053,7 @@ fn the_door_proves_half_the_composed_dies_joints() {
     // `met`: the vertex identities the dies' booleans decide at a point
     // minted on an edge, each a `Meet` of the cells it lies in (measured:
     // a pip's meridian seam edge against a face of the die).
-    for (name, proved, rows, met) in [("die_composed", 1, 4, 2), ("die_composed_tour", 14, 84, 42)]
+    for (name, proved, rows, met) in [("die_composed", 2, 4, 2), ("die_composed_tour", 21, 84, 42)]
     {
         let cd = crate::corpus::documents()
             .into_iter()

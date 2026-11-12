@@ -139,15 +139,19 @@ impl<T: Real> From<Site<T>> for Around<T> {
 }
 
 /// **A circle a region is measured about**: the circle of radius
-/// `|radius|` about `center` in the plane normal to `axis`, which need
-/// not be unit. A point `ρ` from the axis line and `t` along it stands
+/// `|radius|` about the axis line's origin, in the plane normal to it.
+/// A point `ρ` from the axis line and `t` along it stands
 /// `√((ρ − |radius|)² + t²)` from it.
+///
+/// It is not a [`crate::Circle`], whose axis is unit and whose radius is
+/// positive: a core is read on a placement whose axis need not be unit,
+/// which a [`Line`] reads (any nonzero direction), and its radius is read
+/// by its magnitude.
 #[derive(Clone, Copy, Debug)]
 pub struct Core<T: Real> {
-    /// Its centre.
-    pub center: Point3<T>,
-    /// Its plane's normal.
-    pub axis: Vec3<T>,
+    /// Its axis line: its origin the circle's centre, its direction the
+    /// plane's normal.
+    pub axis: Line<T>,
     /// Its radius, read by its magnitude.
     pub radius: T,
 }
@@ -264,11 +268,20 @@ impl<T: Real> Lattice for Covered<T> {
 #[derive(Clone, Debug)]
 pub struct Cover<T: Real>(Node<T>);
 
+/// The region's expression. A meet and a hull hold their operands in
+/// the order they were joined, at least two, and are read as the
+/// left-deep chain they were built as: `a.hull(b).hull(c)` is
+/// `Hull[a, b, c]`, read `(a ∪ b) ∪ c`, its readers folding the operands
+/// left to right. So a chain as long as the entities it joins (an
+/// operand's faces, a face's edges) is one node, not a tree that deep,
+/// and every walk over the expression, its clone and its drop among
+/// them, is as deep as the expression's nesting of kinds rather than its
+/// length.
 #[derive(Clone, Debug)]
 enum Node<T: Real> {
     Piece(Piece<T>),
-    Meet(Box<[Node<T>; 2]>),
-    Hull(Box<[Node<T>; 2]>),
+    Meet(Vec<Node<T>>),
+    Hull(Vec<Node<T>>),
     Convex(Box<Node<T>>),
 }
 
@@ -346,8 +359,8 @@ impl<T: Real> Circle<T> {
 
 #[derive(Clone, Copy, Debug)]
 struct Slab<T: Real> {
-    origin: Point3<T>,
-    axis: Vec3<T>,
+    /// The axis line, its direction unit: the window is along it.
+    axis: Line<T>,
     radius: T,
     window: ParamWindow<T>,
     /// A cylinder wall's least distance from the axis ([`Cover::wall`]):
@@ -358,8 +371,8 @@ struct Slab<T: Real> {
 
 #[derive(Clone, Copy, Debug)]
 struct Frustum<T: Real> {
-    apex: Point3<T>,
-    axis: Vec3<T>,
+    /// The axis line from the apex, its direction unit.
+    axis: Line<T>,
     tan: T,
     window: ParamWindow<T>,
 }
@@ -479,12 +492,6 @@ impl<T: Real> OffAxis<T> {
 
 fn vec_of<T: Real>(p: Point3<T>) -> Vec3<T> {
     p - Point3::origin()
-}
-
-/// **The axis line of a piece of revolution** through `origin` along
-/// `dir`: a circle's, a slab's, a frustum's. The one constructor of it.
-fn axis_line<T: Real>(origin: Point3<T>, dir: Vec3<T>) -> Line<T> {
-    Line { origin, dir }
 }
 
 /// A free direction `v`'s part off the line direction `d` (a point's
@@ -635,8 +642,8 @@ impl<T: Real> Cover<T> {
     /// reader holding the carrier reads `Curve3::cover`. `None` for a
     /// datum that is not a finite number.
     pub fn circle(core: Core<T>) -> Option<Self> {
-        let axis = core.axis.normalize();
-        let frame = Frame::new(core.center, axis, axis.orthonormal_basis().0);
+        let axis = core.axis.dir.normalize();
+        let frame = Frame::new(core.axis.origin, axis, axis.orthonormal_basis().0);
         Self::arc(
             &frame,
             (core.radius, core.radius),
@@ -656,8 +663,10 @@ impl<T: Real> Cover<T> {
         (finite_point(origin) && finite_vec(axis.get()) && finite(&[radius]) && window.finite())
             .then(|| {
                 Self::piece(Piece::Slab(Slab {
-                    origin,
-                    axis: axis.get(),
+                    axis: Line {
+                        origin,
+                        dir: axis.get(),
+                    },
                     radius: radius.abs(),
                     window,
                     wall: None,
@@ -686,8 +695,10 @@ impl<T: Real> Cover<T> {
         (finite_frame(frame) && finite_vec(axis) && finite(&[inner, outer]) && window.finite())
             .then(|| {
                 Self::piece(Piece::Slab(Slab {
-                    origin: frame.origin,
-                    axis,
+                    axis: Line {
+                        origin: frame.origin,
+                        dir: axis,
+                    },
                     radius: outer,
                     window,
                     wall: Some(inner),
@@ -721,8 +732,10 @@ impl<T: Real> Cover<T> {
         let tan = climb.select_le_zero(geom_core::poison(), sin.abs() * radial.off.1 / climb);
         (finite_frame(frame) && finite_vec(axis) && finite(&[tan]) && window.finite()).then(|| {
             Self::piece(Piece::Frustum(Frustum {
-                apex: frame.origin,
-                axis,
+                axis: Line {
+                    origin: frame.origin,
+                    dir: axis,
+                },
                 tan,
                 window,
             }))
@@ -744,8 +757,10 @@ impl<T: Real> Cover<T> {
             && window.finite())
         .then(|| {
             Self::piece(Piece::Frustum(Frustum {
-                apex,
-                axis: axis.get(),
+                axis: Line {
+                    origin: apex,
+                    dir: axis.get(),
+                },
                 tan: tan_half_angle.abs(),
                 window,
             }))
@@ -823,13 +838,25 @@ impl<T: Real> Cover<T> {
     /// What lies in both.
     #[must_use]
     pub fn meet(self, other: Self) -> Self {
-        Self(Node::Meet(Box::new([self.0, other.0])))
+        Self(match self.0 {
+            Node::Meet(mut all) => {
+                all.push(other.0);
+                Node::Meet(all)
+            }
+            first => Node::Meet(vec![first, other.0]),
+        })
     }
 
     /// What lies in either.
     #[must_use]
     pub fn hull(self, other: Self) -> Self {
-        Self(Node::Hull(Box::new([self.0, other.0])))
+        Self(match self.0 {
+            Node::Hull(mut all) => {
+                all.push(other.0);
+                Node::Hull(all)
+            }
+            first => Node::Hull(vec![first, other.0]),
+        })
     }
 
     /// **The region's convex hull**: what lies on a segment between two
@@ -923,9 +950,9 @@ impl<T: Real> Core<T> {
     /// The circle's distance range over a region read through its range
     /// from the axis line (`line`) and its support (`support`).
     fn through(&self, line: impl Fn(&Site<T>) -> (T, T), support: impl Fn(Vec3<T>) -> T) -> (T, T) {
-        let (near, far) = line(&Site::Line(axis_line(self.center, self.axis)));
-        let a = self.axis.normalize();
-        let base = vec_of(self.center).dot(a);
+        let (near, far) = line(&Site::Line(self.axis));
+        let a = self.axis.dir.normalize();
+        let base = vec_of(self.axis.origin).dot(a);
         let (below, above) = (T::zero() - support(-a) - base, support(a) - base);
         let r = self.radius.abs();
         let outside = |x: T, lo: T, hi: T| (lo - x).max(x - hi).max(T::zero());
@@ -939,7 +966,7 @@ impl<T: Real> Core<T> {
 
     /// The exact distance of a point from the circle.
     fn offset(&self, p: Point3<T>) -> T {
-        let (t, rho) = axis_line(self.center, self.axis).height_and_distance(p);
+        let (t, rho) = self.axis.height_and_distance(p);
         ((rho - self.radius.abs()).powi(2) + t.powi(2)).sqrt()
     }
 }
@@ -977,12 +1004,23 @@ fn whole_poison(b: Aabb) -> Aabb {
     }
 }
 
+/// **A chain's reading, folded left to right**: `read` of each operand,
+/// joined by `join` in the order they were built, `((x0 ⋅ x1) ⋅ x2) ⋅ …`,
+/// the left-deep form's own order ([`Node`]).
+fn fold<N, R>(all: &[N], read: impl Fn(&N) -> R, join: impl Fn(R, R) -> R) -> R {
+    let mut acc = read(&all[0]);
+    for n in &all[1..] {
+        acc = join(acc, read(n));
+    }
+    acc
+}
+
 impl<T: Real> Node<T> {
     fn support(&self, e: Vec3<T>) -> T {
         match self {
             Node::Piece(p) => p.support(e),
-            Node::Meet(both) => both[0].support(e).min(both[1].support(e)),
-            Node::Hull(both) => both[0].support(e).max(both[1].support(e)),
+            Node::Meet(all) => fold(all, |n| n.support(e), T::min),
+            Node::Hull(all) => fold(all, |n| n.support(e), T::max),
             Node::Convex(inner) => inner.support(e),
         }
     }
@@ -994,16 +1032,16 @@ impl<T: Real> Node<T> {
     fn distance_range(&self, site: &Site<T>) -> (T, T) {
         match self {
             Node::Piece(p) => p.distance_range(site),
-            Node::Meet(both) => {
-                let ((n0, f0), (n1, f1)) =
-                    (both[0].distance_range(site), both[1].distance_range(site));
-                (n0.max(n1), f0.min(f1))
-            }
-            Node::Hull(both) => {
-                let ((n0, f0), (n1, f1)) =
-                    (both[0].distance_range(site), both[1].distance_range(site));
-                (n0.min(n1), f0.max(f1))
-            }
+            Node::Meet(all) => fold(
+                all,
+                |n| n.distance_range(site),
+                |(n0, f0), (n1, f1)| (n0.max(n1), f0.min(f1)),
+            ),
+            Node::Hull(all) => fold(
+                all,
+                |n| n.distance_range(site),
+                |(n0, f0), (n1, f1)| (n0.min(n1), f0.max(f1)),
+            ),
             // A distance from a point or a line is convex, so its
             // greatest over the hull is its greatest over the region; its
             // least is the hull's box's or ball's.
@@ -1023,9 +1061,10 @@ impl<T: Real> Node<T> {
     fn about(&self, sites: &mut Vec<Around<T>>) {
         match self {
             Node::Piece(p) => sites.extend(p.about()),
-            Node::Meet(both) => {
-                both[0].about(sites);
-                both[1].about(sites);
+            Node::Meet(all) => {
+                for n in all {
+                    n.about(sites);
+                }
             }
             Node::Hull(_) | Node::Convex(_) => {}
         }
@@ -1040,23 +1079,22 @@ impl<T: Real> Node<T> {
     /// about a hull's two centres' midpoint) narrowed by the ball about
     /// its box ([`boxed`]). A node's box is its children's: a meet's
     /// support is the lesser and a hull's the greater along every row.
+    /// A chain is read as its left-deep form ([`fold`]), so each prefix
+    /// is a node of its own, its ball narrowed by its own box.
     fn ball_and_box(&self) -> (Ball<T>, (Point3<T>, Point3<T>)) {
-        let (own, bx) = match self {
-            Node::Piece(p) => (p.shape_ball(), p.world_box()),
-            Node::Meet(both) => {
-                let ((b0, x0), (b1, x1)) = (both[0].ball_and_box(), both[1].ball_and_box());
-                (smaller(b0, b1), (x0.0.max(x1.0), x0.1.min(x1.1)))
-            }
-            Node::Hull(both) => {
-                let (((c0, r0), x0), ((c1, r1), x1)) =
-                    (both[0].ball_and_box(), both[1].ball_and_box());
+        let narrowed = |own, bx| (boxed(own, bx), bx);
+        match self {
+            Node::Piece(p) => narrowed(p.shape_ball(), p.world_box()),
+            Node::Meet(all) => fold(all, Node::ball_and_box, |(b0, x0), (b1, x1)| {
+                narrowed(smaller(b0, b1), (x0.0.max(x1.0), x0.1.min(x1.1)))
+            }),
+            Node::Hull(all) => fold(all, Node::ball_and_box, |((c0, r0), x0), ((c1, r1), x1)| {
                 let c = c0.mid(c1);
                 let r = ((c - c0).norm() + r0).max((c - c1).norm() + r1);
-                ((c, r), (x0.0.min(x1.0), x0.1.max(x1.1)))
-            }
+                narrowed((c, r), (x0.0.min(x1.0), x0.1.max(x1.1)))
+            }),
             Node::Convex(inner) => inner.ball_and_box(),
-        };
-        (boxed(own, bx), bx)
+        }
     }
 }
 
@@ -1064,14 +1102,16 @@ impl<T: Real> Node<T> {
     fn circle_range(&self, core: &Core<T>) -> (T, T) {
         match self {
             Node::Piece(p) => p.circle_range(core),
-            Node::Meet(both) => {
-                let ((n0, f0), (n1, f1)) = (both[0].circle_range(core), both[1].circle_range(core));
-                (n0.max(n1), f0.min(f1))
-            }
-            Node::Hull(both) => {
-                let ((n0, f0), (n1, f1)) = (both[0].circle_range(core), both[1].circle_range(core));
-                (n0.min(n1), f0.max(f1))
-            }
+            Node::Meet(all) => fold(
+                all,
+                |n| n.circle_range(core),
+                |(n0, f0), (n1, f1)| (n0.max(n1), f0.min(f1)),
+            ),
+            Node::Hull(all) => fold(
+                all,
+                |n| n.circle_range(core),
+                |(n0, f0), (n1, f1)| (n0.min(n1), f0.max(f1)),
+            ),
             // A circle's distance is not convex, so the hull is read
             // whole.
             Node::Convex(_) => core.through(|site| self.distance_range(site), |e| self.support(e)),
@@ -1147,8 +1187,7 @@ impl<T: Real> Tube<T> {
     /// The core circle a shell's level is read from.
     fn core(&self) -> Core<T> {
         Core {
-            center: self.frame.origin,
-            axis: self.frame.axis,
+            axis: self.frame.axis_line(),
             radius: self.major,
         }
     }
@@ -1213,8 +1252,13 @@ impl<T: Real> Tube<T> {
     /// the core's axis, and `|w' − w| ≤ 2·|â × â'|`.
     fn reach_to(&self, other: &Core<T>) -> T {
         let own = self.core();
-        let turn = own.axis.normalize().cross(other.axis.normalize()).norm();
-        (other.center - own.center).norm()
+        let turn = own
+            .axis
+            .dir
+            .normalize()
+            .cross(other.axis.dir.normalize())
+            .norm();
+        (other.axis.origin - own.axis.origin).norm()
             + (other.radius.abs() - own.radius).abs()
             + own.radius * turn * T::from_f64(2.0)
     }
@@ -1270,9 +1314,9 @@ impl<T: Real> Patch<T> {
 impl<T: Real> Slab<T> {
     fn support(&self, e: Vec3<T>) -> T {
         let (lo, hi) = self.window.ordered();
-        let ae = self.axis.dot(e);
-        let room = self.axis.cross(e).norm();
-        vec_of(self.origin).dot(e) + (lo * ae).max(hi * ae) + self.radius * room
+        let ae = self.axis.dir.dot(e);
+        let room = self.axis.dir.cross(e).norm();
+        vec_of(self.axis.origin).dot(e) + (lo * ae).max(hi * ae) + self.radius * room
     }
 
     /// The least distance from the axis: a wall's, or zero.
@@ -1285,7 +1329,7 @@ impl<T: Real> Slab<T> {
     /// axis as unit.
     fn point_range(&self, q: Point3<T>) -> (T, T) {
         let (lo, hi) = self.window.ordered();
-        let (h, rho) = axis_line(self.origin, self.axis).height_and_distance(q);
+        let (h, rho) = self.axis.height_and_distance(q);
         let dh = (lo - h).max(h - hi).max(T::zero());
         let fh = (h - lo).abs().max((h - hi).abs());
         let radial = (rho - self.radius).max(self.inner() - rho).max(T::zero());
@@ -1305,9 +1349,9 @@ impl<T: Real> Slab<T> {
     /// level about its own axis.
     fn line_range(&self, line: &Line<T>) -> (T, T) {
         let (lo, hi) = self.window.ordered();
-        let end = |h: T| line.distance(self.origin + self.axis * h);
+        let end = |h: T| line.distance(self.axis.origin + self.axis.dir * h);
         let reach = end(lo).max(end(hi));
-        let along = self.axis.dot(line.dir.normalize()).abs();
+        let along = self.axis.dir.dot(line.dir.normalize()).abs();
         let (n0, f0) = ball_range(self.ball(), &Site::Line(*line));
         let near = (self.inner() * along - reach).max(T::zero());
         (n0.max(near), f0.min(self.radius + reach))
@@ -1316,7 +1360,7 @@ impl<T: Real> Slab<T> {
     fn ball(&self) -> Ball<T> {
         let (lo, hi) = self.window.ordered();
         let half = T::from_f64(0.5);
-        let c = self.origin + self.axis * ((lo + hi) * half);
+        let c = self.axis.origin + self.axis.dir * ((lo + hi) * half);
         let r = (((hi - lo) * half).powi(2) + self.radius.powi(2)).sqrt();
         (c, r)
     }
@@ -1325,17 +1369,16 @@ impl<T: Real> Slab<T> {
 impl<T: Real> Frustum<T> {
     fn support(&self, e: Vec3<T>) -> T {
         let (lo, hi) = self.window.ordered();
-        let ae = self.axis.dot(e);
-        let k = self.tan * self.axis.cross(e).norm();
+        let ae = self.axis.dir.dot(e);
+        let k = self.tan * self.axis.dir.cross(e).norm();
         // Convex in `t`, so greatest at an end.
         let at = |t: T| t * ae + t.abs() * k;
-        vec_of(self.apex).dot(e) + at(lo).max(at(hi))
+        vec_of(self.axis.origin).dot(e) + at(lo).max(at(hi))
     }
 
     /// The slab the frustum lies in: its widest radius over the window.
     fn slab(&self) -> Slab<T> {
         Slab {
-            origin: self.apex,
             axis: self.axis,
             radius: self.window.reach() * self.tan,
             window: self.window,
@@ -1589,8 +1632,8 @@ impl<T: Real> Piece<T> {
     /// axis says here whether it proposes it.
     fn about(&self) -> Option<Around<T>> {
         match self {
-            Piece::Slab(slab) => Some(Around::Line(axis_line(slab.origin, slab.axis))),
-            Piece::Frustum(f) => Some(Around::Line(axis_line(f.apex, f.axis))),
+            Piece::Slab(slab) => Some(Around::Line(slab.axis)),
+            Piece::Frustum(f) => Some(Around::Line(f.axis)),
             Piece::Tube(tube) => Some(tube.hub()),
             Piece::Patch(_)
             | Piece::Points(_)

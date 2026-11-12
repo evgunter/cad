@@ -2,10 +2,12 @@
 id: hypot-spelled-2d-normalizations-beside-vec2-normalize
 kind: issue
 title: Three 2-D directions are normalised by hand through f64::hypot beside Vec2::normalize and its checked form
-status: open
+status: closed
 opened: 2026-11-09
 priority: P3
 cost: E
+closed: 2026-11-09
+pr: 6683
 ---
 
 

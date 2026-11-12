@@ -118,7 +118,30 @@ fn a_sheath_on_its_blade_stops_where_its_walls_touch_on_the_rim() {
         ("blade ∪ sheath", &leaf, &sheath),
         ("sheath ∪ blade", &sheath, &leaf),
     ] {
-        let err = topo::union(a, b, tol).expect_err(what);
+        let (err, read) = geom_core::k_stats::detached(|| topo::union(a, b, tol));
+        // The result's rims are new edges, so the transverse seam's
+        // shared-row test reads each wall's arc-rim image from its
+        // derivation, whose lane choice already certified it: the test
+        // takes that certificate, and the rim is certified once. Counted
+        // as the iso-boundary checks' `Zero`s, the on-row verdicts that
+        // test saves (78 when it certifies the rim again), so a change to
+        // the union's other checks does not move it. Since PR 6815 the
+        // edge certificate bounds a stated spline image through the same
+        // pcurve door the mint runs, so four of these are that second
+        // derivation; handing the edge's certificate to the mint
+        // (`work/pcert/a-stated-spline-image-is-certified-twice-by-the-edge-certificate-and-the-mint.md`)
+        // brings the count back to 62.
+        assert_eq!(
+            read.recorded()
+                .verdicts
+                .iter()
+                .filter(|v| v.predicate == "pcurve_iso_boundary")
+                .filter(|v| v.sign == geom_core::Sign::Zero)
+                .count(),
+            66,
+            "{what}: each arc rim's on-row checks are read once"
+        );
+        let err = err.expect_err(what);
         assert!(
             matches!(
                 &err,

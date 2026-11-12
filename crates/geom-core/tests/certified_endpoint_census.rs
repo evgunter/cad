@@ -14,18 +14,21 @@
 //! NaI or empty, is not that question.
 //!
 //! This row is the sweep, executed: it walks the certification code by
-//! one rule and pins, per file, how many production lines read an
-//! endpoint and how many of those sit in a function that asks the
+//! one rule and pins, per file, how many production endpoint reads it
+//! holds and how many of those sit in a function that asks the
 //! refusal. **A read added anywhere in that code moves a number here**,
 //! so it cannot land without being dispositioned.
 //!
 //! # What the two numbers mean
 //!
-//! * `reads` — production lines carrying `.lo()` or `.hi()` in a file of
-//!   the population below. It is a LINE count, not a site count: a site
-//!   spelled over two lines counts twice, and two reads on one line
-//!   count once.
-//! * `asking` — of those, the lines whose enclosing function mentions
+//! * `reads` — production `.lo()` and `.hi()` call sites in a file of
+//!   the population below ([`endpoint_reads`]). It is a SITE count, read
+//!   off the file's text rather than its lines: two reads on one line
+//!   are two, and a read rustfmt reflows onto another line is the same
+//!   read, so a formatting change moves nothing
+//!   ([`a_reflowed_read_moves_no_count`]).
+//! * `asking` — of those, the reads whose innermost enclosing `fn` item
+//!   ([`fn_items`], from the keyword to the close of its body) mentions
 //!   `is_certified()` anywhere. The refusal being IN the function is what
 //!   this can see; that it guards THIS read is the reader's judgement,
 //!   at the site.
@@ -62,16 +65,21 @@
 //!    `T: Bounds` reads are counted here and are not this census's
 //!    subject at all — `Bounds` is decoration-blind by ratification.
 //!    They are in the remainder, named below.
-//! 2. **Function-scoped.** A refusal anywhere in the enclosing
-//!    function counts, including one that guards a different value.
+//! 2. **Function-scoped.** A refusal anywhere in the innermost enclosing
+//!    `fn` item counts, including one that guards a different value; a
+//!    closure is not an item, so a read in one is its function's.
 //!    Narrowing it to "before this line" would mis-read the sites that
 //!    bind an endpoint and refuse on the next line, which is the
 //!    ordinary spelling here.
 //! 3. **A certification endpoint handed to a helper taking `f64`** is no
 //!    longer an enclosure where the comparison happens, and no text scan
 //!    can follow it.
-//! 4. **A read inside a macro body, or split across two lines by
-//!    rustfmt**, is missed the same way.
+//! 4. **Macros are read as text, not expanded.** A read in a macro
+//!    invocation's arguments is counted where it is written; a read in a
+//!    `macro_rules!` body is counted once, at the definition, attributed
+//!    to whatever item encloses the definition (none, at module level,
+//!    so not asking); and no read is attributed per expansion, so a
+//!    macro that expands a read into ten functions counts it once.
 //! 5. The production/test cut is the GATE'S, `scripts/gates/lib.sh`'s,
 //!    so the two instruments cannot disagree on which files are
 //!    importers: a file a test-only `mod x;` mounts is dropped whole
@@ -106,6 +114,16 @@
 //!    ladder's widest rung; `edge_nurbs.rs`'s per-sample lever, a
 //!    refusal's payload) or the type's own body (`interval.rs`'s
 //!    `from_certified` and span locator).
+//! 8. **A const-generic argument written with braces** (`Foo<{ N + 1 }>`)
+//!    in a signature is read as the item's body: the walk's terminator
+//!    ([`source::item_body`]) treats `<` as no bracket, so the `{` of
+//!    `{ N + 1 }` opens a "body" that is balanced and closes at once.
+//!    Nothing reds — no item is unterminated — and the true body that
+//!    follows is no item's, so its reads fall to the ENCLOSING item: at
+//!    module level that is none, a false "not asking"; but inside an
+//!    outer `fn` that asks `is_certified()`, it is a false "asks", the
+//!    unsafe direction, and silent. No production item in the population
+//!    is spelled so today.
 //!
 //! # Where it lives, and why here
 //!
@@ -131,6 +149,7 @@ test_utils::gated_to![
     "crates/pncad-py/src/",
     "crates/profile/src/",
     "crates/quantity/src/",
+    "crates/source-scope/src/",
     "crates/step-export/src/",
     "crates/step-import/src/",
     "crates/stl/src/",
@@ -275,8 +294,8 @@ fn held(rel: &str) -> bool {
 /// One entry per file walked with at least one endpoint read — every
 /// `crates/*/src` file whose production code reaches certification
 /// arithmetic ([`reaches_certification`]), and every file in [`HOLDERS`]:
-/// the path, the production endpoint-read LINES, and how many of those
-/// sit in a function that asks `is_certified()`.
+/// the path, the production endpoint reads, and how many of those sit in
+/// a function that asks `is_certified()`.
 ///
 /// The remainder is dispositioned here, one note per file that has one.
 /// Nothing checks these notes — they are prose beside a number the walk
@@ -286,374 +305,401 @@ fn held(rel: &str) -> bool {
 const ROSTER: &[(&str, usize, usize, &str)] = &[
     (
         "crates/geom-brep/src/carrier_net.rs",
-        1,
+        4,
         0,
-        "the one is `outer_ends`, a `T: Bounds` read of an edge interval's \
-         evaluation bracket (blind spot 1), not a certification bracket: the \
-         interval's outer ends, the one spelling of that rule, and it branches on \
-         nothing. Its callers are `carrier_span` (the closed-form certificate span and \
-         the general image's schedule), the fitted row's coverage gate and the \
-         analytic rung-3 tube's piece, each behind a check 2 that has decided \
-         `t1 - t0` through `decide` and so refused an uncertified parameter; a NaN end \
-         that reached the fitted gate fails it, and `chart_image`'s domain door \
-         refuses one in a span",
+        "all 4 are `outer_ends`' reads, `T: Bounds` reads of an edge interval's evaluation \
+         bracket (blind spot 1), not a certification bracket: the interval's outer ends, the one \
+         spelling of that rule, and it branches on nothing. Its callers are `carrier_span` (the \
+         closed-form certificate span and the general image's schedule), the fitted row's \
+         coverage gate and the analytic rung-3 tube's piece, each behind a check 2 that has \
+         decided `t1 - t0` through `decide` and so refused an uncertified parameter; a NaN end \
+         that reached the fitted gate fails it, and `chart_image`'s domain door refuses one in a \
+         span",
     ),
-    ("crates/geom-brep/src/curve_face/composite.rs", 9, 9, ""),
+    ("crates/geom-brep/src/curve_face/composite.rs", 12, 12, ""),
     (
         "crates/geom-brep/src/curve_face/spline_face.rs",
-        23,
-        23,
-        "every read sits in a function that refuses by name: `certified_window`, the \
-         NURBS carrier's window over a parameter enclosure, the sector reading \
-         (`sector`, 15), the cut and speed bounds (`cuts`, `speeds`), the Krawczyk \
-         step (`krawczyk_with`) and `isolate`",
+        35,
+        35,
+        "every read sits in a function that refuses by name: `certified_window`, the NURBS \
+         carrier's window over a parameter enclosure, the sector reading (`sector`, 19), the cut \
+         and speed bounds (`cuts`, `speeds`), the Krawczyk step (`krawczyk_with`) and `isolate`",
     ),
     (
         "crates/geom-brep/src/intersect/section_bounds.rs",
-        12,
-        12,
+        24,
+        24,
         "",
     ),
     (
         "crates/geom-brep/src/krawczyk.rs",
+        6,
         4,
-        3,
-        "the remainder is `midpoint`, which `midpoints` reads row by row: the real \
-         matrix whose inverse `Y` preconditions the operator, and any `Y` keeps the \
-         test sound, so a midpoint read off an enclosure that does not certify can \
-         cost a proof and never make one, and `image` itself refuses an image that \
-         does not certify",
+        "the remainder is `midpoint`'s 2, which `midpoints` reads row by row: the real matrix \
+         whose inverse `Y` preconditions the operator, and any `Y` keeps the test sound, so a \
+         midpoint read off an enclosure that does not certify can cost a proof and never make \
+         one, and `image` itself refuses an image that does not certify",
     ),
     (
         "crates/geom-brep/src/offset_fit.rs",
-        10,
+        11,
         9,
-        "nine reads are in `cell_terms`, which refuses to `None` by name. The \
-         remainder is `e_low_witness`, the `e_low` that `cell_bound` hands \
-         `cell_terms`: its only production call is there, after both \
-         `e_floors` intervals have asked `is_certified()`",
+        "nine reads are in `cell_terms`, which refuses to `None` by name. The remainder is \
+         `e_low_witness`'s 2, the `e_low` that `cell_bound` hands `cell_terms`: its only \
+         production call is there, after both `e_floors` intervals have asked `is_certified()`",
     ),
     (
         "crates/geom-brep/src/offset_meters.rs",
-        9,
-        9,
-        "the mignitude, the curvature join and `cell_distance` refuse by name: a cell \
-         whose partial does not certify is read at distance `0`, the vacuous lower \
-         bound",
+        14,
+        14,
+        "the mignitude, the curvature join and `cell_distance` refuse by name: a cell whose \
+         partial does not certify is read at distance `0`, the vacuous lower bound",
     ),
-    ("crates/geom-brep/src/pair_section.rs", 1, 1, ""),
-    ("crates/geom-brep/src/pair_section/ruling.rs", 2, 2, ""),
+    ("crates/geom-brep/src/pair_section.rs", 4, 4, ""),
+    ("crates/geom-brep/src/pair_section/ruling.rs", 3, 3, ""),
     (
         "crates/geom-brep/src/pair_section/spline_implicit.rs",
         2,
         0,
-        "held by name since SECTARMS #6412 removed its one `is_certified()` (the \
-         bracket's), which was all the population key saw. Both reads are the \
-         pivot's: `pivot`'s shift, the upper end of the foot's lift over the stored \
-         normal's length (the normal is certified, and a quotient by a length not \
-         proven away from zero has an end that is not finite, which `band.padded` \
-         refuses, `SectionError::Unaccounted`); and `Phi::at`'s `lift`, a sum of \
-         products of certified points, no quotient, which certifies, its upper end \
-         a sound bound on the pivot's stand-off added to a height",
+        "held by name since SECTARMS #6412 removed its one `is_certified()` (the bracket's), \
+         which was all the population key saw. Both reads are the pivot's: `pivot`'s shift, the \
+         upper end of the foot's lift over the stored normal's length (the normal is certified, \
+         and a quotient by a length not proven away from zero has an end that is not finite, \
+         which `band.padded` refuses, `SectionError::Unaccounted`); and `Phi::at`'s `lift`, a \
+         sum of products of certified points, no quotient, which certifies, its upper end a \
+         sound bound on the pivot's stand-off added to a height",
     ),
     (
         "crates/geom-brep/src/pair_section/spline_implicit/curved.rs",
-        2,
-        2,
+        3,
+        3,
         "",
     ),
     (
         "crates/geom-brep/src/pair_section/spline_implicit/sweep/critical.rs",
-        12,
-        9,
-        "the 9 that ask are `krawczyk`'s (3) and the critical-value door's (6). Of \
-         the other 3, `read`'s 1 is the value's ceiling in metres, which that door \
-         decides only after it asks `at.value.is_certified()`; `mid` is the Krawczyk \
-         box's centre, a seed; and `along_line`'s norm is minted a fresh point, but \
-         the slope's numerator carries the gradient's and the direction's decoration, \
-         which its caller asks (`slope.is_certified()`)",
+        37,
+        28,
+        "the 28 that ask are `krawczyk`'s (12), the critical-value door's (`decide`, 14) and \
+         `node_frame`'s width (2), read only where all three of `S(b)`'s coordinates certify and \
+         NaN otherwise, which the listing refuses (`NODE_BOX`). Of the other 9, `grown`'s 4 are \
+         its doubling's seed half-widths, every box it keeps proved again by `krawczyk`; \
+         `read`'s 2 are the value's ceiling in metres, which that door decides only \
+         after it asks `at.value.is_certified()`; `mid`'s 2 are the Krawczyk box's centre, a \
+         seed; and `along_line`'s 1, its norm, is minted a fresh point, but the slope's \
+         numerator carries the gradient's and the direction's decoration, which its caller asks \
+         (`slope.is_certified()`)",
     ),
-    ("crates/geom-brep/src/pair_section/winds.rs", 4, 4, ""),
+    ("crates/geom-brep/src/pair_section/winds.rs", 12, 12, ""),
     (
         "crates/geom-brep/src/patch_bound.rs",
-        3,
+        4,
         2,
-        "two are the rational arm's quotient readings, each guarded by the \
-         `is_certified()` this counts: `certified_sup` reads `hi` and `certified_inf` \
-         reads `lo` only after asking by name. The remainder is `centre`, safe because a \
-         centre is a translation choice and no enclosure rests on it: it takes \
-         midpoints, contributes `0` for a non-finite one and answers `0` for a \
-         non-finite mean, so a refused input still yields a finite centre and the \
-         reach about it reports the trouble",
+        "two are the rational arm's quotient readings, each guarded by the `is_certified()` this \
+         counts: `certified_sup` reads `hi` and `certified_inf` reads `lo` only after asking by \
+         name. The remainder is `centre`'s 2, safe because a centre is a translation choice and \
+         no enclosure rests on it: it takes midpoints, contributes `0` for a non-finite one and \
+         answers `0` for a non-finite mean, so a refused input still yields a finite centre and \
+         the reach about it reports the trouble",
     ),
-    ("crates/geom-brep/src/pcurve_cache.rs", 2, 2, ""),
+    (
+        "crates/geom-brep/src/pcurve_cache.rs",
+        7,
+        2,
+        "`certified_lower`/`certified_upper`'s 2 read only after asking by name. The remainder is \
+         5 schedule reads. `Parts::of`'s 3 are `ByTurn`'s count of a span's parts: its controls' \
+         extent from their brackets' ends and their least axis distance's `lo`, compared to cut \
+         the span finer. A refused bracket only moves the count (a NaN compares false and cuts \
+         finer, up to the most), and each part's hull bounds `|f|` at any count through the \
+         asking reads. `limb2_offset_sup`'s 2 are its spindle `mid`: the squared distance of a window end from \
+         the axis, read at its bracket midpoint only to choose whether that end's grid is graded \
+         toward the apex (`apex_grading`). The grid is only breaks of the carrier's enclosing net, \
+         which encloses over any breaks, and every span hull of it reads its ends through the \
+         two asking reads above; so a refused bracket moves where the net is cut, never what a \
+         span certifies, and a NaN reading compares false and grades nothing",
+    ),
     ("crates/geom-brep/src/pcurve_cache/projected.rs", 2, 2, ""),
-    ("crates/geom-brep/src/props/bracket.rs", 5, 5, ""),
+    ("crates/geom-brep/src/props/bracket.rs", 8, 8, ""),
     (
         "crates/geom-brep/src/props/quad/cells.rs",
-        3,
-        2,
-        "`ratio_hull`'s 2 refuse the bracket they read by name. The remainder is \
-         `MeasureCells::build`'s `origin`, a frame choice: the measure quotients' \
-         `N = A·(A_u×A_v) + c·M̃` holds for every frame `c`, so no enclosure rests on \
-         which point it is",
+        5,
+        4,
+        "`ratio_hull`'s 4 refuse the bracket they read by name. The remainder is \
+         `MeasureCells::build`'s 1, `origin`, a frame choice: the measure quotients' `N = \
+         A·(A_u×A_v) + c·M̃` holds for every frame `c`, so no enclosure rests on which point it \
+         is",
     ),
     (
         "crates/geom-brep/src/props/quad/net.rs",
-        3,
-        1,
-        "`widen` refuses the bracket it reads by name. The remainder is \
-         `PatchNet::at` and `is_rational`, which read the weight channel that \
-         `PatchNet::new`, its one constructor, fills with `pt` of a weight it has \
-         checked finite: a point bracket that certifies, whose `lo` IS the weight",
+        4,
+        2,
+        "`widen`'s 2 refuse the bracket it reads by name. The remainder is `PatchNet::at`'s 1 and \
+         `is_rational`'s 1, which read the weight channel that `PatchNet::new`, its one \
+         constructor, fills with `pt` of a weight it has checked finite: a point bracket that \
+         certifies, whose `lo` IS the weight",
+    ),
+    (
+        "crates/geom-brep/src/props/quad/projected_edge.rs",
+        5,
+        5,
+        "",
     ),
     (
         "crates/geom-brep/src/props/quad/rational.rs",
-        2,
-        2,
-        "`rational_patch_face`'s 2 are weight reads (`net.rs`'s note) in a function \
-         that asks of other values",
+        3,
+        3,
+        "`rational_patch_face`'s 3 are weight reads (`net.rs`'s note) in a function that asks of \
+         other values",
     ),
-    ("crates/geom-brep/src/props/quad/rotational.rs", 2, 2, ""),
+    (
+        "crates/geom-brep/src/props/quad/rotational.rs",
+        20,
+        19,
+        "19 read after asking by name. `rotational_cut_face_rounds`' 2 are the ring torus's \
+         floor, `(R − r).lo()` and `r.lo()`; `torus_face`'s 14 are its count window, every one past a refusal \
+         unless `x` and `A` both certify with `A.lo() > 0`, so `x + n·A` at the finite count `n` \
+         certifies too. The remainder is `piece_reach`'s 1, the chart radius's \
+         upper end scaled to the length a rational chart term's round-0 piece may span: a \
+         schedule (`term_schedule`, whose pieces each ask their own speed's `is_certified()`, \
+         feeding the rounds' cost), so a refused radius moves how finely the term is first cut, \
+         never what a piece certifies",
+    ),
     (
         "crates/geom-brep/src/props/quad/trimmed.rs",
-        4,
-        2,
-        "`norm_lo` and `cuts`' crossing bracket refuse the bracket they read by name. \
-         The remainder is `composite_piece`'s 2: the located cell's containment test \
-         only picks which cell's polynomial the rule reads, and the rule then \
-         integrates at `chord.ell` of the same chord, whose slope's decoration rides \
-         into the piece's value (an uncertified slope makes an uncertified piece, and \
-         `widen` hands one on unwidened); the column bound's `h` is the width of a hull \
-         `ParamRange::certified` has just accepted, a difference of two finite point \
-         brackets. Every other read in `props/quad/` goes through \
-         `lo_or_refuse`/`certified_hi`/`mid` (`props/bracket.rs`), which are the \
-         guarded ones, or asks `is_certified()` of the bracket it reads \
-         (`rotational.rs`)",
+        6,
+        3,
+        "`norm_lo` (1) and `cuts`' crossing bracket (2) refuse the bracket they read by name. The \
+         remainder is `composite_piece`'s 3: the located cell's containment test only picks \
+         which cell's polynomial the rule reads, and the rule then integrates at `chord.ell` of \
+         the same chord, whose slope's decoration rides into the piece's value (an uncertified \
+         slope makes an uncertified piece, and `widen` hands one on unwidened); the column \
+         bound's `h` is the width of a hull `ParamRange::certified` has just accepted, a \
+         difference of two finite point brackets. Every other read in `props/quad/` goes through \
+         `lo_or_refuse`/`certified_hi`/`mid` (`props/bracket.rs`), which are the guarded ones, \
+         or asks `is_certified()` of the bracket it reads (`rotational.rs`)",
     ),
-    ("crates/geom-brep/src/props/spiric.rs", 9, 9, ""),
+    ("crates/geom-brep/src/props/spiric.rs", 13, 13, ""),
     (
         "crates/geom-brep/src/props/taylor.rs",
-        6,
-        4,
-        "the remaining 2 are safe by construction. `trig_range`'s half-width reads \
-         `pt` differences of two f64 ends the function has checked finite and ordered, \
-         so no operand can be refused. `rate_bound_over`'s sum reads the `hi` of a \
-         product of point brackets: `q − p` of two finite nodes, and the rate the \
-         caller's own `f64` upper bound, `NaN` where it reads none, which the sum \
-         carries. Every other read sits in a function that refuses a refused input by \
-         name (`composite_by`, `trig_of`), and the integrands' trig jets read through \
-         `trig_of` (`trig_jets`)",
+        16,
+        13,
+        "the remaining 3 are safe by construction. `trig_range`'s 2, its half-width, read `pt` \
+         differences of two f64 ends the function has checked finite and ordered, so no operand \
+         can be refused. `rate_bound_over`'s 1, its sum, reads the `hi` of a product of point \
+         brackets: `q − p` of two finite nodes, and the rate the caller's own `f64` upper bound, \
+         `NaN` where it reads none, which the sum carries. `primitive_each`'s 1 is counted \
+         asking, but its `is_certified()` is `start`'s: the read is a piece's length `h`, the \
+         `hi` of `q − p`. A node is `NaN` where `b − a` overflows, and then `pt` of it is NaI, \
+         so `total` refuses; `h` scales only `removable`, the width a later round removes, \
+         whose `NaN` makes `Run::stop`'s floor comparison false. Every other read sits in a function \
+         that refuses a refused input by name (`composite_by`, 10; `trig_of`, 2), and the \
+         integrands' trig jets read through `trig_of` (`trig_jets`)",
     ),
     (
         "crates/geom-brep/src/props/trig.rs",
-        5,
+        8,
         0,
-        "`cos_step`/`sin_step` (3) and the two half-angle clamps build from `pt` of a \
-         finite f64 with nonzero exact divisors, so no operand can leave a domain \
-         (argued at each)",
+        "`cos_step`/`sin_step` (2 and 4) and the two half-angle clamps (`trig_over` and \
+         `spread_cos`, 1 each) build from `pt` of a finite f64 with nonzero exact divisors, so \
+         no operand can leave a domain (argued at each)",
     ),
     (
         "crates/geom-brep/src/ssi.rs",
-        6,
+        12,
         0,
-        "all 6 are the two march contexts' slab corners, safe by construction: `SsiDomain::slab` is `Box3::around` of a \
-         `Point3<f64>` and an `f64` half-extent, and an `f64`'s refusal IS its NaN — \
-         the crossing has no decoration channel to carry a refusal in, so a refused \
-         slab reads NaN at both ends",
+        "all 12 are the two march contexts' slab corners (`march_seeds` and `idealized_trace_r3`, \
+         6 each), safe by construction: `SsiDomain::slab` is `Box3::around` of a `Point3<f64>` \
+         and an `f64` half-extent, and an `f64`'s refusal IS its NaN — the crossing has no \
+         decoration channel to carry a refusal in, so a refused slab reads NaN at both ends",
     ),
     (
         "crates/geom-brep/src/ssi/boundary.rs",
         1,
         0,
-        "the one is `sine`'s upper end of the speed times the gradient's supremum, \
-         two finite positive points (both refused to `0.0` otherwise), so the product \
-         certifies, and the quotient rounds down: a lower bound on the sine",
+        "the one is `sine`'s upper end of the speed times the gradient's supremum, two finite \
+         positive points (both refused to `0.0` otherwise), so the product certifies, and the \
+         quotient rounds down: a lower bound on the sine",
     ),
     (
         "crates/geom-brep/src/ssi/certify.rs",
-        12,
-        2,
-        "the 2 that ask are the chart tube's span-hull window (`chart_tube_windows` \
-         refuses either window hull by name before padding it — a refused hull is NaI, \
-         and its NaN ends name no window). The other 10 are `T: Bounds` reads on the \
-         evaluation scalar and not certification endpoints at all — blind spot 1: two \
-         are `nurbs_limbs`' projection seeds, limb 1's at each sample and the image-miss \
-         tell's at a refusing break, a parameter the foot search starts from (structure; \
-         the carried distance stays honest whatever the seed), two \
-         of them are `probe_tube_chart`'s reads of the pcurve's tangent, which select \
-         a direction (structure, not a bound) and whose norm the probe refuses unless \
-         positive finite, and one is `probe_tube_analytic`'s midpoint of the box \
-         chain's axis at each end, which selects the axis the end's slice is cut \
-         across (structure), and two are `probe_tube_pair`'s reads of the two \
-         pcurves, their tangents (a direction the probe refuses unless positive \
-         finite) and their end states (where an end's slice is cut, structure)",
+        25,
+        4,
+        "the 4 that ask are the chart tube's span-hull window (`chart_tube_windows` refuses \
+         either window hull by name before padding it — a refused hull is NaI, and its NaN ends \
+         name no window). The other 21 are `T: Bounds` reads on the evaluation scalar and not \
+         certification endpoints at all — blind spot 1: `nurbs_limbs`' 5 are its projection \
+         seeds, limb 1's at each sample and the image-miss tell's at a refusing break, a \
+         parameter the foot search starts from (structure; the carried distance stays honest \
+         whatever the seed), `probe_tube_chart`'s 3 are its reads of the pcurve's tangent, which \
+         select a direction (structure, not a bound) and whose norm the probe refuses unless \
+         positive finite, and `probe_tube_analytic`'s 2 are its midpoint of the box chain's axis \
+         at each end, which selects the axis the end's slice is cut across (structure), \
+         `probe_tube_pair`'s 8 are its reads of the two pcurves, their tangents (a direction the \
+         probe refuses unless positive finite) and their end states (where an end's slice is \
+         cut, structure), and `exact`'s 2 and `analytic_limbs`' 1 are the same kind of \
+         evaluation read",
     ),
     (
         "crates/geom-brep/src/ssi/enclose.rs",
-        22,
-        21,
-        "`Box3`'s disjointness, containment, centre, split, reach meet and \
-         intersection all refuse by name, and so do the mignitude \
-         (`zero_free_lower_bound`, 4) and `a_positive`. The remainder is \
-         `chart_transverse_margin`'s upper end of the stretch times the gradient's \
-         supremum, two finite positive points (each refused otherwise above it), so \
+        39,
+        38,
+        "`Box3`'s disjointness, containment, centre, split, reach meet and intersection all \
+         refuse by name, and so do the mignitude (`zero_free_lower_bound`, 4) and `a_positive`. \
+         The remainder is `chart_transverse_margin`'s upper end of the stretch times the \
+         gradient's supremum, two finite positive points (each refused otherwise above it), so \
          the product certifies, and the margin over it rounds down: a lower bound",
     ),
-    ("crates/geom-brep/src/ssi/exhaust.rs", 1, 1, ""),
+    ("crates/geom-brep/src/ssi/exhaust.rs", 2, 2, ""),
     (
         "crates/geom-brep/src/ssi/four.rs",
+        7,
         4,
+        "the 4 that ask are `image`'s, the Krawczyk image's preconditioner midpoint and image \
+         reads, which refuse a piece unless every image row is certified; its containment and \
+         miss tests compare the image's certified sides. Of the 3 that do not ask, \
+         `mean_value_excludes`' 2 are its column midpoints, which select an exclusion direction: \
+         any fixed direction is sound, and the form built along it is read only through `sign`, \
+         which refuses an uncertified enclosure by name. `row_cover`'s 1 reads the graph \
+         margin's sign only after `tube_margin` has answered `Some`, which it does only for a \
+         margin that certifies",
+    ),
+    (
+        "crates/geom-brep/src/ssi/implicit_chart.rs",
         2,
-        "the 2 that ask are the Krawczyk image's preconditioner midpoint and image \
-         reads, which refuse a piece unless every image row is certified; its \
-         containment and miss tests compare the image's certified sides. Of the 2 that \
-         do not ask, `mean_value_excludes`' 1 is its column midpoints, \
-         which select an exclusion direction: any fixed direction is sound, and the form \
-         built along it is read only through `sign`, which refuses an uncertified \
-         enclosure by name. `row_crossing`'s 1 reads the graph margin's sign only \
-         after `tube_margin` has answered `Some`, which it does only for a margin \
-         that certifies",
+        0,
+        "both are `pass_key`'s, the partner's lift rendered into the key a boundary pass is \
+         carried over by. They are an identity, not a bound: `{:e}` renders each end exactly, \
+         nothing compares them or takes a branch on them, and a pass carries only between \
+         sections whose keys are equal",
     ),
     (
         "crates/geom-brep/src/ssi/one_arc.rs",
-        18,
-        12,
-        "the 12 that ask: the Krawczyk test's 4 centre, image and containment reads, which \
-         refuse a piece unless every enclosure is certified; `farthest`'s 2 and `nearest`'s 2, \
+        47,
+        34,
+        "the 34 that ask: the Krawczyk test's 14 centre, image and containment reads, which \
+         refuse a piece unless every enclosure is certified; `farthest`'s 5 and `nearest`'s 5, \
          which refuse a box with any uncertified side by name before reading it; and \
-         `r3_reaches_end`'s 4, which refuse an uncertified end or box side before reading \
-         either. The other 6 do not ask: \
-         `one_arc`'s 1 is a `T: Bounds` read of the pcurve's evaluation scalar, the midpoint \
-         of a chart point that selects where a line is drawn (blind spot 1); `face_roots`' and `face_walk`'s 5 \
-         read the sides of a box its one caller, `one_arc_r3`, met with the slab through \
-         `Box3::intersection`, which refuses an uncertified side by name, and of the pieces \
-         cut from those finite ends",
+         `r3_reaches_end`'s 10, which refuse an uncertified end or box side before reading \
+         either. The other 13 do not ask: `one_arc`'s 4 are `T: Bounds` reads of the pcurve's \
+         evaluation scalar, the midpoint of a chart point that selects where a line is drawn \
+         (blind spot 1); `face_roots`' 2 and `face_walk`'s 7 read the sides of a box its one \
+         caller, `one_arc_r3`, met with the slab through `Box3::intersection`, which refuses an \
+         uncertified side by name, and of the pieces cut from those finite ends",
     ),
-    ("crates/geom-brep/src/ssi/residual.rs", 7, 7, ""),
-    ("crates/geom-brep/src/ssi/section.rs", 2, 2, ""),
+    ("crates/geom-brep/src/ssi/residual.rs", 9, 9, ""),
+    ("crates/geom-brep/src/ssi/section.rs", 5, 5, ""),
     (
         "crates/geom-core/src/interval.rs",
-        25,
-        6,
-        "the type's own body. The 6 that ask are the two refusal doors \
-         (`certified_bracket`, `sign_within`) and the directed helpers `norm_sup`, \
-         `div_down`, `div_up` and `add_up`. The other 19 are not certification \
-         reads at all — blind spot 1: they are the evaluation scalar's own \
-         implementation reads of the `DInterval` it wraps (the `Bounds` forwarders, \
-         `repr_bits`, `copysign`, the kink selectors, the two `select_le_zero` \
-         arms, and `is_bounded`'s endpoint finiteness, which only refuses: a mint \
-         that reads it refuses an unbounded enclosure and certifies nothing), which \
-         test NaI and empty themselves and carry the decoration forward rather than \
-         certifying",
+        34,
+        8,
+        "the type's own body. The 8 that ask are the two refusal doors (`certified_bracket`, \
+         `sign_within`, 2 each) and the directed helpers `certified_hi`, `div_down`, `div_up` \
+         and `add_up` (1 each). The other 26 are not certification reads at all — blind spot 1: \
+         they are the evaluation scalar's own implementation reads of the `DInterval` it wraps \
+         (the `Bounds` forwarders, `repr_bits`, `copysign`, the kink selectors, the two \
+         `select_le_zero` arms, and `is_bounded`'s endpoint finiteness, which only refuses: a \
+         mint that reads it refuses an unbounded enclosure and certifies nothing), which test \
+         NaI and empty themselves and carry the decoration forward rather than certifying",
     ),
     (
         "crates/geom-core/src/interval/certification.rs",
-        9,
-        9,
+        20,
+        20,
         "the reads that serve a door, each refusing first: `narrowed_to` (the one body of \
-         `clamped_to` and `meet`), `between` (the interior-ratio clamp skip, the corner \
-         choice, the exact-end and point-source fast paths, and the four corners), `width` \
-         and `mag`",
+         `clamped_to` and `meet`), `between` (the interior-ratio clamp skip, the corner choice, \
+         the exact-end and point-source fast paths, and the four corners), `width` and `mag`",
     ),
     ("crates/geom-core/src/spline/algebra.rs", 1, 1, ""),
-    ("crates/geom-core/src/spline/blossom.rs", 1, 1, ""),
-    ("crates/geom-core/src/spline/compose/tensor.rs", 4, 4, ""),
+    ("crates/geom-core/src/spline/blossom.rs", 2, 2, ""),
+    ("crates/geom-core/src/spline/compose/tensor.rs", 5, 5, ""),
     (
         "crates/geom-core/src/sym/signed.rs",
-        11,
-        5,
-        "the 6 that do not ask read a bracket `enclose_deep` returned (the decision \
-         read's halves, 4, and the profiling instrument's denominator, 2), and \
-         `enclose_deep` hands back `None` for a refused bracket \
-         (`is_certified().then_some`), so every bracket read there certifies by \
-         construction",
+        20,
+        12,
+        "the 8 that do not ask read a bracket `enclose_deep` returned (`read_decision`'s 6, the \
+         decision read's halves, and `classify`'s 2, the profiling instrument's denominator), \
+         and `enclose_deep` hands back `None` for a refused bracket \
+         (`is_certified().then_some`), so every bracket read there certifies by construction",
     ),
-    ("crates/geom-core/src/test_support.rs", 1, 1, ""),
+    ("crates/geom-core/src/test_support.rs", 2, 2, ""),
     (
         "crates/geom/src/curves/nurbs.rs",
         3,
         3,
-        "`restricted` asks only of its hull weight (`h[3]`). Its two knot clip ends \
-         are safe whatever the ask: they select a span and are re-admitted, clamped \
-         to the span's own knots, by the blossom door (`admit`), which refuses one \
-         outside it",
+        "`restricted` asks only of its hull weight (`h[3]`). Its two knot clip ends are safe \
+         whatever the ask: they select a span and are re-admitted, clamped to the span's own \
+         knots, by the blossom door (`admit`), which refuses one outside it",
     ),
     ("crates/geom/src/curves/second_derivative.rs", 1, 1, ""),
     (
         "crates/geom/src/net.rs",
-        1,
+        2,
         0,
-        "the one is `cell_origin`, a cell image's middle to `f64`: the point a \
-         rational net's derivative over the cell is read about, which certifies \
-         nothing and needs not (`rational_slope` refuses unless the weight hull is \
-         certainly positive)",
+        "the 2 are `cell_origin`'s, a cell image's middle to `f64`: the point a rational net's \
+         derivative over the cell is read about, which certifies nothing and needs not \
+         (`rational_slope` refuses unless the weight hull is certainly positive)",
     ),
     (
         "crates/geom/src/surfaces/nurbs.rs",
-        7,
+        10,
         0,
         "none asks by name here: the restriction's weight guard is \
          `spline::algebra::certainly_positive`, the one spelling of it, which asks \
-         `is_certified()` there. Six are `read_rect_net`'s and `read_rect_jet`'s 3 \
-         knot reads each: the domain check and the span clip select cells and clip \
-         ends, which are minted as fresh point brackets and re-admitted to the span's \
-         own knots by the blossom door (`admit`). The seventh is `restricted_jet`'s \
-         cell middle, the point its derivative is read about (`net::cell_origin`), \
-         which certifies nothing and needs not: what the jet claims is gated by \
-         `rational_slope`'s positive-weight guard, and a control point that does not \
-         certify carries its decoration through the restriction into the answer",
+         `is_certified()` there. Eight are `read_rect_net`'s and `read_rect_jet`'s 4 knot reads \
+         each: the domain check and the span clip select cells and clip ends, which are minted \
+         as fresh point brackets and re-admitted to the span's own knots by the blossom door \
+         (`admit`). The other 2 are `restricted_jet`'s cell middle, the point its derivative is \
+         read about (`net::cell_origin`), which certifies nothing and needs not: what the jet \
+         claims is gated by `rational_slope`'s positive-weight guard, and a control point that \
+         does not certify carries its decoration through the restriction into the answer",
     ),
     ("crates/mesh/src/chords.rs", 2, 2, ""),
     (
         "crates/topo/src/clearance.rs",
-        30,
-        7,
-        "the 7 that ask are `poisoned`, `iso_bounded_domain`'s knots and joins (5) \
-         and `extent_of`. Of the other 23, `split_axis`'s 3 and the `coincidence` and \
-         `meeting_stations` seeds (3) are selections; `min_separation`'s admission \
-         (2), `pair`'s (2), `witness`'s (2) and `overflow`'s (1) read a separation \
-         `poisoned` has passed; `window_of`'s windows (3), `boundary_of`'s span (1) \
-         and `row_of`'s parameters (1) read values `certified_lift` crossed, which \
-         refuses the face unless every crossing certifies; `support_separation`'s 4 \
-         are the choice of direction (each cell's normal and the line between the \
-         boxes' centres, read at their middles) and of orientation, and the supports' \
-         gap it reads after `poisoned` has passed both, a lower bound along any \
-         direction; and `box_dependent`'s 1 stores a straddling separation's ends as \
-         the refusal's payload, which certifies nothing",
+        53,
+        16,
+        "the 16 that ask are `poisoned` (2), `iso_bounded_domain`'s knots and joins (12) and \
+         `extent_of` (2). Of the other 37, `split_axis`'s 4 and the `coincidence` and \
+         `meeting_stations` seeds (2 and 4) are selections; `min_separation`'s admission (2), \
+         `pair`'s (2), `witness`'s (2) and `overflow`'s (1) read a separation `poisoned` has \
+         passed; `window_of`'s windows (6), `boundary_of`'s span (2) and `row_of`'s parameters \
+         (2) read values `certified_lift` crossed, which refuses the face unless every crossing \
+         certifies; `support_separation`'s 8 are the choice of direction (each cell's normal and \
+         the line between the boxes' centres, read at their middles) and of orientation, and the \
+         supports' gap it reads after `poisoned` has passed both, a lower bound along any \
+         direction; and `box_dependent`'s 2 store a straddling separation's ends as the \
+         refusal's payload, which certifies nothing",
     ),
     (
         "crates/topo/src/injective.rs",
-        70,
-        27,
-        "the 27 that ask are `exactly`, `forward`, `along` (2), `present_chart` (12), \
-         `present_plane` (6) and the two `psi`s (5). `present_chart` asks each clip line \
-         where it is placed, so its touch, reach, merge, rectangle-side and apex reads \
-         see only certified lines; `present_plane` asks its one-edge `y`, and its other \
-         reads are behind the SPAN and CORNER funnels; `Curved::psi`'s shift reads \
-         finite parameters. Of the other 43, the seeds and selections (`mid`, \
-         `graph_read`'s `inside` and lever), the read behind `exactly` (`Pieces::of`'s \
-         `wind`), the parameter reads (`monotone_run`, `narrowed`, `leaves_graph`, \
-         `leaves_line`) and `run_on`'s, behind `along`'s and the placement asks, are \
-         sound. The rest read the window's carrier and the face's boundary, which \
-         `clearance`'s `window_of` admits only where every lifted value certifies; \
-         `present_wall`'s wall-image reads and `speeds`' jet bound also read an \
-         enclosure computed from them that may clamp, which is \
+        121,
+        40,
+        "the 40 that ask are `exactly` (2), `forward` (2), `along` (4), `present_chart` (16), \
+         `present_plane` (8) and the two `psi`s (8). `present_chart` asks each clip line where \
+         it is placed, so its touch, reach, merge, rectangle-side and apex reads see only \
+         certified lines; `present_plane` asks its one-edge `y`, and its other reads are behind \
+         the SPAN and CORNER funnels; `Curved::psi`'s shift reads finite parameters. Of the \
+         other 81, the seeds and selections (`mid`, `graph_read`'s `inside` and lever), the read \
+         behind `exactly` (`Pieces::of`'s `wind`), the parameter reads (`monotone_run`, \
+         `narrowed`, `leaves_graph`, `leaves_line`) and `run_on`'s, behind `along`'s and the \
+         placement asks, are sound. The rest read the window's carrier and the face's boundary, \
+         which `clearance`'s `window_of` admits only where every lifted value certifies; \
+         `present_wall`'s wall-image reads and `speeds`' jet bound also read an enclosure \
+         computed from them that may clamp, which is \
          `work/clear/injective-reads-past-the-trv-census-decide-on-clamped-enclosures`",
     ),
     (
         "crates/topo/src/props.rs",
-        5,
+        7,
         3,
-        "the 3 that ask are `deciding_walk`'s confirmation reads, which refine on a \
-         re-derivation that does not certify. The other 2: `far_from` reads the \
-         distances that decide whether a region is carried, a choice of reference \
-         point, and the carry it selects is refused by name in `carry_of` unless it \
-         certifies; `SignCertificate::interval_volume`'s ends are a refusal's payload \
-         (`outward_volume`, the bracket `Undecided` reports) and certify nothing",
+        "the 3 that ask are `deciding_walk`'s confirmation reads, which refine on a re-derivation \
+         that does not certify. The other 4: `far_from`'s 2 read the distances that decide \
+         whether a region is carried, a choice of reference point, and the carry it selects is \
+         refused by name in `carry_of` unless it certifies; `SignCertificate::interval_volume`'s \
+         2, its ends, are a refusal's payload (`outward_volume`, the bracket `Undecided` \
+         reports) and certify nothing",
     ),
-    ("crates/topo/src/props/quad_lane.rs", 9, 9, ""),
-    ("crates/topo/src/test_support_fixtures.rs", 1, 1, ""),
+    ("crates/topo/src/props/quad_lane.rs", 25, 25, ""),
+    ("crates/topo/src/test_support_fixtures.rs", 2, 2, ""),
 ];
 
 /// The repo root: this crate's directory, two levels up.
@@ -669,8 +715,11 @@ fn repo_root() -> std::path::PathBuf {
 /// Every `crates/*/src` file whose production code reaches certification
 /// arithmetic, and every file in [`HOLDERS`], with its production lines. **The shared lexer's CODE view**, not the raw
 /// text: a `.lo()` or a door inside a doc comment or a string literal is
-/// neither a read nor a call, and blanking keeps the newlines so a line
-/// count over this view is a line count over the file
+/// neither a read nor a call. Blanking keeps every byte in place, but
+/// [`production`] then drops the lines of test-only items, so an offset
+/// into the joined production lines is an offset into the production
+/// text and NOT into the file; a read is pinned by its count, never by
+/// its place
 /// (`crates/test-utils/tests/reader_census.rs` is the ledger this entry
 /// sits in).
 fn population(root: &std::path::Path) -> Vec<(String, Vec<String>)> {
@@ -922,18 +971,30 @@ fn normalized(path: &str) -> String {
     seg.join("/")
 }
 
-/// Whether the line declares a function — the census's reading of
-/// "enclosing function", which is the nearest such line above.
-fn declares_a_fn(line: &str) -> bool {
-    let mut rest = line;
-    while let Some(at) = rest.find("fn ") {
-        let before = rest[..at].chars().next_back();
-        if before.is_none_or(|c| !c.is_alphanumeric() && c != '_') {
-            return true;
+/// **Every endpoint read in a file's production lines, one per site**:
+/// each `.lo()` and each `.hi()` call, with whether the innermost `fn`
+/// item enclosing it asks `is_certified()`. Read off the text, not its
+/// lines, so a read rustfmt reflows onto another line is the same read
+/// and two reads on one line are two. The items are the shared walk's
+/// ([`source::fn_items`] over [`source::item_body`]), and an item the
+/// walk cannot terminate is an error, not a skip: the reads after it
+/// would otherwise be attributed to nothing with no count moving.
+fn endpoint_reads(lines: &[String]) -> Result<Vec<(usize, bool)>, String> {
+    let text = lines.join("\n");
+    let items = source::fn_items(&text)?;
+    let mut out = Vec::new();
+    for needle in [".lo()", ".hi()"] {
+        for (at, _) in text.match_indices(needle) {
+            let asks = items
+                .iter()
+                .filter(|(_, body)| body.contains(&at))
+                .min_by_key(|(_, body)| body.len())
+                .is_some_and(|(_, body)| text[body.clone()].contains("is_certified()"));
+            out.push((at, asks));
         }
-        rest = &rest[at + 3..];
     }
-    false
+    out.sort_unstable();
+    Ok(out)
 }
 
 #[test]
@@ -941,28 +1002,12 @@ fn every_production_endpoint_read_is_counted_and_dispositioned() {
     let root = repo_root();
     let mut found: Vec<(String, usize, usize)> = Vec::new();
     for (name, lines) in population(&root) {
-        let reads: Vec<usize> = (0..lines.len())
-            .filter(|i| lines[*i].contains(".lo()") || lines[*i].contains(".hi()"))
-            .collect();
+        let reads = endpoint_reads(&lines)
+            .unwrap_or_else(|why| panic!("{name}: the census cannot place a read: {why}"));
         if reads.is_empty() {
             continue;
         }
-        let mut asking = 0;
-        for &i in &reads {
-            let start = (0..=i)
-                .rev()
-                .find(|j| declares_a_fn(&lines[*j]))
-                .unwrap_or(0);
-            let end = (i + 1..lines.len())
-                .find(|j| declares_a_fn(&lines[*j]))
-                .unwrap_or(lines.len());
-            if lines[start..end]
-                .iter()
-                .any(|l| l.contains("is_certified()"))
-            {
-                asking += 1;
-            }
-        }
+        let asking = reads.iter().filter(|(_, asks)| *asks).count();
         found.push((name, reads.len(), asking));
     }
     let pinned: Vec<(String, usize, usize)> = ROSTER
@@ -989,6 +1034,50 @@ fn every_production_endpoint_read_is_counted_and_dispositioned() {
          wrong tree",
         found.len()
     );
+}
+
+/// **A reflow moves no count**: the same reads spelled on one line and
+/// split across several by rustfmt are the same sites with the same
+/// answers, and two reads on one line are two.
+#[test]
+fn a_reflowed_read_moves_no_count() {
+    let lines = |text: &str| text.lines().map(str::to_string).collect::<Vec<_>>();
+    let one = "fn f(x: Interval) -> f64 {\n    if !x.is_certified() { return 0.0; }\n    \
+               (x.lo(), x.hi()).0\n}\nfn g(y: Interval) -> f64 { y.lo() }\n";
+    let split = "fn f(x: Interval) -> f64 {\n    if !x.is_certified() {\n        return 0.0;\n    \
+                 }\n    (\n        x.lo(),\n        x.hi(),\n    )\n        .0\n}\n\
+                 fn g(y: Interval) -> f64 {\n    y.lo()\n}\n";
+    let asks = |text: &str| -> Vec<bool> {
+        endpoint_reads(&lines(text))
+            .expect("a well-formed fixture")
+            .into_iter()
+            .map(|(_, asks)| asks)
+            .collect()
+    };
+    assert_eq!(asks(one), [true, true, false]);
+    assert_eq!(asks(split), asks(one));
+    // A `;` inside a bracketed type in the signature ends no item.
+    let typed = "fn h(m: [[Interval; 3]; 3]) -> [f64; 2] {\n    \
+                 if !m[0][0].is_certified() { return [0.0; 2]; }\n    [m[0][0].lo(), m[0][0].hi()]\n}\n";
+    assert_eq!(asks(typed), [true, true]);
+    // A nested `fn` is its own item: the outer one's refusal is not its.
+    let nested = "fn outer(x: Interval) -> f64 {\n    fn inner(y: Interval) -> f64 { y.lo() }\n    \
+                  if !x.is_certified() { return 0.0; }\n    inner(x) + x.hi()\n}\n";
+    assert_eq!(asks(nested), [false, true]);
+    // A trait's declaration ends at its `;` and takes no body: the
+    // default methods after it are their own items.
+    let defaults = "trait T {\n    fn bare(&self) -> Interval;\n    \
+                    fn asks(&self) -> f64 {\n        let v = self.bare();\n        \
+                    if !v.is_certified() { return 0.0; }\n        v.lo()\n    }\n    \
+                    fn plain(&self) -> f64 { self.bare().hi() }\n}\n";
+    assert_eq!(asks(defaults), [true, false]);
+    // A `where` clause stands between the signature and the body.
+    let bounded = "fn w<T>(x: T) -> f64\nwhere\n    T: Into<Interval>,\n{\n    \
+                   let v: Interval = x.into();\n    \
+                   if !v.is_certified() { return 0.0; }\n    v.lo()\n}\n";
+    assert_eq!(asks(bounded), [true]);
+    // An item that never closes is an error, not a skip.
+    assert!(endpoint_reads(&lines("fn broken(x: Interval) {\n    x.lo()\n")).is_err());
 }
 
 /// [`HOLDERS`] is a list kept by hand, so it is held to the tree: an

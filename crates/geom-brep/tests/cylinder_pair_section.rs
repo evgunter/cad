@@ -8,8 +8,8 @@
 
 use geom::Surface;
 use geom_brep::{
-    CarryError, ClassCarrier, Coincident, ComponentEnds, ComponentShape, Components, ExtentBall,
-    PairSection, SectionError, SectionRead, SsiLane, ZeroKind,
+    CarryError, CarryRefusal, ClassCarrier, Coincident, ComponentEnds, ComponentShape, Components,
+    ExtentBall, PairSection, SectionError, SectionRead, SsiLane, ZeroKind,
 };
 use geom_core::{Band, Point3, Tol, Vec3};
 
@@ -347,7 +347,12 @@ fn the_pinch_lists_no_node_and_refuses_to_carry() {
         );
         let got = section.carry(Some(SsiLane::marched()), band());
         assert!(
-            matches!(got, Err(CarryError::Unminted(geom_brep::NoCarrier::Pinch))),
+            matches!(
+                got,
+                Err(CarryError::Refused(CarryRefusal::Unminted(
+                    geom_brep::NoCarrier::Pinch
+                )))
+            ),
             "{label}: {got:?}"
         );
     }
@@ -441,7 +446,9 @@ fn thin_rods_read_crossing_at_the_region_and_refuse_typed() {
     assert!(
         matches!(
             got,
-            Err(CarryError::March(geom_brep::SsiError::TubeNotOneArc { .. }))
+            Err(CarryError::Refused(CarryRefusal::March(
+                geom_brep::SsiError::TubeNotOneArc { .. }
+            )))
         ),
         "{got:?}"
     );

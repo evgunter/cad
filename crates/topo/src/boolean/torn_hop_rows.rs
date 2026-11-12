@@ -82,7 +82,7 @@ fn drop_surface(body: &mut Body<f64>, face: FaceKey) -> String {
 /// poison box an uncertified curve gets.
 #[test]
 fn the_box_reads_panic_on_a_torn_loop_and_a_torn_curve() {
-    use super::boxes::edge_box;
+    use crate::boxes::edge_box;
     use crate::cover::face_window_steps;
     let mut body = cube();
     let face = first_face(&body);
@@ -116,8 +116,8 @@ fn the_box_reads_panic_on_a_torn_loop_and_a_torn_curve() {
 /// curve first.
 #[test]
 fn the_face_box_panics_on_a_torn_boundary_curve() {
-    use super::boxes::face_box;
-    let (mut body, face) = super::boxes::tests::cone_wall(30f64.to_radians(), 0.0, 1.0, 0.5, 1.0);
+    use crate::boxes::face_box;
+    let (mut body, face) = crate::boxes::tests::cone_wall(30f64.to_radians(), 0.0, 1.0, 0.5, 1.0);
     assert!(
         face_box(&body, face, 0.0, band()).min_x.is_finite(),
         "a certified box"
@@ -281,8 +281,10 @@ fn the_wrap_scan_panics_on_a_torn_outer_link() {
     use super::surface_group::{WrapRims, wrap_rims};
     let (mut body, face) = cyl_sheet();
     let rims = WrapRims {
-        origin: Point3::origin(),
-        axis: Vec3::unit_z(),
+        axis: geom::Line {
+            origin: Point3::origin(),
+            dir: Vec3::unit_z(),
+        },
     };
     assert!(
         wrap_rims(&body, face, rims, band()).is_ok(),
@@ -305,8 +307,10 @@ fn the_wrap_scan_panics_on_a_torn_curve() {
     use super::surface_group::{WrapRims, wrap_rims};
     let (mut body, face) = cyl_sheet();
     let rims = WrapRims {
-        origin: Point3::origin(),
-        axis: Vec3::unit_z(),
+        axis: geom::Line {
+            origin: Point3::origin(),
+            dir: Vec3::unit_z(),
+        },
     };
     assert!(
         wrap_rims(&body, face, rims, band()).is_ok(),

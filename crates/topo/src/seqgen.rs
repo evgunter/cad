@@ -1082,9 +1082,7 @@ const SPLIT_FRACTION: f64 = geom_core::GOLDEN_SECTION;
 /// a `line_between` guess would not be.
 fn split_site(body: &Body<f64>, edge: EdgeKey, tol: Tol) -> Option<(f64, EdgeCurveSpec<f64>)> {
     let edge_data = body.get_edge(edge)?;
-    let hp = edge_data.he_plus;
-    let start = body.get_half_edge(hp)?.start;
-    let end = body.half_edge_end(hp)?;
+    let (start, end) = body.edge_vertices(edge)?;
     let p0 = *body.get_point(body.get_vertex(start)?.point)?;
     let p1 = *body.get_point(body.get_vertex(end)?.point)?;
     let curve = body.get_curve_geom(edge_data.curve)?.certified()?;
@@ -1357,11 +1355,7 @@ fn carrier_is_coherent(body: &Body<f64>, edge: EdgeKey, tol: Tol) -> bool {
     let Some(edge_data) = body.get_edge(edge) else {
         return false;
     };
-    let hp = edge_data.he_plus;
-    let (Some(start), Some(end)) = (
-        body.get_half_edge(hp).map(|h| h.start),
-        body.half_edge_end(hp),
-    ) else {
+    let Some((start, end)) = body.edge_vertices(edge) else {
         return false;
     };
     let (Some(p0), Some(p1)) = (

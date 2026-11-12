@@ -2,9 +2,10 @@
 id: main-red-the-doc-gates-workspace-pass-masks-35-broken-links
 kind: issue
 title: main red, masked: the doc gate's workspace pass stops at its first failing crate, so 35 more rustdoc errors in geom-brep, topo and viewer never print
-status: open
+status: closed
 opened: 2026-11-09
 priority: P0
+closed: 2026-11-10
 ---
 
 
@@ -53,3 +54,7 @@ Two pieces of work:
 None is BOXES': BOXES' cover-build sites in `topo` (`boolean/boxes.rs`, `cover.rs`, `shell.rs`) and `sweep` are fixed on `boxes/nightly-reds`.
 
 (BOXES nightly-reds triage, 2026-11-09)
+
+## Closed (2026-11-10, branch `onecopy/doc-gate-clean`)
+
+Both pieces are done on that branch. `doc_pass_with` passes `--keep-going` to both of its `cargo doc` calls. Every site above is re-pointed at its target as it now is, along with the rest of the workspace pass's errors on main (51 sites in 35 files, all listed in the PR body). `scripts/doc-gate.sh` passes locally over every root.

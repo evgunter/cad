@@ -151,7 +151,7 @@ fn reach_clears<T: Decide>(
     let Some((lo, hi)) = reach else {
         return false;
     };
-    let pad = T::from_f64(crate::boolean::boxes::sweep_pad(band));
+    let pad = T::from_f64(crate::boxes::sweep_pad(band));
     // The frame turns about the world origin, so a reach's first
     // coordinate is `n·p`, and the world origin's own offset from the
     // plane turns it into `n·(p − q)`.
@@ -263,7 +263,12 @@ pub(super) fn classify_vertices_margined<T: Decide>(
                 }
             }
             VertexRefusal::Walk(e) => e,
-            VertexRefusal::Sector(e) => e.split_refusal(vertex_key),
+            VertexRefusal::Star(fault) => fault.split_refusal(vertex_key, band),
+            VertexRefusal::Side { face, diag } => SplitReduceError::SliverSector {
+                vertex: vertex_key,
+                face,
+                reading: crate::splitting::SectorReading::Escalated(diag),
+            },
             VertexRefusal::Plane(what) => unreachable!(
                 "{vertex_key:?}: the split plane reads into the table whole, yet {what}"
             ),
@@ -301,7 +306,7 @@ pub(super) fn classify_vertices_margined<T: Decide>(
 ///   are not enough: a spline's belly can cross between them.
 ///
 /// Both crossing lanes are certified by `split_edge` itself (the
-/// `split_edge_param_interior` trilean + full child re-certification —
+/// span's place of the parameter (`curve_pair::Span::place_param_read`) + full child re-certification —
 /// the honest lane the raw book formula lacks). New vertices are ON by
 /// the decision that placed them: a crossing root lies on the plane, and
 /// a graze root within ε of it by `plane_crossing_belly_graze`'s Zero.
@@ -511,6 +516,163 @@ mod tests {
                 );
             }
         }
+    }
+}
+
+/// **A crossing past the band of a thin ellipse's fast end splits**
+/// (`work/onecopy/a-plane-crossing-past-the-band-of-a-thin-ellipses-fast-end-read-at-the-end.md`,
+/// `work/onecopy/the-euler-splits-interiority-gate-meters-an-end-gap-at-the-speed-floor.md`).
+/// A planar cap on the half of a 1000 × 1 ellipse (the unit cylinder cut
+/// by a plane `cos φ = 10⁻³` off its axis) from one minor vertex to the
+/// other, through its major end: its two ends are its fast ends, where it
+/// runs 1000 m/rad. A plane square to the major axis, `s` along it from
+/// the ends (50, 500 and 5000 zeros), crosses the arc `s` (by chord) from
+/// each end. Three readings of the speed floor (1 m/rad), which reads
+/// `s/1000` at the end or in band, stood between the crossing and its
+/// split, one after the other:
+/// - main's plane door placed the root at the end and dropped it;
+/// - PR 6687's door placed it inside, and `split_edge`'s interiority gate
+///   refused;
+/// - with that gate on the span's reading, certification's check 2
+///   refused the child from the end to the root (`IntervalNotForward`).
+///
+/// Each now reads the chord. A cut 10⁵ zeros in splits too, as a control.
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod thin_ellipse_rows {
+    use geom::{Curve3, Surface};
+    use geom_brep::{CurveSelector, EdgeCurveSpec, EdgeDescriptionSpec, SurfacePair};
+    use geom_core::{Band, Point3, Tol, Vec3};
+
+    use crate::body::Body;
+    use crate::construction::FaceSurface;
+    use crate::euler::{MefSite, MevSite};
+
+    /// The cap, and the ellipse's major direction.
+    fn thin_cap(tol: Tol) -> (Body<f64>, Vec3<f64>) {
+        let c = 1e-3_f64;
+        let s = (1.0 - c * c).sqrt();
+        let (axis, major) = (Vec3::new(-s, 0.0, c), Vec3::new(c, 0.0, s));
+        let carrier = Curve3::Ellipse(geom::Ellipse::new(
+            geom::Frame::new(Point3::origin(), axis, major),
+            1.0 / c,
+            1.0,
+        ));
+        let half = core::f64::consts::FRAC_PI_2;
+        let span = (half, 3.0 * half);
+        let (p0, p1) = (carrier.eval(span.0), carrier.eval(span.1));
+        let mut body = Body::<f64>::new();
+        let seed = body.mvfs(p0, true).unwrap();
+        let wall = body.add_surface(Surface::Cylinder {
+            origin: Point3::origin(),
+            axis: Vec3::unit_z(),
+            radius: 1.0,
+            u_ref: Vec3::unit_x(),
+        });
+        let plane = body.add_surface(Surface::Plane {
+            origin: Point3::origin(),
+            normal: axis,
+            u_ref: major,
+        });
+        let arc = body
+            .mev(
+                MevSite::Lone {
+                    r#loop: seed.r#loop,
+                },
+                p1,
+                EdgeCurveSpec {
+                    description: EdgeDescriptionSpec::Intersection {
+                        pair: SurfacePair::new(wall, plane),
+                        selector: CurveSelector::Witness(carrier.eval(2.0 * half)),
+                    },
+                    carrier,
+                    param_start: span.0,
+                    param_end: span.1,
+                },
+                tol,
+            )
+            .unwrap();
+        body.mef(
+            MefSite::Chords {
+                he1: arc.he_minus,
+                he2: arc.he_plus,
+            },
+            EdgeCurveSpec::line_between(p1, p0),
+            FaceSurface::Shared {
+                key: plane,
+                sense: true,
+            },
+            tol,
+        )
+        .unwrap();
+        (body, major)
+    }
+
+    #[test]
+    fn a_crossing_at_a_thin_ellipses_fast_end_splits() {
+        splits_at_this_runs_band();
+    }
+
+    /// The row at ε 1e-12 and 1e-6 whatever ε this run reads: each in a
+    /// child process of this test binary at that ε (the child row
+    /// [`a_crossing_at_a_thin_ellipses_fast_end_splits_child`]), so a run
+    /// at the default ε holds the band's two ends too.
+    #[test]
+    fn a_crossing_at_a_thin_ellipses_fast_end_splits_at_the_bands_ends() {
+        let row = "splitting::classify::thin_ellipse_rows::a_crossing_at_a_thin_ellipses_fast_end_splits_child";
+        for eps in [1e-12, 1e-6] {
+            let exe = std::env::current_exe().expect("a running test binary has a path");
+            let out = std::process::Command::new(&exe)
+                .args([row, "--exact", "--ignored", "--test-threads=1"])
+                .env(geom_core::tolerance::ENV_EPS, format!("{eps:e}"))
+                .env_remove("CAD_AMBIGUITY_K")
+                .output()
+                .expect("the child row spawns");
+            let stdout = String::from_utf8_lossy(&out.stdout);
+            assert!(
+                out.status.success() && stdout.contains("1 passed"),
+                "at ε = {eps:e} the child row failed or did not run:\n{stdout}\n{}",
+                String::from_utf8_lossy(&out.stderr)
+            );
+        }
+    }
+
+    /// The child the row above runs at each ε: the row itself.
+    #[test]
+    #[ignore = "child row: run at a stated ε by a_crossing_at_a_thin_ellipses_fast_end_splits_at_the_bands_ends"]
+    fn a_crossing_at_a_thin_ellipses_fast_end_splits_child() {
+        splits_at_this_runs_band();
+    }
+
+    /// The cuts and the control at the run's own band.
+    fn splits_at_this_runs_band() {
+        let tol = Tol::witness();
+        let band = Band::linear(tol).unwrap();
+        let cut = |s: f64| {
+            let (mut body, major) = thin_cap(tol);
+            let plane = crate::test_support_fixtures::split_plane(
+                Point3::origin() + major * (-s),
+                major,
+                tol,
+            );
+            let (mut sides, mut on) = super::classify_vertices(&body, &plane, band).unwrap();
+            let edges = body.edges().count();
+            super::insert_crossings(&mut body, &plane, &mut sides, &mut on, tol)
+                .map(|_| body.edges().count() - edges)
+        };
+        // The chord past the band; its gap at the floor, `s/1000`, at a
+        // twentieth of the zero, half of it, and in the band's gap.
+        for s in [50.0, 500.0, 5000.0].map(|k| k * band.zero()) {
+            match cut(s) {
+                Ok(pieces) => assert_eq!(pieces, 2, "s = {s:e}: both crossings split"),
+                Err(e) => panic!("s = {s:e}: both crossings split, not {e:?}"),
+            }
+        }
+        assert_eq!(
+            cut(1e5 * band.zero()).unwrap(),
+            2,
+            "a hundred thousand zeros in, both crossings split"
+        );
     }
 }
 

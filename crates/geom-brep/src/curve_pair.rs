@@ -153,7 +153,7 @@ pub enum MeetFault {
     /// a coarser band may settle it.
     Unsettled(Unsettled),
     /// A spline's piece walk could not run, reading a point on a span. As
-    /// the walk's refusal stands ([`crate::ladder::Refusal::of_walk`]).
+    /// the walk's refusal stands ([`geom::PieceWalkRefusal::refusal`]).
     Unwalked(geom::PieceWalkRefusal),
     /// A pose the pair's arm has no closed form for. A limit.
     Unsupported {
@@ -253,7 +253,7 @@ impl MeetUnread {
     }
 
     /// Its standing: the finder's ([`Unsettled::refusal`]), the walk's
-    /// ([`crate::ladder::Refusal::of_walk`]), or a limit for a pose with
+    /// ([`geom::PieceWalkRefusal::refusal`]), or a limit for a pose with
     /// no closed form.
     ///
     /// # Errors
@@ -263,7 +263,7 @@ impl MeetUnread {
     pub fn refusal(self) -> Result<crate::ladder::Refusal, crate::ladder::Aborts> {
         match self.0 {
             MeetFault::Unsettled(why) => why.refusal(),
-            MeetFault::Unwalked(why) => Ok(crate::ladder::Refusal::of_walk(why)),
+            MeetFault::Unwalked(why) => Ok(why.refusal()),
             MeetFault::Unsupported { .. } => Ok(crate::ladder::Refusal::Limit),
             MeetFault::Escalated(_)
             | MeetFault::Touch(_)
@@ -779,12 +779,10 @@ fn before<T: Decide>(s: T, t: T) -> bool {
     compare("curve_pair_meet_order", s, t) == Some(geom_core::Sign::Negative)
 }
 
-/// **Two parameters compared, read exactly** under `row`, a proof's
-/// inequality ([`geom_core::k_stats::prove`]): the sign of `s − t`,
-/// `None` where an enclosure straddles. A parameter is no distance the
-/// band resolves, so the band plays no part.
-pub(super) fn compare<T: Decide>(row: &'static str, s: T, t: T) -> Option<geom_core::Sign> {
-    geom_core::k_stats::prove(row, geom_core::Margin::of(s - t)).ok()
+/// [`geom_core::k_stats::param_order`], `None` where an enclosure
+/// straddles.
+pub(super) fn compare<T: Decide>(name: &'static str, s: T, t: T) -> Option<geom_core::Sign> {
+    geom_core::k_stats::param_order(name, s, t).ok()
 }
 
 impl From<geom::CarrierRefusal> for MeetFault {
@@ -818,3 +816,5 @@ mod order_rows;
 mod plane_rows;
 #[cfg(test)]
 mod span_rows;
+#[cfg(test)]
+mod touch_spread_rows;

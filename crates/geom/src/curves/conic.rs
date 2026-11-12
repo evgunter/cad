@@ -65,6 +65,9 @@ use crate::curves::Curve3;
 use crate::frame::Frame;
 
 /// **A full circle**, `P(θ) = origin + (u_ref·cos θ + v_ref·sin θ)·radius`.
+///
+/// Its invariants: the axis is unit, the radius positive, and the seam
+/// (`u_ref`) is carried whether or not a reader reads it.
 #[derive(Clone, Copy, Debug)]
 pub struct Circle<T: Real> {
     /// The placement: `origin` the centre, `axis` the unit plane normal
@@ -119,7 +122,13 @@ pub trait Conic<T: Real>: core::fmt::Debug {
     fn frame(&self) -> &Frame<T>;
 
     /// `(semi_u, semi_v)` in stored order: a circle's are its radius
-    /// twice.
+    /// twice. Both are finite and positive: every door builds them so,
+    /// and the edge certificate refuses a record that stores one that is
+    /// not a finite number (`geom_brep::CertifyError::SemiAxisNotFinite`)
+    /// or is definitely negative
+    /// (`geom_brep::CertifyError::SemiAxisNegative`), and a zero one as
+    /// the span it leaves no length to, so the speed readers below read
+    /// them as lengths, unsigned.
     fn semi_axes(&self) -> (T, T);
 
     /// The point at `theta`.
@@ -143,11 +152,12 @@ pub trait Conic<T: Real>: core::fmt::Debug {
     /// centre's ray (scaled per axis on an ellipse) otherwise.
     fn azimuth(&self, p: Point3<T>) -> Azimuth<T>;
 
-    /// The least speed `|P′|` over the carrier: the smaller semi-axis.
+    /// The least speed `|P′|` over the carrier: the smaller semi-axis
+    /// (positive, [`Self::semi_axes`]).
     fn speed_lo(&self) -> T;
 
     /// The greatest speed `|P′|` over the carrier, and a bound on `|P″|`:
-    /// the larger semi-axis.
+    /// the larger semi-axis (positive, [`Self::semi_axes`]).
     fn speed_hi(&self) -> T;
 
     /// The speed `|P′(θ)|` at `theta`, held to

@@ -129,7 +129,7 @@ fn digest(r: &Result<BooleanResult<f64>, topo::BooleanError>) -> String {
 /// against a face the fragment's box never meets would show here
 /// (`work/honesplit/sweep-trace-counts-a-face-free-vertex-record-as-the-pairs-event.md`);
 /// none stands on the corpus, since the narrow phase behind the tree
-/// (`boolean::separating`) parts the cylinder pair's in both strategies.
+/// (`separating`) parts the cylinder pair's in both strategies.
 #[test]
 fn n3r1_prune_corpus_examines_154_pairs_and_loses_no_accepted_one() {
     let mut total_prune_pairs = 0usize;

@@ -27,7 +27,7 @@
 
 use geom_brep::recourse::{Refused, RefusedArm, RefusedSide, SizedDecision, SizedPass};
 use geom_brep::{CertifyError, EdgeCurveSpec};
-use geom_core::{Band, Decide, InfSpeed, Margin, Point3, Tol};
+use geom_core::{Band, Decide, Point3, Tol};
 
 use crate::body::Body;
 use crate::entity::{EdgeKey, EntityId, GeomRef, HalfEdgeKey, VertexKey};
@@ -41,7 +41,7 @@ use crate::provenance::Provenance;
 /// The lever a split of a smooth edge (a tangency or a pair) has where the must-carry rule
 /// over a piece is in band: the piece's length decides its sagitta.
 pub(crate) const SMOOTH_PIECE_LEVER: &str =
-    "move the geometry so the crossing cuts a longer or a shorter piece off the smooth edge";
+    geom_core::move_lever!("so the crossing cuts a longer or a shorter piece off the smooth edge");
 
 /// [`Body::split_edge`](crate::construction::Construct::split_edge)'s interiority decision: it passes only on a
 /// crossing definitely inside its edge.
@@ -298,53 +298,29 @@ impl<T: Decide> Body<T> {
         let hp_next = self.require_live(hp_data.next, link(EntityId::HalfEdge(hp.key()), "next"));
         let hm_prev = self.require_live(hm_data.prev, link(EntityId::HalfEdge(hm.key()), "prev"));
         let curve = self.stored_curve(edge)?.clone();
-        // Interiority (trilean, Q1): both sub-spans definitely
-        // positive, metered in meters like the certification span gate.
         let (t0, t1) = curve.params();
-        let scale = match *curve.carrier() {
-            geom::Curve3::Line(_) => InfSpeed::new(T::one()),
-            // A periodic carrier (M5 PR 5, C12.3) is metered at its speed
-            // floor, certification's span meter: a circle's radius, an
-            // ellipse's smaller semi-axis, a spiric's minor radius
-            // (`|dP/dv| ≥ r`), so a sub-span this gate accepts as
-            // definitely interior is truly clear of the endpoints in
-            // meters.
-            ref periodic @ (geom::Curve3::Circle(_)
-            | geom::Curve3::Ellipse(_)
-            | geom::Curve3::Spiric { .. }) => match geom::carrier_speed::speed_floor(periodic) {
-                Some(floor) => floor,
-                None => unreachable!("`speed_floor` answers every periodic carrier"),
-            },
-            // The general rung (M5 PR 7, C12.3): a fitted SSI carrier
-            // is metered at the CERTIFIED LOWER BOUND on ‖C′(t)‖ —
-            // the same conservative posture as the conic lane's minor
-            // semi-axis, derived from the derivative control net's
-            // convex-hull property for an integral net, and (since M7)
-            // from the quotient-rule assembly over the HOMOGENEOUS net
-            // for a rational one — see `NurbsCurve3::speed_lower_bound`
-            // for both derivations. A carrier whose speed genuinely
-            // collapses yields a non-positive or poison meter, and the
-            // interiority trilean below then escalates honestly instead
-            // of accepting a split that is not clear of the endpoints
-            // in meters.
-            geom::Curve3::Nurbs(ref n) => n.speed_lower_bound(),
-        };
         let band = Band::linear(tol).map_err(|e| EulerOpError::Certification {
             error: CertifyError::Band(e),
         })?;
-        for margin in [
-            Margin::metered(t - t0, scale),
-            Margin::metered(t1 - t, scale),
-        ] {
-            match geom_core::k_stats::decide_reported("split_edge_param_interior", margin, band) {
-                Ok(decided) => {
-                    if let Some(verdict) = Refused::of(decided, band) {
-                        return Err(EulerOpError::SplitParamNotInterior { edge, verdict });
-                    }
-                }
-                Err(diag) => {
-                    return Err(EulerOpError::SplitParamEscalated { edge, diag });
-                }
+        // Interiority (trilean, Q1): the span's own reading of the
+        // parameter (`geom_brep::curve_pair::Span::place_param_read`): the
+        // split point within the band of an end's point, by their chord,
+        // is that end; otherwise its side of each end, metered at the
+        // carrier's greatest speed, decides. Only a point inside, past
+        // the band of both ends, splits.
+        let span = geom_brep::curve_pair::Span::new(curve.carrier(), (t0, t1));
+        match span.place_param_read(t, band) {
+            Ok((geom_brep::curve_pair::Place::Inside, _)) => {}
+            Ok((_, read)) => {
+                let verdict = read
+                    .and_then(|decided| Refused::of(decided, band))
+                    .unwrap_or_else(|| {
+                        unreachable!("a place at or past an end rests on a chord read zero or a side read negative")
+                    });
+                return Err(EulerOpError::SplitParamNotInterior { edge, verdict });
+            }
+            Err(diag) => {
+                return Err(EulerOpError::SplitParamEscalated { edge, diag });
             }
         }
         let (u, v) = (hp_data.start, hm_data.start);
@@ -579,12 +555,8 @@ mod tests {
         let parent = body.get_edge(edge).unwrap();
         assert_eq!(body.half_edge_end(parent.he_plus), Some(created.vertex));
         assert_eq!(
-            body.get_half_edge(created.he_plus).unwrap().start,
-            created.vertex
-        );
-        assert_eq!(
-            body.half_edge_end(created.he_plus),
-            Some(cube.mevs[0].vertex)
+            body.edge_vertices(created.new_edge),
+            Some((created.vertex, cube.mevs[0].vertex))
         );
         // Provenance: typed SplitEdge birth records.
         assert_eq!(

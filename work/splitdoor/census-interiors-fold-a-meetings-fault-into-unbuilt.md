@@ -81,6 +81,6 @@ rather than re-ranking each fault in `InteriorsUnread::of`.
 
 ## 2026-11-09: a walk that could not run joins the fold (onecopy/carrier-standing, PR 6629)
 
-`MeetFault` now carries a spline walk that could not run as its own arm, `Unwalked(geom::PieceWalkRefusal)`. That arm's standing is `ladder::Refusal::of_walk`: `Exhausted` is unsettled and `Unbounded` is a limit. Before, the walk was folded into `Unsettled(Exhausted)` or `Unsupported`.
+`MeetFault` now carries a spline walk that could not run as its own arm, `Unwalked(geom::PieceWalkRefusal)`. That arm's standing is `geom::PieceWalkRefusal::refusal` (it was `ladder::Refusal::of_walk` before the ladder moved to `geom_core`): `Exhausted` is unsettled and `Unbounded` is a limit. Before, the walk was folded into `Unsettled(Exhausted)` or `Unsupported`.
 
 `InteriorsUnread::of` files `Unwalked` as `Unbuilt`, beside `Unsettled` and `Unsupported`. Both of the old variants were already there, so no outcome moved. The new arm does sharpen this row's dispute. `MeetFault::refusal` reads an exhausted walk as unsettled, and this fold still ranks it as a limit. The repair, delegating to `MeetFault::refusal`, is the semantics change this row argues, so it was left here.

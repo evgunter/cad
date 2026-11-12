@@ -230,7 +230,7 @@ use geom_core::interval::certification::Certification;
 use geom_core::interval::max_bound;
 use geom_core::spline::algebra::equal_split_points;
 use geom_core::spline::compose::patch::PatchSpans;
-use geom_core::spline::{KnotVector, SplineError};
+use geom_core::spline::{Built, KnotVector, SplineError};
 use geom_core::{
     Band, BandError, Interval, KERNEL_LIMIT_LAST_RESORT, KERNEL_LIMIT_RECOURSE, Point3, Tol,
 };
@@ -513,7 +513,7 @@ pub enum OffsetFitError {
     /// parameters bisected down to adjacent floats could reach, so it
     /// ends in the last resort, as [`Self::Fit`]'s unproven arms do
     /// (`encl/offset-fit-unproven-refusals-end-in-the-last-resort`).
-    Structure(SplineError),
+    Structure(Built<SplineError>),
     /// `d` or the tolerance is not a finite, non-zero (resp.
     /// positive) number. Both are the call's own arguments, so a
     /// non-finite one is usually a derived quantity that went
@@ -815,10 +815,10 @@ impl OffsetFitError {
                 "the offset surface's fit could not interpolate the samples it chose on the \
                  face. {KERNEL_LIMIT_RECOURSE}"
             ),
-            Self::Structure(_) => write!(
+            Self::Structure(e) => write!(
                 f,
                 "the offset surface's fit could not assemble a spline from the knots and \
-                 points it computed. {KERNEL_LIMIT_RECOURSE}"
+                 points it computed: {e}. {KERNEL_LIMIT_RECOURSE}"
             ),
             Self::InvalidRequest { d, tolerance } => write!(
                 f,
@@ -1768,9 +1768,10 @@ fn interpolate_offset_grid(
     // rectangle, ends exact — so the fitted surface lives on the same
     // parameters and the certificate's pointwise claim is about the
     // same `(u, v)` on both sides.
-    let ku = ku.on_domain(ulo, uhi).map_err(OffsetFitError::Structure)?;
-    let kv = kv.on_domain(vlo, vhi).map_err(OffsetFitError::Structure)?;
-    NurbsSurface::new(ku, kv, control, vec![1.0; cu * cv]).map_err(OffsetFitError::Structure)
+    let built = |e| OffsetFitError::Structure(Built::new(e));
+    let ku = ku.on_domain(ulo, uhi).map_err(built)?;
+    let kv = kv.on_domain(vlo, vhi).map_err(built)?;
+    NurbsSurface::new(ku, kv, control, vec![1.0; cu * cv]).map_err(built)
 }
 
 // ---------------------------------------------------------------------
@@ -3502,10 +3503,10 @@ mod recourse_tests {
             points: 5,
         };
         let unproven = FitError::NonFinitePoint { index: 3 };
-        let structure = SplineError::NonPositiveWeight {
+        let structure = geom_core::spline::Built::new(SplineError::NonPositiveWeight {
             index: 0,
             weight: 0.0,
-        };
+        });
         // The two `BandError` arms `Band::linear` can return.
         let bands = [
             BandError::InvalidValue {
@@ -3661,11 +3662,17 @@ mod recourse_tests {
                 OffsetFitError::Fit(_) => {
                     Some((unproven.to_string(), geom_core::KERNEL_LIMIT_RECOURSE))
                 }
-                OffsetFitError::Structure(_) => {
-                    Some((structure.to_string(), geom_core::KERNEL_LIMIT_RECOURSE))
-                }
                 _ => None,
             };
+            // What the fit built keeps its fact, and its ending is the
+            // arm's: the payload's own repair is not rendered.
+            if let OffsetFitError::Structure(_) = arm {
+                assert!(
+                    msg.contains(&structure.to_string())
+                        && msg.ends_with(geom_core::KERNEL_LIMIT_RECOURSE),
+                    "the fact, then the arm's own ending: {msg}"
+                );
+            }
             if let Some((carrier, ending)) = kernel_input {
                 assert!(
                     !msg.contains(&carrier) && msg.ends_with(ending),

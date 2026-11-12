@@ -399,6 +399,7 @@ fn class(e: &BlendError) -> &'static str {
         BlendError::FaceClearanceUncertified { .. } => "FaceClearanceUncertified",
         BlendError::FaceClearance { .. } => "FaceClearance",
         BlendError::KnifeEdge { .. } => "KnifeEdge",
+        BlendError::BallDoesNotFit { .. } => "BallDoesNotFit",
         BlendError::SpineIrregular { .. } => "SpineIrregular",
         BlendError::ChainNotG1 { .. } => "ChainNotG1",
         BlendError::ConvexitySignFlip { .. } => "ConvexitySignFlip",

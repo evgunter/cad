@@ -80,7 +80,7 @@ uniformly, with the residual sites documented.
 
 `transform_rigid`'s contract, name, seven-row K-ledger
 (`transform_rigid_det_plus_one` among them, asked at the
-`RigidMotion` witness's decided door), that door's typed `NotRigid`
+`RigidMotion` witness's `f64` door), that door's typed `NotRigid`
 refusal (`RigidMotionError::NotRigid`), and its sense-invariance proof (the M5 S10 audit — "there
 is no such branch to write here today") are all written around
 det = +1, and two suites pin the det = −1 refusal. Widening it
@@ -92,10 +92,10 @@ already implements exactly once per face (plane arm: negate stored
 normal, and re-state every `Chart` image and every stored pcurve row
 on that plane under the chart reflection `(u, v) ↦ (u, −v)` the
 negation is, certificates verbatim — `Pcurve::mirror_v`; curved arm:
-flip `sense`) + re-certify carriers and re-mint witnesses per the
-transform layer's existing discipline. The +V
-tier-3 invariant is the acceptance instrument: a reflection without
-the flip produces `NegativeVolume`, and the correct door must not.
+flip `sense`) + carry every certificate, re-minting witnesses from
+the mapped carrier as data. The +V tier-3 invariant is the acceptance
+instrument, as a test: a reflection without the flip produces
+`NegativeVolume`, and the correct door must not.
 One claim the survey flags as **checkable, not assumable** (conv. 4
 verbatim): whether reflection's loop-orientation reversal and the
 normal flip cancel so that no half-edge reversal is needed — the

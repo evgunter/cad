@@ -44,7 +44,7 @@ use geom::cover::{Around, Cover, Site};
 use geom_core::{Band, Decide, Margin, Point3, Sign, Vec3, is_finite_length};
 
 use crate::body::Body;
-use crate::boolean::boxes::sweep_pad;
+use crate::boxes::sweep_pad;
 use crate::cover::{edge_end_point, face_cover, face_nearest};
 use crate::entity::FaceKey;
 use crate::live::BoundaryMember;
@@ -141,7 +141,7 @@ pub(super) fn face_read<T: Decide>(body: &Body<T>, f: FaceKey, band: Band) -> Op
             edge_end_point(body, ek, edge.he_plus, "he_plus"),
             edge_end_point(body, ek, edge.he_minus, "he_minus"),
         );
-        if carrier.as_line().is_some() {
+        if super::edge_line(body, ek).is_some() {
             segments.push(ends);
         } else if let Some(conic) = carrier.conic() {
             depths.push(Proposed {
@@ -258,14 +258,14 @@ pub(super) fn apart_in_depth<T: Decide>(
 /// face proposes, the offset from it to the other face's nearest
 /// boundary segment point, off the axis or from the centre. This only
 /// proposes. Arm 1 reads both faces' reaches along each direction
-/// ([`crate::boolean::separating::apart_by`]), and the gap there is
+/// ([`crate::separating::apart_by`]), and the gap there is
 /// the certificate, whatever aimed it. A core depth or a boundary with
 /// no segment proposes nothing, and neither does an offset the band cannot
 /// read as a unit direction.
 ///
 /// The same axis proposed twice (a cover's and each coaxial rim's)
 /// proposes two directions that agree only to rounding. They are kept,
-/// as [`crate::boolean::separating::face_axes`] keeps every normal at a
+/// as [`crate::separating::face_axes`] keeps every normal at a
 /// scalar with no bracket to key them by: a second reading of a span
 /// that no verdict depends on.
 pub(super) fn toward<T: Decide>(
@@ -403,8 +403,10 @@ mod tests {
 
     fn core(radius: f64) -> Around<f64> {
         Around::Circle(geom::cover::Core {
-            center: p(0.0, 0.0, 0.0),
-            axis: v(0.0, 0.0, 1.0),
+            axis: geom::Line {
+                origin: p(0.0, 0.0, 0.0),
+                dir: v(0.0, 0.0, 1.0),
+            },
             radius,
         })
     }
@@ -525,7 +527,7 @@ mod tests {
             u_ref: v(1.0, 0.0, 0.0),
         };
         assert!(
-            matches!(sphere.cover().unwrap().about()[..], [Around::Point(c)] if (c - p(0.0, 1.0, 0.0)).norm() == 0.0),
+            matches!(sphere.cover().unwrap().about()[..], [Around::Point(c)] if c.equals_exactly(p(0.0, 1.0, 0.0))),
             "a sphere is measured about its centre"
         );
         assert_eq!(
@@ -618,7 +620,7 @@ mod tests {
         let (ra, rb) = (read(a), read(b));
         let axis = ra.cover.about()[0];
         assert!(
-            matches!(axis, Around::Line(geom::Line { origin, dir }) if (origin - p(0.0, 0.0, 0.0)).norm() == 0.0 && dir.cross(v(0.0, 0.0, 1.0)).norm() == 0.0),
+            matches!(axis, Around::Line(geom::Line { origin, dir }) if origin.equals_exactly(p(0.0, 0.0, 0.0)) && dir.cross(v(0.0, 0.0, 1.0)).norm() == 0.0),
             "about its axis: {axis:?}"
         );
         assert_eq!(ra.cover.range_about(&axis), (1.0, 1.0), "the inner wall");
