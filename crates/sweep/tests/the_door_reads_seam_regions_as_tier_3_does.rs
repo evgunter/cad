@@ -51,15 +51,17 @@ fn g<E>(r: Result<topo::BooleanResult<f64>, E>) -> Option<AB> {
     r.ok().and_then(|r| r.body().map(|b| b.body.clone()))
 }
 
-/// The result gate's volume on a sphere face: a trim the chart table has
-/// no lane for, or a ring, which the sphere reads only where circles
-/// bound it. The refused face's own surface is read
-/// (`topo::boolean::refused_face_kind`), so the stop names the
-/// sphere only where the gate refused a sphere face: every face that
-/// refuses here is one (a chorded cylinder face measures through the
-/// rotational lane), so the one stop reads alike in every face order,
-/// and a refusal on another chart's face reads as that chart's.
-const SPHERE_FACE: &str = "VolumeUncomputable on a sphere face";
+/// The result gate's volume on a face, a trim the chart table has no
+/// lane for or a ring its lane does not read, named by the refused
+/// face's own surface (`topo::boolean::refused_face_kind`). No boolean
+/// here stops there: a chorded cylinder or sphere face measures through
+/// the rotational lane.
+const VOLUME_ON: &str = "VolumeUncomputable on a";
+
+/// The result's piece sort, whose point-in-solid walk cannot read a
+/// sphere face bounded by a spline chord
+/// (`work/inside/point-in-solid-refuses-a-sphere-face-bounded-by-a-spline-chord.md`).
+const PIECES: &str = "the piece sort's walk on a chorded sphere face";
 
 /// Where a boolean stops: `body`, or its refusal by variant and the
 /// door that raised it.
@@ -76,9 +78,11 @@ fn stop(r: &Result<topo::BooleanResult<f64>, topo::BooleanError>) -> String {
         || (quadrature && e.contains("a trimmed face with no volume lane on its chart"))
     {
         match kind {
-            Some(geom::SurfaceKind::Sphere) => SPHERE_FACE.into(),
-            other => format!("VolumeUncomputable on a {other:?} face"),
+            Some(kind) => format!("{VOLUME_ON} {kind:?} face"),
+            None => format!("{VOLUME_ON} face of no recorded kind"),
         }
+    } else if e.starts_with("Pieces(Probe") && e.contains("PartialSphereFace") {
+        PIECES.into()
     } else {
         e.chars().take(160).collect()
     }
@@ -90,49 +94,93 @@ fn stop(r: &Result<topo::BooleanResult<f64>, topo::BooleanError>) -> String {
 /// the door's assertion with the corpus's other valid bodies. The tilted
 /// ball's four booleans with the upright rod build since the join's
 /// carried lane chords closed-form components (SECTARMS stage 3b-i);
-/// they stopped at the join's lane dispatch before.
+/// they stopped at the join's lane dispatch before. Every other boolean
+/// builds but one of each rod's `b − a`, whose result's piece sort
+/// refuses ([`PIECES`]).
 fn pinned(part: Part) -> Stops {
-    const SPHERE: &str = SPHERE_FACE;
     const BODY: &str = "body";
     let table: &[(&str, &str)] = match part {
         Part::Rest => &[],
         Part::Rod => &[
-            ("unit u rod", SPHERE),
-            ("unit i rod", SPHERE),
-            ("unit a-b rod", SPHERE),
-            ("unit b-a rod", SPHERE),
+            ("unit u rod", BODY),
+            ("unit i rod", BODY),
+            ("unit a-b rod", BODY),
+            ("unit b-a rod", PIECES),
             ("tilt u rod", BODY),
             ("tilt i rod", BODY),
             ("tilt a-b rod", BODY),
             ("tilt b-a rod", BODY),
         ],
         Part::UnitTurnedRod => &[
-            ("unit u rodx", SPHERE),
-            ("unit i rodx", SPHERE),
-            ("unit a-b rodx", SPHERE),
-            ("unit b-a rodx", SPHERE),
+            ("unit u rodx", BODY),
+            ("unit i rodx", BODY),
+            ("unit a-b rodx", BODY),
+            ("unit b-a rodx", PIECES),
         ],
         Part::TiltTurnedRod => &[
-            ("tilt u rodx", SPHERE),
-            ("tilt i rodx", SPHERE),
-            ("tilt a-b rodx", SPHERE),
-            ("tilt b-a rodx", SPHERE),
+            ("tilt u rodx", BODY),
+            ("tilt i rodx", BODY),
+            ("tilt a-b rodx", BODY),
+            ("tilt b-a rodx", PIECES),
         ],
         Part::Stub => &[
-            ("unit u stub", SPHERE),
-            ("unit i stub", SPHERE),
-            ("unit a-b stub", SPHERE),
-            ("unit b-a stub", SPHERE),
-            ("tilt u stub", SPHERE),
-            ("tilt i stub", SPHERE),
-            ("tilt a-b stub", SPHERE),
-            ("tilt b-a stub", SPHERE),
+            ("unit u stub", BODY),
+            ("unit i stub", BODY),
+            ("unit a-b stub", BODY),
+            ("unit b-a stub", BODY),
+            ("tilt u stub", BODY),
+            ("tilt i stub", BODY),
+            ("tilt a-b stub", BODY),
+            ("tilt b-a stub", BODY),
         ],
     };
     table
         .iter()
         .map(|&(op, at)| (op.to_string(), at.to_string()))
         .collect()
+}
+
+/// **A ball × cylinder boolean's volume, independently of the kernel**,
+/// for a corpus name `"{ball} {op} {cylinder}"` (`unit` or `tilt` with
+/// `rod`, `rodx` or `stub`), `None` for any other. Each cylinder is
+/// `cyl`'s about `z`, `rodx` then turned `0.7` about `x` through the
+/// origin, which fixes both balls' centres (on `x`), so every pair is
+/// read in the cylinder's own frame: the common part sliced along its
+/// axis, each slice the lens of its disc and the ball's
+/// (`cylinder_sphere_frame::lens`), by adaptive Gauss–Kronrod.
+fn ball_cylinder_volume(name: &str) -> Option<f64> {
+    use crate::cylinder_sphere_frame::{gk, lens};
+    use core::f64::consts::PI;
+    let mut words = name.split(' ');
+    let (ball, op, cylinder) = (words.next()?, words.next()?, words.next()?);
+    let centre: (f64, f64, f64) = match ball {
+        "unit" => (0.0, 0.0, 0.0),
+        "tilt" => (0.1, 0.0, 0.0),
+        _ => return None,
+    };
+    let (cx, cy, r, z0, z1): (f64, f64, f64, f64, f64) = match cylinder {
+        "rod" => (0.1, 0.0, 0.3, -2.0, 2.0),
+        "rodx" => (0.0, 0.1, 0.25, -2.0, 2.0),
+        "stub" => (0.5, 0.2, 0.4, 0.3, 2.0),
+        _ => return None,
+    };
+    let d = (cx - centre.0).hypot(cy - centre.1);
+    let (lo, hi) = ((centre.2 - 1.0_f64).max(z0), (centre.2 + 1.0_f64).min(z1));
+    let common = gk(
+        &|z: f64| lens(r, (1.0 - (z - centre.2).powi(2)).max(0.0).sqrt(), d),
+        lo,
+        hi,
+        1e-13,
+        24,
+    );
+    let (vb, vc) = (4.0 / 3.0 * PI, PI * r * r * (z1 - z0));
+    Some(match op {
+        "u" => vb + vc - common,
+        "i" => common,
+        "a-b" => vb - common,
+        "b-a" => vc - common,
+        _ => return None,
+    })
 }
 
 fn v(x: f64, y: f64, z: f64) -> Vec3<f64> {
@@ -360,7 +408,7 @@ fn corpus(part: Part) -> (Vec<(String, AB)>, Stops) {
 
 fn sphere_faces(body: &Body<f64>) -> Vec<(FaceKey, topo::SurfaceKey)> {
     body.faces()
-        .filter(|(_, f)| matches!(body.get_surface(f.surface), Some(Surface::Sphere { .. })))
+        .filter(|(fk, _)| matches!(body.face_surface(*fk), Some(Surface::Sphere { .. })))
         .map(|(k, f)| (k, f.surface))
         .collect()
 }
@@ -412,6 +460,22 @@ fn the_door_names_the_flipped_face_in(part: Part) {
     let tol = Tol::witness();
     let mut misnamed = Vec::new();
     let (bodies, stops) = corpus(part);
+    let res = topo::test_support::pinned_resolution(tol);
+    let mut wrong = Vec::new();
+    for (name, b) in &bodies {
+        let Some(want) = ball_cylinder_volume(name) else {
+            continue;
+        };
+        match topo::mass_properties(b, tol, res) {
+            Ok(m)
+                if (m.enclosure.volume - want).abs()
+                    <= crate::common::differential::VOLUME_CLAIM + m.enclosure.volume_pad => {}
+            got => wrong.push(format!(
+                "{name}: {:?} against {want}",
+                got.map(|m| (m.enclosure.volume, m.enclosure.volume_pad))
+            )),
+        }
+    }
     for (name, b) in bodies {
         if topo::validate_geometric(&b, tol).is_err() {
             continue;
@@ -447,6 +511,10 @@ fn the_door_names_the_flipped_face_in(part: Part) {
     assert!(
         misnamed.is_empty(),
         "the door names a correct neighbour: {misnamed:#?}"
+    );
+    assert!(
+        wrong.is_empty(),
+        "a ball × cylinder body off its volume: {wrong:#?}"
     );
 }
 

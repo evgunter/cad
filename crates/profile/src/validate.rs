@@ -136,7 +136,7 @@
 //! | `ray_advance` | ray parameter | direct |
 //! | `loop_orientation` | 2·area/perimeter (sliver width) | half-perimeter (area → meters) |
 //! | `canonical_order_x` / `_y` | coordinate difference | exact-order band (see below) |
-//! | `fillet_leg_fit` | leg length − tangent setback | exact-order band; fired in the fillet CONSTRUCTORS, not here |
+//! | `fillet_leg_fit` | leg length − tangent setback (the run) | linear band, the one `vertex_separation` reads a segment on; fired in the fillet CONSTRUCTORS, not here |
 //! | `fillet_leg_reach` | tangent setback from the corner | exact-order band; the constructor's corner-side extent test (M5 S2) |
 //! | `fillet_corner_arm` | min leg lever arm | linear band; the collapsed-arm gate (M5 S2) |
 //! | `fillet_corner_turn` | sin φ · arm | linear band; φ the corner's turn, arm = min(leg extents, leg carrier radii) |
@@ -177,7 +177,7 @@
 use core::borrow::Borrow;
 use core::fmt;
 
-use crate::gate::{Escalation, Gate, decide};
+use crate::gate::{Escalation, Gate, decide, prove};
 use geom_core::{
     Arc2, Band, BandError, COINCIDENCE_RECOURSE, Decide, Indeterminate, KERNEL_DEFECT_ENDING,
     Margin, MarginDiag, Point2, Real, Sign, Tol, Vec2,
@@ -350,6 +350,48 @@ impl fmt::Display for FilletLeg {
             Self::Incoming => "incoming leg",
             Self::Outgoing => "outgoing leg",
         })
+    }
+}
+
+/// Which legs of a fillet corner a trim overruns: one of them or both,
+/// never neither, so an overrun that names no leg is unwritable.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum OverrunLegs {
+    /// Only this leg's anchor is eaten.
+    One(FilletLeg),
+    /// Both legs' anchors are eaten.
+    Both,
+}
+
+impl OverrunLegs {
+    /// The overrun of a corner whose `[incoming, outgoing]` legs are
+    /// overrun as given, or `None` where neither is.
+    #[must_use]
+    pub const fn of(incoming: bool, outgoing: bool) -> Option<Self> {
+        match (incoming, outgoing) {
+            (true, true) => Some(Self::Both),
+            (true, false) => Some(Self::One(FilletLeg::Incoming)),
+            (false, true) => Some(Self::One(FilletLeg::Outgoing)),
+            (false, false) => None,
+        }
+    }
+
+    /// Whether `leg` is overrun.
+    #[must_use]
+    pub fn contains(self, leg: FilletLeg) -> bool {
+        match self {
+            Self::One(one) => one == leg,
+            Self::Both => true,
+        }
+    }
+
+    /// The overrun legs' `[incoming, outgoing]` indices, in that order.
+    pub fn indices(self) -> impl Iterator<Item = usize> {
+        [FilletLeg::Incoming, FilletLeg::Outgoing]
+            .into_iter()
+            .enumerate()
+            .filter(move |(_, leg)| self.contains(*leg))
+            .map(|(k, _)| k)
     }
 }
 
@@ -1456,9 +1498,6 @@ fn validate_loops<T: Decide, L: LoopInput<T>>(
         if !plane_is_finite(&plane) {
             return Err(ProfileError::PlaneNotFinite);
         }
-        // The exact-order band for the containment representative
-        // (module docs): no representable f64 lies strictly inside it.
-        let exact = Band::least();
 
         // No loops is the empty region: there is nothing to decide.
         if loops_in.is_empty() {
@@ -1535,7 +1574,7 @@ fn validate_loops<T: Decide, L: LoopInput<T>>(
         for (li, lp) in loops_in.iter().map(Borrow::borrow).enumerate() {
             let idx = match guide.loop_at(li) {
                 Some(rec) => rec.representative,
-                None => lex_min_index(&lp.vertices, exact, li)?,
+                None => lex_min_index(&lp.vertices, li)?,
             };
             // A recorded index out of range describes another program.
             let Some(v) = lp.vertices.get(idx) else {
@@ -2151,13 +2190,11 @@ fn point_in_loop<T: Decide>(
 /// Compares two points in the canonical lexicographic order (least x,
 /// then least y) through the exact-order band (module docs) — the
 /// **`canonical_order_x`** / **`canonical_order_y`** predicates.
-fn lex_less<T: Decide>(p: Point2<T>, q: Point2<T>, exact: Band) -> Result<bool, Escalation> {
-    match decide(Gate::CanonicalOrderX, Margin::of(p.x - q.x), exact)? {
+fn lex_less<T: Decide>(p: Point2<T>, q: Point2<T>) -> Result<bool, Escalation> {
+    match prove(Gate::CanonicalOrderX, Margin::of(p.x - q.x))? {
         Sign::Negative => Ok(true),
         Sign::Positive => Ok(false),
-        Sign::Zero => {
-            Ok(decide(Gate::CanonicalOrderY, Margin::of(p.y - q.y), exact)? == Sign::Negative)
-        }
+        Sign::Zero => Ok(prove(Gate::CanonicalOrderY, Margin::of(p.y - q.y))? == Sign::Negative),
     }
 }
 
@@ -2165,12 +2202,11 @@ fn lex_less<T: Decide>(p: Point2<T>, q: Point2<T>, exact: Band) -> Result<bool, 
 /// containment representative point.
 fn lex_min_index<T: Decide>(
     vertices: &[Point2<T>],
-    exact: Band,
     loop_index: usize,
 ) -> Result<usize, ProfileError> {
     let mut best = 0;
     for i in 1..vertices.len() {
-        if lex_less(vertices[i], vertices[best], exact).map_err(|source| {
+        if lex_less(vertices[i], vertices[best]).map_err(|source| {
             ProfileError::escalated(EscalationSite::Loop { loop_index }, source)
         })? {
             best = i;

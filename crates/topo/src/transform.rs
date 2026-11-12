@@ -13,16 +13,16 @@
 //!
 //! [`transform_rigid`]'s map is a [`RigidMotion`] (orthonormal linear
 //! part, determinant +1, finite): rigidity is **carried by the witness
-//! or decided at its door** ([`RigidMotion::check_rigid`]), and this
-//! door asks nothing about it. A mirror's map is a
+//! it was minted as, or admitted within rounding at the `f64` door**
+//! ([`RigidMotion::check_rigid`]), and this door asks nothing about it. A mirror's map is a
 //! [`crate::Reflection`], a Householder matrix (determinant −1) decided
 //! at its own door. A uniform scale is affinely self-consistent on planar
 //! bodies, so re-certification alone would NOT catch one while it
 //! silently broke every unit-vector convention downstream; the type is
-//! what keeps one out, to the type's own standard: a minted motion is
-//! rigid up to rounding, a door-admitted factor within the band, and a
-//! product of `k` admitted factors — not decided again — within about
-//! `k` bands (`RigidMotion`'s module docs). On top of that, every edge
+//! what keeps one out, to the type's own standard: a minted or
+//! door-admitted motion is rigid up to rounding, and a product of `k`
+//! of them — not decided again — within about `k` times that rounding
+//! (`RigidMotion`'s module docs). On top of that, every edge
 //! carrier is **re-attached** against the mapped geometry through the
 //! scalar's edge door ([`crate::AtRestPolicy::attach_edge`]: certified in
 //! full where the scalar certifies, minted where it never does) — so a
@@ -804,7 +804,6 @@ pub(crate) fn map_isometry<T: Decide + crate::props::AtRestPolicy>(
             found: "an edge vanished mid-walk",
         })?;
         let curve_key = edge.curve;
-        let he_plus = edge.he_plus;
         let old = match out.curves.get(curve_key) {
             Some(CurveGeom::Certified(ec)) => ec.clone(),
             Some(CurveGeom::NullScaffold(_)) => {
@@ -816,8 +815,10 @@ pub(crate) fn map_isometry<T: Decide + crate::props::AtRestPolicy>(
                 });
             }
         };
-        let start = endpoint(&out, he_plus, false)?;
-        let end = endpoint(&out, he_plus, true)?;
+        let (vs, ve) = out.edge_vertices(ek).ok_or(TransformError::Corrupt {
+            found: "an edge references a missing half-edge",
+        })?;
+        let (start, end) = (endpoint(&out, vs)?, endpoint(&out, ve)?);
         let (param_start, param_end) = old.params();
         let carrier = map_carrier(iso, old.carrier())?;
         // A sketch pushforward is stated in 3-space, so the authority
@@ -935,24 +936,11 @@ pub(crate) fn map_isometry<T: Decide + crate::props::AtRestPolicy>(
     Ok(out)
 }
 
-/// The mapped world position of `he_plus`'s start (or end) vertex.
+/// The mapped world position of vertex `vk`.
 fn endpoint<T: Real>(
     body: &Body<T>,
-    he_plus: crate::entity::HalfEdgeKey,
-    end: bool,
+    vk: crate::entity::VertexKey,
 ) -> Result<Point3<T>, TransformError> {
-    let vk = if end {
-        body.half_edge_end(he_plus).ok_or(TransformError::Corrupt {
-            found: "an edge's primary half-edge has no end vertex",
-        })?
-    } else {
-        body.half_edges
-            .get(he_plus)
-            .ok_or(TransformError::Corrupt {
-                found: "an edge references a missing half-edge",
-            })?
-            .start
-    };
     let v = body.vertices.get(vk).ok_or(TransformError::Corrupt {
         found: "a half-edge references a missing vertex",
     })?;
@@ -982,14 +970,15 @@ fn map_mapped_curve<T: Real>(map: &Affine3<T>, hand: Hand, mc: &MappedCurve<T>) 
             MappedSource::RevolvedPoint {
                 point,
                 place,
-                axis_origin,
-                axis_dir,
+                axis,
                 angle,
             } => MappedSource::RevolvedPoint {
                 point,
                 place: *map * place,
-                axis_origin: map.transform_point(axis_origin),
-                axis_dir: hand.axial(map, axis_dir),
+                axis: geom::Line {
+                    origin: map.transform_point(axis.origin),
+                    dir: hand.axial(map, axis.dir),
+                },
                 angle,
             },
         },

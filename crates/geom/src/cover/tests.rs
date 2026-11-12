@@ -14,7 +14,9 @@ use std::sync::Arc;
 use geom_core::{Band, Bounds, Dual, Interval, KnotVector, Point3, Real, Sym, UnitVec3, Vec3};
 use test_utils::fuzz::{self, Rng};
 
-use super::{BoxAxes, Cover, Covered, Entity, Lattice, ParamWindow, Site, Uncovered, Unknown};
+use super::{
+    Around, BoxAxes, Core, Cover, Covered, Entity, Lattice, ParamWindow, Site, Uncovered, Unknown,
+};
 use crate::curves::NurbsCurve3;
 use crate::{Curve3, Frame, Line, Surface, SurfaceKind};
 
@@ -66,10 +68,20 @@ fn across(axis: Vec3<f64>, rng: &mut Rng) -> Vec3<f64> {
     }
 }
 
-/// The solid ball about `c` of radius `|r|`: a sphere's whole cover, the
-/// tube with no spine.
+/// The solid ball about `c` of radius `|r|`: the tube with no spine.
 fn ball<T: Real>(c: Point3<T>, r: T) -> Cover<T> {
     Cover::tube(&Frame::new(c, Vec3::unit_z(), Vec3::unit_x()), T::zero(), r).unwrap()
+}
+
+/// The circle of radius `radius` about `center` normal to `axis`.
+fn core_about(center: Point3<f64>, axis: Vec3<f64>, radius: f64) -> Around<f64> {
+    Around::Circle(Core {
+        axis: crate::Line {
+            origin: center,
+            dir: axis,
+        },
+        radius,
+    })
 }
 
 fn band() -> Band {
@@ -1402,6 +1414,111 @@ fn the_nearest_distance_just_off_the_surface_is_the_offset() {
     }
 }
 
+/// **The nearest distance from a line is posed as a distance**: a line
+/// tangent to a circle arc or to a thin torus's outer equator, `δ` out
+/// along the radial in the circle's plane, stands `δ` from it, and both
+/// scalars read that to the rounding of the line's placement. The
+/// squared harmonic form this replaced cancelled `|w|² + ρ² ≈ 2·10⁶`
+/// against `2|w|ρ` and read about `3·10⁻⁵` here. Lifted `δ` off the
+/// plane as well, the line stands `√2·δ` from the arc, and the reading
+/// is the annulus of the arc's shadow along the line, `δ`: sound, and
+/// no tighter.
+#[test]
+fn the_nearest_distance_from_a_line_just_off_the_locus_is_the_offset() {
+    let (x, y, z) = (Vec3::unit_x(), Vec3::unit_y(), Vec3::unit_z());
+    let delta = 1e-6;
+    let c = Point3::new(5.0, -2.0, 1.0);
+    let t = 0.7_f64;
+    let (radial, tangent) = (x * t.cos() + y * t.sin(), y * t.cos() - x * t.sin());
+    // (what, at f64, at Interval, the point the line passes, its size)
+    type Row = (&'static str, Cover<f64>, Cover<Interval>, Point3<f64>, f64);
+    let (big, small) = (1e3, 1e-3);
+    let torus = Surface::Torus {
+        center: c,
+        axis: z,
+        major_radius: big,
+        minor_radius: small,
+        u_ref: x,
+    };
+    let circle = Curve3::Circle(crate::Circle::new(crate::Frame::new(c, z, x), big));
+    let rows: Vec<Row> = vec![
+        (
+            "torus",
+            torus.cover().unwrap(),
+            torus.map_scalar(iv).cover().unwrap(),
+            c + radial * (big + small),
+            big,
+        ),
+        (
+            "circle arc",
+            circle.cover_over(ParamWindow::new(0.0, 1.5)).unwrap(),
+            circle
+                .map_scalar(iv)
+                .cover_over(ParamWindow::new(iv(0.0), iv(1.5)))
+                .unwrap(),
+            c + radial * big,
+            big,
+        ),
+    ];
+    let lifted = delta * core::f64::consts::SQRT_2;
+    for (what, f, i, on, size) in rows {
+        for (lift, want, least) in [(0.0, delta, delta), (delta, lifted, delta)] {
+            let origin = on + radial * delta + z * lift;
+            let line = Line {
+                origin,
+                dir: tangent * 3.0,
+            };
+            let scale = (origin - Point3::origin()).norm() + size;
+            let tol = 64.0 * f64::EPSILON * scale;
+            let (nf, _) = f.distance_range(&Site::Line(line));
+            let (ni, _) = i.distance_range(&Site::Line(Line {
+                origin: ipt(line.origin),
+                dir: ivec(line.dir),
+            }));
+            assert!(
+                nf <= want + tol && nf >= least - tol,
+                "{what}, lifted {lift}: the f64 nearest {nf:e} against {want:e}"
+            );
+            assert!(
+                ni.lo() <= want + tol && ni.lo() >= least - tol,
+                "{what}, lifted {lift}: the interval nearest {ni:?} against {want:e}"
+            );
+        }
+    }
+}
+
+/// **A circle about the line reads its radius both ways round.** A
+/// circle of radius 2 about `z`, its frame's axis along the line and
+/// against it, stands exactly 2 from the line at every point: the arc
+/// turns with the line's sense in one frame and against it in the
+/// other, so the circle is the part turning with `t` in one and the
+/// part turning against it in the other. Red where the line reading
+/// takes either part alone (it reads `[0, 4]` for the other frame), or
+/// takes the shorter as the circle.
+#[test]
+fn a_circle_about_the_line_reads_its_radius_in_either_sense() {
+    let line = Site::Line(Line {
+        origin: Point3::new(0.0, 0.0, -7.0),
+        dir: Vec3::unit_z() * 0.5,
+    });
+    for axis in [Vec3::unit_z(), -Vec3::unit_z()] {
+        let circle = Curve3::Circle(crate::Circle::new(
+            crate::Frame::new(Point3::new(0.0, 0.0, 3.0), axis, Vec3::unit_x()),
+            2.0,
+        ));
+        for (lo, hi) in [(0.0, TAU), (0.3, 1.1)] {
+            let (near, far) = circle
+                .cover_over(ParamWindow::new(lo, hi))
+                .unwrap()
+                .distance_range(&line);
+            assert!(
+                (near - 2.0).abs() <= 1e-15 && (far - 2.0).abs() <= 1e-15,
+                "axis {axis:?}, [{lo}, {hi}]: [{near}, {far}] is not the radius"
+            );
+        }
+    }
+}
+
 /// **The farthest distance from a point near a short arc of a large
 /// conic is posed as a distance.** A circle and an ellipse of size `1e3`
 /// placed `1e3` from the origin, an arc of `1e-6` rad (about `1e-3` m)
@@ -1588,19 +1705,293 @@ fn a_tube_reads_its_core_at_its_minor_radius() {
         0.5,
     )
     .unwrap();
-    let (near, far) = torus.circle_range(Point3::origin(), Vec3::unit_z() * 3.0, 2.0);
+    let (near, far) = torus.range_about(&core_about(Point3::origin(), Vec3::unit_z() * 3.0, 2.0));
     assert_eq!((near, far), (0.0, 0.5), "the core");
-    let (near, far) = torus.circle_range(Point3::origin(), Vec3::unit_z(), 1.0);
+    let (near, far) = torus.range_about(&core_about(Point3::origin(), Vec3::unit_z(), 1.0));
     assert!(
         near <= 0.5 && far >= 1.5,
         "a smaller coaxial circle: {near}, {far}"
     );
     let points =
         Cover::points(vec![Point3::new(3.0, 0.0, 0.0), Point3::new(0.0, 0.0, 1.0)]).unwrap();
-    let (near, far) = points.circle_range(Point3::origin(), Vec3::unit_z(), 2.0);
+    let (near, far) = points.range_about(&core_about(Point3::origin(), Vec3::unit_z(), 2.0));
     assert!(
         (near - 1.0).abs() < 1e-15 && (far - 5.0f64.sqrt()).abs() < 1e-15,
         "two points: {near}, {far}"
+    );
+}
+
+/// **A carrier's surface reads its level about its own site, and keeps
+/// it only through a meet**: a cylinder's wall of radius 0.8 about its
+/// axis, a sphere's of radius 0.7 about its centre, a torus's of minor
+/// radius 0.5 about its core, each exact on a unit orthogonal frame. A
+/// meet with a trim that holds the surface keeps the level; a hull with
+/// a point inside, and a convex hull, report none and read from below
+/// it. Red where a shell is read as its solid (every least is zero), or
+/// a hull or a convex hull keeps a level its region does not lie at.
+#[test]
+fn a_carriers_surface_reads_its_level_about_its_own_site() {
+    let frame = Frame::new(Point3::new(1.0, 2.0, 3.0), Vec3::unit_z(), Vec3::unit_x());
+    let within = Cover::segment(Point3::new(1.0, 2.0, 2.0), Point3::new(1.0, 2.0, 5.0)).unwrap();
+    let wall = Cover::wall(&frame, -0.8, &within).unwrap();
+    let sphere = Cover::sphere(&frame, -0.7).unwrap();
+    let torus = Cover::torus(&frame, 2.0, 0.5).unwrap();
+    let trim = ball(frame.origin, 10.0);
+    let on_core = Point3::new(3.0, 2.0, 3.0);
+    for (name, shell, level, inside) in [
+        ("wall", wall, 0.8, frame.origin),
+        ("sphere", sphere, 0.7, frame.origin),
+        ("torus", torus, 0.5, on_core),
+    ] {
+        let site = match shell.about()[..] {
+            [site] => site,
+            ref other => panic!("the {name} is measured about one site: {other:?}"),
+        };
+        assert_eq!(shell.range_about(&site), (level, level), "the {name}");
+        let met = trim.clone().meet(shell.clone());
+        assert_eq!(
+            met.range_about(&site),
+            (level, level),
+            "the {name} met with a trim"
+        );
+        let inside = Cover::points(vec![inside]).unwrap();
+        let hull = shell.clone().hull(inside);
+        assert!(hull.about().is_empty(), "the {name}'s hull proposes none");
+        assert!(
+            hull.range_about(&site).0 < level,
+            "the {name}'s hull reads below it"
+        );
+        let convex = shell.clone().convex();
+        assert!(
+            convex.about().is_empty(),
+            "the {name}'s convex hull proposes none"
+        );
+        assert!(
+            convex.range_about(&site).0 < level,
+            "the {name}'s convex hull reads below it"
+        );
+    }
+    let solid = Cover::tube(&frame, 2.0, 0.5).unwrap();
+    assert_eq!(
+        solid.range_about(&solid.about()[0]).0,
+        0.0,
+        "a solid tube lies at no level about its core"
+    );
+    let spindle = Cover::torus(&frame, 0.4, 0.5).unwrap();
+    let site = spindle.about()[0];
+    assert_eq!(
+        spindle.range_about(&site).0,
+        0.0,
+        "a spindle comes nearer its core"
+    );
+}
+
+/// **A shell read from another core stands no nearer than its points
+/// do**: the torus `R = 1`, `r = ¼` about `z`, read from the coaxial
+/// circle of radius 1 about `(0.3, 0, 0)`, which passes 0.05 off the
+/// tube's outer equator. The shell's level is ¼ about its own core and
+/// only `¼ − 0.3` (nothing) about the other, so the least is the
+/// spine's. Red where the other core's reach from the shell's is
+/// dropped (`reach_to` read as zero): the least then reads ¼, past
+/// every point near the other circle.
+#[test]
+fn a_shell_reads_a_nearby_core_no_nearer_than_its_points() {
+    let frame = Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x());
+    let torus = Cover::torus(&frame, 1.0, 0.25).unwrap();
+    let other = Core {
+        axis: crate::Line {
+            origin: Point3::new(0.3, 0.0, 0.0),
+            dir: Vec3::unit_z(),
+        },
+        radius: 1.0,
+    };
+    let (near, far) = torus.range_about(&Around::Circle(other));
+    let n = 256;
+    let (mut least, mut most) = (f64::INFINITY, 0.0f64);
+    for i in 0..n {
+        let u = TAU * f64::from(i) / f64::from(n);
+        for j in 0..n {
+            let v = TAU * f64::from(j) / f64::from(n);
+            let k = 1.0 + 0.25 * v.cos();
+            let p = Point3::new(k * u.cos(), k * u.sin(), 0.25 * v.sin());
+            let d = other.offset(p);
+            least = least.min(d);
+            most = most.max(d);
+        }
+    }
+    assert!(least < 0.06, "the circle passes near the tube: {least}");
+    assert!(near <= least, "the least {near} holds the points' {least}");
+    assert!(far >= most, "the greatest {far} holds the points' {most}");
+}
+
+/// **A cover proposes the sites its pieces of revolution are measured
+/// about, level or none**: a cylinder wall and a cone's frustum their
+/// axis lines, a torus and a solid tube their core, a sphere its centre
+/// (one spelling, whether built as a sphere or as a torus of no spine).
+/// A meet proposes both sides', a hull and a convex hull none, a
+/// chart patch none (its carrier proposes the core), and an arc none. The frustum has no
+/// level. Red where a piece with an axis and no level proposes nothing,
+/// or a meet drops a side.
+#[test]
+fn a_cover_proposes_the_sites_it_is_measured_about() {
+    let frame = Frame::new(Point3::new(1.0, 2.0, 3.0), Vec3::unit_z(), Vec3::unit_x());
+    let within = Cover::segment(Point3::new(1.0, 2.0, 4.0), Point3::new(1.0, 2.0, 5.0)).unwrap();
+    let xyz = |p: Point3<f64>| (p.x, p.y, p.z);
+    let line = |s: &Around<f64>| match *s {
+        Around::Line(l) => Some((xyz(l.origin), (l.dir.x, l.dir.y, l.dir.z))),
+        _ => None,
+    };
+    let wall = Cover::wall(&frame, 0.8, &within).unwrap();
+    let cone = Cover::cone(&frame, 0.3, &within).unwrap();
+    for (name, cover) in [("wall", &wall), ("cone", &cone)] {
+        let sites = cover.about();
+        assert_eq!(sites.len(), 1, "the {name} proposes one site");
+        let (o, d) = line(&sites[0]).unwrap_or_else(|| panic!("the {name}'s axis"));
+        assert_eq!(
+            (o, d),
+            (xyz(frame.origin), (0.0, 0.0, 1.0)),
+            "the {name}'s axis"
+        );
+    }
+    let (near, far) = cone.range_about(&cone.about()[0]);
+    assert!(near < far, "a frustum lies at no level: {near}, {far}");
+    let centre = |c: &Cover<f64>| match c.about()[..] {
+        [Around::Point(p)] => xyz(p),
+        ref other => panic!("one centre: {other:?}"),
+    };
+    assert_eq!(
+        centre(&Cover::sphere(&frame, 0.7).unwrap()),
+        xyz(frame.origin)
+    );
+    assert_eq!(
+        centre(&Cover::torus(&frame, 0.0, 0.7).unwrap()),
+        xyz(frame.origin)
+    );
+    for cover in [
+        Cover::torus(&frame, 2.0, 0.5).unwrap(),
+        Cover::tube(&frame, 2.0, 0.5).unwrap(),
+    ] {
+        assert!(
+            matches!(cover.about()[..], [Around::Circle(Core { radius, .. })] if radius == 2.0),
+            "a torus or a tube is measured about its core"
+        );
+    }
+    let patch = Cover::patch(
+        &frame,
+        (2.0, 0.5),
+        Some(ParamWindow::new(0.0, 1.0)),
+        ParamWindow::new(0.0, 1.0),
+    )
+    .unwrap();
+    assert!(patch.about().is_empty(), "a patch proposes none");
+    let core = core_about(frame.origin, frame.axis, 2.0);
+    assert!(
+        patch.range_about(&core).0 < 0.5,
+        "a patch is no shell of its own"
+    );
+    let met = cone.clone().meet(wall.clone());
+    assert_eq!(met.about().len(), 2, "a meet proposes both sides'");
+    assert!(cone.clone().hull(wall).about().is_empty(), "a hull none");
+    assert!(cone.convex().about().is_empty(), "a convex hull none");
+    let point = Cover::points(vec![frame.origin]).unwrap();
+    assert!(point.about().is_empty(), "a point set none");
+    // An arc is its window's piece met with its whole conic's: two arc
+    // pieces of one axis, and neither proposes it, so the meet proposes
+    // nothing twice.
+    let arc = Cover::arc(&frame, (0.5, 0.5), ParamWindow::new(0.0, 1.0)).unwrap();
+    assert!(arc.about().is_empty(), "an arc none");
+}
+
+/// **A cone's frustum holds its surface over the window, on any
+/// frame**: on a unit orthogonal frame of half-angle 0.3 over the heights
+/// `[1, 2]` above the apex it reaches `2·tan 0.3` off the axis and not
+/// beyond; on a skewed frame (axis of length 1.3 tilted off `u_ref`,
+/// `u_ref` not unit) every sampled point of the surface whose height is
+/// in the window lies within the support along every direction. Red
+/// where the bound reads `tan α` on a skewed frame, or loosens on a
+/// unit one.
+#[test]
+fn a_cones_frustum_holds_its_surface_on_any_frame() {
+    let apex = Point3::new(0.5, -1.0, 2.0);
+    let unit = Frame::new(apex, Vec3::unit_z(), Vec3::unit_x());
+    let within = Cover::segment(apex + Vec3::unit_z(), apex + Vec3::unit_z() * 2.0).unwrap();
+    let cone = Cover::cone(&unit, 0.3, &within).unwrap();
+    let reach = cone.support(Vec3::unit_x()) - apex.x;
+    assert!(
+        (reach - 2.0 * 0.3f64.tan()).abs() < 1e-14,
+        "the frustum reaches 2·tan α: {reach}"
+    );
+    let skew = Frame::new(apex, Vec3::new(0.2, 0.1, 1.28), Vec3::new(1.1, 0.3, 0.25));
+    let alpha = -0.4f64;
+    let axis = skew.axis.normalize();
+    let height = |p: Point3<f64>| (p - apex).dot(axis);
+    let within = Cover::segment(apex + axis * 0.5, apex + axis * 1.5).unwrap();
+    let cone = Cover::cone(&skew, alpha, &within).unwrap();
+    let steps = [-1.0, 0.0, 1.0];
+    let dirs: Vec<Vec3<f64>> = steps
+        .iter()
+        .flat_map(|&x| {
+            steps
+                .iter()
+                .flat_map(move |&y| steps.map(|z| Vec3::new(x, y, z)))
+        })
+        .filter(|e| e.norm_squared() > 0.0)
+        .collect();
+    let (s_a, c_a) = alpha.sin_cos();
+    let mut held = 0;
+    for i in 0..400 {
+        let u = TAU * f64::from(i) / 400.0;
+        let rho = skew.u_ref * u.cos() + skew.v_ref() * u.sin();
+        let step = skew.axis * c_a + rho * s_a;
+        for j in 0..=40 {
+            let v = 2.5 * f64::from(j) / 40.0 - 1.25;
+            let p = apex + step * v;
+            let h = height(p);
+            if !(0.5..=1.5).contains(&h) {
+                continue;
+            }
+            held += 1;
+            for &e in &dirs {
+                let x = (p - Point3::origin()).dot(e);
+                assert!(cone.support(e) >= x - 1e-12, "u {u}, v {v} along {e:?}");
+            }
+        }
+    }
+    assert!(held > 1000, "the window holds samples: {held}");
+}
+
+/// **A cone's frustum is tight on a skewed frame**: `u_ref = (1, 0, ½)`
+/// tilted toward the unit axis `z`, half-angle 0.4. The radial
+/// direction's part off the axis is unit at every azimuth while the
+/// whole of it reaches `√1.25`, and its tilt is ½, so the bound is
+/// `tan = sin α / (cos α − ½·sin α)`; the generator at `u = π` attains
+/// it (its height is shortest there for its offset). Red where the
+/// bound reads the radial direction's whole length (`√1.25` times this)
+/// rather than its part off the axis, or drops the tilt.
+#[test]
+fn a_cones_frustum_is_tight_on_a_skewed_frame() {
+    let apex = Point3::new(0.5, -1.0, 2.0);
+    let frame = Frame::new(apex, Vec3::unit_z(), Vec3::new(1.0, 0.0, 0.5));
+    let alpha = 0.4f64;
+    let (s_a, c_a) = alpha.sin_cos();
+    let within = Cover::segment(apex + Vec3::unit_z() * 0.5, apex + Vec3::unit_z() * 2.0).unwrap();
+    let cone = Cover::cone(&frame, alpha, &within).unwrap();
+    let super::Node::Piece(super::Piece::Frustum(f)) = &cone.0 else {
+        panic!("a cone's cover is its frustum");
+    };
+    let want = s_a / (c_a - 0.5 * s_a);
+    assert!(
+        (f.tan - want).abs() <= 1e-15 * want,
+        "tan {} against {want}",
+        f.tan
+    );
+    // The generator at `u = π`, at unit `v`: its offset over its height.
+    let rho = frame.u_ref * -1.0;
+    let step = frame.axis * c_a + rho * s_a;
+    let attained = super::off_line(step, Vec3::unit_z()).norm() / step.z;
+    assert!(
+        (attained - want).abs() <= 1e-15 * want,
+        "the generator at u = π attains it: {attained}"
     );
 }
 
@@ -1637,4 +2028,117 @@ fn a_nan_bound_in_one_lane_poisons_the_whole_box() {
         ..one_lane
     };
     assert_eq!(super::whole_poison(finite), finite, "a finite box is kept");
+}
+
+/// **An arc's cover never reads past its whole conic's**: the window's
+/// piece alone rounds its far distance from the conic's centre an ulp
+/// above the whole turn's piece on these arcs (`span_reach_hunt`'s seeds
+/// `0xe429b8c6a93f17ee` and `0x52cefed7fc20b9ed`), and [`Cover::arc`]'s
+/// meet with the whole conic reads the lesser.
+#[test]
+fn an_arcs_cover_reads_no_farther_than_its_whole_conics_piece() {
+    let rows = [
+        (
+            [
+                0.830_304_973_648_282_8,
+                -0.416_467_848_902_350_56,
+                0.370_335_228_631_537_84,
+            ],
+            [
+                -0.828_978_939_411_948_3,
+                0.480_638_571_787_519,
+                -0.285_972_868_156_221,
+            ],
+            [
+                0.307_146_392_996_351_8,
+                0.818_559_802_054_640_1,
+                0.485_408_017_784_625_2,
+            ],
+            (866.025_403_784_438_6, 1000.0),
+            (-4.616_193_293_956_75, -3.767_850_344_482_187_4),
+        ),
+        (
+            [0.0, 0.0, 0.0],
+            [
+                0.414_840_037_039_107_05,
+                -0.735_167_300_097_304_7,
+                -0.536_131_312_774_241_9,
+            ],
+            [
+                0.119_112_848_247_196_9,
+                -0.540_275_439_858_399,
+                0.833_015_353_080_754_3,
+            ],
+            (1000.0, 141.067_359_796_658_93),
+            (-4.180_645_483_569_217, 8.234_684_407_467_041),
+        ),
+    ];
+    let v = |[x, y, z]: [f64; 3]| Vec3::new(x, y, z);
+    for (origin, axis, u_ref, (a, b), (t0, t1)) in rows {
+        let [x, y, z] = origin;
+        let centre = Point3::new(x, y, z);
+        let Curve3::Ellipse(ellipse) = Curve3::Ellipse(crate::Ellipse::new(
+            Frame::new(centre, v(axis), v(u_ref)),
+            a,
+            b,
+        )) else {
+            unreachable!()
+        };
+        let site = Site::Point(centre);
+        let got = Cover::arc(
+            &ellipse.frame,
+            (ellipse.semi_u, ellipse.semi_v),
+            ParamWindow::new(t0, t1),
+        )
+        .unwrap()
+        .distance_range(&site)
+        .1;
+        let whole = Cover::piece(super::Piece::Arc(super::Arc {
+            frame: ellipse.frame,
+            semi_u: ellipse.semi_u,
+            semi_v: ellipse.semi_v,
+            window: ParamWindow::new(0.0, TAU),
+        }))
+        .distance_range(&site)
+        .1;
+        assert!(
+            got <= whole,
+            "the arc over [{t0}, {t1}]: its cover reads {got}, past its whole conic's {whole}"
+        );
+    }
+}
+
+/// **A chain as long as the entities it joins is one node** (`Node`): a
+/// hull of a hundred thousand point covers, built left to right as an
+/// operand's faces are, is cloned, read and dropped on a thread with a
+/// 256 KiB stack. As a left-deep tree, its clone and drop recursed once
+/// per operand and overflowed a test thread's 2 MiB stack at about a
+/// hundred (the `Dual<Interval>` corpus rows that filed
+/// `main-red-two-dual-interval-corpus-rows-overflow-the-stack`). Its
+/// support reads the greatest point's coordinate, as the fold over every
+/// operand must.
+#[test]
+fn a_hull_of_a_hundred_thousand_covers_is_read_and_dropped_on_a_small_stack() {
+    let run = std::thread::Builder::new()
+        .stack_size(256 * 1024)
+        .spawn(|| {
+            let n = 100_000;
+            let chain = (0..n)
+                .map(|i| Cover::points(vec![Point3::new(f64::from(i), 0.0, 0.0)]).unwrap())
+                .reduce(Cover::hull)
+                .unwrap();
+            let copy = chain.clone();
+            let far = copy.support(Vec3::new(1.0, 0.0, 0.0));
+            let near = chain
+                .meet(Cover::points(vec![Point3::new(0.5, 0.0, 0.0)]).unwrap())
+                .support(Vec3::new(1.0, 0.0, 0.0));
+            (far, near)
+        })
+        .unwrap();
+    let (far, near) = run.join().expect("the chain is read on a small stack");
+    assert_eq!(
+        far, 99_999.0,
+        "the hull's support is its greatest operand's"
+    );
+    assert_eq!(near, 0.5, "a meet with a point reads that point's support");
 }

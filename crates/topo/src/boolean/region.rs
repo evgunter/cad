@@ -26,7 +26,9 @@
 //! off the surface.
 
 use geom_brep::curve_face::plane_crossing::{RootPlace, SpanEnds};
-use geom_brep::curve_pair::on_surface::{CoSurface, NoSuchFamily, OnSurface, Shape, SurfaceCurve};
+use geom_brep::curve_pair::on_surface::{
+    AcrossRefusal, Charted, CoSurface, NoSuchFamily, OnSurface, Shape, SurfaceCurve,
+};
 use geom_core::{Band, Decide, Indeterminate, Margin, Point2, Point3, Sign, Vec3};
 
 use super::solid_contain::PointInSolidError;
@@ -67,6 +69,23 @@ pub(crate) enum RegionRefusal {
 }
 
 impl RegionRefusal {
+    /// **This refusal's standing** ([`geom_core::ladder::Refusal`]): its
+    /// image's in the point-in-solid door ([`Self::of_face`],
+    /// [`PointInSolidError::refusal`]), derived, so the two cannot part.
+    /// An escalation by its margin and a walk no path of which settled in
+    /// band (`[failure.taxonomy]` row 1(b)); an edge whose boundary
+    /// reading ran out of depth or budget, a limit, as the door's
+    /// `EdgeCarrierUnsupported` is (row 2, a bound on the work); and an
+    /// arc wound past a turn, a corrupt face, an abort (row 4). The face
+    /// the image names does not move its standing.
+    ///
+    /// # Errors
+    ///
+    /// [`geom_core::ladder::Aborts`] for [`Self::WoundPastPeriod`].
+    fn refusal(&self) -> Result<geom_core::ladder::Refusal, geom_core::ladder::Aborts> {
+        self.of_face(FaceKey::default()).refusal()
+    }
+
     /// The refusal as the point-in-solid door states it, for a point on
     /// `face`'s carrier: a region walk no path of which settled is that
     /// face's loop walk's, as a planar face's is
@@ -153,7 +172,7 @@ pub(crate) struct Hit<T: geom_core::Real> {
 /// A path that meets nothing gives nothing to read
 /// ([`RayFault::Unread`]); a tie, a sideless closest crossing or a
 /// tangential one grazes; an in-band one sets the path aside.
-pub(crate) fn side_at_closest<T: Decide>(
+pub(crate) fn side_at_closest_as<T: Decide>(
     crossings: Crossings<T, Hit<T>>,
     (order, cross): (&'static str, &'static str),
     lever: T,
@@ -180,10 +199,15 @@ pub(crate) fn side_at_closest<T: Decide>(
 /// edge, where no side is read.
 pub(crate) type Landing<T> = (Point3<T>, T, bool);
 
-/// **A query read onto its surface**: its chart coordinates and the
-/// point of the surface they name. A leg or a corner is built from one
-/// and from nothing else, so every leg lies on the surface wherever the
-/// query lies off it; the boundary pre-pass reads the same point.
+/// **A query read onto its surface**: its chart coordinates and its point
+/// on the surface. A leg's locus is built from the coordinates (C5), so
+/// every leg lies on the surface wherever the query lies off it; a circle
+/// leg's parametrisation starts at the point
+/// ([`geom_brep::curve_pair::on_surface::SurfaceCurve::starting_at`]), and
+/// a ruling, whose origin is its locus, at the coordinates. The boundary
+/// pre-pass reads the point ([`QueryFoot::read`]): off the chart's singular
+/// readings, the foot read in closed form on no chart; on them, the
+/// chart's own point.
 #[derive(Clone, Copy, Debug)]
 pub(in crate::boolean) struct QueryFoot<T: geom_core::Real> {
     uv: Point2<T>,
@@ -191,8 +215,21 @@ pub(in crate::boolean) struct QueryFoot<T: geom_core::Real> {
 }
 
 impl<T: Decide> QueryFoot<T> {
-    /// `p`'s foot on `surface`, read through its chart
-    /// ([`geom::Surface::chart_point`]) once.
+    /// `p`'s foot on `surface`: its coordinates read through its chart
+    /// ([`geom::Surface::chart_point`]) once, and its point read in closed
+    /// form on no chart ([`geom::Surface::foot`]), so a pre-pass reading
+    /// `p` at the band's zero answers the same on every frame. The chart's
+    /// round trip `eval(uv)` lands within rounding of that point, but in
+    /// rounding that depends on the frame.
+    ///
+    /// Where the chart reads `p` singular, its own point stands: the
+    /// coordinates there are a convention the chart chose (a cone's nappe
+    /// undecided within the band of its apex plane, a point within the
+    /// band of an axis or a tube circle), and the closed form may choose
+    /// otherwise: the cone's foot takes the nappe by the raw sign of
+    /// `p`'s height, the opening nappe's chart the decided one. Reading
+    /// the chart's point there keeps the pre-pass and the legs on one
+    /// foot. The same stands where `p` has no foot in closed form.
     ///
     /// # Panics
     ///
@@ -202,7 +239,15 @@ impl<T: Decide> QueryFoot<T> {
         let Ok(chart) = surface.chart_point(p, band) else {
             unreachable!("a region door reads an analytic surface")
         };
-        Self::of_chart(surface, chart.uv)
+        let foot = if chart.singular {
+            None
+        } else {
+            surface.foot(p)
+        };
+        foot.map_or_else(
+            || Self::of_chart(surface, chart.uv),
+            |at| Self { uv: chart.uv, at },
+        )
     }
 
     /// The point at chart coordinates `uv` on `surface`: a corner a door
@@ -227,19 +272,19 @@ impl<T: Decide> QueryFoot<T> {
 
 /// Which curve of a pair is read across the other's plane
 /// ([`Legs::across`]).
-pub(in crate::boolean) enum ReadAcross<T: geom_core::Real> {
+pub(in crate::boolean) enum ReadAcross {
     /// The edge across the leg's plane, in the edge's parameter.
     EdgeOverLeg,
-    /// The leg across the edge's plane through `on` of unit normal
-    /// `normal`, in the leg's parameter; the door places each root on
-    /// the edge ([`Legs::on_edge_plane`]).
-    LegOverEdge { on: Point3<T>, normal: Vec3<T> },
+    /// The leg across the edge's own plane ([`OnSurface::plane`]), in the
+    /// leg's parameter; the door places each root on the edge
+    /// ([`Legs::on_edge_plane`]).
+    LegOverEdge,
 }
 
 /// **Where `leg` meets `edge`**: each meeting's point, the edge's
 /// parameter there, and whether it lies within the band of an end of the
 /// edge ([`Landing`]). One curve is read across the other's plane through
-/// the plane door ([`span_plane_meet`]), the pair's orientation the
+/// the plane door ([`span_plane_meet`](geom_brep::curve_face::plane_crossing::span_plane_meet)), the pair's orientation the
 /// door's choice ([`Legs::across`]), and each root is a meeting where it
 /// lies on both curves: on the leg's section of its plane
 /// ([`Section`](geom_brep::curve_pair::on_surface::Section)), or where the door places it on the edge. Where along
@@ -271,10 +316,10 @@ pub(in crate::boolean) fn landings<T: Decide, D: Legs<T>>(
         Ok(())
     };
     let mut out = Vec::new();
+    let on = OnSurface::edge(door.charted().key(), &edge.carrier, (edge.t0, edge.t1));
     match door.across(leg, edge, band)? {
         ReadAcross::EdgeOverLeg => {
-            let on = OnSurface::edge(&edge.carrier, (edge.t0, edge.t1));
-            match on.across(&curve, D::COMPONENT, band).map_err(in_band)? {
+            match on.across(&curve, D::COMPONENT, band).map_err(across)? {
                 CoSurface::InPlane => in_plane()?,
                 CoSurface::Touch => return Err(RayFault::Graze),
                 CoSurface::Unlaned => {
@@ -303,20 +348,22 @@ pub(in crate::boolean) fn landings<T: Decide, D: Legs<T>>(
                 }
             }
         }
-        ReadAcross::LegOverEdge { on, normal } => {
+        ReadAcross::LegOverEdge => {
             let (params, whole) = leg.course.span(leg.end.map(|end| end.place), edge);
             let ends = if whole {
                 SpanEnds::Endless
             } else {
                 SpanEnds::Ended
             };
-            match curve
-                .across_plane(params, ends, (on, normal), D::COMPONENT, band)
-                .map_err(in_band)?
+            match on
+                .under(&curve, params, ends, D::COMPONENT, band)
+                .map_err(across)?
             {
                 CoSurface::InPlane => in_plane()?,
                 CoSurface::Touch => return Err(RayFault::Graze),
-                CoSurface::Unlaned => unreachable!("a leg is a circle or a line"),
+                CoSurface::Unlaned => {
+                    unreachable!("a door reads a leg across a conic's or a spiric's plane only")
+                }
                 CoSurface::Roots(roots) => {
                     // At or in band of the leg's own end: the leg's place
                     // reads it.
@@ -330,6 +377,23 @@ pub(in crate::boolean) fn landings<T: Decide, D: Legs<T>>(
         }
     }
     Ok(out)
+}
+
+/// An edge's reading against a leg refused: in band sets the path aside.
+///
+/// # Panics
+///
+/// On a pair on two records: a door keys its edges and charts its legs
+/// from its one record ([`Legs::charted`]), so a mismatch is a fault in
+/// the door's wiring, not in the face.
+fn across(refusal: AcrossRefusal) -> Fault {
+    match refusal {
+        AcrossRefusal::InBand(diag) => in_band(diag),
+        AcrossRefusal::OffRecord { edge, curve } => unreachable!(
+            "a region door keys its edges and charts its legs from one record: the edge's \
+             {edge:?}, the leg's {curve:?}"
+        ),
+    }
 }
 
 /// Whether a root lies on the leg's own section of its plane
@@ -419,7 +483,7 @@ pub(crate) fn boundary<T: Decide>(
     admits: &[geom::CurveKind],
 ) -> Result<Option<Vec<RegionEdge<T>>>, PointInSolidError> {
     let corrupt = || PointInSolidError::CorruptFace { face };
-    let f = body.passed_face(face).ok_or_else(corrupt)?;
+    let f = body.face(face).ok_or_else(corrupt)?;
     let mut null = Vec::new();
     for (_, members, role) in f.boundary_by_loop() {
         for member in members {
@@ -529,16 +593,24 @@ pub(crate) trait Region<T: Decide> {
     /// path is no measure of `p`'s distance from the edge it crosses, so
     /// the paths never answer it.
     ///
+    /// Any edge holding `p` answers, whatever an earlier edge read
+    /// ([`geom_core::ladder::climb`], [`geom_core::ladder::Answering::Any`]):
+    /// an edge read in band is kept by its standing
+    /// ([`RegionRefusal::refusal`]), refusing only where no edge holds `p`.
+    ///
     /// # Errors
     ///
-    /// The first edge's refusal ([`Region::on_edge`]).
+    /// The kept refusal the ladder ranks first, or an edge's abort.
     fn on_boundary(&self, p: Point3<T>, band: Band) -> Result<bool, RegionRefusal> {
-        for edge in self.edges() {
-            if self.on_edge(edge, p, band)? {
-                return Ok(true);
-            }
+        use geom_core::ladder::{Answering, Climb, Rung, climb};
+        let on = climb(Answering::Any, self.edges(), |edge| {
+            Rung::holds(self.on_edge(edge, p, band), (), RegionRefusal::refusal)
+        });
+        match on {
+            Climb::Answered { answer, .. } => answer.map(|()| true),
+            Climb::Passed => Ok(false),
+            Climb::Undecided(e) => Err(e),
         }
-        Ok(false)
     }
 }
 
@@ -687,7 +759,7 @@ pub(in crate::boolean) trait Legs<T: Decide>: Region<T> {
     const AT: &'static str;
 
     /// The rows the closest crossing is read under: `(order, cross)`.
-    const SIDE: (&'static str, &'static str);
+    const SIDE_ROWS: (&'static str, &'static str);
 
     /// The row a root's section of a leg's plane is read on
     /// ([`Section`](geom_brep::curve_pair::on_surface::Section)), and an edge's offset from a plane it is parallel
@@ -697,9 +769,11 @@ pub(in crate::boolean) trait Legs<T: Decide>: Region<T> {
     /// The lever of the closest crossing's sine.
     fn lever(&self) -> T;
 
-    /// The surface, whose chart's channels a root's section is read
-    /// through and whose chart a query's foot is read in ([`QueryFoot`]).
-    fn surface(&self) -> geom::Surface<T>;
+    /// The face's surface record, its key and surface: every leg is
+    /// charted on it ([`SurfaceCurve`]), every edge keyed by it
+    /// ([`OnSurface::edge`]), and a query's foot read in its chart
+    /// ([`QueryFoot`]).
+    fn charted(&self) -> &Charted<T>;
 
     /// Which of `leg` and `edge` is read across the other's plane: the
     /// edge across the leg's unless the door says otherwise.
@@ -712,7 +786,7 @@ pub(in crate::boolean) trait Legs<T: Decide>: Region<T> {
         _leg: &Leg<T, Self::Course>,
         _edge: &RegionEdge<T>,
         _band: Band,
-    ) -> Result<ReadAcross<T>, Fault> {
+    ) -> Result<ReadAcross, Fault> {
         Ok(ReadAcross::EdgeOverLeg)
     }
 
@@ -880,7 +954,7 @@ fn side<T: Decide, D: Legs<T>>(
     crossings: Crossings<T, Hit<T>>,
     band: Band,
 ) -> Result<bool, Fault> {
-    side_at_closest(crossings, D::SIDE, door.lever(), band)
+    side_at_closest_as(crossings, D::SIDE_ROWS, door.lever(), band)
 }
 
 /// **The crossing offer**: every crossing of `leg` with the boundary,
@@ -952,11 +1026,11 @@ impl<T: Decide> Round<T> {
 /// Places round the circle are arc lengths in `[0, 2π·radius)`: a
 /// circle has no behind.
 impl<T: Decide> Course<T> for Round<T> {
-    /// Read the shorter way round ([`ray_walk::apart`]), then as a turn
+    /// Read the shorter way round ([`ray_walk::apart_as`]), then as a turn
     /// ahead.
     fn place(&self, y: Point3<T>, at: &'static str, band: Band) -> Result<Option<T>, Fault> {
         let s = self.swept(y);
-        ray_walk::apart(at, Margin::of((self.circle.radius * s).abs()), band)
+        ray_walk::apart_as(at, Margin::of((self.circle.radius * s).abs()), band)
             .map_err(|f| f.map(RegionRefusal::Escalated))?;
         Ok(Some(self.arc(y)))
     }
@@ -1008,8 +1082,8 @@ impl<T: Decide> Line<T> {
 
 impl<T: Decide> Course<T> for Line<T> {
     fn place(&self, y: Point3<T>, at: &'static str, band: Band) -> Result<Option<T>, Fault> {
-        let s = (y - self.line.origin).dot(self.line.dir);
-        match ray_walk::advance(at, Margin::of(s), band)
+        let s = self.line.height(y);
+        match ray_walk::advance_as(at, Margin::of(s), band)
             .map_err(|f| f.map(RegionRefusal::Escalated))?
         {
             Sign::Negative => Ok(None),
@@ -1085,6 +1159,19 @@ macro_rules! fixture_turns {
 
 fixture_turns!(fixture_turn: f64, fixture_turn_interval: geom_core::Interval);
 
+/// **A door's answer as a frame pin compares it**: the answer itself,
+/// or its refusal's predicate (`Some("another refusal")` for a refusal
+/// that names none), so two frames agree where they refuse alike.
+#[cfg(test)]
+pub(in crate::boolean) fn refusal_class(
+    r: Result<Option<bool>, RegionRefusal>,
+) -> Result<Option<bool>, Option<&'static str>> {
+    r.map_err(|e| match e {
+        RegionRefusal::Escalated(diag) => diag.predicate,
+        _ => Some("another refusal"),
+    })
+}
+
 #[cfg(test)]
 #[allow(clippy::unwrap_used)]
 mod tests {
@@ -1133,7 +1220,7 @@ mod tests {
             u_ref: Vec3::new(0.0, -1.0, 0.0),
         };
         Line::on(built(SurfaceCurve::ruling(
-            &cylinder,
+            &Charted::record(Default::default(), &cylinder),
             Point2::new(0.0, 0.0),
             true,
             true,
@@ -1156,7 +1243,7 @@ mod tests {
             u_ref: Vec3::new(1.0, 0.0, 0.0),
         };
         Round::on(built(SurfaceCurve::parallel(
-            &cylinder,
+            &Charted::record(Default::default(), &cylinder),
             Point2::new(0.0, 0.0),
             true,
         )))
@@ -1253,5 +1340,131 @@ mod tests {
             ),
             "a whole turn"
         );
+    }
+
+    /// A region whose edges read as `read` says, by the edge's cycle:
+    /// the production [`Region::on_boundary`] over stubbed edge readings.
+    struct Stubbed {
+        edges: Vec<RegionEdge<f64>>,
+        read: fn(usize) -> Result<bool, RegionRefusal>,
+    }
+
+    impl Region<f64> for Stubbed {
+        fn edges(&self) -> &[RegionEdge<f64>] {
+            &self.edges
+        }
+        fn edges_mut(&mut self) -> &mut Vec<RegionEdge<f64>> {
+            &mut self.edges
+        }
+        fn outer(&self) -> LoopKey {
+            LoopKey::default()
+        }
+        fn on_edge(
+            &self,
+            edge: &RegionEdge<f64>,
+            _: Point3<f64>,
+            _: Band,
+        ) -> Result<bool, RegionRefusal> {
+            (self.read)(edge.cycle)
+        }
+    }
+
+    fn in_band() -> Indeterminate {
+        Indeterminate {
+            margin: geom_core::MarginDiag::value(5e-9),
+            band: b(),
+            // UNDECIDED-NAME: a fixture diag; the pin reads its standing, not the name
+            predicate: Some("test_region_in_band"),
+            terminal_sliver: false,
+        }
+    }
+
+    /// **An edge holding the point answers past an edge in band**
+    /// ([`Region::on_boundary`], `Any`), and an abort stops the climb.
+    /// Two edges, read in order: the first in band, the second holding
+    /// `p`, answers `true`; a first-refusal loop refused with the first's
+    /// escalation. A wound-past-a-period edge ahead aborts whatever
+    /// follows (`RegionRefusal::refusal`'s row 4), and two edges in band
+    /// refuse with the escalation.
+    #[test]
+    fn an_edge_holding_the_point_answers_past_one_in_band() {
+        let two = |read| Stubbed {
+            edges: [0, 1]
+                .map(|cycle| RegionEdge {
+                    cycle,
+                    ..x_segment(0.0, 1.0)
+                })
+                .into(),
+            read,
+        };
+        let p = Point3::new(0.5, 0.0, 0.0);
+        let kept_then_on: fn(usize) -> _ = |i| {
+            if i == 0 {
+                Err(RegionRefusal::Escalated(in_band()))
+            } else {
+                Ok(true)
+            }
+        };
+        assert_eq!(two(kept_then_on).on_boundary(p, b()), Ok(true));
+        let abort_then_on: fn(usize) -> _ = |i| {
+            if i == 0 {
+                Err(RegionRefusal::WoundPastPeriod)
+            } else {
+                Ok(true)
+            }
+        };
+        assert_eq!(
+            two(abort_then_on).on_boundary(p, b()),
+            Err(RegionRefusal::WoundPastPeriod)
+        );
+        let both_kept: fn(usize) -> _ = |_| Err(RegionRefusal::Escalated(in_band()));
+        assert!(matches!(
+            two(both_kept).on_boundary(p, b()),
+            Err(RegionRefusal::Escalated(_))
+        ));
+    }
+}
+
+/// [`RegionRefusal::refusal`] as each variant's image in the point-in-solid
+/// door stands (QML T4).
+#[cfg(test)]
+#[allow(clippy::unwrap_used)]
+mod standing_rows {
+    use geom_core::ladder::{Aborts, Refusal};
+    use geom_core::{Band, Indeterminate, MarginDiag};
+
+    use super::RegionRefusal;
+    use crate::entity::LoopKey;
+
+    /// **Every variant stands as its point-in-solid image does**
+    /// ([`RegionRefusal::refusal`]), the expected standing a `match` with
+    /// no wildcard: changing a standing, or adding a variant without one
+    /// here, goes red.
+    #[test]
+    fn a_region_refusal_stands_as_its_point_in_loop_image() {
+        let diag = Indeterminate {
+            margin: MarginDiag::value(5e-9),
+            band: Band::new(1e-9, 1e-8).unwrap(),
+            // UNDECIDED-NAME: a fixture diag; the pin reads its standing, not the name
+            predicate: Some("test_region_standing"),
+            terminal_sliver: false,
+        };
+        let every = [
+            RegionRefusal::Escalated(diag),
+            RegionRefusal::RayExhausted {
+                outer: LoopKey::default(),
+            },
+            RegionRefusal::WoundPastPeriod,
+            RegionRefusal::Unreadable(crate::test_support_samples::uncrossable()),
+        ];
+        for e in every {
+            let want = match e {
+                RegionRefusal::Escalated(diag) => Ok(Refusal::Margin(diag)),
+                RegionRefusal::RayExhausted { .. } => Ok(Refusal::InBand),
+                RegionRefusal::Unreadable(_) => Ok(Refusal::Limit),
+                RegionRefusal::WoundPastPeriod => Err(Aborts),
+            };
+            assert_eq!(e.refusal(), want, "{e:?}");
+        }
     }
 }

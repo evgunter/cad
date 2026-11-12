@@ -96,12 +96,12 @@ fn opts(doc: &ProfileDoc, seed: Option<&str>) -> EvalOptions {
     }
 }
 
-fn run<T: editor_core::EvalScalar>(
+fn run<T: editor_core::test_support::AnyEvaluate>(
     doc: &ProfileDoc,
     prior: Option<&Evaluation<T>>,
     o: &EvalOptions,
 ) -> Evaluation<T> {
-    evaluate::<T>(doc, prior, &CancelToken::new(), o, Tol::witness())
+    editor_core::test_support::evaluate_any::<T>(doc, prior, &CancelToken::new(), o, Tol::witness())
 }
 
 fn eval(doc: &ProfileDoc) -> Evaluation<f64> {

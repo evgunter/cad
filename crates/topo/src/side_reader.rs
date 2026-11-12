@@ -30,19 +30,7 @@ use crate::live::proven;
 use crate::ray_walk::RayFault;
 
 /// An aimed ray's rows ([`side_at_infinity`]).
-pub(crate) const AIMED_ROWS: RayRows = RayRows {
-    advance: "side_at_infinity_advance",
-    denom: "side_at_infinity_denom",
-    clearance: "side_at_infinity_clearance",
-    beside: "side_at_infinity_beside",
-    order: "side_at_infinity_order",
-    vertex: "side_at_infinity_vertex",
-    edge: "side_at_infinity_edge",
-    edge_span: "side_at_infinity_edge_span",
-    winding: "side_at_infinity_winding",
-    represents: "side_at_infinity_met_edge_represents",
-    reaches: "side_at_infinity_met_edge_reaches",
-};
+pub(crate) const AIMED_ROWS: RayRows = crate::rows::AIMED_RAY;
 
 /// **Two crossings of an aimed ray in band of each other along it** —
 /// what a side-at-infinity reading that lies in band found
@@ -300,7 +288,7 @@ fn aim_at<T: Decide>(
         return Ok(crate::stands::planar_interior_point(body, face, band)?.map(|aim| (aim, normal)));
     }
     let f = body
-        .passed_face(face)
+        .face(face)
         .ok_or(PointInSolidError::CorruptFace { face })?;
     let surface = f.surface();
     let aim = match *geo {
@@ -504,7 +492,7 @@ fn aim_turn() -> (f64, f64) {
 ///
 /// **A pair is two crossings of faces that do not meet** (`meet`), in
 /// band of each other along the ray, each read where the ray meets its
-/// faces ([`RayHit::pair`]): a face's crossing, or the point where the
+/// faces ([`RayHit::pair_as`]): a face's crossing, or the point where the
 /// ray passes an edge, in band of both its faces; an edge the ray passes
 /// without crossing is no party. Two faces `t` apart are met about `t`
 /// apart along the ray, less what the band lets an edge's passage slide
@@ -514,7 +502,7 @@ fn aim_turn() -> (f64, f64) {
 /// beside another face.
 ///
 /// **A corner or a wedge reads nothing, and is read before a pair** in
-/// the same cluster ([`crate::ray_walk::Crossings::first_count`]): D10
+/// the same cluster ([`crate::ray_walk::Crossings::first_count_as`]): D10
 /// refuses only on a pair, which restricts refusal and does not demand
 /// it, and a ray that meets a corner or a wedge reads nothing. A ray
 /// that grazes a face, meets a corner (a vertex in band of it) or a
@@ -644,7 +632,10 @@ fn cast_aims<T: Decide>(
         }
     }
     // The ladder ([`climb`]) whose answer is the first aimed ray's side:
-    // every ray from outside reads the one side ([`Answering::Any`]). A
+    // every ray from outside reads the one side ([`Answering::Any`]) where
+    // the selection bounds a region (embedded shells, nested as their
+    // roles say); where it does not, the first ray's side is the one read
+    // (work row `side-at-infinity-aimed-rays-disagree`, `[ev]` PR 6592). A
     // pair in band is kept, and refuses where no ray decides. A set-aside
     // ray passes, collected for the volume reader that answers after
     // the rays: a limit a ray met is NOT ranked ahead of a pair, since
@@ -717,7 +708,14 @@ fn aimed_ray<T: Decide>(
     let from = aim + out * (beyond(body, faces, aim)? * T::from_f64(2.0));
     let d = (aim - from).normalize();
     let reach = selection_reach(body, faces, from)?;
-    let crossings = match ray_crossings(body, geos, from, d, reach, band, AIMED_ROWS) {
+    let crossings = match ray_crossings(
+        body,
+        geos,
+        &geom::Ray::new(from, d),
+        reach,
+        band,
+        AIMED_ROWS,
+    ) {
         Ok(crossings) => crossings,
         Err(RayFault::Blocked(e) | RayFault::Fatal(e)) => {
             return Ok(Aimed::SetAside(SetAsideWhy::Limit(e)));
@@ -726,12 +724,12 @@ fn aimed_ray<T: Decide>(
         Err(RayFault::Graze | RayFault::Unread) => return Ok(Aimed::SetAside(SetAsideWhy::Graze)),
     };
     Ok(
-        match crossings.first_count(
-            AIMED_ROWS.order,
+        match crossings.first_count_as(
+            AIMED_ROWS.order(),
             band,
             RayHit::count,
             |a, b| {
-                a.pair(body, b, AIMED_ROWS.order, band).map_err(|f| {
+                a.pair_as(body, b, AIMED_ROWS.order(), band).map_err(|f| {
                     f.map(|(near, gap, far)| {
                         Unread::Pair(AimedPair {
                             shell,
@@ -865,7 +863,7 @@ pub struct EdgeFrame {
 #[cfg(any(test, feature = "test-support"))]
 pub(crate) fn edge_frames(body: &Body<f64>, fractions: &[f64], band: Band) -> Vec<EdgeFrame> {
     let kind = |f: FaceKey| {
-        body.passed_face(f)
+        body.face(f)
             .map(|f| f.surface())
             .map_or("?".to_owned(), |s| format!("{:?}", s.kind()))
     };
@@ -970,7 +968,7 @@ pub(crate) fn ray_at_report<T: Decide>(
     }
 }
 
-/// **Every crossing of the ray `q + s·d`** with the solid holding
+/// **Every crossing of `ray`** with the solid holding
 /// `face`, its faces' order turned left by `turn` and reversed where
 /// `reversed` (an order permutation), each as `(from, to, count,
 /// sideless)` — a mark is sideless — or the fault the walk raised, as
@@ -979,7 +977,7 @@ pub(crate) fn ray_at_report<T: Decide>(
 pub(crate) fn ray_counts(
     body: &Body<f64>,
     face: FaceKey,
-    (q, d): (Point3<f64>, Vec3<f64>),
+    ray: &geom::Ray<f64>,
     band: Band,
     (turn, reversed): (usize, bool),
 ) -> Result<Vec<(f64, f64, i32, bool)>, String> {
@@ -1000,9 +998,10 @@ pub(crate) fn ray_counts(
     }
     let n = geos.len().max(1);
     geos.rotate_left(turn % n);
-    let reach = selection_reach(body, sel.faces(), q).map_err(|e| format!("{e:?}"))?;
+    let reach =
+        selection_reach(body, sel.faces(), ray.line.origin).map_err(|e| format!("{e:?}"))?;
     let crossings =
-        ray_crossings(body, &geos, q, d, reach, band, AIMED_ROWS).map_err(|e| format!("{e:?}"))?;
+        ray_crossings(body, &geos, ray, reach, band, AIMED_ROWS).map_err(|e| format!("{e:?}"))?;
     Ok(crossings
         .all()
         .into_iter()
@@ -1186,5 +1185,38 @@ mod pre_filter_tests {
             "an aim reads the side"
         );
         assert!(!aimed(&log).is_empty(), "an aimed ray is cast");
+    }
+
+    /// **A sheet's two faces cancel on every aimed ray**: the faces of a
+    /// cylinder-wall sheet, its material sides set, lie on one carrier
+    /// with opposite senses over one trim, so a ray that crosses one
+    /// crosses both, and no aim reads a side, from either face. Red when
+    /// a carrier's root is held by its first face alone: each ray then
+    /// counts one face, and the aims at the two faces, from opposite
+    /// sides, read opposite sides.
+    #[test]
+    fn a_sheets_two_faces_cancel_on_every_aim() {
+        use crate::test_support_fixtures::{CylFrame, cyl_wall_sheet, set_sheet_sense};
+        let tol = Tol::witness();
+        let band = Band::linear(tol).expect("the witness band");
+        let mut body = Body::<f64>::new();
+        let frame = CylFrame {
+            origin: Point3::new(0.0, 0.0, 2.0),
+            axis: Vec3::unit_x(),
+            radius: 1.0,
+            u_ref: -Vec3::unit_z(),
+        };
+        let face = cyl_wall_sheet(&mut body, frame, (-0.5, 0.5), (0.5, 3.5), tol);
+        set_sheet_sense(&mut body, face, true, tol);
+        let senses: Vec<bool> = body.faces().map(|(_, f)| f.sense).collect();
+        assert!(
+            senses.len() == 2 && senses[0] != senses[1],
+            "a sheet is two faces of opposite senses: {senses:?}"
+        );
+        let read = shell_aims_report(&body, band);
+        assert!(
+            read.len() == 1 && read[0].starts_with("Ok(Unread { aimed: 2,"),
+            "both faces are aimed at and no aim at a sheet reads a side: {read:?}"
+        );
     }
 }

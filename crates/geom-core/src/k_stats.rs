@@ -13,13 +13,26 @@
 //! `<unnamed>` is unreachable from shipped decide paths.
 //!
 //! Every classifying door — [`decide`], [`decide_reported`],
-//! [`decide_flagged`], [`decide_magnitude`] and the
-//! gates ([`decide_positive`], [`decide_negative`], [`decide_nonzero`]) —
+//! [`decide_flagged`], [`decide_magnitude`], the
+//! gates ([`decide_positive`], [`decide_negative`], [`decide_nonzero`]),
+//! and the least-band doors [`prove`] (a proof's inequality, logged) and
+//! [`choose`] (a heuristic's choice, unlogged) —
 //! delegates to one private `classify`. The name write and the verdict
 //! push therefore happen in exactly one place, so no door can carry one
 //! channel and miss the other, and the doors classify identically
 //! because they are the same code and not because several bodies are
 //! kept level.
+//!
+//! **A door's signature is its roster entry.** The least-band gate
+//! (`scripts/gates/least-band-on-a-door.sh`) and the ledger census
+//! (`geom-core/tests/flagged_census.rs`) read the doors off this file's
+//! `pub` signatures, so a door takes its band as a parameter whose type
+//! names `Band` (or a name this file gives it, by `type` or `use … as`),
+//! and its ledger row as one parameter of a text type (`&str`, `String`,
+//! or an alias this file gives one) or one whose name holds `row`, never
+//! inside a struct argument. Every other `pub` fn
+//! here that takes a band or such a parameter is named as a non-door in
+//! the reader that would otherwise take it for one.
 //!
 //! Cost on the production path: one thread-local `Cell` write per
 //! decision, plus — **inside an open [`Bracket`]** — one `Vec` push per
@@ -616,9 +629,12 @@ pub fn straddle(name: &'static str, lower: Decided, upper: Decided, band: Band) 
 /// The log is the verdict-diff engine's (the witness's certification
 /// verdicts against the leaf's, row for row) and the subdivision
 /// driver's (an escalation is its cue to refine). A reading belongs
-/// here when no outcome of it can change what the caller certifies:
-/// logged, it would put rows in one lane's vector that the other lane
-/// cannot have, or hand the driver a cue that refining cannot answer.
+/// here when logging it would mislead one of them: it would put rows in
+/// one lane's vector that the other lane cannot have, or hand the driver
+/// a cue that refining cannot answer. Whether an outcome can change what
+/// the caller certifies is not the test: F20's cross-check refuses a
+/// certificate on a bad sample, and is read here for the vectors'
+/// parity.
 ///
 /// `ledger_row` is the obligation [`decide_flagged`] carries: the audit
 /// row in `docs/predicate-dimension-audit.md` that argues why the
@@ -682,24 +698,100 @@ pub fn decide<T: Decide>(
     classify(name, margin.value(), band).map(|d| d.sign)
 }
 
+/// **[`decide`] for a decision on a size the user may intend that
+/// passes only `passes`**: the same classification and record, with an
+/// undecided reading tagged with the pass set, so its sized ending
+/// offers a tighter tolerance only on the side a smaller tolerance
+/// decides passing (D4 ¶1 (i)). A margin in band on a refused side
+/// shows no size, and offers none.
+///
+/// # Errors
+///
+/// [`decide`]'s, its reading tagged with `passes`.
+pub fn decide_passing<T: Decide>(
+    name: &'static str,
+    margin: Margin<T>,
+    band: Band,
+    passes: SizedPass,
+) -> Result<Sign, Indeterminate> {
+    decide(name, margin, band).map_err(|e| e.undecided_passing(passes))
+}
+
 /// **A proof's inequality, read exactly**, and logged under `name`: the
 /// sign of `margin` with no band but the least pair of positive `f64`s,
 /// so only an enclosure that straddles zero fails to decide. It is for
 /// an inequality a generator's argument rests on, such as a basin's
 /// sine over its curvature or the order of two parameters, where a
-/// refusal is an outcome a narrower box can answer, and for nothing
-/// read in metres of gap, which [`decide`] reads against the band.
+/// refusal is an outcome a narrower box can answer. A gap in metres
+/// asked whether it is in band is [`decide`]'s, read against the band;
+/// it is `prove`'s only as a bound's own inequality against a fixed
+/// level, such as a floor the band left undecided asked whether it
+/// clears the band's zero exactly (`gap − zero`: the cell holds no point
+/// within the zero band, `geom-brep`'s spline incidence `past_zero`).
 /// There is no `Band` parameter, so such a margin cannot be read
 /// against the band by mistake. A heuristic's choice between sound
-/// candidates is neither: it is read unlogged under its ledger row
-/// ([`check_unlogged`]), beside which a choice door is owed
-/// (`work/onecopy/a-heuristics-choice-has-no-door-of-its-own`).
+/// candidates is neither: it is [`choose`]'s.
 ///
 /// # Errors
 ///
 /// [`decide`]'s, at the least band: an enclosure that holds zero.
 pub fn prove<T: Decide>(name: &'static str, margin: Margin<T>) -> Result<Sign, Indeterminate> {
     decide(name, margin, Band::least())
+}
+
+/// **Two parameters compared, read exactly** under `name`: [`prove`] of
+/// `s − t`. A parameter is no distance the band resolves, so the band
+/// plays no part, and only an enclosure that straddles fails to decide.
+/// The one home of the question, read by `geom-brep`'s curve pair (its
+/// walks' order and same-foot tests) and by `topo`'s join (whether an
+/// edge's end lies on its spline's crease).
+///
+/// The difference is wrapped as [`Margin::of`], whose doc promises
+/// metres, though a parameter is not one
+/// (`work/onecopy/a-parameter-difference-is-decided-through-the-metres-margin-door.md`).
+///
+/// # Errors
+///
+/// [`prove`]'s, where an enclosure of `s − t` holds zero.
+pub fn param_order<T: Decide>(name: &'static str, s: T, t: T) -> Result<Sign, Indeterminate> {
+    prove(name, Margin::of(s - t))
+}
+
+/// What [`choose`] picks: the margin's side, or a tie.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Pick {
+    /// The margin is decided positive.
+    Positive,
+    /// The margin is decided negative.
+    Negative,
+    /// The margin is decided zero, or straddles zero undecided. The door
+    /// picks nothing here: the caller names its own tie rule at its site,
+    /// and a rule that reads one candidate at a tie whatever the order
+    /// is the caller's to argue (a difference of two readings is
+    /// antisymmetric bit for bit at `f64`, so its exact zero is the only
+    /// order-dependent tie there).
+    Tie,
+}
+
+/// **A heuristic's choice between sound candidates**, read on the sign
+/// alone and outside the log under its ledger row: the least band, as
+/// [`prove`] reads, with no `Band` parameter; unlike it, not logged,
+/// since no outcome is a reading. Either candidate is sound, so a choice
+/// that escalated would hand the driver a cue no box answers. The row
+/// (`ledger_row`, in `docs/predicate-dimension-audit.md`) argues why no
+/// reader rests on the pick, and `geom-core`'s `flagged_census` checks it
+/// exists. Its K samples still reach the sink under `name`.
+///
+/// A choice made inside a reader that decides several margins against a
+/// band it is passed (F31's `Period::near` mark walk and
+/// `Azimuth::near`'s cut side) is the compound form: that reader runs
+/// inside [`unlogged`] under its row, at [`Band::least`].
+pub fn choose<T: Decide>(name: &'static str, margin: Margin<T>, ledger_row: &'static str) -> Pick {
+    match check_unlogged(name, margin.value(), Band::least(), ledger_row) {
+        Ok(Sign::Positive) => Pick::Positive,
+        Ok(Sign::Negative) => Pick::Negative,
+        Ok(Sign::Zero) | Err(_) => Pick::Tie,
+    }
 }
 
 /// [`decide`], keeping the reporting margin the classifier decided on
@@ -865,16 +957,7 @@ pub fn decide_negative<T: Decide>(
     )
 }
 
-/// A definite sign a [`decide_nonzero`] decision admits. `Zero` is not
-/// one of its values, which is what lets a caller match the gate's
-/// outcome exhaustively without an arm for an answer the gate escalated.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum NonzeroSign {
-    /// The margin classified definitely positive.
-    Positive,
-    /// The margin classified definitely negative.
-    Negative,
-}
+use crate::predicate::NonzeroSign;
 
 /// **The collapsed-discriminant gate**: [`decide_positive`]'s sibling
 /// for a predicate that reads a SIDE off the margin's sign and has no
@@ -1006,6 +1089,66 @@ pub fn decide_magnitude_reported<T: Decide>(
             band.zero(),
             band.escalate()
         ),
+    }
+}
+
+/// **A two-sided row read across a region**: `datum` the row's signed
+/// margin where its pivot reads it, and `swing` a LENGTH, the most a
+/// term the caller admitted (a tilt levered at the row's own reach, or
+/// a position the row is read beside) moves that reading at a point the
+/// verdict serves; each caller derives its own. Across the region the reading stands inside
+/// `datum ± swing`, so each verdict is decided on its own side of that
+/// bracket, each the point deviation that flips it:
+///
+/// - `far`, `|datum| + swing`, the farthest a point of the region reads
+///   from the flip: Zero ⇒ [`Sign::Zero`] at every point;
+/// - otherwise `floor`, the bracket's reading nearest the flip (`datum`
+///   shrunk toward zero by `swing`, zero where the bracket holds it): a
+///   definite sign holds at every point. A floor decided Zero
+///   beside a definite far straddles the band, and escalates through
+///   the gate.
+///
+/// The two terms are never decided one at a time: each just inside the
+/// band would sum to nearly twice it. At zero swing it is the plain
+/// two-sided reading of `datum`, under two names.
+///
+/// # Errors
+///
+/// The [`Indeterminate`] of the row left undecided, naming it: the far
+/// row in its band, or a floor decided Zero beside a definite far row.
+pub fn decide_across<T: Decide>(
+    names: [&'static str; 2],
+    datum: T,
+    swing: T,
+    band: Band,
+) -> Result<Sign, Indeterminate> {
+    decide_across_reported(names, datum, swing, band).map(|(sign, _)| sign)
+}
+
+/// [`decide_across`] with the margin the `far` row was decided on: the
+/// Zero verdict's own margin where the row reads Zero, the margin the
+/// floor stood past otherwise.
+///
+/// # Errors
+///
+/// As [`decide_across`].
+pub fn decide_across_reported<T: Decide>(
+    [far, floor]: [&'static str; 2],
+    datum: T,
+    swing: T,
+    band: Band,
+) -> Result<(Sign, MarginDiag), Indeterminate> {
+    let swing = swing.abs();
+    let (far_side, margin) = decide_magnitude_reported(far, Margin::of(datum.abs() + swing), band)?;
+    match far_side {
+        Magnitude::Zero => Ok((Sign::Zero, margin)),
+        Magnitude::Positive => {
+            let near = (datum - swing).max(T::zero()) + (datum + swing).min(T::zero());
+            Ok(match decide_nonzero(floor, Margin::of(near), band)? {
+                NonzeroSign::Positive => (Sign::Positive, margin),
+                NonzeroSign::Negative => (Sign::Negative, margin),
+            })
+        }
     }
 }
 
@@ -1519,6 +1662,23 @@ pub struct MarginSample {
     pub band_escalate: f64,
     /// The classification outcome.
     pub outcome: SampleOutcome,
+}
+
+#[cfg(feature = "probe")]
+impl MarginSample {
+    /// **Decided on its sign alone**: classified against
+    /// [`Band::least`], whose thresholds are the two least positive
+    /// `f64`s and carry no unit. Such a decision is an exact order or a
+    /// heuristic's choice, not a coincidence question against ε, so the
+    /// margin has no scale a model's size could set. `[tolerance.margins]`
+    /// makes a margin a length where it is classified against ε. A
+    /// reader that asks how margins scale with the model reads this
+    /// sample's outcome and not its magnitude.
+    #[must_use]
+    pub fn reads_sign_only(&self) -> bool {
+        let least = Band::least();
+        self.band_zero == least.zero() && self.band_escalate == least.escalate()
+    }
 }
 
 /// Installs a fresh, empty sample sink for the current thread (dropping
@@ -2357,6 +2517,25 @@ mod tests {
         splice_superseded(recording);
         let got: Vec<f64> = take_samples().iter().map(|s| s.margin).collect();
         assert_eq!(got, [mid, 1.0], "a superseded splice lost a sample");
+    }
+
+    /// A sample reads its sign alone exactly where it was decided at
+    /// `Band::least()`; at the run's linear band its margin has a scale.
+    #[cfg(feature = "probe")]
+    #[test]
+    fn a_sample_decided_at_the_least_band_reads_sign_only() {
+        start_recording();
+        let _ = Probe(0.5).sign_within(Band::least());
+        let _ = Probe(0.5).sign_within(band());
+        let got: Vec<bool> = take_samples()
+            .iter()
+            .map(MarginSample::reads_sign_only)
+            .collect();
+        assert_eq!(
+            got,
+            [true, false],
+            "the least band and the linear band, in order"
+        );
     }
 
     /// **The sample population does not shrink**: a detached run's

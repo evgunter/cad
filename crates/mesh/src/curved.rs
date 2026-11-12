@@ -53,7 +53,10 @@
 //!    loop's extent comes from the distinct EDGES that open its iso
 //!    sides, so the question is whether two of those exist. Both doors
 //!    above admit the members; the branch door (question 2) takes the
-//!    one member whose meridian carries a pole mid-edge.
+//!    one member whose meridian carries a pole mid-edge. The one-face
+//!    ball's loop, one wrap edge from pole to pole and back, is not
+//!    asked: the walk places its two sides a period apart
+//!    (`walk::wrap_strip`).
 //! 5. **WALK CONSISTENCY** — *did the walk trace that rectangle?*
 //!    Asked after, on the polygon, BANDED in metres
 //!    ([`require_swept_rectangle`], refusing
@@ -203,7 +206,9 @@ pub(crate) fn tessellate_curved(
     let chart = Chart::of(surface).ok_or(TessellateError::MissingEntity {
         what: "curved chart",
     })?;
-    let polygon = loop_polygon(body, &chart, chords, shared, fk, face.outer, tol.eps)?;
+    let polygon = loop_polygon(
+        body, &chart, chords, shared, fk, face.outer, tol.eps, tol.band,
+    )?;
     // A COUNT, and only a count. Every loop measured into this line came
     // from a state questions 3 and 4 now refuse on their own terms first
     // — a one-generator cylinder face counted two entries — so this is
@@ -245,18 +250,19 @@ pub(crate) fn tessellate_curved(
     require_swept_rectangle(fk, &polygon, &levers, (u0, u1, v0, v1), tol.eps)?;
 
     // S10 CATEGORY B — do NOT fold the face's `sense` in.
-    // `area2` is the UV shoelace of the boundary walk, so its sign is
-    // derived entirely from the loop's STORED TRAVERSAL order, which
-    // interior-left already ties to the face's outward normal: the
-    // polygon runs CCW in the chart's UV plane iff the outward normal
-    // agrees with the chart normal, i.e. iff `sense`. A reversed face
-    // therefore lands here with a negative `area2` and flips, which is
-    // exactly right. `revert` reverses the loops AND flips `sense`
-    // together, so multiplying would double-count the reversal and
-    // emit inward-wound triangles. (The one place the sense IS read on
-    // this path is the pole-to-pole band's azimuth in `walk` — that
-    // reads a DIRECTION in the chart frame, not a winding, and the two
-    // reads do not overlap.)
+    // `area2` is the UV shoelace of the boundary walk, which runs CCW in
+    // the chart's UV plane iff the outward normal agrees with the chart
+    // normal, i.e. iff `sense`. A reversed face therefore lands here
+    // with a negative `area2` and flips, which is exactly right. The
+    // walk puts the sense in the polygon: from the loop's STORED
+    // TRAVERSAL order, which interior-left ties to the outward normal,
+    // and on the wrap strip, whose loop walks one edge both ways and so
+    // has no order to read, from the sense itself (`walk::wrap_strip`).
+    // `revert` reverses the loops AND flips `sense` together, so
+    // multiplying here would double-count the reversal and emit
+    // inward-wound triangles. (The pole-to-pole band's azimuth in
+    // `walk` also reads the sense, as a DIRECTION in the chart frame,
+    // not a winding.)
     let flip = area2 < 0.0;
 
     // The walk's chart singularity, as `grid_counts` reads it: whether
@@ -1260,6 +1266,7 @@ mod tests {
     /// answer, for a row whose subject is a walk that refuses.
     fn curved_walk_results(body: &Body<f64>) -> Vec<(FaceKey, Result<WalkOf, TessellateError>)> {
         let eps = Eps::at(Tol::witness());
+        let band = Band::linear(Tol::witness()).unwrap();
         let mut positions = Vec::new();
         let mut vids = HashMap::new();
         for (vk, p) in body.vertex_points() {
@@ -1281,11 +1288,11 @@ mod tests {
             if crate::trimmed::has_trim_carrier(body, fk).unwrap() {
                 continue;
             }
-            let Some(chart) = Chart::of(body.get_surface(face.surface).unwrap()) else {
+            let Some(chart) = Chart::of(body.face_surface(fk).unwrap()) else {
                 continue;
             };
-            let walk =
-                loop_polygon(body, &chart, &chords, &positions, fk, face.outer, eps).map(|poly| {
+            let walk = loop_polygon(body, &chart, &chords, &positions, fk, face.outer, eps, band)
+                .map(|poly| {
                     // The same lever arms `tessellate_curved` builds.
                     let levers = poly
                         .iter()
@@ -2108,8 +2115,7 @@ mod tests {
             for (fk, poly, levers) in curved_walks(name, &body) {
                 let (_, _, v0, v1) = bbox(&poly);
                 let charted = body
-                    .get_face(fk)
-                    .and_then(|f| body.get_surface(f.surface))
+                    .face_surface(fk)
                     .and_then(Chart::of)
                     .is_some_and(|c| !c.poles().is_empty());
                 for (e, &(lu, _)) in poly.iter().zip(&levers).filter(|(e, _)| e.pole) {
@@ -2655,9 +2661,7 @@ mod tests {
             }),
             "two Rim-classified oblique arcs and nothing else"
         );
-        let surface = body
-            .get_surface(body.get_face(face).unwrap().surface)
-            .unwrap();
+        let surface = body.face_surface(face).unwrap();
         let outer = body.get_face(face).unwrap().outer;
         assert_eq!(
             require_iso_rectangle_face(

@@ -65,7 +65,7 @@
 //! frame, an axis seat an edge fills and a point seat a vertex fills,
 //! written [`pose::PoseDef::Through`]. A pick on a placement's copy
 //! authors `on` as the entity of the shape the placement copies
-//! ([`crate::world::body_of`]); a pick on an instance as its own
+//! ([`crate::world::copy_source`]); a pick on an instance as its own
 //! output's; a pick on a member of an instance is read through A11's
 //! member walk ([`pncad::document::member_of`]).
 //!
@@ -831,6 +831,15 @@ pub enum MateToolError {
         /// The node, by the label the tool kept.
         node: SpokenNode,
     },
+    /// A pick on a drawn family is read in no one member of it: a side
+    /// reads one body (REFERENCES DM3), and the landed evaluation finds
+    /// no member the pick lies in.
+    MemberUnread {
+        /// Which side.
+        side: MateSide,
+        /// The family.
+        node: SpokenNode,
+    },
     /// A node the editor was asked to open on is no placement.
     NotAPlacement {
         /// The node.
@@ -904,6 +913,12 @@ impl core::fmt::Display for MateToolError {
                 "the {} pick is on {node}, which the document no longer holds",
                 side.name()
             ),
+            Self::MemberUnread { side, node } => write!(
+                f,
+                "the {} pick is on {node}, a family, and a side reads one body: pick on one \
+                 drawn member of it, once the document has landed",
+                side.name()
+            ),
             Self::NotAPlacement { node } => write!(f, "{node} is no placement"),
             Self::NotAMate { mate } => write!(
                 f,
@@ -945,6 +960,10 @@ impl MateToolError {
     pub fn respoken(self, doc: &Doc<ProfileProgram>) -> Self {
         match self {
             Self::PickGone { side, node } => Self::PickGone {
+                side,
+                node: node.respoken(doc),
+            },
+            Self::MemberUnread { side, node } => Self::MemberUnread {
                 side,
                 node: node.respoken(doc),
             },
@@ -1237,10 +1256,8 @@ fn door_on(
     {
         return edit(instance);
     }
-    let read = match crate::world::seat_read(doc, node, body) {
-        (at, Some(port)) => Operand::output(at, port),
-        (at, None) => Operand::Node(at),
-    };
+    let (at, port) = crate::world::seat_read(doc, node, body);
+    let read = crate::seats::Output::named(port).read(at);
     let read = crate::session::as_body(doc, read);
     if gated && !crate::session::admits_read(doc, &read, crate::session::NodeKindWanted::Body) {
         return refused(MateToolEvent::NotPlaceable {
@@ -1268,45 +1285,66 @@ fn door_picked(
 /// **The entity `pick` names as an `on` side reads it**: off the shape
 /// a `Place` copies, by the shape's own name for it (a copy carries its
 /// body's names), on the output it copies where the shape's operation
-/// defines several (a split's halves) — a copy Place stood in its body's
-/// own space included, which a seat takes as itself
-/// ([`crate::world::copy_source`]); an instance's or a body's own read
-/// otherwise.
-fn on_read(doc: &Doc<ProfileProgram>, pick: &MatePick) -> (SitedRef, Operand) {
+/// defines several (a split's halves) ([`crate::world::copy_source`]);
+/// an instance's or a body's own read otherwise, and a copy whose body
+/// does not resolve as itself.
+fn on_read(
+    doc: &Doc<ProfileProgram>,
+    ev: Option<&pncad::document::Evaluation<f64>>,
+    pick: &MatePick,
+) -> Option<(SitedRef, Operand)> {
     let picked = SitedRef::new(pick.node(), pick.name().clone());
     match doc.node(pick.node()) {
-        Some(Node::Place { source, .. }) => {
-            let (at, port) = match crate::world::copy_source(doc, pick.node(), pick.on().body()) {
-                Some(copied) => (copied.operation, copied.body),
-                None => doc
-                    .defined_by(source.read)
-                    .filter(|_| !source.is_indexed())
-                    .map_or((pick.node(), pick.on().body()), |(at, port)| {
-                        (at, u32::from(port))
-                    }),
-            };
-            let body = match crate::world::seat_read(doc, at, Some(port)) {
-                (at, Some(port)) => Operand::output(at, port),
-                (at, None) => Operand::Node(at),
-            };
-            let read = Operand::select(body, vec![pick.name().clone()]);
-            (SitedRef::new(at, pick.name().clone()), read)
+        Some(Node::Place { .. }) => {
+            let (at, port) = crate::world::copy_source(doc, pick.node(), pick.on().body())
+                .map_or((pick.node(), pick.on().body()), |copied| {
+                    (copied.operation, copied.body)
+                });
+            let (at, port) = crate::world::seat_read(doc, at, Some(port));
+            let body = crate::seats::Output::named(port).read(at);
+            Some((
+                SitedRef::new(at, pick.name().clone()),
+                picked_read(doc, ev, body, pick)?,
+            ))
         }
-        Some(Node::InstantiatePart { .. }) => (picked.clone(), picked.into()),
-        _ => (picked, crate::session::pick_read(doc, pick)),
+        Some(Node::InstantiatePart { .. }) => {
+            let read = picked_read(doc, ev, Operand::Node(pick.node()), pick)?;
+            Some((picked, read))
+        }
+        _ => Some((picked, crate::session::pick_read(doc, ev, pick)?)),
     }
 }
 
 /// **The entity `pick` names as a `to` side reads it**: on a copy, the
 /// copy itself; on a drawn operation, the output picked
-/// ([`crate::session::pick_read`]).
-fn to_read(doc: &Doc<ProfileProgram>, pick: &MatePick) -> (SitedRef, Operand) {
+/// ([`crate::session::pick_read`]). Each reads one body
+/// ([`crate::session::picked_selection`]): `None` where the pick is on a
+/// family whose member no evaluation finds.
+fn to_read(
+    doc: &Doc<ProfileProgram>,
+    ev: Option<&pncad::document::Evaluation<f64>>,
+    pick: &MatePick,
+) -> Option<(SitedRef, Operand)> {
     let picked = SitedRef::new(pick.node(), pick.name().clone());
     let read = match doc.node(pick.node()) {
-        Some(Node::Place { .. } | Node::InstantiatePart { .. }) => picked.clone().into(),
-        _ => crate::session::pick_read(doc, pick),
+        Some(Node::Place { .. } | Node::InstantiatePart { .. }) => {
+            picked_read(doc, ev, Operand::Node(pick.node()), pick)?
+        }
+        _ => crate::session::pick_read(doc, ev, pick)?,
     };
-    (picked, read)
+    Some((picked, read))
+}
+
+/// The one-name selection of `pick`'s entity in `body`, read as one
+/// body ([`crate::session::picked_selection`]).
+fn picked_read(
+    doc: &Doc<ProfileProgram>,
+    ev: Option<&pncad::document::Evaluation<f64>>,
+    body: Operand,
+    pick: &MatePick,
+) -> Option<Operand> {
+    let (body, names) = crate::session::picked_selection(doc, ev, body, vec![pick.name().clone()])?;
+    Some(Operand::select(body, names))
 }
 
 /// **Whether the value `id` of `placement`'s bundle is a number**: the
@@ -2329,9 +2367,13 @@ impl MateTool {
                 }
                 let entity = pick.entity();
                 let (site, read) = match side {
-                    MateSide::On => on_read(doc, pick),
-                    MateSide::To => to_read(doc, pick),
-                };
+                    MateSide::On => on_read(doc, Some(ev), pick),
+                    MateSide::To => to_read(doc, Some(ev), pick),
+                }
+                .ok_or_else(|| MateToolError::MemberUnread {
+                    side,
+                    node: Self::spoken(doc, held, pick.node()),
+                })?;
                 let reading = MateReading::at_site(row.kind, seat, entity, ev, &site).ok_or(
                     MateToolError::KindDoesNotRead {
                         row: at,

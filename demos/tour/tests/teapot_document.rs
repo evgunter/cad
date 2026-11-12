@@ -169,7 +169,7 @@ fn census(b: &Body<f64>) -> (usize, usize, usize) {
 fn bands(b: &Body<f64>) -> Vec<(u64, u64, u64)> {
     let mut out: Vec<(u64, u64, u64)> = b
         .faces()
-        .filter_map(|(_, f)| match b.get_surface(f.surface) {
+        .filter_map(|(fk, _)| match b.face_surface(fk) {
             Some(Surface::Torus {
                 major_radius,
                 minor_radius,
@@ -415,7 +415,7 @@ fn one_request_builds_the_kernels_body() {
     );
     let order = |b: &Body<f64>| -> Vec<String> {
         b.faces()
-            .map(|(_, f)| match b.get_surface(f.surface) {
+            .map(|(fk, _)| match b.face_surface(fk) {
                 Some(Surface::Torus { center, .. }) => format!("torus@{}", center.y),
                 Some(Surface::Plane { .. }) => "plane".to_owned(),
                 Some(Surface::Cylinder { .. }) => "cylinder".to_owned(),
@@ -491,11 +491,10 @@ fn named_geometry(
         [p.x.to_bits(), p.y.to_bits(), p.z.to_bits()]
     };
     let mut out = std::collections::BTreeMap::new();
-    for (k, e) in b.edges() {
+    for (k, _) in b.edges() {
         let n = edge_name(ev, node, 0, k).expect("every edge named").clone();
-        let a = pt(b.get_half_edge(e.he_plus).unwrap().start);
-        let z = pt(b.get_half_edge(e.he_minus).unwrap().start);
-        let mut ends = [a, z];
+        let (a, z) = b.edge_vertices(k).unwrap();
+        let mut ends = [pt(a), pt(z)];
         ends.sort_unstable();
         out.insert(n, ends.concat());
     }

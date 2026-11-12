@@ -1048,7 +1048,7 @@ impl<P> Hull<P> {
 impl Halved {
     /// Where the span is cut.
     fn mid(self) -> f64 {
-        0.5 * (self.lo + self.hi)
+        geom::mid_param(self.lo, self.hi)
     }
 }
 
@@ -1370,7 +1370,7 @@ fn box_chain<T: Decide + Bounds + CertifiedEnclosure>(
         // (zero-length tangent) divided by zero poisons `e`, the graph
         // margin's enclosure is refused with it, and the probe reads
         // that rung as unprobed ([`tube_margin`]).
-        let t = carrier.deriv(T::from_f64(0.5 * (a + b)));
+        let t = carrier.deriv(T::from_f64(geom::mid_param(a, b)));
         out.push((bx, t.normalize(), (a, b)));
     }
     out
@@ -1382,7 +1382,7 @@ fn box_chain<T: Decide + Bounds + CertifiedEnclosure>(
 /// found. `one_arc` is `None` where the chain is no graph, so the proof
 /// had no hypothesis; it never reads as proved where nothing was. The
 /// margin is `NaN` where a box's transversality enclosure was refused
-/// ([`Rung::refused`]).
+/// ([`Rung::unmeasured`]).
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct Rung {
     pub(crate) tube: SsiTube<f64>,
@@ -1395,7 +1395,7 @@ impl Rung {
     /// A rung at which a box's transversality enclosure was refused
     /// ([`tube_margin`]): it measured nothing, so it has no margin and
     /// no proof, and [`limb_three`] counts it rather than reading it.
-    fn refused(tube: SsiTube<f64>) -> Self {
+    fn unmeasured(tube: SsiTube<f64>) -> Self {
         Self {
             tube,
             margin: f64::NAN,
@@ -1432,7 +1432,7 @@ fn box_graph_margin<T: CertifiedBounds>(
 /// decision runs once, upstairs, on the chosen radius.
 ///
 /// `None` when the chain is empty or broken, a definite structural
-/// refusal; [`Rung::refused`] where a box's transversality enclosure is.
+/// refusal; [`Rung::unmeasured`] where a box's transversality enclosure is.
 fn probe_tube_analytic<T: Decide + Bounds + CertifiedEnclosure>(
     chain: &[(Box3, Vec3<T>, (f64, f64))],
     s1: &Surface<T>,
@@ -1460,13 +1460,14 @@ fn probe_tube_analytic<T: Decide + Bounds + CertifiedEnclosure>(
         prev = Some(bx);
         padded.push(bx);
         let Some(m) = box_graph_margin(s1, s2, bx, *e) else {
-            return Some(Rung::refused(SsiTube::Spatial { radius }));
+            return Some(Rung::unmeasured(SsiTube::Spatial { radius }));
         };
         if m < worst {
             worst = m;
         }
     }
-    let axis = |e: &Vec3<T>| dominant_axis([e.x, e.y, e.z].map(|c| 0.5 * (c.lo() + c.hi())));
+    let axis =
+        |e: &Vec3<T>| dominant_axis([e.x, e.y, e.z].map(|c| geom::mid_param(c.lo(), c.hi())));
     let (Some((_, e0, _)), Some((_, e1, _))) = (chain.first(), chain.last()) else {
         return None;
     };
@@ -1546,7 +1547,7 @@ pub(crate) fn chart_tube_windows<T: geom_core::CertifiedBounds>(
                 u: (hu.lo() - pad.0, hu.hi() + pad.0),
                 v: (hv.lo() - pad.1, hv.hi() + pad.1),
             },
-            mid: 0.5 * (a + b),
+            mid: geom::mid_param(a, b),
             ends: (a, b),
         });
     }
@@ -1616,7 +1617,7 @@ fn probe_tube_chart<'p, T: Decide + Bounds + CertifiedEnclosure>(
             return Ok(None);
         };
         if margin.is_nan() {
-            return Ok(Some(Rung::refused(SsiTube::Chart {
+            return Ok(Some(Rung::unmeasured(SsiTube::Chart {
                 rung,
                 pad_u: pad.0,
                 pad_v: pad.1,
@@ -1717,7 +1718,7 @@ type PairPads = ((f64, f64), (f64, f64));
 ///
 /// `None` when either pcurve has no windows, the two disagree on their
 /// spans, or a tangent is unusable: a definite structural refusal at
-/// this rung. [`Rung::refused`] where a box's margin is.
+/// this rung. [`Rung::unmeasured`] where a box's margin is.
 fn probe_tube_pair<T: Decide + Bounds + CertifiedEnclosure>(
     (pa, pb): (&NurbsCurve2<T>, &NurbsCurve2<T>),
     (na, nb): (&super::ChartedNurbs<'_, T>, &super::ChartedNurbs<'_, T>),
@@ -1748,7 +1749,7 @@ fn probe_tube_pair<T: Decide + Bounds + CertifiedEnclosure>(
         // refuses before any tube exists. It shares `tube_margin` and
         // the refused rung with the ℝ³ probe, which a row does reach.
         let Some(m) = tube_margin(graph_margin(&pair, x, e)) else {
-            return Some(Rung::refused(SsiTube::TwoChart { rung, pad_a, pad_b }));
+            return Some(Rung::unmeasured(SsiTube::TwoChart { rung, pad_a, pad_b }));
         };
         worst = worst.min(m);
         boxes.push(x);

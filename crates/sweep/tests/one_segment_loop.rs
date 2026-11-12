@@ -147,11 +147,7 @@ fn an_extruded_one_segment_circle_is_one_wall_with_a_seam_strut() {
                 "{what}: the strut is the wall's seam"
             );
             for rim in [&wall.top_rim, &wall.bottom_rim] {
-                let e = t.body.get_edge(*rim).unwrap();
-                let (a, b) = (
-                    t.body.get_half_edge(e.he_plus).unwrap().start,
-                    t.body.get_half_edge(e.he_minus).unwrap().start,
-                );
+                let (a, b) = t.body.edge_vertices(*rim).unwrap();
                 assert_eq!(a, b, "{what}: a rim is a self-loop");
             }
             close(volume(&t.body), PI * 1.5 * 1.5 * 2.0, &what);
@@ -455,8 +451,7 @@ fn a_revolved_one_segment_circle_is_one_torus_wall_with_a_wrap_strut() {
             let wall = walls[0][0].expect("the circle sweeps a wall");
             assert!(
                 matches!(
-                    one.body
-                        .get_surface(one.body.get_face(wall).unwrap().surface),
+                    one.body.face_surface(wall),
                     Some(geom::Surface::Torus { .. })
                 ),
                 "{what}: the wall is a torus"
@@ -898,17 +893,15 @@ fn a_one_segment_circle_on_or_against_the_axis_refuses() {
             "{what}: {got:?}"
         );
     };
-    // A horn's circle through its cusp, revolved part way, refuses at
-    // the attachment gate on a stated interval decided zero
-    // (`work/spiricarm/a-football-revolved-part-way-refuses-at-its-cap-meridians-certificate.md`).
-    let pinched_part_way = |what: &str, got: &E| {
+    // A horn's circle through its cusp: its one face reaches the cusp
+    // from both sides, the pinch the full revolve names too.
+    let pinched = |what: &str, got: &E| {
         assert!(
             matches!(
                 got,
-                E::Op {
-                    source: topo::EulerOpError::Certification {
-                        error: geom_brep::CertifyError::StatedInterval { .. }
-                    }
+                E::NonManifoldAxisContact {
+                    loop_index: 0,
+                    vertex_index: 0
                 }
             ),
             "{what}: {got:?}"
@@ -939,7 +932,7 @@ fn a_one_segment_circle_on_or_against_the_axis_refuses() {
         (
             "tangent to the axis at its vertex",
             circle_at(1.0, 0.0, 1.0, PI, TAU),
-            pinched_part_way,
+            pinched,
         ),
         (
             "tangent to the axis away from its vertex",
@@ -1311,10 +1304,7 @@ fn a_one_segment_strut_runs_its_column_back_on_the_negated_knots() {
             let geom::Curve3::Nurbs(carrier) = c.carrier() else {
                 panic!("{z:?}: the strut is a spline")
             };
-            let Some(geom::Surface::Nurbs(chart)) = lofted
-                .body
-                .get_surface(lofted.body.get_face(wall).unwrap().surface)
-            else {
+            let Some(geom::Surface::Nurbs(chart)) = lofted.body.face_surface(wall) else {
                 panic!("{z:?}: the wall is a spline chart")
             };
             assert_eq!(c.params(), (-1.0, 0.0), "{z:?}: the strut's interval");

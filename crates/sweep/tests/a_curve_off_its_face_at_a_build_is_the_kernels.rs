@@ -10,7 +10,7 @@
 //! is re-described through `set_edge_curve` as the straight chord
 //! between its two vertices, described as a chart image of the sphere:
 //! the sphere holds no line, so the mint reads it off its chart
-//! (`CarrierOffChart`) before any sample is metered, and the
+//! (`IncidenceRead::Off`) before any sample is metered, and the
 //! declaration's own source is never read (a dummy stands in). At rest
 //! the same refusal is read through the at-rest door's window, the
 //! validator's finding that carries it. Read at `f64` and at `Interval`.
@@ -131,11 +131,8 @@ fn check<T: Decide + AtRestPolicy + Bounds>() {
     for refusal in [&declared, &derived] {
         assert!(
             matches!(
-                refusal,
-                CertifyError::CarrierOffChart {
-                    margin: Some(geom_brep::OffMargin::Past(_)),
-                    ..
-                }
+                refusal.incidence_read(),
+                Some(geom_brep::IncidenceRead::Off(Some(_)))
             ),
             "{lane}: {refusal:?}"
         );

@@ -151,7 +151,7 @@ impl BooleanTool {
                 picks_line(members.iter().enumerate().map(|(i, (node, port))| {
                     (
                         format!("{} {}", Seat::Member.name(), i + 1),
-                        Some(pick_said(by, node, *port)),
+                        Some(pick_said(by, node, port)),
                     )
                 }))
             }
@@ -160,22 +160,24 @@ impl BooleanTool {
     }
 
     /// Feed one node pick; `doc` routes it, and does not judge it. A
-    /// pick on a copy seats the body it places.
+    /// pick on a copy seats the copy.
     pub fn pick(&mut self, doc: &Doc<ProfileProgram>, node: RecipeNodeId) {
         self.pick_at(doc, node, None);
     }
 
     /// [`Self::pick`] of the output `body` a viewport pick hit: a
-    /// split's half is read by its port, and a split picked in the tree
-    /// waits for its half ([`Self::choose_half`]).
+    /// split's half is read by its port and a family's member by its
+    /// index values. A split picked in the tree waits for its half
+    /// ([`Self::choose_half`]); a family picked there is read whole
+    /// until one member is chosen ([`Self::choose_member`]).
     pub fn pick_at(&mut self, doc: &Doc<ProfileProgram>, node: RecipeNodeId, body: Option<u32>) {
         match &mut self.held {
-            // A pick on a copy is a pick of the body it places
+            // A pick is read as the drawn body it lands on
             // ([`crate::world::seat_read`]), as in the two seats.
             BooleanPicks::Members(members) => {
-                let (node, port) = crate::world::seat_read(doc, node, body);
-                let port = Port::of_pick(doc, node, port, Seat::Member.wants());
-                members.push((doc.spoken(node), port));
+                let read = crate::world::seat_read(doc, node, body);
+                let port = Port::at_seat(doc, node, read, body, Seat::Member);
+                members.push((doc.spoken(read.0), port));
             }
             BooleanPicks::Pair(seats) => seats.pick_at(doc, node, body),
         }
@@ -187,10 +189,43 @@ impl BooleanTool {
         match &mut self.held {
             BooleanPicks::Members(members) => {
                 if let Some((_, port)) = members.get_mut(i) {
-                    *port = port.chosen(half);
+                    *port = core::mem::replace(port, Port::ALONE).chosen(half);
                 }
             }
             BooleanPicks::Pair(seats) => seats.choose_half(i, half),
+        }
+    }
+
+    /// **The member pick `i` reads**, by its index values
+    /// ([`crate::world::members_of`]), where it reads a family nothing
+    /// copies, whole or one member: member `i` of a union or an
+    /// intersect, seat `i` of a subtraction. A no-op on any other pick.
+    pub fn choose_member(&mut self, i: usize, at: Vec<i64>) {
+        match &mut self.held {
+            BooleanPicks::Members(members) => {
+                if let Some((_, port)) = members.get_mut(i) {
+                    *port = core::mem::replace(port, Port::ALONE).chosen_member(at);
+                }
+            }
+            BooleanPicks::Pair(seats) => seats.choose_member(i, at),
+        }
+    }
+
+    /// The picks reading a family, whole or one member, in pick
+    /// order: each pick's index and the family — the picks whose
+    /// member a panel may choose.
+    pub fn family_picks(&self) -> Vec<(usize, RecipeNodeId)> {
+        match &self.held {
+            BooleanPicks::Members(members) => members
+                .iter()
+                .enumerate()
+                .filter(|(_, (_, port))| port.reads_family())
+                .map(|(i, (node, _))| (i, node.id()))
+                .collect(),
+            BooleanPicks::Pair(seats) => (0..2)
+                .filter(|&i| seats.reads_family(i))
+                .filter_map(|i| Some((i, seats.held(i)?)))
+                .collect(),
         }
     }
 
@@ -201,7 +236,7 @@ impl BooleanTool {
             BooleanPicks::Members(members) => members
                 .iter()
                 .enumerate()
-                .filter(|(_, (_, port))| *port == Port::HalfPending)
+                .filter(|(_, (_, port))| port.awaits_half())
                 .map(|(i, _)| i)
                 .collect(),
             BooleanPicks::Pair(seats) => (0..2).filter(|&i| seats.awaits_half(i)).collect(),
@@ -256,20 +291,20 @@ impl BooleanTool {
     /// [`SeatError::Empty`] naming [`Seat::Member`] while a union or an
     /// intersect holds no member, and naming the first empty seat while
     /// a subtraction lacks one; [`SeatError::HalfUnchosen`] while a
-    /// pick holds a split whose half is not chosen. Node kinds refuse
-    /// at the session door.
+    /// pick holds a split whose half is not chosen. Node kinds refuse at
+    /// the session door.
     pub fn spec(&self) -> Result<BooleanSpec, SeatError> {
         match &self.held {
             BooleanPicks::Members(members) if members.is_empty() => {
                 Err(SeatError::Empty { seat: Seat::Member })
             }
             BooleanPicks::Members(members) => {
-                if members.iter().any(|(_, port)| *port == Port::HalfPending) {
+                if members.iter().any(|(_, port)| port.awaits_half()) {
                     return Err(SeatError::HalfUnchosen { seat: Seat::Member });
                 }
                 let members = members
                     .iter()
-                    .map(|(node, port)| port.read(node.id()))
+                    .map(|(node, port)| port.body_read(node.id()))
                     .collect();
                 Ok(if self.op == BooleanOp::Intersect {
                     BooleanSpec::Intersect(members)
@@ -278,8 +313,8 @@ impl BooleanTool {
                 })
             }
             BooleanPicks::Pair(seats) => Ok(BooleanSpec::Subtract {
-                from: seats.require_read(0)?,
-                tool: seats.require_read(1)?,
+                from: seats.require_body_read(0)?,
+                tool: seats.require_body_read(1)?,
             }),
         }
     }
@@ -505,7 +540,7 @@ impl SplitTool {
     }
 
     /// Feed one node pick: it REPLACES the target. A pick on a copy
-    /// seats the body it places.
+    /// seats the copy.
     pub fn pick(&mut self, doc: &Doc<ProfileProgram>, node: RecipeNodeId) {
         self.held.seats.pick(doc, node);
     }
@@ -793,8 +828,8 @@ impl ClearanceBoundChoice {
 ///
 /// **Held where it is drawn, not where it is built.** A requirement
 /// between two parts is about the parts as they stand, so a seat is
-/// never re-read on the body a copy places, which every other seated
-/// tool does ([`Seats::pick`]); the commit door reads a tree pick of a
+/// read where it is drawn, as every seated tool reads a pick
+/// ([`Seats::pick`]); the commit door also reads a tree pick of a
 /// construction on its world copy (`DocSession`'s `AddClearance` arm).
 ///
 /// That redirect is why the seat is not a [`Seats`]: for a construction
@@ -969,7 +1004,7 @@ impl ClearanceTool {
     /// as a seat says its node, a face as the chrome says a held pick.
     pub fn line(&self, by: Speaker<'_>) -> String {
         let said = |i: usize| match &self.picks[i] {
-            Some(ClearancePick::Body(node)) => Some(pick_said(by, node, Port::Alone)),
+            Some(ClearancePick::Body(node)) => Some(pick_said(by, node, &Port::ALONE)),
             Some(ClearancePick::Face(held)) => Some(Said(held, by).to_string()),
             None => None,
         };
@@ -1066,7 +1101,11 @@ impl core::fmt::Display for ClearanceEvent {
 ///
 /// Total: whether `face` names a face of `on`, and whether that face is
 /// planar, are the door's and the evaluation's to refuse.
-pub fn mirror_node(body: Operand, on: Operand, face: StableName) -> AuthoredNode {
+pub fn mirror_node(
+    body: Operand,
+    on: pncad::document::BodyRead<Formula>,
+    face: StableName,
+) -> AuthoredNode {
     Node::mirror(
         body,
         crate::matetool::plane_of(Operand::select(on, vec![face])),
@@ -1255,7 +1294,7 @@ impl PatternTool {
     }
 
     /// Feed one node pick; `doc` routes it, and does not judge it. A
-    /// pick on a copy seats the body it places.
+    /// pick on a copy seats the copy.
     pub fn pick(&mut self, doc: &Doc<ProfileProgram>, node: RecipeNodeId) {
         self.seats.pick(doc, node);
     }
@@ -1394,7 +1433,7 @@ impl PartTool {
     }
 
     /// Feed one node pick; `doc` routes it, and does not judge it. A
-    /// pick on a copy seats the body it places.
+    /// pick on a copy seats the copy.
     pub fn pick(&mut self, doc: &Doc<ProfileProgram>, node: RecipeNodeId) {
         self.seats.pick(doc, node);
     }
@@ -1696,10 +1735,10 @@ pub fn measured_at_scale<M, E>(
         [[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]]
             .map(|axis| width_along(&probe, axis).unwrap_or(0.0)),
     )
-    .norm();
-    if !(scale.is_finite() && scale > 0.0) {
+    .checked_nonzero_length();
+    let Ok(scale) = scale else {
         return Ok(None);
-    }
+    };
     let chord = scale * MEASURE_CHORD;
     Ok(Some((at(chord)?, chord)))
 }
@@ -1753,10 +1792,7 @@ impl StepClearFault {
 /// zero direction.
 fn width_along(points: &[pncad::geom_core::Point3<f64>], direction: [f64; 3]) -> Option<f64> {
     let direction = Vec3::from_array(direction);
-    let norm = direction.norm();
-    if !(norm.is_finite() && norm > 0.0) {
-        return None;
-    }
+    let norm = direction.checked_nonzero_length().ok()?;
     let mut along = points
         .iter()
         .map(|p| Vec3::new(p.x, p.y, p.z).dot(direction) / norm);
@@ -1782,10 +1818,18 @@ pub fn part_node(
     let PartSelectSpec::Instance(index) = select;
     let target = doc.node_space(of)?;
     Some(Node::place(
-        pncad::document::BodyRead::indexed(of, vec![Formula::count(index)]),
+        member_read(of, &[index]),
         Operand::Var(target),
         pncad::document::stand().bundle(),
     ))
+}
+
+/// **One member of the family `read` reads**, at the index values
+/// `at`, each an exact `Count` literal (spec D3: an index is never a
+/// continuous expression) — the one lowering of a picked member, the
+/// part form's and a boolean seat's (`seats::Port::body_read`).
+pub fn member_read(read: impl Into<Operand>, at: &[i64]) -> pncad::document::BodyRead<Formula> {
+    pncad::document::BodyRead::indexed(read, at.iter().map(|&i| Formula::count(i)).collect())
 }
 
 /// **Whether a node, named alone, reads as a single body** — the

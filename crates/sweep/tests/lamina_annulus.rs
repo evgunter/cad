@@ -56,10 +56,7 @@ fn plane_slits(body: &Body<f64>) -> usize {
             let fm = body.face_of_half_edge(e.he_minus);
             fp.is_some()
                 && fp == fm
-                && matches!(
-                    body.get_surface(body.get_face(fp.unwrap()).unwrap().surface),
-                    Some(Surface::Plane { .. })
-                )
+                && matches!(body.face_surface(fp.unwrap()), Some(Surface::Plane { .. }))
         })
         .count()
 }
@@ -67,7 +64,7 @@ fn plane_slits(body: &Body<f64>) -> usize {
 /// Rings carried by plane faces.
 fn plane_rings(body: &Body<f64>) -> usize {
     body.faces()
-        .filter(|(_, f)| matches!(body.get_surface(f.surface), Some(Surface::Plane { .. })))
+        .filter(|(fk, _)| matches!(body.face_surface(*fk), Some(Surface::Plane { .. })))
         .map(|(_, f)| f.rings.len())
         .sum()
 }
@@ -203,8 +200,8 @@ fn every_lamina_full_revolve_has_one_unslit_face_per_plane_wall() {
         assert_eq!(g, genus_sum, "{what}: genus");
         // Every plane wall here is an annulus (or the wire-case disc);
         // each annulus carries exactly one ring.
-        for (_, f) in body.faces() {
-            if let Some(Surface::Plane { .. }) = body.get_surface(f.surface) {
+        for (fk, f) in body.faces() {
+            if let Some(Surface::Plane { .. }) = body.face_surface(fk) {
                 assert!(
                     f.rings.len() <= 1,
                     "{what}: a plane wall carries one ring at most"
@@ -501,15 +498,12 @@ fn upright(pts: &[(f64, f64)]) -> Body<f64> {
 }
 
 fn ends(body: &Body<f64>, e: EdgeKey) -> [Vec3<f64>; 2] {
-    let he = body.get_edge(e).unwrap().he_plus;
+    let (v0, v1) = body.edge_vertices(e).unwrap();
     let at = |v| {
         let p = body.get_point(body.get_vertex(v).unwrap().point).unwrap();
         Vec3::new(p.x, p.y, p.z)
     };
-    [
-        at(body.get_half_edge(he).unwrap().start),
-        at(body.half_edge_end(he).unwrap()),
-    ]
+    [at(v0), at(v1)]
 }
 
 fn edges_where(body: &Body<f64>, on: impl Fn(Vec3<f64>) -> bool) -> Vec<EdgeKey> {
@@ -570,7 +564,7 @@ fn a_ruled_band_on_a_plane_support_carrying_the_bore_carves_at_the_closed_form()
         validate_geometric(&body, tol()).expect("fixture tier 3");
         let bottom_rings: usize = body
             .faces()
-            .filter(|(_, f)| match body.get_surface(f.surface) {
+            .filter(|(fk, _)| match body.face_surface(*fk) {
                 Some(Surface::Plane { origin, normal, .. }) => {
                     origin.y.abs() < 1e-12 && normal.y.abs() > 0.5
                 }
@@ -691,8 +685,8 @@ fn a_ruled_band_whose_caps_are_unslit_annuli_carves_at_the_closed_form() {
 
 fn plane_chart_at_y(body: &Body<f64>, y: f64) -> Vec<topo::FaceKey> {
     body.faces()
-        .filter(|(_, f)| {
-            matches!(body.get_surface(f.surface),
+        .filter(|(fk, _)| {
+            matches!(body.face_surface(*fk),
                 Some(Surface::Plane { origin, .. }) if (origin.y - y).abs() < 1e-12)
         })
         .map(|(k, _)| k)

@@ -2,11 +2,10 @@
 id: run-loops-of-split-and-pierce-are-twins
 kind: issue
 title: splitting/insert.rs's run loop and boolean/vtxfac.rs's are near-verbatim twins: one home?
-status: dispatched
+status: open
 opened: 2026-10-06
 priority: P1
 cost: M
-branch: onehome/star-walk
 ---
 
 
@@ -84,3 +83,33 @@ The FULL review found one MAJOR (a whole-orbit run past two survivors handed hel
 - `the-pierce-reads-a-struts-facing-the-stars-site-already-names`.
 
 Stages 2 and 3 remain on this row.
+
+## Stage 2's design (2026-11-10)
+
+This applies PR 6359's decision and does not change it. Two designers weighed it, as fork 257; Ev declined the DESIGN edit on PR 6585 because no decision changed.
+
+- **The star's walk reads no side.** `Star` is the cyclic list of bounds out of the vertex (a half-edge, real or a divider, a unit direction, and its `BoundSupport`) with the sector between consecutive bounds (a face, a tangent plane or a cone apex, its bend and its arm).
+- **Sectors are convex in their own geometry, and refined where a datum's side turns.**
+  - A reflex corner is cut at its bisector. A sector over a half-turn is halved, and a whole turn, planar or apex, is quartered.
+  - Then every datum's extremum strictly inside a sector cuts it: extremal rulings for a plane along a fan; nearest and farthest directions for a cone along a planar sector; and so on.
+  - This one rule replaces the pierce's half-turn ruling, the vertex–vertex lane's apex quarters, `partner_cuts`/`extreme_directions` and `apex_shape`'s extremal arm.
+  - It gives the vertex–vertex planner one order at a shared vertex (`the-vertex-pair-planner-nests-struts-across-pairs-beside-ring-tree`).
+- **Every side is read through the one bound-side reading** (`bound_side::read`, with its descent), against the verb's datum.
+  - The split's first-order `split_bisector_side` in `wide_entries` is the second reading that made D1, and it goes. Rule (b)'s divider rows that rebuilt second order go with it.
+  - A line edge's side stays the verb's: the split reads its vertex record, the pierce its chord (D4).
+- **What stays the verb's:** its datums, its answer for a line edge's far vertex, its fold of a tie (rule (a), Eq. 15.3's lumps, `resolve_on_entries`/`fold_on_bound`), its error vocabulary and its record.
+- **Near-axis vertices.** A vertex within band of a cone's axis but off its apex refuses as one star fault, which each verb maps into its own error type (D5, `[simple.conditioned]`). The split no longer reads `VertexFace::NearAxis` as a tangent plane.
+- **The conic reach** is the edge's: `ConicDeparture.extent` and `ConicArc::of`.
+- **`BoolSector`** becomes a borrowed view over the star. `SectorEntry`, `EntryRay`, `wide_entries` and both private `sector_face`s go.
+- **Verdicts that move, each listed with its reason in the build PR:**
+  - the split's divider sides on grazed curved faces, which become descended instead of On by convention;
+  - near-axis split vertices, which now refuse;
+  - apex cut positions.
+- **`BoolSector` is a by-value view** (the orchestrator's ruling on PR 6725's FULL review, S3): each field is copied from the star's bound and sector by `BoolSector::of_star`, and it reads nothing the star does not. A lifetime would thread through about 260 pair-algebra sites and the planner's `Orbits` for no change in what is read.
+- **How it is built.** Build the star beside both walks and compare geometry only. The probe on `onehome/star-walk` @ `09d17537` is the starting point; its corrected D1′ count showed no disagreement. Then port each verb.
+- **Pins:**
+  - a cylinder-graze divider reads its descended side, in both verbs;
+  - every sector is convex, and every datum's side is monotone across it after refinement;
+  - a near-axis split vertex refuses typed;
+  - a whole-turn apex corner reads four pieces.
+- 2026-11-10: stage 2 landed in PR 6725, the side-free walk and one cut rule, after a full review and one fix pass. The review's MAJOR was fixed with per-fault `VertexRefusal` arms, and the reading consults only what main did. Stage 3 remains: the cut, the germ rule, the germ order and `entered_faces` reading the cuts. The row is open for it. (ONEHOME orchestrator)

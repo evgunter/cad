@@ -56,16 +56,16 @@ const H: f64 = 2.0;
 
 fn faces_of(b: &Body<f64>, kind: SurfaceKind) -> Vec<FaceKey> {
     b.faces()
-        .filter(|(_, f)| b.get_surface(f.surface).map(geom::Surface::kind) == Some(kind))
+        .filter(|(fk, _)| b.face_surface(*fk).map(geom::Surface::kind) == Some(kind))
         .map(|(k, _)| k)
         .collect()
 }
 
 fn planes_at_z(b: &Body<f64>, z: f64) -> Vec<FaceKey> {
     b.faces()
-        .filter(|(_, f)| {
+        .filter(|(fk, _)| {
             matches!(
-                b.get_surface(f.surface),
+                b.face_surface(*fk),
                 Some(geom::Surface::Plane { origin, normal, .. })
                     if (origin.z - z).abs() < 1e-9 && normal.z.abs() > 0.5
             )
@@ -1123,9 +1123,9 @@ fn a_puck_and_its_rounding_ring_build_as_a_seam() {
         let b = &bb.body;
         let closed: Vec<_> = b
             .edges()
-            .filter_map(|(_, e)| {
-                let v = b.get_half_edge(e.he_plus)?.start;
-                (b.get_half_edge(e.he_minus)?.start == v).then_some(v)
+            .filter_map(|(k, _)| {
+                let (v, w) = b.edge_vertices(k)?;
+                (v == w).then_some(v)
             })
             .collect();
         assert!(!closed.is_empty(), "{label}: a closed edge");

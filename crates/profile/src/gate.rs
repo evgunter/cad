@@ -32,7 +32,7 @@ const LEG_LENGTH_LEVER: &str = "author a longer leg";
 /// The lever of an undecided declared seam arrival: the declaration
 /// rides the target, so the geometry is what moves.
 const SEAM_ARRIVAL_LEVER: &str =
-    "move the geometry so the two directions agree (the declaration is the target)";
+    geom_core::move_lever!("so the two directions agree (the declaration is the target)");
 
 /// Declares [`Gate`] from one table, so each gate's name, ending and
 /// subject are written once, side by side, and [`Gate::ALL`] holds every
@@ -130,8 +130,8 @@ gates! {
     FilletCornerTurn => "fillet_corner_turn", Sized(FILLET_TURN_INBAND_RECOURSE), FILLET_CORNER_SUBJECT;
     /// The offset radius rho = R - sigma tau r of a leg's carrier, whose sign says whether the fillet swallows it.
     FilletEnclosingCarrier => "fillet_enclosing_carrier", Sized(FILLET_ENCLOSING_RECOURSE), FILLET_CORNER_SUBJECT;
-    /// A leg's length less the fillet's setback on it, at the exact-order band.
-    FilletLegFit => "fillet_leg_fit", Lever(FILLET_FIT_RECOURSE), FILLET_CORNER_SUBJECT;
+    /// A leg's length less the fillet's setback on it — the run the fillet leaves on that leg — at the run's linear band.
+    FilletLegFit => "fillet_leg_fit", Sized(FILLET_FIT_RECOURSE), FILLET_CORNER_SUBJECT;
     /// A tangent point's setback along its leg's carrier, at the exact-order band.
     FilletLegReach => "fillet_leg_reach", Lever(FILLET_NO_CORNER_RECOURSE), FILLET_CORNER_SUBJECT;
     /// Whether two offset circles meet from outside.
@@ -186,8 +186,6 @@ gates! {
     PathArcThroughPointResolution => "path_arc_through_point_resolution", Lever(ARC_SCENE_RESOLUTION_RECOURSE), "whether an arc's miss of its through-point is a defect the scene resolves";
     /// A via point's lateral offset from the chord it bulges.
     PathArcViaOffset => "path_arc_via_offset", Sized(COINCIDENCE_RECOURSE), "whether a via point lies off the chord it bulges";
-    /// Two arc carriers told apart by their centre separation plus their radius difference.
-    PathCarrierIdentity => "path_carrier_identity", Sized(COINCIDENCE_RECOURSE), "whether two arc carriers are one circle";
     /// Whether a ray and a circle meet at all: the circle's radius against the ray's perpendicular distance from its centre.
     PathCarrierMeet => "path_carrier_meet", Sized(COINCIDENCE_RECOURSE), "whether a ray meets a circle";
     /// A circle's radius metered against zero.
@@ -305,6 +303,23 @@ pub(crate) fn decide<T: Decide>(
     band: Band,
 ) -> Result<Sign, Escalation> {
     gate.read(|name| geom_core::k_stats::decide(name, margin, band))
+}
+
+/// [`geom_core::k_stats::decide_passing`] under `gate`'s name.
+pub(crate) fn decide_passing<T: Decide>(
+    gate: Gate,
+    margin: Margin<T>,
+    band: Band,
+    passes: geom_core::SizedPass,
+) -> Result<Sign, Escalation> {
+    gate.read(|name| geom_core::k_stats::decide_passing(name, margin, band, passes))
+}
+
+/// [`geom_core::k_stats::prove`] under `gate`'s name: a proof's
+/// inequality read exactly (the exact-order band, validate module docs),
+/// with no `Band` parameter to pass a wider one by mistake.
+pub(crate) fn prove<T: Decide>(gate: Gate, margin: Margin<T>) -> Result<Sign, Escalation> {
+    gate.read(|name| geom_core::k_stats::prove(name, margin))
 }
 
 /// [`geom_core::k_stats::decide_reported`] under `gate`'s name.

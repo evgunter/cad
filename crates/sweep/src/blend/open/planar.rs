@@ -1,8 +1,8 @@
 //! **The planar open band** — the blank phase: a plane–plane link
 //! carved LOCALLY on its two support faces, each of its two ends a
-//! trivalent vertex of one convexity whose edges the request names
-//! all — the corner patch, the fillet's sphere octant or the
-//! chamfer's flat patch through the three trimline feet
+//! trivalent vertex whose edges the request names all — the corner
+//! patch, at a vertex of one convexity, the fillet's sphere octant or
+//! the chamfer's flat patch through the three trimline feet
 //! ([`corner_plan`]) — two: the mitre where the two bands meet
 //! ([`turn_plan`]) — or one: the cut-off in the plane end face
 //! ([`cut_off_plan`], [`super::end_face`]).
@@ -90,7 +90,7 @@ pub(in crate::blend) struct Corner<'a, T: Real> {
     /// **Any one incident link answers for all of them**, and what
     /// makes that sound is the BATTERY, not this module's door: a
     /// termination reaches the carve only through predicate 6, which
-    /// runs at every open chain's two ends and admits a trihedron
+    /// runs at every open chain's two ends and admits a corner patch
     /// only where its three edges carry ONE convexity. So the three
     /// links here cannot disagree — on either side of the material.
     pub(in crate::blend) convexity: Convexity,
@@ -147,7 +147,7 @@ pub(in crate::blend) fn corner_plan<'a, T: Decide + Bounds>(
             .vec();
     }
     // Any one incident link answers for all of them (`Corner`'s field
-    // doc): the battery's corner predicate admits a termination only
+    // doc): the battery's corner predicate admits a corner patch only
     // where all three of its edges carry one convexity.
     let convexity = links.first().convexity();
     let (arc, feet, surface) = match kind {
@@ -224,7 +224,7 @@ fn chamfer_feet<T: Decide + Bounds>(
                 let l = o.link();
                 let (trim, _) = l.trim_on(face)?;
                 match trim.as_line() {
-                    Some(geom::Line { origin, dir }) => Some(Ok((origin, dir))),
+                    Some(line) => Some(Ok(line)),
                     None => Some(Err(unbuilt_geometry(
                         EntityId::Edge(l.edge),
                         "a chamfer strip's trimline is not a line",
@@ -237,13 +237,12 @@ fn chamfer_feet<T: Decide + Bounds>(
                 "a corner's support does not carry two requested edges",
             ));
         };
-        let (o1, d1) = first?;
-        let (o2, d2) = second?;
+        let (a, b) = (first?, second?);
         // Both trimlines lie in this support, so their cross product
         // is the support's own normal up to a nonzero scale — and
         // `line_meet`'s ratio is invariant under that scale, so no
         // second reading of the face's stored plane is needed.
-        feet[slot] = line_meet(o1, d1, o2, d2, d1.cross(d2));
+        feet[slot] = line_meet(a, b, a.dir.cross(b.dir));
     }
     Ok(feet)
 }
@@ -330,8 +329,11 @@ pub(in crate::blend) fn cut_off_plan<'a, T: Decide + Bounds>(
     section: EndSection<T>,
 ) -> Result<CutOffPlan<'a, T>, BlendError> {
     let l = link.link();
-    let (q_a, along) = open_trimline(l, l.face_a)?;
-    let (q_b, _) = open_trimline(l, l.face_b)?;
+    let geom::Line {
+        origin: q_a,
+        dir: along,
+    } = open_trimline(l, l.face_a)?;
+    let q_b = open_trimline(l, l.face_b)?.origin;
     let end = EndCut::plan(
         body,
         vertex,
@@ -558,8 +560,7 @@ pub(in crate::blend) fn blank_phase<T: Decide + Bounds + topo::AtRestPolicy>(
                     .ok_or_else(|| {
                         disagrees(EntityId::Edge(edge), "a support's chord is no open link")
                     })?;
-                let (origin, dir) = open_trimline(l, face)?;
-                Ok(ContactCarrier::TrimLine(geom::Line { origin, dir }))
+                Ok(ContactCarrier::TrimLine(open_trimline(l, face)?))
             }
             BlendKind::Chamfer => Ok(ContactCarrier::Chord),
         }

@@ -26,7 +26,7 @@
 //! witness.
 //!
 //! The fitted carriers are not kept: no reader carries a spline pair's
-//! section ([`UNCARRIED`]).
+//! section ([`super::NoCarrier::SplinePairWhole`]).
 //!
 //! A refusal maps by name, as the plane × spline lane's does
 //! (`pair_section::whole_reading_refused`, the one classification): a
@@ -147,16 +147,6 @@ impl<T: Real> SplinePairPose<T> {
     }
 }
 
-/// **Why a spline pair's component has no carrier to carry**: the
-/// section is read whole for the section certificate alone.
-pub(super) const UNCARRIED: &str = "a spline pair's section is read whole for the section \
-    certificate alone, which carries none of its components";
-
-/// The note a region's component carries.
-const REGION: &str = "a Side or Corner region of a handed-in row or corner: the section there \
-                      is the row, or leaves the domain at the corner, and no carrier is minted \
-                      for it";
-
 /// **The pair's classification**: the march door's arm, with the rows
 /// and corners handed in.
 ///
@@ -256,6 +246,13 @@ fn listed(
                 let [ta, tb] = on(to);
                 open([fa.or(ta), fb.or(tb)])
             }
+            BranchEnd::Node { .. } => {
+                return Err(SectionError::Unaccounted {
+                    cause: "a branch of the spline pair's reading ended at a node, which the \
+                            pair's reading hands no march"
+                        .to_owned(),
+                });
+            }
             BranchEnd::Cut => {
                 return Err(SectionError::Unaccounted {
                     cause: "a branch of the spline pair's reading ended off both rectangles, \
@@ -270,7 +267,7 @@ fn listed(
             winds: [false, false],
             witness: witness.map(|(q, _)| q),
             pad: witness.map_or(0.0, |(_, pad)| pad),
-            carrier: ClassCarrier::Unminted(UNCARRIED),
+            carrier: ClassCarrier::Unminted(super::NoCarrier::SplinePairWhole),
             cut_ends: None,
         });
     }
@@ -284,7 +281,7 @@ fn listed(
             winds: [false, false],
             witness: None,
             pad: 0.0,
-            carrier: ClassCarrier::Unminted(REGION),
+            carrier: ClassCarrier::Unminted(super::NoCarrier::RowRegion),
             cut_ends: None,
         }
     }));

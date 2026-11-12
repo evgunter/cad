@@ -116,7 +116,7 @@ fn the_chamfered_cavity() {
 /// stored sense bit — read, never sampled.
 fn outward(body: &Body<f64>, face: topo::FaceKey) -> Vec3<f64> {
     let f = body.get_face(face).expect("a minted face");
-    let Some(Surface::Plane { normal, .. }) = body.get_surface(f.surface) else {
+    let Some(Surface::Plane { normal, .. }) = body.face_surface(face) else {
         panic!("every face this carve mints is a plane");
     };
     OutwardNormal::from_chart(*normal, f.sense).vec()
@@ -124,8 +124,7 @@ fn outward(body: &Body<f64>, face: topo::FaceKey) -> Vec3<f64> {
 
 /// A point on a face's carrier plane.
 fn plane_origin(body: &Body<f64>, face: topo::FaceKey) -> Point3<f64> {
-    let f = body.get_face(face).expect("a minted face");
-    let Some(Surface::Plane { origin, .. }) = body.get_surface(f.surface) else {
+    let Some(Surface::Plane { origin, .. }) = body.face_surface(face) else {
         panic!("every face this carve mints is a plane");
     };
     *origin
@@ -200,9 +199,7 @@ fn every_minted_face_of_a_concave_carve_faces_the_void() {
 /// the chamfer's widening did not move. The convexity-parametric
 /// fillet corner then moved it deliberately: the concave rolling
 /// ball's own carve, census, volume and orientation rows live in the
-/// concave-fillet suite, and the corner recourse's followability —
-/// now shipped only at genuinely MIXED corners — is pinned there on
-/// both of its clauses. What this row keeps is the two verbs' shared
+/// concave-fillet suite. What this row keeps is the two verbs' shared
 /// half: one fixture, both verbs, both carve.
 #[test]
 fn both_verbs_carve_the_cavity_the_fillet_once_refused() {

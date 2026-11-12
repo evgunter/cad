@@ -244,14 +244,13 @@ pub enum MassPropsError {
         source: PropsError,
     },
     /// A curved face carries interior rings and is neither a cone wall,
-    /// a cylinder wall (its closed form and its quadrature both read
-    /// every loop: `geom_brep::props::curved_face_loops`,
+    /// a cylinder wall nor a sphere face (each one's closed form and its
+    /// quadrature read every loop: `geom_brep::props::curved_face_loops`,
     /// `geom_brep::props::quad::rotational_cut_face_rounds`), nor a torus wall
     /// bounded by rims and rulings, nor a torus wall any of whose loops
     /// carries a spiric (the spiric lane reads every loop,
-    /// `geom_brep::props::spiric::rim_face_rounds`), nor a sphere face
-    /// bounded by circles. A boolean pierce leaves a ring in the wall it
-    /// pierces.
+    /// `geom_brep::props::spiric::rim_face_rounds`). A boolean pierce
+    /// leaves a ring in the wall it pierces.
     RingOnCurvedFace {
         /// The offending face.
         face: FaceKey,
@@ -629,6 +628,7 @@ fn round_hook<T: Decide>(
 ) -> impl Fn(
     &Body<T>,
     &Surface<T>,
+    bool,
     &[FlatLoop<T>],
     Band,
     Tol,
@@ -638,7 +638,7 @@ fn round_hook<T: Decide>(
 ) -> Result<Option<LaneRun>, PropsError>
 + Sync
 + Copy {
-    move |body, surface, loops, band, tol, window, about: Point3<T>, resolution| match quad {
+    move |body, surface, sense, loops, band, tol, window, about: Point3<T>, resolution| match quad {
         Some(lane) => {
             let about = Point3::new(
                 (lane.lift)(about.x),
@@ -648,6 +648,7 @@ fn round_hook<T: Decide>(
             (lane.cut_face_rounds)(
                 body,
                 surface,
+                sense,
                 loops,
                 band,
                 tol,
@@ -1207,27 +1208,7 @@ impl<T: Real> MassProperties<T> {
     }
 }
 
-/// The predicate names a role read decides under: the bracket's high
-/// end (and an exact volume) under `high`, its low end under `low`.
-#[derive(Clone, Copy, Debug)]
-pub struct RoleNames {
-    /// The name the high end, and an exact volume, are decided under.
-    pub high: &'static str,
-    /// The name the low end is decided under.
-    pub low: &'static str,
-}
-
-impl RoleNames {
-    /// One name for both ends — every decision but check 7's, which keeps
-    /// its two historical names.
-    #[must_use]
-    pub const fn one(name: &'static str) -> Self {
-        Self {
-            high: name,
-            low: name,
-        }
-    }
-}
+pub use crate::rows::RoleNames;
 
 /// A role read that decided no role: the two ends' decisions (one and
 /// the same for an exact volume).
@@ -1277,7 +1258,7 @@ impl RoleUnread {
 /// a certified enclosure on one side of zero is that role however thin
 /// the body. The margins it records are the volume's own.
 pub(crate) fn read_sign<U: Decide>(reading: SignReading<U>, names: RoleNames) -> RoleRead {
-    let sign = |name, volume| {
+    let sign_as = |name, volume| {
         crate::validate::decide_reported(name, Margin::sign_of(volume), Band::enclosure_sign())
     };
     let role_at = |end, decided: Result<Decided, Indeterminate>| {
@@ -1291,18 +1272,18 @@ pub(crate) fn read_sign<U: Decide>(reading: SignReading<U>, names: RoleNames) ->
     };
     match reading {
         SignReading::Exact { volume, .. } => {
-            let one = sign(names.high, volume);
+            let one = sign_as(names.high(), volume);
             read(
                 role_at(BracketEnd::Low, one).or_else(|| role_at(BracketEnd::High, one)),
                 RoleUnread { lo: one, hi: one },
             )
         }
         SignReading::Bracket(ends) => {
-            let hi = sign(names.high, ends.volume_hi);
+            let hi = sign_as(names.high(), ends.volume_hi);
             if let Some(role) = role_at(BracketEnd::High, hi) {
                 return RoleRead::Decided(role);
             }
-            let lo = sign(names.low, ends.volume_lo);
+            let lo = sign_as(names.low(), ends.volume_lo);
             read(role_at(BracketEnd::Low, lo), RoleUnread { lo, hi })
         }
     }
@@ -1722,6 +1703,7 @@ fn rederive_faces<T: Decide>(
                     (lane.cut_face_rounds)(
                         body,
                         surface,
+                        face.record().sense,
                         &flat,
                         band,
                         tol,
@@ -2322,6 +2304,7 @@ pub(crate) fn mass_properties_closed_form_of<T: Decide>(
 type QuadHook<'h, T> = dyn Fn(
         &Body<T>,
         &Surface<T>,
+        bool,
         &[FlatLoop<T>],
         Band,
         Tol,
@@ -2488,7 +2471,7 @@ mod face_walk_composition_tests {
     }
 
     /// A detached run that records exactly one verdict, under `name`.
-    fn one_verdict(name: &'static str) -> Detached {
+    fn one_verdict_as(name: &'static str) -> Detached {
         detached(|| {
             let _ = crate::validate::decide(name, Margin::of(1.0f64), band());
         })
@@ -2514,12 +2497,12 @@ mod face_walk_composition_tests {
 
     /// The slots, with a hard refusal at `refuse_at` when one is asked
     /// for; every slot carries a recording naming itself.
-    fn slots(names: &[&'static str], refuse_at: Option<usize>) -> Vec<FaceDecision<f64>> {
+    fn slots_as(names: &[&'static str], refuse_at: Option<usize>) -> Vec<FaceDecision<f64>> {
         names
             .iter()
             .enumerate()
             .map(|(i, &name)| {
-                let recording = one_verdict(name);
+                let recording = one_verdict_as(name);
                 let run = if refuse_at == Some(i) {
                     Err(MassPropsError::Corrupt {
                         what: "the injected refusal",
@@ -2662,7 +2645,7 @@ mod face_walk_composition_tests {
 
     #[test]
     fn every_recording_splices_in_arena_order_when_no_face_refuses() {
-        let decided = slots(&NAMES, None);
+        let decided = slots_as(&NAMES, None);
         let bracket = Bracket::open();
         let runs = splice_in_arena_order(decided).expect("no face refused");
         let log = bracket.finish();
@@ -2737,7 +2720,7 @@ mod face_walk_composition_tests {
 
     #[test]
     fn the_refusing_faces_recording_splices_and_every_later_one_is_dropped() {
-        let decided = slots(&NAMES, Some(2));
+        let decided = slots_as(&NAMES, Some(2));
         let bracket = Bracket::open();
         let err = match splice_in_arena_order(decided) {
             Err(err) => err,
@@ -4556,7 +4539,7 @@ fn far_from(
     let curved = every.iter().any(|(_, plane)| plane.is_none());
     let (mut near, mut extent) = (f64::INFINITY, 0.0_f64);
     for (e, plane) in every {
-        let mid = (e.t0 + e.t1) * Interval::from_f64(0.5);
+        let mid = geom::mid_param(e.t0, e.t1);
         for t in [e.t0, mid, e.t1] {
             let p = e.carrier.eval(t);
             let (to_c, to_g) = (lever(p, c, *plane).lo(), lever(p, c_g, *plane).hi());
@@ -5133,41 +5116,34 @@ fn face_flux_about<T: Decide>(
             closed_form_about(surface, &loops, &held, face.sense(), band, about).map_err(wrap)?
         }
         _ => {
-            let trimmed = loops
-                .iter()
-                .flat_map(|(edges, _)| edges)
-                .any(|e| trims(&e.carrier));
             // Which lanes read a ring: the cone's closed form (every
-            // loop's vector area, whatever trims it), the cylinder's
-            // closed form and quadrature alike (each a Green form summed
-            // over every loop), and the torus's closed form over rims
-            // and rulings, the sphere's over circles (Gauss–Bonnet over
-            // every loop), and the spiric lane every loop of a
-            // spiric-bounded plane or torus wall: on a wall, every loop's
-            // spirics, rims and meridians, each ring wound against the
-            // face, and any other edge refuses typed in that lane. No
-            // other kind reads one.
-            let spiric = loops
-                .iter()
-                .flat_map(|(edges, _)| edges)
-                .any(|e| matches!(e.carrier, geom::Curve3::Spiric { .. }));
+            // loop's vector area, whatever trims it), the cylinder's, the
+            // sphere's and the torus's closed forms and quadrature alike
+            // (each a Green form, or Gauss–Bonnet, summed over every
+            // loop), and the spiric lane every loop of a spiric-bounded
+            // plane cap. No other kind reads one.
             let reads_rings = match surface {
                 // A plane reaches this arm only bounded by a spiric or a
                 // rational spline rim, and the plane cap reads every loop
                 // of its face.
-                Surface::Cone { .. } | Surface::Cylinder { .. } | Surface::Plane { .. } => true,
-                Surface::Torus { .. } => !trimmed || spiric,
-                Surface::Sphere { .. } => !trimmed,
+                Surface::Cone { .. }
+                | Surface::Cylinder { .. }
+                | Surface::Plane { .. }
+                | Surface::Sphere { .. }
+                | Surface::Torus { .. } => true,
                 _ => false,
             };
             if loops.len() > 1 && !reads_rings {
                 return Err(MassPropsError::RingOnCurvedFace { face: face_key });
             }
-            // The S10 sense bit does not enter the quadrature lane: its
-            // Green form is winding-derived end to end (the signed UV area
-            // IS s_f·|Ω| through the stored loop traversal). An
-            // approximating face takes it as its fit's flux, the geometry
-            // the face carries.
+            // The S10 sense bit enters the quadrature lane on the sphere
+            // and the torus alone: a cylinder's or a plane's Green form is
+            // winding-derived end to end (the signed UV area IS s_f·|Ω|
+            // through the stored loop traversal), while a loop on a closed
+            // chart bounds a face on each side and the rotational lane
+            // reads the bit to say which (`quad_lane::cut_face_lane`),
+            // with no cross-check against the boundary. An approximating face
+            // takes it as its fit's flux, the geometry the face carries.
             let quad_out = if takes_quadrature(
                 surface,
                 loops
@@ -5175,7 +5151,18 @@ fn face_flux_about<T: Decide>(
                     .flat_map(|(edges, _)| edges)
                     .map(|e| &e.carrier),
             ) {
-                quad(body, surface, &loops, band, tol, window, about, resolution).map_err(wrap)?
+                quad(
+                    body,
+                    surface,
+                    face.sense(),
+                    &loops,
+                    band,
+                    tol,
+                    window,
+                    about,
+                    resolution,
+                )
+                .map_err(wrap)?
             } else {
                 None
             };
@@ -5631,7 +5618,7 @@ pub enum ShellClassifyError {
 /// definite gap. One decision and one lever, at rest and at a boolean's
 /// door alike (`BooleanDecision::ShellRole`).
 pub const AIMED_PAIR: SizedDecision = SizedDecision {
-    lever: "move the geometry so the two faces the aimed ray met are clearly apart",
+    lever: geom_core::move_lever!("so the two faces the aimed ray met are clearly apart"),
     size: "gap",
     passes: SizedPass::Positive,
     side: RefusedSide::Lever,
@@ -6337,6 +6324,7 @@ pub struct QuadLane<T: Decide> {
     cut_face_rounds: fn(
         &Body<T>,
         &Surface<T>,
+        bool,
         &[FlatLoop<T>],
         Band,
         Tol,
@@ -6476,7 +6464,7 @@ mod wiring_rows {
     -> Result<(), &'static str> {
         if !std::ptr::fn_addr_eq(
             QuadLane::<T>::certified().cut_face_rounds,
-            quad_lane::cut_face_rounds::<T> as fn(_, _, _, _, _, _, _, _) -> _,
+            quad_lane::cut_face_rounds::<T> as fn(_, _, _, _, _, _, _, _, _) -> _,
         ) {
             return Err("cut_face_rounds is not `quad_lane::cut_face_rounds`");
         }
@@ -6851,7 +6839,7 @@ pub trait AtRestPolicy: Decide {
     /// the general rung through it ([`geom_brep::PairSection::carry`]).
     /// The ℝ³ march is written at `f64` alone, so that arm answers
     /// `Some`; a join whose germs ride such a section refuses at any
-    /// other scalar by name ([`geom_brep::CarryError::NoLane`]).
+    /// other scalar by name ([`geom_brep::CarryRefusal::NoLane`]).
     fn ssi_lane() -> Option<geom_brep::SsiLane<Self>>;
 
     /// **This scalar's shell door, or `None` where it may not form the
@@ -8392,6 +8380,7 @@ mod shell_role_refusal_tests {
         let diag = |margin| Indeterminate {
             margin,
             band,
+            // UNDECIDED-NAME: the bracket's cause read at each decided end
             predicate: Some("chk_shell_volume_sign"),
             terminal_sliver: false,
         };

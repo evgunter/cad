@@ -2,10 +2,13 @@
 id: a-football-revolved-part-way-refuses-at-its-cap-meridians-certificate
 kind: issue
 title: A football revolved part way refuses at the meridian a cap meets the sheet on: the edge ends at both apexes, where Meters::Spindle's lever is not positive
-status: open
+status: closed
 opened: 2026-11-04
 priority: P1
 cost: M
+branch: spiricarm/spindle-partway
+closed: 2026-11-10
+pr: 6521
 ---
 
 
@@ -28,9 +31,9 @@ edge that reaches an apex has no positive lever anywhere near it.
 
 The full revolve does not mint such an edge between a plane and a sheet
 (its meridians are sheet-sheet `Chart` edges), so it builds; a partial
-revolve does. Pinned typed by
+revolve does. The lune is now
 `crates/sweep/tests/the_football_revolves.rs`
-`a_football_revolved_part_way_refuses_typed` (lemon and apple, θ = 2).
+`a_football_revolved_part_way_is_its_lune`.
 
 The message reads as a kernel defect ("an Euler operation refused")
 rather than a lane not written.
@@ -46,3 +49,13 @@ cusp, revolved part way, refuses `RevolveError::Op` (a stated interval
 decided zero) rather than as the pinch the full revolve names
 (`NonManifoldAxisContact`); `crates/sweep/tests/one_segment_loop.rs`
 `a_one_segment_circle_on_or_against_the_axis_refuses` pins it.
+
+## Dispatched (2026-11-04)
+
+Branch `spiricarm/spindle-partway`. Review tier: **single FULL review**. It changes an edge certificate near an apex: a wrong lever certifies an edge off its sheet, and believing the fix takes more than reading it, though it is narrower than a stage. Look first at the precedent: how a cone's partial revolve certifies the meridian that ends at its apex (`Meters`' cone arm, `apex_root`). Ask whether the sheet's apex wants the same treatment.
+
+Every new or changed guard ships with a row, or a seeded fuzz, that goes red when its load-bearing check is removed (the stage 1 and stage 2 reviews). A wrong-X witness must reach the gate it names.
+
+## Closed (2026-11-10)
+
+PR 6521. A football revolved part way builds as its lune: lemon, apple, a slim lemon, the near-sphere R = ±0.01 (by apex grading), past a half turn, and both θ signs. Each meshes watertight, passes tier 3, and meets θ/2π of the closed form plus the caps. The edge at an apex reads its distance from the nearer apex. A horn's one-segment part-way pinch refuses `NonManifoldAxisContact`. Residue: `a-horns-cusp-revolved-part-way-refuses-at-its-cap-meridians-certificate` (P1) and `limb-2s-floor-on-a-sheet-reads-the-whole-torus` (P3).

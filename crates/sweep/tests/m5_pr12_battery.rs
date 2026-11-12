@@ -18,8 +18,8 @@ use profile::{Profile, SketchPlane, test_support::bulge_loop};
 use sweep::ExtrudeSide;
 use sweep::blend::arms::BlendArm;
 use sweep::blend::battery::{BlendRequest, ChainClosure, Convexity, run_battery};
-use sweep::blend::{BlendError, CornerConfig, RunOutPolicy};
-use sweep::test_support::{ball_poled_y, block, dome, one_edge_rim_at, realized};
+use sweep::blend::{BlendError, CornerConfig};
+use sweep::test_support::{ball_poled_y, block, circle_arcs_at_z, disc_of_arcs, realized};
 use sweep::{Extrusion, extrude};
 use topo::boolean::BooleanOp;
 use topo::query::{self, SurfaceKindSet};
@@ -163,17 +163,21 @@ fn the_battery_passes_on_a_pip_rim_as_a_closed_chain() {
 // Predicate 1 — fillet3_radius_headroom.
 // ---------------------------------------------------------------------
 
-/// A dome of radius 0.5 cannot host a rolling ball of radius 0.9 on
-/// its equator: the ball rolls INSIDE the sphere there (a convex rim on
-/// a convex sphere), so `κ = 1/0.5` leaves `(1 − 0.9/0.5)·0.9 < 0` of
-/// headroom. The refusal names the SPHERE support face and arrives with
-/// no surface minted.
+/// A disc of radius 0.5 cannot host a rolling ball of radius 0.9 on
+/// its base rim: the ball rolls INSIDE the cylinder there (a convex
+/// rim on a convex wall), so `κ = 1/0.5` leaves `(1 − 0.9/0.5)·0.9 < 0`
+/// of headroom. The refusal names the CYLINDER support face and
+/// arrives with no surface minted. (A plane–sphere rim with the ball
+/// inside the sphere does not witness it: on the plane through the
+/// centre the ball has no room past half the radius, and on a plane at
+/// distance `d` from the centre its room `R − r − |d ± r|` is at most
+/// `|d| − R < 0` once `r ≥ R`, so `fillet3_ball_room` answers first.)
 #[test]
 fn p1_radius_headroom_refuses_on_a_ball_tighter_than_the_blend() {
-    let body = dome(0.5, Tol::witness());
+    let body = disc_of_arcs(2, 0.5, 1.0, Tol::witness());
     let req = BlendRequest {
         body: &body,
-        edges: vec![one_edge_rim_at(&body, 0.5, 0.0)],
+        edges: circle_arcs_at_z(&body, 0.0),
         size: 0.9,
     };
     match run_battery(&req, band()) {
@@ -185,8 +189,8 @@ fn p1_radius_headroom_refuses_on_a_ball_tighter_than_the_blend() {
             assert_eq!(margin.predicate, "fillet3_radius_headroom");
             assert_eq!(
                 query::face_surface_kind(&body, face),
-                Some(SurfaceKind::Sphere),
-                "the sphere's curvature ran out"
+                Some(SurfaceKind::Cylinder),
+                "the cylinder's curvature ran out"
             );
             let m = margin
                 .reading
@@ -334,8 +338,8 @@ fn p4_chain_g1_refuses_at_a_cornered_junction() {
     let body = block::<f64>(1.0, 1.0, 1.0, Tol::witness());
     let bottom = body
         .faces()
-        .find(|(_, f)| {
-            matches!(body.get_surface(f.surface), Some(geom::Surface::Plane { normal, .. })
+        .find(|(fk, _)| {
+            matches!(body.face_surface(*fk), Some(geom::Surface::Plane { normal, .. })
                 if normal.z.abs() > 0.9)
         })
         .map(|(k, _)| k)
@@ -367,9 +371,7 @@ fn p4_chain_g1_refuses_at_a_cornered_junction() {
         .into_iter()
         .find(|&e| {
             let ed = round.get_edge(e).unwrap();
-            let he = ed.he_plus;
-            let s = round.get_half_edge(he).unwrap().start;
-            let t = round.half_edge_end(he).unwrap();
+            let (s, t) = round.edge_vertices(e).unwrap();
             let z = |v| {
                 round
                     .get_point(round.get_vertex(v).unwrap().point)
@@ -455,13 +457,6 @@ fn p5_convexity_sign_flip_refuses_across_the_notch() {
                 Convexity::Convex => convex += 1,
                 Convexity::Concave => concave += 1,
             },
-            // A concave vertical edge terminates at vertices whose
-            // corner is mixed-convexity — a predicate-6 refusal that
-            // still proves the sign was read.
-            Err(BlendError::UnsupportedCorner {
-                corner: CornerConfig::MixedConvexity { .. },
-                ..
-            }) => concave += 1,
             other => panic!("unexpected: {other:?}"),
         }
     }
@@ -476,36 +471,38 @@ fn p5_convexity_sign_flip_refuses_across_the_notch() {
 // Predicate 6 — fillet3_corner_independence, and the OQ6 vocabulary.
 // ---------------------------------------------------------------------
 
-/// The notch's reflex vertical edge terminates at vertices where two
-/// convex edges meet one concave one: `MixedConvexity { convex: 2 }`,
-/// and the policy that would handle it is `RunOutFeather` (a corner
-/// patch cannot help when the ball changes sides).
+/// The notch's reflex vertical edge ends at vertices where two convex
+/// edges meet it, the odd one. Requested with one of those convex edges
+/// it refuses `MixedConvexity { convex: 2 }`, naming no run-out policy:
+/// the mixed corner's own rule is not built.
 #[test]
-fn p6_mixed_convexity_corner_refuses_naming_the_feather_policy() {
+fn p6_mixed_convexity_corner_refuses_the_odd_edge_with_another() {
     let body = notched();
-    let reflex = body
-        .edges()
-        .filter_map(|(k, e)| {
-            let c = body.get_curve_geom(e.curve)?.certified()?;
-            let (t0, t1) = c.params();
-            let d = c.carrier().eval(t1) - c.carrier().eval(t0);
-            (d.z.abs() > 0.9 * d.norm()).then_some(k)
-        })
-        .find(|k| {
-            let req = BlendRequest {
-                body: &body,
-                edges: vec![*k],
-                size: 0.1,
-            };
-            matches!(
-                run_battery(&req, band()),
-                Err(BlendError::UnsupportedCorner { .. })
-            )
-        })
-        .expect("the reflex edge");
+    let point = |v| *body.get_point(body.get_vertex(v).unwrap().point).unwrap();
+    let ends = |k: EdgeKey| {
+        let he = body.get_edge(k).unwrap().he_plus;
+        [
+            point(body.get_half_edge(he).unwrap().start),
+            point(body.half_edge_end(he).unwrap()),
+        ]
+    };
+    let at = |p: geom_core::Point3<f64>, q: [f64; 3]| {
+        (p.x - q[0]).abs() + (p.y - q[1]).abs() + (p.z - q[2]).abs() < 1e-12
+    };
+    let between = |a: [f64; 3], b: [f64; 3]| {
+        body.edges()
+            .map(|(k, _)| k)
+            .find(|&k| {
+                let [s, t] = ends(k);
+                (at(s, a) && at(t, b)) || (at(s, b) && at(t, a))
+            })
+            .unwrap_or_else(|| panic!("an edge between {a:?} and {b:?}"))
+    };
+    let reflex = between([1.0, 1.0, 0.0], [1.0, 1.0, 1.0]);
+    let rim = between([1.0, 1.0, 1.0], [2.0, 1.0, 1.0]);
     let req = BlendRequest {
         body: &body,
-        edges: vec![reflex],
+        edges: vec![reflex, rim],
         size: 0.1,
     };
     match run_battery(&req, band()) {
@@ -515,7 +512,7 @@ fn p6_mixed_convexity_corner_refuses_naming_the_feather_policy() {
             ..
         }) => {
             assert_eq!(convex, 2);
-            assert_eq!(policy, Some(RunOutPolicy::RunOutFeather));
+            assert_eq!(policy, None);
         }
         other => panic!("expected a mixed-convexity corner refusal, got {other:?}"),
     }

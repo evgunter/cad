@@ -2,7 +2,7 @@
 //! is to the pair algebra of [`super::sectors::pair_search`].
 //!
 //! A sector at a cone's apex is a fan of the cone's rulings between its
-//! bounds ([`super::sectors::BoolFace::Apex`]): an arc of a small circle
+//! bounds ([`crate::star::StarFace::Apex`]): an arc of a small circle
 //! on the sphere of directions, where a planar sector is an arc of a
 //! great circle. The pair algebra reads three things of a sector, and
 //! each has a fan arm here:
@@ -24,18 +24,19 @@
 //!
 //! The pair algebra is bound-coded: a sector's side of a partner face is
 //! read off its bounds, which holds where the side is monotone across
-//! the sector. [`super::sectors::build_sectors`] cuts every sector at
-//! its partner faces' extremes ([`super::sectors::Partners`]) so that
-//! it is.
+//! the sector. [`super::sectors::pair_sectors`] refines each vertex's
+//! star at its partner faces' extremes ([`crate::star::Star::refine`]) so
+//! that it is.
 
 use geom_core::{Band, Decide, Margin, Point3, Sign, UnitVec3, Vec3};
 
-use super::sectors::{BoolFace, BoolSector};
+use super::sectors::BoolSector;
 use super::{BooleanError, Coincide, DeclarationRead, Operand, SideCode};
 use crate::body::Body;
 use crate::bound_side::BoundSupport;
 use crate::entity::VertexKey;
 use crate::sector_face::ConeApex;
+use crate::star::StarFace;
 use crate::validate::decide;
 use geom_core::Lever;
 
@@ -46,7 +47,7 @@ use geom_core::Lever;
 /// every point of a line through the apex, so a ruling-shaped bound's
 /// far point reads it at its reach.
 pub(super) fn nappe_offset<T: Decide>(apex: &ConeApex<T>, like: Vec3<T>, q: Point3<T>) -> T {
-    let a = nappe_axis(apex, like);
+    let a = apex.nappe_axis(like);
     let (z, rho) = geom::Line {
         origin: apex.apex,
         dir: a,
@@ -54,12 +55,6 @@ pub(super) fn nappe_offset<T: Decide>(apex: &ConeApex<T>, like: Vec3<T>, q: Poin
     .height_and_distance(q);
     let (sin, cos) = apex.half_angle.sin_cos();
     geom_brep::implicit::cone_offset(rho, z, sin, cos)
-}
-
-/// The cone's unit axis turned toward the nappe `like` (a ruling the face
-/// leaves the apex along) lies on.
-pub(super) fn nappe_axis<T: Decide>(apex: &ConeApex<T>, like: Vec3<T>) -> Vec3<T> {
-    apex.axis * T::one().copysign(like.dot(apex.axis))
 }
 
 /// **A bound's side of a sector's face** at the base vertex: a plane's
@@ -87,10 +82,10 @@ pub(super) fn face_side_code<T: Decide>(
     band: Band,
 ) -> Result<SideCode, BooleanError> {
     let apex = match &other.at_vertex {
-        BoolFace::Tangent(_) => {
+        StarFace::Tangent(_) => {
             return super::sectors::sector_code(dir, reach, other, band);
         }
-        BoolFace::Apex(apex) => apex,
+        StarFace::Apex(apex) => apex,
     };
     let q = reach.point(apex.apex, dir);
     let offset = nappe_offset(apex, other.start, q);
@@ -126,7 +121,7 @@ pub(super) fn fan_within_signs<T: Decide>(
     // A direction on the cone leaves the apex `cos α` along its nappe's
     // axis, well clear of zero: the nappe it lies on is read at the
     // sector's arm.
-    let along = dir.normalize().dot(nappe_axis(apex, s.start));
+    let along = dir.normalize().dot(apex.nappe_axis(s.start));
     if decide("bool_fan_nappe", Margin::levered(along, s.arm), band).map_err(escalate)?
         != Sign::Positive
     {
@@ -145,10 +140,17 @@ pub(super) fn fan_within_signs<T: Decide>(
 /// [`super::sectors::pair_search`] reads them.
 #[derive(Clone, Debug)]
 pub(super) enum Meeting<T: geom_core::Real> {
-    /// The two faces are one carrier at the vertex: two planes parallel
-    /// at the shorter arm, or two fans of one cone's nappe. The pair goes
-    /// to the carrier ladder as a coincidence.
-    Coincident,
+    /// The two faces are one carrier at the vertex, as `Coincident` says
+    /// why: tangent planes parallel at the shorter arm, of a pair the glue
+    /// door glued or of a curved face, or two fans of one cone's nappe.
+    /// The pair goes to the coincidence lump (`recl`).
+    Coincident(Coincident),
+    /// Two plane faces the glue door did not glue, parallel at the
+    /// shorter arm: the tilt, decided Zero. Where the two sectors
+    /// overlap, the coplanar branch a lump would open, the corner
+    /// refuses on it ([`unglued_parallel`]); touching at the vertex
+    /// alone, they meet over no extent and the pair is no record.
+    Parallel(geom_core::Decided),
     /// They meet along these directions from the vertex, each a ray
     /// (none: they meet at the vertex alone). Two planes' line is both
     /// its rays.
@@ -160,11 +162,58 @@ pub(super) enum Meeting<T: geom_core::Real> {
 /// and the sector.
 pub(super) type Side<'a, T> = (Operand, Option<(&'a Body<T>, VertexKey)>, &'a BoolSector<T>);
 
+/// **Why a vertex pair's two faces are one coincidence**
+/// ([`Meeting::Coincident`]), which the coincidence lump reads rather than
+/// asking again.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) enum Coincident {
+    /// The glue door glued the pair one carrier: its relation, recorded.
+    Glued(super::PlaneRelation),
+    /// A curved face, or two fans of one cone, the door did not glue one
+    /// carrier: C8's frontier, named by the operand whose face it is.
+    Frontier(Operand),
+}
+
+/// **A sector pair with a fan of a cone's apex in it**: which side is the
+/// fan, its apex, and the other side's tangent plane's normal where it
+/// has one. [`Fan::of`] is `None` for two tangent planes.
+#[derive(Clone, Copy, Debug)]
+pub(super) enum Fan<'s, T: geom_core::Real> {
+    /// The first side is a fan, the second a tangent plane.
+    First(&'s ConeApex<T>, Vec3<T>),
+    /// The first side is a tangent plane, the second a fan.
+    Second(Vec3<T>, &'s ConeApex<T>),
+    /// Both sides are fans.
+    Both(&'s ConeApex<T>, &'s ConeApex<T>),
+}
+
+impl<'s, T: geom_core::Real> Fan<'s, T> {
+    /// The fan in `a` and `b`, where either is one.
+    pub(super) fn of(a: &'s BoolSector<T>, b: &'s BoolSector<T>) -> Option<Self> {
+        match (&a.at_vertex, &b.at_vertex) {
+            (StarFace::Apex(pa), StarFace::Tangent(nb)) => Some(Self::First(pa, nb.vec())),
+            (StarFace::Tangent(na), StarFace::Apex(pb)) => Some(Self::Second(na.vec(), pb)),
+            (StarFace::Apex(pa), StarFace::Apex(pb)) => Some(Self::Both(pa, pb)),
+            (StarFace::Tangent(_), StarFace::Tangent(_)) => None,
+        }
+    }
+}
+
 /// **Where the faces of `a` and `b` meet at the vertex they share**
 /// ([`Meeting`]).
 ///
-/// - Two planes: parallel at the shorter arm (`bool_faces_parallel`)
-///   is a coincidence; else their line, both rays.
+/// - Two faces' tangent planes: definitely tilted at the shorter arm
+///   (`bool_faces_parallel`), their line, both rays. Parallel there, a
+///   coincidence where the glue door glued the pair one carrier (`glued`,
+///   the relation it recorded) or a face is curved (whose unglued
+///   coincidence is the frontier's, C8); two plane faces the door did
+///   not glue are [`Meeting::Parallel`] on that reading, which refuses
+///   where their sectors overlap ([`unglued_parallel`]): an unglued Zero
+///   acts over no extent, and a coplanar lump speaks for both faces'
+///   whole spans. In band, two plane faces the door did not glue refuse
+///   on that reading ([`Coincide::CornerCrossing`]).
+/// - A fan ([`fan_meeting`]): one cone's fans glued one carrier read as
+///   the glue door recorded them.
 /// - A plane and a fan: the plane's section of the cone through its
 ///   apex (`chord_join::cone_apex_plane_section`, the section table's
 ///   cone arm, which the split's and the pierce's apex germs read), each
@@ -185,39 +234,93 @@ pub(super) type Side<'a, T> = (Operand, Option<(&'a Body<T>, VertexKey)>, &'a Bo
 pub(super) fn meeting<T: Decide>(
     (a_op, a_site, a): Side<'_, T>,
     (b_op, b_site, b): Side<'_, T>,
+    glued: Option<super::PlaneRelation>,
+    band: Band,
+) -> Result<Meeting<T>, BooleanError> {
+    use crate::bound_side::FaceShape;
+    use geom_core::k_stats::{Magnitude, decide_magnitude_reported};
+    if let Some(fan) = Fan::of(a, b) {
+        return Ok(
+            match fan_meeting((a_op, a_site, a), (b_op, b_site, b), fan, band)? {
+                Meeting::Coincident(by) => Meeting::Coincident(glued.map_or(by, Coincident::Glued)),
+                rays => rays,
+            },
+        );
+    }
+    let arm = a.arm.min(b.arm);
+    let int = a.tangent().vec().cross(b.tangent().vec());
+    let curved = [(a_op, a), (b_op, b)]
+        .into_iter()
+        .find(|(_, s)| s.bend.shape() != FaceShape::Plane)
+        .map(|(op, _)| op);
+    // Two plane faces no glue backs ask whether they cross at the corner.
+    let which = if glued.is_none() && curved.is_none() {
+        Coincide::CornerCrossing
+    } else {
+        Coincide::Sectors
+    };
+    let refuse = |diag| BooleanError::coincidence(which, DeclarationRead::Moot, diag);
+    // A norm levered by a minimum of chord norms: a magnitude.
+    let tilt = Margin::levered(int.norm(), arm);
+    match decide_magnitude_reported("bool_faces_parallel", tilt, band) {
+        Ok((Magnitude::Positive, _)) => Ok(Meeting::Rays(vec![int, -int])),
+        Ok((Magnitude::Zero, margin)) => match (glued, curved) {
+            (Some(relation), _) => Ok(Meeting::Coincident(Coincident::Glued(relation))),
+            (None, Some(op)) => Ok(Meeting::Coincident(Coincident::Frontier(op))),
+            (None, None) => Ok(Meeting::Parallel(geom_core::Decided {
+                sign: Sign::Zero,
+                margin,
+            })),
+        },
+        Err(diag) => Err(refuse(diag)),
+    }
+}
+
+/// **An unglued plane pair's corner, its sectors overlapping where the
+/// two faces read parallel at its arm** ([`Meeting::Parallel`]): it
+/// refuses on that tilt, `zero`, rejected by the question only a
+/// definite tilt passes ([`Coincide::CornerCrossing`]).
+pub(super) fn unglued_parallel(zero: geom_core::Decided, band: Band) -> BooleanError {
+    BooleanError::coincidence(
+        Coincide::CornerCrossing,
+        DeclarationRead::Moot,
+        geom_core::k_stats::gate_rejection(
+            "bool_faces_parallel",
+            zero,
+            band,
+            geom_core::SizedPass::Positive,
+        ),
+    )
+}
+
+/// **Where a fan of a cone's apex meets the other side's face at the
+/// vertex they share** ([`meeting`]'s fan arms, [`Fan`]): a plane's
+/// section of the cone, or two fans' common rulings, or one cone, a
+/// coincidence named by the first side, which the door did not glue.
+///
+/// # Errors
+///
+/// As [`meeting`].
+pub(super) fn fan_meeting<T: Decide>(
+    (a_op, a_site, a): Side<'_, T>,
+    (b_op, b_site, b): Side<'_, T>,
+    fan: Fan<'_, T>,
     band: Band,
 ) -> Result<Meeting<T>, BooleanError> {
     let arm = a.arm.min(b.arm);
     let escalate = |diag| BooleanError::coincidence(Coincide::Sectors, DeclarationRead::Moot, diag);
-    match (&a.at_vertex, &b.at_vertex) {
-        (BoolFace::Tangent(na), BoolFace::Tangent(nb)) => {
-            let int = na.vec().cross(nb.vec());
-            // A norm levered by a minimum of chord norms: a magnitude.
-            match geom_core::k_stats::decide_magnitude(
-                "bool_faces_parallel",
-                Margin::levered(int.norm(), arm),
-                band,
-            ) {
-                Ok(geom_core::k_stats::Magnitude::Zero) => Ok(Meeting::Coincident),
-                Ok(geom_core::k_stats::Magnitude::Positive) => Ok(Meeting::Rays(vec![int, -int])),
-                Err(diag) => Err(escalate(diag)),
-            }
-        }
-        (BoolFace::Apex(apex), BoolFace::Tangent(normal)) => {
-            plane_fan(((a_op, a_site, a), apex), normal.vec(), band)
-        }
-        (BoolFace::Tangent(normal), BoolFace::Apex(apex)) => {
-            plane_fan(((b_op, b_site, b), apex), normal.vec(), band)
-        }
-        (BoolFace::Apex(pa), BoolFace::Apex(pb)) => {
-            let (axa, axb) = (nappe_axis(pa, a.start), nappe_axis(pb, b.start));
+    match fan {
+        Fan::First(apex, normal) => plane_fan(((a_op, a_site, a), apex), normal, band),
+        Fan::Second(normal, apex) => plane_fan(((b_op, b_site, b), apex), normal, band),
+        Fan::Both(pa, pb) => {
+            let (axa, axb) = (pa.nappe_axis(a.start), pb.nappe_axis(b.start));
             let tangency = || BooleanError::CurvedBooleanUnsupported {
                 operand: a_op,
                 face: a.face,
                 kind: geom::SurfaceKind::Cone,
             };
             let apart = match one_cone((pa, axa), (pb, axb), arm, band)? {
-                Coaxial::OneCone => return Ok(Meeting::Coincident),
+                Coaxial::OneCone => return Ok(Meeting::Coincident(Coincident::Frontier(a_op))),
                 Coaxial::Other => return Ok(Meeting::Rays(Vec::new())),
                 Coaxial::Apart(s) => s,
             };
@@ -280,7 +383,7 @@ pub(super) enum Coaxial<T> {
 }
 
 /// **The one-cone ladder** for two fans at one apex, each read by its
-/// nappe's axis ([`nappe_axis`], the caller's): coaxial
+/// nappe's axis ([`ConeApex::nappe_axis`], the caller's): coaxial
 /// (`bool_fans_coaxial`, `‖a₁ × a₂‖` levered by `arm`), then on one nappe
 /// (`bool_fan_nappe`, `a₁·a₂`), then of one aperture (`bool_fans_one_cone`).
 /// The one home of the reading, which [`meeting`] and [`nappe_classes`]
@@ -519,7 +622,7 @@ pub(super) fn nappe_classes<T: Decide>(
             return Err(unbuilt(first.face));
         };
         let arm = first.arm.min(s.arm);
-        let axes = (nappe_axis(apex, first.start), nappe_axis(other, s.start));
+        let axes = (apex.nappe_axis(first.start), other.nappe_axis(s.start));
         let one = matches!(
             one_cone((apex, axes.0), (other, axes.1), arm, band)?,
             Coaxial::OneCone
@@ -583,7 +686,7 @@ mod rows {
                 start_reach: Reach::straight_bisector(unit),
                 end_reach: Reach::straight_bisector(unit),
                 face: FaceKey::from(key(2)),
-                at_vertex: BoolFace::Apex(apex),
+                at_vertex: StarFace::Apex(apex),
                 bend: crate::bound_side::FaceBend::Plane,
                 arm: unit,
             };
@@ -641,9 +744,98 @@ mod rows {
             start_reach: Reach::straight_bisector(arm),
             end_reach: Reach::straight_bisector(arm),
             face: FaceKey::from(key(face)),
-            at_vertex: BoolFace::Apex(apex),
+            at_vertex: StarFace::Apex(apex),
             bend: crate::bound_side::FaceBend::Plane,
             arm,
+        }
+    }
+
+    /// **A corner opens the coplanar branch only from a glued pair's
+    /// record** ([`meeting`]): two faces tilted `0.1·zero` over the 1 mm
+    /// arm read parallel there. Two planes the glue door glued meet as a
+    /// coincidence by their recorded relation; unglued, they are parallel
+    /// on that tilt, which refuses where their sectors overlap, rejected
+    /// by the question only a definite tilt passes
+    /// ([`Coincide::CornerCrossing`], [`unglued_parallel`]); a curved face's tangent plane is
+    /// the coincidence the frontier refuses (C8). Tilted `1.2·zero`, in
+    /// band, an unglued plane pair refuses on that reading under the same
+    /// question, offering the tolerance that decides it. Tilted past the
+    /// band, every pair meets along a line.
+    #[test]
+    fn only_a_glued_pair_opens_the_coplanar_branch() {
+        use crate::boolean::PlaneRelation;
+        let b = band();
+        let arm = 1e-3;
+        let up = Vec3::new(0.0, 0.0, 1.0);
+        let tilted = |rise: f64| Vec3::new(rise / arm, 0.0, 1.0).normalize();
+        let plane = crate::bound_side::FaceBend::Plane;
+        let fitted = crate::bound_side::FaceBend::Fitted;
+        let rest = Some(PlaneRelation::SameOpposite);
+        let meet = |rise: f64, bend, glued| {
+            meeting(
+                (
+                    Operand::A,
+                    None,
+                    &super::super::sectors::flat_corner(up, arm, 1, plane),
+                ),
+                (
+                    Operand::B,
+                    None,
+                    &super::super::sectors::flat_corner(tilted(rise), arm, 2, bend),
+                ),
+                glued,
+                b,
+            )
+        };
+        let crossing = |got: &Result<Meeting<f64>, BooleanError>| match got {
+            Err(BooleanError::Escalated {
+                decision:
+                    super::super::BooleanDecision::Coincidence(
+                        Coincide::CornerCrossing,
+                        DeclarationRead::Moot,
+                    ),
+                diag,
+            }) if diag.predicate == Some("bool_faces_parallel") => *diag,
+            other => panic!("unglued planes refuse on the tilt: {other:?}"),
+        };
+        let zero = 0.1 * b.zero();
+        assert!(
+            matches!(
+                meet(zero, plane, rest),
+                Ok(Meeting::Coincident(Coincident::Glued(
+                    PlaneRelation::SameOpposite
+                )))
+            ),
+            "glued planes"
+        );
+        assert!(
+            matches!(
+                meet(zero, fitted, None),
+                Ok(Meeting::Coincident(Coincident::Frontier(Operand::B)))
+            ),
+            "a curved face"
+        );
+        let Ok(Meeting::Parallel(tilt)) = meet(zero, plane, None) else {
+            panic!(
+                "unglued planes parallel at the arm: {:?}",
+                meet(zero, plane, None)
+            );
+        };
+        assert_eq!(tilt.sign, Sign::Zero);
+        let decided = crossing(&Err(unglued_parallel(tilt, b)));
+        assert_eq!(decided.margin.rejected_sign(), Some(Sign::Zero));
+        assert_eq!(
+            decided.margin.rejected_passing(),
+            Some(geom_core::SizedPass::Positive)
+        );
+        let in_band = crossing(&meet(1.2 * b.zero(), plane, None));
+        assert_eq!(in_band.margin.rejected_sign(), None, "read in band");
+        assert!(in_band.offers_tolerance(), "a smaller tolerance decides it");
+        for (bend, glued) in [(plane, rest), (plane, None), (fitted, None)] {
+            assert!(
+                matches!(meet(20.0 * b.zero(), bend, glued), Ok(Meeting::Rays(_))),
+                "tilted past the band, {bend:?}, glued {glued:?}"
+            );
         }
     }
 
@@ -660,7 +852,7 @@ mod rows {
         let down = Vec3::new(0.0, -1.0, 0.0);
         let tilted = |t: f64| Vec3::new(t.sin(), -t.cos(), 0.0);
         let meet = |a: &BoolSector<f64>, b: &BoolSector<f64>| {
-            meeting((Operand::A, None, a), (Operand::B, None, b), band())
+            meeting((Operand::A, None, a), (Operand::B, None, b), None, band())
         };
         let one = fan_about(down, 0.5, 1);
         match meet(&one, &fan_about(tilted(1e-3), 0.5, 2)) {
@@ -709,7 +901,7 @@ mod rows {
                     let tilt = 10f64.powi(-k);
                     let what = format!("ε {eps:e}, arm {arm:e}, tilt {tilt:e}");
                     let meet = |b: &BoolSector<f64>| {
-                        meeting((Operand::A, None, &a), (Operand::B, None, b), band)
+                        meeting((Operand::A, None, &a), (Operand::B, None, b), None, band)
                     };
                     let lever = arm * tilt.sin();
                     let spread = geom_core::running::direction_rounding(arm) / tilt.sin();
@@ -725,7 +917,7 @@ mod rows {
                     let got = meet(&fan_at(tilted(tilt), 0.5, 3, arm));
                     match &got {
                         Ok(Meeting::Rays(rays)) => assert_eq!(rays.len(), 2, "shared, {what}"),
-                        Ok(Meeting::Coincident) => assert!(!apart, "shared, {what}: {got:?}"),
+                        Ok(Meeting::Coincident(_)) => assert!(!apart, "shared, {what}: {got:?}"),
                         Err(
                             BooleanError::VertexPairAtConeApex { .. }
                             | BooleanError::Escalated { .. },
@@ -759,7 +951,7 @@ mod rows {
                     }
                     if coaxial {
                         assert!(
-                            matches!(&got, Ok(Meeting::Coincident)),
+                            matches!(&got, Ok(Meeting::Coincident(_))),
                             "coaxial, {what}: {got:?}"
                         );
                     }

@@ -77,3 +77,9 @@ ci --ignore-default-filter -E 'test(/^review_4781_r[12]_probes::/)'`.
 Un-pinning owes a re-measure: each pin stops its row at main's first stop, so whatever runs after it in the row is unmeasured. Known behind it: r1's `RayExhausted` (`charttail/main-red-ringed-curved-doors-reds-four-sweep-rows`) and r2's `curve_pair_pose_offset` escalation (`cpair/a-same-side-touch-pose-escalates-the-curve-pair-extreme-at-1e-12`).
 
 - 2026-11-02 — moved from OFFSET to SHELL by `git mv` when OFFSET merged into SHELL, id and body unchanged (the track budget now counts only P0, P1 and unbanded rows, and OFFSET had fallen far under it).
+
+**Rescaled (2026-11-09, `onecopy/main-reds-stations`).** The ×1e3 fixtures reached 5 km, past the session box (`[tolerance.units]`: no coordinate past 1 km), and the finished-body gate now refuses them `OutsideSessionBox`. `r2_every_same_side_touch_pose_answers_as_a_touch` runs at ×1.5e2, where its farthest fixture, `cc unequal`'s B cylinder rim at about 5.1 units, stays inside. Its large-scale skip is gone: every corner builds at the default ε and at 1e-6. At ε = 1e-12 it still stops on limb 2's kernel limit, on `cc unequal` at extent 670.8 with bound 1.33e-12, and its pin says so.
+
+## Evidence: the pin's values moved with the far scale (ONEHOME, 2026-11-10)
+
+`onehome/session-box-fixtures` moves `review_4781_touch_pairs_every_op`'s far scale from ×1e3 to each pair's 900 m reach, which is inside the 1 km session box. At ε = 1e-12 the row still stops on limb 2's kernel limit, now on a cylinder of extent 670.82 at bound 1.334e-12 (it was extent 2236.07 at 3.667e-12), and its pin names those values. The subject is unchanged. (ONEHOME session-box-fixtures lane)

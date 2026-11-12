@@ -139,11 +139,11 @@
 //!    loops about the handle's tube marched and fitted, each germ matched
 //!    to its loop by foot, and each closed loop seated at its first site,
 //!    so the segment lays them off the edges and the union builds. The
-//!    result then fails its own validation: its volume is not computed,
-//!    the vessel's sphere face now trimmed by a conic loop that no
-//!    sphere-chart quadrature reads yet (`ResultInvalid` with
-//!    `VolumeUncomputable` from `QuadratureUnsupported`), pinned in wall
-//!    2.
+//!    result validates: the vessel's chorded sphere face and the handle's
+//!    chorded torus face measure through the rotational lane, and wall 2
+//!    is retired. The scene does not join them yet: its handle stands
+//!    11.2 mm past the belly's inner wall, which a joined teapot must
+//!    re-cut first (`work/splice/curved-demo-joins-build.md`).
 //!
 //!    spout ∪ pot used to be the same shape of refusal — cone × plane
 //!    — and it is not any more. A loft's walls are `Nurbs`, and the
@@ -169,11 +169,7 @@
 //!    about and onto the meeting itself. Wall 3 pins it and the note
 //!    carries the payload.
 //!
-//!    Wall 2 is past the operand gate, the maximal-faces precondition
-//!    and the section, and stops at the segment the join cannot yet
-//!    lay along the vessel's sphere face where it meets the handle's
-//!    torus. **Both refusals arrive through the
-//!    DOCUMENT**: each join is a `Node::Union` that lowers to the
+//!    **The refusal arrives through the DOCUMENT**: each join is a `Node::Union` that lowers to the
 //!    same kernel `union` and fails at `evaluate`, and what the note
 //!    quotes is that node's own carried refusal rather than a second
 //!    measurement of it.
@@ -1109,8 +1105,8 @@ pub fn spout_belly_carriers(
     let carriers = |id, keep: fn(&Surface<f64>) -> bool| {
         let body = body_at(ev, id, tol);
         let mut keys = Vec::new();
-        for (_, face) in body.faces() {
-            if !keys.contains(&face.surface) && body.get_surface(face.surface).is_some_and(keep) {
+        for (fk, face) in body.faces() {
+            if !keys.contains(&face.surface) && body.face_surface(fk).is_some_and(keep) {
                 keys.push(face.surface);
             }
         }
@@ -1367,7 +1363,7 @@ fn patch_quadrature(body: &Body<f64>, order: usize) -> (f64, f64) {
     let rule = gauss_legendre(order);
     let planes: Vec<(Point3<f64>, Vec3<f64>)> = body
         .faces()
-        .filter_map(|(_, f)| match body.get_surface(f.surface) {
+        .filter_map(|(fk, _)| match body.face_surface(fk) {
             Some(Surface::Plane { origin, normal, .. }) => Some((*origin, *normal)),
             _ => None,
         })
@@ -1390,8 +1386,8 @@ fn patch_quadrature(body: &Body<f64>, order: usize) -> (f64, f64) {
         b
     };
     let (mut flux, mut area) = (0.0, 0.0);
-    for (_, f) in body.faces() {
-        let n = match body.get_surface(f.surface) {
+    for (fk, f) in body.faces() {
+        let n = match body.face_surface(fk) {
             Some(Surface::Plane { .. }) => continue,
             Some(Surface::Nurbs(n)) => n,
             other => panic!("a quadrature over planes and NURBS, got {other:?}"),
@@ -1538,42 +1534,19 @@ fn per_rim_answers(tol: Tol) -> Vec<(&'static str, String, Option<Census>)> {
 /// only a tolerance and builds its own operands: nothing outside that
 /// scene's probe reads what it makes.
 pub fn wall_probes(ev: &Evaluation<f64>, r: &Recipe) {
-    // WALL 2 — the handle joined to the pot. The handle's torus is on
-    // the union's KIND roster, so the gate has nothing to say about
-    // it. The join used to stop one door on, at the maximal-faces
-    // precondition, on the VESSEL, whose full revolve minted split
-    // planar walls; it sweeps them whole now (BAND, one wall per run),
-    // so the request reaches the vessel's sphere face meeting the
-    // handle's torus. The section value carries that pair's loops, the
-    // segment lays them, and the union builds; its result's volume is not
-    // computed (a trimmed sphere face has no volume lane on its chart yet),
-    // so the result is invalid.
-    crate::walls::wall(
-        "teapot",
-        2,
-        "join the handle to the vessel (union; both roots driven 11.2 mm past the \
-         belly's inner wall — a real overlap, not a tangency)",
-        join_outcome(ev, r.handle_union),
-        |e| {
-            matches!(
-                e,
-                BooleanError::ResultInvalid { findings } if matches!(
-                    findings.as_slice(),
-                    [pncad::topo::ValidationError::VolumeUncomputable {
-                        source: pncad::topo::MassPropsError::Face {
-                            source: pncad::geom_brep::PropsError::QuadratureUnsupported { what },
-                            ..
-                        },
-                        ..
-                    }] if what.starts_with("a trimmed face with no volume lane on its chart")
-                )
-            )
-        },
-        "make the teapot ONE solid: union the handle and the spout into the vessel, drop \
-         walls 2 and 3, re-state the montage caption (which currently says four solids), \
-         and RE-CUT THE HANDLE'S OVERSHOOT FIRST — at 0.5 rad its roots stand 11.2 mm \
-         inside the cavity, which is fine for a refused request and wrong for a joined one",
+    // WALL 2 — RETIRED: the handle joins the pot. The section value
+    // carries the vessel's sphere face meeting the handle's torus, the
+    // segment lays its loops, and the union builds and validates: its
+    // chorded sphere face and the handle's chorded torus face measure
+    // through the rotational lane. What is left is the scene's own
+    // retirement (`work/splice/curved-demo-joins-build.md`): re-cut the
+    // handle's overshoot, join it into the pot and re-state the caption.
+    assert!(
+        join_outcome(ev, r.handle_union).is_ok(),
+        "wall 2: the handle no longer joins the vessel: {:?}",
+        join_outcome(ev, r.handle_union).err()
     );
+    println!("   wall 2 — RETIRED: the handle joins the vessel");
 
     // WALL 3 — the spout joined to the pot, and it is a DIFFERENT RUNG
     // of the gate from wall 2 now that the spout is a canal.
@@ -1641,25 +1614,19 @@ pub fn wall3_pinned(e: &BooleanError, spout: &Body<f64>, pot: &Body<f64>) -> boo
     else {
         return false;
     };
-    let the_belly = pot
-        .get_face(*belly)
-        .and_then(|f| pot.get_surface(f.surface))
-        .is_some_and(|s| {
-            matches!(s, Surface::Sphere { center, radius, .. }
+    let the_belly = pot.face_surface(*belly).is_some_and(|s| {
+        matches!(s, Surface::Sphere { center, radius, .. }
                 if near(*center, [0.0, Y_BELLY_C, 0.0]) && (radius - R_BELLY).abs() < 1e-12)
-        });
-    let the_outer_wall = spout
-        .get_face(*face)
-        .and_then(|f| spout.get_surface(f.surface))
-        .is_some_and(|s| match s {
-            Surface::Nurbs(n) => {
-                let (u0, u1) = n.knot_values_u().domain();
-                let (v0, v1) = n.knot_values_v().domain();
-                near(n.eval(u0, v0), [SPOUT_ROOT.x, SPOUT_ROOT.y, SPOUT_R0])
-                    && near(n.eval(u1, v1), SPOUT_OUTER_TIP)
-            }
-            _ => false,
-        });
+    });
+    let the_outer_wall = spout.face_surface(*face).is_some_and(|s| match s {
+        Surface::Nurbs(n) => {
+            let (u0, u1) = n.knot_values_u().domain();
+            let (v0, v1) = n.knot_values_v().domain();
+            near(n.eval(u0, v0), [SPOUT_ROOT.x, SPOUT_ROOT.y, SPOUT_R0])
+                && near(n.eval(u1, v1), SPOUT_OUTER_TIP)
+        }
+        _ => false,
+    });
     the_belly && the_outer_wall
 }
 
@@ -1736,8 +1703,8 @@ pub fn stops(tol: Tol) -> Vec<TourStop> {
         .count();
     let on_mouth_plane = bellied
         .faces()
-        .filter(|(_, f)| {
-            matches!(bellied.get_surface(f.surface),
+        .filter(|(fk, _)| {
+            matches!(bellied.face_surface(*fk),
                 Some(Surface::Plane { origin, .. }) if (origin.y - Y_MOUTH).abs() < 1e-12)
         })
         .count();
@@ -1761,7 +1728,7 @@ pub fn stops(tol: Tol) -> Vec<TourStop> {
     // all. The count that stored `+y` goes in the note, measured.
     let planes: Vec<(f64, f64)> = bellied
         .faces()
-        .filter_map(|(_, f)| match bellied.get_surface(f.surface) {
+        .filter_map(|(fk, f)| match bellied.face_surface(fk) {
             Some(Surface::Plane { origin, normal, .. }) => {
                 let outward = pncad::geom_brep::OutwardNormal::from_chart(*normal, f.sense);
                 Some((origin.y, outward.vec().y))
@@ -1772,8 +1739,8 @@ pub fn stops(tol: Tol) -> Vec<TourStop> {
     let stored_plus = planes.len()
         - bellied
             .faces()
-            .filter(|(_, f)| {
-                matches!(bellied.get_surface(f.surface),
+            .filter(|(fk, _)| {
+                matches!(bellied.face_surface(*fk),
                     Some(Surface::Plane { normal, .. }) if normal.y < 0.0)
             })
             .count();
@@ -1809,7 +1776,7 @@ pub fn stops(tol: Tol) -> Vec<TourStop> {
     );
     let reach = bellied
         .faces()
-        .filter_map(|(_, f)| match bellied.get_surface(f.surface) {
+        .filter_map(|(fk, _)| match bellied.face_surface(fk) {
             Some(Surface::Cylinder { radius, .. }) => Some(*radius - WALL),
             _ => None,
         })
@@ -1997,13 +1964,13 @@ pub fn stops(tol: Tol) -> Vec<TourStop> {
     // arm is free to mint them in any order.
     let lid_band = |y: f64| -> (f64, f64) {
         let mut hit = None;
-        for (_, f) in rolled.faces() {
+        for (fk, f) in rolled.faces() {
             let Some(Surface::Torus {
                 major_radius,
                 minor_radius,
                 center,
                 ..
-            }) = rolled.get_surface(f.surface)
+            }) = rolled.face_surface(fk)
             else {
                 continue;
             };

@@ -159,12 +159,8 @@ fn doors(row: &Row, pose: &Pose) -> Vec<(String, topo::BooleanBody<f64>)> {
 
 /// The point key of each end of `edge`, in key order.
 fn ends_of(body: &Body<f64>, edge: EdgeKey) -> [PointKey; 2] {
-    let he = body.get_edge(edge).unwrap().he_plus;
-    let mut v = [
-        body.get_half_edge(he).unwrap().start,
-        body.half_edge_end(he).unwrap(),
-    ]
-    .map(|v| body.get_vertex(v).unwrap().point);
+    let (v0, v1) = body.edge_vertices(edge).unwrap();
+    let mut v = [v0, v1].map(|v| body.get_vertex(v).unwrap().point);
     v.sort();
     v
 }
@@ -208,9 +204,10 @@ fn vertices_at(body: &Body<f64>, pose: &Pose, p: [f64; 3]) -> usize {
 
 /// The edges of each loop of `face`, the outline first.
 fn loops(body: &Body<f64>, face: FaceKey) -> Vec<Vec<EdgeKey>> {
-    let f = body.get_face(face).unwrap();
-    core::iter::once(f.outer)
-        .chain(f.rings.iter().copied())
+    body.face(face)
+        .unwrap()
+        .loops()
+        .map(|(lk, _, _)| lk)
         .map(|l| match body.get_loop(l).unwrap().boundary {
             LoopBoundary::Cycle { first } => body
                 .loop_cycle(first)
@@ -854,9 +851,8 @@ fn a_keel_glued_to_a_face_from_outside_stays_one_edge() {
                     .edges()
                     .map(|(e, _)| e)
                     .filter(|&e| {
-                        let he = b.get_edge(e).unwrap().he_plus;
-                        on_keel(b.get_half_edge(he).unwrap().start)
-                            && on_keel(b.half_edge_end(he).unwrap())
+                        let (v0, v1) = b.edge_vertices(e).unwrap();
+                        on_keel(v0) && on_keel(v1)
                     })
                     .collect();
                 let [keel] = keel[..] else {

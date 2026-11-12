@@ -749,9 +749,9 @@ fn nurbs_bump() -> Body<f64> {
     let patch = geom::NurbsSurface::new(kv.clone(), kv, control, vec![1.0; 16]).unwrap();
     let top = body
         .faces()
-        .find(|(_, fd)| {
+        .find(|(fk, _)| {
             matches!(
-                body.get_surface(fd.surface),
+                body.face_surface(*fk),
                 Some(geom::Surface::Plane { origin, normal, .. })
                     if origin.z.abs() < 1e-12 && normal.z.abs() > 0.5
             )
@@ -803,12 +803,7 @@ fn nurbs_clamp() -> AtRestBody<f64> {
 /// The bump face's pair verdicts: `(A kind, B kind, verdict)` for every
 /// in-scope pair with a NURBS face.
 fn nurbs_verdicts(a: &Body<f64>, b: &Body<f64>) -> Vec<String> {
-    let kind = |x: &Body<f64>, f| {
-        let fd = x.get_face(f).expect("a reported face resolves");
-        x.get_surface(fd.surface)
-            .expect("its surface resolves")
-            .kind()
-    };
+    let kind = |x: &Body<f64>, f| x.face_surface(f).expect("its surface resolves").kind();
     topo::test_support::section_report(topo::BooleanOp::Union, a, b, Tol::witness())
         .expect("the reduction runs")
         .into_iter()
@@ -876,7 +871,7 @@ fn a_nurbs_graze_behind_crossings_is_refused_on_every_op() {
 /// below it (the inner four by `0.2` at the least, at `x = −2/3`), while
 /// the underside's box reaches down to `z = 1.5` into the bump face's.
 /// Every wedge edge stands at `x = ±3` or `y = ±3`, so the pair meets no
-/// crossing, and the walk's narrow phase (`boolean::separating`) parts
+/// crossing, and the walk's narrow phase (`separating`) parts
 /// it along the underside's own normal before the certificate is asked.
 /// Red against the walk reading the box overlap alone, which hands the
 /// pair to the certificate's W0 (whose own row is `section_cert_rows`'

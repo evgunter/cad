@@ -468,7 +468,7 @@ fn build_lamina<T: Decide + topo::AtRestPolicy>(
     // ---- Phase 2: the one-band sweep (the generic pinned-aware sweep
     // with nothing pinned; rotated copies at the original coordinates
     // and the original placement — full period is the identity). ----
-    let axis_c = turn_axis(Sign::Positive, frame.a3);
+    let axis_c = turn_axis(Sign::Positive, frame.axis.get());
     let swept = sweep_loop(
         &mut body,
         loop_index,
@@ -641,7 +641,7 @@ fn build_turn_lamina<T: Decide + topo::AtRestPolicy>(
             n_far: frame.n3,
         },
         theta,
-        turn_axis(Sign::Positive, frame.a3),
+        turn_axis(Sign::Positive, frame.axis.get()),
         // A transient disc, killed by the closure, like the lamina's.
         FaceSurface::New {
             surface: Surface::nurbs_placeholder(),
@@ -771,7 +771,7 @@ fn build_wire<T: Decide + topo::AtRestPolicy>(
     let place = frame.place;
     let k = segs.len();
     let half = theta * T::from_f64(0.5);
-    let far = crate::swept::Placing::turned(place, frame.o3, frame.axis, half)
+    let far = crate::swept::Placing::turned(place, frame.origin3, frame.axis, half)
         .map_err(RevolveError::Turn)?;
     let Some(n_pi) = far.turn_vec(frame.n3) else {
         unreachable!("a turned placing has a turn")
@@ -830,7 +830,7 @@ fn build_wire<T: Decide + topo::AtRestPolicy>(
     // copies). The runs are collapsed (`collapse_runs`), so no two
     // adjacent wire walls continue one carrier: each takes its own
     // surface.
-    let axis_c = turn_axis(Sign::Positive, frame.a3);
+    let axis_c = turn_axis(Sign::Positive, frame.axis.get());
     let mut struts: Vec<Option<topo::construction::MevCreated>> = vec![None];
     for i in 1..k {
         let m = body.mev(
@@ -953,8 +953,7 @@ fn build_wire<T: Decide + topo::AtRestPolicy>(
                 geom_brep::MappedCurve::whole(geom_brep::MappedSource::RevolvedPoint {
                     point: wire.points[i],
                     place,
-                    axis_origin: frame.o3,
-                    axis_dir: frame.a3,
+                    axis: frame.line3(),
                     angle: theta,
                 })
                 .restrict(T::from_f64(0.5), T::one()),

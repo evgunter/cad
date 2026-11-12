@@ -60,20 +60,17 @@ pub(crate) fn drawn<T: topo::AtRestPolicy + crate::mate::SolveScalar>(
     };
     let sketch = Frame::Map(Arc::new(frame));
     let identity = RigidMotion::identity;
+    let band = super::band(tol)?;
     let faces = on
         .faces
         .iter()
         .enumerate()
         .map(|(at, &var)| {
             let slot = OperandSlot::Traced(at);
-            let body_var = doc.selection(var).map_or(var, |select| select.body);
-            let projected = super::project_ports(&[body_var], doc, results)?;
+            let projected = super::project_selection(doc, slot, var, results, env)?;
             let results = projected.as_ref().unwrap_or(results);
-            let (node, ent) = select_one(doc, results, slot, var)?;
-            let whole = doc
-                .selection(var)
-                .is_some_and(|select| crate::repetition::names_members(doc, select));
-            let framed = read_named_body(results, node, ent.body, whole)?;
+            let (node, ent) = select_one(doc, results, slot, var, env)?;
+            let framed = read_named_body(results, node, ent.body)?;
             let Some(face) = names::EntityKey::face(ent.key) else {
                 unreachable!("the traced seat admits a face alone")
             };
@@ -88,6 +85,7 @@ pub(crate) fn drawn<T: topo::AtRestPolicy + crate::mate::SolveScalar>(
             Ok(TracedFace {
                 surface: closed(surface),
                 sense,
+                cover: topo::face_cover(framed.body(), face, band),
                 sketch_to_body: body
                     .relative(&sketch)
                     .map_err(NodeErrorKind::Motion)?

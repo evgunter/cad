@@ -189,3 +189,4 @@ group and took this program's green-main or gate-latency rows by
 `git mv`, ids unchanged; `work/green/log.md` lists them. Any P1 left
 here was re-banded where it was test-side rather than production
 architecture; the row's own `## Re-banded` section says why.
+- 2026-11-09 — **Seam (BOXES):** filed `loop-boundary-discards-selftest-plant-misses-census-face-cycles` (P3, E): the gate's selftest fails on main; the gate itself still passes. (BOXES orchestrator)

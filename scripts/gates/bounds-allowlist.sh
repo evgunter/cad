@@ -457,7 +457,7 @@ BOUNDS_ALLOWLIST=(
   # evaluation-service seams, and `separation` under the same entry.
   # boxes.rs's two are the box builders (`face_box`, `edge_box`), each
   # its cover's bracketed box; its point read needs no `Bounds`.
-  'crates/topo/src/boolean/boxes.rs 2 2026-07-29 (M5 PR 8), the driver amendment'
+  'crates/topo/src/boxes.rs 2 2026-07-29 (M5 PR 8), the driver amendment'
   # carrier_touch.rs's four are the crossing layer's touch reading:
   # `clusters`, the subdivision driver (a piece's half-length bracket
   # stops the bisection); `edge_clear_of_ball`, which prunes a boundary
@@ -718,7 +718,7 @@ BOUNDS_ALLOWLIST=(
   # branched on. `cell_region.rs` 3: `cell_region` and `station_region`,
   # whose station is placed at `T` by the point-in-face doors and whose
   # ball is lifted, and `lift_boundary`, which lifts the boundary
-  # `clear_of_boundary` clears (that one now reads only the lift).
+  # `clear_of_boundary_as` clears (that one now reads only the lift).
   # 3 -> 4 (SYMCLEAR): `cell_region_lifted`, `cell_region`'s body taking
   # the carrier's and the boundary's lifts in hand, so the sweep lifts
   # each window once and places a station at `T` only for a cell
@@ -763,12 +763,14 @@ BOUNDS_ALLOWLIST=(
   # selection only narrows what the screen meters to what the exact
   # meter downstream meters whole.
   # 21 -> 23: `knife_end` (a cusp's or slit's end, under
-  # `material_wedge_side`) and `knife_room_at` (`fillet3_knife_room`) are
-  # predicate 5's knife reads, the same battery seam as
+  # `material_wedge_side`) and `room_at` (`fillet3_knife_room` at a
+  # knife, `fillet3_ball_room` at a rim) are the link's reads of its
+  # ball's side and existence, the same battery seam as
   # `radius_headroom`: each decides only through `classify`, and reads
   # a bracket only to report a refusal, the classified margin through
   # `classified` (whose `measured` is the payload read) and the request
-  # radius through `.lo()` for `KnifeRefusal::NoRoom`. The next tighter
+  # radius through `.lo()` for `KnifeRefusal::NoRoom` and
+  # `BlendError::BallDoesNotFit`. The next tighter
   # bound, `Decide` alone, fails there: `classified` takes `T: Bounds`.
   # Neither picks anything from a bracket.
   'crates/sweep/src/blend/battery.rs 23 M5 PR 12 (orchestrator ruling 2026-08-03), the edge-blend battery'
@@ -847,6 +849,11 @@ BOUNDS_ALLOWLIST=(
   # check of the support screen's premise, one bracket of a strip bound
   # against `escalate`, as `Least::read` reads a cell's. Each decides
   # only the meter's own question, and refuses loudly or not at all.
+  # 14 -> 13: `sheet_clip` reads topo's face cover along the sheet
+  # axis and takes no bracket of its own, so it is `Decide` alone.
+  # 13 -> 14: `misses` reads a sheet rectangle's widths against
+  # `escalate` (`sure`), the meter's own question as `Least::read`
+  # reads a cell's, and grants nothing but "nothing here to meter".
   'crates/sweep/src/blend/reach.rs 14 M5 PR 12 (orchestrator ruling 2026-08-03), the edge-blend battery'
   # planar.rs 3 -> 4, ruled.rs 3 -> 2, end_face.rs new at 5: the
   # cut-off both open bands end in left `ruled.rs` for its own file when
@@ -924,7 +931,7 @@ BOUNDS_ALLOWLIST=(
   # it is public so the at-rest rows can run the limb directly.
   # C2 as ratified on PR 5652 adds `analytic_edge_limbs`, the analytic
   # pair's limbs for a carrier of every kind, at `analytic_rung3`'s bound.
-  'crates/geom-brep/src/edge_nurbs.rs 14 M7-8, the declare-and-check edge lane; the rung-3 tube body at M6-2; its NURBS x NURBS twin (nurbs_pair_limbs) at the same bound; its incidence alone for OnPair (plane_nurbs_incidence) at the same bound; C2 2026-10-24 (PR 5652), the analytic limbs for every carrier kind at the same bound'
+  'crates/geom-brep/src/edge_nurbs.rs 16 M7-8, the declare-and-check edge lane; the rung-3 tube body at M6-2; its NURBS x NURBS twin (nurbs_pair_limbs) at the same bound; its incidence alone for OnPair (plane_nurbs_incidence) at the same bound; C2 2026-10-24 (PR 5652), the analytic limbs for every carrier kind at the same bound; the pcurve mint'"'"'s image of every carrier on a spline chart (general_chart_image) at chart_image'"'"'s bound, PR 6532 under the M7-8 / C2 precedent, retroactive Ev review; necessity in geom-core real.rs'
   # M7-8's 2026-09-02 amendment, the lane's split as a BOUND: the one
   # DOOR that names the certified body `plane_nurbs_limbs`, the lane's
   # door value `NurbsLane::certified`'s block (`Decide +
@@ -939,7 +946,7 @@ BOUNDS_ALLOWLIST=(
   # geom-brep README's C2): the certification doors' impl block and the
   # engine they share (`run_checks`), at the lane's bound, so a scalar
   # that may not certify cannot name them.
-  'crates/geom-brep/src/certify.rs 4 M7-8 2026-09-02, the lane split as a BOUND; the lane door value `NurbsLane::certified` and its wiring row at the same bound; 2026-10-25, the edge door split as a BOUND, the certifying doors and their engine'
+  'crates/geom-brep/src/certify.rs 4 M7-8 2026-09-02, the lane split as a BOUND; the lane door value `NurbsLane::certified` and its wiring row at the same bound; 2026-10-25, the edge door split as a BOUND, the certifying doors and their engine (which reads limb 2 for a net stated on an analytic chart, PR 6826)'
   # 2026-10-25, the edge door split as a BOUND (PR 5689): the certifying
   # scalars' edge door bodies their policies run, at the certifying
   # doors' own bound, and nothing else in the file.
@@ -2021,7 +2028,7 @@ plant_trait_generic_sole_bracket_ratified() {
 # naming the ratified entry it merely begins with.
 plant_colon_path_beside_entry() {
   printf 'pub fn f<T: Decide + Bounds>(_t: T) {}\n' \
-    > "$1/crates/topo/src/boolean/boxes.rs:x.rs"
+    > "$1/crates/topo/src/boxes.rs:x.rs"
 }
 
 # THE READER'S OWN HALF OF THE SAME SPLIT, planted in both directions on
@@ -2163,7 +2170,7 @@ gate_selftest() {
   gate_selftest_case "is not on this gate's alias roster" plant_bracket_only_alias_in_ratified_file
   gate_selftest_case "$want" plant_alias_declaration_moved
   gate_selftest_case "FILE NOT IN THE TREE" plant_roster_file_gone
-  gate_selftest_case "crates/topo/src/boolean/boxes.rs:x.rs" plant_colon_path_beside_entry
+  gate_selftest_case "crates/topo/src/boxes.rs:x.rs" plant_colon_path_beside_entry
   gate_selftest_case "crates/topo/src/boolean/a:Bounds.rs" plant_colon_path_compound_bound
   gate_selftest_case "MORE than the entry argues for" plant_ratified_file_gains_a_bound
   gate_selftest_case "FEWER than the entry argues for" plant_ratified_file_loses_a_bound

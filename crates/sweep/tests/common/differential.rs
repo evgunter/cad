@@ -473,12 +473,8 @@ fn judge(
 /// zero-length open edges).
 pub fn seams(body: &Body<f64>) -> (usize, usize, usize) {
     let (mut same_key, mut coplanar, mut zero) = (0, 0, 0);
-    for (_, e) in body.edges() {
-        let ends = (
-            body.get_half_edge(e.he_plus).map(|h| h.start),
-            body.half_edge_end(e.he_plus),
-        );
-        if let (Some(a), Some(b)) = ends
+    for (k, e) in body.edges() {
+        if let Some((a, b)) = body.edge_vertices(k)
             && a != b
         {
             let p = |v| *body.get_point(body.get_vertex(v).unwrap().point).unwrap();
@@ -1103,7 +1099,7 @@ pub fn assert_meshed_geometry(label: &str, body: &Body<f64>, mesh: &mesh::Mesh, 
 pub fn assert_outward(label: &str, body: &Body<f64>, mesh: &mesh::Mesh) {
     for patch in &mesh.patches {
         let face = body.get_face(patch.face).expect("the patch's face");
-        let radial = |p: Point3<f64>| match *body.get_surface(face.surface).expect("its surface") {
+        let radial = |p: Point3<f64>| match *body.face_surface(patch.face).expect("its surface") {
             geom::Surface::Sphere { center, .. } => Some(p - center),
             geom::Surface::Cylinder { origin, axis, .. } => {
                 let d = p - origin;

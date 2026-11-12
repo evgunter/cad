@@ -135,15 +135,12 @@ impl<T: Decide + Bounds> EndCut<T> {
         let (rim_a, rim_b, face) = end_rims(body, vertex, crease, face_a, face_b)?;
         // The end plane, from the STORED surface — the battery's
         // classification read the same one.
-        let stored = body
-            .get_face(face)
-            .and_then(|f| body.get_surface(f.surface))
-            .ok_or_else(|| {
-                unresolved(
-                    EntityId::Face(face),
-                    "a cut-off's end face's stored surface",
-                )
-            })?;
+        let stored = body.face_surface(face).ok_or_else(|| {
+            unresolved(
+                EntityId::Face(face),
+                "a cut-off's end face's stored surface",
+            )
+        })?;
         let Surface::Plane {
             origin: po,
             normal: n,
@@ -471,7 +468,7 @@ impl<T: Decide + Bounds> CapSliver<T> {
     pub(in crate::blend) fn clearance(&self, carrier: &Curve3<T>, window: (T, T)) -> Option<T> {
         let whole = self.whole_clearance(carrier, window)?;
         Some(match carrier.as_line() {
-            Some(geom::Line { origin, dir }) => whole.max(self.line_clearance(origin, dir, window)),
+            Some(line) => whole.max(self.line_clearance(line, window)),
             None => whole,
         })
     }
@@ -526,12 +523,19 @@ impl<T: Decide + Bounds> CapSliver<T> {
     /// line meets the end curve at most twice, so a segment that meets
     /// `S` has an end in it. The rest of the candidates buy carves, and
     /// only a unit test against a sampled least can see one go missing.
-    fn line_clearance(&self, origin: Point3<T>, dir: Vec3<T>, (ta, tb): (T, T)) -> T {
+    fn line_clearance(&self, line: geom::Line<T>, (ta, tb): (T, T)) -> T {
         let zero = T::zero();
         let one = T::one();
-        let pa = origin + dir * ta;
-        let chord = origin + dir * tb - pa;
-        // An edge has positive length, so `len` is no divisor of zero.
+        let pa = line.at(ta);
+        let chord = line.at(tb) - pa;
+        // The chord is not the zero vector: the window is a certified
+        // edge's, decided forward at certification, and certification
+        // refuses a line carrier whose `dir` is the zero vector
+        // (`EdgeCurve::certify`'s Line arm), so a surgery-minted line of
+        // zero direction cannot reach this reading. That is all it
+        // decides: a chord shorter than the format's squares reach
+        // (about 1e-154 m at `f64`) still reads `len` as zero here, as
+        // any plain norm does.
         let len = chord.norm();
         let e = chord * (one / len);
         let q0 = pa - self.center;
@@ -857,7 +861,7 @@ impl<T: Decide + Bounds> CapSliver<T> {
         ];
         // The end curve's centre, and on a round end the section's frame.
         let (center, round) = match curve {
-            EndCurve::Chord => (foot_a + (foot_b - foot_a) * T::from_f64(0.5), None),
+            EndCurve::Chord => (foot_a.mid(foot_b), None),
             EndCurve::Round(arc) => {
                 // The frame with the major semi-axis first
                 // (`Curve3::major_frame`).
@@ -1097,15 +1101,14 @@ fn rim_piece<T: Decide + Bounds>(
     vertex: VertexKey,
     foot: Point3<T>,
 ) -> Result<Piece<'_, T>, BlendError> {
-    let he_plus = body
-        .get_edge(rim)
-        .ok_or_else(|| unresolved(EntityId::Edge(rim), "an end face's rim"))?
-        .he_plus;
+    let (start, end) = body
+        .edge_vertices(rim)
+        .ok_or_else(|| unresolved(EntityId::Edge(rim), "an end face's rim"))?;
     let (carrier, (t0, t1)) = stored_piece(body, rim)?;
     let t = foot_param(body, rim, vertex, foot)?;
-    if body.get_half_edge(he_plus).map(|h| h.start) == Some(vertex) {
+    if start == vertex {
         Ok((carrier, (t0, t)))
-    } else if body.half_edge_end(he_plus) == Some(vertex) {
+    } else if end == vertex {
         Ok((carrier, (t, t1)))
     } else {
         Err(disagrees(
@@ -1344,11 +1347,18 @@ mod tests {
             let dir = Vec3::new(b.0 - a.0, b.1 - a.1, 0.0);
             let iv = Interval::from_f64;
             (
-                self.sliver::<f64>()
-                    .line_clearance(at(a.0, a.1), dir, (0.0, 1.0)),
+                self.sliver::<f64>().line_clearance(
+                    geom::Line {
+                        origin: at(a.0, a.1),
+                        dir,
+                    },
+                    (0.0, 1.0),
+                ),
                 self.sliver::<Interval>().line_clearance(
-                    Point3::new(iv(a.0), iv(a.1), iv(0.0)),
-                    Vec3::new(iv(dir.x), iv(dir.y), iv(0.0)),
+                    geom::Line {
+                        origin: Point3::new(iv(a.0), iv(a.1), iv(0.0)),
+                        dir: Vec3::new(iv(dir.x), iv(dir.y), iv(0.0)),
+                    },
                     (iv(0.0), iv(1.0)),
                 ),
             )

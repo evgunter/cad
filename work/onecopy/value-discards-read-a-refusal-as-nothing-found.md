@@ -53,3 +53,29 @@ items excluded):
 - `crates/viewer/src/pane/properties.rs` `reading_notes` (line 1638): `Ok(props::Reading::One(_)) | Err(_) => None,`
 - `crates/viewer/src/session/probe.rs` `probe_bounds` (line 129): `Err(_) => false,`
 - `crates/viewer/src/sketch.rs` `tip_state_at` (line 2167): `Err(_) => None,`
+
+## Added by PR 6606's review (`onecopy/refusal-standing`)
+
+`boolean::join`'s seam germ reader, where `ladder::climb_agreeing` now
+keeps what the old loop dropped, but the function boundary still reads
+a refusal as nothing found:
+
+- `crates/topo/src/boolean/join.rs` `seam_germ_side`:
+  `Ok(Climb::Passed | Climb::Undecided(_)) => Ok(None)`. The ladder's
+  ranked refusal (a region normal kept in band or at a limit) is
+  dropped. `Ok(None)` leaves the loop to `loop_roles`, which refuses
+  `SectionLoopUndecided { face }`, a refusal with no payload. So
+  carrying it means giving that variant the kept reading: an error-type
+  change, owed here rather than made in the port.
+- `crates/topo/src/boolean/join.rs` `holding_face_normal`:
+  `Ok(CurvedPlacement::Trim(_)) | Err(_) => return Ok(None)` (a
+  placement refused in band reads as "no face holds the point") and the
+  final `Err(_) => Ok(None)` (a holding face's normal refused in band
+  reads as "no normal"). Both are value discards of the same kind: the
+  chord then passes rather than being kept.
+
+- `crates/topo/src/boolean/factored_crossing.rs`, the conic lane's
+  `ConicPlaneMeet::Parallel` arm: `Ok(Sign::Zero) | Err(_) => return
+  Ok(None)` on `bool_conic_face_plane_offset`, a decide folded into
+  "no factored crossing" (named by `two-boolean-normal-readers-absorb-a-normals-refusal-as-no-normal`,
+  added here by `onecopy/normal-refusals`).

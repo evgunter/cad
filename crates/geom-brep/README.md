@@ -676,11 +676,12 @@ whatever the carrier's kind: a spline carrier enters the composite as
 its own net, a line as its degree-1 net, and a circle, ellipse or
 spiric as a per-span enclosure in certification arithmetic (C9).
 On an analytic chart, a carrier with no closed-form image (a spline
-carrier; a circle on a sphere, cylinder, cone or torus, or a line on a
-cylinder or a cone, that the chart's class readings do not show one of
-its own) stores the *projected image*, the
+carrier; a circle or an ellipse on a sphere, cylinder, cone or torus,
+or a line on a cylinder or a cone, that the chart's class readings do
+not show one of its own) stores the *projected image*, the
 chart's own inverse applied to the carrier, `P(t) = ψ(C(t))`: the
-carrier's net in the chart frame, plus a partition of the span into
+carrier written in the chart frame (a net, a conic's harmonic form
+`c + a·cos t + b·sin t`, or a line), plus a partition of the span into
 pieces that each stay in one `atan2` sector. Its channels are the
 chart's one reading of a point's coordinates (D3; `geom::ChartChannels`,
 the table `geom::ChartInverse::point` reads), each angle named on its
@@ -754,10 +755,7 @@ A closed-form class gate is a lane choice (D3): in band or definite,
 the carrier takes the general lane, its projected image, whose
 certificate does not rest on the class; the closed form is taken only
 where the class is shown, and a pair whose general lane is not yet
-written refuses "not yet". Those pairs are: an ellipse the chart's
-class readings do not show one of its own, on any chart (on the plane,
-and as a section of a cylinder or a cone, an ellipse images in closed
-form, and needs no general lane there); a
+written refuses "not yet". Those pairs are: a
 line within the band of a sphere or a torus, which hold none; and
 every carrier on a spindle chart. Whether a line is a ruling of a
 cylinder or a cone is one reading (`ruling_miss`), shared by the mint,
@@ -776,7 +774,7 @@ ended by the door that reads it (D4 ¶1 (iv)), and a read in band, at a
 pose or undecided, ends in the decision's lever at every door. Which
 sketch entity an edge came from (`EdgeAuthority`) is provenance, and no
 ending reads it. A
-carrier whose route refuses (a spline or a circle whose projected image
+carrier whose route refuses (a spline or a conic whose projected image
 reaches a pole) refuses at the producer like any other refusal: no
 class goes unrouted, so the exemption excuses only a scalar that holds
 no certified lane, at which a net's projected row cannot read its hull. The
@@ -914,11 +912,15 @@ where one crosses the other's plane, through the plane door
 (`curve_face::plane_crossing`), at a root on the curve's own section of
 that plane, read through the surface's chart: the co-surface arm
 (`curve_pair::on_surface`), whose plane door shares `meet`'s transverse
-harmonic (`pose::height`). A curve on a surface is built from a surface
-value and chart coordinates, so the premise that both curves lie on one
-surface is the type's; the value may be one a caller synthesises, not a
-face's record. Every consumer holding two curves on one surface
-reads that arm (the region doors' landings, the sphere cut-in), and
+harmonic (`pose::height`). A curve on a surface is built from chart
+coordinates on a surface record: its key, and its surface as stored or
+on another chart of it. An edge carries its face's record, and the arm
+refuses a pair on two records whichever way it reads the pair. That the
+key and the surface are one record's stays the caller's: the region
+doors and the sphere cut-in read both off one face, and the planar loop
+walk names its own premise for the ray's plane. Every consumer holding
+two curves on one surface reads that arm (the region doors' landings,
+the sphere cut-in, the planar loop walk's ray against a conic arc), and
 none hands the pair to `meet`.
 Implemented: plane×plane, plane×sphere, sphere×sphere (rung 1);
 plane×cylinder, plane×cone (the parabola and hyperbola in closed form,
@@ -977,9 +979,20 @@ its value on a ceiling in metres for Zero; a cluster not decided so
 declines the sweep. A section whose decided points are touches alone,
 and whose pass found no end, is those touches, each a point component
 with its witness and a tangency decided Zero, the reading the guard's
-touch arm takes; a node, or a touch beside components with ends,
-pinches them (`spline_critical_value`), since the march that would list
-them does not start at a decided tangency.
+touch arm takes. A node, or a touch beside components with ends, is
+read whole with the decided points handed in, as a section the sweep
+finds closing about an excluded point is when every critical point is
+decided: each point's Krawczyk box, the widest the operator proves holds
+its one zero of `∇φ`, is a region seeding skips and accounting reads,
+and a march ends on entering a node's box. The node is listed with its
+point (its enclosure within the band, else `spline_node_box`), the
+wall's normal, the two null lines of `φ`'s Hessian carried to the wall's
+tangent plane and the sector side, each read off the Hessian enclosure
+that decided it; each arc end there names the ray nearest the arc's
+direction at its end, by a decided lead and a 45° floor, every ray
+claimed once (else `spline_node_ray`); a touch beside arcs is a point
+component with them. Its carriers are not minted: no component of a
+spline × implicit section is carried.
 The boolean reads the rung-3 arms cylinder×sphere and the three torus
 pairs through the section value (`pair_section`), classified, then
 carried: the classification decides the pair's pose once and, where a
@@ -1250,10 +1263,9 @@ are cases): a surface pair along a declared tangency and the boolean's
 bound-against-bound readings alike (`topo::boolean::sectors`, `fate`,
 `slit`). An edge bound of a vertex's sector against a face is read
 through the one bound-side reading (`topo::bound_side`), taken by
-`topo::boolean::sectors` and `topo::splitting::neighborhood` alike, and
-so is a bisector bound in the boolean's sector passes; the split's
-subdivision bisectors (`wide_entries`, `split_bisector_side`) read
-their side of the plane outside it. A conic edge against a plane
+`topo::boolean::sectors` and `topo::splitting::neighborhood` alike, over
+one vertex's star (`topo::star`), and so is every divider bound, in
+both verbs. A conic edge against a plane
 descends through `conic_bend_side`, its lift certified from the
 carrier's curvature bounds less the first-order residue. Any other
 tied bound descends by the parting of its bend past the face's normal
@@ -1362,25 +1374,29 @@ equal spheres over a circle or a line spine); a cone belongs to the
 variable-radius family.
 Trimlines are stored as `TangentIntersection`. Scope: a straight band
 (plane–plane, or the ruled band about a straight spine) ends at a
-trivalent vertex of one convexity between planes as the request decides
-— by how many of the vertex's three edges it names. All three: the
-corner patch (the sphere octant; the chamfer's plane through the three
-feet). One: the cut-off — the band ends in the end face's plane section
+trivalent vertex between planes as the request decides — by how many of
+the vertex's three edges it names. All three: the corner patch (the
+sphere octant; the chamfer's plane through the three feet), where the
+three edges round one way. One: the cut-off — the band ends in the end face's plane section
 of it, a chord for a chamfer, and for a fillet a circle where the end
 face is perpendicular to the edge and an ellipse otherwise
 (`CornerConfig::EndFace`, `RunOutPolicy::CutOffAtEndFace`;
 `fillet3_cap_transverse` picks the kind). Two: the mitre — each band is
 cut off by the other's support, so the two meet along their
 intersection, a line for a chamfer and a planar ellipse for a fillet
-(`CornerConfig::Turn`, `RunOutPolicy::Mitre`). Chain G1 classifies a
+(`CornerConfig::Turn`, `RunOutPolicy::Mitre`); where the shared face's
+sector is reflex the mitre joins over the wedge the two bands'
+extensions overlap in. At a vertex whose edges mix convexity, one edge
+and the two that round alike end so too. Chain G1 classifies a
 junction of two plane–plane links rather than refusing it: Zero, one
 band runs through a joint; definite, the chain breaks into two ends at
 a turn; the sliver band escalates. It still refuses at a junction that
 involves a curved link. Every other end refuses — a curved end face, a
 foot landing inside a support rather than on a rim edge, an end vertex
-of valence other than three, mixed convexity — with a `CornerConfig`
-tag and the `RunOutPolicy` that would handle it, refusal-payload names
-only. A
+of valence other than three, a mixed-convexity vertex whose odd edge
+(the one rounding unlike the other two) is requested with another of
+its edges — with a `CornerConfig` tag and the `RunOutPolicy` that would
+handle it where one would, refusal-payload names only. A
 spine that is neither line nor circle refuses `SpineUnsupported`: the
 canal-surface blend, an approximating surface per O2, is not
 implemented.
@@ -1477,7 +1493,11 @@ closed form keeps its typed refusal for a door with no quadrature lane. A sphere
 by circle arcs — rims, meridians and sections tilted against its chart
 alike, holes included — has no conic or spline trim and is on the
 closed-form lane, measured by Gauss–Bonnet over all its loops
-(`props/curved.rs`, `sphere_face`). A chart
+(`props/curved.rs`, `sphere_face`). A cylinder or sphere face bounded by
+a spline chord, its pcurve the chord's projected image, takes the
+rotational-chart Green lane (`props/quad/rotational.rs`), every loop
+read: on the sphere the poles' terms come off the face's winding and
+its sense bit, which says which side of its loops the face is. A chart
 singularity in a face's closure is a vertex of it. STEP import reads
 where it lies off the face's region (`chart_singularity.rs`, `locate`);
 tier 3 places it on the boundary by the same reading

@@ -132,6 +132,7 @@ pub mod attach;
 pub mod body;
 pub mod boolean;
 pub(crate) mod bound_side;
+pub(crate) mod boxes;
 pub mod cell_region;
 pub(crate) mod census;
 pub mod chart;
@@ -145,6 +146,7 @@ pub mod coherence;
 pub mod coincidence;
 pub mod construction;
 pub mod contact;
+mod contain_loop;
 pub mod cover;
 pub mod entity;
 pub mod euler;
@@ -163,6 +165,7 @@ pub(crate) mod source_walk;
 
 #[cfg(test)]
 pub(crate) mod cert_m3r1_probes;
+pub(crate) mod held;
 pub mod instance;
 pub(crate) mod invalid_margin;
 #[cfg(test)]
@@ -171,6 +174,7 @@ pub mod joint;
 pub(crate) mod lineage;
 pub mod link;
 pub(crate) mod live;
+pub(crate) mod loop_side;
 pub(crate) mod loop_winding;
 pub mod merge_faces;
 pub mod mirror;
@@ -218,8 +222,10 @@ pub(crate) mod review_m1_pr5_internal;
 pub(crate) mod ring_path;
 #[cfg(test)]
 mod row_walk_proofs;
+pub mod rows;
 pub(crate) mod sector_face;
 pub(crate) mod sector_shape;
+pub(crate) mod separating;
 pub mod separation;
 #[cfg(test)]
 pub(crate) mod seqgen;
@@ -320,7 +326,13 @@ pub mod test_support {
     /// A test whose assertion needs another width states that one.
     #[must_use]
     pub fn pinned_resolution<T: Real>(tol: geom_core::Tol) -> crate::Settle<T> {
-        crate::Settle::Resolution(quantity::Length::from_meters(pinned_len(tol)))
+        resolution(pinned_len(tol))
+    }
+
+    /// [`crate::Settle::Resolution`] of `meters`: the width a row states.
+    #[must_use]
+    pub fn resolution<T: Real>(meters: f64) -> crate::Settle<T> {
+        crate::Settle::Resolution(quantity::Length::from_meters(meters))
     }
 
     /// **`body`'s volume and area as numbers met at
@@ -402,14 +414,15 @@ pub mod test_support {
     };
     pub use crate::star::with_ring_root;
     pub use crate::test_support_fixtures::{
-        CubeOps, CylFrame, CylKey, FaceGeometry, NullStrutListing, Prism, PrismOps, RingFaceOps,
-        StraddleSeat, arc_chain_over_the_jump, assert_every_chord_named_by_the_fence, brick,
-        brick_with_fresh_keys, computed_edge_channels, cube_into, cyl_arc_at, cyl_wall_sheet,
-        cyl_wall_sheet_keyed, declined_cube, describe_as_intersections, drill_hole,
-        every_chord_stated_as_its_pair, face_facing, fresh_keyed_body, geometric_cube, holed_block,
-        identity_map, kill_under_a_null_strut, line, mapped_cube, plane, plane_every_face,
-        plant_disc_face, plant_ring_face, prism, prism_ops, prism_z, set_sheet_sense, split_plane,
-        straddle_seat, wedge_on_a_block_top,
+        CubeOps, CylFrame, CylKey, FaceGeometry, HINGED_ALONG_B, NullStrutListing, Prism, PrismOps,
+        RingFaceOps, StraddleSeat, arc_chain_over_the_jump, assert_every_chord_named_by_the_fence,
+        brick, brick_with_fresh_keys, computed_edge_channels, cube_into, cyl_arc_at,
+        cyl_wall_sheet, cyl_wall_sheet_keyed, cyl_wall_sheet_tilted, declined_cube,
+        describe_as_intersections, drill_hole, every_chord_stated_as_its_pair, face_facing,
+        fresh_keyed_body, geometric_cube, holed_block, identity_map, kill_under_a_null_strut, line,
+        mapped_cube, plane, plane_every_face, plant_disc_face, plant_ring_face, prism, prism_ops,
+        prism_z, set_sheet_sense, split_plane, straddle_seat, tool_on_a_block_corner,
+        wedge_on_a_block_top,
     };
     pub use crate::test_support_impl::ArenaCounts;
 
@@ -537,7 +550,7 @@ pub mod test_support {
 
     /// Each face's aimed ray's own reading, every face aimed at
     /// (`side_reader`): the curved edge-meeting ray's probes read it.
-    pub fn each_aim(body: &Body<f64>, band: geom_core::Band) -> Vec<String> {
+    pub fn each_aim<T: geom_core::Decide>(body: &Body<T>, band: geom_core::Band) -> Vec<String> {
         crate::side_reader::each_aim_report(body, band)
     }
 
@@ -555,14 +568,14 @@ pub mod test_support {
 
     pub use crate::side_reader::EdgeFrame;
 
-    /// Every crossing of the ray `q + s·d` with the solid holding `face`,
+    /// Every crossing of `ray` with the solid holding `face`,
     /// its faces in an order turned left by `turn` and reversed where
     /// asked, as `(from, to, count, sideless)` (`side_reader`): the probes
     /// read a whole ray's count off it.
     pub fn ray_counts(
         body: &Body<f64>,
         face: crate::FaceKey,
-        ray: (geom_core::Point3<f64>, geom_core::Vec3<f64>),
+        ray: &geom::Ray<f64>,
         band: geom_core::Band,
         order: (usize, bool),
     ) -> Result<Vec<(f64, f64, i32, bool)>, String> {
@@ -587,10 +600,10 @@ pub mod test_support {
     }
 
     /// The pad a face's reach box takes past the band, and each face's
-    /// share of the census's gaps (`boolean::boxes::sweep_pad`): the
+    /// share of the census's gaps (`boxes::sweep_pad`): the
     /// spelling a test outside this crate reads it by.
     pub fn sweep_pad(band: geom_core::Band) -> f64 {
-        crate::boolean::boxes::sweep_pad(band)
+        crate::boxes::sweep_pad(band)
     }
 
     /// **Restates the surface at `key`** as `surface`: a row that needs
@@ -789,9 +802,8 @@ pub mod test_support {
         };
         let mut spans: Vec<(f64, f64)> = body
             .edges()
-            .filter_map(|(_, edge)| {
-                let start = body.get_half_edge(edge.he_plus).expect("a half").start;
-                let end = body.half_edge_end(edge.he_plus).expect("an end");
+            .filter_map(|(k, _)| {
+                let (start, end) = crate::query::edge_ends(body, k);
                 let (a, b) = (at(start)?, at(end)?);
                 Some((a.min(b), a.max(b)))
             })
@@ -1297,7 +1309,7 @@ pub mod test_support {
         face: crate::FaceKey,
         band: geom_core::Band,
     ) -> bool {
-        let Some(surface) = body.passed_face(face).map(|f| f.surface()) else {
+        let Some(surface) = body.face(face).map(|f| f.surface()) else {
             return false;
         };
         matches!(
@@ -1315,7 +1327,8 @@ pub mod test_support {
     /// **Where `face` holds `p`, as the census confirms it**: the read
     /// that places a `(vertex, face)` record at rest, and that the
     /// boolean's carry asks of a divided face's pieces
-    /// ([`crate::boolean::face_placement`]). `Ok(Some(_))` placed (a
+    /// ([`crate::boolean::face_placement`]), which decides `p` against the
+    /// face's carrier rather than holding it there. `Ok(Some(_))` placed (a
     /// point decided off a planar face's plane is `Out`), `Ok(None)` a
     /// curved trim's unread remainder, `Err` the escalations or refusal
     /// the census would push.
@@ -1377,20 +1390,20 @@ pub use boolean::{
     AimedPair, AlongFace, Apart, ArcEndGaps, BoolNullEdgeRecord, BooleanBody, BooleanDecision,
     BooleanError, BooleanErrorKind, BooleanInputs, BooleanJoin, BooleanMerge, BooleanNaming,
     BooleanOp, BooleanReduction, BooleanResult, BooleanResultKind, CarriedRecord, CarrierDesc,
-    CarrierEqError, CarrierRelation, CarryRefusal, Cell, Coincide, CoincidenceMeasure,
-    CompletedPolygonPair, ConsumedExtent, Contact, ContactKind, ContactPairError, ContactRecords,
-    ContainDecision, ContainError, Contradiction, DeclarationRead, DiscardRow, EdgeCarrierSite,
-    EdgeInBand, EdgeInFaceGap, EdgeJoin, EdgePieceClass, EeContact, EfContact, FaceContainment,
-    FaceDescent, FfContact, Fusions, GlueVerdict, Held, HeldRefusal, Holdings, JOIN_LEVER,
-    JOIN_SUBJECT, JoinReading, JoinRefusal, JoinUndecided, JudgedRow, LeverArm, LineUnread,
-    LineWedgeFault, MemberFace, MemberInputs, NaryEnd, NaryJudgement, NaryMember, NaryOp,
-    NaryRefusal, NaryRun, NaryStep, NodeWhy, NullEdgePairRecord, Operand, OperandKeys,
-    OperandRecords, OverlapRefusal, PairFace, PairRefusalSite, PairSite, PairUnread,
-    PierceRingRecord, PlaneDesc, PlaneEqError, PlaneRelation, PlaneRung, PointInSolidError,
-    ReductionContacts, RefusedRow, SectionUnbuilt, SectorRead, SectorRung, SelfCheck, SettleError,
-    Settler, Settling, ShellOrientation, SideCode, SlitFaceGap, SlitLineGap, SolidContainment,
-    SolidFaces, SphereQuestion, SpiricLoops, SubstitutedFace, SweepStrategy, TorusConvention,
-    UncutFace, UnreadPartner, VeContact, VfContact, VoidContainment, VoidEvidence, VoidInsertError,
+    CarrierEqError, CarrierRelation, CarrierVerdict, CarryRefusal, Cell, Coincide,
+    CoincidenceMeasure, CompletedPolygonPair, ConsumedExtent, Contact, ContactKind,
+    ContactPairError, ContactRecords, ContainDecision, ContainError, DeclarationRead, DiscardRow,
+    EdgeCarrierSite, EdgeInBand, EdgeInFaceGap, EdgeJoin, EdgePieceClass, EeContact, EfContact,
+    FaceContainment, FaceDescent, FfContact, Fusions, GlueVerdict, Held, HeldRefusal, Holdings,
+    JOIN_LEVER, JOIN_SUBJECT, JoinReading, JoinRefusal, JoinUndecided, JudgedRow, LeverArm,
+    LineUnread, LineWedgeFault, MemberFace, MemberInputs, NaryEnd, NaryJudgement, NaryMember,
+    NaryOp, NaryRefusal, NaryRun, NaryStep, NodeWhy, NullEdgePairRecord, Operand, OperandKeys,
+    OperandRecords, OverlapRefusal, PairRefusalSite, PairSite, PairUnread, PierceRingRecord,
+    PlaneDesc, PlaneEqError, PlaneRelation, PlaneRung, PointInSolidError, ReductionContacts,
+    RefusedRow, SectionUnbuilt, SectorRead, SectorRung, SelfCheck, SettleError, Settler, Settling,
+    ShellOrientation, SideCode, SlitFaceGap, SlitLineGap, SolidContainment, SolidFaces,
+    SphereQuestion, SpiricLoops, SubstitutedFace, SweepStrategy, TorusConvention, UncutFace,
+    UnreadPartner, VeContact, VfContact, VoidContainment, VoidEvidence, VoidInsertError,
     VoidInserted, VvContact, WallRung, boolean_op_with, boolean_reduce, carrier_eq, contfp,
     curved_face_containment, decision_words, face_carrier, flush_pair_relation, insert_void,
     insert_voids, intersect, is_conventional_vertex, join_covers, joinable_vertices, joined_cell,
@@ -1399,6 +1412,7 @@ pub use boolean::{
 };
 pub use cover::{
     BoundaryUnknown, EdgeUncovered, FaceCovered, FaceUncovered, edge_cover, face_cover,
+    face_cover_toward, face_nearest,
 };
 pub use joint::{Deck, JointElement};
 pub use lineage::{
@@ -1426,15 +1440,16 @@ pub use census::{
 #[cfg(feature = "sweep-testing")]
 pub use census::{census_traces, census_traces_planted};
 pub use contact::{
-    CONTACT_RECOURSE, CONTRADICTION_REASON, CONTRADICTION_RECOURSE, ContactFinding, ContactPair,
-    ContactRefusal, GlueClass,
+    CONTACT_RECOURSE, ContactFinding, ContactPair, ContactRefusal, ContactVerdict, GlueClass,
+    RestRow, RestRuling, RestVerdict, TangentRow, TangentRuling, TangentVerdict, Uncertified,
 };
 pub use entity::{
     Edge, EdgeKey, EntityId, Face, FaceKey, GeomRef, HalfEdge, HalfEdgeKey, Loop, LoopBoundary,
-    LoopKey, Shell, ShellKey, Solid, SolidKey, Vertex, VertexKey,
+    LoopKey, LoopRole, Shell, ShellKey, Solid, SolidKey, Vertex, VertexKey,
 };
 pub use euler::{BadArgument, EulerOpError, RechartDoor};
-pub use link::{Link, LinkRefusal, Material, Round, TouchUnread};
+pub use link::{CurvedUnread, Link, LinkRefusal, Material, Round, TouchUnread};
+pub use live::FaceView;
 pub use sweep_trace::SweepPairs;
 // The types that appear in this crate's own operator signatures, so a
 // consumer of the ops needs no direct geom-* imports for the common
@@ -1516,10 +1531,10 @@ pub use shell::{
     HoleRim, RimNaming, RimShell, ShellError, ShellNaming, ShellRetired, Shelled, shell, shell_open,
 };
 pub use splitting::{
-    ApexSectionReading, ConicCrossingsCase, Escalation, KnifeEdge, KnifeEdgeSite, LoopContainment,
-    LoopDecision, NullEdgeRecord, OffPlane, OffPlaneCause, PlaneSide, PointInLoopError, Section,
-    SectionEdge, SectionEndReading, SectionError, SectionGermFault, SectionGermReading,
-    SectionPinMiss, SectionPolygon, SectionRegion, SectorEntry, SectorEntryKind, SectorReading,
+    ApexSectionReading, BoundClass, ConicCrossingsCase, Escalation, KnifeEdge, KnifeEdgeSite,
+    LoopContainment, LoopDecision, NullEdgeRecord, OffPlane, OffPlaneCause, PlaneSide,
+    PointInLoopError, Section, SectionEdge, SectionEndReading, SectionError, SectionGermFault,
+    SectionGermReading, SectionPinMiss, SectionPolygon, SectionRegion, SectorReading,
     SplitContacts, SplitError, SplitFinishError, SplitJoinError, SplitPart, SplitPlane,
     SplitReduceError, SplitReduction, SplitResult, TangencyReadings, Uncrossable,
     UncrossableCarrier, classify_neighborhood, plane_section, point_in_loop, split, split_reduce,

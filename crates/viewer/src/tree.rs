@@ -267,8 +267,9 @@ pub struct TreeRow {
     /// `None` is a node kind that has no such sentence, not a sentence
     /// that came out empty.
     pub which: Option<String>,
-    /// Whether a world placement places a body this node defines — the
-    /// world badge (A10). A placement's own row is an ordinary row.
+    /// Whether a placement places a body this node defines, wherever it
+    /// stands — the placed badge (A10). A placement's own row is an
+    /// ordinary row.
     pub placed: bool,
     /// What the evaluation said about it.
     pub status: RowStatus,
@@ -677,8 +678,8 @@ fn cleared(
         }),
         Some(crate::props::SlotValue::Count(_)) | None => Bound::Written(by.read(var)),
     };
-    // A face seat is its face, said; a body seat its read — a world
-    // copy's as the body it places ([`crate::world::copy_source`]), the
+    // A face seat is its face, said; a body seat its read — a copy's
+    // as the body it places ([`crate::world::copy_source`]), the
     // part the author picked.
     let seat = |var: pncad::document::VarId| match doc.selection(var).and_then(|s| s.names.first())
     {
@@ -1584,6 +1585,8 @@ fn repair_named(kind: &NodeErrorKind) -> Option<RecipeNodeId> {
         | NodeErrorKind::ToleranceConflict { .. }
         | NodeErrorKind::ParamBox { .. }
         | NodeErrorKind::Seed { .. }
+        | NodeErrorKind::RecordRefused
+        | NodeErrorKind::RecordMispaired(_)
         | NodeErrorKind::DegenerateDirection { .. }
         | NodeErrorKind::NonFiniteDirection { .. }
         | NodeErrorKind::UnderflowedDirection { .. }

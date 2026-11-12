@@ -296,11 +296,7 @@ fn charts_are_the_convention(
     r: &Reflection<f64>,
 ) {
     let map = r.to_affine();
-    let surface_of = |b: &Body<f64>, face| {
-        b.get_surface(b.get_face(face).expect("a face").surface)
-            .expect("a surface")
-            .clone()
-    };
+    let surface_of = |b: &Body<f64>, face| b.face_surface(face).expect("a surface").clone();
     for (face, _) in body.faces() {
         let (s, s_image) = (surface_of(body, face), surface_of(image, face));
         let mut samples: Vec<(f64, f64)> = Vec::new();
@@ -377,9 +373,8 @@ fn mirrors_to_its_image(what: &str, body: Body<f64>) {
                 .find(|(j, _)| *j == k)
                 .expect("the key survives")
                 .1;
-            assert_eq!(
-                q.to_array().map(f64::to_bits),
-                map.transform_point(*p).to_array().map(f64::to_bits),
+            assert!(
+                q.same_bits(map.transform_point(*p)),
                 "{label}: point {k:?} is the reflection of the source's"
             );
         }

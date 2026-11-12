@@ -42,11 +42,7 @@ fn washer_full_revolve_is_genus_one_and_tier_valid() {
     let mut planes = 0;
     for w in &t.walls()[0] {
         let f = w.expect("no on-axis segments");
-        match t
-            .body
-            .get_surface(t.body.get_face(f).unwrap().surface)
-            .unwrap()
-        {
+        match t.body.face_surface(f).unwrap() {
             Surface::Cylinder { .. } => cylinders += 1,
             Surface::Plane { .. } => planes += 1,
             other => panic!("unexpected wall surface {other:?}"),
@@ -83,9 +79,8 @@ fn washer_full_revolve_is_genus_one_and_tier_valid() {
     let mut seams = 0;
     let mut planes_unslit = 0;
     for (m, w) in meridians.iter().zip(&t.walls()[0]) {
-        let wall = t.body.get_face(w.expect("no on-axis segments")).unwrap();
         let plane = matches!(
-            t.body.get_surface(wall.surface),
+            t.body.face_surface(w.expect("no on-axis segments")),
             Some(Surface::Plane { .. })
         );
         match (m, plane) {

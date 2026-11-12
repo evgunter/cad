@@ -91,6 +91,7 @@ use crate::half_angle::{
     DegreeTwo, HalfAngleFrame, HalfAngleRows, MAX_DEGREE, RootSlack, half_angle_roots,
 };
 use crate::roots::{OnCarrier, RootRefusal, Roots, Unsettled, extreme_sign, spread_signs};
+pub use crate::rows::FirstHarmonicRows;
 use geom_core::period::Period;
 use geom_core::{Band, Decide, Margin, Sign};
 
@@ -107,6 +108,15 @@ pub enum DoorRefusal {
     /// The door's readings contradict, or it was handed a carrier or a
     /// surface of a kind it does not read: a kernel defect.
     Invariant(&'static str),
+    /// **A torus outside the ring convention**, the convention's refusal
+    /// carried whole ([`crate::TorusRefusal`]), as the plane × torus
+    /// section carries it. A torus door reads only a ring: its harmonics
+    /// take the convention's witness ([`crate::conic_torus_harmonics`]),
+    /// and the door asks for it before any pose. The standing is the
+    /// convention's own ([`crate::TorusRefusal::refusal`]): an undecided
+    /// half is ranked by its margin, and a torus decided outside it is
+    /// invalid input.
+    Torus(crate::TorusRefusal),
 }
 
 /// What the certified roots of a circle against a surface say about the
@@ -217,19 +227,6 @@ pub struct FirstHarmonic<T> {
     pub phase_noise: T,
 }
 
-/// The predicate rows one caller of [`first_harmonic_roots`] meters
-/// under (module docs: noise, coaxial, extreme, root slack; all metres).
-pub struct FirstHarmonicRows {
-    /// The noise meter's row.
-    pub noise: &'static str,
-    /// The coaxial carrier's constant residual's row.
-    pub coaxial: &'static str,
-    /// The extremes' row.
-    pub extreme: &'static str,
-    /// The root slack's row.
-    pub root_slack: &'static str,
-}
-
 /// **The certified roots of a first-harmonic residual along a carrier
 /// whose speed `|C′(θ)|` is at most `speed`** (a circle's radius, an
 /// ellipse's larger semi-axis), reported within `π` of the midpoint of
@@ -306,25 +303,25 @@ fn harmonic_crossing<T: Decide>(
     // The extremes are what every decision below reads, so their error
     // is what the representation must resolve.
     let noise = lo_noise.max(hi_noise);
-    match decide(rows.noise, Margin::of(noise), band) {
+    match decide(rows.noise(), Margin::of(noise), band) {
         Ok(Sign::Zero | Sign::Negative) => {}
-        Ok(Sign::Positive) | Err(_) => return Err(Unsettled::Meter { row: rows.noise }.into()),
+        Ok(Sign::Positive) | Err(_) => return Err(Unsettled::Meter { row: rows.noise() }.into()),
     }
     let (c0, a1) = ((lo_value + hi_value) / two, (hi_value - lo_value) / two);
-    if let Ok(Sign::Zero) = decide(rows.coaxial, Margin::of(a1), band) {
+    if let Ok(Sign::Zero) = decide(rows.coaxial(), Margin::of(a1), band) {
         return Ok(
-            match constant_residual_roots(c0, a1 + noise, rows.extreme, band)? {
+            match constant_residual_roots(c0, a1 + noise, rows.extreme(), band)? {
                 Roots::Miss => Harmonic::Miss,
                 Roots::On(_) => Harmonic::On,
                 Roots::Certified(_) => unreachable!("a constant residual has no roots"),
             },
         );
     }
-    let lo = extreme_sign(rows.extreme, lo_value, lo_noise, band)?;
+    let lo = extreme_sign(rows.extreme(), lo_value, lo_noise, band)?;
     if lo == Sign::Positive {
         return Ok(Harmonic::Miss);
     }
-    let hi = extreme_sign(rows.extreme, hi_value, hi_noise, band)?;
+    let hi = extreme_sign(rows.extreme(), hi_value, hi_noise, band)?;
     if hi == Sign::Negative {
         return Ok(Harmonic::Miss);
     }
@@ -340,11 +337,11 @@ fn harmonic_crossing<T: Decide>(
     let at_root = (hi_value * lo_noise - lo_value * hi_noise) / swing;
     let phase = phase_noise / (cos_part.powi(2) + sin_part.powi(2)).sqrt();
     let slack = speed * (at_root / slope + phase + geom_core::rounding_charge(T::tau()));
-    match decide(rows.root_slack, Margin::of(slack), band) {
+    match decide(rows.root_slack(), Margin::of(slack), band) {
         Ok(Sign::Zero | Sign::Negative) => {}
         Ok(Sign::Positive) | Err(_) => {
             return Err(Unsettled::Meter {
-                row: rows.root_slack,
+                row: rows.root_slack(),
             }
             .into());
         }
@@ -378,7 +375,7 @@ fn harmonic_roots<T: Decide>(
     let middle = geom::mid_param(t0, t1);
     let phi = geom::Azimuth::of(h.sin_part, h.cos_part).near(middle);
     let (a, b) = (phi - half_chord, phi + half_chord);
-    let turn = Period::new(T::tau());
+    let turn = Period::angle();
     Ok(Roots::all([turn.near(a, middle), turn.near(b, middle)]))
 }
 

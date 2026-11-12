@@ -76,7 +76,7 @@ fn chart_and_feet(body: &Body<f64>, face: FaceKey) -> (Vec3<f64>, Vec3<f64>, Vec
         axis,
         u_ref,
         ..
-    } = body.get_surface(f.surface).expect("its surface")
+    } = body.face_surface(face).expect("its surface")
     else {
         panic!("a fillet corner patch is a sphere octant");
     };
@@ -224,7 +224,7 @@ fn r2_corner_arcs_are_sub_pi_turns_about_the_stored_centre_on_both_sides() {
         for face in corners {
             let f = body.get_face(face).expect("a minted corner face");
             let Surface::Sphere { center, radius, .. } =
-                body.get_surface(f.surface).expect("its surface")
+                body.face_surface(face).expect("its surface")
             else {
                 panic!("a fillet corner patch is a sphere octant");
             };
@@ -303,7 +303,8 @@ fn r2_corner_arcs_are_sub_pi_turns_about_the_stored_centre_on_both_sides() {
 /// matches `MixedConvexity { .. }` and drops the count, so the
 /// discipline the retired row articulated left the tree with it.
 /// This restores it at the surviving fixture: the bracket's reflex
-/// edge ends at corners where exactly two of three edges are convex.
+/// edge ends at corners where exactly two of three edges are convex,
+/// requested whole with every other edge of the bracket.
 #[test]
 fn r2_the_mixed_corner_refusals_count_is_two_of_three() {
     let lp = ProfileLoop::polygon([
@@ -331,7 +332,7 @@ fn r2_the_mixed_corner_refusals_count_is_two_of_three() {
     let reflex: Vec<EdgeKey> = bracket
         .edges()
         .filter(|(k, _)| {
-            let Some(e) = bracket.get_edge(*k) else {
+            let Some((start, end)) = bracket.edge_vertices(*k) else {
                 return false;
             };
             let pt = |vk| {
@@ -340,13 +341,7 @@ fn r2_the_mixed_corner_refusals_count_is_two_of_three() {
                     .and_then(|x| bracket.get_point(x.point))
                     .copied()
             };
-            let (Some(a), Some(b)) = (
-                bracket
-                    .get_half_edge(e.he_plus)
-                    .map(|h| h.start)
-                    .and_then(pt),
-                bracket.half_edge_end(e.he_plus).and_then(pt),
-            ) else {
+            let (Some(a), Some(b)) = (pt(start), pt(end)) else {
                 return false;
             };
             on_reflex(a) && on_reflex(b)
@@ -356,7 +351,7 @@ fn r2_the_mixed_corner_refusals_count_is_two_of_three() {
     assert_eq!(reflex.len(), 1, "the bracket's one reflex vertical edge");
     let refused = fillet_edges(
         &sweep::test_support::at_rest(&bracket, Tol::witness()),
-        &reflex,
+        &topo::query::all_edges(&bracket),
         0.1,
         Tol::witness(),
     )

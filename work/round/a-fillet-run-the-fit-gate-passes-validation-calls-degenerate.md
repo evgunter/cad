@@ -2,10 +2,11 @@
 id: a-fillet-run-the-fit-gate-passes-validation-calls-degenerate
 kind: issue
 title: the fillet fit gate emits a run validation then refuses as DegenerateSegment: the build and the validator decide a short run on different bands
-status: open
+status: closed
 opened: 2026-11-06
 priority: P2
 cost: M
+closed: 2026-11-09
 ---
 
 
@@ -33,3 +34,25 @@ decision. Which, and whether this is one more instance of the
 `fillet_leg_fit`/`fillet_leg_reach` exact-band question in
 `fillet-inband-recourse-drops-the-tolerance-lever`, is the unit's to
 decide.
+
+## Closed (PR 6682, 2026-11-09)
+
+The build and validation now read one decision on the run.
+`fillet_leg_fit` reads a leg's run (length less setback) against the
+run's linear band, the band validation's `vertex_separation` reads a
+segment's length on (`sugar::line_line_fillet_trims` takes the band;
+`arc_fillet_trims` decides on the band it already held), on both
+sides and for straight and arc runs alike. A run validation would call
+degenerate is a Zero fit and is not built; a run in the band escalates
+at the fit, its recourse the gate's own (`FILLET_FIT_RECOURSE`, now a
+`Sized` gate, so the ending adds the tolerance arm). Pinned by
+`crates/profile/tests/fillet_run_fit.rs`: the reviewer's straight,
+decimal, rounded-corner grid (360 cases) and arc-extension repros, and
+the outgoing side.
+
+Not the same question as `fillet-inband-recourse-drops-the-tolerance-lever`
+(closed): that row is about which recourse sentences name the tolerance.
+Its table's "`FILLET_FIT_RECOURSE` — the tolerance is no lever (exact-order
+band)" no longer holds now that the gate reads the linear band; the
+`Sized` kind is what names that lever now. `fillet_leg_reach` stays on
+the exact-order band.

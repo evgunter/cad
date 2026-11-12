@@ -2,10 +2,13 @@
 id: dome-clearance-screen-escalates-an-invalid-margin
 kind: issue
 title: sweep: the dome's equator at r >= 0.6 escalates fillet3_face_clearance with MarginDiag::Invalid
-status: open
+status: closed
 opened: 2026-09-13
 priority: P0
 cost: H
+closed: 2026-11-10
+branch: bandreach/dome-invalid-margin
+pr: 6779
 ---
 
 
@@ -41,3 +44,70 @@ Outside BLEND-14's fence (the battery's screen and the arms' setbacks);
 filed for whoever owns the clearance screen. Not acted on.
 
 Moved from `work/issues/` to `work/bandreach/` on 2026-11-03, when the `work/issues/` bucket was retired (Ev's direction, in chat); id and body unchanged.
+
+## Dispatch
+
+2026-11-10, BANDREACH orchestrator. One FULL-tier implementer, lane
+`bandreach-dome`, branch `bandreach/dome-invalid-margin`. The brief is
+to re-measure the ladder on main first, trace the non-value margin to
+the input of `gap − setback_here − setback_there` that goes bad, and fix
+it where the reading goes bad, not in the screen's message. A non-value
+margin must not be quotable as in band from any caller of the screen.
+The right outcome past `r = R/2` (a build, a typed refusal naming the
+geometric reason, or the funnel's poison) is chosen by meaning; if it
+is a design question, the lane stops and reports it. The fixture is
+`dome(1.0, tol())` in
+`crates/sweep/tests/review_contact_edge_must_carry_r2_probes.rs`, not
+`test_support::dome` as the finding says.
+
+## Closed
+
+Re-measured on `origin/main` at `b0acc5e1e9`: r = 0.1, 0.25 build; 0.4,
+0.5 refuse `FaceClearanceUncertified`; 0.6 to 0.99 escalate
+`fillet3_face_clearance` with `MarginDiag::Invalid`, the table as filed.
+
+**Cause.** Both setbacks the screen subtracts were NaN, the sphere's
+first. `arms::plane_sphere_blend` takes the spine radius as
+`s = √((R − r)² − h²)`, and on the dome `h = r`, so `s² = R(R − 2r)`.
+The ball must sit `r` above the plane and `R − r` from the sphere's
+centre, and both hold only while `R − r ≥ r`. At `r = R/2` the spine
+shrinks to a point on the axis, and past it no ball of radius `r` rests
+on both supports. The arm gated nothing and minted NaN trimlines,
+which the clearance screen classified. The ball's centre does not pass
+the sphere's centre, as the filing guessed: the spine circle closes on
+the axis. The lentil's sphere × sphere equator had the same defect
+through the sheet reduction (`arms::sheet_center`'s circle × circle
+root), past `r = 0.4`.
+
+**Outcome.** A typed refusal at the source. When the link resolves,
+`fillet3_ball_room` decides that the offsets cross, on their secant
+margin in metres (`arms::plane_sphere_room`, `arms::offset_room`). The
+door is `battery::room_at`, shared with `fillet3_knife_room`. A radius
+past it refuses `BlendError::BallDoesNotFit` with
+`FILLET3_BALL_ROOM_RECOURSE`. A smaller radius always has room, so the
+recourse holds wherever the refusal fires. The dome now builds at 0.1
+and 0.25, refuses the clearance screen at 0.4, and refuses
+`BallDoesNotFit` from 0.5: Zero at 0.5, room `1 − 2r` past it.
+
+**Pinned.**
+- `review_contact_edge_must_carry_r2_probes::r2_a_sphere_support_toward_osculation_never_reaches_the_rule`:
+  the whole ladder, asserted one class per stretch.
+- `a_ball_with_no_room_at_its_rim_refuses_typed`: dome, hemisphere,
+  pocket floor, lentil, lantern neck and shoulder, laddered through
+  their room. No refusal carries a non-value margin, and the first
+  radius without room is the closed form's.
+- `blend_recourse_followability::the_ball_room_recourse_is_followed_by_a_ball_that_fits`.
+- `verbs_arms1_r1_probes::near_limit_radii_refuse_typed`, at the
+  closed-form room.
+
+**Fix pass (review of PR 6779).** The room is read with each offset's
+radius signed, so past `r = R` it keeps falling with the overshoot
+instead of reading a ball that holds the sphere; the knife's and the
+rim's margins are one function (`arms::offset_room`). `room_at` mints
+a private `BallRoom` token, and the battery reaches the plane–sphere
+arm and the sheet reduction only through it. `BallDoesNotFit` says no
+ball rolls along the rim touching both faces, true at the decided Zero
+of `r = R/2` too. The class rows now read the closed form at every
+rung, around each boundary, both plane–sphere orders, and the outside
+fold. Filed `work/band/predicate-3-reads-a-spine-past-the-axis-as-regular.md`.
+

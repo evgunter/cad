@@ -23,8 +23,9 @@
 //!    or wholly out of it. A seam is no boundary: the face lies on both
 //!    sides of it. The centre station, placed by the face's
 //!    point-in-face door ([`crate::contfp`] on a plane,
-//!    [`crate::curved_face_containment`] on a curved carrier), says
-//!    which.
+//!    [`crate::boolean::curved_face_placement`] on a curved carrier),
+//!    says which; a station the curved door reads off its own carrier
+//!    is the kernel's defect, and panics.
 //!
 //! Anything else is [`CellRegion::Undecided`]: an edge not decided
 //! clear (in the band, poisoned, or genuinely crossing), a station the
@@ -45,7 +46,7 @@ use geom_core::interval::Interval;
 use geom_core::{Band, CertifiedBounds, Decide, Margin, Point3, Sign};
 
 use crate::Body;
-use crate::boolean::{FaceContainment, contfp, curved_face_containment};
+use crate::boolean::{CurvedPlacement, FaceContainment, contfp, curved_face_placement};
 use crate::entity::FaceKey;
 use crate::live::BoundaryMember;
 use crate::splitting::containment::{ArcFloor, arc_distance_floor};
@@ -57,7 +58,7 @@ use crate::validate::decide;
 /// `Positive` clears.
 ///
 /// A vertex's point.
-const VERTEX: &str = "cell_region_vertex_gap";
+const CELL_REGION_VERTEX: &str = "cell_region_vertex_gap";
 /// A line edge's segment.
 const SEGMENT: &str = "cell_region_segment_gap";
 /// A circular or elliptic edge's arc floor.
@@ -65,7 +66,7 @@ const CONIC: &str = "cell_region_conic_gap";
 /// The ball holding a spiric or spline edge's arc.
 const BALL: &str = "cell_region_ball_gap";
 /// A carrier's singular set: a cone's apex, a torus's axis.
-const SINGULAR: &str = "cell_region_singular_gap";
+const CELL_REGION_SINGULAR: &str = "cell_region_singular_gap";
 
 /// What [`cell_region`] says about one cell of a face's carrier.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -94,7 +95,7 @@ pub fn cell_region<T: Decide + CertifiedBounds>(
     v: (f64, f64),
     band: Band,
 ) -> CellRegion {
-    let Some(stored) = body.passed_face(face).map(|f| f.surface()) else {
+    let Some(stored) = body.face(face).map(|f| f.surface()) else {
         return CellRegion::Undecided;
     };
     cell_region_lifted(
@@ -141,14 +142,14 @@ pub(crate) fn cell_region_lifted<T: Decide + CertifiedBounds>(
         <Interval as geom_core::Real>::from_computed(mv),
     );
     let reach = (surface.eval(span(u), span(v)) - station).norm();
-    let clear = |row: &'static str, distance: Interval| {
+    let clear_as = |row: &'static str, distance: Interval| {
         matches!(
             decide(row, Margin::of(distance - reach), band),
             Ok(Sign::Positive)
         )
     };
-    if !(clear_of_singular(surface, station, &clear)
-        && clear_of_boundary(boundary, station, &clear))
+    if !(clear_of_singular(surface, station, &clear_as)
+        && clear_of_boundary_as(boundary, station, &clear_as))
     {
         return CellRegion::Undecided;
     }
@@ -164,16 +165,25 @@ pub(crate) fn cell_region_lifted<T: Decide + CertifiedBounds>(
 
 /// **Where the face's point door places the point `(u, v)` of `face`'s
 /// stored chart**: [`crate::contfp`] on a plane,
-/// [`crate::curved_face_containment`] on a curved carrier. `None` for
-/// a face that does not resolve, a door that refuses, and
-/// a curved door's unread remainder.
+/// [`crate::boolean::curved_face_placement`] on a curved carrier. `None`
+/// for a face that does not resolve, a door that refuses, and a curved
+/// door's unread remainder.
+///
+/// # Panics
+///
+/// In every build, where the curved door reads the station definitely
+/// off an analytic face's carrier (a sphere, cylinder, cone, torus or
+/// ruled carrier): the station is a point of the face's own chart, so
+/// that is the kernel's defect. A spline face's off-carrier reading is
+/// `None` instead: its station has no premise check, and the spline
+/// region's search is the only reading of it.
 pub fn station_region<T: Decide + CertifiedBounds>(
     body: &Body<T>,
     face: FaceKey,
     (u, v): (f64, f64),
     band: Band,
 ) -> Option<FaceContainment> {
-    let surface = body.passed_face(face)?.surface();
+    let surface = body.face(face)?.surface();
     let station = surface.eval(T::from_computed(u), T::from_computed(v));
     place(body, face, surface, station, band)
 }
@@ -185,11 +195,34 @@ fn place<T: Decide>(
     station: Point3<T>,
     band: Band,
 ) -> Option<FaceContainment> {
+    crate::held::Held::constructed(station, "a station of the face's own stored chart")
+        .check(surface, band);
     match *surface {
         Surface::Plane { normal, .. } => contfp(body, face, normal, station, band).ok(),
-        _ => curved_face_containment(body, face, station, band)
-            .ok()
-            .flatten(),
+        _ => match curved_face_placement(body, face, station, band).ok()? {
+            CurvedPlacement::Trim(at) => at,
+            // A spline chart's station is read by the spline region's own
+            // search (hull cells and feet), and `Held::check` does not
+            // read a spline: that search is the only reading of it, so
+            // its off-carrier answer is a reading the door could not
+            // settle, not a contradiction of a checked premise. The cell
+            // is kept, the direction a subdivision consumer's looseness
+            // runs. An analytic carrier's station is the face's own
+            // chart's (`constructed`), which `Held::check` reads in debug
+            // and the closed form decides here, so its off-carrier reading
+            // is the kernel's defect, as at every held door, never a
+            // reading of `Out`.
+            CurvedPlacement::OffCarrier => {
+                if matches!(surface, Surface::Nurbs(_) | Surface::Approx(_)) {
+                    return None;
+                }
+                unreachable!(
+                    "cell region: face {face:?}: a station of the face's own stored chart reads \
+                     definitely off its carrier. {}",
+                    geom_core::kernel_defect_ending!()
+                )
+            }
+        },
     }
 }
 
@@ -220,7 +253,7 @@ impl Ball {
         self.reach
     }
 
-    fn clear(self, row: &'static str, distance: Interval, band: Band) -> bool {
+    fn clear_as(self, row: &'static str, distance: Interval, band: Band) -> bool {
         matches!(
             decide(row, Margin::of(distance - self.reach), band),
             Ok(Sign::Positive)
@@ -229,11 +262,11 @@ impl Ball {
 
     /// Is the point decided clear of the ball?
     pub(crate) fn clear_of_point(self, p: Point3<Interval>, band: Band) -> bool {
-        self.clear(VERTEX, (p - self.centre).norm(), band)
+        self.clear_as(CELL_REGION_VERTEX, (p - self.centre).norm(), band)
     }
 
     /// Is the arc of `carrier` over `params` decided clear of the ball?
-    pub(crate) fn clear_of_arc(
+    pub(crate) fn clear_of_arc_as(
         self,
         carrier: &geom::Curve3<Interval>,
         params: (Interval, Interval),
@@ -245,7 +278,7 @@ impl Ball {
                 ArcFloor::Conic { .. } => CONIC,
                 ArcFloor::Ball { .. } => BALL,
             };
-            floor.clears(|d| self.clear(row, d, band))
+            floor.clears(|d| self.clear_as(row, d, band))
         })
     }
 }
@@ -257,23 +290,23 @@ impl Ball {
 fn clear_of_singular(
     surface: &Surface<Interval>,
     station: Point3<Interval>,
-    clear: &dyn Fn(&'static str, Interval) -> bool,
+    clear_as: &dyn Fn(&'static str, Interval) -> bool,
 ) -> bool {
     match *surface {
-        Surface::Cone { apex, .. } => clear(SINGULAR, (station - apex).norm()),
+        Surface::Cone { apex, .. } => clear_as(CELL_REGION_SINGULAR, (station - apex).norm()),
         Surface::Torus { center, axis, .. } | Surface::Spindle { center, axis, .. } => {
             let axis_line = geom::Line {
                 origin: center,
                 dir: axis,
             };
-            clear(SINGULAR, axis_line.distance(station))
+            clear_as(CELL_REGION_SINGULAR, axis_line.distance(station))
         }
         _ => true,
     }
 }
 
 /// One stop of a face's boundary walk, lifted to the interval scalar:
-/// what [`clear_of_boundary`] decides, in the order it decides it.
+/// what [`clear_of_boundary_as`] decides, in the order it decides it.
 #[derive(Debug, Clone)]
 pub(crate) enum BoundaryStop {
     /// A vertex's point.
@@ -295,7 +328,7 @@ pub(crate) fn lift_boundary<T: Decide + CertifiedBounds>(
     face: FaceKey,
 ) -> Vec<BoundaryStop> {
     let mut stops = Vec::new();
-    let Some(f) = body.passed_face(face) else {
+    let Some(f) = body.face(face) else {
         stops.push(BoundaryStop::Unreadable);
         return stops;
     };
@@ -326,20 +359,20 @@ pub(crate) fn lift_boundary<T: Decide + CertifiedBounds>(
 
 /// Is every stop of a face's lifted boundary decided clear of the
 /// ball? The first stop that is not ends the walk.
-fn clear_of_boundary(
+fn clear_of_boundary_as(
     stops: &[BoundaryStop],
     station: Point3<Interval>,
-    clear: &dyn Fn(&'static str, Interval) -> bool,
+    clear_as: &dyn Fn(&'static str, Interval) -> bool,
 ) -> bool {
     stops.iter().all(|stop| match stop {
-        BoundaryStop::Vertex(p) => clear(VERTEX, (*p - station).norm()),
+        BoundaryStop::Vertex(p) => clear_as(CELL_REGION_VERTEX, (*p - station).norm()),
         BoundaryStop::Arc(arc) => arc_distance_floor(&arc.0, arc.1, station).is_some_and(|floor| {
             let row = match floor {
                 ArcFloor::Segment(_) => SEGMENT,
                 ArcFloor::Conic { .. } => CONIC,
                 ArcFloor::Ball { .. } => BALL,
             };
-            floor.clears(|d| clear(row, d))
+            floor.clears(|d| clear_as(row, d))
         }),
         BoundaryStop::Unreadable => false,
     })

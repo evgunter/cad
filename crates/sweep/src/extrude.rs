@@ -118,10 +118,7 @@ use crate::swept::{
 /// The predicate names this verb's cosurface decision reports under
 /// (the side walls of an extrusion: planes from lines, cylinders from
 /// arcs).
-const SIDE_COSURFACE: CosurfaceNames = CosurfaceNames {
-    lines: "side_planes_cosurface",
-    arcs: "side_cylinders_cosurface",
-};
+const SIDE_COSURFACE: CosurfaceNames = crate::rows::SIDE_COSURFACE;
 
 /// How far (and which way) to extrude — the operation's second input.
 #[derive(Clone, Copy, Debug)]
@@ -516,8 +513,8 @@ impl ExtrudeError {
             Self::DegenerateExtrusion => write!(
                 f,
                 "the extrusion has no definite length across the sketch plane (it is \
-                 in-plane or sliver-thin). Recourse: {}",
-                geom_core::COINCIDENCE_RECOURSE
+                 in-plane or sliver-thin). {}",
+                geom_core::MOVE_RECOURSE
             ),
             Self::NegativeDepth { side, depth } => write!(
                 f,
@@ -580,15 +577,15 @@ impl ExtrudeError {
                 mixed: Some(stations),
             } => write!(
                 f,
-                "along the join {edge:?}, {stations}. Recourse: {}",
-                geom_core::COINCIDENCE_RECOURSE
+                "along the join {edge:?}, {stations}. {}",
+                geom_core::MOVE_RECOURSE
             ),
             Self::SmoothJoinRefuted { edge, mixed: None } => write!(
                 f,
                 "the join along {edge:?} classified definitely smooth at its witness \
                  but definitely a corner at every certification station, so the construction \
-                 refuses rather than choose a description for it. Recourse: {}",
-                geom_core::COINCIDENCE_RECOURSE
+                 refuses rather than choose a description for it. {}",
+                geom_core::MOVE_RECOURSE
             ),
             Self::CapPlane { source } => write!(f, "{source}"),
             Self::SidePlane {
@@ -1220,9 +1217,9 @@ fn sweep_loop<T: Decide + topo::AtRestPolicy>(
         let k_prev = face_surface_key(body, f_prev);
         let k_next = face_surface_key(body, f_next);
         let s_prev = body
-            .get_surface(k_prev)
+            .face_surface(f_prev)
             .cloned()
-            .unwrap_or_else(|| unreachable!("surface {k_prev:?} is held by live face {f_prev:?}"));
+            .unwrap_or_else(|| unreachable!("face {f_prev:?} was minted by this extrude"));
         if k_prev == k_next {
             // ONE surface on both sides: a conventional locus the
             // surfaces under-determine (a circle's canonical cut, or the
@@ -1249,9 +1246,9 @@ fn sweep_loop<T: Decide + topo::AtRestPolicy>(
             continue;
         }
         let s_next = body
-            .get_surface(k_next)
+            .face_surface(f_next)
             .cloned()
-            .unwrap_or_else(|| unreachable!("surface {k_next:?} is held by live face {f_next:?}"));
+            .unwrap_or_else(|| unreachable!("face {f_next:?} was minted by this extrude"));
         let mid = qs[j] + w * T::from_f64(0.5);
         let reach = topo::edge_wedge_reach(body, strut.edge).unwrap_or_else(|| {
             unreachable!("strut {:?} was minted with a certified line", strut.edge)

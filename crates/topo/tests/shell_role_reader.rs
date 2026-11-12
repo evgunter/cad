@@ -560,16 +560,16 @@ fn channel(pose: Pose, w: f64, s: f64, tol: Tol) -> Channel {
 #[derive(Debug, PartialEq)]
 enum Want {
     Builds,
-    /// The reduction's sector question refuses (the GERMCERT row).
-    Sector,
+    /// The corner's crossing question refuses: two plane faces the glue
+    /// door left unglued read parallel at the corner's arm.
+    Corner,
 }
 
 /// Every distinct point of `shell`'s loops.
 fn shell_points(body: &Body<f64>, shell: topo::ShellKey) -> Vec<[f64; 3]> {
     let mut out: Vec<[f64; 3]> = Vec::new();
     for &f in &body.get_shell(shell).expect("the shell resolves").faces {
-        let face = body.get_face(f).expect("its face resolves");
-        for l in std::iter::once(face.outer).chain(face.rings.iter().copied()) {
+        for (l, _, _) in body.face(f).expect("its face resolves").loops() {
             let topo::LoopBoundary::Cycle { first } = body.get_loop(l).expect("a loop").boundary
             else {
                 continue;
@@ -645,16 +645,17 @@ fn channel_rows(pose: Pose, m: f64, s: f64, tol: Tol, want: impl Fn(&str) -> Wan
     ] {
         let what = what(op);
         match want(op) {
-            Want::Sector => {
+            Want::Corner => {
                 assert!(
                     matches!(
                         &run,
                         Err(BooleanError::Escalated {
-                            decision: BooleanDecision::Coincidence(Coincide::Sectors, _),
+                            decision: BooleanDecision::Coincidence(Coincide::CornerCrossing, _),
                             diag,
-                        }) if matches!(diag.predicate, Some("bool_sector_within" | "bool_sector_coplanar"))
+                        }) if diag.predicate == Some("bool_faces_parallel")
+                            && diag.margin.rejected_sign() == Some(geom_core::Sign::Zero)
                     ),
-                    "{what}: refuses on the sector question, got {:?}",
+                    "{what}: refuses on the corner's crossing question, got {:?}",
                     run.map(|_| ())
                 );
                 continue;
@@ -702,8 +703,12 @@ fn channel_rows(pose: Pose, m: f64, s: f64, tol: Tol, want: impl Fn(&str) -> Wan
 /// point of it is off the band of those walls; the join reads its side
 /// off its germ at the seam, and builds at every width.
 ///
-/// Turned at ε 1e-9 at 12ε, the same operands refuse earlier, in the
-/// reduction's sector question (`bool_sector_coplanar`)
+/// Turned at ε 1e-9 at 12ε, the end faces of the slab and the fill,
+/// their carriers fitted across a run `w` long, read their parallel rung
+/// in band at the glue door, which leaves that pair unglued; at their
+/// shared corner the two read parallel at its arm and refuse on the
+/// corner's crossing question (`Coincide::CornerCrossing`,
+/// `bool_faces_parallel`)
 /// (`work/germ/a-sector-direction-read-off-a-needles-short-run-carries-its-rounding-over-1-w.md`).
 #[test]
 fn a_needle_cavity_builds_at_every_definite_width_and_holds_it_as_a_void() {
@@ -715,7 +720,7 @@ fn a_needle_cavity_builds_at_every_definite_width_and_holds_it_as_a_void() {
     for pose in [Pose::Aligned, Pose::Turned, Pose::Moved] {
         for m in [10.5, 12.0, 15.0, 21.0, 30.0] {
             channel_rows(pose, m, 0.0, tol, |_| match pose {
-                Pose::Turned if at_1e9 && m == 12.0 => Want::Sector,
+                Pose::Turned if at_1e9 && m == 12.0 => Want::Corner,
                 _ => Want::Builds,
             });
         }

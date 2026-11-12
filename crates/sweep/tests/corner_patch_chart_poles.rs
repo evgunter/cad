@@ -68,7 +68,7 @@ fn every_corner_encodes_and_holds_no_pole<T: topo::AtRestPolicy + Decide + Bound
     let band = Band::linear(Tol::witness()).unwrap();
     for &face in &out.corner_faces {
         let f = body.get_face(face).expect("a minted corner face");
-        let surface = body.get_surface(f.surface).expect("its surface");
+        let surface = body.face_surface(face).expect("its surface");
         let Surface::Sphere {
             center,
             radius,
@@ -249,10 +249,7 @@ fn every_corner_patch_encodes_its_side_and_holds_no_pole_off_a_vertex() {
                     .and_then(|x| void.get_point(x.point))
                     .unwrap()
             };
-            let (a, b) = (
-                void.get_half_edge(e.he_plus).unwrap().start,
-                void.half_edge_end(e.he_plus).unwrap(),
-            );
+            let (a, b) = void.edge_vertices(k).unwrap();
             line && inside(at(a)) && inside(at(b))
         })
         .collect();

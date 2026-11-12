@@ -38,7 +38,7 @@ use sweep::chamfer::chamfer_edges;
 use sweep::test_support::cube;
 use sweep::{Extrusion, extrude};
 use topo::query;
-use topo::{Body, EdgeKey, EntityId};
+use topo::{Body, EntityId};
 
 /// The cube side, meters.
 const L: f64 = 1.0;
@@ -376,12 +376,16 @@ fn chamfer_refusals() -> Vec<(&'static str, BlendError)> {
     ));
 
     let bracket = l_bracket();
-    let concave = concave_edge(&bracket);
     out.push((
         "corner configuration",
-        chamfer_edges(&sweep::test_support::at_rest(&bracket, t), &[concave], D, t)
-            .expect_err("a mixed-convexity corner is out of scope")
-            .error,
+        chamfer_edges(
+            &sweep::test_support::at_rest(&bracket, t),
+            &query::all_edges(&bracket),
+            D,
+            t,
+        )
+        .expect_err("a mixed-convexity corner requested whole has no patch")
+        .error,
     ));
 
     let (mut two, corner_pair) = crate::common::operands::leaning_turn_in_band(t);
@@ -428,33 +432,4 @@ fn l_bracket() -> Body<f64> {
     .expect("an L-bracket extrudes")
     .body
     .into_body()
-}
-
-/// The bracket's one concave edge — the vertical through (0.5, 0.5).
-///
-/// Taken from the SAME body instance it will be used against, which
-/// the shipped suite's corner row does not do (it calls `l_bracket()`
-/// twice and indexes one body with the other's key).
-fn concave_edge(body: &Body<f64>) -> EdgeKey {
-    let near = |p: geom_core::Point3<f64>| (p.x - 0.5).abs() < 1e-9 && (p.y - 0.5).abs() < 1e-9;
-    let vertical = |e: EdgeKey| -> bool {
-        let Some(edge) = body.get_edge(e) else {
-            return false;
-        };
-        let (Some(start), Some(end)) = (
-            body.get_half_edge(edge.he_plus).map(|h| h.start),
-            body.half_edge_end(edge.he_plus),
-        ) else {
-            return false;
-        };
-        [start, end].into_iter().all(|v| {
-            body.get_vertex(v)
-                .and_then(|x| body.get_point(x.point))
-                .is_some_and(|p| near(*p))
-        })
-    };
-    body.edges()
-        .map(|(k, _)| k)
-        .find(|e| vertical(*e))
-        .expect("the L-bracket has a vertical edge through its reflex corner")
 }

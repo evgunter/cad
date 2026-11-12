@@ -77,7 +77,7 @@ pub(crate) use groups::Emitted;
 pub use groups::FragmentGroups;
 pub use interrogate::{
     Denotation, InterrogateError, denotation, edge_carrier_kind, edge_frame, face_carrier_kind,
-    face_frame, vertex_position,
+    face_frame, family_entity, member_entity, member_table, vertex_position,
 };
 pub(crate) use nest::HoldMut;
 pub use nest::NameTextError;
@@ -92,9 +92,12 @@ pub(crate) use role::{Carry, SegRewrite, inert_seg, locator_seg};
 pub(crate) use role::{FOLD_A, FOLD_B, read_edge};
 pub(crate) use role::{VerbatimEdge, verbatim_edge};
 pub(crate) use role::{edge_line, fragment_tail_start, name_free_seg, wrapped_edge};
-pub use select::{NamePat, OpGroup, SegPat, SegTag, Selector, Side, TagPat, select, select_where};
-pub(crate) use successor::recarried;
+pub use select::{
+    NamePat, OpGroup, SegPat, SegTag, Selector, Side, TagPat, one_body, select, select_member,
+    select_where, select_where_member,
+};
 pub use successor::successors;
+pub(crate) use successor::{Carries, recarried, recarried_by};
 pub use table::{
     DuplicateName, EntityKey, EntityNamed, EntityRef, Entry, KindMismatch, NameTable,
     SeatingRefusal, ShortTie,

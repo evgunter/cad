@@ -15,8 +15,13 @@
 //!
 //! Every bound is a method on the cover and matches on no kind:
 //! [`Cover::support`] along a direction, [`Cover::box_in`] a [`BoxAxes`],
-//! [`Cover::distance_range`] from a [`Site`], [`Cover::ball`], and at a
-//! bracketed scalar [`Cover::aabb`], the one place the bracket is taken.
+//! [`Cover::range_about`] from a line, a point or a circle ([`Around`],
+//! and [`Cover::distance_range`] from a [`Site`], its line and point),
+//! [`Cover::ball`], and at a bracketed scalar [`Cover::aabb`], the one
+//! place the bracket is taken. The cover also says what it is measured
+//! about: [`Cover::about`], the axes, centres and cores of its pieces of
+//! revolution. A carrier's surface that lies at a level about its own
+//! site (a wall, a shell) is read there by [`Cover::range_about`].
 //! **The values follow `[simple.conditioned]`**: at `f64` each is the
 //! real-arithmetic bound computed as if exact, and nothing charges float
 //! rounding; at `Interval` each is an enclosure, by the scalar's own
@@ -110,6 +115,45 @@ pub enum Site<T: Real> {
     Point(Point3<T>),
     /// A whole line; its direction need not be unit.
     Line(Line<T>),
+}
+
+/// **What a region is measured about** ([`Cover::about`],
+/// [`Cover::range_about`]): a line, a point, or a circle ([`Core`]).
+#[derive(Clone, Copy, Debug)]
+pub enum Around<T: Real> {
+    /// A whole line; its direction need not be unit.
+    Line(Line<T>),
+    /// A point.
+    Point(Point3<T>),
+    /// A circle: a torus's core.
+    Circle(Core<T>),
+}
+
+impl<T: Real> From<Site<T>> for Around<T> {
+    fn from(site: Site<T>) -> Self {
+        match site {
+            Site::Point(p) => Around::Point(p),
+            Site::Line(line) => Around::Line(line),
+        }
+    }
+}
+
+/// **A circle a region is measured about**: the circle of radius
+/// `|radius|` about the axis line's origin, in the plane normal to it.
+/// A point `ρ` from the axis line and `t` along it stands
+/// `√((ρ − |radius|)² + t²)` from it.
+///
+/// It is not a [`crate::Circle`], whose axis is unit and whose radius is
+/// positive: a core is read on a placement whose axis need not be unit,
+/// which a [`Line`] reads (any nonzero direction), and its radius is read
+/// by its magnitude.
+#[derive(Clone, Copy, Debug)]
+pub struct Core<T: Real> {
+    /// Its axis line: its origin the circle's centre, its direction the
+    /// plane's normal.
+    pub axis: Line<T>,
+    /// Its radius, read by its magnitude.
+    pub radius: T,
 }
 
 /// **The entity a reading could not cover.** Geom's readings name a
@@ -224,11 +268,20 @@ impl<T: Real> Lattice for Covered<T> {
 #[derive(Clone, Debug)]
 pub struct Cover<T: Real>(Node<T>);
 
+/// The region's expression. A meet and a hull hold their operands in
+/// the order they were joined, at least two, and are read as the
+/// left-deep chain they were built as: `a.hull(b).hull(c)` is
+/// `Hull[a, b, c]`, read `(a ∪ b) ∪ c`, its readers folding the operands
+/// left to right. So a chain as long as the entities it joins (an
+/// operand's faces, a face's edges) is one node, not a tree that deep,
+/// and every walk over the expression, its clone and its drop among
+/// them, is as deep as the expression's nesting of kinds rather than its
+/// length.
 #[derive(Clone, Debug)]
 enum Node<T: Real> {
     Piece(Piece<T>),
-    Meet(Box<[Node<T>; 2]>),
-    Hull(Box<[Node<T>; 2]>),
+    Meet(Vec<Node<T>>),
+    Hull(Vec<Node<T>>),
     Convex(Box<Node<T>>),
 }
 
@@ -246,16 +299,18 @@ enum Piece<T: Real> {
     /// window.
     Arc(Arc<T>),
     /// The solid cylinder about `origin + h·axis`, `h` in the window, of
-    /// radius `radius`; the axis is unit.
+    /// radius `radius`; the axis is unit. A cylinder's wall holds no
+    /// point nearer the axis than its `wall` radius.
     Slab(Slab<T>),
     /// The solid cone `apex + t·axis + w`, `w ⊥ axis`,
     /// `|w| ≤ |t|·tan`, `t` in the window; the axis is unit.
     Frustum(Frustum<T>),
     /// A ring torus's chart rectangle or latitude zone, or a sphere's
-    /// (`major = 0`).
+    /// (`major = 0`): a window, met with its carrier's [`Shell`].
     Patch(Patch<T>),
     /// The solid tube of radius `minor` about the circle of radius
-    /// `major` round `axis` through `center`.
+    /// `major` round `axis` through `center`. A torus's or a sphere's
+    /// surface is its [`Shell`].
     Tube(Tube<T>),
     /// The convex hull of the points, at least one.
     Net(Vec<Point3<T>>),
@@ -269,36 +324,55 @@ struct Arc<T: Real> {
     window: ParamWindow<T>,
 }
 
-/// An arc's mean circle as [`Arc::circle_about`] reads it about a point.
+/// **An arc's mean circle as a site reads it** ([`Arc::circle_about`]):
+/// the circle `scale·(b1·cos t + b2·sin t)` about the arc's centre,
+/// `b1` and `b2` orthogonal and `scale` their common factor, of radius
+/// `|rho|`, within `dev` of the arc at every `t`, and the site's offset
+/// `w` from the centre: `off_axis` of it in the circle's plane and `h`
+/// off it.
 struct Circle<T: Real> {
-    u_hat: Vec3<T>,
-    v_hat: Vec3<T>,
+    b1: Vec3<T>,
+    b2: Vec3<T>,
+    scale: T,
     rho: T,
     dev: T,
     w: Vec3<T>,
-    at: (T, T, T),
+    off_axis: T,
+    h: T,
 }
 
 impl<T: Real> Circle<T> {
-    /// The distance from the point to the circle's point at `t`.
+    /// The distance from the site to the circle's point at `t`.
     fn end(&self, t: T) -> T {
         let (s, c) = t.sin_cos();
-        (self.w - (self.u_hat * c + self.v_hat * s) * self.rho).norm()
+        (self.w - (self.b1 * c + self.b2 * s) * self.scale).norm()
+    }
+
+    /// The site's azimuth about the centre, as `ρ·(cos, sin)` of it.
+    fn azimuth(&self) -> (T, T) {
+        (
+            self.scale * self.w.dot(self.b1),
+            self.scale * self.w.dot(self.b2),
+        )
     }
 }
 
 #[derive(Clone, Copy, Debug)]
 struct Slab<T: Real> {
-    origin: Point3<T>,
-    axis: Vec3<T>,
+    /// The axis line, its direction unit: the window is along it.
+    axis: Line<T>,
     radius: T,
     window: ParamWindow<T>,
+    /// A cylinder wall's least distance from the axis ([`Cover::wall`]):
+    /// its level about the axis line, from here to `radius`. `None` for
+    /// a solid slab.
+    wall: Option<T>,
 }
 
 #[derive(Clone, Copy, Debug)]
 struct Frustum<T: Real> {
-    apex: Point3<T>,
-    axis: Vec3<T>,
+    /// The axis line from the apex, its direction unit.
+    axis: Line<T>,
     tan: T,
     window: ParamWindow<T>,
 }
@@ -322,6 +396,32 @@ struct Tube<T: Real> {
     frame: Frame<T>,
     major: T,
     minor: T,
+    hub: Hub,
+    /// Where the region is the carrier's surface alone, the level it
+    /// lies at about its hub.
+    shell: Option<Shell<T>>,
+}
+
+/// **A torus's or a sphere's surface as its tube holds it**: no point
+/// nearer the hub than `inner` ([`Tube::shell_inner`]). The hub is the
+/// tube's core, the circle of radius `major` round the frame's axis
+/// through its origin, which for a sphere (`major = 0`) is its centre.
+#[derive(Clone, Copy, Debug)]
+struct Shell<T: Real> {
+    inner: T,
+}
+
+/// **The site a tube is measured about** ([`Cover::about`]): its core
+/// circle, which for no spine is the frame's origin, a sphere's centre.
+/// Decided once, at [`Tube::new`], so a sphere is one spelling whichever
+/// constructor built it: the two read the same distance where
+/// `major = 0`.
+#[derive(Clone, Copy, Debug)]
+enum Hub {
+    /// The frame's origin: a sphere's centre.
+    Centre,
+    /// The core circle.
+    Core,
 }
 
 /// Whether every datum is a finite number: a constructor's screen, so a
@@ -350,6 +450,44 @@ fn finite_frame<T: Real>(f: &Frame<T>) -> bool {
 fn gram_top<T: Real>(xx: T, yy: T, xy: T) -> T {
     let half = T::from_f64(0.5);
     ((xx + yy) * half + (((xx - yy) * half).powi(2) + xy.powi(2)).sqrt()).sqrt()
+}
+
+/// `√λ_min` of the same Gram matrix: the shortest `|cos t·x + sin t·y|`,
+/// [`gram_top`]'s root with the inner root subtracted, read as zero
+/// where an enclosure of it reaches below.
+fn gram_low<T: Real>(xx: T, yy: T, xy: T) -> T {
+    let half = T::from_f64(0.5);
+    ((xx + yy) * half - (((xx - yy) * half).powi(2) + xy.powi(2)).sqrt())
+        .max(T::zero())
+        .sqrt()
+}
+
+/// **A frame's radial direction `ρ(u) = cos u·u_ref + sin u·v_ref`
+/// over the turn, against the direction `d`**: Gram bounds, the one
+/// reading of them for every piece a frame turns. Each length is `1` and
+/// `tilt` is `0` for a unit orthogonal frame and its own unit axis.
+struct OffAxis<T: Real> {
+    /// The longest `|ρ(u)|`.
+    top: T,
+    /// The shortest and longest `|ρ(u)|` off `d`'s line (not a number
+    /// for a zero `d`).
+    off: (T, T),
+    /// The greatest `|ρ(u)·d|`, `√((u_ref·d)² + (v_ref·d)²)`: scaled by
+    /// `|d|`, zero for a zero `d`.
+    tilt: T,
+}
+
+impl<T: Real> OffAxis<T> {
+    fn of(frame: &Frame<T>, d: Vec3<T>) -> Self {
+        let (u, v) = (frame.u_ref, frame.v_ref());
+        let (p, q) = (off_line(u, d), off_line(v, d));
+        let (pp, qq, pq) = (p.norm_squared(), q.norm_squared(), p.dot(q));
+        Self {
+            top: gram_top(u.norm_squared(), v.norm_squared(), u.dot(v)),
+            off: (gram_low(pp, qq, pq), gram_top(pp, qq, pq)),
+            tilt: (u.dot(d).powi(2) + v.dot(d).powi(2)).sqrt(),
+        }
+    }
 }
 
 fn vec_of<T: Real>(p: Point3<T>) -> Vec3<T> {
@@ -471,15 +609,24 @@ impl<T: Real> Cover<T> {
     /// over `window`: a circle's or an ellipse's on its [`Frame`]. Any
     /// frame and either sign. `None` for a datum that is not a finite
     /// number.
+    ///
+    /// The arc over `window` meets the whole conic's (`[0, τ]`): both
+    /// hold every point of the arc, and they round their reads apart
+    /// (the window's ends and crests against the whole turn's), so the
+    /// window's piece alone can read a far distance or a support an ulp
+    /// past the whole conic's. The meet reads the lesser of each, so no
+    /// reader of an arc's cover reads past its whole conic.
     pub fn arc(frame: &Frame<T>, (semi_u, semi_v): (T, T), window: ParamWindow<T>) -> Option<Self> {
-        (finite_frame(frame) && finite(&[semi_u, semi_v]) && window.finite()).then(|| {
+        let piece = |window| {
             Self::piece(Piece::Arc(Arc {
                 frame: *frame,
                 semi_u,
                 semi_v,
                 window,
             }))
-        })
+        };
+        (finite_frame(frame) && finite(&[semi_u, semi_v]) && window.finite())
+            .then(|| piece(window).meet(piece(ParamWindow::new(T::zero(), T::tau()))))
     }
 
     /// The axial slab: the solid cylinder of radius `|radius|` about the
@@ -494,12 +641,83 @@ impl<T: Real> Cover<T> {
         (finite_point(origin) && finite_vec(axis.get()) && finite(&[radius]) && window.finite())
             .then(|| {
                 Self::piece(Piece::Slab(Slab {
-                    origin,
-                    axis: axis.get(),
+                    axis: Line {
+                        origin,
+                        dir: axis.get(),
+                    },
                     radius: radius.abs(),
                     window,
+                    wall: None,
                 }))
             })
+    }
+
+    /// **A cylinder's wall over the heights `within` spans**: the points
+    /// `origin + r·ρ(u) + v·axis` of the cylinder on `frame`, for any
+    /// frame and either sign of `r`, whose height along the unit axis
+    /// lies in `within`'s range along it ([`Cover::range_along`]). Its
+    /// points lie between `|r|` times the least and the greatest
+    /// `|ρ(u)|` off the axis (Gram bounds, each `1` for a unit
+    /// orthogonal frame): the wall's level about its axis line, which
+    /// [`Cover::range_about`] from it reads. `None` for a datum, or a bound of
+    /// `within`, that is not a finite number, an axis of zero length
+    /// among them.
+    pub fn wall(frame: &Frame<T>, radius: T, within: &Self) -> Option<Self> {
+        let axis = frame.axis.normalize();
+        let base = vec_of(frame.origin).dot(axis);
+        let (lo, hi) = within.range_along(axis);
+        let window = ParamWindow::new(lo - base, hi - base);
+        let (low, top) = OffAxis::of(frame, axis).off;
+        let r = radius.abs();
+        let (inner, outer) = (r * low, r * top);
+        (finite_frame(frame) && finite_vec(axis) && finite(&[inner, outer]) && window.finite())
+            .then(|| {
+                Self::piece(Piece::Slab(Slab {
+                    axis: Line {
+                        origin: frame.origin,
+                        dir: axis,
+                    },
+                    radius: outer,
+                    window,
+                    wall: Some(inner),
+                }))
+            })
+    }
+
+    /// **A cone's surface over the heights `within` spans**: the points
+    /// `apex + v·(cos α·axis + sin α·ρ(u))` of the cone on `frame`
+    /// (`apex` its origin), for any frame and either sign of `α`, whose
+    /// height along the unit axis lies in `within`'s range along it
+    /// ([`Cover::range_along`]), as the frustum ([`Cover::frustum`]) it
+    /// lies in. A point `v` along a generator stands
+    /// `t = v·(cos α·|axis| + sin α·ρ(u)·â)` high and `|v·sin α|·|ρ(u)|`
+    /// off the axis at most, so its offset is within `|t|·tan` with
+    /// `tan = |sin α|·ρ_off / (cos α·|axis| − |sin α|·tilt)` (Gram bounds),
+    /// `|tan α|` for a unit orthogonal frame. The frustum is measured
+    /// about the axis ([`Cover::about`]) and lies at no level about it.
+    /// `None` for a datum, or a bound of `within`, that is not a finite
+    /// number, an axis of zero length among them, or where the
+    /// generators are not decided to climb (a denominator not decided
+    /// positive).
+    pub fn cone(frame: &Frame<T>, half_angle: T, within: &Self) -> Option<Self> {
+        let axis = frame.axis.normalize();
+        let base = vec_of(frame.origin).dot(axis);
+        let (lo, hi) = within.range_along(axis);
+        let window = ParamWindow::new(lo - base, hi - base);
+        let radial = OffAxis::of(frame, axis);
+        let (sin, cos) = half_angle.sin_cos();
+        let climb = cos * frame.axis.norm() - sin.abs() * radial.tilt;
+        let tan = climb.select_le_zero(geom_core::poison(), sin.abs() * radial.off.1 / climb);
+        (finite_frame(frame) && finite_vec(axis) && finite(&[tan]) && window.finite()).then(|| {
+            Self::piece(Piece::Frustum(Frustum {
+                axis: Line {
+                    origin: frame.origin,
+                    dir: axis,
+                },
+                tan,
+                window,
+            }))
+        })
     }
 
     /// The cone frustum: every point `apex + t·axis + w` with `w ⊥ axis`,
@@ -517,8 +735,10 @@ impl<T: Real> Cover<T> {
             && window.finite())
         .then(|| {
             Self::piece(Piece::Frustum(Frustum {
-                apex,
-                axis: axis.get(),
+                axis: Line {
+                    origin: apex,
+                    dir: axis.get(),
+                },
                 tan: tan_half_angle.abs(),
                 window,
             }))
@@ -538,6 +758,12 @@ impl<T: Real> Cover<T> {
     /// window, and a sphere's latitude chart (`R = 0`, `r ≥ 0`,
     /// `v ⊂ [−π/2, π/2]`) does. The caller decides it before it builds
     /// one. `None` for a datum that is not a finite number.
+    ///
+    /// **A patch is a window, not a carrier reading**: it is met with its
+    /// carrier's whole surface ([`Cover::torus`], [`Cover::sphere`]),
+    /// whose shell holds the level and proposes the core. So a patch
+    /// holds its tube solid, and proposes no site ([`Cover::about`]): a
+    /// shell of its own reads the same bound as the carrier's beside it.
     pub fn patch(
         frame: &Frame<T>,
         (major, minor): (T, T),
@@ -564,6 +790,22 @@ impl<T: Real> Cover<T> {
         Tube::new(frame, major, minor).map(|t| Self::piece(Piece::Tube(t)))
     }
 
+    /// **The whole torus's surface**: the points of [`Cover::tube`], its
+    /// shell about its core, which [`Cover::range_about`] from it reads. `None`
+    /// for a datum that is not a finite number.
+    pub fn torus(frame: &Frame<T>, major: T, minor: T) -> Option<Self> {
+        Tube::new(frame, major, minor).map(|t| Self::piece(Piece::Tube(t.shell())))
+    }
+
+    /// **The whole sphere's surface**: the points
+    /// `center + r·(cos v·ρ(u) + sin v·axis)`, for any frame and either
+    /// sign of `r`, the torus's of no spine, its shell about its
+    /// centre, which [`Cover::range_about`] from it reads. `None` for a datum that
+    /// is not a finite number.
+    pub fn sphere(frame: &Frame<T>, radius: T) -> Option<Self> {
+        Cover::torus(frame, T::zero(), radius)
+    }
+
     /// The convex hull of a control net's points. `None` for no point or
     /// a coordinate that is not a finite number.
     pub fn net(points: Vec<Point3<T>>) -> Option<Self> {
@@ -574,13 +816,25 @@ impl<T: Real> Cover<T> {
     /// What lies in both.
     #[must_use]
     pub fn meet(self, other: Self) -> Self {
-        Self(Node::Meet(Box::new([self.0, other.0])))
+        Self(match self.0 {
+            Node::Meet(mut all) => {
+                all.push(other.0);
+                Node::Meet(all)
+            }
+            first => Node::Meet(vec![first, other.0]),
+        })
     }
 
     /// What lies in either.
     #[must_use]
     pub fn hull(self, other: Self) -> Self {
-        Self(Node::Hull(Box::new([self.0, other.0])))
+        Self(match self.0 {
+            Node::Hull(mut all) => {
+                all.push(other.0);
+                Node::Hull(all)
+            }
+            first => Node::Hull(vec![first, other.0]),
+        })
     }
 
     /// **The region's convex hull**: what lies on a segment between two
@@ -610,11 +864,11 @@ impl<T: Real> Cover<T> {
         rows_box(axes, |e| self.support(e))
     }
 
-    /// **The nearest and farthest the region stands from `site`**: a
-    /// lower bound on the least distance of any of its points, never
-    /// below zero, and an upper bound on the greatest.
+    /// **The nearest and farthest the region stands from `site`**:
+    /// [`Cover::range_about`] from a point or a line, the sites a
+    /// placement reads.
     pub fn distance_range(&self, site: &Site<T>) -> (T, T) {
-        self.0.distance_range(site)
+        self.range_about(&(*site).into())
     }
 
     /// **A ball holding the region**, as `(centre, radius)`.
@@ -622,41 +876,60 @@ impl<T: Real> Cover<T> {
         self.0.ball()
     }
 
-    /// **The nearest and farthest the region stands from a circle**: the
-    /// circle of radius `radius` about `center` in the plane normal to
-    /// `axis`, which need not be unit. A point `ρ` from the axis line and
-    /// `t` along it stands `√((ρ − R)² + t²)` from the circle, so any
-    /// region is bounded through its distance range from the axis line
-    /// and its support along the axis; a tube about a spine is bounded
-    /// through its spine's, within its minor radius.
-    pub fn circle_range(&self, center: Point3<T>, axis: Vec3<T>, radius: T) -> (T, T) {
-        self.0.circle_range(&Core {
-            center,
-            axis,
-            radius,
-        })
+    /// **The sites the region is measured about**: every solid or
+    /// surface of revolution a piece of it is proposes its own, a
+    /// slab's, a cylinder wall's and a frustum's axis line
+    /// ([`Cover::slab`], [`Cover::wall`], [`Cover::cone`],
+    /// [`Cover::frustum`]), a tube's or a torus's core, and a sphere's
+    /// centre ([`Cover::tube`], [`Cover::torus`], [`Cover::sphere`]). A
+    /// meet proposes both sides'; a hull and a convex hull none. A
+    /// chart patch proposes none: it is a window met with its carrier's
+    /// whole surface ([`Cover::patch`]), which proposes the core.
+    /// Points, segments, arcs and nets propose none: a curve is read
+    /// about its own axis by whoever holds it as a curve.
+    ///
+    /// A site proposes, and decides nothing: [`Cover::range_about`]
+    /// from it is the bound. Where the piece that proposes it is a
+    /// carrier's surface at a level about it (a cylinder's wall, a
+    /// torus's or a sphere's shell), that is the level: `|r|` for a unit
+    /// orthogonal frame and, on a torus, only where `|R| ≥ |r|`, since a
+    /// spindle's points come nearer its core. A frustum's axis has no
+    /// level; it is proposed all the same. A meet's range reads every
+    /// side, so a level one side holds survives a trim met with it.
+    pub fn about(&self) -> Vec<Around<T>> {
+        let mut sites = Vec::new();
+        self.0.about(&mut sites);
+        sites
+    }
+
+    /// **The nearest and farthest the region stands from `around`**: a
+    /// lower bound on the least distance of any of its points, never
+    /// below zero, and an upper bound on the greatest. The one distance
+    /// reading; [`Cover::distance_range`] is it from a point or a line.
+    ///
+    /// From a circle ([`Core`]), any region is bounded through its
+    /// distance range from the circle's axis line and its support along
+    /// the axis; a tube about a spine is bounded through its spine's,
+    /// within its minor radius, and a shell through its level.
+    pub fn range_about(&self, around: &Around<T>) -> (T, T) {
+        match around {
+            Around::Line(line) => self.0.distance_range(&Site::Line(*line)),
+            Around::Point(point) => self.0.distance_range(&Site::Point(*point)),
+            Around::Circle(core) => self.0.circle_range(core),
+        }
     }
 }
 
-/// A circle a distance is read from ([`Cover::circle_range`]).
-struct Core<T: Real> {
-    center: Point3<T>,
-    axis: Vec3<T>,
-    radius: T,
-}
-
 impl<T: Real> Core<T> {
+    /// The axis line.
     /// The circle's distance range over a region read through its range
     /// from the axis line (`line`) and its support (`support`).
     fn through(&self, line: impl Fn(&Site<T>) -> (T, T), support: impl Fn(Vec3<T>) -> T) -> (T, T) {
-        let (near, far) = line(&Site::Line(Line {
-            origin: self.center,
-            dir: self.axis,
-        }));
-        let a = self.axis.normalize();
-        let base = vec_of(self.center).dot(a);
+        let (near, far) = line(&Site::Line(self.axis));
+        let a = self.axis.dir.normalize();
+        let base = vec_of(self.axis.origin).dot(a);
         let (below, above) = (T::zero() - support(-a) - base, support(a) - base);
-        let r = self.radius;
+        let r = self.radius.abs();
         let outside = |x: T, lo: T, hi: T| (lo - x).max(x - hi).max(T::zero());
         let radial = (near - r).abs().max((far - r).abs());
         let height = below.abs().max(above.abs());
@@ -668,12 +941,8 @@ impl<T: Real> Core<T> {
 
     /// The exact distance of a point from the circle.
     fn offset(&self, p: Point3<T>) -> T {
-        let (t, rho) = Line {
-            origin: self.center,
-            dir: self.axis,
-        }
-        .height_and_distance(p);
-        ((rho - self.radius).powi(2) + t.powi(2)).sqrt()
+        let (t, rho) = self.axis.height_and_distance(p);
+        ((rho - self.radius.abs()).powi(2) + t.powi(2)).sqrt()
     }
 }
 
@@ -710,12 +979,23 @@ fn whole_poison(b: Aabb) -> Aabb {
     }
 }
 
+/// **A chain's reading, folded left to right**: `read` of each operand,
+/// joined by `join` in the order they were built, `((x0 ⋅ x1) ⋅ x2) ⋅ …`,
+/// the left-deep form's own order ([`Node`]).
+fn fold<N, R>(all: &[N], read: impl Fn(&N) -> R, join: impl Fn(R, R) -> R) -> R {
+    let mut acc = read(&all[0]);
+    for n in &all[1..] {
+        acc = join(acc, read(n));
+    }
+    acc
+}
+
 impl<T: Real> Node<T> {
     fn support(&self, e: Vec3<T>) -> T {
         match self {
             Node::Piece(p) => p.support(e),
-            Node::Meet(both) => both[0].support(e).min(both[1].support(e)),
-            Node::Hull(both) => both[0].support(e).max(both[1].support(e)),
+            Node::Meet(all) => fold(all, |n| n.support(e), T::min),
+            Node::Hull(all) => fold(all, |n| n.support(e), T::max),
             Node::Convex(inner) => inner.support(e),
         }
     }
@@ -727,16 +1007,16 @@ impl<T: Real> Node<T> {
     fn distance_range(&self, site: &Site<T>) -> (T, T) {
         match self {
             Node::Piece(p) => p.distance_range(site),
-            Node::Meet(both) => {
-                let ((n0, f0), (n1, f1)) =
-                    (both[0].distance_range(site), both[1].distance_range(site));
-                (n0.max(n1), f0.min(f1))
-            }
-            Node::Hull(both) => {
-                let ((n0, f0), (n1, f1)) =
-                    (both[0].distance_range(site), both[1].distance_range(site));
-                (n0.min(n1), f0.max(f1))
-            }
+            Node::Meet(all) => fold(
+                all,
+                |n| n.distance_range(site),
+                |(n0, f0), (n1, f1)| (n0.max(n1), f0.min(f1)),
+            ),
+            Node::Hull(all) => fold(
+                all,
+                |n| n.distance_range(site),
+                |(n0, f0), (n1, f1)| (n0.min(n1), f0.max(f1)),
+            ),
             // A distance from a point or a line is convex, so its
             // greatest over the hull is its greatest over the region; its
             // least is the hull's box's or ball's.
@@ -753,22 +1033,43 @@ impl<T: Real> Node<T> {
         }
     }
 
+    fn about(&self, sites: &mut Vec<Around<T>>) {
+        match self {
+            Node::Piece(p) => sites.extend(p.about()),
+            Node::Meet(all) => {
+                for n in all {
+                    n.about(sites);
+                }
+            }
+            Node::Hull(_) | Node::Convex(_) => {}
+        }
+    }
+
     fn ball(&self) -> Ball<T> {
         match self {
             Node::Piece(p) => p.ball(),
             // Both balls hold the region, and so does the ball about the
             // meet's box, which is narrower than either piece's where the
             // two overlap only in part.
-            Node::Meet(both) => smaller(
-                smaller(both[0].ball(), both[1].ball()),
-                box_ball(self.world_box()),
-            ),
-            Node::Hull(both) => {
-                let ((c0, r0), (c1, r1)) = (both[0].ball(), both[1].ball());
-                let c = c0 + (c1 - c0) * T::from_f64(0.5);
+            // Each prefix of the chain is the meet the left-deep form
+            // held there, so its ball is read as that meet's: the smaller
+            // of the prefix's and the next operand's, and of the ball
+            // about the prefix's box.
+            Node::Meet(all) => {
+                let mut ball = all[0].ball();
+                for k in 1..all.len() {
+                    let prefix = &all[..=k];
+                    let boxed =
+                        rows_box(&BoxAxes::World, |e| fold(prefix, |n| n.support(e), T::min));
+                    ball = smaller(smaller(ball, all[k].ball()), box_ball(boxed));
+                }
+                ball
+            }
+            Node::Hull(all) => fold(all, Node::ball, |(c0, r0), (c1, r1)| {
+                let c = c0.mid(c1);
                 let r = ((c - c0).norm() + r0).max((c - c1).norm() + r1);
                 (c, r)
-            }
+            }),
             Node::Convex(inner) => inner.ball(),
         }
     }
@@ -778,14 +1079,16 @@ impl<T: Real> Node<T> {
     fn circle_range(&self, core: &Core<T>) -> (T, T) {
         match self {
             Node::Piece(p) => p.circle_range(core),
-            Node::Meet(both) => {
-                let ((n0, f0), (n1, f1)) = (both[0].circle_range(core), both[1].circle_range(core));
-                (n0.max(n1), f0.min(f1))
-            }
-            Node::Hull(both) => {
-                let ((n0, f0), (n1, f1)) = (both[0].circle_range(core), both[1].circle_range(core));
-                (n0.min(n1), f0.max(f1))
-            }
+            Node::Meet(all) => fold(
+                all,
+                |n| n.circle_range(core),
+                |(n0, f0), (n1, f1)| (n0.max(n1), f0.min(f1)),
+            ),
+            Node::Hull(all) => fold(
+                all,
+                |n| n.circle_range(core),
+                |(n0, f0), (n1, f1)| (n0.min(n1), f0.max(f1)),
+            ),
             // A circle's distance is not convex, so the hull is read
             // whole.
             Node::Convex(_) => core.through(|site| self.distance_range(site), |e| self.support(e)),
@@ -795,11 +1098,75 @@ impl<T: Real> Node<T> {
 
 impl<T: Real> Tube<T> {
     fn new(frame: &Frame<T>, major: T, minor: T) -> Option<Self> {
+        // An exact zero is no spine (a sphere): its core circle is its
+        // centre, one spelling.
+        let hub = if geom_core::is_exact_zero(major) {
+            Hub::Centre
+        } else {
+            Hub::Core
+        };
         (finite_frame(frame) && finite(&[major, minor])).then(|| Self {
             frame: *frame,
             major: major.abs(),
             minor: minor.abs(),
+            hub,
+            shell: None,
         })
+    }
+
+    /// The tube's surface alone, at its level about its hub.
+    fn shell(self) -> Self {
+        Self {
+            shell: Some(Shell {
+                inner: self.shell_inner(),
+            }),
+            ..self
+        }
+    }
+
+    /// **The least distance of the surface from its core**, the circle
+    /// `C` of radius `R` about the axis line through the origin. A point
+    /// `c + k·ρ(u) + r·sin v·a`, `k = R + r·cos v`, stands
+    /// `|(k·s − R, k·τ·cos u + r·α·sin v)|` from `C` where `k ≥ 0`, with
+    /// `s = |ρ(u)|` off the axis, `α = |a|` and `τ = u_ref·â`. That is
+    /// `r·(s·cos v, α·sin v)`, at least `r·min(s, α)` long, plus
+    /// `(R·(s − 1), k·τ·cos u)`, at most `R·|s − 1| + (R + r)·|τ|`
+    /// long, with `s` between the Gram bounds of `u_ref` and `v_ref` off
+    /// the axis and `|τ|` within their tilt ([`OffAxis`]): `r` for a unit
+    /// orthogonal frame. `k ≥ 0` holds where `R ≥ r`; where `R = 0` the
+    /// first component's sign does not change the length; otherwise (a
+    /// spindle) zero. So the bound drops to zero as `R` passes below `r`:
+    /// a step, and the sound side of it, since a spindle's points reach
+    /// its core.
+    fn shell_inner(&self) -> T {
+        let (r, big) = (self.minor, self.major);
+        let (unit, alpha) = self.frame.axis.direction_and_length();
+        let OffAxis {
+            off: (low, top),
+            tilt: tau,
+            ..
+        } = OffAxis::of(&self.frame, unit);
+        let one = T::one();
+        let spread = (one - low).abs().max((top - one).abs());
+        let error = big * spread + (big + r) * tau;
+        let inner = (r * low.min(alpha) - error).max(T::zero());
+        big.select_le_zero(inner, (r - big).select_le_zero(inner, T::zero()))
+    }
+
+    /// The site the tube is measured about ([`Hub`]).
+    fn hub(&self) -> Around<T> {
+        match self.hub {
+            Hub::Centre => Around::Point(self.frame.origin),
+            Hub::Core => Around::Circle(self.core()),
+        }
+    }
+
+    /// The core circle a shell's level is read from.
+    fn core(&self) -> Core<T> {
+        Core {
+            axis: self.frame.axis_line(),
+            radius: self.major,
+        }
     }
 
     /// `e`'s components along `u_ref`, `v_ref` and the axis.
@@ -830,9 +1197,8 @@ impl<T: Real> Tube<T> {
     /// `|ρ·axis| ≤ √((u_ref·a)² + (v_ref·a)²)`, in which the Gram bound is
     /// non-decreasing.
     fn reaches(&self) -> (T, T) {
-        let (u, v, a) = (self.frame.u_ref, self.frame.v_ref(), self.frame.axis);
-        let rho = gram_top(u.norm_squared(), v.norm_squared(), u.dot(v));
-        let tilt = (u.dot(a).powi(2) + v.dot(a).powi(2)).sqrt();
+        let a = self.frame.axis;
+        let OffAxis { top: rho, tilt, .. } = OffAxis::of(&self.frame, a);
         (rho, gram_top(rho.powi(2), a.norm_squared(), tilt))
     }
 
@@ -848,7 +1214,30 @@ impl<T: Real> Tube<T> {
         let spine = self.spine();
         let (near, far) = core.through(|site| spine.range(site), |e| spine.support(e));
         let tube = self.minor * self.reaches().1;
-        ((near - tube).max(T::zero()), far + tube)
+        let near = (near - tube).max(T::zero());
+        let near = self
+            .shell
+            .map_or(near, |shell| near.max(shell.inner - self.reach_to(core)));
+        (near, far + tube)
+    }
+
+    /// **An upper bound on how far a point of `other` stands from the
+    /// core**, so that a shell's points stand at least `inner` less it
+    /// from `other`. A point `c' + R'·w'` of `other`, `w'` unit normal to
+    /// its axis, lies within `|c' − c| + |R' − R| + R·|w' − w|` of the
+    /// core's point `c + R·w`, `w` the unit projection of `w'` normal to
+    /// the core's axis, and `|w' − w| ≤ 2·|â × â'|`.
+    fn reach_to(&self, other: &Core<T>) -> T {
+        let own = self.core();
+        let turn = own
+            .axis
+            .dir
+            .normalize()
+            .cross(other.axis.dir.normalize())
+            .norm();
+        (other.axis.origin - own.axis.origin).norm()
+            + (other.radius.abs() - own.radius).abs()
+            + own.radius * turn * T::from_f64(2.0)
     }
 
     /// The spine circle, whole.
@@ -863,10 +1252,18 @@ impl<T: Real> Tube<T> {
 
     /// The spine circle's range ([`Arc::range`], which holds any frame),
     /// less and plus the longest tube offset.
+    ///
+    /// A shell's points stand at least `inner` from the core, so at
+    /// least `inner` less the core's distance from a point site.
     fn range(&self, site: &Site<T>) -> (T, T) {
         let (near, far) = self.spine().range(site);
         let tube = self.minor * self.reaches().1;
-        ((near - tube).max(T::zero()), far + tube)
+        let near = (near - tube).max(T::zero());
+        let near = match (self.shell, site) {
+            (Some(shell), Site::Point(q)) => near.max(shell.inner - self.core().offset(*q)),
+            _ => near,
+        };
+        (near, far + tube)
     }
 }
 
@@ -894,31 +1291,53 @@ impl<T: Real> Patch<T> {
 impl<T: Real> Slab<T> {
     fn support(&self, e: Vec3<T>) -> T {
         let (lo, hi) = self.window.ordered();
-        let ae = self.axis.dot(e);
-        let room = self.axis.cross(e).norm();
-        vec_of(self.origin).dot(e) + (lo * ae).max(hi * ae) + self.radius * room
+        let ae = self.axis.dir.dot(e);
+        let room = self.axis.dir.cross(e).norm();
+        vec_of(self.axis.origin).dot(e) + (lo * ae).max(hi * ae) + self.radius * room
     }
 
-    /// The exact range of the solid cylinder from a point. Reads the axis
-    /// as unit.
+    /// The least distance from the axis: a wall's, or zero.
+    fn inner(&self) -> T {
+        self.wall.unwrap_or_else(T::zero)
+    }
+
+    /// The exact range of the slab from a point: a point `ρ` off the
+    /// axis stands at least `|s − ρ|` from one `s` off it. Reads the
+    /// axis as unit.
     fn point_range(&self, q: Point3<T>) -> (T, T) {
         let (lo, hi) = self.window.ordered();
-        let (h, rho) = crate::Line {
-            origin: self.origin,
-            dir: self.axis,
-        }
-        .height_and_distance(q);
+        let (h, rho) = self.axis.height_and_distance(q);
         let dh = (lo - h).max(h - hi).max(T::zero());
         let fh = (h - lo).abs().max((h - hi).abs());
-        let near = (dh.powi(2) + (rho - self.radius).max(T::zero()).powi(2)).sqrt();
+        let radial = (rho - self.radius).max(self.inner() - rho).max(T::zero());
+        let near = (dh.powi(2) + radial.powi(2)).sqrt();
         let far = (fh.powi(2) + (rho + self.radius).powi(2)).sqrt();
         (near.max(T::zero()), far)
+    }
+
+    /// **The range of the slab from a line `L`** of unit direction `d`,
+    /// met with its ball's. A point `f + w` of it, `f` on the axis
+    /// between the window's ends and `w` normal to the axis, has an
+    /// offset off `L` within `D` of `w`'s, `D` the farther axis end's
+    /// distance from `L` (a distance from a line is convex along the
+    /// axis); and `w`'s offset is at least `|w|·|â·d|` long, since `w`'s
+    /// part along `d` is at most `|w|·|â × d|`. So the slab stands
+    /// between `inner·|â·d| − D` and `radius + D` from `L`: its own
+    /// level about its own axis.
+    fn line_range(&self, line: &Line<T>) -> (T, T) {
+        let (lo, hi) = self.window.ordered();
+        let end = |h: T| line.distance(self.axis.origin + self.axis.dir * h);
+        let reach = end(lo).max(end(hi));
+        let along = self.axis.dir.dot(line.dir.normalize()).abs();
+        let (n0, f0) = ball_range(self.ball(), &Site::Line(*line));
+        let near = (self.inner() * along - reach).max(T::zero());
+        (n0.max(near), f0.min(self.radius + reach))
     }
 
     fn ball(&self) -> Ball<T> {
         let (lo, hi) = self.window.ordered();
         let half = T::from_f64(0.5);
-        let c = self.origin + self.axis * ((lo + hi) * half);
+        let c = self.axis.origin + self.axis.dir * ((lo + hi) * half);
         let r = (((hi - lo) * half).powi(2) + self.radius.powi(2)).sqrt();
         (c, r)
     }
@@ -927,20 +1346,20 @@ impl<T: Real> Slab<T> {
 impl<T: Real> Frustum<T> {
     fn support(&self, e: Vec3<T>) -> T {
         let (lo, hi) = self.window.ordered();
-        let ae = self.axis.dot(e);
-        let k = self.tan * self.axis.cross(e).norm();
+        let ae = self.axis.dir.dot(e);
+        let k = self.tan * self.axis.dir.cross(e).norm();
         // Convex in `t`, so greatest at an end.
         let at = |t: T| t * ae + t.abs() * k;
-        vec_of(self.apex).dot(e) + at(lo).max(at(hi))
+        vec_of(self.axis.origin).dot(e) + at(lo).max(at(hi))
     }
 
     /// The slab the frustum lies in: its widest radius over the window.
     fn slab(&self) -> Slab<T> {
         Slab {
-            origin: self.apex,
             axis: self.axis,
             radius: self.window.reach() * self.tan,
             window: self.window,
+            wall: None,
         }
     }
 }
@@ -955,129 +1374,139 @@ impl<T: Real> Arc<T> {
         hi
     }
 
-    /// **The distance range from a site.** From a point both ends are
-    /// posed as distances ([`Arc::point_near`], [`Arc::point_far`]): the
-    /// squared form below cancels where the point is near the arc, and
-    /// on a short arc far from its centre.
-    ///
-    /// From a line the squared form stands, since a line's distance to a
-    /// circle is a quartic's root with no closed form to pose it as: with
-    /// `w` the centre from the site and `P`, `Q` the semi-axis vectors,
-    /// all read as the site reads them, `|x − site|²` is
-    /// `|w|² + (|P|² + |Q|²)/2` plus a first harmonic
-    /// `2w·P cos t + 2w·Q sin t` plus a second
-    /// `(|P|² − |Q|²)/2·cos 2t + P·Q·sin 2t`, each bounded over the window
-    /// by [`ArcWindow`] and their sum by the sum of the bounds.
+    /// **The distance range from a site**, both ends posed as distances
+    /// over the circle [`Arc::circle_about`] reads ([`Arc::near`],
+    /// [`Arc::far`]): no squared form, which cancels where the site is
+    /// near the arc, and on a short arc far from its centre.
     fn range(&self, site: &Site<T>) -> (T, T) {
-        if let Site::Point(at) = site {
-            return (self.point_near(*at), self.point_far(*at));
-        }
-        let w = site.relative(vec_of(self.frame.origin));
-        let p = site.direction(self.frame.u_ref * self.semi_u);
-        let q = site.direction(self.frame.v_ref() * self.semi_v);
-        let two = T::from_f64(2.0);
-        let half = T::from_f64(0.5);
-        let k = w.norm_squared() + (p.norm_squared() + q.norm_squared()) * half;
-        let one = ArcWindow::new(self.window.lo, self.window.hi).extent(
-            T::zero(),
-            two * w.dot(p),
-            two * w.dot(q),
-        );
-        let two_t = ArcWindow::new(two * self.window.lo, two * self.window.hi).extent(
-            T::zero(),
-            (p.norm_squared() - q.norm_squared()) * half,
-            p.dot(q),
-        );
-        let far = (k + one.1 + two_t.1).max(T::zero()).sqrt();
-        let near = (k + one.0 + two_t.0).max(T::zero()).sqrt();
-        (near, far)
+        let c = self.circle_about(site);
+        (self.near(&c), self.far(&c, site))
     }
 
-    /// The circle [`Arc::point_near`] and [`Arc::point_far`] read the arc
-    /// against, and `at` in its frame: the orthonormalized `(û, v̂)`, the
-    /// mean radius `ρ̄` as that frame reads the two semi-axes, the Gram
-    /// bound `dev` of the semi-axis vectors' departures from it (zero for
-    /// a circle in an orthonormal frame, half the axes' difference for an
-    /// ellipse), and `at − centre`'s components `(x, y, h)` along `û`,
-    /// `v̂` and their normal.
-    fn circle_about(&self, at: Point3<T>) -> Circle<T> {
-        let half = T::from_f64(0.5);
-        let u_len = self.frame.u_ref.norm();
-        let u_hat = self.frame.u_ref / u_len;
-        let v_off = self.frame.v_ref() - u_hat * self.frame.v_ref().dot(u_hat);
-        let v_hat = v_off.normalize();
-        let rho = (self.semi_u * u_len + self.semi_v * self.frame.v_ref().dot(v_hat)) * half;
-        let dp = self.frame.u_ref * self.semi_u - u_hat * rho;
-        let dq = self.frame.v_ref() * self.semi_v - v_hat * rho;
-        let dev = gram_top(dp.norm_squared(), dq.norm_squared(), dp.dot(dq));
-        let w = at - self.frame.origin;
-        Circle {
-            u_hat,
-            v_hat,
-            rho,
-            dev,
-            w,
-            at: (w.dot(u_hat), w.dot(v_hat), w.dot(u_hat.cross(v_hat))),
+    /// **The circle the arc is read against from `site`.**
+    ///
+    /// - From a point: the orthonormalized `(û, v̂)`, the mean radius `ρ̄`
+    ///   as that frame reads the two semi-axes, the Gram bound `dev` of
+    ///   the semi-axis vectors' departures from it (zero for a circle in
+    ///   an orthonormal frame, half the axes' difference for an ellipse),
+    ///   and the point's offset in that frame.
+    /// - From a line: the distance to the line is the length of the
+    ///   arc's offset off it, `w' + p·cos t + q·sin t` with `p`, `q` the
+    ///   semi-axis vectors off the line, a plane curve normal to the
+    ///   line's unit `â`. `p·cos t + q·sin t` splits exactly into a part
+    ///   turning with `t`, `g·cos t + (â × g)·sin t` with
+    ///   `g = (p − â × q)/2`, and one turning against it,
+    ///   `k·cos t − (â × k)·sin t` with `k = (p + â × q)/2`, each of
+    ///   constant length. The longer is the circle and the shorter its
+    ///   departure; with `p` and `q` both zero the circle is the centre.
+    fn circle_about(&self, site: &Site<T>) -> Circle<T> {
+        match site {
+            Site::Point(at) => {
+                let half = T::from_f64(0.5);
+                let (u_hat, u_len) = self.frame.u_ref.direction_and_length();
+                let v_off = self.frame.v_ref() - u_hat * self.frame.v_ref().dot(u_hat);
+                let v_hat = v_off.normalize();
+                let rho =
+                    (self.semi_u * u_len + self.semi_v * self.frame.v_ref().dot(v_hat)) * half;
+                let dp = self.frame.u_ref * self.semi_u - u_hat * rho;
+                let dq = self.frame.v_ref() * self.semi_v - v_hat * rho;
+                let dev = gram_top(dp.norm_squared(), dq.norm_squared(), dp.dot(dq));
+                let w = *at - self.frame.origin;
+                let (x, y, h) = (w.dot(u_hat), w.dot(v_hat), w.dot(u_hat.cross(v_hat)));
+                Circle {
+                    b1: u_hat,
+                    b2: v_hat,
+                    scale: rho,
+                    rho,
+                    dev,
+                    w,
+                    off_axis: (x.powi(2) + y.powi(2)).sqrt(),
+                    h,
+                }
+            }
+            Site::Line(line) => {
+                let a = line.dir.normalize();
+                let p = site.direction(self.frame.u_ref * self.semi_u);
+                let q = site.direction(self.frame.v_ref() * self.semi_v);
+                let half = T::from_f64(0.5);
+                let with = (p - a.cross(q)) * half;
+                let against = (p + a.cross(q)) * half;
+                let (s_with, s_against) = (with.norm(), against.norm());
+                let choose = |x: T, y: T| (s_with - s_against).select_le_zero(x, y);
+                let choose_vec = |x: Vec3<T>, y: Vec3<T>| {
+                    Vec3::new(choose(x.x, y.x), choose(x.y, y.y), choose(x.z, y.z))
+                };
+                let w = -site.relative(vec_of(self.frame.origin));
+                Circle {
+                    b1: choose_vec(against, with),
+                    b2: choose_vec(-a.cross(against), a.cross(with)),
+                    scale: T::one(),
+                    rho: choose(s_against, s_with),
+                    dev: choose(s_with, s_against),
+                    w,
+                    off_axis: w.norm(),
+                    h: T::zero(),
+                }
+            }
         }
     }
 
-    /// **The nearest distance from `at`, as a distance.** The arc lies
-    /// within `dev` of the circular arc of radius `ρ̄` over the same window
+    /// **The nearest distance from the site, as a distance.** The arc
+    /// lies within `dev` of the circle's arc over the same window
     /// ([`Arc::circle_about`]). That arc's nearest point is the one in
-    /// `at`'s azimuth where the window holds that azimuth,
+    /// the site's azimuth where the window holds that azimuth,
     /// `√(h² + (ρ_at − |ρ̄|)²)`, and the nearer end where it does not;
     /// every term is a distance, so none cancels near the arc.
-    fn point_near(&self, at: Point3<T>) -> T {
-        let c = self.circle_about(at);
-        let (x, y, h) = c.at;
-        let off_axis = (x.powi(2) + y.powi(2)).sqrt();
-        let in_azimuth = (h.powi(2) + (off_axis - c.rho.abs()).powi(2)).sqrt();
+    fn near(&self, c: &Circle<T>) -> T {
+        let in_azimuth = (c.h.powi(2) + (c.off_axis - c.rho.abs()).powi(2)).sqrt();
         let ends = c.end(self.window.lo).min(c.end(self.window.hi));
+        let (x, y) = c.azimuth();
         let near = ArcWindow::new(self.window.lo, self.window.hi)
-            .crest_outside(c.rho * x, c.rho * y)
+            .crest_outside(x, y)
             .select_le_zero(in_azimuth, ends);
         (near - c.dev).max(T::zero())
     }
 
-    /// **The farthest distance from `at`, as a distance**: the lesser of
-    /// two bounds whose every term is a distance, so neither cancels on a
-    /// short arc read from near it.
+    /// **The farthest distance from the site, as a distance**: the lesser
+    /// of two bounds whose every term is a distance, so neither cancels
+    /// on a short arc read from near it.
     ///
     /// - The circular arc of [`Arc::circle_about`], widened by `dev`: its
-    ///   farthest point is the crest opposite `at`'s azimuth where the
-    ///   window holds it, `√(h² + (ρ_at + |ρ̄|)²)`, and the farther end
-    ///   where it does not. Exact for a circle in an orthonormal frame.
+    ///   farthest point is the crest opposite the site's azimuth where
+    ///   the window holds it, `√(h² + (ρ_at + |ρ̄|)²)`, and the farther
+    ///   end where it does not. Exact for a circle in an orthonormal
+    ///   frame read from a point, and for one normal to the line read
+    ///   from a line.
     /// - The arc cut into four pieces of half-width `h ≤ π/4` (the window
     ///   capped at one turn either way). The arc is an affine image of
     ///   the unit circle, on which a piece about its middle `m` lies in
     ///   the rectangle its chord spans out to its crest, so the piece lies
     ///   in the parallelogram on its ends shifted by its bulge
-    ///   `(1 − cos h)·(x(m) − c)`, and a distance from a point is convex,
-    ///   so it peaks at a corner. Past the arc by at most a piece's bulge.
-    fn point_far(&self, at: Point3<T>) -> T {
-        let c = self.circle_about(at);
-        let (x, y, h) = c.at;
-        let off_axis = (x.powi(2) + y.powi(2)).sqrt();
-        let crest = (h.powi(2) + (off_axis + c.rho.abs()).powi(2)).sqrt();
+    ///   `(1 − cos h)·(x(m) − c)`, and a distance from a point or a line
+    ///   is convex, so it peaks at a corner. Past the arc by at most a
+    ///   piece's bulge.
+    fn far(&self, c: &Circle<T>, site: &Site<T>) -> T {
+        let crest = (c.h.powi(2) + (c.off_axis + c.rho.abs()).powi(2)).sqrt();
         let (lo, hi) = (self.window.lo, self.window.hi);
         let ends = c.end(lo).max(c.end(hi));
+        let (x, y) = c.azimuth();
         let circle = ends.max(
             ArcWindow::new(lo, hi)
-                .crest_outside(T::zero() - c.rho * x, T::zero() - c.rho * y)
+                .crest_outside(T::zero() - x, T::zero() - y)
                 .select_le_zero(crest, T::zero()),
         ) + c.dev;
         let turn = T::tau();
         let quarter = ((hi - lo).max(T::zero() - turn).min(turn)) * T::from_f64(0.25);
         let shift = T::one() - (quarter * T::from_f64(0.5)).abs().cos();
         let point = |t: T| self.point(t);
-        let pieces = (0..4).fold((point(lo) - at).norm(), |far, k| {
+        let pieces = (0..4).fold(site.distance(point(lo)), |far, k| {
             let s0 = lo + quarter * T::from_f64(f64::from(k));
             let s1 = s0 + quarter;
             let bulge = (point(s0 + quarter * T::from_f64(0.5)) - self.frame.origin) * shift;
             let (x0, x1) = (point(s0), point(s1));
             [x0 + bulge, x1, x1 + bulge]
                 .into_iter()
-                .fold(far, |far, p| far.max((p - at).norm()))
+                .fold(far, |far, p| far.max(site.distance(p)))
         });
         circle.min(pieces)
     }
@@ -1125,7 +1554,7 @@ impl<T: Real> Piece<T> {
             Piece::Arc(arc) => arc.range(site),
             Piece::Slab(slab) => match site {
                 Site::Point(q) => slab.point_range(*q),
-                Site::Line(_) => ball_range(slab.ball(), site),
+                Site::Line(line) => slab.line_range(line),
             },
             Piece::Frustum(f) => match site {
                 Site::Point(q) => {
@@ -1171,6 +1600,22 @@ impl<T: Real> Piece<T> {
                 (n0.max(n1), f0.min(f1))
             }
             _ => whole(),
+        }
+    }
+
+    /// The site a piece of revolution is measured about
+    /// ([`Cover::about`]). Every kind is named, so a kind added with an
+    /// axis says here whether it proposes it.
+    fn about(&self) -> Option<Around<T>> {
+        match self {
+            Piece::Slab(slab) => Some(Around::Line(slab.axis)),
+            Piece::Frustum(f) => Some(Around::Line(f.axis)),
+            Piece::Tube(tube) => Some(tube.hub()),
+            Piece::Patch(_)
+            | Piece::Points(_)
+            | Piece::Segment(_)
+            | Piece::Arc(_)
+            | Piece::Net(_) => None,
         }
     }
 
@@ -1229,7 +1674,7 @@ fn points_ball<T: Real>(points: &[Point3<T>]) -> Ball<T> {
         .fold((points[0], points[0]), |(lo, hi), &p| {
             (lo.min(p), hi.max(p))
         });
-    let c = lo + (hi - lo) * T::from_f64(0.5);
+    let c = lo.mid(hi);
     let r = points.iter().fold(T::zero(), |r, &p| r.max((p - c).norm()));
     (c, r)
 }

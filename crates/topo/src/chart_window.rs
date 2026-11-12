@@ -64,7 +64,7 @@ pub(crate) fn face_loop_azimuth_travels<T: Decide>(
     face: FaceKey,
     band: Band,
 ) -> Result<Vec<Option<T>>, SplitJoinError> {
-    let view = body.passed_face(face).ok_or_else(|| corrupt_face(face))?;
+    let view = body.face(face).ok_or_else(|| corrupt_face(face))?;
     view.loops()
         .filter_map(|(_, l, _)| match l.boundary {
             LoopBoundary::Cycle { first } => Some(first),
@@ -102,7 +102,7 @@ pub fn face_azimuth_window_traces<T: Decide>(
     face: FaceKey,
     band: Band,
 ) -> Result<Option<(T, T)>, SplitJoinError> {
-    let view = body.passed_face(face).ok_or_else(|| corrupt_face(face))?;
+    let view = body.face(face).ok_or_else(|| corrupt_face(face))?;
     face_azimuth_window(body, view.surface(), face, band)
 }
 
@@ -186,7 +186,7 @@ pub(crate) fn face_azimuth_images<T: Decide>(
     face: FaceKey,
     band: Band,
 ) -> Result<Option<Vec<AzimuthImage<T>>>, SplitJoinError> {
-    let view = body.passed_face(face).ok_or_else(|| corrupt_face(face))?;
+    let view = body.face(face).ok_or_else(|| corrupt_face(face))?;
     let Some(halves) = view.outer_cycle() else {
         return Ok(None);
     };
@@ -247,7 +247,13 @@ pub(crate) fn run_azimuth_images<T: Decide>(
     halves: &[HalfEdgeKey],
     band: Band,
 ) -> Result<Vec<AzimuthImage<T>>, SplitJoinError> {
-    let tau = T::tau();
+    // The azimuth's period is the chart's own (C4, `Surface::angle_periods`).
+    let Some((Some(turn), _)) = surface.angle_periods() else {
+        return Err(SplitJoinError::SectionInvariant {
+            face,
+            what: "a chart with no azimuth channel has no azimuth images",
+        });
+    };
     let mut images = Vec::new();
     let mut prev_exit: Option<T> = None;
     let mut prev_edge: Option<EdgeKey> = None;
@@ -378,7 +384,7 @@ pub(crate) fn run_azimuth_images<T: Decide>(
                     )?,
                 };
                 prev_k = k;
-                base.shift_branch(k, geom_brep::Period::new(tau))
+                base.shift_branch(k, turn)
             }
         };
         // A general-lane image (a circle's class read in band on a sphere,
@@ -448,11 +454,18 @@ fn nearest_branch<T: Decide>(
         what: "a divided face's chart is the placeholder — it has no lever to decide a branch by",
     })?;
     let arm = crate::pcurves::joint_arm(chart, vertex);
+    // The azimuth's period is the chart's own (C4, `Surface::angle_periods`).
+    let Some((Some(turn), _)) = surface.angle_periods() else {
+        return Err(SplitJoinError::SectionInvariant {
+            face,
+            what: "a chart with no azimuth channel names no azimuth branch",
+        });
+    };
     crate::pcurves::lever_periods(
         "chart_window_branch",
         arm,
         gap,
-        geom_brep::Period::new(T::tau()),
+        turn,
         crate::pcurves::Orbit::Periods,
         band,
     )
@@ -556,7 +569,7 @@ fn pole_branch<T: Decide>(
     // edge bending back (the lens, [`pole_lever`]'s four times), which
     // never gets here: a non-meridian circle's chart image is projected,
     // and the walk refuses it as FITTED.
-    geom_brep::Period::new(T::tau())
+    geom_brep::Period::angle()
         .decide(
             "chart_window_pole_branch",
             shifted,
@@ -1203,7 +1216,7 @@ mod run_image_incidence {
     #![allow(clippy::unwrap_used)]
     use super::SplitJoinError;
     use geom_brep::recourse::{INCIDENCE_AT_POSE, INCIDENCE_UNSHOWN};
-    use geom_brep::{OffMargin, PcurveCertifyError, PcurveCheck};
+    use geom_brep::{OffMargin, PcurveCertifyError};
     use geom_core::{Band, Indeterminate, KERNEL_DEFECT_ENDING, MarginDiag};
 
     /// **A boundary edge's incidence refusal ends by the one map**,
@@ -1213,21 +1226,24 @@ mod run_image_incidence {
     /// a coincidence lever.
     #[test]
     fn a_run_edges_incidence_refusal_ends_by_its_read() {
-        let off = |margin| PcurveCertifyError::CarrierOffChart {
-            chart: geom::SurfaceKind::Cone,
-            carrier: geom::CurveKind::Circle,
-            why: "WHY",
-            margin,
-        };
-        let undecided = |margin| PcurveCertifyError::Escalated {
-            check: PcurveCheck::ChartIncidence,
-            sample: 0,
-            cause: Indeterminate {
+        let off = |margin| {
+            PcurveCertifyError::Incidence(geom_brep::IncidenceRefusal::off_chart(
+                geom::SurfaceKind::Cone,
+                geom::CurveKind::Circle,
+                "WHY",
                 margin,
-                band: Band::new(1e-9, 1e-8).unwrap(),
-                predicate: Some("pcurve_cone_chart_incident"),
-                terminal_sliver: false,
-            },
+            ))
+        };
+        let undecided = |margin| {
+            PcurveCertifyError::Incidence(geom_brep::IncidenceRefusal::undecided(
+                0,
+                Indeterminate {
+                    margin,
+                    band: Band::new(1e-9, 1e-8).unwrap(),
+                    predicate: Some("pcurve_cone_chart_incident"),
+                    terminal_sliver: false,
+                },
+            ))
         };
         let m = MarginDiag::value(4e-10);
         for (refusal, ending) in [

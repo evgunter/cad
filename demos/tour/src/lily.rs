@@ -1881,13 +1881,13 @@ fn cone_station_circles<S: Scalar>(
     rho: f64,
 ) -> Vec<(pncad::topo::FaceKey, Circle)> {
     let mut out = Vec::new();
-    for (k, f) in body.faces() {
+    for (k, _) in body.faces() {
         let Some(&pncad::geom::Surface::Cone {
             apex,
             axis,
             half_angle,
             ..
-        }) = body.get_surface(f.surface)
+        }) = body.face_surface(k)
         else {
             continue;
         };
@@ -1930,14 +1930,14 @@ struct TorusCarrier {
 /// split a torus wall onto two carriers the review row fails and this
 /// one silently picks one. That row is the tie.
 fn torus_carrier<S: Scalar>(body: &Body<S>) -> TorusCarrier {
-    for (_, f) in body.faces() {
+    for (fk, _) in body.faces() {
         if let Some(&pncad::geom::Surface::Torus {
             center,
             axis,
             major_radius,
             minor_radius,
             ..
-        }) = body.get_surface(f.surface)
+        }) = body.face_surface(fk)
         {
             return TorusCarrier {
                 centre: center.map(S::f),
@@ -2144,7 +2144,7 @@ fn wall<T, E: core::fmt::Debug>(
 pub fn seamed_lantern(lantern: Body<f64>, tol: Tol) -> Result<Body<f64>, BooleanError> {
     let (zc, axis) = lantern
         .faces()
-        .find_map(|(_, f)| match lantern.get_surface(f.surface) {
+        .find_map(|(fk, _)| match lantern.face_surface(fk) {
             Some(&pncad::topo::Surface::Sphere { center, axis, .. }) => Some((center, axis)),
             _ => None,
         })
@@ -2322,7 +2322,6 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
     //    axis. There is no ellipsoid surface and no non-uniform map —
     //    a body moves only by a `RigidMotion`, and a matrix becomes one
     //    only through the door that decides its rigidity.
-    let band = pncad::geom_core::Band::linear(tol).expect("the run's band");
     let stretch = Affine3::from_parts(
         Mat3::from_cols(v3(1.0, 0.0, 0.0), v3(0.0, 1.0, 0.0), v3(0.0, 0.0, 1.6)),
         v3(0.0, 0.0, 0.0),
@@ -2330,8 +2329,9 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
     wall(
         4,
         "stretch a lantern into an ovoid bud (non-uniform scale)",
-        RigidMotion::check_rigid(&stretch, band)
-            .map(|stretch| pncad::topo::transform_rigid(lant, &stretch, tol)),
+        // The door is `f64`'s: a matrix becomes a motion there or nowhere,
+        // so a stretch refused there reaches no lane's body door.
+        RigidMotion::check_rigid(&stretch).map(|_| lant),
         // The NAMED predicate matters: a unit-norm failure on the
         // scaled column, not a determinant or orthogonality failure.
         |e| matches!(e, RigidMotionError::NotRigid { check } if *check == "transform_rigid_col2_unit"),
@@ -2362,7 +2362,7 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
     //    the band: one torus face, coaxial with the flower.
     let bands = lant
         .faces()
-        .filter(|(_, f)| lant.get_surface(f.surface).map(|g| g.kind()) == Some(SurfaceKind::Torus))
+        .filter(|(fk, _)| lant.face_surface(*fk).map(|g| g.kind()) == Some(SurfaceKind::Torus))
         .count();
     assert_eq!(bands, 1, "the lantern's rolled mouth is one torus band");
     println!(
@@ -2489,10 +2489,7 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
             // The leaf's lower cap is its first loft station's plane:
             // through the root, square to the sheath's direction there.
             let (root, (sheath_dir, _, _), _, _) = leaf_a_spine(tol);
-            let lower_cap = |f| match leaf_a
-                .get_face(f)
-                .and_then(|d| leaf_a.get_surface(d.surface))
-            {
+            let lower_cap = |f| match leaf_a.face_surface(f) {
                 Some(pncad::topo::Surface::Plane { origin, normal, .. }) => {
                     let n = Vec3::new(normal.x.f(), normal.y.f(), normal.z.f());
                     let o = Point3::new(origin.x.f(), origin.y.f(), origin.z.f());
@@ -2502,7 +2499,7 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
             };
             // The lower stem's tube: the torus on its ring.
             let (lower, _) = lower_stem();
-            let lower_tube = |f| match stem.get_face(f).and_then(|d| stem.get_surface(d.surface)) {
+            let lower_tube = |f| match stem.face_surface(f) {
                 Some(pncad::topo::Surface::Torus {
                     center,
                     major_radius,

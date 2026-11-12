@@ -271,7 +271,7 @@ pub enum StepImportError {
         /// discarded: which count or weight the wall's stored net
         /// broke. A count is the whole net's; a weight's `index`
         /// counts along the extracted COLUMN, not through the net.
-        source: geom_core::spline::SplineError,
+        source: geom_core::spline::Built<geom_core::spline::SplineError>,
     },
     /// D7's typed ambiguity at ε_in (stage-1 surface recognition,
     /// ruling #256): a face that cannot import WITHOUT promotion (a
@@ -355,18 +355,6 @@ pub enum StepImportError {
         /// The file's ε_in: the import door the refusal is read at.
         file: FileCoincidence,
     },
-    /// An assembly instance's placement map is not admitted as a rigid
-    /// motion at the kernel's decided door
-    /// ([`geom_core::RigidMotion::check_rigid`]): a map this reader's
-    /// ε_in classification let through that the kernel's decided
-    /// predicates would not.
-    PlacementMap {
-        /// The `ITEM_DEFINED_TRANSFORMATION` that states this
-        /// instance's frame.
-        transform: u64,
-        /// The decided door's refusal.
-        source: geom_core::RigidMotionError,
-    },
     /// An assembly instance's rigid placement refused at the kernel's
     /// own [`topo::transform_rigid`] door (M7-4 Leg D): a carrier that
     /// failed to re-certify against the mapped geometry.
@@ -395,7 +383,7 @@ pub enum StepImportError {
     /// the face, or is not certified clear of it, where the import
     /// door's split cannot place the line (`crate::knot_split`): every
     /// face chart is C¹ by its knot
-    /// structure strictly inside its cell (`docs/DESIGN.md` [topology]),
+    /// structure strictly inside its cell (`docs/DESIGN.md` `[topology]`),
     /// and the split needs the line to part the face's single loop at
     /// two points of its boundary, one chain on each sub-patch. A trim
     /// that crosses the line more than once, or a face with rings, needs
@@ -660,11 +648,6 @@ impl StepImportError {
                     ),
                 }
             }
-            Self::PlacementMap { transform, source } => write!(
-                f,
-                "step import: the assembly placement stated at #{transform} is not admitted \
-                 as a rigid motion: {source}"
-            ),
             Self::Placement {
                 transform,
                 source,
@@ -857,12 +840,14 @@ mod nested_at_the_door {
             let error = StepImportError::Pcurves {
                 source: topo::PcurveMintError::Certify {
                     half_edge: topo::HalfEdgeKey::default(),
-                    error: geom_brep::PcurveCertifyError::CarrierOffChart {
-                        chart: geom::SurfaceKind::Cone,
-                        carrier: geom::CurveKind::Circle,
-                        why: "the circle dips below the apex",
-                        margin,
-                    },
+                    error: geom_brep::PcurveCertifyError::Incidence(
+                        geom_brep::IncidenceRefusal::off_chart(
+                            geom::SurfaceKind::Cone,
+                            geom::CurveKind::Circle,
+                            "the circle dips below the apex",
+                            margin,
+                        ),
+                    ),
                 },
                 file: FileCoincidence::new(1e-6),
             };

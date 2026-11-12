@@ -58,10 +58,7 @@ fn faces_of(body: &Body<f64>, e: EdgeKey) -> (FaceKey, FaceKey) {
 }
 
 fn is_plane(body: &Body<f64>, f: FaceKey) -> bool {
-    matches!(
-        body.get_surface(body.get_face(f).unwrap().surface).unwrap(),
-        Surface::Plane { .. }
-    )
+    matches!(body.face_surface(f).unwrap(), Surface::Plane { .. })
 }
 
 /// What the at-rest gate says of a body that does not finish.
@@ -406,12 +403,10 @@ fn a_curved_single_face_carrying_both_arcs_is_construction_state() {
         let (wall, _) = faces_of(&body, wraps);
         let wall = body.get_face(wall).unwrap().surface;
         let dying = body.get_edge(dies).unwrap().he_plus;
+        let (v0, v1) = body.edge_vertices(dies).unwrap();
         // The killed meridian's two ends are left between two arcs of
         // one rim circle each: joinable vertices (tier 3's check 11).
-        let mut ends = [
-            body.get_half_edge(dying).unwrap().start,
-            body.half_edge_end(dying).unwrap(),
-        ];
+        let mut ends = [v0, v1];
         ends.sort();
         let joinable = || {
             ends.iter()

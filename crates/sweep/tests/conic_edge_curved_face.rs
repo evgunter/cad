@@ -122,7 +122,7 @@ fn ellipse_edges(body: &Body<f64>) -> Vec<EdgeKey> {
 
 fn faces_where(body: &Body<f64>, kind: fn(&geom::Surface<f64>) -> bool) -> Vec<FaceKey> {
     body.faces()
-        .filter(|(_, f)| body.get_surface(f.surface).is_some_and(kind))
+        .filter(|(fk, _)| body.face_surface(*fk).is_some_and(kind))
         .map(|(k, _)| k)
         .collect()
 }
@@ -287,34 +287,12 @@ fn a_rod_held_inside_the_drum_clears_the_rim() {
     }
 }
 
-/// The boolean's refusal under every op; a body fails with the op named.
-fn refusals(
-    a: &AtRestBody<f64>,
-    b: &AtRestBody<f64>,
-) -> Vec<(
-    topo::BooleanError,
-    Option<crate::cylinder_sphere_frame::Door>,
-)> {
-    [BooleanOp::Union, BooleanOp::Intersect, BooleanOp::Subtract]
-        .into_iter()
-        .map(|op| {
-            let e = run(op, a, b)
-                .err()
-                .unwrap_or_else(|| panic!("{op:?} built a body where a frontier was pinned"));
-            // Read right after its boolean (`cylinder_sphere_frame::door`).
-            let door = crate::cylinder_sphere_frame::door(&e);
-            (e, door)
-        })
-        .collect()
-}
-
 /// **The rim CROSSES**: balls straddling it, and rods standing across
 /// it. The rim's pairs are accepted (its certified roots split it), and
 /// the crossing layer and the sector side pass. A ball's every op passes
 /// the join, whose chords are cut from its wall × sphere pair's quartic
-/// section, and stops past it, at the result gate's volume
-/// (`cylinder_sphere_frame` pins each op's door and
-/// holds the same balls to their volumes). A
+/// section, and builds (`cylinder_sphere_frame` holds the same balls to
+/// their volumes). A
 /// rod's parallel walls join along their rulings, the narrow rods'
 /// pierce ring in the drum's wall joins, and every rod builds in every
 /// op (`parallel_cylinder_join::the_rim_crossing_rods_build_in_every_op`
@@ -324,25 +302,11 @@ fn refusals(
 /// own rim circle, whose root on the drum wall the wall's chart trim
 /// (bounded by the rim's arcs) could not place.
 #[test]
-fn a_rim_crossing_reaches_the_join() {
-    use crate::cylinder_sphere_frame::Door;
+fn a_rim_crossing_builds_in_every_op() {
     let a = drum_lower();
-    // Every op stops at the sphere face's door, as `cylinder_sphere_frame`
-    // pins the same balls: pinned red at the result gate's volume
-    // (work/spiricarm/a-projected-boundary-on-an-analytic-chart-has-no-volume-lane.md).
-    // When the sphere's lane lands, `refusals` meets a body, and the balls
-    // move to `cylinder_sphere_frame`'s volume rows.
     for (label, b) in [
         ("ball r 0.2 at (0.5, 0, 0.35)", ball(0.2, [0.5, 0.0, 0.35])),
         ("ball r 0.1 at (0.45, 0, 0.3)", ball(0.1, [0.45, 0.0, 0.3])),
-    ] {
-        let (_, accepted) = rim_pairs(label, &a, &b);
-        assert!(accepted > 0, "{label}: the rim's crossings are accepted");
-        for (e, door) in refusals(&a, &b) {
-            assert_eq!(door, Some(Door::Sphere), "{label}: got {e:?}");
-        }
-    }
-    for (label, b) in [
         ("rod r 0.2 at (0.5, 0)", rod(0.2, 0.5, 0.0, 0.2, 0.25)),
         ("rod r 0.1 at (-0.45, 0)", rod(0.1, -0.45, 0.0, 0.5, 0.3)),
         ("rod r 0.1 at (0, 0.48)", rod(0.1, 0.0, 0.48, 0.3, 0.4)),

@@ -2567,7 +2567,7 @@ pub(crate) struct ViewerBehavior<'a> {
     /// preview that WAS taken and drew nothing, and which the form is
     /// entitled to say so about.
     pub(crate) profile_previews: &'a ProfileDoors<Option<Result<ProfilePreview, PreviewError>>>,
-    /// What each door's fused fillet steps construct, taken with its
+    /// What each door's fillet steps construct, taken with its
     /// preview ([`sketch::drawn`]) and drawn whether or not the preview
     /// is. `None` where no preview was taken.
     pub(crate) profile_constructions: &'a ProfileDoors<Option<sketch::Construction>>,
@@ -7636,19 +7636,64 @@ mod properties_pane_tests {
             self.quiet();
         }
 
-        /// A sketch committed on `face`: the takeover a held pick on it
-        /// follows.
+        /// A sketch committed on `face`.
         fn sketch_on(&mut self, face: &crate::session::FaceSelection) {
-            self.perform(SessionOp::SketchOnFace {
-                face: face.clone(),
-                loops: vec![crate::test_support::rectangle_loop(
-                    [-0.001, -0.001],
-                    0.002,
-                    0.002,
-                )],
-                distance: crate::test_support::len(0.001),
-                spin: crate::test_support::ang(0.0),
-            });
+            self.perform(sketch_op(face));
+        }
+
+        /// **A sketch on `face` read on the body its copy places, and the
+        /// re-point it offers accepted** (Ev, PR 6353): the takeover a
+        /// held pick on the copy follows. Answers the union. Nothing is
+        /// landed between the two, nor after: `land` pumps.
+        fn sketch_and_repoint(
+            &mut self,
+            face: &crate::session::FaceSelection,
+            land: bool,
+        ) -> RecipeNodeId {
+            let on_body = crate::session::FaceSelection {
+                node: extrude(),
+                ..face.clone()
+            };
+            self.app.perform_batch(vec![sketch_op(&on_body)]);
+            let union = self.offered();
+            self.repoint_onto(union, land);
+            union
+        }
+
+        /// The node the last creation offers the re-point from.
+        fn offered(&self) -> RecipeNodeId {
+            let doc = self.app.session.committed_doc();
+            doc.ids()
+                .into_iter()
+                .find(|&id| crate::world::repoint_offer(doc, id).is_some())
+                .expect("a body built on the extrude offers the re-point")
+        }
+
+        /// The re-point `onto` offers, accepted; `land` pumps.
+        fn repoint_onto(&mut self, onto: RecipeNodeId, land: bool) {
+            let doc = self.app.session.committed_doc();
+            let offer = crate::world::repoint_offer(doc, onto).expect("an offer");
+            self.app.perform_batch(vec![SessionOp::RepointPlacements {
+                body: pncad::document::Operand::Var(offer.body),
+                onto,
+            }]);
+            if land {
+                self.quiet();
+            }
+        }
+    }
+
+    /// The boss a held-pick row sketches on `face`.
+    fn sketch_op(face: &crate::session::FaceSelection) -> SessionOp {
+        SessionOp::SketchOnFace {
+            face: face.clone(),
+            loops: vec![crate::test_support::rectangle_loop(
+                [-0.001, -0.001],
+                0.002,
+                0.002,
+            )],
+            distance: crate::test_support::len(0.001),
+            spin: crate::test_support::ang(0.0),
         }
     }
 
@@ -7738,8 +7783,9 @@ mod properties_pane_tests {
 
     /// **Both picks of the held face follow a sketch committed on it**:
     /// the startup plate's top cap selected and held by the
-    /// traced-profile form, then a sketch on it, which takes the plate's
-    /// copy over with the union. The union carries the cap as one face, so the
+    /// traced-profile form, then a sketch on the plate picked as itself and
+    /// the re-point it offers accepted, which takes the plate's copy over
+    /// with the union. The union carries the cap as one face, so the
     /// selection and the form's held face both follow it there at the
     /// commit and both resolve on the copy. Goes red if the session's
     /// selection or the drafts' held face stops following, or if the
@@ -7750,7 +7796,7 @@ mod properties_pane_tests {
         use pncad::select::Resolution;
         let (mut driven, top) = Driven::holding_the_top_cap();
         driven.select(Selection::Face(top.clone()));
-        driven.sketch_on(&top);
+        driven.sketch_and_repoint(&top, true);
         let session = &driven.app.session;
         assert!(
             session
@@ -7787,8 +7833,8 @@ mod properties_pane_tests {
 
     /// **An open tool's held pick follows a takeover too**: the mate
     /// tool holding the startup plate's top cap on its copy, and a
-    /// sketch committed on that face, which takes the copy over with the
-    /// union. At the commit the tool's pick follows to the cap as the
+    /// sketch committed on the plate's face and its re-point accepted,
+    /// which takes the copy over with the union. At the commit the tool's pick follows to the cap as the
     /// union carries it; the survival step run before the landing keeps
     /// it (it is judged only by a run of the document it lives in,
     /// `DocSession::name_run`), and once the run lands it resolves
@@ -7819,16 +7865,7 @@ mod properties_pane_tests {
         // Committed, and the survival step run before its run lands:
         // the pick followed at the commit, and is not judged against
         // the older landed run.
-        driven.app.perform_batch(vec![SessionOp::SketchOnFace {
-            face: top.clone(),
-            loops: vec![crate::test_support::rectangle_loop(
-                [-0.001, -0.001],
-                0.002,
-                0.002,
-            )],
-            distance: crate::test_support::len(0.001),
-            spin: crate::test_support::ang(0.0),
-        }]);
+        driven.sketch_and_repoint(&top, false);
         assert!(driven.app.session.busy(), "the commit's run has not landed");
         driven.app.survive_tools();
         let followed = on(&driven);
@@ -7855,12 +7892,12 @@ mod properties_pane_tests {
         );
     }
 
-    /// **A held face on a copy a feature re-points stays held, drawn
-    /// and committable.** The pick is on the placement's copy; a fillet
-    /// of the hole's bottom rim re-points that placement (A10) to the
-    /// filleted body, which carries the top cap whole, so the copy still
-    /// draws the face and a sketch on it lands on the face of the
-    /// filleted body. (A held face the picture does not draw — a hidden
+    /// **A held face on a copy a re-point moves stays held, drawn and
+    /// committable.** The pick is on the placement's copy; a fillet of
+    /// the hole's bottom rim, on the body, offers to re-point that
+    /// placement to the filleted body, which carries the top cap whole;
+    /// accepted, the copy still draws the face and a sketch on it lands
+    /// on the copy. (A held face the picture does not draw — a hidden
     /// instance's — is `tests/assembly_display.rs`'s row.)
     #[test]
     fn a_held_face_on_a_copy_a_feature_re_points_stays_held() {
@@ -7887,6 +7924,8 @@ mod properties_pane_tests {
             radius: crate::test_support::len(0.0005),
             selection: rim,
         });
+        let filleted = driven.offered();
+        driven.repoint_onto(filleted, true);
         let [held, ..] = driven.held();
         assert_ne!(
             held,
@@ -7922,8 +7961,13 @@ mod properties_pane_tests {
             .find(|&id| matches!(doc.node(id), Some(Node::Union { .. })));
         let union = union.expect("a sketch on the held face landed");
         assert!(
-            doc.upstream(union).contains(&moved),
-            "on the filleted body, which the copy places"
+            doc.upstream(union).contains(&placement()),
+            "on the copy the face was held on"
+        );
+        assert_eq!(
+            doc.copied_read(placement()),
+            doc.output(moved, 0),
+            "which places the filleted body"
         );
     }
 
@@ -12291,7 +12335,7 @@ mod properties_pane_tests {
         }
 
         /// **The split's button waits for its plane, and names it**: with
-        /// a target and no plane the commit is withheld, its hover the
+        /// a target (the plate's copy) and no plane the commit is withheld, its hover the
         /// missing pick, and a click inserts nothing. Picking the plate's
         /// cap as the plane lets it commit, and the insert selects the
         /// split its noun names.
@@ -12304,7 +12348,7 @@ mod properties_pane_tests {
             let mut driven = Driven::with(Vec::new());
             driven.settle();
             driven.app.tools.open(ToolKind::Split);
-            driven.click_through(vec![Selection::Node(extrude())]);
+            driven.click_through(vec![Selection::Node(placement())]);
             driven.click(crate::pane::create::COMBINE_BODIES);
             let commit = ToolKind::Split.commit();
             let gained = driven.gained_hovering(&commit);

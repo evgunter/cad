@@ -117,7 +117,7 @@
 //! minted by construction (rotations about a witness, translations,
 //! the exact half-turns and world frames, products and transposed
 //! inverses), by the Gram–Schmidt and aim ladders that decide its
-//! axes, and by one decided door from a raw [`Affine3`]; it converts
+//! axes, and, at `f64` alone, by one door from a raw [`Affine3`]; it converts
 //! into an [`Affine3`], which stays the general affine map. Each
 //! type's own docs say what its fact means at every scalar and which
 //! doors take it.
@@ -146,10 +146,10 @@ pub use mat::Mat3;
 pub use point::{Point2, Point3};
 pub use rigid_motion::{
     MotionPart, OrthoAxis, OrthonormalizeError, RigidMotion, RigidMotionError, TurnError,
-    not_rigid_reading,
+    least_turn_one_plus_c, not_rigid_reading,
 };
 pub use svd::{Svd, Svd2x3, Svd3x4};
 pub use unit_vec::{
     LeveredUnitError, UNIT_DIRECTION_ARM, UnitVec3, UnitVec3Error, decide_unit_direction,
 };
-pub use vec::{Vec2, Vec3};
+pub use vec::{LengthOutOfFormat, NoDirection, Vec2, Vec3};

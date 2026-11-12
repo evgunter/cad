@@ -58,9 +58,9 @@ const ENGINE_FIT_TARGET: f64 = 1e-6;
 /// offset misses the wall by `d·(n(u,v) − n₀)` and the residual is
 /// construction arithmetic — a fixed number of metres, independent of
 /// ε. The check is `|r| ≤ ε`, so the fixture certifies exactly when ε
-/// is at or above this value, and below it the kernel refuses
-/// `CertifyError::ResidualExceeded { check: ChartResidual, .. }`, which
-/// is the kernel being RIGHT.
+/// is at or above this value; below it the meter refuses and the
+/// carrier's incidence read ends it, an `Incidence` read off,
+/// which is the kernel being RIGHT.
 ///
 /// Pinned BIT-EXACTLY, both directions, by
 /// [`the_twisted_reattach_threshold_is_where_it_was_measured`]: a
@@ -140,21 +140,15 @@ fn assert_honest_reattach_refusal(r: &ReattachRefusal, d: f64) {
             r.error
         );
     };
-    let geom_brep::CertifyError::ResidualExceeded { check, .. } = error else {
-        panic!(
-            "below the threshold the residual DEFINITELY exceeds the band, so the refusal \
-             is ResidualExceeded rather than an escalation — got {error:?}"
-        );
-    };
-    assert_eq!(
-        *check,
-        geom_brep::CertCheck::ChartResidual,
-        "the refusing check is the iso lane's metric residual"
+    assert!(
+        edge_read_off(error, Some(geom::SurfaceKind::Approx), None),
+        "below the threshold the residual DEFINITELY exceeds the band, and the re-attached \
+         carrier is off the wall's fit by more than it, which the refused meter's incidence \
+         read ends — got {error:?}"
     );
-    // The number the refusal does not carry. `ResidualExceeded` reports
-    // a verdict, not a margin (unlike the #921 family's escalations,
-    // whose `Indeterminate` carries an enclosure), so the fixture
-    // measures the classified quantity itself and pins it here.
+    // The number the refusal does not carry: the read's margin is a lower
+    // bound on the carrier's distance, not the image's residual, so the
+    // fixture measures the residual itself and pins it here.
     assert!(
         r.max_iso_residual == expected,
         "the re-attach residual at d = {d:e} is {:e}, not its measured value \
@@ -194,8 +188,8 @@ fn skinned_base() -> NurbsSurface<f64> {
 fn the_twisted_walls_are_not_planar() {
     let body = twisted_loft(0.05);
     let mut spline_walls = 0;
-    for (_, face) in body.faces() {
-        if let Some(Surface::Nurbs(p)) = body.get_surface(face.surface)
+    for (fk, _) in body.faces() {
+        if let Some(Surface::Nurbs(p)) = body.face_surface(fk)
             && !p.is_placeholder()
         {
             spline_walls += 1;
@@ -310,10 +304,7 @@ fn a_curved_approx_walled_body_validates_at_tier_three() {
             }
         };
         assert!(
-            matches!(
-                body.get_surface(body.get_face(faces[0]).unwrap().surface),
-                Some(Surface::Approx(_))
-            ),
+            matches!(body.face_surface(faces[0]), Some(Surface::Approx(_))),
             "d = {d}: the wall carries the approximating surface"
         );
         assert_eq!(
@@ -332,7 +323,7 @@ fn a_degraded_curved_fit_goes_red_at_tier_three() {
         return;
     };
     let face = faces[0];
-    let Some(Surface::Approx(live)) = body.get_surface(body.get_face(face).unwrap().surface) else {
+    let Some(Surface::Approx(live)) = body.face_surface(face) else {
         panic!("the wall carries an approximating surface")
     };
     let geom::SurfaceDescription::Offset { base, .. } = live.description();
@@ -492,8 +483,8 @@ fn a_skinned_base_approx_face_earns_the_germ_pair_refusal() {
 #[test]
 fn diag_spline_spaces() {
     let body = twisted_loft(0.05);
-    for (fk, face) in body.faces() {
-        if let Some(Surface::Nurbs(p)) = body.get_surface(face.surface)
+    for (fk, _) in body.faces() {
+        if let Some(Surface::Nurbs(p)) = body.face_surface(fk)
             && !p.is_placeholder()
         {
             let base = Arc::new(pulled_back(p, D));
@@ -530,4 +521,23 @@ fn diag_spline_spaces() {
             );
         }
     }
+}
+
+fn edge_read_off(
+    e: &geom_brep::CertifyError,
+    chart: Option<geom::SurfaceKind>,
+    carrier: Option<geom::CurveKind>,
+) -> bool {
+    let geom_brep::CertifyError::Incidence(r) = e else {
+        return false;
+    };
+    matches!(r.read(), geom_brep::IncidenceRead::Off(_)) && kinds_are(r.kinds(), chart, carrier)
+}
+
+fn kinds_are(
+    kinds: Option<(geom::SurfaceKind, geom::CurveKind)>,
+    chart: Option<geom::SurfaceKind>,
+    carrier: Option<geom::CurveKind>,
+) -> bool {
+    kinds.is_some_and(|(c, k)| chart.is_none_or(|x| x == c) && carrier.is_none_or(|x| x == k))
 }

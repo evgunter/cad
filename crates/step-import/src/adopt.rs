@@ -44,7 +44,7 @@
 use geom::Curve3;
 use geom::{Surface, SurfaceData};
 use geom_brep::{EdgeCurveSpec, EdgeDescriptionSpec, MappedCurve, MappedSource, SurfacePair};
-use geom_core::spline::SplineError;
+use geom_core::spline::{Built, SplineError};
 use geom_core::{Affine3, FileCoincidence, Point2, Point3};
 use topo::construction::Construct;
 use topo::construction::FaceSurface;
@@ -758,7 +758,7 @@ fn iso_curve_candidates(
     fs_minus: topo::SurfaceKey,
     tol: Tol,
     candidates: &mut Vec<(AdoptionCandidate, EdgeDescriptionSpec<f64>)>,
-) -> Result<(), SplineError> {
+) -> Result<(), Built<SplineError>> {
     // Carriers outside the rung's vocabulary — neither the bitwise
     // NURBS match nor the promoted-line vertex match — take no
     // candidates and read no wall columns.
@@ -936,7 +936,7 @@ fn line_column_match(
         if !line.param(p).is_finite() {
             return None;
         }
-        if !((p - line.foot_within(p, (0.0, 1.0))).norm() <= eps) {
+        if !(line.distance_within(p, (0.0, 1.0)) <= eps) {
             return None;
         }
     }
@@ -1023,8 +1023,10 @@ fn mapped_self_description(
         }) => Some(MappedCurve::whole(MappedSource::RevolvedPoint {
             point: Point2::new(0.0, 0.0),
             place: Affine3::translation(p_start - Point3::origin()),
-            axis_origin: *center,
-            axis_dir: *axis,
+            axis: geom::Line {
+                origin: *center,
+                dir: *axis,
+            },
             angle: t1 - t0,
         })),
         Curve3::Ellipse(..) | Curve3::Spiric { .. } | Curve3::Nurbs(_) => None,
@@ -1096,16 +1098,13 @@ fn arc_rim_on_wall_boundary(
         return Ok(());
     };
     let eps = tol.eps();
-    let axis_norm = axis.norm();
-    let u_ref_norm = u_ref.norm();
-    if !(radius.is_finite() && radius > 0.0)
-        || !(axis_norm.is_finite() && axis_norm > 0.0)
-        || !(u_ref_norm.is_finite() && u_ref_norm > 0.0)
-    {
+    let unit = |v: geom_core::Vec3<f64>| v.checked_direction().ok().map(|(d, _)| d);
+    let (Some(a_hat), Some(u_hat)) = (unit(axis), unit(u_ref)) else {
+        return Err(ArcRimRefusal::Residual(f64::INFINITY));
+    };
+    if !(radius.is_finite() && radius > 0.0) {
         return Err(ArcRimRefusal::Residual(f64::INFINITY));
     }
-    let a_hat = axis.normalize();
-    let u_hat = u_ref.normalize();
     let v_hat = a_hat.cross(u_hat);
     let tau = core::f64::consts::TAU;
     // The angular slack: the ambient band through the lever arm.
@@ -1175,7 +1174,7 @@ enum ArcRimRefusal {
     /// body this reader assembles reaches it — and the refusal names
     /// which invariant broke rather than being reported as a rim
     /// deviation.
-    ChartRow(SplineError),
+    ChartRow(Built<SplineError>),
 }
 
 /// One side a described (non-placeholder) NURBS wall, the other a
@@ -1247,11 +1246,7 @@ fn line_frame(origin: Point3<f64>, dir: geom_core::Vec3<f64>) -> Option<Affine3<
     // verbatim).
     let along = dir.dot(candidate);
     let perpendicular = candidate - dir * along;
-    let norm = perpendicular.norm();
-    if !(norm.is_finite() && norm > 0.0) {
-        return None;
-    }
-    let y = perpendicular.normalize();
+    let (y, _) = perpendicular.checked_direction().ok()?;
     let z = dir.cross(y);
     Some(Affine3::from_parts(
         geom_core::Mat3::from_cols(dir, y, z),
@@ -1344,10 +1339,9 @@ fn carrier_on_surface(
         return false;
     };
     let eps = tol.eps();
-    let n = normal.norm();
-    if !(n.is_finite() && n > 0.0) {
+    let Some(n) = normal.checked_nonzero_length().ok() else {
         return false;
-    }
+    };
     (0..geom_brep::CERT_SAMPLES).all(|i| {
         let p = carrier.eval(geom_brep::sample_param(t0, t1, i));
         ((p - origin).dot(normal) / n).abs() <= eps

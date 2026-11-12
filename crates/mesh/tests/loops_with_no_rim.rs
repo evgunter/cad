@@ -13,11 +13,13 @@
 //!   bounded by one meridian circle, and a cylinder face bounded by one
 //!   generator. Neither chart has a pole for a meridian to end on;
 //!   nothing can move the column, and the loop is a single iso side.
-//! * **one edge's openings, however many** — the one-face sphere whose
-//!   loop is a single seam walked both ways (two openings, one at each
-//!   pole) and the one-face cone whose loop is a single generator from
-//!   the apex (one opening). Every opening states that edge's column,
-//!   bitwise.
+//! * **one edge's openings** — the one-face cone whose loop is a single
+//!   generator from the apex (one opening), which states that edge's
+//!   column, bitwise. The one-face sphere whose loop is a single seam
+//!   walked both ways is not in the class: its two ends are the chart's
+//!   poles, so its chart image is empty and the walk places the seam's
+//!   two traversals a period apart, the one-face ball
+//!   (`the_one_face_ball.rs`).
 //! * **the positive controls**, which must still mesh: the ball's two
 //!   pole-to-pole bands and the rimless lune, whose two openings stand on
 //!   two edges, and the spur-wearing cap in
@@ -26,7 +28,7 @@
 //! Two members are NOT refused by the guard, and each is rowed for what
 //! answers instead: a slit bounded by two COINCIDENT edges satisfies the
 //! premise and still walks to zero width
-//! (`work/tess/two-coincident-edges-open-two-columns-that-are-one.md`),
+//! (`work/tesswalk/two-coincident-edges-open-two-columns-that-are-one.md`),
 //! and the sphere cut along a whole great circle is taken by a door in
 //! front of the walk. The second one first:
 //!
@@ -248,7 +250,7 @@ fn one_seam_cone() -> Body<f64> {
 /// `tessellate`'s fold answers for when several refuse.
 fn first_face_on(body: &Body<f64>, kind: SurfaceKind) -> topo::FaceKey {
     body.faces()
-        .find(|(_, f)| body.get_surface(f.surface).unwrap().kind() == kind)
+        .find(|(fk, _)| body.face_surface(*fk).unwrap().kind() == kind)
         .map(|(fk, _)| fk)
         .expect("the body carries a face of that kind")
 }
@@ -258,11 +260,11 @@ fn first_face_on(body: &Body<f64>, kind: SurfaceKind) -> topo::FaceKey {
 /// lane's to make and not a door's.
 fn doors(body: &Body<f64>, kind: SurfaceKind) -> (bool, bool) {
     let band = Band::linear(Tol::witness()).unwrap();
-    let (_, f) = body
+    let (fk, f) = body
         .faces()
-        .find(|(_, f)| body.get_surface(f.surface).unwrap().kind() == kind)
+        .find(|(fk, _)| body.face_surface(*fk).unwrap().kind() == kind)
         .expect("the body carries a face of that kind");
-    let surface = body.get_surface(f.surface).unwrap();
+    let surface = body.face_surface(fk).unwrap();
     let (outer, _) = topo::props::loop_edges(body, f.outer).unwrap();
     (
         geom_brep::props::require_iso_rectangle(surface, &outer, band).is_ok(),
@@ -323,22 +325,42 @@ fn a_rim_free_loop_on_a_chart_with_no_pole_refuses_single_column() {
     }
 }
 
-/// **One edge's column, wherever the loop turns: the one-seam sphere and
-/// the one-seam cone.** The sphere opens two iso sides, one at each pole.
-/// The cone opens ONE: its apex is the start of `travs[0]`, which opens
+/// **One edge's column, turning at the apex: the one-seam cone.** It
+/// opens ONE iso side: its apex is the start of `travs[0]`, which opens
 /// whatever the run rule says, and its far junction is off the axis and
-/// continues. Either way every opening states the same edge's column, and
-/// that is the whole reason both refuse. The sphere is the member the row
-/// said "no rim and no pole" would not close.
+/// continues. Its loop is all spurs, but its far tip is no singular
+/// point of the chart, so it is no wrap strip, and its one opening states
+/// the edge's column.
 #[test]
 fn a_rim_free_loop_that_turns_at_a_pole_along_its_own_edge_refuses_single_column() {
-    for (name, body, kind) in [
-        ("one-seam sphere", one_seam_sphere(), SurfaceKind::Sphere),
-        ("one-seam cone", one_seam_cone(), SurfaceKind::Cone),
-    ] {
-        assert!(not_valid_but_for_joins(&body), "{name} is not tier-3 valid");
-        assert_refuses_single_column(name, &body, kind, 0.05);
-    }
+    let body = one_seam_cone();
+    assert!(
+        not_valid_but_for_joins(&body),
+        "the one-seam cone is not tier-3 valid"
+    );
+    assert_refuses_single_column("one-seam cone", &body, SurfaceKind::Cone, 0.05);
+}
+
+/// **The one-seam sphere meshes as the wrap strip**: a record of what
+/// `tessellate` does today with a body outside its contract, not a
+/// guarantee. The body is the one-face ball with its edge's description
+/// left unwritten, so it is not tier-2 valid: the edge is no wrap edge,
+/// and its two valence-1 ends are strut tips
+/// (`ScaffoldingStrutVertex`). The walk reads no description; the loop's
+/// chart image is empty and its tips are the two poles, so the walk
+/// places the edge's two traversals a period apart
+/// (`the_one_face_ball.rs`) and the body meshes as the unit ball.
+#[test]
+fn the_one_seam_sphere_meshes_as_the_wrap_strip() {
+    let body = one_seam_sphere();
+    let tier_2 = topo::validate_closed(&body);
+    assert!(
+        tier_2.as_ref().is_err_and(|errors| errors
+            .iter()
+            .all(|e| matches!(e, topo::ValidationError::ScaffoldingStrutVertex { .. }))),
+        "the one-seam sphere's ends are strut tips at tier 2: {tier_2:?}"
+    );
+    common::check_mesh_acceptance(&body, 0.05, Some((4.0 * PI / 3.0, 4.0 * PI)));
 }
 
 /// **The sphere slit bounded by two COINCIDENT edges**, and what answers
@@ -357,7 +379,7 @@ fn a_rim_free_loop_that_turns_at_a_pole_along_its_own_edge_refuses_single_column
 /// `u_raw` bitwise would do it and would need no ε, but it is a
 /// coordinate comparison and not the loop's incidence, so it is not this
 /// guard's shape. Rowed and filed:
-/// `work/tess/two-coincident-edges-open-two-columns-that-are-one.md`.
+/// `work/tesswalk/two-coincident-edges-open-two-columns-that-are-one.md`.
 ///
 /// The cylinder twin is NOT in this state: with no pole, both junctions
 /// are continuations, the loop opens one iso side, and the guard refuses

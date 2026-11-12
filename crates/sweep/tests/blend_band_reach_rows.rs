@@ -482,7 +482,7 @@ fn an_open_arc_link_s_reach_is_its_whole_turn() {
         else {
             panic!("{what}: a face refused uncertified, got {e:?}");
         };
-        let surface = body.get_face(f).and_then(|x| body.get_surface(x.surface));
+        let surface = body.face_surface(f);
         let Some(geom::Surface::Plane { origin, normal, .. }) = surface else {
             panic!("{what}: a plane face, got {surface:?}");
         };

@@ -63,12 +63,16 @@ use topo::test_support as common;
 mod fixture;
 mod probe_support;
 
+#[path = "a_bending_carrier_on_a_spline_wall_takes_the_general_lane.rs"]
+mod a_bending_carrier_on_a_spline_wall_takes_the_general_lane;
 #[path = "a_block_resting_in_the_zero_band_unions.rs"]
 mod a_block_resting_in_the_zero_band_unions;
 #[path = "a_callers_interval_is_refused_at_its_door.rs"]
 mod a_callers_interval_is_refused_at_its_door;
-#[path = "a_circle_not_shown_on_a_spline_row_refuses_alike_in_every_form.rs"]
-mod a_circle_not_shown_on_a_spline_row_refuses_alike_in_every_form;
+#[path = "a_circle_no_row_holds_ends_alike_in_every_form.rs"]
+mod a_circle_no_row_holds_ends_alike_in_every_form;
+#[path = "a_corner_reads_only_its_own_sectors.rs"]
+mod a_corner_reads_only_its_own_sectors;
 #[path = "a_corrupted_row_is_never_read_as_its_carrier_off_the_face.rs"]
 mod a_corrupted_row_is_never_read_as_its_carrier_off_the_face;
 #[path = "a_decided_overlap_decides_its_pair.rs"]
@@ -77,12 +81,16 @@ mod a_decided_overlap_decides_its_pair;
 mod a_doubled_line_does_not_revert;
 #[path = "a_face_inside_an_edges_wedge_refuses_at_tier_3_prime.rs"]
 mod a_face_inside_an_edges_wedge_refuses_at_tier_3_prime;
+#[path = "a_figure_eight_hole_cut_through_its_pinch.rs"]
+mod a_figure_eight_hole_cut_through_its_pinch;
 #[path = "a_keel_on_the_floor_subtracts_as_a_slit.rs"]
 mod a_keel_on_the_floor_subtracts_as_a_slit;
 #[path = "a_keel_wrapped_at_both_ends_splits_as_a_ring.rs"]
 mod a_keel_wrapped_at_both_ends_splits_as_a_ring;
 #[path = "a_slit_tip_at_a_cone_apex_reads_its_full_turn.rs"]
 mod a_slit_tip_at_a_cone_apex_reads_its_full_turn;
+#[path = "a_spline_faces_stated_image_ends_by_its_carriers_incidence.rs"]
+mod a_spline_faces_stated_image_ends_by_its_carriers_incidence;
 #[path = "a_trace_reads_a_piece_against_its_carrier.rs"]
 mod a_trace_reads_a_piece_against_its_carrier;
 #[path = "a_zero_vertex_pair_keeps_the_kept_sides_point.rs"]
@@ -283,6 +291,8 @@ mod r2_probes;
 mod readback_sense_kind;
 #[path = "records_cite_their_decision.rs"]
 mod records_cite_their_decision;
+#[path = "recourse_roster.rs"]
+mod recourse_roster;
 #[path = "result_gate_sites.rs"]
 mod result_gate_sites;
 #[path = "review_4996_carry_probes.rs"]
@@ -442,12 +452,16 @@ mod a_meridian_witness_contradicts_only_off_its_locus;
 mod a_reflex_corner_pierced_through_a_plate;
 #[path = "a_ring_crossed_along_its_line_places_its_germs_apart.rs"]
 mod a_ring_crossed_along_its_line_places_its_germs_apart;
+#[path = "a_ring_crossed_at_its_vertices_is_divided_or_refused.rs"]
+mod a_ring_crossed_at_its_vertices_is_divided_or_refused;
 #[path = "a_seamless_pipe_cut_by_an_oblique_plane_measures.rs"]
 mod a_seamless_pipe_cut_by_an_oblique_plane_measures;
 #[path = "a_vertex_read_again_classes_every_edge.rs"]
 mod a_vertex_read_again_classes_every_edge;
 #[path = "a_vertex_read_by_two_sector_passes.rs"]
 mod a_vertex_read_by_two_sector_passes;
+#[path = "a_vertex_through_a_declared_seat.rs"]
+mod a_vertex_through_a_declared_seat;
 #[path = "a_whole_spiric_oval_bounds_its_mirror_torus.rs"]
 mod a_whole_spiric_oval_bounds_its_mirror_torus;
 #[path = "a_whole_villarceau_circle_bounds_a_torus_face.rs"]
@@ -478,6 +492,8 @@ mod review_cleave_mint_doors;
 mod review_pinch_corner_split;
 #[path = "spline_reanchor_rows.rs"]
 mod spline_reanchor_rows;
+#[path = "split_along_a_pinch_face.rs"]
+mod split_along_a_pinch_face;
 #[path = "split_tangent_edge.rs"]
 mod split_tangent_edge;
 #[path = "split_through_a_union_pinch.rs"]

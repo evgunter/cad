@@ -306,7 +306,7 @@ fn hover_and_click_answer_one_cursor_the_same_way() {
     );
     assert_eq!(
         session.selection().node(),
-        Some(viewer::world::seat_of(session.committed_doc(), copy)),
+        Some(viewer::world::original_of(session.committed_doc(), copy)),
         "an edge selection reaches the feature that made it, as a face does"
     );
     assert!(
@@ -763,7 +763,7 @@ fn deleting_the_feature_leaves_the_edge_selection_unresolved() {
     session.perform(SessionOp::Select(Selection::Edge(selection.clone())));
     assert!(session.standing().live());
 
-    let extrude = viewer::world::seat_of(session.doc(), copy);
+    let extrude = viewer::world::original_of(session.doc(), copy);
     let outcome = session.perform(SessionOp::DeleteNode { node: extrude });
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
     session.pump();

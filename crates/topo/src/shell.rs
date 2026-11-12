@@ -385,6 +385,7 @@
 
 use geom_core::interval::Interval;
 use geom_core::k_stats::{decide, gate_measured};
+use geom_core::ladder::{Answering, Climb, Rung, climb};
 use geom_core::{
     Band, BandError, Decide, Indeterminate, KERNEL_DEFECT_ENDING, Margin, NOT_YET_ENDING, Real,
     Sign, Tol,
@@ -740,7 +741,7 @@ impl<T: Real> ShellError<T> {
                 "whether the thin solid's inner walls stay clear of each other could not be \
                  certified: {}. {}",
                 cavity_refusal_said(refusal),
-                cavity_refusal_ending(refusal)
+                cavity_refusal_ending(refusal, at)
             ),
             Self::ChartSenseMixed { .. } => write!(
                 f,
@@ -881,7 +882,9 @@ fn cavity_refusal_said(
         )
         .into(),
         R::CollapsedChart { .. } => "a wall's chart collapses an edge to a point".into(),
-        R::TorusNotRing { .. } => "a wall lies on a torus that meets itself".into(),
+        R::TorusNotRing { refusal, .. } => {
+            format!("a wall lies on a torus not decided a ring: {refusal}").into()
+        }
         R::EmptyScope { .. } => "the cavity has no face".into(),
         R::BoxDependent { .. } => {
             "an upper bound's pair was confirmed at one point only, which the cavity's \
@@ -895,19 +898,28 @@ fn cavity_refusal_said(
 /// a refinement the band or a budget stopped is the geometry's lever, a
 /// carrier or touching pair no certificate reads yet is not yet built,
 /// and a scope with no face or a chart that did not evaluate is the
-/// op's defect, since the op built every chart it hands the engine.
+/// op's defect, since the op built every chart it hands the engine. A
+/// wall's torus off its ring convention ends in its half's lever.
 fn cavity_refusal_ending(
     refusal: &crate::clearance::EngineRefusal,
+    at: Option<geom_brep::recourse::ReadAt>,
 ) -> std::borrow::Cow<'static, str> {
     use crate::clearance::EngineRefusal as R;
     match refusal {
         R::Sliver { .. } | R::Budget(_) | R::WitnessUnverified { .. } => {
             format!("Recourse: {WALL_OR_GEOMETRY}").into()
         }
-        R::Unsupported { .. }
-        | R::Uncertified { .. }
-        | R::CollapsedChart { .. }
-        | R::TorusNotRing { .. } => NOT_YET_ENDING.into(),
+        // A torus off its ring convention ends in its half's lever, in band
+        // or decided, as the convention ends it at the door that reads it
+        // (`TorusRefusal::recourse`); read as the payload alone, in the
+        // lever, as this map's other arms are.
+        R::TorusNotRing { refusal, .. } => match at {
+            Some(at) => refusal.recourse(at).into(),
+            None => geom_core::lever_recourse(refusal.convention.sized().lever, None).into(),
+        },
+        R::Unsupported { .. } | R::Uncertified { .. } | R::CollapsedChart { .. } => {
+            NOT_YET_ENDING.into()
+        }
         // The cavity asks the strict question, which has no upper bound
         // to prove, so a pointwise-only proof is the engine's defect.
         R::PoisonEnclosure { .. } | R::EmptyScope { .. } | R::BoxDependent { .. } => {
@@ -1549,7 +1561,7 @@ pub struct ShellRetired {
 ///
 /// The operand is a finished body (module docs, "The operand is at
 /// rest"): an inside-out or stale-row body refuses where it is gated,
-/// at the scalar's finish ([`crate::finish`]), and never reaches the verb.
+/// at the scalar's finish ([`crate::finish`](fn@crate::finish)), and never reaches the verb.
 ///
 /// # Errors
 ///
@@ -2857,17 +2869,26 @@ fn band_seam<T: Decide>(
     let Some(read) = crate::chart::Chart::of(chart) else {
         return Ok(false);
     };
-    for side in sides {
+    // Both sides wind once, an identity: any side not winding answers
+    // `false`, whatever the other read ([`climb`], [`Answering::Any`]); a
+    // side read in band is kept, refusing only where the other winds.
+    let unwound = climb(Answering::Any, sides, |side| {
         let mut points = oriented_points(body, side);
         let Some(&first) = points.first() else {
-            return Ok(false);
+            return Rung::Answers(());
         };
         points.push(first);
-        if !winds_once(&read, &points, band)? {
-            return Ok(false);
+        match winds_once(&read, &points, band) {
+            Ok(true) => Rung::Passes,
+            Ok(false) => Rung::Answers(()),
+            Err(diag) => Rung::kept(diag),
         }
+    });
+    match unwound {
+        Climb::Answered { .. } => Ok(false),
+        Climb::Passed => Ok(true),
+        Climb::Undecided(source) => Err(ShellError::Escalated { source }),
     }
-    Ok(true)
 }
 
 /// The points a run of half-edges passes through, each edge's samples in
@@ -2888,17 +2909,20 @@ fn oriented_points<T: Decide>(body: &Body<T>, run: &[HeKey]) -> Vec<geom_core::P
 /// Whether the closed polyline `points` winds `chart`'s `u` once, its
 /// angle unwrapped step by step. A cycle through the axis (no lever to
 /// read the angle by) does not.
+///
+/// # Errors
+///
+/// The lever's or the winding's reading, in band.
 fn winds_once<T: Decide>(
     chart: &crate::chart::Chart<T>,
     points: &[geom_core::Point3<T>],
     band: Band,
-) -> Result<bool, ShellError<T>> {
-    let escalated = |source| ShellError::Escalated { source };
+) -> Result<bool, Indeterminate> {
     let Some(&first) = points.first() else {
         return Ok(false);
     };
     let lever = chart.radial(first);
-    if decide("shell_chart_lever", Margin::of(lever), band).map_err(escalated)? != Sign::Positive {
+    if decide("shell_chart_lever", Margin::of(lever), band)? != Sign::Positive {
         return Ok(false);
     }
     let mut winding = T::zero();
@@ -2909,10 +2933,7 @@ fn winds_once<T: Decide>(
     // Once round is `±τ` and a cycle that comes back is `0`: the
     // margin is the distance from half a turn, in metres.
     let past_half = (winding.abs() - T::pi()) * lever;
-    Ok(
-        decide("shell_chart_winds", Margin::of(past_half), band).map_err(escalated)?
-            == Sign::Positive,
-    )
+    Ok(decide("shell_chart_winds", Margin::of(past_half), band)? == Sign::Positive)
 }
 
 /// Whether the chart `faces` wear WRAPS its period: some cycle of their
@@ -2929,7 +2950,7 @@ fn wraps_its_period<T: Decide + crate::props::AtRestPolicy>(
 ) -> Result<bool, ShellError<T>> {
     let surface = body.proven_face(faces[0]).surface();
     let (Some(_), Some(chart)) = (
-        crate::pcurves::chart_period(surface, band),
+        crate::pcurves::chart_u_period(surface, band),
         crate::chart::Chart::of(surface),
     ) else {
         return Ok(false);
@@ -2949,6 +2970,9 @@ fn wraps_its_period<T: Decide + crate::props::AtRestPolicy>(
         })
         .filter(|&he| !interior.contains(&proven(&body.half_edges, he, EntityId::HalfEdge).edge))
         .collect();
+    // The boundary's cycles, each as the points its half-edges run
+    // through (topology only: nothing is decided here).
+    let mut cycles = Vec::new();
     while let Some(start) = boundary.pop() {
         // One boundary cycle, as the points its half-edges run through.
         let mut points = Vec::new();
@@ -2968,11 +2992,17 @@ fn wraps_its_period<T: Decide + crate::props::AtRestPolicy>(
             continue;
         };
         points.push(first);
-        if winds_once(&chart, &points, band)? {
-            return Ok(true);
-        }
+        cycles.push(points);
     }
-    Ok(false)
+    // Any cycle winding once wraps the period, whatever another read
+    // ([`climb`], [`Answering::Any`]); a cycle read in band is kept,
+    // refusing only where no cycle winds.
+    climb(Answering::Any, &cycles, |points| {
+        Rung::of_reading(winds_once(&chart, points, band).map(|winds| winds.then_some(())))
+    })
+    .into_reading()
+    .map(|wraps| wraps.is_some())
+    .map_err(|source| ShellError::Escalated { source })
 }
 
 /// The edges both of whose sides bound faces of `faces` — the seams a
@@ -3060,11 +3090,7 @@ fn seamed_band<T: Decide + crate::props::AtRestPolicy>(
         face: designated,
         error: error.from_driver(),
     };
-    let ends = |body: &Body<T>, edge: EdgeKey| {
-        let data = proven(&body.edges, edge, EntityId::Edge);
-        let start = proven(&body.half_edges, data.he_plus, EntityId::HalfEdge).start;
-        (start, body.proven_half_edge_end(data.he_plus))
-    };
+    let ends = crate::query::edge_ends::<T>;
     // The pole: the one vertex every seam reaches and nothing else does.
     let pole = {
         let (a, b) = ends(body, seams[0]);
@@ -3126,7 +3152,7 @@ fn seamed_band<T: Decide + crate::props::AtRestPolicy>(
             band,
             designated,
         )?;
-        if strictly_inside(&reach, p_boundary, p_pole, corner, band)?.is_none() {
+        if strictly_inside(&reach, corner, band)?.is_none() {
             return Err(not_expressible(
                 "the cavity counterpart's corner does not project onto the designated chart's \
                  seam between its boundary and the pole, so the rim is not a band of the \
@@ -3332,8 +3358,8 @@ fn band_between_boundaries<T: Decide + crate::props::AtRestPolicy>(
         let (q_start, q_end) = (point(body, b_start), point(body, b_end));
         let reach = along(body, seam, q_start, q_end, host_surface, band, designated)?;
         let (Some(s_start), Some(s_end)) = (
-            strictly_inside(&reach, q_start, q_end, p_start, band)?,
-            strictly_inside(&reach, q_start, q_end, p_end, band)?,
+            strictly_inside(&reach, p_start, band)?,
+            strictly_inside(&reach, p_end, band)?,
         ) else {
             return Err(not_expressible(
                 "the cavity counterpart's corners do not project onto the designated chart's \
@@ -3524,38 +3550,31 @@ fn guest_corner<T: Real>(
         .find(|&g| twins.vertices.get(g) == Some(&v) || twins.vertices.get(v) == Some(&g))
 }
 
-/// Where `corner` projects onto `stretch` — an [`along`] answer, from
-/// `from` to `to` — when it lands strictly inside it: its parameter on
-/// the stretch's carrier. Each gap to an end is metered at the
-/// stretch's average speed (the chord over the parameter span), so the
-/// margin is a length. Both band surgeries place a counterpart corner on
-/// a seam through this one predicate; the two-boundary band then asks
-/// one more question of its two corners, their order
-/// (`shell_band_corners_ordered`), which a pole's seam, holding one
-/// corner, has no use for.
+/// Where `corner` projects onto `stretch` — an [`along`] answer — when
+/// it lands strictly inside it: its parameter on the stretch's carrier,
+/// read about the stretch's middle and placed against its ends by the one
+/// span reading ([`geom_brep::curve_pair::Span::place_param`]), inside
+/// and at no end. Both band surgeries place a counterpart corner on a
+/// seam through it; the two-boundary band then asks one more question of
+/// its two corners, their order (`shell_band_corners_ordered`), which a
+/// pole's seam, holding one corner, has no use for.
 fn strictly_inside<T: Decide>(
     stretch: &geom_brep::EdgeCurveSpec<T>,
-    from: geom_core::Point3<T>,
-    to: geom_core::Point3<T>,
     corner: geom_core::Point3<T>,
     band: Band,
 ) -> Result<Option<T>, ShellError<T>> {
     let (s0, s1) = (stretch.param_start, stretch.param_end);
-    let Some(s) = stretch
-        .carrier
-        .param_near(corner, (s0 + s1) / T::from_f64(2.0))
-    else {
+    let Some(s) = stretch.carrier.param_near(corner, geom::mid_param(s0, s1)) else {
         return Ok(None);
     };
-    let scale = (to - from).norm() / (s1 - s0);
-    for gap in [s - s0, s1 - s] {
-        let sign = decide("shell_seam_corner_inside", Margin::of(gap * scale), band)
-            .map_err(|source| ShellError::Escalated { source })?;
-        if sign != Sign::Positive {
-            return Ok(None);
-        }
+    let span = geom_brep::curve_pair::Span::new(&stretch.carrier, (s0, s1));
+    match span
+        .place_param(s, band)
+        .map_err(|source| ShellError::Escalated { source })?
+    {
+        geom_brep::curve_pair::Place::Inside => Ok(Some(s)),
+        _ => Ok(None),
     }
-    Ok(Some(s))
 }
 
 /// A scaffold edge's spec: the stretch of `edge`'s own carrier from
@@ -3575,7 +3594,7 @@ fn along<T: Decide>(
         unreachable!("{edge:?} is a seam of a finished wall, and a finished wall has no null edge")
     };
     let (t0, t1) = curve.params();
-    let near = (t0 + t1) / T::from_f64(2.0);
+    let near = geom::mid_param(t0, t1);
     // Whether the carrier runs forward from `from` to `to`: the
     // parameter gap, metered at the stretch's average speed (the chord
     // over the gap) so the margin is a length.
@@ -3724,6 +3743,83 @@ mod rim_seam_rows {
     }
 }
 
+/// **A cavity wall's torus off its ring convention ends in its half's
+/// lever**, in band or decided, as the convention ends it at every door
+/// (`geom_brep::TorusRefusal::recourse`), and is said in the half's own
+/// words, never as a carrier that meets itself. The refusal is the
+/// engine's own: `by_kind` on an `Interval` torus, as the cavity's gate
+/// reads it.
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::panic)]
+mod cavity_torus_endings {
+    use super::{cavity_refusal_ending, cavity_refusal_said};
+    use crate::clearance::EngineRefusal;
+    use geom_core::interval::Interval;
+    use geom_core::{Band, NOT_YET_ENDING, Point3, Tol, Vec3};
+
+    fn wall(major: f64, minor: f64, band: Band) -> EngineRefusal {
+        let p = |x: f64| Interval::from_bounds(x, x);
+        let torus = geom::Surface::Torus {
+            center: Point3::new(p(0.0), p(0.0), p(0.0)),
+            axis: Vec3::new(p(0.0), p(0.0), p(1.0)),
+            major_radius: p(major),
+            minor_radius: p(minor),
+            u_ref: Vec3::new(p(1.0), p(0.0), p(0.0)),
+        };
+        match crate::injective::by_kind(crate::FaceKey::default(), &torus, band) {
+            Err(refusal @ EngineRefusal::TorusNotRing { .. }) => refusal,
+            other => panic!("({major}, {minor}): a torus not decided a ring: {other:?}"),
+        }
+    }
+
+    #[test]
+    fn a_cavity_torus_off_its_ring_ends_in_its_halfs_lever() {
+        let band = Band::linear(Tol::witness()).unwrap();
+        let build = Some(geom_brep::recourse::Reading::Build.into());
+        for (what, refusal, half) in [
+            (
+                "a ring half in band",
+                wall(1.0 + 0.5 * (band.zero() + band.escalate()), 1.0, band),
+                geom_brep::TorusConvention::Ring,
+            ),
+            (
+                "a tube wider than its ring",
+                wall(0.5, 1.0, band),
+                geom_brep::TorusConvention::Ring,
+            ),
+            (
+                "a horn torus",
+                wall(1.0, 1.0, band),
+                geom_brep::TorusConvention::Ring,
+            ),
+            (
+                "no tube",
+                wall(2.0, 0.0, band),
+                geom_brep::TorusConvention::Tube,
+            ),
+        ] {
+            let lever = half.sized().lever;
+            for at in [build, None] {
+                let ending = cavity_refusal_ending(&refusal, at);
+                assert!(
+                    ending.contains(lever) && ending != NOT_YET_ENDING,
+                    "{what}, {at:?}: {ending}"
+                );
+            }
+            let said = cavity_refusal_said(&refusal);
+            let EngineRefusal::TorusNotRing { refusal: torus, .. } = &refusal else {
+                unreachable!("`wall` returns a torus refusal")
+            };
+            assert!(
+                said.contains(torus.said("a torus's", None).as_str())
+                    && !said.contains("meets itself")
+                    && !said.contains("whether a wall"),
+                "{what}: said in the half's own words: {said}"
+            );
+        }
+    }
+}
+
 #[cfg(test)]
 mod mint_endings {
     #![allow(clippy::unwrap_used)]
@@ -3744,12 +3840,12 @@ mod mint_endings {
     fn the_shell_ops_mint_refusal_ends_by_its_own_ending() {
         let mint = |margin| PcurveMintError::Certify {
             half_edge: HalfEdgeKey::default(),
-            error: PcurveCertifyError::CarrierOffChart {
-                chart: geom::SurfaceKind::Cone,
-                carrier: geom::CurveKind::Circle,
-                why: "WHY",
+            error: PcurveCertifyError::Incidence(geom_brep::IncidenceRefusal::off_chart(
+                geom::SurfaceKind::Cone,
+                geom::CurveKind::Circle,
+                "WHY",
                 margin,
-            },
+            )),
         };
         let in_band = Some(OffMargin::InBand(MarginDiag::value(4e-9)));
         for (margin, defect) in [(in_band, false), (None, true)] {
@@ -4251,7 +4347,6 @@ fn offending_face<T: Real>(body: &Body<T>, error: &ReplaceFaceError<T>) -> Optio
         | ReplaceFaceError::FittedBoundaryUnsupported { edge, .. }
         | ReplaceFaceError::CarrierLaneUnsupported { edge, .. }
         | ReplaceFaceError::IsoRow { edge, .. }
-        | ReplaceFaceError::Structure { edge, .. }
         | ReplaceFaceError::Op {
             edge: Some(edge), ..
         } => face_of_he(proven(&body.edges, *edge, EntityId::Edge).he_plus),
@@ -4672,7 +4767,7 @@ impl<T: Real> InPlane<T> {
 
 /// **`face`'s footprint in `frame`**: the `(u, v)` box holding its
 /// whole boundary — every vertex, and every edge's arc on its carrier
-/// ([`carrier_box`]). The vertices alone are not enough: an arc bowing
+/// ([`edge_box_in`]). The vertices alone are not enough: an arc bowing
 /// out of the vertex hull carries region past it, and an extruded
 /// disc's cap has its two vertices on one diameter. A poisoned term
 /// poisons all four ends. `None` for a face with no boundary member to
@@ -4684,18 +4779,12 @@ fn footprint<T: Decide>(
     frame: &InPlane<T>,
 ) -> Option<((T, T), (T, T))> {
     let mut points = Vec::new();
-    for he in body.proven_face(face).half_edges() {
-        let h = proven(&body.half_edges, he, EntityId::HalfEdge);
-        let start = frame.point(body.linked_vertex_point(h.start, EntityId::HalfEdge(he), "start"));
-        points.push((start.x, start.y));
-        let edge = linked(
-            &body.edges,
-            h.edge,
-            EntityId::Edge,
-            EntityId::HalfEdge(he),
-            "edge",
-        );
-        points.extend(edge_box_in(body, h.edge, edge, frame));
+    for member in body.proven_face(face).boundary() {
+        let at = frame.point(body.member_point(&member));
+        points.push((at.x, at.y));
+        if let crate::live::BoundaryMember::Edge { ek, edge, .. } = member {
+            points.extend(edge_box_in(body, ek, edge, frame));
+        }
     }
     let poison = points
         .iter()
@@ -4918,7 +5007,7 @@ fn walls_cross<T: Decide>(
     // and position below is a short difference.
     let d = cross.normalize();
     let k = a.normal.dot(b.normal);
-    let q = a.lo + (a.hi - a.lo) * T::from_f64(0.5);
+    let q = a.lo.mid(a.hi);
     let r_a = a.normal.dot(a.origin - q);
     let r_b = b.normal.dot(b.origin - q);
     let det = cross.norm_squared();
@@ -4926,7 +5015,7 @@ fn walls_cross<T: Decide>(
     let line = geom::Line { origin: p0, dir: d };
     let on_a = a.cut(line, band)?;
     let on_b = b.cut(line, band)?;
-    let along = |p: geom_core::Point3<T>| line.param(p);
+    let along = |p: geom_core::Point3<T>| line.height(p);
     // Where the two faces are joined: every moved common edge, which
     // lies on `L`, and every shared vertex, widened to twice the
     // escalation width either side. Two joined faces come arbitrarily
@@ -4952,10 +5041,13 @@ fn walls_cross<T: Decide>(
                 }),
         )
         .collect();
-    for &(a_lo, a_hi) in &on_a {
-        for &(b_lo, b_hi) in &on_b {
-            // The overlap less every joint: what is left is where the
-            // two walls meet away from where they are joined.
+    // Each pair's overlap less every joint: what is left is where the two
+    // walls meet away from where they are joined. Read lazily, pair by
+    // pair, so a pair after the answer is not read.
+    let pieces = on_a
+        .iter()
+        .flat_map(|&a| on_b.iter().map(move |&b| (a, b)))
+        .flat_map(|((a_lo, a_hi), (b_lo, b_hi))| {
             let mut rest = vec![(a_lo.max(b_lo), a_hi.min(b_hi))];
             for &(e_lo, e_hi) in &joined {
                 let mut kept = Vec::new();
@@ -4975,20 +5067,23 @@ fn walls_cross<T: Decide>(
                 }
                 rest = kept;
             }
-            // Positive is a crossing; Zero, a touch away from every
-            // joint, is a contact and refuses too.
-            for (lo, hi) in rest {
-                let overlap = hi - lo;
-                if !matches!(
-                    decide("shell_moved_walls_overlap", Margin::of(overlap), band)?,
-                    Sign::Negative
-                ) {
-                    return Ok(Some(overlap.max(T::zero())));
-                }
-            }
-        }
-    }
-    Ok(None)
+            rest
+        });
+    // A ladder over the pieces ([`climb`], [`Answering::Any`]: a theorem,
+    // any piece the walls cross along is a crossing, and its overlap only
+    // names it): Positive is a crossing; Zero, a touch away from every
+    // joint, is a contact and refuses too. A piece read in band refuses
+    // only where no other piece crosses.
+    climb(Answering::Any, pieces, |(lo, hi)| {
+        let overlap = hi - lo;
+        Rung::decide(
+            "shell_moved_walls_overlap",
+            Margin::of(overlap),
+            band,
+            |d| (d.sign != Sign::Negative).then(|| overlap.max(T::zero())),
+        )
+    })
+    .into_reading()
 }
 
 /// One moved planar face as [`moved_walls_cross`] reads it: its plane,
@@ -5016,14 +5111,11 @@ struct BoundaryEdge<T: Real> {
 /// What an edge's carrier is, as [`MovedWall::cut`] reads it.
 enum EdgeArc<T: Real> {
     Line,
-    /// A circle or an ellipse, `center + u·(ru·cos θ) + v·(rv·sin θ)`
-    /// over `from..to` (`from < to`), with the vertex at each end.
+    /// A circle or an ellipse, the edge's carrier, read as its conic
+    /// ([`geom::Curve3::conic`]), over `from..to` (`from < to`), with the
+    /// vertex at each end.
     Conic {
-        center: geom_core::Point3<T>,
-        u: geom_core::Vec3<T>,
-        v: geom_core::Vec3<T>,
-        ru: T,
-        rv: T,
+        carrier: geom::Curve3<T>,
         from: (T, VertexKey),
         to: (T, VertexKey),
     },
@@ -5099,7 +5191,7 @@ impl<T: Decide> ArcPiece<T> {
     /// The two halves of this piece and the carrier point between them.
     fn split(&self) -> (Self, geom_core::Point3<T>, Self) {
         let (t0, t1) = self.window;
-        let mid = (t0 + t1) * T::from_f64(0.5);
+        let mid = geom::mid_param(t0, t1);
         let half = |window| Self {
             window,
             ..self.clone()
@@ -5110,7 +5202,8 @@ impl<T: Decide> ArcPiece<T> {
 
 impl<T: Decide> MovedWall<T> {
     /// The intervals of the line `L` (its `dir` unit, in this face's
-    /// plane) the face covers, as `(lo, hi)` in `L`'s parameter (module
+    /// plane) the face covers, as `(lo, hi)` in heights along `L`
+    /// ([`geom::Line::height`], its parameter where `dir` is unit; module
     /// docs of [`moved_walls_cross`] for the reading): the union of the
     /// two readings that count a point on `L` with one side and with the
     /// other. Each reading holds the boundary stretches on `L` of a face
@@ -5165,40 +5258,39 @@ impl<T: Decide> MovedWall<T> {
         let mut out = Vec::new();
         for edge in &self.edges {
             if let EdgeArc::Conic {
-                center,
-                u,
-                v,
-                ru,
-                rv,
+                ref carrier,
                 from,
                 to,
             } = edge.curve
             {
+                let Some(conic) = carrier.conic() else {
+                    unreachable!("a conic edge's carrier is a circle or an ellipse")
+                };
                 // The side of `L` along the conic is the sinusoid
                 // `sc + A·cos θ + B·sin θ`, monotone between its extremes
                 // at `φ` and `φ + π`: split there, and each piece crosses
                 // once exactly when its two ends' sides differ, at the
                 // root of its own half-turn.
-                let (a, b) = (ru * u.dot(m), rv * v.dot(m));
-                let sc = (center - line.origin).dot(m);
+                let (a, b) = conic.along(m);
+                let sc = (conic.frame().origin - line.origin).dot(m);
                 let phi = b.atan2(a);
                 let root = (-sc / (a.powi(2) + b.powi(2)).sqrt())
                     .max(-T::one())
                     .min(T::one())
                     .acos();
-                let at = |theta: T| center + u * (ru * theta.cos()) + v * (rv * theta.sin());
+                let at = |theta: T| conic.point_at(theta);
                 let mut ends: Vec<(T, bool)> = vec![(from.0, side_of((Some(from.1), at(from.0)))?)];
                 // Parameters are compared as arc lengths on the larger
                 // semi-axis, so a split at an end within the band is
                 // the end itself.
-                let r = ru.max(rv);
+                let r = conic.speed_hi();
                 let before = |x: T, y: T| {
                     matches!(
                         decide("shell_moved_wall_arc_split", Margin::of((y - x) * r), band),
                         Ok(Sign::Positive)
                     )
                 };
-                let mut split = from.0 + (phi - from.0).reduce_periodic(T::pi());
+                let mut split = geom_core::period::Period::new(T::pi()).at_or_above(phi, from.0);
                 while before(split, to.0) {
                     if before(from.0, split) {
                         let p = at(split);
@@ -5219,9 +5311,10 @@ impl<T: Decide> MovedWall<T> {
                     }
                     // A piece in the half-turn after `φ` holds `φ + root`,
                     // one in the half-turn before it `φ − root`.
-                    let half = ((lo + hi) * T::from_f64(0.5) - phi).reduce_periodic(T::tau());
+                    let half =
+                        geom_core::period::Period::angle().run_from(phi, geom::mid_param(lo, hi));
                     let theta = (half - T::pi()).select_le_zero(phi + root, phi - root);
-                    crossings.push(line.param(at(theta)));
+                    crossings.push(line.height(at(theta)));
                 }
                 continue;
             }
@@ -5241,10 +5334,10 @@ impl<T: Decide> MovedWall<T> {
                 let mut splits = 0;
                 while let Some((piece, a, b)) = work.pop_front() {
                     let (c, rho) = piece.ball();
-                    let along = line.param(c);
-                    // The offset off `L` as a vector, not `|w|² − along²`,
-                    // which cancels to noise when a small ball sits close.
-                    let perp = line.distance(c);
+                    // The offset off `L` as its own distance, not
+                    // `|w|² − along²`, which cancels to noise when a small
+                    // ball sits close.
+                    let (along, perp) = line.height_and_distance(c);
                     // Undecided reaches: the read only grows the set.
                     if !matches!(
                         decide("shell_moved_wall_ball_reach", Margin::of(rho - perp), band),
@@ -5267,7 +5360,7 @@ impl<T: Decide> MovedWall<T> {
                     if side_of(a)? != side_of(b)? {
                         let (sp, sq) = ((a.1 - line.origin).dot(m), (b.1 - line.origin).dot(m));
                         let x = a.1 + (b.1 - a.1) * (sp / (sp - sq));
-                        crossings.push(line.param(x));
+                        crossings.push(line.height(x));
                     }
                 }
                 continue;
@@ -5276,7 +5369,7 @@ impl<T: Decide> MovedWall<T> {
             if side_of(key(edge.start))? != side_of(key(edge.end))? {
                 let (sp, sq) = ((p - line.origin).dot(m), (q - line.origin).dot(m));
                 let x = p + (q - p) * (sp / (sp - sq));
-                crossings.push(line.param(x));
+                crossings.push(line.height(x));
             }
         }
         // Ordered by decided comparisons, a selection rather than a
@@ -5360,39 +5453,13 @@ fn moved_walls<T: Decide>(
                         } else {
                             (end.0, start.0)
                         };
-                        let conic =
-                            |center, axis: &geom_core::Vec3<T>, u: geom_core::Vec3<T>, ru, rv| {
-                                EdgeArc::Conic {
-                                    center,
-                                    u,
-                                    v: axis.cross(u),
-                                    ru,
-                                    rv,
-                                    from: (t0, v0),
-                                    to: (t1, v1),
-                                }
-                            };
                         match *curve.carrier() {
                             geom::Curve3::Line(_) => EdgeArc::Line,
-                            geom::Curve3::Circle(geom::Circle {
-                                frame:
-                                    geom::Frame {
-                                        origin: center,
-                                        ref axis,
-                                        u_ref,
-                                    },
-                                radius,
-                            }) => conic(center, axis, u_ref, radius, radius),
-                            geom::Curve3::Ellipse(geom::Ellipse {
-                                frame:
-                                    geom::Frame {
-                                        origin: center,
-                                        ref axis,
-                                        u_ref,
-                                    },
-                                semi_u,
-                                semi_v,
-                            }) => conic(center, axis, u_ref, semi_u, semi_v),
+                            geom::Curve3::Circle(_) | geom::Curve3::Ellipse(_) => EdgeArc::Conic {
+                                carrier: curve.carrier().clone(),
+                                from: (t0, v0),
+                                to: (t1, v1),
+                            },
                             geom::Curve3::Spiric { .. } | geom::Curve3::Nurbs(_) => {
                                 EdgeArc::Arc(ArcPiece::along(
                                     curve.carrier(),
@@ -5766,15 +5833,9 @@ mod tests {
             lo: o,
             hi: o,
         };
-        let conic = |ru, rv, from, to| EdgeArc::Conic {
-            center: o,
-            u: x,
-            v: y,
-            ru,
-            rv,
-            from,
-            to,
-        };
+        let frame = geom::Frame::new(o, z, x);
+        let conic = |carrier, from, to| EdgeArc::Conic { carrier, from, to };
+        let circle = |radius| geom::Curve3::Circle(geom::Circle::new(frame, radius));
         let close = |got: Vec<(f64, f64)>, want: &[(f64, f64)], what: &str| match want {
             [] => assert!(got.is_empty(), "{what}: got {got:?}"),
             [one] => covers_exactly(&got, *one, 1e-12, what),
@@ -5786,7 +5847,7 @@ mod tests {
             edge: EdgeKey::default(),
             start: east,
             end: east,
-            curve: conic(1.0, 1.0, (0.0, east.0), (2.0 * pi, east.0)),
+            curve: conic(circle(1.0), (0.0, east.0), (2.0 * pi, east.0)),
         }]);
         close(
             disc.cut(
@@ -5819,7 +5880,7 @@ mod tests {
                 edge: EdgeKey::default(),
                 start: east,
                 end: west,
-                curve: conic(1.0, 1.0, (0.0, east.0), (pi, west.0)),
+                curve: conic(circle(1.0), (0.0, east.0), (pi, west.0)),
             },
             BoundaryEdge {
                 edge: EdgeKey::default(),
@@ -5859,7 +5920,11 @@ mod tests {
             edge: EdgeKey::default(),
             start: tip,
             end: tip,
-            curve: conic(2.0, 1.0, (0.0, tip.0), (2.0 * pi, tip.0)),
+            curve: conic(
+                geom::Curve3::Ellipse(geom::Ellipse::new(frame, 2.0, 1.0)),
+                (0.0, tip.0),
+                (2.0 * pi, tip.0),
+            ),
         }]);
         let h = 0.75_f64.sqrt();
         close(
@@ -5874,6 +5939,99 @@ mod tests {
                 .unwrap(),
             &[(-h, h)],
             "the ellipse at x = 1",
+        );
+    }
+
+    /// **A piece the walls cross along answers past a piece read in
+    /// band** ([`walls_cross`] climbs the pieces under `Any`, QML T2; PR
+    /// 6675's review wrote and verified it, red on base). `a`'s two
+    /// spans on the axis are `[0, 1]` and `[2, 3]`; `b`'s overlap them in
+    /// a piece a mid-band width long (in band) and in a piece `0.8` long
+    /// (a crossing), in both orders, since the cut order is not
+    /// ascending. The sliver alone reads in band.
+    #[test]
+    fn a_piece_crossing_answers_past_a_piece_in_band() {
+        let band = Band::linear(Tol::witness()).unwrap();
+        let m = 0.5 * (band.zero() + band.escalate());
+        let v = |n: u64| -> VertexKey { slotmap::KeyData::from_ffi((1u64 << 32) | n).into() };
+        let e = |n: u64| -> EdgeKey { slotmap::KeyData::from_ffi((1u64 << 32) | n).into() };
+        let ring = |k: u64, pts: [(f64, f64); 8]| -> Vec<(VertexKey, (f64, f64), EdgeKey)> {
+            pts.iter()
+                .enumerate()
+                .map(|(i, &p)| (v(k + i as u64), p, e(k + i as u64)))
+                .collect()
+        };
+        let a = ring(
+            1,
+            [
+                (0.0, -1.0),
+                (1.0, -1.0),
+                (1.0, 1.0),
+                (2.0, 1.0),
+                (2.0, -1.0),
+                (3.0, -1.0),
+                (3.0, 2.0),
+                (0.0, 2.0),
+            ],
+        );
+        for (label, b) in [
+            (
+                "sliver late",
+                ring(
+                    21,
+                    [
+                        (-1.0, -1.0),
+                        (0.8, -1.0),
+                        (0.8, 1.0),
+                        (3.0 - m, 1.0),
+                        (3.0 - m, -1.0),
+                        (3.5, -1.0),
+                        (3.5, 2.0),
+                        (-1.0, 2.0),
+                    ],
+                ),
+            ),
+            (
+                "sliver early",
+                ring(
+                    41,
+                    [
+                        (1.0 - m, -1.0),
+                        (1.5, -1.0),
+                        (1.5, 1.0),
+                        (2.2, 1.0),
+                        (2.2, -1.0),
+                        (4.0, -1.0),
+                        (4.0, 2.0),
+                        (1.0 - m, 2.0),
+                    ],
+                ),
+            ),
+        ] {
+            let (wa, wb) = axis_walls(&a, &b);
+            let got = walls_cross(&wa, &wb, band);
+            assert!(
+                matches!(got, Ok(Some(o)) if (o - 0.8).abs() < 1e-12),
+                "{label}: {got:?}"
+            );
+        }
+        let alone = ring(
+            61,
+            [
+                (1.0 - m, -1.0),
+                (1.5, -1.0),
+                (1.5, 1.0),
+                (1.6, 1.0),
+                (1.6, -1.0),
+                (1.7, -1.0),
+                (1.7, 2.0),
+                (1.0 - m, 2.0),
+            ],
+        );
+        let (wa, wb) = axis_walls(&a, &alone);
+        assert!(
+            walls_cross(&wa, &wb, band).is_err(),
+            "the sliver alone reads in band"
         );
     }
 

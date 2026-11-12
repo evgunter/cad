@@ -12,7 +12,7 @@
 
 use geom_core::{Band, Decide, Tol};
 
-use super::contain::{CurvedPlacement, FaceContainment, curved_face_placement};
+use super::contain::{CurvedPlacement, FaceContainment};
 use super::{BooleanError, Operand};
 use crate::body::Body;
 
@@ -27,14 +27,21 @@ enum Placed {
 }
 
 /// [`Placed`] of `node` in `face` of the unmutated operand `body`, the
-/// containment door's margined read ([`curved_face_placement`]).
+/// held placement's read ([`super::contain::placement_on_carrier`]). The
+/// section puts the node on both walls of the equal pair only to within
+/// the band (each wall's outward radial there is the node's normal to
+/// within `band.escalate()`, as `geom_brep`'s bisector pose asserts), so
+/// it is held in band ([`crate::held::Held::in_band`]). A reading off a
+/// wall is a desync.
 fn placed<T: Decide>(
     (operand, body): (Operand, &Body<T>),
     face: crate::entity::FaceKey,
     node: geom_core::Point3<T>,
     band: Band,
 ) -> Result<Placed, BooleanError> {
-    match curved_face_placement(body, face, node, band)
+    let held = crate::held::Held::in_band(node);
+    match super::contain::placement_on_carrier(body, face, held, band)
+        .map(|(at, _, _)| at)
         .map_err(|e| super::reduce::esc(e, operand, face))?
     {
         CurvedPlacement::Trim(Some(FaceContainment::Out)) => Ok(Placed::Out),
@@ -337,10 +344,10 @@ pub(super) fn bisector_datum<T: Decide>(
     };
     // The pierced wall's residual grows radially, away from its axis.
     let radial = geom::Line { origin, dir: axis }.offset(p);
-    let r = radial.norm();
+    let (radial_hat, r) = radial.direction_and_length();
     let outward = wall_sense(
         n_pierced.vec(),
-        radial / r,
+        radial_hat,
         geom_core::Lever::curvature_radius(r),
         band,
     )?;
