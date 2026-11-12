@@ -437,8 +437,8 @@ enum RingClosure<T: geom_core::Real> {
     /// plane, on the face's chart; a sphere's, a cone's or a torus's by
     /// the segment's curve.
     Wall((Point3<T>, UnitVec3<T>)),
-    /// A cylinder, sphere or torus face, closed by the segment's curve,
-    /// a carried chord ([`GermLane::Carried`]).
+    /// A cylinder, sphere, torus or spline face, closed by the segment's
+    /// curve, a carried chord ([`GermLane::Carried`]).
     Chord,
     /// A segment along an edge of this solid (the named operand), of
     /// both solids or of this one alone, reads no section on this side:

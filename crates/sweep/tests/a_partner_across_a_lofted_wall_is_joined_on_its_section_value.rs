@@ -8,7 +8,9 @@
 //! at the at-rest certificate of the chord the join mints: a plane's arc
 //! across a curved wall stops at the plane × spline lane's own image.
 //! Neither is the join's. Two arcs of one pair closer than the pads their
-//! points are read within carry neither, by name.
+//! points are read within carry neither, by name. A brick wholly inside
+//! a wall's face meets it in a closed loop, a ring of the wall the join
+//! walls off as an island.
 //!
 //! Each run is at the witness tolerance. Red against main before
 //! the section value carried the pair: each refused at the join, where a
@@ -233,9 +235,11 @@ fn stops_at_containment(refusal: &BooleanError) -> bool {
 /// operation passes the join and stops at the inside/outside test.
 ///
 /// Red against: a ring lane with no winding on a spline wall, where each
-/// run refused `CurvedBooleanUnsupported` naming the wall; a winding
-/// read the other way round, where the island's run takes the wall's
-/// outer loop and the join desyncs.
+/// run refused `CurvedBooleanUnsupported` naming the wall. Which way
+/// round the island winds is not read here, since the stop comes before
+/// any reader of the wall's two faces: topo's
+/// `a_spline_wall_island_winds_as_its_corners_turn_and_places_its_bystanders`
+/// holds it.
 #[test]
 fn a_brick_inside_a_lofted_walls_face_closes_a_ring_on_the_wall() {
     let t = Tol::witness();

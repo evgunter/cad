@@ -30,7 +30,8 @@
 //!   ([`SegmentCurve`]); if the first `mef` split a
 //!   face that still owns rings, the rings are re-homed by trilean
 //!   containment ([`crate::splitting::containment`] on a plane,
-//!   [`path_ring_side`] on a cylinder, a sphere, a cone or a torus) +
+//!   [`path_ring_side`] on a cylinder, a sphere, a cone, a torus or a
+//!   spline wall) +
 //!   [`Body::ring_move`](crate::construction::Construct::ring_move) — the `laringmv` step (lkemr/ring-placement
 //!   mirror site);
 //! - two halves of one null edge making up a ring alone (a one-site
@@ -525,7 +526,10 @@ pub enum JoinError {
     },
     /// A ring whose island the ring lane does not read: on a curved face
     /// it winds an island, and re-homes a ring, on a cylinder wall's
-    /// chart and on a sphere, a cone or a torus by a path's parity; on a
+    /// chart and on a sphere, a cone, a torus or a spline wall by a
+    /// path's parity (a spline wall's island where its chord's midpoint
+    /// has a foot on the wall and its edges are the wall's certified
+    /// sections, on a net whose iso curves share weights); on a
     /// plane, a run on spiric ovals at a scalar that does not certify
     /// (`crate::loop_winding::Unwound::Uncertified`). Valid input
     /// whose lane is not yet built (D2 addendum row 2), refused typed.

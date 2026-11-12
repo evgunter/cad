@@ -697,9 +697,9 @@ pub(crate) struct Oval<T: Real> {
     own: Option<ArcLoop<T>>,
 }
 
-/// An arc of a loop on a cylinder, sphere, cone or torus face, over its
-/// increasing span: a section conic, a spiric oval, a ruling
-/// (`origin + dir·t`) or a spline.
+/// An arc of a loop on a cylinder, sphere, cone, torus or spline face,
+/// over its increasing span: a section conic, a spiric oval, a ruling
+/// (`origin + dir·t`) or a spline, which is all a spline face's is.
 #[derive(Clone)]
 pub(crate) enum LoopArc<T: Real> {
     Conic(ConicArc<T>),
