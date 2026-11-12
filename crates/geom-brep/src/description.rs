@@ -183,9 +183,11 @@ impl<T: Real> CurveSelector<T> {
         let selector = match self {
             CurveSelector::Witness(p) => CurveSelector::Witness(*p),
             CurveSelector::Structural(Structural::SharedRow(row)) => {
-                let [a, b] = row.images.clone();
+                let [a, b] = (*row.images).clone();
                 let images = if new_lo <= new_hi { [a, b] } else { [b, a] };
-                CurveSelector::Structural(Structural::SharedRow(SharedRow { images }))
+                CurveSelector::Structural(Structural::SharedRow(SharedRow {
+                    images: Box::new(images),
+                }))
             }
         };
         Ok((new, selector))
@@ -231,7 +233,7 @@ pub enum Structural<T: Real> {
 /// [`SharedRow::new`] refuses anything else.
 #[derive(Clone, Debug)]
 pub struct SharedRow<T: Real> {
-    images: [Pcurve<T>; 2],
+    images: Box<[Pcurve<T>; 2]>,
 }
 
 impl<T: Real> SharedRow<T> {
@@ -243,14 +245,16 @@ impl<T: Real> SharedRow<T> {
         (b, image_b): (SurfaceKey, Pcurve<T>),
     ) -> Option<Self> {
         let (sorted, images) = SurfacePair::sorted(a, image_a, b, image_b);
-        (sorted == pair && a != b && images.iter().all(is_row)).then_some(Self { images })
+        (sorted == pair && a != b && images.iter().all(is_row)).then(|| Self {
+            images: Box::new(images),
+        })
     }
 
     /// The row image on `surface`, a member of `pair` (the pair this row
     /// is stated under). `None` for a key not in the pair.
     pub fn image_on(&self, pair: SurfacePair, surface: SurfaceKey) -> Option<&Pcurve<T>> {
         let [lo, hi] = pair.keys();
-        let [a, b] = &self.images;
+        let [a, b] = &*self.images;
         if surface == lo {
             Some(a)
         } else if surface == hi {

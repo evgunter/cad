@@ -505,7 +505,7 @@ pub fn placed_against_in(
     else {
         return crate::Placed::of(doc, Vec::new(), moves_at(at));
     };
-    let placed = at.affine::<f64>();
+    let placed = at.affine();
     // The copy's face's normal where `at` puts it.
     let m = placed.linear * geom_core::linalg::Vec3::new(0.0, 0.0, copy_z);
     // The target's axis its face's normal lies along, where it stands.

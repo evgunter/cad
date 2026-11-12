@@ -81,6 +81,10 @@ serde_json = "1.0.151"
 # reaches the kernel through `pncad` alone.
 [dev-dependencies]
 test-utils = { path = "../../crates/test-utils" }
+# The suite reads a refused face's kind off the result gate's record
+# (`topo::boolean::refused_face_kind`, `test-support`), as the kernel's
+# own pins do; the bin's build does not carry it.
+pncad = { path = "../../crates/pncad", features = ["test-support"] }
 
 
 # The kernel's own nextest legs are DEV-profile builds (opt levels set by

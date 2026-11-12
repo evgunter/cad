@@ -19,7 +19,10 @@ crates/geom 212
 # the NURBS × implicit arm's stage 4): the plane's ℝ⁴ lane's readers retire,
 # and ssi::plane_pcurve reads the carrier's knots for the plane's affine
 # pcurve, one fewer in all.
-crates/geom-brep 221
+# geom-brep 221 -> 220: the arc-rim certificate reads its column's held
+# weights for the pattern's constancy (PCERT, the arc rim at unequal end
+# weights).
+crates/geom-brep 220
 crates/geom-core 18
 crates/mesh 37
 crates/step-export 9

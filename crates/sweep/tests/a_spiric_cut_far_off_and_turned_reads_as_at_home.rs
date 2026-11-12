@@ -164,17 +164,22 @@ fn every_op_far_off_and_turned_keeps_its_pads_at_home() {
 /// quadrature faces: the lever is their extent, not the shell's, and that
 /// extent is unbounded (the row below). Measured:
 /// with a 900 m bar, 1.04× apart at every ε row (4.27e-6 against 4.10e-6
-/// at 1e-9); the cut far off and turned (measured at s = 100), 1.11× at 1e-9, 1.10×
-/// at 1e-12 and 1.55× at 1e-6. Each ratio is pinned with headroom, so an
-/// order the rule starts reading across the shell turns it red. Read
-/// about the shell's first face's start, the bar pair sat 14.3× apart at
-/// 1e-9, 15.9× at 1e-12 and 911× at 1e-6.
+/// at 1e-9); the cut far off and turned (measured at s = 100), 1.56× at
+/// 1e-9 (8.96e-6 against 1.40e-5), 1.60× at 1e-12 and 3.35× at 1e-6. Each
+/// ratio is pinned with headroom, so an order the rule starts reading
+/// across the shell turns it red, and the cut's wider pad is pinned too:
+/// its plane faces are read about their vertices' mean
+/// (`geom_brep::props::face_anchor`), and read about the first point of
+/// their loops it stood at 2.48e-5 at 1e-9, 3.84e-5 at 1e-6 and 2.32e-8
+/// at 1e-12. Read about the shell's first face's start, the bar pair sat
+/// 14.3× apart at 1e-9, 15.9× at 1e-12 and 911× at 1e-6.
 #[test]
 fn one_solid_in_two_face_orders_carries_nearly_one_pad() {
     let tol = Tol::witness();
-    let (bar_bound, turned_bound) = match tol.eps() {
-        1e-6 => (1.1, 1.7),
-        1e-9 | 1e-12 => (1.1, 1.2),
+    let (bar_bound, turned_bound, turned_pin) = match tol.eps() {
+        1e-6 => (1.1, 3.8, 3.2e-5),
+        1e-9 => (1.1, 1.8, 1.5e-5),
+        1e-12 => (1.1, 1.8, 1.45e-8),
         _ => {
             test_utils::vacuity::stood_down(
                 "non-matrix eps",
@@ -211,13 +216,23 @@ fn one_solid_in_two_face_orders_carries_nearly_one_pad() {
         tol,
     );
     let (t, p) = posed(90.0);
-    for (what, (ratio, xy, yx), bound) in [
-        ("the 900 m bar", apart(&torus(2.0, 0.5), &bar), bar_bound),
-        ("the cut far off and turned", apart(&t, &p), turned_bound),
+    for (what, (ratio, xy, yx), bound, pin) in [
+        (
+            "the 900 m bar",
+            apart(&torus(2.0, 0.5), &bar),
+            bar_bound,
+            f64::INFINITY,
+        ),
+        (
+            "the cut far off and turned",
+            apart(&t, &p),
+            turned_bound,
+            turned_pin,
+        ),
     ] {
         assert!(
-            ratio <= bound,
-            "{what}: T ∪ P pad {xy:e}, P ∪ T pad {yx:e}, {ratio} apart, past {bound}"
+            ratio <= bound && xy.max(yx) <= pin,
+            "{what}: T ∪ P pad {xy:e}, P ∪ T pad {yx:e}, {ratio} apart, past {bound} or {pin:e}"
         );
     }
 }
@@ -306,15 +321,19 @@ pub(crate) fn two_tori_on_a_bar() -> topo::Body<f64> {
 /// rotations at every ε: pinned within 1.1×, and each below 1.1× its
 /// measure, so a carry that brought the width back would turn it red. The
 /// cut far off and turned (`P ∖ T`, one shell of one region, 10 rotations)
-/// moves within its quadrature faces' extent, as before: 1.36×, 1.51× and
-/// 1.88×, each pinned with headroom.
+/// moves within its quadrature faces' extent: 2.57×, 2.52× and 3.43× at
+/// 1e-9, 1e-12 and 1e-6, from 5.4e-6, 5.3e-9 and 8.8e-6 at best and
+/// 1.40e-5, 1.33e-8 and 3.02e-5 at widest, each pinned with headroom. Its
+/// plane faces read about the first point of their loops, every rotation
+/// is wider (1.6e-5 to 2.3e-5 at 1e-9) and the ratio narrower (1.40×), so
+/// the widest pad is pinned beside the ratio.
 #[test]
 fn a_shells_pad_reads_alike_whichever_quadrature_face_it_stores_first() {
     let tol = Tol::witness();
-    let (pin, turned) = match tol.eps() {
-        1e-6 => (4.52e-6, 2.15),
-        1e-9 => (4.52e-6, 1.6),
-        1e-12 => (4.12e-9, 1.75),
+    let (pin, turned, turned_pin) = match tol.eps() {
+        1e-6 => (4.52e-6, 3.8, 3.2e-5),
+        1e-9 => (4.52e-6, 2.9, 1.5e-5),
+        1e-12 => (4.12e-9, 2.9, 1.45e-8),
         _ => {
             test_utils::vacuity::stood_down(
                 "non-matrix eps",
@@ -342,10 +361,12 @@ fn a_shells_pad_reads_alike_whichever_quadrature_face_it_stores_first() {
         .body
         .clone()
         .into_body();
-    let got = ratio(&pads_over_rotations(&cut));
+    let pads = pads_over_rotations(&cut);
+    let (got, widest) = (ratio(&pads), pads.iter().copied().fold(0.0, f64::max));
     assert!(
-        got <= turned,
-        "the cut far off and turned: pads {got} apart across rotations, past {turned}"
+        got <= turned && widest <= turned_pin,
+        "the cut far off and turned: pads {got} apart across rotations, widest {widest:e}, past \
+         {turned} or {turned_pin:e}"
     );
 }
 

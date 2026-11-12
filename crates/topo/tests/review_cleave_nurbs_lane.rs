@@ -62,10 +62,7 @@ fn a_mirror_of_the_m7_8_cube_refuses_not_rigid() {
         Tol::witness(),
     )
     .unwrap();
-    match geom_core::RigidMotion::check_rigid(
-        &mirror,
-        geom_core::Band::linear(Tol::witness()).unwrap(),
-    ) {
+    match geom_core::RigidMotion::check_rigid(&mirror) {
         Err(geom_core::RigidMotionError::NotRigid { .. }) => {}
         other => panic!("expected NotRigid, got {other:?}"),
     }

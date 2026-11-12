@@ -605,6 +605,15 @@ pub(super) fn classify_segment<T: Decide>(
                 loop_index,
                 &classify,
             )?;
+            // `m` at both ends: the arc runs from the horn's cusp round
+            // to it again, so its face reaches the cusp from both sides
+            // and pinches there, however far it is revolved.
+            if matches!(interior, Sign::Zero) && va.pinned && vb.pinned {
+                return Err(RevolveError::NonManifoldAxisContact {
+                    loop_index,
+                    vertex_index: s.canonical_vertex,
+                });
+            }
             Ok(WallClass::Wall {
                 kind: WallKind::Spindle {
                     center_sk: centre,

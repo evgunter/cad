@@ -30,7 +30,7 @@ variant:
   `PcurveCertifyError::Escalated { check: ChartIncidence, .. }` for the
   in-band read, and `CarrierOffChart { chart: Nurbs, carrier: Circle, .. }`
   for the miss.
-- `crates/topo/tests/a_circle_not_shown_on_a_spline_row_refuses_alike_in_every_form.rs`:
+- `crates/topo/tests/a_circle_no_row_holds_ends_alike_in_every_form.rs`:
   the same pair, `CarrierOffChart { chart: Nurbs, carrier: Circle, .. }`
   and `Escalated { check: ChartIncidence, .. }`.
 

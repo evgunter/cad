@@ -118,7 +118,7 @@ pub(crate) fn world_in_brick(
     stands: &editor_core::Frame,
     body: editor_core::Operand,
 ) -> (ProfileDoc, RecipeNodeId) {
-    let at = editor_core::Frame::from_affine(stands.affine::<f64>().inverse());
+    let at = editor_core::Frame::from_affine(stands.affine().inverse());
     against(doc, brick, body, &at)
 }
 

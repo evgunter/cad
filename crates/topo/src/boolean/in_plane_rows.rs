@@ -284,3 +284,151 @@ fn an_end_resting_in_the_face_holds_its_piece() {
         "the edge is recorded in the U's top"
     );
 }
+
+/// **A piece shorter than twice the band reads at the corner it leaves,
+/// never at its midpoint.** A slab `(0,1)×(0.5,0.8)×(0.5,0.5+w)` and a
+/// fill flush with it on five faces from `y = 0.5 + w`, `w = 12ε`, no
+/// pair glued: every piece lying in the other's face plane has an end
+/// at a corner of that face, and the short ones, across the slab's end
+/// faces, hold no point off the band of their ends. The fill's edge
+/// where its face toward the channel meets each end face, or the
+/// slab's floor or roof, runs across that face of the slab, which holds
+/// it; every piece of the slab runs along a boundary of the fill's face
+/// it lies in, or off it.
+///
+/// The corner read's own escalations, and the guard's at `w/2`, are
+/// superseded by what it decides, so the frame's log holds none of them.
+///
+/// Mutants: reading every piece by its midpoint refuses
+/// `bool_contact_vertex` `w/2` from a corner; splicing the corner read
+/// with its escalations logs that `w/2`.
+#[test]
+fn a_short_piece_reads_at_its_corner() {
+    let tol = Tol::witness();
+    let w = 12.0 * tol.eps();
+    let slab = brick((0.0, 1.0), (0.5, 0.8), (0.5, 0.5 + w), tol);
+    let fill = brick((0.0, 1.0), (0.5 + w, 0.8), (0.5, 0.5 + w), tol);
+    for (x_is, a, b) in [(Operand::A, &slab, &fill), (Operand::B, &fill, &slab)] {
+        let (([sa, sb], records, _), log) = geom_core::k_stats::detached(|| sweep(a, b, |_| {}));
+        let escalated: Vec<&str> = log
+            .recorded()
+            .escalations
+            .iter()
+            .map(geom_core::k_stats::Escalation::predicate)
+            .collect();
+        assert!(
+            escalated.is_empty(),
+            "slab {x_is:?}: every piece decided, so the log holds no escalation: {escalated:?}"
+        );
+        let (in_slab, in_fill, cut) = match x_is {
+            Operand::A => (&records.b_in_a, &records.a_in_b, &sb),
+            Operand::B => (&records.a_in_b, &records.b_in_a, &sa),
+        };
+        assert!(
+            in_fill.is_empty(),
+            "slab {x_is:?}: no piece of the slab lies inside a face of the fill: {in_fill:?}"
+        );
+        let mut runs: Vec<[f64; 4]> = in_slab
+            .iter()
+            .map(|c| {
+                let (u, v) = cut.edge_vertices(c.edge).unwrap();
+                let (p, q) = (point(cut, u), point(cut, v));
+                assert!(
+                    (p.y - 0.5 - w).abs() < 1e-15 && (q.y - 0.5 - w).abs() < 1e-15,
+                    "slab {x_is:?}: a held piece runs along y = 0.5 + w: {p:?} {q:?}"
+                );
+                [p.x.min(q.x), p.x.max(q.x), p.z.min(q.z), p.z.max(q.z)]
+            })
+            .collect();
+        runs.sort_by(|a, b| a.partial_cmp(b).unwrap());
+        assert_eq!(
+            runs,
+            [
+                [0.0, 0.0, 0.5, 0.5 + w],
+                [0.0, 1.0, 0.5, 0.5],
+                [0.0, 1.0, 0.5 + w, 0.5 + w],
+                [1.0, 1.0, 0.5, 0.5 + w],
+            ],
+            "slab {x_is:?}: the fill's four edges along its face toward the channel"
+        );
+    }
+}
+
+/// The top face of the prism over `profile` (counter-clockwise), and its
+/// vertex at `(x, y)`.
+fn top_corner(profile: &[(f64, f64)], (x, y): (f64, f64)) -> (Body<f64>, FaceKey, VertexKey) {
+    let body: Body<f64> = prism_z(profile, -1.0, 0.0, Tol::witness()).body;
+    let top = face_along(&body, [0.0, 0.0, 1.0]);
+    let at = Point3::new(x, y, 0.0);
+    let v = body
+        .vertices()
+        .map(|(k, _)| k)
+        .find(|&k| (point(&body, k) - at).norm() < 1e-15)
+        .expect("the corner is a vertex of the prism");
+    (body, top, v)
+}
+
+/// **A reflex corner holds a germ that only one of its bounds has on
+/// its inner side.** An L's top, its reflex corner at `(1, 1)` between
+/// `+x` and `+y`: a germ `w = 12ε` long toward `(−1, 0.5)` runs into the
+/// L's upper arm, left of the `+y` bound and on the outer side of the
+/// `+x` bound's line; one toward `(0.5, −1)` runs into its lower bar, and
+/// one toward `(1, 1)`, off the L, is not held.
+///
+/// Mutant: reading the corner as convex (both bounds' inner sides)
+/// drops the first.
+#[test]
+fn a_reflex_corner_holds_a_germ_one_bound_alone_reads_inside() {
+    let tol = Tol::witness();
+    let w = 12.0 * tol.eps();
+    let l = [
+        (0.0, 0.0),
+        (2.0, 0.0),
+        (2.0, 1.0),
+        (1.0, 1.0),
+        (1.0, 2.0),
+        (0.0, 2.0),
+    ];
+    let (body, top, corner) = top_corner(&l, (1.0, 1.0));
+    let at = Point3::new(1.0, 1.0, 0.0);
+    for ((dx, dy), want) in [
+        ((-1.0, 0.5), true),
+        ((0.5, -1.0), true),
+        ((1.0, 1.0), false),
+    ] {
+        let to = at + geom_core::Vec3::new(dx, dy, 0.0).normalize() * w;
+        let got =
+            super::held_at_corners(&body, top, [(Some(corner), at, to), (None, to, at)], band())
+                .expect("the face resolves");
+        assert_eq!(got, Some(want), "a germ toward ({dx}, {dy})");
+    }
+}
+
+/// **A corner whose boundary folds back on itself reads nothing.** A
+/// square's top notched to a cusp at `(1, 1)`, its two walls meeting
+/// the top edge a fifth of the zero band apart: the corner is a spike
+/// at its metering arm, which `sector_shape` refuses, so a germ into
+/// the square below the cusp is left to the midpoint.
+///
+/// Mutant: reading the refused corner as straight (subdivided square to
+/// its next bound) holds the germ.
+#[test]
+fn a_corner_folding_back_on_itself_reads_nothing() {
+    let tol = Tol::witness();
+    let (w, d) = (12.0 * tol.eps(), 0.1 * band().zero());
+    let notched = [
+        (0.0, 0.0),
+        (2.0, 0.0),
+        (2.0, 2.0),
+        (1.0 + d, 2.0),
+        (1.0, 1.0),
+        (1.0 - d, 2.0),
+        (0.0, 2.0),
+    ];
+    let (body, top, corner) = top_corner(&notched, (1.0, 1.0));
+    let at = Point3::new(1.0, 1.0, 0.0);
+    let to = at + geom_core::Vec3::new(0.0, -w, 0.0);
+    let got = super::held_at_corners(&body, top, [(Some(corner), at, to), (None, to, at)], band())
+        .expect("the face resolves");
+    assert_eq!(got, None, "the cusp reads nothing");
+}

@@ -544,7 +544,7 @@ fn planar_cap_with_two_holes_subtracts_ring_areas() {
     ];
     let hole1 = circle_loop(1.0, 1.0, z, 0.5, false); // CW: subtracts
     let hole2 = circle_loop(3.0, 2.5, z, 0.8, false);
-    let c = planar_face(p(0.0, 0.0), &[outer, hole1, hole2]).unwrap();
+    let c = planar_face(&[outer, hole1, hole2]).unwrap();
     let area = 16.0 - PI * (0.25 + 0.64);
     assert_rel("two-hole cap area", c.area, area, 1e-12);
     // flux = z · A⃗_z (outward +z at height z).

@@ -89,7 +89,7 @@ nightly has no 300 s cap.
 - `torus_doors_join::a_rod_inside_the_tubes_shadow_stops_at_the_volume`
 - `torus_doors_join::a_rod_off_the_axis_line_stops_at_the_conic_trim`
 - `torus_doors_join::a_square_rod_on_the_outer_equator_stops_at_the_volume`
-- `verbs_cylsph_opening::a_transversal_pose_reaches_the_join_lane_in_both_poses`
+- `verbs_cylsph_opening::a_transversal_pose_builds_in_both_poses`
 
 ## On the nightly runner, and with debug assertions off (GREEN's slow-test census, 2026-11-02)
 

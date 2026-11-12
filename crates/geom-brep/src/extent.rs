@@ -113,6 +113,52 @@ pub fn polygon_half_perimeter<T: Real>(points: &[Point3<T>]) -> Lever<T> {
     Lever::of_consumed_extent(perimeter * T::from_f64(0.5))
 }
 
+/// **What a stored datum's kind forgets**: the orbit its symmetry lets
+/// the datum slide along without moving the carrier ([`anchored_at`]).
+#[derive(Clone, Copy, Debug)]
+pub enum Forgets<T: Real> {
+    /// A point of a plane, anywhere in the plane of this normal.
+    Plane(Vec3<T>),
+    /// A point of an axis, anywhere along this direction.
+    Axis(Vec3<T>),
+}
+
+/// **A datum re-anchored within an extent**: `datum` slid along the
+/// orbit its kind forgets ([`Forgets`]) to the point of it nearest `at`
+/// — a plane's origin to `at`'s foot on the plane, an axis point to
+/// `at`'s foot on the axis. The carrier is unmoved; what moves is where
+/// a reading that consumes the datum takes it from, so a reading over a
+/// face or a verdict over an extent levers nothing past that extent
+/// (`[tolerance.epsilon]`). The one re-anchoring: the coincidence
+/// verdict passes the extent's centre, a face's measure a point of the
+/// face ([`surface_anchored_at`]).
+#[must_use]
+pub fn anchored_at<T: Real>(datum: Point3<T>, forgets: Forgets<T>, at: Point3<T>) -> Point3<T> {
+    match forgets {
+        Forgets::Plane(normal) => at - normal * ((at - datum).dot(normal) / normal.norm_squared()),
+        Forgets::Axis(dir) => Line { origin: datum, dir }.foot(at),
+    }
+}
+
+/// **`surface` with each datum its kind forgets re-anchored at `at`**
+/// ([`anchored_at`]): a plane's origin and a cylinder's axis origin.
+/// Every other datum is intrinsic (a sphere's or a torus's centre, a
+/// cone's apex) and stays, as does a spline's net.
+#[must_use]
+pub fn surface_anchored_at<T: Real>(surface: &geom::Surface<T>, at: Point3<T>) -> geom::Surface<T> {
+    let mut out = surface.clone();
+    match &mut out {
+        geom::Surface::Plane { origin, normal, .. } => {
+            *origin = anchored_at(*origin, Forgets::Plane(*normal), at);
+        }
+        geom::Surface::Cylinder { origin, axis, .. } => {
+            *origin = anchored_at(*origin, Forgets::Axis(*axis), at);
+        }
+        _ => {}
+    }
+    out
+}
+
 /// A closed ball `|x − center| ≤ radius` enclosing a consumed region
 /// (module docs).
 #[derive(Clone, Copy, Debug)]

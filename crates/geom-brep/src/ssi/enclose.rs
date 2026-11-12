@@ -609,7 +609,9 @@ impl ChartPhi<'_> {
         w: Option<UvWindow>,
     ) -> [Interval; 3] {
         let form = self.0;
-        let g = form.gradient(form.framed(w.map_or_else(refused_box, |w| boxes.rect_box(w))));
+        let g = form.constant_gradient().unwrap_or_else(|| {
+            form.gradient(form.framed(w.map_or_else(refused_box, |w| boxes.rect_box(w))))
+        });
         [g.x, g.y, g.z]
     }
 
@@ -632,6 +634,7 @@ impl ChartPhi<'_> {
         w: Option<UvWindow>,
         along_u: bool,
     ) -> Interval {
+        super::boundary::count_reading();
         w.map_or_else(Interval::refused, |w| {
             super::boundary::plane_partial(self.gradient(boxes, Some(w)), boxes, w, along_u)
         })

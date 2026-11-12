@@ -301,10 +301,11 @@ pub fn route(a: SurfaceKind, b: SurfaceKind) -> PairRoute {
             note: "built by the section value (geom_brep::pair_section) over its pose, \
                    decided once: the coaxial pose, the axis-to-centre distance decided \
                    Zero by its margin, is two closed-form circles, the tangent circle as \
-                   classification data, or empty, and every transversal pose still \
-                   marches in ℝ³ on the IMPLICIT PAIR (2×3 SVD, Hoffmann §6.2) and is \
-                   fitted, with the full three-limb certificate and in-op exhaustiveness \
-                   (geom_brep::ssi::march_cylinder_sphere)",
+                   classification data, or empty, and every off-axis transversal pose is \
+                   counted by the ruling sweep along the cylinder's rulings, each loop \
+                   witnessed, marched in ℝ³ on the IMPLICIT PAIR (2×3 SVD, Hoffmann §6.2) \
+                   from those witnesses and fitted with the full three-limb certificate, \
+                   exhaustiveness closing by the count",
         },
         // ---- Rung 3: quartic-and-worse loci. The general rung is
         // implemented, but it retires per arm (C12.1), so these still

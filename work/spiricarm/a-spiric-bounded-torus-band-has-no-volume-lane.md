@@ -12,12 +12,15 @@ refs: [5567]
 
 ## What
 
-The spiric wall lane (`crates/topo/src/props/quad_lane.rs`,
-`spiric_wall`; `crates/geom-brep/src/props/spiric.rs`, `wall_windings`)
-reads every loop of a torus face through its lifted chart images. It
-requires each loop to close on the lift and wind the torus zero times,
-because the wall's Green form, summed over the loops, bounds a region of
-the lifted chart only then.
+Since PR 6808 a spiric-bounded torus wall is the rotational lane's
+(`crates/geom-brep/src/props/quad/rotational.rs`, its spiric arm), which
+reads a pair of loops winding the torus as a band: each loop on the
+chart's lift, a seam term for a loop that winds the tube, and the face's
+area read up to whole tori (`loop_windings`, `LoopLift`, `torus_face`).
+The lane-level rows hold Villarceau and meridian bands to their closed
+forms (`swap_rows/torus.rs`). What remains of this row is a spiric band
+through a public op held to its oracle. Before PR 6808 the spiric wall
+lane required each loop to wind the torus zero times.
 
 A band of the wall bounded by two loops that wind the tube once each
 way is a valid face: `geom_brep::props` `closure::require_boundary_windings`

@@ -62,3 +62,44 @@ mint defect, which this relabel would now hide behind "not yet". The
 row `a_lane_choices_azimuth_refusal_ends_not_yet` reaches the azimuth arm
 only through a hand-edited image the mint never produces. A fix for this
 row should also tell those two cases apart.
+
+## 2026-11-10 — a stated General image reached the relabel (PCERT, PR 6532 review FF1)
+
+PR 6532 widened `minted_refusal` to a bending carrier's `General` image,
+and its review executed this row's hazard. A construction's stated
+`General` row, its control 15 bumped `1e-4` in `v` so that every
+check-3 sample still holds, reached the mint's own-chart arm
+(`nurbs_iso_derive` returns a stated `c.pcurve` verbatim).
+`certify_walked` then mapped its `FittedLimb { HullValueChart, 6.3e-5 }`
+through `minted_refusal` and ended it "not yet".
+
+The fix carries provenance on the walk's image, as data: a new
+`geom_brep::ChartImage::Stated` holds an image a description or a stored
+row states, which the derivation read and did not produce. The mint's
+two relabel sites, `certify_walked` and `read_loop`'s mint arm, relabel
+only a `ChartImage::Image` (derived in this walk); a `Stated` image keeps
+its term. Rows:
+`a_bending_carrier_on_a_spline_wall_takes_the_general_lane::a_stated_wrong_general_row_keeps_its_term_{f64,interval}`.
+The mutant that relabels a `Stated` image reds them.
+
+**This narrows the row but does not close it**, for `General` or for
+`Projected`. `minted_refusal` is still `pub` and still takes a bare
+`Pcurve`, so a caller outside the walk can still hand it a stored row.
+The type-level fix this row names (`minted_refusal` taking the walked
+row, or a `ChartImage`) remains.
+
+## 2026-11-11 — the witnesses moved, and only the nightly runs them
+
+PR 6815 made the edge door certify a stated image on a spline chart
+through the mint's own door, so a wrong stated `General` row is now
+refused at the build (`ChartImageUnavailable`), before the mint can
+read it. The rows above were red on main for that reason, and only the
+nightly showed it. They now reach the mint's relabel sites at rest: the
+true row is stated, then its wall is re-parametrized under it. M5 reds
+them again.
+
+The f64 row now runs on the PR gate (0.352 s hosted), so the gate runs
+M5's guard on every PR whose closure reaches topo. **The Interval row
+(0.467 s hosted, within noise of the 0.5 s bar) stays in the slow set and
+runs only in the nightly**, or on a PR whose added lines name it. A
+change that reds the gate at Interval alone waits for the nightly.

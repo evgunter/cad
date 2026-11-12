@@ -2322,7 +2322,6 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
     //    axis. There is no ellipsoid surface and no non-uniform map —
     //    a body moves only by a `RigidMotion`, and a matrix becomes one
     //    only through the door that decides its rigidity.
-    let band = pncad::geom_core::Band::linear(tol).expect("the run's band");
     let stretch = Affine3::from_parts(
         Mat3::from_cols(v3(1.0, 0.0, 0.0), v3(0.0, 1.0, 0.0), v3(0.0, 0.0, 1.6)),
         v3(0.0, 0.0, 0.0),
@@ -2330,8 +2329,9 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
     wall(
         4,
         "stretch a lantern into an ovoid bud (non-uniform scale)",
-        RigidMotion::check_rigid(&stretch, band)
-            .map(|stretch| pncad::topo::transform_rigid(lant, &stretch, tol)),
+        // The door is `f64`'s: a matrix becomes a motion there or nowhere,
+        // so a stretch refused there reaches no lane's body door.
+        RigidMotion::check_rigid(&stretch).map(|_| lant),
         // The NAMED predicate matters: a unit-norm failure on the
         // scaled column, not a determinant or orthogonality failure.
         |e| matches!(e, RigidMotionError::NotRigid { check } if *check == "transform_rigid_col2_unit"),

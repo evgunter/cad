@@ -102,6 +102,12 @@ fn stop(got: &Result<BooleanResult<f64>, BooleanError>, kind: Option<geom::Surfa
             other => format!("result {other:?}"),
         },
         Err(BooleanError::GermSectionSpiric { .. }) => "spiric".to_owned(),
+        Err(BooleanError::CurvedPairUnsupported {
+            site: topo::PairRefusalSite::InteriorLoopGuard,
+            kind,
+            other_kind,
+            ..
+        }) => format!("loop guard {kind:?} × {other_kind:?}"),
         Err(BooleanError::GermSectionUnbuilt {
             why:
                 topo::SectionUnbuilt::Carry(geom_brep::CarryRefusal::March(
@@ -125,6 +131,12 @@ fn stop(got: &Result<BooleanResult<f64>, BooleanError>, kind: Option<geom::Surfa
         Err(e) => format!("{e:?}"),
     }
 }
+
+/// A run that builds one seamed solid.
+const BUILDS: &str = "body Some(Seamed)";
+
+/// A run the interior-loop guard refuses on a torus × torus pair.
+const TORUS_PAIR: &str = "loop guard Torus × Torus";
 
 /// `run`'s answer, and how many marches it ran
 /// ([`geom_brep::implicit_pair_marches`]).
@@ -175,33 +187,66 @@ fn row(
         if marches != [1, 1] {
             off.push(format!("placement {i}: marches by op {marches:?}"));
         }
+        for (order, r) in [("A ∪ B", &ab), ("B ∪ A", &ba)] {
+            if let Some(why) = union_floor(r, &a, &b) {
+                off.push(format!("placement {i}, {order}: {why}"));
+            }
+        }
     }
     assert!(off.is_empty(), "{off:#?}");
+}
+
+/// **A union that builds lies between its operands' volumes**:
+/// `max(V_a, V_b) ≤ V ≤ V_a + V_b`, each certified volume's pad held
+/// against the bound. A sanity floor, not a truth: these poses have no
+/// independent volume
+/// (`work/spiricarm/the-general-pose-torus-germ-unions-that-build-have-no-volume-truth.md`).
+pub(crate) fn union_floor(
+    r: &Result<BooleanResult<f64>, BooleanError>,
+    a: &AtRestBody<f64>,
+    b: &AtRestBody<f64>,
+) -> Option<String> {
+    let tol = Tol::witness();
+    let body = r.as_ref().ok()?.body()?;
+    let settle = || topo::test_support::pinned_resolution(tol);
+    let v = topo::mass_properties(&body.body, tol, settle())
+        .ok()?
+        .enclosure;
+    let va = a.measure(settle()).ok()?.enclosure;
+    let vb = b.measure(settle()).ok()?.enclosure;
+    let (lo, hi) = (v.volume - v.volume_pad, v.volume + v.volume_pad);
+    let floor = (va.volume - va.volume_pad).max(vb.volume - vb.volume_pad);
+    let ceiling = va.volume + va.volume_pad + vb.volume + vb.volume_pad;
+    (hi < floor || lo > ceiling).then(|| {
+        format!(
+            "the union's volume {} ± {} lies outside [{floor}, {ceiling}]",
+            v.volume, v.volume_pad
+        )
+    })
 }
 
 /// **A drum against a moved donut passes the germ mint at every
 /// placement.** Each germ on the wall × tube pair takes its site's
 /// foot on the carried section, the general placements' (1, 2, 3, 5)
 /// listed by the march and the square walls' (0, 4) counted; every run
-/// stops past the mint at a door's own refusal: the result gate's volume
-/// on a torus face, a trim the chart table has no lane for (the drum's
-/// chorded wall measures through the rotational lane, so the torus face
-/// is the one the gate reports in any face order;
-/// `work/spiricarm/a-torus-wall-trimmed-by-a-spline-rim-has-no-volume-lane.md`),
-/// or the cap plane's spiric (`GermSectionSpiric`). Placement 5 divides the drum's wall, holding a
-/// ring, by a spline chord, and re-homes the ring by the path.
+/// builds past the mint, its chorded walls and torus face measured through
+/// the rotational lane, but placement 3, which stops at the cap plane's
+/// spiric (`GermSectionSpiric`). Placement 5 divides the drum's wall,
+/// holding a ring, by a spline chord, and re-homes the ring by the path.
+/// No body here is held to a volume of its own
+/// (`work/spiricarm/the-general-pose-torus-germ-unions-that-build-have-no-volume-truth.md`).
 #[test]
 fn a_drum_against_a_moved_donut_passes_the_germ_mint() {
     row(
         drum,
         &[0, 1, 2, 3, 4, 5],
         &[
-            ["torus trim", "torus trim"],
-            ["torus trim", "torus trim"],
-            ["torus trim", "torus trim"],
+            [BUILDS, BUILDS],
+            [BUILDS, BUILDS],
+            [BUILDS, BUILDS],
             ["spiric", "spiric"],
-            ["torus trim", "torus trim"],
-            ["torus trim", "torus trim"],
+            [BUILDS, BUILDS],
+            [BUILDS, BUILDS],
         ],
         &[
             (1e-6, 2, ["tube straddles"; 2]),
@@ -214,29 +259,29 @@ fn a_drum_against_a_moved_donut_passes_the_germ_mint() {
 /// **A ball cutting both tube circles of its meridian** (placement 5):
 /// two curves about the torus axis, counted, which no plane or meridian
 /// tells apart; each germ's component is its site's foot, and the run
-/// stops at the result gate's volume on the ball's sphere face, its trim
-/// a chart with no lane (the refused face's own surface read; the
-/// matcher read the message alone before, and named it the torus's).
-// Pinned red at every ε row, on the sphere face's trim:
-// work/spiricarm/a-projected-boundary-on-an-analytic-chart-has-no-volume-lane.md.
+/// builds, the ball's chorded sphere face and the donut's torus face
+/// measured through the rotational lane.
 #[test]
 fn a_ball_round_the_donuts_axis_passes_the_germ_mint() {
-    row(ball, &[5], &[["sphere trim", "sphere trim"]], &[]);
+    row(ball, &[5], &[[BUILDS, BUILDS]], &[]);
 }
 
 /// **Two donuts in general pose** (placements 1, 2, 3): the section the
 /// march's, each germ's component its site's foot. Each passes the join
-/// and stops at the result gate's volume: a trim on the torus
-/// chart, or a ring left on a curved face (`RingOnCurvedFace`).
+/// and the result gate, its torus faces measured through the rotational
+/// lane: placement 2 builds, and placements 1 and 3 stop past the gate at
+/// the crossings path's interior-loop guard, whose section certificate
+/// has no torus × torus arm
+/// (`work/secttorus/two-donuts-in-general-pose-stop-at-the-interior-loop-guard.md`).
 #[test]
 fn two_donuts_in_general_pose_pass_the_germ_mint() {
     row(
         donut,
         &[1, 2, 3],
         &[
-            ["ring on a torus face", "torus trim"],
-            ["torus trim", "torus trim"],
-            ["torus trim", "torus trim"],
+            [TORUS_PAIR, TORUS_PAIR],
+            [BUILDS, BUILDS],
+            [TORUS_PAIR, TORUS_PAIR],
         ],
         &[
             (1e-6, 1, ["pierce curvature"; 2]),

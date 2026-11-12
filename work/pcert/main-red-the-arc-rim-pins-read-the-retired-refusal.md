@@ -2,7 +2,8 @@
 id: main-red-the-arc-rim-pins-read-the-retired-refusal
 kind: issue
 title: Main red since PR 6484: dm1's arc-rim pins read the retired 'not an arc rim' refusal, and the lofted arc wall's Zero count went 10 to 18
-status: open
+status: closed
+closed: 2026-11-04
 opened: 2026-11-04
 priority: P1
 cost: M
@@ -72,3 +73,61 @@ should reuse? If intended, the pin becomes 18 with the reason.
     cargo nextest run -p step-import -p sweep --no-fail-fast -E \
       'test(r1_dm1_probe) | test(=tier_gate::every_corpus_import_passes_the_shared_gate) |
        test(a_lofted_arc_wall_is_a_function_of_the_sections_bulge)'
+
+## Closed (2026-11-04)
+
+Neither new reading was right, so neither pin was re-pinned to it.
+
+**dm1: the pick missed a rim the row holds.** Measured on dm1's own
+bits, the sub-patch of wall `#382` that `HalfEdgeKey(15v1)` bounds has
+the row at `v₁` with weights `(1, 1, 2)` on `u ∈ [0, 0.27027…]`. That
+row holds the quarter rim exactly: the radial residual is zero in exact
+rationals over 101 samples. At `u = ½` it sits at 53.13°, where the
+standard form sits at 45°. The chart parameter is the standard one
+through `u = λs/(λs + 1 − s)`, `λ = √(w₀/w₂)` (≤ 3.4e-16 in f64). The
+pick read `w₁/w₀ = 1` as "no turn" and answered `Ok(None)`. Incidence
+read not-off, so the arm ended "not yet, no general lane".
+
+The fix: `Pcurve::IsoArc` carries the row's end weights (`ends`, empty
+for a row at one end weight, so the loft's symbolic path is unchanged).
+Its map applies each sub-arc's Möbius change. The certificate compares
+`ends` to the row on the bits and decides each sub-arc's
+`wₖ/√(eₖ·eₖ₊₁) = cos(h/2)`. The pick's images carry the row's end
+weights, and the measured step reads the turn at unit end weights. The
+mesher's chord rate is scaled by `max(λ, 1/λ)`.
+
+The l-bracket now imports (census `(1, 1, 10, 21, 14)`). At ε 1e-9 its
+volume enclosure `[3.43388e-6, 3.43846e-6]` holds an independent
+admesh-clean mesh volume of `3.43577e-6` (δ 1e-5). At ε 1e-12 the
+enclosure is `3.4361170e-6 ± 5e-13`, and the mesh is off it by its
+chords, 3.4e-10, inside δ times the area (1.7e-8). The row pins that
+bound at every ε. Full dm1 refuses one door later, at the
+aggregate gate, on the instances' touches, and is filed on importgate
+(`dm1s-touching-instances-refuse-at-the-aggregate-gate-unrecorded`). The
+three rows and `wild.rs`'s fragment are pinned there. The row
+`imported_chart_arc_rim::a_row_at_unequal_end_weights_holds_its_arc_rim`
+is red under each of five mutants: the Möbius map off, the `ends` bits
+unchecked, the turn read unnormalized, one margin for a skewed row, and
+the pick dropping `ends`. isotail's
+`dm1-arc-rim-pick-reads-no-row-on-an-unnormalized-rational-span` is
+closed by the same fix.
+
+The same fix reaches a second case. A degree-1 loft whose narrow
+interior arc reaches its row refined, at uniform sub-arcs with end
+weights `1, (1 + w)/2, 1`, now lofts. Its pin
+`degree1_loft_slabs::an_interior_arc_refined_by_its_neighbours_refuses_typed`
+became `…_lofts`: every case builds and is at rest, and the first
+meshes to its integrated volume. A line rim on such a creased wall does
+not mesh, which predates this change (`[0, 1, 0]` meets it with no
+refined row). It is filed as
+`work/tess/a-line-rim-on-a-creased-loft-wall-does-not-mesh.md`, and
+isotail's `a-loft-whose-arc-bulge-varies-per-section-refuses-its-arc-rim`
+carries the note.
+
+**The loft: a repeated read.** `arc_rim` certified the picked row, and
+the mint's pass 2 (`certify_walked`) certified the same image over the
+same span again: the walk passes a derived image through unchanged.
+The derivation now hands its certificate to pass 2 (`Derivation`,
+`Walked::certified`), and the count is 10 again. At main `143d99ec29`
+it is 18; with the reuse it is 10.
+

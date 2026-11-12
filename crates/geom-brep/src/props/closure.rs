@@ -141,19 +141,22 @@ pub(super) fn require_boundary_windings<const N: usize>(
 /// One junction of an interval lane's loop, read off its chart images,
 /// per coordinate `c`: `delta[c]`, the edge before's end less the edge
 /// after's start; `lever[c]`, an enclosure of the metres one unit of
-/// that coordinate moves a point at the junction; and `slack`, the two
+/// that coordinate moves a point at the junction; `turns[c]`, the whole
+/// periods the caller reads off a periodic coordinate's gap
+/// ([`nearest_turns`]), `0` on one that is not; and `slack`, the two
 /// ends' own certified slack (metres).
 pub(super) struct IntervalJunction<const N: usize> {
     pub(super) delta: [Interval; N],
     pub(super) lever: [Interval; N],
+    pub(super) turns: [f64; N],
     pub(super) slack: f64,
 }
 
 /// **An interval lane's loop closes**, returning its whole turns about
-/// each coordinate `periodic` marks.
+/// each coordinate.
 ///
-/// At each junction a periodic coordinate's gap is taken less the whole
-/// number `m` of periods nearest its midpoint, and the junction's gap is
+/// At each junction each coordinate's gap is taken less the whole number
+/// `m` of periods the caller read off it, and the junction's gap is
 /// `G = Σ lever·|Δ − m·τ|` over the coordinates, an enclosure. Its upper
 /// bound's excess over the slack `S` (the ends' own and
 /// [`VERTEX_SLACK`]`·ε`) is the closed reading, its lower bound's the
@@ -162,19 +165,15 @@ pub(super) struct IntervalJunction<const N: usize> {
 /// turns are the sum of its junctions' `m`.
 pub(super) fn interval_loop_turns<T: Decide, const N: usize>(
     junctions: impl IntoIterator<Item = IntervalJunction<N>>,
-    periodic: [bool; N],
     band: Band,
 ) -> Result<[i64; N], PropsError> {
     let tau = tau_bracket();
     let mut turns = [0i64; N];
     for j in junctions {
         let mut gap = pt(0.0);
-        let mut m = [0.0; N];
-        for c in 0..N {
-            if periodic[c] {
-                m[c] = (mid(j.delta[c]) / core::f64::consts::TAU).round();
-            }
-            gap = gap + j.lever[c] * (j.delta[c] - pt(m[c]) * tau).abs_enclosure();
+        let m = j.turns;
+        for (c, &mc) in m.iter().enumerate() {
+            gap = gap + j.lever[c] * (j.delta[c] - pt(mc) * tau).abs_enclosure();
         }
         let slack = j.slack + VERTEX_SLACK * band.zero();
         require_junction_closed(
@@ -192,6 +191,14 @@ pub(super) fn interval_loop_turns<T: Decide, const N: usize>(
         }
     }
     Ok(turns)
+}
+
+/// The whole number of periods `m` nearest a junction's gap `delta`'s
+/// midpoint: what the rotational lane reads once per junction
+/// (`quad::rotational`'s `Junction::turns`) and hands to
+/// [`interval_loop_turns`], its connectors and its lift alike.
+pub(super) fn nearest_turns(delta: Interval) -> f64 {
+    (mid(delta) / core::f64::consts::TAU).round()
 }
 
 /// One junction of a closed-form loop: per periodic coordinate, the

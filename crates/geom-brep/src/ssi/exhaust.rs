@@ -1076,6 +1076,11 @@ impl UvRect {
         u >= self.u.0 && u <= self.u.1 && v >= self.v.0 && v <= self.v.1
     }
 
+    /// Whether the two rectangles meet, sides included.
+    pub(crate) fn meets(self, o: Self) -> bool {
+        self.u.0 <= o.u.1 && o.u.0 <= self.u.1 && self.v.0 <= o.v.1 && o.v.0 <= self.v.1
+    }
+
     /// The wider side; `NaN` when either side is, so a NaN side fails
     /// the floor test rather than dropping out of it.
     fn width(self) -> f64 {

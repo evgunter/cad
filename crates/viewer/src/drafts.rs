@@ -2076,13 +2076,17 @@ mod tests {
         use pncad::document::{Coord, Operand, RecipeNodeId, TargetAxis};
         let x = || <Coord<Operand>>::slide(TargetAxis::X);
         let y = || <Coord<Operand>>::slide(TargetAxis::Y);
+        let base = |constraints| crate::session::PlacementBase {
+            target: Operand::Var(pncad::document::VarId::WORLD),
+            constraints,
+        };
         let door = PlaceDoor {
             placement: RecipeNodeId::new(0, 7),
-            base: Vec::new(),
+            base: base(Vec::new()),
         };
         let reloaded = PlaceDoor {
             placement: RecipeNodeId::new(0, 7),
-            base: pncad::document::stand().bundle(),
+            base: base(pncad::document::stand().bundle()),
         };
         let mut drafts = Drafts::default();
         drafts.sync_mate_edits(Some(&door), &[x(), y()]);
@@ -2108,7 +2112,7 @@ mod tests {
         drafts.sync_mate_edits(
             Some(&PlaceDoor {
                 placement: RecipeNodeId::new(0, 9),
-                base: Vec::new(),
+                base: base(Vec::new()),
             }),
             &[x()],
         );

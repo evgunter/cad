@@ -329,8 +329,8 @@
 //!   never read here and the pair clears by W2 or refuses.
 //! - **Sphere × {plane, sphere}**: one circle. **Sphere × cylinder**
 //!   (axis offset `e`): one loop when `|e − ρc| < ρs < e + ρc`,
-//!   witnessed on the nearest ruling; two loops encircling the cylinder
-//!   when `e + ρc < ρs`.
+//!   two loops encircling the cylinder when `e + ρc < ρs`, each loop
+//!   witnessed by the ruling sweep.
 //! - **NURBS × plane** (an approximated face read as its fit): the
 //!   pair's classification in the section value
 //!   ([`geom_brep::pair_section()`], C5), read and never re-decided. Its

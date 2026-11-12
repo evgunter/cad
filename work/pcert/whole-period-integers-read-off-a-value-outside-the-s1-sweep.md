@@ -39,12 +39,16 @@ with this item.
   lever is bounded away from zero**: a wrong integer leaves a gap of at
   least `π·lever`, which the junction refuses against its slack, so the
   cost is a refusal named as an open junction instead of an escalation.
-  Today's levers are: `props::quad::loop_windings`, the cylinder's radius
-  (and `1` on the free `v`); `props::spiric::wall_windings`, the torus's
-  `R + r·cos v`, at least `R − r > 0` on a ring torus, and `r > 0`. A
+  Today's levers are `props::quad::rotational`'s `loop_windings`: the
+  cylinder's radius (and `1` on the free `v`), the sphere's `r·|cos v|`,
+  and the torus's `R + r·cos v`, at least `R − r > 0` on a ring torus,
+  and `r > 0`. The integer is read once per junction there
+  (`Junction::turns`, `closure::nearest_turns`) and handed to the
+  closure (`closure::interval_loop_turns`), the connectors and the
+  torus's lift alike. A
   lever near zero (a pole, an apex) would leave the wrong integer's gap
   inside the slack, and then the rounding would decide a verdict. Its
-  integer is then accumulated as `m[c] as i64` (`:191`), an `as` cast of
+  integer is then accumulated as `m[c] as i64` (`closure.rs:190`), an `as` cast of
   a rounded period quotient: a shape the sweeps' patterns cannot see.
   Fix: decide the turns with `Period::decide` at the junction's lever.
 - `crates/topo/src/shell.rs:3657`, the rim pairing's run mean:
@@ -111,7 +115,7 @@ this item asks of the sites above.
 
 An `as i32` / `as i64` cast applied to a period quotient
 (`(x / τ).round() as i64`, or a rounded `m` cast later, as at
-`closure.rs:191`) forms the integer out of sight of every pattern above.
+`closure.rs:190`) forms the integer out of sight of every pattern above.
 Re-sweep for it before closing this item.
 
 ## What the patterns could not match

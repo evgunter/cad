@@ -21,7 +21,7 @@ the scalar holds the lane.
 ## Measured
 
 `crates/step-import/tests/spiric_roundtrip.rs`,
-`a_spiric_rim_exports_as_a_spline_and_its_reimport_door_is_pinned`. The
+`a_spiric_rim_exports_as_a_spline_and_reimports_at_its_volume`. The
 vessel cavity's spiric rims export as cubic splines (uncertainty
 1e-4 m). On re-import, the rim's `Intersection` reading refuses:
 

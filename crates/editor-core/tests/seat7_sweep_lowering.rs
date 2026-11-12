@@ -513,14 +513,24 @@ fn both_sweeps_evaluate_in_one_document() {
 /// changes the edge curve's `Debug` the digest feeds. With that `Debug`
 /// written in main's shape every row here reproduces main's value at all
 /// three ε rows, so nothing else moved.
+///
+/// RE-BLESSED, `corner_table` and `kitchen_sink`, for a verdict whose census is taken over the
+/// faces it leaves on one record and whose moved set is its operand
+/// closure lowered: with every arena key masked (curve, surface, face,
+/// edge and point), each document's dump is main's line for line — the
+/// same surfaces, senses, points, curves and descriptions — and only the
+/// keys the arenas hand out moved, which the digest feeds.
+/// `corner_table`'s pin carries main's own move under it, which
+/// `work/green/seat7-sweep-digest-drifted-on-main.md` still owes a
+/// judgment of.
 #[test]
 fn the_sweep_documents_evaluate_to_their_committed_digests() {
     let rows: [(&str, u64); 5] = [
         ("die", 0x29ab_9b8c_2c18_a18c),
-        ("corner_table", 0x8078_f0ef_e3f1_1dd2),
+        ("corner_table", 0x3676_c700_af58_ca2d),
         ("cut_cylinder", 0x2e84_77bc_7b57_1d78),
         ("boss_union", 0x6545_3fae_8b1d_55d3),
-        ("kitchen_sink", 0x9343_0074_7900_50e2),
+        ("kitchen_sink", 0x33f5_17f1_f2a9_621a),
     ];
     let mut moved: Vec<String> = Vec::new();
     for (name, want) in rows {

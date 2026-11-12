@@ -2,10 +2,12 @@
 id: the-rotational-lane-omits-the-image-chains-junction-gaps-from-its-region-term
 kind: issue
 title: The rotational lane's region term integrates each pcurve image and omits the connectors its junction gaps leave, which no pad covers
-status: open
+status: closed
 opened: 2026-11-04
 priority: P2
 cost: M
+closed: 2026-11-04
+pr: 6509
 ---
 
 
@@ -46,3 +48,7 @@ Each junction's connector term is added as a pad, `r·|v_j − v_a|·g` at
 the slack the closure accepted, or the closure reads the images' ends as
 one point. A row with a tall face whose images' ends sit apart inside
 the slack holds its closed form.
+
+## Closed (SPIRICARM stage 2, PR 6509, 2026-11-04)
+
+The lane reads each junction's connector, `F(v)·(Δu − m·τ)` over the two ends' levels, and pads the region between it and the true vertex (`connector_terms`), on every chart it holds. The rows `a_tall_face_whose_images_stop_short_holds_its_closed_form` and `images_short_of_their_pieces_and_moved_out_hold_the_square` go red without the term and the pad respectively. The spiric wall lane's twin is `the-spiric-wall-lane-omits-its-junctions-connectors-from-its-region-term`.

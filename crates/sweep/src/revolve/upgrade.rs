@@ -10,8 +10,7 @@
 
 use geom::Curve3;
 use geom_brep::{
-    DihedralClass, EdgeDescriptionSpec, MustCarryDescription, SmoothJoin, SurfacePair,
-    dihedral_class, must_carry_description,
+    EdgeDescriptionSpec, MustCarryDescription, SmoothJoin, SurfacePair, must_carry_description,
 };
 use geom_core::spline::SpanLocate;
 use geom_core::{Band, Decide, Point3, Real};
@@ -67,7 +66,9 @@ fn edge_data<T: SpanLocate + Decide>(
 /// station the rule reads transverse refuses
 /// [`RevolveError::SmoothJoinRefuted`]; Indeterminate is the typed
 /// error built by `sliver` from the reading that escalated, at the
-/// first-order classification and at the rule alike.
+/// first-order classification and at the rule alike. The reading is
+/// topo's at the edge ([`topo::Body::dihedral_across`]), and a smooth join
+/// of two planes returns its verdict that the two faces are one carrier.
 pub(super) fn upgrade_intersection<T: Decide + topo::AtRestPolicy>(
     body: &mut Body<T>,
     edge: EdgeKey,
@@ -76,7 +77,7 @@ pub(super) fn upgrade_intersection<T: Decide + topo::AtRestPolicy>(
     band: Band,
     sliver: impl Fn(DihedralReading, geom_core::Indeterminate) -> RevolveError,
     tol: Tol,
-) -> Result<(), RevolveError> {
+) -> Result<Option<topo::SmoothAcross>, RevolveError> {
     let data = edge_data(body, edge)?;
     let surf1 = body
         .get_surface(s1)
@@ -86,8 +87,8 @@ pub(super) fn upgrade_intersection<T: Decide + topo::AtRestPolicy>(
         .get_surface(s2)
         .cloned()
         .unwrap_or_else(|| unreachable!("surface {s2:?} was read off a live face of this revolve"));
-    match dihedral_class(&surf1, &surf2, data.witness, data.reach, band) {
-        Ok(DihedralClass::Transverse) => {
+    match body.dihedral_across(edge, [s1, s2], band)? {
+        Ok(topo::DihedralAcross::Transverse) => {
             body.restate_stored_edge(
                 edge,
                 EdgeDescriptionSpec::Intersection {
@@ -96,7 +97,7 @@ pub(super) fn upgrade_intersection<T: Decide + topo::AtRestPolicy>(
                 },
                 tol,
             )?;
-            Ok(())
+            Ok(None)
         }
         // A revolve join's carrier is a latitude CIRCLE, which the
         // jet certificate's circle arm covers on every surface of
@@ -109,7 +110,7 @@ pub(super) fn upgrade_intersection<T: Decide + topo::AtRestPolicy>(
         // in-band one escalates typed. Both sides read the same
         // predicate at the same stations, so the demanded set and the
         // stored set stay one set.
-        Ok(DihedralClass::Smooth) => {
+        Ok(topo::DihedralAcross::Smooth { one_carrier, .. }) => {
             // In-band: near-osculating geometry, certifiable as
             // neither intrinsic nor conventional. A conventional
             // description is not an escape hatch from ill-conditioned
@@ -148,7 +149,7 @@ pub(super) fn upgrade_intersection<T: Decide + topo::AtRestPolicy>(
                     body.describe_at_rest(edge, tol)?;
                 }
             }
-            Ok(())
+            Ok(one_carrier)
         }
         Err(escalation) => {
             let (reading, source) = DihedralReading::of_lever(escalation);

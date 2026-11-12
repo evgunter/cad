@@ -56,3 +56,18 @@ Reproduce: `CAD_TOLERANCE_EPS=1e-9 cargo run --manifest-path demos/tour/Cargo.to
 --features probe -- k-probe /tmp/k.csv`, then
 `awk -F, '$6=="indeterminate"{print $1":"$2}' /tmp/k.csv | sort | uniq -c`.
 
+
+## Re-measured (2026-11-10, INSTR `instr/klint-large-k`)
+
+Main `9fe94da35`, the sweep's dump half. The in-band rows are now
+`curve_pair_walk_foot_clear` 504 / 522 and `curve_pair_walk_foot_piece`
+252 / 270 at 1e-6 / 1e-9. `curve_pair_walk_clear` and
+`curve_pair_walk_piece` record none. `_foot_piece`'s in-band rows are a
+×2 ladder: 5.262e-6 (18 rows), 2.631e-6 (36) and 1.316e-6 (72). That is
+`near_pieces` halving through the band, because `stops` takes only
+`Negative | Zero`, so an in-band reach is halved again. Unless a walk
+ends refused, these are refinement steps rather than refusals. Their
+rule-2 and rule-3 twins above `Kε` are read on
+`work/instr/refinement-walks-flag-rules-2-and-3-by-construction-in-the-gated-sweep.md`.
+The rest of the lily's rule 1 is on the rows that row cites, and on
+`work/cpair/the-pose-screens-clear-and-parallel-record-minus-k-eps-and-land-in-band-under-k-lint.md`.

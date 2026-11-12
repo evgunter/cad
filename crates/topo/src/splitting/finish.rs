@@ -1958,13 +1958,7 @@ pub(crate) fn describe_section_boundary<T: Decide + crate::props::AtRestPolicy>(
                 // the other product, a scaffold, or the other kind
                 // — is restated.
                 let pair = geom_brep::SurfacePair::new(s_self, s_other);
-                let rest = crate::rest_locus(
-                    body,
-                    [(s_self, Some(face)), (s_other, Some(other_face))],
-                    &spec.carrier,
-                    (spec.param_start, spec.param_end),
-                    band,
-                );
+                let rest = crate::rest_locus([s_self, s_other]);
                 let intrinsic = matches!(demanded, geom_brep::MustCarryDescription::Intrinsic(_));
                 let coherent = existing.as_ref().is_some_and(|c| match *c.description() {
                     // A wrap edge's two halves bound one face (D1);
@@ -2754,13 +2748,14 @@ mod smooth_arm_rows {
             .expect("a flush neighbour describes conventionally");
         let curve = body.get_edge(edge).unwrap().curve;
         let stored = body.get_curve_geom(curve).unwrap().certified().unwrap();
-        // The neighbour is now a second record of the section's plane:
-        // one carrier, so the edge rests in the first record's chart.
+        // The neighbour is now a second record of the section's plane,
+        // and two records at rest are two surfaces: the edge rests on
+        // their pair.
         match stored.description() {
-            geom_brep::EdgeDescription::Chart(chart) => assert_eq!(
-                chart.surface,
-                geom_brep::SurfacePair::new(s_self, s_other).keys()[0],
-                "restated in the first record's chart"
+            geom_brep::EdgeDescription::OnPair { pair } => assert_eq!(
+                *pair,
+                geom_brep::SurfacePair::new(s_self, s_other),
+                "restated on the two records' pair"
             ),
             other => panic!("an under-determined edge keeps no tangency, got {other:?}"),
         }

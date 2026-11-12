@@ -90,8 +90,8 @@ pub(super) struct ZipReport {
     /// Vertex fusions in zip order: `(dead, kept)` per zipped pair.
     pub vertex_merges: Fusions,
     /// The seam edges surviving the zip, one per seam pair in the order
-    /// the zip was given them: the kept side's section half-edge's edge
-    /// ([`super::glue::kept_first`]), or the other's where that is a
+    /// the zip was given them: the first-written side's section
+    /// half-edge's edge ([`super::glue::written_first`]), or the other's where that is a
     /// section strut ([`kill_pair`]).
     pub seam_edges: Vec<crate::entity::EdgeKey>,
     /// Edge fusions, `(dead, kept)`, one per seam pair: the other side's
@@ -190,8 +190,8 @@ pub(super) fn point_classes<T: geom_core::Real>(
 
 /// **The vertices of each class sit on one point key**: where a
 /// class's live vertices sit on several of its keys, they move onto
-/// the smallest live key holding the glue's kept side's point
-/// (`ops::PointOwners`, [`super::glue::KEPT`]), or the smallest live
+/// the smallest live key holding the first-written side's point
+/// (`ops::PointOwners`, [`super::glue::FIRST_WRITTEN`]), or the smallest live
 /// key where the class holds none of that side's ([`Body::share_point`]);
 /// elsewhere nothing moves. Either way the class keeps one of its keys'
 /// points, and those may differ inside the band, so the choice is which
@@ -228,7 +228,7 @@ pub(super) fn share_points<T: geom_core::Real>(
         let onto = keys
             .iter()
             .copied()
-            .find(|&k| owners.is_kept(k))
+            .find(|&k| owners.is_first_written(k))
             .unwrap_or(smallest);
         let vertices: Vec<VertexKey> = keys.iter().flat_map(|k| on_key[k].clone()).collect();
         #[cfg(feature = "sweep-testing")]
@@ -798,7 +798,7 @@ enum Pair {
 /// half-edge `ob` of `edges`, operand `lead`'s, to the other operand's
 /// partner `r` on the same segment, all on loops of the section faces
 /// the zip consumes. The vertex each joint keeps and the edge each pair
-/// keeps are the kept side's ([`super::glue::kept_first`]).
+/// keeps are the kept side's ([`super::glue::written_first`]).
 ///
 /// A joint fusing two vertices, collapsed by its `kev`
 /// ([`fuse_by_joint`]), hands the two joined half-edges' predecessors
@@ -829,7 +829,7 @@ fn glue<T: Decide + crate::props::AtRestPolicy>(
     };
     let mut report = ZipReport::default();
     for &(ob, r) in edges {
-        let (kept, other) = super::glue::kept_first((lead, ob), r);
+        let (kept, other) = super::glue::written_first((lead, ob), r);
         report.seam_edges.push(edge_of(body, kept)?);
         report
             .edge_merges
@@ -903,7 +903,7 @@ fn glue<T: Decide + crate::props::AtRestPolicy>(
         }
         let joint = Joint::between(body, he1, he2)
             .ok_or_else(|| corr("a seam joint's half-edge has no face"))?;
-        let keep = he(body, super::glue::kept_first((lead, he1), he2).0).start;
+        let keep = he(body, super::glue::written_first((lead, he1), he2).0).start;
         let p = body
             .get_vertex(keep)
             .and_then(|vd| body.get_point(vd.point).copied())
@@ -952,7 +952,7 @@ fn glue<T: Decide + crate::props::AtRestPolicy>(
 }
 
 /// **Kills seam pair `k`'s loop of two** with `kef`, across the other
-/// side's edge, whose kept partner ([`super::glue::kept_first`])
+/// side's edge, whose kept partner ([`super::glue::written_first`])
 /// survives in its place; or across the kept side's, where the other's
 /// edge is a section strut.
 ///
@@ -987,7 +987,7 @@ fn kill_pair<T: Decide + crate::props::AtRestPolicy>(
             .is_some_and(|&j| j != k)
     };
     let edge = |h: HalfEdgeKey| proven(&body.half_edges, h, EntityId::HalfEdge).edge;
-    let (kept, other) = super::glue::kept_first((lead, ob), r);
+    let (kept, other) = super::glue::written_first((lead, ob), r);
     let (dying, kept_strut) = match (strut(kept), strut(other)) {
         (false, false) => (other, None),
         (true, false) => (other, Some(edge(kept))),

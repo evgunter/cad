@@ -77,18 +77,12 @@ const WILD_REFUSALS: [(&str, &str); 4] = [
     // `tier_gate.rs`'s three ε_in cells and structurally by
     // `r1_dm1_probe`.
     //
-    // The fragment is the pcurve MINT's, not the quadrature's and not
-    // the ladder's. It was the at-rest gate's rational-flux stall
-    // until check 7 began certifying a SIGN (dm1's volume enclosure
-    // excludes zero at round 0 at every band), then briefly the
-    // ladder's `#389` polyline gap that stall had masked — retired by
-    // #388 (degree-1 carriers promote to `Curve3::Line` and the slit
-    // adopts through its reversed wall column). What refuses now is
-    // the arc-rim pick on the l-bracket wall `#382`, split at its C⁰
-    // knots into one-span sub-patches whose rows state the circle with
-    // unnormalized weights, against three-arc rational rim circles:
-    // typed.
-    ("stepcode/dm1-id-214.stp", "not an arc rim of this chart"),
+    // The fragment is the assembled body's at-rest gate's: every
+    // component adopts and mints its pcurves (the l-bracket wall `#382`,
+    // split at its C⁰ knots, holds its arc rims on rows stated at end
+    // weights 1 and 2), and the bolts and nuts sit on the bracket, so
+    // two instances share vertex positions the gate finds unrecorded.
+    ("stepcode/dm1-id-214.stp", "is an unrecorded contact"),
     // A spline-carried edge between analytic surfaces: the file's
     // geometry is inside the subset entity by entity, and the D7
     // ladder still cannot certify any intensional description for the

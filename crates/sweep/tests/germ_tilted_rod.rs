@@ -249,6 +249,16 @@ fn stop_word(r: &Result<BooleanResult<f64>, BooleanError>, kind: Option<SurfaceK
             kind: SurfaceKind::Torus,
             ..
         }) => "curved join".to_owned(),
+        Err(BooleanError::CurvedPairUnsupported {
+            site: topo::PairRefusalSite::InteriorLoopGuard,
+            kind,
+            other_kind,
+            ..
+        }) => format!("loop guard {kind:?} × {other_kind:?}"),
+        Err(BooleanError::Pieces(topo::PieceSortError::Probe {
+            source: topo::PointInSolidError::PartialTorusFace { .. },
+            ..
+        })) => "pieces on a torus face".to_owned(),
         Err(BooleanError::JoinCarrierUnsupported {
             carrier: geom::CurveKind::Nurbs,
             ..
@@ -285,80 +295,25 @@ fn stop_word(r: &Result<BooleanResult<f64>, BooleanError>, kind: Option<SurfaceK
 }
 
 /// [`other_spins_and_steeper_tilts_refuse_at_their_germs`]' stops by pose
-/// and op ([`every_op`]'s order),
-/// measured alike at the compiled ε, 1e-6 and 1e-12: each at the result
-/// gate's volume on a torus face (the refused face's own surface read,
-/// `topo::boolean::refused_face_kind`; a face of another chart reads
-/// "… on a … face"), by the refusal's cause. The rod's chorded wall
-/// measures through the rotational lane, so no run stops on it. The
-/// steeper tilt's union is pinned by identity as well, at every ε row, in
+/// and op ([`every_op`]'s order), measured at the compiled ε: each run
+/// passes the result gate, the half donut's torus wall (its chords, and
+/// its spiric where the rod's cap cuts it) measured through the
+/// rotational lane, and stops past it. Four ops stop at the crossings
+/// path's interior-loop guard on the torus wall × the rod's wall, whose
+/// section certificate refuses the pair
+/// (`work/secttorus/two-donuts-in-general-pose-stop-at-the-interior-loop-guard.md`);
+/// the fifth at the result's piece sort, where point-in-solid reads no
+/// chorded torus face (`PartialTorusFace`,
+/// `work/inside/point-in-solid-refuses-a-torus-face-bounded-by-a-spline-chord.md`). The steeper tilt's union is
+/// pinned by identity as well, at every ε row, in
 /// [`the_steeper_tilts_union_stops_by_identity`].
-// Pinned red at every ε row, each word on its owner's row:
-// "torus trim volume" and "ring volume" (a torus wall the chords trim,
-// or one left holding a ring) on
-// work/spiricarm/a-torus-wall-trimmed-by-a-spline-rim-has-no-volume-lane.md;
-// "spiric wall volume" (a torus wall holding a spiric beside a chord) on
-// work/spiricarm/a-torus-wall-holding-a-spiric-beside-a-spline-chord-has-no-volume-lane.md.
-// As each lands, its words move on to the run's next stop or to a body
-// held to its volume, and the table is re-pinned there.
-const OTHER_SPINS_STOPS: [[&str; 5]; 8] = [
-    [
-        "ring volume",
-        "torus trim volume",
-        "torus trim volume",
-        "ring volume",
-        "torus trim volume",
-    ],
-    [
-        "ring volume",
-        "torus trim volume",
-        "torus trim volume",
-        "ring volume",
-        "torus trim volume",
-    ],
-    [
-        "ring volume",
-        "torus trim volume",
-        "torus trim volume",
-        "ring volume",
-        "torus trim volume",
-    ],
-    [
-        "ring volume",
-        "torus trim volume",
-        "torus trim volume",
-        "ring volume",
-        "torus trim volume",
-    ],
-    [
-        "spiric wall volume",
-        "spiric wall volume",
-        "spiric wall volume",
-        "spiric wall volume",
-        "spiric wall volume",
-    ],
-    [
-        "spiric wall volume",
-        "spiric wall volume",
-        "spiric wall volume",
-        "spiric wall volume",
-        "spiric wall volume",
-    ],
-    [
-        "spiric wall volume",
-        "spiric wall volume",
-        "spiric wall volume",
-        "spiric wall volume",
-        "spiric wall volume",
-    ],
-    [
-        "spiric wall volume",
-        "spiric wall volume",
-        "spiric wall volume",
-        "spiric wall volume",
-        "spiric wall volume",
-    ],
-];
+const OTHER_SPINS_STOPS: [[&str; 5]; 8] = [[
+    "loop guard Torus × Cylinder",
+    "loop guard Torus × Cylinder",
+    "loop guard Cylinder × Torus",
+    "loop guard Torus × Cylinder",
+    "pieces on a torus face",
+]; 8];
 
 /// The steeper tilt, whose union `h ∪ c` [`STEEP_UNION_STOP`] pins.
 const STEEP_TILT: f64 = 0.7;
@@ -366,23 +321,19 @@ const STEEP_TILT: f64 = 0.7;
 /// **The steeper tilt's union stops by identity** at both spins: its cap
 /// chord, a spiric in the rod's cap plane, reads off the rod's wall by
 /// degree (`topo::boolean::slit`'s spiric × quadric arm), so the slit
-/// pass reads no rider there, and the union goes on to the result
-/// gate's volume on the half donut's torus wall, face `3v1` of the
-/// result.
-const STEEP_UNION_STOP: &str = "Some(ResultInvalid { errors: [VolumeUncomputable { \
-     solid: SolidKey(1v1), source: Face { face: FaceKey(3v1), source: \
-     QuadratureUnsupported { what: \"a torus wall edge beside a spiric whose lifted image is \
-     neither a spiric wall image nor a harmonic rim or meridian\" } } }] })";
+/// pass reads no rider there; the union passes the result gate, the half
+/// donut's torus wall, spiric and chords alike, measured through the
+/// rotational lane, and stops at the crossings path's interior-loop
+/// guard on the torus wall × the rod's wall, whose section certificate
+/// refuses the pair: the two faces it names.
+const STEEP_UNION_STOP: (&str, &str) = ("FaceKey(3v1)", "FaceKey(4v1)");
 
-/// **The other spins, and the steeper tilts, refuse typed** before any
-/// body is built, on every op, each at its pinned door
-/// ([`OTHER_SPINS_STOPS`], the same at every ε row): each wall germ takes its site's foot on the
-/// carried section, which each op marches once, and the run passes the
-/// join, which leaves the wall's closed spline chord's vertex standing
-/// (the chord creases there, at its clamped ends), to the
-/// result gate's volume on the torus wall (a trim, a spiric beside a
-/// chord, or a ring left on it; each word's owner is beside
-/// [`OTHER_SPINS_STOPS`]).
+/// **The other spins, and the steeper tilts, refuse typed** on every
+/// op, each at its pinned door ([`OTHER_SPINS_STOPS`]): each wall germ
+/// takes its site's foot on the carried section, which each op marches
+/// once, and the run passes the join, which leaves the wall's closed
+/// spline chord's vertex standing (the chord creases there, at its
+/// clamped ends), and the result gate, to a door past it.
 #[test]
 fn other_spins_and_steeper_tilts_refuse_at_their_germs() {
     let h = half_donut();
@@ -431,15 +382,25 @@ fn the_steeper_tilts_union_stops_by_identity() {
     let h = half_donut();
     let eps = Tol::witness().eps();
     for spin in [0.0, FRAC_PI_2] {
-        let stop = format!(
-            "{:?}",
-            topo::union(&h, &rod(STEEP_TILT, spin), Tol::witness())
-                .as_ref()
-                .err()
-        );
+        let at = format!("h ∪ c at β {STEEP_TILT}, spin {spin}, ε {eps:e}");
+        let r = topo::union(&h, &rod(STEEP_TILT, spin), Tol::witness());
+        let Err(BooleanError::CurvedPairUnsupported {
+            op: Some(topo::BooleanOp::Union),
+            site: topo::PairRefusalSite::InteriorLoopGuard,
+            operand: topo::Operand::A,
+            face,
+            kind: SurfaceKind::Torus,
+            other_face,
+            other_kind: SurfaceKind::Cylinder,
+        }) = &r
+        else {
+            panic!("{at}: {}", outcome(&r));
+        };
+        let (face, other_face) = (format!("{face:?}"), format!("{other_face:?}"));
         assert_eq!(
-            stop, STEEP_UNION_STOP,
-            "h ∪ c at β {STEEP_TILT}, spin {spin}, ε {eps:e}"
+            (face.as_str(), other_face.as_str()),
+            STEEP_UNION_STOP,
+            "{at}"
         );
     }
 }

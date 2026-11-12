@@ -28,7 +28,7 @@ use topo::{AtRestPolicy, Body, FaceKey, HalfEdgeKey, PcurveMintError};
 
 /// The lamina at `T`, lifted `lift` off the chart along its normal, with
 /// its two faces and the `he_plus` of its row, column and diagonal.
-fn lamina<T: AtRestPolicy>(lift: f64) -> (Body<T>, [FaceKey; 2], [HalfEdgeKey; 3]) {
+pub(crate) fn lamina<T: AtRestPolicy>(lift: f64) -> (Body<T>, [FaceKey; 2], [HalfEdgeKey; 3]) {
     let tol = Tol::witness();
     let on =
         |(x, y, z): (f64, f64, f64)| Point3::new(T::from_f64(x), T::from_f64(y), T::from_f64(z));

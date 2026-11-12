@@ -180,7 +180,7 @@ fn pose(k: usize) -> Pose {
 }
 
 /// The row's poses (`conic_edge_curved_face`'s
-/// `a_rim_crossing_reaches_the_join`).
+/// `a_rim_crossing_builds_in_every_op`).
 fn rim_poses() -> Vec<Pose> {
     vec![
         across_the_rim(0.2, (0.5, 0.0), (0.2, 0.45)),

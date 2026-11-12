@@ -2,11 +2,13 @@
 id: three-corners-alternating-round-a-corner-refuse-at-the-join
 kind: issue
 title: Three corners touching at a point whose cuts alternate round another solid's corner refuse JoinDesync or PinchUncrossed in three ops
-status: parked
+status: closed
 opened: 2026-10-03
+closed: 2026-11-11
 priority: P1
 cost: M
-blocked_on: [shared-vertex-crossings-that-tie-or-interleave-are-unprobed]
+pr: 6832
+refs: [shared-vertex-crossings-that-tie-or-interleave-are-unprobed]
 ---
 
 ## What
@@ -70,3 +72,35 @@ unchanged on the PR's head. What blocks it is FUSE's
 `blocked_on` names that row now.
 
 - 2026-11-03 — moved from CLEAVE to CLEAVETAIL by `git mv` when CLEAVE closed, id and body unchanged (CLEAVE had no dispatchable row above P2 left, and CLEAVETAIL is its own tail on the same ground; Ev, in chat).
+
+## Re-measured (GAUGE, lane `gauge-svc`, 2026-11-11)
+
+On main `0f42d98351` the pin passes. Its three refusals are the laminar
+interleave class of
+`work/gauge/shared-vertex-crossings-that-tie-or-interleave-are-unprobed.md`:
+the band's pair is paired along both of its Out arcs, and the second
+and third corners sit on one each. Re-planned with the other pairing
+start (a local experiment), `cube ∖ y` builds: volume 0.97142669 =
+1 − `cube ∩ y`, and 3′ and tier 2 pass. `y ∩ cube` and `cube ∪ y`
+refuse `JoinDesync { what: "conflicting seam vertex correspondence" }`.
+Which pairing the shared corner should take is now that row's design
+question.
+
+## Closed (GAUGE, lane `gauge-svc`, PR 6832, 2026-11-11)
+
+Every op builds. Where the band's pair's start on the side the op
+keeps lays it along the cube's arcs outside the band, which the other
+two corners' cuts lie on, the pairs at the cube's corner take the
+start that clears them, chosen together
+(`shared-vertex-crossings-that-tie-or-interleave-are-unprobed`, its
+`## Decided, revised` section; `insert::reconcile_shared`). The finish
+takes the seam correspondence as the pair records give it. The pin is renamed and re-pinned to the bodies:
+`three_corners_alternating_round_the_cube_build_every_op`
+(`crates/topo/tests/union_flush_onto_edge_contact.rs`) asserts every op
+builds and passes tier 2, 3′ and the certificate, at `cube ∪ y` =
+1.0336378, `cube ∩ y` = 0.0285733 and `cube ∖ y` = 0.9714267, each op
+alike in both operand orders, and `y ∖ cube + ∩` = `y`. It runs again
+with every reduction's vertex pairs reversed
+(`test_support::with_vertex_pairs_reversed`). Red when the other
+start is never taken (`SharedVertexCrossings` in `y ∪ cube`) and when
+the finish's vertex-set check is restored (`JoinDesync`).

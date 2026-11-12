@@ -728,8 +728,9 @@ pub(super) fn consumed_arm<T: geom_core::Real>(
 /// - plane — the plane ladder reads the extent itself (offsets at its
 ///   centre, the arm its radius) and the pair passes through;
 /// - cylinder — the axis offset is read at the second description's
-///   axis point, which moves along its axis to the foot of the
-///   extent's centre;
+///   axis point, re-anchored along its axis at the foot of the
+///   extent's centre ([`geom_brep::anchored_at`], the one re-anchoring a
+///   face's measure takes too);
 /// - torus — the pair's coincidence reads no extent
 ///   ([`geom_brep::tori_coincide`]), and the pair passes through;
 /// - cone — the angular data are read from the first apex, widened by
@@ -753,7 +754,7 @@ fn at_consumed_extent<T: geom_core::Real>(
                 outward,
             },
         ) if matches!(c1, CarrierDesc::Cylinder { .. }) => {
-            let foot = reach.foot_on(geom::Line { origin, dir: axis });
+            let foot = geom_brep::anchored_at(origin, geom_brep::Forgets::Axis(axis), centre);
             (
                 c1,
                 CarrierDesc::Cylinder {

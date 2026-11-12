@@ -1140,6 +1140,7 @@ impl KeyWriter {
                 t0,
                 angle,
                 breaks,
+                ends,
             } => {
                 self.u8(4);
                 self.p2(*p0);
@@ -1147,6 +1148,10 @@ impl KeyWriter {
                 self.f64(*t0);
                 self.f64(*angle);
                 self.knots(breaks);
+                self.len(ends.len());
+                for &e in ends {
+                    self.f64(e);
+                }
             }
             Pcurve::Spiric {
                 major,
@@ -1226,7 +1231,7 @@ impl KeyWriter {
                         self.u8(0);
                         self.nurbs3(net);
                     }
-                    FramedCarrier::Circle {
+                    FramedCarrier::Conic {
                         centre,
                         a,
                         b,

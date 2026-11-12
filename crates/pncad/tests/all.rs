@@ -1302,6 +1302,7 @@ fn revolved_kind_is_matchable(kind: &RevolvedKind) -> &'static str {
             end_cap,
             start_meridians,
             end_meridians,
+            ..
         } => {
             named::<FaceKey>(*start_cap);
             named::<FaceKey>(*end_cap);
@@ -1535,6 +1536,14 @@ fn normalization_kind_is_readable(kind: &NormalizationKind) -> &'static str {
         NormalizationKind::JoinedEdges => "joined_edges",
         NormalizationKind::EdgeSplitAtC0Knot => "edge_split_at_c0_knot",
         NormalizationKind::FaceSplitAtC0Knot => "face_split_at_c0_knot",
+        NormalizationKind::PlacementReMinted {
+            transform,
+            moved_by,
+        } => {
+            named::<&u64>(transform);
+            named::<&f64>(moved_by);
+            "placement_re_minted"
+        }
         NormalizationKind::SurfacePromotion { to, residual } => {
             named::<&f64>(residual);
             match to {

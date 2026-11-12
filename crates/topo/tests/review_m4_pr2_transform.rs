@@ -11,7 +11,7 @@ use std::f64::consts::{FRAC_PI_2, FRAC_PI_3};
 
 use common::{brick, describe_as_intersections};
 use geom_core::Tol;
-use geom_core::{Affine3, Band, Mat3, MotionPart, RigidMotion, RigidMotionError, Vec3};
+use geom_core::{Affine3, Mat3, MotionPart, RigidMotion, RigidMotionError, Vec3};
 use topo::{
     Body, TransformError, mass_properties, transform_rigid, validate, validate_closed,
     validate_geometric,
@@ -28,7 +28,6 @@ fn tiers_ok(b: &Body<f64>) {
 /// for a raw map carrying it — never a motion with poisoned points.
 #[test]
 fn non_finite_translation_is_refused_not_laundered() {
-    let band = Band::linear(Tol::witness()).unwrap();
     for t in [
         Vec3::new(f64::NAN, 0.0, 0.0),
         Vec3::new(0.0, f64::INFINITY, 0.0),
@@ -40,22 +39,20 @@ fn non_finite_translation_is_refused_not_laundered() {
             "the mint names the translation {t:?}"
         );
         assert_eq!(
-            RigidMotion::check_rigid(&Affine3::translation(t), band).map(|_| ()),
+            RigidMotion::check_rigid(&Affine3::translation(t)).map(|_| ()),
             Err(RigidMotionError::NonFinite(MotionPart::Translation)),
             "the decided door names the translation {t:?}"
         );
     }
 }
 
-/// R1b: near-rigid maps around the band edges at the decided door,
-/// with probes derived from the AMBIENT tolerance (valid on every gate
-/// ε row). Rounding-level defects (≤ zero) are decided Zero and pass;
-/// an in-band defect is UNDECIDED, and a definite one is not rigid.
+/// R1b: near-rigid maps at the `f64` door, around its one edge: the
+/// rounding each rigidity margin's own arithmetic carries. A defect
+/// within it is a real rotation matrix's noise and passes with its bits;
+/// any defect beyond it is refused as not rigid, naming the margin —
+/// there is no band to straddle, so nothing is undecided.
 #[test]
-fn near_rigid_door_band_behavior() {
-    let tol = geom_core::Tol::witness().get();
-    let (eps, kesc) = (tol.eps, tol.eps * tol.k);
-    let band = Band::linear(Tol::witness()).unwrap();
+fn near_rigid_door_rounding_behavior() {
     let b = brick((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), Tol::witness());
     let with_c0x = |s: f64| {
         Affine3::from_parts(
@@ -67,35 +64,26 @@ fn near_rigid_door_band_behavior() {
             Vec3::zero(),
         )
     };
-    // Rounding-level defect: col0 norm² off well below the zero band
-    // — decided Zero, must PASS (a real rotation matrix carries this
-    // much noise), and the admitted motion moves the body.
-    let admitted = RigidMotion::check_rigid(&with_c0x(1.0 + eps * 1e-4), band)
+    // Rounding-level defect: col0's norm² two ulps off — within the
+    // margin's rounding, so it must PASS, and the admitted motion
+    // moves the body.
+    let admitted = RigidMotion::check_rigid(&with_c0x(1.0 + f64::EPSILON))
         .expect("rounding-level orthonormality noise must not refuse");
     assert!(transform_rigid(&b, &admitted, Tol::witness()).is_ok());
-    // In-band defect (norm² between zero and escalate, geometric
-    // mean of the edges): maybe-rigid is not admitted, and the door
-    // says it is undecided rather than that the map is not rigid.
-    let in_band = (eps * kesc).sqrt();
-    match RigidMotion::check_rigid(&with_c0x(1.0 + in_band / 2.0), band) {
-        Err(RigidMotionError::Undecided {
-            check: "transform_rigid_col0_unit",
-            ..
-        }) => {}
-        other => panic!("in-band defect: expected Undecided, got {other:?}"),
-    }
-    // Past escalate: definite, refused.
-    match RigidMotion::check_rigid(&with_c0x(1.0 + kesc * 2.0), band) {
-        Err(RigidMotionError::NotRigid {
-            check: "transform_rigid_col0_unit",
-        }) => {}
-        other => panic!("definite defect: expected NotRigid, got {other:?}"),
+    // Beyond rounding, however small against any length: refused.
+    for defect in [1e-12, 1e-6] {
+        match RigidMotion::check_rigid(&with_c0x(1.0 + defect)) {
+            Err(RigidMotionError::NotRigid {
+                check: "transform_rigid_col0_unit",
+            }) => {}
+            other => panic!("a {defect:e} defect: expected NotRigid, got {other:?}"),
+        }
     }
     // Improper rotation built from an honest axis-angle then negated
     // column: det −1 with perfect columns.
     let r = Mat3::rotation_about(Vec3::new(0.0, 0.0, 1.0), FRAC_PI_3);
     let refl = Mat3::from_cols(r.c0, r.c1, Vec3::zero() - r.c2);
-    match RigidMotion::check_rigid(&Affine3::from_parts(refl, Vec3::zero()), band) {
+    match RigidMotion::check_rigid(&Affine3::from_parts(refl, Vec3::zero())) {
         Err(RigidMotionError::NotRigid { check }) => {
             assert_eq!(check, "transform_rigid_det_plus_one");
         }

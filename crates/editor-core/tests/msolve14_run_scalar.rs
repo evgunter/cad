@@ -836,7 +836,7 @@ fn each_seat_stands_on_what_it_is_seated_on() {
             poses
                 .placement(doc, instances[k])
                 .unwrap_or_else(|e| panic!("{label}'s copy {k} places: {e:?}"))
-                .affine::<f64>()
+                .affine()
         };
         let t = (at(onto).inverse() * at(mover)).translation;
         [t.x, t.y, t.z]
@@ -1117,7 +1117,7 @@ fn assert_pose_encloses_corners(
         let truth = solve(&at, opts, Tol::witness())
             .relative(instance)
             .expect("posed at f64")
-            .affine::<f64>();
+            .affine();
         let truth = [
             truth.linear.c0,
             truth.linear.c1,
@@ -1564,7 +1564,7 @@ fn a_tilted_plane_slid_within_itself_leaves_the_map_thin() {
         solve(&set_value(doc.clone(), drift(), v), &opts, Tol::witness())
             .relative(bolt)
             .expect("posed at f64")
-            .affine::<f64>()
+            .affine()
     };
     let nominal = at(0.0);
     for v in [lo, hi, 1.0] {

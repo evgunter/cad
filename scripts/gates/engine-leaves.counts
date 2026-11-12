@@ -36,7 +36,7 @@ boolean-names-splitting     1  boolean/carrier_touch_rows.rs
 boolean-names-splitting    57  boolean/contain.rs
 boolean-names-splitting    17  boolean/fate.rs
 boolean-names-splitting     7  boolean/finish.rs
-boolean-names-splitting    21  boolean/insert.rs
+boolean-names-splitting    19  boolean/insert.rs
 boolean-names-splitting    16  boolean/join.rs
 boolean-names-splitting     1  boolean/join_walk_order_rows.rs
 boolean-names-splitting     6  boolean/mod.rs
@@ -61,9 +61,9 @@ crate-visible              10  boolean/fate.rs
 crate-visible               5  boolean/glue.rs
 crate-visible               5  boolean/holdings.rs
 crate-visible               2  boolean/insert.rs
-crate-visible             161  boolean/mod.rs
+crate-visible             159  boolean/mod.rs
 crate-visible               3  boolean/nary.rs
-crate-visible              29  boolean/ops.rs
+crate-visible              22  boolean/ops.rs
 crate-visible               1  boolean/overlap.rs
 crate-visible               2  boolean/planar_lane_carrier_rows.rs
 crate-visible               1  boolean/plane_eq.rs
@@ -99,10 +99,10 @@ crate-visible               3  splitting/spline_arc.rs
 
 names-boolean               2  contain_loop.rs  # work/onecopy/the-census-sort-of-a-boolean-refusal-has-no-legal-home-under-topo-homes
 names-boolean               9  cover.rs  # work/boxes/the-face-covers-sphere-arm-reads-the-booleans-chart-trim-and-face-placement
-names-boolean               2  attach.rs
+names-boolean               1  attach.rs
 names-boolean               3  bound_side.rs
 names-boolean              14  cell_region.rs  # work/boxes/the-face-covers-sphere-arm-reads-the-booleans-chart-trim-and-face-placement
-names-boolean             411  census.rs  # work/onecopy/the-census-sort-of-a-boolean-refusal-has-no-legal-home-under-topo-homes
+names-boolean             410  census.rs  # work/onecopy/the-census-sort-of-a-boolean-refusal-has-no-legal-home-under-topo-homes
 names-boolean               1  census/curved.rs
 names-boolean               7  census/in_plane.rs
 names-boolean               1  census/pierce_fuzz.rs
@@ -110,7 +110,7 @@ names-boolean               3  census/point.rs
 names-boolean              40  census/self_touch.rs
 names-boolean               3  cert_m3r1_probes.rs
 names-boolean               4  chart_region.rs
-names-boolean              22  chord_join.rs
+names-boolean              21  chord_join.rs
 names-boolean               7  chord_join/island_rows.rs  # work/boxes/the-face-covers-sphere-arm-reads-the-booleans-chart-trim-and-face-placement
 names-boolean               1  chord_join/sphere_island_rows.rs
 names-boolean               9  clearance.rs
@@ -121,11 +121,11 @@ names-boolean               1  euler.rs
 names-boolean               1  fuse.rs
 names-boolean               3  injective.rs
 names-boolean              14  instance.rs
-names-boolean              75  lib.rs
+names-boolean              74  lib.rs
 names-boolean              95  lineage.rs
 names-boolean               1  link.rs
 names-boolean              85  link/cone_fuzz.rs
-names-boolean              42  merge_faces.rs
+names-boolean              33  merge_faces.rs
 names-boolean               1  merge_faces_kept_rows.rs
 names-boolean               2  offset_axial.rs
 names-boolean               1  offset_derive.rs
@@ -142,7 +142,6 @@ names-boolean               1  sector_shape.rs
 names-boolean               6  separation.rs
 names-boolean              39  shell.rs
 names-boolean              77  side_reader.rs
-names-boolean               1  split.rs
 names-boolean              21  stands.rs
 names-boolean               2  surgery.rs
 names-boolean               2  test_support_fixtures.rs
@@ -189,7 +188,7 @@ refused-binding             6  validate.rs
 
 splitting-names-boolean     5  splitting/classify.rs
 splitting-names-boolean    11  splitting/containment.rs
-splitting-names-boolean    41  splitting/finish.rs
+splitting-names-boolean    40  splitting/finish.rs
 splitting-names-boolean     3  splitting/mod.rs
 splitting-names-boolean     2  splitting/neighborhood.rs
 splitting-names-boolean     2  splitting/section.rs

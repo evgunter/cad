@@ -2,11 +2,10 @@
 id: the-join-reads-a-spline-implicit-section
 kind: unit
 title: The join reads a NURBS x implicit section: open components carried, chart pads in metres, GermLane::PlaneWall retired for a NURBS wall
-status: parked
+status: open
 opened: 2026-11-02
 priority: P0
 cost: H
-blocked_on: [a-nurbs-face-against-a-cone-or-sphere-has-no-section-arm]
 ---
 
 
@@ -21,6 +20,13 @@ Once `a-nurbs-face-against-a-cone-or-sphere-has-no-section-arm` lands its whole 
 - retire `GermLane::PlaneWall`/`WallPlane` for a NURBS wall (`topo/src/boolean/join.rs`).
 
 This is what makes teapot wall 3 join once SPLICE clears its seam split. Tier: dual.
+
+## Nodes
+
+An arc that ends at a node is carried to it by
+`a-spline-implicit-arc-is-carried-to-its-node`, the unit after this one
+(split out 2026-11-12; the design is PR 6829's). This unit carries open
+components between rim ends and leaves a node arc as stage 3b does.
 
 ## Done when
 

@@ -1,6 +1,6 @@
 //! Tessellation: watertight triangle meshes from B-rep bodies (M2 PR 6),
 //! except where two coincident edges join one vertex pair
-//! (`work/tess/two-coincident-edges-between-one-vertex-pair-mesh-non-manifold.md`).
+//! (`work/tesslie/two-coincident-edges-between-one-vertex-pair-mesh-non-manifold.md`).
 //!
 //! [`fn@tessellate`] triangulates every face of a closed body into a
 //! [`Mesh`] whose triangles are certified to lie within a caller-chosen
@@ -73,7 +73,7 @@
 //! where two coincident edges join one vertex pair: both chord to one
 //! segment and its four faces use it four times, which `check_mesh`
 //! refuses as a non-manifold edge
-//! (`work/tess/two-coincident-edges-between-one-vertex-pair-mesh-non-manifold.md`).
+//! (`work/tesslie/two-coincident-edges-between-one-vertex-pair-mesh-non-manifold.md`).
 //! [`validate::check_mesh`] re-derives that over an emitted mesh and
 //! is what the acceptance suites run — but **[`fn@tessellate`] does
 //! not call it**, so a mesh whose construction argument failed is

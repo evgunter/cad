@@ -130,8 +130,7 @@ pub enum ChartArm<T> {
         minor: T,
     },
     /// A spindle sheet; `v` the tube angle, closed on `[−v*, v*]` and read
-    /// in the latitude window, which holds that interval whole only for
-    /// `v* < π − 1` (`work/spiricarm/a-wide-apples-tube-angle-passes-the-latitude-windows-cut.md`).
+    /// in [`Window::Sheet`].
     Spindle {
         /// The signed major radius R.
         major: T,
@@ -205,12 +204,13 @@ pub enum ChartAngle {
 
 impl ChartAngle {
     /// The window a point reading names this angle in (C4): the
-    /// latitude's for a sphere's latitude and a spindle sheet's tube
-    /// angle, the angle window for the rest.
+    /// latitude's for a sphere's latitude, the sheet's for a spindle
+    /// sheet's tube angle, the angle window for the rest.
     pub fn window(self) -> Window {
         match self {
             Self::Azimuth | Self::Tube => Window::Angle,
-            Self::Latitude | Self::SheetTube => Window::Latitude,
+            Self::Latitude => Window::Latitude,
+            Self::SheetTube => Window::Sheet,
         }
     }
 }
@@ -366,9 +366,6 @@ impl<T: Decide> ChartInverse<T> {
             }
             ChartArm::Sphere { .. } => ChartChannels::Sphere,
             ChartArm::Torus { major, .. } => ChartChannels::Torus { major },
-            // A sheet's `v` is closed on `[−v*, v*]` about zero, read in the
-            // latitude's window, which holds it whole only for `v* < π − 1`:
-            // a wider apple's far side reads a turn off (filed).
             ChartArm::Spindle { major, .. } => ChartChannels::Spindle { major },
         };
         let mut tube = None;
@@ -510,8 +507,9 @@ mod tests {
         Band::new(1e-9, 1e-8).unwrap()
     }
 
-    /// A lemon and an apple with `R < r·cos 1`, as `(R, r)`.
-    const SHEETS: [(f64, f64); 2] = [(-0.1, 0.9), (0.4, 1.0)];
+    /// A lemon, an apple, a wide apple (`v* > π − 1`) and one near the
+    /// horn, as `(R, r)`.
+    const SHEETS: [(f64, f64); 4] = [(-0.1, 0.9), (0.4, 1.0), (0.8, 1.0), (0.999, 1.0)];
 
     fn surfaces() -> Vec<Surface<f64>> {
         let axis = Vec3::new(0.0, 0.6, 0.8);
@@ -582,11 +580,11 @@ mod tests {
                 u_ref: Vec3::new(1.0, 0.0, 0.0),
             });
         }
-        // A lemon (`v* ≈ 1.459`) and an apple narrow enough for the
-        // latitude window (`R < r·cos 1`, `v* ≈ 1.982`): the sheet's
-        // foot is read by the signed major radius. On a sheet the walk's
-        // `|v| ≤ 1.42` is stretched onto `0.97·v*`, so the apple's
-        // samples run past `π/2` to near its apexes.
+        // A lemon (`v* ≈ 1.459`) and apples from `v* ≈ 1.982` to within
+        // `0.045` of the horn: the sheet's foot is read by the signed
+        // major radius. On a sheet the walk's `|v| ≤ 1.42` is stretched
+        // onto `0.97·v*`, so an apple's samples run past `π/2` to near
+        // its apexes, and a wide one's past `1 − π`.
         for (major_radius, minor_radius) in SHEETS {
             all.push(Surface::Spindle {
                 center: Point3::new(0.2, -0.1, 0.3),
@@ -817,6 +815,45 @@ mod tests {
             u_ref: x,
         };
         assert!(plane.foot(o).is_some(), "a plane has a foot everywhere");
+    }
+
+    /// **At the interval scalar, a horn reads its cusp's `v` as `π`, and
+    /// the points beside it on their own side.** The horn `R = r = 1`
+    /// lifted to `Interval`: its cusp, the one point of the sheet on
+    /// [`Window::Sheet`]'s cut, reads `π` (the read's tie); a point a
+    /// micro-radian to a milliradian from it along the meridian, above
+    /// or below, reads an enclosure narrower than `1e-9` about its own
+    /// `±(π − δ)`, never a turn off or across the cut.
+    #[test]
+    fn a_horns_cusp_and_its_neighbours_read_their_own_side_at_interval() {
+        use geom_core::{Bounds, Interval};
+        let iv = Interval::from_f64;
+        let horn = Surface::Spindle {
+            center: Point3::new(iv(0.0), iv(0.0), iv(0.0)),
+            axis: Vec3::new(iv(0.0), iv(0.0), iv(1.0)),
+            major_radius: iv(1.0),
+            minor_radius: iv(1.0),
+            u_ref: Vec3::new(iv(1.0), iv(0.0), iv(0.0)),
+        };
+        let pi = core::f64::consts::PI;
+        let cusp = horn
+            .chart_point(Point3::new(iv(0.0), iv(0.0), iv(0.0)), band())
+            .unwrap();
+        assert!(
+            cusp.uv.y.lo() >= pi - 1e-12 && cusp.uv.y.hi() <= pi + 1e-12,
+            "the cusp reads {:?}",
+            cusp.uv.y
+        );
+        for delta in [1e-6, 1e-4, 1e-3] {
+            for v in [pi - delta, delta - pi] {
+                let p = Point3::new(1.0 + v.cos(), 0.0, v.sin()).map(iv);
+                let read = horn.chart_point(p, band()).unwrap().uv.y;
+                assert!(
+                    read.lo() >= v - 1e-9 && read.hi() <= v + 1e-9,
+                    "v = {v}: read {read:?}"
+                );
+            }
+        }
     }
 
     /// **At the interval scalar, a point whose direction's enclosure

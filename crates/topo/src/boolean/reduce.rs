@@ -82,6 +82,7 @@ use crate::vertex_section::{Offset, SectionPlane, VertexRefusal};
 use geom_brep::curve_face::circle_roots::{CircleRoots, door_refusal};
 use geom_brep::curve_face::plane_crossing::{ConicPlaneMeet, PlaneCrossingLane};
 use geom_brep::roots::{Roots, Unsettled};
+use geom_brep::sector_shape::{SectorShape, sector_shape};
 use geom_core::Tol;
 
 /// Which candidate-generation path the reduction sweep runs — the
@@ -278,10 +279,7 @@ impl ContactAcc {
         if let Some(&i) = seen.get(&(vertex, face)) {
             return Ok(Some(&list[i].cites));
         }
-        let mut ties = self.records.vv.iter().filter(|c| match x_is {
-            Operand::A => c.a == vertex && bounding.contains(&c.b),
-            Operand::B => c.b == vertex && bounding.contains(&c.a),
-        });
+        let mut ties = self.ties(x_is, vertex, bounding);
         let tie = ties.next();
         if ties.next().is_some() {
             return Err(BooleanError::ClassificationInvariant {
@@ -289,6 +287,19 @@ impl ContactAcc {
             });
         }
         Ok(tie.map(|c| &c.cites))
+    }
+    /// The vertex-vertex records tying `vertex` of `x_is` to one of
+    /// `bounding`, a face's vertices.
+    fn ties<'s, 'b>(
+        &'s self,
+        x_is: Operand,
+        vertex: VertexKey,
+        bounding: &'b std::collections::BTreeSet<VertexKey>,
+    ) -> impl Iterator<Item = &'s Cited<VvContact>> + use<'s, 'b> {
+        self.records.vv.iter().filter(move |c| match x_is {
+            Operand::A => c.a == vertex && bounding.contains(&c.b),
+            Operand::B => c.b == vertex && bounding.contains(&c.a),
+        })
     }
     /// Records the chart point `uv` of `face` that `vertex` of `x_is`
     /// was placed inside the face at ([`Self::charts`]).
@@ -392,8 +403,8 @@ pub(crate) fn index(k: usize) -> u32 {
 /// faces can reach under every op is certified or typed; the doors are
 /// op-dependent, but the kind's arms are not. ∖ and ∩ classify the
 /// operands as given: the op enters through the op tables (an
-/// on-sector's Eq. 15.3 lump, [`super::tables::eq15_3_lump`]; the kept
-/// copy of a coincident pair, [`super::tables::kept_copy`]) and the
+/// on-sector's Eq. 15.3 lump, [`super::tables::eq15_3_lump`]; the
+/// surviving copy of a coincident pair, [`super::tables::surviving_copy`]) and the
 /// join's reading of the subtrahend's normals reversed (`stands_on`).
 /// ∖ reverts the kept subtrahend pieces only after classification
 /// (`finish`'s Eq. 15.1 `(B in A)⁻¹`, the operand-B fallback, the void
@@ -1722,18 +1733,22 @@ struct InPlane {
 /// edge lying in a face included), once both directions have split the
 /// edge.
 /// A piece lies in the plane as the fragment's ends do, and its interior
-/// meets the face's where an end is recorded inside the face or, failing
-/// that, where its midpoint is inside ([`contfp_decided`]); a piece along
-/// the face's boundary is a touch of two edges, which the classification
-/// records. Each record cites the records that placed the piece's own
-/// two ends on the face ([`ContactAcc::placed_on`]): it states no point
-/// a second time.
+/// meets the face's where an end is recorded inside the face; failing
+/// that, for a piece whose midpoint lies within the band of its own end,
+/// where it leaves a corner of the face into the face
+/// ([`held_at_corners`]); failing that, where its midpoint is inside
+/// ([`contfp_decided`]). A piece along the face's boundary is a touch of
+/// two edges, which the classification records. Each record cites the
+/// records that placed the piece's own two ends on the face
+/// ([`ContactAcc::placed_on`]): it states no point a second time.
 ///
 /// # Errors
 ///
 /// [`BooleanError::Escalated`] where the containment door cannot place a
 /// midpoint ([`esc`]); [`BooleanError::ClassificationInvariant`] where a
-/// piece the face holds ends at a vertex no record places on the face.
+/// piece the face holds ends at a vertex no record places on the face, or
+/// at one tied to two vertices bounding it, or where an edge bounding the
+/// face no longer resolves ([`held_at_corners`]).
 fn settle_in_plane<T: Decide>(
     [a, b]: [&Body<T>; 2],
     contacts: &mut ContactAcc,
@@ -1761,14 +1776,50 @@ fn settle_in_plane<T: Decide>(
                     what: "a piece of an edge lying in a face vanished",
                 })?;
             let ((w0, p0), (w1, p1)) = edge_ends(x, piece)?;
+            // The corner of the face an end is tied to (`Some(None)` where
+            // it is tied to none); `None` where it is tied to two, a slit,
+            // which the corner read leaves to the midpoint.
+            let corner = |w| {
+                let mut ties = contacts
+                    .ties(lie.x_is, w, &bounding)
+                    .map(|c| match lie.x_is {
+                        Operand::A => c.b,
+                        Operand::B => c.a,
+                    });
+                match (ties.next(), ties.next()) {
+                    (t, None) => Some(t),
+                    _ => None,
+                }
+            };
+            let mid = p0.mid(p1);
+            // A midpoint within the band of the piece's own end is no
+            // witness (the guard compares it with the end, where the
+            // refusing read compares it with the face's corner, up to a
+            // zero band away): such a piece reads where it leaves a
+            // corner. Run detached, and spliced without its escalations:
+            // a corner read that decides is the outcome, and one that
+            // does not hands the piece to the midpoint read, which logs
+            // its own.
+            let (at_corners, log) = geom_core::k_stats::detached(|| {
+                if super::one_vertex_at(mid, p0, band).is_ok() {
+                    return Ok(None);
+                }
+                let (Some(c0), Some(c1)) = (corner(w0), corner(w1)) else {
+                    return Ok(None);
+                };
+                held_at_corners(y, lie.face, [(c0, p0, p1), (c1, p1, p0)], band)
+            });
+            geom_core::k_stats::splice_superseded(log);
             let held = [w0, w1]
                 .into_iter()
                 .any(|w| contacts.rests_in(lie.x_is, w, lie.face))
-                || {
-                    let mid = p0.mid(p1);
-                    let (at, _) = contfp_decided(y, lie.face, plane.normal, mid, band)
-                        .map_err(|e| esc(e, lie.x_is.other(), lie.face))?;
-                    matches!(at, FaceContainment::In)
+                || match at_corners? {
+                    Some(held) => held,
+                    None => {
+                        let (at, _) = contfp_decided(y, lie.face, plane.normal, mid, band)
+                            .map_err(|e| esc(e, lie.x_is.other(), lie.face))?;
+                        matches!(at, FaceContainment::In)
+                    }
                 };
             if !held {
                 continue;
@@ -1793,6 +1844,135 @@ fn settle_in_plane<T: Decide>(
         }
     }
     Ok(())
+}
+
+/// **Whether `face` holds a line piece lying in its plane, read where
+/// the piece leaves a corner of the face** ([`settle_in_plane`], for a
+/// piece whose midpoint lies within the band of its own end). Each end
+/// `(corner, at, to)` tied to a corner of the face reads the corner's
+/// shape at its two boundary chords ([`sector_shape`], the one home of
+/// a corner's convex, reflex and straight rungs and of their metering
+/// arm), then the piece's germ `to − at` against it
+/// ([`germ_in_corner`]). The sweep split the piece at every crossing of
+/// the face's boundary it decided, so one germ speaks for its whole
+/// interior; the germ is read over the whole piece, where its midpoint
+/// lies within the band of an end. A germ along a boundary chord is not
+/// held: the piece is a touch of two edges, which the classification
+/// records.
+///
+/// `None`, and the midpoint reads the piece, where no end is tied, a
+/// corner has other than one line edge in and one out, the corner's
+/// shape refuses (a boundary that folds back on itself, a spike), a
+/// sign falls in band, or the two ends disagree: a crossing within the
+/// band that the sweep did not split could part them.
+///
+/// # Errors
+///
+/// [`BooleanError::ClassificationInvariant`] where a boundary edge does
+/// not resolve.
+fn held_at_corners<T: Decide>(
+    y: &Body<T>,
+    face: FaceKey,
+    ends: [(Option<VertexKey>, Point3<T>, Point3<T>); 2],
+    band: Band,
+) -> Result<Option<bool>, BooleanError> {
+    let Some(normal) = crate::face_normal::face_outward_normal(y, face) else {
+        return Ok(None);
+    };
+    let edges = y.proven_face(face).edges();
+    let point = |v| y.resolve_vertex_point(v, crate::live::Proven);
+    // The chord of a line edge of the face from its end `from` to its
+    // other end; `None` for a curved edge.
+    let chord = |e: &crate::live::FaceEdge, from: VertexKey| -> Result<_, BooleanError> {
+        let edge = y
+            .get_edge(e.edge)
+            .ok_or(BooleanError::ClassificationInvariant {
+                what: "an edge bounding a face does not resolve",
+            })?;
+        let to = if e.ends[0] == from {
+            e.ends[1]
+        } else {
+            e.ends[0]
+        };
+        Ok(matches!(
+            certified(y.get_curve_geom(edge.curve))?.carrier(),
+            geom::Curve3::Line(_)
+        )
+        .then(|| point(to) - point(from)))
+    };
+    let mut read = None;
+    for (corner, at, to) in ends {
+        let Some(corner) = corner else { continue };
+        let mut ins = edges.iter().filter(|e| e.ends[1] == corner);
+        let mut outs = edges.iter().filter(|e| e.ends[0] == corner);
+        let (Some(e_in), None, Some(e_out), None) =
+            (ins.next(), ins.next(), outs.next(), outs.next())
+        else {
+            continue;
+        };
+        // The interior sweeps counter-clockwise about the outward normal
+        // from the chord out (CCW-first) to the chord back along the
+        // edge in (CCW-last).
+        let (Some(own), Some(next)) = (chord(e_in, corner)?, chord(e_out, corner)?) else {
+            continue;
+        };
+        let Ok(shape) = sector_shape(own, next, normal, false, band) else {
+            continue;
+        };
+        let Some(held) = germ_in_corner(&shape, normal.vec(), to - at, band) else {
+            continue;
+        };
+        match read {
+            Some(earlier) if earlier != held => return Ok(None),
+            _ => read = Some(held),
+        }
+    }
+    Ok(read)
+}
+
+/// **Whether `germ` leaves a corner of shape `shape` into its interior**
+/// ([`held_at_corners`]), about the face's outward normal `n`: strictly
+/// inside a convex corner, or inside either convex half of one
+/// [`sector_shape`] subdivided, or along its subdividing direction. Each
+/// sign is the germ's offset from a unit bound toward the bound's left
+/// (`bool_in_plane_corner_side`), over the germ's own length. `None`
+/// where a sign the answer rests on falls in band.
+fn germ_in_corner<T: Decide>(
+    shape: &SectorShape<T>,
+    n: Vec3<T>,
+    germ: Vec3<T>,
+    band: Band,
+) -> Option<bool> {
+    let read = |along: Vec3<T>| {
+        geom_core::k_stats::decide_reported(
+            "bool_in_plane_corner_side",
+            Margin::of(along.dot(germ)),
+            band,
+        )
+        .ok()
+        .map(|d| d.sign)
+    };
+    let left_of = |bound: Vec3<T>| read(n.cross(bound));
+    // Strictly inside the convex corner from `first` counter-clockwise
+    // to `last`: left of the first bound and right of the last.
+    let within = |first: Vec3<T>, last: Vec3<T>| match (left_of(first), left_of(last)) {
+        (Some(Sign::Positive), Some(Sign::Negative)) => Some(true),
+        (Some(Sign::Zero | Sign::Negative), _) | (_, Some(Sign::Zero | Sign::Positive)) => {
+            Some(false)
+        }
+        _ => None,
+    };
+    let Some(d) = shape.bisector else {
+        return within(shape.unit_next, shape.unit_own);
+    };
+    let halves = [within(shape.unit_next, d), within(d, shape.unit_own)];
+    if halves.contains(&Some(true)) {
+        return Some(true);
+    }
+    if left_of(d) == Some(Sign::Zero) {
+        return read(d).map(|s| s == Sign::Positive);
+    }
+    (halves == [Some(false); 2]).then_some(false)
 }
 
 /// A covered edge × curved-face pair whose touch lies inside the edge

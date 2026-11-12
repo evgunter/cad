@@ -35,12 +35,12 @@
 use std::cell::OnceCell;
 
 use geom::{NurbsSurface, Surface};
-use geom_core::{Band, Point3};
+use geom_core::{Band, Bounds, Interval, Point3};
 
 use super::boundary::BoundaryPass;
 use super::enclose::ChartPhi;
 use super::ends::Ends;
-use super::exhaust::{self, FloorKind, SweepFloor, UvRect};
+use super::exhaust::{self, FloorKind, SweepCell, SweepFloor, UvRect};
 use super::handle::{Banked, TubeCell, foot, passed};
 use super::march::MarchContext;
 use super::residual::{ImplicitForm, ImplicitWall};
@@ -101,6 +101,13 @@ struct Lane<'a> {
     /// a reading that marches meets.
     ctx: Result<MarchContext<2>, SsiError>,
     seed_floor: SweepFloor<UvRect>,
+    /// The node boxes a march ends on entering, by node
+    /// ([`ImplicitSection::with_criticals`]).
+    nodes: Vec<UvRect>,
+    /// The boxes of the decided critical points, nodes' and touches':
+    /// each proved to hold the one zero of `∇φ` in it, claimed as
+    /// regions by seeding and accounting.
+    claimed: Vec<UvRect>,
 }
 
 impl Lane<'_> {
@@ -116,6 +123,7 @@ impl Lane<'_> {
             ctx,
             &self.wall_op,
             self.wall.band(),
+            &self.nodes,
         ))
     }
 
@@ -259,6 +267,8 @@ impl<'a> ImplicitSection<'a> {
                 sys: ImplicitChartR2 { partner, wall },
                 ctx,
                 seed_floor,
+                nodes: Vec::new(),
+                claimed: Vec::new(),
             },
             pass: OnceCell::new(),
             banked: Banked::new(branch_chart_tubes),
@@ -276,11 +286,37 @@ impl<'a> ImplicitSection<'a> {
         passed(&self.pass, || self.lane.wall.pass(&self.lane.form))
     }
 
+    /// **The section of a plane read at a pivot**, `lift` its stored
+    /// plane's height of the pivot ([`ImplicitForm::lifted`]): the exact
+    /// empty answers its readings decide are the stored plane's.
+    pub(crate) fn lifted(self, lift: Interval) -> Self {
+        let Self { lane, pass, banked } = self;
+        if pass.get().is_some() {
+            unreachable!("a section is lifted before its boundary pass runs");
+        }
+        Self {
+            lane: Lane {
+                form: lane.form.lifted(lift),
+                ..lane
+            },
+            pass,
+            banked,
+        }
+    }
+
     /// What this section's boundary pass is run over ([`PassKey`]).
     pub(crate) fn pass_key(&self) -> PassKey {
         let d = self.lane.wall.domain();
+        // The lift's ends only name the pass: `{:e}` renders each exactly,
+        // and nothing compares them or branches on them.
+        let lift = self.lane.form.lift();
         PassKey {
-            partner: format!("{:?}", self.lane.sys.partner),
+            partner: format!(
+                "{:?} lifted [{:e}, {:e}]",
+                self.lane.sys.partner,
+                lift.lo(),
+                lift.hi()
+            ),
             wall: wall_digest(self.lane.sys.wall),
             domain: [
                 d.center.x,
@@ -322,6 +358,18 @@ impl<'a> ImplicitSection<'a> {
             pass: OnceCell::from(pass),
             ..self
         })
+    }
+
+    /// **The section with the classification's decided critical points
+    /// handed in** (C5): `nodes`, each node's box, which a march ends on
+    /// entering (C5's node end), indexed as the branches' node tips
+    /// ([`super::BranchTip::Node`]); and `claimed`, every decided point's
+    /// box, nodes' and touches', each holding the one zero of `∇φ` in
+    /// it, which seeding skips and accounting reads as a region.
+    pub(crate) fn with_criticals(mut self, nodes: &[UvRect], claimed: &[UvRect]) -> Self {
+        self.lane.nodes = nodes.to_vec();
+        self.lane.claimed = claimed.to_vec();
+        self
     }
 
     /// The wall's chart enclosures, minted once for the section.
@@ -388,7 +436,13 @@ impl<'a> ImplicitSection<'a> {
         // first, ahead of the pass whose crossings it would settle.
         let ends = lane.ends()?;
         let pass = passed(&self.pass, || lane.wall.pass(&lane.form))?;
-        let seeds = exhaust::seed_chart_partner(lane.seed_floor, |cell| lane.excluded(cell))?;
+        // A cell inside a decided point's box is that point's: no seed.
+        // A cost guard and nothing depends on it: a seed in a node's box
+        // is off the domain ([`RectExit::holds_domain`]), and none in a
+        // touch's box settles, so the section is the same without it.
+        let seeds = exhaust::seed_chart_partner(lane.seed_floor, |cell| {
+            Ok(cell.covered_by(&lane.claimed) || lane.excluded(cell)?)
+        })?;
         #[allow(clippy::cast_possible_truncation)]
         let seed_count = seeds.len() as u32;
 
@@ -396,11 +450,13 @@ impl<'a> ImplicitSection<'a> {
             self.banked.bank(branch);
         }
         let states = seeds.iter().map(|&(u, v)| [u, v]);
-        self.banked.closed_loops(&ends, states, &pass.regions)?;
+        let regions: Vec<UvRect> = pass.regions.iter().chain(&lane.claimed).copied().collect();
+        let open = self.banked.open(&pass.crossings);
+        self.banked.closed_loops(&ends, states, &regions, &open)?;
 
         let tubes: Vec<UvRect> = self.banked.tubes.iter().flatten().copied().collect();
         let exhaustiveness = exhaust::account_chart_partner(
-            (&tubes, &pass.regions, &pass.clear),
+            (&tubes, &regions, &pass.clear),
             lane.wall.account_floor(),
             |cell| lane.excluded(cell),
         )?;

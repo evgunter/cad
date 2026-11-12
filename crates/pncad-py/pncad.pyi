@@ -606,7 +606,7 @@ class StepImportError(PncadError):
     `malformed_real`, `topology`,
     `assembly`, `adoption`, `rim_off_wall_boundary`,
     `wall_column_structure`, `recognition_ambiguous`, `pcurves`,
-    `join`, `singularity_undecided`, `placement_map`, `placement`,
+    `join`, `singularity_undecided`, `placement`,
     `instance`, `c0_knot_unsplit` or `tier_invalid` — or `wireframe`, which is not a refusal at all:
     the file parsed, to something this door does not adopt.
 
@@ -4982,9 +4982,13 @@ class StructureNormalization:
 
     `promoted_to` and `residual` are `surface_promotion`'s payload and
     `singularity` is `chart_singularity_vertex`'s (`interior`,
-    `inside_edge` or `valence_one_vertex`), each `None` on the other
-    arms — present on every row, so a read never raises and a caller
-    never has to branch on `kind` first."""
+    `inside_edge` or `valence_one_vertex`), and `transform` and
+    `moved_by` are `placement_re_minted`'s (the assembly placement whose
+    frames the import built by their axes, and the farthest a point of
+    the session box moved, in metres), each `None` on the other arms —
+    present on every row, so a read never raises and a caller never has
+    to branch on `kind` first. On `placement_re_minted`, `face` is the
+    transformation's entity id, the row naming no face."""
 
     @property
     def face(self) -> int: ...
@@ -4996,6 +5000,10 @@ class StructureNormalization:
     def residual(self) -> Optional[float]: ...
     @property
     def singularity(self) -> Optional[str]: ...
+    @property
+    def transform(self) -> Optional[int]: ...
+    @property
+    def moved_by(self) -> Optional[float]: ...
     @property
     def file_census(self) -> FaceCensus: ...
     @property
@@ -7087,8 +7095,8 @@ class Coincidence:
     `tangent_witness`, `coaxial_sphere`, `sphere_on_torus_axis`,
     `coaxial_cylinder_torus`, `coaxial_tori`, `crossing_cylinders`, `split_on`,
     `battery_turn`, `battery_joint`, `battery_support_axis`,
-    `profile_junction`, `vertex_fusion`, `iso_join` or
-    `census_at_rest`. A `profile_junction` row is `tangent` or `cusp`
+    `profile_junction`, `vertex_fusion`, `iso_join`, `census_at_rest` or
+    `smooth_join`. A `profile_junction` row is `tangent` or `cusp`
     between two carriers and `same_oriented` where its two pieces
     continue one carrier; a `tangent_witness` row is `surface_tangent`,
     claiming nothing of the materials. `rung` is the door's rung that

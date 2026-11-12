@@ -50,6 +50,22 @@ an anonymous defined variable; a slot showing `5 mm` an anonymous free
 one. Formulas have one home: definitions, arithmetic over measured
 values included.
 
+A placement's source slot holds a **source** (DESIGN
+`[placement.placement]`): a `Body` variable defined as a read of one
+body — a plain body, a member `xs[k]`, a pick or another source —
+never an operation's output read directly. A source is a variable like
+any other, so VR2 holds unchanged: a lone placement's source is
+anonymous and its own, and two or more placements share it only by
+its name, which the person gives when the body is placed a second
+time. Re-pointing the placements of a body is redefining their source
+(`bracket = F`), one action with the rebinds of what reads the copies;
+a later placement of `bracket` reads `bracket`. A source adds no name
+segment, so a copy's mate `on` sides select the source
+(`bracket.top`). An operation's output keeps its exemption from
+naming everywhere else. Ev chose this design on PR 6672 (2026-11-12) knowing
+its downsides were not all foreseen, and asked that a later reader who
+finds one push back on it rather than treat it as settled.
+
 **VR5 — `Expr` holds no float.** Its leaves are `Var(VarId)` (caching
 the kind, which cannot change), exact rational constants (`Scalar`,
 reduced; integers for `Count`), `turn` (`Angle`, one full rotation) and

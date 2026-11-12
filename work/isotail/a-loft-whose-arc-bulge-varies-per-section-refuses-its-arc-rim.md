@@ -69,3 +69,23 @@ a refined row is refused there too, even where the image's map is right
 refined row is one fix for both this case and the two-section cap rim.
 Pinned by
 `sweep::all degree1_loft_slabs::an_interior_arc_refined_by_its_neighbours_refuses_typed`.
+
+## The interior-section case lofts (2026-11-04)
+
+Since `pcert/main-reds-e2-e5`, an arc rim's image carries its row's end
+weights where they are not one value (`Pcurve::IsoArc`'s `ends`). A
+standard arc refined at the midpoint of its parameter is two uniform
+sub-arcs at end weights `1, (1 + w)/2, 1`, which that image describes
+and the certificate certifies. So all three degree-1 interior-section
+lofts above now build and are at rest. The row is re-pinned as
+`degree1_loft_slabs::an_interior_arc_refined_by_its_neighbours_lofts`.
+Its first case meshes to its integrated volume. The third meets a mesher
+gap on a line rim, filed as
+`work/tess/a-line-rim-on-a-creased-loft-wall-does-not-mesh.md`.
+
+The first shape is unchanged. At v-degree 2 with bulges `tan(π/8)`,
+`tan 50°`, `tan 30°` at z = `[0, 1, 2]`, it still refuses, now as
+`NoGeneralLane { chart: Nurbs, carrier: Circle, gap: Unwritten }` at
+`HalfEdgeKey(20v1)`. Its row is refined at non-uniform breaks
+(`⅓, ½, ⅔`), which the arc-rim class does not describe.
+

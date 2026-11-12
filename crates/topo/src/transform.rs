@@ -13,16 +13,16 @@
 //!
 //! [`transform_rigid`]'s map is a [`RigidMotion`] (orthonormal linear
 //! part, determinant +1, finite): rigidity is **carried by the witness
-//! or decided at its door** ([`RigidMotion::check_rigid`]), and this
-//! door asks nothing about it. A mirror's map is a
+//! it was minted as, or admitted within rounding at the `f64` door**
+//! ([`RigidMotion::check_rigid`]), and this door asks nothing about it. A mirror's map is a
 //! [`crate::Reflection`], a Householder matrix (determinant −1) decided
 //! at its own door. A uniform scale is affinely self-consistent on planar
 //! bodies, so re-certification alone would NOT catch one while it
 //! silently broke every unit-vector convention downstream; the type is
-//! what keeps one out, to the type's own standard: a minted motion is
-//! rigid up to rounding, a door-admitted factor within the band, and a
-//! product of `k` admitted factors — not decided again — within about
-//! `k` bands (`RigidMotion`'s module docs). On top of that, every edge
+//! what keeps one out, to the type's own standard: a minted or
+//! door-admitted motion is rigid up to rounding, and a product of `k`
+//! of them — not decided again — within about `k` times that rounding
+//! (`RigidMotion`'s module docs). On top of that, every edge
 //! carrier is **re-attached** against the mapped geometry through the
 //! scalar's edge door ([`crate::AtRestPolicy::attach_edge`]: certified in
 //! full where the scalar certifies, minted where it never does) — so a

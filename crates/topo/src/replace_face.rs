@@ -3558,12 +3558,14 @@ fn shift_chart_v<T: Real>(pcurve: &geom_brep::Pcurve<T>, shift: T) -> Option<geo
             t0,
             angle,
             ref breaks,
+            ref ends,
         } => Pcurve::IsoArc {
             p0: geom_core::Point2::new(p0.x, p0.y + shift),
             pd,
             t0,
             angle,
             breaks: breaks.clone(),
+            ends: ends.clone(),
         },
         // Both spiric images are affine in the chart's SECOND channel
         // — the cap's `v` coordinate is its constant term's, the

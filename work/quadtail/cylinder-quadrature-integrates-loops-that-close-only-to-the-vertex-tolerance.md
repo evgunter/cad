@@ -94,8 +94,10 @@ no pad for its connector, in:
   form's `anchor`, the middle of the face's level range);
 - the torus closed form (`curved::torus_chart_loop`): `S = 3ε`, the
   connectors `−(F(v) − F(v_m))·turn` and `−(G(v) − G(v_m))·turn`;
-- the spiric wall (`spiric::wall_windings`): `S` the two images'
-  envelopes plus `3ε`, its Green form integrating each image as handed.
+- the spiric wall, since PR 6808 the rotational lane's spiric arm
+  (`quad::rotational`'s `loop_windings`): `S` each end's `1.5·e` plus
+  `3ε`, its chain closed by the junctions' connectors
+  (`connector_terms`), which pay the region beside each.
 
 The closed forms' junction gaps are not padded either: their sums read
 each edge's own span, and the short turn across a junction enters only

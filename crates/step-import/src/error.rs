@@ -355,18 +355,6 @@ pub enum StepImportError {
         /// The file's ε_in: the import door the refusal is read at.
         file: FileCoincidence,
     },
-    /// An assembly instance's placement map is not admitted as a rigid
-    /// motion at the kernel's decided door
-    /// ([`geom_core::RigidMotion::check_rigid`]): a map this reader's
-    /// ε_in classification let through that the kernel's decided
-    /// predicates would not.
-    PlacementMap {
-        /// The `ITEM_DEFINED_TRANSFORMATION` that states this
-        /// instance's frame.
-        transform: u64,
-        /// The decided door's refusal.
-        source: geom_core::RigidMotionError,
-    },
     /// An assembly instance's rigid placement refused at the kernel's
     /// own [`topo::transform_rigid`] door (M7-4 Leg D): a carrier that
     /// failed to re-certify against the mapped geometry.
@@ -660,11 +648,6 @@ impl StepImportError {
                     ),
                 }
             }
-            Self::PlacementMap { transform, source } => write!(
-                f,
-                "step import: the assembly placement stated at #{transform} is not admitted \
-                 as a rigid motion: {source}"
-            ),
             Self::Placement {
                 transform,
                 source,

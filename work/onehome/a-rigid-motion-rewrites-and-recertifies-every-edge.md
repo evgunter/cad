@@ -2,10 +2,11 @@
 id: a-rigid-motion-rewrites-and-recertifies-every-edge
 kind: issue
 title: transform_rigid rewrites every coordinate of a finished body and re-certifies every edge, where an isometry of a certified body could stay certified or be carried as a placement
-status: open
+status: dispatched
 opened: 2026-11-02
 priority: P1
 cost: M
+branch: onehome/rigid-motion
 ---
 
 Filed at Ev's request on PR 6329 (2026-11-02): "this sounds pretty inefficient though maybe it's unavoidable? i'd have hoped it would fall into the general 'pretend float noise doesn't exist' case. also wait doesn't transform_rigid keep the same underlying representation anyway".

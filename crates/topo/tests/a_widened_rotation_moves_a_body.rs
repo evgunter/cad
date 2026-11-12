@@ -1,10 +1,10 @@
 //! **A rigid motion whose angle or axis is an interval box moves a body
 //! at `Interval`.** The motion is minted by construction
 //! (`RigidMotion::rotation`), so `transform_rigid` asks nothing about
-//! rigidity; the same map handed over as twelve numbers is refused by
-//! the decided door, undecided, because `cos` and `sin` of the box are
-//! independent brackets and the entries' orthogonality straddles the
-//! band.
+//! rigidity; the same map handed over as twelve numbers would have no
+//! door to enter by at `Interval` — `cos` and `sin` of the box are
+//! independent brackets and the entries' orthogonality straddles any
+//! band — so a box motion exists only by its mint.
 //!
 //! The box's half-width is the run's ε, so at every ε row the entries'
 //! orthogonality encloses about `±2ε`, wider than the band's zero, and
@@ -15,10 +15,7 @@
 
 use crate::common;
 
-use geom_core::{
-    Affine3, Band, Bounds, Interval, Point3, Real, RigidMotion, RigidMotionError, Tol, UnitVec3,
-    Vec3,
-};
+use geom_core::{Affine3, Band, Bounds, Interval, Point3, Real, RigidMotion, Tol, UnitVec3, Vec3};
 
 fn cube() -> topo::Body<Interval> {
     common::brick::<Interval>(
@@ -38,9 +35,7 @@ fn half_width() -> f64 {
     Tol::witness().get().eps
 }
 
-/// Every entry of the map the decided door is handed is the minted
-/// motion's own, so the only difference between the two roads is who
-/// asks about rigidity. Then the moved cube is read against the maps
+/// The moved cube is read against the maps
 /// at `samples`, points of the box built at point intervals by
 /// `Affine3::rotation_about_axis` (the normalizing construction, not
 /// the mint): every moved vertex must enclose each sample's image of
@@ -53,13 +48,6 @@ fn moves_where_its_entries_do_not_decide(
     samples: &[Affine3<Interval>],
     what: &str,
 ) {
-    assert!(
-        matches!(
-            RigidMotion::check_rigid(&motion.to_affine(), band()),
-            Err(RigidMotionError::Undecided { .. })
-        ),
-        "{what}: the box's entries cannot be decided orthonormal at the band"
-    );
     let cube = cube();
     let moved = topo::transform_rigid(&cube, &motion, Tol::witness())
         .unwrap_or_else(|e| panic!("{what}: the witness moves the cube: {e:?}"));

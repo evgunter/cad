@@ -217,6 +217,7 @@ fn verdict(name: &str, got: &Limbs) -> (Verdict, f64) {
             iso: None,
             limb,
             bound,
+            ..
         })) => (Verdict::Refused(*limb), upper(*bound)),
         // A miss inside the band refuses undecided, on the bound it read.
         Err(PlaneNurbsRefusal::Escalated { limb, cause }) => {
@@ -856,7 +857,9 @@ fn a_promoted_line_certifies_where_its_spline_did_on_the_same_image() {
     let images: Vec<Vec<(f64, f64)>> = [&spline, &line]
         .into_iter()
         .map(|c| {
-            let image = fitted.general_image(c, (0.0, 1.0), &flat_wall()).unwrap();
+            let image = fitted
+                .general_image(c, (0.0, 1.0), &flat_wall(), band())
+                .unwrap();
             assert_eq!(
                 image.knots_f64_interim().domain(),
                 (0.0, 1.0),

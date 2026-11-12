@@ -3009,7 +3009,7 @@ fn drawn(display: &DisplayView, part: &NodePick) -> Option<Affine3<f64>> {
         .moved_nodes
         .get(&part.node())
         .copied()
-        .map(|frame: Frame| frame.affine::<f64>());
+        .map(|frame: Frame| frame.affine());
     match (probe, placed) {
         (None, placed) => placed,
         (Some(probe), None) => Some(probe),
@@ -3036,7 +3036,7 @@ pub(crate) fn witness_leg(
             .get(&node)
             .copied()
             .map_or(in_space, |frame: Frame| {
-                frame.affine::<f64>().transform_point(in_space)
+                frame.affine().transform_point(in_space)
             })
     })
 }
@@ -3048,7 +3048,7 @@ fn probed(display: &DisplayView, part: &NodePick) -> Option<Affine3<f64>> {
         .moved_nodes
         .get(&part.node())
         .copied()
-        .map(|frame: Frame| frame.affine::<f64>())
+        .map(|frame: Frame| frame.affine())
 }
 
 /// The part's frame in its space, `None` where its body is in its

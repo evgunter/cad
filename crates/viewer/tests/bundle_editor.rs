@@ -376,9 +376,10 @@ fn place_lands_where_the_body_stands_with_zero_values() {
     );
     let states = session.history().len();
     let placed = session.committed_doc().placements();
-    let outcome = session.perform(SessionOp::Place {
-        body: Operand::Node(body),
-    });
+    let outcome = session.perform(
+        SessionOp::place_where_it_stands(session.committed_doc(), Operand::Node(body))
+            .expect("a body in a space"),
+    );
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
     session.pump();
     assert_eq!(session.history().len(), states + 1, "one history state");
@@ -501,9 +502,8 @@ fn a_second_place_of_a_placed_body_is_a_second_placement() {
     );
     let body = common::xy_box_in(&mut session, [0.02, 0.03, 0.01]);
     session.pump();
-    let place = SessionOp::Place {
-        body: Operand::Node(body),
-    };
+    let place = SessionOp::place_where_it_stands(session.committed_doc(), Operand::Node(body))
+        .expect("a body in a space");
     let first = common::placed_by(&mut session, place.clone());
     let states = session.history().len();
     let second = common::placed_by(&mut session, place);

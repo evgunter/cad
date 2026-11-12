@@ -243,11 +243,13 @@ fn peg_with_split_wall_keys() -> (Body<f64>, Vec<topo::SurfaceKey>) {
 /// **The public door on a peg whose three wall sectors sit on keys of
 /// their own** reads them on the carrier ladder, and the three sectors are
 /// one run whose glue would close the full period: the door records
-/// that `PeriodClosure`, naming every sector, and commits nothing.
+/// that `PeriodClosure`, naming every sector, and the run's verdicts
+/// leave its sectors on one record unmerged (`[topo.one-record.merge]`),
+/// no face gained or lost.
 #[test]
 fn a_full_period_run_on_keys_of_its_own_is_recorded_as_its_period_closure() {
     let (mut body, _) = peg_with_split_wall_keys();
-    let before = format!("{body:?}");
+    let faces_before = body.faces().count();
     let outcome = body
         .merge_coplanar_faces(Tol::witness())
         .expect("a full-period run is recorded, never refused");
@@ -265,21 +267,29 @@ fn a_full_period_run_on_keys_of_its_own_is_recorded_as_its_period_closure() {
         sorted(walls_at(&body, BORE_R)),
         "the record names every sector of the run"
     );
-    assert_eq!(
-        format!("{body:?}"),
-        before,
-        "nothing commits: the body is untouched"
-    );
+    assert_one_record_unmerged(&body, faces_before);
+}
+
+/// `body` keeps its `faces` faces, and its wall sectors wear one record.
+fn assert_one_record_unmerged(body: &Body<f64>, faces: usize) {
+    assert_eq!(body.faces().count(), faces, "no face merged");
+    let walls = walls_at(body, BORE_R);
+    let records: std::collections::BTreeSet<_> = walls
+        .iter()
+        .map(|&f| body.get_face(f).unwrap().surface)
+        .collect();
+    assert_eq!(records.len(), 1, "the run's sectors wear one record");
+    assert_eq!(validate_closed(body), Ok(()));
 }
 
 /// **The public door reads the planar pairs and the cylinder pairs of
 /// one body** are each read by their own carriers — the two cap planes,
 /// which never meet, glue nothing, and the cylinder sectors' run is
-/// recorded as its period closure.
+/// recorded as its period closure, left on one record unmerged.
 #[test]
 fn mixed_list_classifies_each_pair_by_its_own_kind() {
     let (mut body, _) = peg_with_split_wall_keys();
-    let before = format!("{body:?}");
+    let faces_before = body.faces().count();
     {
         let outcome = body
             .merge_coplanar_faces(Tol::witness())
@@ -296,11 +306,7 @@ fn mixed_list_classifies_each_pair_by_its_own_kind() {
             "the run's period closure: {:?}",
             outcome.skipped
         );
-        assert_eq!(
-            format!("{body:?}"),
-            before,
-            "nothing commits: the body is untouched"
-        );
+        assert_one_record_unmerged(&body, faces_before);
     }
 }
 
@@ -796,11 +802,25 @@ fn stacked_equal_pegs_same_sense_walls() {
         faces.iter().all(|&(_, s)| s == faces[0].1),
         "F: one sense throughout — a continuation, not a slit: {faces:?}"
     );
+    let surfaces: std::collections::BTreeSet<_> = faces
+        .iter()
+        .map(|&(f, _)| bb.body.get_face(f).unwrap().surface)
+        .collect();
+    assert_eq!(
+        surfaces.len(),
+        1,
+        "F: the glue leaves both walls on one record: {surfaces:?}"
+    );
     let keys: Vec<_> = faces.iter().map(|&(f, _)| f).collect();
+    // The rim's arcs at z = 1; the walls' rulings are lines.
     let cross: Vec<_> = shared_edges(&bb.body, &keys)
         .into_iter()
-        .filter(|&(_, f1, f2)| {
-            bb.body.get_face(f1).unwrap().surface != bb.body.get_face(f2).unwrap().surface
+        .filter(|&(e, _, _)| {
+            let edge = bb.body.get_edge(e).unwrap();
+            bb.body
+                .get_curve_geom(edge.curve)
+                .and_then(topo::CurveGeom::certified)
+                .is_some_and(|c| c.carrier().kind() == geom::CurveKind::Circle)
         })
         .collect();
     assert_eq!(

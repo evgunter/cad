@@ -105,9 +105,17 @@
 //! branch; and the slope quadratic's stable root, signed by the
 //! branch's `L`, whose own vertex and frame were placed by the same
 //! `δσ` (no measured document reaches either file's sites);
-//! `geom-brep/src/quartic.rs`'s `cbrt` and the Cardano
-//! root's sign transfer from `Q`. That list is not
-//! prose: `sym_rule_f_rows`'s
+//! `geom-brep/src/quartic.rs`'s `cbrt` and the Cardano root's sign
+//! transfer from `Q`; `mesh/src/walk.rs`'s `loop_polygon` at a horn's
+//! cusp (`Chart::is_horn`), the `v = ±π` copy on the side of the
+//! leaving meridian's next vertex (`f64` only: the walk takes
+//! `Body<f64>`), its sign never read off a `±0`: the meridian here is a
+//! circle about the tube centre (the walk's classifier refuses an
+//! ellipse, spiric or B-spline carrier, and no line lies on a sheet),
+//! so `v` moves with its angle, and `mesh`'s chord pass steps that
+//! angle by at most `MAX_ANGULAR_STEP = π/4` (`sagitta_step`), which
+//! puts the next vertex, chord point or far end, at `|v| ≥ 3π/4`.
+//! That list is not prose: `sym_rule_f_rows`'s
 //! `the_copysign_mint_sites_the_tree_holds_are_these` greps the
 //! shipped sources and reds when a site appears or goes, so the day a
 //! new site is minted the census is re-asked rather than the sentence

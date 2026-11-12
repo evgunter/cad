@@ -375,9 +375,24 @@ pub fn dihedral_class<T: Decide>(
     reach: geom_core::Lever<T>,
     band: Band,
 ) -> Result<DihedralClass, LeverEscalation> {
-    wedge_decided(s1, s2, p, reach, band)
-        .map(|(class, _)| class)
-        .map_err(FirstOrderEscalation::into_lever)
+    dihedral_decided(s1, s2, p, reach, band).map(|(class, _)| class)
+}
+
+/// [`dihedral_class`] with the wedge decision's margin: a caller that
+/// decides a coincidence from a smooth join records that margin as the
+/// decision's row.
+///
+/// # Errors
+///
+/// As [`dihedral_class`].
+pub fn dihedral_decided<T: Decide>(
+    s1: &Surface<T>,
+    s2: &Surface<T>,
+    p: Point3<T>,
+    reach: geom_core::Lever<T>,
+    band: Band,
+) -> Result<(DihedralClass, geom_core::MarginDiag), LeverEscalation> {
+    wedge_decided(s1, s2, p, reach, band).map_err(FirstOrderEscalation::into_lever)
 }
 
 /// The first-order reading at `p` as its token, with the wedge
@@ -1608,18 +1623,40 @@ impl<T: Real> MustCarryDescription<T> {
 }
 
 /// **Where a conventional edge between two faces rests** (D2): in the
-/// chart of the one surface both faces lie on — one record, or two
-/// records of one carrier, whose incidence on both is incidence on one
-/// and so determines nothing — or as the pair of two distinct surfaces
-/// that under-determine it. Decided in one home, `topo`'s
-/// `topo::rest_locus`, which reads coincidence by the carrier-equality
-/// ladder; every door states what that home decides.
+/// chart of the one surface record both faces wear, or as the pair of
+/// two records, which at rest are two surfaces (DESIGN
+/// `[coincidence.door]`). Decided by key in one home ([`rest_locus`]);
+/// every door states what that home decides.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum RestLocus {
     /// The one surface's chart.
     Chart(crate::SurfaceKey),
     /// The pair of two distinct surfaces.
     Pair(crate::SurfacePair),
+}
+
+/// **Where a conventional edge between two surface records rests**, by
+/// key ([`RestLocus`]): one record on both sides is one surface, and the
+/// edge rests in its chart; two records are two surfaces at rest, and it
+/// rests on their pair. Where an act decided two faces one carrier it
+/// left them on one record (`topo`'s README `[topo.one-record]`), so no
+/// value is read here.
+///
+/// The pair's certificate is incidence on both surfaces, which holds
+/// whether or not they are one carrier, so the description is true under
+/// either reading. **What a reader must not do with a pair**: an `OnPair`
+/// may lie between two near-coincident surfaces whose intersection is
+/// ill-conditioned or absent; the stored carrier is the pair's defining
+/// data, and no reader derives the edge's geometry from the pair's
+/// section. A door that moves such an edge carries or re-sections its
+/// carrier and re-asks the rule over it ([`reask_pair`]).
+#[must_use]
+pub fn rest_locus([ka, kb]: [crate::SurfaceKey; 2]) -> RestLocus {
+    if ka == kb {
+        RestLocus::Chart(ka)
+    } else {
+        RestLocus::Pair(crate::SurfacePair::new(ka, kb))
+    }
 }
 
 impl RestLocus {

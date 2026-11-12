@@ -4,7 +4,7 @@ kind: issue
 title: "[topo.homes] arm 1: boolean/carrier_eq and boolean/plane_eq take no Body and stay in topo"
 status: open
 opened: 2026-11-03
-priority: P2
+priority: P1
 ---
 
 

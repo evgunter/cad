@@ -81,3 +81,37 @@ the mint. They meet the same three consumers:
 (re-mint), which is right for a circle too. E4's per-PR runs (geom-brep,
 topo, sweep at ε 1e-9) reached none of the three through a circle: no
 row moved there.
+
+## The cylinder volume is read (2026-11-04)
+
+PR 6478 (spiricarm, the rotational-chart lane) gave tier 3's volume a
+lane on the cylinder chart that reads a projected chord
+(`geom_brep::props::quad::rotational`, `ProjectedEdgeQ`). That closes
+the third consumer above on the cylinder. Its witness,
+`sweep bisector_nodes::the_near_node_poses_at_the_witness_band`
+(`work/pcert/main-red-a-near-node-cap-loses-its-volume-to-a-projected-ruling-image.md`),
+went green at that merge. Props on the sphere, cone and torus charts
+is still open; spiricarm's stages 2 and 3 cover it.
+
+The PCERT main-reds lane re-swept the consumers for `Pcurve::Projected`
+over `crates/*/src` at `143d99ec29`, plus a second pass for `_ =>` arms
+beside a `Pcurve::Harmonic` arm, which can reach a projected image
+without naming it:
+
+- `topo::chart_window`'s run walk (`chart_azimuth_range`, now in
+  `chart_window.rs`): still `RunImageNotYet`, as above.
+- `topo::chart_region::pcurve_entry`: still "Projected image is not a
+  straight segment", as above.
+- `topo::props::quad_lane`: the NURBS-face arm refuses a projected
+  image as corrupt, which is right because no spline chart mints one.
+  Its wall-image read (`WallImage::Other`, from the `_` arm) carries a
+  projected image as no closed form.
+- Not named above: `topo::clearance`'s `monotone_line` and `iso_of`
+  read a ruling's meridian `Harmonic` form as an iso line, and a
+  projected ruling as none (the `_ => false` arm). That is
+  conservative, because the clearance takes no iso shortcut for it, but
+  a face bounded by an in-band ruling loses that shortcut.
+- The mesher (`mesh::trimmed`, `mesh::chords`): it admits a projected
+  image on an analytic chart (sampled at the chord pass's parameters),
+  and refuses it on a spline chart as corrupt.
+- `topo::replace_face`: re-mints, as above.

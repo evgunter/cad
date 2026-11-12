@@ -803,7 +803,7 @@ fn sphere_pairs_every_class() {
     let other = sphere(p(0.9, 0.5, 0.2), 0.7);
     on_both(witness(&classify(&ball, &other)), &ball, &other);
     assert_eq!(shape(&classify(&ball, &sphere(p(0.1, 0.0, 0.0), 0.3))).0, 0);
-    // Cylinder: one loop off the axis, witnessed on the nearest ruling.
+    // Cylinder: one loop off the axis, witnessed by the ruling sweep.
     let wall = cylinder(p(0.8, 0.0, -2.0), Vec3::unit_z(), 0.5);
     on_both(witness(&classify(&ball, &wall)), &ball, &wall);
     on_both(witness(&classify(&wall, &ball)), &ball, &wall);

@@ -377,10 +377,13 @@ const ROSTER: &[(&str, usize, usize, &str)] = &[
     ),
     (
         "crates/geom-brep/src/pair_section/spline_implicit/sweep/critical.rs",
-        31,
-        26,
-        "the 26 that ask are `krawczyk`'s (12) and the critical-value door's (`decide`, 14). Of \
-         the other 5, `read`'s 2 are the value's ceiling in metres, which that door decides only \
+        37,
+        28,
+        "the 28 that ask are `krawczyk`'s (12), the critical-value door's (`decide`, 14) and \
+         `node_frame`'s width (2), read only where all three of `S(b)`'s coordinates certify and \
+         NaN otherwise, which the listing refuses (`NODE_BOX`). Of the other 9, `grown`'s 4 are \
+         its doubling's seed half-widths, every box it keeps proved again by `krawczyk`; \
+         `read`'s 2 are the value's ceiling in metres, which that door decides only \
          after it asks `at.value.is_certified()`; `mid`'s 2 are the Krawczyk box's centre, a \
          seed; and `along_line`'s 1, its norm, is minted a fresh point, but the slope's \
          numerator carries the gradient's and the direction's decoration, which its caller asks \
@@ -398,7 +401,22 @@ const ROSTER: &[(&str, usize, usize, &str)] = &[
          answers `0` for a non-finite mean, so a refused input still yields a finite centre and \
          the reach about it reports the trouble",
     ),
-    ("crates/geom-brep/src/pcurve_cache.rs", 2, 2, ""),
+    (
+        "crates/geom-brep/src/pcurve_cache.rs",
+        7,
+        2,
+        "`certified_lower`/`certified_upper`'s 2 read only after asking by name. The remainder is \
+         5 schedule reads. `Parts::of`'s 3 are `ByTurn`'s count of a span's parts: its controls' \
+         extent from their brackets' ends and their least axis distance's `lo`, compared to cut \
+         the span finer. A refused bracket only moves the count (a NaN compares false and cuts \
+         finer, up to the most), and each part's hull bounds `|f|` at any count through the \
+         asking reads. `limb2_offset_sup`'s 2 are its spindle `mid`: the squared distance of a window end from \
+         the axis, read at its bracket midpoint only to choose whether that end's grid is graded \
+         toward the apex (`apex_grading`). The grid is only breaks of the carrier's enclosing net, \
+         which encloses over any breaks, and every span hull of it reads its ends through the \
+         two asking reads above; so a refused bracket moves where the net is cut, never what a \
+         span certifies, and a NaN reading compares false and grades nothing",
+    ),
     ("crates/geom-brep/src/pcurve_cache/projected.rs", 2, 2, ""),
     ("crates/geom-brep/src/props/bracket.rs", 8, 8, ""),
     (
@@ -420,13 +438,31 @@ const ROSTER: &[(&str, usize, usize, &str)] = &[
          certifies, whose `lo` IS the weight",
     ),
     (
+        "crates/geom-brep/src/props/quad/projected_edge.rs",
+        5,
+        5,
+        "",
+    ),
+    (
         "crates/geom-brep/src/props/quad/rational.rs",
         3,
         3,
         "`rational_patch_face`'s 3 are weight reads (`net.rs`'s note) in a function that asks of \
          other values",
     ),
-    ("crates/geom-brep/src/props/quad/rotational.rs", 2, 2, ""),
+    (
+        "crates/geom-brep/src/props/quad/rotational.rs",
+        20,
+        19,
+        "19 read after asking by name. `rotational_cut_face_rounds`' 2 are the ring torus's \
+         floor, `(R − r).lo()` and `r.lo()`; `torus_face`'s 14 are its count window, every one past a refusal \
+         unless `x` and `A` both certify with `A.lo() > 0`, so `x + n·A` at the finite count `n` \
+         certifies too. The remainder is `piece_reach`'s 1, the chart radius's \
+         upper end scaled to the length a rational chart term's round-0 piece may span: a \
+         schedule (`term_schedule`, whose pieces each ask their own speed's `is_certified()`, \
+         feeding the rounds' cost), so a refused radius moves how finely the term is first cut, \
+         never what a piece certifies",
+    ),
     (
         "crates/geom-brep/src/props/quad/trimmed.rs",
         6,
@@ -441,16 +477,20 @@ const ROSTER: &[(&str, usize, usize, &str)] = &[
          `lo_or_refuse`/`certified_hi`/`mid` (`props/bracket.rs`), which are the guarded ones, \
          or asks `is_certified()` of the bracket it reads (`rotational.rs`)",
     ),
-    ("crates/geom-brep/src/props/spiric.rs", 15, 15, ""),
+    ("crates/geom-brep/src/props/spiric.rs", 13, 13, ""),
     (
         "crates/geom-brep/src/props/taylor.rs",
-        15,
-        12,
+        16,
+        13,
         "the remaining 3 are safe by construction. `trig_range`'s 2, its half-width, read `pt` \
          differences of two f64 ends the function has checked finite and ordered, so no operand \
          can be refused. `rate_bound_over`'s 1, its sum, reads the `hi` of a product of point \
          brackets: `q − p` of two finite nodes, and the rate the caller's own `f64` upper bound, \
-         `NaN` where it reads none, which the sum carries. Every other read sits in a function \
+         `NaN` where it reads none, which the sum carries. `primitive_each`'s 1 is counted \
+         asking, but its `is_certified()` is `start`'s: the read is a piece's length `h`, the \
+         `hi` of `q − p`. A node is `NaN` where `b − a` overflows, and then `pt` of it is NaI, \
+         so `total` refuses; `h` scales only `removable`, the width a later round removes, \
+         whose `NaN` makes `Run::stop`'s floor comparison false. Every other read sits in a function \
          that refuses a refused input by name (`composite_by`, 10; `trig_of`, 2), and the \
          integrands' trig jets read through `trig_of` (`trig_jets`)",
     ),
@@ -521,6 +561,15 @@ const ROSTER: &[(&str, usize, usize, &str)] = &[
          which refuses an uncertified enclosure by name. `row_cover`'s 1 reads the graph \
          margin's sign only after `tube_margin` has answered `Some`, which it does only for a \
          margin that certifies",
+    ),
+    (
+        "crates/geom-brep/src/ssi/implicit_chart.rs",
+        2,
+        0,
+        "both are `pass_key`'s, the partner's lift rendered into the key a boundary pass is \
+         carried over by. They are an identity, not a bound: `{:e}` renders each end exactly, \
+         nothing compares them or takes a branch on them, and a pass carries only between \
+         sections whose keys are equal",
     ),
     (
         "crates/geom-brep/src/ssi/one_arc.rs",
