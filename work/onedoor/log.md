@@ -391,3 +391,9 @@ Ev, in chat: "go ahead in whatever order you see fit (including parallelizing th
   - The scope is the row's "Designed" section, plus `contact-verify-rules-perpendicular-on-an-undecided-extent` and `at-rest-constant-pairing-reads-two-non-parallel-planes-as-opposed`.
   - (ONEDOOR orchestrator)
 - 2026-11-12 — **Face-pair dispatched** at 16:20 to a local lane on `onedoor/face-pair`. The implementer was drawn as byte 36 (Opus), on the analysis branch. The brief is `onedoor-briefs/onedoor-facepair-brief.md`. It makes the every-eps-row rule explicit after 6869's fix-pass red. (ONEDOOR orchestrator)
+
+## 2026-11-12 — loop lift ruled; three-walks specified
+
+- **Ev ruled on [#6851](https://github.com/evgunter/cad/pull/6851)**: "i think this plan is good. i don't want to keep reset". C4 now reads: no reset anywhere. The singular set stores the pole rule's element, and an undecidable joint refuses typed. Fork-log row 262 is filled (A = Opus, B = Fable). The PR merges on green.
+- **Three-walks specified** (the row's "Designed" and "Spec" sections): letter H, tier dual, written before the implementer draw. It runs as a cloud session, because the local disk holds the face-pair build.
+- (ONEDOOR orchestrator)
