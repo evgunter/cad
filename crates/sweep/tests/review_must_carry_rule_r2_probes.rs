@@ -11,9 +11,7 @@
 
 use geom::SurfaceKind;
 use geom::{Curve3, Surface};
-use geom_brep::{
-    MustCarryEscalation, MustCarryVerdict, must_carry_over_edge, tangent_certificate_lane,
-};
+use geom_brep::{MustCarryVerdict, WedgeRung, must_carry_over_edge, tangent_certificate_lane};
 use geom_core::{Band, Point2, Point3, Sign, Tol, Vec2, Vec3};
 use profile::{Profile, SketchPlane, test_support::bulge_loop};
 use sweep::ExtrudeSide;
@@ -333,7 +331,7 @@ fn a_pair_whose_kappa_rel_varies_along_the_carrier_decides_at_a_later_station() 
     // passed: {kappas:?} is the spread that makes that concrete.
     if let MustCarryVerdict::InBand(source) = answer {
         assert!(
-            matches!(source, MustCarryEscalation::SecondOrder(_)),
+            source.rung() == WedgeRung::Bend,
             "the deciding station's escalation is the second-order reading's: {source:?}"
         );
         assert_eq!(

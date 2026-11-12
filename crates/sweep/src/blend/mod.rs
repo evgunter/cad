@@ -154,12 +154,11 @@ pub mod surgery;
 
 use core::fmt;
 
-use geom_brep::LeverRung;
 use geom_brep::recourse::{
     Classified, LeverOnly, RefusedArm, RefusedSide, SizedDecision, SizedPass,
 };
 use geom_core::{Band, BandError, Decide, Indeterminate, Margin, MarginDiag, MarginKind, Sign};
-use topo::{DihedralReading, EdgeKey, EntityId, FaceKey, VertexKey};
+use topo::{EdgeKey, EntityId, FaceKey, VertexKey};
 
 pub use arms::{BlendArm, CornerBall, EdgeBlend, RimBlend};
 pub use battery::{
@@ -297,7 +296,7 @@ pub enum BlendDecision {
     /// contact edge the surgery is about to describe — whether the
     /// edge is [`geom_brep::DIHEDRAL_ARM_CLAUSE`]. Decided in
     /// `geom_brep` (`must_carry_over_edge`), whose in-band verdict names
-    /// the rung ([`geom_brep::MustCarryEscalation::FirstOrder`]).
+    /// the rung ([`geom_brep::WedgeRung::Arm`]).
     ContactArm,
     /// `dihedral_wedge`: the must-carry rule's first-order wedge at a
     /// contact edge — whether the faces meet smoothly or at an angle.
@@ -306,7 +305,7 @@ pub enum BlendDecision {
     ContactWedge,
     /// `tangent_second_order`: the must-carry rule's second-order
     /// separation at a contact edge, read once every station is
-    /// smooth first-order ([`geom_brep::MustCarryEscalation::SecondOrder`]).
+    /// smooth first-order ([`geom_brep::WedgeRung::Bend`]).
     ContactSecondOrder,
     /// `fillet3_corner_independence`: a uniform trivalent corner's three
     /// support normals are independent.
@@ -370,14 +369,19 @@ impl BlendDecision {
         Self::MitreSection,
     ];
 
-    /// The contact-edge decision the reading a must-carry station
-    /// escalated asks ([`topo::DihedralReading::of_must_carry`]): the
-    /// first-order arm or wedge by rung, or the second-order separation.
-    pub(crate) const fn of_contact(reading: DihedralReading) -> Self {
-        match reading {
-            DihedralReading::Lever(LeverRung::Arm) => Self::ContactArm,
-            DihedralReading::Lever(LeverRung::Reading) => Self::ContactWedge,
-            DihedralReading::Bend => Self::ContactSecondOrder,
+    /// The contact-edge decision the rung a must-carry station escalated
+    /// at asks: the first-order arm or wedge, or the second-order
+    /// separation. The rule asks no sign, pairing or end.
+    pub(crate) fn of_contact(rung: geom_brep::WedgeRung) -> Self {
+        match rung {
+            geom_brep::WedgeRung::Arm => Self::ContactArm,
+            geom_brep::WedgeRung::Wedge => Self::ContactWedge,
+            geom_brep::WedgeRung::Bend => Self::ContactSecondOrder,
+            geom_brep::WedgeRung::Sign
+            | geom_brep::WedgeRung::Pairing
+            | geom_brep::WedgeRung::End => {
+                unreachable!("the must-carry rule raises the arm, the wedge and the bend")
+            }
         }
     }
 
@@ -2435,8 +2439,8 @@ mod recourse_tests {
             (wedge(), BlendDecision::ContactWedge, false),
             (second_order(), BlendDecision::ContactSecondOrder, true),
         ] {
-            let (reading, source) = topo::DihedralReading::of_must_carry(escalation);
-            let decision = BlendDecision::of_contact(reading);
+            let source = escalation.diag();
+            let decision = BlendDecision::of_contact(escalation.rung());
             assert_eq!(
                 (decision, source),
                 (want, escalation.diag()),

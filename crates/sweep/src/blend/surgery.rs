@@ -5278,10 +5278,10 @@ fn attach_contact<T: Decide + Bounds + topo::AtRestPolicy>(
         // contradicting its own routing, announced rather than
         // repaired by storing a description the routing did not
         // choose.
-        let escalated = |reading, source| BlendError::Escalated {
+        let escalated = |escalation: geom_brep::WedgeEscalation| BlendError::Escalated {
             site: BlendSite::Link { edge: link },
-            decision: BlendDecision::of_contact(reading),
-            source,
+            decision: BlendDecision::of_contact(escalation.rung()),
+            source: escalation.diag(),
         };
         // Where the conventional description rests (`topo::rest_locus`):
         // a fillet and its support are never one carrier, so a reading
@@ -5308,7 +5308,6 @@ fn attach_contact<T: Decide + Bounds + topo::AtRestPolicy>(
             // `Body::describe_at_rest`: that restates the STORED
             // carrier, and what the `mef` stored is the chord scaffold,
             // which for an arc is not the locus.
-            escalated,
             escalated,
             |mixed| BlendError::SurgeryInvariant {
                 at: EntityId::Edge(edge),

@@ -8,154 +8,55 @@
 //! interval verbatim (`topo::Body::restate_stored_edge`, or
 //! `describe_at_rest`).
 
-use geom::Curve3;
-use geom_brep::{
-    EdgeDescriptionSpec, MustCarryDescription, SmoothJoin, SurfacePair, must_carry_description,
-};
-use geom_core::spline::SpanLocate;
-use geom_core::{Band, Decide, Point3, Real};
+use geom_brep::{MustCarryDescription, PairRefusal};
+use geom_core::Decide;
 use topo::construction::Construct;
-use topo::{Body, DihedralReading, EdgeKey, EulerOpError, SurfaceKey};
+use topo::{Body, EdgeKey, SurfaceKey};
 
 use super::RevolveError;
 use geom_core::Tol;
 
-/// An edge's stored certified carrier: `(carrier, t0, t1, witness,
-/// reach)` — the mid-parameter witness computed with the certification
-/// schedule's own association `t0 + (t1 − t0)·½` (chord midpoints fail
-/// on arcs), and the faces' extent its wedge is levered at
-/// ([`topo::wedge_reach`]).
-struct EdgeData<'b, T: Real> {
-    carrier: &'b Curve3<T>,
-    t0: T,
-    t1: T,
-    witness: Point3<T>,
-    reach: geom_core::Lever<T>,
-}
-
-fn edge_data<T: SpanLocate + Decide>(
-    body: &Body<T>,
-    edge: EdgeKey,
-) -> Result<EdgeData<'_, T>, RevolveError> {
-    let curve = body.stored_curve(edge).map_err(|e| match e {
-        EulerOpError::Argument(_) => unreachable!(
-            "edge {edge:?} was minted by this revolve and is upgraded before any kill of it"
-        ),
-        e => e,
-    })?;
-    let carrier = curve.carrier();
-    let (t0, t1) = curve.params();
-    let witness = curve.mid_point();
-    let reach = topo::wedge_reach(body, topo::edge_faces(body, edge), carrier, (t0, t1));
-    Ok(EdgeData {
-        carrier,
-        t0,
-        t1,
-        witness,
-        reach,
-    })
-}
-
-/// Upgrades one edge to `Intersection { pair, witness }` when the
-/// two surfaces are definitely transverse at the witness: cap–wall
-/// meridian rims, cap–cap axis edges (partial), and full-revolve
-/// latitude rims all funnel here. Smooth descends one order through
-/// the must-carry rule over the edge
-/// ([`geom_brep::must_carry_over_edge`] — the lane gate and the
-/// certification schedule's interior stations, in its one home), and a
-/// station the rule reads transverse refuses
-/// [`RevolveError::SmoothJoinRefuted`]; Indeterminate is the typed
-/// error built by `sliver` from the reading that escalated, at the
-/// first-order classification and at the rule alike. The reading is
-/// topo's at the edge ([`topo::Body::dihedral_across`]), and a smooth join
-/// of two planes returns its verdict that the two faces are one carrier.
+/// Upgrades one edge between the faces wearing `s1` and `s2` by its
+/// whole wedge (the ratified prefer-intrinsic decisions), the fold tier 3
+/// reads at every station, read across the edge by
+/// [`topo::Body::dihedral_across`]: cap–wall meridian rims, cap–cap axis
+/// edges (partial), latitude joins and full-revolve latitude rims all
+/// funnel here. A crease is the pair's `Intersection`; a smooth join
+/// stores what the must-carry rule demands. A revolve join's carrier is a
+/// latitude CIRCLE, which the jet certificate's circle arm covers on
+/// every surface of revolution, so a jet-DETERMINATE smooth join is a
+/// genuine `TangentIntersection` (D2/OQ7), and an under-determined one (a
+/// G2 conventional join, a same-surface split: `κ_rel` at zero) rests as
+/// the pair it lies on (D3's transience fence), its scaffolding
+/// pushforward kept beside it as the authority record. In band is the
+/// typed error `sliver` builds from the rung that escalated, and stations
+/// that disagree refuse [`RevolveError::SmoothJoinRefuted`]. Two planes
+/// at the π seam return the verdict that the two faces are one carrier.
 pub(super) fn upgrade_intersection<T: Decide + topo::AtRestPolicy>(
     body: &mut Body<T>,
     edge: EdgeKey,
     s1: SurfaceKey,
     s2: SurfaceKey,
-    band: Band,
-    sliver: impl Fn(DihedralReading, geom_core::Indeterminate) -> RevolveError,
+    band: geom_core::Band,
+    sliver: impl Fn(geom_brep::WedgeRung, geom_core::Indeterminate) -> RevolveError,
     tol: Tol,
 ) -> Result<Option<topo::SmoothAcross>, RevolveError> {
-    let data = edge_data(body, edge)?;
-    let surf1 = body
-        .get_surface(s1)
-        .cloned()
-        .unwrap_or_else(|| unreachable!("surface {s1:?} was read off a live face of this revolve"));
-    let surf2 = body
-        .get_surface(s2)
-        .cloned()
-        .unwrap_or_else(|| unreachable!("surface {s2:?} was read off a live face of this revolve"));
-    match body.dihedral_across(edge, [s1, s2], band)? {
-        Ok(topo::DihedralAcross::Transverse) => {
-            body.restate_stored_edge(
-                edge,
-                EdgeDescriptionSpec::Intersection {
-                    pair: SurfacePair::new(s1, s2),
-                    selector: geom_brep::CurveSelector::Witness(data.witness),
-                },
-                tol,
-            )?;
-            Ok(None)
+    let across = match body.dihedral_across(edge, [s1, s2], band)? {
+        Ok(across) => across,
+        Err(PairRefusal::InBand(escalation)) => {
+            return Err(sliver(escalation.rung(), escalation.diag()));
         }
-        // A revolve join's carrier is a latitude CIRCLE, which the
-        // jet certificate's circle arm covers on every surface of
-        // revolution, so the rule can reach its determinate answer
-        // here: a jet-DETERMINATE smooth join is a genuine
-        // `TangentIntersection` and prefer-intrinsic (D2/OQ7) demands
-        // it; an under-determined one (a G2 conventional join, a
-        // same-surface split: `κ_rel` at zero) keeps the conventional
-        // description, exactly as tier 3's must-carry exempts it; an
-        // in-band one escalates typed. Both sides read the same
-        // predicate at the same stations, so the demanded set and the
-        // stored set stay one set.
-        Ok(topo::DihedralAcross::Smooth { one_carrier, .. }) => {
-            // In-band: near-osculating geometry, certifiable as
-            // neither intrinsic nor conventional. A conventional
-            // description is not an escape hatch from ill-conditioned
-            // geometry (D2), so the escalation is typed through the
-            // caller's own `sliver` (D4 ¶3) — the same answer the
-            // transverse arm's `Err` below gives, and the same one the
-            // extrude strut gives. A station that reads the join a
-            // corner where the witness read it smooth refutes this
-            // arm's premise, and the edge refuses rather than store a
-            // description neither reading chose.
-            match must_carry_description(
-                SmoothJoin {
-                    surfaces: [(s1, &surf1), (s2, &surf2)],
-                    carrier: data.carrier,
-                    interval: (data.t0, data.t1),
-                    reach: data.reach,
-                    witness: data.witness,
-                },
-                band,
-                &sliver,
-                &sliver,
-                |mixed| RevolveError::SmoothJoinRefuted { edge, mixed },
-            )? {
-                MustCarryDescription::Intrinsic(description) => {
-                    body.restate_stored_edge(edge, description, tol)?;
-                }
-                MustCarryDescription::Conventional => {
-                    // No intrinsic tangency is demanded (a zero-side
-                    // station, or an all-positive pair outside the
-                    // certificate's lane), so the description stays
-                    // CONVENTIONAL — but the edge is at rest between
-                    // two faces now, so it says where it rests: the
-                    // pair it lies on (D3's transience fence). The
-                    // pushforward it was scaffolded from stays beside
-                    // it as the authority record.
-                    body.describe_at_rest(edge, tol)?;
-                }
-            }
-            Ok(one_carrier)
+        Err(PairRefusal::Mixed(mixed)) => {
+            return Err(RevolveError::SmoothJoinRefuted { edge, mixed });
         }
-        Err(escalation) => {
-            let (reading, source) = DihedralReading::of_lever(escalation);
-            Err(sliver(reading, source))
+    };
+    match across.description {
+        MustCarryDescription::Intrinsic(description) => {
+            body.restate_stored_edge(edge, description, tol)?;
         }
+        MustCarryDescription::Conventional => body.describe_at_rest(edge, tol)?,
     }
+    Ok(across.one_carrier)
 }
 
 /// Re-describes a full-revolve meridian as its wall's wrap edge (D1)

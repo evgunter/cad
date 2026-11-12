@@ -969,7 +969,7 @@ mod kernel {
         /// `SplitFinishError`'s arms, for the `Split/Finish/` rows.
         pub(super) const SPLIT_FINISH_ERROR: SplitFinishError = [
             DegenerateSide, TornComponent, UnclassifiableComponent, Corrupt, Euler,
-            Band, ConeCornerEscalated, ConeCornerUnread, ConeFusionDesync, DescribeEscalated, Undescribed, DescribeSideEscalated, DescribeBendEscalated,
+            Band, ConeCornerEscalated, ConeCornerUnread, ConeFusionDesync, WedgeEscalated, Undescribed,
             WholeBodySideEscalated,
             EdgeOnFacesEscalated, SmoothJoinRefuted, SectionWindingUndecided, KnifeEdge,
             NestingContradiction, SlitUnplaced, SlitHoming, ResultInvalid,
@@ -1983,7 +1983,7 @@ fn extrude() -> Vec<(String, NodeErrorKind)> {
             E::SliverJoin {
                 loop_index: 0,
                 vertex_index: 3,
-                reading: topo::DihedralReading::Lever(geom_brep::LeverRung::Reading),
+                reading: geom_brep::WedgeRung::Wedge,
                 source: named("dihedral_wedge"),
             },
         ),
@@ -1992,7 +1992,7 @@ fn extrude() -> Vec<(String, NodeErrorKind)> {
             E::SliverJoin {
                 loop_index: 0,
                 vertex_index: 3,
-                reading: topo::DihedralReading::Bend,
+                reading: geom_brep::WedgeRung::Bend,
                 source: named("tangent_second_order"),
             },
         ),
@@ -2001,7 +2001,7 @@ fn extrude() -> Vec<(String, NodeErrorKind)> {
             E::SliverRim {
                 loop_index: 0,
                 segment_index: 3,
-                reading: topo::DihedralReading::Lever(geom_brep::LeverRung::Reading),
+                reading: geom_brep::WedgeRung::Wedge,
                 source: named("dihedral_wedge"),
             },
         ),
@@ -2010,7 +2010,7 @@ fn extrude() -> Vec<(String, NodeErrorKind)> {
             E::SliverRim {
                 loop_index: 0,
                 segment_index: 3,
-                reading: topo::DihedralReading::Bend,
+                reading: geom_brep::WedgeRung::Bend,
                 source: named("tangent_second_order"),
             },
         ),
@@ -2044,10 +2044,10 @@ fn extrude() -> Vec<(String, NodeErrorKind)> {
             "SmoothJoinRefuted",
             E::SmoothJoinRefuted {
                 edge: topo::EdgeKey::default(),
-                mixed: Some(geom_brep::MixedStations::Class {
-                    transverse: 3,
-                    smooth: 4,
-                }),
+                mixed: geom_brep::MixedStations::Class {
+                transverse: 3,
+                smooth: 4,
+            },
             },
         ),
         ("Op", E::Op { source: euler() }),
@@ -2157,7 +2157,7 @@ fn revolve_arms() -> Vec<(&'static str, sweep::RevolveError)> {
             E::SliverJoin {
                 loop_index: 0,
                 vertex_index: 3,
-                reading: topo::DihedralReading::Lever(geom_brep::LeverRung::Reading),
+                reading: geom_brep::WedgeRung::Wedge,
                 source: named("dihedral_wedge"),
             },
         ),
@@ -2166,7 +2166,7 @@ fn revolve_arms() -> Vec<(&'static str, sweep::RevolveError)> {
             E::SliverJoin {
                 loop_index: 0,
                 vertex_index: 3,
-                reading: topo::DihedralReading::Bend,
+                reading: geom_brep::WedgeRung::Bend,
                 source: named("tangent_second_order"),
             },
         ),
@@ -2175,7 +2175,7 @@ fn revolve_arms() -> Vec<(&'static str, sweep::RevolveError)> {
             E::SliverRim {
                 loop_index: 0,
                 segment_index: 3,
-                reading: topo::DihedralReading::Lever(geom_brep::LeverRung::Reading),
+                reading: geom_brep::WedgeRung::Wedge,
                 source: named("dihedral_wedge"),
             },
         ),
@@ -2184,7 +2184,7 @@ fn revolve_arms() -> Vec<(&'static str, sweep::RevolveError)> {
             E::SliverRim {
                 loop_index: 0,
                 segment_index: 3,
-                reading: topo::DihedralReading::Bend,
+                reading: geom_brep::WedgeRung::Bend,
                 source: named("tangent_second_order"),
             },
         ),
@@ -2216,10 +2216,10 @@ fn revolve_arms() -> Vec<(&'static str, sweep::RevolveError)> {
             "SmoothJoinRefuted",
             E::SmoothJoinRefuted {
                 edge: topo::EdgeKey::default(),
-                mixed: Some(geom_brep::MixedStations::Class {
-                    transverse: 3,
-                    smooth: 4,
-                }),
+                mixed: geom_brep::MixedStations::Class {
+                transverse: 3,
+                smooth: 4,
+            },
             },
         ),
         (
@@ -2713,8 +2713,11 @@ fn split() -> Vec<(String, NodeErrorKind)> {
         ("Euler", F::Euler(euler())),
         ("Band", F::Band(band_error())),
         (
-            "DescribeEscalated",
-            F::DescribeEscalated { edge, diag: diag() },
+            "WedgeEscalated",
+            F::WedgeEscalated {
+                edge,
+                escalation: geom_brep::WedgeEscalation::at(geom_brep::WedgeRung::Wedge, diag()),
+            },
         ),
         (
             "Undescribed",
@@ -2738,12 +2741,18 @@ fn split() -> Vec<(String, NodeErrorKind)> {
             },
         ),
         (
-            "DescribeSideEscalated",
-            F::DescribeSideEscalated { edge, diag: diag() },
+            "WedgeEscalated(pairing)",
+            F::WedgeEscalated {
+                edge,
+                escalation: geom_brep::WedgeEscalation::at(geom_brep::WedgeRung::Pairing, diag()),
+            },
         ),
         (
-            "DescribeBendEscalated",
-            F::DescribeBendEscalated { edge, diag: diag() },
+            "WedgeEscalated(bend)",
+            F::WedgeEscalated {
+                edge,
+                escalation: geom_brep::WedgeEscalation::at(geom_brep::WedgeRung::Bend, diag()),
+            },
         ),
         (
             "WholeBodySideEscalated",

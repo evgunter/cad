@@ -36,36 +36,29 @@
 //!    the swept face becomes the top cap.
 //! 4. **Joins.** Per strut: identical side-surface keys (cosurface
 //!    sharing) keep the conventional description structurally;
-//!    otherwise `dihedral_class` at the strut midpoint decides —
-//!    Transverse upgrades to `Intersection` via `restate_stored_edge`,
-//!    Smooth descends one order through the must-carry rule over the
-//!    edge ([`geom_brep::must_carry_over_edge`] — the lane gate and
-//!    the certification schedule's interior stations, in its one home:
-//!    jet-determinate ⇒ `TangentIntersection`, under-determined ⇒ an
-//!    image in the previous wall's chart, in-band ⇒ the typed sliver,
-//!    a transverse station ⇒ the typed
-//!    [`ExtrudeError::SmoothJoinRefuted`]),
-//!    Indeterminate is a typed sliver error.
+//!    otherwise the strut's whole wedge decides
+//!    ([`topo::edge_wedge_description`], the fold tier 3 reads at every
+//!    station): a crease upgrades to `Intersection` via
+//!    `restate_stored_edge`, a smooth join stores what the must-carry
+//!    rule demands (jet-determinate ⇒ `TangentIntersection`,
+//!    under-determined ⇒ the conventional description at rest), in-band
+//!    ⇒ the typed sliver, stations that disagree ⇒ the typed
+//!    [`ExtrudeError::SmoothJoinRefuted`].
 //! 5. **Top cap.** The seed face's surface (the honest `Nurbs`
 //!    placeholder since `mvfs`) is replaced by the translated loop's
 //!    cap plane.
 //! 6. **Rim upgrades.** With both cap planes in place, every cap–wall
 //!    rim edge (bottom and top, outer and ring loops) upgrades to
 //!    `Intersection { cap plane, side surface, witness }` through the
-//!    same `dihedral_class` → `restate_stored_edge` pattern as the corner
-//!    joins (the ratified rim decision — M2-LOG, 2026-07-19). The
-//!    witness is the **carrier's mid-parameter point** (the S2 witness
-//!    contract: for arc rims the chord midpoint lies off the carrier by
-//!    the sagitta, so `carrier(mid)` is the only honest mint); the
-//!    certified carrier and interval are kept verbatim. Transverse ⇒
-//!    upgrade; Smooth ⇒ one order down through the must-carry rule
-//!    over the edge, as at step 4's joins (jet-determinate ⇒
-//!    `TangentIntersection`, under-determined ⇒ an image at rest in
-//!    the wall's chart, in-band ⇒ the typed
-//!    [`ExtrudeError::SliverRim`], a transverse station ⇒ the typed
-//!    [`ExtrudeError::SmoothJoinRefuted`]); Indeterminate ⇒ the typed
-//!    [`ExtrudeError::SliverRim`]. Which pairs reach the Smooth arm,
-//!    and at which K, is stated at the arm in `upgrade_rim`.
+//!    same whole-wedge reading as the corner joins (the ratified rim
+//!    decision — M2-LOG, 2026-07-19). The witness is the **carrier's
+//!    mid-parameter point** (the S2 witness contract: for arc rims the
+//!    chord midpoint lies off the carrier by the sagitta, so
+//!    `carrier(mid)` is the only honest mint); the certified carrier and
+//!    interval are kept verbatim. A smooth rim stores what the
+//!    must-carry rule demands, as at step 4's joins; in band ⇒ the typed
+//!    [`ExtrudeError::SliverRim`]. Which pairs reach the smooth arm, and
+//!    at which K, is stated at `upgrade_rim`.
 //! 7. **One-segment loops.** A loop of one segment is D1's full turn:
 //!    one vertex, one self-loop edge. It has no chain to lay down and
 //!    no run to close, so it is swept whole where its chain would be
@@ -99,15 +92,15 @@ use topo::construction::Construct;
 use geom::Curve3;
 use geom::Surface;
 use geom_brep::{
-    DihedralClass, EdgeCurveSpec, EdgeDescriptionSpec, MappedCurve, MappedSource, NewellError,
-    SurfacePair, dihedral_class, newell_plane,
+    EdgeCurveSpec, EdgeDescriptionSpec, MappedCurve, MappedSource, MustCarryDescription,
+    NewellError, PairRefusal, newell_plane,
 };
 use geom_core::{
     Affine3, Band, BandError, Decide, Indeterminate, Margin, Point2, Point3, Real, Sign, Tol, Vec3,
 };
 use profile::{SegmentKind, ValidatedLoop, ValidatedProfile};
 use topo::construction::{FaceSurface, MefSite, MevCreated, MevSite};
-use topo::{Body, DihedralReading, EdgeKey, EulerOpError, FaceKey, ShellKey, SolidKey, SurfaceKey};
+use topo::{Body, EdgeKey, EulerOpError, FaceKey, ShellKey, SolidKey};
 
 use crate::swept;
 use crate::swept::{
@@ -401,20 +394,19 @@ pub enum ExtrudeError {
         /// The predicate-layer escalation.
         source: Indeterminate,
     },
-    /// The dihedral classification at a profile-corner join escalated:
-    /// a sliver dihedral, certifiable as neither a corner nor a smooth
-    /// join (D2's ratified text — a conventional description is not an
-    /// escape hatch from ill-conditioned geometry). A join whose witness
-    /// read smooth lands here too when a must-carry station escalates:
-    /// its first-order arm or wedge, or its second-order bend
-    /// (its `reading`).
+    /// The wedge of a profile-corner join escalated at a station of its
+    /// whole-edge fold ([`topo::edge_wedge`]): a sliver dihedral,
+    /// certifiable as neither a corner nor a smooth join (D2's ratified
+    /// text — a conventional description is not an escape hatch from
+    /// ill-conditioned geometry), or, past the class, a corner's sign or
+    /// a smooth join's pairing, bend or end (its `reading`).
     SliverJoin {
         /// Canonical index of the loop.
         loop_index: usize,
         /// Canonical index of the join vertex.
         vertex_index: usize,
-        /// The reading that escalated.
-        reading: DihedralReading,
+        /// The rung of the join's wedge that escalated.
+        reading: geom_brep::WedgeRung,
         /// The classifier's diagnostic.
         source: Indeterminate,
     },
@@ -437,32 +429,29 @@ pub enum ExtrudeError {
         loop_index: usize,
         /// Canonical index of the rim's segment.
         segment_index: usize,
-        /// The reading that escalated.
-        reading: DihedralReading,
+        /// The rung of the rim's wedge that escalated.
+        reading: geom_brep::WedgeRung,
         /// The classifier's diagnostic.
         source: Indeterminate,
     },
-    /// The must-carry rule read a station of a strut or a cap rim
-    /// definitely transverse ([`geom_brep::MustCarryVerdict::Transverse`])
-    /// after the edge's witness classified definitely smooth: the
-    /// geometry refuted the premise the smooth arm was entered on.
+    /// Two neighbouring stations of a strut's or a cap rim's whole wedge
+    /// disagree ([`geom_brep::WedgeVerdict::Mixed`]): a corner beside a
+    /// smooth join, or two corners of opposite turn, bracket a point in
+    /// the band no station read.
     ///
     /// Defense-in-depth (the `CapPlane` posture): both walls are ruled
     /// along a strut, and a rim that reads smooth is a line between two
     /// planes (arc walls are ruled in the sketch normal —
     /// `work/strut/extrude-arc-walls-are-ruled-in-n-not-w.md` would
     /// change that), so in either case both normals are constant along
-    /// the edge and every station reads what the witness read. Reaching this means
-    /// the inputs carried something a validated profile cannot, and it
-    /// is surfaced rather than stored under a description neither
-    /// reading chose.
+    /// the edge and every station reads alike. Reaching this means the
+    /// inputs carried something a validated profile cannot, and it is
+    /// surfaced rather than stored under a description no reading chose.
     SmoothJoinRefuted {
-        /// The strut or rim edge whose station refuted the smooth premise.
+        /// The strut or rim edge whose stations disagree.
         edge: EdgeKey,
-        /// The two neighbouring stations that disagree, where one reads
-        /// smooth ([`geom_brep::MustCarryRefusal::Mixed`]); `None` where
-        /// every station reads a corner.
-        mixed: Option<geom_brep::MixedStations>,
+        /// The two neighbouring stations that disagree.
+        mixed: geom_brep::MixedStations,
     },
     /// A cap plane could not be certified or oriented (non-planar or
     /// degenerate loop data — unreachable for validated profiles,
@@ -572,19 +561,9 @@ impl ExtrudeError {
                 );
                 swept::sliver_text(f, &rim, *reading, source)
             }
-            Self::SmoothJoinRefuted {
-                edge,
-                mixed: Some(stations),
-            } => write!(
+            Self::SmoothJoinRefuted { edge, mixed } => write!(
                 f,
-                "along the join {edge:?}, {stations}. {}",
-                geom_core::MOVE_RECOURSE
-            ),
-            Self::SmoothJoinRefuted { edge, mixed: None } => write!(
-                f,
-                "the join along {edge:?} classified definitely smooth at its witness \
-                 but definitely a corner at every certification station, so the construction \
-                 refuses rather than choose a description for it. {}",
+                "along the join {edge:?}, {mixed}. {}",
                 geom_core::MOVE_RECOURSE
             ),
             Self::CapPlane { source } => write!(f, "{source}"),
@@ -1045,7 +1024,6 @@ pub fn extrude<T: Decide + topo::AtRestPolicy>(
 
     // ---- Phase 3 + 4: sweep each loop of the seed face; classify
     // joins. ----
-    let mut side_faces = Vec::with_capacity(loops.len());
     let mut walls = Vec::with_capacity(loops.len());
     let mut top_rims = Vec::with_capacity(loops.len());
     for (li, (segs, base)) in loops.iter().zip(&bases).enumerate() {
@@ -1069,7 +1047,6 @@ pub fn extrude<T: Decide + topo::AtRestPolicy>(
                 tol,
             )?,
         };
-        side_faces.push(swept.faces);
         walls.push(swept.walls);
         top_rims.push(swept.top_rims);
     }
@@ -1083,7 +1060,7 @@ pub fn extrude<T: Decide + topo::AtRestPolicy>(
         .collect();
     let top_plane = cap_plane(&far_loop, place, reverse, CapEnd::End, band)
         .map_err(|source| ExtrudeError::CapPlane { source })?;
-    let top_surface = body.set_face_surface(
+    body.set_face_surface(
         top_face,
         FaceSurface::New {
             surface: top_plane,
@@ -1098,7 +1075,6 @@ pub fn extrude<T: Decide + topo::AtRestPolicy>(
     // bottom rim before the top (D9 — fixed order). ----
     for (li, (segs, base)) in loops.iter().zip(&bases).enumerate() {
         for j in 0..segs.len() {
-            let wall = face_surface_key(&body, side_faces[li][j]);
             let bottom_rim = body
                 .get_half_edge(base.hes[j])
                 .unwrap_or_else(|| {
@@ -1111,8 +1087,6 @@ pub fn extrude<T: Decide + topo::AtRestPolicy>(
             upgrade_rim(
                 &mut body,
                 bottom_rim,
-                bottom_surface,
-                wall,
                 li,
                 segs[j].chord.canonical_segment,
                 band,
@@ -1121,8 +1095,6 @@ pub fn extrude<T: Decide + topo::AtRestPolicy>(
             upgrade_rim(
                 &mut body,
                 top_rims[li][j],
-                top_surface,
-                wall,
                 li,
                 segs[j].chord.canonical_segment,
                 band,
@@ -1207,19 +1179,12 @@ fn sweep_loop<T: Decide + topo::AtRestPolicy>(
     };
 
     // Join classification: strut j joins the side walls of segments
-    // j − 1 and j. Identical surface keys are
-    // conventional joins structurally; distinct surfaces classify by
-    // dihedral at the strut midpoint, levered at the walls' extent
-    // (`topo::wedge_reach`).
+    // j − 1 and j. Identical surface keys are conventional joins
+    // structurally; distinct surfaces are read by the strut's whole
+    // wedge, levered at the walls' extent (`topo::wedge_reach`).
     for (j, strut) in struts.iter().enumerate() {
-        let f_prev = faces[(j + n - 1) % n];
-        let f_next = faces[j];
-        let k_prev = face_surface_key(body, f_prev);
-        let k_next = face_surface_key(body, f_next);
-        let s_prev = body
-            .face_surface(f_prev)
-            .cloned()
-            .unwrap_or_else(|| unreachable!("face {f_prev:?} was minted by this extrude"));
+        let k_prev = face_surface_key(body, faces[(j + n - 1) % n]);
+        let k_next = face_surface_key(body, faces[j]);
         if k_prev == k_next {
             // ONE surface on both sides: a conventional locus the
             // surfaces under-determine (a circle's canonical cut, or the
@@ -1245,104 +1210,46 @@ fn sweep_loop<T: Decide + topo::AtRestPolicy>(
             body.describe_at_rest(strut.edge, tol)?;
             continue;
         }
-        let s_next = body
-            .face_surface(f_next)
-            .cloned()
-            .unwrap_or_else(|| unreachable!("face {f_next:?} was minted by this extrude"));
-        let mid = qs[j] + w * T::from_f64(0.5);
-        let reach = topo::edge_wedge_reach(body, strut.edge).unwrap_or_else(|| {
-            unreachable!("strut {:?} was minted with a certified line", strut.edge)
+        // Two surfaces: the strut's whole wedge, the fold tier 3 reads,
+        // decides what it stores (`topo::edge_wedge_description`). A
+        // crease upgrades to the pair's `Intersection`: mint-time
+        // `Intersection` was impossible (the side surfaces did not
+        // exist). A smooth join is OQ7's must-carry, applied at
+        // construction over the WHOLE strut: jet-determinate is a
+        // genuine tangency (the fillet-grade line–arc profile join),
+        // upgraded to `TangentIntersection`; under-determined keeps the
+        // conventional description BY THE PREDICATE, where the strut
+        // rests rather than the scaffolding the mint left (D3's
+        // transience fence) —
+        // `review_m2_pr4::survives_dihedral_band_sweep_at_the_strut_arm`
+        // is the row, on two DISTINCT planes, so the same-key lane above
+        // never sees it. In-band escalates as the typed sliver (F6), and
+        // stations that disagree refuse rather than store a description
+        // no reading chose.
+        let vertex_index = segs[j].chord.canonical_vertex;
+        let demanded = topo::edge_wedge_description(body, strut.edge, band).unwrap_or_else(|| {
+            unreachable!(
+                "strut {:?} was minted with a certified line between two live walls",
+                strut.edge
+            )
         });
-        match dihedral_class(&s_prev, &s_next, mid, reach, band) {
-            Ok(DihedralClass::Transverse) => {
-                // The prefer-intrinsic upgrade: mint-time Intersection
-                // was impossible (the side surfaces did not exist);
-                // the stored strut is re-described.
-                body.restate_stored_edge(
-                    strut.edge,
-                    EdgeDescriptionSpec::Intersection {
-                        pair: SurfacePair::new(k_prev, k_next),
-                        selector: geom_brep::CurveSelector::Witness(mid),
-                    },
-                    tol,
-                )?;
+        match demanded {
+            Ok(MustCarryDescription::Intrinsic(description)) => {
+                body.restate_stored_edge(strut.edge, description, tol)?;
             }
-            Ok(DihedralClass::Smooth) => {
-                // OQ7's must-carry, applied at construction over the
-                // WHOLE strut: a definitely-smooth join the rule finds
-                // jet-determinate is a genuine tangency (the surfaces
-                // determine the locus — the fillet-grade line–arc
-                // profile join), upgraded to `TangentIntersection`
-                // exactly as the transverse arm upgrades to
-                // `Intersection`. Under-determined keeps the
-                // conventional description BY THE PREDICATE; in-band
-                // escalates as the same typed sliver (F6). The gate,
-                // the stations and the verdict policy are the
-                // rule's, not this arm's
-                // ([`geom_brep::must_carry_over_edge`]).
-                let stored = body.stored_curve(strut.edge).map_err(|e| match e {
-                    EulerOpError::Argument(_) => unreachable!(
-                        "strut {:?} was minted by this extrude and is live",
-                        strut.edge
-                    ),
-                    e => e,
-                })?;
-                let (carrier, (t0, t1)) = (stored.carrier(), stored.params());
-                // In-band escalates as the typed sliver; a station that
-                // reads the join a corner where the midpoint read it
-                // smooth refutes this arm's premise, and the strut
-                // refuses rather than store a description neither
-                // reading chose.
-                let vertex_index = segs[j].chord.canonical_vertex;
-                let sliver = |reading, source| ExtrudeError::SliverJoin {
-                    loop_index,
-                    vertex_index,
-                    reading,
-                    source,
-                };
-                match geom_brep::must_carry_description(
-                    geom_brep::SmoothJoin {
-                        surfaces: [(k_prev, &s_prev), (k_next, &s_next)],
-                        carrier,
-                        interval: (t0, t1),
-                        reach,
-                        witness: mid,
-                    },
-                    band,
-                    sliver,
-                    sliver,
-                    |mixed| ExtrudeError::SmoothJoinRefuted {
-                        edge: strut.edge,
-                        mixed,
-                    },
-                )? {
-                    geom_brep::MustCarryDescription::Intrinsic(description) => {
-                        body.restate_stored_edge(strut.edge, description, tol)?;
-                    }
-                    geom_brep::MustCarryDescription::Conventional => {
-                        // No intrinsic tangency is demanded: a station
-                        // read the second order zero-side (the surfaces
-                        // under-determine the locus), or every station
-                        // read it positive on a pair outside the
-                        // certificate's lane, which cannot store one —
-                        // so the strut is the pair's conventional
-                        // locus, where it rests rather than the
-                        // scaffolding the mint left (D3's transience
-                        // fence).
-                        // `review_m2_pr4::survives_dihedral_band_sweep_at_the_strut_arm`
-                        // is the row, on two DISTINCT planes, so the
-                        // same-key lane above never sees it.
-                        body.describe_at_rest(strut.edge, tol)?;
-                    }
-                }
-            }
-            Err(escalation) => {
-                let (reading, source) = DihedralReading::of_lever(escalation);
+            Ok(MustCarryDescription::Conventional) => body.describe_at_rest(strut.edge, tol)?,
+            Err(PairRefusal::InBand(escalation)) => {
                 return Err(ExtrudeError::SliverJoin {
                     loop_index,
-                    vertex_index: segs[j].chord.canonical_vertex,
-                    reading,
-                    source,
+                    vertex_index,
+                    reading: escalation.rung(),
+                    source: escalation.diag(),
+                });
+            }
+            Err(PairRefusal::Mixed(mixed)) => {
+                return Err(ExtrudeError::SmoothJoinRefuted {
+                    edge: strut.edge,
+                    mixed,
                 });
             }
         }
@@ -1365,11 +1272,7 @@ fn sweep_loop<T: Decide + topo::AtRestPolicy>(
             top_rim: top_rims[j],
         })
         .collect();
-    Ok(LoopSwept {
-        walls,
-        faces,
-        top_rims,
-    })
+    Ok(LoopSwept { walls, top_rims })
 }
 
 /// Sweeps a one-segment loop (D1's full turn) whose far vertex is the
@@ -1447,7 +1350,6 @@ impl From<swept::FullTurn> for LoopSwept {
     /// over the loop's one segment.
     fn from(turn: swept::FullTurn) -> Self {
         Self {
-            faces: vec![turn.wall],
             walls: vec![SideWall {
                 face: turn.wall,
                 strut: turn.strut,
@@ -1463,8 +1365,6 @@ impl From<swept::FullTurn> for LoopSwept {
 /// One loop's sweep products, per segment of the collapsed loop, in
 /// swept order (see [`sweep_loop`]).
 struct LoopSwept {
-    /// Side-wall faces.
-    faces: Vec<FaceKey>,
     /// The walls.
     walls: Vec<SideWall>,
     /// Top-rim edges (the side `mef`s' new edges).
@@ -1553,117 +1453,61 @@ fn side_surface<T: Decide>(
 
 /// Upgrades one cap–wall rim edge to `Intersection { cap, wall,
 /// witness }` (module docs, step 6 — the ratified rim decision). The
-/// witness is minted as the **carrier's mid-parameter point** — the S2
-/// witness contract (`WitnessMidpoint`): for arc rims the chord
-/// midpoint lies off the carrier by the sagitta, so `carrier(mid)`
-/// is the only honest mint (for line rims it coincides with the chord
-/// midpoint to rounding). The certified carrier and parameter interval
-/// are kept verbatim: the stored edge is re-described
-/// ([`Body::restate_stored_edge`]). `dihedral_class` at the witness
-/// decides, levered at the cap's and wall's extent
-/// ([`topo::wedge_reach`]): Transverse upgrades; Smooth
-/// descends through [`geom_brep::must_carry_over_edge`] (the arm
-/// below); Indeterminate is the typed [`ExtrudeError::SliverRim`].
-#[allow(clippy::too_many_arguments)] // two call sites in one loop; the
-// arguments are the upgrade's fixed context, not a configuration
-// surface.
+/// witness is the **carrier's mid-parameter point** — the S2 witness
+/// contract (`WitnessMidpoint`): for arc rims the chord midpoint lies
+/// off the carrier by the sagitta, so `carrier(mid)` is the only honest
+/// mint. The certified carrier and parameter interval are kept verbatim:
+/// the stored edge is re-described ([`Body::restate_stored_edge`]). The
+/// rim's whole wedge decides, levered at the cap's and wall's extent
+/// ([`topo::edge_wedge_description`]): a crease upgrades; a smooth join
+/// stores what the must-carry rule demands (the arm below); in band is
+/// the typed [`ExtrudeError::SliverRim`].
+//
+// The must-carry arm: no admitted input is known to reach a smooth rim
+// (kept or retired by
+// `work/lever/the-arms-the-faces-lever-left-without-a-row.md`). The
+// direction gates admit a tilt of `w` off the sketch normal of up to
+// `1/K`; a LINE leg's wall is the plane through the quad swept along
+// `w`, so it leans against the cap's `±n` by that tilt, and the wedge is
+// levered at the faces' extent, at least the wall's distance to its far
+// rim, whose product with the dihedral's sine is the extrusion's height,
+// past `K·ε`. An ARC leg's wall is a cylinder whose axis is `±n` on both
+// doors ([`side_surface`];
+// `work/strut/extrude-arc-walls-are-ruled-in-n-not-w.md` would move
+// it), so it is perpendicular to the cap at every rim point and never
+// reads smooth. `fillet_h6_cap_rim` measures both facts. So the pairs
+// that would arrive are plane pairs over a line rim, whose `κ_rel` is
+// identically zero: under-determined, and the rim rests as the pair's
+// conventional locus.
 fn upgrade_rim<T: Decide + topo::AtRestPolicy>(
     body: &mut Body<T>,
     edge: EdgeKey,
-    cap: SurfaceKey,
-    wall: SurfaceKey,
     loop_index: usize,
     segment_index: usize,
     band: Band,
     tol: Tol,
 ) -> Result<(), ExtrudeError> {
-    let stored = body.stored_curve(edge).map_err(|e| match e {
-        EulerOpError::Argument(_) => {
-            unreachable!("rim {edge:?} was minted by this extrude and is live")
-        }
-        e => e,
-    })?;
-    let (carrier, (t0, t1)) = (stored.carrier(), stored.params());
-    let witness = carrier.mid_point(t0, t1);
-    let reach = topo::wedge_reach(body, topo::edge_faces(body, edge), carrier, (t0, t1));
-    let s_cap = body.get_surface(cap).cloned().unwrap_or_else(|| {
-        unreachable!("cap surface {cap:?} is held by a live cap face of this driver")
+    let demanded = topo::edge_wedge_description(body, edge, band).unwrap_or_else(|| {
+        unreachable!("rim {edge:?} was minted by this extrude with a certified carrier")
     });
-    let s_wall = body.get_surface(wall).cloned().unwrap_or_else(|| {
-        unreachable!("wall surface {wall:?} is held by a live wall face of this driver")
-    });
-    match dihedral_class(&s_cap, &s_wall, witness, reach, band) {
-        Ok(DihedralClass::Transverse) => {
-            body.restate_stored_edge(
-                edge,
-                EdgeDescriptionSpec::Intersection {
-                    pair: SurfacePair::new(cap, wall),
-                    selector: geom_brep::CurveSelector::Witness(witness),
-                },
-                tol,
-            )?;
-            Ok(())
+    match demanded {
+        Ok(MustCarryDescription::Intrinsic(description)) => {
+            body.restate_stored_edge(edge, description, tol)?;
         }
-        // The must-carry rule decides what a definitely-smooth rim
-        // stores (module docs, step 6). No admitted input is known to
-        // reach this arm (kept or retired by
-        // `work/lever/the-arms-the-faces-lever-left-without-a-row.md`). The direction gates admit a tilt of `w` off
-        // the sketch normal of up to `1/K`; a LINE leg's wall is the
-        // plane through the quad swept along `w`, so it leans against
-        // the cap's `±n` by that tilt, and the wedge is levered at the
-        // faces' extent, at least the wall's distance to its far rim,
-        // whose product with the dihedral's sine is the extrusion's
-        // height, past `K·ε`. An ARC leg's wall is a cylinder
-        // whose axis is `±n` on both doors ([`side_surface`];
-        // `work/strut/extrude-arc-walls-are-ruled-in-n-not-w.md` would
-        // move it), so it is perpendicular to the cap at every rim
-        // point and never reads smooth. `fillet_h6_cap_rim` measures
-        // both facts.
-        //
-        // So the pairs that would arrive are plane pairs over a line rim,
-        // whose `κ_rel` is identically zero: the rule reads them
-        // under-determined, and the rim rests as the pair's
-        // conventional locus. The at-rest gate then refuses the body,
-        // because a smooth cap–wall pair has no material side.
-        Ok(DihedralClass::Smooth) => {
-            let sliver = |reading, source| ExtrudeError::SliverRim {
+        Ok(MustCarryDescription::Conventional) => body.describe_at_rest(edge, tol)?,
+        Err(PairRefusal::InBand(escalation)) => {
+            return Err(ExtrudeError::SliverRim {
                 loop_index,
                 segment_index,
-                reading,
-                source,
-            };
-            match geom_brep::must_carry_description(
-                geom_brep::SmoothJoin {
-                    surfaces: [(cap, &s_cap), (wall, &s_wall)],
-                    carrier,
-                    interval: (t0, t1),
-                    reach,
-                    witness,
-                },
-                band,
-                sliver,
-                sliver,
-                |mixed| ExtrudeError::SmoothJoinRefuted { edge, mixed },
-            )? {
-                geom_brep::MustCarryDescription::Intrinsic(description) => {
-                    body.restate_stored_edge(edge, description, tol)?;
-                }
-                geom_brep::MustCarryDescription::Conventional => {
-                    body.describe_at_rest(edge, tol)?;
-                }
-            }
-            Ok(())
+                reading: escalation.rung(),
+                source: escalation.diag(),
+            });
         }
-        Err(escalation) => {
-            let (reading, source) = DihedralReading::of_lever(escalation);
-            Err(ExtrudeError::SliverRim {
-                loop_index,
-                segment_index,
-                reading,
-                source,
-            })
+        Err(PairRefusal::Mixed(mixed)) => {
+            return Err(ExtrudeError::SmoothJoinRefuted { edge, mixed });
         }
     }
+    Ok(())
 }
 
 #[cfg(test)]
@@ -1703,17 +1547,14 @@ mod tests {
         }
     }
 
-    /// **A smooth strut or cap rim's must-carry escalation says which question
-    /// escalated**: a first-order station is the sliver, neither corner
-    /// nor smooth; a second-order one is a smooth join whose faces'
-    /// bend is too close to call. No fixture reaches a first-order
-    /// station past a witness that read smooth, so the escalations are
-    /// built directly.
+    /// **A strut or cap rim's wedge escalation says which question
+    /// escalated**: the class is the sliver, neither corner nor smooth; the
+    /// bend is a smooth join whose faces' curvature is too close to call.
     #[test]
     fn a_must_carry_escalation_ends_by_the_reading_that_raised_it() {
         use crate::swept::must_carry_fixtures::{arm, second_order, wedge};
         for (escalation, bend) in [(arm(), false), (wedge(), false), (second_order(), true)] {
-            let (reading, source) = DihedralReading::of_must_carry(escalation);
+            let (reading, source) = (escalation.rung(), escalation.diag());
             for text in [
                 ExtrudeError::SliverJoin {
                     loop_index: 0,
