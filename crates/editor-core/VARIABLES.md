@@ -62,7 +62,9 @@ time. Re-pointing the placements of a body is redefining their source
 a later placement of `bracket` reads `bracket`. A source adds no name
 segment, so a copy's mate `on` sides select the source
 (`bracket.top`). An operation's output keeps its exemption from
-naming everywhere else.
+naming everywhere else. Ev chose this design on PR 6672 (2026-11-12) knowing
+its downsides were not all foreseen, and asked that a later reader who
+finds one push back on it rather than treat it as settled.
 
 **VR5 — `Expr` holds no float.** Its leaves are `Var(VarId)` (caching
 the kind, which cannot change), exact rational constants (`Scalar`,
