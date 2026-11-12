@@ -224,3 +224,10 @@
   - Opened `[ev]` PR 6765 with the new `[operations.operators]` sentence, fork row 260 (recommendation half) and each designer's For Ev section. Subscribed.
   - The row is parked on 6765. The build waits on Ev, and checks first that a union can take the seat's record as a given verdict.
   - PR 6555's fork row (258) collides with main's new 258. Its fix pass renumbers on its next main merge (259).
+- 2026-11-12 — **`seat-crack` built and merged (PR 6860, `ae97403b45`): a cut reads its tool as material.**
+  - **Orchestrator's ruling.** The build stopped at its first check: a face–face record carries no class. The orchestrator ruled that the class is what the record means: a planar ff record of a `⊔` is `Rest`, and a curved one refuses typed. The ruling sits at the top of the PR body for Ev to overturn.
+  - **Results.** Every refused cut of the seat table builds or is typed empty, at tier 3 and 3′. The fold identity `(x − bolt) − plate` holds.
+  - **Review.** One full review (merge after fixes) found a regression: lower-cell records between solids never fused refused, where main built. It also found a `JoinDesync` on a crossing-outline seat, and a silently dropped dangling key. All three were fixed and measured, and the delta review says merge as is.
+  - **Rows.** Its two remaining notes are filed as SEAL rows (P2, P3).
+  - **A main red met on the way:** PR 6862 moved the teapot spout's refusal. The python re-pin is in 6860, and SECTARMS has the P1 row for the tour's `wall3_pinned`.
+  - SEAL stays `active`: two P1 rows are parked. (SEAL orchestrator)
