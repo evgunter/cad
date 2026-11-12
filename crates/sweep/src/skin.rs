@@ -1848,6 +1848,8 @@ pub(crate) struct PathCarry {
     /// the exact law makes it.
     still: Vec<bool>,
     band: Band,
+    #[cfg(feature = "test-support")]
+    tol: Tol,
 }
 
 impl PathCarry {
@@ -1891,6 +1893,8 @@ impl PathCarry {
             at,
             still,
             band,
+            #[cfg(feature = "test-support")]
+            tol,
         })
     }
 
@@ -1949,6 +1953,8 @@ impl PathCarry {
         let o = Point3::origin();
         let mut turn: Option<RigidMotion<T>> = None;
         let mut carried = vec![(samples[0].0, None)];
+        #[cfg(feature = "test-support")]
+        let mut steps: Vec<Option<RigidMotion<T>>> = vec![None];
         for (i, pair) in samples.windows(2).enumerate() {
             let station = i + 1;
             let ((p, t), (q, next)) = (pair[0], pair[1]);
@@ -1971,12 +1977,25 @@ impl PathCarry {
                         })?
                         .compose(mirror)
                         .map_err(not_finite(station))?;
+                #[cfg(feature = "test-support")]
+                steps.push(Some(step));
                 turn = Some(match turn {
                     None => step,
                     Some(c) => step.compose(c).map_err(not_finite(station))?,
                 });
             }
+            #[cfg(feature = "test-support")]
+            if steps.len() < station + 1 {
+                steps.push(None);
+            }
             carried.push((q, turn));
+        }
+        #[cfg(feature = "test-support")]
+        {
+            probe::floor(&path, &self.at, &samples, band);
+            probe::STEPS.with(|c| {
+                *c.borrow_mut() = Some(Box::new(steps) as Box<dyn core::any::Any>);
+            });
         }
         Ok(carried)
     }
@@ -1990,6 +2009,21 @@ impl PathCarry {
         plane: SketchPlane<T>,
     ) -> Result<Vec<SketchPlane<T>>, SkinError> {
         let stations = self.stations::<T>()?;
+        #[cfg(feature = "test-support")]
+        if T::NAME != "f64" && std::env::var_os("SKIN_LOHNER").is_some() {
+            let steps: Vec<Option<RigidMotion<T>>> = probe::STEPS
+                .with(|c| c.borrow_mut().take())
+                .and_then(|b| b.downcast::<Vec<Option<RigidMotion<T>>>>().ok())
+                .map(|b| *b)
+                .unwrap_or_else(|| unreachable!("probe: the steps were recorded"));
+            let _ = self.stations::<f64>()?;
+            let steps_f: Vec<Option<RigidMotion<f64>>> = probe::STEPS
+                .with(|c| c.borrow_mut().take())
+                .and_then(|b| b.downcast::<Vec<Option<RigidMotion<f64>>>>().ok())
+                .map(|b| *b)
+                .unwrap_or_else(|| unreachable!("probe: the f64 steps were recorded"));
+            return Ok(probe::lohner(plane, &stations, &steps, &steps_f, self.tol));
+        }
         let start = plane.frame();
         let p0 = stations[0].0;
         let back = Point3::origin() - p0;
@@ -2010,6 +2044,126 @@ impl PathCarry {
                 .map_err(|_| SkinError::StationNotFinite { station })
             })
             .collect()
+    }
+}
+
+/// PROBE (not for landing): the station-frame fork's instruments, behind
+/// `SKIN_PROBE_PRINT` (print) and `SKIN_LOHNER` (the wrap-free carry).
+#[cfg(feature = "test-support")]
+#[allow(clippy::print_stderr, missing_docs, unreachable_pub, clippy::many_single_char_names)]
+mod probe {
+    use super::*;
+    use core::cell::RefCell;
+    use geom_core::{Mat3, Vec3};
+
+    thread_local! {
+        pub(super) static STEPS: RefCell<Option<Box<dyn core::any::Any>>> = const { RefCell::new(None) };
+    }
+
+    fn w<T: Decide>(x: T) -> f64 {
+        x.structure_bracket().map_or(f64::INFINITY, |(lo, hi)| hi - lo)
+    }
+    fn wv<T: Decide>(v: Vec3<T>) -> f64 {
+        w(v.x).max(w(v.y)).max(w(v.z))
+    }
+    fn wm<T: Decide>(m: Mat3<T>) -> f64 {
+        wv(m.c0).max(wv(m.c1)).max(wv(m.c2))
+    }
+    fn on() -> bool {
+        std::env::var_os("SKIN_PROBE_PRINT").is_some()
+    }
+
+    /// (3): each station's one-off widths, minted alone.
+    pub(super) fn floor<T: Decide>(
+        path: &NurbsCurve3<T>,
+        at: &[f64],
+        samples: &[(Point3<T>, UnitVec3<T>)],
+        band: Band,
+    ) {
+        if !on() || T::NAME == "f64" {
+            return;
+        }
+        let n = samples.len();
+        for (i, (p, t)) in samples.iter().enumerate() {
+            let (_, d) = path.ders1(T::from_f64(at[i]));
+            let reference = Vec3::new(T::from_f64(0.3), T::from_f64(-0.5), T::from_f64(0.8));
+            let alone = RigidMotion::from_aim_and_reference(*p, *t, reference, "probe_alone", band)
+                .ok()
+                .map_or(f64::NAN, |f| {
+                    wv(f.u().get()).max(wv(f.v().get())).max(wv(f.w().get()))
+                });
+            eprintln!(
+                "PROBE3 {} station={i}/{n} point_w={:e} deriv_w={:e} tangent_w={:e} alone_frame_axes_w={:e}",
+                T::NAME,
+                wv(*p - Point3::origin()),
+                wv(d),
+                wv(t.get()),
+                alone
+            );
+        }
+    }
+
+    fn add<T: Real>(a: Mat3<T>, b: Mat3<T>) -> Mat3<T> {
+        Mat3::from_cols(a.c0 + b.c0, a.c1 + b.c1, a.c2 + b.c2)
+    }
+    fn sub<T: Real>(a: Mat3<T>, b: Mat3<T>) -> Mat3<T> {
+        Mat3::from_cols(a.c0 - b.c0, a.c1 - b.c1, a.c2 - b.c2)
+    }
+
+    /// (2): each station's rotation held as an `f64` midpoint `Mᵢ` and an
+    /// error enclosure `Eᵢ` in moving coordinates, `Cᵢ ∈ Mᵢ(I + Eᵢ)`:
+    /// `Eᵢ = Mᵢᵀ·Sᵢ·Mᵢ₋₁·(I + Eᵢ₋₁) − I` (prototype: `Mᵢᵀ` stands in for
+    /// `Mᵢ⁻¹`, off by `Mᵢᵀ Mᵢ − I`, a few ulps).
+    pub(super) fn lohner<T: Decide>(
+        plane: SketchPlane<T>,
+        stations: &[Station<T>],
+        steps: &[Option<RigidMotion<T>>],
+        steps_f: &[Option<RigidMotion<f64>>],
+        tol: Tol,
+    ) -> Vec<SketchPlane<T>> {
+        let lift = |m: Mat3<f64>| m.map(T::from_f64);
+        let id = Mat3::<T>::identity();
+        let mut m = Mat3::<f64>::identity();
+        let mut e = sub(id, id);
+        let start = plane.frame();
+        let p0 = stations[0].0;
+        let n = stations.len();
+        let mut out = vec![plane];
+        let mut sum_steps = 0.0;
+        for i in 1..n {
+            if let (Some(s), Some(sf)) = (steps[i], steps_f[i]) {
+                let next = sf.linear() * m;
+                let k = lift(next.transpose()) * s.linear() * lift(m);
+                e = sub(k * add(id, e), id);
+                m = next;
+                sum_steps += wm(s.linear());
+            }
+            let g = lift(m);
+            let ie = add(id, e);
+            let carry = |v: Vec3<T>| g * (ie * v);
+            let (u, v, a) = (
+                carry(start.u().get()),
+                carry(start.v().get()),
+                carry(start.w().get()),
+            );
+            let origin = stations[i].0 + carry(start.origin() - p0);
+            if on() {
+                let chained = stations[i].1.map_or(0.0, |c| wm(c.linear()));
+                eprintln!(
+                    "PROBE2 {} station={i}/{n} lohner_axes_w={:e} lohner_origin_w={:e} E_w={:e} chained_C_w={:e} step_w={:e} sum_step_w={:e}",
+                    T::NAME,
+                    wv(u).max(wv(v)).max(wv(a)),
+                    wv(origin - Point3::origin()),
+                    wm(e),
+                    chained,
+                    steps[i].map_or(0.0, |s| wm(s.linear())),
+                    sum_steps
+                );
+            }
+            let _ = tol;
+            out.push(SketchPlane::from_frame(RigidMotion::probe_enclosed(origin, u, v, a)));
+        }
+        out
     }
 }
 

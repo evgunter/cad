@@ -1431,3 +1431,5 @@ mod the_football_revolves;
 mod a_ball_with_no_room_at_its_rim_refuses_typed;
 #[path = "a_peg_in_a_two_segment_bore_moves_only_its_wall.rs"]
 mod a_peg_in_a_two_segment_bore_moves_only_its_wall;
+#[path = "skin_turn_probe.rs"]
+mod skin_turn_probe;

@@ -1206,6 +1206,22 @@ impl<T: Decide> RigidMotion<T> {
     }
 }
 
+impl<T: Real> RigidMotion<T> {
+    /// PROBE (not for landing): axes enclosing one rigid motion per point,
+    /// taken as given.
+    #[cfg(feature = "test-support")]
+    #[doc(hidden)]
+    #[must_use]
+    pub fn probe_enclosed(origin: Point3<T>, u: Vec3<T>, v: Vec3<T>, w: Vec3<T>) -> Self {
+        Self {
+            origin,
+            u: UnitVec3::by_construction(u),
+            v: UnitVec3::by_construction(v),
+            w: UnitVec3::by_construction(w),
+        }
+    }
+}
+
 impl<T: Decide> RigidMotion<T> {
     /// **The test door, at any scalar**: a raw [`Affine3`] a suite builds
     /// as twelve numbers, admitted as the rigid motion it is, its columns
