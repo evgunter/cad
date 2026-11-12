@@ -21,12 +21,56 @@ use std::collections::{BTreeMap, BTreeSet};
 use super::holdings::{Held, Holdings};
 use super::nary::ToolMaterial;
 use super::ops::{BooleanBody, OperandKeys};
-use super::{BooleanError, Cell, Operand};
+use super::{BooleanError, Cell, Operand, OperandRecords};
 use crate::body::Body;
 use crate::coincidence::{Backing, RowCell};
 use crate::entity::{EdgeKey, FaceKey, VertexKey};
 use crate::props::AtRestPolicy;
 use crate::provenance::Provenance;
+
+/// **The material of a cut's tool, as one body**: each fused group's
+/// material and every solid that stands as it is, its records, and its
+/// read-back to the tool. One group and nothing standing is that group's
+/// material itself; otherwise the standing solids are carved out of the
+/// tool with their keys and each group's material grafted in beside them.
+/// The material's records are each group's, the standing solids' own, and
+/// `riding`, the tool's records between solids that stay apart, read onto
+/// the material's keys.
+///
+/// # Errors
+///
+/// The carve's, the graft's and the finish's refusals; as
+/// [`Through::onto_material`].
+pub(super) fn assembled<T: geom_core::Decide + AtRestPolicy>(
+    tool: &T::Finished,
+    standing: &[crate::SolidKey],
+    standing_records: &OperandRecords,
+    mut folded: Vec<(ToolMaterial<T>, Through)>,
+    riding: &OperandRecords,
+    tol: geom_core::Tol,
+) -> Result<(T::Finished, OperandRecords, Through), BooleanError> {
+    let unread = || BooleanError::JoinDesync { what: UNREAD };
+    if standing.is_empty() && folded.len() == 1 {
+        let (material, mut through) = folded.pop().ok_or_else(unread)?;
+        let fused = material.body();
+        let records = through.onto_material(riding, fused.contacts.carried(), &fused.body)?;
+        return Ok((fused.body.clone(), records, through));
+    }
+    let mut body = crate::carve::solids_alone(tool, standing).map_err(|_| {
+        BooleanError::ClassificationInvariant {
+            what: "a finished tool's solids do not carve out of it",
+        }
+    })?;
+    let (mut through, mut records) = Through::standing(&body, standing_records);
+    for (material, th) in folded {
+        let fused: &Body<T> = &material.body().body;
+        let keys = crate::graft_disjoint_all_keyed(&mut body, fused)?;
+        through.absorb(th, &keys, &material.body().contacts.carried(), &mut records)?;
+    }
+    let records = through.onto_material(riding, records, &body)?;
+    let body = T::finish(body, tol).map_err(|findings| BooleanError::ResultInvalid { findings })?;
+    Ok((body, records, through))
+}
 
 /// What a fold refused to read back, for [`BooleanError::JoinDesync`].
 const UNREAD: &str = "a cell or record of a cut's material reads back to no cell or record of its \
@@ -52,6 +96,16 @@ pub(super) struct Through {
     /// tool's solids: between faces holding faces of two of them, which
     /// share no edge of the tool.
     seams: Vec<EdgeKey>,
+    /// A seam of [`Self::seams`] the union split off one of the tool's
+    /// edges → that edge: the seam lies along it.
+    seam_edges: BTreeMap<EdgeKey, EdgeKey>,
+    /// Every other seam → a face of the tool on each side of it: it lies
+    /// where those two faces meet.
+    seam_faces: BTreeMap<EdgeKey, [FaceKey; 2]>,
+    /// A vertex the union minted where two of the tool's edges cross →
+    /// every edge of the tool it lies on, sorted: the edges its own
+    /// edges are pieces of.
+    crossings: BTreeMap<VertexKey, Vec<EdgeKey>>,
     /// Each record of the material, by place → the tool's records it
     /// carries.
     records: Vec<Vec<u32>>,
@@ -207,7 +261,15 @@ impl Through {
         for (f, _) in fused.faces() {
             let held = match last_holdings(material).of(f) {
                 Some(Held::Faces(held)) => held.iter().map(|&(_, t)| t).collect::<BTreeSet<_>>(),
-                _ => return Err(unread()),
+                Some(Held::Refused(refusal)) => {
+                    return Err(BooleanError::ToolFuseRefused {
+                        why: Box::new(super::ToolFuseRefusal::Holding {
+                            face: f,
+                            refusal: refusal.clone(),
+                        }),
+                    });
+                }
+                None => return Err(unread()),
             };
             match (faces.get(&f), held.first()) {
                 (Some(t), _) if held.contains(t) => {}
@@ -243,6 +305,59 @@ impl Through {
                 hops.insert(e, edges.get(&parent).copied().unwrap_or(parent));
             }
         }
+        // Each seam the union split off an edge lies along it; each
+        // vertex it minted lies on every edge of the tool its own edges
+        // are pieces of.
+        let tool_edge = |e: EdgeKey| -> Option<EdgeKey> {
+            let mut at = e;
+            for _ in 0..=hops.len() {
+                if let Some(&t) = edges.get(&at) {
+                    return Some(t);
+                }
+                at = match fused.edge_provenance_of(at) {
+                    Some(&Provenance::SplitEdge { edge: parent }) => parent,
+                    _ => hops.get(&at).copied()?,
+                };
+            }
+            None
+        };
+        let seam_edges: BTreeMap<EdgeKey, EdgeKey> = seams
+            .iter()
+            .filter_map(|&e| match fused.edge_provenance_of(e) {
+                Some(&Provenance::SplitEdge { edge: parent }) => Some((e, tool_edge(parent)?)),
+                _ => None,
+            })
+            .collect();
+        let first_held = |f: FaceKey| {
+            held_by
+                .get(&f)
+                .and_then(|h: &BTreeSet<FaceKey>| h.first().copied())
+        };
+        let seam_faces: BTreeMap<EdgeKey, [FaceKey; 2]> = seams
+            .iter()
+            .filter(|e| !seam_edges.contains_key(e))
+            .filter_map(|&e| {
+                let [x, y] = crate::wedge_reach::edge_faces(fused, e);
+                Some((e, [first_held(x)?, first_held(y)?]))
+            })
+            .collect();
+        let on_tool = |e: EdgeKey| tool_edge(e).or_else(|| seam_edges.get(&e).copied());
+        let mut crossings: BTreeMap<VertexKey, Vec<EdgeKey>> = BTreeMap::new();
+        for (e, edge) in fused.edges() {
+            let Some(t) = on_tool(e) else { continue };
+            let he = |h| fused.get_half_edge(h).map(|d| d.start);
+            for v in [he(edge.he_plus), he(edge.he_minus)].into_iter().flatten() {
+                if !vertices.contains_key(&v) {
+                    let at = crossings.entry(v).or_default();
+                    if !at.contains(&t) {
+                        at.push(t);
+                    }
+                }
+            }
+        }
+        for at in crossings.values_mut() {
+            at.sort_unstable();
+        }
         Ok(Self {
             faces,
             edges,
@@ -251,8 +366,308 @@ impl Through {
             hops,
             held: held_by,
             seams,
+            seam_edges,
+            seam_faces,
+            crossings,
             records: acc_records.unwrap_or_default(),
         })
+    }
+
+    /// **The solids of `body` that stand as they are, read as the tool's**:
+    /// each cell its own, each face holding itself, and their records
+    /// `own` in the tool's keys, each in its place.
+    fn standing<T: geom_core::Real>(
+        body: &Body<T>,
+        own: &OperandRecords,
+    ) -> (Self, OperandRecords) {
+        let mut through = Self {
+            faces: body.faces().map(|(f, _)| (f, f)).collect(),
+            edges: body.edges().map(|(e, _)| (e, e)).collect(),
+            vertices: body.vertices().map(|(v, _)| (v, v)).collect(),
+            pieces: BTreeMap::new(),
+            hops: BTreeMap::new(),
+            held: body
+                .faces()
+                .map(|(f, _)| (f, BTreeSet::from([f])))
+                .collect(),
+            seams: Vec::new(),
+            seam_edges: BTreeMap::new(),
+            seam_faces: BTreeMap::new(),
+            crossings: BTreeMap::new(),
+            records: Vec::new(),
+        };
+        let mut records = own.clone();
+        let OperandRecords {
+            vv,
+            vf,
+            ve,
+            ee,
+            ef,
+            ff,
+        } = &mut records;
+        macro_rules! place {
+            ($($list:ident),*) => {
+                $(for c in $list.iter_mut() {
+                    through.records.push(vec![c.record]);
+                    c.record = super::reduce::index(through.records.len() - 1);
+                })*
+            };
+        }
+        place!(vv, vf, ve, ee, ef, ff);
+        (through, records)
+    }
+
+    /// **`group`, one fused group's read-back, grafted into this
+    /// material by `keys`**: its cells at their grafted keys, and its
+    /// material's records `carried` read onto them, each citing what it
+    /// carried of the tool's, appended to `records`.
+    ///
+    /// # Errors
+    ///
+    /// [`BooleanError::JoinDesync`] where a record names a cell the graft
+    /// does not map, which it maps whole.
+    fn absorb(
+        &mut self,
+        group: Through,
+        keys: &crate::GraftKeys,
+        carried: &OperandRecords,
+        records: &mut OperandRecords,
+    ) -> Result<(), BooleanError> {
+        let unread = || BooleanError::JoinDesync { what: UNREAD };
+        let Through {
+            faces,
+            edges,
+            vertices,
+            pieces,
+            hops,
+            held,
+            seams,
+            seam_edges,
+            seam_faces,
+            crossings,
+            records: tool_records,
+        } = group;
+        self.faces.extend(
+            faces
+                .into_iter()
+                .filter_map(|(u, t)| Some((keys.face(u)?, t))),
+        );
+        self.edges.extend(
+            edges
+                .into_iter()
+                .filter_map(|(u, t)| Some((keys.edge(u)?, t))),
+        );
+        self.vertices.extend(
+            vertices
+                .into_iter()
+                .filter_map(|(u, t)| Some((keys.vertex(u)?, t))),
+        );
+        self.pieces.extend(
+            pieces
+                .into_iter()
+                .filter_map(|(u, t)| Some((keys.face(u)?, t))),
+        );
+        self.held.extend(
+            held.into_iter()
+                .filter_map(|(u, t)| Some((keys.face(u)?, t))),
+        );
+        self.seams
+            .extend(seams.into_iter().filter_map(|e| keys.edge(e)));
+        self.seam_faces.extend(
+            seam_faces
+                .into_iter()
+                .filter_map(|(u, t)| Some((keys.edge(u)?, t))),
+        );
+        self.seam_edges.extend(
+            seam_edges
+                .into_iter()
+                .filter_map(|(u, t)| Some((keys.edge(u)?, t))),
+        );
+        self.crossings.extend(
+            crossings
+                .into_iter()
+                .filter_map(|(u, t)| Some((keys.vertex(u)?, t))),
+        );
+        self.hops.extend(
+            hops.into_iter()
+                .filter_map(|(u, up)| Some((keys.edge(u)?, keys.edge(up).unwrap_or(up)))),
+        );
+        let base = self.records.len();
+        self.records.extend(tool_records);
+        let at = |r: u32| super::reduce::index(base + r as usize);
+        let face = |f| keys.face(f).ok_or_else(unread);
+        let edge = |e| keys.edge(e).ok_or_else(unread);
+        let vertex = |v| keys.vertex(v).ok_or_else(unread);
+        let OperandRecords {
+            vv,
+            vf,
+            ve,
+            ee,
+            ef,
+            ff,
+        } = carried;
+        for c in vv {
+            records.vv.push(super::CarriedRecord {
+                contact: super::VvContact {
+                    a: vertex(c.contact.a)?,
+                    b: vertex(c.contact.b)?,
+                },
+                record: at(c.record),
+            });
+        }
+        for c in vf {
+            records.vf.push(super::CarriedRecord {
+                contact: super::VfContact {
+                    vertex: vertex(c.contact.vertex)?,
+                    face: face(c.contact.face)?,
+                },
+                record: at(c.record),
+            });
+        }
+        for c in ve {
+            records.ve.push(super::CarriedRecord {
+                contact: super::VeContact {
+                    vertex: vertex(c.contact.vertex)?,
+                    edge: edge(c.contact.edge)?,
+                },
+                record: at(c.record),
+            });
+        }
+        for c in ee {
+            records.ee.push(super::CarriedRecord {
+                contact: super::EeContact {
+                    a: edge(c.contact.a)?,
+                    b: edge(c.contact.b)?,
+                },
+                record: at(c.record),
+            });
+        }
+        for c in ef {
+            records.ef.push(super::CarriedRecord {
+                contact: super::EfContact {
+                    edge: edge(c.contact.edge)?,
+                    face: face(c.contact.face)?,
+                },
+                record: at(c.record),
+            });
+        }
+        for c in ff {
+            records.ff.push(super::CarriedRecord {
+                contact: super::FfContact {
+                    a: face(c.contact.a)?,
+                    b: face(c.contact.b)?,
+                },
+                record: at(c.record),
+            });
+        }
+        Ok(())
+    }
+
+    /// **The tool's records `riding` as records of the material**, each
+    /// between two of its solids the fold keeps apart: its cells read
+    /// forward to the material's keys, the record cited as the tool's.
+    /// The material's records are `carried`, its own list carried in;
+    /// these follow them, and [`Self::records`] learns their places.
+    ///
+    /// # Errors
+    ///
+    /// [`BooleanError::ToolSeatUnread`] for a record a cell of which is
+    /// no one cell of the material: the fold divided or consumed it.
+    pub(super) fn onto_material<T: geom_core::Real>(
+        &mut self,
+        riding: &OperandRecords,
+        carried: OperandRecords,
+        fused: &Body<T>,
+    ) -> Result<OperandRecords, BooleanError> {
+        fn forward<K: Copy + Ord>(
+            map: &BTreeMap<K, K>,
+            live: impl Fn(K) -> bool,
+        ) -> BTreeMap<K, K> {
+            map.iter()
+                .filter(|&(&u, _)| live(u))
+                .map(|(&u, &t)| (t, u))
+                .collect()
+        }
+        let faces = forward(&self.faces, |f| fused.get_face(f).is_some());
+        let edges = forward(&self.edges, |e| fused.get_edge(e).is_some());
+        let vertices = forward(&self.vertices, |v| fused.get_vertex(v).is_some());
+        let unread = |record, cells| BooleanError::ToolSeatUnread { record, cells };
+        let face = |f| faces.get(&f).copied();
+        let edge = |e| edges.get(&e).copied();
+        let vertex = |v| vertices.get(&v).copied();
+        let mut out = carried;
+        let OperandRecords {
+            vv,
+            vf,
+            ve,
+            ee,
+            ef,
+            ff,
+        } = riding;
+        let mut place = |record: u32| {
+            self.records.push(vec![record]);
+            u32::try_from(self.records.len() - 1)
+                .unwrap_or_else(|_| unreachable!("a record list's place fits its index"))
+        };
+        use Cell::{Edge, Face, Vertex};
+        for c in vv {
+            let (x, y) = (c.contact.a, c.contact.b);
+            let (Some(a), Some(b)) = (vertex(x), vertex(y)) else {
+                return Err(unread(c.record, [Vertex(x), Vertex(y)]));
+            };
+            out.vv.push(super::CarriedRecord {
+                contact: super::VvContact { a, b },
+                record: place(c.record),
+            });
+        }
+        for c in vf {
+            let (x, y) = (c.contact.vertex, c.contact.face);
+            let (Some(vertex), Some(face)) = (vertex(x), face(y)) else {
+                return Err(unread(c.record, [Vertex(x), Face(y)]));
+            };
+            out.vf.push(super::CarriedRecord {
+                contact: super::VfContact { vertex, face },
+                record: place(c.record),
+            });
+        }
+        for c in ve {
+            let (x, y) = (c.contact.vertex, c.contact.edge);
+            let (Some(vertex), Some(edge)) = (vertex(x), edge(y)) else {
+                return Err(unread(c.record, [Vertex(x), Edge(y)]));
+            };
+            out.ve.push(super::CarriedRecord {
+                contact: super::VeContact { vertex, edge },
+                record: place(c.record),
+            });
+        }
+        for c in ee {
+            let (x, y) = (c.contact.a, c.contact.b);
+            let (Some(a), Some(b)) = (edge(x), edge(y)) else {
+                return Err(unread(c.record, [Edge(x), Edge(y)]));
+            };
+            out.ee.push(super::CarriedRecord {
+                contact: super::EeContact { a, b },
+                record: place(c.record),
+            });
+        }
+        for c in ef {
+            let (x, y) = (c.contact.edge, c.contact.face);
+            let (Some(edge), Some(face)) = (edge(x), face(y)) else {
+                return Err(unread(c.record, [Edge(x), Face(y)]));
+            };
+            out.ef.push(super::CarriedRecord {
+                contact: super::EfContact { edge, face },
+                record: place(c.record),
+            });
+        }
+        if let Some(c) = ff.first() {
+            unreachable!(
+                "face–face record {} rides between two solids the fold keeps apart, though a \
+                 face–face record between two solids is a verdict or refuses",
+                c.record
+            );
+        }
+        Ok(out)
     }
 
     fn face(&self, f: FaceKey) -> FaceKey {
@@ -269,21 +684,42 @@ impl Through {
 
     /// The tool's cell an operand-B cell of the cut stands for, as a row
     /// names it: a face the union minted is the tool's face it is a
-    /// piece of, an edge it split the edge it was split from.
-    fn input_cell(&self, cell: Cell) -> Cell {
-        match cell {
-            Cell::Face(f) => {
-                Cell::Face(self.pieces.get(&f).copied().unwrap_or_else(|| self.face(f)))
-            }
+    /// piece of, an edge it split the edge it was split from, a seam it
+    /// split off an edge that edge, and any other seam the face of the
+    /// tool on one side of it, `.1` the face on the other; a vertex it
+    /// minted where two of the tool's edges cross, the first of them,
+    /// `.1` the second and `.2` the rest. `None` for a cell of the material none of these reads.
+    fn read(&self, cell: Cell) -> Option<(Cell, Option<Cell>, Vec<Cell>)> {
+        Some(match cell {
+            Cell::Face(f) => (
+                Cell::Face(self.pieces.get(&f).copied().unwrap_or_else(|| self.face(f))),
+                None,
+                Vec::new(),
+            ),
             Cell::Edge(e) => {
                 let mut at = e;
                 while let Some(&up) = self.hops.get(&at) {
                     at = up;
                 }
-                Cell::Edge(self.edge(at))
+                if let Some(&[x, y]) = self.seam_faces.get(&at) {
+                    return Some((Cell::Face(x), Some(Cell::Face(y)), Vec::new()));
+                }
+                let t = match self.seam_edges.get(&at) {
+                    Some(&t) => t,
+                    None => self.edge(at),
+                };
+                (Cell::Edge(t), None, Vec::new())
             }
-            Cell::Vertex(v) => Cell::Vertex(self.vertex(v)),
-        }
+            Cell::Vertex(v) => match self.crossings.get(&v).map(Vec::as_slice) {
+                Some([first, second, rest @ ..]) => (
+                    Cell::Edge(*first),
+                    Some(Cell::Edge(*second)),
+                    rest.iter().map(|&e| Cell::Edge(e)).collect(),
+                ),
+                Some(_) => return None,
+                None => (Cell::Vertex(self.vertex(v)), None, Vec::new()),
+            },
+        })
     }
 
     /// **`out`, the cut by the material, stated as the cut by the tool**
@@ -366,7 +802,7 @@ impl Through {
         n.carved_lineage[1] = self
             .hops
             .iter()
-            .map(|(&e, &up)| (e, up))
+            .map(|(&e, &up)| (e, self.edge(up)))
             .chain(
                 carved
                     .into_iter()
@@ -396,21 +832,13 @@ impl Through {
             c.record.edge = self.edge(c.record.edge);
         }
         for v in &mut out.verdicts {
-            v.b = self.input_cell(Cell::Face(v.b)).face().ok_or_else(unread)?;
+            v.b = match self.read(Cell::Face(v.b)) {
+                Some((Cell::Face(f), None, _)) => f,
+                _ => return Err(unread()),
+            };
         }
         for row in &mut out.coincidences {
-            for cell in row.cells.iter_mut().chain(row.more.iter_mut().flatten()) {
-                if let RowCell::Input {
-                    input: Operand::B,
-                    cell,
-                } = cell
-                {
-                    *cell = self.input_cell(*cell);
-                    if !super::records::holds(tool, *cell) {
-                        return Err(unread());
-                    }
-                }
-            }
+            self.respell(row, tool)?;
         }
         out.holdings = self.holdings(&out.holdings);
         if out
@@ -436,6 +864,72 @@ impl Through {
             },
             |_| unread(),
         )?;
+        Ok(())
+    }
+
+    /// **`row`, a row of the cut by the material, spelled in the tool's
+    /// cells** ([`Self::read`]) through the one door a decision's cells
+    /// pass to become a row's ([`super::ops::spell`]): a point decided on
+    /// a vertex the union minted where two of the tool's edges cross is
+    /// stated as the meeting of those edges.
+    ///
+    /// # Errors
+    ///
+    /// [`BooleanError::JoinDesync`] for a cell of the material no reading
+    /// takes to a cell of `tool`; `spell`'s.
+    fn respell<T: geom_core::Real>(
+        &self,
+        row: &mut crate::Coincidence,
+        tool: &Body<T>,
+    ) -> Result<(), BooleanError> {
+        let unread = || BooleanError::JoinDesync { what: UNREAD };
+        let end = |cell: RowCell| match cell {
+            RowCell::Input { input, cell } => Some((input, cell)),
+            RowCell::Tool | RowCell::Result { .. } => None,
+        };
+        let names_b = row.every_cell().any(|c| {
+            matches!(
+                c,
+                RowCell::Input {
+                    input: Operand::B,
+                    ..
+                }
+            )
+        });
+        if !names_b {
+            return Ok(());
+        }
+        let [Some(x), Some(y)] = row.cells.map(end) else {
+            return Err(unread());
+        };
+        let mut through: Vec<super::ops::End> = row
+            .more
+            .into_iter()
+            .flatten()
+            .map(|c| end(c).ok_or_else(unread))
+            .collect::<Result<_, _>>()?;
+        // Each B cell's reading, every cell it names held by the tool.
+        let mut reads: BTreeMap<super::ops::End, super::ops::Read> = BTreeMap::new();
+        for e in [x, y].into_iter().chain(through.clone()) {
+            let (input, cell) = e;
+            if input != Operand::B {
+                continue;
+            }
+            let (at, by, rest) = self.read(cell).ok_or_else(unread)?;
+            if [at]
+                .into_iter()
+                .chain(by)
+                .chain(rest.iter().copied())
+                .any(|c| !super::records::holds(tool, c))
+            {
+                return Err(unread());
+            }
+            through.extend(rest.into_iter().map(|c| (Operand::B, c)));
+            reads.insert(e, ((Operand::B, at), by.map(|c| (Operand::B, c))));
+        }
+        let read = |e: super::ops::End| reads.get(&e).copied().unwrap_or((e, None));
+        (row.cells, row.more, row.relation) =
+            super::ops::spell([x, y], &through, row.relation, read)?;
         Ok(())
     }
 
@@ -470,14 +964,4 @@ fn last_holdings<T: AtRestPolicy>(material: &ToolMaterial<T>) -> &Holdings {
         .last()
         .unwrap_or_else(|| unreachable!("a tool of two or more solids folds at least once"))
         .holdings
-}
-
-impl Cell {
-    /// The face, where the cell is one.
-    fn face(self) -> Option<FaceKey> {
-        match self {
-            Self::Face(f) => Some(f),
-            Self::Edge(_) | Self::Vertex(_) => None,
-        }
-    }
 }

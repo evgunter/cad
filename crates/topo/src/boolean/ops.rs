@@ -4106,7 +4106,7 @@ impl Rows {
 
 /// One end of a record entering [`carry`]: the arena it is keyed in
 /// and the cell.
-type End = (Operand, Cell);
+pub(super) type End = (Operand, Cell);
 
 /// A record entering [`carry`], operand-tagged: its two ends and what
 /// it cites.
@@ -4850,7 +4850,7 @@ type Carried = (ContactRecords, Vec<crate::Coincidence>);
 /// more cells than a row holds, which no reading makes: two cells read
 /// with a minting cell each and one `through`, or two read with none
 /// and a meeting's three.
-fn spell(
+pub(super) fn spell(
     cells: [End; 2],
     through: &[End],
     relation: crate::Relation,
@@ -4918,7 +4918,7 @@ fn spell(
 /// What [`spell`]'s `read` makes of a cell: the cell of the op's input
 /// it lies in, and the cell of the other input whose crossing minted it,
 /// where the op minted it on an edge.
-type Read = (End, Option<End>);
+pub(super) type Read = (End, Option<End>);
 
 /// What [`spell`] makes of a decision: its row's two cells, its further
 /// ones ([`crate::Coincidence::more`]) and its relation.

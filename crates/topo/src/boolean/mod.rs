@@ -3791,6 +3791,17 @@ pub enum BooleanError {
         /// The record's two cells, keys of `B`.
         cells: [Cell; 2],
     },
+    /// **A cut's tool's fuse refused**: the cut reads `B`, its solids
+    /// resting on each other, as their material, and the union of those
+    /// solids on their records refused, or what a face of that union
+    /// holds of `B`'s faces could not be read (`crates/topo/README.md`,
+    /// `[topo.cut-material]`).
+    ///
+    /// Classed as the union's refusal is; a holding unread is a limit.
+    ToolFuseRefused {
+        /// Why.
+        why: Box<ToolFuseRefusal>,
+    },
     /// The result would hold a non-manifold vertex: both operands hold
     /// several vertices at one point, and A's crosses into two of B's
     /// (two crossing pairs share both their vertices). Each solid's
@@ -4725,6 +4736,8 @@ pub enum BooleanErrorKind {
     TouchesItself,
     /// [`BooleanError::ToolSeatUnread`].
     ToolSeatUnread,
+    /// [`BooleanError::ToolFuseRefused`].
+    ToolFuseRefused,
     /// [`BooleanError::NonManifoldResult`].
     NonManifoldResult,
     /// [`BooleanError::ClassificationInvariant`].
@@ -5053,6 +5066,7 @@ impl BooleanError {
             Self::PartnerAlongFace { .. } => BooleanErrorKind::PartnerAlongFace,
             Self::TouchesItself { .. } => BooleanErrorKind::TouchesItself,
             Self::ToolSeatUnread { .. } => BooleanErrorKind::ToolSeatUnread,
+            Self::ToolFuseRefused { .. } => BooleanErrorKind::ToolFuseRefused,
             Self::NonManifoldResult { .. } => BooleanErrorKind::NonManifoldResult,
             Self::ClassificationInvariant { .. } => BooleanErrorKind::ClassificationInvariant,
             Self::CrossingInsertion { .. } => BooleanErrorKind::CrossingInsertion,
@@ -5142,6 +5156,10 @@ impl BooleanError {
             Self::Containment(e) => e.refusal(),
             Self::ApexSection { reading, .. } => reading.refusal(),
             Self::Join(j) => j.error().refusal(),
+            Self::ToolFuseRefused { why } => match why.as_ref() {
+                ToolFuseRefusal::Step(error) => error.refusal(),
+                ToolFuseRefusal::Holding { .. } => Ok(Refusal::Limit),
+            },
             Self::ShellWitnessExhausted { first_in_band, .. } => first_in_band
                 .as_ref()
                 .map_or(Ok(Refusal::InBand), PointInSolidError::refusal),
@@ -5945,6 +5963,21 @@ impl BooleanError {
                  the Boolean cannot yet cut by the material of pieces that meet both ways. \
                  Recourse: unite the pieces first, or cut by each piece in turn",
             ),
+            Self::ToolFuseRefused { why } => match why.as_ref() {
+                ToolFuseRefusal::Step(error) => write!(
+                    f,
+                    "the cut's tool is pieces resting on each other, which the Boolean fuses \
+                     into one material before it cuts, and that fuse refused, its keys the \
+                     pieces' own: {error}",
+                ),
+                ToolFuseRefusal::Holding { face, refusal } => write!(
+                    f,
+                    "the cut's tool is pieces resting on each other, which the Boolean fuses \
+                     into one material before it cuts, and which of the pieces' faces the \
+                     fused face {face:?} holds could not be read ({refusal:?}), so the cut \
+                     cannot name the tool's faces it would cut along",
+                ),
+            },
             Self::NonManifoldResult { .. } => write!(
                 f,
                 "the result would meet itself in a fan of faces around one point, where \
@@ -8888,79 +8921,110 @@ fn validate_declarations<T: Decide>(
         inventory_face(a, fa, Operand::A)?;
         inventory_face(b, fb, Operand::B)?;
     }
+    validate_carried(a, &decls.records_a, Operand::A)?;
+    validate_carried(b, &decls.records_b, Operand::B)
+}
+
+/// **Every key an operand's carried records name resolves in `body`**,
+/// and each record names two cells neither of which bounds the other:
+/// `BooleanInputs`' contract, a dangling key refused typed.
+///
+/// # Errors
+///
+/// [`BooleanError::InvalidInput`] naming the first record kind that
+/// fails.
+pub(super) fn validate_carried<T: Real>(
+    body: &Body<T>,
+    c: &OperandRecords,
+    operand: Operand,
+) -> Result<(), BooleanError> {
+    let bad = |operand, what| BooleanError::InvalidInput { operand, what };
     // A record's two cells' interiors meet, so neither bounds the other.
     let bounds = |body: &Body<T>, x, y| {
         matches!(Contact::new(body, x, y), Err(ContactPairError::Incident(_)))
     };
-    let carried = |body: &Body<T>, c: &OperandRecords, operand| -> Result<(), BooleanError> {
-        for carried in &c.vv {
-            let pair = carried.contact;
-            if body.get_vertex(pair.a).is_none() || body.get_vertex(pair.b).is_none() {
-                return Err(bad(operand, "carried v-v vertex key does not resolve"));
-            }
-            if pair.a == pair.b {
-                return Err(bad(operand, "carried v-v pair names one vertex twice"));
+    for carried in &c.vv {
+        let pair = carried.contact;
+        if body.get_vertex(pair.a).is_none() || body.get_vertex(pair.b).is_none() {
+            return Err(bad(operand, "carried v-v vertex key does not resolve"));
+        }
+        if pair.a == pair.b {
+            return Err(bad(operand, "carried v-v pair names one vertex twice"));
+        }
+    }
+    for carried in &c.vf {
+        let rest = carried.contact;
+        if body.get_vertex(rest.vertex).is_none() {
+            return Err(bad(operand, "carried v-on-f vertex key does not resolve"));
+        }
+        if body.get_face(rest.face).is_none() {
+            return Err(bad(operand, "carried v-on-f face key does not resolve"));
+        }
+        if bounds(body, Cell::Vertex(rest.vertex), Cell::Face(rest.face)) {
+            return Err(bad(operand, "carried v-on-f vertex bounds its face"));
+        }
+    }
+    for CarriedRecord { contact: rest, .. } in &c.ve {
+        if body.get_vertex(rest.vertex).is_none() {
+            return Err(bad(operand, "carried v-on-e vertex key does not resolve"));
+        }
+        if body.get_edge(rest.edge).is_none() {
+            return Err(bad(operand, "carried v-on-e edge key does not resolve"));
+        }
+        if bounds(body, Cell::Vertex(rest.vertex), Cell::Edge(rest.edge)) {
+            return Err(bad(operand, "carried v-on-e vertex bounds its edge"));
+        }
+    }
+    for CarriedRecord { contact: touch, .. } in &c.ee {
+        if touch.a == touch.b {
+            return Err(bad(operand, "carried e-e pair names one edge twice"));
+        }
+        for e in [touch.a, touch.b] {
+            if body.get_edge(e).is_none() {
+                return Err(bad(operand, "carried e-e edge key does not resolve"));
             }
         }
-        for carried in &c.vf {
-            let rest = carried.contact;
-            if body.get_vertex(rest.vertex).is_none() {
-                return Err(bad(operand, "carried v-on-f vertex key does not resolve"));
-            }
-            if body.get_face(rest.face).is_none() {
-                return Err(bad(operand, "carried v-on-f face key does not resolve"));
-            }
-            if bounds(body, Cell::Vertex(rest.vertex), Cell::Face(rest.face)) {
-                return Err(bad(operand, "carried v-on-f vertex bounds its face"));
+    }
+    for CarriedRecord { contact: touch, .. } in &c.ef {
+        if body.get_edge(touch.edge).is_none() {
+            return Err(bad(operand, "carried e-f edge key does not resolve"));
+        }
+        if body.get_face(touch.face).is_none() {
+            return Err(bad(operand, "carried e-f face key does not resolve"));
+        }
+        if bounds(body, Cell::Edge(touch.edge), Cell::Face(touch.face)) {
+            return Err(bad(operand, "carried e-f edge bounds its face"));
+        }
+    }
+    for CarriedRecord { contact: touch, .. } in &c.ff {
+        if touch.a == touch.b {
+            return Err(bad(operand, "carried f-f pair names one face twice"));
+        }
+        for f in [touch.a, touch.b] {
+            if body.get_face(f).is_none() {
+                return Err(bad(operand, "carried f-f face key does not resolve"));
             }
         }
-        for CarriedRecord { contact: rest, .. } in &c.ve {
-            if body.get_vertex(rest.vertex).is_none() {
-                return Err(bad(operand, "carried v-on-e vertex key does not resolve"));
-            }
-            if body.get_edge(rest.edge).is_none() {
-                return Err(bad(operand, "carried v-on-e edge key does not resolve"));
-            }
-            if bounds(body, Cell::Vertex(rest.vertex), Cell::Edge(rest.edge)) {
-                return Err(bad(operand, "carried v-on-e vertex bounds its edge"));
-            }
-        }
-        for CarriedRecord { contact: touch, .. } in &c.ee {
-            if touch.a == touch.b {
-                return Err(bad(operand, "carried e-e pair names one edge twice"));
-            }
-            for e in [touch.a, touch.b] {
-                if body.get_edge(e).is_none() {
-                    return Err(bad(operand, "carried e-e edge key does not resolve"));
-                }
-            }
-        }
-        for CarriedRecord { contact: touch, .. } in &c.ef {
-            if body.get_edge(touch.edge).is_none() {
-                return Err(bad(operand, "carried e-f edge key does not resolve"));
-            }
-            if body.get_face(touch.face).is_none() {
-                return Err(bad(operand, "carried e-f face key does not resolve"));
-            }
-            if bounds(body, Cell::Edge(touch.edge), Cell::Face(touch.face)) {
-                return Err(bad(operand, "carried e-f edge bounds its face"));
-            }
-        }
-        for CarriedRecord { contact: touch, .. } in &c.ff {
-            if touch.a == touch.b {
-                return Err(bad(operand, "carried f-f pair names one face twice"));
-            }
-            for f in [touch.a, touch.b] {
-                if body.get_face(f).is_none() {
-                    return Err(bad(operand, "carried f-f face key does not resolve"));
-                }
-            }
-        }
-        Ok(())
-    };
-    carried(a, &decls.records_a, Operand::A)?;
-    carried(b, &decls.records_b, Operand::B)?;
+    }
     Ok(())
+}
+
+/// **Why a cut's tool's fuse refused** ([`BooleanError::ToolFuseRefused`]).
+#[derive(Debug)]
+pub enum ToolFuseRefusal {
+    /// The union's own refusal at a fold step, its operands the fold's
+    /// accumulation and the solid it joins, each in the keys of `B`'s
+    /// solids carved out of it: a seat the union has no glue arm for
+    /// refuses here, naming the carrier pair.
+    Step(BooleanError),
+    /// What `face`, a face of the union, holds of `B`'s faces could not
+    /// be read, so the cut cannot name the tool's faces it cuts along.
+    Holding {
+        /// The union's face, in its keys.
+        face: FaceKey,
+        /// Why.
+        refusal: HeldRefusal,
+    },
 }
 
 pub use join_lift::BooleanJoin;
@@ -10132,6 +10196,7 @@ mod tests {
                 BooleanErrorKind::PartnerAlongFace => "PartnerAlongFace",
                 BooleanErrorKind::TouchesItself => "TouchesItself",
                 BooleanErrorKind::ToolSeatUnread => "ToolSeatUnread",
+                BooleanErrorKind::ToolFuseRefused => "ToolFuseRefused",
                 BooleanErrorKind::NonManifoldResult => "NonManifoldResult",
                 BooleanErrorKind::ClassificationInvariant => "ClassificationInvariant",
                 BooleanErrorKind::CrossingInsertion => "CrossingInsertion",

@@ -174,16 +174,19 @@ pub(crate) fn carve<T: Decide>(
     Ok(body)
 }
 
-/// **`src`'s solid `keep` alone**: a clone with every other solid and
+/// **`src`'s solids `keep` alone**: a clone with every other solid and
 /// everything under it removed ([`carve`]), every kept entity keeping its
-/// key.
+/// key. With none kept it holds no solid.
 ///
 /// # Errors
 ///
 /// As [`carve`].
-pub(crate) fn solid_alone<T: Decide>(src: &Body<T>, keep: SolidKey) -> Result<Body<T>, Corrupt> {
+pub(crate) fn solids_alone<T: Decide>(
+    src: &Body<T>,
+    keep: &[SolidKey],
+) -> Result<Body<T>, Corrupt> {
     let mut body = src.clone();
-    for other in src.solids().map(|(s, _)| s).filter(|&s| s != keep) {
+    for other in src.solids().map(|(s, _)| s).filter(|s| !keep.contains(s)) {
         body = carve(&body, other, &[])?;
         body.solids.remove(other);
         body.solid_provenance.remove(other);

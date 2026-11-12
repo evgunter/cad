@@ -2175,6 +2175,7 @@ fn quoting(kind: BooleanErrorKind, diag: Indeterminate) -> Vec<BooleanError> {
         | BooleanErrorKind::PartnerAlongFace
         | BooleanErrorKind::TouchesItself
         | BooleanErrorKind::ToolSeatUnread
+        | BooleanErrorKind::ToolFuseRefused
         | BooleanErrorKind::ClassificationInvariant
         | BooleanErrorKind::CurvedPairUnsupported
         | BooleanErrorKind::NurbsExtentUnsupported
