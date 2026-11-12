@@ -2,12 +2,13 @@
 id: two-cones-apex-lobes-on-two-carriers-refuse-a-valid-body
 kind: issue
 title: Two cones' apex lobes on two carriers in one self-touch link refuse a valid body
-status: review
+status: closed
 opened: 2026-11-12
 priority: P1
 cost: H
 pr: 6878
 branch: restread/self-touch-valid-bodies
+closed: 2026-11-12
 ---
 
 
@@ -90,3 +91,14 @@ nappes tangent along a ruling.
 The row `two_cones_through_one_apex_build_across_the_pose_families`
 asserts pass again on all four ops of every pose. Counts are in
 `a-ridge-end-on-an-arc-wall-tangent-to-its-floor-refuses-unreadable`.
+
+## Closed
+
+2026-11-12, by PR 6878 (`restread/self-touch-valid-bodies`). Both
+readings landed after a dual review (letter H) and a fix pass; the fix
+pass moved no triple (re-measured at `5b750a0186`, identical to
+`ce153ff56a`'s 491). What still refuses is filed:
+`apex-links-the-nappe-reading-still-refuses`,
+`a-sheet-on-a-whole-tangent-plane-is-read-only-along-a-line-on-a-planar-face`,
+`a-turned-link-a-kilometre-off-reads-its-own-rays-in-band-on-interval`,
+and the guard arms no row reaches in `self-touch-cause-arms-no-row-reaches`.
