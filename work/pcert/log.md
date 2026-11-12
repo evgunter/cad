@@ -1203,3 +1203,60 @@ E1c waits on the answer.
   - Review tier: single FULL. APPROVE-WITH-FIXES, 0 MAJOR. Executed: 14,303 parts and 6,960 limb-2 readings with no wrong clear; identical verdicts to base on 3,480 cases; green merged with PR 6826. Fix list PP was read by the orchestrator: the rounds-start row (M3 now red), cone and torus rows, PIECE_TURN's own definition, docs.
   - Filed: P2 `check-4s-projected-door-reads-every-span-of-a-chord-in-eight-parts`.
   - SPIRICARM's P1 `a-carried-cylinder-pair-marches-for-minutes-before-the-volume-lane-refuses` is unparked here with a dated re-measurement, since lint refuses a closed blocker. A note is on their log.
+- 2026-11-11 — **`a-net-carrier-stated-on-an-analytic-chart-is-certified-by-a-sampled-meter` closed** (PR 6826). At the edge certificate, a spline net stated on a plane, cylinder, cone, sphere or torus is bounded over its span: `read_net_bound` takes the sampled read first (a definite miss at a sample ends there), then limb 2's sup (`limb2_offset_sup`, decided by `edge_nurbs::limb2`).
+  - Endings: a measured miss → `Incidence(Off)`; in band, a stall or no bound → `Incidence(Undecided)`, the lever.
+  - "No bound" reads as `f64::MAX`, finite at Interval, so it never poisons a margin.
+  - The mint and tier 3 keep the sampled lower bound, renamed `net_sampled_incidence`. `projected.rs`'s envelope still composes its own hull: fewer homes, not one.
+  - Review tier: single FULL, soundness-led. APPROVE-WITH-FIXES, 1 MAJOR, executed: at Interval, `NoOffsetBound` minted a poisoned margin, so a net ON a cone through its apex ended "kernel defect".
+  - Fix list OO, delta verified: 15,000 reads with 0 unsound, 0 false Off, 0 poisoned. Re-run clean on the head merged with PR 6827.
+  - Cost: release cold reads 0.10–0.48 ms, 15–50× the sampled read; 1 product sweep row reaches it.
+  - Filed:
+    - P1 `a-stated-image-on-an-analytic-chart-is-metered-against-its-carrier-at-nine-samples`, the image's fidelity, reproduced 8/8, next;
+    - P3 `an-on-chart-net-through-a-double-cones-apex-ends-in-the-lever`.
+- 2026-11-11 — **Nightly 42965378060's slow-set reds, triaged** (PR 6831). There were ~37 distinct reds across programs, each bisected to its first-parent culprit (the table is in the PR body).
+  - PCERT's:
+    - `bounds_census`'s `knot_lines` (PR 6532; tint's 6818 had landed its line, and its "bending carrier" disposition is corrected to `general_chart_image`'s climb);
+    - `certified_endpoint_census` (`pcurve_cache.rs` 2 → 7 reads: PR 6827's `Parts::of` and spiricarm 6521's spindle grading, both argued schedule reads; `projected_edge.rs` and `rotational.rs` rows added).
+  - No PCERT merge moved a golden or digest: 6528 bisected clean; seat4, seat7, filleted_die and mass_props are identical on the previous nightly.
+  - Other programs' new reds, filed on their slates: sectarms 6518 (the 1e-6 TubeStraddles cluster, plus a 1e-12 cylinder × sphere row from 99 s to >400 s), spiricarm 6509 and 6806, onecopy 6735, 6757 and 6752, 6555, onehome 6717, and tcost's revalue flips.
+  - Ruled: sectarms 6811's six unasked reads in `critical.rs` stay theirs (P1 on their slate). This PR merges with that one census row red, as on main.
+  - Class evidence (six slow-set census reds the PR gate never selects) added to green's recourse-roster class row.
+  - Review tier: orchestrator's read (census tables and work files).
+- 2026-11-11 — **Main red `main-red-the-stated-wrong-general-rows-refuse-chart-image-unavailable-in-the-slow-set` closed** (PR 6833; filed by RESTREAD). Bisected to PR 6815's merge: a wrong STATED General row on a spline wall is now certified at the build's edge door through the same pcurve door the mint uses. It is refused there as the description's own image, `ChartImageUnavailable`, decided and not the lane's gap. That is the E1d ending for a caller's wrong row at a build, and the code is right.
+  - The rows were re-pinned to it exactly. An at-rest half (the wall re-parametrized under a true stated row) keeps 6532's provenance guard reachable: M5 still reds it, and the mint ends it in check 3's own term.
+  - The f64 row left the slow set, so the PR gate runs it. Evidence was added to green's slow-set class row.
+  - Review tier: orchestrator's read (tests and work files; no `src/` change).
+
+- 2026-11-11 — **Two unattributed main reds triaged** (orchestrator; PR 6836's lane met them in the slow set).
+  - sweep `a_sheath_on_its_blade_stops_where_its_walls_touch_on_the_rim` (66 against 62) is ours. Bisected to PR 6815's merge (`cbc0d3817d` 62, `dcffc3874e` 66): the edge certificate now derives a stated spline image's certificate through the mint's door, and the four extra on-row `Zero`s are that second derivation, already filed P3 as `a-stated-spline-image-is-certified-twice-by-the-edge-certificate-and-the-mint`. Re-pinned at 66 with a note naming the row; the row's fix moves it back.
+  - topo `face_normal::no_source_file_folds_the_bit_by_hand` is not ours: mesh/walk.rs:964's `if rising == sense { -TAU } else { TAU }`, from tesswalk's PR 6823. Filed P1 on tesswalk as `main-red-the-wrap-strip-folds-its-period-by-the-sense-bit`.
+  - Both rows sit in the slow set, which is the P4 class `a-src-change-that-moves-a-decide-site-skips-its-crates-recourse-roster` already names for the roster.
+
+- 2026-11-11 — **Main red filed on spiricarm** (orchestrator; PR 6836's lane met it after a main merge): geom-core `certified_endpoint_census` moved in four props files. Bisected to PR 6808's merge (`e916e99ad6`; its first parent passes). Filed P1 as `spiricarm/main-red-the-endpoint-census-moved-in-four-props-files-since-6808`. Not PCERT's, so 6836 merges over it.
+
+- 2026-11-11 — **geom-brep `recourse_roster` red on main mended** (orchestrator; PR 6836's lane met it). sectarms' f0f80143 added the test `a_loop_is_witnessed_at_the_near_ruling`, which reads an operand surface `x` beside `CylinderSpherePose::decide`. The roster now lists it as `NOT_A_NAME`, like its sibling `a_spheres_discriminant_extremes_are_the_poses_reaches: x`. Same class as the P4 `a-src-change-that-moves-a-decide-site-skips-its-crates-recourse-roster`.
+
+- 2026-11-11 — **Dispatched** P1 `a-closed-form-image-stated-on-an-analytic-chart-is-metered-at-nine-samples` (filed by PR 6836).
+  - Branch `pcert/closed-form-image-bounded`, from `d7fea092cc`.
+  - Review tier: single FULL, soundness-led. The fix is a new bound over a trigonometric family, and it must keep the ~300 mirrored and periodic product reads on-image, so believing it takes more than reading it.
+- 2026-11-11 — **PR 6836 merged: a stated image on an analytic chart is metered against its carrier over its span** (closes the P1 `a-stated-image-on-an-analytic-chart-is-metered-against-its-carrier-at-nine-samples`).
+  - **What it does.** `StatedDoor` routes each stated image to the door that certifies its class: on an analytic chart, its pcurve door, or the fitted composite against a bilinear patch (`pcurve_cache/patch.rs`). The patch equals the chart along the image, on a plane and on a cylinder or cone ruling.
+  - **Endings (E1d, D4 ¶1 (iv)).**
+    - A shown miss ends `StatedImageMissed`: the kernel's defect at a build, the culprit at rest, the file at import.
+    - An unlocated closed-form envelope ends `StatedImageUnsettled`, and an in-band reading ends `Escalated{StatedImage}`. Both are the lever at every door.
+    - Structural refusals keep their own defect ending.
+    - It does not ride `StoredContradiction`'s stale build arm. The open P2 `stored-contradiction-at-a-build-still-tells-the-lever-story` has gained this instance as evidence.
+  - **Review.** Single FULL, soundness-led. FULL review → fix list QQ → delta review → fix list RR → second delta review: APPROVE.
+    - The patch route held every falsification probe at f64 and Interval, ε 1e-9 and 1e-12, and a patch-off mutant turns 8 of 10 rows red.
+    - Upheld across the rounds:
+      - the D4 build arm;
+      - one exhaustive ending per route refusal, with no catch-all and no re-meter;
+      - the patch class decided once;
+      - a spline iso line's between-samples miss never ending "not yet";
+      - `NOT_A_SAMPLE` for envelope-term misses;
+      - a withdrawn cost figure, so the cost line now reads "no measurable cost on product rows".
+  - **Filed.**
+    - P1 `a-closed-form-image-stated-on-an-analytic-chart-is-metered-at-nine-samples`: the sampled cells, with two executed witnesses.
+    - P3 `a-correct-stated-image-far-from-the-origin-reads-in-band-at-a-fine-band`: a false refusal at 1 km, ε 1e-12, which ends in the lever and certifies nothing false.
+    - P3 `readers-of-the-stated-image-lever-match-escalated-alone`: two error shapes for one lever. It also records the class finding that an unlocated bound past the band is spelled two ways, the lever on the envelope and "not yet" on the fitted composite.
+  - **Not filed, argued.** An iso line outside its column's spline space ends "not yet" (`IsoUnsupported`), but product builders state the column itself as the carrier. The census found no other kind.

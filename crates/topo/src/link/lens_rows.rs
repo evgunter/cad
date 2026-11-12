@@ -70,6 +70,7 @@ fn corner<T: Decide>(
     let bend = |edge| Bound {
         edge,
         line: false,
+        circle: false,
         bend: v(-0.5, 0.0, 0.0),
     };
     let fan = TangentFan::Corner {
@@ -342,6 +343,7 @@ fn a_lens_the_bends_do_not_decide_is_not_read<T: Decide>() {
                 edge: Bound {
                     edge,
                     line: true,
+                    circle: false,
                     bend: Vec3::zero(),
                 },
             };
@@ -458,6 +460,7 @@ fn flat<T: Decide>(
     let line = |edge| Bound {
         edge,
         line: true,
+        circle: false,
         bend: Vec3::zero(),
     };
     let fan = TangentFan::Corner {
@@ -568,6 +571,7 @@ fn a_dihedral_along_two_edges_on_one_line_is_no_lens<T: Decide>() {
         let line = |edge| Bound {
             edge,
             line: true,
+            circle: false,
             bend: Vec3::zero(),
         };
         let top = flat(p, v(0.0, 0.0, 1.0), (x, -x), [k[0], k[1]]);
@@ -617,11 +621,13 @@ fn thorn<T: Decide>(
     let bound = |edge, bend: Vec3<T>| Bound {
         edge,
         line: false,
+        circle: false,
         bend,
     };
     let l = Bound {
         edge: keys[0],
         line: true,
+        circle: false,
         bend: Vec3::zero(),
     };
     let (a, b) = (
@@ -884,4 +890,702 @@ fn a_slit_of_one_wedge_refuses_before_its_ties_f64() {
 #[test]
 fn a_slit_of_one_wedge_refuses_before_its_ties_interval() {
     a_slit_of_one_wedge_refuses_before_its_ties::<Interval>();
+}
+
+/// A face on `surface` of `Face::sense` `sense` cornered at `p`, of
+/// outward unit `m`, from `d0` round to `d1` along `bounds`.
+fn corner_along<T: Decide>(
+    p: Point3<T>,
+    (surface, sense): (geom::Surface<T>, bool),
+    m: Vec3<T>,
+    (d0, d1): (Vec3<T>, Vec3<T>),
+    bounds: [Bound<T>; 2],
+) -> TangentPiece<T> {
+    let fan = TangentFan::Corner {
+        d0,
+        d1,
+        bounds,
+        spur: false,
+    };
+    FaceSector::tangent(surface, sense, m, p, fan, band()).expect("a corner's piece")
+}
+
+/// The plane through `p` of outward unit `m`.
+fn plane<T: Real>(p: Point3<T>, m: Vec3<T>) -> geom::Surface<T> {
+    geom::Surface::Plane {
+        origin: p,
+        normal: m,
+        u_ref: m.cross(v::<T>(1.0, 0.3, 0.7)).normalize(),
+    }
+}
+
+/// The edge `edge` along a line through `p`.
+fn line<T: Real>(edge: EdgeKey) -> Bound<T> {
+    Bound {
+        edge,
+        line: true,
+        circle: false,
+        bend: Vec3::zero(),
+    }
+}
+
+/// The edge `edge` along a curve bending by `bend` there.
+fn curve<T: Real>(edge: EdgeKey, bend: Vec3<T>) -> Bound<T> {
+    Bound {
+        edge,
+        line: false,
+        circle: false,
+        bend,
+    }
+}
+
+/// The upright cylinder of radius `r` through `p`, its axis `r` behind
+/// `p` along `turn·x` (`turn` ±1).
+fn upright<T: Real>(p: Point3<T>, r: f64, turn: f64) -> geom::Surface<T> {
+    upright_along(p, r, turn, v(0.0, 0.0, 1.0))
+}
+
+/// [`upright`] about the unit `axis`, square to `x`.
+fn upright_along<T: Real>(p: Point3<T>, r: f64, turn: f64, axis: Vec3<T>) -> geom::Surface<T> {
+    geom::Surface::Cylinder {
+        origin: p - v::<T>(turn * r, 0.0, 0.0),
+        axis,
+        radius: T::from_f64(r),
+        u_ref: v(turn, 0.0, 0.0),
+    }
+}
+
+/// **A lune about `p`** as two lune cavities kissing at their cusps
+/// build it: between the upright cylinders of radii `r1 < r2` through
+/// `p` ([`upright`]), over `z > 0`, from their shared cusp line `k[0]`
+/// along `+z` to their arcs `k[1]` and `k[2]` along `turn·y`, where the
+/// floor `z = 0` caps it with a horn between the arcs. `void`: the
+/// cylinders' material outside it (a cavity); otherwise a sliver of
+/// material. `turn` −1 is the lune turned a half turn about `z`. The
+/// sheets part along `y` by `1/r1 − 1/r2`, along `z` not at all, and the
+/// form's polar value on `y` and `z` is zero: one order down a void or a
+/// sliver, pinched along the cusp line.
+fn lune<T: Decide>(
+    p: Point3<T>,
+    radii: [f64; 2],
+    turn: f64,
+    void: bool,
+    k: [EdgeKey; 3],
+) -> Vec<TangentPiece<T>> {
+    lune_at(p, radii, turn, void, k, 0.0)
+}
+
+/// [`lune`] turned by `phi` about `x`.
+fn lune_at<T: Decide>(
+    p: Point3<T>,
+    [r1, r2]: [f64; 2],
+    turn: f64,
+    void: bool,
+    k: [EdgeKey; 3],
+    phi: f64,
+) -> Vec<TangentPiece<T>> {
+    let (c, s) = (phi.cos(), phi.sin());
+    let y = v::<T>(0.0, 2.0 * turn * c, 2.0 * turn * s);
+    let up = v::<T>(0.0, -s, c);
+    let z = up * T::from_f64(2.0);
+    let upright = |p, r, turn| upright_along(p, r, turn, up);
+    let x = |a: f64| v::<T>(turn * a, 0.0, 0.0);
+    let (a1, a2) = (curve(k[1], x(-1.0 / r1)), curve(k[2], x(-1.0 / r2)));
+    if void {
+        vec![
+            corner_along(
+                p,
+                (upright(p, r1, turn), true),
+                x(1.0),
+                (y, z),
+                [a1, line(k[0])],
+            ),
+            corner_along(
+                p,
+                (upright(p, r2, turn), false),
+                x(-1.0),
+                (z, y),
+                [line(k[0]), a2],
+            ),
+            corner_along(p, (plane(p, up), true), up, (y, y), [a2, a1]),
+        ]
+    } else {
+        vec![
+            corner_along(
+                p,
+                (upright(p, r1, turn), false),
+                x(-1.0),
+                (z, y),
+                [line(k[0]), a1],
+            ),
+            corner_along(
+                p,
+                (upright(p, r2, turn), true),
+                x(1.0),
+                (y, z),
+                [a2, line(k[0])],
+            ),
+            corner_along(p, (plane(p, -up), true), -up, (y, y), [a1, a2]),
+        ]
+    }
+}
+
+/// **A lune is the void or the sliver its cap closes**: two sheets on one
+/// quarter of the plane `x = 0`, pinched along their shared cusp line and
+/// capped by a horn of the floor between their arcs. A void alone, two
+/// voids kissing at their cusps (the two lune cavities' link), and a
+/// sliver alone rest. Read against a whole plane through `p` that misses
+/// the quarter (the lune turned 10° off it), a void inside the plane's material and a sliver outside it
+/// rest, the other two are refused; a plane through the lune's middle
+/// crosses it; a cap turned over, its normal out of a void, refuses; and
+/// a horn of the arcs' edges along another ray caps no lune. Red where a
+/// lune's kind is read the other way round, its cap is left in the
+/// remainder's horns or found off its ray, the region round it is not
+/// read, or a sheet crossing it is passed.
+fn a_lune_is_the_void_or_the_sliver_its_cap_closes<T: Decide>() {
+    let unread = TouchVerdict::Unread(TouchUnread::Curved(CurvedUnread::Unreadable));
+    let rests = |got: &TouchVerdict| matches!(got, TouchVerdict::Rest(_));
+    for (at, p) in apexes::<T>().into_iter().enumerate() {
+        let k = edges(6);
+        let one = [k[0], k[1], k[2]];
+        let got = read(p, lune(p, [1.0, 2.0], 1.0, true, one));
+        assert!(rests(&got), "a void lune at {p:?}: {got:?}");
+        let mut kissing = lune(p, [1.0, 2.0], 1.0, true, one);
+        kissing.extend(lune(p, [1.0, 2.0], -1.0, true, [k[3], k[4], k[5]]));
+        let got = read(p, kissing);
+        assert!(rests(&got), "two void lunes kissing at {p:?}: {got:?}");
+        let got = read(p, lune(p, [1.0, 2.0], 1.0, false, one));
+        assert!(rests(&got), "a sliver lune at {p:?}: {got:?}");
+        // The lune turned 10° about `x`, off the plane z = 0, which spans
+        // the apex's `y` and `z` as [`v`] needs a whole plane to; the
+        // lune's middle lies on its `+` side.
+        let tilt = 10f64.to_radians();
+        let n = |s: f64| v::<T>(0.0, 0.0, s);
+        for (what, void, front, rests_there) in [
+            ("a void in the plane's material", true, false, true),
+            ("a void outside it", true, true, false),
+            ("a sliver outside it", false, true, true),
+            ("a sliver in its material", false, false, false),
+        ] {
+            let mut pieces = lune_at(p, [1.0, 2.0], 1.0, void, one, tilt);
+            pieces.push(whole(p, n(if front { 1.0 } else { -1.0 })));
+            let got = read(p, pieces);
+            if rests_there {
+                assert!(rests(&got), "{what} at {p:?}: {got:?}");
+            } else {
+                assert_eq!(got, unread, "{what} at {p:?}");
+            }
+        }
+        // The plane y = z holds the lune's middle and crosses both its
+        // sheets; a kilometre off on `Interval` it may read in band.
+        let mut crossed = lune(p, [1.0, 2.0], 1.0, true, one);
+        crossed.push(whole(
+            p,
+            v::<T>(0.0, 1.0, -1.0) * T::from_f64(core::f64::consts::FRAC_1_SQRT_2),
+        ));
+        let got = read(p, crossed);
+        assert!(
+            got == TouchVerdict::Crossing
+                || (at == 1 && got == TouchVerdict::Unread(TouchUnread::InBand)),
+            "a plane through a lune at {p:?}: {got:?}"
+        );
+        // The void's cap turned over: the floor's normal out of the void.
+        let mut over = lune(p, [1.0, 2.0], 1.0, true, one);
+        let y = v::<T>(0.0, 2.0, 0.0);
+        let (a1, a2) = (
+            curve(k[1], v::<T>(-1.0, 0.0, 0.0)),
+            curve(k[2], v::<T>(-0.5, 0.0, 0.0)),
+        );
+        over[2] = corner_along(
+            p,
+            (plane(p, v(0.0, 0.0, -1.0)), true),
+            v(0.0, 0.0, -1.0),
+            (y, y),
+            [a1, a2],
+        );
+        assert_eq!(read(p, over), unread, "a void's cap turned over at {p:?}");
+        // A horn of the two arcs' edges along `−y`, none along `+y`: no
+        // cap, so no lune, and its sheets stay on each other.
+        let mut elsewhere = lune(p, [1.0, 2.0], 1.0, true, one);
+        elsewhere[2] = corner_along(
+            p,
+            (plane(p, v(0.0, 0.0, 1.0)), true),
+            v(0.0, 0.0, 1.0),
+            (-y, -y),
+            [a1, a2],
+        );
+        assert_eq!(
+            read(p, elsewhere),
+            unread,
+            "a horn of the arcs' edges along another ray at {p:?}"
+        );
+    }
+}
+
+#[test]
+fn a_lune_is_the_void_or_the_sliver_its_cap_closes_f64() {
+    a_lune_is_the_void_or_the_sliver_its_cap_closes::<f64>();
+}
+
+#[test]
+fn a_lune_is_the_void_or_the_sliver_its_cap_closes_interval() {
+    a_lune_is_the_void_or_the_sliver_its_cap_closes::<Interval>();
+}
+
+/// **The rod and the bore of [`rod_and_bore`] on one wedge**, from the
+/// curve they share along `(0, s0.0, s0.1)` (a pinch) to a cap along the
+/// unit `(0, u1.0, u1.1)`, each face's corner there bounded by its own
+/// arc of the floor's plane, which holds `u1` and `x`; the floor's horn
+/// faces into the wedge. The sheets part there by `u1.1² − u1.0²`, and
+/// the form's polar value on the two rays is `s0.1·u1.1 − s0.0·u1.0` over
+/// `√2`.
+fn capped<T: Decide>(
+    p: Point3<T>,
+    s0: (f64, f64),
+    u1: (f64, f64),
+    k: [EdgeKey; 3],
+) -> Vec<TangentPiece<T>> {
+    let (rod, bore) = rod_and_bore(p, 1.0);
+    let r = |(a, b): (f64, f64)| v::<T>(0.0, 2.0 * a, 2.0 * b);
+    let shared = curve(k[0], v::<T>(-0.5, 0.0, 0.0));
+    let (on_rod, on_bore) = (
+        curve(k[1], v::<T>(-u1.1 * u1.1, 0.0, 0.0)),
+        curve(k[2], v::<T>(-u1.0 * u1.0, 0.0, 0.0)),
+    );
+    // The floor's normal: square to `u1` in the plane `x = 0`, toward
+    // the wedge's middle. Its horn turns from the arc bending less toward
+    // `−x` to the one bending more about `m × u1`, which is `−x` where
+    // the normal is `(0, −u1.1, u1.0)` and `+x` where it is turned over.
+    let (mid_y, mid_z) = (s0.0 / 2f64.sqrt() + u1.0, s0.1 / 2f64.sqrt() + u1.1);
+    let side = if -u1.1 * mid_y + u1.0 * mid_z > 0.0 {
+        1.0
+    } else {
+        -1.0
+    };
+    let m = v::<T>(0.0, -side * u1.1, side * u1.0);
+    let (rod_bend, bore_bend) = (u1.1 * u1.1, u1.0 * u1.0);
+    let rod_last = (rod_bend > bore_bend) == (side > 0.0);
+    let ends = if rod_last {
+        [on_bore, on_rod]
+    } else {
+        [on_rod, on_bore]
+    };
+    vec![
+        corner_along(
+            p,
+            (rod, true),
+            v(1.0, 0.0, 0.0),
+            (r(u1), r(s0)),
+            [on_rod, shared],
+        ),
+        corner_along(
+            p,
+            (bore, false),
+            v(-1.0, 0.0, 0.0),
+            (r(s0), r(u1)),
+            [shared, on_bore],
+        ),
+        corner_along(p, (plane(p, m), true), m, (r(u1), r(u1)), ends),
+    ]
+}
+
+/// **A lune the bends do not decide is not read**. The rod and the bore
+/// capped along `z` from their curve along `(0, −1, 1)` rest, a void;
+/// capped along `(0, 0.2, −1)` from their curve along `(0, 1, 1)` they
+/// part at both ends the same way but cross inside the wedge (the form's
+/// polar value on its rays has the other sign), and are not read; so are
+/// they on the quarter from `y` to `z` capped at both ends, parting one
+/// way at one cap and the other way at the other. A lune
+/// whose second sheet does not hold the cusp line (its cylinder turned
+/// 30° off it) is not read. A void just past the escalation at its cap
+/// rests, and with its second plane leaning off the first by nine tenths
+/// of the band's zero there it is not read: the lean is charged. A curved
+/// sheet tangent to the floor along the cap's ray, bending away under it,
+/// refuses in band: the cut there does not read the cap. Red where the
+/// polar value, the pinch, the caps' agreement or the charge is not read,
+/// or another sheet at a cap's ray is passed.
+fn a_lune_the_bends_do_not_decide_is_not_read<T: Decide>() {
+    let unread = TouchVerdict::Unread(TouchUnread::Curved(CurvedUnread::Unreadable));
+    let zero = band().zero();
+    let unit = |(a, b): (f64, f64)| {
+        let n = f64::hypot(a, b);
+        (a / n, b / n)
+    };
+    for p in apexes::<T>() {
+        let k = edges(3);
+        let one = [k[0], k[1], k[2]];
+        let got = read(p, capped(p, (-1.0, 1.0), (0.0, 1.0), one));
+        assert!(
+            matches!(got, TouchVerdict::Rest(_)),
+            "the rod and the bore capped along z at {p:?}: {got:?}"
+        );
+        assert_eq!(
+            read(p, capped(p, (1.0, 1.0), unit((0.2, -1.0)), one)),
+            unread,
+            "sheets crossing inside the wedge at {p:?}"
+        );
+        // The rod and the bore on the quarter from `y` to `z`, capped at
+        // both: the bore stands past the rod by `−1` at `y` and `+1` at `z`,
+        // so the sheets cross between them.
+        let (y, z) = (v::<T>(0.0, 2.0, 0.0), v::<T>(0.0, 0.0, 2.0));
+        let k5 = edges(4);
+        let (rod_y, rod_z) = (
+            curve(k5[0], Vec3::zero()),
+            curve(k5[1], v::<T>(-1.0, 0.0, 0.0)),
+        );
+        let (bore_y, bore_z) = (
+            curve(k5[2], v::<T>(-1.0, 0.0, 0.0)),
+            curve(k5[3], Vec3::zero()),
+        );
+        let (rod, bore) = rod_and_bore(p, 1.0);
+        let (up, side) = (v::<T>(0.0, 0.0, 1.0), v::<T>(0.0, 1.0, 0.0));
+        let crossed = vec![
+            corner_along(p, (rod, true), v(1.0, 0.0, 0.0), (y, z), [rod_y, rod_z]),
+            corner_along(
+                p,
+                (bore, false),
+                v(-1.0, 0.0, 0.0),
+                (z, y),
+                [bore_z, bore_y],
+            ),
+            corner_along(p, (plane(p, up), true), up, (y, y), [rod_y, bore_y]),
+            corner_along(p, (plane(p, side), true), side, (z, z), [rod_z, bore_z]),
+        ];
+        assert_eq!(
+            read(p, crossed),
+            unread,
+            "sheets parting each way at two caps at {p:?}"
+        );
+        // The second sheet's cylinder turned 30° off the cusp line about
+        // `x`: it bends `sin²30°/2` along `z`, its arc `cos²30°/2` along `y`.
+        let psi = 30f64.to_radians();
+        let turned = geom::Surface::Cylinder {
+            origin: p - v::<T>(2.0, 0.0, 0.0),
+            axis: v(0.0, psi.sin(), psi.cos()),
+            radius: T::from_f64(2.0),
+            u_ref: v(1.0, 0.0, 0.0),
+        };
+        let mut off = lune(p, [1.0, 2.0], 1.0, true, one);
+        let arc = curve(k[2], v::<T>(-psi.cos().powi(2) / 2.0, 0.0, 0.0));
+        off[1] = corner_along(
+            p,
+            (turned, false),
+            v(-1.0, 0.0, 0.0),
+            (z, y),
+            [line(k[0]), arc],
+        );
+        off[2] = corner_along(
+            p,
+            (plane(p, v(0.0, 0.0, 1.0)), true),
+            v(0.0, 0.0, 1.0),
+            (y, y),
+            [arc, curve(k[1], v::<T>(-1.0, 0.0, 0.0))],
+        );
+        assert_eq!(
+            read(p, off),
+            unread,
+            "a cusp line one sheet leaves at {p:?}"
+        );
+        // The arm is 2 (`l²/2 = 2`): the sheets part at the cap by
+        // `2·(1/r1 − 1/r2)`, here just past the escalation.
+        let gap = (band().escalate() + 0.5 * zero) / 2.0;
+        let r1 = 1.0 / (1.0 + gap);
+        let lean = 0.9 * zero / 2.0;
+        let thin = |lean: f64| {
+            let mut out = lune(p, [r1, 1.0], 1.0, true, one);
+            let back = v::<T>(-(1.0 - lean * lean).sqrt(), lean, 0.0);
+            out[1] = corner_along(
+                p,
+                (upright(p, 1.0, 1.0), false),
+                back,
+                (z, y),
+                [line(k[0]), curve(k[2], v::<T>(-1.0, 0.0, 0.0))],
+            );
+            out
+        };
+        let got = read(p, thin(0.0));
+        assert!(
+            matches!(got, TouchVerdict::Rest(_)),
+            "a void just past the escalation at {p:?}: {got:?}"
+        );
+        assert_eq!(
+            read(p, thin(lean)),
+            unread,
+            "the void with its second plane leaning at {p:?}"
+        );
+        // A cylinder along `x` under the floor, tangent to it at `p`,
+        // its material above: in the cut along `y` a line below the cap.
+        let under = geom::Surface::Cylinder {
+            origin: p - v::<T>(0.0, 0.0, 3.0),
+            axis: v(1.0, 0.0, 0.0),
+            radius: T::from_f64(3.0),
+            u_ref: v(0.0, 0.0, 1.0),
+        };
+        let fan = TangentFan::Inside {
+            reach: T::from_f64(2.0),
+            frame: [v(1.0, 0.0, 0.0), v(0.0, 1.0, 0.0), v(0.0, 0.0, 1.0)],
+        };
+        let mut crowded = lune(p, [1.0, 2.0], 1.0, true, one);
+        crowded.push(
+            FaceSector::tangent(under, false, v(0.0, 0.0, -1.0), p, fan, band())
+                .expect("a whole sheet"),
+        );
+        assert_eq!(
+            read(p, crowded),
+            TouchVerdict::Unread(TouchUnread::InBand),
+            "a sheet along a cap's ray at {p:?}"
+        );
+    }
+}
+
+#[test]
+fn a_lune_the_bends_do_not_decide_is_not_read_f64() {
+    a_lune_the_bends_do_not_decide_is_not_read::<f64>();
+}
+
+#[test]
+fn a_lune_the_bends_do_not_decide_is_not_read_interval() {
+    a_lune_the_bends_do_not_decide_is_not_read::<Interval>();
+}
+
+/// **A crescent's walls, read at its floor's rim**: `A`'s wall, the
+/// upright cylinder of radius `ra` through `p` ([`upright`]), stands in
+/// `B`'s, of radius 2, over `z > 0`, tangent along their common ruling,
+/// `B`'s wall split there by its line edges along `±z` and `A`'s by its
+/// seam along `+z`; `A`'s floor `z = 0` closes it below, its rim one
+/// circle through `p` along `±y`. `B ∖ A` near `p`: the crescent's two
+/// slivers between the walls, each running into `B`'s material under the
+/// floor at the rim. Each sliver is a lune whose `B` sheet runs on past
+/// the rim (a mouth).
+fn crescent<T: Decide>(p: Point3<T>, ra: f64, k: [EdgeKey; 4]) -> Vec<TangentPiece<T>> {
+    let (y, z) = (v::<T>(0.0, 2.0, 0.0), v::<T>(0.0, 0.0, 2.0));
+    let [up, down, seam, rim] = k;
+    let rim = curve(rim, v::<T>(-1.0 / ra, 0.0, 0.0));
+    let outer = |d0, d1, ends: [EdgeKey; 2]| {
+        corner_along(
+            p,
+            (upright(p, 2.0, 1.0), true),
+            v(1.0, 0.0, 0.0),
+            (d0, d1),
+            ends.map(line),
+        )
+    };
+    let inner = |d0, d1, ends| {
+        corner_along(
+            p,
+            (upright(p, ra, 1.0), false),
+            v(-1.0, 0.0, 0.0),
+            (d0, d1),
+            ends,
+        )
+    };
+    vec![
+        outer(-z, z, [down, up]),
+        outer(z, -z, [up, down]),
+        inner(z, y, [line(seam), rim]),
+        inner(-y, z, [rim, line(seam)]),
+        corner_along(
+            p,
+            (plane(p, v(0.0, 0.0, 1.0)), true),
+            v(0.0, 0.0, 1.0),
+            (y, -y),
+            [rim, rim],
+        ),
+    ]
+}
+
+/// **A crescent's slivers open into the material at its rim**: `A` of
+/// radius 1 in `B` ([`crescent`]) rests, each sliver read as a lune whose
+/// `B` sheet runs on past the rim, the rest of `B`'s wall bounded there
+/// by the rim. A plane through a sliver's middle crosses it; `A` of
+/// radius 3 stands outside `B` and the floor crosses `B`'s wall in the cut
+/// at the rim; and `A` of a radius the band does not part from `B`'s is
+/// not read. Red where a mouth is not read, `B`'s wall is not cut short in
+/// the remainder, or a sliver's kind is read the other way round.
+fn a_crescents_slivers_open_into_the_material_at_its_rim<T: Decide>() {
+    let unread = TouchVerdict::Unread(TouchUnread::Curved(CurvedUnread::Unreadable));
+    let zero = band().zero();
+    for (at, p) in apexes::<T>().into_iter().enumerate() {
+        let k = edges(4);
+        let k = [k[0], k[1], k[2], k[3]];
+        let got = read(p, crescent(p, 1.0, k));
+        assert!(
+            matches!(got, TouchVerdict::Rest(_)),
+            "a crescent at {p:?}: {got:?}"
+        );
+        let mut crossed = crescent(p, 1.0, k);
+        crossed.push(whole(
+            p,
+            v::<T>(0.0, 1.0, -1.0) * T::from_f64(core::f64::consts::FRAC_1_SQRT_2),
+        ));
+        let got = read(p, crossed);
+        assert!(
+            got == TouchVerdict::Crossing
+                || (at == 1 && got == TouchVerdict::Unread(TouchUnread::InBand)),
+            "a plane through a crescent's sliver at {p:?}: {got:?}"
+        );
+        assert_eq!(read(p, crescent(p, 3.0, k)), unread, "A outside B at {p:?}");
+        // The arm is 2: radii parting the sheets by a tenth of the zero.
+        let near = 1.0 / (0.5 + 0.05 * zero);
+        assert_eq!(
+            read(p, crescent(p, near, k)),
+            unread,
+            "A's wall in band of B's at {p:?}"
+        );
+    }
+}
+
+#[test]
+fn a_crescents_slivers_open_into_the_material_at_its_rim_f64() {
+    a_crescents_slivers_open_into_the_material_at_its_rim::<f64>();
+}
+
+#[test]
+fn a_crescents_slivers_open_into_the_material_at_its_rim_interval() {
+    a_crescents_slivers_open_into_the_material_at_its_rim::<Interval>();
+}
+
+/// `(x, y, z)` as a vector, unturned.
+fn raw<T: Real>(x: f64, y: f64, z: f64) -> Vec3<T> {
+    Vec3::new(T::from_f64(x), T::from_f64(y), T::from_f64(z))
+}
+
+/// **A tacnode at a curved pinch**: the torus `R = 2`, `r = 1` at meridian
+/// angle 120° through `p`, and the cylinder through `p` of radius `1/k₁`
+/// (`k₁` the torus's curvature along its parallel there) about the line
+/// along the meridian's tangent through the parallel's centre of
+/// curvature. They are tangent at `p` and their form's kernel is the
+/// parallel's direction `e_p`: by mirror symmetry the polar value on
+/// `e_p` and the meridian's tangent `t_m` is zero, and the cylinder
+/// stands `½` behind the torus along `t_m`. At third order they meet in
+/// two curves tangent to `e_p`, `y = 0.19x²` and `y = 0.58x²`. Read as a
+/// void lune pinched by the first along `−e_p` and capped along `t_m` by
+/// a floor square to `e_p` facing `floor`.
+fn tacnode<T: Decide>(
+    p: Point3<T>,
+    floor: f64,
+    senses: (bool, bool),
+    k: [EdgeKey; 3],
+) -> Vec<TangentPiece<T>> {
+    let (rr, r) = (2.0, 1.0);
+    let a = 120f64.to_radians();
+    let n = raw::<T>(a.cos(), 0.0, a.sin());
+    let ep = raw::<T>(0.0, 1.0, 0.0);
+    let tm = raw::<T>(-a.sin(), 0.0, a.cos());
+    let torus = geom::Surface::Torus {
+        center: p - raw::<T>(rr + r * a.cos(), 0.0, r * a.sin()),
+        axis: raw(0.0, 0.0, 1.0),
+        major_radius: T::from_f64(rr),
+        minor_radius: T::from_f64(r),
+        u_ref: raw(1.0, 0.0, 0.0),
+    };
+    let k1 = a.cos() / (rr + r * a.cos());
+    let cylinder = geom::Surface::Cylinder {
+        origin: p - n * T::from_f64(1.0 / k1),
+        axis: tm,
+        radius: T::from_f64((1.0 / k1).abs()),
+        u_ref: n,
+    };
+    let pinch = curve(k[0], n * T::from_f64(k1) + tm * T::from_f64(0.385));
+    let arc = curve(k[1], -n);
+    let rim = line::<T>(k[2]);
+    let (u1, z) = (tm * T::from_f64(2.0), ep * T::from_f64(-2.0));
+    let m = ep * T::from_f64(-floor);
+    let ends = if floor > 0.0 { [rim, arc] } else { [arc, rim] };
+    vec![
+        corner_along(p, (torus, senses.0), n, (u1, z), [arc, pinch]),
+        corner_along(p, (cylinder, senses.1), -n, (z, u1), [pinch, rim]),
+        corner_along(p, (plane(p, m), true), m, (u1, u1), ends),
+    ]
+}
+
+/// **A curved pinch whose polar value reads zero is not read**: the torus
+/// and the cylinder of [`tacnode`] cross inside the wedge at third order,
+/// along a second curve tangent to the pinch's, and the lune they make is
+/// not read under any face sense or floor. Two developable faces pinched
+/// on one line are tangent along all of it, and their lune, its polar
+/// value zero too, rests ([`lune`]). Red where a zero polar value is taken
+/// beside a curved pinch, or refused beside a straight one.
+fn a_curved_pinch_whose_polar_value_reads_zero_is_not_read<T: Decide>() {
+    for p in apexes::<T>() {
+        let k = edges(3);
+        let k = [k[0], k[1], k[2]];
+        for floor in [1.0, -1.0] {
+            for senses in [(true, true), (true, false), (false, true), (false, false)] {
+                let got = read(p, tacnode(p, floor, senses, k));
+                assert!(
+                    !matches!(got, TouchVerdict::Rest(_)),
+                    "a tacnode at {p:?}, floor {floor}, senses {senses:?}: {got:?}"
+                );
+            }
+        }
+        let got = read(p, lune(p, [1.0, 2.0], 1.0, true, k));
+        assert!(
+            matches!(got, TouchVerdict::Rest(_)),
+            "a lune pinched on a line at {p:?}: {got:?}"
+        );
+    }
+}
+
+#[test]
+fn a_curved_pinch_whose_polar_value_reads_zero_is_not_read_f64() {
+    a_curved_pinch_whose_polar_value_reads_zero_is_not_read::<f64>();
+}
+
+#[test]
+fn a_curved_pinch_whose_polar_value_reads_zero_is_not_read_interval() {
+    a_curved_pinch_whose_polar_value_reads_zero_is_not_read::<Interval>();
+}
+
+/// **A narrow lens is read by its middle's gap**: the rod of curvature
+/// `kr` along `z` and the bore of curvature `kb = 100·kr` along `y`,
+/// pinched on `tan ψ = √(kr/kb)` either side of `z`, their rays √2 long
+/// (`l²/2 = 1`). The gap at the middle is `kr`, the form's polar value on
+/// the two bounds `2kr·cos²ψ`, nearly twice it. With the middle's gap at
+/// 0.55, 0.7 and 0.9 of the escalation the lens is in band and not read;
+/// at 1.2 it rests. Red where the polar value is read raw, not as the gap
+/// it makes at the middle.
+fn a_narrow_lens_is_read_by_its_middles_gap<T: Decide>() {
+    let unread = TouchVerdict::Unread(TouchUnread::Curved(CurvedUnread::Unreadable));
+    let e = band().escalate();
+    for p in apexes::<T>() {
+        for (frac, rests) in [(0.55, false), (0.7, false), (0.9, false), (1.2, true)] {
+            let kr = frac * e;
+            let kb = 100.0 * kr;
+            let psi = (kr / kb).sqrt().atan();
+            let s2 = core::f64::consts::SQRT_2;
+            let d0 = v::<T>(0.0, -s2 * psi.sin(), s2 * psi.cos());
+            let d1 = v::<T>(0.0, s2 * psi.sin(), s2 * psi.cos());
+            let k = edges(2);
+            let pieces: Vec<_> = lens(
+                p,
+                rod_and_bore_of(p, 1.0 / kr, 1.0 / kb),
+                (d1, d0),
+                [k[0], k[1]],
+            )
+            .into();
+            let got = read(p, pieces);
+            if rests {
+                assert!(
+                    matches!(got, TouchVerdict::Rest(_)),
+                    "a narrow lens past the escalation at {p:?}: {got:?}"
+                );
+            } else {
+                assert_eq!(
+                    got, unread,
+                    "a narrow lens {frac} of the escalation at {p:?}"
+                );
+            }
+        }
+    }
+}
+
+#[test]
+fn a_narrow_lens_is_read_by_its_middles_gap_f64() {
+    a_narrow_lens_is_read_by_its_middles_gap::<f64>();
+}
+
+#[test]
+fn a_narrow_lens_is_read_by_its_middles_gap_interval() {
+    a_narrow_lens_is_read_by_its_middles_gap::<Interval>();
 }

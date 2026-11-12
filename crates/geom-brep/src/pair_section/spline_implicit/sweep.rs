@@ -582,9 +582,7 @@ fn joined(cells: &[Excluded], root: UvRect) -> Sweep {
 fn swept(p: &geom::Surface<f64>, w: &geom::Surface<f64>, band: Band) -> Sweep {
     let pose = super::SplineImplicitPose::of(p, w).expect("a plane and a spline");
     let pivot = pose.pivot();
-    let band = pivot.band(band).expect("the shift pads the band");
-    let reading = crate::ImplicitSection::of(&pivot.plane, pose.net(), pose.domain(), band)
-        .expect("the pair is read");
+    let (reading, band) = pivot.reading(&pose, band).expect("the pair is read");
     sweep(
         reading.boxes(),
         reading.form(),

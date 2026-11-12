@@ -144,6 +144,7 @@ fn a_chord_across_the_wall_holds_its_area() {
                 closed: Interval::zero(),
                 lever: [Interval::zero(); 3],
                 rationals: Vec::new(),
+                spirics: Vec::new(),
                 ribbon: 0.0,
             },
             loops: vec![vec![
@@ -528,6 +529,7 @@ fn a_circle_of_many_cuts_holds_at_every_round() {
                 closed: Interval::zero(),
                 lever: [Interval::zero(); 3],
                 rationals: Vec::new(),
+                spirics: Vec::new(),
                 ribbon: 0.0,
             },
             loops: vec![loops],
@@ -582,10 +584,20 @@ fn frame_section(segments: usize, ts: (f64, f64)) -> ProjectedEdgeQ {
 /// at a knot, schedules each span alike ([`span_schedule`]).
 #[test]
 fn a_chord_read_as_one_edge_or_two_schedules_each_span_alike() {
-    let whole = span_schedule(&frame_section(20, (0.0, 1.0))).0;
+    let whole = span_schedule(
+        &frame_section(20, (0.0, 1.0)),
+        RotationalChartQ::Cylinder { radius: pt(0.8) },
+    )
+    .0;
     let halves: Vec<usize> = [(0.0, 0.5), (0.5, 1.0)]
         .into_iter()
-        .flat_map(|ts| span_schedule(&frame_section(20, ts)).0)
+        .flat_map(|ts| {
+            span_schedule(
+                &frame_section(20, ts),
+                RotationalChartQ::Cylinder { radius: pt(0.8) },
+            )
+            .0
+        })
         .collect();
     assert_eq!(whole.len(), 20, "the section's spans");
     assert_eq!(whole, halves, "one edge against its two halves");
@@ -606,6 +618,7 @@ fn a_faces_work_is_the_pieces_its_rounds_read() {
             closed: Interval::zero(),
             lever: [Interval::zero(); 3],
             rationals: Vec::new(),
+            spirics: Vec::new(),
             ribbon: 0.0,
         },
         loops: vec![vec![rim, chord]],

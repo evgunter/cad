@@ -60,7 +60,10 @@ pub(super) fn whole(
     let out = reading.all().map_err(super::super::whole_reading_refused)?;
     listed(
         pose.clone(),
-        Bracketed::Curved(&partner, &form),
+        Bracketed {
+            surface: &partner,
+            form: &form,
+        },
         out,
         None,
         band,
@@ -112,16 +115,31 @@ pub(super) fn section(
     ) {
         Sweep::Declined(_) => {
             let out = reading.all().map_err(super::super::whole_reading_refused)?;
-            listed(pose, Bracketed::Curved(&partner, &form), out, None, band)
+            listed(
+                pose,
+                Bracketed {
+                    surface: &partner,
+                    form: &form,
+                },
+                out,
+                None,
+                band,
+            )
         }
         Sweep::Enclosing { decided } => {
             let (out, listing) = super::read_listing(reading, &decided)?;
-            let partner = Bracketed::Curved(&partner, &form);
+            let partner = Bracketed {
+                surface: &partner,
+                form: &form,
+            };
             listed(pose, partner, out, Some(&listing.of(&decided)), band)
         }
         Sweep::LoopFree(decided) if super::crosses(&decided, reach) => {
             let (out, listing) = super::read_listing(reading, &decided)?;
-            let partner = Bracketed::Curved(&partner, &form);
+            let partner = Bracketed {
+                surface: &partner,
+                form: &form,
+            };
             listed(pose, partner, out, Some(&listing.of(&decided)), band)
         }
         Sweep::LoopFree(decided) => {

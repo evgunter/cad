@@ -79,3 +79,14 @@ Hand the certified `PcurveCache` the edge certificate derived to the mint
 (an `EdgeCurve` carrying the stated image's certificate, or a mint that
 accepts one for the same carrier and span, `covers`-style), so a stated
 image is certified once per build. Not a soundness item.
+
+## A pin that counts it
+
+sweep's slow-set row `a_sheath_grafted_on_its_blade::a_sheath_on_its_blade_stops_where_its_walls_touch_on_the_rim`
+counts the iso-boundary checks' on-row `Zero`s, so it sees this second
+derivation.
+- The row read 62 before PR 6815 and reads 66 since. The orchestrator
+  bisected this to 6815's merge: `cbc0d3817d` reads 62, `dcffc3874e` reads 66.
+- It is re-pinned at 66 (`crates/sweep/tests/a_sheath_grafted_on_its_blade.rs`),
+  with a note naming this row.
+- The fix brings it back to 62. Move the pin with it.

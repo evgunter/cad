@@ -537,6 +537,15 @@ fn certify_errors() -> Vec<CertifyError> {
             chart: geom::SurfaceKind::Cone,
             carrier: geom::CurveKind::Ellipse,
         },
+        CertifyError::StatedImageMissed {
+            sample: 3,
+            margin: Some(MarginDiag::value(1e-3)),
+        },
+        CertifyError::StatedImageMissed {
+            sample: geom_brep::certify::NOT_A_SAMPLE,
+            margin: None,
+        },
+        CertifyError::StatedImageUnsettled,
         CertifyError::NoGeneralLane {
             chart: geom::SurfaceKind::Sphere,
             carrier: geom::CurveKind::Ellipse,
@@ -600,6 +609,10 @@ fn certify_errors() -> Vec<CertifyError> {
         CertifyError::Row {
             surface: key,
             refusal: geom_brep::RowRefusal::OffSide,
+        },
+        CertifyError::Row {
+            surface: key,
+            refusal: geom_brep::RowRefusal::Singular,
         },
         CertifyError::WrapOnNonPeriodic,
         // Both zero-span stories: a length a smaller tolerance decides,
@@ -2980,7 +2993,7 @@ mod tests {
                     | CertifyError::TangentCertificateUnsupported
                     | CertifyError::Band(_)
                     | CertifyError::Row {
-                        refusal: geom_brep::RowRefusal::OffSide,
+                        refusal: geom_brep::RowRefusal::OffSide | geom_brep::RowRefusal::Singular,
                         ..
                     }
             )

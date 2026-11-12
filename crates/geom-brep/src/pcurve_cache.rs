@@ -3542,10 +3542,7 @@ fn spans_of(
         .enumerate()
         .map(|(j, part)| {
             let range = (breaks[j], breaks[j + 1]);
-            let whole = whole_breaks
-                .windows(2)
-                .position(|w| w[0] <= range.0 && range.1 <= w[1])
-                .map_or(f64::NAN, |i| whole_sup[i]);
+            let whole = holding_span(&whole_breaks, range).map_or(f64::NAN, |i| whole_sup[i]);
             // The breaks are a knot vector's, so a part's ends are
             // ordered numbers; a pair that is not names no part, and its
             // hull is the uncertified one.
@@ -3614,6 +3611,22 @@ fn spans_of(
         })
         .collect();
     Ok(spans)
+}
+
+/// **The first span of `breaks` holding `range`**: the least `i` with
+/// `breaks[i] ≤ range.0` and `range.1 ≤ breaks[i + 1]`, or `None`. Over
+/// ascending breaks the second clause holds from the first `i` it holds
+/// at onward and the first clause up to the last, so the least `i` is
+/// the first of the second clause's, found by bisection, if the first
+/// clause holds there too. A NaN end fails both clauses, as it fails a
+/// scan's. [`spans_of`] asks once per part, so a scan would cost the
+/// parts times the spans.
+fn holding_span(breaks: &[f64], range: (f64, f64)) -> Option<usize> {
+    let i = breaks.partition_point(|&b| b < range.1).saturating_sub(1);
+    match (breaks.get(i), breaks.get(i + 1)) {
+        (Some(&lo), Some(&hi)) if lo <= range.0 && range.1 <= hi => Some(i),
+        _ => None,
+    }
 }
 
 /// **The span hulls' memo**: [`spans_of`] keyed by exactly what it
@@ -4408,6 +4421,19 @@ fn closed_form_grid<T: Real>(carrier: &Curve3<T>, lo: f64, hi: f64) -> Vec<f64> 
         .collect()
 }
 
+/// **The chart the fitted door's composite reads**: a spline chart, its
+/// own operand; or an analytic chart with the class of the bilinear patch
+/// that agrees with it wherever the image runs ([`patch::PatchClass`]),
+/// decided once by the image's route ([`StatedDoor`]).
+#[derive(Clone, Copy, Debug)]
+pub(crate) enum FittedChart<'a, T: Real> {
+    /// A spline chart (a described NURBS wall, or an approximating
+    /// surface's fit).
+    Spline(&'a Surface<T>),
+    /// An analytic chart and its patch's class.
+    Patch(&'a Surface<T>, patch::PatchClass),
+}
+
 /// The fitted door's body for check 4 ([`crate::FittedLane`]): limb 2
 /// of C2 against this chart alone, a certified bound on
 /// `sup |S(P(t)) − C(t)|` over the image's domain, its rounds halved as
@@ -4424,22 +4450,10 @@ fn closed_form_grid<T: Real>(carrier: &Curve3<T>, lo: f64, hi: f64) -> Vec<f64> 
 pub(crate) fn fitted_lane<T: Decide + geom_core::Bounds + geom_core::CertifiedEnclosure>(
     carrier: &Curve3<T>,
     image: &NurbsCurve2<T>,
-    surface: &Surface<T>,
+    chart: FittedChart<'_, T>,
     (t0, t1): (T, T),
     band: Band,
 ) -> Result<T, PcurveCertifyError> {
-    let chart = match surface {
-        Surface::Nurbs(n) => n,
-        Surface::Approx(a) => a.fit(),
-        Surface::Plane { .. }
-        | Surface::Cylinder { .. }
-        | Surface::Cone { .. }
-        | Surface::Sphere { .. }
-        | Surface::Torus { .. }
-        | Surface::Spindle { .. } => {
-            unreachable!("fitted_lane: `run_fitted_checks` admits only a spline chart at check 1")
-        }
-    };
     // The bound is over the image's domain, so the edge's interval must
     // lie inside it, for every carrier kind. Nothing upstream says so of
     // a spline: its evaluation clamps at its knot domain, so an edge's
@@ -4467,19 +4481,69 @@ pub(crate) fn fitted_lane<T: Decide + geom_core::Bounds + geom_core::CertifiedEn
     // through the carrier-enclosure door over the image's domain, cut at
     // `cuts` besides the round's grid: a halving shrinks a closed form's
     // remainder too.
-    let (pcoords, scoords) = (image.certified_coords(), chart.certified_coords());
+    let pcoords = image.certified_coords();
     let pimage = (
         image.knots_f64_interim(),
         image.weights_f64_interim(),
         &pcoords[..],
     );
-    let schart = (
-        chart.knots_u_f64_interim(),
-        chart.knots_v_f64_interim(),
-        chart.weights_f64_interim(),
-        &scoords[..],
-    );
-    let grid = chart_grid(carrier, image.knots_f64_interim());
+    // A spline chart is its own operand; an analytic one enters as the
+    // bilinear patch of the class its route decided.
+    let (scoords, held);
+    let schart = match chart {
+        FittedChart::Spline(surface) => {
+            let chart = match surface {
+                Surface::Nurbs(n) => &**n,
+                Surface::Approx(a) => a.fit(),
+                Surface::Plane { .. }
+                | Surface::Cylinder { .. }
+                | Surface::Cone { .. }
+                | Surface::Sphere { .. }
+                | Surface::Torus { .. }
+                | Surface::Spindle { .. } => unreachable!(
+                    "fitted_lane: `run_fitted_checks` admits only a spline chart at check 1"
+                ),
+            };
+            scoords = chart.certified_coords();
+            (
+                chart.knots_u_f64_interim(),
+                chart.knots_v_f64_interim(),
+                chart.weights_f64_interim(),
+                &scoords[..],
+            )
+        }
+        FittedChart::Patch(surface, class) => {
+            let window = |lane: &[geom_core::Interval]| {
+                lane.iter()
+                    .fold((f64::INFINITY, f64::NEG_INFINITY), |(lo, hi), c| {
+                        (
+                            lo.min(geom_core::Bounds::lo(*c)),
+                            hi.max(geom_core::Bounds::hi(*c)),
+                        )
+                    })
+            };
+            let chart = surface.map_scalar(geom_core::Interval::from_certified);
+            held = patch::patch(class, &chart, (window(&pcoords[0]), window(&pcoords[1]))).ok_or(
+                PcurveCertifyError::FittedCertificate {
+                    limb: Some(SsiLimb::HullSupChart),
+                    what: "no window around the image's control coordinates has width: they \
+                           are no finite numbers, or too large for one unit either side to \
+                           be a different number",
+                    magnitude: None,
+                    ending: FittedEnding::Defect,
+                },
+            )?;
+            (&held.0, &held.1, &held.2[..], &held.3[..])
+        }
+    };
+    // A patch is the chart exactly, so a spline carrier's composite
+    // against it needs no grid beyond the two curves' own knots: the
+    // rounds cut where the bound does not clear. A closed-form carrier's
+    // Taylor net takes the grid wherever it is read.
+    let grid = match (chart, carrier) {
+        (FittedChart::Patch(..), Curve3::Nurbs(_)) => Vec::new(),
+        _ => chart_grid(carrier, image.knots_f64_interim()),
+    };
     let stopped = crate::ssi::certify::subdivide(
         |cuts: &[f64]| carrier_chart_round(carrier, pimage, schart, &grid, cuts),
         band,
@@ -8155,7 +8219,8 @@ fn run_fitted_checks<T: Decide>(
 
     // ---- Check 4: the envelope, RE-DERIVED. ----
     let lane = lane.ok_or(PcurveCertifyError::FittedLaneUnsupported { scalar: T::NAME })?;
-    let hull_sup = lane.fitted_certificate(carrier, image, surface, (t0, t1), band)?;
+    let hull_sup =
+        lane.fitted_certificate(carrier, image, FittedChart::Spline(surface), (t0, t1), band)?;
     // The envelope is banded exactly as the closed-form lane's is, and
     // for the same reason: a certificate whose own bound exceeds ε is
     // not a certificate. It is NOT folded into `max_residual` (the
@@ -9647,7 +9712,7 @@ fn chart_image<T: Decide>(
                 chart: surface.kind(),
             });
         }
-        if let Incidence::Off(margin) = net_incidence(net, span, surface, band)? {
+        if let Incidence::Off(margin) = net_sampled_incidence(net, span, surface, band)? {
             return Err(
                 OffChart("the spline carrier does not lie on the chart").with_margin(
                     OffMargin::Past(margin),
@@ -10002,7 +10067,7 @@ fn read_shown<T: Decide>(
         return read_edge_incidence(carrier, t0, t1, surface, band).map(|()| None);
     }
     if let Curve3::Nurbs(net) = carrier {
-        return match net_incidence(net, Some((t0, t1)), surface, band)? {
+        return match net_sampled_incidence(net, Some((t0, t1)), surface, band)? {
             Incidence::Off(margin) => Err(OffChart("the spline carrier does not lie on the chart")
                 .with_margin(OffMargin::Past(margin), surface, carrier)),
             Incidence::On(_) => Ok(None),
@@ -10174,11 +10239,13 @@ pub fn read_point_incidence<T: Decide>(
     }
 }
 
-/// The incidence test of a spline carrier: [`chart_incidence`]'s, at
-/// [`INCIDENCE_SAMPLES`] points of the edge's interval `span`, or of
+/// The sampled incidence test of a spline carrier: [`chart_incidence`]'s,
+/// at [`INCIDENCE_SAMPLES`] points of the edge's interval `span`, or of
 /// the knot domain where none is given: the net past the edge's ends is
-/// not the edge's.
-fn net_incidence<T: Decide>(
+/// not the edge's. A lower bound on the net's distance from the chart,
+/// so its `Off` is definite and its `On` shows only that no sample is
+/// off; the bound over the span is [`read_net_bound`].
+fn net_sampled_incidence<T: Decide>(
     net: &NurbsCurve3<T>,
     span: Option<(T, T)>,
     surface: &Surface<T>,
@@ -10193,6 +10260,116 @@ fn net_incidence<T: Decide>(
         T::zero(),
         band,
     )
+}
+
+/// **A spline net's incidence on an analytic chart, bounded over the
+/// span** (D3): the sampled read ([`read_incidence`]), whose definite
+/// miss at a sample ends as it does at every door (its reading in band,
+/// a lower bound or an enclosure that does not decide, shows neither
+/// side), then limb 2's reading of the net's distance from the chart
+/// over `[t0, t1]`
+/// ([`limb2_offset_sup`]: the chart's canonical composite along the net,
+/// a bound per part converted to metres, the parts halved where the bound
+/// does not clear), decided as the edge certificate decides limb 2
+/// ([`crate::edge_nurbs::limb2`]). So a net off its chart between every
+/// sample does not read on. `offset` is that reader at the certifying
+/// scalar ([`limb2_offset_sup`] itself), handed in by the certificate's
+/// engine, which holds the scalar's bracket bound; it is read over
+/// `window` only where the sampled read showed no miss.
+///
+/// - The bound within the band: on.
+/// - A measured miss past the band at a break: off
+///   ([`IncidenceRead::Off`]).
+/// - Anything else (a floor or a bound in the band, an enclosure that
+///   neither clears nor misses, a composite with no certified bound):
+///   in band ([`IncidenceRead::Undecided`]), the read's lever. An upper
+///   bound past the band shows no miss, so it never reads off.
+///
+/// # Errors
+///
+/// [`PcurveCertifyError::Incidence`], read off or in band as above.
+pub(crate) fn read_net_bound<T: Decide>(
+    carrier: &Curve3<T>,
+    window: (T, T),
+    surface: &Surface<T>,
+    band: Band,
+    offset: impl FnOnce(
+        &Curve3<T>,
+        (T, T),
+        &Surface<T>,
+        Band,
+    ) -> Result<projected::OffsetRead<T>, PcurveCertifyError>,
+) -> Result<(), PcurveCertifyError> {
+    debug_assert!(
+        surface.spline_chart().is_none() && carrier.kind() == geom::CurveKind::Nurbs,
+        "read_net_bound reads a spline net on an analytic chart"
+    );
+    let sampled = read_incidence(carrier, window.0, window.1, surface, band);
+    #[cfg(test)]
+    if mutants::net_bound_sampled() {
+        return sampled;
+    }
+    if let Err(sampled) = sampled
+        && !matches!(&sampled, PcurveCertifyError::Incidence(r) if !r.read().is_definite())
+    {
+        return Err(sampled);
+    }
+    let read = offset(carrier, window, surface, band);
+    crate::edge_nurbs::limb2(carrier, window, surface, read, None, band)
+        .map_err(|refusal| net_bound_refusal::<T>(refusal, surface, carrier, band))
+}
+
+/// **What [`read_net_bound`] ends a refusal of limb 2 as**: a measured
+/// miss off the chart; anything limb 2 decided in band, its escalation;
+/// an upper bound that does not clear, or no certified bound at all, a
+/// straddle of the band (`pcurve_net_bound_straddle`), since an upper
+/// bound shows no miss and the sampled read showed none; a carrier with
+/// no certified net (its data not finite), unreadable. "No bound" is
+/// read as the largest finite bound, so the straddle's margin is a
+/// reading at every scalar (`+∞` is no interval, and its poisoned margin
+/// would end as a defect).
+fn net_bound_refusal<T: Decide>(
+    refusal: crate::edge_nurbs::AnalyticRung3Refusal,
+    surface: &Surface<T>,
+    carrier: &Curve3<T>,
+    band: Band,
+) -> PcurveCertifyError {
+    use crate::edge_nurbs::AnalyticRung3Refusal as R;
+    // Limb 2 reads its limit only on a bound it did not decide zero, so
+    // the bound decides positive or escalates.
+    let unshown = |bound: f64| {
+        let bound = if bound.is_finite() { bound } else { f64::MAX };
+        let decided = |x: T| {
+            geom_core::k_stats::decide_reported("pcurve_net_bound_straddle", Margin::of(x), band)
+        };
+        match (decided(T::zero()), decided(T::from_computed(bound))) {
+            (Ok(lower), Ok(upper)) => {
+                geom_core::k_stats::straddle("pcurve_net_bound_straddle", lower, upper, band)
+            }
+            (Err(cause), _) | (_, Err(cause)) => cause,
+        }
+    };
+    incidence_escalated(match refusal {
+        R::Limb { margin, .. } => {
+            return OffChart(
+                "the spline carrier's distance from the chart is past the band over its span",
+            )
+            .with_margin(OffMargin::Past(margin), surface, carrier);
+        }
+        R::Stalled { cause, .. } | R::Escalated { cause, .. } => cause,
+        R::KernelLimit { bound, .. } => unshown(bound),
+        R::NoOffsetBound { .. } => unshown(f64::MAX),
+        R::CarrierEnclosure(_) => spline_incidence::unreadable(band),
+        R::NoTubeEnclosure { .. }
+        | R::TubeStraddles { .. }
+        | R::TubeNotOneArc { .. }
+        | R::Unsupported { .. }
+        | R::Tube(_)
+        | R::OutsideVocabulary => unreachable!(
+            "net_bound_refusal: limb 2 against one operand refuses its bound, its miss or its \
+             net, never the tube's or the pair's: {refusal:?}"
+        ),
+    })
 }
 
 /// The two iso families of an analytic chart: `U` the `u = const`
@@ -12656,7 +12833,7 @@ mod incidence {
             }
             _ => unreachable!(
                 "incident: a spline carrier on an analytic chart takes its own test \
-                 (`net_incidence`)"
+                 (`net_sampled_incidence`)"
             ),
         };
         // A sheet's meridian circle leaves the sheet past its apexes, so
@@ -13043,10 +13220,12 @@ fn spiric_off_own_chart(why: &'static str) -> OffChart {
 
 // Check 4's per-arm lemma, swept, in a module of its own so the per-file
 // test gate can skip the sweep without skipping the deterministic rows.
+pub(crate) mod patch;
 pub mod projected;
 mod spline_incidence;
 mod stated;
 pub use projected::{FramedCarrier, ProjectedChart, ProjectedImage, SectorChannel};
+pub(crate) use stated::{EdgeSpan, StatedDoor};
 
 #[cfg(test)]
 mod envelope_lemma_fuzz;
@@ -13062,6 +13241,15 @@ fn channels_of<T: Real>(image: &Pcurve<T>) -> (Channel<T>, Channel<T>) {
     }
 }
 
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::panic)]
+mod analytic_image_rows;
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::panic)]
+mod analytic_net_rows;
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::panic)]
+mod bisected_reads_rows;
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::panic)]
 mod by_turn_rows;
@@ -15384,7 +15572,7 @@ mod fitted_lane_tests {
     use geom_core::spline::KnotVector;
     use geom_core::{Band, Point2, Point3, Vec3};
 
-    use super::{PcurveCertifyError, fitted_lane};
+    use super::{FittedChart, PcurveCertifyError, fitted_lane};
 
     /// The bilinear wall `z = 0` over `[0, 1]²`, its chart the identity.
     fn flat_wall() -> Surface<f64> {
@@ -15422,7 +15610,14 @@ mod fitted_lane_tests {
     fn a_line_carrier_is_bounded_against_its_chart_alone() {
         let band = Band::new(1e-9, 1e-8).unwrap();
         let (wall, image) = (flat_wall(), image());
-        let sup = fitted_lane(&line(0.0), &image, &wall, (0.0, 1.0), band).unwrap_or_else(|e| {
+        let sup = fitted_lane(
+            &line(0.0),
+            &image,
+            FittedChart::Spline(&wall),
+            (0.0, 1.0),
+            band,
+        )
+        .unwrap_or_else(|e| {
             panic!(
                 "the line on its image certifies: {e_at}",
                 e_at = e.render(crate::recourse::Reading::Build)
@@ -15431,12 +15626,24 @@ mod fitted_lane_tests {
         assert!(sup <= 1e-12, "the bound is the composite's rounding: {sup}");
         assert!(
             matches!(
-                fitted_lane(&line(1e-3), &image, &wall, (0.0, 1.0), band),
+                fitted_lane(
+                    &line(1e-3),
+                    &image,
+                    FittedChart::Spline(&wall),
+                    (0.0, 1.0),
+                    band
+                ),
                 Err(PcurveCertifyError::FittedLimb { .. })
             ),
             "a millimetre off the chart refuses at the hull"
         );
-        match fitted_lane(&line(0.0), &image, &wall, (0.0, 1.5), band) {
+        match fitted_lane(
+            &line(0.0),
+            &image,
+            FittedChart::Spline(&wall),
+            (0.0, 1.5),
+            band,
+        ) {
             Err(PcurveCertifyError::FittedCertificate { what, .. }) => {
                 assert!(what.contains("stops short"), "{what}");
             }
