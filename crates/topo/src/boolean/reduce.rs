@@ -696,7 +696,7 @@ fn vertex_face_side<T: Decide>(
     // evaluation of an offset.
     let far = |far: VertexKey| {
         let q = x.resolve_vertex_point(far, crate::live::Proven);
-        Offset::of(plane.origin, plane.normal, q).side("bool_vertex_face_side", band)
+        Offset::of(plane.origin, plane.normal, q).side_as("bool_vertex_face_side", band)
     };
     let offset = Offset::of(origin, normal, at);
     crate::vertex_section::decide_vertex_on_plane(

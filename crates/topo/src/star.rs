@@ -5,10 +5,9 @@
 //! A verb supplies its datums, its reading of each bound's side, and which
 //! circle carries its chords; the star reads the orbit.
 //!
-//! The cuts and their germs live in each verb: `splitting::insert`
-//! (`section_chords`, `apex_germ`) and `boolean::vtxfac` and
-//! `boolean::sectors` (`pierce_germ_dir`, `germ_locus`), and the germs'
-//! order in `splitting::insert` and `boolean::vtxfac` (`germ_order`).
+//! The cuts, their germs and the germs' order are read here too ("The
+//! cut", "The germs' order"); a verb supplies the sides after its folds
+//! and its rule for a tie.
 //!
 //! # The walk
 //!
@@ -66,6 +65,49 @@
 //! A line edge's side stays the verb's (the split reads its far vertex's
 //! record, the pierce its chord), as does its fold of a tie (rule (a),
 //! the lumps), its error vocabulary and its record.
+//!
+//! # The cut
+//!
+//! A verb's sides of its datum, after its folds, turn into the cuts at
+//! the vertex in one place ([`cuts`]): each sector whose two bounds lie
+//! on opposite sides, with the bound on the datum's positive side (the
+//! split's Above, the Boolean's Out, [`CutEnd`]). A cut names the datum's
+//! side, never the verb's: a verb whose runs move the negative side (a
+//! wall's second face) reads the same cuts. A run of moved bounds ends at
+//! two cuts ([`Run::cut_sectors`]). Where a verb reads raw sides, with
+//! bounds in the datum, a cut lies between two bounds read strictly
+//! apart ([`apart`]): the section reading's entered faces
+//! (`vertex_section`).
+//!
+//! A cut's **germ**, the direction the datum's section leaves the vertex
+//! along inside the cut's sector, is read by one rule, signed by the
+//! cut's codes, whose three arms each verb takes in this order (the bound
+//! in the datum is the verb's reading of its sides):
+//!
+//! - where the verb read a bound of the sector in the datum, that bound;
+//! - at a cone's apex, the section ruling inside the sector
+//!   (`chord_join::apex_section_ruling`);
+//! - otherwise the line of the sector's tangent plane and the datum's,
+//!   `n_s × n_d`, its ray named by the cut's end above ([`germ_line`]),
+//!   with its lean ([`Leaned`]).
+//!
+//! The split's corners, the pierce's run germs and the vertex–vertex
+//! crossing germs all read it: a crossing record is a cut of A's star
+//! against B's face, signed by A's codes after reclassification, which
+//! name the same ray as B's (`boolean::insert::germ_dir`).
+//!
+//! # The germs' order
+//!
+//! Germs in one plane are ordered round the vertex by one door
+//! ([`germ_order`], clockwise about the normal it is given, from the first
+//! germ), whose one comparison ([`before`]) places each germ in its
+//! half-turn by its side of the first and orders two in one half-turn by
+//! their sine, every reading levered as a distance and by the smaller
+//! lean of the directions it reads ([`leaned_lever`]). Its ties are the
+//! verb's ([`Ties`]): the split reads two sectors' germs along one
+//! tangent one order down and refuses alike ones; the pierce ring reads
+//! one pierce's the same way and two pierces' by their chords' nesting.
+//! Its refusals ([`OrderFault`]) map into each verb's error.
 //!
 //! # Sites
 //!
