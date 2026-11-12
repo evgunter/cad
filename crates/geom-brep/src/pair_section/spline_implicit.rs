@@ -122,6 +122,8 @@ mod carry_rows;
 mod curved;
 #[cfg(test)]
 mod node_rows;
+#[cfg(test)]
+mod rest_rows;
 mod sweep;
 
 /// **A spline wall and an implicit partner**, in the order the section

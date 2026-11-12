@@ -3,13 +3,12 @@
 //! one meets it in an arc from the wall's rim to its rim, or from side to
 //! side, which the join reads as the carried component the section value
 //! lists, its chords cut from the reading's own certified carrier on
-//! both operands. Each run passes the join's lanes and stops at the
-//! at-rest certificate of the chord the join mints, or past the join:
-//! a curved partner's arc against a spline has no at-rest edge
-//! certificate yet, and a plane's arc across a curved wall stops at the
-//! plane × spline lane's own image. Neither is the join's. Two arcs of
-//! one pair closer than the pads their points are read within carry
-//! neither, by name.
+//! both operands. Each run passes the join's lanes and stops past the
+//! join, at the inside/outside test no spline face can be crossed by, or
+//! at the at-rest certificate of the chord the join mints: a plane's arc
+//! across a curved wall stops at the plane × spline lane's own image.
+//! Neither is the join's. Two arcs of one pair closer than the pads their
+//! points are read within carry neither, by name.
 //!
 //! Each run is at the witness tolerance. Red against main before
 //! the section value carried the pair: each refused at the join, where a
@@ -35,12 +34,21 @@ fn chord_certificate(e: &BooleanError) -> Option<&geom_brep::CertifyError> {
 /// the wall in an arc from the wall's bottom rim back to it, which the
 /// join carries; the chord it mints on the wall and the ball is an
 /// intersection of a sphere and a spline, which the at-rest certificate
-/// has no arm for, so the union stops there.
+/// holds through its curved-partner lane. The join completes, and the
+/// union stops past it at the inside/outside test, which cannot cross a
+/// spline face
+/// (`work/inside/point-containments-ray-test-has-no-spline-arm.md`).
 ///
-/// Red against: the join reading a spline × sphere germ through a frame
-/// (`GermFrameUnsupported`); a table that does not hold the pair.
+/// At `ε = 1e-12` the chord stops at its certificate instead: the lane's
+/// image of the arc on the wall misses its foot path by more than that ε
+/// (`work/sectarms/a-curved-partners-arc-is-imaged-at-rest-no-finer-than-the-mints-finest-rung.md`).
+///
+/// Red against: a certificate with no arm for a sphere beside a spline
+/// (`CertifyError::Unimplemented`); the join reading a spline × sphere
+/// germ through a frame (`GermFrameUnsupported`); a table that does not
+/// hold the pair.
 #[test]
-fn a_ball_across_a_lofted_wall_is_joined_on_its_carried_arc() {
+fn a_ball_across_a_lofted_wall_is_joined_and_its_chord_certifies_at_rest() {
     let t = Tol::witness();
     let prism = finished("the loft prism", loft_prism(t), t);
     for (what, c) in [
@@ -52,14 +60,35 @@ fn a_ball_across_a_lofted_wall_is_joined_on_its_carried_arc() {
             ball_poled_z(0.25, Vec3::new(c[0], c[1], c[2]), t),
             t,
         );
-        let refusal = topo::union(&prism, &ball, t).expect_err("no sphere × spline edge certifies");
+        let refusal =
+            topo::union(&prism, &ball, t).expect_err("no ray crosses the prism's spline walls");
+        let read = match chord_certificate(&refusal) {
+            Some(
+                geom_brep::CertifyError::PlaneNurbs(geom_brep::PlaneNurbsRefusal::Limb {
+                    limb: geom_brep::SsiLimb::ImageMiss,
+                    ..
+                })
+                | geom_brep::CertifyError::Escalated {
+                    check: geom_brep::CertCheck::PlaneNurbsHullValue,
+                    ..
+                },
+            ) => t.eps() == 1e-12,
+            Some(_) => false,
+            None => {
+                t.eps() != 1e-12
+                    && matches!(
+                        refusal,
+                        BooleanError::Containment(topo::PointInSolidError::KindUnsupported {
+                            kind: geom::SurfaceKind::Nurbs,
+                            ..
+                        })
+                    )
+            }
+        };
         assert!(
-            matches!(
-                chord_certificate(&refusal),
-                Some(geom_brep::CertifyError::Unimplemented)
-            ),
-            "{what}: the join mints the carried chord, which the at-rest certificate refuses: \
-             {refusal:?}"
+            read,
+            "{what}: the chord certifies at rest and the join completes, the inside/outside \
+             test refusing the wall (at ε = 1e-12, the chord's image misses): {refusal:?}"
         );
     }
 }

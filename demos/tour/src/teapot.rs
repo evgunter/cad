@@ -156,17 +156,25 @@
 //!    pot's one plane of symmetry. A meeting on a boundary edge splits
 //!    both edges, the spout's spline seam at the parameter the meeting
 //!    read it at. The spout's walls read the belly's pierce point off
-//!    their trims, and the join then finds no frame for the section of
-//!    the belly's sphere and the spout's outer wall:
-//!    `GermFrameUnsupported { a_kind: Sphere, b_kind: Nurbs }` (at
-//!    ε = 1e-6 the meridian's interior walk against one of the spout's
-//!    bore walls floors first: `SplineCrossingUnsettled { why: Floor }`).
-//!    That is the pierce the join
-//!    actually needs, the spout's walls entering the belly, and it is the
-//!    NURBS face against a curved face that the section object's rung 3
-//!    builds. Making the spout the shape a potter draws did not make it
+//!    their trims, and the join reads the section of the belly's sphere
+//!    and the spout's outer wall through the section value: the arc is
+//!    traced on the wall's chart, carried, laid off the edges as chords,
+//!    and each chord certified at rest as the sphere's and the wall's
+//!    intersection. That is the pierce the join needs, the spout's walls
+//!    entering the belly, and it is now read. The union stops one layer
+//!    later, at the inside/outside test, which sends a ray through the
+//!    spout and has no way to cross a spline face:
+//!    `Containment(KindUnsupported { kind: Nurbs })`, naming the spout's
+//!    outer wall, at the default ε and at ε = 1e-6
+//!    (`work/inside/point-containments-ray-test-has-no-spline-arm`).
+//!    At ε = 1e-12 it stops in the join, where a chord's at-rest
+//!    certificate reads its own image of the arc on the wall a hair past
+//!    that ε (`Escalated { check: PlaneNurbsHullValue }`, 1.01e-12 m;
+//!    `work/sectarms/a-curved-partners-arc-is-imaged-at-rest-no-finer-than-the-mints-finest-rung`).
+//!    Making the spout the shape a potter draws did not make it
 //!    joinable; it moved the refusal off a pair the model does not care
-//!    about and onto the meeting itself. Wall 3 pins it and the note
+//!    about, through the meeting itself, and onto the question of what
+//!    is inside a solid with a spline wall. Wall 3 pins it and the note
 //!    carries the payload.
 //!
 //!    **The refusal arrives through the DOCUMENT**: each join is a `Node::Union` that lowers to the
@@ -179,9 +187,9 @@
 //!    face, the mouth-rim annulus at `y = 1/8`, was `FaceKey(1v1)`
 //!    when the cup came from a plane scan and became `FaceKey(2v1)`
 //!    once it came from the document. Wall 2 matches on `operand`
-//!    (the vessel's split planar walls); wall 3 resolves the two faces
-//!    its refusal names in the spout's and the pot's bodies and matches
-//!    them by their geometry, never by the key's value.
+//!    (the vessel's split planar walls); wall 3 resolves the face its
+//!    refusal names in the spout's body and matches it by its geometry,
+//!    never by the key's value.
 //! 5. **A spout the shape of a spout IS authorable — and this row was
 //!    half wrong when it was written.** It used to read: *"there is no
 //!    variable-section sweep, so the shape on screen is a straight
@@ -1563,13 +1571,15 @@ pub fn wall_probes(ev: &Evaluation<f64>, r: &Recipe) {
     // the meridian pierces the wall it crosses a seam. A meeting on a
     // boundary edge splits both edges, the spline seam at the parameter
     // the meeting read it at. The spout's walls read the belly's pierce
-    // point off their trims, and the join then has no frame for the
-    // section of the belly's sphere and the spout's outer wall
-    // (`work/sectarms/a-nurbs-face-against-a-cone-or-sphere-has-no-section-arm`).
+    // point off their trims, the join reads the section of the belly's
+    // sphere and the spout's outer wall and certifies its chords, and
+    // the union stops at the inside/outside test, which cannot cross a
+    // spline face
+    // (`work/inside/point-containments-ray-test-has-no-spline-arm`).
     //
-    // The predicate resolves the two faces the refusal names and pins
-    // them by geometry ([`wall3_pinned`]), not by the keys' values: an
-    // arena key moves whenever the model is re-authored.
+    // The predicate resolves the face the refusal names and pins it by
+    // geometry ([`wall3_pinned`]), not by the key's value: an arena key
+    // moves whenever the model is re-authored.
     crate::walls::wall(
         "teapot",
         3,
@@ -1577,7 +1587,7 @@ pub fn wall_probes(ev: &Evaluation<f64>, r: &Recipe) {
         join_outcome(ev, r.spout_union),
         |e| {
             let tol = Tol::witness();
-            wall3_pinned(e, &body_at(ev, r.spout, tol), &body_at(ev, r.pot, tol))
+            wall3_pinned(e, &body_at(ev, r.spout, tol), tol)
         },
         "make the teapot ONE solid: union the handle and the spout into the vessel, drop \
          walls 2 and 3, re-state the montage caption (which currently says four solids), \
@@ -1591,34 +1601,59 @@ pub fn wall_probes(ev: &Evaluation<f64>, r: &Recipe) {
 /// loft, which interpolates its stations.
 const SPOUT_OUTER_TIP: [f64; 3] = [-0.081_711_418_8, 0.153_348_328_1, 0.0];
 
-/// **Wall 3's pinned refusal**, at every ε: the join finds no frame for
-/// the germ pair of the belly's sphere (centre `Y_BELLY_C` on the axis,
-/// radius `R_BELLY`), the A face, against the spout's outer wall, from
-/// `SPOUT_R0` above the root to [`SPOUT_OUTER_TIP`], the B face
-/// (`work/sectarms/a-nurbs-face-against-a-cone-or-sphere-has-no-section-arm`).
-/// Every face is resolved in the operand's own body and matched by its
-/// geometry.
+/// **Wall 3's pinned refusal**, by ε.
 ///
+/// At the default ε and at ε = 1e-6 the join completes and the union
+/// stops at the inside/outside test, which cannot cross a spline face:
+/// `Containment(KindUnsupported { kind: Nurbs })`, its face the spout's
+/// outer wall, from `SPOUT_R0` above the root to [`SPOUT_OUTER_TIP`]
+/// (`work/inside/point-containments-ray-test-has-no-spline-arm`). The
+/// face is resolved in the spout's own body and matched by its geometry.
 /// The match is absolute, at a nanometre: the corners are the authored
 /// stations and the loft's own evaluation of them, not readings of the
-/// run's band, so they do not move with ε, and the faces they tell
-/// apart stand millimetres apart.
-pub fn wall3_pinned(e: &BooleanError, spout: &Body<f64>, pot: &Body<f64>) -> bool {
+/// run's band, so they do not move with ε, and the faces they tell apart
+/// stand millimetres apart.
+///
+/// At ε = 1e-12 the union stops in the join instead: a chord of the
+/// belly's sphere on a spout wall escalates at its at-rest certificate,
+/// whose image of the arc on the wall misses by 1.01e-12 m
+/// (`Escalated { check: PlaneNurbsHullValue }`;
+/// `work/sectarms/a-curved-partners-arc-is-imaged-at-rest-no-finer-than-the-mints-finest-rung`).
+///
+/// # Panics
+///
+/// At an ε the wall was not measured at.
+pub fn wall3_pinned(e: &BooleanError, spout: &Body<f64>, tol: Tol) -> bool {
+    use pncad::geom_brep::{CertCheck, CertifyError};
+    use pncad::topo::{EulerOpError, JoinError, PointInSolidError};
     let near = |p: Point3<f64>, q: [f64; 3]| (p - Point3::new(q[0], q[1], q[2])).norm() < 1e-9;
-    let BooleanError::GermFrameUnsupported {
-        a_face: belly,
-        a_kind: SurfaceKind::Sphere,
-        b_face: face,
-        b_kind: SurfaceKind::Nurbs,
-    } = e
+    let eps = tol.eps();
+    if eps == 1e-12 {
+        let BooleanError::Join(join) = e else {
+            return false;
+        };
+        return matches!(
+            join.error(),
+            JoinError::Euler(EulerOpError::Certification {
+                error: CertifyError::Escalated {
+                    check: CertCheck::PlaneNurbsHullValue,
+                    ..
+                },
+            })
+        );
+    }
+    assert!(
+        eps == 1e-9 || eps == 1e-6,
+        "wall 3 was measured at ε = 1e-6, 1e-9 and 1e-12, not at {eps:e}"
+    );
+    let BooleanError::Containment(PointInSolidError::KindUnsupported {
+        face,
+        kind: SurfaceKind::Nurbs,
+    }) = e
     else {
         return false;
     };
-    let the_belly = pot.face_surface(*belly).is_some_and(|s| {
-        matches!(s, Surface::Sphere { center, radius, .. }
-                if near(*center, [0.0, Y_BELLY_C, 0.0]) && (radius - R_BELLY).abs() < 1e-12)
-    });
-    let the_outer_wall = spout.face_surface(*face).is_some_and(|s| match s {
+    spout.face_surface(*face).is_some_and(|s| match s {
         Surface::Nurbs(n) => {
             let (u0, u1) = n.knot_values_u().domain();
             let (v0, v1) = n.knot_values_v().domain();
@@ -1626,8 +1661,7 @@ pub fn wall3_pinned(e: &BooleanError, spout: &Body<f64>, pot: &Body<f64>) -> boo
                 && near(n.eval(u1, v1), SPOUT_OUTER_TIP)
         }
         _ => false,
-    });
-    the_belly && the_outer_wall
+    })
 }
 
 /// The scene's recipe, built and evaluated. Both the render walk and
@@ -2663,18 +2697,20 @@ pub fn stops(tol: Tol) -> Vec<TourStop> {
              a canal. A loft's walls are Nurbs and the pair rung HAS a Nurbs arm, so the \
              request now gets past it into the sweep, which meets the belly's revolve seam \
              (a meridian, where the spout leaves the belly) with one of the spout's NURBS walls, on that wall's seam, \
-             splits both there, and cannot yet ask a spline wall whether it holds the sphere's pierce point: \
-             the pierce the join needs. The shape a potter \
-             draws did not become joinable; the refusal moved off a pair nobody modelled \
-             and onto the meeting itself. The schedule is the banked germ-chord \
-             lanes (DESIGN frontier (d)) and #1057's two C5 arms. BOTH REFUSALS NOW \
+             splits both there, reads the section of the belly's sphere and the spout's outer wall, \
+             certifies its chords, and stops one layer later: the inside/outside test sends a ray \
+             through the spout and cannot cross a spline face. The shape a potter \
+             draws did not become joinable; the refusal moved off a pair nobody modelled, \
+             through the meeting itself, and onto what is inside a solid with a spline wall \
+             (at ε = 1e-12 it stops in the join, on a chord's own image of the arc). The schedule is \
+             the ray test's spline arm. BOTH REFUSALS NOW \
              ARRIVE THROUGH THE DOCUMENT: each union is a `Node::Union` that lowers \
              to the same kernel `union` and fails at `evaluate`, so what is quoted here \
              is the evaluation's own carried refusal. NEITHER PROBE PINS AN ARENA KEY, which is \
              why both survived a re-authoring that moved one — the mouth-rim annulus at \
              y = 1/8 was FaceKey(1v1) off the plane scan and is FaceKey(2v1) off the \
-             document. Wall 2 matches on the operand; wall 3 matches the two faces it \
-             names by their geometry, never by the keys' values. The lofted canal above \
+             document. Wall 2 matches on the operand; wall 3 matches the face it \
+             names by its geometry, never by the key's value. The lofted canal above \
              is what a potter would draw and it IS authorable; what is not is a SWEPT \
              spout said as a recipe (`wire_sweep` refuses unconditionally, U4/LQ3 \
              banked — the library sweep itself turns a bend like this one, short of a U-turn) \

@@ -1672,6 +1672,17 @@ pub mod bounds_allowlist {
     //! neither the first rung's call nor those reads compile, and dropping
     //! `CertifiedEnclosure` fails that call likewise.
     //!
+    //! **2026-11-12 (under the M7-8 / C2 precedent; retroactive Ev review)
+    //! — `geom_brep::edge_nurbs`'s `curved_nurbs_limbs`**, the lane's
+    //! certificate for a sphere, cylinder or torus beside a spline chart,
+    //! and `residual_nurbs_limbs`, the body it shares with
+    //! `plane_nurbs_limbs`, ride at
+    //! `Decide + `[`Bounds`](super::Bounds)` + `[`CertifiedEnclosure`](super::CertifiedEnclosure),
+    //! `plane_nurbs_limbs`'s bound and nothing wider. Necessity: the shared
+    //! body is the plane lane's own, which calls `chart_image` and the
+    //! rung-3 door at that bound, and the twin is a second door onto it;
+    //! drop either term and neither call compiles.
+    //!
     //! **M9-2 PR-1 (under the PR 11 precedent; retroactive Ev review) —
     //! `topo::chart_region`**, the chart-region overlap predicate: it decides
     //! (its `chart_region_*` funnel margins) and reads exact-`f64` STRUCTURE
