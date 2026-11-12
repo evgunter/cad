@@ -3200,16 +3200,16 @@ pub(super) fn run_projected_checks<T: Decide>(
         })?;
         Ok(envelope)
     };
-    // A curved chart's net is read first with each knot span in the
-    // parts its own turn needs (`Parts::ByTurn`), in a recording of its
-    // own. Each part's hull bounds `|f|` over the part at any count, so
+    // A curved chart's net, with a fitted door to read it through, is
+    // read first with each knot span in the parts its own turn needs
+    // (`Parts::ByTurn`), in a recording of its own. Each part's hull bounds `|f|` over the part at any count, so
     // a first reading whose envelope passes is the check's, and its
     // recording is spliced in; anything else (a refusal, an escalation,
     // a sector or lever not shown at its coarser parts) is set aside
     // with its recording, and the envelope is read whole again at
     // `INCIDENCE_CUTS` parts a span, which takes every decision a
     // refusal rests on.
-    let first = (matches!(image.carrier, FramedCarrier::Net(_)) && curved)
+    let first = (matches!(image.carrier, FramedCarrier::Net(_)) && curved && lane.is_some())
         .then(|| geom_core::k_stats::detached(|| envelope(super::Parts::ByTurn)))
         .and_then(|(read, recording)| {
             let read = read.ok()?;
