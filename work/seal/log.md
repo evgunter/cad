@@ -231,3 +231,4 @@
   - **Rows.** Its two remaining notes are filed as SEAL rows (P2, P3).
   - **A main red met on the way:** PR 6862 moved the teapot spout's refusal. The python re-pin is in 6860, and SECTARMS has the P1 row for the tour's `wall3_pinned`.
   - SEAL stays `active`: two P1 rows are parked. (SEAL orchestrator)
+- 2026-11-12 — **Track handed back; SEAL is `ready`** (Ev, in chat: a program no one is working is `ready`, not `active`). Its two P1 rows stay parked: `the-indeterminate-seal` and `topo-mints-indeterminates-outside-the-funnel`. No SEAL lane is running. (SEAL orchestrator)
