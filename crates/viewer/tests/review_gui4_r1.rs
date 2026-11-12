@@ -354,11 +354,10 @@ fn r1_hide_probe_and_mate_compose_without_a_silent_state() {
     // Mate it onto the shelf, in the world: the mate places it into
     // the world, which empties its own space, and the edit discards the
     // probe and reports it.
-    let first = session.perform(asm::seat_op(
-        &bench,
-        bench.post_b,
-        asm::middle_seat_values(),
-    ));
+    let first = common::perform_in_its_space(
+        &mut session,
+        asm::seat_op(&bench, bench.post_b, asm::middle_seat_values()),
+    );
     assert!(first.refusal.is_none(), "{:?}", first.refusal);
     assert_eq!(
         first.committed.len(),
@@ -654,11 +653,10 @@ fn r1_the_probe_gestures_order_and_identity_edges() {
         node: bench.post_b,
         frame: Frame::translation([0.03, 0.0, 0.0]),
     });
-    let outcome = session.perform(asm::seat_op(
-        &bench,
-        bench.post_b,
-        asm::middle_seat_values(),
-    ));
+    let outcome = common::perform_in_its_space(
+        &mut session,
+        asm::seat_op(&bench, bench.post_b, asm::middle_seat_values()),
+    );
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
     let report = &outcome.withdrawn;
     assert!(

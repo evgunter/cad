@@ -8993,8 +8993,16 @@ mod properties_pane_tests {
             matches!(driven.app.session.committed_doc().node(copy), Some(Node::Place { constraints, .. })
                 if constraints.iter().any(|c| c.mate().is_some()))
         };
+        // The edge's `to` reads the other copy's space: "Into" it, a
+        // target change of its own, and the held mate lands after it.
         if !mated(&driven) {
-            driven.click("move the copy into the target's space");
+            let doc = driven.app.session.committed_doc();
+            let into = format!(
+                "Into {}",
+                doc.spoken_space(doc.node_space(placement()).expect("placed"))
+            );
+            driven.click(&into);
+            driven.quiet();
             driven.quiet();
         }
         let (doc, ev) = driven.app.session.landed_pair().expect("landed");

@@ -58,6 +58,7 @@ fn proposal_sides_agree_with_the_standalone_part_documents() {
     let mut tool = MateTool::new();
     tool.pick(session.doc(), a);
     tool.pick(session.doc(), b);
+    common::into_to_space(&session, &mut tool);
     let (doc, _) = session.landed_pair().expect("landed");
     let proposal =
         common::proposed(&session, &tool, asm::seat_choice()).expect("the seat proposes");
@@ -363,6 +364,7 @@ fn a_mate_kills_an_in_flight_gesture() {
     let mut tool = MateTool::new();
     tool.pick(session.doc(), a);
     tool.pick(session.doc(), b);
+    common::into_to_space(&session, &mut tool);
     let proposal =
         common::proposed(&session, &tool, asm::seat_choice()).expect("the seat proposes");
 
@@ -412,6 +414,7 @@ fn hide_survives_the_mate_that_discards_the_probe() {
     let mut tool = MateTool::new();
     tool.pick(session.doc(), a);
     tool.pick(session.doc(), b);
+    common::into_to_space(&session, &mut tool);
     let proposal =
         common::proposed(&session, &tool, asm::seat_choice()).expect("the seat proposes");
 

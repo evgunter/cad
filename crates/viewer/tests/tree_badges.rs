@@ -297,9 +297,10 @@ fn a_refused_bundle_badges_the_placement_that_evaluated_before_it() {
         "the premise: one rest places the shelf, which is no refusal"
     );
     // The rest off, by a space of the shelf's own at the identity.
-    let removed = session.perform(SessionOp::IntoOwnSpace {
-        placement: bench.shelf_i,
-    });
+    let removed = session.perform(common::asm::unpin_op(
+        session.committed_doc(),
+        bench.shelf_i,
+    ));
     assert!(removed.refusal.is_none(), "{:?}", removed.refusal);
     let added = common::commit_mate(
         &mut session,
@@ -355,9 +356,10 @@ fn two_faults_in_succession_on_one_placement_never_serve_a_stale_one() {
         common::asm::no_centre_op(&bench, bench.post_a),
     );
     let f1 = fault(&session);
-    let removed = session.perform(SessionOp::IntoOwnSpace {
-        placement: bench.shelf_i,
-    });
+    let removed = session.perform(common::asm::unpin_op(
+        session.committed_doc(),
+        bench.shelf_i,
+    ));
     assert!(removed.refusal.is_none(), "{:?}", removed.refusal);
     let second = common::commit_mate(
         &mut session,
@@ -374,9 +376,10 @@ fn two_faults_in_succession_on_one_placement_never_serve_a_stale_one() {
         RowStatus::Failed { .. }
     ));
 
-    let removed = session.perform(SessionOp::IntoOwnSpace {
-        placement: bench.shelf_i,
-    });
+    let removed = session.perform(common::asm::unpin_op(
+        session.committed_doc(),
+        bench.shelf_i,
+    ));
     assert!(removed.refusal.is_none(), "{:?}", removed.refusal);
     session.pump();
     let ev = session.evaluation_arc().expect("a result landed");

@@ -160,6 +160,9 @@ fn the_exit_demo_walk() {
     let shelf_bottom = common::displayed_face_at(&session, &index, &asm::under_shelf());
     assert_eq!(shelf_bottom.node, bench.shelf_i);
     tool.pick(session.doc(), shelf_bottom.clone());
+    // post_b stands in a space of its own: its "into" row set to the
+    // shelf's space, in the same change as the mate.
+    common::into_to_space(&session, &mut tool);
     assert!(
         tool.rows()[0]
             .side(pncad::document::MateSide::To)
@@ -171,8 +174,9 @@ fn the_exit_demo_walk() {
     // ── 7. ONE COMMITTED MATE ACTION. The proposal reads each picked
     // face as a plane — post_b's top cap `on`, the shelf's underside
     // `to`, flipped — and the seat's values; the session commits, as one
-    // action, post_b re-targeted into the shelf's space (the world) and
-    // its bundle written whole: the mate and its three values. post_b's
+    // action, post_b re-targeted into the shelf's space (the world) by
+    // its "into" row and its bundle written whole: the mate and its three
+    // values. post_b's
     // own space is then empty, so that edit reports the free-move
     // superseded: discarded, not zeroed.
     let own = session

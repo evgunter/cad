@@ -3476,7 +3476,7 @@ fn a_superseded_free_move_is_news_the_ranking_shows() {
     // Then they mate it onto the shelf, and that placement is discarded
     // under them by the edit.
     let mate = asm::seat_op(&bench, bench.post_b, asm::middle_seat_values());
-    let outcome = session.perform(mate.clone());
+    let outcome = common::perform_in_its_space(&mut session, mate.clone());
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
     let report = &outcome.withdrawn;
     let [superseded] = &report.superseded[..] else {

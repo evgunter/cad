@@ -318,7 +318,11 @@ fn the_parametric_living_walk() {
     // 0.025 deliberately equals `height - embed` today, so the part is
     // coherent before the drive lands; a literal that stayed driving
     // would be caught by the stage-9/11 ripples.
-    let tower_up = common::moved_to(&mut session, tower, [0.0, 0.0, 0.025]);
+    let home = session
+        .committed_doc()
+        .node_space(base)
+        .expect("the base's space");
+    let tower_up = common::moved_into(&mut session, tower, [0.0, 0.0, 0.025], home);
     let hull = session_insert(
         &mut session,
         SessionOp::AddBoolean {
@@ -392,7 +396,11 @@ fn the_parametric_living_walk() {
     // 0.08 deliberately equals `height * 3 - embed * 2` today (coherent
     // mid-build); a literal that stayed driving would be caught by the
     // stage-9/11 variable ripples.
-    let lamp_up = common::moved_to(&mut session, lamp, [0.0, 0.0, 0.08]);
+    let home = session
+        .committed_doc()
+        .node_space(hull)
+        .expect("the hull's space");
+    let lamp_up = common::moved_into(&mut session, lamp, [0.0, 0.0, 0.08], home);
     let lighthouse = session_insert(
         &mut session,
         SessionOp::AddBoolean {

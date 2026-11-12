@@ -462,8 +462,84 @@ pub fn commit_mate(session: &mut DocSession, op: SessionOp) -> pncad::document::
     mate
 }
 
+/// **A mate op whose `to` reads another space than its placement's
+/// target, made with the target change it needs**. An `AddMate` is
+/// drafted in the placement's editor with its first row set to the space
+/// the `to` reads, as one `SetBundle` — "Into <space>" and the mate
+/// drafted together. Where the door holds that draft (a bundle that would
+/// not stand, which an `AddMate` admits and the evaluation refuses), the
+/// target change is made as a step of its own first ([`into_space`]) and
+/// the op is answered as it is. A `SetBundle` a proposal formed is
+/// re-based on the target its own step set. Any other op is answered as
+/// it is.
+pub fn into_its_space(session: &mut DocSession, op: SessionOp) -> SessionOp {
+    let doc = session.committed_doc();
+    let off = |placement: RecipeNodeId, to: &pncad::document::Operand| {
+        doc.operand_space(to)
+            .filter(|&space| doc.node_space(placement) != Some(space))
+    };
+    let into = match &op {
+        SessionOp::AddMate {
+            placement, mate, ..
+        } => off(*placement, &mate.to).map(|space| (*placement, space)),
+        SessionOp::SetBundle {
+            placement,
+            constraints,
+            ..
+        } => constraints
+            .iter()
+            .filter_map(|c| c.mate())
+            .find_map(|mate| off(*placement, &mate.to))
+            .map(|space| (*placement, space)),
+        _ => None,
+    };
+    let Some((placement, space)) = into else {
+        return op;
+    };
+    if let SessionOp::AddMate { mate, values, .. } = &op {
+        let mut tool =
+            viewer::matetool::MateTool::edit(doc, placement).expect("a placement's editor");
+        tool.set_target(viewer::session::PlaceTarget::space(space));
+        tool.add_written(doc, mate);
+        for (coord, by) in values.clone() {
+            tool.type_value(coord, by);
+        }
+        let (landed, ev) = session.landed_pair().expect("landed");
+        if let Ok(proposal) = tool.proposal(landed, ev, session.tol())
+            && session.bundle_door(&proposal.op()).is_ok()
+        {
+            return proposal.op();
+        }
+    }
+    into_space(session, placement, space);
+    match op {
+        SessionOp::SetBundle {
+            placement,
+            base,
+            constraints,
+            ..
+        } => SessionOp::SetBundle {
+            placement,
+            base: viewer::session::PlacementBase {
+                target: pncad::document::Operand::Var(space),
+                constraints: base.constraints,
+            },
+            target: viewer::session::PlaceTarget::space(space),
+            constraints,
+        },
+        op => op,
+    }
+}
+
+/// [`into_its_space`], then the op performed.
+pub fn perform_in_its_space(session: &mut DocSession, op: SessionOp) -> viewer::session::OpOutcome {
+    let op = into_its_space(session, op);
+    session.perform(op)
+}
+
 /// [`commit_mate`] without the pump.
 pub fn add_mate(session: &mut DocSession, op: SessionOp) -> pncad::document::MateRef {
+    let op = into_its_space(session, op);
     // A placement's editor writes its bundle whole; a mate is added to it.
     let (SessionOp::AddMate { placement, .. } | SessionOp::SetBundle { placement, .. }) = &op
     else {
@@ -1082,6 +1158,49 @@ pub fn transformed_at(
     body: Option<u32>,
     values: &[(pncad::document::Coord<pncad::document::Operand>, Formula)],
 ) -> SessionOp {
+    transform(session, node, body, values, None)
+}
+
+/// [`transformed`] with the editor's first row set to `into` in the same
+/// change as the values: the copy placed into another body's space,
+/// standing on its axes by those values — what a combine with that body
+/// needs, since a combine moves no copy.
+pub fn transformed_into(
+    session: &mut DocSession,
+    node: RecipeNodeId,
+    values: &[(pncad::document::Coord<pncad::document::Operand>, Formula)],
+    into: pncad::document::VarId,
+) -> SessionOp {
+    transform(session, node, None, values, Some(into))
+}
+
+/// [`moved_to`] into `into`'s axes ([`transformed_into`]).
+pub fn moved_into(
+    session: &mut DocSession,
+    node: RecipeNodeId,
+    by: [f64; 3],
+    into: pncad::document::VarId,
+) -> RecipeNodeId {
+    let op = transformed_into(session, node, &slides(by), into);
+    let SessionOp::SetBundle { placement, .. } = &op else {
+        panic!("the editor writes a bundle: {op:?}")
+    };
+    let placement = *placement;
+    let outcome = session.perform(op);
+    assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
+    placement
+}
+
+/// The Transform tool's change, its target set to `into` where given.
+// The door answers the session's own `Refusal`, whatever its width.
+#[allow(clippy::result_large_err)]
+fn transform(
+    session: &mut DocSession,
+    node: RecipeNodeId,
+    body: Option<u32>,
+    values: &[(pncad::document::Coord<pncad::document::Operand>, Formula)],
+    into: Option<pncad::document::VarId>,
+) -> SessionOp {
     session.pump();
     let tol = session.tol();
     let (doc, _) = session.landed_pair().expect("landed");
@@ -1092,6 +1211,9 @@ pub fn transformed_at(
         tool.placed(session.committed_doc(), placement);
     }
     let (doc, ev) = session.landed_pair().expect("landed");
+    if let Some(into) = into {
+        tool.set_target(viewer::session::PlaceTarget::space(into));
+    }
     for (coord, by) in values {
         tool.type_value(coord.clone(), by.clone());
     }
@@ -1133,6 +1255,31 @@ pub fn moved_to(session: &mut DocSession, node: RecipeNodeId, by: [f64; 3]) -> R
     let outcome = session.perform(op);
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
     placement
+}
+
+/// **`placement` re-targeted into `space` through its editor's first
+/// row**, one change, performed (not pumped after) — what a person does before
+/// a combine reads the copy in another space, since a combine moves no
+/// copy.
+///
+/// # Panics
+///
+/// Where the door refuses the change.
+pub fn into_space(
+    session: &mut DocSession,
+    placement: RecipeNodeId,
+    space: pncad::document::VarId,
+) {
+    session.pump();
+    let mut tool = viewer::matetool::MateTool::edit(session.committed_doc(), placement)
+        .expect("a placement's editor");
+    tool.set_target(viewer::session::PlaceTarget::space(space));
+    let (doc, ev) = session.landed_pair().expect("landed");
+    let op = tool
+        .offer(doc, ev, session.tol(), |op| session.bundle_door(op))
+        .unwrap_or_else(|| panic!("the target change passes: {:?}", tool.pending()));
+    let outcome = session.perform(op);
+    assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
 }
 
 /// **Place `body` and open the placement editor on what it made**, as a

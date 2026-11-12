@@ -650,6 +650,7 @@ fn a_mates_fixed_freedoms_leave_the_draft_before_apply() {
     let mut tool = MateTool::new();
     tool.pick(session.doc(), a);
     tool.pick(session.doc(), b);
+    common::into_to_space(&session, &mut tool);
     let proposal =
         common::proposed(&session, &tool, asm::seat_choice()).expect("the seat proposes");
     let coords: Vec<Coord<pncad::document::Operand>> = proposal

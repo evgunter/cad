@@ -5678,8 +5678,9 @@ pub(crate) fn as_body(doc: &Doc<ProfileProgram>, read: Operand) -> Operand {
 /// read (`xs[i]`) as the member, never by re-targeting its family. A
 /// copy in another space is refused before this runs
 /// ([`copy_off_space`]): the combine changes no existing placement's
-/// target. An operand in no space is read as it is, and the combine
-/// then refuses `SpaceMismatch` at the edit door, in the kernel's words.
+/// target. A pattern's family read whole, or an operand in no space, is
+/// read as it is, and the combine then refuses `SpaceMismatch` at the
+/// edit door, in the kernel's words.
 fn in_one_space(
     run: &mut Recording<'_, ProfileProgram>,
     operands: &[pncad::document::BodyRead<Formula>],
@@ -5692,9 +5693,9 @@ fn in_one_space(
     };
     let mut read = vec![first.clone()];
     for operand in rest {
-        if crate::world::read_output(run.doc(), &operand.read).is_none()
-            || run.doc().operand_space(&operand.read) == Some(home)
-        {
+        let copy = crate::world::read_output(run.doc(), &operand.read)
+            .map(|(node, _)| !operand.is_indexed() && moves_copies(run.doc(), node));
+        if copy.is_none_or(|copy| copy) || run.doc().operand_space(&operand.read) == Some(home) {
             read.push(operand.clone());
             continue;
         }
@@ -5712,7 +5713,8 @@ fn in_one_space(
 /// another space than the first operand's**, refused
 /// [`Refusal::CopyInAnotherSpace`]: a combine changes no existing
 /// placement's target, and the copy's own placement editor ("into"
-/// row) is where it is moved.
+/// row) is where it is moved. A pattern's family is no such copy: the
+/// pattern, not a placement editor, is what moves it.
 fn copy_off_space(
     doc: &Doc<ProfileProgram>,
     operands: &[pncad::document::BodyRead<Formula>],
@@ -5728,7 +5730,8 @@ fn copy_off_space(
             continue;
         };
         let space = doc.operand_space(&operand.read);
-        if let Some(space) = space.filter(|&space| space != home && moves_copies(doc, node)) {
+        let copy = moves_copies(doc, node) && !crate::world::repeats(doc, node);
+        if let Some(space) = space.filter(|&space| space != home && copy) {
             return Err(Refusal::CopyInAnotherSpace {
                 copy: doc.spoken(node),
                 space: Box::new(doc.spoken_space(space)),

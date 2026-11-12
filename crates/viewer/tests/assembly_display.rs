@@ -631,15 +631,14 @@ fn two_copies_in_one_space_free_move_as_one() {
 
     // The shelf moved into the world, resting on post_a: post_b is
     // still placed into the space, so the frame stays.
-    let outcome = session.perform(asm::shelf_rest_op(&bench, bench.post_a, 0.0));
+    let outcome =
+        common::perform_in_its_space(&mut session, asm::shelf_rest_op(&bench, bench.post_a, 0.0));
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
     assert!(outcome.withdrawn.superseded.is_empty());
     assert!(session.display().free_move_of(space).is_some());
     // post_b given a space of its own: the space is empty, and the
     // edit drops its frame.
-    let outcome = session.perform(SessionOp::IntoOwnSpace {
-        placement: bench.post_b,
-    });
+    let outcome = session.perform(asm::unpin_op(session.committed_doc(), bench.post_b));
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
     let [withdrawn] = &outcome.withdrawn.superseded[..] else {
         panic!(
@@ -683,16 +682,15 @@ fn a_frame_whose_space_empties_into_another_goes_saying_so() {
         },
         SessionOp::CommitFreeMove { node: bench.post_b },
     ] {
-        let outcome = session.perform(op.clone());
+        let outcome = common::perform_in_its_space(&mut session, op.clone());
         assert!(outcome.refusal.is_none(), "{op:?}: {:?}", outcome.refusal);
     }
     assert!(session.display().free_move_of(own).is_some());
 
-    let outcome = session.perform(asm::seat_op(
-        &bench,
-        bench.post_b,
-        asm::own_space_seat_values(),
-    ));
+    let outcome = common::perform_in_its_space(
+        &mut session,
+        asm::seat_op(&bench, bench.post_b, asm::own_space_seat_values()),
+    );
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
     let joined = session
         .doc()
@@ -751,9 +749,7 @@ fn gesture_on_a_non_root_copy(name: &str, tol: Tol) -> (asm::Bench, DocSession, 
 fn a_gesture_whose_copy_leaves_the_space_dies_at_the_edit() {
     let tol = Tol::witness();
     let (bench, mut session, _) = gesture_on_a_non_root_copy("fmsplit", tol);
-    let outcome = session.perform(SessionOp::IntoOwnSpace {
-        placement: bench.post_b,
-    });
+    let outcome = session.perform(asm::unpin_op(session.committed_doc(), bench.post_b));
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
     let own = session
         .doc()
@@ -823,15 +819,11 @@ fn a_replacement_takes_the_landings_untaken_report() {
     // kills the gesture, its report waiting for the chrome.
     let probe_then_refuse = |session: &mut DocSession| {
         for op in [
-            SessionOp::IntoOwnSpace {
-                placement: bench.shelf_i,
-            },
-            SessionOp::IntoOwnSpace {
-                placement: bench.post_b,
-            },
+            asm::unpin_op(session.committed_doc(), bench.shelf_i),
+            asm::unpin_op(session.committed_doc(), bench.post_b),
             asm::seat_op(&bench, bench.post_b, asm::middle_seat_values()),
         ] {
-            let outcome = session.perform(op.clone());
+            let outcome = common::perform_in_its_space(session, op.clone());
             assert!(outcome.refusal.is_none(), "{op:?}: {:?}", outcome.refusal);
         }
         session.pump();
@@ -839,7 +831,7 @@ fn a_replacement_takes_the_landings_untaken_report() {
             SessionOp::BeginFreeMove { node: bench.post_b },
             asm::no_centre_op(&bench, bench.post_a),
         ] {
-            let outcome = session.perform(op.clone());
+            let outcome = common::perform_in_its_space(session, op.clone());
             assert!(outcome.refusal.is_none(), "{op:?}: {:?}", outcome.refusal);
         }
         session.pump();
@@ -1004,7 +996,7 @@ fn a_refused_gestures_copy_waits_for_the_committed_landing() {
     );
     let outcome = session.perform(SessionOp::BeginFreeMove { node: bench.post_b });
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
-    let seat = session.perform(asm::no_centre_op(bench, bench.post_a));
+    let seat = common::perform_in_its_space(&mut session, asm::no_centre_op(bench, bench.post_a));
     assert!(seat.refusal.is_none(), "{:?}", seat.refusal);
     assert!(seat.withdrawn.killed_gesture.is_none(), "the edit keeps it");
     drag_and_land(&mut session, dragged);
@@ -1299,11 +1291,10 @@ fn a_mate_that_moves_the_copy_discards_the_probe_value() {
     }
     assert!(session.display().free_move_of(own).is_some());
 
-    let outcome = session.perform(asm::seat_op(
-        &bench,
-        bench.post_b,
-        asm::middle_seat_values(),
-    ));
+    let outcome = common::perform_in_its_space(
+        &mut session,
+        asm::seat_op(&bench, bench.post_b, asm::middle_seat_values()),
+    );
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
     assert_eq!(
         outcome.committed.len(),

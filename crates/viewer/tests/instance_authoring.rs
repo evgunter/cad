@@ -188,7 +188,7 @@ fn an_assembly_authored_into_a_directory_of_parts_round_trips() {
             asm::seat_values_at(asm::SHELF_LENGTH / 2.0, [0.0; 3]),
         )
     };
-    let outcome = session.perform(seat());
+    let outcome = common::perform_in_its_space(&mut session, seat());
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
     assert_eq!(
         outcome.committed.len(),

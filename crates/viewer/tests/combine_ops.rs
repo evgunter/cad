@@ -66,16 +66,23 @@ fn session(tol: Tol) -> DocSession {
 }
 
 /// The two overlapping blocks (module docs), the second moved by the
-/// Transform tool, each then given a world copy by hand, the product left
-/// empty: a document these rows combine over, which the product door
-/// would not write — it moves the Transform tool's placement, which nothing
-/// reads, into the world rather than copy it. Answers the session and
-/// the two BODY nodes, in the order the module's constants name them.
+/// Transform tool and its copy's "into" row set to the first block's
+/// space (a combine moves no copy), each then given a world copy by
+/// hand, the product left empty: a document these rows combine over,
+/// which the product door would not write — it moves the Transform
+/// tool's placement, which nothing reads, into the world rather than copy
+/// it. Answers the session and the two BODY nodes, in the order the
+/// module's constants name them.
 fn two_boxes(tol: Tol) -> (DocSession, RecipeNodeId, RecipeNodeId) {
     let mut session = session(tol);
     let a = common::xy_box_in(&mut session, A);
     let raw_b = common::xy_box_in(&mut session, B);
     let b = common::moved_to(&mut session, raw_b, OFFSET);
+    let home = session
+        .committed_doc()
+        .node_space(a)
+        .expect("a is in a space");
+    common::into_space(&mut session, b, home);
     let (session, _) = common::world_copy_by_hand_in(&session, a, tol);
     let (session, _) = common::world_copy_by_hand_in(&session, b, tol);
     (session, a, b)
@@ -171,6 +178,8 @@ fn a_three_pick_union_commits_one_union_of_three_spelled_members() {
     // A third block well clear of both.
     let raw_c = common::xy_box_in(&mut session, B);
     let c = common::moved_to(&mut session, raw_c, [0.0, 0.05, 0.0]);
+    let home = session.committed_doc().node_space(a).expect("a's space");
+    common::into_space(&mut session, c, home);
     let mut tools = Tools::new();
     tools.open(ToolKind::Boolean);
     let picks: Vec<_> = [a, b, c]
@@ -2216,8 +2225,10 @@ fn a_refusal_at_any_body_seated_door_leaves_no_history_state() {
             target: plane.into(),
             plane: common::cut_across(&session, plane, 0.0),
         },
-        SessionOp::place_where_it_stands(session.committed_doc(), plane.into())
-            .expect("a body in a space"),
+        SessionOp::Place {
+            body: plane.into(),
+            target: Operand::Var(pncad::document::VarId::WORLD),
+        },
         SessionOp::AddPattern {
             input: plane.into(),
             count: 2,
@@ -3927,6 +3938,11 @@ fn a_union_across_two_flush_contacts_lands_as_one_action() {
     // top, with no face coplanar with one of the block's.
     let raw = common::xy_box_in(&mut session, CHANNEL);
     let channel = common::moved_to(&mut session, raw, [0.0, 0.0, CHANNEL_DROP]);
+    let home = session
+        .committed_doc()
+        .node_space(block)
+        .expect("the block's space");
+    common::into_space(&mut session, channel, home);
     let channelled = session_insert(
         &mut session,
         SessionOp::AddBoolean {
@@ -3940,6 +3956,7 @@ fn a_union_across_two_flush_contacts_lands_as_one_action() {
     // block's height.
     let (_, raw_boss) = common::box_in(&mut session, BOSS);
     let boss = common::moved_to(&mut session, raw_boss, [0.0, 0.0, common::BOSS_BLOCK[2]]);
+    common::into_space(&mut session, boss, home);
     session.pump();
 
     let steps = session.history().len();
@@ -4260,6 +4277,11 @@ fn pattern_and_box_inside_member_one(tol: Tol) -> (DocSession, RecipeNodeId, Rec
     let (mut session, _, pattern) = box_and_pattern(tol);
     let raw = common::xy_box_in(&mut session, B);
     let inner = common::moved_to(&mut session, raw, [A[0] * 2.0, 0.0, 0.002]);
+    let home = session
+        .committed_doc()
+        .node_space(pattern)
+        .expect("the pattern's space");
+    common::into_space(&mut session, inner, home);
     session.pump();
     (session, pattern, inner)
 }
@@ -4553,6 +4575,7 @@ fn a_grid_member_is_read_at_both_its_indices() {
     let mut session = crate::common::inline_without_door(doc, tol);
     let raw = common::xy_box_in(&mut session, B);
     let inner = common::moved_to(&mut session, raw, [step_i, 2.0 * step_j, 0.002]);
+    common::into_space(&mut session, inner, space);
     session.pump();
     let doc = session.committed_doc().clone();
     assert_eq!(

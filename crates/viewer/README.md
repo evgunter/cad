@@ -2465,8 +2465,8 @@ written. The editor's own first pick takes the same route
 nothing, said: a profile, a pattern's family (its values are the rule;
 the pattern is edited instead), and a split picked whole, which asks for
 its half. Place refuses a copy (`Refusal::PlaceOnACopy`): a copy is
-edited by its own placement. A combine places an operand nothing
-places into the first operand's space; it changes no existing
+edited by its own placement. A combine places an operand that is
+no copy into the first operand's space; it changes no existing
 placement's target, and refuses a copy in another space, naming that
 copy's into row. Nothing a place gesture writes reads the copy's geometry.
 
@@ -2495,8 +2495,11 @@ body's tree row, and as the action of the `EmptyProduct`,
 `StrandedProduct` and `unused` recourses, each one action and one undo:
 a copy in the world is added to the slot (`SetProduct`); a placement's
 copy that nothing in its space reads (no operand, no mate pose, no
-pick) has its placement re-targeted into the world by the target edit, a space the
-gesture minted and left empty deleted, and is added; any other body is
+pick), and whose own bundle reads nothing there, has its placement
+re-targeted into the world by the target edit, its values kept, a space
+the gesture minted and left empty deleted, and is added — a choice of
+this door, which moves a copy only where the move strands nothing
+(`world::movable_into_world`); any other body is
 placed into the world by the identity bundle and that copy added. A
 fresh body therefore reports `unused` (D10 `[operations]`), with this
 door as its recourse.
@@ -2512,7 +2515,8 @@ refuses one (`Refusal::ValueNotRemoved`) — and opens the editor with
 that mate struck out, a change offered as every other is, the freed
 values measured where the copy stands; the op writes the same draft. `SessionOp::IntoOwnSpace` gives a copy a
 space of its own — a `new_space()`, the placement re-targeted into it
-by the target edit, its values kept — which the Properties pane offers beside the free-move
+by the target edit, its values kept, refused `Refusal::PlacementFails`
+where a mate of its own reads the space it leaves — which the Properties pane offers beside the free-move
 probe's refusal for a copy in the world.
 
 **The rule reads the document alone.** The mate reads poses off

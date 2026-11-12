@@ -296,7 +296,8 @@ fn a_frame_keeps_its_space_whoever_wrote_it() {
         .expect("a space");
     let probe = Frame::translation([0.0, 0.0, 0.07]);
     free_move(&mut session, bench.shelf_i, probe);
-    let rested = session.perform(asm::shelf_rest_op(&bench, bench.post_a, 0.0));
+    let rested =
+        common::perform_in_its_space(&mut session, asm::shelf_rest_op(&bench, bench.post_a, 0.0));
     assert!(rested.refusal.is_none(), "{:?}", rested.refusal);
     session.pump();
     assert_ne!(
@@ -315,9 +316,7 @@ fn a_frame_keeps_its_space_whoever_wrote_it() {
         "save then reopen with no edit keeps the picture"
     );
 
-    let own = session.perform(SessionOp::IntoOwnSpace {
-        placement: bench.post_b,
-    });
+    let own = session.perform(asm::unpin_op(session.committed_doc(), bench.post_b));
     assert!(own.refusal.is_none(), "{:?}", own.refusal);
     session.pump();
     assert!(session.committed_doc().var(space).is_some(), "the premise");
