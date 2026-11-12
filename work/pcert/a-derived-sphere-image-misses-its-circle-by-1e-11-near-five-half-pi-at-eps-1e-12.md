@@ -64,21 +64,45 @@ rad. The image shows that error at the full radius at the equator,
 `t ≈ 5π/2`. In 50-digit arithmetic the derived image missed by
 `1.0494e-11` there; it now misses by `7.1e-16`.
 
-`pcurve_cache.rs` `in_carrier_plane` takes the radial part's component
-across the carrier's plane off before it is normalized. The torus arm's
-meridian `side` takes the same projection: a spindle of small major
-radius has the same conditioning (`2.7e-13` at `R = 1e-3·r`, `7.8e-9` at
-`1e-7`). These rows pin it:
+`pcurve_cache.rs` `in_carrier_plane` reads the azimuth direction as the
+radial part's length along `m = e × n`, the one horizontal direction in
+the carrier's plane. `m` comes from long vectors, so the short part sets
+only a length.
+
+The same reader serves three arms, each through one function that both
+the derivation and check 4's incidence lemma call:
+
+- the sphere meridian, `sphere_meridian_direction`;
+- the torus or spindle meridian, `torus_meridian_direction`. A spindle
+  of small major radius has the same conditioning: `2.7e-13` at
+  `R = 1e-3·r`, `7.8e-9` at `1e-7`.
+- the cone ruling's anchor, `cone_anchor_radial`. Near the apex its
+  miss is about `1/d`: 1.9e-10 at `d = 1e-5` at ε 1e-9.
+
+**The mint refusal "What" records.** The mint door refused this seed's
+image in band (`Escalated` MapResidual, 4.07e-12). With the derivation
+alone fixed, it then refused it as definite (`ResidualExceeded` on
+`EnvelopeTerm(Radius)`), because its lemma still modelled the old
+direction. With the shared readers, the `f64` mint door certifies it.
+The `Interval` mint door escalates it, as on main; that is filed as
+`a-sphere-pole-start-meridian-escalates-at-the-interval-mint-door`.
+
+These rows pin it:
 
 - `closed_image_rows` `a_pole_start_meridian_at_a_fuzz_seed_certifies`
-  (this seed, and `0x8ffe04db921f5cff` from
+  covers this seed, and `0x8ffe04db921f5cff` from
   `a-closed-form-image-at-a-fuzz-seed-reads-its-coefficient-bound-in-band-at-eps-1e-12`,
-  the same shape read in band at 1.4e-12);
+  the same shape read in band at 1.4e-12. It reads the stated doors and
+  the mint door.
 - `a_derived_circle_image_is_on_its_circle_where_its_azimuth_shows_most`
-  (the sphere, the spindle and a Villarceau circle, measured by
-  interval enclosure).
+  covers the sphere, the spindle and a Villarceau circle, each measured
+  by interval enclosure and read at the mint door.
+- `a_cone_ruling_anchored_near_its_apex_is_derived_on_its_line` covers
+  the cone ruling.
 
-Both are red under the `meridian-direction-unprojected` mutant.
+They are red under the `sphere-meridian-unprojected`,
+`torus-meridian-unprojected` and `cone-anchor-unprojected` mutants,
+each on its own arm's cases.
 
 After the sibling's frames were squared, a 2000-seed sweep of the three
 fast closed-image fuzzes at ε 1e-12 refuses one correct image on main's
