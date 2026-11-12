@@ -146,9 +146,9 @@ pub use edge_nurbs::{
     AnalyticRung3Refusal, ArcRimRefusal, CARRIER_DOMAIN_RECOURSE, CarrierDomainFault,
     CarrierDomainRefusal, KERNEL_LIMIT_EXTENT_FACTOR, KERNEL_LIMIT_ROUNDING_FACTOR,
     PlaneNurbsIncidence, PlaneNurbsLimbs, PlaneNurbsRefusal, Rung3Limb, analytic_edge_limbs,
-    analytic_rung3, arc_rim_candidates, arc_rim_measured, first_within, is_analytic,
-    nurbs_pair_limbs, pick_arc_rim, plane_nurbs_incidence, plane_nurbs_limbs, probe_pick,
-    sub_arc_joint,
+    analytic_rung3, arc_rim_candidates, arc_rim_measured, curved_nurbs_limbs, first_within,
+    is_analytic, is_curved_partner, nurbs_pair_limbs, pick_arc_rim, plane_nurbs_incidence,
+    plane_nurbs_limbs, probe_pick, sub_arc_joint,
 };
 pub use edge_wedge::{Bend, WedgeVerdict, WedgeWalk, edge_wedge_over};
 pub use enters::{
