@@ -102,7 +102,7 @@ type Operand<'a> = (&'a AtRestBody<f64>, &'a dyn Fn() -> Region, f64);
 /// intersection's) sets, and to their regions at the `7³` lattice over
 /// `lattice`, with tiers 3 and 3′ over the contacts each result records.
 fn four_ops(what: &str, a: Operand, b: Operand, share: f64, lattice: (Point3<f64>, Point3<f64>)) {
-    four_ops_pinching(what, a, b, share, lattice, &[]);
+    four_ops_pinching(what, a, b, share, lattice, &[], &[]);
 }
 
 /// [`four_ops`], but each op named in `pinched` refuses
@@ -110,6 +110,10 @@ fn four_ops(what: &str, a: Operand, b: Operand, share: f64, lattice: (Point3<f64
 /// held: a cone face cut along two rulings on both sides of its wrap seam
 /// is two lobes meeting only at the apex, which props cannot yet measure
 /// (`work/conearm/props-measures-a-cone-loop-pinched-at-its-apex.md`).
+/// Each op named in `apex_refused` builds one shell whose tier 3′
+/// refuses its apex undecided, `NoTangentPlane`: two cones' lobes at one
+/// apex, which the self-touch reading does not read
+/// (`work/restread/two-cones-apex-lobes-on-two-carriers-refuse-a-valid-body.md`).
 fn four_ops_pinching(
     what: &str,
     (a, ra, va): Operand,
@@ -117,6 +121,7 @@ fn four_ops_pinching(
     share: f64,
     lattice: (Point3<f64>, Point3<f64>),
     pinched: &[&str],
+    apex_refused: &[&str],
 ) {
     let both: Region = {
         let (x, y) = (ra(), rb());
@@ -163,7 +168,20 @@ fn four_ops_pinching(
                 // them, clear on their faces' covers.
                 let census = topo::validate_pseudomanifold(&body.body, &body.contacts, tol());
                 let shells = body.body.shells().count();
-                if shells == 1 {
+                if apex_refused.contains(&op) {
+                    // `work/restread/two-cones-apex-lobes-on-two-carriers-refuse-a-valid-body.md`
+                    assert!(
+                        matches!(
+                            census.as_ref().map_err(Vec::as_slice),
+                            Err([topo::ValidationError::BoundaryCrossesItselfUndecided {
+                                witness,
+                                why: topo::TouchUnread::Curved(topo::CurvedUnread::NoTangentPlane),
+                                ..
+                            }]) if witness == "(0.0, 1.0, 0.0)"
+                        ),
+                        "{what}: tier 3′ refuses the shared apex undecided: {census:?}"
+                    );
+                } else if shells == 1 {
                     assert_eq!(census, Ok(()), "{what}: tier 3′ over the result's contacts");
                 } else if body.contacts.is_empty() {
                     assert_eq!(shells, 2, "{what}: two shells apart");
@@ -574,7 +592,8 @@ fn shared_volume_of(alpha1: f64, a1: Vec3<f64>, alpha2: f64, a2: Vec3<f64>) -> f
 ///
 /// Both cones tipped, then both revolved: each op at the closed form its
 /// intersection's direction integral sets ([`shared_volume_of`]), with
-/// the regions at the lattice. The rim germs of the two common rulings
+/// the regions at the lattice, and tier 3′ passing but where
+/// [`apex_refused`] names the op. The rim germs of the two common rulings
 /// must each pair with the apex germ on their own ruling, not with each
 /// other across the apex (`boolean::join`'s `two_rulings`).
 #[test]
@@ -624,9 +643,24 @@ fn two_cones_through_one_apex_build_across_the_pose_families() {
                         Point3::new(reach, 1.25 + reach, reach),
                     ),
                     pinches(alpha1, alpha2, pose, form),
+                    apex_refused(alpha1, alpha2, pose),
                 );
             }
         }
+    }
+}
+
+/// The ops of [`two_cones_through_one_apex_build_across_the_pose_families`]
+/// whose one shell holds both cones' lobes at the apex, near-coaxial
+/// (the remainder of the wider cone round the narrower), whose tier 3′
+/// refuses that apex undecided, `NoTangentPlane`: a second apex in one
+/// link, not yet read
+/// (`work/restread/two-cones-apex-lobes-on-two-carriers-refuse-a-valid-body.md`).
+fn apex_refused(alpha1: f64, alpha2: f64, pose: &str) -> &'static [&'static str] {
+    match ((alpha1 as u32, alpha2 as u32), pose) {
+        ((20, 50), "near-coaxial") => &["b ∖ a"],
+        ((45, 30), "near-coaxial") => &["a ∖ b"],
+        _ => &[],
     }
 }
 
