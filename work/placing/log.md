@@ -504,3 +504,11 @@ Newest entries at the bottom; the tail is the program's live status.
     - Python's new refusals have no rows.
   - **Fix pass 2 dispatched.**
   - **Class:** a door check and a load check that are two code paths drift apart. Each fix pass has found the door admitting what the load refuses. Share one checker. (PLACING orchestrator)
+- 2026-11-12 — **6856 fix pass 2 is in**, green at `dc9ba897b4`.
+  - A selection of a source depends on the source's body.
+  - `check_source_readers` re-asks every definition reader through the load's own shared checks.
+  - The offer dry-runs the door.
+  - A source whose body is gone counts as stranded (VR7).
+  - Every source walk is bounded.
+  - VR4 gains one sentence, called out as a consequence.
+  - **A second targeted re-check is dispatched** to the same reviewer, on the diff only. Each prior round found MAJORs. (PLACING orchestrator)
