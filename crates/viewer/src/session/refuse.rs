@@ -100,8 +100,8 @@ pub fn admits_read(doc: &Doc<ProfileProgram>, read: &Operand, wanted: NodeKindWa
         Operand::Output { node, port } => doc.output(*node, *port),
         Operand::Var(var) => Some(*var),
         Operand::Name(name) => doc.var_named(name.as_str()),
-        // A pick reads one piece of a copy: a body.
-        Operand::Pick { .. } => return wanted == NodeKindWanted::Body,
+        // A pick reads one piece of a copy, and a source one body.
+        Operand::Pick { .. } | Operand::Source(_) => return wanted == NodeKindWanted::Body,
         Operand::Select { .. } | Operand::Pose(_) => return false,
     };
     let repeats = |var: pncad::document::VarId| {

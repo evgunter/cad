@@ -3435,25 +3435,48 @@ impl<P, S: Slot> Node<P, S> {
             constraints,
         }
     }
+}
 
+impl<P> Node<P, crate::Formula> {
     /// Builds a [`Node::Place`] copying `source` into `target` under
     /// `constraints`, the whole bundle: a value naming a mate of it
     /// names the mate's id as written, which the insert mints
     /// ([`crate::mate::pin::Placed::bundle`]).
+    ///
+    /// A placement reads its body through a source (VARIABLES VR4). A
+    /// `source` naming an operation — a node or a port — or a pick is
+    /// written as a source authored at the seat
+    /// ([`crate::Operand::Source`]), minted for this placement alone, as a
+    /// written `5 mm` mints a variable; a member read `xs[k]` of one reads
+    /// member `k` of a source of the family, so its index stays this
+    /// placement's slot. A variable read by id or name is read as given,
+    /// so placements share a named source by reading it.
     pub fn place(
-        source: impl Into<crate::BodyRead<S>>,
-        target: impl Into<S::Read>,
-        constraints: Vec<crate::mate::Constraint<S>>,
+        source: impl Into<crate::BodyRead<crate::Formula>>,
+        target: impl Into<crate::Operand>,
+        constraints: Vec<crate::mate::Constraint<crate::Formula>>,
     ) -> Self {
+        let crate::BodyRead { read, at } = source.into();
+        let source = match read {
+            read @ (crate::Operand::Node(_)
+            | crate::Operand::Output { .. }
+            | crate::Operand::Pick { .. }) => crate::BodyRead {
+                read: crate::Operand::source(crate::BodyRead::plain(read)),
+                at,
+            },
+            read @ (crate::Operand::Var(_)
+            | crate::Operand::Name(_)
+            | crate::Operand::Select { .. }
+            | crate::Operand::Pose(_)
+            | crate::Operand::Source(_)) => crate::BodyRead { read, at },
+        };
         Node::Place {
-            source: source.into(),
+            source,
             target: target.into(),
             constraints,
         }
     }
-}
 
-impl<P> Node<P, crate::Formula> {
     /// A [`Node::Measure`] over `primitive`, each reference authored as
     /// the read it lowers to ([`crate::Operand`]: a body, or a sited name
     /// as the selection of it in the body it is read at).

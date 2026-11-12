@@ -839,7 +839,9 @@ pub fn read_output(
         Operand::Output { node, port } => Some((*node, Some(*port))),
         Operand::Var(var) => defined(*var),
         Operand::Name(name) => defined(doc.var_named(name.as_str())?),
-        Operand::Select { .. } | Operand::Pose(_) | Operand::Pick { .. } => None,
+        Operand::Select { .. } | Operand::Pose(_) | Operand::Pick { .. } | Operand::Source(_) => {
+            None
+        }
     }
 }
 
@@ -860,7 +862,9 @@ pub fn read_var(doc: &Doc<ProfileProgram>, read: &Operand) -> Option<VarId> {
         Operand::Output { node, port } => doc.output(*node, *port),
         Operand::Var(var) => Some(*var),
         Operand::Name(name) => doc.var_named(name.as_str()),
-        Operand::Select { .. } | Operand::Pose(_) | Operand::Pick { .. } => None,
+        Operand::Select { .. } | Operand::Pose(_) | Operand::Pick { .. } | Operand::Source(_) => {
+            None
+        }
     }
 }
 

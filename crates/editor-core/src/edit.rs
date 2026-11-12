@@ -2105,6 +2105,16 @@ pub fn selection_into<P>(
     id
 }
 
+/// **A source minted into `doc` as given**, outside any edit: a read of
+/// `body`, with no door around it.
+#[cfg(any(test, feature = "test-support"))]
+pub fn source_into<P>(doc: &mut Doc<P>, body: crate::BodyRead<VarId>) -> VarId {
+    let def = WrittenDef::Source(body);
+    let id = doc.mint.declare_anonymous(&def);
+    doc.vars.insert(id, Var::written(def));
+    id
+}
+
 /// **A pick minted into `doc` as given**, outside any edit: the piece
 /// `of` names of the copy `placement` reads, with no door around it.
 #[cfg(any(test, feature = "test-support"))]
@@ -2230,6 +2240,9 @@ pub enum SourceFault {
     /// It is an entry of an edit's fresh table, which a formula reads:
     /// a source is no scalar, so it is declared or read in place.
     Fresh,
+    /// A takeover was asked to redefine a variable that is no source
+    /// ([`crate::Recording::take_over`]).
+    NotASource,
 }
 
 /// **Why an index is refused as declared** ([`EditError::Index`]).
@@ -4731,6 +4744,11 @@ impl EditError {
                         f,
                         "{var} is a source in an edit's fresh table, and a fresh entry is a \
                          scalar a formula reads"
+                    )?,
+                    SourceFault::NotASource => write!(
+                        f,
+                        "{var} is no source, and a takeover redefines the sources placements \
+                         read"
                     )?,
                 }
                 tail.recourse(

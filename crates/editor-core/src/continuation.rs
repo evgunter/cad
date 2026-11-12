@@ -356,6 +356,10 @@ fn handed<P: crate::ProfilePayload>(
             Some(VarDef::Output { node, .. }) if dead.contains_key(node) => {
                 live_whole(doc, dead, var, at)?.map(Operand::Var)
             }
+            // A source is read as it is: its definition is handed over.
+            Some(VarDef::Source(_)) if touches(var) => {
+                source_survives(doc, dead, var)?.then_some(Operand::Var(var))
+            }
             _ if touches(var) => None,
             _ => Some(Operand::Var(var)),
         })
@@ -423,6 +427,117 @@ fn handed<P: crate::ProfilePayload>(
     }
 }
 
+/// **The definition that holds what the source `var` reads**: its own,
+/// or down plain reads of further sources (`spare = bracket`) the last
+/// one's, which reads a body that is no source.
+fn source_holder<P>(doc: &Doc<P>, var: VarId) -> Option<&BodyRead<VarId>> {
+    let mut at = var;
+    let mut seen = BTreeSet::new();
+    loop {
+        let body = doc.source(at)?;
+        if body.is_indexed() || doc.source(body.read).is_none() || !seen.insert(at) {
+            return Some(body);
+        }
+        at = body.read;
+    }
+}
+
+/// **Whether `var` reaches a deleted operation other than through a
+/// source**, the sources it reaches collected into `sources`: an output
+/// of one directly, or a selection's body, a pose's reads or a pick's
+/// copy that does.
+fn reaches_directly<P>(doc: &Doc<P>, dead: &Dead, var: VarId, sources: &mut Vec<VarId>) -> bool {
+    match doc.var(var).map(crate::Var::def) {
+        Some(VarDef::Output { node, .. }) => dead.contains_key(node),
+        Some(VarDef::Source(_)) => {
+            sources.push(var);
+            false
+        }
+        Some(VarDef::Select(select)) => reaches_directly(doc, dead, select.body.read, sources),
+        Some(VarDef::Pick(pick)) => reaches_directly(doc, dead, pick.placement, sources),
+        Some(VarDef::Pose(def)) => {
+            let mut direct = false;
+            for (_, &read, _, _) in def.reads() {
+                direct |= reaches_directly(doc, dead, read, sources);
+            }
+            direct
+        }
+        Some(VarDef::Free(_) | VarDef::Defined(_) | VarDef::Index(_)) | None => false,
+    }
+}
+
+/// **Whether the source `var` still reads a body once `dead` is
+/// deleted**: what its holder reads stands for a live body ([`live`]).
+///
+/// # Errors
+///
+/// [`live`]'s, and [`SpliceFault::MemberOfAMember`] where a member read
+/// would be handed a member.
+fn source_survives<P: crate::ProfilePayload>(
+    doc: &Doc<P>,
+    dead: &Dead,
+    var: VarId,
+) -> Result<bool, SpliceFault> {
+    let Some(body) = source_holder(doc, var) else {
+        return Ok(false);
+    };
+    match live(doc, dead, body.read)? {
+        None => Ok(false),
+        Some(now) if body.is_indexed() && now.is_member() => Err(SpliceFault::MemberOfAMember {
+            node: doc.operation_of(body.read).unwrap_or(RecipeNodeId::WORLD),
+        }),
+        Some(_) => Ok(true),
+    }
+}
+
+/// **The sources a delete hands over** (DM6: a definition is a reader):
+/// each source whose definition reads a body a deleted operation defines,
+/// redefined as a read of what that body stands for ([`live`]), a member
+/// where it continues one; and the sources so redefined. A source whose
+/// body continues to nothing is left reading it, unresolved (VR7), its
+/// readers gone with the walk.
+fn source_handovers<P: crate::ProfilePayload>(
+    doc: &Doc<P>,
+    dead: &Dead,
+) -> Result<(Vec<DocEdit<P>>, Vec<VarId>), SpliceFault> {
+    let mut edits = Vec::new();
+    let mut handed = Vec::new();
+    for (&var, held) in doc.vars() {
+        let VarDef::Source(body) = held.def() else {
+            continue;
+        };
+        if doc.source(body.read).is_some()
+            || !doc
+                .operation_of(body.read)
+                .is_some_and(|op| dead.contains_key(&op))
+        {
+            continue;
+        }
+        let Some(now) = live(doc, dead, body.read)? else {
+            continue;
+        };
+        let at = match (body.is_indexed(), now.is_member()) {
+            (true, true) => {
+                return Err(SpliceFault::MemberOfAMember {
+                    node: doc.operation_of(body.read).unwrap_or(RecipeNodeId::WORLD),
+                });
+            }
+            (true, false) => doc.written_body(body, Operand::Var(now.read)).at,
+            (false, _) => now.at,
+        };
+        edits.push(DocEdit::DefineVar {
+            var: var.into(),
+            def: crate::VarDecl::Source(BodyRead {
+                read: Operand::Var(now.read),
+                at,
+            }),
+            fresh: Vec::new(),
+        });
+        handed.push(var);
+    }
+    Ok((edits, handed))
+}
+
 /// **One seat handed over**: its new read, and, for a body read, the
 /// indices of the member it now reads where the hand-over makes it one
 /// (`None` keeps the seat's own).
@@ -470,6 +585,19 @@ fn hand<P: crate::ProfilePayload>(
             continue;
         }
         reached.extend(at);
+        // A seat reaching a deleted operation only through sources — a
+        // placement's source, a mate's side selecting the source — keeps
+        // its read: the source's definition is the reader handed over
+        // ([`source_handovers`]), and the names in it are rebound after.
+        let mut sources = Vec::new();
+        if !reaches_directly(doc, dead, var, &mut sources) {
+            for source in sources {
+                if !source_survives(doc, dead, source)? {
+                    lost.insert(seat);
+                }
+            }
+            continue;
+        }
         let rewritten = match node.body_read(seat) {
             Some(read) => match live(doc, dead, read.read)? {
                 None => None,
@@ -711,7 +839,19 @@ pub fn splice<P: crate::ProfilePayload + Clone>(
             product: Some(Operand::Var(now.read)),
         });
     }
-    edits.extend(rebinds(doc, &dead, &handed_sources));
+    let (redefined, sources) = source_handovers(doc, &dead)?;
+    edits.extend(redefined);
+    let reading: BTreeSet<VarId> = sources
+        .iter()
+        .flat_map(|&source| crate::take_over::sources_reading(doc, source).into_keys())
+        .collect();
+    handed_sources.extend(doc.placements().into_iter().filter(|&placement| {
+        !dead.contains_key(&placement)
+            && doc
+                .copied_read(placement)
+                .is_some_and(|read| reading.contains(&read))
+    }));
+    edits.extend(rebinds(doc, &dead, &handed_sources, &reading));
     Ok(Some(Splice { deleted, edits }))
 }
 
@@ -727,12 +867,14 @@ fn rebinds<P: crate::ProfilePayload>(
     doc: &Doc<P>,
     dead: &Dead,
     placements: &[RecipeNodeId],
+    sources: &BTreeSet<VarId>,
 ) -> Vec<DocEdit<P>> {
     let bodies: BTreeSet<VarId> =
         crate::take_over::carrying_chains(doc, placements.iter().copied())
             .into_keys()
             .filter(|node| !dead.contains_key(node))
             .flat_map(|node| doc.outputs(node))
+            .chain(sources.iter().copied())
             .collect();
     let carry = CarryBack {
         bodies: &bodies,

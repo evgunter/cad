@@ -695,6 +695,8 @@ pub fn edit_error_tag(err: &EditError) -> &'static str {
         // An index's own declaration, and a reader of two indices
         // neither within the other (D10 `[repetition]`).
         EditError::Index { .. } => "index",
+        EditError::SourceRead { .. } => "source_read",
+        EditError::PlacementReadsNoSource { .. } => "placement_reads_no_source",
         EditError::IndicesUnrelated { .. } => "indices_unrelated",
         EditError::PlacementAxis { .. } => "placement_axis",
         EditError::UpdateOnNonInstance { .. } => "update_on_non_instance",
@@ -1230,6 +1232,15 @@ pub fn edit_inner_variant_tag(err: &EditError) -> Option<&'static str> {
             pncad::document::IndexFault::CountNotCount { .. } => "count_not_count",
             pncad::document::IndexFault::WithinNoIndex => "within_no_index",
         }),
+        EditError::SourceRead { fault, .. } => Some(match fault {
+            pncad::document::SourceFault::Unresolved { .. } => "unresolved",
+            pncad::document::SourceFault::WrittenInPlace => "written_in_place",
+            pncad::document::SourceFault::Kind { .. } => "kind",
+            pncad::document::SourceFault::IndexNotCount { .. } => "index_not_count",
+            pncad::document::SourceFault::Fresh => "fresh",
+            pncad::document::SourceFault::NotASource => "not_a_source",
+        }),
+        EditError::PlacementReadsNoSource { .. } => None,
         EditError::IndicesUnrelated { .. } => None,
         EditError::UpdateOnNonInstance { .. } => None,
         EditError::PinUnchanged { .. } => None,
@@ -2038,6 +2049,8 @@ pub fn snapshot_error_tag(err: &SnapshotError) -> &'static str {
         SnapshotError::AppearanceReadNotABody { .. } => "appearance_read_not_a_body",
         SnapshotError::NameStepNotMinted { .. } => "name_step_not_minted",
         SnapshotError::OperandUnminted { .. } => "operand_unminted",
+        SnapshotError::PlacementReadsNoSource { .. } => "placement_reads_no_source",
+        SnapshotError::SourceReadKind { .. } => "source_read_kind",
         SnapshotError::SelectionShape { .. } => "selection_shape",
         SnapshotError::SelectionBody { .. } => "selection_body",
         SnapshotError::PoseShape { .. } => "pose_shape",

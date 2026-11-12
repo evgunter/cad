@@ -1130,7 +1130,8 @@ impl Doc {
                     d::VarDef::Output { .. }
                     | d::VarDef::Select(_)
                     | d::VarDef::Pose(_)
-                    | d::VarDef::Pick(_) => held.kind().dimension(),
+                    | d::VarDef::Pick(_)
+                    | d::VarDef::Source(_) => held.kind().dimension(),
                 });
                 let Some(dim) = dim else {
                     let unheld = d::EvalError::UnresolvedVar { var };
@@ -1901,6 +1902,23 @@ impl Doc {
         let label = label.map(|text| label_from_text(py, text)).transpose()?;
         let constraints = constraints.map_or_else(|| d::stand().bundle(), super::mate::bundle);
         let (read, target) = (source.read(), target.read());
+        // A body read by a variable that is no source is placed through
+        // a source minted for this call, as a node read is (VR4).
+        let unsourced = match &read.read {
+            d::Operand::Var(var) => self.inner.source(*var).is_none(),
+            d::Operand::Name(name) => self
+                .inner
+                .var_named(name.as_str())
+                .is_some_and(|var| self.inner.source(var).is_none()),
+            _ => false,
+        };
+        let read = match unsourced {
+            true => d::BodyRead {
+                read: d::Operand::source(d::BodyRead::plain(read.read)),
+                at: read.at,
+            },
+            false => read,
+        };
         Node::placed(py, read.clone(), target.clone(), constraints.clone())?;
         self.insert_edit(d::DocEdit::place(read, target, constraints), label)
             .map_err(|err| edit_err(py, &err))
@@ -3938,12 +3956,23 @@ impl VarDecl {
         }))
     }
 
-    /// The defining expression, or `None` for a free variable or an
-    /// index.
+    /// **A source** `bracket = B` (VARIABLES VR4): a `Body` variable
+    /// defined as a read of `body` — a node, a port, a member `op[i]`, a
+    /// pick or another source — which placements read their body
+    /// through. Declared under a name, it is how several placements
+    /// share one body (`Doc.place(bracket, …)`), and redefining it
+    /// (`define_var`) re-points every placement reading it.
+    #[staticmethod]
+    fn source(body: BodyArg) -> Self {
+        Self(d::VarDecl::Source(body.read()))
+    }
+
+    /// The defining expression, or `None` for a free variable, an
+    /// index or a source.
     #[getter]
     fn expr(&self) -> Option<super::expr::Formula> {
         match &self.0 {
-            d::VarDecl::Free(_) | d::VarDecl::Index { .. } => None,
+            d::VarDecl::Free(_) | d::VarDecl::Index { .. } | d::VarDecl::Source(_) => None,
             d::VarDecl::Defined(expr) => Some(super::expr::Formula(expr.clone())),
         }
     }
@@ -3953,7 +3982,7 @@ impl VarDecl {
     fn value(&self) -> Option<FreeVar> {
         match &self.0 {
             d::VarDecl::Free(free) => Some(FreeVar(free.clone())),
-            d::VarDecl::Defined(_) | d::VarDecl::Index { .. } => None,
+            d::VarDecl::Defined(_) | d::VarDecl::Index { .. } | d::VarDecl::Source(_) => None,
         }
     }
 
@@ -3962,7 +3991,7 @@ impl VarDecl {
     fn count(&self) -> Option<super::expr::Formula> {
         match &self.0 {
             d::VarDecl::Index { count, .. } => Some(super::expr::Formula(count.clone())),
-            d::VarDecl::Free(_) | d::VarDecl::Defined(_) => None,
+            d::VarDecl::Free(_) | d::VarDecl::Defined(_) | d::VarDecl::Source(_) => None,
         }
     }
 
@@ -3972,7 +4001,7 @@ impl VarDecl {
     fn within(&self) -> Option<super::expr::Formula> {
         match &self.0 {
             d::VarDecl::Index { within, .. } => within.clone().map(super::expr::Formula),
-            d::VarDecl::Free(_) | d::VarDecl::Defined(_) => None,
+            d::VarDecl::Free(_) | d::VarDecl::Defined(_) | d::VarDecl::Source(_) => None,
         }
     }
 
@@ -3994,6 +4023,10 @@ impl VarDecl {
                     ),
                 }
             }
+            d::VarDecl::Source(body) => match body.at.len() {
+                0 => format!("VarDecl.source({})", body.read),
+                _ => format!("VarDecl.source(a member of {})", body.read),
+            },
         }
     }
 }

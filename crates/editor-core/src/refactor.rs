@@ -4327,6 +4327,12 @@ pub fn inline(
         };
         selects.insert(side, rewritten_pose(doc, side, &mut leaf)?);
     }
+    // The instance becomes a placement of the spliced body, read through
+    // a source minted for it (VARIABLES VR4).
+    selects.insert(
+        spliced,
+        crate::Operand::source(crate::BodyRead::plain(crate::Operand::Var(spliced))),
+    );
     let whole = Node::Place {
         source: crate::BodyRead::plain(spliced),
         target: *target,

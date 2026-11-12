@@ -848,6 +848,9 @@ fn first_var_fault(snapshot: &ProfileDoc) -> Option<SnapshotError> {
 /// reads what no door could have written ([`Walk::DefinitionRead`]).
 fn first_definition_read_fault(snapshot: &ProfileDoc) -> Option<SnapshotError> {
     snapshot.vars.iter().find_map(|(&id, var)| {
+        if let Some(body) = var.def().source() {
+            return source_read_fault(snapshot, id, body);
+        }
         let expr = var.def().defined()?;
         let var = snapshot.spoken_var(id);
         snapshot
@@ -875,6 +878,34 @@ fn first_definition_read_fault(snapshot: &ProfileDoc) -> Option<SnapshotError> {
                 VarReadFault::Dead { .. } => None,
             })
     })
+}
+
+/// **What a source's read holds that no door writes**: an id the mint
+/// log never held, or a live read of a kind no source reads, by the
+/// predicate the edit door asks ([`crate::Doc::read_fault`]). A read of
+/// a deleted variable is its stranded reader (VR7).
+fn source_read_fault(
+    snapshot: &ProfileDoc,
+    id: VarId,
+    body: &crate::BodyRead<VarId>,
+) -> Option<SnapshotError> {
+    let var = || snapshot.spoken_var(id);
+    if let Some(&read) = core::iter::once(&body.read)
+        .chain(&body.at)
+        .find(|&&read| !snapshot.has_minted_var(read))
+    {
+        return Some(SnapshotError::DefinitionReadsUnmintedVar { var: var(), read });
+    }
+    let held = snapshot.var(body.read)?;
+    let expected = crate::SlotKind::Is(match body.is_indexed() {
+        true => crate::VarKind::Bodies,
+        false => crate::VarKind::Body,
+    });
+    match snapshot.read_fault(body.read, held, expected, crate::doc::Reader::Constructs)? {
+        crate::doc::ReadFault::Kind { found } => {
+            Some(SnapshotError::SourceReadKind { var: var(), found })
+        }
+    }
 }
 
 /// The first variable, in declaration order, whose definition reads it
@@ -948,6 +979,15 @@ fn first_operand_read_fault(snapshot: &ProfileDoc) -> Option<SnapshotError> {
             // A minted read no live operation defines is a strand the
             // file keeps (DM7), the reader's refusal at evaluation.
             let held = snapshot.var(var)?;
+            if slot == crate::OperandSlot::Source
+                && matches!(node, crate::Node::Place { .. })
+                && held.def().source().is_none()
+            {
+                return Some(SnapshotError::PlacementReadsNoSource {
+                    node: snapshot.spoken(id),
+                    read: snapshot.spoken_var(var),
+                });
+            }
             Some(
                 match snapshot.read_fault(
                     var,
@@ -1401,6 +1441,22 @@ pub enum SnapshotError {
         /// The read.
         var: SpokenVar,
     },
+    /// A placement whose source slot reads no source — the edit doors'
+    /// [`crate::EditError::PlacementReadsNoSource`].
+    PlacementReadsNoSource {
+        /// The placement.
+        node: SpokenNode,
+        /// What its source slot reads.
+        read: SpokenVar,
+    },
+    /// A source reading a variable of a kind no source reads — the edit
+    /// doors' [`crate::EditError::SourceRead`].
+    SourceReadKind {
+        /// The source.
+        var: SpokenVar,
+        /// The read's kind.
+        found: crate::VarKind,
+    },
     /// A selection whose names are not in a stored form of its kind —
     /// the edit doors' [`crate::EditError::SelectionShape`].
     SelectionShape {
@@ -1767,6 +1823,17 @@ impl core::fmt::Display for SnapshotError {
                  variable — the document never minted it, or was written before an operand \
                  was a read. {}",
                 crate::sentence::Recourse(super::REGENERATE_RECOURSE)
+            ),
+            Self::PlacementReadsNoSource { node, read } => write!(
+                f,
+                "{node} reads {read} as its source directly, and a placement reads its body \
+                 through a source. {}",
+                crate::sentence::Recourse(super::REGENERATE_RECOURSE)
+            ),
+            Self::SourceReadKind { var, found } => write!(
+                f,
+                "{var} is a source reading {} {found}, and a source reads one body",
+                crate::sentence::article(&found.to_string())
             ),
             Self::SelectionShape { var, fault } => {
                 write!(f, "{var} is not a selection a door writes: {fault}")
@@ -2480,6 +2547,8 @@ mod tests {
             AppearanceReadNotABody,
             NameStepNotMinted,
             OperandUnminted,
+            PlacementReadsNoSource,
+            SourceReadKind,
             SelectionShape,
             SelectionBody,
             PoseShape,
@@ -2543,12 +2612,14 @@ mod tests {
                 Walk::SlotRead
             }
             SnapshotError::PayloadVarKind { .. } => Walk::PayloadRead,
-            SnapshotError::OperandUnminted { .. } => Walk::OperandRead,
+            SnapshotError::OperandUnminted { .. }
+            | SnapshotError::PlacementReadsNoSource { .. } => Walk::OperandRead,
             SnapshotError::AnonymousVarUnread { .. } | SnapshotError::SharedVarNeedsName { .. } => {
                 Walk::UnnamedReader
             }
             SnapshotError::DefinitionReadsUnmintedVar { .. }
-            | SnapshotError::DefinitionVarKind { .. } => Walk::DefinitionRead,
+            | SnapshotError::DefinitionVarKind { .. }
+            | SnapshotError::SourceReadKind { .. } => Walk::DefinitionRead,
             SnapshotError::ObservedRead { .. } => Walk::ObservedRead,
             SnapshotError::DefinitionCycle { .. } | SnapshotError::DefinitionTooLarge { .. } => {
                 Walk::DefinitionCycle
@@ -2639,6 +2710,14 @@ mod tests {
                 node: node(),
                 slot: crate::OperandSlot::Target,
                 var: crate::SpokenVar::new(crate::VarId::new(0, 7), None),
+            },
+            SnapshotError::PlacementReadsNoSource {
+                node: node(),
+                read: crate::SpokenVar::new(crate::VarId::new(0, 7), None),
+            },
+            SnapshotError::SourceReadKind {
+                var: crate::SpokenVar::new(crate::VarId::new(0, 7), None),
+                found: crate::VarKind::Profile,
             },
             SnapshotError::SlotVarKind {
                 node: node(),

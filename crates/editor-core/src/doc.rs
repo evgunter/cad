@@ -2338,11 +2338,26 @@ impl<P> Doc<P> {
     }
 
     /// **Every output variable and the port that defines it**, the map
-    /// an evaluation answers [`crate::Evaluation::table`] through.
+    /// an evaluation answers [`crate::Evaluation::table`] through, and
+    /// every source reading an output whole (VARIABLES VR4) with that
+    /// output's port: a source adds no name segment, so its table is the
+    /// body's.
     pub(crate) fn output_ports(&self) -> BTreeMap<VarId, (RecipeNodeId, u8)> {
         self.vars
             .iter()
-            .filter_map(|(&id, var)| Some((id, var.def().output()?)))
+            .filter_map(|(&id, var)| {
+                let port = match var.def() {
+                    VarDef::Source(_) => {
+                        let body = self.through_sources(id);
+                        if body.is_indexed() {
+                            return None;
+                        }
+                        self.defined_by(body.read)?
+                    }
+                    def => def.output()?,
+                };
+                Some((id, port))
+            })
             .collect()
     }
 
