@@ -819,7 +819,7 @@ pub enum FinishDesync {
 impl core::fmt::Display for FinishDesync {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
-            Self::Unresolved(unresolved) => write!(f, "in the cut body, {unresolved}"),
+            Self::Unresolved(unresolved) => write!(f, "in the body being split, {unresolved}"),
             Self::MergePlaceholders { side } => write!(
                 f,
                 "the merge of the piece on the {} side of the plane left placeholder faces",
