@@ -1187,7 +1187,7 @@ pub enum EulerOpError {
     /// faces under-determine (`OnPair`): whether a child stays smooth
     /// along its own span is in band, at a station of the must-carry
     /// rule over the child
-    /// ([`geom_brep::MustCarryEscalation::FirstOrder`]).
+    /// (a first-order [`geom_brep::WedgeRung`]).
     ///
     /// Unreached for a tangency: the dihedral escalates on its arm only
     /// over a child whose extent lies inside the band, and the
@@ -1205,7 +1205,7 @@ pub enum EulerOpError {
     /// [`Body::split_edge`](crate::construction::Construct::split_edge) of a smooth edge (a tangency or a pair):
     /// whether the two faces curve apart along a child or share their
     /// curvature there is in band (`"tangent_second_order"`,
-    /// [`geom_brep::MustCarryEscalation::SecondOrder`]). The rule meters
+    /// [`geom_brep::WedgeRung::Bend`]). The rule meters
     /// the sagitta over the child's own extent, so a short child can be
     /// in band where its parent was jet-determinate: the child is
     /// certifiable as neither the tangency nor the pair (D4 ¶3).

@@ -2,12 +2,13 @@
 id: a-rigid-map-can-still-refuse-a-sound-approx-face-at-its-edges-or-meters
 kind: issue
 title: a rigid map can still refuse a sound Approx face: a meter that goes in-band in the new frame, or an edge that rode the fit net a re-fit replaced
-status: open
+status: closed
 opened: 2026-09-28
 priority: P3
 cost: M
 design: true
 refs: [a-moved-fitted-faces-corners-have-no-root-on-a-derived-spline-section]
+closed: 2026-11-12
 ---
 
 
@@ -115,3 +116,55 @@ and `0.98` (rational), all of it the fundamental forms' boxes
 (`cell_curvature`). The rational headroom moved by `0.98` before the sup
 side changed as well, so the meters' half of item 1 is now the floor
 and the forms, not the sups.
+
+## Re-scoped (ONEHOME fork 259, 2026-11-11)
+
+A move no longer re-certifies: a finished body's move carries its
+certificates and verdict (`topo::FinishedBody::moved`, PR 6820), so
+`map_approx` no longer re-fits a moved face. What is left of this row
+is the certifier's own: a later finish re-derives every certificate
+from scratch, and the offset certifier's lower bounds, widths, floors
+and forms are read in the ambient frame, so they move under a rotation.
+A near-ε offset face rotated and then finished afresh fails
+`certify_offset_over`, where main re-fitted it and built
+(`crates/topo/tests/rigid_map_near_eps_approx.rs`, which records
+`refused > 0` as it stands).
+
+The fix the fork chose is the offset fit's bounds in norm/ball form,
+which no rotation moves. It widens `[tolerance.residuals]`, so it waits
+on Ev (`[ev]` PR 6824). Once it is built, the moved face re-certifies at
+a later finish, that test asserts it, and this row closes.
+
+## Closed (ONEHOME fork 259, PR 6824, PR 6820, 2026-11-12)
+
+Both refusals are answered.
+
+- **Edges.** A move carries its certificates and maps the exact image,
+  never a re-fit (`crates/topo/src/transform.rs:51`, `map_approx`), so
+  no edge rides a fit net a re-fit replaced.
+- **Meters, and the certificate's lower bounds.** `[tolerance.residuals]`
+  (PR 6824) reads every vector-valued bound from the Euclidean norm of
+  each coefficient. The curvature meter's forms are read from balls
+  about the partials' coefficient vectors (`PatchCell::balls`,
+  `crates/geom-brep/src/patch_bound.rs`; `cell_curvature`,
+  `crates/geom-brep/src/offset_meters.rs`), and `‖E‖`'s floor from
+  `Ẽ`'s coefficient vectors as a hull, along directions descending
+  toward its point nearest the origin (`PatchSpans::cell_norm_inf`,
+  `crates/geom-core/src/spline/compose/patch.rs`), where it read a
+  per-coordinate box before. The regularity floor
+  already was one (`QuotientPiece::inf_norm`, the piece's own
+  direction).
+
+Measured on `rigid_map_near_eps_approx`'s faces at the default ε, while
+`‖E‖`'s floor read a ball about the vectors (the suite's rows hold with
+the hull's): under
+its rotations the curvature reach moved by `2.7e-3` of itself with the
+box forms and by `9e-11` with the balls, and the regularity floor by
+`2e-12` either way. The hull bound moved by up to `6.2e-4` of itself,
+and by up to `3.9e-4` under ±2-ulp noise on the control points with no
+rotation at all, so that drift is the image's own rounding, not a frame
+reading: a face within its image's rounding of ε may flip
+(`[simple.conditioned]`). The suite now mints its face `ε/256` under ε,
+past that rounding, and asserts that every rotation's image re-derives,
+that the moved face re-certifies at a later finish, and that the meters
+move only by rounding.

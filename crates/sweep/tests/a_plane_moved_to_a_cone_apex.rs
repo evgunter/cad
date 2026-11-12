@@ -618,7 +618,7 @@ fn frustum_and_virtual_apex_box(apex_y: f64, pose: &Affine3<f64>) -> [(AtRestBod
         .into_body();
     frustum.merge_coplanar_faces(tol).unwrap();
     let frustum =
-        topo::transform_rigid(&frustum, &geom_core::test_support::rigid(pose, tol), tol).unwrap();
+        topo::transform_rigid(&frustum, &geom_core::test_support::rigid(pose, tol)).unwrap();
     let apex = Point3::new(0.0, apex_y, 0.0);
     let turn = *pose
         * Affine3::rotation_about_axis(apex, Vec3::new(0.0, 0.0, 1.0), 1e-6 - FRAC_PI_6)
@@ -627,7 +627,6 @@ fn frustum_and_virtual_apex_box(apex_y: f64, pose: &Affine3<f64>) -> [(AtRestBod
     let boxed = topo::transform_rigid(
         &brick(bx[0], bx[1], bx[2], tol),
         &geom_core::test_support::rigid(&turn, tol),
-        tol,
     )
     .unwrap();
     [

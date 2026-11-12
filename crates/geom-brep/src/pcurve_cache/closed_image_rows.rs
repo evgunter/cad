@@ -405,19 +405,33 @@ fn frame(g: &mut fuzz::Rng) -> (Point3<f64>, Vec3<f64>, Vec3<f64>) {
     let mut v = || Vec3::new(g.range(-1.0, 1.0), g.range(-1.0, 1.0), g.range(-1.0, 1.0));
     let (a, b) = (v(), v());
     let axis = a.normalize();
-    let u_ref = (b - axis * b.dot(axis)).normalize();
+    let u_ref = across(b, axis);
     let mut p = || g.range(-10.0, 10.0);
     (Point3::new(p(), p(), p()), axis, u_ref)
+}
+
+/// **The unit part of `b` across the unit `n`**, square to `n` to
+/// rounding. One pass leaves `n·u ≈ ulp/‖b − n·(b·n)‖`, which a `b`
+/// near `±n` makes large: a plane whose `u_ref` leans off its normal by
+/// `c` has a chart that leaves its normal's plane by `c` per metre, so a
+/// curve drawn square to the normal is off the chart at the band within
+/// the rows' reach, and its correct-looking image misses it. The second
+/// pass takes `n·u` back to rounding.
+pub(super) fn across(b: Vec3<f64>, n: Vec3<f64>) -> Vec3<f64> {
+    let once = (b - n * b.dot(n)).normalize();
+    if super::mutants::across_once() {
+        return once;
+    }
+    (once - n * once.dot(n)).normalize()
 }
 
 /// A unit vector `⊥ n`.
 fn perpendicular(g: &mut fuzz::Rng, n: Vec3<f64>) -> Vec3<f64> {
     let b = Vec3::new(g.range(-1.0, 1.0), g.range(-1.0, 1.0), g.range(-1.0, 1.0));
-    let p = b - n * b.dot(n);
-    if p.norm() < 1e-3 {
+    if (b - n * b.dot(n)).norm() < 1e-3 {
         perpendicular(g, n)
     } else {
-        p.normalize()
+        across(b, n)
     }
 }
 
@@ -810,20 +824,60 @@ fn spellings(
 /// spelling ([`spellings`]), certifies at both scalars.
 #[test]
 fn a_closed_form_on_its_carrier_certifies_in_every_spelling() {
-    let mut g = fuzz::start("closed_form_on_its_carrier");
+    every_spelling(&mut fuzz::start(EVERY_SPELLING));
+}
+
+/// The every-spelling row's sweep label.
+const EVERY_SPELLING: &str = "closed_form_on_its_carrier";
+
+/// **A plane line 20 m along its chart, whose drawn `u_ref` leaned off
+/// the normal by 5.4e-14**: the every-spelling row at the sweep seed
+/// that drew it. Squared once, the chart left the line by 1.02e-12 at
+/// the span's far end, and the bound read that miss in band at
+/// ε 1e-12; squared twice the line is on its chart and certifies.
+#[test]
+fn a_plane_line_on_a_frame_drawn_near_its_axis_certifies_in_every_spelling() {
+    every_spelling(&mut fuzz::pinned_sweep(
+        EVERY_SPELLING,
+        0x4661_d077_090b_3597,
+    ));
+}
+
+/// **A frame drawn with `b` near its axis is square to rounding**: the
+/// sweep's `u_ref` for a `b` near the axis leans off it by rounding,
+/// not by rounding over `b`'s offset (1e-10 at an offset of 1e-6).
+#[test]
+fn a_frame_drawn_near_its_axis_is_square_to_rounding() {
+    let n = Vec3::new(0.3, -0.5, 0.8).normalize();
+    for off in [2e-3, 1e-4, 1e-6] {
+        let b = n * 0.7 + perpendicular_witness(n) * off;
+        let u = across(b, n);
+        assert!(
+            u.dot(n).abs() <= 1e-15,
+            "a u_ref drawn {off:e} off its axis leans off it by {:e}",
+            u.dot(n)
+        );
+    }
+}
+
+/// A fixed unit vector `⊥ n`, for the frame witness.
+fn perpendicular_witness(n: Vec3<f64>) -> Vec3<f64> {
+    let e = Vec3::unit_x();
+    (e - n * e.dot(n)).normalize()
+}
+
+fn every_spelling(g: &mut fuzz::Rng) {
     let mut read = 0usize;
     for _ in 0..fuzz::scaled(24) {
         for kind in KINDS {
-            let (surface, carrier, span) = drawn(&mut g, kind);
+            let (surface, carrier, span) = drawn(g, kind);
             let Ok(image) = chart_pcurve_over(&carrier, span.0, span.1, &surface, band()) else {
                 continue;
             };
             if !matches!(image, Pcurve::Harmonic { .. }) {
                 continue;
             }
-            for (how, surface, carrier, image) in
-                spellings(&mut g, &surface, &carrier, span, &image)
-            {
+            for (how, surface, carrier, image) in spellings(g, &surface, &carrier, span, &image) {
                 for door in DOORS {
                     let got = (door.certify)(&surface, &image, &carrier, span);
                     assert!(
@@ -2007,4 +2061,268 @@ fn a_closed_forms_bound_holds_its_dense_miss() {
         }
     }
     assert!(read > 0, "the search reads some bound ({})", fuzz::replay());
+}
+
+/// The largest miss, in metres, of `image` on `surface` from `carrier`
+/// at `n + 1` stations across `span`, each read as the upper end of an
+/// interval enclosure of the distance, so rounding in the read itself
+/// counts against the image, never for it.
+fn enclosed_miss(
+    surface: &Surface<f64>,
+    carrier: &Curve3<f64>,
+    image: &Pcurve<f64>,
+    (t0, t1): (f64, f64),
+    n: u32,
+) -> f64 {
+    use geom_core::Bounds;
+    let s = surface.map_scalar(Interval::from_certified);
+    let c = carrier.map_scalar(Interval::from_certified);
+    let i = lift::<Interval>(image);
+    (0..=n)
+        .map(|k| {
+            let t = Interval::from_certified(t0 + (t1 - t0) * f64::from(k) / f64::from(n));
+            let uv = i.eval(t);
+            (s.eval(uv.x, uv.y) - c.eval(t)).norm().hi()
+        })
+        .fold(0.0, f64::max)
+}
+
+/// How the mint door ends `image` on `surface` over `span`, where it ends
+/// short of certifying: at `f64` any refusal, and at `Interval` any but
+/// an escalation. An interval enclosure of a pole start's short radial
+/// part is wide (its width over its length), and reads in band; that is
+/// the lever, never a refusal of a correct image.
+fn mint_refusals(
+    surface: &Surface<f64>,
+    carrier: &Curve3<f64>,
+    image: &Pcurve<f64>,
+    (t0, t1): (f64, f64),
+) -> Vec<String> {
+    let f64_door =
+        super::PcurveCache::<f64>::certify(image.clone(), t0, t1, carrier, surface, band());
+    let interval_door = super::PcurveCache::<Interval>::certify(
+        lift::<Interval>(image),
+        Interval::from_certified(t0),
+        Interval::from_certified(t1),
+        &carrier.map_scalar(Interval::from_certified),
+        &surface.map_scalar(Interval::from_certified),
+        band(),
+    );
+    let mut out = Vec::new();
+    if let Err(e) = f64_door {
+        out.push(format!("mint f64: {e:?}"));
+    }
+    match interval_door {
+        Ok(_) | Err(super::PcurveCertifyError::Escalated { .. }) => {}
+        Err(e) => out.push(format!("mint interval: {e:?}")),
+    }
+    out
+}
+
+/// A pinned seed's name, its sphere, its great circle and its span.
+type PinnedMeridian = (&'static str, Surface<f64>, Curve3<f64>, (f64, f64));
+
+/// The spheres and great circles of two fuzz seeds in
+/// `a_closed_form_on_its_carrier_certifies_in_every_spelling`, each a
+/// meridian whose `t = 0` point lies near the pole:
+/// - `0x6c321abd1c3c3bb8`, `4.4e-5` rad from it, over a span crossing the
+///   equator near `t = 5π/2`;
+/// - `0x8ffe04db921f5cff`, about `1e-4` rad from it.
+fn pole_start_meridians() -> [PinnedMeridian; 2] {
+    let first = {
+        let centre = Point3::new(
+            3.415_608_021_271_088_6,
+            -1.725_992_466_805_074_3,
+            -2.274_709_598_441_104_3,
+        );
+        let radius = 2.130_638_384_572_389_7;
+        let sphere = Surface::Sphere {
+            center: centre,
+            radius,
+            axis: Vec3::new(
+                -0.675_589_460_306_390_8,
+                -0.394_043_192_820_310_14,
+                -0.623_144_319_812_750_5,
+            ),
+            u_ref: Vec3::new(
+                0.669_485_472_224_753_1,
+                0.026_147_118_174_392_567,
+                -0.742_364_823_177_374_2,
+            ),
+        };
+        let carrier = Curve3::circle(
+            centre,
+            Vec3::new(
+                0.575_552_480_378_997_1,
+                -0.810_096_037_263_421_5,
+                -0.111_730_715_292_106_1,
+            ),
+            radius,
+            Vec3::new(
+                -0.675_569_173_944_152_4,
+                -0.394_024_079_710_540_93,
+                -0.623_178_398_072_876_8,
+            ),
+        );
+        (
+            "0x6c321abd1c3c3bb8",
+            sphere,
+            carrier,
+            (6.681_170_357_563_833, 12.964_355_664_743_419),
+        )
+    };
+    let second = {
+        let centre = Point3::new(
+            0.617_114_297_562_626,
+            -2.579_807_236_983_587,
+            5.811_828_035_392_185,
+        );
+        let radius = 1.900_839_103_302_455_6;
+        let sphere = Surface::Sphere {
+            center: centre,
+            radius,
+            axis: Vec3::new(
+                -0.602_692_147_126_108_6,
+                0.637_435_795_327_199_3,
+                0.480_039_355_290_898_9,
+            ),
+            u_ref: Vec3::new(
+                0.510_846_725_931_499,
+                -0.153_934_328_466_607_87,
+                0.845_777_657_026_125_6,
+            ),
+        };
+        let carrier = Curve3::circle(
+            centre,
+            Vec3::new(
+                -0.105_863_709_754_808_13,
+                0.532_384_715_557_780_6,
+                -0.839_856_767_310_6,
+            ),
+            radius,
+            Vec3::new(
+                -0.602_764_158_903_643_5,
+                0.637_385_077_710_492,
+                0.480_016_282_487_555_9,
+            ),
+        );
+        (
+            "0x8ffe04db921f5cff",
+            sphere,
+            carrier,
+            (3.822_795_473_006_513_2, 8.255_521_800_517_538),
+        )
+    };
+    [first, second]
+}
+
+/// **A sphere meridian starting near its pole is derived on its circle**
+/// (the pinned seeds): its image certifies at both scalars, and its
+/// enclosed miss is at rounding. Red when the meridian's direction is
+/// read off the radial part unprojected, which put the first seed's
+/// image `1.05e-11` off its circle at the equator (a shown miss) and the
+/// second's `1.4e-12` off (read in band).
+#[test]
+fn a_pole_start_meridian_at_a_fuzz_seed_certifies() {
+    let mut off = Vec::new();
+    for (seed, sphere, carrier, span) in pole_start_meridians() {
+        let image = chart_pcurve_over(&carrier, span.0, span.1, &sphere, band())
+            .unwrap_or_else(|e| panic!("{seed}: the meridian derives: {e:?}"));
+        let miss = enclosed_miss(&sphere, &carrier, &image, span, 1024);
+        if miss >= 1e-13 {
+            off.push(format!("{seed}: {image:?} misses its circle by {miss:e}"));
+        }
+        for door in DOORS {
+            let got = (door.certify)(&sphere, &image, &carrier, span);
+            if got.is_err() {
+                off.push(format!("{seed} at {}: {image:?}: {got:?}", door.name));
+            }
+        }
+        for refusal in mint_refusals(&sphere, &carrier, &image, span) {
+            off.push(format!("{seed} at the {refusal}"));
+        }
+    }
+    assert!(
+        off.is_empty(),
+        "pole-start meridians off their circles: {off:#?}"
+    );
+}
+
+/// **A derived circle image is on its circle where its azimuth shows
+/// most** (shape 2, an edge-value table). Each chart azimuth is read from
+/// a radial part of length `s·r` while the image shows it at about `r`:
+/// - a great circle of a sphere of radius `r` starting `s` rad from the
+///   pole, over a turn, whose image shows its azimuth at `t ≡ π/2`, the
+///   equator;
+/// - a Villarceau circle of a torus of major radius `r` and minor radius
+///   `s·r`, over a turn, its azimuth read off its centre's offset (its
+///   phase along the circle is read off the same direction, so the two
+///   move together and the image stays on its circle).
+///
+/// Each image's enclosed miss stays at rounding, at every `s` past the
+/// band, and the mint door certifies it at `f64` (at `Interval` it
+/// certifies or escalates).
+#[test]
+fn a_derived_circle_image_is_on_its_circle_where_its_azimuth_shows_most() {
+    let b = band();
+    let centre = Point3::new(7.25, -8.5, 9.75);
+    let axis = Vec3::new(0.36, -0.48, 0.8);
+    let u_ref = Vec3::new(0.8, 0.6, 0.0);
+    let v_ref = axis.cross(u_ref);
+    let r = 2.0;
+    let mut read = 0;
+    let mut missed = Vec::new();
+    for (u0, sense) in [(0.3, 1.0), (2.9, -1.0), (-1.7, 1.0)] {
+        let radial = u_ref * f64::cos(u0) + v_ref * f64::sin(u0);
+        let normal = (v_ref * f64::cos(u0) - u_ref * f64::sin(u0)) * sense;
+        for s in [1e-3, 1e-5, 1e-7]
+            .into_iter()
+            .filter(|s| s * r > 8.0 * b.escalate())
+        {
+            let sphere = Surface::Sphere {
+                center: centre,
+                radius: r,
+                axis,
+                u_ref,
+            };
+            let great =
+                Curve3::circle(centre, normal, r, axis * f64::cos(s) + radial * f64::sin(s));
+            let torus = Surface::Torus {
+                center: centre,
+                axis,
+                major_radius: r,
+                minor_radius: s * r,
+                u_ref,
+            };
+            let lean = radial.cross(axis) * f64::cos(s.asin()) + axis * (sense * s);
+            let villarceau = Curve3::circle(
+                centre + radial * (s * r),
+                radial.cross(lean),
+                r,
+                radial * f64::cos(u0) + lean * f64::sin(u0),
+            );
+            for (what, surface, carrier, span) in [
+                ("sphere", sphere, great, (-0.4, TAU - 0.4)),
+                ("villarceau", torus, villarceau, (-0.4, TAU - 0.4)),
+            ] {
+                let image = chart_pcurve_over(&carrier, span.0, span.1, &surface, b)
+                    .unwrap_or_else(|e| panic!("the {what} circle at s = {s:e} derives: {e:?}"));
+                let miss = enclosed_miss(&surface, &carrier, &image, span, 256);
+                if miss >= 1e-13 {
+                    missed.push(format!(
+                        "{what} at u0 = {u0}, s = {s:e}: {image:?} by {miss:e}"
+                    ));
+                }
+                for refusal in mint_refusals(&surface, &carrier, &image, span) {
+                    missed.push(format!("{what} at u0 = {u0}, s = {s:e}, at the {refusal}"));
+                }
+                read += 1;
+            }
+        }
+    }
+    assert!(read > 0);
+    assert!(
+        missed.is_empty(),
+        "derived images off their circles: {missed:#?}"
+    );
 }

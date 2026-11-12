@@ -39,7 +39,7 @@ fn keeled(s: f64, turn: f64) -> Body<f64> {
         tol(),
     );
     let turn = Affine3::rotation_about_axis(Point3::origin(), Vec3::unit_y(), turn.to_radians());
-    let v = transform_rigid(&v, &geom_core::test_support::rigid(&turn, tol()), tol()).unwrap();
+    let v = transform_rigid(&v, &geom_core::test_support::rigid(&turn, tol())).unwrap();
     match subtract(
         &finished("the annulus", ring, tol()),
         &finished("the V", v, tol()),
@@ -137,7 +137,7 @@ fn a_curved_keel_closed_at_both_ends_refuses_as_a_construction_gap() {
                 tol(),
             );
             match topo::split(&body, &plane, tol()) {
-                Err(topo::SplitError::Join(topo::SplitJoinError::CurvedSlitTrace { .. })) => {}
+                Err(topo::SplitError::Join(topo::JoinError::CurvedSlitTrace { .. })) => {}
                 other => panic!(
                     "{what}: {:?}, not the curved slit trace's refusal",
                     other.map(drop)

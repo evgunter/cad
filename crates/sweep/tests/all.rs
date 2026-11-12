@@ -72,6 +72,8 @@ mod a_curve_off_its_face_at_a_build_is_the_kernels;
 mod a_curved_keel_in_the_plane;
 #[path = "a_curved_keel_on_the_floor_refuses_its_slit_form.rs"]
 mod a_curved_keel_on_the_floor_refuses_its_slit_form;
+#[path = "a_cut_by_a_curved_seat_refuses_its_material.rs"]
+mod a_cut_by_a_curved_seat_refuses_its_material;
 #[path = "a_cylinder_split_just_off_its_rim_vertex.rs"]
 mod a_cylinder_split_just_off_its_rim_vertex;
 #[path = "a_face_across_a_wavy_corner.rs"]
@@ -1362,6 +1364,8 @@ mod sphere_face_flips_are_refused;
 
 #[path = "a_body_built_turned_is_the_body_turned.rs"]
 mod a_body_built_turned_is_the_body_turned;
+#[path = "a_boxed_motion_moves_a_finished_body.rs"]
+mod a_boxed_motion_moves_a_finished_body;
 #[path = "a_closed_conic_in_the_partners_face.rs"]
 mod a_closed_conic_in_the_partners_face;
 #[path = "a_cone_with_a_tilted_seam.rs"]
@@ -1372,6 +1376,8 @@ mod a_cylinder_through_a_hole_tangent_to_its_wall;
 mod a_frame_within_its_rounding_is_kept_and_one_beyond_it_refuses;
 #[path = "a_mirrored_body_is_its_image.rs"]
 mod a_mirrored_body_is_its_image;
+#[path = "a_moved_body_keeps_its_verdict.rs"]
+mod a_moved_body_keeps_its_verdict;
 #[path = "a_revolved_wall_arc_join_reads_its_reach.rs"]
 mod a_revolved_wall_arc_join_reads_its_reach;
 #[path = "a_seam_inside_a_face_is_no_boundary_of_it.rs"]
@@ -1425,5 +1431,7 @@ mod the_football_revolves;
 
 #[path = "a_ball_with_no_room_at_its_rim_refuses_typed.rs"]
 mod a_ball_with_no_room_at_its_rim_refuses_typed;
+#[path = "a_partner_across_a_lofted_wall_is_joined_on_its_section_value.rs"]
+mod a_partner_across_a_lofted_wall_is_joined_on_its_section_value;
 #[path = "a_peg_in_a_two_segment_bore_moves_only_its_wall.rs"]
 mod a_peg_in_a_two_segment_bore_moves_only_its_wall;

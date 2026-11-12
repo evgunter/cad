@@ -99,6 +99,8 @@ mod a_verdict_moves_only_the_faces_it_read;
 mod a_zero_vertex_pair_keeps_the_kept_sides_point;
 #[path = "an_off_iso_straight_edge_takes_its_general_row.rs"]
 mod an_off_iso_straight_edge_takes_its_general_row;
+#[path = "an_operand_with_no_solid.rs"]
+mod an_operand_with_no_solid;
 #[path = "analytic_rung3_at_rest.rs"]
 mod analytic_rung3_at_rest;
 #[path = "at_rest_pcurve_rows.rs"]
