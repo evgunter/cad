@@ -629,7 +629,6 @@ pub fn die_pips() -> Body<f64> {
                         &Affine3::rotation_about_axis(origin, Vec3::new(1.0, 0.0, 0.0), PI),
                         Tol::witness(),
                     ),
-                    Tol::witness(),
                 )
                 .unwrap()
             }
@@ -644,16 +643,12 @@ pub fn die_pips() -> Body<f64> {
                     ),
                     Tol::witness(),
                 ),
-                Tol::witness(),
             )
             .unwrap()
         };
-        let placed = topo::transform_rigid(
-            &placed,
-            &geom_core::RigidMotion::translation(c).unwrap(),
-            Tol::witness(),
-        )
-        .unwrap();
+        let placed =
+            topo::transform_rigid(&placed, &geom_core::RigidMotion::translation(c).unwrap())
+                .unwrap();
         finished("a pip ball", placed, Tol::witness())
     };
     // The classical 2-D pip layout of face value `n`, in units of

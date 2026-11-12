@@ -271,29 +271,22 @@ fn eps_row(eps: f64) -> usize {
 /// `Plain/Decision` 9815 →
 /// 9809, `Plain/Assertion` 2861 → 2807, `Early/Assertion` 4295 → 4235,
 /// with the same calls; `Early/Decision` does not move.
-///
-/// **Moved with the constructors' whole-wedge reads**: the extrude and
-/// revolve read each edge they write by its whole wedge, the arm, the
-/// wedge and a corner's sign at each of its 7 interior stations, where
-/// they read the class at one witness. `Plain/Assertion` and
-/// `Early/Assertion` 532 → 988 calls (2807 → 3503 and 4235 → 4931
-/// forms), `Plain/Decision` 9809 → 9765 forms over the same calls.
 const SLAB_LEDGER: [&str; 3] = [
     "\
-     Plain/Decision calls 976 forms 9765 frozen 0 digest a267a794eb00b700b020c5e435aefbf4\n\
-     Plain/Assertion calls 988 forms 3503 frozen 0 digest d29e6603588f9290df3ef832f6e6a695\n\
+     Plain/Decision calls 976 forms 9809 frozen 0 digest 85691fc488314dfa9178aada7b7d8a5c\n\
+     Plain/Assertion calls 532 forms 2807 frozen 0 digest 23aed61776245fd60ded06e51d1a64ba\n\
      Early/Decision calls 16 forms 38 frozen 0 digest 9da516ca1875052288aafee2b397dd61\n\
-     Early/Assertion calls 988 forms 4931 frozen 0 digest 7b8f13deaebfb7286d3d5cae4aa38359",
+     Early/Assertion calls 532 forms 4235 frozen 0 digest f7e79d81392ee399acb39ea4fe33d62a",
     "\
-     Plain/Decision calls 976 forms 9765 frozen 0 digest 10be2875a24f931e7125e141a82bcec3\n\
-     Plain/Assertion calls 988 forms 3503 frozen 0 digest 8ba06018ed2547dbea4dd12d641db960\n\
+     Plain/Decision calls 976 forms 9809 frozen 0 digest 46a69cbf4d863556afffce3f2493df1a\n\
+     Plain/Assertion calls 532 forms 2807 frozen 0 digest ca86c0a2a8b953f421b787f18b851e46\n\
      Early/Decision calls 16 forms 38 frozen 0 digest 9da516ca1875052288aafee2b397dd61\n\
-     Early/Assertion calls 988 forms 4931 frozen 0 digest 132566a5d2a8c5015e646a317640f1df",
+     Early/Assertion calls 532 forms 4235 frozen 0 digest 2a81bb704ba55eefb96301de157dd239",
     "\
-     Plain/Decision calls 976 forms 9765 frozen 0 digest 1e6085a79c70e744aedad95d5e2327eb\n\
-     Plain/Assertion calls 988 forms 3503 frozen 0 digest 0a321bffbfb7de6a6e9bf1bc04eadca6\n\
+     Plain/Decision calls 976 forms 9809 frozen 0 digest 1be4aca2e27bcf361f51b6e4249b1db1\n\
+     Plain/Assertion calls 532 forms 2807 frozen 0 digest 400102962153fb1d7a98a6e99cb8559e\n\
      Early/Decision calls 16 forms 38 frozen 0 digest 9da516ca1875052288aafee2b397dd61\n\
-     Early/Assertion calls 988 forms 4931 frozen 0 digest 3d94bcd55c6752fd6cc9b3256f656dce",
+     Early/Assertion calls 532 forms 4235 frozen 0 digest b68d8cbe651229cac212e435995984d5",
 ];
 
 /// The largest form (numerator plus denominator terms) any op built
@@ -403,14 +396,8 @@ const SLAB_LEDGER: [&str; 3] = [
 /// and 372 → 360, `Early/Decision` 9399 → 9117 and 8 → 0,
 /// `Early/Assertion` 4860 → 4831; every digest but `Door/Assertion`'s
 /// and the `Report` lines' moves. The slab, a polygon, does not move.
-///
-/// **When a stated harmonic image came to be bounded by its residual's
-/// coefficients** rather than metered at the nine samples, the plate's
-/// largest form grew 38 → 46 terms: the bound's coefficient sum over the
-/// residual's slots, built once per stated image, is larger than any one
-/// sample's residual. The ledger's moves are on [`PLATE_LEDGER`].
 const SLAB_MAX_TERMS: usize = 6;
-const PLATE_MAX_TERMS: usize = 46;
+const PLATE_MAX_TERMS: usize = 38;
 
 /// The plate's walk ledger at its nominal — one row, because the
 /// plate's nominal reads no ε (its dimensions are literals, not
@@ -448,35 +435,40 @@ const PLATE_MAX_TERMS: usize = 46;
 /// 1189) and the nine forms they built (55907 → 55898). No other line
 /// moves.
 ///
-/// **Moved with the closed-form bound** (a stated harmonic image bounded
-/// over its span by its residual's coefficients, not metered at the nine
-/// samples): each of the two stated images' nine `pcurve_map_residual`
-/// decisions become one `pcurve_closed_bound`, so `Plain/Decision` calls
-/// 1189 → 1173 (forms 55898 → 55696) and `Early/Decision` 412 → 396
-/// (forms 42505 → 42225); `Early/Assertion` builds 10519 → 10543 forms.
-/// Nothing new freezes.
+/// **Moved with ONEHOME's moved copy** (a move carries its verdict,
+/// `Held::moved`): the cut reads each hole into the plate's frame with
+/// its certificates and rows carried, so neither hole's rims are
+/// certified again there. Every walk loses that copy's share: `Plain`
+/// 1189 → 1015 decisions and 824 → 669 assertions, `Early` 412 → 308
+/// and 824 → 669, `Door` 557 → 402. The largest form holds at 38.
 ///
-/// **Moved with the closed-form bound's slack** (`closed_bound.rs`
-/// `Residual::bound` is `sum / floor + slack`, the slack a unit sign's or a
-/// whole rate's residue, zero on a harmonic): each of the two stated
-/// images' bound builds one more form, its `+ 0`, so `Plain/Decision`
-/// forms 55696 → 55698 and `Early/Decision` 42225 → 42227, at the same
-/// calls. Nothing new freezes and no decision moves.
+/// **Moved with the move's session-box ask** (`Replay::moved_by`: every
+/// move asks the box of its image): one assertion per walk more, the
+/// box's margin, a form over every vertex's and edge's reach of the
+/// moved hole: `Plain` 669 → 670 assertions (forms 6963 → 9047),
+/// `Early` 669 → 670 (8611 → 10422), `Door` 402 → 403 decisions (9906 →
+/// 11719). `Plain/Decision`'s forms fall 42005 → 41501 with its
+/// calls unchanged, and that is the memo, not a decision: the Plain walk
+/// keeps one memo for both origins, and a form is charged to the origin
+/// that first builds it (`sym::profile`'s per-`(walk, origin)` entry).
+/// The box ask's assertion runs at the move, before the decisions over
+/// the moved hole, and builds 504 of the vertex- and edge-reach forms
+/// those decisions built before; they now hit the memo. So
+/// `Plain/Assertion` gains 2084 forms, those 504 and the 1580 the
+/// assertion alone needs, and Decision plus Assertion grows by 1580.
 ///
-/// **Moved with the constructors' whole-wedge reads**: the extrude and
-/// revolve read each edge they write by its whole wedge, the arm, the
-/// wedge and a corner's sign at each of its 7 interior stations, where
-/// they read the class at one witness. The assertions 824 → 1204 calls
-/// on both walks (`Plain` 9114 → 13467 forms, frozen 193 → 301; `Early`
-/// 10543 → 14896), `Door/Decision` 557 → 709 calls (13458 → 16776
-/// forms), and `Plain/Decision` and `Early/Decision` keep their calls
-/// over fewer forms (55698 → 54986, 42227 → 41555).
+/// PCERT's closed-form bound (a stated harmonic image bounded by its
+/// residual's coefficients, main's `4121c920`), and its slack (`closed_bound.rs`
+/// `Residual::bound`'s `+ slack`, one more form per bound, main's
+/// `b8f04c55`), move none of these counts: the stated images sit on moved
+/// copies whose certificates are carried, so no bound is built again in
+/// the measuring frame.
 const PLATE_LEDGER: &str = "\
-     Plain/Decision calls 1173 forms 54986 frozen 66 digest 3646ad6f65e7c5201bc48cc676494138\n\
-     Plain/Assertion calls 1204 forms 13467 frozen 301 digest b23c1296d6d8943cdf1f8a579576a4c4\n\
-     Early/Decision calls 396 forms 41555 frozen 0 digest 66305558344a8385c6f46e9c103eeaf3\n\
-     Early/Assertion calls 1204 forms 14896 frozen 0 digest d3709c50f53056c5792cf2a1bbfeb0e0\n\
-     Door/Decision calls 709 forms 16776 frozen 0 digest 2227ef10ee2bae6013584e7a8d7cf591";
+     Plain/Decision calls 1015 forms 41501 frozen 54 digest 1b310266a1968c11616d2750affc0dfa\n\
+     Plain/Assertion calls 670 forms 9047 frozen 137 digest ebdae96f526ae41ae0680df5d5bb5545\n\
+     Early/Decision calls 308 forms 28904 frozen 0 digest 3352b4ae55ef1b7fc0dd378dde163b3c\n\
+     Early/Assertion calls 670 forms 10422 frozen 0 digest 78eb95dd6549092cd88f101dfd74c22c\n\
+     Door/Decision calls 403 forms 11719 frozen 0 digest 007b3254e77f798485bfc9cf5c6b9cc3";
 
 /// **What the walks BUILD is pinned, not only what the tier decides.**
 /// For the slab and the plate at their nominals, every (walk, origin)
@@ -648,11 +640,13 @@ fn the_plains_ledger_lines_are_the_same_under_every_dial_set() {
     let sets: [(&str, SymRules, Option<u64>); 4] = [
         // The two sets without the canonical root render the blocked
         // residuals of the certificate's reads; the shipped sets none.
+        // ONEHOME's moved copy (`Held::moved`): the holes are not
+        // re-certified in the plate's frame, so 94 -> 64 of them.
         ("shipped", SymRules::shipped(), None),
         (
             "without_canonical_root",
             SymRules::without_canonical_root(),
-            Some(94),
+            Some(64),
         ),
         ("without_the_reads", SymRules::without_the_reads(), None),
         (
@@ -661,7 +655,7 @@ fn the_plains_ledger_lines_are_the_same_under_every_dial_set() {
                 decision_read: false,
                 ..SymRules::without_canonical_root()
             },
-            Some(94),
+            Some(64),
         ),
     ];
     let mut seen: Option<(&str, Vec<String>)> = None;
