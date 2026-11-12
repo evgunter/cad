@@ -1047,9 +1047,8 @@ EdgeDescription =
   definitely transverse at some stations and definitely smooth at
   others.
 - **What is true by construction is not measured.** A structural
-  selector does not find its edge by measurement: its curve is a row of
-  both surfaces' charts by construction, known exactly before anything
-  is sampled, so it owes no transversality margin.
+  selector's curve is known in advance (the selector's question, above),
+  so it owes no transversality margin.
 - **Prefer-intrinsic, enforced at tier 3.** Every two-surface edge is
   intrinsic and its selector is decided by the geometry alone; at rest a
   witness selector must certify its reading (`TransverseNotIntrinsic`,
