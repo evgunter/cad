@@ -36,7 +36,7 @@ fn cyl(r: f64, h: f64) -> Body<f64> {
 
 fn moved(b: &Body<f64>, m: &Affine3<f64>) -> Body<f64> {
     let tol = Tol::witness();
-    topo::transform_rigid(b, &geom_core::test_support::rigid(m, tol), tol).unwrap()
+    topo::transform_rigid(b, &geom_core::test_support::rigid(m, tol)).unwrap()
 }
 
 fn main() {

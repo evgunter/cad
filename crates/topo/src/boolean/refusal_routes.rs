@@ -3032,7 +3032,7 @@ pub(in crate::boolean) mod tests {
     /// the planes part by many bands at the world origin.
     #[test]
     fn the_maximal_faces_gate_reads_a_tilted_neighbour_alike_wherever_it_stands() {
-        let (b, tol) = (band(), Tol::witness());
+        let b = band();
         for share in [0.5, 0.9] {
             let body = top_split_redescribed(|p0, along, diagonal| {
                 let theta = share * b.zero() / diagonal;
@@ -3051,7 +3051,6 @@ pub(in crate::boolean) mod tests {
                 let moved = crate::transform::transform_rigid(
                     &body,
                     &geom_core::RigidMotion::translation(shift).unwrap(),
-                    tol,
                 )
                 .expect("a translation is rigid");
                 let read = super::super::reduce::gate_maximal_faces(&moved, Operand::A, b);

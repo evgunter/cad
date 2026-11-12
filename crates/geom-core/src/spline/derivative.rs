@@ -290,6 +290,20 @@ impl<T: Real, const D: usize> QuotientPiece<T, D> {
         (!numer.is_empty() && numer.len() == denom.len()).then_some(Self { numer, denom })
     }
 
+    /// The coefficient RATIO vectors `a_k/b_k`, coordinate by
+    /// coordinate: the quantity over the piece is a convex combination of
+    /// them (module docs), so it lies in their convex hull, and any
+    /// reading of that hull as vectors (a ball about a centre) is a
+    /// function of the vectors rather than of a frame.
+    #[must_use]
+    pub fn ratio_vectors(&self) -> Vec<[T; D]> {
+        self.numer
+            .iter()
+            .zip(&self.denom)
+            .map(|(a, b)| a.map(|x| x / *b))
+            .collect()
+    }
+
     /// The numerator's coefficients.
     #[must_use]
     pub fn numer(&self) -> &[[T; D]] {

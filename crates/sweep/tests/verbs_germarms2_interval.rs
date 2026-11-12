@@ -73,7 +73,6 @@ fn spin(b: &Body<Interval>, axis: Vec3<Interval>, angle: f64) -> Body<Interval> 
         b,
         &geom_core::RigidMotion::rotation_about_normalized_axis(p3(0.0, 0.0, 0.0), axis, iv(angle))
             .unwrap(),
-        Tol::witness(),
     )
     .unwrap()
 }
@@ -98,7 +97,7 @@ fn repose(b: &Body<Interval>) -> Body<Interval> {
     )
     .and_then(|r| r.translated(v3(0.3, -0.45, 0.6)))
     .unwrap();
-    topo::transform_rigid(b, &r, Tol::witness()).unwrap()
+    topo::transform_rigid(b, &r).unwrap()
 }
 
 fn union_err(a: &Body<Interval>, b: &Body<Interval>) -> BooleanError {
@@ -306,7 +305,6 @@ fn a_skew_pair_stays_off_the_nodes_at_the_certified_scalar() {
     let skew = topo::transform_rigid(
         &spin(&cyl(1.0, 2.0), x_axis(), PI / 2.0),
         &geom_core::RigidMotion::translation(v3(0.375, 0.0, 0.0)).unwrap(),
-        Tol::witness(),
     )
     .unwrap();
     let err = union_err(&a, &skew);

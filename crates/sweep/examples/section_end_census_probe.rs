@@ -146,7 +146,6 @@ fn rotated(body: &AtRestBody<f64>, about: [f64; 3], angle: f64) -> AtRestBody<f6
                 ),
                 tol(),
             ),
-            tol(),
         )
         .unwrap(),
     )
@@ -306,7 +305,6 @@ fn main() {
                         &Affine3::rotation_about_axis(about, axis, t),
                         tol(),
                     ),
-                    tol(),
                 )
                 .unwrap(),
             )
