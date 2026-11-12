@@ -1046,15 +1046,10 @@ EdgeDescription =
   structural selector does not find its edge by measurement: the curve
   is a row of both surfaces' charts by construction, known exactly
   before anything is sampled, so no transversality margin is owed to
-  pick it. None could be required where the two surfaces touch along the
-  row, as two blend bands do along their shared section. What it does
-  measure carries a margin like anything else: each surface's
-  chart-image certificate, and the row's contact class, crossing along
-  the whole row or touching along the whole row, each decided by a bound
-  levered to the edge. A locus in the ambiguous band, certifiable as
-  neither, fails loudly at construction exactly as at import, and so
-  does an edge read definitely transverse at some stations and
-  definitely smooth at others.
+  pick it. A locus in the ambiguous band, certifiable as neither, fails
+  loudly at construction exactly as at import, and so does an edge read
+  definitely transverse at some stations and definitely smooth at
+  others.
 - **Prefer-intrinsic, enforced at tier 3.** Every two-surface edge is
   intrinsic and its selector is decided by the geometry alone; at rest a
   witness selector must certify its reading (`TransverseNotIntrinsic`,
