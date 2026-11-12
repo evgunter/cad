@@ -1439,6 +1439,9 @@ enum ArcChart {
     Wrap,
     /// A second record of the split face's plane, which no face wears.
     Unworn,
+    /// The pair of the two faces' records, where an edge between two
+    /// records rests.
+    Pair,
 }
 
 /// [`pillow_with_an_arc_past_a_turn`], its description in `named`.
@@ -1450,7 +1453,7 @@ fn pillow_with_an_arc_past_a_turn_in(
     let (mut body, split) = coplanar_pillow(tol);
     let face_chart = body.get_face(split.face).unwrap().surface;
     let (chart, wrap) = match named {
-        ArcChart::Face => (face_chart, false),
+        ArcChart::Face | ArcChart::Pair => (face_chart, false),
         ArcChart::Wrap => {
             *body.surfaces.get_mut(face_chart).unwrap() = Surface::Cylinder {
                 origin: Point3::origin(),
@@ -1467,9 +1470,15 @@ fn pillow_with_an_arc_past_a_turn_in(
     };
     let circle = geom::Curve3::circle(Point3::origin(), Vec3::unit_z(), 1.0, Vec3::unit_x());
     let t1 = core::f64::consts::TAU + past;
-    let spec = EdgeCurveSpec::arc_of_circle(circle, 0.0, t1)
-        .unwrap()
-        .at_rest_in_chart(chart, wrap);
+    let arc = EdgeCurveSpec::arc_of_circle(circle, 0.0, t1).unwrap();
+    let spec = match named {
+        ArcChart::Pair => {
+            let [f1, f2] = crate::wedge_reach::edge_faces(&body, split.edge);
+            let record = |f| body.get_face(f).unwrap().surface;
+            arc.at_rest_on_pair(geom_brep::SurfacePair::new(record(f1), record(f2)))
+        }
+        _ => arc.at_rest_in_chart(chart, wrap),
+    };
     let (start, end) = (spec.carrier.eval(0.0), spec.carrier.eval(t1));
     let coarse = geom_core::Band::new(2.0 * past, 20.0 * past).unwrap();
     let planted = geom_brep::EdgeCurve::certify(
@@ -1658,11 +1667,13 @@ fn a_rim_rechart_of_an_arc_past_a_turn_is_a_kernel_bug() {
 }
 
 /// **`describe_at_rest` restates the stored edge** (`[failure]`): a
-/// stored arc past a full turn panics at its call site.
+/// stored arc past a full turn, resting on the pair of the pillow's two
+/// records, panics at its call site.
 #[test]
 fn an_arc_past_a_turn_described_at_rest_is_a_kernel_bug() {
     let tol = Tol::witness();
-    let (mut body, split) = pillow_with_an_arc_past_a_turn(tol, 10.0 * tol.k() * tol.eps());
+    let (mut body, split) =
+        pillow_with_an_arc_past_a_turn_in(tol, 10.0 * tol.k() * tol.eps(), ArcChart::Pair);
     panics_as_a_kernel_bug_at(KernelSite::AtRest, || {
         let _ = body.describe_at_rest(split.edge, tol);
     });
@@ -3473,14 +3484,15 @@ fn volume_role_of(body: &Body<f64>, tol: Tol) -> crate::ShellRole {
         .expect("the volume's sign decides a role")
 }
 
-/// **A sign is read off the exact volume, not off its rounding.** The
-/// slab of 1 mm × 1 mm × 100 nm anchored 5 km away: the walk's `f64`
-/// sum reads it NEGATIVE (−1.2e-12 m³) where it is exactly
-/// `1e-3 · 1e-3 · 1e-7 = +1e-13`, and reads its inside-out twin
-/// positive. The volume's role read, where the role reader falls back to
-/// it, reads the interval re-derivation, and gives the exact answer both
-/// ways; check 7 and the shell classification agree. (ε ≤ 1e-9: wider,
-/// the slab is thinner than the band.)
+/// **A sign is read off the exact volume, not off a record's anchor.**
+/// The slab of 1 mm × 1 mm × 100 nm whose records are anchored 5 km
+/// away: each face is read at the face (`[tolerance.epsilon]`), so the
+/// walk's `f64` sum reads it at its exact `1e-3 · 1e-3 · 1e-7 = +1e-13`,
+/// where a sum about the records' origins once read it negative. The
+/// volume's role read, where the role reader falls back to it, reads the
+/// interval re-derivation, and gives the exact answer both ways; check 7
+/// and the shell classification agree. (ε ≤ 1e-9: wider, the slab is
+/// thinner than the band.)
 #[test]
 fn a_sign_is_read_off_the_exact_volume_not_its_rounding() {
     use crate::ShellRole::{Outer, Void};
@@ -3501,9 +3513,8 @@ fn a_sign_is_read_off_the_exact_volume_not_its_rounding() {
     )
     .expect("the slab measures");
     assert!(
-        read.enclosure.volume < -exact,
-        "the premise: the walk's sum reads the slab negative, past its exact \
-         volume {exact:e}: {read:?}"
+        (read.enclosure.volume - exact).abs() <= 1e-3 * exact,
+        "the walk reads the slab at its exact volume {exact:e}: {read:?}"
     );
     assert_eq!(
         validate_geometric(&upright, tol),
@@ -3561,13 +3572,13 @@ fn a_sign_is_read_off_the_exact_volume_not_its_rounding() {
 }
 
 /// **The census's void screen reads a shell's role as the rest of the
-/// crate does.** The far-anchored slab of the row above, whose `f64`
-/// sum reads it negative: a lane-free volume read once called the
-/// upright slab a `Void`, and a cross-solid gate holding no lane dropped
-/// it as one. A lane-free read now leaves its sign unresolved within the
-/// sum's rounding (`props::rounding_bound`; asserted), and the gate reads
-/// what the shell classification reads, both ways round: a lone shell is
-/// outer by arity.
+/// crate does.** The far-anchored slab of the row above: a lane-free
+/// volume read once called the upright slab a `Void`, its sum taken
+/// about the records' far origins, and a cross-solid gate holding no
+/// lane dropped it as one. Each face is read at the face now, so a
+/// lane-free read takes the slab's own sign, `Outer` (asserted), and the
+/// gate reads what the shell classification reads, both ways round: a
+/// lone shell is outer by arity.
 #[test]
 fn the_census_gate_reads_a_shell_role_as_the_classification_does() {
     use crate::ShellRole::Outer;
@@ -3584,11 +3595,8 @@ fn the_census_gate_reads_a_shell_role_as_the_classification_does() {
     let shell = upright.shells.iter().next().expect("one shell").0;
     assert_eq!(
         crate::props::shell_volume_role(&upright, shell, band, tol, None),
-        Err(crate::ShellClassifyError::SignUnresolved {
-            shell,
-            limit: crate::SignLimit::Scalar,
-        }),
-        "read with no lane, the upright slab's rounded sum decides no role"
+        Ok(Outer),
+        "read with no lane, the upright slab's sum, read at its faces, is outer"
     );
     let inverted = upright.revert().unwrap();
     for (body, want, finishes) in [(&upright, Outer, true), (&inverted, Outer, false)] {
@@ -4162,15 +4170,15 @@ mod a_tangent_record_off_the_cusp {
     }
 }
 
-/// **A lane-free read never takes the rounded sum's sign for the
-/// volume's** (`work/tally/lane-free-volume-sign-reads-decide-on-a-rounded-sum.md`):
-/// the far-anchored slab's `f64` sum reads −1.2e-12 m³ for a +1e-13 m³
-/// body, and with no lane its volume is read as `[V − b, V + b]`, `b` the
-/// stated bound on the sum's rounding (`props::rounding_bound`). The slab
-/// lies within it either way out, so its shell's volume role is
-/// unresolved in this scalar, never `Void`; and the structural door,
-/// which reads the same walk, never refuses the upright slab
-/// `NegativeVolume`.
+/// **A lane-free read takes the volume's own sign**
+/// (`work/tally/lane-free-volume-sign-reads-decide-on-a-rounded-sum.md`):
+/// with no lane its volume is read as `[V − b, V + b]`, `b` the stated
+/// bound on the sum's rounding (`props::rounding_bound`). The far-anchored
+/// slab's faces and that bound are read at the faces, whatever the
+/// records' origins, so the sum reads the +1e-13 m³ slab outside its
+/// rounding: its shell's role is `Outer` upright and `Void` inside out;
+/// and the structural door, which reads the same walk, never refuses the
+/// upright slab `NegativeVolume`.
 #[test]
 fn a_lane_free_read_never_takes_the_rounded_sums_sign() {
     let tol = Tol::witness();
@@ -4183,17 +4191,18 @@ fn a_lane_free_read_never_takes_the_rounded_sums_sign() {
     }
     let band = geom_core::Band::linear(tol).expect("the witness band");
     let upright = far_anchored_slab(0.0, 1e-3, 1e-7, 5e3, tol);
-    for (what, body) in [
-        ("upright", upright.clone()),
-        ("inside out", upright.revert().unwrap()),
+    for (what, body, role) in [
+        ("upright", upright.clone(), crate::ShellRole::Outer),
+        (
+            "inside out",
+            upright.revert().unwrap(),
+            crate::ShellRole::Void,
+        ),
     ] {
         let (shell, _) = body.shells.iter().next().expect("one shell");
         assert_eq!(
             crate::props::shell_volume_role(&body, shell, band, tol, None),
-            Err(crate::ShellClassifyError::SignUnresolved {
-                shell,
-                limit: crate::SignLimit::Scalar,
-            }),
+            Ok(role),
             "{what}: the lane-free volume role"
         );
     }

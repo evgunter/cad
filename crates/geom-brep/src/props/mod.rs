@@ -236,6 +236,12 @@ impl<T: SpanLocate> LoopEdge<T> {
         self.carrier.eval(self.t1)
     }
 
+    /// The carrier point the edge's traversal starts at: `p0` forward,
+    /// `p1` reversed.
+    pub fn traversal_start(&self) -> Point3<T> {
+        if self.forward { self.p0() } else { self.p1() }
+    }
+
     /// The carrier points at the edge's TRAVERSAL ends, in traversal
     /// order — `(p0, p1)` forward, swapped otherwise, the geometric
     /// twin of the `(start, end)` tag pair.
@@ -821,27 +827,105 @@ crate::ended_by_write!(PropsError);
 
 impl std::error::Error for PropsError {}
 
+/// **Where a face's measure is read from** ([`face_anchor`]), out of
+/// its vertices alone.
+#[derive(Clone, Copy, Debug)]
+pub struct FaceAnchor<T: Real> {
+    /// The least corner of the box of the face's vertices, each
+    /// coordinate one of theirs: the point its vector area is summed
+    /// about, which a closed loop's does not depend on. Read with no
+    /// arithmetic, it is as exact as the vertices are, so a face of
+    /// grid points reads its vector area exactly, and a face far from
+    /// the origin rounds no coordinate taking it.
+    pub lever: Point3<T>,
+    /// The mean of the vertices' offsets from `lever`: `lever + offset`
+    /// ([`Self::at`]) is the mean of the vertices, a convex combination
+    /// of boundary points, on the face's plane to within their stand-off
+    /// from it. Kept as an offset so a reading levered from another
+    /// point takes the difference of two stored points and this, never
+    /// a rounded absolute coordinate.
+    pub offset: Vec3<T>,
+}
+
+impl<T: Real> FaceAnchor<T> {
+    /// The mean of the face's vertices: the point its flux is read about.
+    #[must_use]
+    pub fn at(&self) -> Point3<T> {
+        self.lever + self.offset
+    }
+
+    /// The offset of [`Self::at`] from `from`, taken as `(lever − from) +
+    /// offset`.
+    #[must_use]
+    pub fn from(&self, from: Point3<T>) -> Vec3<T> {
+        (self.lever - from) + self.offset
+    }
+}
+
+/// **Where a face's measure is read from**, out of its boundary's
+/// `vertices`: the start point of each edge in traversal
+/// ([`LoopEdge::traversal_start`]) or each point of a vertex polygon's
+/// rings, every loop's ([`FaceAnchor`]). Both are functions of the vertex
+/// set alone: no loop order, no traversal start and no carrier direction
+/// moves them, so a face reads the same however an operation happened to
+/// write its loops. Both lie within the box of its vertices, so the lever
+/// of every term its reading sums is the face's own extent; a face whose
+/// vertices share a coordinate reads that coordinate exactly at both. It
+/// reads only the stored boundary, so both scalars take it before either
+/// reads the face. `None` where there is no vertex.
+pub fn face_anchor<T: Real>(
+    vertices: impl IntoIterator<Item = Point3<T>>,
+) -> Option<FaceAnchor<T>> {
+    let points: Vec<Point3<T>> = vertices.into_iter().collect();
+    let (&first, rest) = points.split_first()?;
+    let lever = rest.iter().fold(first, |lo, p| {
+        Point3::new(lo.x.min(p.x), lo.y.min(p.y), lo.z.min(p.z))
+    });
+    // The count kept in `T`, one per vertex: an exact small integer.
+    let (sum, n) = points
+        .iter()
+        .fold((Vec3::zero(), T::zero()), |(sum, n), &p| {
+            (sum + (p - lever), n + T::one())
+        });
+    Some(FaceAnchor {
+        lever,
+        offset: sum * (T::one() / n),
+    })
+}
+
+/// [`face_anchor`] of a face's loops.
+pub fn loops_anchor<T: SpanLocate>(loops: &[Vec<LoopEdge<T>>]) -> Option<FaceAnchor<T>> {
+    face_anchor(loops.iter().flatten().map(LoopEdge::traversal_start))
+}
+
 /// The flux and area of a **planar** face from its loops (outer +
-/// rings, all traversed as stored): `A⃗ = Σ_loops (1/2)∮(p−origin)×dp`,
-/// `flux = origin·A⃗` (the plane through `origin` makes
-/// `(p−origin)·n = 0`), `area = ‖A⃗‖` (rings subtract via their stored
-/// opposite winding; the loop orientation convention points `A⃗` along
-/// the face's outward normal). `origin` doubles as the translation
-/// reference (Mäntylä's far-from-origin conditioning remedy).
+/// rings, all traversed as stored), read at the face ([`face_anchor`]):
+/// its boundary's flux about `a`, the mean of its vertices — the vector
+/// area `A⃗ = Σ_loops (1/2)∮(p−l)×dp`, summed about `l`, the least corner
+/// of their box (a closed loop's does not depend on it), and `flux = a·A⃗`,
+/// the fan from a point of the face. `area = ‖A⃗‖` (rings subtract via their
+/// stored opposite winding; the loop orientation convention points `A⃗`
+/// along the face's outward normal). The surface's origin is never
+/// read: the term is the face's own wherever its record is anchored
+/// (`[tolerance.epsilon]`), and a face whose loops stand off its record
+/// — a face moved onto a record in band of its own — reads the fan its
+/// own boundary spans. Over a closed shell the fans meet at the shared
+/// points, so the sum is the volume they bound, about any point. The
+/// interval lane encloses this same flux about the same anchor
+/// (`topo`'s `props::quad_lane::planar_face_about`: the part along the
+/// normal and a slack for the part across it).
 ///
 /// **Sense-invariant by derivation** (M5 S10). This function takes no
 /// sense at all — not the bit its curved sibling takes — and
 /// deliberately must not: `A⃗` is a boundary integral
 /// in the face's STORED traversal order, and the interior-left rule
 /// already points it along the *outward* normal, whichever side that
-/// is. A planar face's entire flux is `origin·A⃗` (the anchored term
-/// vanishes on the plane), so orientation reaches this computation
-/// exclusively through the winding, never through the surface's chart
-/// normal. `revert` reverses loops and flips `Face::sense` together;
+/// is. `revert` reverses loops and flips `Face::sense` together;
 /// applying the sense here as well would negate the volume twice.
 ///
 /// # Errors
 ///
+/// [`PropsError::DegenerateFace`] where no loop has a point;
 /// [`PropsError::Unimplemented`] on a rational `Nurbs` carrier, which
 /// the certified lane reads instead ([`rational_rim`]); non-rational
 /// spline boundaries integrate exactly through
@@ -849,16 +933,15 @@ impl std::error::Error for PropsError {}
 /// at-rest case is a stage-1-promoted plane keeping its parsed spline
 /// boundary carriers).
 pub fn planar_face<T: SpanLocate>(
-    origin: Point3<T>,
     loops: &[Vec<LoopEdge<T>>],
 ) -> Result<FaceContribution<T>, PropsError> {
+    let anchor = loops_anchor(loops).ok_or(PropsError::DegenerateFace)?;
     let mut va = Vec3::zero();
     for lp in loops {
-        va = va + loop_vector_area(lp, origin)?;
+        va = va + loop_vector_area(lp, anchor.lever)?;
     }
-    let flux = (origin - Point3::origin()).dot(va);
     Ok(FaceContribution {
-        flux,
+        flux: anchor.from(Point3::origin()).dot(va),
         area: va.norm(),
     })
 }
@@ -909,7 +992,7 @@ mod tests {
                 for i in 0..4 {
                     edges.push(line_edge(order[i], order[(i + 1) % 4]));
                 }
-                let c = planar_face(order[0], &[edges]).unwrap();
+                let c = planar_face(&[edges]).unwrap();
                 flux += c.flux;
                 area += c.area;
             }

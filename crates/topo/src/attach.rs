@@ -140,6 +140,134 @@ impl<T: Decide> Body<T> {
         }
     }
 
+    /// [`Body::one_record`]'s re-chart: `token`'s moved faces still on
+    /// one of its other records onto its kept one, in one move, certified
+    /// at the write gate.
+    pub(crate) fn recharted_onto(
+        &mut self,
+        site: crate::policy_lane::KernelSite,
+        token: &crate::one_record::OneRecord,
+        tol: Tol,
+    ) -> Result<(), EulerOpError>
+    where
+        T: crate::props::AtRestPolicy,
+    {
+        let kept = token.kept;
+        let agree = |k: SurfaceKey| {
+            token
+                .others
+                .iter()
+                .find(|&&(o, _)| o == k && o != kept)
+                .map(|&(_, a)| a)
+        };
+        let mut wearers = token
+            .moved
+            .iter()
+            .filter_map(|&f| self.get_face(f).map(|face| (f, face)))
+            .filter_map(|(f, face)| agree(face.surface).map(|a| (f, face.sense == a)));
+        let Some((first, sense)) = wearers.next() else {
+            return Ok(());
+        };
+        let chart = wearers.fold(Rechart::shared(kept, first, sense), |chart, (f, s)| {
+            chart.with(f, s)
+        });
+        let on_kept: std::collections::BTreeSet<FaceKey> =
+            chart.faces.iter().map(|w| w.face).collect();
+        let charts = vec![chart];
+        // Every boundary edge of a moved face is certified on the record
+        // its moved side wears after the move: carried where its
+        // description renames onto it, vouched by its residuals onto a
+        // plane, and otherwise restated where it rests by key
+        // ([`crate::rest_locus`]): in the kept chart between two faces of
+        // the kept record, whatever pair it named, and on the pair beside
+        // another.
+        let mut specs = self.carried_redescriptions(&charts)?;
+        let after = |f: FaceKey| {
+            if on_kept.contains(&f) {
+                Some(kept)
+            } else {
+                self.get_face(f).map(|face| face.surface)
+            }
+        };
+        let names = |spec: &EdgeDescriptionSpec<T>, k: SurfaceKey| match spec {
+            EdgeDescriptionSpec::Chart { surface, .. } => *surface == k,
+            EdgeDescriptionSpec::Intersection { pair, .. }
+            | EdgeDescriptionSpec::TangentIntersection { pair, .. }
+            | EdgeDescriptionSpec::OnPair { pair, .. } => pair.keys().contains(&k),
+            EdgeDescriptionSpec::Scaffold(_) => true,
+        };
+        let kept_is_plane = matches!(self.get_surface(kept), Some(Surface::Plane { .. }));
+        let mut boundary: Vec<EdgeKey> = on_kept
+            .iter()
+            .flat_map(|&f| self.run_edges(&self.proven_face(f).half_edges()))
+            .collect();
+        boundary.sort_unstable();
+        boundary.dedup();
+        for edge in boundary {
+            let [fp, fm] = crate::wedge_reach::edge_faces(self, edge);
+            if fp == fm {
+                continue;
+            }
+            let (Some(sp), Some(sm)) = (after(fp), after(fm)) else {
+                continue;
+            };
+            let data = proven(&self.edges, edge, EntityId::Edge);
+            let Some(curve) = self.edge_curve_linked(edge, data).certified() else {
+                continue;
+            };
+            let carried = specs.iter().find(|(e, _)| *e == edge).map(|(_, spec)| spec);
+            let held = carried.map_or_else(
+                || curve.restated_spec().description,
+                |s| s.description.clone(),
+            );
+            // A moved side the description does not name is vouched by
+            // its residuals onto a plane; onto a curved chart nothing
+            // reads them, so the edge is restated where it rests.
+            let unvouched = |f: FaceKey, k: SurfaceKey| {
+                on_kept.contains(&f) && !names(&held, k) && !kept_is_plane
+            };
+            let collapsed = sp == sm
+                && !matches!(
+                    held,
+                    EdgeDescriptionSpec::Chart { .. } | EdgeDescriptionSpec::Scaffold(_)
+                );
+            if !collapsed && !unvouched(fp, sp) && !unvouched(fm, sm) {
+                continue;
+            }
+            // A description naming a record the move leaves names the kept
+            // one instead, intrinsic forms kept intrinsic; one naming
+            // neither rests where its sides' keys say.
+            let renamed = (!collapsed)
+                .then(|| {
+                    rekeyed(&held, |k| {
+                        if token.others.iter().any(|&(o, _)| o == k) {
+                            kept
+                        } else {
+                            k
+                        }
+                    })
+                })
+                .flatten()
+                .filter(|d| names(d, sp) && names(d, sm));
+            let at_rest = match renamed {
+                Some(description) => EdgeCurveSpec {
+                    description,
+                    ..curve.restated_spec()
+                },
+                None => curve.restated_at(crate::rest_locus([sp, sm])),
+            };
+            specs.retain(|(e, _)| *e != edge);
+            specs.push((edge, at_rest));
+        }
+        self.set_face_surfaces_certifying(
+            crate::policy_lane::Origin::Kernels(site),
+            charts,
+            &specs,
+            tol,
+        )
+        .map(drop)
+    }
+
     /// The door [`Construct::set_face_surface_unvouched_for_tests`](crate::construction::Construct::set_face_surface_unvouched_for_tests) forwards to;
     /// documented there.
     #[cfg(any(test, feature = "test-support", feature = "sweep-testing"))]
@@ -1195,16 +1323,7 @@ impl<T: Decide> Body<T> {
         let sides = crate::readback::edge_sides_of(self, edge, data);
         let (s_plus, s_minus) = sides.surfaces();
         let restated = self.stored_curve(edge)?.restated_spec();
-        let rest = crate::rest_locus(
-            self,
-            [
-                (s_plus, Some(sides.plus.face)),
-                (s_minus, Some(sides.minus.face)),
-            ],
-            &restated.carrier,
-            (restated.param_start, restated.param_end),
-            band,
-        );
+        let rest = crate::rest_locus([s_plus, s_minus]);
         let spec = match (&restated.description, rest) {
             (&EdgeDescriptionSpec::Scaffold(mc), geom_brep::RestLocus::Pair(pair)) => {
                 let description = self
@@ -1725,6 +1844,37 @@ impl<T: Real> Written<T> {
     fn push(&mut self, row: (EdgeKey, Sides, EdgeCurve<T>)) {
         self.at.insert(row.0, self.rows.len());
         self.rows.push(row);
+    }
+}
+
+/// `spec` with each surface key `map`ped, where it names any: a chart's
+/// image is left for the door to re-derive on the new chart.
+fn rekeyed<T: geom_core::Real>(
+    spec: &EdgeDescriptionSpec<T>,
+    map: impl Fn(SurfaceKey) -> SurfaceKey,
+) -> Option<EdgeDescriptionSpec<T>> {
+    let pair = |p: geom_brep::SurfacePair| {
+        let [a, b] = p.keys();
+        geom_brep::SurfacePair::new(map(a), map(b))
+    };
+    match spec {
+        EdgeDescriptionSpec::Intersection { pair: p, selector } => {
+            Some(EdgeDescriptionSpec::Intersection {
+                pair: pair(*p),
+                selector: selector.clone(),
+            })
+        }
+        EdgeDescriptionSpec::TangentIntersection { pair: p, witness } => {
+            Some(EdgeDescriptionSpec::TangentIntersection {
+                pair: pair(*p),
+                witness: *witness,
+            })
+        }
+        EdgeDescriptionSpec::OnPair { pair: p, declared } => Some(EdgeDescriptionSpec::OnPair {
+            pair: pair(*p),
+            declared: *declared,
+        }),
+        EdgeDescriptionSpec::Chart { .. } | EdgeDescriptionSpec::Scaffold(_) => None,
     }
 }
 

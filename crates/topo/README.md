@@ -307,10 +307,11 @@ carrier non-contradiction through the kind ladder, senses aligned as an
 exact bit. Opposed senses contradict it, as aligned senses contradict
 `Rest` at every door. A union merges a continuation its margin decides:
 the merge stage reads the glue's record of the pair and measures
-nothing again (D10), and the merged face keeps the first-written operand's description, which the glue decides
-once per pair (DESIGN.md [coincidence.booleans]): operand A's, where
-A's face plugs a hole of B's as anywhere else, whichever face holds the
-merged region.
+nothing again (D10). The lump keeps the first-written operand's copy of
+the coincident region, A's, where A's face plugs a hole of B's as
+anywhere else; the merged face wears the record the glue's census keeps
+for the pair (`[topo.one-record.kept]`), which the act moves A's copy
+onto where it is B's.
 
 **Seam.** A *seam* is a junction of the result whose material wedge is
 π: two faces on distinct carriers joining G1 along a curve. It is read
@@ -1046,7 +1047,8 @@ reparents only within one shell (`EulerOpError::CrossShell`).
 
 **C4 — A glued pair reads its record.** An operation glues a cross-operand
 face pair at its glue door (`boolean::glue`) on a margin decided Zero
-over both faces, under the class its senses make it (`GlueClass`:
+over its two faces and every face its census moves
+(`[topo.one-record.boolean]`), under the class its senses make it (`GlueClass`:
 `Rest` one carrier opposed, a continuation one carrier aligned), or on
 the witness lane's tangency along a locus (`Tangent`). The declaration
 door records the decision once (`crate::coincidence`), as the glue door
@@ -1054,9 +1056,11 @@ decided it (`boolean::Glued`): a one-carrier pair on the margin it was
 decided one on, a tangency on what the witness lane certified along its
 locus. The pair's class is
 its record (`GlueClass::relation`): every consuming site — the corner
-sites (`recl`, `vtxfac`), the result's merge (`GluedSurfaces`, which
-only the Boolean builds) and a fold step — reads the glued relation
-from it and measures the pair nowhere again (`[coincidence.booleans]`).
+sites (`recl`, `vtxfac`) and a fold step — reads the glued relation
+from it and measures the pair nowhere again (`[coincidence.booleans]`),
+and a one-carrier pair's moved faces are left on one surface record
+before the result's merge (`[topo.one-record]`), which reads them by
+key.
 A corner reads only a glued pair as one surface; an unglued pair that
 reaches its coplanar branch refuses on the corner's own reading: two
 plane faces read parallel at a vertex pair's arm
@@ -1220,8 +1224,10 @@ point tied inside a curved edge read as its faces' tangent cones
 down where it ties at a cusp corner or along a ray
 (`link::second_order`), two sheets on one wedge read as the lens or
 lune their bends make, two planar faces on each other refused as the planar link
-refuses them, and left unread where none of these decides
-(`census::SelfTouch::SecondOrder`: a cone's apex, a horn beside a sheet
+refuses them, a cone's apex read as the nappe of its rulings, and left
+unread where none of these decides
+(`census::SelfTouch::SecondOrder`: a cone's apex that reading does not
+decide, a horn beside a sheet
 along its ray, sheets the bends do not part, a face whose tangent
 reading does not build, or tangent sectors lying on each other that no
 lens or lune reads). Every other use of a face's normal in the coincidence
@@ -1233,7 +1239,7 @@ blow-up `q ↦ p + (q − p)/t` the faces about `p` tend in C¹, as
 decided to a strict sign holds under every small enough perturbation
 of the planes and rays; a reading decided Zero is taken only where the
 faces keep the coincidence themselves (a shared edge, two line edges on
-one line, a line on a cylinder's ruling, a line edge in a planar face's
+one line, two circle edges on one circle, a line on a cylinder's ruling, a line edge in a planar face's
 plane), and every other bound on another sector's plane, inside it or
 on its bound, refuses, as do two whole tangent planes on one plane.
 What is left is a cone in which each two sectors meet in a ray they
@@ -1424,6 +1430,61 @@ it is read (`rest::slit`), as the planar link refuses the same two
 faces: the solid touches itself over an area there, which tier 3′ does
 not read.
 
+Two circle edges leaving the point along one ray, a bound lying on
+another sector's bound, are kept as their faces keep them where their
+curvature vectors read Zero apart one order down at the arm, off the
+sector's plane and square to the ray in it (`second_order::one_circle`,
+`rest::kept_bound`). A point, a tangent and a curvature
+vector fix a circle, and every derivative of a circle's arc-length
+parametrisation is a polynomial in its tangent and its curvature vector,
+so two arcs agreeing in both to the band part along the arm by what those
+zeros leave, scaled by a factor that tends to one as the arm shrinks
+against the radius: the band's coincidence, as two lines on one ray part
+by what their zero leaves. No order of the cut parts two such arcs, whose
+points coincide at every order, so the reading one order down would tie
+them for good. Two arcs of other conics are not kept so: a point, a
+tangent and a curvature vector do not fix an ellipse.
+
+A cone face's corner at its apex has no tangent plane, and needs none: a
+cone is its own tangent cone at its apex, so near the point the face is
+its rulings exactly, at every scale its corner reaches (`link::ApexLobe`,
+`rest::at_apex`). The reading takes a nappe the link holds whole: one
+corner whose loop leaves back along the half-edge it came in by (a spur,
+the whole turn), or two corners on one carrier and of one sense, each
+bounded by the other's two edges, whose rulings are decidedly apart, so
+that each turns under a whole turn and the two together exactly one; and
+every ruling of every corner, at the arm, decidedly on the one nappe,
+ahead of the plane through `p` square to the axis (one in band of that
+plane refuses in band). The census reads bodies that may be
+bad, so a corner with a ruling on each nappe, which no valid body's edges
+make, is read here rather than assumed away. The
+nappe bounds the solid cone `C` of its rulings, convex since its
+half-angle `α` is under a quarter turn; the face's material is `C` (a
+thorn) or what lies round it (a needle of void). At the arm `l` (the
+corners' least reach) the rulings meet the circle about the axis point
+`c = p + a·l·cos α` (`a` the nappe's unit axis) of radius `ρ = l·sin α`,
+whose heights off a plane through `p` of unit normal `m` are exactly
+`m·(c − p) ± ρ|m × a|`. So each other sector's plane is read at `c` with
+`ρ|m × a|` charged (`Reading::charged`): a decided sign puts every ruling
+on that side past the band, and `C` meets the sector's plane only at
+`p`. With every plane so read, `C` meets no other sheet but at `p`; the
+other sheets are their faces' tangent sectors, a strict side holds under
+the blow-up as the first-order reading says, and the nappe is its own
+blow-up. So `C`'s directions lie in one region of the rest of the link,
+which must read one material by itself (`one_material`) and read the
+axis decidedly outside its material for a thorn, inside it for a needle:
+crossing the nappe then moves the winding by one, into the other of the
+rest's two values, as at a thorn. A whole plane about the point (a face
+holding it inside) with rulings decidedly on both sides, read at the two
+rulings farthest either way (real points of the face, read only where
+the spread `ρ|m × a|` is decided, so the direction toward them reads),
+crosses the nappe along the rulings between: a crossing. Left unread: a nappe not
+held whole, a second apex, a horn beside the nappe (its ray may lie in
+`C`, which no region holds), a sector whose plane cuts the nappe and
+whose wedges may pass it by, and an axis read on the wrong side of the
+rest's material. A plane whose side the charge leaves in band, a plane
+tangent to the cone along a ruling among them, refuses in band.
+
 The chord reading is the cross-section's (`FaceSector::chord`). A
 cylinder or cone face along a line edge of it, the edge lying in a
 planar face `F` of its own solid, is cut at `p`, the middle of the cell
@@ -1536,6 +1597,82 @@ either strictly inside the other, no proper edge crossing, and no
 shared material at a boundary touch certify the interiors apart, which
 is a flush row. A meeting is no row, and a reading it cannot take is the
 pair's `CensusUndecidable`.
+
+## One record per coincidence verdict `[topo.one-record]`
+
+A verdict that faces lie on one carrier ends with them on one surface
+record (DESIGN `[coincidence.door]`). A verdict decided from values
+reaches only the faces it was read over; a structural one is one record
+already and reads no extent.
+
+- **`[topo.one-record.token]` The deciding reading mints a token**
+  (`one_record::OneRecord`). It holds the record kept, the record left,
+  how their charts face, and the moved set; the reading records its row. The moved set is each decided face that wears
+  the other record, every fragment of it, and every face joined to one
+  of these by an edge across which the two wear one record, to closure
+  (`one_record::moved_closure`). The closure starts from the faces that
+  move, stays on their record, and never follows an edge both of whose
+  sides are one face (a seam, a strut). The verdict is read once, over
+  the decided faces and every moved face.
+- **`[topo.one-record.kept]` The kept record** is the one that alone is
+  also worn by a face outside the faces the verdicts leave on one
+  record — for the Boolean, the faces of the pairs its glue leaves on
+  one record after the reading over what each moves; for a merge, the
+  run; for a half revolve, the two caps. Where both or neither is, it is
+  the first-written side's. One rule computes it for every act
+  (`one_record::kept_of`), a census of keys that reads no value. The
+  copies of a cell the Boolean's result holds where two operands' copies
+  meet — the lump's region, a seam's edges, a shared point — are the
+  first-written side's (`boolean::glue::FIRST_WRITTEN`), and a kept face
+  of the other side's record is moved onto it by the act.
+- **`[topo.one-record.act]` One act consumes a token**
+  (`Body::one_record`). It re-points exactly the moved faces that still
+  wear the other record onto the kept one, each sense restated so its
+  material side is unchanged, restates the edges the move strands (an
+  edge left between two faces of the kept record rests in its chart,
+  whatever pair it named), and certifies every moved boundary at the
+  ordinary write gate. No caller
+  hands it a record. A face the token does not move keeps its record.
+  Where the verdict decided Zero over every face it moves, a boundary
+  that does not certify is a kernel defect
+  (`BooleanError::OneRecordUncertified` at the Boolean).
+- **`[topo.one-record.boolean]` The Boolean.** Its glue door reads each
+  pair over its two faces first; those it decides one carrier are the
+  decided faces its census starts from (`boolean::glue::GlueCensus`):
+  the kept side and the moved side's faces, in the operands' keys. It
+  then reads each such pair again over the two decided faces and every
+  moved face (`carrier_pair::glue_extent`). Where that reading is in
+  band or Distinct the pair is not glued, and the stage that meets it
+  refuses it with the coincidence decision's own lever; the census and
+  the reading are taken again over the pairs that remain until none
+  drops. The output stage lowers each token's moved faces to the
+  result's faces through the Boolean's face lineage
+  (`ops::OneRecordTokens::of_result`: the join's divisions read through
+  the faces it merged back), never through records, and acts on each in
+  glue order. A result face the lowering does not reach but which an
+  edge joins on the other record to one it does is a kernel defect,
+  refused (`BooleanError::JoinDesync`). A face an earlier token moved
+  keeps the record it was left on, so two verdicts never compose into
+  one neither decided.
+- **`[topo.one-record.merge]` The merge is the one home.** A run the
+  merge's margins decide one carrier across distinct records is the act
+  followed by the surgery (`Body::one_record_of_run`, keeping the record
+  `kept_of` keeps, else its arena-first member's); a
+  curved run whose surgery the inventory stops is the act alone, left
+  unmerged on one record. A half revolve's two caps across its axis edge
+  are the act alone on the verdict the revolve takes there: topo's
+  dihedral reading across the edge (`Body::dihedral_across`) decides two
+  planes' join smooth and hands back the verdict (`SmoothAcross`), which
+  only that reading constructs, and the act consumes it and records the
+  row (`Body::one_record_across`). No door re-points faces between
+  records from an edge and a face alone.
+  The split's flush section, the chord join and import adoption keep two
+  records of one carrier and are filed.
+- **`[topo.one-record.rest]` At rest no edge's locus reads values.**
+  Where an edge rests is read off its sides by key (`rest_locus`): one
+  record is its chart, two records are their pair. Two distinct records at rest
+  are two surfaces, and a chart description names a record both its
+  faces wear.
 
 ## Related pages
 

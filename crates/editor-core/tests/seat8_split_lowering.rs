@@ -431,13 +431,31 @@ fn a_split_document_read_by_port_round_trips_byte_identical() {
 /// edge's `Debug`, whose `max_residual` is now the source's. One value at
 /// every ε row, and no point moved: `m10_p_fence`'s geometry and
 /// evaluation fences held at 1e-9, 1e-6 and 1e-12.
+///
+/// RE-BLESSED, `part_select` and `kitchen_sink`, for a boolean that
+/// leaves each glued one-carrier pair's faces on one surface record
+/// (DESIGN `[coincidence.door]`): both documents union, and the moved
+/// faces' surface keys and senses feed the digest. The same value at all
+/// three ε rows; `m10_p_fence`'s f64 row and its ids-masked geometry row
+/// held, so no point moved.
+///
+/// RE-BLESSED, `kitchen_sink`, for a verdict whose census is taken over the
+/// faces it leaves on one record and whose moved set is its operand
+/// closure lowered: with every arena key masked (curve, surface, face,
+/// edge and point), each document's dump is main's line for line — the
+/// same surfaces, senses, points, curves and descriptions — and only the
+/// keys the arenas hand out moved, which the digest feeds.
+///
+/// `kitchen_sink` carries both re-blessings above, a placed copy's carried
+/// certificates and the one-record glue, each on its own branch; merged,
+/// it reads one value, measured on the merge.
 #[test]
 fn the_split_documents_evaluate_to_their_committed_digests() {
     let mut moved: Vec<String> = Vec::new();
     for (name, want) in [
         ("cut_cylinder", 0x2e84_77bc_7b57_1d78_u64),
-        ("part_select", 0x8429_e064_94cc_634d),
-        ("kitchen_sink", 0x78c9_139b_a06d_2ba2),
+        ("part_select", 0x125f_3f25_817d_7cf5),
+        ("kitchen_sink", 0x9e35_7534_965a_74a4),
     ] {
         assert!(SPLIT_DOCUMENTS.contains(&name));
         let doc = corpus::documents()

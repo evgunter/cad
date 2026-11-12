@@ -2,11 +2,12 @@
 id: a-planar-face-sums-its-area-about-a-far-carrier-origin
 kind: issue
 title: A planar face's closed form sums its vector area about the carrier plane's stored origin, so a small face far from that origin loses its area to cancellation
-status: open
+status: closed
 opened: 2026-10-03
 priority: P1
 cost: M
 refs: [3977]
+closed: 2026-11-11
 ---
 
 
@@ -98,3 +99,20 @@ not landed there, reads the same rows to 2.6e-14 (box, 1e4, turned),
 its reading through a point of the body to 5e-12. It was left out
 because it moves the premises of `tier3_tests::far_anchored_slab`'s rows,
 which need a new witness of a sum whose rounding exceeds the volume.
+
+## Fixed (2026-11-11)
+
+Landed with ONEDOOR's face-anchored measure (PR 6505, fix pass 2): the
+cure above, at every scalar. `geom_brep::props::planar_face` sums each
+loop's vector area about the first point of the face's loops and takes
+its boundary's flux about that point; the surface's origin is never
+read (`crates/geom-brep/README.md` `[geom-brep.face-anchored]`). A
+cylinder's origin is re-anchored at the face before its closed form,
+and `topo`'s `props::rounding_bound` levers from the same anchor. The
+far-anchored slab now reads its exact `+1e-13 m³`
+(`tier3_tests::a_sign_is_read_off_the_exact_volume_not_its_rounding`
+asserts it to 1e-3 relative), and the slab rows' premises moved with
+it; the guard's missing witness is filed as
+`work/restfront/the-lane-free-sign-guard-has-no-witness-of-a-misrounded-sum.md`.
+`contact9_side_codes::RESOLVED_VOLUME` is left where it is, a
+conservative floor; tightening it is that suite's call.

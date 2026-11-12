@@ -2,7 +2,8 @@
 id: a-carried-cylinder-pair-marches-for-minutes-before-the-volume-lane-refuses
 kind: issue
 title: A skew or unequal-radius cylinder boolean takes 5–12 s per operation in release, now that it builds through the volume lane
-status: open
+status: parked
+blocked_on: [check-4s-projected-door-reads-every-span-of-a-chord-in-eight-parts, the-chord-joins-island-winding-crosses-every-span-of-a-chord]
 opened: 2026-11-02
 priority: P1
 cost: M
@@ -93,3 +94,6 @@ process, `cylinder_pair_cost_probe`: the four ops take 9.9–11.5 s (from
 part: `check-4s-projected-door-reads-every-span-of-a-chord-in-eight-parts`
 (PCERT, P2), beside ONEHOME's island winding
 (`the-chord-joins-island-winding-crosses-every-span-of-a-chord`, P2).
+
+## Parked (2026-11-11)
+SPIRICARM's share is gone (PR 6805), and PCERT's chord hulls have landed. What remains of the 9.9–11.5 s is check 4's projected door (PCERT) and the island winding (ONEHOME), so the row is parked on both. Per the blocker rule (`work/README.md`, Priority), both are raised to P1, because fixing them as described is what unblocks this row. Reopen it and re-measure once both close.

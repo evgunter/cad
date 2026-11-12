@@ -41,7 +41,7 @@ train held open across three implementations is exactly the
 dispatch-time-seam hazard the v7/v8 double-claim taught. Bumps are
 CHEAP pre-release. So: each unit claims its version at dispatch per
 the standing discipline (claim past open holders; re-read main's
-constant by eye at every re-merge; prose tripwire in MODEL-AB-LOG).
+constant by eye at every re-merge).
 Chamfer first (fully specified by #918), tube second (clean 1:1),
 shell last (cross-program dependency).
 

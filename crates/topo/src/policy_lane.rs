@@ -77,6 +77,9 @@ pub(crate) enum KernelSite {
     SectionRechart,
     /// A shell's re-chart of a promoted rim face, its edges restated.
     RimRechart,
+    /// The re-chart that leaves faces decided one carrier on one record
+    /// (`Body::one_record`), its stranded edges restated.
+    OneRecord,
     /// [`crate::Body::describe_at_rest`](crate::construction::Construct::describe_at_rest)'s restatement.
     AtRest,
     /// The restatement of a wrap edge whose halves an operation parted.
@@ -99,6 +102,7 @@ impl core::fmt::Display for KernelSite {
             Self::SectionSmooth => "a section boundary's smooth join",
             Self::SectionRechart => "a section re-chart",
             Self::RimRechart => "a rim re-chart",
+            Self::OneRecord => "a re-chart onto one surface record",
             Self::AtRest => "describe_at_rest",
             Self::PartedWrap => "a parted wrap edge",
             Self::StoredRestatement => "restate_stored_edge",

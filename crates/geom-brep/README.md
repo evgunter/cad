@@ -1552,6 +1552,68 @@ least-squares solvers with fixed elimination order
 (`geom-core/src/linalg`). (9) The curvo audit is `docs/CURVO-AUDIT.md`
 (it has no SSI); the stance is DESIGN.md Q5.
 
+### A face's measure, read at the face `[geom-brep.face-anchored]`
+
+A face's measure reads its surface over the face alone
+(DESIGN `[tolerance.epsilon]`): no datum its record's kind forgets
+enters a face's term at a lever beyond the face.
+
+- **`[geom-brep.face-anchored.anchor]` One anchor.**
+  `props::face_anchor` reads, from a face's vertices alone, where its
+  measure is read from: `at`, the mean of the vertices, and `lever`,
+  the least corner of their box (each coordinate one of theirs). No loop order, traversal start or carrier
+  direction moves either, so a face reads the same however an
+  operation wrote its loops, and both lie within the vertices' box,
+  so every term's lever is the face's own extent. The mean is a convex
+  combination of boundary points, so it lies on the face's plane to
+  within their stand-off; the corner is read with no arithmetic, so a
+  face of grid points reads its vector area exactly and a face far from
+  the origin rounds no coordinate taking it. `at` is kept as the
+  corner plus an offset, so a reading levered from another point takes
+  `(lever − from) + offset`, never a rounded absolute coordinate. Every planar reader takes it:
+  `props::planar_face`, and `topo`'s `props::face_anchored`,
+  `props::quad_lane::planar_face_about`, `plane_cap`,
+  `polygon_face_about` and the carried faces' vector area.
+- **`[geom-brep.face-anchored.datum]` One re-anchoring.**
+  `extent::anchored_at` slides a datum along the orbit its kind's
+  symmetry forgets (`Forgets`) to the point of it nearest a given
+  point: a plane's origin to that point's foot on the plane, a
+  cylinder's axis origin to its foot on the axis. `surface_anchored_at`
+  applies it to a surface. The carrier is unmoved; only where a reading
+  takes the datum from moves. Intrinsic data stay: a sphere's or a
+  torus's centre and a cone's apex. The coincidence verdict re-anchors
+  a cylinder pair at the foot of its extent's centre (`topo`'s
+  `carrier_eq::at_consumed_extent`), and a face's measure at its
+  anchor's `at` (`topo`'s `props::face_anchored`), at every scalar. A
+  cylinder face's closed form takes its axis origin as the point its
+  vector area is summed about and its flux levered from, so an origin
+  standing far along the axis rounds the term at that distance
+  squared.
+- **`[geom-brep.face-anchored.plane]` A plane's term is its boundary's
+  flux about a point of the face.** `props::planar_face` sums the
+  vector area `A⃗` about the anchor's `lever` and takes `at·A⃗`: the fan
+  the face's own boundary spans from a point of the face. The
+  surface's origin is never read. Over a closed shell the fans meet at
+  their shared points, so the sum is the volume they bound about any
+  reference. The interval lane encloses the same flux about the same
+  anchor (`topo`'s `props::quad_lane::planar_face_about`: its part
+  along the normal and a slack for the part across it), so the two
+  scalars read one flux. A face whose loops stand off its record — a
+  face moved onto a record in band of its own — reads the fan of its
+  own boundary, whatever the record's origin, so a union whose glue
+  moves a face onto a record anchored far off measures its operands'
+  sum to within the band times the face's area.
+- **`[geom-brep.face-anchored.bound]`** `topo`'s `props::rounding_bound`
+  levers each face's terms from the same re-anchored datum.
+
+The guards are `topo`'s
+`sliding_every_record_along_its_symmetry_moves_no_reading` (every plane
+record turned off its face's loops about a corner, which is not the
+anchor, then every record slid far along its own symmetry, a tilted
+cylinder's along its axis, changes no reading beyond rounding) and
+`sweep`'s ring-on-cone rows (`one_body_reads_alike_in_both_orders`: one
+body's volume enclosure is as wide in both operand orders).
+
 ## Offsets and shell (OFFSET-DESIGN O1–O6)
 
 The *offset* of a surface `S` at signed distance `d` is the normal

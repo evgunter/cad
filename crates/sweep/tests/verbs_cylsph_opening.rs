@@ -192,8 +192,13 @@ fn coaxial_poses_build_every_op_at_their_volumes() {
 /// (`crate::cylinder_sphere_frame::far_union`).
 #[test]
 fn a_transversal_pose_builds_in_both_poses() {
-    let c = cyl(1.0, -2.0, 2.0);
-    let s = ball_at(1.5, Vec3::new(0.6, 0.0, 0.0));
+    use core::f64::consts::PI;
+    let (r, z0, z1, big) = (1.0, -2.0, 2.0, 1.5);
+    let c = cyl(r, z0, z1);
+    let s = ball_at(big, Vec3::new(0.6, 0.0, 0.0));
+    // The operands' area: the cylinder's wall and caps, and the ball's
+    // sphere.
+    let area = 2.0 * PI * r * (z1 - z0) + 2.0 * PI * r * r + 4.0 * PI * big * big;
     for (label, c, s) in [
         ("direct", c.clone(), s.clone()),
         ("re-posed twin", posed(&c), posed(&s)),
@@ -208,13 +213,20 @@ fn a_transversal_pose_builds_in_both_poses() {
             got,
             transversal_union_volume(),
             crate::cylinder_sphere_frame::Ends::Builds,
-            crate::common::differential::VOLUME_PAD_BUDGET,
-            None,
+            crate::cylinder_sphere_frame::pad_ceiling(area),
+            &TRANSVERSAL_PAD_GUARDS,
         ) {
             panic!("{off}");
         }
     }
 }
+
+/// Regression guards on the transversal union's volume half-width,
+/// `(ε, width)`, not soundness bounds: four times the widest measured
+/// over both poses (debug, 2026-11-11), rounded up: `5.354e-6` at ε
+/// 1e-6, `7.907e-9` at 1e-9 and `4.758e-11` at 1e-12. Any other ε reads
+/// the resolution ceiling alone.
+const TRANSVERSAL_PAD_GUARDS: [(f64, f64); 3] = [(1e-6, 2.2e-5), (1e-9, 3.2e-8), (1e-12, 2.0e-10)];
 
 /// The transversal pose's union, independently of the kernel: the
 /// cylinder `r = 1`, `z ∈ [−2, 2]`, and the ball of radius `1.5` about

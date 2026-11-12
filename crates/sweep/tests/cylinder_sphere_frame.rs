@@ -15,7 +15,7 @@
 //!   the tilted drum cut's lower part against a ball straddling the rim.
 //!
 //! Each run builds a body at its volume (tiers 2 and 3′, the
-//! certificate, the volume; `common::differential::judged_within`) or
+//! certificate, the volume; [`at_its_volume`]) or
 //! refuses at its pinned door past the join ([`Door`]): the join cuts
 //! both sides' chords from the section's carried loop, and the chorded
 //! faces measure through the rotational lane, the sphere's included. Two chords meeting end to end on the loop both crease
@@ -352,16 +352,24 @@ pub(crate) enum Ends {
 /// refuses `Containment(PartialSphereFace)` and nothing else
 /// ([`far_union`]). A refusal is the piece sort's
 /// ([`Door::Pieces`]) where `ends` says so, and nothing else is.
-/// `guard`, where given, is a regression guard on the enclosure's
-/// half-width, not a soundness bound: four times the widest measured at
-/// ε `1e-9`. The run's line is printed.
+/// `guards` are regression guards on the enclosure's half-width, not
+/// soundness bounds, each `(ε, width)` read only at that ε: a run at an
+/// ε with no measured width is held to `ceiling` alone. A run that
+/// stopped short of the resolution is held to `ceiling` as well, on
+/// purpose: the ceiling's derivation ([`pad_ceiling`]) covers a met
+/// run, and a stopped-short one under it still pins its volume as
+/// tightly. The run's line, its stop included, is printed.
+///
+/// Not `common::differential::judged_at_resolution`: its verdict reads
+/// a body whose far union refuses at the chorded sphere face as `BAD`,
+/// and every body here does (`Operand::AtTheSphere`).
 pub(crate) fn at_its_volume(
     label: &str,
     got: Result<topo::BooleanResult<f64>, BooleanError>,
     want: f64,
     ends: Ends,
     ceiling: f64,
-    guard: Option<f64>,
+    guards: &[(f64, f64)],
 ) -> Option<String> {
     use crate::common::differential::VOLUME_CLAIM;
     let tol = Tol::witness();
@@ -385,14 +393,16 @@ pub(crate) fn at_its_volume(
     let operand = far_union(&body.body);
     let measured =
         topo::mass_properties(&body.body, tol, topo::test_support::pinned_resolution(tol))
-            .map(|m| (m.enclosure.volume, m.enclosure.volume_pad));
+            .map(|m| (m.enclosure.volume, m.enclosure.volume_pad, m.stop));
     println!(
         "{label}: t2={t2} t3p={t3} cert={cert} operand={operand:?} volume={measured:?} want={want}"
     );
-    let Ok((v, pad)) = measured else {
+    let Ok((v, pad, _stop)) = measured else {
         return Some(format!("{label}: unmeasured {measured:?}"));
     };
-    let guarded = guard.is_none_or(|g| tol.get().eps != 1e-9 || pad <= g);
+    let eps = tol.get().eps;
+    let guard = guards.iter().find(|&&(at, _)| at == eps).map(|&(_, g)| g);
+    let guarded = guard.is_none_or(|g| pad <= g);
     let held = t2
         && t3
         && cert
@@ -436,6 +446,24 @@ pub(crate) fn far_union(body: &topo::AtRestBody<f64>) -> Operand {
     }
 }
 
+/// **The widest volume half-width a cylinder × sphere run accepts**, on
+/// operands of surface area at most `area` (m²): the pinned
+/// resolution's own ceiling on that area
+/// ([`resolution_pad`](crate::common::differential::resolution_pad)),
+/// never below [`VOLUME_PAD_BUDGET`](crate::common::differential::VOLUME_PAD_BUDGET).
+///
+/// It scales with ε because the measurement's resolution does: a run
+/// is measured at the pinned resolution, `1024·ε` of mean boundary
+/// displacement, and each face's round is accepted once its flux width
+/// meets `3·res·area_f`, so a run that meets it has a volume half-width
+/// of at most `res·area/2`. A result's boundary lies on its operands',
+/// so their area bounds its. Sharpness is each row's measured guard
+/// ([`at_its_volume`]'s `guards`), not this ceiling.
+pub(crate) fn pad_ceiling(area: f64) -> f64 {
+    use crate::common::differential::{VOLUME_PAD_BUDGET, resolution_pad};
+    resolution_pad(Tol::witness(), area).max(VOLUME_PAD_BUDGET)
+}
+
 /// The widest volume half-width measured on each pose at ε `1e-9`,
 /// debug, over its runs that build: the rim poses accept a round only
 /// just inside the pinned resolution, the others far inside it.
@@ -449,14 +477,12 @@ const MEASURED_PAD: [f64; 9] = [
 /// on the operands' area and guarded at four times the pose's
 /// [`MEASURED_PAD`].
 fn builds_at_its_volume_or_refuses_at_its_door(index: usize) {
-    use crate::common::differential::{VOLUME_PAD_BUDGET, resolution_pad};
-    let tol = Tol::witness();
     let pose = &poses()[index];
     let (a, b) = pose.operands();
     let (va, vb, vi) = pose.volumes();
     let drum_area = 2.0 * PI * R * (pose.drum.z1 - pose.drum.z0) + 2.0 * PI * R * R / TILT.cos();
     let area = drum_area + 4.0 * PI * pose.big.powi(2);
-    let ceiling = resolution_pad(tol, area).max(VOLUME_PAD_BUDGET);
+    let ceiling = pad_ceiling(area);
     let two_loops = pose.label.starts_with("two loops");
     let mut off = Vec::new();
     for (op_label, op, swapped, want) in runs(va, vb, vi) {
@@ -473,7 +499,7 @@ fn builds_at_its_volume_or_refuses_at_its_door(index: usize) {
             want,
             ends,
             ceiling,
-            Some(4.0 * MEASURED_PAD[index]),
+            &[(1e-9, 4.0 * MEASURED_PAD[index])],
         ));
     }
     assert!(off.is_empty(), "{off:#?}");
