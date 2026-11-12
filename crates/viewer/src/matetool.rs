@@ -14,6 +14,19 @@
 //! no mate and every slide and spin at zero, and the editor opens on it
 //! ([`MateTool::placed`]). Every mate is then added in the editor.
 //!
+//! # The target
+//!
+//! The draft's first row is the placement's target, "into: <space>"
+//! ([`MateTool::target`]). A placement's target is its own property and
+//! no mate changes it: re-seating the row ([`MateTool::set_target`], a
+//! body picked after [`MateTool::pick_target`], the world, a new space,
+//! or back where it is) is the one edit that changes it, a live change
+//! like any other. A target change keeps every value's number, now on the
+//! new target's axes, and every mate as written: a live row whose `to`
+//! reads another space than the target ([`MateTool::off_target`]) holds
+//! the draft at the door, said on its row, until it is re-picked, struck
+//! ([`MateTool::strike_reading`]), or the target is set to its space.
+//!
 //! # Live commits
 //!
 //! Each change to the draft — a pick seated, a kind or a sense chosen, a
@@ -110,6 +123,7 @@ use pncad::select::{EntityKind, Resolution};
 use crate::pickindex::{PickKinds, PickedKind};
 use crate::session::select::resolves;
 use crate::session::{EdgeSelection, FaceSelection, Refusal, SessionOp, VertexSelection};
+use crate::session::{PlaceTarget, PlacementBase};
 use crate::tree::{DrawnBody, HeldPick, PickedEntity};
 use crate::vocab::partial_mirror;
 
@@ -662,6 +676,20 @@ impl MateRow {
         self.loaded.map(|loaded| loaded.id)
     }
 
+    /// **The space the row's `to` reads**: its side as written, or the
+    /// body its first held pick reads; `None` while no seat is held.
+    #[must_use]
+    pub fn to_space(&self, doc: &Doc<ProfileProgram>, ev: &Evaluation<f64>) -> Option<VarId> {
+        match &self.to.written {
+            Some(written) => doc.operand_space(written),
+            None => {
+                let pick = self.to.picks().next()?;
+                let (_, read) = to_read(doc, Some(ev), pick.pick())?;
+                doc.operand_space(&read)
+            }
+        }
+    }
+
     fn side_mut(&mut self, side: MateSide) -> &mut MateSideDraft {
         match side {
             MateSide::On => &mut self.on,
@@ -684,10 +712,9 @@ impl MateRow {
 pub struct PlaceDoor {
     /// The placement.
     pub placement: RecipeNodeId,
-    /// Its bundle as authored when the draft was loaded
-    /// ([`crate::session::held_bundle`]) — what tells the editor the
-    /// document has moved under it.
-    pub base: Vec<Constraint<Formula>>,
+    /// Its target and bundle as authored when the draft was loaded —
+    /// what tells the editor the document has moved under it.
+    pub base: PlacementBase,
 }
 
 /// **A value row**: a freedom the live mates leave, its number, and
@@ -742,7 +769,12 @@ struct PlaceDraft {
     loaded_rows: Vec<MateRow>,
     typed: Vec<(Coord, Formula)>,
     active: usize,
-    into_target_space: bool,
+    /// The space the copy is placed into: the loaded target until the
+    /// first row is re-seated.
+    target: PlaceTarget,
+    /// The rows a target change of its own set aside
+    /// ([`MateTool::into_space`]), made again once it lands.
+    held_back: Option<Change>,
     offer: Offer,
 }
 
@@ -769,8 +801,15 @@ enum Change {
     ChooseKind(usize, VarKind),
     Sense(usize, bool),
     Strike(usize, bool),
+    StrikeRows(Vec<usize>),
     Type(Coord, Formula),
-    IntoTargetSpace(bool),
+    Target(PlaceTarget),
+    /// The draft's rows, numbers and active row, put back whole.
+    Rows {
+        rows: Vec<MateRow>,
+        typed: Vec<(Coord, Formula)>,
+        active: usize,
+    },
 }
 
 /// **Where the draft stands with the document** — the live editors' one
@@ -783,11 +822,14 @@ type Offer = crate::offer::Offer<Held, Change, ()>;
 #[derive(Debug, Clone, PartialEq)]
 pub struct MateTool {
     draft: Option<PlaceDraft>,
-    /// The body a pick asked to place, until the Place is taken
-    /// ([`Self::take_place`]).
-    placing: Option<Operand>,
+    /// The body a pick asked to place and the space it stands in, until
+    /// the Place is taken ([`Self::take_place`]).
+    placing: Option<(Operand, VarId)>,
     /// The kind a fresh row opens with.
     kind: VarKind,
+    /// Whether the next pick names the target's space rather than
+    /// seating a mate ([`Self::pick_target`]).
+    picking_target: bool,
 }
 
 impl Default for MateTool {
@@ -1134,35 +1176,35 @@ pub struct MateProposal {
     /// **The constants the bundle drops**: numbers on freedoms the live
     /// mates now fix, said once, quietly.
     pub retired: Vec<ValueRow>,
+    /// The target the copy is placed into.
+    pub target: PlaceTarget,
     /// The bundle written: the mates, then the values.
     pub bundle: Vec<Constraint<Formula>>,
 }
 
 impl MateProposal {
-    /// **The one committed action**: the bundle written whole
-    /// ([`SessionOp::SetBundle`]). A mate whose `to` reads outside the
-    /// placement's target space is refused there, naming both spaces
-    /// ([`Self::op_into_target_space`] moves it).
+    /// **The one committed action**: the target and the bundle written
+    /// whole ([`SessionOp::SetBundle`]). A mate whose `to` reads outside
+    /// the target is refused there, naming both spaces.
     #[must_use]
     pub fn op(&self) -> SessionOp {
-        self.committed(false)
-    }
-
-    /// [`Self::op`], the copy moved by name into the space its first
-    /// mate's `to` reads — the chrome's explicit "move the copy" choice,
-    /// never a side effect of a mate.
-    #[must_use]
-    pub fn op_into_target_space(&self) -> SessionOp {
-        self.committed(true)
-    }
-
-    fn committed(&self, into_target_space: bool) -> SessionOp {
         SessionOp::SetBundle {
             placement: self.door.placement,
             base: self.door.base.clone(),
+            target: self.target.clone(),
             constraints: self.bundle.clone(),
-            into_target_space,
         }
+    }
+}
+
+/// **A target as the editor's first row says it**: the space by
+/// [`Doc::spoken_space`], or "a new space".
+#[must_use]
+pub fn said_target(doc: &Doc<ProfileProgram>, target: &PlaceTarget) -> String {
+    match (target, MateTool::target_space(doc, target)) {
+        (PlaceTarget::NewSpace, _) => "a new space".to_owned(),
+        (_, Some(space)) => doc.spoken_space(space).to_string(),
+        (PlaceTarget::Space(_), None) => "a space the document does not hold".to_owned(),
     }
 }
 
@@ -1179,8 +1221,9 @@ pub(crate) fn plane_of(face: Operand) -> Operand {
 enum Opening {
     /// The placement whose bundle the editor writes.
     Edit(RecipeNodeId),
-    /// The body a Place inserts a placement of.
-    Place(Operand),
+    /// The body a Place inserts a placement of, and the space it stands
+    /// in.
+    Place(Operand, VarId),
 }
 
 /// Who asks which door a pick opens.
@@ -1259,12 +1302,22 @@ fn door_on(
     let (at, port) = crate::world::seat_read(doc, node, body);
     let read = crate::seats::Output::named(port).read(at);
     let read = crate::session::as_body(doc, read);
-    if gated && !crate::session::admits_read(doc, &read, crate::session::NodeKindWanted::Body) {
-        return refused(MateToolEvent::NotPlaceable {
+    let space = doc.operand_space(&read);
+    match space {
+        Some(space)
+            if !gated
+                || crate::session::admits_read(
+                    doc,
+                    &read,
+                    crate::session::NodeKindWanted::Body,
+                ) =>
+        {
+            Ok(Opening::Place(read, space))
+        }
+        _ => refused(MateToolEvent::NotPlaceable {
             node: doc.spoken(node),
-        });
+        }),
     }
-    Ok(Opening::Place(read))
 }
 
 /// [`door_on`] of an entity pick.
@@ -1581,6 +1634,7 @@ impl MateTool {
             draft: None,
             placing: None,
             kind: VarKind::Plane,
+            picking_target: false,
         }
     }
 
@@ -1602,23 +1656,26 @@ impl MateTool {
     /// The editor on `placement`, a node [`Self::edit`] has checked is
     /// one.
     fn loaded(doc: &Doc<ProfileProgram>, placement: RecipeNodeId) -> Self {
-        let base = crate::session::held_bundle(doc, placement);
+        let Some(base) = crate::session::held_placement(doc, placement) else {
+            unreachable!("`Self::edit` checked the node is a placement")
+        };
         let rows: Vec<MateRow> = base
+            .constraints
             .iter()
             .filter_map(|c| c.mate().map(|m| MateRow::written(doc, Some(c.id), m)))
             .collect();
         Self {
             draft: Some(PlaceDraft {
+                target: PlaceTarget::Space(base.target.clone()),
                 door: PlaceDoor { placement, base },
                 loaded_rows: rows.clone(),
                 rows,
                 typed: Vec::new(),
                 active: 0,
-                into_target_space: false,
+                held_back: None,
                 offer: Offer::Quiet,
             }),
-            placing: None,
-            kind: VarKind::Plane,
+            ..Self::new()
         }
     }
 
@@ -1627,8 +1684,8 @@ impl MateTool {
     fn opened(doc: &Doc<ProfileProgram>, opening: Opening) -> Self {
         match opening {
             Opening::Edit(placement) => Self::loaded(doc, placement),
-            Opening::Place(body) => Self {
-                placing: Some(body),
+            Opening::Place(body, space) => Self {
+                placing: Some((body, space)),
                 ..Self::new()
             },
         }
@@ -1668,10 +1725,13 @@ impl MateTool {
     }
 
     /// **The Place a pick asked for**, taken: one placement of the body
-    /// where it stands ([`SessionOp::Place`]). The editor opens on the
-    /// placement it makes ([`Self::placed`]).
+    /// into the space it stands in ([`SessionOp::Place`]). The editor
+    /// opens on the placement it makes ([`Self::placed`]).
     pub fn take_place(&mut self) -> Option<SessionOp> {
-        self.placing.take().map(|body| SessionOp::Place { body })
+        self.placing.take().map(|(body, space)| SessionOp::Place {
+            body,
+            target: Operand::Var(space),
+        })
     }
 
     /// **A Place landed**: the editor opens on `placement`, the
@@ -1774,19 +1834,112 @@ impl MateTool {
         self.draft.as_ref().map_or(&[], |draft| &draft.typed)
     }
 
-    /// Whether the bundle is written with the copy moved into its first
-    /// mate's `to` space.
+    /// **The draft's target**: the space the copy is placed into, the
+    /// editor's first row.
     #[must_use]
-    pub fn into_target_space(&self) -> bool {
-        self.draft
-            .as_ref()
-            .is_some_and(|draft| draft.into_target_space)
+    pub fn target(&self) -> Option<&PlaceTarget> {
+        self.draft.as_ref().map(|draft| &draft.target)
     }
 
-    /// Set whether the bundle is written with the copy moved into its
-    /// first mate's `to` space.
-    pub fn set_into_target_space(&mut self, into: bool) {
-        self.make(None, Change::IntoTargetSpace(into));
+    /// **Re-seat the first row**: the copy placed into `target`, one
+    /// change offered as every other is. Each value keeps its number and
+    /// each mate is kept as written.
+    pub fn set_target(&mut self, target: PlaceTarget) {
+        self.picking_target = false;
+        self.make(None, Change::Target(target));
+    }
+
+    /// **"Into <space>"**, offered beside a row whose `to` reads `space`:
+    /// a target change of its own. The draft's other changes are set
+    /// aside while the target alone is offered, and made again once it
+    /// lands, so the target and the held mate are two steps; where the
+    /// target alone does not pass, they are put back at once and the
+    /// whole draft is held over the new target.
+    pub fn into_space(&mut self, space: VarId) {
+        let target = PlaceTarget::space(space);
+        let Some(draft) = self.draft.as_mut() else {
+            return;
+        };
+        let aside = draft.offer.landing().is_none()
+            && (draft.rows != draft.loaded_rows || !draft.typed.is_empty());
+        if aside && draft.target != target {
+            draft.held_back = Some(Change::Rows {
+                rows: core::mem::replace(&mut draft.rows, draft.loaded_rows.clone()),
+                typed: core::mem::take(&mut draft.typed),
+                active: draft.active,
+            });
+            draft.active = 0;
+        }
+        self.set_target(target);
+    }
+
+    /// **The next pick names the target**: the space of the body it lands
+    /// on, rather than a mate's seat ([`Self::pick`]).
+    pub fn pick_target(&mut self) {
+        self.picking_target = self.draft.is_some();
+    }
+
+    /// Whether the next pick names the target ([`Self::pick_target`]).
+    #[must_use]
+    pub fn picking_target(&self) -> bool {
+        self.picking_target
+    }
+
+    /// **The space `target` names** in `doc`: `None` for a new space,
+    /// which no read is in yet.
+    #[must_use]
+    pub fn target_space(doc: &Doc<ProfileProgram>, target: &PlaceTarget) -> Option<VarId> {
+        match target {
+            PlaceTarget::Space(Operand::Var(space)) => Some(*space),
+            PlaceTarget::Space(Operand::Name(name)) => doc.var_named(name.as_str()),
+            PlaceTarget::Space(_) | PlaceTarget::NewSpace => None,
+        }
+    }
+
+    /// **The live rows whose `to` reads another space than the draft's
+    /// target**, each with that space, in row order: a mate is a
+    /// constraint of one placement and reads its `to` in that
+    /// placement's target, so each holds the draft at the door — a `to`
+    /// picked in another space, or a mate a target change left reading
+    /// the old one.
+    #[must_use]
+    pub fn off_target(
+        &self,
+        doc: &Doc<ProfileProgram>,
+        ev: &Evaluation<f64>,
+    ) -> Vec<(usize, VarId)> {
+        let Some(draft) = self.draft.as_ref() else {
+            return Vec::new();
+        };
+        let target = Self::target_space(doc, &draft.target);
+        draft
+            .rows
+            .iter()
+            .enumerate()
+            .filter(|(_, row)| !row.struck)
+            .filter_map(|(at, row)| Some((at, row.to_space(doc, ev)?)))
+            .filter(|&(_, space)| Some(space) != target)
+            .collect()
+    }
+
+    /// **Strike every live row whose `to` reads `space`**, as one change
+    /// ("strike the N that read <space>"): their freed values are
+    /// measured where the copy stands, as `remove` measures them.
+    pub fn strike_reading(
+        &mut self,
+        doc: &Doc<ProfileProgram>,
+        ev: &Evaluation<f64>,
+        space: VarId,
+    ) {
+        let rows: Vec<usize> = self
+            .off_target(doc, ev)
+            .into_iter()
+            .filter(|&(_, read)| read == space)
+            .map(|(at, _)| at)
+            .collect();
+        if !rows.is_empty() {
+            self.make(None, Change::StrikeRows(rows));
+        }
     }
 
     /// **Feed one pick**, consumed into tool state. With nothing open,
@@ -1803,10 +1956,22 @@ impl MateTool {
         pick: impl Into<MatePick>,
     ) -> Option<MateToolEvent> {
         let pick = pick.into();
+        if self.picking_target && self.draft.is_some() {
+            self.picking_target = false;
+            let (at, port) = crate::world::seat_read(doc, pick.node(), Some(pick.on().body()));
+            let read = crate::seats::Output::named(port).read(at);
+            let Some(space) = doc.operand_space(&crate::session::as_body(doc, read)) else {
+                return Some(MateToolEvent::NotPlaceable {
+                    node: doc.spoken(pick.node()),
+                });
+            };
+            self.make(Some(doc), Change::Target(PlaceTarget::space(space)));
+            return None;
+        }
         if self.draft.is_none() {
             match door_picked(doc, &pick, Purpose::Mating) {
-                Ok(Opening::Place(body)) => {
-                    self.placing = Some(body);
+                Ok(Opening::Place(body, space)) => {
+                    self.placing = Some((body, space));
                     return None;
                 }
                 Ok(Opening::Edit(placement)) => {
@@ -1959,11 +2124,32 @@ impl MateTool {
                 };
                 row.struck = struck;
             }
+            Change::StrikeRows(rows) => {
+                for at in rows {
+                    if let Some(row) = draft.rows.get_mut(at) {
+                        row.struck = true;
+                    }
+                }
+            }
             Change::Type(coord, by) => {
                 draft.typed.retain(|(c, _)| *c != coord);
                 draft.typed.push((coord, by));
             }
-            Change::IntoTargetSpace(into) => draft.into_target_space = into,
+            Change::Target(target) => {
+                if draft.target == target {
+                    return false;
+                }
+                draft.target = target;
+            }
+            Change::Rows {
+                rows,
+                typed,
+                active,
+            } => {
+                draft.rows = rows;
+                draft.typed = typed;
+                draft.active = active.min(draft.rows.len().saturating_sub(1));
+            }
         }
         true
     }
@@ -1999,13 +2185,15 @@ impl MateTool {
         Ok(self)
     }
 
-    /// **Whether the draft differs from the bundle it was loaded from**:
-    /// its rows, a number typed, or the copy asked into another space —
-    /// what letting go of it would lose ([`crate::offer::Offer::holds_changes`]).
+    /// **Whether the draft differs from what it was loaded from**: its
+    /// rows, a number typed, or its target — what letting go of it would
+    /// lose ([`crate::offer::Offer::holds_changes`]).
     #[must_use]
     pub fn differs_from_base(&self) -> bool {
         self.draft.as_ref().is_some_and(|draft| {
-            draft.rows != draft.loaded_rows || !draft.typed.is_empty() || draft.into_target_space
+            draft.rows != draft.loaded_rows
+                || !draft.typed.is_empty()
+                || draft.target != PlaceTarget::Space(draft.door.base.target.clone())
         })
     }
 
@@ -2048,36 +2236,51 @@ impl MateTool {
             unreachable!("an unsettled draft is open")
         };
         let held = |refusal| Offer::Pending(Held(Arc::new(refusal)));
+        // A target change of its own that does not pass puts back what it
+        // set aside: the whole draft is offered over the new target.
+        let put_back = |draft: &mut PlaceDraft| -> bool {
+            let Some(Change::Rows {
+                rows,
+                typed,
+                active,
+            }) = draft.held_back.take()
+            else {
+                return false;
+            };
+            draft.rows = rows;
+            draft.typed = typed;
+            draft.active = active;
+            draft.offer.changed();
+            true
+        };
         let proposal = match proposed {
             Ok(proposal) => proposal,
             Err(error) => {
+                if put_back(draft) {
+                    return None;
+                }
                 draft.offer = held(Refusal::Draft(Box::new(error)));
                 return None;
             }
         };
         if crate::session::bundle_writes_nothing(
-            doc,
-            draft.door.placement,
             &draft.door.base,
+            &proposal.target,
             &proposal.bundle,
-            draft.into_target_space,
         ) {
             draft.offer = Offer::Quiet;
             return None;
         }
-        let op = if draft.into_target_space {
-            proposal.op_into_target_space()
-        } else {
-            proposal.op()
-        };
+        let op = proposal.op();
         match door(&op) {
             Ok(()) => {
                 draft.offer = Offer::Landing {
                     op: Box::new(op.clone()),
-                    deferred: Vec::new(),
+                    deferred: draft.held_back.take().into_iter().collect(),
                 };
                 Some(op)
             }
+            Err(_) if put_back(draft) => None,
             Err(refusal) => {
                 draft.offer = held(refusal);
                 None
@@ -2296,12 +2499,7 @@ impl MateTool {
         {
             let placement = *placement;
             let doc = committed;
-            let held = match doc.node(placement) {
-                Some(Node::Place { .. } | Node::InstantiatePart { .. }) => {
-                    Some(crate::session::held_bundle(doc, placement))
-                }
-                _ => None,
-            };
+            let held = crate::session::held_placement(doc, placement);
             match held {
                 None => {
                     let kept = self
@@ -2443,7 +2641,7 @@ impl MateTool {
             .iter()
             .map(|&(at, row)| Self::row_mate(doc, ev, at, row))
             .collect::<Result<Vec<_>, _>>()?;
-        let base: &[Constraint<Formula>] = &draft.door.base;
+        let base: &[Constraint<Formula>] = &draft.door.base.constraints;
         // The chart: the first live mate fixing a direction. While it is
         // the bundle's own, as loaded, its orientation, its slides and its
         // values keep their meaning; otherwise its orientation is the
@@ -2463,7 +2661,8 @@ impl MateTool {
         };
         let placement = draft.door.placement;
         let written: Vec<Mate<Formula>> = mates.iter().map(|m| m.mate.clone()).collect();
-        let snap = crate::session::snap::draft_snap(doc, ev, placement, &written, tol);
+        let snap =
+            crate::session::snap::draft_snap(doc, ev, placement, &draft.target, &written, tol);
         if let (Some(k), Some(orient)) = (chart, snap.as_ref().and_then(|s| s.orient))
             && !chart_kept
         {
@@ -2640,6 +2839,7 @@ impl MateTool {
             values,
             dropped,
             retired,
+            target: draft.target.clone(),
             bundle,
         })
     }

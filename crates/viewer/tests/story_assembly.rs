@@ -558,7 +558,7 @@ fn the_windmill_story() {
         )
         .expect("the seat proposes")
     };
-    let outcome = session.perform(seat_proposal.op_into_target_space());
+    let outcome = session.perform(seat_proposal.op());
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
     assert_eq!(
         outcome.committed.len(),
@@ -738,7 +738,7 @@ fn the_windmill_story() {
     tool.pick(session.doc(), front_wall.clone());
     let sail_a_proposal =
         { common::proposed(&session, &tool, sail_choice(0.0)).expect("the first sail proposes") };
-    let outcome = session.perform(sail_a_proposal.op_into_target_space());
+    let outcome = session.perform(sail_a_proposal.op());
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
     assert_eq!(
         outcome.committed.len(),
@@ -786,7 +786,7 @@ fn the_windmill_story() {
         common::proposed(&session, &tool, sail_choice(core::f64::consts::FRAC_PI_2))
             .expect("the second sail proposes")
     };
-    let outcome = session.perform(sail_b_proposal.op_into_target_space());
+    let outcome = session.perform(sail_b_proposal.op());
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
     assert_eq!(
         outcome.committed.len(),

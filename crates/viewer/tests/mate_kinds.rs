@@ -221,7 +221,7 @@ fn two_straight_edges_mated_as_axes_are_collinear() {
     let proposal = common::proposed(&session, tool, choice(VarKind::Axis, false))
         .expect("two edges mate as axes");
     assert_eq!(proposal.door.placement, bench.post_b, "the on pick's copy");
-    common::commit_mate(&mut session, proposal.op_into_target_space());
+    common::commit_mate(&mut session, proposal.op());
     let index = asm::index_of(&session);
     let ids = index.edges_of_target(b_edge);
     let [id] = ids[..] else {
@@ -296,7 +296,7 @@ fn a_vertex_mated_on_a_vertex_coincides() {
     );
     let proposal = common::proposed(&session, tool, choice(VarKind::Point, false))
         .expect("two vertices mate as points");
-    common::commit_mate(&mut session, proposal.op_into_target_space());
+    common::commit_mate(&mut session, proposal.op());
     let index = asm::index_of(&session);
     let now = crossing(&index, b_vertex);
     assert!(
@@ -342,7 +342,7 @@ fn an_edge_mated_as_a_direction_runs_parallel() {
         choice(VarKind::Direction, false),
     )
     .expect("two edges mate as directions");
-    common::commit_mate(&mut session, proposal.op_into_target_space());
+    common::commit_mate(&mut session, proposal.op());
     let index = asm::index_of(&session);
     let ids = index.edges_of_target(b_edge);
     let moved = index.edge_polyline_for(ids[0], &DisplayView::none());
@@ -586,7 +586,7 @@ fn a_frame_mated_on_a_frame_coincides() {
         mate.on
     );
     assert!(proposal.values.is_empty(), "a frame leaves no freedom");
-    common::commit_mate(&mut session, proposal.op_into_target_space());
+    common::commit_mate(&mut session, proposal.op());
     let index = asm::index_of(&session);
     let legs = index.vertex_legs_for(b_vertex, &DisplayView::none());
     let [from, to] = *legs.first().expect("a drawn vertex is marked");

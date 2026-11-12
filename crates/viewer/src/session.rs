@@ -98,8 +98,8 @@ pub(crate) mod snap;
 pub use author::{BooleanSpec, PartSelectSpec, PatternDirection, PatternRuleSpec};
 pub use delete::DeleteAffordance;
 pub use op::{
-    CancelDoor, ClearedSeat, Creation, FreeMoveName, GestureName, OpOutcome, SessionOp, SplitPlane,
-    ValueGestureName,
+    CancelDoor, ClearedSeat, Creation, FreeMoveName, GestureName, OpOutcome, PlaceTarget,
+    PlacementBase, SessionOp, SplitPlane, ValueGestureName,
 };
 pub use probe::{BoundsReading, BoundsTarget};
 pub use refuse::{
@@ -2222,32 +2222,15 @@ impl DocSession {
                 placement,
                 mate,
                 values,
-                into_target_space,
-            } => self.add_mate(placement, &mate, values, into_target_space),
+            } => self.add_mate(placement, &mate, values),
             SessionOp::SetBundle {
                 placement,
                 base,
+                target,
                 constraints,
-                into_target_space,
-            } => {
-                if let Err(refusal) =
-                    self.bundle_judged(placement, &base, &constraints, into_target_space)
-                {
-                    return OpOutcome::refused(refusal);
-                }
-                self.set_bundle(placement, &base, constraints, into_target_space)
-            }
+            } => self.judged_bundle(placement, &base, target, constraints),
             SessionOp::RemoveConstraint { mate } => self.remove_constraint(mate),
-            SessionOp::IntoOwnSpace { placement } => self.commit_run(|run| {
-                let node = run.insert(Node::Space)?;
-                let Some(&space) = run.doc().outputs(node).first() else {
-                    unreachable!("a `new_space()` defines its one output")
-                };
-                // The copy stands at the identity of its new space,
-                // whatever values placed it in the one it leaves.
-                write_bundle(run, placement, editor_core::stand().bundle())?;
-                into_space(run, placement, space)
-            }),
+            SessionOp::IntoOwnSpace { placement } => self.into_own_space(placement),
             SessionOp::NewDocument { name } => self.new_document(&name),
             SessionOp::EditProfile {
                 node,
@@ -2336,7 +2319,7 @@ impl DocSession {
             SessionOp::AddSplit { target, plane } => self.add_split(target, &plane),
             SessionOp::AddMirror { body, plane } => self.add_mirror(body, &plane),
             SessionOp::AddClearance { a, b, bounds } => self.add_clearance(a, b, bounds),
-            SessionOp::Place { body } => self.place(body),
+            SessionOp::Place { body, target } => self.place(body, target),
             SessionOp::AddPattern { input, count, rule } => {
                 self.add_pattern(input, count, rule, PatternOutputChoice::Instances)
             }
@@ -3654,6 +3637,7 @@ impl DocSession {
         // A node spelled twice is not refused: a repeated read glues
         // (A∪A = A∩A = A, A−A the typed empty body), so it is a
         // document like any other.
+        copy_off_space(doc, &spec.operands())?;
         let takeover = self.combine_in_world(&spec.operands())?;
         Ok(taking_over(takeover, move |run| {
             let operands = in_one_space(run, &spec.operands())?;
@@ -4439,7 +4423,7 @@ impl DocSession {
             let copy = match door {
                 ProductDoor::Add(copy) => copy,
                 ProductDoor::IntoWorld { placement, copy } => {
-                    into_space(run, placement, VarId::WORLD)?;
+                    retarget(run, placement, &PlaceTarget::space(VarId::WORLD))?;
                     if let Some(id) = minted.filter(|&id| {
                         run.doc()
                             .output(id, 0)
@@ -4669,7 +4653,7 @@ impl DocSession {
         }
         let op = crate::matetool::MateTool::edit_striking(doc, mate)
             .map_err(|error| Refusal::Draft(Box::new(error)))
-            .and_then(|tool| self.drafted(&tool, false));
+            .and_then(|tool| self.drafted(&tool));
         self.perform_bundle(op)
     }
 
@@ -4681,7 +4665,6 @@ impl DocSession {
         placement: RecipeNodeId,
         mate: &pncad::document::Mate<Formula>,
         values: Vec<(pncad::document::Coord<Operand>, Formula)>,
-        into_target_space: bool,
     ) -> OpOutcome {
         let doc = self.committed_doc();
         let op = crate::matetool::MateTool::edit(doc, placement)
@@ -4693,17 +4676,13 @@ impl DocSession {
                 tool
             })
             .map_err(|error| Refusal::Draft(Box::new(error)))
-            .and_then(|tool| self.drafted(&tool, into_target_space));
+            .and_then(|tool| self.drafted(&tool));
         self.perform_bundle(op)
     }
 
     /// **The bundle the placement editor's draft `tool` writes**,
     /// derived against the committed document and its evaluation.
-    fn drafted(
-        &self,
-        tool: &crate::matetool::MateTool,
-        into_target_space: bool,
-    ) -> Result<SessionOp, Refusal> {
+    fn drafted(&self, tool: &crate::matetool::MateTool) -> Result<SessionOp, Refusal> {
         let doc = self.committed_doc();
         let ev: Evaluation<f64> = pncad::document::evaluate(
             doc,
@@ -4712,14 +4691,9 @@ impl DocSession {
             &self.eval_options(),
             self.tol,
         );
-        let proposal = tool
-            .proposal(doc, &ev, self.tol)
-            .map_err(|error| Refusal::Draft(Box::new(error)))?;
-        Ok(if into_target_space {
-            proposal.op_into_target_space()
-        } else {
-            proposal.op()
-        })
+        tool.proposal(doc, &ev, self.tol)
+            .map(|proposal| proposal.op())
+            .map_err(|error| Refusal::Draft(Box::new(error)))
     }
 
     /// A drafted [`SessionOp::SetBundle`], performed; its refusal as the
@@ -4729,45 +4703,65 @@ impl DocSession {
             Ok(SessionOp::SetBundle {
                 placement,
                 base,
+                target,
                 constraints,
-                into_target_space,
-            }) => self.set_bundle(placement, &base, constraints, into_target_space),
+            }) => self.set_bundle(placement, &base, target, constraints),
             Ok(other) => unreachable!("the placement editor drafts a `SetBundle`: {other:?}"),
             Err(refusal) => OpOutcome::refused(refusal),
         }
+    }
+
+    /// **A [`SessionOp::SetBundle`] judged by the door, then written**.
+    fn judged_bundle(
+        &mut self,
+        placement: RecipeNodeId,
+        base: &PlacementBase,
+        target: PlaceTarget,
+        constraints: Vec<pncad::document::Constraint<Formula>>,
+    ) -> OpOutcome {
+        if let Err(refusal) = self.bundle_judged(placement, base, &target, &constraints) {
+            return OpOutcome::refused(refusal);
+        }
+        self.set_bundle(placement, base, target, constraints)
+    }
+
+    /// **A copy given a space of its own** ([`SessionOp::IntoOwnSpace`]):
+    /// the target edit into a `new_space()`, its bundle as held.
+    fn into_own_space(&mut self, placement: RecipeNodeId) -> OpOutcome {
+        let doc = self.committed_doc();
+        let Some(base) = held_placement(doc, placement) else {
+            return OpOutcome::refused(Refusal::Draft(Box::new(
+                crate::matetool::MateToolError::NotAPlacement {
+                    node: doc.spoken(placement),
+                },
+            )));
+        };
+        let constraints = base.constraints.clone();
+        self.judged_bundle(placement, &base, PlaceTarget::NewSpace, constraints)
     }
 
     /// **`placement`'s bundle written whole** ([`SessionOp::SetBundle`]).
     fn set_bundle(
         &mut self,
         placement: RecipeNodeId,
-        base: &[pncad::document::Constraint<Formula>],
+        base: &PlacementBase,
+        target: PlaceTarget,
         constraints: Vec<pncad::document::Constraint<Formula>>,
-        into_target_space: bool,
     ) -> OpOutcome {
         if let Err(refusal) = self.bundle_fresh(placement, base) {
             return OpOutcome::refused(refusal);
         }
-        if bundle_writes_nothing(
-            self.committed_doc(),
-            placement,
-            base,
-            &constraints,
-            into_target_space,
-        ) {
+        if bundle_writes_nothing(base, &target, &constraints) {
             return OpOutcome::default();
         }
-        self.commit_run(|run| bundle_run(run, placement, constraints, into_target_space))
+        self.commit_run(|run| bundle_run(run, placement, &target, constraints))
     }
 
-    /// The editor's draft is of the bundle `placement` holds.
-    fn bundle_fresh(
-        &self,
-        placement: RecipeNodeId,
-        base: &[pncad::document::Constraint<Formula>],
-    ) -> Result<(), Refusal> {
+    /// The editor's draft is of the target and the bundle `placement`
+    /// holds.
+    fn bundle_fresh(&self, placement: RecipeNodeId, base: &PlacementBase) -> Result<(), Refusal> {
         let doc = self.committed_doc();
-        if held_bundle(doc, placement) == base {
+        if held_placement(doc, placement).as_ref() == Some(base) {
             Ok(())
         } else {
             Err(Refusal::BundleStale {
@@ -4781,7 +4775,7 @@ impl DocSession {
     /// zero (`editor_core::stand`), taking over what read the body along
     /// a seen path — a `⊔` operand, the product — never a copy's source.
     /// A body placed already gets a second placement beside its first.
-    fn place(&self, body: Operand) -> Result<Creating, Refusal> {
+    fn place(&self, body: Operand, target: Operand) -> Result<Creating, Refusal> {
         let doc = self.committed_doc();
         let body = as_body(doc, body);
         // Place places a body: a copy is edited by its own placement.
@@ -4793,13 +4787,12 @@ impl DocSession {
             });
         }
         self.require_placeable(&body)?;
-        let target = self.home_space(&body)?;
         let takeover = Takeover::of(doc, &body);
         takeover.stranded_pick(doc)?;
         Ok(taking_over(takeover, move |run| {
             let placement = run.insert(Node::place(
                 pncad::document::BodyRead::plain(body),
-                Operand::Var(target),
+                target,
                 editor_core::stand().bundle(),
             ))?;
             Ok(Wrote::one(placement))
@@ -4823,9 +4816,9 @@ impl DocSession {
             SessionOp::SetBundle {
                 placement,
                 base,
+                target,
                 constraints,
-                into_target_space,
-            } => self.bundle_judged(*placement, base, constraints, *into_target_space),
+            } => self.bundle_judged(*placement, base, target, constraints),
             other => unreachable!("only the placement editor's bundle is judged: {other:?}"),
         }
     }
@@ -4834,20 +4827,20 @@ impl DocSession {
     fn bundle_judged(
         &self,
         placement: RecipeNodeId,
-        base: &[pncad::document::Constraint<Formula>],
+        base: &PlacementBase,
+        target: &PlaceTarget,
         constraints: &[pncad::document::Constraint<Formula>],
-        into_target_space: bool,
     ) -> Result<(), Refusal> {
         let doc = self.committed_doc();
         self.bundle_fresh(placement, base)?;
-        // A bundle that writes what the placement holds lands as nothing.
-        if bundle_writes_nothing(doc, placement, base, constraints, into_target_space) {
+        // A change that writes what the placement holds lands as nothing.
+        if bundle_writes_nothing(base, target, constraints) {
             return Ok(());
         }
         let mut run = Recording::start(doc, self.tol);
         Ok(())
             .and_then(|()| {
-                bundle_run(&mut run, placement, constraints.to_vec(), into_target_space)
+                bundle_run(&mut run, placement, target, constraints.to_vec())
                     .map_err(|error| Refusal::Edit(Box::new(error)))
             })
             .map_err(|refusal| refusal.respoken(doc))?;
@@ -5678,30 +5671,15 @@ pub(crate) fn as_body(doc: &Doc<ProfileProgram>, read: Operand) -> Operand {
     }
 }
 
-/// **Whether a constraint reads a body of its placement's space**: a
-/// mate's `to`, or a value's direction or axis, which a re-target would
-/// strand.
-fn reads_its_space(c: &pncad::document::Constraint<Formula>) -> bool {
-    !c.target_reads().is_empty()
-}
-
 /// **A combine's operands, in the first one's space** (D10
 /// `[placement.spaces]`): each operand after the first that lives in
-/// another space is placed into the first's, at the identity of its
-/// axes.
-///
-/// A construction is placed into the first's space and read through
-/// that placement. A copy placed into its own body's space by values
-/// alone (the placement editor's Create with no mate, the Transform
-/// tool's on a body nothing placed) is re-targeted into the first's
-/// space with its values as written, so it stands on the first's axes
-/// as it stood on its body's and every variable keeps driving it. An
-/// operand in no space, or a copy whose bundle holds a mate or a value
-/// reading a direction or an axis (each reads its body's space,
-/// [`reads_its_space`]), is read as it is: the combine then refuses
-/// `SpaceMismatch` at the edit door, in the kernel's words. A member
-/// read (`xs[i]`) in another space is placed as the member, never by
-/// re-targeting its family, which would move every member.
+/// another space and is no copy is placed into the first's, at the
+/// identity of its axes, and read through that placement — a member
+/// read (`xs[i]`) as the member, never by re-targeting its family. A
+/// copy in another space is refused before this runs
+/// ([`copy_off_space`]): the combine changes no existing placement's
+/// target. An operand in no space is read as it is, and the combine
+/// then refuses `SpaceMismatch` at the edit door, in the kernel's words.
 fn in_one_space(
     run: &mut Recording<'_, ProfileProgram>,
     operands: &[pncad::document::BodyRead<Formula>],
@@ -5712,50 +5690,53 @@ fn in_one_space(
     let Some(home) = run.doc().operand_space(&first.read) else {
         return Ok(operands.to_vec());
     };
-    let node_of = |doc: &Doc<ProfileProgram>, read: &Operand| {
-        crate::world::read_output(doc, read).map(|(node, _)| node)
-    };
     let mut read = vec![first.clone()];
     for operand in rest {
-        let Some(node) = node_of(run.doc(), &operand.read) else {
-            read.push(operand.clone());
-            continue;
-        };
-        if run.doc().operand_space(&operand.read) == Some(home) {
+        if crate::world::read_output(run.doc(), &operand.read).is_none()
+            || run.doc().operand_space(&operand.read) == Some(home)
+        {
             read.push(operand.clone());
             continue;
         }
-        // A copy placed into its own body's space.
-        let self_placed = !operand.is_indexed()
-            && match run.doc().node(node) {
-                Some(Node::Place { source, .. }) => {
-                    run.doc().space_of(source.read) == run.doc().node_space(node)
-                }
-                _ => false,
-            };
-        if self_placed {
-            if held_bundle(run.doc(), node).iter().any(reads_its_space) {
-                read.push(operand.clone());
-                continue;
-            }
-            run.apply(DocEdit::SetParam {
-                node,
-                slot: SlotId::Operand(pncad::document::OperandSlot::Space),
-                value: pncad::document::SlotValue::Read(Operand::Var(home)),
-                fresh: Vec::new(),
-            })?;
-            read.push(operand.clone());
-        } else {
-            // A body never placed stands where it stands.
-            let placement = run.insert(Node::place(
-                operand.clone(),
-                Operand::Var(home),
-                pncad::document::stand().bundle(),
-            ))?;
-            read.push(placement.into());
-        }
+        let placement = run.insert(Node::place(
+            operand.clone(),
+            Operand::Var(home),
+            pncad::document::stand().bundle(),
+        ))?;
+        read.push(placement.into());
     }
     Ok(read)
+}
+
+/// **The first copy among a combine's later operands placed into
+/// another space than the first operand's**, refused
+/// [`Refusal::CopyInAnotherSpace`]: a combine changes no existing
+/// placement's target, and the copy's own placement editor ("into"
+/// row) is where it is moved.
+fn copy_off_space(
+    doc: &Doc<ProfileProgram>,
+    operands: &[pncad::document::BodyRead<Formula>],
+) -> Result<(), Refusal> {
+    let Some((first, rest)) = operands.split_first() else {
+        return Ok(());
+    };
+    let Some(home) = doc.operand_space(&first.read) else {
+        return Ok(());
+    };
+    for operand in rest.iter().filter(|read| !read.is_indexed()) {
+        let Some((node, _)) = crate::world::read_output(doc, &operand.read) else {
+            continue;
+        };
+        let space = doc.operand_space(&operand.read);
+        if let Some(space) = space.filter(|&space| space != home && moves_copies(doc, node)) {
+            return Err(Refusal::CopyInAnotherSpace {
+                copy: doc.spoken(node),
+                space: Box::new(doc.spoken_space(space)),
+                into: Box::new(doc.spoken_space(home)),
+            });
+        }
+    }
+    Ok(())
 }
 
 /// **`placement`'s bundle as authored**: each constraint re-authored,
@@ -5773,13 +5754,38 @@ pub(crate) fn held_bundle(
     }
 }
 
+/// **What `placement` holds, as authored**: its target and its bundle
+/// ([`held_bundle`]). `None` for a node that is no placement.
+pub(crate) fn held_placement(
+    doc: &Doc<ProfileProgram>,
+    placement: RecipeNodeId,
+) -> Option<PlacementBase> {
+    match doc.node(placement).map(|node| node.authored(doc)) {
+        Some(
+            Node::Place {
+                target,
+                constraints,
+                ..
+            }
+            | Node::InstantiatePart {
+                target,
+                constraints,
+                ..
+            },
+        ) => Some(PlacementBase {
+            target,
+            constraints,
+        }),
+        _ => None,
+    }
+}
+
 /// **`constraints` written onto `placement` whole**
 /// ([`DocEdit::SetConstraints`]). A mate reads a pose in the space its
-/// copy is placed into (D10 `[placement.spaces]`), and the gesture never
-/// moves the copy into another space as a side effect: a mate whose `to`
-/// is outside the placement's target is refused by the door,
-/// [`EditError::SpaceMismatch`] naming both spaces. Moving the copy is a
-/// gesture of its own ([`SessionOp::IntoOwnSpace`]).
+/// copy is placed into (D10 `[placement.spaces]`): a mate whose `to` is
+/// outside the placement's target is refused by the door,
+/// [`EditError::SpaceMismatch`] naming both spaces. Changing the target
+/// is its own edit ([`retarget`]).
 fn write_bundle(
     run: &mut Recording<'_, ProfileProgram>,
     placement: RecipeNodeId,
@@ -5793,70 +5799,63 @@ fn write_bundle(
     Ok(())
 }
 
-/// **Whether a `SetBundle` of `constraints` over `base` writes nothing**:
-/// the bundle the placement holds, and no move into another space — none
-/// asked, or the space its first mate's `to` reads is the one it stands in
-/// already ([`bundle_run`]).
+/// **Whether a `SetBundle` of `target` and `constraints` over `base`
+/// writes nothing**: the target and the bundle the placement holds.
 pub(crate) fn bundle_writes_nothing(
-    doc: &Doc<ProfileProgram>,
-    placement: RecipeNodeId,
-    base: &[pncad::document::Constraint<Formula>],
+    base: &PlacementBase,
+    target: &PlaceTarget,
     constraints: &[pncad::document::Constraint<Formula>],
-    into_target_space: bool,
 ) -> bool {
-    constraints == base && moved_into(doc, placement, constraints, into_target_space).is_none()
+    constraints == base.constraints && *target == PlaceTarget::Space(base.target.clone())
 }
 
-/// The space `placement` is moved into before its bundle is written:
-/// the one its first mate's `to` reads, where that is asked and is not
-/// its target.
-fn moved_into(
-    doc: &Doc<ProfileProgram>,
-    placement: RecipeNodeId,
-    constraints: &[pncad::document::Constraint<Formula>],
-    into_target_space: bool,
-) -> Option<VarId> {
-    constraints
-        .iter()
-        .find_map(|c| c.mate())
-        .and_then(|m| doc.operand_space(&m.to))
-        .filter(|&space| into_target_space && Some(space) != doc.node_space(placement))
-}
-
-/// **The placement editor's Edit, applied**: `placement` moved by name
-/// into the space its first mate's `to` reads where that is asked and is
-/// not its target, then `constraints` written whole.
-fn bundle_run(
+/// **The placement editor's change, applied**: `placement` re-targeted
+/// where `target` is not the one it holds ([`retarget`]), then
+/// `constraints` written whole where they are not the bundle it holds.
+pub(crate) fn bundle_run(
     run: &mut Recording<'_, ProfileProgram>,
     placement: RecipeNodeId,
+    target: &PlaceTarget,
     constraints: Vec<pncad::document::Constraint<Formula>>,
-    into_target_space: bool,
 ) -> Result<(), EditError> {
-    if let Some(space) = moved_into(run.doc(), placement, &constraints, into_target_space) {
-        into_space(run, placement, space)?;
+    retarget(run, placement, target)?;
+    if held_bundle(run.doc(), placement) == constraints {
+        return Ok(());
     }
     write_bundle(run, placement, constraints)
 }
 
-/// **`placement` moved into `space` by name**: a bundle reading its
-/// space ([`reads_its_space`]) first stood by the identity bundle,
-/// which reads nothing, so the re-target strands no read of the
-/// bundle's own, then its `target` re-pointed there.
-pub(crate) fn into_space(
+/// **The target edit**: `placement`'s `target` re-pointed at `target`
+/// (a `new_space()` inserted first for [`PlaceTarget::NewSpace`]), its
+/// bundle as written, every value keeping its number on the new
+/// target's axes. It is the one edit that changes a placement's target,
+/// and the kernel admits it where it leaves reads in two spaces
+/// ([`pncad::document::Maintenance::StrandedSpace`]). A target the
+/// placement holds already writes nothing.
+pub(crate) fn retarget(
     run: &mut Recording<'_, ProfileProgram>,
     placement: RecipeNodeId,
-    space: VarId,
+    target: &PlaceTarget,
 ) -> Result<(), EditError> {
-    if held_bundle(run.doc(), placement)
-        .iter()
-        .any(reads_its_space)
-    {
-        write_bundle(run, placement, editor_core::stand().bundle())?;
-    }
+    let read = match target {
+        PlaceTarget::Space(read) => {
+            if held_placement(run.doc(), placement).is_some_and(|held| held.target == *read) {
+                return Ok(());
+            }
+            read.clone()
+        }
+        PlaceTarget::NewSpace => {
+            let node = run.insert(Node::Space)?;
+            let Some(&space) = run.doc().outputs(node).first() else {
+                unreachable!("a `new_space()` defines its one output")
+            };
+            Operand::Var(space)
+        }
+    };
     run.apply(DocEdit::SetParam {
         node: placement,
         slot: SlotId::Operand(OperandSlot::Space),
-        value: pncad::document::SlotValue::Read(Operand::Var(space)),
+        value: pncad::document::SlotValue::Read(read),
         fresh: Vec::new(),
     })?;
     Ok(())

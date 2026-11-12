@@ -819,7 +819,8 @@ fn several_bodies_are_not_one_body_at_a_seat() {
             SessionOp::AddBoolean {
                 spec: BooleanSpec::Union(vec![wrong.into(), body.into()]),
             },
-            SessionOp::Place { body: wrong.into() },
+            SessionOp::place_where_it_stands(session.committed_doc(), wrong.into())
+                .expect("a body in a space"),
             SessionOp::AddSplit {
                 target: wrong.into(),
                 plane: common::cut_across(&session, wrong, 0.004),
@@ -997,7 +998,10 @@ fn the_transform_tool_opens_the_placement_editor_on_its_pick() {
         assert!(editor.door().is_none(), "no placement until Place lands");
         assert_eq!(
             tools.take_place(),
-            Some(SessionOp::Place { body: body.into() }),
+            Some(
+                SessionOp::place_where_it_stands(session.committed_doc(), body.into())
+                    .expect("a body in a space")
+            ),
             "a pick on {body:?} as itself asks for Place"
         );
     };
@@ -1080,9 +1084,10 @@ fn the_transform_tool_refuses_what_is_no_body_and_asks_a_split_for_its_half() {
     assert!(notices.is_empty(), "{notices:?}");
     assert_eq!(
         tools.take_place(),
-        Some(SessionOp::Place {
-            body: patterned.into()
-        }),
+        Some(
+            SessionOp::place_where_it_stands(session.committed_doc(), patterned.into())
+                .expect("a body in a space")
+        ),
         "the patterned body picked as itself is placed"
     );
 
@@ -1100,9 +1105,13 @@ fn the_transform_tool_refuses_what_is_no_body_and_asks_a_split_for_its_half() {
     assert!(notices.is_empty(), "{notices:?}");
     assert_eq!(
         tools.take_place(),
-        Some(SessionOp::Place {
-            body: Operand::output(split, SplitHalf::Below.port())
-        }),
+        Some(
+            SessionOp::place_where_it_stands(
+                session.committed_doc(),
+                Operand::output(split, SplitHalf::Below.port())
+            )
+            .expect("a body in a space")
+        ),
         "the chosen half's Place"
     );
 }
@@ -2152,7 +2161,8 @@ fn a_refusal_at_any_body_seated_door_leaves_no_history_state() {
             target: body.into(),
             plane: common::cut_across(&session, body, 0.0),
         },
-        SessionOp::Place { body: body.into() },
+        SessionOp::place_where_it_stands(session.committed_doc(), body.into())
+            .expect("a body in a space"),
         SessionOp::AddPattern {
             input: body.into(),
             count: 2,
@@ -2206,7 +2216,8 @@ fn a_refusal_at_any_body_seated_door_leaves_no_history_state() {
             target: plane.into(),
             plane: common::cut_across(&session, plane, 0.0),
         },
-        SessionOp::Place { body: plane.into() },
+        SessionOp::place_where_it_stands(session.committed_doc(), plane.into())
+            .expect("a body in a space"),
         SessionOp::AddPattern {
             input: plane.into(),
             count: 2,
@@ -3749,7 +3760,10 @@ fn a_moved_copy(tol: Tol, lift: f64) -> (DocSession, RecipeNodeId, [f64; 2]) {
     let mut session = session(tol);
     let body = common::xy_box_in(&mut session, A);
     session.pump();
-    let outcome = session.perform(SessionOp::Place { body: body.into() });
+    let outcome = session.perform(
+        SessionOp::place_where_it_stands(session.committed_doc(), body.into())
+            .expect("a body in a space"),
+    );
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
     let copy = outcome.made.expect("the placement");
     let step = 2.0 * A[0];
@@ -4034,16 +4048,21 @@ fn a_body_read_by_variable_lands_and_a_selection_refuses_typed() {
         .committed_doc()
         .read_of_node(body)
         .expect("a box defines one body");
-    let placed = session.perform(SessionOp::Place {
-        body: Operand::Var(var),
-    });
+    let placed = session.perform(
+        SessionOp::place_where_it_stands(session.committed_doc(), Operand::Var(var))
+            .expect("a body in a space"),
+    );
     assert!(placed.refusal.is_none(), "{:?}", placed.refusal);
-    let refused = session.perform(SessionOp::Place {
-        body: Operand::Select {
-            body: Box::new(body.into()),
-            names: Vec::new(),
-        },
-    });
+    let refused = session.perform(
+        SessionOp::place_where_it_stands(
+            session.committed_doc(),
+            Operand::Select {
+                body: Box::new(body.into()),
+                names: Vec::new(),
+            },
+        )
+        .expect("a body in a space"),
+    );
     assert!(
         matches!(refused.refusal, Some(Refusal::NotABodyRead { .. })),
         "{:?}",

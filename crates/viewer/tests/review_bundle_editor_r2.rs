@@ -222,7 +222,10 @@ fn r2_place_undoes_to_the_exact_prior_document() {
     session.pump();
     let before = session.committed_doc().clone();
     let states = session.history().len();
-    let outcome = session.perform(SessionOp::Place { body: body.into() });
+    let outcome = session.perform(
+        SessionOp::place_where_it_stands(session.committed_doc(), body.into())
+            .expect("a body in a space"),
+    );
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
     session.pump();
     assert_eq!(session.history().len(), states + 1, "one history state");
@@ -306,7 +309,10 @@ fn r2_a_pick_where_a_placed_body_stood_edits_its_copy() {
     );
     let body = common::xy_box_in(&mut session, [0.02, 0.03, 0.01]);
     session.pump();
-    let outcome = session.perform(SessionOp::Place { body: body.into() });
+    let outcome = session.perform(
+        SessionOp::place_where_it_stands(session.committed_doc(), body.into())
+            .expect("a body in a space"),
+    );
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
     session.pump();
     let doc = session.committed_doc();
@@ -367,17 +373,17 @@ fn r2_a_placed_copy_reopens_through_a_pick_and_its_untouched_draft_stands() {
     );
     assert!(tool.pick(session.doc(), top_copy).is_none());
     assert!(tool.pick(session.doc(), top_wide).is_none());
-    tool.set_into_target_space(true);
+    common::into_to_space(&session, &mut tool);
     let flush = MateChoice {
         kind: VarKind::Plane,
         flip: false,
         values: Vec::new(),
     };
     let proposal = common::proposed(&session, &tool, flush).expect("a flush proposes");
-    let verdict = session.bundle_door(&proposal.op_into_target_space());
+    let verdict = session.bundle_door(&proposal.op());
     assert!(verdict.is_ok(), "{verdict:?}");
     let states = session.history().len();
-    let outcome = session.perform(proposal.op_into_target_space());
+    let outcome = session.perform(proposal.op());
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
     session.pump();
     assert_eq!(session.history().len(), states + 1, "one history state");

@@ -666,7 +666,7 @@ fn a_mates_fixed_freedoms_leave_the_draft_before_apply() {
         ],
         "a rest along z leaves two slides and its spin"
     );
-    let outcome = session.perform(proposal.op_into_target_space());
+    let outcome = session.perform(proposal.op());
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
     assert!(
         !outcome

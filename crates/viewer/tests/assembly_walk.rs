@@ -182,7 +182,7 @@ fn the_exit_demo_walk() {
     assert!(session.display().free_move_of(own).is_some());
     let proposal =
         common::proposed(&session, &tool, asm::seat_choice()).expect("the seat proposes");
-    let outcome = session.perform(proposal.op_into_target_space());
+    let outcome = session.perform(proposal.op());
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
     assert_eq!(
         outcome.committed.len(),

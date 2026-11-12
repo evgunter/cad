@@ -1147,10 +1147,26 @@ pub fn place_and_edit(
     session: &mut DocSession,
     body: pncad::document::Operand,
 ) -> (viewer::matetool::MateTool, RecipeNodeId) {
-    let placement = placed_by(session, SessionOp::Place { body });
+    let op =
+        SessionOp::place_where_it_stands(session.committed_doc(), body).expect("a body in a space");
+    let placement = placed_by(session, op);
     let mut tool = viewer::matetool::MateTool::new();
     tool.placed(session.committed_doc(), placement);
     (tool, placement)
+}
+
+/// **The editor's target set to the space its first live row's `to`
+/// reads, where that is not the target**, as one change of the draft
+/// made with the rest of it ([`viewer::matetool::MateTool::set_target`]).
+/// A row that wants the panel's two-step "Into <space>" calls
+/// `MateTool::into_space` instead.
+pub fn into_to_space(session: &DocSession, tool: &mut viewer::matetool::MateTool) {
+    let (doc, ev) = session.landed_pair().expect("landed");
+    let &(_, space) = tool
+        .off_target(doc, ev)
+        .first()
+        .expect("a live row reads another space than the target");
+    tool.set_target(viewer::session::PlaceTarget::space(space));
 }
 
 /// **`op`, a `SessionOp::Place`, performed and pumped**: the placement

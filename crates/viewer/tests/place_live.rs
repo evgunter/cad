@@ -124,7 +124,11 @@ fn a_body_shown_again_and_picked_is_placed_a_second_time() {
     tools.open(ToolKind::Mate);
     let place = fed(&session, &mut tools, face_at(&session, [0.0, 0.0]))
         .expect("a pick on an unplaced body asks for Place");
-    assert_eq!(place, SessionOp::Place { body: body.into() });
+    assert_eq!(
+        place,
+        SessionOp::place_where_it_stands(session.committed_doc(), body.into())
+            .expect("a body in a space")
+    );
     assert!(landed(&mut session, &mut tools, place), "Place lands");
     let first = tools
         .mate()
@@ -155,7 +159,11 @@ fn a_body_shown_again_and_picked_is_placed_a_second_time() {
 
     tools.open(ToolKind::Mate);
     let place = fed(&session, &mut tools, picked).expect("the body picked as itself is Place");
-    assert_eq!(place, SessionOp::Place { body: body.into() });
+    assert_eq!(
+        place,
+        SessionOp::place_where_it_stands(session.committed_doc(), body.into())
+            .expect("a body in a space")
+    );
     let states = session.history().len();
     assert!(
         landed(&mut session, &mut tools, place),
@@ -262,44 +270,68 @@ fn flushed_across_spaces(session: &DocSession, mut tool: MateTool) -> MateTool {
     tool
 }
 
-/// **A refused edit is held, then commits whole once a later edit
-/// passes**: the flush the door refuses lands nothing and is held; moving
-/// the copy into the wide box's space is the later change that makes the
-/// whole draft pass, and it lands as one `SetBundle` holding the flush.
+/// **A `to` picked in another space is held, then "Into <space>" and
+/// the mate land as two steps** (Ev, `[ev]` PR 6600): the flush the door
+/// refuses lands nothing and is held; "Into" the wide box's space is a
+/// target change of its own, which lands alone, the copy's bundle as it
+/// was; the held flush is then made over it and lands as the second
+/// step, one `SetBundle` holding it.
 #[test]
-fn a_refused_edit_is_held_and_commits_whole_once_a_later_edit_passes() {
+fn a_held_cross_space_mate_lands_after_into_its_space_in_two_steps() {
     let tol = Tol::witness();
     let (mut session, tool, copy) = small_placed_beside_wide("place-live-held", tol);
     let before = session.committed_doc().clone();
     let states = session.history().len();
-    let mut tool = flushed_across_spaces(&session, tool);
+    let tool = flushed_across_spaces(&session, tool);
     assert_eq!(session.history().len(), states, "nothing held lands");
     assert!(
         session.committed_doc().bit_eq(&before),
         "the document is untouched"
     );
+    let (doc, ev) = session.landed_pair().expect("landed");
+    let off = tool.off_target(doc, ev);
+    let [(0, wide_space)] = off[..] else {
+        panic!("the flush's row reads the wide box's space: {off:?}");
+    };
+    let own = doc.node_space(copy).expect("the copy is placed");
+    assert_ne!(wide_space, own, "premise: two spaces");
 
-    tool.set_into_target_space(true);
-    let op = offered(&session, &mut tool).expect("the whole draft passes");
-    assert!(
-        matches!(&op, SessionOp::SetBundle { placement, constraints, into_target_space: true, .. }
-            if *placement == copy && constraints.iter().filter(|c| c.mate().is_some()).count() == 1),
-        "one SetBundle holding the flush the door refused: {op:?}"
-    );
-    assert!(tool.pending().is_none(), "nothing held once it passes");
     let mut tools = Tools::new();
     tools.open(ToolKind::Mate);
     *tools.mate_mut().expect("open") = tool;
-    assert!(landed(&mut session, &mut tools, op), "it lands");
+    tools.mate_mut().expect("open").into_space(wide_space);
+    let into = offered(&session, tools.mate_mut().expect("open")).expect("the target passes");
+    assert!(
+        matches!(&into, SessionOp::SetBundle { placement, target, constraints, base }
+            if *placement == copy
+                && *target == viewer::session::PlaceTarget::space(wide_space)
+                && *constraints == base.constraints),
+        "the target alone, the bundle as it was: {into:?}"
+    );
+    assert!(landed(&mut session, &mut tools, into), "the target lands");
     assert_eq!(session.history().len(), states + 1, "as one undo step");
+    assert_eq!(
+        session.committed_doc().node_space(copy),
+        Some(wide_space),
+        "the copy is into the wide box's space"
+    );
+    let flush = offered(&session, tools.mate_mut().expect("open")).expect("the held flush passes");
+    assert!(
+        matches!(&flush, SessionOp::SetBundle { placement, constraints, .. }
+            if *placement == copy && constraints.iter().filter(|c| c.mate().is_some()).count() == 1),
+        "one SetBundle holding the flush the door refused: {flush:?}"
+    );
+    assert!(landed(&mut session, &mut tools, flush), "the flush lands");
+    assert_eq!(session.history().len(), states + 2, "the second undo step");
     let editor = tools.mate().expect("the editor stays open");
+    assert!(editor.pending().is_none(), "nothing held once it passes");
     assert_eq!(
         editor.rows().len(),
         1,
         "the editor shows the bundle it wrote"
     );
     assert_eq!(
-        editor.door().map(|door| door.base.clone()),
+        editor.door().map(|door| door.base.constraints.clone()),
         Some(authored(session.committed_doc(), copy)),
         "loaded from the bundle as it now is"
     );
@@ -372,7 +404,7 @@ fn discard_drops_the_held_draft() {
     assert!(tool.pending().is_none(), "nothing held");
     assert!(tool.rows().is_empty(), "the bundle holds no mate");
     assert_eq!(
-        tool.door().map(|door| door.base.clone()),
+        tool.door().map(|door| door.base.constraints.clone()),
         Some(authored(session.committed_doc(), copy)),
         "the editor shows the bundle as the document holds it"
     );

@@ -719,6 +719,7 @@ test_utils::f6_variants! {
         ProfileEditStale,
         BundleStale,
         PlaceOnACopy,
+        CopyInAnotherSpace,
         NothingPlaced,
         Unspliced,
         ValueNotRemoved,

@@ -463,7 +463,6 @@ pub fn seat_op_under(
         placement: post,
         mate: Box::new(crate::fixture::rest(post_top, shelf_bottom)),
         values,
-        into_target_space: true,
     }
 }
 
@@ -489,7 +488,6 @@ pub fn shelf_rest_op(bench: &Bench, post: RecipeNodeId, offset: f64) -> SessionO
             to,
         )),
         values: Vec::new(),
-        into_target_space: true,
     }
 }
 
@@ -508,7 +506,6 @@ pub fn no_centre_op(bench: &Bench, post: RecipeNodeId) -> SessionOp {
             crate::fixture::axis(post_top),
         )),
         values: Vec::new(),
-        into_target_space: true,
     }
 }
 

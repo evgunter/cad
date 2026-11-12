@@ -16,7 +16,7 @@
 
 use pncad::document::{
     Dimension, DimensionError, Doc, DocumentId, EditError, EvalError, Node, Operand, ParseError,
-    ProfileProgram, RecipeNodeId, SlotId, SpokenNode, SpokenVar, VarId, VarName,
+    ProfileProgram, RecipeNodeId, SlotId, SpokenNode, SpokenSpace, SpokenVar, VarId, VarName,
 };
 use std::path::{Path, PathBuf};
 
@@ -442,6 +442,17 @@ pub enum Refusal {
         /// The copy, as the document held it at the refusal.
         copy: SpokenNode,
     },
+    /// A combine was asked of a copy placed into another space than its
+    /// first operand's: a combine changes no placement's target, and the
+    /// copy is moved by its own placement's "into" row.
+    CopyInAnotherSpace {
+        /// The copy, as the document held it at the refusal.
+        copy: SpokenNode,
+        /// The space its placement places it into.
+        space: Box<SpokenSpace>,
+        /// The first operand's space.
+        into: Box<SpokenSpace>,
+    },
     /// A re-point of a body's placements asked of a body nothing places
     /// ([`super::SessionOp::RepointPlacements`]).
     NothingPlaced {
@@ -517,6 +528,11 @@ impl Refusal {
             Self::ProfileEditStale { node } => Self::ProfileEditStale { node: again(node) },
             Self::BundleStale { node } => Self::BundleStale { node: again(node) },
             Self::PlaceOnACopy { copy } => Self::PlaceOnACopy { copy: again(copy) },
+            Self::CopyInAnotherSpace { copy, space, into } => Self::CopyInAnotherSpace {
+                copy: again(copy),
+                space: Box::new(doc.spoken_space(space.id())),
+                into: Box::new(doc.spoken_space(into.id())),
+            },
             Self::NothingPlaced { body } => Self::NothingPlaced {
                 body: body.respoken(doc),
             },
@@ -609,6 +625,7 @@ impl Refusal {
             | Self::ProfileEditStale { .. }
             | Self::BundleStale { .. }
             | Self::PlaceOnACopy { .. }
+            | Self::CopyInAnotherSpace { .. }
             | Self::NothingPlaced { .. }
             | Self::Unspliced { .. }
             | Self::ValueNotRemoved { .. }
@@ -659,6 +676,7 @@ impl Refusal {
             | Self::ProfileEditStale { .. }
             | Self::BundleStale { .. }
             | Self::PlaceOnACopy { .. }
+            | Self::CopyInAnotherSpace { .. }
             | Self::NothingPlaced { .. }
             | Self::Unspliced { .. }
             | Self::ValueNotRemoved { .. }
@@ -999,6 +1017,11 @@ impl Refusal {
                 f,
                 "{copy} is a copy; move it by its own placement in the placement editor, not \
                  by a copy of it"
+            ),
+            Self::CopyInAnotherSpace { copy, space, into } => write!(
+                f,
+                "{copy} is placed into {space}, and this combine is in {into}; a combine moves \
+                 no copy: set {copy}'s \"into\" row to {into} in its placement editor first"
             ),
             Self::Unspliced { node, fault } => match fault {
                 editor_core::continuation::SpliceFault::MemberAtSeat { .. } => write!(

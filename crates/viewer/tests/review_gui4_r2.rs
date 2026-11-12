@@ -103,7 +103,7 @@ fn proposal_sides_agree_with_the_standalone_part_documents() {
     // The solved state agrees with the oracle: the placed post's cap,
     // read off the landed evaluation, is the standalone pose carried
     // by the post's solved placement.
-    session.perform(proposal.op_into_target_space());
+    session.perform(proposal.op());
     session.pump();
     let (doc, eval) = session.landed_pair().expect("landed");
     let placed = common::solve(&session, doc, tol)
@@ -146,7 +146,7 @@ fn the_solved_seat_hangs_the_post_under_the_shelf() {
     tool.pick(session.doc(), b);
     let proposal =
         common::proposed(&session, &tool, asm::seat_choice()).expect("the seat proposes");
-    common::commit_mate(&mut session, proposal.op_into_target_space());
+    common::commit_mate(&mut session, proposal.op());
 
     let centre = [
         asm::SHELF_AT[0] + asm::SHELF_LENGTH / 2.0,
@@ -297,7 +297,7 @@ fn a_second_mate_beyond_the_pin_refuses_typed_at_the_door() {
     tool.pick(session.doc(), b.clone());
     let proposal =
         common::proposed(&session, &tool, asm::seat_choice()).expect("the seat proposes");
-    common::commit_mate(&mut session, proposal.op_into_target_space());
+    common::commit_mate(&mut session, proposal.op());
     for row in session.tree_rows() {
         assert_eq!(row.status, RowStatus::Ok, "{row:?}");
     }
@@ -320,7 +320,6 @@ fn a_second_mate_beyond_the_pin_refuses_typed_at_the_door() {
         placement: bench.post_b,
         mate: Box::new(second),
         values: Vec::new(),
-        into_target_space: false,
     });
     // post_b's bundle already pins it, so the second mate is a mate
     // beyond the pin: the door refuses it typed, measuring nothing, and
@@ -372,7 +371,7 @@ fn a_mate_kills_an_in_flight_gesture() {
         node: bench.post_b,
         frame: Frame::translation([0.02, 0.0, 0.0]),
     });
-    let outcome = session.perform(proposal.op_into_target_space());
+    let outcome = session.perform(proposal.op());
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
     assert!(
         outcome.withdrawn.killed_gesture.is_some(),
@@ -447,7 +446,7 @@ fn hide_survives_the_mate_that_discards_the_probe() {
         );
     }
 
-    let outcome = session.perform(proposal.op_into_target_space());
+    let outcome = session.perform(proposal.op());
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
     let [superseded] = &outcome.withdrawn.superseded[..] else {
         panic!("exactly one frame is superseded at the edit")

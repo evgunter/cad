@@ -924,14 +924,25 @@ pub fn body_read(
 /// **The copy the product door moves into the world rather than copy**:
 /// `node`'s copy where `node` is a placement (a `Place` or an instance)
 /// into a space other than the world whose copy nothing reads — no
-/// operand, no mate pose, no pick ([`Doc::reader_counts`]). `None` for
-/// any other node.
+/// operand, no mate pose, no pick ([`Doc::reader_counts`]) — and whose
+/// bundle reads nothing in that space (no mate, no value along a
+/// direction or about an axis), so the target edit strands no read.
+/// `None` for any other node.
+///
+/// This is the product door's choice, not a rule of the target edit,
+/// which admits a re-target that strands reads: the door moves a copy
+/// only where the move leaves nothing behind, and places a fresh world
+/// copy of any other body.
 pub fn movable_into_world(doc: &Doc<ProfileProgram>, node: RecipeNodeId) -> Option<VarId> {
-    if !matches!(
-        doc.node(node),
-        Some(Node::Place { .. } | Node::InstantiatePart { .. })
-    ) || doc.node_space(node) == Some(VarId::WORLD)
-    {
+    let constraints = match doc.node(node) {
+        Some(Node::Place { constraints, .. } | Node::InstantiatePart { constraints, .. })
+            if doc.node_space(node) != Some(VarId::WORLD) =>
+        {
+            constraints
+        }
+        _ => return None,
+    };
+    if constraints.iter().any(|c| !c.target_reads().is_empty()) {
         return None;
     }
     doc.output(node, 0)
