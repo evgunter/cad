@@ -2,10 +2,11 @@
 id: a-nurbs-wall-against-a-plane-has-no-germ-frame
 kind: issue
 title: A NURBS wall against a plane reaches the join and refuses GermFrameUnsupported: no frame names the germ pair's section
-status: open
+status: closed
 opened: 2026-10-31
 priority: P2
 cost: M
+closed: 2026-11-12
 ---
 
 
@@ -59,3 +60,22 @@ named through the boolean, the first and third, which have one sense,
 tied. That row cannot be written until this frame lands. When it does,
 the tripwire above goes red. Its lane should then write that
 end-to-end row, or re-pin the next stop and file it.
+
+## Closed (2026-11-12, `sectarms/join-reads-spline-implicit`)
+
+No frame was built: the join reads a plane × spline germ pair on the
+pair's section value (`GermLane::Carried`), as it reads every pair the
+value carries, and cuts both chords from the carried arc. Every
+tripwire above went red and is re-pinned to its next stop:
+
+- `a_vertex_piercing_a_lens_wall_mints_its_ring_and_reaches_the_chords_certificate`
+  and editor-core's
+  `wavy_loft::a_union_across_a_nurbs_edge_refuses_at_a_carried_chords_certificate`
+  stop at rest, where the plane × NURBS lane's own image of a carried
+  chord misses it
+  (`a-planes-carried-arc-across-a-flared-spline-wall-misses-its-own-image-at-rest`);
+- `a_saddle_cut_by_its_tangent_plane_refuses_at_its_node_arcs_under_every_op`
+  stops at the carry, which lists the arcs to the saddle's node and
+  carries none (`a-spline-implicit-arc-is-carried-to-its-node`).
+
+SPLICE's end-to-end row obligation travels with the first of those.
