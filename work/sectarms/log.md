@@ -664,3 +664,19 @@ Both reds were found by PCERT's nightly lane and trace to SECTARMS merges.
   - **The C5 sentence** describes what the code does and decides nothing the ratified text left open. It lands with the change.
   - **Stage B (the at-rest arm for a curved partner on a spline wall) is not a fork.** C2 has rest re-derive the door's certificate. The trace certifies the branch on C3's residual × NURBS lane, and `edge_nurbs::plane_nurbs_limbs` is the plane's precedent. The arm elaborates that ratified text faithfully. Its brief still tells it to stop if its plan finds text that contradicts the code.
 - **Next:** stage B is dispatched once stage A merges.
+
+## 2026-11-12 — PR 6862's reviews adjudicated; fix pass dispatched
+
+- **Verdicts.** Both reviewers (R1 Opus 5.5, R2 Fable 5.2, on `fb97f06037`) approve with fixes. Both found the pad sound in metres, and nothing uncertified is carried.
+- **Blocking: M1 (R2, MAJOR, demonstrated).** Two close rim arcs of one pair abort as `JoinDesync`, a kernel fault, on an ordinary ball across a 0.4 m flat wall. Main refuses that input typed. R1 met the same cause, the pad's overlap, as escalations at 1e-6 (MINOR).
+  - The class: the pad floors near an eighth of the window's span rather than near the rung, so any two arcs closer than about a quarter of the wall collide. The P3 issue on the loose pad is rewritten and raised to P1.
+- **My call reversed on the C5 sentence.** Both reviewers caught it: its "an arc to a node carry none" half contradicts Ev's ratified node clause (PR 6829) twenty lines above it. That half comes out. The rim-arc half stays.
+- **The other findings, fixed in one pass:**
+  - The guard's listing fallback is reachable, and could clear a seam-crossing section silently. It becomes one shared function.
+  - The loosened re-pins are restored.
+  - The moved band-loft row is now disclosed and pinned.
+  - The body's census, cost and 1e-16 claims are corrected. The reading takes 0.7 s of the brick's 7.6 s, so the cost is filed separately.
+  - Stale docs, contract rows, per-PR coverage, and the `pad_of`/`Tube::of` duplicate are addressed.
+- **Disclosures.**
+  - R1 saw the other lane's process names in `ps`, but no output. It also read the implementer's census logs in the shared scratchpad.
+  - Reviewer scratchpads are shared in this container. Later pairs need their own subdirectories, and a brief that names them.
