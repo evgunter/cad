@@ -13387,6 +13387,14 @@ pub(crate) use stated::{EdgeSpan, StatedDoor};
 #[cfg(test)]
 mod envelope_lemma_fuzz;
 
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::panic)]
+mod review_6864_trail;
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::panic)]
+mod review_6864_fuzz;
+
 /// The rows' door to the channel-taking checks: a harmonic image's two
 /// channels, or a panic naming the row that handed something else.
 #[cfg(test)]
