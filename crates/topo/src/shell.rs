@@ -149,26 +149,25 @@
 //! curved wall (below) and the corner solves' own refusals, which are
 //! the offset doors'.
 //!
-//! **The curved residue: closed where the scalar certifies, open at
-//! `f64`.** A curved thin neck — two facing cylinder or spline walls
-//! closer than `2t`, or a void dilated through a curved wall — moves to
-//! a self-intersecting cavity that no per-face margin and no planar
-//! read sees, and **tier 3 does NOT catch it**: every per-face loop
-//! stays simple and consistently wound while the walls cross, so the
-//! body validates and its volume is wrong. A box-based curved gate is
-//! not the answer — a shelled tube's concentric walls overlap boxes by
-//! construction. What closes it is per scalar
-//! ([`crate::AtRestPolicy::clearance_lane`]):
+//! **The curved residue: closed where the gate asks, open at `f64`.**
+//! A curved thin neck — two facing cylinder or spline walls closer than
+//! `2t`, or a void dilated through a curved wall — moves to a
+//! self-intersecting cavity that no per-face margin and no planar read
+//! sees, and **tier 3 does NOT catch it**: every per-face loop stays
+//! simple and consistently wound while the walls cross, so the body
+//! validates and its volume is wrong. A box-based curved gate is not the
+//! answer — a shelled tube's concentric walls overlap boxes by
+//! construction. What closes it is E7's self-intersection question,
+//! asked of the whole moved clone through the verdict door, every face
+//! pair across its shells, before the void door grafts it
+//! ([`cavity_embedded`]): a crossing refuses
+//! [`ShellError::CavityCrosses`] with its witness, and a cavity the
+//! engine cannot certify refuses [`ShellError::CavityUncertified`]. The
+//! planar gates above run first, as the closed-form refusal.
 //!
-//! - **`Interval` and `Sym` over it** ask E7's self-intersection
-//!   question of the whole moved clone, every face pair across its
-//!   shells, before the void door grafts it ([`cavity_embedded`]): a
-//!   crossing refuses [`ShellError::CavityCrosses`] with its witness,
-//!   and a cavity the engine cannot certify refuses
-//!   [`ShellError::CavityUncertified`]. The planar gates above run first
-//!   there too, as the closed-form refusal.
-//! - **`f64`, `Probe` and `Dual`** hold no lane, and there the window is
-//!   open: a curved crossing shells silently wrong.
+//! The shell asks it at `Interval` and `Sym` over it. At `f64`, `Probe`
+//! and `Sym<f64>` it does not yet ([`CavityGate`]), and there **a curved
+//! crossing shells silently wrong**.
 //!
 //! **Where the loud cases actually refuse.** A wall past a curved
 //! face's own reach refuses at the offset door's realized-radius floor,
@@ -383,7 +382,6 @@
 //! bodies OTHER producers hand the same predicate, which is where
 //! check 9 does its work.
 
-use geom_core::interval::Interval;
 use geom_core::k_stats::{decide, gate_measured};
 use geom_core::ladder::{Answering, Climb, Rung, climb};
 use geom_core::{
@@ -498,10 +496,10 @@ pub enum ShellError<T: Real> {
         /// The wall thickness the shell was asked for.
         thickness: T,
     },
-    /// **The cavity crosses itself.** At a scalar whose clearance lane
-    /// answers ([`crate::AtRestPolicy::clearance_lane`]), the moved
-    /// clone is asked E7's self-intersection question before it is
-    /// inserted ([`cavity_embedded`]), and two of its points that are
+    /// **The cavity crosses itself.** Where the shell asks
+    /// ([`CavityGate`]), the moved clone is asked E7's self-intersection
+    /// question before it is inserted ([`cavity_embedded`]), and two of
+    /// its points that are
     /// not one point of its boundary were found coincident: somewhere
     /// the material is thinner than the two walls, on any carrier and
     /// at any angle. [`ShellError::WallClearance`] and
@@ -1854,8 +1852,8 @@ pub(crate) fn shell_open_at<T: Decide + geom_core::CertifiedBounds + crate::prop
     // ---- Decide: no two moved walls meeting at an angle cross. ----
     moved_walls_cross(&cavity, &partition, thickness, band)?;
 
-    // ---- Decide: the cavity is embedded, where the scalar certifies. ----
-    cavity_embedded(&cavity, band, Interval::from_certified)?;
+    // ---- Decide: the cavity is embedded. ----
+    cavity_embedded(&cavity, band)?;
 
     // ---- The evidence: the construction's own decides, carried. ----
     //
@@ -4466,16 +4464,14 @@ pub(crate) fn rechart_rekeyed<T: Decide + crate::props::AtRestPolicy>(
 /// least `2·thickness` of material between them, or their inward
 /// offsets cross.
 ///
-/// **Why planar only, and what that leaves open.** A plane's reach is
-/// unbounded, so the per-face collapse margins are vacuous on exactly
-/// the faces that can collide; the closed form here is what replaces
-/// them. The CURVED residue is a documented window, not an oversight:
-/// a box-based test is unusable there because a shelled tube's
-/// concentric walls overlap boxes by construction, so a curved gate of
-/// that shape would refuse the verb's own acceptance fixtures. At a
-/// scalar whose clearance lane answers, [`cavity_embedded`] reads the
-/// curved pairs on the moved clone; **at `f64`, `Probe` and `Dual` a
-/// curved thin neck can still shell silently wrong** (module docs).
+/// **Why planar only.** A plane's reach is unbounded, so the per-face
+/// collapse margins are vacuous on exactly the faces that can collide;
+/// the closed form here is what replaces them. A box-based test is
+/// unusable on curved walls because a shelled tube's concentric walls
+/// overlap boxes by construction, so a curved gate of that shape would
+/// refuse the verb's own acceptance fixtures; [`cavity_embedded`] reads
+/// the curved pairs on the moved clone instead, where [`CavityGate`]
+/// says it asks (module docs).
 ///
 /// **Conservative in the #571 direction.** Footprint overlap is tested
 /// on projected bounding boxes of each face's whole boundary, arcs
@@ -4587,88 +4583,71 @@ fn wall_clearance<T: Decide>(
 /// dial: exhausting it refuses typed and never answers.
 const CAVITY_MAX_CELL_PAIRS: usize = 65_536;
 
-/// **The cavity is embedded**: E7's self-intersection question asked of
-/// the moved clone, every face against every face and itself, at the
-/// strict bound, before the void door grafts it. A verified crossing
-/// refuses [`ShellError::CavityCrosses`] with its witness, and a refusal
-/// of the question [`ShellError::CavityUncertified`]; the gate never
-/// passes a cavity it did not certify.
-///
-/// It runs where the scalar holds the engine's door
-/// ([`crate::AtRestPolicy::clearance_lane`]: `Interval` and `Sym` over
-/// it) and is skipped where it does not (`f64`, `Probe`, `Dual`), where
-/// the curved window stays open (module docs). Faces of different
-/// solids are read too: their cavities are eroded apart, so a pair of
-/// them is never touching and is decided by distance.
-///
-/// **The witness is the verifier's own**: of the stations the engine
-/// places on the two faces, the pair whose separation is least at its
-/// upper end, evaluated afresh on the stored charts lifted to
-/// [`Interval`] by `lift` (the caller's [`Interval::from_certified`],
-/// whose certification right its own bound carries) and decided at the engine's own strict site, where a
-/// separation in the band is a coincidence.
-fn cavity_embedded<T: Decide + crate::props::AtRestPolicy>(
+/// **The cavity is embedded**: the verdict door
+/// ([`crate::clearance::embedded`]) asked of the moved clone, every face
+/// against every face and itself, before the void door grafts it. A
+/// verified crossing refuses [`ShellError::CavityCrosses`] with its
+/// witness, and a refusal of the question
+/// [`ShellError::CavityUncertified`]; the gate never passes a cavity it
+/// did not certify. It asks where [`CavityGate::at`] says it does. Faces
+/// of different solids are read too: their cavities are eroded apart,
+/// so a pair of them is never touching and is decided by distance.
+fn cavity_embedded<T: Decide + geom_core::CertifiedBounds + crate::props::AtRestPolicy>(
     cavity: &Body<T>,
     band: Band,
-    lift: fn(T) -> Interval,
 ) -> Result<(), ShellError<T>> {
-    use crate::clearance::{
-        BoundVerdict, Budgets, ClearanceBound, DEFAULT_MAX_CELL_DEPTH, Side, Sweep, Which,
-    };
-    use geom_core::Bounds as _;
-    let Some(lane) = T::clearance_lane() else {
-        return Ok(());
-    };
+    use crate::clearance::{Budgets, Crossing, DEFAULT_MAX_CELL_DEPTH, Embedding, Side, embedded};
+    match CavityGate::at::<T>() {
+        CavityGate::Asks => {}
+        CavityGate::WaitsOnTheEngineRows => return Ok(()),
+    }
     let side = Side {
         body: cavity,
         faces: cavity.faces().map(|(k, _)| k).collect(),
     };
-    let uncertified = |refusal| ShellError::CavityUncertified { refusal };
-    let windows = lane.windows(&side, Which::First).map_err(uncertified)?;
-    let sweep = Sweep {
-        bound: ClearanceBound::StrictlyPositive,
-        band,
-        budgets: Budgets {
-            max_cell_depth: DEFAULT_MAX_CELL_DEPTH,
-            max_cell_pairs: CAVITY_MAX_CELL_PAIRS,
-        },
+    let budgets = Budgets {
+        max_cell_depth: DEFAULT_MAX_CELL_DEPTH,
+        max_cell_pairs: CAVITY_MAX_CELL_PAIRS,
     };
-    let report = lane.sweep(&sweep, &windows, &windows, true, |candidate| {
-        let (face, other) = candidate.faces();
-        let ask = candidate.ask();
-        let chart = |f: FaceKey| cavity.proven_face(f).surface().map_scalar(lift);
-        let (sa, sb) = (chart(face), chart(other));
-        let (la, lb) = lane.on_face_stations(candidate);
-        let at = |s: &geom::Surface<Interval>, (u, v): (f64, f64)| {
-            s.eval(Interval::from_bounds(u, u), Interval::from_bounds(v, v))
-        };
-        let mut best: Option<([(f64, f64); 2], Interval)> = None;
-        for &a in &la {
-            let pa = at(&sa, a);
-            for &b in &lb {
-                let d = (pa - at(&sb, b)).norm();
-                if best.is_none_or(|(_, w)| d.hi() < w.hi()) {
-                    best = Some(([a, b], d));
-                }
-            }
-        }
-        let (stations, distance) = best.ok_or("no station of either cell is on its face")?;
-        ask.confirms(distance, band)
-            .map(|()| (face, other, stations, distance.hi()))
-    });
-    match report.verdict {
-        BoundVerdict::Holds => Ok(()),
-        BoundVerdict::Violated((face, other, stations, distance)) => {
-            Err(ShellError::CavityCrosses {
-                face,
-                other,
-                stations,
-                distance,
-            })
-        }
-        BoundVerdict::Refused(refusal) => Err(uncertified(refusal)),
-        BoundVerdict::Within(_) | BoundVerdict::Exceeded => {
-            unreachable!("the strict question has no upper bound")
+    match embedded(&side, band, budgets).verdict {
+        Embedding::Embedded => Ok(()),
+        Embedding::Crosses(Crossing {
+            faces: (face, other),
+            stations,
+            distance,
+        }) => Err(ShellError::CavityCrosses {
+            face,
+            other,
+            stations,
+            distance,
+        }),
+        Embedding::Refused(refusal) => Err(ShellError::CavityUncertified { refusal }),
+    }
+}
+
+/// **Whether the shell asks its cavity the verdict door at a scalar.**
+///
+/// The door answers at every scalar with certification rights, but the
+/// shell asks it only where the clearance measure answers
+/// ([`crate::AtRestPolicy::clearance_lane`]: `Interval` and `Sym` over
+/// it). At `f64`, `Probe` and `Sym<f64>` the engine cannot yet certify
+/// 32 valid shells the suite builds (spheres, domes and tori out of
+/// pairs, departure-floor refusals), so asking there would refuse them.
+/// The switch waits on those engine rows:
+/// `work/clear/the-f64-cavity-gate-refuses-thirty-two-valid-shells.md`.
+enum CavityGate {
+    /// The cavity is asked.
+    Asks,
+    /// The cavity is not asked, and a curved crossing shells silently
+    /// wrong (module docs).
+    WaitsOnTheEngineRows,
+}
+
+impl CavityGate {
+    fn at<T: Decide + crate::props::AtRestPolicy>() -> Self {
+        match T::clearance_lane() {
+            Some(_) => Self::Asks,
+            None => Self::WaitsOnTheEngineRows,
         }
     }
 }
