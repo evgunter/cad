@@ -769,3 +769,23 @@ fn two_decided_boxes_that_meet_decline() {
     assert_eq!(sweep::overlapping(&[*top, near]), Some(near.at));
     assert_eq!(sweep::overlapping(&[*top, moved(2.0 * width)]), None);
 }
+
+/// **An arc to a node carries none, by name**: the node is listed with
+/// its four arcs, and no arc is carried to its node yet, so the carry
+/// refuses the section as [`crate::pair_section::NoCarrier::NodeArc`]
+/// rather than hand the join an arc whose end it has not certified.
+///
+/// Red against: an arc to a node carried as a rim arc is.
+#[test]
+fn an_arc_to_a_node_carries_none_by_name() {
+    use crate::pair_section::{CarryError, CarryRefusal, NoCarrier};
+    let s = built(&level(0.0), &cross()).expect("the cross reads");
+    let refused = s.carry(Some(SsiLane::marched()), band());
+    assert!(
+        matches!(
+            refused,
+            Err(CarryError::Refused(CarryRefusal::Unminted(NoCarrier::NodeArc)))
+        ),
+        "{refused:?}"
+    );
+}

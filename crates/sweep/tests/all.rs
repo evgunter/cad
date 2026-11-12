@@ -1417,5 +1417,7 @@ mod the_football_revolves;
 
 #[path = "a_ball_with_no_room_at_its_rim_refuses_typed.rs"]
 mod a_ball_with_no_room_at_its_rim_refuses_typed;
+#[path = "a_partner_across_a_lofted_wall_is_joined_on_its_section_value.rs"]
+mod a_partner_across_a_lofted_wall_is_joined_on_its_section_value;
 #[path = "a_peg_in_a_two_segment_bore_moves_only_its_wall.rs"]
 mod a_peg_in_a_two_segment_bore_moves_only_its_wall;

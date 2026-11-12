@@ -176,8 +176,10 @@ fn shape_iii_volume_matches_the_derived_closed_form() {
 
 /// **The cut-loft row (M6-3 §7, the PR 10 §5 contract verbatim):** a
 /// boolean against the loft body refuses TYPED, naming its true
-/// missing layer — the edge×NURBS-face sweep layer of M5 PR 9c item 5
-/// — never a silent skip and never a wrong body.
+/// missing layer — never a silent skip and never a wrong body. The join
+/// reads the cutter's planes against the loft's spline walls on their
+/// section value, so the layer it stops at is the inside/outside test,
+/// which cannot cross a spline face.
 #[test]
 fn cut_loft_refuses_typed_naming_the_missing_boolean_layer() {
     let (sections, places) = shape_iii_sections();
@@ -212,12 +214,16 @@ fn cut_loft_refuses_typed_naming_the_missing_boolean_layer() {
     let out = topo::subtract(&loft, &cutter, Tol::witness());
     let err = match out {
         Err(e) => e,
-        Ok(_) => panic!("the cut-loft boolean cannot succeed before the edge×NURBS-face layer"),
+        Ok(_) => panic!("the cut-loft boolean cannot succeed before the spline containment layer"),
     };
+    assert!(
+        matches!(err, topo::BooleanError::Containment(_)),
+        "the inside/outside test refuses: {err:?}"
+    );
     let text = err.render(geom_brep::recourse::Reading::Build);
     println!("cut-loft refusal: {text}");
     assert!(
-        text.contains("spline (NURBS) face") && text.contains("Recourse: reshape the parts"),
+        text.contains("spline (NURBS) face") && text.contains("Recourse: "),
         "the refusal names the face kind with no crossing layer and ends on its \
          recourse: {text}"
     );
