@@ -3948,9 +3948,15 @@ mod tests {
             sector(Vec3::new(0.0, 0.0, 1.0)),
             sector(Vec3::new(mid.sin(), 0.0, mid.cos())),
         );
+        // A crossing's B codes are the flip of its A codes.
         let codes = (SideCode::Out, SideCode::In);
-        let err =
-            germ_dir((&sa, codes), (&sb, codes), DeclarationRead::Moot, band).expect_err("in band");
+        let err = germ_dir(
+            (&sa, codes),
+            (&sb, (codes.1, codes.0)),
+            DeclarationRead::Moot,
+            band,
+        )
+        .expect_err("in band");
         assert!(
             matches!(
                 err,

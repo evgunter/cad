@@ -25,8 +25,9 @@ pub(crate) const GERM_SENSE: &str = "germ_sense";
 #[derive(Clone, Copy, Debug)]
 pub(crate) enum OrderFault {
     /// A side or an order reads in the band, or reads zero where nothing
-    /// orders the tie, or where the directions read apart unlevered by
-    /// their lean ([`sine`]): the germs coincide to the tolerance.
+    /// orders the tie, or the zeros it read do not agree (two germs each
+    /// along the first and opposite each other): the germs coincide to the
+    /// tolerance.
     Coincident(Indeterminate),
     /// Two directions on one line whose sense reads in the band.
     Sense(Indeterminate),
@@ -76,20 +77,9 @@ pub(crate) fn same_sense<T: Decide>(
 /// and the two directions' smaller lean ([`leaned_lever`]). Its sign where
 /// definite; `Err(diag)` inside it where it decides the two on one line.
 ///
-/// The lean shrinks the lever by what a face line's own steepness would
-/// add, so a leaned zero says the two directions may lie on one line
-/// within their faces' tolerances, not that they do. It is taken as one
-/// line only where the same sine read at the bare `arm` is not definite:
-/// where it is, the two lie apart as computed, and the order cannot place
-/// them within the tolerance, which refuses as their coincidence. Two
-/// germs 60° apart on face lines leaning `1e-7` read zero leaned and
-/// apart unleaned; on one line they would read along the first germ, and
-/// each other, at once.
-///
 /// # Errors
 ///
-/// [`OrderFault::Coincident`]: the leaned reading in the band, or a
-/// leaned zero the bare reading puts apart.
+/// [`OrderFault::Coincident`]: the reading in the band.
 fn sine<T: Decide>(
     name: &'static str,
     (g, h): (Leaned<T>, Leaned<T>),
@@ -97,16 +87,13 @@ fn sine<T: Decide>(
     arm: Lever<T>,
     band: Band,
 ) -> Result<Result<NonzeroSign, Indeterminate>, OrderFault> {
-    let raw = g.dir.cross(h.dir).dot(normal);
-    let leaned = Margin::levered(raw, leaned_lever(arm, (g.lean, h.lean)));
+    let leaned = Margin::levered(
+        g.dir.cross(h.dir).dot(normal),
+        leaned_lever(arm, (g.lean, h.lean)),
+    );
     match crate::validate::decide_nonzero(name, leaned, band) {
         Ok(sign) => Ok(Ok(sign)),
-        Err(diag) if diag.margin.rejected_sign() == Some(Sign::Zero) => {
-            match crate::validate::decide(name, Margin::levered(raw, arm), band) {
-                Ok(Sign::Positive | Sign::Negative) => Err(OrderFault::Coincident(diag)),
-                _ => Ok(Err(diag)),
-            }
-        }
+        Err(diag) if diag.margin.rejected_sign() == Some(Sign::Zero) => Ok(Err(diag)),
         Err(diag) => Err(OrderFault::Coincident(diag)),
     }
 }
@@ -346,13 +333,13 @@ where
 mod tests {
     use super::*;
 
-    /// **Germs far apart on steep face lines refuse, never stand on one
-    /// line** (the FULL review's probe on PR 6871): germs at 0°, ±60° and
-    /// 180°, each a face line leaning `1e-7` or `1e-6`, at arm `1e-3`.
-    /// Levered by their lean the sines between them read zero, so on one
-    /// line the ±60° germs would read along `germs[0]` and opposite each
-    /// other at once. The bare sine puts them apart: the order refuses as
-    /// their coincidence, typed.
+    /// **Germs whose leaned zeros disagree refuse typed, never panic** (the
+    /// FULL review's probe on PR 6871): germs at 0°, ±60° and 180°, each a
+    /// face line leaning `1e-7` or `1e-6`, at arm `1e-3`. Levered by their
+    /// lean the sines between them read zero, so the ±60° germs read along
+    /// `germs[0]`, as the lean doctrine reads a face line within its
+    /// faces' tolerance, and opposite each other: the zeros do not agree,
+    /// and the order refuses as the germs' coincidence.
     #[test]
     fn germs_far_apart_on_steep_face_lines_refuse_as_coincident() {
         let band = Band::new(1e-9, 1e-8).unwrap();
