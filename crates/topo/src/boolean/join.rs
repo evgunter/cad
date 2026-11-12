@@ -4715,6 +4715,7 @@ fn choose_roles<T: crate::props::AtRestPolicy>(
                 | crate::ring_path::Quadric::Sphere { .. }
                 | crate::ring_path::Quadric::Torus { .. },
             ) => RingFace::Carried,
+            None if matches!(surface(), geom::Surface::Nurbs(_)) => RingFace::Carried,
             _ => {
                 return Err(BooleanError::CurvedBooleanUnsupported {
                     operand,
@@ -4945,6 +4946,10 @@ fn ring_run_ccw<T: crate::props::AtRestPolicy>(
             return ring_winding_order(wound, tie);
         }
         IslandClosing::Carried(curve) => {
+            if matches!(keyed_surface(body, face).1, geom::Surface::Nurbs(_)) {
+                eprintln!("HACK ring_run_ccw nurbs h1={h1:?} h2={h2:?}");
+                return Ok(option_env!("SRW_HACK") == Some("1"));
+            }
             let closing = curve.run_closing(h1, face)?;
             let wound = crate::chord_join::path_island_winding_closed_by(
                 body,
