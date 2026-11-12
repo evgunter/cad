@@ -771,7 +771,7 @@ const INDIRECT: &[(&str, &str)] = &[
         NOT_A_NAME,
     ),
     (
-        "pcurves.rs: a_spline_gate_that_is_not_off_writes_a_reset: chart(&s)",
+        "pcurves.rs: a_spline_gate_that_is_undecided_refuses_and_writes_nothing: chart(&s)",
         NOT_A_NAME,
     ),
     (
