@@ -3,9 +3,11 @@
 //! the whole row or touch along the whole row. A row that is neither
 //! refuses.
 //!
-//! A structural selector owes no transversality margin: a curve known in
-//! advance is picked exactly whatever the contact order. What the
-//! certificate still owes is the class. A row read as crossing where the
+//! A structural selector owes no transversality margin: its curve is a row
+//! of both charts by construction, picked without measuring, whatever the
+//! contact order. What its certificate does measure is decided with a
+//! margin like anything the kernel measures: each image's certificate, and
+//! here the class, each a bound levered to the edge. A row read as crossing where the
 //! surfaces touch somewhere along it is the defect this reading exists to
 //! exclude, so neither class is ever read off sampled feet. Each class is a
 //! bound over the whole row.

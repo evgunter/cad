@@ -719,7 +719,7 @@ fn remap_with_selects(
     // the target (or as the one an earlier reader carried).
     let pose = |var: VarId| pose_def(source, var).is_some();
     let rd = |slot: crate::OperandSlot, var: VarId| match source.selection(var) {
-        Some(select) => rd_output(slot, select.body).map(|_| var),
+        Some(select) => rd_output(slot, select.body.read).map(|_| var),
         None if pose(var) => Ok(var),
         None => rd_output(slot, var),
     };
@@ -746,20 +746,49 @@ fn remap_with_selects(
         })
     };
     let mut selects: BTreeMap<VarId, crate::Operand> = BTreeMap::new();
-    // A selection authored afresh over its carried body, its names
+    // A formula re-pointed at the variables the target holds.
+    let mapped = |slot: crate::OperandSlot, var: VarId, formula: Formula| {
+        let mut missed = None;
+        let mapped = formula.substitute_vars(&mut |read| {
+            let dim = kind_of(source, read)?;
+            match vars.map.get(&read) {
+                Some(&held) => Some(Formula::from(&crate::Expr::var(held, dim))),
+                None => {
+                    missed.get_or_insert(read);
+                    None
+                }
+            }
+        });
+        match (mapped, missed) {
+            (Ok(mapped), None) => Ok(mapped),
+            (_, missed) => Err(RemapMiss::Read {
+                slot,
+                var: missed.unwrap_or(var),
+                output: false,
+            }),
+        }
+    };
+    // A selection authored afresh over its carried body, a member read's
+    // indices written as the source wrote them and re-pointed, its names
     // remapped.
     let reselected = |slot: crate::OperandSlot, var: VarId| -> Result<crate::Operand, RemapMiss> {
         let Some(select) = source.selection(var) else {
             unreachable!("asked of a selection")
         };
-        let body = rd_output(slot, select.body)?;
+        let body = rd_output(slot, select.body.read)?;
+        let at = source
+            .written_body(&select.body, crate::Operand::Var(body))
+            .at
+            .into_iter()
+            .map(|index| mapped(slot, var, index))
+            .collect::<Result<Vec<_>, _>>()?;
         let names = select
             .names
             .iter()
-            .map(|n| carried_name(n, select.body))
+            .map(|n| carried_name(n, select.body.read))
             .collect::<Result<Vec<_>, _>>()?;
         Ok(crate::Operand::select(
-            crate::Operand::Var(body),
+            crate::BodyRead::indexed(crate::Operand::Var(body), at),
             crate::var::Select::canonical(selection_kind(source, var), names),
         ))
     };
@@ -782,51 +811,19 @@ fn remap_with_selects(
                 }
                 rd_output(slot, leaf).map(|carried| Some(crate::Operand::Var(carried)))
             };
-            let mut scalar = |formula: Formula| -> Result<Formula, RemapMiss> {
-                let mut missed = None;
-                let mapped = formula.substitute_vars(&mut |read| {
-                    let dim = kind_of(source, read)?;
-                    match vars.map.get(&read) {
-                        Some(&held) => Some(Formula::from(&crate::Expr::var(held, dim))),
-                        None => {
-                            missed.get_or_insert(read);
-                            None
-                        }
-                    }
-                });
-                match (mapped, missed) {
-                    (Ok(mapped), None) => Ok(mapped),
-                    (_, missed) => Err(RemapMiss::Read {
-                        slot,
-                        var: missed.unwrap_or(var),
-                        output: false,
-                    }),
-                }
-            };
+            let mut scalar = |formula: Formula| mapped(slot, var, formula);
             selects.insert(
                 var,
                 rewritten_pose_with(source, var, &mut leaf, &mut scalar, true)?,
             );
             continue;
         }
-        let Some(select) = source.selection(var) else {
+        if source.selection(var).is_none() {
             continue;
-        };
+        }
         let operand = match vars.map.get(&var) {
             Some(&held) => crate::Operand::Var(held),
-            None => {
-                let body = rd_output(slot, select.body)?;
-                let names = select
-                    .names
-                    .iter()
-                    .map(|n| carried_name(n, select.body))
-                    .collect::<Result<Vec<_>, _>>()?;
-                let kind = selection_kind(source, var);
-                crate::Operand::select(
-                    crate::Operand::Var(body),
-                    crate::var::Select::canonical(kind, names),
-                )
-            }
+            None => reselected(slot, var)?,
         };
         selects.insert(var, operand);
     }
@@ -1476,6 +1473,15 @@ pub enum InlineError {
         /// A node of the referenced document reading it.
         node: SpokenNode,
     },
+    /// A selection of the instance's copy names entities of two members
+    /// of the family the copy was built from, or mixes a member's
+    /// entities with names every member holds. Spliced, the copy is the
+    /// family again, and a selection reads one body (REFERENCES DM3):
+    /// no one body holds these names.
+    SelectionSpansMembers {
+        /// The node reading the selection.
+        reader: SpokenNode,
+    },
     /// A host reference names the instance's own OUTPUT BODY. The
     /// spliced recipe has no single node whose body corresponds to the
     /// instance's placed product, so the reference cannot re-anchor.
@@ -1610,6 +1616,15 @@ impl core::fmt::Display for InlineError {
                     "in the referenced document, repoint {node}'s reader at a variable it holds \
                      or remove the reader, point this instance at that version \
                      (UpdateReference), then inline"
+                ))
+            ),
+            Self::SelectionSpansMembers { reader } => write!(
+                f,
+                "inline: {reader} selects entities of the instance's copy that lie in two \
+                 members of the family it copies, and spliced, that family is no one body \
+                 to select them in. {}",
+                Recourse(&format!(
+                    "split {reader}'s selection into one per member, then inline"
                 ))
             ),
             Self::InstanceBodyNameReferenced { name } => write!(
@@ -2901,7 +2916,7 @@ pub fn split(
     let carrier_part = |carrier: NameCarrier<'_>| -> Option<RecipeNodeId> {
         let body = match carrier {
             NameCarrier::Store { body, .. } => body,
-            NameCarrier::Select { var, .. } => doc.selection(var)?.body,
+            NameCarrier::Select { var, .. } => doc.selection(var)?.body.read,
             NameCarrier::Payload { .. } => return None,
         };
         (doc.operation_of(body) != Some(carrier.name().node))
@@ -2916,6 +2931,18 @@ pub fn split(
             || (name.node != at
                 && world(at)
                 && matches!(doc.node(at), Some(Node::InstantiatePart { .. })))
+    };
+    // A selection's names as its body's variable's table spells them: a
+    // member read's under the family's `Member` qualifier, which every
+    // body built from the family — a copy's among them — names it by.
+    // `None` for a member read at an index written as no count, which
+    // crosses no cut.
+    let whole_names = |select: &crate::var::Select| -> Option<Vec<StableName>> {
+        select
+            .names
+            .iter()
+            .map(|name| crate::mate::member::spelled_whole(doc, &select.body, name))
+            .collect()
     };
     // **The piece a remainder whole read of the cut re-points to**: at a
     // body seat, a read of a cut world placement's copy or of a pick of
@@ -3011,8 +3038,10 @@ pub fn split(
                     let carries = |leaf: VarId| {
                         doc.var_name(leaf).is_none()
                             && doc.selection(leaf).is_some_and(|select| {
-                                doc.operation_of(select.body).is_some_and(|at| {
-                                    select.names.iter().all(|name| holds(name, at))
+                                doc.operation_of(select.body.read).is_some_and(|at| {
+                                    whole_names(select).is_some_and(|names| {
+                                        names.iter().all(|name| holds(name, at))
+                                    })
                                 })
                             })
                     };
@@ -3027,9 +3056,11 @@ pub fn split(
                 }
                 let (body, crosses) = match doc.selection(var) {
                     Some(select) => (
-                        select.body,
-                        doc.operation_of(select.body).is_some_and(|at| {
-                            cut.contains(&at) && select.names.iter().all(|name| holds(name, at))
+                        select.body.read,
+                        doc.operation_of(select.body.read).is_some_and(|at| {
+                            cut.contains(&at)
+                                && whole_names(select)
+                                    .is_some_and(|names| names.iter().all(|name| holds(name, at)))
                         }),
                     ),
                     None => match heir_of(node, slot, var) {
@@ -3098,9 +3129,9 @@ pub fn split(
         let Some(select) = doc.selection(var) else {
             continue;
         };
-        let body = doc.operation_of(select.body);
-        for name in &select.names {
-            if let Some((placement, true)) = home(name, body)
+        let body = doc.operation_of(select.body.read);
+        for name in whole_names(select).unwrap_or_default() {
+            if let Some((placement, true)) = home(&name, body)
                 && !places_at_identity(placement)
             {
                 return Err(SplitError::RemainderReadUncarried {
@@ -3520,6 +3551,11 @@ pub fn split(
     // crossing, however its names fall across the cut: that is AQ8
     // option (b), SKIP — its home is `crates/editor-core/ASSEMBLY.md`'s
     // AQ8 clause.
+    // A side's head, at its node, by the name that node's table holds.
+    struct Spelled {
+        at: RecipeNodeId,
+        name: FaceName,
+    }
     let mut crossings: Vec<InterfaceCrossing> = Vec::new();
     for id in doc.ids() {
         if cut.contains(&id) {
@@ -3548,8 +3584,19 @@ pub fn split(
             {
                 continue;
             }
+            // A head is recorded as the table of its node spells it: a
+            // member's face under the family's `Member` qualifier, the
+            // name an instance's copy of the family carries.
+            let spelled = |head: &crate::node::SitedFace| {
+                crate::mate::member::spelled_head(doc, head)
+                    .and_then(|name| FaceName::new(name).ok())
+                    .map(|name| Spelled { at: head.at, name })
+            };
+            let (Some(a), Some(b)) = (spelled(&a), spelled(&b)) else {
+                continue;
+            };
             // A part's name is inside where the copy carrying it is.
-            let inside = |head: &crate::node::SitedFace| {
+            let inside = |head: &Spelled| {
                 if head.name.node != head.at && part_names_at(head.at).is_some() {
                     cut.contains(&head.at)
                 } else {
@@ -3641,10 +3688,10 @@ pub fn split(
                 crate::Operand::Var(copies),
                 crate::var::Select::canonical(
                     selection_kind(doc, var),
-                    select
-                        .names
+                    whole_names(select)
+                        .unwrap_or_else(|| unreachable!("a crossing selection spells its names"))
                         .iter()
-                        .map(|name| in_part(name, doc.operation_of(select.body)))
+                        .map(|name| in_part(name, doc.operation_of(select.body.read)))
                         .collect::<Result<Vec<_>, _>>()?,
                 ),
             )),
@@ -3702,10 +3749,10 @@ pub fn split(
                 crate::Operand::Var(copies),
                 crate::var::Select::canonical(
                     selection_kind(doc, leaf),
-                    select
-                        .names
+                    whole_names(select)
+                        .unwrap_or_else(|| unreachable!("a crossing selection spells its names"))
                         .iter()
-                        .map(|name| in_part(name, doc.operation_of(select.body)))
+                        .map(|name| in_part(name, doc.operation_of(select.body.read)))
                         .collect::<Result<Vec<_>, _>>()?,
                 ),
             )))
@@ -4017,15 +4064,15 @@ pub fn inline(
         let Some(reader) = doc.node(id) else { continue };
         for (slot, var) in reader.operand_rows() {
             if let Some(leaves) = pose_leaves(doc, var) {
-                if leaves
-                    .iter()
-                    .any(|&leaf| doc.selection(leaf).is_some_and(|s| reads_instance(s.body)))
-                {
+                if leaves.iter().any(|&leaf| {
+                    doc.selection(leaf)
+                        .is_some_and(|s| reads_instance(s.body.read))
+                }) {
                     pose_readers.push((id, slot, var));
                 }
                 continue;
             }
-            let body = doc.selection(var).map_or(var, |select| select.body);
+            let body = doc.selection(var).map_or(var, |select| select.body.read);
             if reads_instance(body) {
                 readers.push((id, slot, var));
             }
@@ -4215,7 +4262,7 @@ pub fn inline(
             continue;
         }
         let mut leaf = |leaf: VarId| -> Result<Option<crate::Operand>, InlineError> {
-            let Some(select) = doc.selection(leaf).filter(|s| s.body == copies) else {
+            let Some(select) = doc.selection(leaf).filter(|s| s.body.read == copies) else {
                 return Ok(None);
             };
             let names = select
@@ -4224,7 +4271,7 @@ pub fn inline(
                 .map(&to_host)
                 .collect::<Result<Vec<_>, _>>()?;
             Ok(Some(crate::Operand::select(
-                crate::Operand::Var(spliced),
+                doc.written_body(&select.body, crate::Operand::Var(spliced)),
                 crate::var::Select::canonical(selection_kind(doc, leaf), names),
             )))
         };
@@ -4310,7 +4357,7 @@ pub fn inline(
     let mut moved: BTreeMap<StableName, StableName> = BTreeMap::new();
     for carrier in doc.name_carriers() {
         let read_in = match carrier {
-            NameCarrier::Select { var, .. } => doc.selection(var).map(|select| select.body),
+            NameCarrier::Select { var, .. } => doc.selection(var).map(|select| select.body.read),
             NameCarrier::Store { body, .. } => Some(body),
             NameCarrier::Payload { .. } => None,
         };
@@ -4352,21 +4399,36 @@ pub fn inline(
     };
     // A selection of the instance's copy authored afresh on the new
     // placement's copy, its names landed.
-    let reselect = |var: VarId| -> Result<crate::Operand, InlineError> {
+    let spliced_at = current.doc().operation_of(spliced);
+    let reselect = |var: VarId, reader: RecipeNodeId| -> Result<crate::Operand, InlineError> {
         let Some(select) = doc.selection(var) else {
             unreachable!("a selection reader reads a selection")
         };
-        Ok(crate::Operand::select(
-            host_body(select.body),
-            crate::var::Select::canonical(
-                selection_kind(doc, var),
-                select
-                    .names
-                    .iter()
-                    .map(&to_host)
-                    .collect::<Result<Vec<_>, _>>()?,
+        let names = crate::var::Select::canonical(
+            selection_kind(doc, var),
+            select
+                .names
+                .iter()
+                .map(&to_host)
+                .collect::<Result<Vec<_>, _>>()?,
+        );
+        // A member read keeps its indices; a whole read of the copy whose
+        // names the family's table spells for one member — the copy was
+        // built from the family, which the new placement now is — reads
+        // that member.
+        Ok(match select.body.is_indexed() {
+            true => crate::Operand::select(
+                doc.written_body(&select.body, host_body(select.body.read)),
+                names,
             ),
-        ))
+            false => match spliced_at {
+                Some(family) => unwound_selection(host_body(select.body.read), family, names)
+                    .ok_or_else(|| InlineError::SelectionSpansMembers {
+                        reader: doc.spoken(reader),
+                    })?,
+                None => crate::Operand::select(host_body(select.body.read), names),
+            },
+        })
     };
     {
         // Once per selection, as split authors them: a named one keeps
@@ -4375,7 +4437,7 @@ pub fn inline(
         for &(node, slot, var) in &readers {
             let value = match (doc.selection(var), reauthored.get(&var)) {
                 (Some(_), Some(&fresh)) => crate::SlotValue::Read(crate::Operand::Var(fresh)),
-                (Some(_), None) => crate::SlotValue::Read(reselect(var)?),
+                (Some(_), None) => crate::SlotValue::Read(reselect(var, node)?),
                 (None, _) => crate::SlotValue::Read(host_body(var)),
             };
             step(
@@ -4405,7 +4467,9 @@ pub fn inline(
         for &(node, slot, var) in &pose_readers {
             let mut leaf = |leaf: VarId| -> Result<Option<crate::Operand>, InlineError> {
                 match doc.selection(leaf) {
-                    Some(select) if reads_instance(select.body) => reselect(leaf).map(Some),
+                    Some(select) if reads_instance(select.body.read) => {
+                        reselect(leaf, node).map(Some)
+                    }
                     _ => Ok(None),
                 }
             };
@@ -4526,6 +4590,14 @@ pub enum FlattenError {
         /// The reader.
         reader: SpokenNode,
     },
+    /// A selection of the copy names entities of two members of the
+    /// family a `⊔` member of it is, or mixes a member's entities with
+    /// names every member holds: unwrapped, the family is no one body
+    /// to select them in (REFERENCES DM3).
+    SelectionSpansMembers {
+        /// The reader.
+        reader: SpokenNode,
+    },
     /// The copy and the one shape it copies are both named, and a
     /// variable has one name (VR2).
     BothNamed {
@@ -4580,6 +4652,15 @@ impl core::fmt::Display for FlattenError {
                     "re-point {reader} at one copy (SetParam), then flatten"
                 ))
             ),
+            Self::SelectionSpansMembers { reader } => write!(
+                f,
+                "flatten: {reader} selects entities of the copy that lie in two members of \
+                 the family it groups, and unwrapped, that family is no one body to select \
+                 them in. {}",
+                Recourse(&format!(
+                    "split {reader}'s selection into one per member, then flatten"
+                ))
+            ),
             Self::BothNamed { name, held } => write!(
                 f,
                 "flatten: the copy is named {name} and the shape it copies {held}. {}",
@@ -4611,7 +4692,7 @@ pub(crate) fn rebinds_at_sites<P: crate::ProfilePayload>(
     for carrier in doc.name_carriers() {
         let site = match carrier {
             NameCarrier::Select { var, .. } => match doc.selection(var) {
-                Some(select) => Some(select.body),
+                Some(select) => Some(select.body.read),
                 None => continue,
             },
             NameCarrier::Payload { .. } | NameCarrier::Store { .. } => None,
@@ -4773,7 +4854,9 @@ pub fn flatten(
             })
             .collect::<Result<Vec<_>, _>>()?;
         // Names a `⊔` source keys by one member's read are that member's
-        // own, read in the member: the `⊔` only grouped the copy.
+        // own, read in the member: the `⊔` only grouped the copy. A member
+        // that is a family reads the one of its members they name
+        // ([`unwound_selection`]).
         let group = doc
             .operation_of(source)
             .filter(|&at| matches!(doc.node(at), Some(Node::Assemble { .. })));
@@ -4783,21 +4866,28 @@ pub fn flatten(
             }
             _ => None,
         };
-        if select.body == copy
+        if select.body == crate::BodyRead::plain(copy)
             && let Some(members) = names.iter().map(member).collect::<Option<Vec<_>>>()
             && let Some(&(read, _)) = members.first()
             && members.iter().all(|(r, _)| *r == read)
         {
-            return Ok(crate::Operand::select(
-                crate::Operand::Var(read),
-                crate::var::Select::canonical(
-                    selection_kind(doc, var),
-                    members.into_iter().map(|(_, of)| of).collect(),
-                ),
-            ));
+            let names = crate::var::Select::canonical(
+                selection_kind(doc, var),
+                members.into_iter().map(|(_, of)| of).collect(),
+            );
+            return match doc.operation_of(read) {
+                Some(at) => {
+                    unwound_selection(crate::Operand::Var(read), at, names).ok_or_else(|| {
+                        FlattenError::SelectionSpansMembers {
+                            reader: doc.spoken(reader),
+                        }
+                    })
+                }
+                None => Ok(crate::Operand::select(crate::Operand::Var(read), names)),
+            };
         }
         Ok(crate::Operand::select(
-            in_source(select.body),
+            doc.written_body(&select.body, in_source(select.body.read)),
             crate::var::Select::canonical(selection_kind(doc, var), names),
         ))
     };
@@ -4811,18 +4901,20 @@ pub fn flatten(
             let value = if let Some(leaves) = pose_leaves(doc, var) {
                 if !leaves
                     .iter()
-                    .any(|&leaf| doc.selection(leaf).is_some_and(|s| reads_copy(s.body)))
+                    .any(|&leaf| doc.selection(leaf).is_some_and(|s| reads_copy(s.body.read)))
                 {
                     continue;
                 }
                 let mut leaf = |leaf: VarId| -> Result<Option<crate::Operand>, FlattenError> {
                     match doc.selection(leaf) {
-                        Some(select) if reads_copy(select.body) => reselect(leaf, id).map(Some),
+                        Some(select) if reads_copy(select.body.read) => {
+                            reselect(leaf, id).map(Some)
+                        }
                         _ => Ok(None),
                     }
                 };
                 crate::SlotValue::Read(rewritten_pose(doc, var, &mut leaf)?)
-            } else if doc.selection(var).is_some_and(|s| reads_copy(s.body)) {
+            } else if doc.selection(var).is_some_and(|s| reads_copy(s.body.read)) {
                 match reauthored.get(&var) {
                     Some(&fresh) => crate::SlotValue::Read(crate::Operand::Var(fresh)),
                     None => crate::SlotValue::Read(reselect(var, id)?),
@@ -4841,7 +4933,7 @@ pub fn flatten(
                     fresh: Vec::new(),
                 },
             )?;
-            if doc.selection(var).is_some_and(|s| reads_copy(s.body))
+            if doc.selection(var).is_some_and(|s| reads_copy(s.body.read))
                 && !reauthored.contains_key(&var)
             {
                 let fresh = read_at(current.doc(), id, slot);
@@ -4914,7 +5006,9 @@ pub fn flatten(
                     node.operand_rows().into_iter().any(|(_, read)| {
                         let reads = |read: VarId| {
                             read == var
-                                || doc.selection(read).is_some_and(|select| select.body == var)
+                                || doc
+                                    .selection(read)
+                                    .is_some_and(|select| select.body.read == var)
                                 || doc.pick(read).is_some_and(|pick| pick.placement == var)
                         };
                         // A pose reads its leaves.
@@ -5604,4 +5698,42 @@ mod remap_keeps_a_parts_section {
             "outside a parted carry an unmapped section misses on it"
         );
     }
+}
+
+/// **A selection of names a body built from a family carried, read
+/// again in the family itself** — flatten's `⊔` unwrap and inline's
+/// reselect, where the copy that carried the names is gone and the read
+/// is the family the operation `at` defines. Such a body names a
+/// member's entity as the family's table does, `Member { at: values,
+/// of }` at `at`; read in the family, a selection reads one body
+/// (REFERENCES DM3), so where every name spells one member the same
+/// way, the selection is that member, `xs[i]` at those values, by its
+/// own names `of`. Where no name is so spelled, the names are each
+/// member's own and the selection is `read` and the names as they
+/// were. `None` where the names lie in two members, or mix the two
+/// spellings: no one body holds them, and the caller refuses.
+fn unwound_selection(
+    read: crate::Operand,
+    at: RecipeNodeId,
+    names: Vec<StableName>,
+) -> Option<crate::Operand> {
+    let member = |name: &StableName| match name.path.as_slice() {
+        [RoleSeg::Member { at: values, of }] if name.node == at => Some((
+            values.iter().map(|&(_, value)| value).collect::<Vec<u32>>(),
+            (**of).clone(),
+        )),
+        _ => None,
+    };
+    let members: Vec<_> = names.iter().filter_map(member).collect();
+    let Some((values, _)) = members.first() else {
+        return Some(crate::Operand::select(read, names));
+    };
+    if members.len() != names.len() || members.iter().any(|(other, _)| other != values) {
+        return None;
+    }
+    let values = values.clone();
+    Some(crate::Operand::select(
+        crate::BodyRead::member(read, &values),
+        members.into_iter().map(|(_, own)| own).collect(),
+    ))
 }

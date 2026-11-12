@@ -1038,14 +1038,23 @@ EdgeDescription =
   native or imported geometry: import adopts extensional input by
   recovering the selector a native body would carry, or refuses typed
   where no lane recovers one ([import]).
-- **Validity is margined.** A witness selector is admitted by its
-  margin: `Intersection` requires transversality along the locus; a
-  tangency of order k is read through its k-jet, with its margin at order
-  k+1, transverse to the locus. A structural selector owes its
-  per-surface certificates and one contact class along the whole row. A locus in the ambiguous
-  band, certifiable as neither, fails loudly at construction exactly as
-  at import, and so does an edge read definitely transverse at some
-  stations and definitely smooth at others.
+- **Validity is margined.** Whatever the kernel measures to admit an
+  edge is admitted only with a margin. A witness selector finds its edge
+  by measurement, so it carries one: `Intersection` requires
+  transversality along the locus; a tangency of order k is read through
+  its k-jet, with its margin at order k+1, transverse to the locus. A
+  structural selector does not find its edge by measurement: the curve
+  is a row of both surfaces' charts by construction, known exactly
+  before anything is sampled, so no transversality margin is owed to
+  pick it. None could be required where the two surfaces touch along the
+  row, as two blend bands do along their shared section. What it does
+  measure carries a margin like anything else: each surface's
+  chart-image certificate, and the row's contact class, crossing along
+  the whole row or touching along the whole row, each decided by a bound
+  levered to the edge. A locus in the ambiguous band, certifiable as
+  neither, fails loudly at construction exactly as at import, and so
+  does an edge read definitely transverse at some stations and
+  definitely smooth at others.
 - **Prefer-intrinsic, enforced at tier 3.** Every two-surface edge is
   intrinsic and its selector is decided by the geometry alone; at rest a
   witness selector must certify its reading (`TransverseNotIntrinsic`,
@@ -2498,7 +2507,6 @@ is the board and `work/README.md` its contract.
 | `work/perf/plan.md` | Merged-and-advisory ([determinism], deterministic parallelism) | Performance plan and Q-P answers |
 | `docs/CURVO-AUDIT.md` | Reference | curvo vendor audit behind Q5 |
 | `docs/LONGTERM-IDEAS.md` | Parked, non-binding | Idea bank with a graduation rule |
-| `docs/MODEL-AB-LOG.md` | Experiment log | Model A/B protocol + data; process, not design |
 | `docs/NAME-CANDIDATES.md` | Reference | Q9 name candidates (re-sweep before ratifying) |
 | `docs/predicate-dimension-audit.md` | Live audit | Dimensional-analysis sweep of predicate comparands against D4; its *Findings* section is the live list |
 

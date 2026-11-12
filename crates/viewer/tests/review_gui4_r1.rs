@@ -231,7 +231,7 @@ fn r1_a_rotated_probe_is_drawn_picked_and_reported_in_world() {
         asm::POST_B_AT[1] + s / 2.0,
         asm::POST_HEIGHT,
     );
-    let drawn = probe.affine::<f64>().transform_point(unmoved_centre);
+    let drawn = probe.affine().transform_point(unmoved_centre);
 
     // The scene draws it there.
     let scene = index.scene_for(&view).expect("a scene builds");

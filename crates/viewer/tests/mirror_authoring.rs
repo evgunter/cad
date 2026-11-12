@@ -1007,7 +1007,7 @@ fn a_face_on_a_splits_lower_half_reads_that_half() {
                 Operand::Pose(pose) => match &**pose {
                     PoseDef::Plane {
                         face: Operand::Select { body, .. },
-                    } => Some((**body).clone()),
+                    } => Some(body.read.clone()),
                     _ => None,
                 },
                 _ => None,

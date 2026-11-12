@@ -109,7 +109,7 @@ fn proposal_sides_agree_with_the_standalone_part_documents() {
     let placed = common::solve(&session, doc, tol)
         .placement(doc, bench.post_b)
         .expect("post_b is solved")
-        .affine::<f64>();
+        .affine();
     let world = pncad::select::face_frame(
         eval,
         bench.post_b,

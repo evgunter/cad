@@ -400,12 +400,17 @@ where
     let projected = if per_operand {
         None
     } else {
-        reads_projected(node, &body_rows(node, doc), doc, (results, vals))?
+        reads_projected(
+            node,
+            &body_rows(node, doc),
+            doc,
+            (results, vals, env.lane.params),
+        )?
     };
     let results = projected.as_ref().unwrap_or(results);
     let project_each = |rows: &[(O, crate::VarId)]| {
         rows.iter()
-            .map(|&row| reads_projected(node, &[row], doc, (unprojected, vals)))
+            .map(|&row| reads_projected(node, &[row], doc, (unprojected, vals, env.lane.params)))
             .collect::<Result<Vec<_>, _>>()
     };
     // An operand reads an output; the op reads the operation's value.
@@ -435,7 +440,15 @@ where
                 .iter()
                 .map(|v| geom_core::Interval::from_bounds(v.lo(), v.hi()))
                 .collect();
-            wire_clearance(doc, seats, bounds, &at, &ends, env.lane.witness, tol)
+            wire_clearance(
+                doc,
+                seats,
+                bounds,
+                (&at, env.lane.params),
+                &ends,
+                env.lane.witness,
+                tol,
+            )
         }
         Node::Extrude { profile, .. } => {
             wire_extrude(id, at(O::Profile, *profile)?, results, vals, tol)
@@ -480,7 +493,7 @@ where
         Node::Fillet { selection, .. } => wire_blend(
             &crate::verbs::blend::fillet(),
             id,
-            &select(doc, results, O::Selection, *selection)?,
+            &select(doc, results, O::Selection, *selection, env.lane.params)?,
             (doc, results),
             vals,
             tol,
@@ -488,7 +501,7 @@ where
         Node::Chamfer { selection, .. } => wire_blend(
             &crate::verbs::blend::chamfer(),
             id,
-            &select(doc, results, O::Selection, *selection)?,
+            &select(doc, results, O::Selection, *selection, env.lane.params)?,
             (doc, results),
             vals,
             tol,
@@ -496,7 +509,7 @@ where
         Node::Shell { open, .. } => wire_shell(
             &crate::verbs::shell::shell(),
             id,
-            &select(doc, results, O::Open, *open)?,
+            &select(doc, results, O::Open, *open, env.lane.params)?,
             (doc, results),
             vals,
             tol,
@@ -542,7 +555,7 @@ where
                 &crate::verbs::boolean::boolean(),
                 (op, node, members),
                 id,
-                (unprojected, vals),
+                (unprojected, vals, env.lane.params),
                 doc,
                 env.boolean_sweep,
                 tol,
@@ -892,15 +905,10 @@ where
         None
     };
     match crate::mate::solve::solve_bundle(id, &equations, &mates, &values, chart, lever)? {
-        crate::mate::solve::Folded::Chained(motion) => Ok(Some(motion)),
-        // Every placement but the identity bundle runs its map, at every
-        // value and in every lane: a map the solve composed as motions
-        // is placed as the motion it is, any other admitted from its
-        // entries, by one door.
-        crate::mate::solve::Folded::Pinned(map, composed) => Ok(Some(match composed {
-            Some(composed) => composed.motion(b)?,
-            None => crate::mate::solve::admitted(&map, b)?,
-        })),
+        // Every placement is the motion its solve composed, at every value
+        // and in every lane: nothing re-derives its rigidity.
+        crate::mate::solve::Folded::Chained(motion)
+        | crate::mate::solve::Folded::Pinned(motion) => Ok(Some(motion)),
     }
 }
 
@@ -1101,16 +1109,13 @@ fn read_body<T: topo::AtRestPolicy + Decide>(
 /// **The body a resolved name lives in**: [`read_body`] for a value of
 /// one body, else the output body the name's row indexes — member `i`
 /// of a family — since a selection names an entity of one body of the
-/// value it reads; `whole` where the name is of one of a family's
-/// members ([`super::NodeValue::whole`]).
+/// value it reads.
 pub(super) fn read_named_body<T: topo::AtRestPolicy + Decide>(
     results: &Results<T>,
     input: RecipeNodeId,
     body: u32,
-    whole: bool,
 ) -> Result<super::Framed<T>, NodeErrorKind> {
     let v = value_of(results, input)?;
-    let v = if whole { v.whole() } else { v };
     match placeable_operand(v, input) {
         Ok(Placeable::Instances(bodies)) => {
             match usize::try_from(body).ok().and_then(|k| bodies.get(k)) {
@@ -2174,19 +2179,15 @@ fn select<T: topo::AtRestPolicy + Decide, K: names::interrogate::Denoted>(
     results: &Results<T>,
     slot: crate::OperandSlot,
     var: crate::VarId,
+    params: &crate::expr::VarEnv<T>,
 ) -> Result<Selected<K>, NodeErrorKind> {
     let Some(selection) = doc.selection(var) else {
         return Err(NodeErrorKind::UnresolvedRead { slot, var });
     };
-    let at = super::read_at(doc, slot, selection.body)?;
-    let value = value_of(results, at)?;
-    // A selection naming a family's members reads the family whole.
-    let value = if crate::repetition::names_members(doc, selection) {
-        value.whole()
-    } else {
-        value
-    };
-    resolve_selection(doc, &read_table(value), slot, var, at)
+    let member = selection_member(doc, slot, selection, params)?;
+    let at = super::read_at(doc, slot, selection.body.read)?;
+    let table = selection_table(member.as_ref(), value_of(results, at)?)?;
+    resolve_selection(doc, &table, slot, var, at)
 }
 
 /// **A singleton selection `var`, evaluated at the kind its variable
@@ -2202,6 +2203,7 @@ fn select_one<T: topo::AtRestPolicy + Decide>(
     results: &Results<T>,
     slot: crate::OperandSlot,
     var: crate::VarId,
+    params: &crate::expr::VarEnv<T>,
 ) -> Result<(RecipeNodeId, names::EntityRef), NodeErrorKind> {
     let (Some((entity, crate::var::SelectionCount::One)), Some(selection)) = (
         doc.var(var).and_then(|held| held.kind().selection()),
@@ -2222,23 +2224,28 @@ fn select_one<T: topo::AtRestPolicy + Decide>(
             entity.noun()
         );
     }
-    resolve_name(doc, results, slot, selection.body, name, |error| {
-        NodeErrorKind::SelectResolve {
-            slot,
-            var,
-            reference: 0,
-            error,
-        }
-    })
+    let member = selection_member(doc, slot, selection, params)?;
+    let at = super::read_at(doc, slot, selection.body.read)?;
+    let table = selection_table(member.as_ref(), value_of(results, at)?)?;
+    let refuse = |error| NodeErrorKind::SelectResolve {
+        slot,
+        var,
+        reference: 0,
+        error,
+    };
+    Ok((
+        at,
+        resolve_in(name, doc, selection.body.read, &table, refuse)?,
+    ))
 }
 
 /// **One name of the body `read` holds, resolved as a measure's
 /// reference resolves it**: the read to the operation whose value
 /// holds it, then the name through that value's table under the
-/// [`ladder`], into an entity of the name's own kind. [`select_one`]
-/// resolves a selection's one name here, and so does the quieting
-/// rule's [`crate::checks::at_rest::row_quietable`] for a row's
-/// cell, so the two read one entity.
+/// [`ladder`], into an entity of the name's own kind. The quieting
+/// rule's [`crate::checks::at_rest::row_quietable`] resolves a row's
+/// cell here, as [`select_one`] resolves a selection's one name, so the
+/// two read one entity.
 ///
 /// # Errors
 ///
@@ -2252,6 +2259,20 @@ pub(crate) fn resolve_name<P: crate::ProfilePayload, T: Decide + topo::AtRestPol
     name: &names::StableName,
     refuse: impl Fn(Box<crate::resolve::ResolveError>) -> NodeErrorKind,
 ) -> Result<(RecipeNodeId, names::EntityRef), NodeErrorKind> {
+    let at = super::read_at(doc, slot, read)?;
+    let table = read_table(value_of(results, at)?);
+    Ok((at, resolve_in(name, doc, read, &table, refuse)?))
+}
+
+/// `name`, read through `read`, resolved in `table` under the
+/// [`ladder`] into an entity of the name's own kind.
+fn resolve_in<P: crate::ProfilePayload>(
+    name: &names::StableName,
+    doc: &crate::doc::Doc<P>,
+    read: crate::VarId,
+    table: &NameTable,
+    refuse: impl Fn(Box<crate::resolve::ResolveError>) -> NodeErrorKind,
+) -> Result<names::EntityRef, NodeErrorKind> {
     use names::interrogate::Denoted;
     fn entity<K: Denoted>((body, key): (u32, K)) -> names::EntityRef {
         names::EntityRef {
@@ -2259,28 +2280,18 @@ pub(crate) fn resolve_name<P: crate::ProfilePayload, T: Decide + topo::AtRestPol
             key: key.entity(),
         }
     }
-    let at = super::read_at(doc, slot, read)?;
-    let value = value_of(results, at)?;
-    // A name of one of a family's members reads the family whole.
-    let value = if crate::repetition::names_a_member(name, at) {
-        value.whole()
-    } else {
-        value
-    };
-    let table = read_table(value);
-    let ent = match name.kind {
+    Ok(match name.kind {
         names::EntityKind::Face => entity(ladder::resolve_key::<topo::FaceKey, P>(
-            name, doc, read, &table, refuse,
+            name, doc, read, table, refuse,
         )?),
         names::EntityKind::Edge => entity(ladder::resolve_key::<topo::EdgeKey, P>(
-            name, doc, read, &table, refuse,
+            name, doc, read, table, refuse,
         )?),
         names::EntityKind::Vertex => entity(ladder::resolve_key::<topo::VertexKey, P>(
-            name, doc, read, &table, refuse,
+            name, doc, read, table, refuse,
         )?),
         names::EntityKind::Body => unreachable!("a cell's name names a face, an edge or a vertex"),
-    };
-    Ok((at, ent))
+    })
 }
 
 /// **The body a resolved reference lands in**, as a measure reads it:
@@ -2336,7 +2347,7 @@ fn resolve_selection<K: names::interrogate::Denoted>(
         .iter()
         .enumerate()
         .map(|(reference, name)| {
-            ladder::resolve_key(name, doc, selection.body, table, |error| {
+            ladder::resolve_key(name, doc, selection.body.read, table, |error| {
                 NodeErrorKind::SelectResolve {
                     slot,
                     var,
@@ -2347,7 +2358,7 @@ fn resolve_selection<K: names::interrogate::Denoted>(
         })
         .collect::<Result<_, _>>()?;
     Ok(Selected {
-        read: selection.body,
+        read: selection.body.read,
         at,
         ents,
     })
@@ -2410,7 +2421,7 @@ fn wire_measure<'r, T: Decide + topo::AtRestPolicy + crate::mate::SolveScalar>(
         }
         let (read, kind) = off_cell.map_or((var, None), |(cell, kind)| (cell, Some(kind)));
         let (at, ent) = if doc.selection(read).is_some() {
-            select_one(doc, results, slot, read)?
+            select_one(doc, results, slot, read, params)?
         } else {
             let at = super::read_at(doc, slot, read)?;
             (
@@ -2517,7 +2528,7 @@ fn wire_clearance<'r, T>(
     doc: &crate::doc::Doc<ProfileProgram>,
     seats: [(crate::OperandSlot, crate::VarId); 2],
     bounds: &crate::measure::ClearanceBounds<crate::VarId>,
-    results_at: &dyn Fn(usize) -> &'r Results<T>,
+    (results_at, params): (&dyn Fn(usize) -> &'r Results<T>, &crate::expr::VarEnv<T>),
     ends: &[geom_core::Interval],
     witness: Option<&Witnessing<'_>>,
     tol: Tol,
@@ -2540,7 +2551,7 @@ where
     for (index, &(slot, var)) in seats.iter().enumerate() {
         let results = results_at(index);
         let (at, ent) = if doc.selection(var).is_some() {
-            select_one(doc, results, slot, var)?
+            select_one(doc, results, slot, var, params)?
         } else {
             (
                 super::read_at(doc, slot, var)?,
@@ -2550,7 +2561,19 @@ where
                 },
             )
         };
-        read.push((at, ent, reference_body(results, slot, var, (at, ent))?));
+        let framed = reference_body(results, slot, var, (at, ent))?;
+        // A member read is its body alone where it is read, and its
+        // place among the family's bodies where the pair is reported and
+        // the rebuild reads it.
+        let place = match doc.selection(var) {
+            Some(select) => member_place(doc, results, slot, select, params)?,
+            None => None,
+        };
+        let ent = names::EntityRef {
+            body: place.unwrap_or(ent.body),
+            ..ent
+        };
+        read.push((at, ent, framed));
     }
     let Some(lane) = T::clearance_lane() else {
         return answer(ClearanceReport::refused(
@@ -2926,29 +2949,35 @@ fn instance_of(
         })
 }
 
-/// **The place of the member of `of`'s family an indexed read picks**,
-/// among the family's members: the member whose index values are the
-/// read's `rank` index slots at `seat`, in order. A read of another
-/// rank, or at values no member stands at, refuses as one out of range
-/// ([`NodeErrorKind::MemberOutOfRange`]).
-fn member_of<T: topo::AtRestPolicy + Decide>(
-    of: RecipeNodeId,
-    members: &super::members::Members<T>,
+/// **The index values a node's indexed read at `seat` writes**: its
+/// `rank` index slots, in order.
+fn seat_indices<T>(
     vals: &SlotValues<T>,
     seat: crate::OperandSlot,
     rank: usize,
-) -> Result<u32, NodeErrorKind> {
-    let at = (0..rank)
+) -> Result<Vec<i64>, NodeErrorKind> {
+    (0..rank)
         .map(|k| {
             let slot = SlotId::Index { seat, k };
             slots::count(vals, slot).ok_or(NodeErrorKind::MissingSlot { slot })
         })
-        .collect::<Result<Vec<i64>, _>>()?;
+        .collect()
+}
+
+/// **The member of `of`'s family at the index values `at`**: its place
+/// among the family's members, and its own value. A read of another
+/// rank, or at values no member stands at, refuses as one out of range
+/// ([`NodeErrorKind::MemberOutOfRange`]).
+fn member_at<'v, T: topo::AtRestPolicy + Decide>(
+    of: RecipeNodeId,
+    members: &'v super::members::Members<T>,
+    at: &[i64],
+) -> Result<(u32, &'v super::NodeValue<T>), NodeErrorKind> {
     let out = || NodeErrorKind::MemberOutOfRange {
         input: of,
-        at: at.clone(),
+        at: at.to_vec(),
     };
-    if rank != members.over.len() {
+    if at.len() != members.over.len() {
         return Err(out());
     }
     let narrow: Vec<u32> = at
@@ -2957,7 +2986,78 @@ fn member_of<T: topo::AtRestPolicy + Decide>(
         .collect::<Option<_>>()
         .ok_or_else(out)?;
     let index = members.position(&narrow).ok_or_else(out)?;
-    names::narrow(index, names::Numbered::OutputBody).map_err(NodeErrorKind::Naming)
+    let place = names::narrow(index, names::Numbered::OutputBody).map_err(NodeErrorKind::Naming)?;
+    Ok((place, &members.members[index].1))
+}
+
+/// **The member a selection's body read picks** (REFERENCES DM3,
+/// `xs[i]`): the family's operation and the member's index values, the
+/// selection's own `Count` variables evaluated in `params`, which binds
+/// the member a per-member reader stands for. `None` for a plain read.
+pub(super) fn selection_member<T: Decide>(
+    doc: &crate::doc::Doc<ProfileProgram>,
+    slot: crate::OperandSlot,
+    select: &crate::var::Select,
+    params: &crate::expr::VarEnv<T>,
+) -> Result<Option<(RecipeNodeId, Vec<i64>)>, NodeErrorKind> {
+    if !select.body.is_indexed() {
+        return Ok(None);
+    }
+    let family = super::read_at(doc, slot, select.body.read)?;
+    let at = select
+        .body
+        .at
+        .iter()
+        .enumerate()
+        .map(|(k, &index)| {
+            crate::expr::eval_var_count(index, params).map_err(|source| NodeErrorKind::Expr {
+                slot: SlotId::Index { seat: slot, k },
+                source,
+            })
+        })
+        .collect::<Result<Vec<i64>, _>>()?;
+    Ok(Some((family, at)))
+}
+
+/// **The place of the member a selection's body read picks** among its
+/// family's bodies ([`selection_member`]), `None` for a plain read.
+fn member_place<T: topo::AtRestPolicy + Decide>(
+    doc: &crate::doc::Doc<ProfileProgram>,
+    results: &Results<T>,
+    slot: crate::OperandSlot,
+    select: &crate::var::Select,
+    params: &crate::expr::VarEnv<T>,
+) -> Result<Option<u32>, NodeErrorKind> {
+    let Some((family, at)) = selection_member(doc, slot, select, params)? else {
+        return Ok(None);
+    };
+    let whole = value_of(results, family)?.whole();
+    let Some(members) = &whole.members else {
+        return Err(wrong_operand(whole, family, super::family::INSTANCES));
+    };
+    member_at(family, members, &at).map(|(place, _)| Some(place))
+}
+
+/// **The table a selection's names are**: the body's own. For a member
+/// read, the member's own value's table ([`selection_member`]), read
+/// off the family's members in `results`; a member that is a boolean's
+/// empty result refuses as an empty operand. For a plain read, `value`'s.
+fn selection_table<T: topo::AtRestPolicy + Decide>(
+    member: Option<&(RecipeNodeId, Vec<i64>)>,
+    value: &super::NodeValue<T>,
+) -> Result<Arc<NameTable>, NodeErrorKind> {
+    let Some((family, at)) = member else {
+        return Ok(read_table(value));
+    };
+    let whole = value.whole();
+    let Some(members) = &whole.members else {
+        return Err(wrong_operand(whole, *family, super::family::INSTANCES));
+    };
+    let (_, own) = member_at(*family, members, at)?;
+    if matches!(own.payload.one_body(), Some(None)) {
+        return Err(NodeErrorKind::EmptyOperand { input: *family });
+    }
+    Ok(read_table(own))
 }
 
 /// One half of a split's value, or [`NodeErrorKind::EmptyHalf`].
@@ -2976,8 +3076,9 @@ fn split_side<T: topo::AtRestPolicy + Decide>(
     }
 }
 
-/// The reads `node`'s operands make, each at its seat, in field order: a
-/// selection read as the body it states.
+/// The reads `node`'s operands make, each at its seat, in field order:
+/// a pose read directly off a cell as that cell, a selection, which
+/// [`reads_projected`] reads in the body it states.
 fn body_rows(
     node: &Node<ProfileProgram>,
     doc: &crate::doc::Doc<ProfileProgram>,
@@ -2985,9 +3086,15 @@ fn body_rows(
     node.operand_rows()
         .into_iter()
         .map(|(seat, var)| {
-            // A pose read directly off a cell reads that cell's body.
             let cell = pose::read_directly_off(doc, var).map_or(var, |(cell, _)| cell);
-            (seat, doc.selection(cell).map_or(var, |select| select.body))
+            (
+                seat,
+                if doc.selection(cell).is_some() {
+                    cell
+                } else {
+                    var
+                },
+            )
         })
         .collect()
 }
@@ -3011,10 +3118,13 @@ fn reads_projected<T: topo::AtRestPolicy + Decide>(
     node: &Node<ProfileProgram>,
     rows: &[(crate::OperandSlot, crate::VarId)],
     doc: &crate::doc::Doc<ProfileProgram>,
-    (results, vals): (&Results<T>, &SlotValues<T>),
+    (results, vals, params): (&Results<T>, &SlotValues<T>, &crate::expr::VarEnv<T>),
 ) -> Result<Option<Results<T>>, NodeErrorKind> {
     let mut replaced: Vec<(RecipeNodeId, u32, super::NodeValue<T>)> = Vec::new();
-    for &(seat, var) in rows {
+    for &(seat, row) in rows {
+        // A selection is read in the body it states.
+        let select = doc.selection(row);
+        let var = select.map_or(row, |select| select.body.read);
         if let Some(pick) = doc.pick(var) {
             let placement = super::read_at(doc, seat, var)?;
             let indexed = node
@@ -3029,60 +3139,81 @@ fn reads_projected<T: topo::AtRestPolicy + Decide>(
             )?);
             continue;
         }
-        if node
-            .body_read(seat)
-            .is_some_and(crate::BodyRead::is_indexed)
-        {
-            let family = super::read_at(doc, seat, var)?;
-            let value = value_of(results, family)?.whole();
-            let ValuePayload::Instances(bodies) = &value.payload else {
-                return Err(wrong_operand(value, family, super::family::INSTANCES));
-            };
-            let rank = node.body_read(seat).map_or(0, |read| read.at.len());
-            let Some(members) = &value.members else {
-                unreachable!("family {family:?} keeps no members")
-            };
-            let index = member_of(family, members, vals, seat, rank)?;
-            // A member carries its own carry: its records, the pieces and
-            // the census its copy holds where it stands.
-            let carry = value.carry.member(index as usize).clone();
-            // `member_of` finds a member among `members`, whose bodies
-            // the payload holds one per member: a place past them is a
-            // kernel bug.
-            let Some(place) = bodies.get(index as usize) else {
-                unreachable!(
-                    "family {family:?}: member place {index} past its {} bodies",
-                    bodies.len()
-                )
-            };
-            let Some(body) = place.clone() else {
-                // An absent member is the empty value, as its one read
-                // sees it: each seat takes it as it takes an empty result.
-                let empty = OpOut::<T>::empty();
-                replaced.push((
-                    family,
-                    index,
-                    super::NodeValue {
-                        payload: empty.payload,
-                        outputs: empty.outputs.into(),
-                        carry,
-                        ..value.clone()
-                    },
-                ));
-                continue;
-            };
-            // A family's one table holds every member at its place.
-            let table = read_table(value)
-                .project(index)
-                .map_err(|dup| NodeErrorKind::Naming(names::NamingError::from(dup)))?;
-            let names = super::OutputNames::new(Arc::new(table), Arc::default());
-            let (_, index_at, projected) = projected(family, value, body, names, index)?;
-            replaced.push((family, index_at, super::NodeValue { carry, ..projected }));
+        // A member read: a node's at its seat, by its index slots; a
+        // selection's, by its own indices.
+        let member = match select {
+            Some(select) => selection_member(doc, seat, select, params)?,
+            None => match node.body_read(seat).filter(|read| read.is_indexed()) {
+                Some(read) => Some((
+                    super::read_at(doc, seat, var)?,
+                    seat_indices(vals, seat, read.at.len())?,
+                )),
+                None => None,
+            },
+        };
+        if let Some((family, at)) = member {
+            replaced.push(member_projected(
+                family,
+                value_of(results, family)?.whole(),
+                &at,
+            )?);
             continue;
         }
         replaced.extend(split_port(var, doc, results)?);
     }
     Ok(with_replaced(results, replaced))
+}
+
+/// **The member of the family `value` at the index values `at`, as a
+/// read of it holds it** ([`reads_projected`]'s member): the body alone
+/// at the family's place, with the family's table projected onto it
+/// ([`NameTable::project`]) and the member's own carry, or the empty
+/// value at a member that is a boolean's empty result.
+fn member_projected<T: topo::AtRestPolicy + Decide>(
+    family: RecipeNodeId,
+    value: &super::NodeValue<T>,
+    at: &[i64],
+) -> Result<(RecipeNodeId, u32, super::NodeValue<T>), NodeErrorKind> {
+    let ValuePayload::Instances(bodies) = &value.payload else {
+        return Err(wrong_operand(value, family, super::family::INSTANCES));
+    };
+    let Some(members) = &value.members else {
+        unreachable!("family {family:?} keeps no members")
+    };
+    let (index, _) = member_at(family, members, at)?;
+    // A member carries its own carry: its records, the pieces and the
+    // census its copy holds where it stands.
+    let carry = value.carry.member(index as usize).clone();
+    // `member_at` finds a member among `members`, whose bodies the
+    // payload holds one per member: a place past them is a kernel bug.
+    let Some(place) = bodies.get(index as usize) else {
+        unreachable!(
+            "family {family:?}: member place {index} past its {} bodies",
+            bodies.len()
+        )
+    };
+    let Some(body) = place.clone() else {
+        // An absent member is the empty value, as its one read sees it:
+        // each seat takes it as it takes an empty result.
+        let empty = OpOut::<T>::empty();
+        return Ok((
+            family,
+            index,
+            super::NodeValue {
+                payload: empty.payload,
+                outputs: empty.outputs.into(),
+                carry,
+                ..value.clone()
+            },
+        ));
+    };
+    // A family's one table holds every member at its place.
+    let table = read_table(value)
+        .project(index)
+        .map_err(|dup| NodeErrorKind::Naming(names::NamingError::from(dup)))?;
+    let names = super::OutputNames::new(Arc::new(table), Arc::default());
+    let (_, index_at, projected) = projected(family, value, body, names, index)?;
+    Ok((family, index_at, super::NodeValue { carry, ..projected }))
 }
 
 /// **One piece of a copy, read by its pick** ([`crate::VarDef::Pick`]):
@@ -3149,6 +3280,33 @@ fn pick_of<T: topo::AtRestPolicy + Decide>(
             ..value.clone()
         },
     ))
+}
+
+/// [`reads_projected`] of the one selection `var` read at `slot` where
+/// no seat row holds it — a pose definition's read, a traced face: the
+/// member its body read picks ([`selection_member`]), or the split's
+/// half it reads. Any other read is its split port's alone.
+pub(super) fn project_selection<T: topo::AtRestPolicy + Decide>(
+    doc: &crate::doc::Doc<ProfileProgram>,
+    slot: crate::OperandSlot,
+    var: crate::VarId,
+    results: &Results<T>,
+    params: &crate::expr::VarEnv<T>,
+) -> Result<Option<Results<T>>, NodeErrorKind> {
+    let Some(select) = doc.selection(var) else {
+        return project_ports(&[var], doc, results);
+    };
+    match selection_member(doc, slot, select, params)? {
+        Some((family, at)) => Ok(with_replaced(
+            results,
+            vec![member_projected(
+                family,
+                value_of(results, family)?.whole(),
+                &at,
+            )?],
+        )),
+        None => project_ports(&[select.body.read], doc, results),
+    }
 }
 
 /// [`reads_projected`]'s split ports alone, for reads no seat holds: a
@@ -3687,7 +3845,7 @@ fn wire_combine<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
         &crate::Bodies<crate::BodyRead<crate::VarId>>,
     ),
     id: RecipeNodeId,
-    (results, vals): (&Results<T>, &SlotValues<T>),
+    (results, vals, params): (&Results<T>, &SlotValues<T>, &crate::expr::VarEnv<T>),
     doc: &crate::doc::Doc<ProfileProgram>,
     boolean_sweep: topo::SweepStrategy,
     tol: Tol,
@@ -3733,7 +3891,8 @@ fn wire_combine<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
                 let read = member.read;
                 let slot = O::Member(i);
                 let at = super::read_at(doc, slot, read)?;
-                let projected = reads_projected(node, &[(slot, read)], doc, (results, vals))?;
+                let projected =
+                    reads_projected(node, &[(slot, read)], doc, (results, vals, params))?;
                 let results = projected.as_ref().unwrap_or(results);
                 let value = value_of(results, at)?.whole();
                 // A family spelled as one read is its every member
