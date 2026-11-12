@@ -1463,8 +1463,9 @@ enum Ridge {
     /// The ridge a hollow: its three faces turned over, the wall's
     /// outward normal the floor's.
     Hollow,
-    /// The wall leaving the floor across the tip at this angle.
-    Leaning(f64),
+    /// The wall, of this radius, leaving the floor across the tip at this
+    /// angle.
+    Leaning(f64, f64),
     /// The floor a cylinder's whole tangent plane, the tip its ruling.
     CylinderFloor,
     /// The wall a ball's face and the tip its great circle in the plane
@@ -1486,7 +1487,7 @@ fn ridge_end<T: Decide>(p: Point3<T>, turn: f64, how: Ridge) -> Vec<TangentPiece
     let k = edges(3);
     let (tip, arc, up) = (k[0], k[1], k[2]);
     let r = match how {
-        Ridge::Rests(r) => r,
+        Ridge::Rests(r) | Ridge::Leaning(_, r) => r,
         _ => 1.0,
     };
     let (wall, sense, bend): (geom::Surface<T>, bool, f64) = match how {
@@ -1519,7 +1520,7 @@ fn ridge_end<T: Decide>(p: Point3<T>, turn: f64, how: Ridge) -> Vec<TangentPiece
     // The wall's outward normal, and its arc edge's tangent, turned up
     // off the floor about the tip.
     let lean = match how {
-        Ridge::Leaning(phi) => phi,
+        Ridge::Leaning(phi, _) => phi,
         _ => 0.0,
     };
     let (ls, lc) = lean.sin_cos();
@@ -1634,7 +1635,7 @@ fn ridge_end<T: Decide>(p: Point3<T>, turn: f64, how: Ridge) -> Vec<TangentPiece
 /// hollow ridge whose wall faces as the floor does, a cylinder's tangent
 /// plane for the floor (the tip its ruling) and a ball's octant on the
 /// floor at the point alone (both ends mouths) are not read; a wall
-/// leaving the floor across its tip, gently or steeply, is no such pair,
+/// leaving the floor across its tip, whatever its bend, is no such pair,
 /// and rests at first order. A plane in band of the tip's ray refuses in
 /// band. Red where the pair is not found off the floor's own rays, the
 /// floor is not cut along the wall's edges, a sunk wall or one in band
@@ -1651,9 +1652,13 @@ fn a_sheet_on_a_planar_face_along_a_line_is_the_void_its_bend_opens<T: Decide>()
                 ("a cone", Ridge::Cone),
                 (
                     "a wall leaving the floor across its tip",
-                    Ridge::Leaning(0.4),
+                    Ridge::Leaning(0.4, 1.0),
                 ),
-                ("a wall leaving the floor steeply", Ridge::Leaning(1.2)),
+                // Its bend at the arm, 0.5, under its rise off the floor there.
+                (
+                    "a wall of radius 4 leaving the floor across its tip",
+                    Ridge::Leaning(0.4, 4.0),
+                ),
             ] {
                 let got = read(p, ridge_end(p, turn, how));
                 assert!(
