@@ -2008,3 +2008,162 @@ fn a_closed_forms_bound_holds_its_dense_miss() {
     }
     assert!(read > 0, "the search reads some bound ({})", fuzz::replay());
 }
+
+/// The largest miss, in metres, of `image` on `surface` from `carrier`
+/// at `n + 1` stations across `span`, each read as the upper end of an
+/// interval enclosure of the distance, so rounding in the read itself
+/// counts against the image, never for it.
+fn enclosed_miss(
+    surface: &Surface<f64>,
+    carrier: &Curve3<f64>,
+    image: &Pcurve<f64>,
+    (t0, t1): (f64, f64),
+    n: u32,
+) -> f64 {
+    use geom_core::Bounds;
+    let s = surface.map_scalar(Interval::from_certified);
+    let c = carrier.map_scalar(Interval::from_certified);
+    let i = lift::<Interval>(image);
+    (0..=n)
+        .map(|k| {
+            let t = Interval::from_certified(t0 + (t1 - t0) * f64::from(k) / f64::from(n));
+            let uv = i.eval(t);
+            (s.eval(uv.x, uv.y) - c.eval(t)).norm().hi()
+        })
+        .fold(0.0, f64::max)
+}
+
+/// The sphere and the great circle of fuzz seed `0x6c321abd1c3c3bb8` in
+/// `a_closed_form_on_its_carrier_certifies_in_every_spelling`: a
+/// meridian whose `t = 0` point lies `4.4e-5` rad from the pole, over a
+/// span crossing the equator near `t = 5π/2`.
+fn pole_start_meridian() -> (Surface<f64>, Curve3<f64>, (f64, f64)) {
+    let centre = Point3::new(
+        3.415_608_021_271_088_6,
+        -1.725_992_466_805_074_3,
+        -2.274_709_598_441_104_3,
+    );
+    let radius = 2.130_638_384_572_389_7;
+    let sphere = Surface::Sphere {
+        center: centre,
+        radius,
+        axis: Vec3::new(
+            -0.675_589_460_306_390_8,
+            -0.394_043_192_820_310_14,
+            -0.623_144_319_812_750_5,
+        ),
+        u_ref: Vec3::new(
+            0.669_485_472_224_753_1,
+            0.026_147_118_174_392_567,
+            -0.742_364_823_177_374_2,
+        ),
+    };
+    let carrier = Curve3::circle(
+        centre,
+        Vec3::new(
+            0.575_552_480_378_997_1,
+            -0.810_096_037_263_421_5,
+            -0.111_730_715_292_106_1,
+        ),
+        radius,
+        Vec3::new(
+            -0.675_569_173_944_152_4,
+            -0.394_024_079_710_540_93,
+            -0.623_178_398_072_876_8,
+        ),
+    );
+    (
+        sphere,
+        carrier,
+        (6.681_170_357_563_833, 12.964_355_664_743_419),
+    )
+}
+
+/// **A sphere meridian starting near its pole is derived on its circle**
+/// (the pinned seed): its image certifies at both scalars, and its
+/// enclosed miss is at rounding. Red when the meridian's direction is
+/// read off the radial part unprojected, which put the image `1.05e-11`
+/// off its circle at the equator.
+#[test]
+fn a_pole_start_meridian_at_a_fuzz_seed_certifies() {
+    let (sphere, carrier, span) = pole_start_meridian();
+    let image = chart_pcurve_over(&carrier, span.0, span.1, &sphere, band())
+        .unwrap_or_else(|e| panic!("the meridian derives: {e:?}"));
+    let miss = enclosed_miss(&sphere, &carrier, &image, span, 4096);
+    assert!(
+        miss < 1e-13,
+        "the derived image {image:?} misses its circle by {miss:e}"
+    );
+    for door in DOORS {
+        let got = (door.certify)(&sphere, &image, &carrier, span);
+        assert!(got.is_ok(), "at {}: {image:?}: {got:?}", door.name);
+    }
+}
+
+/// **A derived meridian image is on its circle where its azimuth shows
+/// most** (shape 2, an edge-value table). The chart azimuth is read from
+/// a radial part of length `s·r` while the image shows it at radius
+/// about `r`:
+/// - a great circle of a sphere starting `s` rad from the pole, over a
+///   turn, whose image shows its azimuth at `t ≡ π/2`, the equator;
+/// - a meridian of a spindle of major radius `s·r`, over the half on the
+///   sheet, whose azimuth is read off its centre's radial part.
+///
+/// Each image's enclosed miss stays at rounding, at every `s` past the
+/// band.
+#[test]
+fn a_derived_meridian_image_is_on_its_circle_near_a_quarter_turn() {
+    let b = band();
+    let centre = Point3::new(7.25, -8.5, 9.75);
+    let axis = Vec3::new(0.36, -0.48, 0.8);
+    let u_ref = Vec3::new(0.8, 0.6, 0.0);
+    let v_ref = axis.cross(u_ref);
+    let mut read = 0;
+    let mut missed = Vec::new();
+    for (u0, sense) in [(0.3, 1.0), (2.9, -1.0), (-1.7, 1.0)] {
+        let radial = u_ref * f64::cos(u0) + v_ref * f64::sin(u0);
+        let normal = (v_ref * f64::cos(u0) - u_ref * f64::sin(u0)) * sense;
+        for s in [1e-3, 1e-5, 1e-7] {
+            let r = 2.0;
+            if s * r <= 8.0 * b.escalate() {
+                continue;
+            }
+            let start = axis * f64::cos(s) + radial * f64::sin(s);
+            let sphere = Surface::Sphere {
+                center: centre,
+                radius: r,
+                axis,
+                u_ref,
+            };
+            let great = Curve3::circle(centre, normal, r, start);
+            let major = s * r;
+            let spindle = Surface::Spindle {
+                center: centre,
+                axis,
+                major_radius: major,
+                minor_radius: r,
+                u_ref,
+            };
+            let meridian = Curve3::circle(centre + radial * major, normal, r, radial);
+            for (what, surface, carrier, span) in [
+                ("sphere", sphere, great, (-0.4, TAU - 0.4)),
+                ("spindle", spindle, meridian, (-1.5, 1.5)),
+            ] {
+                let image = chart_pcurve_over(&carrier, span.0, span.1, &surface, b)
+                    .unwrap_or_else(|e| panic!("the {what} meridian at s = {s:e} derives: {e:?}"));
+                let miss = enclosed_miss(&surface, &carrier, &image, span, 512);
+                if miss >= 1e-13 {
+                    missed.push(format!(
+                        "{what} at u0 = {u0}, s = {s:e}: {image:?} by {miss:e}"
+                    ));
+                }
+                read += 1;
+            }
+        }
+    }
+    assert!(read > 0);
+    assert!(
+        missed.is_empty(),
+        "derived meridian images off their circles: {missed:#?}"
+    );
+}

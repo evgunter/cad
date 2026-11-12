@@ -24,7 +24,7 @@ const NAME: Option<&str> = option_env!("PCERT_RADIAL_PAIR_MUTANT");
 
 /// Every site this crate's hooks name. topo's `chord_join` declares its
 /// own one (`topo-v-var`) under the same variable.
-pub(super) const SITES: [&str; 52] = [
+pub(super) const SITES: [&str; 53] = [
     "class-circle",
     "zero-winding",
     "torus-parallel",
@@ -77,6 +77,7 @@ pub(super) const SITES: [&str; 52] = [
     "net-bound-sampled",
     "general-image-class-gate",
     "analytic-image-sampled",
+    "meridian-direction-unprojected",
 ];
 
 fn on(site: &str) -> bool {
@@ -304,6 +305,13 @@ pub(super) fn sampled_line_incidence() -> bool {
 /// with no ruling reading (its rows are `ruling_reading_rows`).
 pub(super) fn cone_ruling_gate() -> bool {
     on("cone-ruling-gate")
+}
+
+/// A meridian's chart azimuth read off its radial part as it is, its
+/// error across the carrier's plane kept (its rows are
+/// `closed_image_rows`' pole-start and quarter-turn meridians).
+pub(super) fn meridian_direction_unprojected() -> bool {
+    on("meridian-direction-unprojected")
 }
 
 /// A line's chart form read at the segment's two ends only, dropping
