@@ -1325,3 +1325,5 @@ E1c waits on the answer.
     - P4 `check-4s-first-reading-states-an-envelope-up-to-twice-the-eight-parts`, which includes the two-parts-a-span floor that was not taken;
     - P4 `limb-2s-set-aside-first-reading-leaves-its-decisions-on-the-trail`;
     - spiricarm P3 for the pad drift.
+
+- 2026-11-12 — **`main-red-a-cone-stated-image-fuzz-seed-fails-at-1e-12` closed. PR 6857 had already fixed it.** sectarms' lane filed it at 08:44, before 6857 merged. The orchestrator ran the seed on 6857's parent, where it is red (sample 5, the computed station's width, [0, 6.8e-12]), and on main, where it is green. The seed is now pinned as a row beside 6857's cone row, and it goes red under 6857's mutant.
