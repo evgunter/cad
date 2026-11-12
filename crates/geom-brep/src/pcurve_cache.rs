@@ -7087,14 +7087,15 @@ fn fidelity<T: Decide>(
 /// spelling of it for every door that reads one: its sense `±1` and its
 /// tube rate `±1` on a torus (`tube` its minor radius), each a residue
 /// metered at its channel's rate; `|β| < 1`, levered at the azimuth's.
-/// Returns the azimuth's arm, metres per radian over the image's box.
+/// Returns the azimuth's arm, metres per radian over the image's box,
+/// with the two unit signs it decided.
 pub(super) fn focal_section_identity<T: Decide>(
     pcurve: &Pcurve<T>,
     (t0, t1): (T, T),
     surface: &Surface<T>,
     tube: Option<T>,
     band: Band,
-) -> Result<T, PcurveCertifyError> {
+) -> Result<FocalIdentity<T>, PcurveCertifyError> {
     let Pcurve::FocalSection(image) = *pcurve else {
         unreachable!("focal_section_identity: its callers hold a focal-section image")
     };
@@ -7112,9 +7113,13 @@ pub(super) fn focal_section_identity<T: Decide>(
     let boxed = pcurve.chart_box(t0, t1);
     let v_sup = boxed.v_reach();
     let arm = azimuth_lever(surface, v_sup);
+    let sense = UnitDecided {
+        value: image.sense,
+        residue: image.sense.abs() - T::one(),
+    };
     match decide(
         "pcurve_focal_section_sense",
-        Margin::metered_sup(image.sense.abs() - T::one(), SupSpeed::new(arm)),
+        Margin::metered_sup(sense.residue, SupSpeed::new(arm)),
         band,
     )
     .map_err(esc(PcurveCheck::ImageIdentity))?
@@ -7146,15 +7151,20 @@ pub(super) fn focal_section_identity<T: Decide>(
             ));
         }
     }
+    let mut tube_rate = None;
     if let Some(r) = tube {
+        let rate = UnitDecided {
+            value: image.vl,
+            residue: image.vl.abs() - T::one(),
+        };
         match decide(
             "pcurve_focal_section_tube_rate",
-            Margin::metered_sup(image.vl.abs() - T::one(), SupSpeed::new(r)),
+            Margin::metered_sup(rate.residue, SupSpeed::new(r)),
             band,
         )
         .map_err(esc(PcurveCheck::ImageIdentity))?
         {
-            Sign::Zero => {}
+            Sign::Zero => tube_rate = Some(rate),
             Sign::Positive | Sign::Negative => {
                 return Err(mismatch(
                     "the stored tube rate is not ±1, so the image is no Villarceau circle's",
@@ -7162,7 +7172,21 @@ pub(super) fn focal_section_identity<T: Decide>(
             }
         }
     }
-    Ok(arm)
+    Ok(FocalIdentity {
+        arm,
+        sense,
+        tube_rate,
+    })
+}
+
+/// **A focal-section image's decided identity**: the azimuth's arm and
+/// the unit signs `focal_section_identity` decided (the tube rate only
+/// on a torus).
+#[derive(Clone, Copy, Debug)]
+pub(super) struct FocalIdentity<T> {
+    pub(super) arm: T,
+    pub(super) sense: UnitDecided<T>,
+    pub(super) tube_rate: Option<UnitDecided<T>>,
 }
 
 /// **The focal-section lane's four checks** — the harmonic lane's
@@ -7473,6 +7497,17 @@ pub(super) fn spiric_copies<T: Decide>(
     Ok(())
 }
 
+/// **A stored unit sign, decided**: `value` is `±1` to within the band,
+/// its residue `|value| − 1` decided `Zero` by the identity that returns
+/// it. The one way to hold one, so the sign it is read for
+/// (`closed_bound::unit_winding`) is read after that identity, never
+/// before.
+#[derive(Clone, Copy, Debug)]
+pub(super) struct UnitDecided<T> {
+    pub(super) value: T,
+    pub(super) residue: T,
+}
+
 /// **A spiric wall image's sense**, `σ = ±1`: its residue `|sense| − 1`
 /// decided `Zero` at the chart's azimuth rate over `reach`, the one
 /// spelling of that identity. Returns the residue.
@@ -7481,7 +7516,7 @@ pub(super) fn spiric_sense<T: Decide>(
     surface: &Surface<T>,
     reach: T,
     band: Band,
-) -> Result<T, PcurveCertifyError> {
+) -> Result<UnitDecided<T>, PcurveCertifyError> {
     let residue = sense.abs() - T::one();
     match decide(
         "pcurve_spiric_sense",
@@ -7493,7 +7528,10 @@ pub(super) fn spiric_sense<T: Decide>(
         sample: 0,
         cause,
     })? {
-        Sign::Zero => Ok(residue),
+        Sign::Zero => Ok(UnitDecided {
+            value: sense,
+            residue,
+        }),
         Sign::Positive | Sign::Negative => Err(PcurveCertifyError::ImageMismatch {
             image: PcurveKind::Spiric,
             why: "the wall image's sense is not a unit sign",
@@ -7605,7 +7643,7 @@ fn run_spiric_checks_as<T: Decide>(
     // `±1` of the image's `WallTorus` tag, so this one residue is the
     // residue of both channels.
     let sense_drift = match *image {
-        SpiricImage::Wall { sense, .. } => spiric_sense(sense, surface, reach, band)?.abs(),
+        SpiricImage::Wall { sense, .. } => spiric_sense(sense, surface, reach, band)?.residue.abs(),
         SpiricImage::Cap { .. } => T::zero(),
     };
     // **The wall's own premise: the chart IS the torus its tag

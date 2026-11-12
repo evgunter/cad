@@ -142,6 +142,10 @@ impl<T: Real> Residual<T> {
             .factors
             .iter()
             .fold(self.plain.sup(h), |acc, (g, f)| acc + *g * f.sup(h));
+        // The divisor is no inline floor: every `floor` is written from
+        // one, `spiric_floor` or `focal_floor`, each pinned to its
+        // multiplier's least value
+        // (`closed_image_rows::each_floor_is_its_multipliers_least_value`).
         sum / self.floor + self.slack
     }
 
@@ -177,15 +181,20 @@ fn identity_escalated(cause: geom_core::Indeterminate) -> PcurveCertifyError {
 }
 
 /// **The whole winding `σ = ±1` of a unit sign** whose residue `|x| − 1`
-/// a door has decided `Zero`: the sign of `x`, decided. `|x|` is one to
-/// within the band, so only a band past a metre leaves it undecided.
+/// a door has decided `Zero`: the sign of `x`, decided. It takes the
+/// door's decided identity (`UnitDecided`, held only from `spiric_sense`
+/// or `focal_section_identity`), so it cannot read a sign whose
+/// magnitude no door has decided. `|x|` is one to within the band, so
+/// only a band past a metre leaves the sign undecided.
 fn unit_winding<T: Decide>(
     name: &'static str,
-    x: T,
+    decided: super::UnitDecided<T>,
     image: PcurveKind,
     band: Band,
 ) -> Result<(i32, T), PcurveCertifyError> {
-    match geom_core::k_stats::decide(name, Margin::of(x), band).map_err(identity_escalated)? {
+    match geom_core::k_stats::decide(name, Margin::of(decided.value), band)
+        .map_err(identity_escalated)?
+    {
         Sign::Positive => Ok((1, T::one())),
         Sign::Negative => Ok((-1, -T::one())),
         Sign::Zero => Err(unheld(image, "a unit sign reads zero")),
@@ -200,6 +209,18 @@ pub(super) fn spiric_floor<T: Real>(major: T, minor: T) -> T {
         return major;
     }
     major - minor
+}
+
+/// `f_i + f_c ≥ lo_i + lo_c`, the floor of the divisor that turns a
+/// spiric copy's `|f_i² − f_c²|` into `|f_i − f_c|` (`lo` each side's
+/// least `f`, `spiric_f_range`'s first; `hi_c` only for the mutant).
+pub(super) fn spiric_copy_divisor<T: Real>(lo_i: T, (lo_c, hi_c): (T, T)) -> T {
+    #[cfg(test)]
+    if super::mutants::spiric_copy_divisor_high() {
+        return hi_c + hi_c;
+    }
+    let _ = hi_c;
+    lo_i + lo_c
 }
 
 /// `q² = 1 − 2β·cos E + β² ≥ (1 − |β|)²`, the floor of a focal section's
@@ -285,10 +306,11 @@ fn spiric_residual<T: Decide>(
         .plus(&Trig3::along(&sin_t.scaled(c_minor), c_axis));
     let (lo_i, _) = geom::spiric_f_range(major, minor, offset);
     let (lo_c, hi_c) = geom::spiric_f_range(c_major, c_minor, c_offset);
+    // `|f_i² − f_c²|`, bounded; `f_i − f_c` is it over `f_i + f_c`.
     let delta_f = ((major - c_major).abs() + (minor - c_minor).abs())
         * (major + c_major + minor + c_minor)
         + (offset - c_offset).abs() * (offset.abs() + c_offset.abs());
-    let delta_f = delta_f / (lo_i + lo_c);
+    let delta_f = delta_f / spiric_copy_divisor(lo_i, (lo_c, hi_c));
     // `R = plain + f_c·(F_c − F_i) + (f_c − f_i)·F_i`, `F_c` and `F_i`
     // the two sides' `f` coefficients.
     let factors = |f_carrier: Trig3<T>, f_image: Trig3<T>| {
@@ -331,10 +353,11 @@ fn spiric_residual<T: Decide>(
             },
         ) => {
             let reach = t_m.abs() + h;
-            let residue = super::spiric_sense(sense, surface, reach, band)?;
+            let decided = super::spiric_sense(sense, surface, reach, band)?;
+            let residue = decided.residue;
             let (sigma, s) = unit_winding(
                 "pcurve_closed_spiric_sense",
-                sense,
+                decided,
                 PcurveKind::Spiric,
                 band,
             )?;
@@ -403,11 +426,12 @@ fn focal_residual<T: Decide>(
             ));
         }
     };
-    let arm = super::focal_section_identity(pcurve, span.params, surface, tube, band)?;
+    let identity = super::focal_section_identity(pcurve, span.params, surface, tube, band)?;
+    let arm = identity.arm;
     let Some(form) = super::carrier_harmonic(carrier) else {
         unreachable!("focal_residual: an ellipse or a circle has its harmonic form")
     };
-    let (_, s) = unit_winding("pcurve_closed_focal_sense", image.sense, kind, band)?;
+    let (_, s) = unit_winding("pcurve_closed_focal_sense", identity.sense, kind, band)?;
     let (t_m, h) = centre(span);
     let origin = geom_core::Point3::origin();
     let beta = image.beta;
@@ -456,7 +480,10 @@ fn focal_residual<T: Decide>(
         } => {
             // The tube angle as `v₀ + w·t`; the stored `va·cos t + vb·sin t
             // + (vl − w)·t` beside it is a slack at the tube's radius.
-            let (w, w_t) = unit_winding("pcurve_closed_focal_tube_rate", image.vl, kind, band)?;
+            let Some(rate) = identity.tube_rate else {
+                unreachable!("focal_section_identity: a torus chart decides its tube rate")
+            };
+            let (w, w_t) = unit_winding("pcurve_closed_focal_tube_rate", rate, kind, band)?;
             let reach = t_m.abs() + h;
             slack = slack
                 + minor_radius.abs()
@@ -653,17 +680,25 @@ pub(super) fn verdict<T: Decide>(
         let per_radian = GRID_DENSITY * (frequency.max(1) as f64);
         (((hi - lo) * per_radian).ceil() as usize).clamp(2, GRID_CAP)
     };
-    let largest = (0..=points)
+    let misses: Vec<T> = (0..=points)
         .map(|i| {
             #[allow(clippy::cast_precision_loss)]
             let t = lo + (hi - lo) * (i as f64 / points as f64);
             miss(T::from_f64(t))
         })
-        .fold(T::zero(), T::max);
-    if let Ok(Decided {
+        .collect();
+    // A poison miss on the grid (a NaN at f64, which `max` would drop)
+    // locates nothing: the grid is left unread and the bound's own
+    // refusal is the ending, so no grid point is skipped silently.
+    let largest = if misses.iter().any(|m| m.is_poison()) {
+        None
+    } else {
+        Some(misses.into_iter().fold(T::zero(), T::max))
+    };
+    if let Some(Ok(Decided {
         sign: Sign::Positive,
         margin,
-    }) = decide_reported("pcurve_closed_miss", Margin::of(largest), band)
+    })) = largest.map(|largest| decide_reported("pcurve_closed_miss", Margin::of(largest), band))
     {
         return Err(PcurveCertifyError::MissLocated { margin });
     }

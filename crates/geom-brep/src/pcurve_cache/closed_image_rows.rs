@@ -1310,6 +1310,9 @@ fn no_closed_form_is_certified_past_its_miss() {
             ) {
                 continue;
             }
+            if matches!(image, Pcurve::Spiric { .. }) {
+                copies_moved_in_band(&mut g, &surface, &image, &carrier, span);
+            }
             let delta = (b.zero() * 1e-2)
                 * (1e5 * b.escalate() / b.zero()).powf(g.range(0.0, 1.0))
                 * sign(&mut g);
@@ -1352,6 +1355,113 @@ fn no_closed_form_is_certified_past_its_miss() {
         "certified {}, missed {}, otherwise {}",
         tally[0], tally[1], tally[2]
     );
+}
+
+/// A spiric image's copies of its carrier's three scalars, each moved
+/// in band, `k·zero` for `k ∈ {0.3, 0.9, 1.5, 4, 10³}` with either sign
+/// (the same sense, still two ovals): at every door a certificate stands
+/// only where the dense miss is within the zero. Returns how many
+/// certificates it read.
+fn copies_moved_in_band(
+    g: &mut fuzz::Rng,
+    chart: &Surface<f64>,
+    image: &Pcurve<f64>,
+    oval: &Curve3<f64>,
+    span: (f64, f64),
+) -> usize {
+    let b = band();
+    let mut certified = 0;
+    for k in [0.3, 0.9, 1.5, 4.0, 1e3] {
+        for which in 0..3 {
+            let wrong = nudged(image, which, k * b.zero() * sign(g));
+            let miss = dense_miss(chart, &wrong, oval, span);
+            for door in DOORS {
+                let got = (door.certify)(chart, &wrong, oval, span);
+                assert!(
+                    got.is_err() || miss <= b.zero() * (1.0 + 1e-6),
+                    "{}: certified with a dense miss of {miss:e} (k {k}): {wrong:?} on \
+                     {oval:?} over {span:?} ({})",
+                    door.name,
+                    fuzz::replay()
+                );
+                certified += usize::from(got.is_ok());
+            }
+        }
+    }
+    certified
+}
+
+/// **A spiric copy moved in band is certified only within it** (shape
+/// 1, the delta review's probe): a spiric oval stated on its torus, its
+/// mirror torus and its plane over a random span, its image's copies of
+/// the carrier's scalars moved by a few zeros (`copies_moved_in_band`).
+/// The copies' `f_i − f_c` term is read through its divisor
+/// (`closed_bound::spiric_copy_divisor`); read high, it certifies a miss
+/// past the zero.
+#[test]
+fn a_spiric_copy_moved_in_band_is_certified_only_within_it() {
+    let mut g = fuzz::start("spiric_copy_moved_in_band");
+    let mut certified = 0;
+    for _ in 0..fuzz::scaled(12) {
+        let (oval, charts) = spiric(&mut g);
+        for chart in charts {
+            let t0 = g.range(-3.0, 3.0);
+            let span = (t0, t0 + g.range(0.3, 6.0));
+            let Ok(image @ Pcurve::Spiric { .. }) =
+                chart_pcurve_over(&oval, span.0, span.1, &chart, band())
+            else {
+                continue;
+            };
+            certified += copies_moved_in_band(&mut g, &chart, &image, &oval, span);
+        }
+    }
+    assert!(certified > 0, "some move certifies ({})", fuzz::replay());
+}
+
+/// **A focal section whose `|β|` is one or past it ends as its defect**
+/// (the delta review's probe): a cone's tilted section stated with `β`
+/// at `±1`, an ulp past and `1.5`, the sign of its own, ends at every
+/// door in the kernel-defect ending at build — not "not yet", and not
+/// the lever.
+#[test]
+fn a_focal_section_whose_beta_is_not_below_one_ends_as_its_defect() {
+    let mut g = fuzz::start("focal_beta_not_below_one");
+    let mut seen = 0;
+    for _ in 0..40 {
+        let Some((cone, ellipse)) = super::envelope_lemma_fuzz::cone_section(&mut g) else {
+            continue;
+        };
+        let span = (0.2, 2.0);
+        let Ok(Pcurve::FocalSection(f)) =
+            chart_pcurve_over(&ellipse, span.0, span.1, &cone, band())
+        else {
+            continue;
+        };
+        for beta in [1.0, -1.0, 1.0 + 1e-12, 1.5] {
+            let image = Pcurve::FocalSection(FocalImage {
+                beta: beta * f.beta.signum(),
+                ..f
+            });
+            for door in DOORS {
+                let got = (door.certify)(&cone, &image, &ellipse, span);
+                let ending = got
+                    .as_ref()
+                    .err()
+                    .and_then(|e| e.ending(ReadAt::Run(Reading::Build)));
+                assert_eq!(
+                    ending.as_deref(),
+                    Some(KERNEL_DEFECT_ENDING),
+                    "{} at β {beta}: {got:?}",
+                    door.name
+                );
+            }
+        }
+        seen += 1;
+        if seen == 3 {
+            break;
+        }
+    }
+    assert!(seen > 0, "some cone section is drawn ({})", fuzz::replay());
 }
 
 /// A harmonic image on the unit cylinder: the azimuth `phase + w·t`, the
@@ -1793,6 +1903,31 @@ fn each_floor_is_its_multipliers_least_value() {
         assert!(
             floor <= m * (1.0 + 1e-12) && floor >= m * (1.0 - 1e-6),
             "R {major}, r {minor}: the floor {floor:e} is not ρ's least value {m:e}"
+        );
+    }
+    // A spiric copy's divisor: the least `f_i + f_c`, its copy moved
+    // (`f = √(ρ² − d²)`); and `sup f_c`, its factor's multiplier.
+    let f = |(major, minor, offset): (f64, f64, f64), t: f64| {
+        let rho = major + minor * t.cos();
+        (rho * rho - offset * offset).sqrt()
+    };
+    for (carrier, copy) in [
+        ((2.0, 0.5, 0.4), (2.0 + 1e-6, 0.5, 0.4)),
+        ((3.0, 2.9, -0.05), (3.0, 2.9 - 1e-3, -0.05)),
+        ((10.0, 1.0, 8.0), (10.0, 1.0, 8.0 + 1e-4)),
+    ] {
+        let range = |(major, minor, offset)| geom::spiric_f_range(major, minor, offset);
+        let (lo_c, hi_c) = range(carrier);
+        let divisor = super::closed_bound::spiric_copy_divisor(range(copy).0, (lo_c, hi_c));
+        let m = least(&|t: f64| f(copy, t) + f(carrier, t));
+        assert!(
+            divisor <= m * (1.0 + 1e-12) && divisor >= m * (1.0 - 1e-6),
+            "{copy:?} on {carrier:?}: the divisor {divisor:e} is not f_i + f_c's least value {m:e}"
+        );
+        let top = -least(&|t: f64| -f(carrier, t));
+        assert!(
+            hi_c >= top * (1.0 - 1e-12) && hi_c <= top * (1.0 + 1e-6),
+            "{carrier:?}: sup f_c {hi_c:e} is not f_c's greatest value {top:e}"
         );
     }
 }
