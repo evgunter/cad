@@ -904,6 +904,12 @@ mod intent_value_chart_orientation;
 mod intent_vars_2_table;
 #[path = "intent_vars_3_readers.rs"]
 mod intent_vars_3_readers;
+#[path = "recheck_named_source.rs"]
+mod recheck_named_source;
+#[path = "review_named_source_r1.rs"]
+mod review_named_source_r1;
+#[path = "review_named_source_r2.rs"]
+mod review_named_source_r2;
 #[path = "review_s5b_r2_probes.rs"]
 mod review_s5b_r2_probes;
 #[path = "run_wall_offers.rs"]
@@ -918,9 +924,3 @@ mod union_member_orders_decide_alike;
 mod value_chart_sweeps;
 #[path = "vessel_cavity_interval.rs"]
 mod vessel_cavity_interval;
-#[path = "review_named_source_r1.rs"]
-mod review_named_source_r1;
-#[path = "review_named_source_r2.rs"]
-mod review_named_source_r2;
-#[path = "recheck_named_source.rs"]
-mod recheck_named_source;
