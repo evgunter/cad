@@ -975,7 +975,7 @@ fn gap<T: Decide>(
 /// side decision reads on the other carrier.
 const ON_THE_CARRIER: &str = "a round face whose centre or axis lies on the other carrier";
 
-/// A face carrier as the pose reads it ([`geom_brep::carrier_pose`]);
+/// A face carrier as the pose reads it ([`geom_brep::carrier_pose()`]);
 /// `None` for a cell that is no plane, sphere or cylinder face.
 fn posed<T: Decide>(c: &Carrier<'_, T>) -> Option<geom_brep::Posed<T>> {
     Some(match *c {
@@ -996,7 +996,7 @@ fn posed<T: Decide>(c: &Carrier<'_, T>) -> Option<geom_brep::Posed<T>> {
     })
 }
 
-/// **The pose two faces stand in** ([`geom_brep::carrier_pose`]),
+/// **The pose two faces stand in** ([`geom_brep::carrier_pose()`]),
 /// levered over [`arm`]: the one reading [`gap`] reads its value in and
 /// [`facing`] reads the faces' facing off. `None` where either cell is no
 /// plane, sphere or cylinder face. A refusal names the plane of a plane

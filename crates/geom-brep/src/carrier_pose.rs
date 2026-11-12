@@ -1,5 +1,5 @@
 //! **The pose two face carriers stand in, and which way their materials
-//! face** ([`carrier_pose`]): two planes decided parallel, two round
+//! face** ([`carrier_pose()`]): two planes decided parallel, two round
 //! carriers of one kind apart or nested (two cylinders' axes decided
 //! parallel), or a plane and a round carrier with the centre or axis on
 //! one side of it (a cylinder's axis decided parallel to the plane).
@@ -70,7 +70,7 @@ pub enum Nest {
     FirstInside,
 }
 
-/// **The pose two carriers were decided in** ([`carrier_pose`]), with
+/// **The pose two carriers were decided in** ([`carrier_pose()`]), with
 /// what each configuration's gap is read from.
 #[derive(Clone, Copy, Debug)]
 pub enum CarrierPose<T: Real> {

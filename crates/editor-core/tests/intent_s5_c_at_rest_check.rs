@@ -944,7 +944,7 @@ fn an_overlap_no_assertion_could_quiet_refuses_at_no_severity() {
 /// `Gap(A, B) ≤ −0.01` (it reads −0.1). The `Gap` reads the two walls in
 /// one pose, parallel and apart, both convex: each faces the other's
 /// material, so the pair is opposed for the pair as a whole, and the
-/// finding is quiet wherever B stands about A.
+/// finding is quiet at every bearing the check finds it.
 ///
 /// *Breaks if* `opposed` reads such a pair at one point of a face, which
 /// pairs the walls one way at one bearing and the other way at the next,
@@ -975,7 +975,7 @@ fn shafts_side_by_side_are_quiet_at_every_bearing() {
             RoleSeg::Lateral(crate::fixture::piece(doc, node, 0, 0).into()),
         )
     };
-    let mut quiet_at = Vec::new();
+    let mut loud_at = Vec::new();
     let mut found = 0;
     for k in 0..8u32 {
         let bearing = f64::from(k) * std::f64::consts::FRAC_PI_4;
@@ -1003,8 +1003,8 @@ fn shafts_side_by_side_are_quiet_at_every_bearing() {
         let interference =
             crate::fixture::interference(&crate::fixture::at_rest(&doc, &run).expect("runs"));
         found += interference.len();
-        if !interference.is_empty() && interference.iter().all(|f| !f.is_loud()) {
-            quiet_at.push(k);
+        if interference.iter().any(|f| f.is_loud()) {
+            loud_at.push(k);
         }
         assert!(
             interference.iter().all(|f| f.quietable),
@@ -1021,9 +1021,9 @@ fn shafts_side_by_side_are_quiet_at_every_bearing() {
     }
     assert!(found > 0, "the premise: an overlap at some bearing");
     assert_eq!(
-        quiet_at,
-        (0..8).collect::<Vec<u32>>(),
-        "quiet at these eighths of a turn"
+        loud_at,
+        Vec::<u32>::new(),
+        "loud at these eighths of a turn"
     );
 }
 

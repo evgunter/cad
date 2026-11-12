@@ -2210,6 +2210,52 @@ enum PairContact<T: Real> {
     Line(Vec3<T>),
 }
 
+/// What a declared pair's carriers are, read once for the pair
+/// ([`crate::boolean::carrier_pair_relation`], over both faces).
+enum OneCarrier {
+    /// One carrier, the two faces' materials on one side of it where
+    /// `aligned`, on its two sides otherwise. A coincidence the ladder
+    /// left undecided reads here by the orientation it decided first.
+    Same {
+        /// The two faces face the same way.
+        aligned: bool,
+    },
+    /// Definitely two carriers.
+    Distinct,
+    /// No reading: the ladder's escalation where there is one, or a pair
+    /// the ladder has no description or extent for, or a torus off its
+    /// ring convention (`None`), which tier 3 refuses first
+    /// (`ValidationError::DegenerateTorus`).
+    Unread(Option<Indeterminate>),
+}
+
+/// [`OneCarrier`] of `fx` and `fy`.
+fn one_carrier<T: Decide>(body: &Body<T>, fx: FaceKey, fy: FaceKey, band: Band) -> OneCarrier {
+    use crate::boolean::{CarrierEqError, CarrierRelation};
+    match crate::boolean::carrier_pair_relation(body, fx, body, fy, band) {
+        Ok(
+            Ok(CarrierRelation::SameOpposite)
+            | Err(CarrierEqError::Undecided {
+                relation: CarrierRelation::SameOpposite,
+                ..
+            }),
+        ) => OneCarrier::Same { aligned: false },
+        Ok(
+            Ok(CarrierRelation::SameOriented)
+            | Err(CarrierEqError::Undecided {
+                relation: CarrierRelation::SameOriented,
+                ..
+            }),
+        ) => OneCarrier::Same { aligned: true },
+        Ok(Ok(CarrierRelation::Distinct)) => OneCarrier::Distinct,
+        Ok(Err(CarrierEqError::Escalated { diag, .. })) => OneCarrier::Unread(Some(diag)),
+        Ok(Err(CarrierEqError::Undecided { coincidence, .. })) => {
+            OneCarrier::Unread(Some(coincidence.reported()))
+        }
+        Ok(Err(CarrierEqError::OffRing { .. })) | Err(_) => OneCarrier::Unread(None),
+    }
+}
+
 /// The contact a confirmed pair's carriers make, read as the confirm
 /// pass reads it ([`confirm_face_pair`]); `None` where it reads none.
 fn pair_contact<T: Decide>(
@@ -2219,31 +2265,13 @@ fn pair_contact<T: Decide>(
     fy: FaceKey,
     band: Band,
 ) -> Option<PairContact<T>> {
-    use crate::boolean::{CarrierEqError, CarrierRelation};
     // One carrier, with the senses opposed (a rest) or aligned (the
     // face-pair arm's overlap); two planes are one carrier or none.
     let planes = planar_face(geo, fx).is_some() && planar_face(geo, fy).is_some();
-    match crate::boolean::carrier_pair_relation(body, fx, body, fy, band) {
-        Ok(
-            Ok(CarrierRelation::SameOpposite)
-            | Err(CarrierEqError::Undecided {
-                relation: CarrierRelation::SameOpposite,
-                ..
-            }),
-        ) => return Some(PairContact::Area { aligned: false }),
-        Ok(
-            Ok(CarrierRelation::SameOriented)
-            | Err(CarrierEqError::Undecided {
-                relation: CarrierRelation::SameOriented,
-                ..
-            }),
-        ) => return Some(PairContact::Area { aligned: true }),
-        Ok(Ok(CarrierRelation::Distinct)) if !planes => {}
-        // A torus off its ring convention (`CarrierEqError::OffRing`)
-        // lands here too: tier 3 refuses such a face first
-        // (`ValidationError::DegenerateTorus`), so no validated body
-        // reaches it.
-        _ => return None,
+    match one_carrier(body, fx, fy, band) {
+        OneCarrier::Same { aligned } => return Some(PairContact::Area { aligned }),
+        OneCarrier::Distinct if !planes => {}
+        OneCarrier::Distinct | OneCarrier::Unread(_) => return None,
     }
     // A point touch on the point lane's own carriers ([`point::face_face`]):
     // a sphere and a plane, or two spheres. A sphere against any other
@@ -5455,7 +5483,6 @@ fn ee_cross_backed<T: Decide>(
     band: Band,
     errors: &mut Vec<ValidationError>,
 ) -> CrossingBacking {
-    use crate::boolean::{CarrierEqError, CarrierRelation};
     // Pass 1: one collected outcome per unordered candidate pair.
     let mut backed = false;
     let mut same_side = false;
@@ -5482,22 +5509,14 @@ fn ee_cross_backed<T: Decide>(
         // line, so a pair whose planes are distinct passes the edge
         // screen and still does not hold the crossing: it answers for
         // nothing.
-        let side = match crate::boolean::carrier_pair_relation(body, fa, body, fb, band) {
-            Ok(Ok(CarrierRelation::SameOpposite)) => CrossingSideVerdict::OppositeSides,
-            Ok(Ok(CarrierRelation::SameOriented)) => CrossingSideVerdict::SameSide,
-            Ok(Ok(CarrierRelation::Distinct)) => continue,
-            Ok(Err(CarrierEqError::Undecided { coincidence, .. })) => {
-                undecided.push(coincidence.reported());
-                continue;
-            }
-            Ok(Err(CarrierEqError::Escalated { diag, .. })) => {
+        let side = match one_carrier(body, fa, fb, band) {
+            OneCarrier::Same { aligned: false } => CrossingSideVerdict::OppositeSides,
+            OneCarrier::Same { aligned: true } => CrossingSideVerdict::SameSide,
+            OneCarrier::Unread(Some(diag)) => {
                 undecided.push(diag);
                 continue;
             }
-            // Two planes have no ring convention to be off; a pair whose
-            // extent does not read has no relation for the crossing to
-            // stand on, and answers nothing, as [`pair_contact`] reads it.
-            Ok(Err(CarrierEqError::OffRing { .. })) | Err(_) => continue,
+            OneCarrier::Distinct | OneCarrier::Unread(None) => continue,
         };
         if side == CrossingSideVerdict::OppositeSides {
             // An opposite-sides pair that is not confirmed answers for
