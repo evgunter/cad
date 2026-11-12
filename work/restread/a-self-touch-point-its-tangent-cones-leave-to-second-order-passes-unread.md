@@ -432,17 +432,20 @@ profile), was run at `20366d0744`:
 
 - 23 rows are red. 21 of them are red at the merge base too, with the
   same panics.
-- 2 rows are red only here. Both assert that a valid body passes tier
-  3′, and are reported rather than pinned:
+- 2 rows were red only here. Both had asserted that a valid body
+  passes tier 3′. Each is now pinned to the typed refusal it gives,
+  citing its issue, as the two NURBS triples are:
   - `sweep::all a_cone_apex_meets_a_vertex::two_cones_through_one_apex_build_across_the_pose_families`:
-    20/50, near-coaxial, tipped, `b ∖ a`. It refuses at `(0, 1, 0)`
-    with `NoTangentPlane`: two apex lobes on two carriers, which
-    `whole_nappe` does not read.
-  - `sweep::all an_edge_on_a_ruling_lying_in_its_own_face::a_ridge_on_a_cylinders_ruling_resting_on_its_floor_passes_tier_3_prime`:
-    "an arc wall tangent to the floor". It refuses at `(1.5, 1, 0.5)`
-    and `(1.5, 1, 2.5)` with `Unreadable`.
-- Both are in the slow set, so the per-PR gate does not run them. The
-  nine-family measurement that put the cost at zero did not reach them.
+    the near-coaxial 20/50 `b ∖ a` and 45/30 `a ∖ b` refuse at the apex
+    with `NoTangentPlane`
+    (`two-cones-apex-lobes-on-two-carriers-refuse-a-valid-body.md`).
+  - The "arc wall tangent to the floor" ridge, split out of
+    `a_ridge_on_a_cylinders_ruling_resting_on_its_floor_passes_tier_3_prime`
+    into `a_ridge_on_an_arc_wall_tangent_to_its_floor_refuses_at_its_ends`:
+    it refuses at the ridge's two ends with `Unreadable`
+    (`a-ridge-end-on-an-arc-wall-tangent-to-its-floor-refuses-unreadable.md`).
+- Both rows are in the slow set. The nine-family measurement that put
+  the cost at zero did not reach them.
 
-The pose-dependent lune (`corner_fan`'s quarter-turn split) is reported
-as a finding, not fixed.
+The pose-dependent lune is filed as
+`the-lune-reading-depends-on-the-corner-fans-quarter-turn-split.md`.

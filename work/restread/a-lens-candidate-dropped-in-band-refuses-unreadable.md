@@ -1,7 +1,7 @@
 ---
 id: a-lens-candidate-dropped-in-band-refuses-unreadable
 kind: issue
-title: second_order::pair drops a candidate whose rays read in band, and the point refuses Unreadable, not InBand
+title: Self-touch refusals that name the wrong cause, in-band readings as Unreadable and a limit as InBand, from pair's dropped candidate on
 status: open
 opened: 2026-11-12
 priority: P3
@@ -33,3 +33,32 @@ Make `pair`'s candidacy three-valued. Where `on_ray` or `wedge_side`
 reads in band, refuse `TouchUnread::InBand`, as `kind` now does for its
 own signs. Pin it with a lens whose second ray is turned off the first
 by a hair between the band's zero and its escalation.
+
+## The same class elsewhere (PR 6854's fix pass)
+
+PR 6854's sweep matched a `Curved(Unreadable)` reached from a band
+reading. It could not match a band reading that is passed over and
+refused later for another reason, nor a limit mapped to `InBand`. Its
+review found these instances:
+
+- **`second_order::parts`** (`crates/topo/src/link/second_order.rs:370`,
+  the `Place::Bound` arm). A bound whose side or ahead reading is in
+  band is `continue`d. `in_band` is consulted only where no sheet of
+  that sector was pushed. Where another bound of the sector does push
+  one, the in-band bound drops out of the picture, and a later refusal
+  names `Unreadable` (or the sheets read without it).
+- **`second_order::thorns`' `next`** (`second_order.rs:122`). With two
+  candidates decided ahead and a third in band, it reports `InBand`,
+  though the ambiguity is structural: two decided candidates already
+  make the ring not one cycle.
+- **`material_round(..).ok_or(InBand)`**:
+  - `second_order.rs:187` (`thorns`);
+  - `crates/topo/src/link.rs:4823` (`rest::at_apex`, via `None =>
+    InBand`);
+  - `link.rs:5318` (`rest::lensed`).
+
+  `Cone::reads_over` drops its `Unread` (`link.rs:1048`), so
+  `Unread::NoReference`, a limit (`Refusal::Limit`, `link.rs:1067`),
+  reads as `InBand`. The fix: return the `Unread` from `material_round`
+  and map it through `Unread::refusal`, or through a `TouchUnread`
+  conversion, at each site.

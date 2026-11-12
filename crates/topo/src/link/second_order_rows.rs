@@ -192,7 +192,10 @@ fn thorn<T: Decide>(p: Point3<T>, keys: [EdgeKey; 3], void: bool) -> Vec<Tangent
 /// from it; inside that material it crosses. A needle of void refuses
 /// alone, rests inside a plane's material, and crosses outside it. A
 /// thorn whose ray lies in band of a plane, no material read round it,
-/// refuses in band. A ring with a horn
+/// refuses in band, and so does one read inside a plane's material
+/// beside a wedge whose line edge leans off the plane in band, where the
+/// sectors themselves refuse: the overlap crosses only where the
+/// sectors read one material. A ring with a horn
 /// missing, a ring of two horns, a triangle squashed flat, and two
 /// thorns along one ray refuse; two along opposite rays rest. Red where
 /// a thorn's side is read the other way round, the cone round it is not
@@ -236,6 +239,25 @@ fn a_ring_of_horns_reads_as_its_thorn<T: Decide>() {
             read(p, with(thorn(p, keys, false), whole(p, v(lean, s, -s)))),
             TouchVerdict::Unread(TouchUnread::InBand),
             "a thorn in band of a plane at {p:?}"
+        );
+        // Inside a plane's material, beside a wedge whose line edge
+        // leans off that plane by a hair in band: the thorn is read inside
+        // the material, but the sectors themselves refuse (the edge's ray
+        // cuts the plane in band), and so does the link.
+        let k3 = edges(1)[0];
+        let line = bound(k3, [0.0; 3]);
+        let d = v::<T>(0.5 * (zero + escalate), 2.0, 0.0);
+        let n2 = v::<T>(2.0, -0.5 * (zero + escalate), -2.0).normalize();
+        let mut beside = thorn(p, keys, false);
+        beside.extend([
+            whole(p, v(-1.0, 0.0, 0.0)),
+            corner(p, v(0.0, 0.0, 1.0), (d, -d), [line, line]),
+            corner(p, n2, (-d, d), [line, line]),
+        ]);
+        assert_eq!(
+            read(p, beside),
+            TouchVerdict::Unread(TouchUnread::InBand),
+            "a thorn in a plane's material beside a wedge leaning in band at {p:?}"
         );
         assert_eq!(
             read(p, thorn(p, keys, true)),

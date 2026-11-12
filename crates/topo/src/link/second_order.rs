@@ -373,11 +373,11 @@ pub(super) fn parts<T: Decide>(
                     return Err(unread);
                 };
                 let before = sheets.len();
-                let mut band = false;
+                let mut in_band = false;
                 for (i, (b, q)) in bounds.into_iter().zip(rays).enumerate() {
                     let (on, ahead) = (wedge_side(p, t.outward, q, r, rd), ahead(p, q, r, rd));
                     if on != Some(Sign::Zero) || ahead != Some(Sign::Positive) {
-                        band |= on.is_none() || (on == Some(Sign::Zero) && ahead.is_none());
+                        in_band |= on.is_none() || (on == Some(Sign::Zero) && ahead.is_none());
                         continue;
                     }
                     let at = (q - p).normalize();
@@ -396,7 +396,7 @@ pub(super) fn parts<T: Decide>(
                     });
                 }
                 if sheets.len() == before {
-                    return Err(if band { TouchUnread::InBand } else { unread });
+                    return Err(if in_band { TouchUnread::InBand } else { unread });
                 }
             }
             Err(_) => return Err(TouchUnread::InBand),
@@ -405,17 +405,17 @@ pub(super) fn parts<T: Decide>(
     if sheets.len() < 2 {
         return Err(unread);
     }
-    let mut band = false;
+    let mut in_band = false;
     for (i, a) in sheets.iter().enumerate() {
         for b in &sheets[i + 1..] {
             match apart(p, a, b, arm, rd) {
                 Some(true) => {}
                 Some(false) => return Err(unread),
-                None => band = true,
+                None => in_band = true,
             }
         }
     }
-    if band {
+    if in_band {
         Err(TouchUnread::InBand)
     } else {
         Ok(())
@@ -435,6 +435,12 @@ fn and3(a: Option<bool>, b: Option<bool>) -> Option<bool> {
 /// Three-valued or: true where either is, else unknown where either is.
 fn or3(a: Option<bool>, b: Option<bool>) -> Option<bool> {
     and3(a.map(|x| !x), b.map(|x| !x)).map(|x| !x)
+}
+
+/// A refused reading as a three-valued `false`: unknown (`None`) where it
+/// refused in band, `false` where it refused for any other reason.
+fn unknown(why: TouchUnread) -> Option<bool> {
+    (why != TouchUnread::InBand).then_some(false)
 }
 
 /// A sign read equal to `want`: `None` where it read nothing.
@@ -481,15 +487,17 @@ fn misses<T: Decide>(
     let l = arm.length();
     let toward = |v, n| toward(p, l, v, n, rd);
     // `b`'s anchor against a line through `a`'s, of normal `n`, with
-    // `also` charged beside the anchors' first-order parting: `Err(true)`
-    // where a reading is in band, `Err(false)` where the anchors part at
-    // first order (no point of the picture).
-    let off = |n: Vec3<T>, also: Option<Distance<T>>| -> Result<Sign, bool> {
+    // `also` charged beside the anchors' first-order parting, as
+    // [`beside`] reads a vertex: anchors parting at first order are no
+    // point of the picture.
+    let off = |n: Vec3<T>, also: Option<Distance<T>>| -> Result<Sign, TouchUnread> {
         let residue = Distance::of(p + b.at * l, p + a.at * l, n);
         match metric::sign_as(LINK_PLANE, residue, rd.band) {
             Some(Sign::Zero) => {}
-            Some(Sign::Positive | Sign::Negative) => return Err(false),
-            None => return Err(true),
+            Some(Sign::Positive | Sign::Negative) => {
+                return Err(TouchUnread::Curved(CurvedUnread::Unreadable));
+            }
+            None => return Err(TouchUnread::InBand),
         }
         let rd = also.map_or(rd, |d| rd.charged(d)).charged(residue);
         metric::settle_as(
@@ -497,12 +505,12 @@ fn misses<T: Decide>(
             Distance::departure(Departure::Parted(b.anchor - a.anchor), n, arm),
             rd,
         )
-        .map_err(|_| true)
+        .map_err(|_| TouchUnread::InBand)
     };
     // Whether `r` reads `want`, unknown where it is in band.
-    let reads = |r: Result<Sign, bool>, want: Sign| match r {
+    let reads = |r: Result<Sign, TouchUnread>, want: Sign| match r {
         Ok(s) => Some(s == want),
-        Err(band) => (!band).then_some(false),
+        Err(why) => unknown(why),
     };
     // `b`'s anchor decidedly behind `a`'s along `a`'s half-line.
     let behind = || match a.run {
@@ -518,9 +526,9 @@ fn misses<T: Decide>(
     let tilt = Distance::of(p + wb * l, p, a.normal);
     let side = off(a.normal, None);
     let clear = off(a.normal, Some(tilt));
-    let decided = |r: Result<Sign, bool>| match r {
+    let decided = |r: Result<Sign, TouchUnread>| match r {
         Ok(s) => Some(s != Sign::Zero),
-        Err(band) => (!band).then_some(false),
+        Err(why) => unknown(why),
     };
     match b.run {
         Run::Both(wb) => and3(decided(clear), is(toward(wb, a.normal), Sign::Zero)),
@@ -533,7 +541,7 @@ fn misses<T: Decide>(
                 Run::Both(_) => Some(false),
             },
             (_, None) => None,
-            (None, Some(_)) => (!side.is_err_and(|band| band)).then_some(false),
+            (None, Some(_)) => side.err().and_then(unknown),
         },
     }
 }

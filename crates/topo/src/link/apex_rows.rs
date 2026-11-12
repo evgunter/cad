@@ -188,10 +188,10 @@ fn read<T: Decide>(p: Point3<T>, pieces: Vec<TangentPiece<T>>) -> TouchVerdict {
 /// round the nappe is not read, its material is read the other way
 /// round, a nappe on the wrong side of the material passes, or a nappe
 /// not held whole is read.
-fn a_nappe_off_every_plane_is_the_thorn_or_needle_it_bounds<T: Decide>() {
+fn a_nappe_off_every_plane_is_the_thorn_or_needle_it_bounds<T: Decide>(interval: bool) {
     let unread = TouchVerdict::Unread(TouchUnread::Curved(CurvedUnread::NoTangentPlane));
     let up = v::<T>(0.0, 1.0, 0.0);
-    for p in apexes::<T>() {
+    for (i, p) in apexes::<T>().into_iter().enumerate() {
         let rests = |what: &str, pieces: Vec<TangentPiece<T>>| {
             let got = read(p, pieces);
             assert!(
@@ -274,13 +274,18 @@ fn a_nappe_off_every_plane_is_the_thorn_or_needle_it_bounds<T: Decide>() {
             .into_iter()
             .collect::<Vec<_>>();
         twice.push(whole(p, up));
-        // Two rulings on one ray read apart Zero, or, where the band
-        // cannot decide that (a kilometre off on `Interval` at the
-        // finest band), in band: refused either way.
+        // Two rulings on one ray read apart Zero; a kilometre off on
+        // `Interval` at the finest band that reading is in band.
+        let fine = interval && i == 1 && Tol::witness().eps() <= 1e-12;
         let got = read(p, twice);
-        assert!(
-            got == unread || got == TouchVerdict::Unread(TouchUnread::InBand),
-            "two whole turns at {p:?}: {got:?}"
+        assert_eq!(
+            got,
+            if fine {
+                TouchVerdict::Unread(TouchUnread::InBand)
+            } else {
+                TouchVerdict::Unread(TouchUnread::Curved(CurvedUnread::NoTangentPlane))
+            },
+            "two whole turns at {p:?}"
         );
     }
 }
@@ -514,7 +519,9 @@ fn needle<T: Decide>(p: Point3<T>, keys: [EdgeKey; 3]) -> Vec<TangentPiece<T>> {
 }
 
 /// **A nappe is read only beside a rest of one material and no horn.**
-/// Two whole planes crossing, each holding the nappe off, cross. A needle
+/// Two whole planes crossing, each holding the nappe off, cross; a thorn
+/// in the material of a plane and a ball's tangent plane on it refuses as
+/// that rest does, though its axis reads inside it. A needle
 /// of void along one of the nappe's rulings, in the plane's material with
 /// the nappe, rests without the nappe and is not read beside it: its
 /// sheets straddle the nappe one order down. Red where the rest of the
@@ -532,6 +539,31 @@ fn a_nappe_is_read_only_beside_a_rest_and_no_horn<T: Decide>() {
             read(p, crossed),
             TouchVerdict::Crossing,
             "two planes crossing at {p:?}"
+        );
+        // A thorn under a plane and a ball's tangent plane on it, their
+        // material below with it: the axis reads inside, but the rest
+        // refuses (two whole tangent planes on one plane), and so does
+        // the link.
+        let ball = geom::Surface::Sphere {
+            center: p - v::<T>(0.0, 2.0, 0.0),
+            radius: T::from_f64(2.0),
+            axis: v(0.0, 1.0, 0.0),
+            u_ref: v(1.0, 0.0, 0.0),
+        };
+        let fan = TangentFan::Inside {
+            reach: T::from_f64(2.0),
+            frame: [v(1.0, 0.0, 0.0), v(0.0, 1.0, 0.0), v(0.0, 0.0, 1.0)],
+        };
+        let kissing = vec![
+            spur(p, true),
+            whole(p, v(0.0, 1.0, 0.0)),
+            FaceSector::tangent(ball, true, v(0.0, 1.0, 0.0), p, fan, band())
+                .expect("a ball's tangent plane"),
+        ];
+        assert_eq!(
+            read(p, kissing),
+            TouchVerdict::Unread(TouchUnread::Curved(CurvedUnread::Unreadable)),
+            "a thorn under a plane and a ball kissing it at {p:?}"
         );
         let e = edges(4);
         let plane = || whole(p, v::<T>(-0.5, 1.0, 0.0).normalize());
@@ -798,12 +830,12 @@ fn a_nappe_near_flat_refuses_in_band<T: Decide>() {
 
 #[test]
 fn a_nappe_off_every_plane_is_the_thorn_or_needle_it_bounds_f64() {
-    a_nappe_off_every_plane_is_the_thorn_or_needle_it_bounds::<f64>();
+    a_nappe_off_every_plane_is_the_thorn_or_needle_it_bounds::<f64>(false);
 }
 
 #[test]
 fn a_nappe_off_every_plane_is_the_thorn_or_needle_it_bounds_interval() {
-    a_nappe_off_every_plane_is_the_thorn_or_needle_it_bounds::<Interval>();
+    a_nappe_off_every_plane_is_the_thorn_or_needle_it_bounds::<Interval>(true);
 }
 
 #[test]

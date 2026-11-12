@@ -718,9 +718,12 @@ fn thorn_and_corner(c: Point3<f64>, edges: [Vec3<f64>; 3]) -> (Body<f64>, Vertex
 /// reads whole one order down**: a parallelepiped's corner grafted on
 /// at the tip, away from the thorn's ray, rests; one round the ray, its
 /// material holding the thorn, crosses it, through the whole census too.
-/// Near the origin and a kilometre off it. Red where a horn reads as the
-/// whole turn, a thorn's side reads the other way, the cone round it is
-/// not read, or the thorn inside the corner's material passes.
+/// The census finds exactly one more crossing, and it is expected: the
+/// box's far corner, `e₀ + e₁ + e₂` from the tip, lands on the thorn's
+/// line edge inside the thorn, where the two solids' boundaries cross
+/// too. Near the origin and a kilometre off it. Red where a horn reads as
+/// the whole turn, a thorn's side reads the other way, the cone round it
+/// is not read, or the thorn inside the corner's material passes.
 #[test]
 fn a_thorn_of_its_own_reads_its_horns_one_order_down() {
     let away = [
@@ -755,16 +758,30 @@ fn a_thorn_of_its_own_reads_its_horns_one_order_down() {
             TouchVerdict::Crossing,
             "{far} off, the corner round the thorn"
         );
-        let tip = witness(body.points[body.vertices[ties.vv[0].1].point]);
+        let body_tip = body.points[body.vertices[ties.vv[0].1].point];
+        let tip = witness(body_tip);
         let found = swept(body, corner, ties.vv[0].1);
+        let corner_far = body_tip + round[0] + round[1] + round[2];
+        let parse = |w: &str| -> Option<Point3<f64>> {
+            let xyz: Vec<f64> = w
+                .trim_matches(|c| c == '(' || c == ')')
+                .split(", ")
+                .map(|t| t.parse().ok())
+                .collect::<Option<_>>()?;
+            Some(Point3::new(*xyz.first()?, *xyz.get(1)?, *xyz.get(2)?))
+        };
+        let at: Vec<Point3<f64>> = found
+            .iter()
+            .filter_map(|e| match e {
+                ValidationError::BoundaryCrossesItself { witness, .. } => parse(witness),
+                _ => None,
+            })
+            .collect();
+        let near = |q: Point3<f64>| at.iter().any(|&r| (r - q).norm() < 1e-9);
         assert!(
-            found.iter().any(|e| matches!(
-                e,
-                ValidationError::BoundaryCrossesItself { witness, .. } if *witness == tip
-            )) && found
-                .iter()
-                .all(|e| matches!(e, ValidationError::BoundaryCrossesItself { .. })),
-            "{far} off, the corner round the thorn crosses at its tip {tip}: {found:?}"
+            found.len() == 2 && at.len() == 2 && near(body_tip) && near(corner_far),
+            "{far} off, the corner round the thorn crosses at its tip {tip} and at the \
+             box's far corner {corner_far:?}: {found:?}"
         );
     }
 }

@@ -8920,7 +8920,11 @@ fn sweep_self_touch_points<T: Decide>(
     );
     let mut read = BTreeSet::new();
     for (s, v) in seeds {
-        let (Some(keys), Some(&at)) = (touch_keys(geo, &ties, &[v]), geo.vmap.get(&v)) else {
+        // A seed's keys hold its own, so `least` reads wherever its key
+        // does; one that does not is refused, never passed.
+        let found =
+            touch_keys(geo, &ties, &[v]).and_then(|keys| Some((keys.first().copied()?, keys)));
+        let (Some((least, keys)), Some(&at)) = (found, geo.vmap.get(&v)) else {
             errors.push(ValidationError::BoundaryCrossesItselfUndecided {
                 solid: s,
                 witness: geo.vmap.get(&v).map_or_else(String::new, |&p| witness(p)),
@@ -8928,7 +8932,6 @@ fn sweep_self_touch_points<T: Decide>(
             });
             continue;
         };
-        let Some(&least) = keys.first() else { continue };
         if !read.insert((s, least)) {
             continue;
         }

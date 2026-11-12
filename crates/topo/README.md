@@ -1237,8 +1237,13 @@ names (`TouchUnread`):
   order's charged residue (below);
 - **no tangent plane** (`CurvedUnread::NoTangentPlane`): a vertex in the
   band of a cone's axis; a face held inside in band of its axis, centre
-  or apex; a cone's apex its nappe does not decide (a nappe not held
-  whole, a second apex, a horn beside it, a half-plane cutting it);
+  or apex (`census::vertex_normal`, `census::foot_normal`); a cone's
+  apex its nappe does not decide (`rest::whole_nappe`, `rest::at_apex`):
+  a nappe not held whole (one half alone, halves on two carriers, of two
+  senses or with rulings read together, a second apex), a ruling
+  decidedly on the other nappe, a horn beside it, a half-plane cutting
+  it, a needle alone (no rest round it to read its void against), or
+  the axis read on a sector of the rest rather than in a region;
 - **no sector arm** or **not placed** (`CurvedUnread::NoSectorArm`,
   `CurvedUnread::Unplaced`): a corner face `sector_face::resolve`
   refuses, a surface with no sector arm or a spline edge with no chart
@@ -1246,17 +1251,26 @@ names (`TouchUnread`):
   refuses by the crease's own standing, not here);
 - **unreadable** (`CurvedUnread::Unreadable`), every other structural
   refusal of the reading: a cusp corner whose edges' bends read Zero
-  apart; a horn beside a sector along its ray that caps no lune, a ring
-  of horns that bounds no convex polygon, or a needle with no sector
-  round it; a spline face held off a corner, or held inside with no
-  carrier frame for its fan; a face whose normal at the foot or whose
-  reach does not read; a curved edge with no certified curve; sheets
-  along a tied ray that one order down meet, or a curved sheet holding
-  such a ray inside it with no certified bend; two whole tangent planes
-  on one plane (two kissing balls at any pose included); two sectors
+  apart (`second_order::cusp`); a horn that closes no ring along its ray
+  (a horn beside a sector there that caps no lune), a ring of two horns
+  or one that bounds no convex polygon, a horn's edge leaving its
+  face's plane at first order, two rings along one ray, a thorn or
+  needle read on a sector of the cone rather than in a region, or a
+  needle with no sector round it (`second_order::thorns`); a spline
+  face held off a corner, or held inside with no carrier frame for its
+  fan; a face whose normal at the foot or whose reach does not read; a
+  curved edge with no certified curve; sheets along a tied ray that one
+  order down meet, fewer than two sheets there, or a curved sheet
+  holding such a ray inside it with no certified bend
+  (`second_order::parts`); two whole tangent planes on one plane (two
+  kissing balls at any pose included, `rest::first_order`); two sectors
   lying on each other where one is no plane and no lens or lune reads
-  them, or a lens or lune of the wrong kind for the region the link
-  round it gives it.
+  them (`rest::one_material`); a lens or lune whose bends do not decide
+  it (a pinch read off Zero, ends or middle read decided but disagreeing,
+  a polar value Zero beside a curved pinch, a cap facing the wrong way,
+  a face with no certified bend: `second_order::kind`), a sector in two
+  pairs (`second_order::lenses`), or a lens or lune of the wrong kind
+  for the region the link round it gives it (`rest::lensed`).
 
 Two planar faces lying on each other are no such point: the link refuses
 them `Degenerate`, as the planar link does.
@@ -1338,9 +1352,14 @@ certified bend.
 the link's sectors reads decidedly inside its material for a thorn, or
 outside it for a needle, crosses, where every other ring reads and the
 sectors read one material by themselves (two consecutive windings, the
-material the higher). The ray is decidedly off every sector's plane, so
-no sheet of the cone comes near it at any small enough scale, and the
-cut's whole picture about the ray lies in one region of the sectors:
+material the higher). The ray is decidedly off every sector, as the
+material read round it requires (`Cone::reads_over`): off its plane,
+or on it but decidedly outside its wedges. Either way the sector's
+directions stand an angle `δ > 0` off the ray, so at distance `s` along
+it the sector keeps at least `s·sin δ` away, while the cut's picture
+(the polygon, scaled by `2/s²`) spans `O(s²)`. So no sheet of the cone
+comes near it at any small enough scale, and the cut's whole picture
+about the ray lies in one region of the sectors:
 the higher winding for a thorn read inside, the lower for a needle read
 outside. Inside the polygon the winding is one more than round it for a
 thorn (its faces' outward normals all point out of it) and one less for

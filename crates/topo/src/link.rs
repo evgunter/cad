@@ -4823,7 +4823,8 @@ pub(crate) mod rest {
         match rest.cone.material_round(c, rd) {
             Some(around) if around == want => TouchVerdict::Rest(Rest { _sealed: () }),
             // The nappe winds a third value beside the rest's two.
-            Some(_) => TouchVerdict::Crossing,
+            Some(super::Material::In | super::Material::Out) => TouchVerdict::Crossing,
+            Some(super::Material::On(_) | super::Material::Boundary) => unread,
             None => TouchVerdict::Unread(TouchUnread::InBand),
         }
     }
