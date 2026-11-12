@@ -71,10 +71,16 @@ radius has the same conditioning (`2.7e-13` at `R = 1e-3·r`, `7.8e-9` at
 `1e-7`). These rows pin it:
 
 - `closed_image_rows` `a_pole_start_meridian_at_a_fuzz_seed_certifies`
-  (the seed);
+  (this seed, and `0x8ffe04db921f5cff` from
+  `a-closed-form-image-at-a-fuzz-seed-reads-its-coefficient-bound-in-band-at-eps-1e-12`,
+  the same shape read in band at 1.4e-12);
 - `a_derived_circle_image_is_on_its_circle_where_its_azimuth_shows_most`
   (the sphere, the spindle and a Villarceau circle, measured by
   interval enclosure).
 
 Both are red under the `meridian-direction-unprojected` mutant.
 
+After the sibling's frames were squared, a 2000-seed sweep of the three
+fast closed-image fuzzes at ε 1e-12 refuses one correct image on main's
+arithmetic (`0x3009e291bd7a05a8`, in band on `pcurve_closed_bound`) and
+none with this fix.
