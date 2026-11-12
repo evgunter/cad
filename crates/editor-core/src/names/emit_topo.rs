@@ -6909,11 +6909,12 @@ mod wavy_loft {
     //! boolean's sweep splits the corners where a face of the other
     //! operand crosses them, the sector walk reads the spline walls
     //! around each crossing vertex, the spline walls' trims place the
-    //! pierce points past the sweep's null edges, and the union refuses
-    //! in the join, where no frame names a spline wall × plane germ
-    //! pair's section
-    //! ([`a_union_across_a_nurbs_edge_refuses_at_the_spline_walls_germ_frame`],
-    //! which reds the day that frame lands).
+    //! pierce points past the sweep's null edges, the join reads each
+    //! spline wall × plane pair on its section value, and the union
+    //! refuses where the carry cannot hold two arcs of the wall's section
+    //! apart
+    //! ([`a_union_across_a_nurbs_edge_refuses_where_two_arcs_pads_meet`],
+    //! which reds the day those pads narrow).
     #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
     use crate::edit::DocEdit;
@@ -7055,18 +7056,23 @@ mod wavy_loft {
     /// (`topo::sector_face`'s spline arm), and `vtxfac::faces_holding_pierce`
     /// reads the loft's walls at the box's pierce points, each spline
     /// wall's trim lifted past the sweep's null edges
-    /// (`topo::null::Scaffolding::Skipped`). The union refuses in the
-    /// join: no frame names the section of the loft's wall `x ≈ dx + 1`
-    /// and the face `x = 1` (`GermFrameUnsupported`, `Nurbs` × `Plane`;
-    /// `work/sectarms/a-nurbs-wall-against-a-plane-has-no-germ-frame.md`).
+    /// (`topo::null::Scaffolding::Skipped`). The join reads the loft's
+    /// side wall `y = −1` against the face `x = 1` on the pair's section
+    /// value, whose two arcs stand closer than the pads their points are
+    /// read within, so the carry refuses them (`GermSectionUnbuilt`,
+    /// `Nurbs` × `Plane`, `CarryRefusal::PadsMeet`;
+    /// `work/sectarms/a-rim-arcs-pad-is-its-widest-certifying-rung.md`).
+    /// Past it, the plane × NURBS lane's own image of a chord misses it at
+    /// rest
+    /// (`work/sectarms/a-planes-carried-arc-across-a-flared-spline-wall-misses-its-own-image-at-rest.md`).
     ///
-    /// It reds the day that frame lands. The end-to-end row, the
+    /// It reds the day those pads narrow. The end-to-end row, the
     /// crossings named through the boolean (the first and third, of one
     /// sense, tie), is
     /// `work/splice/a-spline-wall-cannot-say-whether-it-holds-a-pierce-point.md`'s,
     /// carried on that stop's row.
     #[test]
-    fn a_union_across_a_nurbs_edge_refuses_at_the_spline_walls_germ_frame() {
+    fn a_union_across_a_nurbs_edge_refuses_where_two_arcs_pads_meet() {
         let (doc, loft) = wavy_doc(0.3);
         let (doc, profile) = ins(
             doc,
@@ -7131,18 +7137,19 @@ mod wavy_loft {
         }
         let Some(crate::eval::NodeError {
             kind:
-                crate::eval::NodeErrorKind::Boolean(topo::BooleanError::GermFrameUnsupported {
+                crate::eval::NodeErrorKind::Boolean(topo::BooleanError::GermSectionUnbuilt {
                     a_face: face,
                     a_kind: geom::SurfaceKind::Nurbs,
                     b_face: pierced,
                     b_kind: geom::SurfaceKind::Plane,
+                    why: topo::SectionUnbuilt::Carry(geom_brep::CarryRefusal::PadsMeet { .. }),
                 }),
             ..
         }) = ev.node_error(union)
         else {
             panic!(
-                "the union refuses where no frame names a spline wall of the loft against \
-                 the box's face, got {:?}",
+                "the union refuses where the carry cannot hold two arcs of a spline wall of \
+                 the loft against the box's face apart, got {:?}",
                 ev.node_error(union).map(|e| &e.kind)
             );
         };
@@ -7181,9 +7188,8 @@ mod wavy_loft {
             walls.contains(face),
             "the refusal names a wall on a crossed corner: {face:?} of {walls:?}"
         );
-        // Of those, the wall `x ≈ dx + 1` the face `x = 1` cuts along its
-        // length: its corners stand at `x = ±a + 1`, the side walls'
-        // two of theirs at `x = ±a − 1`.
+        // Of those, the side wall `y = −1` the face `x = 1` cuts across:
+        // its corners stand at `x = ±1 ± a`, on both sides of `x = 1`.
         let corners: Vec<_> = body
             .half_edges()
             .filter(|&(he, _)| body.face_of_half_edge(he) == Some(*face))
@@ -7191,8 +7197,12 @@ mod wavy_loft {
             .filter_map(|v| body.get_point(v.point))
             .collect();
         assert!(
-            !corners.is_empty() && corners.iter().all(|p| p.x > 0.5),
-            "the refusal names the loft's wall x ≈ dx + 1: {corners:?}"
+            !corners.is_empty()
+                && corners.iter().all(|p| (p.y + 1.0).abs() < 1e-9)
+                && corners.iter().any(|p| p.x > 1.0)
+                && corners.iter().any(|p| p.x < 1.0),
+            "the refusal names the loft's side wall y = −1, which x = 1 cuts across: \
+             {corners:?}"
         );
     }
 }
