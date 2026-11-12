@@ -619,9 +619,14 @@ chart. Its home is the half-edge (`Body::pcurves`, a
 a function of the edge and the chart alone, plus the half-edge's
 **joint element**, the integer (whole periods, a torus's second period,
 a sphere's twin bit) that carries its image onto the end of the
-half-edge before it in its loop, or a reset marker at a pole or apex
-(and on a spline chart where the net's own `u` stretch is not decided
-past the band).
+half-edge before it in its loop. At a pole the element is the turn on
+the face's side, so the lift runs on through the pole as the face's
+boundary; a reset marker is left only at a cone apex and on a spline
+chart where the net's own `u` stretch is not decided past the band.
+The element is the record of the joint decision (`decide_joint`), made
+at the door that makes the joint: a reader of a finished body reads
+the record, and a reader mid-operation runs the same decision without
+storing it.
 On a periodic channel the image is placed over the edge's span in the
 chart's principal window, so where a carrier's parameter happens to
 start moves neither the stored image nor any joint element. A chart
