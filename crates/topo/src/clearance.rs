@@ -4841,6 +4841,7 @@ mod wiring_rows {
 
     /// The verdict door asked of a unit cube at `T`: whether it answers
     /// embedded, and whether that answer rests on cell pairs it read.
+    #[allow(clippy::expect_used)]
     fn the_verdict_door_on_a_cube<T>() -> (bool, bool)
     where
         T: super::Decide + geom_core::CertifiedBounds + crate::AtRestPolicy,
