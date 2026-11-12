@@ -220,12 +220,14 @@ pub struct BlendNaming {
     pub rim_trims: Vec<(EdgeKey, EdgeKey, RimSide)>,
     /// Rim foot vertex ← the source rim vertex it retracts from, on
     /// the HOST support (planar wherever the rim has one, and a rim
-    /// between two curved walls still mints these).
+    /// between two curved walls still mints these); at an open band's
+    /// junction, the host foot of the junction vertex.
     pub rim_feet: Vec<(VertexKey, VertexKey)>,
     /// Meridian split vertex ← (the source meridian edge it split, the
     /// splitting band's identity): where the band's MATE trimline crosses
-    /// a source edge running off the rim — a seam meridian, or a mixed
-    /// rim's junction edge between two mates (its mate foot). Two bands whose rims are the two
+    /// a source edge running off the rim — a seam meridian, or a
+    /// junction's edge between two mates (its mate foot), on a mixed rim
+    /// or an open band. Two bands whose rims are the two
     /// ends of one meridian segment each split that segment's seam, so
     /// the band discriminates.
     pub meridian_splits: Vec<(VertexKey, EdgeKey, Vec<EdgeKey>)>,
@@ -246,7 +248,8 @@ pub struct BlendNaming {
     /// source meridian's surviving pieces are recorded once each, and
     /// their names are unique by that alone.
     pub slits: Vec<(EdgeKey, EdgeKey, Vec<EdgeKey>)>,
-    /// A mixed rim's SECTION ← (the source edge whose rim-side piece
+    /// A junction's SECTION, on a mixed rim or an open band ← (the source
+    /// edge whose chain-side piece
     /// became it, the source junction vertex it replaces): the circle arc
     /// along which the bands of the junction's two links meet, G1, from
     /// the host foot to the mate foot. Like a slit, it is a surviving
