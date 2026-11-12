@@ -2,7 +2,7 @@
 id: a-self-touch-point-its-tangent-cones-leave-to-second-order-passes-unread
 kind: issue
 title: A self-touch point whose curved faces' tangent cones leave it to second order passes unread
-status: open
+status: in-progress
 opened: 2026-11-02
 priority: P1
 cost: H
@@ -381,3 +381,30 @@ Also skipped, and reached by no measured body:
   read but skipped, as `thorns` skips it.
 
 Whether the remainder refuses is still Ev's call.
+
+## The remainder refuses (branch `restread/self-touch-refuses`)
+
+Ev ruled on PR 6847 (2026-11-12): a self-touch point the reading
+cannot decide refuses `BoundaryCrossesItselfUndecided`, with its cause,
+and is not skipped. The spline faces that will now refuse are a
+separate question.
+
+The unit has four parts:
+- Remove the skip and `SelfTouch`. `self_touch_verdict` returns a plain
+  verdict.
+- A sign one order down that lands in band reports `InBand`, not
+  `Unreadable`.
+- An overlap the reading has decided (an apex axis on the wrong side,
+  a thorn) reports a crossing where its argument certifies one, and
+  refuses otherwise.
+- File the pose-dependent lune (`corner_fan`'s quarter-turn split).
+
+**Spec (before the draws):**
+- **Letter: M.** It removes a state and reroutes reasons. The one new
+  argument is the decided overlap.
+- **Tier: dual.** It is a soundness change in the self-touch reading:
+  every undecided point now refuses, and a decided overlap becomes a
+  new crossing verdict.
+- **Arm:** under `docs/MODEL-COMPARE-PROTOCOL.md` rule 2, a dual M unit
+  runs sequentially. A drawn model reviews first, and the other model
+  reviews second only if the first raises a MAJOR.
