@@ -11,7 +11,7 @@ refs: [a-mixed-rim-and-an-annulus-rim-on-one-support-refuse-in-one-call, a-mixed
 
 Filed by the band-mixgates lane (2026-11-12), measuring the shared-support gate.
 
-`surgery::shared_support_gate` (`crates/sweep/src/blend/surgery.rs`) refuses `UnsupportedChain` "an annulus rim shares a support face with a ladder or mixed rim; blend them in SEQUENTIAL calls" when an annulus rim and a mixed rim of one request share a face. A mixed rim beside a ladder rim carves in one call.
+`surgery::shared_support_gate` (`crates/sweep/src/blend/surgery.rs`) refuses `UnsupportedChain` "an annulus rim shares its support with a ladder or mixed rim; blend them SEQUENTIALLY" when an annulus rim and a mixed rim of one request share a face. A mixed rim beside a ladder rim carves in one call.
 
 Witness: a disc with the rounded outline through it.
 - The disc: radius 1.5, authored as eight arcs, 0.5 thick. Its rims are hostless annuli on the caps' outer cycles.
