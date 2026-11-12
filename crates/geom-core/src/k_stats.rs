@@ -629,9 +629,12 @@ pub fn straddle(name: &'static str, lower: Decided, upper: Decided, band: Band) 
 /// The log is the verdict-diff engine's (the witness's certification
 /// verdicts against the leaf's, row for row) and the subdivision
 /// driver's (an escalation is its cue to refine). A reading belongs
-/// here when no outcome of it can change what the caller certifies:
-/// logged, it would put rows in one lane's vector that the other lane
-/// cannot have, or hand the driver a cue that refining cannot answer.
+/// here when logging it would mislead one of them: it would put rows in
+/// one lane's vector that the other lane cannot have, or hand the driver
+/// a cue that refining cannot answer. Whether an outcome can change what
+/// the caller certifies is not the test: F20's cross-check refuses a
+/// certificate on a bad sample, and is read here for the vectors'
+/// parity.
 ///
 /// `ledger_row` is the obligation [`decide_flagged`] carries: the audit
 /// row in `docs/predicate-dimension-audit.md` that argues why the
@@ -695,6 +698,25 @@ pub fn decide<T: Decide>(
     classify(name, margin.value(), band).map(|d| d.sign)
 }
 
+/// **[`decide`] for a decision on a size the user may intend that
+/// passes only `passes`**: the same classification and record, with an
+/// undecided reading tagged with the pass set, so its sized ending
+/// offers a tighter tolerance only on the side a smaller tolerance
+/// decides passing (D4 ¶1 (i)). A margin in band on a refused side
+/// shows no size, and offers none.
+///
+/// # Errors
+///
+/// [`decide`]'s, its reading tagged with `passes`.
+pub fn decide_passing<T: Decide>(
+    name: &'static str,
+    margin: Margin<T>,
+    band: Band,
+    passes: SizedPass,
+) -> Result<Sign, Indeterminate> {
+    decide(name, margin, band).map_err(|e| e.undecided_passing(passes))
+}
+
 /// **A proof's inequality, read exactly**, and logged under `name`: the
 /// sign of `margin` with no band but the least pair of positive `f64`s,
 /// so only an enclosure that straddles zero fails to decide. It is for
@@ -715,6 +737,24 @@ pub fn decide<T: Decide>(
 /// [`decide`]'s, at the least band: an enclosure that holds zero.
 pub fn prove<T: Decide>(name: &'static str, margin: Margin<T>) -> Result<Sign, Indeterminate> {
     decide(name, margin, Band::least())
+}
+
+/// **Two parameters compared, read exactly** under `name`: [`prove`] of
+/// `s − t`. A parameter is no distance the band resolves, so the band
+/// plays no part, and only an enclosure that straddles fails to decide.
+/// The one home of the question, read by `geom-brep`'s curve pair (its
+/// walks' order and same-foot tests) and by `topo`'s join (whether an
+/// edge's end lies on its spline's crease).
+///
+/// The difference is wrapped as [`Margin::of`], whose doc promises
+/// metres, though a parameter is not one
+/// (`work/onecopy/a-parameter-difference-is-decided-through-the-metres-margin-door.md`).
+///
+/// # Errors
+///
+/// [`prove`]'s, where an enclosure of `s − t` holds zero.
+pub fn param_order<T: Decide>(name: &'static str, s: T, t: T) -> Result<Sign, Indeterminate> {
+    prove(name, Margin::of(s - t))
 }
 
 /// What [`choose`] picks: the margin's side, or a tie.
@@ -917,25 +957,7 @@ pub fn decide_negative<T: Decide>(
     )
 }
 
-/// A definite sign a [`decide_nonzero`] decision admits. `Zero` is not
-/// one of its values, which is what lets a caller match the gate's
-/// outcome exhaustively without an arm for an answer the gate escalated.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum NonzeroSign {
-    /// The margin classified definitely positive.
-    Positive,
-    /// The margin classified definitely negative.
-    Negative,
-}
-
-impl From<NonzeroSign> for Sign {
-    fn from(sign: NonzeroSign) -> Self {
-        match sign {
-            NonzeroSign::Positive => Self::Positive,
-            NonzeroSign::Negative => Self::Negative,
-        }
-    }
-}
+use crate::predicate::NonzeroSign;
 
 /// **The collapsed-discriminant gate**: [`decide_positive`]'s sibling
 /// for a predicate that reads a SIDE off the margin's sign and has no

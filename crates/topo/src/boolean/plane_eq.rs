@@ -29,8 +29,8 @@
 use super::carrier_eq::{CarrierVerdict, CoincidenceMeasure, ConsumedExtent};
 use geom_core::{Band, Decide, Decided, Indeterminate, Margin, MarginDiag, Point3, Sign, Vec3};
 
-use crate::validate::{decide, decide_nonzero, decide_reported};
-use geom_core::k_stats::NonzeroSign;
+use crate::validate::{decide_nonzero, decide_reported};
+use geom_core::NonzeroSign;
 
 /// The relation between two oriented planes — the PLANE SPELLING of
 /// the one carrier verdict.
@@ -171,15 +171,16 @@ pub(super) fn plane_ladder<T: Decide>(
     // `relation` rides beside σ: it is the orientation this decision
     // just made definite, and the relation the offset's Zero glues
     // under. A zero has no side to read, so it is the gate's rejection.
-    let (sigma, relation) = match decide_nonzero("bool_plane_orient", sign_margin, band) {
-        Ok(NonzeroSign::Positive) => (T::one(), PlaneRelation::SameOriented),
-        Ok(NonzeroSign::Negative) => (-T::one(), PlaneRelation::SameOpposite),
-        Err(diag) => {
-            return Err(PlaneEqError::Escalated {
-                rung: PlaneRung::Orientation,
-                diag,
-            });
+    let side = decide_nonzero("bool_plane_orient", sign_margin, band).map_err(|diag| {
+        PlaneEqError::Escalated {
+            rung: PlaneRung::Orientation,
+            diag,
         }
+    })?;
+    let sigma = side.unit::<T>();
+    let relation = match side {
+        NonzeroSign::Positive => PlaneRelation::SameOriented,
+        NonzeroSign::Negative => PlaneRelation::SameOpposite,
     };
     let offset_margin = Margin::of(d1 - sigma * d2);
     match CoincidenceMeasure::decide("bool_plane_offset", offset_margin, band) {
@@ -201,24 +202,6 @@ pub(super) fn plane_ladder<T: Decide>(
             coincidence,
             relation,
         }),
-    }
-}
-
-/// **Which way two faces' outward normals point, as a door reads it
-/// for the class it names**: the orientation rung's own question
-/// (`bool_plane_orient`, the cosine levered at `arm`), asked of a pair
-/// whose parallelism a rung could not decide. `None` where the sign is
-/// not definite: the senses are unread, and no class is offered on them.
-pub(crate) fn senses<T: Decide>(
-    n1: Vec3<T>,
-    n2: Vec3<T>,
-    arm: geom_core::Lever<T>,
-    band: Band,
-) -> Option<PlaneRelation> {
-    match decide("bool_plane_orient", Margin::levered(n1.dot(n2), arm), band) {
-        Ok(Sign::Positive) => Some(PlaneRelation::SameOriented),
-        Ok(Sign::Negative) => Some(PlaneRelation::SameOpposite),
-        Ok(Sign::Zero) | Err(_) => None,
     }
 }
 
@@ -399,8 +382,7 @@ mod tests {
     /// on the untagged margin.
     #[test]
     fn an_orientation_decided_zero_is_the_gates_rejection_on_the_log() {
-        use crate::boolean::refusal_routes::PlaneDoor;
-        use crate::boolean::{BooleanError, DeclarationRead};
+        use crate::boolean::BooleanError;
         use geom_core::k_stats::Bracket;
         let band = band();
         let up = plane([0.0, 0.0, 0.0], [0.0, 0.0, 1.0]);
@@ -432,18 +414,12 @@ mod tests {
                     margin: MarginDiag::value(cos * arm),
                     ..diag
                 };
-                for door in [
-                    PlaneDoor::Neighbours,
-                    PlaneDoor::OnPair(DeclarationRead::Moot),
-                    PlaneDoor::Screen(DeclarationRead::Moot),
-                ] {
-                    let text = |d| BooleanError::plane_identity(PlaneRung::Orientation, door, d);
-                    assert_eq!(
-                        text(diag).render(geom_brep::recourse::Reading::Build),
-                        text(untagged).render(geom_brep::recourse::Reading::Build),
-                        "{what}, {door:?}: the ending reads the margin, not the gate's tag"
-                    );
-                }
+                let text = |d| BooleanError::plane_identity(PlaneRung::Orientation, d);
+                assert_eq!(
+                    text(diag).render(geom_brep::recourse::Reading::Build),
+                    text(untagged).render(geom_brep::recourse::Reading::Build),
+                    "{what}: the ending reads the margin, not the gate's tag"
+                );
             }
         }
     }

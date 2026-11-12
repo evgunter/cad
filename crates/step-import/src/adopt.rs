@@ -44,7 +44,7 @@
 use geom::Curve3;
 use geom::{Surface, SurfaceData};
 use geom_brep::{EdgeCurveSpec, EdgeDescriptionSpec, MappedCurve, MappedSource, SurfacePair};
-use geom_core::spline::SplineError;
+use geom_core::spline::{Built, SplineError};
 use geom_core::{Affine3, FileCoincidence, Point2, Point3};
 use topo::construction::Construct;
 use topo::construction::FaceSurface;
@@ -758,7 +758,7 @@ fn iso_curve_candidates(
     fs_minus: topo::SurfaceKey,
     tol: Tol,
     candidates: &mut Vec<(AdoptionCandidate, EdgeDescriptionSpec<f64>)>,
-) -> Result<(), SplineError> {
+) -> Result<(), Built<SplineError>> {
     // Carriers outside the rung's vocabulary — neither the bitwise
     // NURBS match nor the promoted-line vertex match — take no
     // candidates and read no wall columns.
@@ -936,7 +936,7 @@ fn line_column_match(
         if !line.param(p).is_finite() {
             return None;
         }
-        if !((p - line.foot_within(p, (0.0, 1.0))).norm() <= eps) {
+        if !(line.distance_within(p, (0.0, 1.0)) <= eps) {
             return None;
         }
     }
@@ -1023,8 +1023,10 @@ fn mapped_self_description(
         }) => Some(MappedCurve::whole(MappedSource::RevolvedPoint {
             point: Point2::new(0.0, 0.0),
             place: Affine3::translation(p_start - Point3::origin()),
-            axis_origin: *center,
-            axis_dir: *axis,
+            axis: geom::Line {
+                origin: *center,
+                dir: *axis,
+            },
             angle: t1 - t0,
         })),
         Curve3::Ellipse(..) | Curve3::Spiric { .. } | Curve3::Nurbs(_) => None,
@@ -1172,7 +1174,7 @@ enum ArcRimRefusal {
     /// body this reader assembles reaches it — and the refusal names
     /// which invariant broke rather than being reported as a rim
     /// deviation.
-    ChartRow(SplineError),
+    ChartRow(Built<SplineError>),
 }
 
 /// One side a described (non-placeholder) NURBS wall, the other a

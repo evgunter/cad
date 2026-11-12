@@ -197,24 +197,11 @@ pub enum BoundaryRefusal {
     /// Where a boundary vertex sits on the span fell in the band's gap.
     /// Ranked by its margin.
     Escalated(Indeterminate),
-    /// A decision of the meeting reading fell in the band's gap. Ranked
-    /// by its margin.
-    Meeting(Indeterminate),
-    /// The span and a boundary edge meet in band ([`MeetFault::Touch`]).
-    /// Ranked by its margin.
-    Touch(Indeterminate),
-    /// A reading could not run: a root finder, a meter or a walk that
-    /// could not certify, or a pose with no closed form. Nothing is known
-    /// of where the member meets the span, outside its window
-    /// ([`located`]) or in it. As the fault stands
-    /// ([`MeetFault::refusal`]).
-    Unread(MeetFault),
-    /// The meeting table misread a carrier, or two of its readings
-    /// contradict: a kernel fault, never a pose. An abort.
-    Fault {
-        /// The carrier misread, or the readings that contradict.
-        what: &'static str,
-    },
+    /// The meeting reading of the span and a boundary edge refused, as
+    /// its group ([`MeetKind`]): in band, a touch, a reading that did not
+    /// run (nothing is known of where the member meets the span, outside
+    /// its window ([`located`]) or in it), or a kernel fault.
+    Met(MeetKind),
 }
 
 /// Where a meeting of the span sits on the face's boundary
@@ -340,13 +327,13 @@ impl<T: Decide> Located<T> {
         meetings.chain(ends).collect()
     }
 
-    /// The first member whose reading faulted ([`BoundaryRefusal::Fault`]):
+    /// The first member whose reading faulted ([`MeetKind::Fault`]):
     /// a kernel fault no window confines.
     #[must_use]
     pub fn fault(&self) -> Option<BoundaryRefusal> {
         self.undecided
             .iter()
-            .find(|u| matches!(u.why, BoundaryRefusal::Fault { .. }))
+            .find(|u| matches!(u.why, BoundaryRefusal::Met(MeetKind::Fault { .. })))
             .map(|u| u.why)
     }
 
@@ -412,7 +399,7 @@ fn pass<T: Decide>(
         Ok(None) => {}
         Err(refusal) => pass.undecided.push(Undecided {
             window: window(geom::cover::Cover::points(vec![point])),
-            why: carrier(refusal.refused),
+            why: carrier(refusal.refused()),
         }),
     };
     let mut met_edges = Vec::with_capacity(edges.len());
@@ -509,31 +496,24 @@ pub fn boundary<T: Decide>(
 }
 
 impl BoundaryRefusal {
-    /// What this refusal is to a ladder ([`crate::ladder::Refusal`]), as
-    /// each variant's docs state it.
+    /// What this refusal is to a ladder ([`crate::ladder::Refusal`]): a
+    /// vertex's place ranked by its margin, and a meeting's as its group
+    /// stands ([`MeetKind::refusal`]).
     ///
     /// # Errors
     ///
     /// [`crate::ladder::Aborts`] for a kernel fault.
-    pub const fn refusal(&self) -> Result<crate::ladder::Refusal, crate::ladder::Aborts> {
+    pub fn refusal(&self) -> Result<crate::ladder::Refusal, crate::ladder::Aborts> {
         match self {
-            Self::Escalated(diag) | Self::Meeting(diag) | Self::Touch(diag) => {
-                Ok(crate::ladder::Refusal::Margin(*diag))
-            }
-            Self::Unread(fault) => fault.refusal(),
-            Self::Fault { .. } => Err(crate::ladder::Aborts),
+            Self::Escalated(diag) => Ok(crate::ladder::Refusal::Margin(*diag)),
+            Self::Met(kind) => kind.refusal(),
         }
     }
 
-    /// A meeting reading's refusal, as the pass types it.
+    /// A meeting reading's refusal, as the pass types it: its group.
     #[must_use]
-    pub fn of(fault: MeetFault) -> Self {
-        match fault.kind() {
-            MeetKind::Escalated(diag) => Self::Meeting(diag),
-            MeetKind::Touch(diag) => Self::Touch(diag),
-            MeetKind::Unread => Self::Unread(fault),
-            MeetKind::Fault { what } => Self::Fault { what },
-        }
+    pub const fn of(fault: MeetFault) -> Self {
+        Self::Met(fault.kind())
     }
 }
 
@@ -549,7 +529,7 @@ pub fn shares_a_run<T: geom_core::Real>(met: &Meetings<T>) -> bool {
 /// A point-on-span refusal of a vertex reading.
 fn carrier(refusal: geom::CarrierRefusal) -> BoundaryRefusal {
     refusal.escalation().map_or_else(
-        |why| BoundaryRefusal::Unread(why.into()),
+        |why| BoundaryRefusal::of(why.into()),
         BoundaryRefusal::Escalated,
     )
 }

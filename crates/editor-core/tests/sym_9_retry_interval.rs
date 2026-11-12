@@ -692,12 +692,17 @@ fn sym_9_the_kept_atom_ladder_recovers_what_phase_1_measured() {
     // three ε rows: the plate +54, the annulus +54, the boss +36 symbolic
     // and +8 numeric, the bracket +62 and the link +36 symbolic and +16
     // numeric, the decisions of the read every mint makes first.
+    // Then ONEHOME (`mate::solve::admitted` removed: a placement composed
+    // as motions decides no rigidity margin): each placed
+    // map's seven `transform_rigid_*` margins log no row, 7 symbolic per map
+    // both ways, the numeric unmoved: the plate and the bracket −14, the
+    // annulus, the boss and the link −7.
     let expected: [(&str, [u64; 2], [u64; 2], u64); 5] = [
-        ("two_hole_plate", [1203, 824], [1203, 824], 0),
-        ("r1_annulus", [720, 555], [720, 555], 0),
-        ("r1_segment_boss", [687, 539], [687, 539], 0),
-        ("r2_filleted_bracket", [1599, 1155], [1605, 1149], 6),
-        ("r2_link", [998, 821], [998, 821], 0),
+        ("two_hole_plate", [1189, 824], [1189, 824], 0),
+        ("r1_annulus", [713, 555], [713, 555], 0),
+        ("r1_segment_boss", [680, 539], [680, 539], 0),
+        ("r2_filleted_bracket", [1585, 1155], [1591, 1149], 6),
+        ("r2_link", [991, 821], [991, 821], 0),
     ];
     let mut moved: Vec<String> = Vec::new();
     for (name, want_off, want_on, want_retried) in expected {
@@ -858,10 +863,16 @@ fn sym_9_the_drive_writes_the_ladders_receipt() {
     // on the coefficient bound. Pinned at that loss, a defect
     // (`work/sym/rule-h-loses-two-pad-decisions-to-a-coefficient-freeze.md`).
     // Then PCERT E1c (every mint reads incidence first, PR 5889): 1461 -> 1529
-    // symbolic, the read's decisions.
+    // symbolic, the read's decisions. Then a bare fillet's run in after a
+    // straight leg became a segment of its own, so each of the pad's
+    // filleted corners keeps its leg's end as a vertex inside a run:
+    // [1529, 1382] -> [1573, 1500], the retries holding. Then ONEHOME
+    // (`mate::solve::admitted` removed: a placement composed as motions
+    // decides no rigidity margin): the pad's placement's seven
+    // `transform_rigid_*` margins log no row: 1573 -> 1566 symbolic.
     assert_eq!(
         [d.symbolic, d.numeric, d.retried],
-        [1529, 1382, 34],
+        [1566, 1500, 34],
         "the shipped ladder's leaf receipt"
     );
     assert!(
@@ -877,8 +888,11 @@ fn sym_9_the_drive_writes_the_ladders_receipt() {
     // [1429, 1414, 0] -> [1427, 1416, 0], the last move rule H's
     // (`SymRules::without_angle_sum` reads [1429, 1414, 0]). Then PCERT
     // E1c (PR 5889): [1427, 1416, 0] -> [1495, 1416, 0], the read's
-    // decisions, as the shipped receipt's.
-    assert_eq!([b.symbolic, b.numeric, b.retried], [1495, 1416, 0]);
+    // decisions, as the shipped receipt's. Then the run in as its own
+    // segment, as the shipped receipt's: [1495, 1416, 0] -> [1539, 1534, 0].
+    // Then ONEHOME's seven rigidity margins, as the shipped receipt's:
+    // [1539, 1534, 0] -> [1532, 1534, 0].
+    assert_eq!([b.symbolic, b.numeric, b.retried], [1532, 1534, 0]);
     assert!(
         !bare.serialize().contains("retried="),
         "no ladder, no column"

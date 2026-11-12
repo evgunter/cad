@@ -38,7 +38,6 @@
 use geom::{ChartInverse, Curve3, Surface};
 use geom_brep::chart_singularity::{self as home, Lies, Unread};
 use geom_brep::props::LoopEdge;
-use geom_core::period::Period;
 use geom_core::{Point3, Vec3};
 
 use super::{expand_split_uses, face_boundary_census, split_at_param, use_start, valences};
@@ -520,8 +519,7 @@ fn nappe(solid: &SolidSpec, fi: usize, chart: Chart, read: &Read) -> Result<f64,
     let walk =
         home::walk_loop(&inverse, &points, &images[0], read.coarser).ok_or(unreadable(face_id))?;
     match home::nappe(&walk) {
-        Ok(geom_core::k_stats::NonzeroSign::Positive) => Ok(1.0),
-        Ok(geom_core::k_stats::NonzeroSign::Negative) => Ok(-1.0),
+        Ok(side) => Ok(side.unit()),
         Err(why) => Err(read.unread(Unread::Side { r#loop: 0, why }, face_id)),
     }
 }
@@ -670,17 +668,14 @@ fn first_hit(
     // That window is a turn from the start only while `lead`, the band's
     // escalation over the circle's radius, is under a turn: a circle that
     // small is inside its own band.
+    let turn = ray.carrier.period();
     assert!(
-        !matches!(ray.carrier, Curve3::Circle(..)) || lead < core::f64::consts::TAU,
+        turn.is_none_or(|turn| lead < turn.length()),
         "a ray circle within its own band (lead {lead})"
     );
     let walked = |t: f64| {
         let delta = delta_of(t);
-        if matches!(ray.carrier, Curve3::Circle(..)) {
-            Period::new(core::f64::consts::TAU).above(delta, lead)
-        } else {
-            delta
-        }
+        turn.map_or(delta, |turn| turn.above(delta, lead))
     };
     let mut edges: Vec<u64> = face
         .loops
@@ -923,7 +918,12 @@ fn meridian_rays(chart: Chart, k: usize, d: Vec3<f64>, nappe: f64) -> [Ray; 2] {
             ..
         } => Ray {
             carrier: crate::signed_zero::plus_zero_curve(geom::pole_form::cone_generator(
-                apex, axis, half_angle, d,
+                geom::Line {
+                    origin: apex,
+                    dir: axis,
+                },
+                half_angle,
+                d,
             )),
             from: 0.0,
             sign: nappe,
@@ -1121,8 +1121,10 @@ fn strut_tip(
     let spec = &solid.edges[&seam];
     let Some(twin) = geom::pole_form::half_turn_curve(
         &spec.carrier,
-        chart.origin(),
-        chart.axis(),
+        geom::Line {
+            origin: chart.origin(),
+            dir: chart.axis(),
+        },
         crate::signed_zero::plus_zero_point,
         crate::signed_zero::plus_zero,
     ) else {
@@ -1134,10 +1136,8 @@ fn strut_tip(
     } else {
         (spec.t1, -1.0)
     };
-    let reach = match twin {
-        Curve3::Circle(..) => core::f64::consts::TAU,
-        _ => f64::INFINITY,
-    };
+    // A closed carrier is walked at most a turn; an open one without end.
+    let reach = twin.period().map_or(f64::INFINITY, |turn| turn.length());
     let ray = Ray {
         carrier: twin,
         from,

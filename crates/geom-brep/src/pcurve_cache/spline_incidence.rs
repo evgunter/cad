@@ -1,7 +1,7 @@
 //! **A spline chart's incidence test** (D3): whether a carrier lies on a
 //! NURBS chart (a [`geom::Surface::Nurbs`] payload, or an
 //! [`geom::Surface::Approx`]'s fit, which is its geometry), read at the
-//! samples [`super::incidence_over_span`] reads an analytic chart at,
+//! samples [`super::incidence_over_span_as`] reads an analytic chart at,
 //! and decided one-sidedly as that test is: `Off` only on a certified
 //! LOWER bound on a sample's distance from the chart past the band.
 //!
@@ -32,6 +32,19 @@
 //! where every decision was definite, the straddle of the kept cells'
 //! least floor (decided zero) and the points' least distance (decided
 //! past the band), [`geom_core::k_stats::straddle`].
+//!
+//! **The foot first.** Before the walk, each sample's foot on the chart
+//! is found by Gauss–Newton on `|S(u, v) − q|²`, from the last sample's
+//! foot or the nearest cell's centre, in `f64` on the brackets' middles
+//! and held inside the patch's parameter rectangle. It decides nothing:
+//! the chart's point there, evaluated in the scalar, is one more upper
+//! bound, decided as a kept cell's centre is. Within the zero band the
+//! sample is on the chart, so a sample on it costs a few evaluations
+//! rather than a dive; in band, the walk prunes from its first visit as
+//! it does after a centre read in band. A carrier on its chart reads on,
+//! sample after sample, from the foot before it. A foot short of the
+//! true one (an iteration stopped on a large patch, another local
+//! minimum) only leaves the walk to find the point.
 //!
 //! **A weight not shown positive** leaves the cell's hull unproven, so
 //! its floor is the poison: its decision escalates with an unreadable
@@ -74,7 +87,7 @@
 //! placement past the zero band. That ends the read as not shown off, a
 //! lane gap and never a false `Off`.
 
-use geom::NurbsSurface;
+use geom::{Curve3, NurbsSurface};
 use geom_core::k_stats::{decide, decide_reported, straddle};
 use geom_core::spline::{Knots, SpanLocate};
 use geom_core::{
@@ -108,32 +121,107 @@ const DEPTH_HEADROOM: f64 = 8.0;
 /// The kept cells one sample's walk may visit.
 const CELL_VISITS: usize = 1 << 12;
 
-/// **The spline chart's incidence test of the carrier `at` over
-/// `[t0, t1]`** (module docs), at [`INCIDENCE_SAMPLES`] + 1 evenly
-/// spaced parameters, its ends included. A chart patch is bounded, so
-/// the read is always the edge's span, never a closed conic's turn.
+/// **The spline chart's incidence test of `carrier` over `[t0, t1]`**
+/// (module docs), at [`INCIDENCE_SAMPLES`] + 1 evenly spaced parameters,
+/// its ends included, and at a spline carrier's own parameters inside the
+/// span ([`own_fractions`]). A chart patch is bounded, so the read is
+/// always the edge's span, never a closed conic's turn.
 ///
 /// # Errors
 ///
-/// [`PcurveCertifyError::Escalated`] ([`super::PcurveCheck::ChartIncidence`])
-/// where no sample is shown off and some sample is unsettled: in band,
+/// [`PcurveCertifyError::Incidence`] read in band
+/// ([`crate::IncidenceRead::Undecided`]) where no sample is shown off and
+/// some sample is unsettled: in band,
 /// at a straddle, or with an unreadable floor (the cell structure does
 /// not decompose, or a weight not shown positive).
-pub(super) fn spline_incidence<T: Decide>(
+pub(super) fn spline_incidence_as<T: Decide>(
     name: &'static str,
     chart: &NurbsSurface<T>,
+    carrier: &Curve3<T>,
     (t0, t1): (T, T),
-    at: impl Fn(T) -> Point3<T>,
+    band: Band,
+) -> Result<Incidence, PcurveCertifyError> {
+    let n = f64::from(INCIDENCE_SAMPLES);
+    // Each fraction with the even schedule's index, or none where it is
+    // the carrier's own, read in order so each sample's foot starts from
+    // the last.
+    let mut fractions: Vec<(f64, Option<u32>)> = (0..=INCIDENCE_SAMPLES)
+        .map(|i| (f64::from(i) / n, Some(i)))
+        .chain(
+            own_fractions(carrier, (t0, t1))
+                .into_iter()
+                .map(|f| (f, None)),
+        )
+        .collect();
+    fractions.sort_by(|a, b| a.0.total_cmp(&b.0));
+    fractions.dedup_by(|a, b| a.0 == b.0);
+    let samples = fractions.into_iter().map(|(f, schedule)| {
+        let f = match schedule {
+            Some(i) => T::from_f64(f64::from(i) / n),
+            None => T::from_computed(f),
+        };
+        carrier.eval(t0 + (t1 - t0) * f)
+    });
+    read_samples_as(name, chart, samples, band)
+}
+
+/// **Where a spline carrier's own shape is set**, as fractions strictly
+/// inside `[t0, t1]`: its breakpoints and its control points' Greville
+/// abscissae. A feature of the carrier narrower than the even schedule's
+/// step is made by control points close together, and peaks near their
+/// abscissae, so the read takes its samples there too. They place
+/// samples and decide nothing (each is read as any sample is), so they
+/// are taken on the brackets' middles. Empty for any other carrier.
+fn own_fractions<T: Decide>(carrier: &Curve3<T>, (t0, t1): (T, T)) -> Vec<f64> {
+    let Curve3::Nurbs(net) = carrier else {
+        return Vec::new();
+    };
+    let knots = net.knot_values();
+    let values: Vec<f64> = knots.values().iter().map(|&k| middle(k)).collect();
+    let p = knots.degree();
+    let greville = (0..values.len().saturating_sub(p + 1))
+        .map(|i| values[i + 1..=i + p].iter().sum::<f64>() / p as f64);
+    let (a, b) = (middle(t0), middle(t1));
+    values
+        .iter()
+        .copied()
+        .chain(greville)
+        .map(|t| (t - a) / (b - a))
+        .filter(|f| *f > 0.0 && *f < 1.0)
+        .collect()
+}
+
+/// **The spline chart's incidence test of one point**: [`spline_incidence_as`]
+/// at the one sample, walked once.
+///
+/// # Errors
+///
+/// As [`spline_incidence_as`].
+pub(super) fn spline_point_incidence_as<T: Decide>(
+    name: &'static str,
+    chart: &NurbsSurface<T>,
+    point: Point3<T>,
+    band: Band,
+) -> Result<Incidence, PcurveCertifyError> {
+    read_samples_as(name, chart, core::iter::once(point), band)
+}
+
+/// Each sample's walk over the chart's cells, cut once: `Off` at the
+/// first sample shown off, else unsettled at the first sample not shown
+/// on, else `On`.
+fn read_samples_as<T: Decide>(
+    name: &'static str,
+    chart: &NurbsSurface<T>,
+    samples: impl Iterator<Item = Point3<T>>,
     band: Band,
 ) -> Result<Incidence, PcurveCertifyError> {
     let Some(net) = Net::of(chart, band) else {
         return Err(incidence_escalated(unreadable(band)));
     };
-    let n = f64::from(INCIDENCE_SAMPLES);
     let mut pending: Option<Indeterminate> = None;
-    for i in 0..=INCIDENCE_SAMPLES {
-        let t = t0 + (t1 - t0) * T::from_f64(f64::from(i) / n);
-        match net.read(at(t), band) {
+    let mut hint = None;
+    for sample in samples {
+        match net.read_from(sample, band, Some(&mut hint)) {
             Read::On => {}
             Read::Off(floor) => match decide_reported(name, Margin::of(floor), band) {
                 Ok(Decided {
@@ -163,7 +251,7 @@ fn keep(pending: &mut Option<Indeterminate>, cause: Indeterminate) {
 
 /// The escalation of a floor that could not be read at all: the poison,
 /// decided.
-fn unreadable(band: Band) -> Indeterminate {
+pub(super) fn unreadable(band: Band) -> Indeterminate {
     match decide(HULL, Margin::of(f64::NAN), band) {
         Err(cause) => cause,
         Ok(_) => unreachable!("unreadable: the poison decides no sign"),
@@ -191,6 +279,13 @@ struct Net<'a, T: Real> {
     pv: usize,
     /// The halvings a walk may make ([`depth_cap`]).
     depth: usize,
+    /// The parameter rectangle the cells cover, `[u0, u1, v0, v1]`, shrunk
+    /// so a computed parameter's rounding stays inside it ([`Net::foot`]);
+    /// `None` where it is too narrow to ([`inside`]).
+    domain: Option<[f64; 4]>,
+    /// The chart on its brackets' middles, which the foot's iteration
+    /// reads: it decides nothing, so it need not be the scalar's.
+    shadow: NurbsSurface<f64>,
 }
 
 /// A homogeneous control point, `[w·x, w·y, w·z, w]` about the centre,
@@ -296,9 +391,9 @@ impl<'a, T: Decide> Net<'a, T> {
         let (control, weights) = (chart.control(), chart.weights());
         let (lo, hi) = shadow_box(control);
         let centre = Vec3::new(
-            T::from_computed(lo[0] + (hi[0] - lo[0]) * 0.5),
-            T::from_computed(lo[1] + (hi[1] - lo[1]) * 0.5),
-            T::from_computed(lo[2] + (hi[2] - lo[2]) * 0.5),
+            T::from_computed(geom_core::bracket_mid((lo[0], hi[0]))),
+            T::from_computed(geom_core::bracket_mid((lo[1], hi[1]))),
+            T::from_computed(geom_core::bracket_mid((lo[2], hi[2]))),
         );
         // Moved about the centre and out to homogeneous form: the
         // difference and the product round each coordinate by `u` of it.
@@ -359,6 +454,8 @@ impl<'a, T: Decide> Net<'a, T> {
             pu,
             pv,
             depth: depth_cap(lo, hi, band),
+            domain: inside(bu[0], bu[cu], bv[0], bv[cv]),
+            shadow: chart.map_scalar(middle),
         })
     }
 
@@ -374,9 +471,51 @@ impl<'a, T: Decide> Net<'a, T> {
     /// dropped unread. A sample in band of the chart is so left with no
     /// cell once its cells are small enough that their floors pass the
     /// zero band.
-    fn read(&self, q: Point3<T>, band: Band) -> Read<T> {
+    ///
+    /// Before the walk, the chart's point at the sample's foot
+    /// ([`Net::foot`], from `hint`, the last sample's, or the nearest
+    /// cell's centre) is read as a kept cell's centre is: within the zero
+    /// band the sample is on the chart, and in band it is not off it, so
+    /// the walk drops every cell whose floor passes the zero band from its
+    /// first visit.
+    /// `hint` is `None` for the walk alone (its rows read it so).
+    fn read_from(
+        &self,
+        q: Point3<T>,
+        band: Band,
+        mut hint: Option<&mut Option<(f64, f64)>>,
+    ) -> Read<T> {
         let moved = q - self.centre;
         let key_q = [moved.x, moved.y, moved.z].map(middle);
+        let mut foot_cause = None;
+        if let Some(hint) = hint.as_deref_mut() {
+            // The last sample's foot, or the nearest cell's centre.
+            let start = hint.or_else(|| {
+                self.cells
+                    .iter()
+                    .map(|cell| (box_key(cell, key_q, self.pu, self.pv), cell))
+                    .min_by(|(a, _), (b, _)| a.0.total_cmp(&b.0).then(a.1.total_cmp(&b.1)))
+                    .map(|(_, cell)| {
+                        let [u0, u1, v0, v1] = cell.rect;
+                        (geom::bracket_mid((u0, u1)), geom::bracket_mid((v0, v1)))
+                    })
+            });
+            if let Some(at) = start.and_then(|start| self.foot(q, start)) {
+                let distance = (self
+                    .chart
+                    .eval(T::from_computed(at.0), T::from_computed(at.1))
+                    - q)
+                    .norm();
+                match decide(FOOT, Margin::of(distance), band) {
+                    Ok(Sign::Zero) => {
+                        *hint = Some(at);
+                        return Read::On;
+                    }
+                    Ok(_) => {}
+                    Err(cause) => foot_cause = Some(cause),
+                }
+            }
+        }
         // Best first, not depth first: a queue keyed on each cell's
         // nearness to the sample, so this walk is not
         // `geom_core::bisect`'s, whose order is depth first.
@@ -393,8 +532,8 @@ impl<'a, T: Decide> Net<'a, T> {
         // The least floor over the cells that cleared and over the kept
         // ones, and the least distance of a point past the zero band.
         let (mut floor, mut kept, mut foot) = (None, None, None);
-        let mut pending: Option<Indeterminate> = None;
-        let mut near = false;
+        let mut pending: Option<Indeterminate> = foot_cause;
+        let mut near = pending.is_some();
         let mut unsettled = false;
         let mut visits = 0usize;
         #[cfg(test)]
@@ -438,7 +577,12 @@ impl<'a, T: Decide> Net<'a, T> {
             let distance = (centre - q).norm();
 
             match decide(FOOT, Margin::of(distance), band) {
-                Ok(Sign::Zero) => return Read::On,
+                Ok(Sign::Zero) => {
+                    if let Some(hint) = hint.as_deref_mut() {
+                        *hint = Some((geom::bracket_mid((u0, u1)), geom::bracket_mid((v0, v1))));
+                    }
+                    return Read::On;
+                }
                 Ok(_) => foot = least(foot, distance),
                 Err(cause) => {
                     keep(&mut pending, cause);
@@ -471,6 +615,49 @@ impl<'a, T: Decide> Net<'a, T> {
             },
             _ => unreadable(band),
         }))
+    }
+
+    /// [`Net::read_from`] by the walk alone, with no foot.
+    #[cfg(test)]
+    fn read(&self, q: Point3<T>, band: Band) -> Read<T> {
+        self.read_from(q, band, None)
+    }
+
+    /// **The sample's foot on the chart**: Gauss–Newton on `|S(u, v) − q|²`
+    /// from `start`, on the chart's `f64` shadow, held in [`Net::domain`]. It
+    /// decides nothing: any parameter of the domain gives a point of the
+    /// chart, whose distance from the sample bounds the sample's from
+    /// above. `None` where the iteration leaves the reals.
+    fn foot(&self, q: Point3<T>, start: (f64, f64)) -> Option<(f64, f64)> {
+        const STEPS: usize = 12;
+        let [u0, u1, v0, v1] = self.domain?;
+        let q = [middle(q.x), middle(q.y), middle(q.z)];
+        let tiny = 1e-12 * (u1 - u0).max(v1 - v0);
+        let (mut u, mut v) = (start.0.clamp(u0, u1), start.1.clamp(v0, v1));
+        for _ in 0..STEPS {
+            let jet = self.shadow.ders(u, v);
+            let (su, sv) = (jet.du.to_array(), jet.dv.to_array());
+            let p = jet.point.to_array();
+            let r = [p[0] - q[0], p[1] - q[1], p[2] - q[2]];
+            let dot = |a: [f64; 3], b: [f64; 3]| a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
+            let (a, b, c) = (dot(su, su), dot(su, sv), dot(sv, sv));
+            let (g, h) = (dot(r, su), dot(r, sv));
+            let det = a * c - b.powi(2);
+            if !(det.is_finite() && det > 0.0) {
+                return Some((u, v));
+            }
+            let (du, dv) = ((c * g - b * h) / det, (a * h - b * g) / det);
+            let (nu, nv) = ((u - du).clamp(u0, u1), (v - dv).clamp(v0, v1));
+            if !(nu.is_finite() && nv.is_finite()) {
+                return None;
+            }
+            let step = (nu - u).abs().max((nv - v).abs());
+            (u, v) = (nu, nv);
+            if step <= tiny {
+                break;
+            }
+        }
+        Some((u, v))
     }
 
     /// **The cell's floor against the moved sample `q`** (module docs,
@@ -658,6 +845,20 @@ fn shadow_box<T: SpanLocate>(control: &[Point3<T>]) -> ([f64; 3], [f64; 3]) {
         }
     }
     (lo, hi)
+}
+
+/// The rectangle `[u0, u1] × [v0, v1]` shrunk by two representable
+/// steps at each side, so a parameter held in it and computed into the
+/// scalar ([`Real::from_computed`], which widens it by at most a step)
+/// stays on the patch. `None` where a side is too narrow to shrink: the
+/// foot is not read there.
+fn inside(u0: f64, u1: f64, v0: f64, v1: f64) -> Option<[f64; 4]> {
+    let shrink = |lo: f64, hi: f64| {
+        let (a, b) = (lo.next_up().next_up(), hi.next_down().next_down());
+        (a < b).then_some((a, b))
+    };
+    let ((a, b), (c, d)) = (shrink(u0, u1)?, shrink(v0, v1)?);
+    Some([a, b, c, d])
 }
 
 /// The middle of a value's bracket: the walk's order, and the value an

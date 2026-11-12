@@ -173,12 +173,12 @@ REGISTER=(
   # site — snapshot and the hull closures take no vertex from it,
   # `line_bounded` reads it as "not a line", the reach walks propagate
   # it as `None`.
-  "crates/topo/src/live.rs|unchecked_face_cycles|else { return|1|audited: the walk decides nothing — it returns the loop it could not walk, and each of its callers says what that means"
   "crates/topo/src/live.rs|half_edge||1|audited: a lone-vertex loop holds no half-edge and no edge, so it bounds no area and a reader of half-edges has nothing to walk; its vertex is still yielded by the walk (BoundaryMember::vertex, Body::member_point) to every reader of points"
   "crates/topo/src/live.rs|edges||1|audited: half_edge's disposition — a lone-vertex loop has no edge, so it is no edge of the face"
   "crates/topo/src/chord_join.rs|is_pierce_ring||1|audited: the discarded variant is answered — a lone vertex has no null edge, so it is not deferred and ring_side's own Empty arm reads that vertex and refuses on the run"
   "crates/topo/src/live.rs|outer_cycle||1|audited: the discarded variant is answered — a non-cycle outline returns None, which face_azimuth_images hands back as no images and the apex closure answers Open; every caller refuses it"
-  "crates/topo/src/coherence.rs|traversals||1|unaudited"
+  "crates/topo/src/coherence.rs|traversals||1|audited: answered as Unexaminable::LoneLoop — a lone vertex has no edge, so no chart coordinate to compare"
+  "crates/topo/src/link.rs|of_body_face||1|audited: answered as TouchUnread::LoneLoop — a lone vertex is no ring of the polygon reading; FaceSector::cleared, the arm beside it, reads the vertex as a point of the boundary"
   "crates/topo/src/euler.rs|mef_lone||1|unaudited"
   "crates/topo/src/euler.rs|mev_lone_plan||1|unaudited"
   "crates/topo/src/euler_kill.rs|kvfs||1|unaudited"
@@ -213,9 +213,9 @@ REGISTER=(
   "crates/topo/src/shell.rs|loop_points||1|unaudited"
   "crates/topo/src/shell.rs|loop_rekeyed||1|unaudited"
   "crates/topo/src/shell.rs|ring_rows||1|unaudited"
-  "crates/topo/src/splitting/containment.rs|carrier_loop||1|audited: the discard is answered as CorruptLoop, and point_in_face, the one caller, answers an Empty outer loop (no region) and steps over an Empty ring (no area) before asking"
-  "crates/topo/src/splitting/containment.rs|certify_plane||1|audited: the discard is answered as CorruptLoop, the answer carrier_loop gives the same loop on the line after it in point_in_loop"
-  "crates/topo/src/splitting/containment.rs|loop_points||1|unaudited"
+  "crates/topo/src/splitting/containment.rs|carrier_loop||1|audited: the discard is answered as LoneLoop, and point_in_face, the one caller, answers an Empty outer loop (no region) and steps over an Empty ring (no area) before asking"
+  "crates/topo/src/splitting/containment.rs|certify_plane||1|audited: the discard is answered as LoneLoop, the answer carrier_loop gives the same loop on the line after it in point_in_loop"
+  "crates/topo/src/splitting/containment.rs|loop_points||1|audited: answered as LoneLoop — a lone vertex bounds no polygon to place a point in"
   "crates/topo/src/splitting/finish.rs|shell_side||1|audited: a blind spot, not a covered one — a lone-vertex loop holds the shell's only reading of that vertex, and skipping it can leave a shell whose one off-plane vertex is lone unplaced (refused Corrupt or UnclassifiableComponent, never misplaced); work/onecopy/a-shell-whose-only-off-plane-vertex-is-lone-is-unplaced.md"
   "crates/topo/src/splitting/finish.rs|section_plane_restatements||1|audited: an Empty loop holds no edge, so it has no description to restate; describe_section_boundary, which re-describes the same loops right after, steps over it the same way"
   "crates/topo/src/splitting/section.rs|section_walk||1|audited: the discarded variant is answered — a lone-vertex loop refuses as SectionInvariant, the refusal join::loop_starts gives the same below loop"
@@ -246,12 +246,54 @@ REGISTER=(
 # escape processing at all, and a bracket expression is then correct
 # under either route and under every awk.
 PATH_PREFIX='([A-Za-z_][A-Za-z0-9_]*::)*'
-ENUM="((${PATH_PREFIX}LoopBoundary|Self)::(Cycle|Empty)|${PATH_PREFIX}BoundaryMember::(Isolated|Edge))"
-NO_BINDING='[{] *([.][.]|[A-Za-z_][A-Za-z0-9_]* *: *_[A-Za-z0-9_]*) *[}]'
+NO_BINDING='([{] *([.][.]|[A-Za-z_][A-Za-z0-9_]* *: *_[A-Za-z0-9_]*) *[}]|[(] *_[A-Za-z0-9_]* *[)])'
 DEFER='(continue|break|return)([^A-Za-z0-9_]|$)'
-LET_RE="^let (${ENUM} [{][^;{}]*[}]|[A-Za-z_][A-Za-z0-9_:]*[(]${ENUM} [{][^;{}]*[}][)]) = [^;]*else *[{] *${DEFER}"
-ARM_RE="^${ENUM} ${NO_BINDING}( *[|] *${ENUM} ${NO_BINDING})*( if [^;{}]*)? => ([{] *[}]|[{] *${DEFER}|${DEFER})"
-ANCHOR_RE="^(let )?([A-Za-z_][A-Za-z0-9_:]*[(])?${ENUM} [{]"
+
+# THE MIRRORS OF A LOOP'S BOUNDARY ARE READ, NOT SPELLED. A type that
+# carries a loop's shapes under its own names (`live.rs`'s
+# `UncheckedLoop`, the unchecked boundary walk's loop) discards a
+# `LoopBoundary` value as surely as a match on `LoopBoundary` does. Such
+# a type says so in its own doc comment with the marker
+# `[loop-boundary-mirror]`, and the gate finds every enum declared under
+# that marker in the scanned tree and reads its variants off the
+# declaration: a mirror is matched the day it is declared, and a variant
+# the day it is added. A tree that declares none (a fixture) matches the
+# two spelled enums. A tuple variant's pattern `(..)` is matched beside a
+# struct's `{..}`.
+#
+# Blind spot, named: a mirror declared WITHOUT the marker. The gate
+# cannot tell a type that mirrors a loop's boundary from any other enum
+# of two variants by its shape alone; the marker is the declaration's
+# promise, and a reviewer reads it.
+gate_build_matchers() {
+  local mirrors='' name variants
+  # Each marked enum's name and variants, `name|v1|v2…` a line: a doc or
+  # attribute run holding the marker, then the `enum` line it heads.
+  while IFS= read -r name; do
+    [ -n "$name" ] || continue
+    variants=${name#*|}
+    name=${name%%|*}
+    [ -n "$variants" ] && mirrors="${mirrors}|${PATH_PREFIX}${name}::(${variants})"
+  done < <(awk '
+    /^[[:space:]]*([/][/]|#[[])/ { if (index($0, "[loop-boundary-mirror]")) marked = 1; next }
+    marked && match($0, /enum [A-Z][A-Za-z0-9_]*/) {
+      name = substr($0, RSTART + 5, RLENGTH - 5); inside = 1; vs = ""; marked = 0; next
+    }
+    { if (!inside) marked = 0 }
+    inside && /^[[:space:]]*}/ { print name "|" vs; inside = 0; next }
+    inside && match($0, /^[[:space:]]*[A-Z][A-Za-z0-9_]*[[:space:]]*[({,]/) {
+      v = substr($0, RSTART, RLENGTH); gsub(/[^A-Za-z0-9_]/, "", v)
+      vs = (vs == "" ? v : vs "|" v)
+    }' "${GATE_SOURCE_FILES[@]}" 2>/dev/null | sort -u)
+  ENUM="((${PATH_PREFIX}LoopBoundary|Self)::(Cycle|Empty)|${PATH_PREFIX}BoundaryMember::(Isolated|Edge)${mirrors})"
+  local pat="${ENUM} ?([{][^;{}]*[}]|[(][^;()]*[)])"
+  LET_RE="^let (${pat}|[A-Za-z_][A-Za-z0-9_:]*[(]${pat}[)]) = [^;]*else *[{] *${DEFER}"
+  # An arm's pattern, bare or under one layer of wrapping (`Ok(…)`,
+  # `Some(…)`, `Err(…)`), as the let-else form reads it.
+  local arm="(${ENUM} ?${NO_BINDING}|[A-Za-z_][A-Za-z0-9_:]*[(]${ENUM} ?${NO_BINDING}[)])"
+  ARM_RE="^${arm}( *[|] *${arm})*( if [^;{}]*)? => ([{] *[}]|[{] *${DEFER}|${DEFER})"
+  ANCHOR_RE="^(let )?([A-Za-z_][A-Za-z0-9_:]*[(])?${ENUM} ?[{(]"
+}
 
 # Set by --register; empty means the array above.
 GATE_REGISTER_FILE=
@@ -283,6 +325,7 @@ gate() {
     gate_error "$(gate_name): the shared Rust reader returned NOTHING over $GATE_SCAN_FILES source file(s) — the scan decided nothing, which is not a pass"
     exit 1
   fi
+  gate_build_matchers
   export LBD_ANCHOR="$ANCHOR_RE" LBD_LET="$LET_RE" LBD_ARM="$ARM_RE"
   if ! report=$(printf '%s\n' "$entries" "===" "$lineview" "===" "$winview" \
     | gate_record_awk '
@@ -479,6 +522,25 @@ gate_plant_site() {
         printf '        Self::Empty { .. } => break,\n'
         printf '        Self::Cycle { first } => use_it(first),\n'
         printf '        }\n' ;;
+      mirror-let)
+        # A let-else over a mirror of the boundary (`UncheckedLoop`),
+        # whose declaration `gate_plant_mirror` writes beside it.
+        printf '        let UncheckedLoop::Cycle(cycle) = read else { return Err(lk); };\n'
+        printf '        use_it(cycle);\n' ;;
+      wrapped-arm)
+        # An arm under one layer of wrapping, the way a walk that yields
+        # `Result<UncheckedLoop, _>` is matched.
+        printf '        match read {\n'
+        printf '        Ok(UncheckedLoop::Lone(_)) => continue,\n'
+        printf '        other => use_it(other),\n'
+        printf '        }\n' ;;
+      mirror-arm)
+        # An arm on a mirror variant only the planted declaration names:
+        # the matcher reads it off the declaration, never a spelled list.
+        printf '        match read {\n'
+        printf '        UncheckedLoop::Torn(_) => continue,\n'
+        printf '        other => use_it(other),\n'
+        printf '        }\n' ;;
       arm-fragment)
         # An entry whose fragment IS an arm (`<pattern> => return`):
         # the arm is planted as the fragment says, so the head the
@@ -503,6 +565,13 @@ gate_plant_site() {
 GATE_PLANT_FORMS=(wrapped-continue oneline nested no-space arm-dotdot
   arm-underscore arm-named-underscore arm-or-pattern arm-self wrapped-return)
 
+# The declaration of the boundary's mirror, which the matcher reads its
+# variants from (`gate_build_matchers`); `Torn` is a variant no spelled
+# list carries.
+gate_plant_mirror() {
+  printf '/// A mirror of a loop boundary: [loop-boundary-mirror]\n#[derive(Clone)]\npub(crate) enum UncheckedLoop {\n    Lone(VertexKey),\n    Cycle(Vec<HalfEdgeKey>),\n    Torn(LoopKey),\n}\n' >> "$1"
+}
+
 gate_plant_clean() {
   local t=$1 e file item frag count disp i form n=0
   for e in "${REGISTER[@]}"; do
@@ -512,6 +581,7 @@ gate_plant_clean() {
       case "$frag" in
         "") form=${GATE_PLANT_FORMS[$((n % ${#GATE_PLANT_FORMS[@]}))]}; n=$((n + 1)) ;;
         *" => return") form=arm-fragment ;;
+        "let UncheckedLoop::"*) form=mirror-let; gate_plant_mirror "$t/$file" ;;
         *" continue") form=wrapped-continue ;;
         *" return") form=wrapped-return ;;
         *) form=unplantable ;;
@@ -538,6 +608,30 @@ plant_unregistered_arm() {
 # `crates/planted/src/a` — a path no register entry can name and no
 # reader can open — while giving that key to every other file whose path
 # begins the same way.
+# A discard on a mirror of the boundary, on a variant only the planted
+# declaration names: red, so the mirror's variants are read, not spelled.
+plant_unregistered_mirror() {
+  mkdir -p "$1/crates/planted/src"
+  gate_plant_mirror "$1/crates/planted/src/lib.rs"
+  gate_plant_site "$1/crates/planted/src/lib.rs" arrived_on_a_mirror mirror-arm
+}
+
+# An unregistered discard under one layer of wrapping (`Ok(…)`): red.
+plant_unregistered_wrapped_arm() {
+  mkdir -p "$1/crates/planted/src"
+  gate_plant_mirror "$1/crates/planted/src/lib.rs"
+  gate_plant_site "$1/crates/planted/src/lib.rs" arrived_wrapped wrapped-arm
+}
+
+# An unmarked enum of the same shape is no mirror: its discard passes.
+plant_unmarked_lookalike() {
+  mkdir -p "$1/crates/planted/src"
+  {
+    printf 'pub(crate) enum Lookalike {\n    Lone(VertexKey),\n    Torn(LoopKey),\n}\n'
+    printf 'fn unmarked() {\n    match read {\n        Lookalike::Torn(_) => return,\n        other => use_it(other),\n    }\n}\n'
+  } > "$1/crates/planted/src/lib.rs"
+}
+
 plant_unregistered_colon_path() {
   mkdir -p "$1/crates/planted/src"
   gate_plant_site "$1/crates/planted/src/a:b.rs" arrived_in_a_colon_path oneline
@@ -676,6 +770,8 @@ gate_selftest() {
   gate_selftest_without_tool awk "could not build the code-only"
   gate_selftest_case "$want" plant_unregistered_let
   gate_selftest_case "$want" plant_unregistered_arm
+  gate_selftest_case "UNREG|crates/planted/src/lib.rs|" plant_unregistered_mirror
+  gate_selftest_case "UNREG|crates/planted/src/lib.rs|" plant_unregistered_wrapped_arm
   gate_selftest_case "|outer_holder|let LoopBoundary::Cycle" plant_nested_helper_fn
   gate_selftest_case "|arrayed_signature|let LoopBoundary::Cycle" plant_array_type_signature
   gate_selftest_case "UNREG|crates/planted/src/a:b.rs|" plant_unregistered_colon_path
@@ -685,12 +781,13 @@ gate_selftest() {
   gate_selftest_case "matched 2" plant_extra_site \
     crates/editor-core/src/names/emit.rs loop_half_edges oneline
   gate_selftest_case "matched 2" plant_extra_site \
-    crates/topo/src/census.rs face_cycles wrapped-return
+    crates/topo/src/boolean/ops.rs apply_cut_ins wrapped-return
   gate_selftest_malformed_register
   gate_selftest_passes "a let-else and a match arm discarding some OTHER enum" plant_other_enum_discard
+  gate_selftest_passes "a discard on an enum of the same shape that carries no mirror marker" plant_unmarked_lookalike
   gate_selftest_passes "a LoopBoundary value BOUND and used, not discarded" plant_bound_and_used
   gate_selftest_passes "the spelling in prose, in a doc comment, in a string literal and inside matches!" plant_prose_and_predicate
-  printf '%s selftest OK: passes a tree whose every discard is registered at its pinned count, across all ten spellings the matchers accept and with every site under a comment-only line, which the shared reader must not make a record of; fires on an unregistered let-else, an unregistered match arm, an unregistered discard in a file whose PATH carries a colon — named whole in the line that reports it — a register entry whose site is gone, a malformed entry, and a second discard absorbed by a plain key or by a fragment; names the ENCLOSING fn rather than a closed helper; stays quiet on another enum, on a bound-and-used value and on prose; and stays RED, with a diagnosis, when the reader itself cannot run\n' "$(gate_name)"
+  printf '%s selftest OK: passes a tree whose every discard is registered at its pinned count, across all ten spellings the matchers accept and with every site under a comment-only line, which the shared reader must not make a record of; fires on an unregistered let-else, an unregistered match arm, an unregistered discard on a variant only a marked mirror type declaration names, an unregistered arm under one layer of wrapping, an unregistered discard in a file whose PATH carries a colon — named whole in the line that reports it — a register entry whose site is gone, a malformed entry, and a second discard absorbed by a plain key or by a fragment; names the ENCLOSING fn rather than a closed helper; stays quiet on another enum, on an unmarked enum shaped like a mirror, on a bound-and-used value and on prose; and stays RED, with a diagnosis, when the reader itself cannot run\n' "$(gate_name)"
 }
 
 # `--register` is this gate's own flag, so it is taken out of argv

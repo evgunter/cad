@@ -11,11 +11,11 @@
 //! of two, so every late step of a bisection) the two forms give the
 //! same bits at `f64`; otherwise they can differ in the last bit. A hand
 //! spelling moved onto the home of its own form moves no `f64` or `Sym`
-//! value; at `Sym`, a halving that was a division by 2 becomes the
-//! home's multiplication by ½, the same value in a different form. At
-//! `Interval`, an endpoint of magnitude below about `2⁻⁹⁵⁹` can widen
-//! outward by one ulp where the halving was a division: multiplication's
-//! exactness check gives up there, where division's detects an exact `/2`.
+//! value; at `Interval` an enclosure can only narrow, by one ulp under
+//! the backend's 2Prod floor where the halving was a division, and never
+//! widens (the product by ½ is exact at every normal magnitude). At
+//! `Sym` a halving that was a division by 2 becomes the home's
+//! multiplication by ½, the same value in a different form.
 
 use crate::Real;
 
@@ -24,9 +24,25 @@ use crate::Real;
 /// Each end enters once, so at `T = Interval` the enclosure is as tight
 /// as the ends allow (`t0 + (t1 − t0)·½` reads `t0` twice and widens by
 /// its width). At `f64` the result lies in `[t0, t1]`; it overflows
-/// when `t0 + t1` does, two same-sign ends past `f64::MAX / 2`. At an
+/// when `t0 + t1` does, two same-sign ends that sum past `f64::MAX`. At an
 /// infinite point `(∞, ∞)` it is that infinity, where [`bracket_mid`]
 /// is NaN.
+///
+/// **It is the home of `½lo + ½hi` and of std's `f64::midpoint` too.**
+/// Both are the same real number and agree with this bit for bit
+/// wherever no half is subnormal and both ends lie within
+/// `f64::MAX / 2`. Neither is a second home: past those extremes each
+/// rounds differently from this generic formula, and DESIGN `[scalars]`
+/// has a formula round the same way at every scalar, so that the `f64`
+/// build and a dual's value channel agree. An `f64`-only override would
+/// break that. The overflow safety they buy holds no ground here: a
+/// coordinate lies inside the session box; an analytic carrier's
+/// parameter is an angle, or a length in units of `|dir|` along such
+/// geometry; and a spline's lies within its knot vector's domain, whose
+/// knots the knot door admits only within
+/// [`KNOT_MAGNITUDE_MAX`](crate::spline::KNOT_MAGNITUDE_MAX)
+/// (`f64::MAX / 2`), so that a bracket's ends sum finitely and its
+/// middle is finite.
 pub fn mid_param<T: Real>(t0: T, t1: T) -> T {
     (t0 + t1) * T::from_f64(0.5)
 }

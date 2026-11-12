@@ -83,10 +83,10 @@ pub(crate) struct SolidInstance {
 /// [`SolidInstance::placed`]).
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct Placed {
-    /// The rigid map, composed along the placement chain — `None` is
+    /// The rigid motion, composed along the placement chain — `None` is
     /// the identity (the component is where its own representation
     /// says it is).
-    pub(crate) map: Option<Affine3<f64>>,
+    pub(crate) map: Option<geom_core::RigidMotion<f64>>,
     /// The `ITEM_DEFINED_TRANSFORMATION` of this instance's OWN
     /// (innermost) placement — the record a refusal names.
     pub(crate) transform: u64,
@@ -1133,7 +1133,8 @@ impl<'a> Resolver<'a> {
         KnotVector::clamped(flat, degree).map_err(|_| StepImportError::MalformedRecord {
             id,
             expected: "a clamped knot vector (degree+1 end multiplicities, \
-                       nondecreasing interior knots)",
+                       nondecreasing interior knots, each within half the largest \
+                       finite number)",
         })
     }
 
@@ -1583,8 +1584,13 @@ impl<'a> Resolver<'a> {
         // meridians (`geom::pole_form`), through u = 0 and u = π, each
         // starting AT the north pole (angle 0) and reaching the south
         // at angle π.
-        let [(_, north), (_, south)] =
-            geom_brep::chart_singularity::sphere_poles(center, axis, radius);
+        let [(_, north), (_, south)] = geom_brep::chart_singularity::sphere_poles(
+            geom::Line {
+                origin: center,
+                dir: axis,
+            },
+            radius,
+        );
         let (north, south) = (
             signed_zero::plus_zero_point(north),
             signed_zero::plus_zero_point(south),
@@ -2067,7 +2073,7 @@ fn loop_u_wrap(
     edges: &BTreeMap<u64, EdgeSpec>,
     band: Option<geom_core::Band>,
 ) -> Option<f64> {
-    use core::f64::consts::{PI, TAU};
+    use core::f64::consts::PI;
     // 16 divisions per edge put adjacent samples of a full-period
     // rim ~0.39 rad apart — far inside the unwrap threshold below.
     const DIVISIONS: usize = 16;
@@ -2081,7 +2087,7 @@ fn loop_u_wrap(
             let t = spec.t0 + (spec.t1 - spec.t0) * f;
             let u = chart::uv_of(surface, spec.carrier.eval(t), band)?.x;
             if let Some(p) = prev {
-                let d = geom_core::period::Period::new(TAU).near(u - p, 0.0);
+                let d = geom_core::period::Period::<f64>::angle().near(u - p, 0.0);
                 if d.abs() > PI / 2.0 {
                     return None;
                 }
@@ -2336,20 +2342,21 @@ impl Resolver<'_> {
     /// first frame onto the second — `None` when the two frames are
     /// the identity of one another at ε_in (M7-4 Leg D).
     ///
-    /// The frames are built orthonormal from the file's fields: the
-    /// axis is the third column, the reference direction is projected
-    /// perpendicular to it for the first, and the second is their
-    /// cross product. The map is then `B ∘ A⁻¹`, and `A⁻¹` is `Aᵀ`
-    /// because `A` is orthonormal by construction. The rigidity that
-    /// survives this construction is therefore about the FILE's
-    /// fields, and that is what is checked: a `ref_direction` parallel
-    /// to the axis leaves no frame at all, and a placement pair whose
-    /// composed determinant is not +1 at ε_in is a mirror.
+    /// Each frame is minted from the file's fields by the standard's
+    /// `build_axes`: the axis normalized as the third axis, the reference
+    /// direction projected perpendicular to it and normalized as the
+    /// first, and the second their cross product. The map is then the
+    /// motion `B ∘ A⁻¹`, composed as motions, so it is rigid by
+    /// construction and nothing re-derives that from its entries. A
+    /// `ref_direction` parallel to the axis leaves no frame at all and
+    /// refuses; a frame whose stated fields are no rigid frame within
+    /// their rounding is built all the same, and the move `build_axes`
+    /// made is reported ([`NormalizationKind::PlacementReMinted`]).
     fn item_defined_transformation(
         &self,
         from: u64,
         id: u64,
-    ) -> Result<Option<Affine3<f64>>, StepImportError> {
+    ) -> Result<Option<geom_core::RigidMotion<f64>>, StepImportError> {
         // The schema's `transformation` SELECT also admits a
         // `functionally_defined_transformation` —
         // `CARTESIAN_TRANSFORMATION_OPERATOR_3D` and friends — and THAT
@@ -2396,63 +2403,102 @@ impl Resolver<'_> {
         {
             return Ok(None);
         }
-        let basis = |f: geom::Frame<f64>| -> Option<Mat3<f64>> {
-            let z = f.axis;
-            // The reference direction's axial part, removed to leave
-            // the frame's first column (named for the same two reasons
-            // as in `Resolver::placement`: it reads as a projection,
-            // and it is not the `v * v` text the interval-square
-            // tripwire watches for — no square is taken here).
-            let along = z.dot(f.u_ref);
-            let x = f.u_ref - z * along;
-            x.checked_direction()
-                .ok()
-                .map(|(x, _)| Mat3::from_cols(x, z.cross(x), z))
-        };
         let refuse = |what: &'static str| StepImportError::Structure { id, what };
-        let (ba, bb) = (
-            basis(a).ok_or_else(|| {
-                refuse(
-                    "an assembly placement whose reference direction is parallel to its \
-                     axis — that pair states no frame to place anything in",
-                )
-            })?,
-            basis(b).ok_or_else(|| {
-                refuse(
-                    "an assembly placement whose reference direction is parallel to its \
-                     axis — that pair states no frame to place anything in",
-                )
-            })?,
-        );
-        // B ∘ A⁻¹, with A⁻¹ = Aᵀ (A is orthonormal by construction).
-        let ai = ba.transpose();
-        let linear = bb * ai;
-        let translation = (b.origin - Point3::origin()) - linear * (a.origin - Point3::origin());
-        let map = Affine3::from_parts(linear, translation);
-        // **On the determinant.** ISO 10303-42's `build_axes` makes an
-        // `axis2_placement_3d` a RIGHT-HANDED frame whatever its fields
-        // say — the third column is the axis, the first is the
-        // reference direction projected perpendicular, and the second
-        // is their cross product — so `B ∘ A⁻¹` of two of them is a
-        // rotation by construction and this check cannot fire on a
-        // well-formed pair. It is not therefore decorative: `axis` and
-        // `ref_direction` arrive through the ε_in window in
-        // [`Resolver::direction`], which adopts a stated near-unit
-        // triple verbatim, so a file's slack rides into the columns and
-        // the composed determinant is only 1 to within it. This is
-        // where that slack is measured against the same budget, before
-        // the map reaches a kernel door whose predicates are decided
-        // and whose refusal would name nothing in the file.
-        let det = linear.determinant();
-        if (det - 1.0).abs() > self.eps_in {
-            return Err(refuse(
-                "an assembly transform whose composed frames are not a rigid motion at \
-                 the file's own declared uncertainty — the placement pair states \
-                 direction fields too slack to compose into a rotation",
-            ));
+        let parallel = || {
+            refuse(
+                "an assembly placement whose reference direction is parallel to its \
+                 axis — that pair states no frame to place anything in",
+            )
+        };
+        // **ISO 10303-42's `build_axes`, as a mint**: the axis normalized
+        // as the frame's third axis, the reference direction projected
+        // perpendicular to it and normalized as the first, and the second
+        // their cross product — a right-handed frame whatever the fields
+        // say, rigid by construction
+        // ([`geom_core::RigidMotion::from_axis_and_reference`]), so
+        // nothing re-derives its rigidity from twelve numbers. A mirror
+        // is no placement pair's to state: that is an operator's, refused
+        // above. The two directions' lengths are read at the least band,
+        // as an exact comparison would: a unit field's length is no
+        // distance for the file's ε_in to read, and a reference parallel
+        // to its axis at ε_in already refused where the frame was read
+        // ([`Self::placement`]), so only an exactly vanishing one is left.
+        let band = geom_core::Band::least();
+        let built = |f: geom::Frame<f64>| {
+            geom_core::RigidMotion::from_axis_and_reference(
+                f.origin,
+                f.axis,
+                f.u_ref,
+                crate::STEP_PLACEMENT_AXES,
+                band,
+            )
+            .map_err(|_| parallel())
+        };
+        let (ma, mb) = (built(a)?, built(b)?);
+        // B ∘ A⁻¹, composed as motions: `A⁻¹` is `A`'s transpose, and
+        // the product is `Affine3`'s own, bit for bit.
+        let motion = ma.inverse().and_then(|ai| mb.compose(ai)).map_err(|_| {
+            refuse(
+                "an assembly transform whose composed origin is not a finite number — \
+                 its placements stand too far from the origin to compose",
+            )
+        })?;
+        // Where a frame's fields as stated are no rigid frame within
+        // their own rounding ([`geom_core::RigidMotion::check_rigid`]),
+        // `build_axes` moved them, and the move is reported: the
+        // farthest a point of the session box moves between the stated
+        // frame and the built one, summed over the pair.
+        let moved = |f: geom::Frame<f64>, built: geom_core::RigidMotion<f64>| {
+            let stated = Affine3::from_parts(
+                Mat3::from_cols(f.u_ref, f.axis.cross(f.u_ref), f.axis),
+                f.origin - Point3::origin(),
+            );
+            geom_core::RigidMotion::check_rigid(&stated)
+                .is_err()
+                .then(|| in_box_displacement(&built.to_affine(), &stated))
+        };
+        let reported = self.normalizations.borrow().iter().any(|n| {
+            matches!(n.kind, NormalizationKind::PlacementReMinted { transform, .. } if transform == id)
+        });
+        if let (da, db) = (moved(a, ma), moved(b, mb))
+            && (da.is_some() || db.is_some())
+            && !reported
+        {
+            let empty = FaceCensus {
+                faces: 0,
+                edges: 0,
+                vertices: 0,
+            };
+            self.normalizations
+                .borrow_mut()
+                .push(StructureNormalization {
+                    face: id,
+                    kind: NormalizationKind::PlacementReMinted {
+                        transform: id,
+                        moved_by: da.unwrap_or(0.0) + db.unwrap_or(0.0),
+                    },
+                    file_census: empty,
+                    kernel_census: empty,
+                });
         }
-        Ok(Some(map))
+        Ok(Some(motion))
     }
+}
+
+/// **The farthest a point of the session box moves between two maps**:
+/// `max |p·(L₁ − L₂) + (t₁ − t₂)|` over `|pᵢ| ≤`
+/// [`geom_core::tolerance::SESSION_BOX_EXTENT`], read at the box's eight
+/// corners — the norm of an affine function of `p` is convex, so its
+/// maximum over the box is at one of them.
+fn in_box_displacement(one: &Affine3<f64>, other: &Affine3<f64>) -> f64 {
+    let e = geom_core::tolerance::SESSION_BOX_EXTENT;
+    let mut farthest = 0.0_f64;
+    for corner in 0..8_u8 {
+        let at = |bit: u8| if corner & bit == 0 { -e } else { e };
+        let p = Point3::new(at(1), at(2), at(4));
+        farthest = farthest.max((one.transform_point(p) - other.transform_point(p)).norm());
+    }
+    farthest
 }
 
 /// The file's geometry roots: which representations hold the solids /
@@ -2889,13 +2935,20 @@ fn resolve_instances(
         for path in chains(&relationships, &from, start)? {
             // Compose outermost-last: a point of the component goes
             // through its own frame first, then through each holder's.
-            let mut map: Option<Affine3<f64>> = None;
+            let mut map: Option<geom_core::RigidMotion<f64>> = None;
             for &edge in &path {
                 used[edge] = true;
                 map = match (map, relationships[edge].map) {
                     (m, None) => m,
                     (None, Some(outer)) => Some(outer),
-                    (Some(inner), Some(outer)) => Some(compose(&outer, &inner)),
+                    (Some(inner), Some(outer)) => Some(outer.compose(inner).map_err(|_| {
+                        StepImportError::Structure {
+                            id: relationships[edge].id,
+                            what: "an assembly placement chain whose composed origin is not a \
+                                   finite number — its placements stand too far from the \
+                                   origin to compose",
+                        }
+                    })?),
                 };
             }
             for &solid in mine {
@@ -2939,8 +2992,8 @@ struct Edge {
     into: u64,
     /// The `ITEM_DEFINED_TRANSFORMATION`'s entity id.
     tid: u64,
-    /// The map, `None` at the identity.
-    map: Option<Affine3<f64>>,
+    /// The motion, `None` at the identity.
+    map: Option<geom_core::RigidMotion<f64>>,
 }
 
 /// Every path from edge `start` up to a representation nothing places,
@@ -2999,18 +3052,6 @@ fn chains(
     // lexicographic on the edge ids IS entity-id order).
     out.sort_by_key(|p| p.iter().map(|&i| edges[i].id).collect::<Vec<_>>());
     Ok(out)
-}
-
-/// `outer ∘ inner` — apply `inner` first. Plain composition of two
-/// affine maps; both are rigid by the time they get here (each came
-/// through [`Resolver::item_defined_transformation`]'s determinant
-/// gate), and a composition of rotations is a rotation, so the kernel's
-/// own `transform_rigid` door still has the last word on the result.
-fn compose(outer: &Affine3<f64>, inner: &Affine3<f64>) -> Affine3<f64> {
-    Affine3::from_parts(
-        outer.linear * inner.linear,
-        outer.linear * inner.translation + outer.translation,
-    )
 }
 
 /// Shape content **by resolution** (M7-1 review MINOR-4): solids come

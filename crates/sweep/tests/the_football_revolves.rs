@@ -69,10 +69,22 @@ fn pappus(big: f64, r: f64) -> (f64, f64) {
 
 /// The body revolved, its datum read, meshed closed, through tier 3, and
 /// measured against `(volume, area)`.
-fn holds(what: &str, lp: profile::ProfileLoop<f64>, sheet: f64, (volume, area): (f64, f64)) {
+fn holds(what: &str, lp: profile::ProfileLoop<f64>, sheet: f64, expected: (f64, f64)) {
+    holds_by(what, lp, Revolution::Full, (2, sheet), expected);
+}
+
+/// [`holds`] revolved `by`, with `faces` sheet faces of major radius
+/// `sheet`.
+fn holds_by(
+    what: &str,
+    lp: profile::ProfileLoop<f64>,
+    by: Revolution<f64>,
+    (faces, sheet): (usize, f64),
+    (volume, area): (f64, f64),
+) {
     let tol = Tol::witness();
-    let built = revolve(&validated(vec![lp]), y_axis(), Revolution::Full, tol)
-        .unwrap_or_else(|e| panic!("{what}: {e}"));
+    let built =
+        revolve(&validated(vec![lp]), y_axis(), by, tol).unwrap_or_else(|e| panic!("{what}: {e}"));
     let sheets: Vec<f64> = built
         .body
         .faces()
@@ -82,14 +94,17 @@ fn holds(what: &str, lp: profile::ProfileLoop<f64>, sheet: f64, (volume, area): 
         })
         .collect();
     assert!(
-        sheets.len() == 2 && sheets.iter().all(|&m| (m - sheet).abs() <= 1e-15),
-        "{what}: the sheet faces' major radii {sheets:?}, not two of {sheet}"
+        sheets.len() == faces && sheets.iter().all(|&m| (m - sheet).abs() <= 1e-15),
+        "{what}: the sheet faces' major radii {sheets:?}, not {faces} of {sheet}"
     );
     let delta = 1e-2;
     let mesh = mesh::tessellate(&built.body, delta, tol)
         .unwrap_or_else(|e| panic!("{what}: tessellate: {e:?}"));
     mesh::validate::check_mesh(&mesh).unwrap_or_else(|e| panic!("{what}: the mesh: {e:?}"));
     crate::common::differential::assert_meshed_geometry(what, &built.body, &mesh, delta);
+    if let Revolution::Partial(theta) = by {
+        in_its_wedge(what, &mesh, theta);
+    }
     let body = built.body;
     let props = topo::mass_properties(&body, tol, topo::test_support::pinned_resolution(tol))
         .unwrap_or_else(|e| panic!("{what}: {e:?}"));
@@ -231,17 +246,18 @@ fn a_football_restored_on_the_other_sheet_is_refused_at_its_edges() {
                 .unwrap();
         }
         let errors = topo::finish(body, tol).expect_err(what);
-        let off_sheet = |e: &topo::ValidationError| {
-            matches!(
-                e,
-                topo::ValidationError::EdgeCertification {
-                    error: geom_brep::CertifyError::CarrierOffChart {
-                        chart: geom::SurfaceKind::Spindle,
-                        ..
-                    },
-                    ..
-                }
-            )
+        // An edge read off the moved sheet: its incidence read decided
+        // off, on the chart the refusal names a sheet.
+        let off_sheet = |e: &topo::ValidationError| match e {
+            topo::ValidationError::EdgeCertification { error, .. } => {
+                matches!(
+                    error.incidence_read(),
+                    Some(geom_brep::IncidenceRead::Off(_))
+                ) && error
+                    .chart_carrier_kinds()
+                    .is_some_and(|(chart, _)| chart == geom::SurfaceKind::Spindle)
+            }
+            _ => false,
         };
         assert!(
             errors.iter().any(off_sheet)
@@ -256,37 +272,73 @@ fn a_football_restored_on_the_other_sheet_is_refused_at_its_edges() {
     }
 }
 
-/// **A football revolved part way refuses typed** at the meridian a cap
-/// meets the sheet on: that edge ends at both apexes, where the sheet's
-/// distance bound has no positive lever
-/// (`work/spiricarm/a-football-revolved-part-way-refuses-at-its-cap-meridians-certificate.md`).
+/// **A football revolved part way is its lune**: one sheet face between
+/// two meridians that end at both apexes, each shared with a plane cap,
+/// meshed closed, through tier 3, and measuring `θ/2π` of the
+/// football's volume and of its sheet's area, and two caps of the
+/// profile's area: the circular segment on a lemon, the rest of the
+/// disc on an apple. Each cap meridian is certified on the sheet up to
+/// its apexes, where the sheet's two sheets meet.
 #[test]
-fn a_football_revolved_part_way_refuses_typed() {
-    for (what, big) in [("the lemon", -0.5), ("the apple", 0.4)] {
-        let got = revolve(
-            &validated(vec![football(big, 1.0)]),
-            y_axis(),
-            Revolution::Partial(2.0),
-            Tol::witness(),
-        );
-        assert!(
-            matches!(
-                got,
-                Err(RevolveError::Op {
-                    source: topo::EulerOpError::Certification {
-                        error: geom_brep::CertifyError::AnalyticRung3(
-                            geom_brep::AnalyticRung3Refusal::NoOffsetBound {
-                                operand: geom::SurfaceKind::Spindle,
-                                ..
-                            }
-                        )
-                    }
-                })
-            ),
-            "{what}: {:?}",
-            got.map(|_| ())
+fn a_football_revolved_part_way_is_its_lune() {
+    for (what, big, r, theta) in [
+        ("the lemon", -0.5, 1.0, 2.0_f64),
+        ("the apple", 0.4, 1.0, 2.0),
+        ("a slim lemon", -0.9, 1.0, 1.0),
+        ("a lemon past a half turn", -0.5, 1.0, 4.5),
+        ("a small apple", 0.3, 0.7, -2.5),
+        ("a near-sphere lemon", -0.01, 1.0, 2.0),
+        ("a near-sphere apple", 0.01, 1.0, 2.0),
+    ] {
+        let (volume, area) = pappus(big, r);
+        let d = big.abs();
+        let segment = r * r * (d / r).acos() - d * (r * r - d * d).sqrt();
+        let cap = if big < 0.0 {
+            segment
+        } else {
+            PI * r * r - segment
+        };
+        let share = theta.abs() / (2.0 * PI);
+        holds_by(
+            what,
+            football(big, r),
+            Revolution::Partial(theta),
+            (1, big),
+            (share * volume, share * area + 2.0 * cap),
         );
     }
+}
+
+/// Every point of `mesh` off the axis lies in the wedge a turn by
+/// `theta` about the `y` axis sweeps from the sketch's `+x` half-plane:
+/// its azimuth, read right-handed about `+y` (`+x` toward `−z`), between
+/// `0` and `theta`. Some point reaches past `|theta|/2`, so a lune turned
+/// the other way, or not turned at all, fails.
+fn in_its_wedge(what: &str, mesh: &mesh::Mesh, theta: f64) {
+    let azimuths: Vec<f64> = mesh
+        .positions
+        .iter()
+        .filter(|p| p.x.hypot(p.z) > 1e-6)
+        .map(|p| {
+            let phi = (-p.z).atan2(p.x);
+            if theta > 0.0 && phi < -1e-9 {
+                phi + 2.0 * PI
+            } else if theta < 0.0 && phi > 1e-9 {
+                phi - 2.0 * PI
+            } else {
+                phi
+            }
+        })
+        .collect();
+    let (lo, hi) = (theta.min(0.0) - 1e-9, theta.max(0.0) + 1e-9);
+    assert!(
+        azimuths.iter().all(|&phi| lo <= phi && phi <= hi),
+        "{what}: a point off the wedge from 0 to {theta}"
+    );
+    assert!(
+        azimuths.iter().any(|&phi| phi.abs() > theta.abs() / 2.0),
+        "{what}: no point past half the turn {theta}"
+    );
 }
 
 /// The sheet's arc band `v₀ ≤ v ≤ v₁` of the circle `(R, r)`:
@@ -559,12 +611,13 @@ fn a_football_with_a_sheet_faces_bit_flipped_is_refused() {
     }
 }
 
-/// **The wide apples and the lower needle measure**, where the mesh
-/// refuses them (`work/spiricarm/a-wide-apples-tube-angle-passes-the-latitude-windows-cut.md`):
-/// tier 3 and the closed form alone.
+/// **The wide apples and the lower needle mesh and measure**: sheets
+/// with `v* > π − 1`, the horn's lower side among them, each point read
+/// in `[−v*, v*]` and the horn's cusp at `−π` on a face reaching it from
+/// below.
 #[test]
-fn the_wide_apples_and_the_lower_needle_measure() {
-    measures(
+fn the_wide_apples_and_the_lower_needle_mesh_and_measure() {
+    meshes_and_measures(
         "the lower needle",
         bulge_loop(vec![
             (Point2::new(0.0, -1.0), 0.0),
@@ -579,7 +632,7 @@ fn the_wide_apples_and_the_lower_needle_measure() {
     );
     let z = geom_core::Band::linear(Tol::witness()).unwrap().zero();
     for big in [0.6_f64, 0.8, 0.99, 1.0 - (1e3 * z).max(1e-6)] {
-        measures(
+        meshes_and_measures(
             &format!("a wide apple R {big}"),
             football(big, 1.0),
             y_axis(),
@@ -672,4 +725,70 @@ fn near_the_horn_the_drawn_ends_say_which_sheet() {
         "{:?}",
         got.map(|_| ())
     );
+}
+
+/// **A horn's cusp revolved part way is its lune**: the needle tip, the
+/// lower needle, and the horn's circle as four quarter arcs with a face
+/// reaching the cusp from each side. A cap meets the horn along a
+/// meridian that ends at the cusp, where the horn's sheet runs tangent
+/// to the axis (`ρ ≈ z²/2r`); limb 2 reads a part beside it at its own
+/// height (`Meters::certified`). Each meshes watertight inside its wedge,
+/// passes tier 3, and holds `θ/2π` of the full revolve plus two caps of
+/// the profile.
+#[test]
+fn a_horns_cusp_revolved_part_way_is_its_lune() {
+    let quarter = -(PI / 8.0).tan();
+    let theta = 2.0_f64;
+    let share = theta / (2.0 * PI);
+    // The needle: `π∫ρ² dz` and its band and disc, as in the full row;
+    // its profile is the square less a quarter disc. The horn's disc:
+    // Pappus about its centre at `1`.
+    let needle = (
+        PI * (5.0 / 3.0 - PI / 2.0),
+        2.0 * PI * (PI / 2.0 - 1.0),
+        PI,
+        1.0 - PI / 4.0,
+    );
+    let horn = (2.0 * PI * PI, 4.0 * PI * PI, 0.0, PI);
+    for (what, faces, lp, (volume, sheet, disc, profile)) in [
+        (
+            "the needle",
+            1,
+            bulge_loop(vec![
+                (Point2::new(0.0, 0.0), quarter),
+                (Point2::new(1.0, 1.0), 0.0),
+                (Point2::new(0.0, 1.0), 0.0),
+            ]),
+            needle,
+        ),
+        (
+            "the lower needle",
+            1,
+            bulge_loop(vec![
+                (Point2::new(0.0, -1.0), 0.0),
+                (Point2::new(1.0, -1.0), quarter),
+                (Point2::new(0.0, 0.0), 0.0),
+            ]),
+            needle,
+        ),
+        (
+            "the horn's circle in quarters",
+            4,
+            bulge_loop(vec![
+                (Point2::new(0.0, 0.0), quarter),
+                (Point2::new(1.0, 1.0), quarter),
+                (Point2::new(2.0, 0.0), quarter),
+                (Point2::new(1.0, -1.0), quarter),
+            ]),
+            horn,
+        ),
+    ] {
+        holds_by(
+            what,
+            lp,
+            Revolution::Partial(theta),
+            (faces, 1.0),
+            (share * volume, share * (sheet + disc) + 2.0 * profile),
+        );
+    }
 }

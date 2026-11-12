@@ -390,7 +390,7 @@ pub trait Real:
     /// through on purpose (an overflowed norm still ENCLOSES the true
     /// length); this one is for a value that must itself be finite to
     /// be what its type claims — a rigid motion's angle and
-    /// translation (`linalg::RigidMotion`'s mints and decided door), and
+    /// translation (`linalg::RigidMotion`'s mints and `f64` door), and
     /// a length every rung of a door levers by (`topo`'s
     /// `chart_region::edge_lengths`), where an enclosure reaching `∞`
     /// would divide a finite height to zero at its lower end.
@@ -524,15 +524,14 @@ pub trait Real:
     /// the default: exact at `f64` wherever the result is normal, and
     /// the same expression at the symbolic and dual scalars.
     ///
-    /// What the method is FOR is the interval scalar, where a general
-    /// product against a point folds corners and certifies each one
-    /// through a 2Prod witness. A power of two only moves an exponent,
-    /// so [`crate::Interval`] overrides it with `[lo·k, hi·k]`, unpadded
-    /// wherever both results are strictly above the smallest normal
-    /// (a product just under it rounds up onto it), and the general product
-    /// everywhere else — a result in the subnormal range, an overflow,
-    /// a poisoned operand, or a `k` that is not a positive normal power
-    /// of two. A `k` that is not one is never wrong, only not faster.
+    /// At the interval scalar the product by a point power of two is
+    /// itself the exponent shift: `[lo·k, hi·k]`, unpadded wherever both
+    /// results are strictly above the smallest normal (a product just
+    /// under it rounds up onto it), and the general product everywhere
+    /// else — a result in the subnormal range, an overflow, a poisoned
+    /// operand, or a `k` that is not a normal power of two
+    /// (`interval_transcendentals::DInterval::scale_pow2`). A `k` that
+    /// is not one is never wrong, only not exact.
     fn scale_pow2(self, k: f64) -> Self {
         self * Self::from_f64(k)
     }
@@ -990,9 +989,20 @@ pub fn poison<T: Real>() -> T {
 /// `Vec2::normalize`, whose prescale no finite chord overflows or
 /// flushes the squares of.
 pub fn is_finite_length<T: Real>(x: T) -> bool {
-    #[allow(clippy::eq_op)]
-    let residual = x - x;
-    !residual.is_poison()
+    !width(x).is_poison()
+}
+
+/// **A scalar's own width about zero**, `x − x`: zero at a point scalar
+/// (any finite value), the enclosure `[−w, w]` at `Interval`, `w` its
+/// width, and poison where `x` is not finite. It names the one reading
+/// that subtracting a value from itself is: no arithmetic on a value
+/// gives its own spread otherwise, and a site that spells `x − x` reads
+/// as a mistake. Its callers are what `grep -rn "geom_core::width\|real::width"
+/// crates` finds: [`is_finite_length`], and `geom_brep::curve_pair`'s
+/// touch spread, a closed form's angle read as its enclosure.
+#[allow(clippy::eq_op)]
+pub fn width<T: Real>(x: T) -> T {
+    x - x
 }
 
 /// **Did this length UNDERFLOW to zero?** — the other end of
@@ -1650,6 +1660,18 @@ pub mod bounds_allowlist {
     //! and `geom_brep::pcurve_cache`'s `limb2_offset_sup` ride the
     //! M6-2/M7-8 entries above with nothing wider.
     //!
+    //! **2026-11 (PR 6532; under the M7-8 / C2 precedent; retroactive Ev
+    //! review) — `geom_brep::edge_nurbs`'s `general_chart_image`**, the
+    //! pcurve mint's image of every carrier on a spline chart, rides at
+    //! `Decide + `[`Bounds`](super::Bounds)` + `[`CertifiedEnclosure`](super::CertifiedEnclosure),
+    //! `chart_image`'s bound and nothing wider. Necessity: its first rung
+    //! IS `chart_image` at that bound, and whether it climbs, its rungs and
+    //! its breaks are structure read in `f64` (the wall's held knot lines,
+    //! the miss at the scalar's midpoint), which [`Real`](super::Real) offers no read for
+    //! but `Bounds::lo`/`hi`; drop `Bounds` (the next tighter bound) and
+    //! neither the first rung's call nor those reads compile, and dropping
+    //! `CertifiedEnclosure` fails that call likewise.
+    //!
     //! **M9-2 PR-1 (under the PR 11 precedent; retroactive Ev review) —
     //! `topo::chart_region`**, the chart-region overlap predicate: it decides
     //! (its `chart_region_*` funnel margins) and reads exact-`f64` STRUCTURE
@@ -2227,6 +2249,21 @@ impl Real for f64 {
 mod tests {
     use super::*;
     use proptest::prelude::*;
+
+    /// **A scalar's width about zero** ([`width`]): zero at a finite
+    /// point, the enclosure's own width either side of zero at
+    /// `Interval`, and poison for poison.
+    #[test]
+    fn width_is_a_points_zero_and_an_enclosures_spread() {
+        assert_eq!(width(3.5_f64), 0.0);
+        assert!(width(f64::NAN).is_nan() && width(f64::INFINITY).is_nan());
+        let w = width(crate::Interval::from_bounds(1.0, 1.5));
+        assert!(
+            w.lo() <= -0.5 && w.hi() >= 0.5 && w.hi() <= 0.5 + 1e-15,
+            "{w:?}"
+        );
+        assert!(width(crate::Interval::from_bounds(2.0, 2.0)).hi() == 0.0);
+    }
 
     /// The finiteness predicate answers the VALUE channel at every
     /// scalar, and the interval arm is the one that would be wrong if

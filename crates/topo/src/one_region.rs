@@ -45,7 +45,7 @@
 //! loops enclose the surface's end rather than its own region reads
 //! inverted there, and this module skips it.
 
-use geom_brep::ladder::Rung;
+use geom_brep::ladder::Kept;
 use geom_core::{Band, Decide};
 
 use crate::body::Body;
@@ -244,9 +244,9 @@ fn read_cycle<T: Decide>(
             .get_vertex(vertex)
             .and_then(|v| body.points.get(v.point))
         else {
-            return Rung::Passes;
+            return Ok(None);
         };
-        Rung::of_reading(door_side(body, face, cut, *q, band)).map_kept(|diag| (vertex, diag))
+        door_side(body, face, cut, *q, band).map_err(|diag| Kept::of(diag).map(|d| (vertex, d)))
     }) {
         EveryVertex::Inside => Read::Face,
         EveryVertex::Outside { at } => Read::Off(at),
@@ -291,8 +291,8 @@ mod tests {
                 let key = body.get_vertex(v).expect("a vertex").point;
                 *body.points.get(key).expect("its point")
             };
-            let s = end(body.get_half_edge(e.he_plus).expect("he+").start);
-            let t = end(body.half_edge_end(e.he_plus).expect("he+'s end"));
+            let (s, t) = body.edge_vertices(edge).expect("the edge");
+            let (s, t) = (end(s), end(t));
             let curve = geom_brep::EdgeCurve::certify(
                 geom_brep::EdgeCurveSpec::line_between(s, t),
                 s,

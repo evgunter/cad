@@ -2,10 +2,12 @@
 id: a-torus-wall-holding-a-spiric-beside-a-spline-chord-has-no-volume-lane
 kind: issue
 title: A torus wall holding a spiric beside a spline chord has no volume lane: the spiric lane refuses the chord's lifted image
-status: open
+status: closed
 opened: 2026-11-02
 priority: P2
 cost: M
+closed: 2026-11-11
+pr: 6808
 ---
 
 
@@ -47,3 +49,7 @@ The spiric lane reads a chord's projected image beside a spiric, or it
 routes such a wall to a lane that does: the spline-rim arm the torus-wall
 row asks for, or the projected-boundary lane. Then re-pin the germ table
 at whatever the runs do next.
+
+## Closed (2026-11-11)
+
+PR 6808: the rotational lane reads the torus chart; the spiric wall is an arm of the lane, its junctions read through the lane's connectors; the torus doors, radial hole and spiric round trip build at independently sliced volumes. Dual review `docs/dual-review-log/rows/PR-6808.md`.

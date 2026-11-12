@@ -127,16 +127,10 @@ use crate::splitting::containment::ConicRows;
 use crate::validate::decide;
 
 /// A conic edge's boundary reading's rows (module docs).
-const BOUNDARY: ConicRows = ConicRows::bounded(
-    "bool_ruled_region_arc_span",
-    "bool_ruled_region_arc_straddle",
-);
+const BOUNDARY: ConicRows = crate::rows::RULED_REGION_CONIC;
 
 /// A line edge's boundary reading's rows ([`ray_walk::on_segment`]).
-const LINE: SegmentRows = SegmentRows {
-    segment: "bool_ruled_region_edge_length",
-    boundary: "bool_ruled_region_edge",
-};
+const LINE: SegmentRows = crate::rows::RULED_REGION_LINE;
 
 /// The surface a ruled face lies on.
 #[derive(Clone, Copy, Debug)]
@@ -293,9 +287,9 @@ type Leg<T> = region::Leg<T, LegShape<T>>;
 /// surface, unchecked. The premise is that every edge lies on the face's
 /// surface, as a line on a cylinder or a cone is then a ruling and a
 /// conic a plane section: tier 3 places each edge on both its faces'
-/// carriers at rest, and on the reduction's working copies an edge a
-/// face gains is a section of its carrier with the other operand's, on
-/// both by construction.
+/// carriers at rest (at a dual, [`crate::Replay`]'s "A tier-3 premise at a dual"), and on the
+/// reduction's working copies an edge a face gains is a section of its carrier with the other
+/// operand's, on both by construction.
 ///
 /// Null scaffolding, a zero-length copy of a vertex (its two ends on one
 /// point), bounds nothing and is left out; an uncertified edge between
@@ -500,7 +494,7 @@ impl<T: Decide> RuledFaceRegion<T> {
         Ok(
             crate::validate::decide_nonzero("bool_ruled_region_nappe", Margin::of(h), band)
                 .map_err(RegionRefusal::Escalated)?
-                == geom_core::k_stats::NonzeroSign::Positive,
+                == geom_core::NonzeroSign::Positive,
         )
     }
 
@@ -516,7 +510,8 @@ impl<T: Decide> RuledFaceRegion<T> {
     /// The parallel through `p`, run `forward` (right-handed about the
     /// axis) or back: at the surface's own radius at `p`'s height.
     fn parallel(&self, p: QueryFoot<T>, forward: bool) -> Leg<T> {
-        let curve = SurfaceCurve::parallel(&self.charted, p.uv(), forward);
+        let curve =
+            SurfaceCurve::parallel(&self.charted, p.uv(), forward).map(|c| c.starting_at(p.at()));
         Leg::whole(LegShape::Parallel(Round::on(region::built(curve))))
     }
 
@@ -690,7 +685,7 @@ impl<T: Decide> Legs<T> for RuledFaceRegion<T> {
 
     const COMPONENT: &'static str = "bool_ruled_region_component";
 
-    const SIDE: (&'static str, &'static str) =
+    const SIDE_ROWS: (&'static str, &'static str) =
         ("bool_ruled_region_order", "bool_ruled_region_cross");
 
     fn lever(&self) -> T {

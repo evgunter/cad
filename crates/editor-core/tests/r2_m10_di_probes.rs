@@ -43,7 +43,7 @@ use corpus::{documents, eval, failures};
 use editor_core::eval::KeyHasher;
 use editor_core::{
     AssertionVerdict, BooleanValue, CancelToken, ContentKey, Dimension, EvalOptions, Evaluation,
-    LoopProgram, Node, NodeResult, ProductError, ProfileProgram, SplitSide, ValuePayload, evaluate,
+    LoopProgram, Node, NodeResult, ProductError, ProfileProgram, SplitSide, ValuePayload,
     product_recorded,
 };
 use geom::{Curve3, Surface};
@@ -443,7 +443,7 @@ fn threaded_prior_never_contaminates_values_at_dual64() {
     for doc in documents() {
         let prior = eval::<Dual64>(&doc.doc);
         let bumped = doc.bumped();
-        let after = evaluate::<Dual64>(
+        let after = editor_core::test_support::evaluate_bound::<Dual64>(
             &bumped,
             Some(&prior),
             &CancelToken::new(),

@@ -1015,7 +1015,7 @@ fn angle_directors_drift_where_toward_is_exact() {
         .vertices()
         .iter()
         .zip(drifted.vertices())
-        .all(|(a, b)| a.x.to_bits() == b.x.to_bits() && a.y.to_bits() == b.y.to_bits());
+        .all(|(a, b)| a.same_bits(*b));
     assert!(
         !same_bits,
         "the angle-director spelling is expected to drift; if it no longer does, \

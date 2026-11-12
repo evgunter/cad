@@ -89,7 +89,7 @@ use crate::ssi::residual::ImplicitForm;
 mod critical;
 
 use critical::Jets;
-pub(in crate::pair_section) use critical::{Critical, Kind};
+pub(in crate::pair_section) use critical::{Critical, Kind, NODE_BOX, NodeFrame};
 
 /// **The partner the sweep reads `φ` of**: its form, a plane's read at
 /// its pivot.
@@ -104,6 +104,15 @@ pub(super) enum Sweep {
     LoopFree(Vec<Critical>),
     /// The sweep proves nothing: the pose is read whole.
     Declined(Declined),
+    /// Every critical point decided, and the section's components may
+    /// close about a point the sweep excludes ([`Declined::Enclosed`]):
+    /// the pose is read whole with the decided points handed in, as a
+    /// loop through a node is. Where the enclosed point lies is not
+    /// kept: the whole reading finds every loop wherever it lies.
+    Enclosing {
+        /// The critical points of `φ` within the band, each decided Zero.
+        decided: Vec<Critical>,
+    },
 }
 
 /// Why the sweep declined.
@@ -127,6 +136,10 @@ pub(super) enum Declined {
     Enclosed([f64; 4]),
     /// The rectangle has no domain, or an enclosure refused.
     Unread,
+    /// Two decided critical points' boxes meet, the second at this
+    /// point: a march entering the overlap would enter both, so neither
+    /// is a node end the reading can name.
+    Overlap((f64, f64)),
 }
 
 /// An excluded cell: the side of the plane it lies on (`true` above),
@@ -162,7 +175,7 @@ pub(super) fn sweep(
     if root.window().is_none() {
         return Sweep::Declined(Declined::Unread);
     }
-    let off = |name, margin| {
+    let off_as = |name, margin| {
         matches!(
             decide(name, margin, band),
             Ok(Sign::Positive | Sign::Negative)
@@ -191,7 +204,7 @@ pub(super) fn sweep(
             Vec3::new(d.x, d.y, d.z),
             Interval::from_certified(speed),
         );
-        off("spline_sweep_regular", Margin::levered(slope, extent))
+        off_as("spline_sweep_regular", Margin::levered(slope, extent))
     };
     let regular = |cell: UvRect| {
         cell.window().is_some_and(|w| {
@@ -320,7 +333,7 @@ pub(super) fn sweep(
                 // A reading that does not certify is halved as an undecided
                 // one is, down to the floor.
                 let read = metres.is_certified() && slope.is_certified();
-                let along = read && off("spline_sweep_regular", Margin::levered(slope, extent));
+                let along = read && off_as("spline_sweep_regular", Margin::levered(slope, extent));
                 if let Some(above) = side(piece, metres).filter(|_| read) {
                     excluded.borrow_mut().push(Excluded {
                         cell: piece,
@@ -380,7 +393,7 @@ pub(super) fn sweep(
             return Sweep::Declined(Declined::Unread);
         };
         for (cluster, sub) in clusters(&survivors, floor.width()) {
-            match critical::decide(jets, phi, cluster, band) {
+            match critical::decide(jets, phi, (cluster, sub), band) {
                 Some(c)
                     if c.cell.u.0 > sub.u.0
                         && c.cell.u.1 < sub.u.1
@@ -398,10 +411,30 @@ pub(super) fn sweep(
             }
         }
     }
+    if let Some(at) = overlapping(&decided) {
+        return Sweep::Declined(Declined::Overlap(at));
+    }
     match joined(&excluded.into_inner(), root) {
         Sweep::LoopFree(_) => Sweep::LoopFree(decided),
+        Sweep::Declined(Declined::Enclosed(_)) if !decided.is_empty() => {
+            Sweep::Enclosing { decided }
+        }
         declined => declined,
     }
+}
+
+/// **Where two decided points' boxes meet**, the later point's chart
+/// point, if anywhere: a march entering the overlap would enter both, so
+/// the sweep declines ([`Declined::Overlap`]). Two points that close make
+/// the survivor cap decline first on every wall the rows build, so the
+/// rule is rowed on its own.
+pub(super) fn overlapping(decided: &[Critical]) -> Option<(f64, f64)> {
+    decided.iter().enumerate().find_map(|(i, a)| {
+        decided[i + 1..]
+            .iter()
+            .find(|b| a.region.meets(b.region))
+            .map(|b| b.at)
+    })
 }
 
 /// **The wall's slope off the partner along a direction `d`**, a sine:
@@ -509,8 +542,7 @@ fn find(parent: &mut [usize], mut i: usize) -> usize {
 /// union-find over the cells that meet (module docs).
 fn joined(cells: &[Excluded], root: UvRect) -> Sweep {
     let mut parent: Vec<usize> = (0..cells.len()).collect();
-    let meets =
-        |a: UvRect, b: UvRect| a.u.0 <= b.u.1 && b.u.0 <= a.u.1 && a.v.0 <= b.v.1 && b.v.0 <= a.v.1;
+    let meets = UvRect::meets;
     let mut order: Vec<usize> = (0..cells.len()).collect();
     order.sort_by(|&a, &b| cells[a].cell.u.0.total_cmp(&cells[b].cell.u.0));
     for (k, &i) in order.iter().enumerate() {
@@ -550,9 +582,7 @@ fn joined(cells: &[Excluded], root: UvRect) -> Sweep {
 fn swept(p: &geom::Surface<f64>, w: &geom::Surface<f64>, band: Band) -> Sweep {
     let pose = super::SplineImplicitPose::of(p, w).expect("a plane and a spline");
     let pivot = pose.pivot();
-    let band = pivot.band(band).expect("the shift pads the band");
-    let reading = crate::ImplicitSection::of(&pivot.plane, pose.net(), pose.domain(), band)
-        .expect("the pair is read");
+    let (reading, band) = pivot.reading(&pose, band).expect("the pair is read");
     sweep(
         reading.boxes(),
         reading.form(),

@@ -222,9 +222,13 @@ PR 5842, under `[ev]` PR 5780 (the boolean's volume relations are a test oracle,
 ## Evidence: a meeting reading's fault, a panic at the census and typed in the op (onecopy/engine-leaves-pins, 2026-11-06)
 
 The census now panics on a meeting reading's kernel fault (`MeetFault::Desync`, `MeetFault::Contradiction`, `BoundaryRefusal::Fault`) and on a tangent face whose boundary holds no certified curve, through one door (`census.rs` `census_fault`), by `[failure.taxonomy]` row 4. The op's sites for the same states are still typed `ClassificationInvariant`:
-- `boolean/mod.rs` `locus_through_both_faces`: `BoundaryRefusal::Fault` and `FaceUnread::Uncertified` (the latter commented "the operand gate certified every curve");
+- `boolean/mod.rs` `locus_through_both_faces`: `BoundaryRefusal::Fault` and `FaceUnread::Fault` (an uncertified boundary edge, `UNCERTIFIED_BOUNDARY`, and a station off a carrier, `STATION_OFF_CARRIER`; `FaceUnread::Uncertified` folded into it in PR 6705);
 - `boolean/carrier_cross.rs` (`BoundaryRefusal::Fault { what } => … ClassificationInvariant`);
 - `boolean/overlap.rs` and `boolean/reduce.rs` (each a `BoundaryRefusal::Fault` arm);
 - `boolean/slit.rs` `meet_refused` (`MeetFault::Desync | MeetFault::Contradiction`).
 
 Outside topo, `sweep`'s `loft/stacking.rs` returns both faults as an `Err(&str)` reading.
+
+## The vtxfac coplanar invariant retired (SEAL PR 6693, 2026-11-10)
+
+The `boolean/vtxfac.rs` "geometrically coplanar sector with definitely-distinct plane" invariant, and the extent ball and offset rung it was read through, are retired by PR 6693 (SEAL's `a-corner-reads-only-its-own-sectors`). No corner reads a carrier pair: an unglued flat sector refuses on its steeper bound's tie.

@@ -60,8 +60,9 @@
 //! face's structure (`topo::surface_boundary`): this home sees no keys.
 
 use geom::{ChartArm, ChartInverse, Curve3, Surface};
+use geom_core::NonzeroSign;
 use geom_core::bisect::{Budget, Exhausted, Step, bisect_within};
-use geom_core::k_stats::{NonzeroSign, decide, decide_nonzero};
+use geom_core::k_stats::{decide, decide_nonzero};
 use geom_core::predicate::Band;
 use geom_core::{Decide, Indeterminate, Margin, Point2, Point3, Real, Sign, SizedPass, Vec3};
 
@@ -135,11 +136,14 @@ pub enum Singularity {
 /// its one home). On a horn (`R = r`, or a hair past it in band) the two
 /// are its one cusp, the centre.
 pub fn sheet_apexes<T: Real>(
-    center: Point3<T>,
-    axis: Vec3<T>,
+    axis: geom::Line<T>,
     major: T,
     minor: T,
 ) -> [(Singularity, Point3<T>); 2] {
+    let geom::Line {
+        origin: center,
+        dir: axis,
+    } = axis;
     let height = geom::sheet_apex(major, minor).height;
     [
         (Singularity::SheetApexUp, center + axis * height),
@@ -150,11 +154,11 @@ pub fn sheet_apexes<T: Real>(
 /// **A sphere's two poles**, north first: its centre plus and minus its
 /// unit `axis` times its radius. The one spelling of them, which
 /// [`singular_points`] states for a sphere's chart.
-pub fn sphere_poles<T: Real>(
-    center: Point3<T>,
-    axis: Vec3<T>,
-    radius: T,
-) -> [(Singularity, Point3<T>); 2] {
+pub fn sphere_poles<T: Real>(axis: geom::Line<T>, radius: T) -> [(Singularity, Point3<T>); 2] {
+    let geom::Line {
+        origin: center,
+        dir: axis,
+    } = axis;
     [
         (Singularity::North, center + axis * radius),
         (Singularity::South, center - axis * radius),
@@ -166,11 +170,11 @@ pub fn sphere_poles<T: Real>(
 /// ([`sheet_apexes`]), from the chart's own frame; none for any other
 /// kind.
 pub fn singular_points<T: Real>(chart: &ChartInverse<T>) -> Vec<(Singularity, Point3<T>)> {
-    let (anchor, axis) = (chart.frame().origin, chart.frame().axis);
+    let axis = chart.frame().axis_line();
     match chart.arm() {
-        ChartArm::Sphere { radius } => sphere_poles(anchor, axis, radius).to_vec(),
-        ChartArm::Cone { .. } => vec![(Singularity::Apex, anchor)],
-        ChartArm::Spindle { major, minor } => sheet_apexes(anchor, axis, major, minor).to_vec(),
+        ChartArm::Sphere { radius } => sphere_poles(axis, radius).to_vec(),
+        ChartArm::Cone { .. } => vec![(Singularity::Apex, axis.origin)],
+        ChartArm::Spindle { major, minor } => sheet_apexes(axis, major, minor).to_vec(),
         ChartArm::Plane | ChartArm::Cylinder { .. } | ChartArm::Torus { .. } => Vec::new(),
     }
 }
@@ -562,19 +566,15 @@ enum Near<T> {
 
 /// **The carrier parameter of the point of `carrier` nearest `x`**: its
 /// [`Curve3::nearest`] seeded at `from`, `None` where the carrier
-/// has none. A periodic carrier's ([`Curve3::is_periodic`]) is brought
-/// into `[from, from + τ]`, the turn at or past `from`: the upper end is
-/// reached only where the reduction rounds, a point a hair behind `from`
-/// reading `from + τ`. A
+/// has none. A periodic carrier's ([`Curve3::period`]) is brought
+/// into `[from, from + τ)`, the turn at or past `from`
+/// ([`geom_core::period::Period::at_or_above`]): a point a hair behind
+/// `from` whose lift rounds onto `from + τ` reads `from`. A
 /// point on a circle's axis, where every point of the circle is nearest,
 /// reads `from`.
 pub fn foot<T: Decide>(carrier: &Curve3<T>, x: Point3<T>, from: T) -> Option<T> {
     let t = carrier.nearest(x, from)?;
-    Some(if carrier.is_periodic() {
-        from + (t - from).reduce_periodic(T::tau())
-    } else {
-        t
-    })
+    Some(carrier.period().map_or(t, |p| p.at_or_above(t, from)))
 }
 
 /// **The point of `e` nearest `x`**, decided once at `band`
@@ -1069,8 +1069,11 @@ fn bisect<T: Decide>(
 
 /// The chart a walk runs on, as its error bound reads it.
 struct Shape<T: Real> {
-    anchor: Point3<T>,
-    axis: Vec3<T>,
+    /// The chart's axis, from its frame. Only [`geom::Line::distance`]
+    /// reads it, which is correct for any nonzero `dir`, so a unit `dir`
+    /// is not a premise here
+    /// (`an-axis-reads-its-direction-as-unit-by-convention-not-type`).
+    axis: geom::Line<T>,
     kind: ShapeKind<T>,
     /// The singular points on the loop walked.
     on_loop: Vec<Point3<T>>,
@@ -1101,8 +1104,7 @@ impl<T: Decide> Shape<T> {
             }
         };
         Some(Self {
-            anchor: chart.frame().origin,
-            axis: chart.frame().axis,
+            axis: chart.frame().axis_line(),
             kind,
             on_loop,
             escalate,
@@ -1122,11 +1124,7 @@ impl<T: Decide> Shape<T> {
 
     /// A point's distance from the axis.
     fn rho(&self, p: Point3<T>) -> T {
-        geom::Line {
-            origin: self.anchor,
-            dir: self.axis,
-        }
-        .distance(p)
+        self.axis.distance(p)
     }
 }
 
@@ -1328,7 +1326,7 @@ fn sum_walk<T: Decide>(
     for (j, &(i, uv)) in charted.iter().enumerate() {
         (v_lo, v_hi) = (v_lo.min(uv.y), v_hi.max(uv.y));
         let (k, next) = charted[(j + 1) % m];
-        let step = geom_core::period::Period::new(T::tau()).near(next.x - uv.x, T::zero());
+        let step = geom_core::period::Period::angle().near(next.x - uv.x, T::zero());
         total = total + step;
         let term = -(shape.g(uv.y) + shape.g(next.y)) * T::from_f64(0.5) * step;
         area = area + term;

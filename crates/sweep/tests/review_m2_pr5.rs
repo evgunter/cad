@@ -616,8 +616,7 @@ fn survives_washer_zip_lineage_and_seam_state() {
     }
     for r in &t.rims[0] {
         let e = t.body.get_edge(r.unwrap()).unwrap();
-        let start = t.body.get_half_edge(e.he_plus).unwrap().start;
-        let end = t.body.half_edge_end(e.he_plus).unwrap();
+        let (start, end) = t.body.edge_vertices(r.unwrap()).unwrap();
         assert_eq!(start, end, "full-period rim is a self-loop");
         let c = t.body.get_curve_geom(e.curve).unwrap().certified().unwrap();
         let (t0, t1) = c.params();
@@ -1136,8 +1135,10 @@ fn survives_near_full_period_rim_span_escalates() {
             geom_brep::MappedSource::RevolvedPoint {
                 point: Point2::new(1.0, 0.0),
                 place: geom_core::Affine3::identity(),
-                axis_origin: center,
-                axis_dir: Vec3::new(0.0, 1.0, 0.0),
+                axis: geom::Line {
+                    origin: center,
+                    dir: Vec3::new(0.0, 1.0, 0.0),
+                },
                 angle: span,
             },
         )),

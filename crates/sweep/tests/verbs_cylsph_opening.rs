@@ -186,19 +186,25 @@ fn coaxial_poses_build_every_op_at_their_volumes() {
 }
 
 /// **The non-coaxial transversal pose crosses, passes the germ frame
-/// and the join, and refuses at the result gate's volume.** The
-/// crossing that used to keep the pierce door is certified now by the
-/// conic × quadric root door (`topo::boolean::conic_quadric`), its
-/// pierce's sector side certifies, the matcher pairs the cylinder ×
-/// sphere germs by foot on the section's one loop (`R < r + d`), and the
-/// join cuts both sides' chords from that loop; the cylinder face they
-/// bound measures through the rotational lane, and the sphere face has
-/// no lane for its chord (`crate::cylinder_sphere_frame::Door::Sphere`),
-/// in both poses.
+/// and the join, and builds.** The crossing that used to keep the pierce
+/// door is certified now by the conic × quadric root door
+/// (`topo::boolean::conic_quadric`), its pierce's sector side
+/// certifies, the matcher pairs the cylinder × sphere germs by foot on
+/// the section's one loop (`R < r + d`), and the join cuts both sides'
+/// chords from that loop; the cylinder and sphere faces they bound
+/// measure through the rotational lane, in both poses. The union is no
+/// legal operand only because a later boolean's point-in-solid walk
+/// cannot read its chorded sphere face
+/// (`crate::cylinder_sphere_frame::far_union`).
 #[test]
-fn a_transversal_pose_reaches_the_join_lane_in_both_poses() {
-    let c = cyl(1.0, -2.0, 2.0);
-    let s = ball_at(1.5, Vec3::new(0.6, 0.0, 0.0));
+fn a_transversal_pose_builds_in_both_poses() {
+    use core::f64::consts::PI;
+    let (r, z0, z1, big) = (1.0, -2.0, 2.0, 1.5);
+    let c = cyl(r, z0, z1);
+    let s = ball_at(big, Vec3::new(0.6, 0.0, 0.0));
+    // The operands' area: the cylinder's wall and caps, and the ball's
+    // sphere.
+    let area = 2.0 * PI * r * (z1 - z0) + 2.0 * PI * r * r + 4.0 * PI * big * big;
     for (label, c, s) in [
         ("direct", c.clone(), s.clone()),
         ("re-posed twin", posed(&c), posed(&s)),
@@ -207,11 +213,78 @@ fn a_transversal_pose_reaches_the_join_lane_in_both_poses() {
             finished(label, c, Tol::witness()),
             finished(label, s, Tol::witness()),
         );
-        let err = topo::union(&c, &s, Tol::witness()).expect_err("no sphere volume lane");
-        assert_eq!(
-            crate::cylinder_sphere_frame::door(&err),
-            Some(crate::cylinder_sphere_frame::Door::Sphere),
-            "{label}: {err:?}"
+        let got = topo::union(&c, &s, Tol::witness());
+        if let Some(off) = crate::cylinder_sphere_frame::at_its_volume(
+            label,
+            got,
+            transversal_union_volume(),
+            crate::cylinder_sphere_frame::Ends::Builds,
+            crate::cylinder_sphere_frame::pad_ceiling(area),
+            &TRANSVERSAL_PAD_GUARDS,
+        ) {
+            panic!("{off}");
+        }
+    }
+}
+
+/// Regression guards on the transversal union's volume half-width,
+/// `(ε, width)`, not soundness bounds: four times the widest measured
+/// over both poses (debug, 2026-11-11), rounded up: `5.354e-6` at ε
+/// 1e-6, `7.907e-9` at 1e-9 and `4.758e-11` at 1e-12. Any other ε reads
+/// the resolution ceiling alone.
+const TRANSVERSAL_PAD_GUARDS: [(f64, f64); 3] = [(1e-6, 2.2e-5), (1e-9, 3.2e-8), (1e-12, 2.0e-10)];
+
+/// The transversal pose's union, independently of the kernel: the
+/// cylinder `r = 1`, `z ∈ [−2, 2]`, and the ball of radius `1.5` about
+/// `(0.6, 0, 0)`, their common part sliced along the cylinder's axis,
+/// each slice the lens of the unit disc and the ball's disc
+/// `0.6` off it (`cylinder_sphere_frame::lens`), by adaptive
+/// Gauss–Kronrod.
+fn transversal_union_volume() -> f64 {
+    use crate::cylinder_sphere_frame::{gk, lens};
+    use core::f64::consts::PI;
+    let big = 1.5_f64;
+    let common = gk(
+        &|z: f64| lens(1.0, (big * big - z * z).max(0.0).sqrt(), 0.6),
+        -big,
+        big,
+        1e-13,
+        24,
+    );
+    PI * 4.0 + 4.0 / 3.0 * PI * big.powi(3) - common
+}
+
+/// **A chorded sphere face whose sense bit is flipped is refused at rest
+/// as a lamina**: the rotational lane reads the bit with no cross-check
+/// (a loop on a sphere bounds a face on each side), so under the flipped
+/// bit the face would measure as its complement; tier 3 exempts the
+/// face from its sense cross-check and refuses the body at check 4
+/// instead, where the flipped face meets its neighbours along a wedge of
+/// no angle (`ValidationError::LaminaWedge`). Every sphere face of the
+/// transversal union, flipped alone.
+#[test]
+fn a_flipped_chorded_sphere_face_is_refused_as_a_lamina() {
+    let tol = Tol::witness();
+    let c = finished("c", cyl(1.0, -2.0, 2.0), tol);
+    let s = finished("s", ball_at(1.5, Vec3::new(0.6, 0.0, 0.0)), tol);
+    let got = topo::union(&c, &s, tol).expect("the union builds");
+    let body = &got.body().expect("a body").body;
+    let spheres: Vec<_> = body
+        .faces()
+        .filter(|(k, _)| matches!(body.face_surface(*k), Some(geom::Surface::Sphere { .. })))
+        .map(|(k, _)| k)
+        .collect();
+    assert!(!spheres.is_empty(), "the union holds a sphere face");
+    for k in spheres {
+        let flipped = body.flipped_face_sense_for_tests(k).unwrap();
+        let errs = topo::finish::<f64>(flipped, tol)
+            .err()
+            .unwrap_or_else(|| panic!("{k:?} flipped finishes"));
+        assert!(
+            errs.as_slice()
+                .iter()
+                .any(|e| matches!(e, topo::ValidationError::LaminaWedge { .. })),
+            "{k:?} flipped: {errs:?}"
         );
     }
 }

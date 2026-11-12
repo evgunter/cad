@@ -176,7 +176,7 @@ fn a_document_saved_without_a_layout_opens_at_the_identity() {
     assert!(session.perform(SessionOp::Undo).refusal.is_none());
     session.pump();
     assert_eq!(saved(&mut session, &path).layout, LayoutReport::default());
-    let (left, _) = Layout::parse(&layout_text(&path), tol).expect("parses");
+    let (left, _) = Layout::parse(&layout_text(&path)).expect("parses");
     assert!(left.frames.is_empty(), "the old frames are written over");
     let (reopened, _) = open_fresh(&path, tol);
     assert!(
@@ -199,7 +199,7 @@ fn a_frame_for_a_missing_space_is_dropped_and_reported() {
     let (mut session, path, [one, two], moved) = two_parts(&bench, "missing", tol);
     saved(&mut session, &path);
     let both = layout_text(&path);
-    let (parsed, _) = Layout::parse(&both, tol).expect("parses");
+    let (parsed, _) = Layout::parse(&both).expect("parses");
     let two_said = parsed
         .frames
         .iter()
@@ -389,7 +389,7 @@ fn a_layout_is_read_by_the_preferences_posture() {
     let (mut session, path, [one, two], moved) = two_parts(&bench, "posture", tol);
     saved(&mut session, &path);
     let text = layout_text(&path);
-    let (layout, skipped) = Layout::parse(&text, tol).expect("the session's own layout parses");
+    let (layout, skipped) = Layout::parse(&text).expect("the session's own layout parses");
     assert!(skipped.is_empty());
     assert_eq!(layout.to_text(), text, "the layout round-trips");
     let mut awkward = layout.clone();
@@ -398,7 +398,7 @@ fn a_layout_is_read_by_the_preferences_posture() {
         columns: [[turn, turn, 0.0], [-turn, turn, 0.0], [0.0, 0.0, 1.0]],
         translation: [0.1 + 0.2, -0.0, 1e-300],
     };
-    let (back, _) = Layout::parse(&awkward.to_text(), tol).expect("parses");
+    let (back, _) = Layout::parse(&awkward.to_text()).expect("parses");
     assert!(
         back.frames[0].frame.bit_eq(&awkward.frames[0].frame),
         "every coordinate reads back bit for bit"
