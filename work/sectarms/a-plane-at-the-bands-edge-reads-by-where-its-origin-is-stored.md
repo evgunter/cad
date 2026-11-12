@@ -56,3 +56,9 @@ A reading at the band's edge that does not depend on where the origin is
 stored: the touch decided on the pivot plane whatever the shift, or
 refused alike at every offset. Add a row at the foot and at the far
 offsets.
+
+A different mechanism from the corner touch's (2026-11-11): this one is
+the sweep's band-edge decision on a critical value, and the exact-sign
+fix of `a-corner-touch-verdict-moves-with-the-planes-stored-origin`
+leaves the table above unchanged, cell for cell (h 0.5, 1, 1.5, 2 ε at
+far 0, 1e5, 1e6, 1e7, measured before and after).

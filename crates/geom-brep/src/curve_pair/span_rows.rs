@@ -433,16 +433,18 @@ fn a_refused_members_window_on_an_arc_is_its_stretch() {
     }
 }
 
-/// **A refusal says which reading it rests on** ([`super::SpanReading`]):
+/// **A refusal says which reading refused** ([`super::SpanRefusal`]):
 /// on the circle's span, a point half the band off the carrier at the
 /// span's middle refuses on the carrier, the place reading it inside;
 /// a point on the carrier half the band past the span's start, its chord
-/// to the start in band, refuses on the place. Red where the two are
-/// swapped, which reads a wedge in band as a graze at the solid door's
-/// curved edges, or the reverse.
+/// to the start in band, refuses on the place; and a point half the band
+/// off the carrier there refuses on both, ranked by the carrier's
+/// ([`super::SpanRefusal::refused`]). Red where the readings are swapped,
+/// which reads a wedge in band as a graze at the solid door's curved
+/// edges, or the reverse, or where both rank by the place's.
 #[test]
 fn a_refusal_names_the_reading_it_rests_on() {
-    use super::{SpanReading, SpanRefusal};
+    use super::SpanRefusal;
     let half = 0.5 * (band().zero() + band().escalate());
     let carrier = circle();
     let span = Span::new(&carrier, (0.5, 2.5));
@@ -450,27 +452,121 @@ fn a_refusal_names_the_reading_it_rests_on() {
     let mid = carrier.eval(1.5);
     let off = mid + (mid - centre).normalize() * half;
     assert!(
-        matches!(
-            span.read(off, 1.5, band()),
-            Err(SpanRefusal {
-                of: SpanReading::Carrier,
-                ..
-            })
-        ),
+        matches!(span.read(off, 1.5, band()), Err(SpanRefusal::Carrier(_))),
         "off the carrier in band, inside the span"
     );
     let past = carrier.eval(0.5 - half / 2.0);
     assert!(
-        matches!(
-            span.read(past, 0.5, band()),
-            Err(SpanRefusal {
-                of: SpanReading::Place,
-                ..
-            })
-        ),
+        matches!(span.read(past, 0.5, band()), Err(SpanRefusal::Place(_))),
         "on the carrier, in band of the start: {:?}",
         span.read(past, 0.5, band())
     );
+    let both = past + (past - centre).normalize() * (half / 2.0);
+    let read = span.read(both, 0.5, band());
+    assert!(
+        matches!(read, Err(SpanRefusal::Both(refused))
+            if refused.escalation().is_ok_and(|d| d.predicate == Some("curve_carrier_gap"))),
+        "off the carrier in band, in band of the start: {read:?}"
+    );
+}
+
+/// **A window piece whose reach ties the ball's is kept, off the verdict
+/// log** (ledger row F37): an exact tie at `f64`, and an `Interval` reach
+/// astride the ball's, each keep the piece; a reach past it halves, and
+/// one short of it keeps. Red where a tie halves, or the choice reaches
+/// the log.
+#[test]
+fn a_window_piece_at_the_balls_reach_or_astride_it_is_kept() {
+    use geom_core::Interval;
+    let bracket = geom_core::k_stats::Bracket::open();
+    assert!(!super::span::halves(0.5, 0.5), "an exact tie keeps");
+    assert!(
+        super::span::halves(0.75, 0.5),
+        "a reach past the ball's halves"
+    );
+    assert!(
+        !super::span::halves(0.25, 0.5),
+        "a reach short of the ball's keeps"
+    );
+    assert!(
+        !super::span::halves(
+            Interval::from_bounds(0.4, 0.6),
+            Interval::from_bounds(0.5, 0.5)
+        ),
+        "a reach astride the ball's keeps"
+    );
+    let recorded = bracket.finish();
+    assert!(
+        recorded.verdicts.is_empty() && recorded.escalations.is_empty(),
+        "the halving choice reached the verdict log"
+    );
+}
+
+/// **A standing's ending is its row's** ([`crate::ladder::Refusal::recourse`]):
+/// a margin sizes the tolerance it offers before moving the geometry, a
+/// reading in band with no margin moves the geometry, one a band or a
+/// budget may settle takes the kernel limit's lever, and a limit has no
+/// way through yet. Red where an ending is swapped between standings, or
+/// a margin's is flattened to a fixed one.
+#[test]
+fn a_standings_ending_is_its_rows() {
+    use crate::ladder::{Ending, Refusal};
+    let diag = geom_core::k_stats::decide(
+        "curve_carrier_gap",
+        geom_core::Margin::of(0.5 * (band().zero() + band().escalate())),
+        band(),
+    )
+    .unwrap_err();
+    for (standing, ending, words) in [
+        (
+            Refusal::Margin(diag),
+            Ending::Sized(diag),
+            diag.ending(geom_core::COINCIDENCE_RECOURSE),
+        ),
+        (
+            Refusal::InBand,
+            Ending::Move,
+            geom_core::MOVE_RECOURSE.to_owned(),
+        ),
+        (
+            Refusal::Unsettled,
+            Ending::KernelLimit,
+            geom_core::KERNEL_LIMIT_RECOURSE.to_owned(),
+        ),
+        (
+            Refusal::Limit,
+            Ending::NotYet,
+            geom_core::NOT_YET_ENDING.to_owned(),
+        ),
+    ] {
+        assert_eq!(standing.recourse(), ending, "{standing:?}");
+        assert_eq!(ending.render(), words, "{standing:?}: its words");
+    }
+}
+
+/// **A meeting's kernel fault names what faulted** ([`super::MeetKind`]):
+/// a carrier the table misread, or the readings that contradict, which
+/// every consumer of the group reports as given (`sweep`'s stacking door
+/// returns it, `ring_path` panics with it). Red where either text is
+/// rewritten or the two are swapped.
+#[test]
+fn a_meeting_fault_names_what_faulted() {
+    use super::{MeetFault, MeetKind};
+    for (fault, what) in [
+        (MeetFault::Desync, "a carrier the meeting table misread"),
+        (
+            MeetFault::Contradiction {
+                readings: "two readings",
+            },
+            "two readings",
+        ),
+    ] {
+        assert!(
+            matches!(fault.kind(), MeetKind::Fault { what: got } if got == what),
+            "{fault:?}: {:?}",
+            fault.kind()
+        );
+    }
 }
 
 /// **A point-on-span refusal stands as its carrier refusal does**, through
@@ -523,7 +619,7 @@ fn a_point_on_span_refusal_stands_as_its_carrier_refusal() {
         let grouped = matches!(
             (refused, fault.kind()),
             (CarrierRefusal::Escalated(_), MeetKind::Escalated(_))
-                | (CarrierRefusal::Unwalked(_), MeetKind::Unread)
+                | (CarrierRefusal::Unwalked(_), MeetKind::Unread(_))
         );
         assert!(grouped, "{refused:?}: grouped as {:?}", fault.kind());
     }
@@ -656,4 +752,49 @@ fn a_span_over_a_hairpin_closer_than_the_band_reads_on_at_the_seeds_branch() {
         matches!(&mid, Ok(Reading::On { t, .. }) if t.hi() < 0.5),
         "Interval, the span's middle: on at the near branch: {mid:?}"
     );
+}
+
+/// **A box straddling a near-full arc's gap is read past the span by no
+/// copy of its parameter alone.** The arc is a gap of `1e-3` short of a
+/// turn, the box sits off the circle astride the gap's start-side edge,
+/// and its foot's parameter about the middle is renamed whole onto the
+/// copy past the stop end (`Period::near`'s tie takes the upper copy).
+/// That copy reads past the stop end, but the box's points beyond the
+/// gap have feet inside the span past its start: a turn back, the copy
+/// reads inside. So the place is not `Past`: it refuses, its side
+/// straddling.
+#[test]
+fn a_box_astride_a_near_full_arcs_gap_is_not_read_past() {
+    use geom_core::Interval;
+    let iv = |x: f64| Interval::from_bounds(x, x);
+    let circle: Curve3<Interval> = Curve3::circle(
+        Point3::new(iv(0.0), iv(0.0), iv(0.0)),
+        Vec3::new(iv(0.0), iv(0.0), iv(1.0)),
+        iv(1.0),
+        Vec3::new(iv(1.0), iv(0.0), iv(0.0)),
+    );
+    let span = Span::new(&circle, (iv(0.0), iv(TAU - 1e-3)));
+    // Raw azimuths about `[-9e-4, 3e-4]` at radius 2: the gap, and past
+    // the start into the span.
+    let (lo, hi) = (-9e-4f64, 3e-4f64);
+    let q = Point3::new(
+        Interval::from_bounds(2.0 * lo.cos().min(hi.cos()), 2.0),
+        Interval::from_bounds(2.0 * lo.sin(), 2.0 * hi.sin()),
+        iv(0.0),
+    );
+    let mid = geom::mid_param(iv(0.0), iv(TAU - 1e-3));
+    let got = span.place(q, mid, band());
+    assert!(
+        !matches!(got, Ok(Place::Past)),
+        "a box with feet inside the span reads past it: {got:?}"
+    );
+    // The same box wholly in the gap reads past.
+    let (lo, hi) = (-9e-4f64, -2e-4f64);
+    let q = Point3::new(
+        Interval::from_bounds(2.0 * lo.cos().min(hi.cos()), 2.0 * hi.cos()),
+        Interval::from_bounds(2.0 * lo.sin(), 2.0 * hi.sin()),
+        iv(0.0),
+    );
+    let got = span.place(q, mid, band());
+    assert!(matches!(got, Ok(Place::Past)), "a box in the gap: {got:?}");
 }

@@ -44,7 +44,8 @@ fn r2_bool_door_near_pole() {
                 // The pinned invariant is the REFUSAL: the shape is
                 // `CurvedPierceUnsupported` at the default band and
                 // an earlier escalation at coarser bands (measured
-                // `plane_crossing_root_in_span` at 1e-6); the door
+                // `plane_crossing_root_in_span` at 1e-6, since read
+                // by the span's `curve_pair_span_end_*`); the door
                 // being shut is band-invariant, its bar is not.
                 lines.push(format!("rho={rho:.3e}: boolean refused {e:?}"));
             }

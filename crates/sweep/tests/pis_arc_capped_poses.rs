@@ -1247,12 +1247,14 @@ fn every_tilted_cut_section_face_is_counter_clockwise() {
 /// the band's gap `(ε, K·ε)` — a probe's ray landing within the band of
 /// a boundary edge, which is a typed refusal and not an answer. One row
 /// only: a planar face's arc span, where a ray's root lies on the arc
-/// (the plane door's `plane_crossing_root_in_span`, which the cuts'
-/// ellipse faces reach). Each shape's count is capped at what was measured.
+/// (the plane door's span reading, `curve_pair_span_end_chord` or
+/// `curve_pair_span_end_side`, which the cuts' ellipse faces reach). Each shape's count is capped at what was measured.
 fn in_the_trim_band(diag: &geom_core::Indeterminate) -> bool {
     let (eps, k) = (tol().eps(), tol().k());
-    matches!(diag.predicate, Some("plane_crossing_root_in_span"))
-        && matches!(diag.margin.diagnostic_f64_for_error_text(), geom_core::ErrorTextReading::Value(v) if v.abs() > eps && v.abs() < k * eps)
+    matches!(
+        diag.predicate,
+        Some("curve_pair_span_end_chord" | "curve_pair_span_end_side")
+    ) && matches!(diag.margin.diagnostic_f64_for_error_text(), geom_core::ErrorTextReading::Value(v) if v.abs() > eps && v.abs() < k * eps)
 }
 
 /// Each shape's answered-count floor and escalation cap. The floor is

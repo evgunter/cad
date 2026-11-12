@@ -38,8 +38,9 @@
 //! `ρ⁴` for a large circle — which cancel to the small values `F` takes
 //! where the carrier passes the tube. `F = 2r·res·Q` with `Q ≥ R² − r²`
 //! on a ring torus, so the floor on `|F|` per metre of residual is
-//! `2r(R² − r²)`, and the harmonics' rounding is a residual error past
-//! the band once `ρ⁴ ≳ 10ε·r·R²/(u·SHORT_CHAIN_ULPS)`: from
+//! `2r(R² − r²)`. The door asks the convention for the ring before any
+//! pose, and refuses a torus outside it ([`DoorRefusal::Torus`]). The harmonics' rounding is a residual
+//! error past the band once `ρ⁴ ≳ 10ε·r·R²/(u·SHORT_CHAIN_ULPS)`: from
 //! `ρ ≈ 50` at the default band against a torus `R = 1, r = 0.25`.
 //!
 //! So the subdivision does not read its Taylor terms from the harmonics.
@@ -148,33 +149,14 @@ use super::circle_roots::{
     CircleRoots, DoorRefusal, constant_residual_roots, door_half_angle_roots, door_refusal,
 };
 use crate::half_angle::{
-    DegreeTwo, HalfAngleFrame, HalfAngleRows, Local, RootSlack, SubdivisionFrame, SubdivisionRows,
+    DegreeTwo, HalfAngleFrame, HalfAngleRows, Local, RootSlack, SubdivisionFrame,
 };
-use crate::quartic::QuarticRows;
 use crate::roots::{OnCarrier, RootRefusal, Roots, Unsettled};
 use geom_core::k_stats::decide;
 use geom_core::rounding_charge;
 
 /// The circle × torus lane's ladder rows.
-const CIRCLE_TORUS_ROWS: HalfAngleRows = HalfAngleRows {
-    pole: "circle_torus_pole",
-    conditioning: "circle_torus_pole_conditioning",
-    noise: "circle_torus_noise",
-    quartic: QuarticRows {
-        disc: "circle_torus_disc",
-        shape: "circle_torus_shape",
-        depth: "circle_torus_depth",
-        odd: "circle_torus_odd",
-        split: "circle_torus_split",
-        split_lead: "circle_torus_split_lead",
-    },
-    verify: SubdivisionRows {
-        clear: "circle_torus_sub_clear",
-        monotone: "circle_torus_sub_monotone",
-        side: "circle_torus_sub_side",
-        width: "circle_torus_sub_width",
-    },
-};
+const CIRCLE_TORUS_ROWS: HalfAngleRows = crate::rows::CIRCLE_TORUS;
 
 /// The general arm's root-slack row (module docs, "The root slack").
 const ROOT_SLACK: &str = "circle_torus_sub_root_slack";
@@ -187,7 +169,8 @@ const ROOT_SLACK: &str = "circle_torus_sub_root_slack";
 ///
 /// [`DoorRefusal::Invariant`] when `carrier` is not a
 /// circle or `torus` not a torus — the caller dispatched on those kinds.
-/// [`DoorRefusal::Escalated`] for an in-band
+/// [`DoorRefusal::Torus`] for a torus outside the ring convention, asked
+/// before any pose. [`DoorRefusal::Escalated`] for an in-band
 /// classifying sign: a coaxial carrier's constant residual, a rung of the
 /// parallel arm, a meridian deviation, or one of the ladder's. An
 /// in-band sign at the coaxial tilt is not an error: the pose takes the
@@ -227,6 +210,11 @@ pub fn circle_torus_roots<T: Decide>(
                    or a surface that is not a torus",
         ));
     };
+    // The door reads only a ring, asked of the convention before any pose:
+    // its harmonics take the witness, whose floor on `|F|` per metre and
+    // whose meridian bound lean on `R − r > 0`.
+    let ring = crate::TorusRefusal::require(major_radius, minor_radius, band)
+        .map_err(DoorRefusal::Torus)?;
     let two = T::from_f64(2.0);
     let v_ref = axis.cross(u_ref);
     let point_at = |theta: T| {
@@ -303,13 +291,8 @@ pub fn circle_torus_roots<T: Decide>(
     }
 
     // A meridian: `F ≡ 0`, which the ladder cannot answer, decided on
-    // its point deviation (module docs, "The special poses"). Its bound
-    // leans on the ring (`R − r > 0`); a torus off D3's convention takes
-    // the ladder.
-    if matches!(
-        geom::ring_torus(major_radius, minor_radius, band).map(|d| d.sign),
-        Ok(Sign::Positive)
-    ) {
+    // its point deviation (module docs, "The special poses").
+    {
         // The centre term's rounding: `w₀` and its split along the axis
         // are read off coordinates as large as `|C| + |c|`.
         let origin = Point3::new(T::zero(), T::zero(), T::zero());
@@ -346,7 +329,15 @@ pub fn circle_torus_roots<T: Decide>(
     // `F` the jet reads: the exact third and fourth harmonics against the
     // computed ones, and the jet's exact `v̂ = n̂ × û` against the rounded
     // `v_ref` the harmonics are built from.
-    let h = crate::conic_torus_harmonics(&circle, t_center, t_axis, major_radius, minor_radius);
+    let h = crate::conic_torus_harmonics(
+        &circle,
+        geom::Line {
+            origin: t_center,
+            dir: t_axis,
+        },
+        major_radius,
+        minor_radius,
+    );
     let hypot = |x: T, y: T| (x.powi(2) + y.powi(2)).sqrt();
     let dropped = hypot(h.cos[3], h.sin[3]) + hypot(h.cos[4], h.sin[4]);
     let harmonics = DegreeTwo::new(h.cos[0], h.cos[1], h.sin[1], h.cos[2], h.sin[2]);
@@ -355,7 +346,16 @@ pub fn circle_torus_roots<T: Decide>(
     // The walk's Taylor terms, read at the point (module docs, "The
     // harmonics' noise, and the jet").
     let jet = |theta| {
-        crate::conic_torus_jet(&circle, t_center, t_axis, major_radius, minor_radius, theta)
+        crate::conic_torus_jet(
+            &circle,
+            geom::Line {
+                origin: t_center,
+                dir: t_axis,
+            },
+            major_radius,
+            minor_radius,
+            theta,
+        )
     };
     let noise = rounding_charge(h.terms) + T::from_f64(16.0) * dropped;
     door_half_angle_roots(
@@ -367,11 +367,13 @@ pub fn circle_torus_roots<T: Decide>(
                 t1,
                 speed_hi: radius,
                 noise,
-                f_per_metre: h.f_per_metre_lo,
-                // The clear margin is read through the FLOOR, which
-                // overstates it (`work/hone/circle-torus-clear-margin-reads-the-floor.md`).
-                f_per_metre_hi: h.f_per_metre_lo,
-                residual_reach: None,
+                f_per_metre: crate::ring_floor(ring),
+                // The clear margin is read through the torus's ceiling on
+                // `|F|` per metre, as the ellipse × torus door reads it:
+                // a lower bound on the residual, so a piece reads clear
+                // only past the band.
+                f_per_metre_hi: h.f_per_metre_surface,
+                residual_reach: Some(minor_radius / two),
             },
             jet: Some(Local {
                 at: &jet,
@@ -387,8 +389,10 @@ pub fn circle_torus_roots<T: Decide>(
             residual: &|theta| {
                 crate::conic_torus_implicit(
                     &circle,
-                    t_center,
-                    t_axis,
+                    geom::Line {
+                        origin: t_center,
+                        dir: t_axis,
+                    },
                     major_radius,
                     minor_radius,
                     theta,
@@ -682,7 +686,7 @@ fn parallel_axes_roots<T: Decide>(
         // span's ends (or as the point it names), never as an identity
         // between two calls.
         for theta in [theta0 + spread, theta0 - spread] {
-            thetas[count] = geom_core::period::Period::new(T::tau()).near(theta, middle);
+            thetas[count] = geom_core::period::Period::angle().near(theta, middle);
             count += 1;
         }
     }
@@ -1384,6 +1388,51 @@ mod tests {
                 );
             }
         }
+    }
+
+    /// **A circle passing the tube within the band's gap is no miss.**
+    /// Circles tangent to the torus's tube at points round it, bending
+    /// away from it, set off along the surface's normal by 7 and 9
+    /// zero widths at ε = 10⁻¹²: their least distance from the torus is
+    /// in the band's gap, which the band escalates. Red where the clear
+    /// margin is read through the floor on `|F|` per metre, which
+    /// overstates the residual and certifies them a miss.
+    #[test]
+    fn a_circle_passing_the_tube_in_the_bands_gap_is_no_miss() {
+        let b = Band::new(1e-12, 1e-11).unwrap();
+        let mut bad = Vec::new();
+        for (u, v) in [(0.3, 0.4), (1.7, 1.2), (2.9, -0.8), (4.4, 2.5), (5.6, 0.1)] {
+            let (cu, su, cv, sv) = (f64::cos(u), f64::sin(u), f64::cos(v), f64::sin(v));
+            let normal = Vec3::new(cv * cu, cv * su, sv);
+            let foot = Point3::new((R + RT * cv) * cu, (R + RT * cv) * su, RT * sv);
+            let along = Vec3::new(-su, cu, 0.0);
+            for gap in [7e-12, 9e-12] {
+                for rho in [0.3, 1.0] {
+                    let q = foot + normal * gap;
+                    let c = q + normal * rho;
+                    let axis = along.cross(normal).normalize();
+                    let got = door_answer(roots_of(
+                        c,
+                        axis,
+                        rho,
+                        (q - c).normalize(),
+                        -3.2,
+                        3.2,
+                        &torus(),
+                        b,
+                    ));
+                    if matches!(got, Ok(CircleRoots::Miss)) {
+                        bad.push(format!("at ({u}, {v}), {gap:e} off, radius {rho}"));
+                    }
+                }
+            }
+        }
+        assert!(
+            bad.is_empty(),
+            "{} misses in the gap:\n{}",
+            bad.len(),
+            bad.join("\n")
+        );
     }
 
     /// **The tilt a parallel pose was admitted with is charged.** The far

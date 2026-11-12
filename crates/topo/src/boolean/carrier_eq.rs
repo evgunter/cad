@@ -593,12 +593,11 @@ fn ladder_reading<T: Decide>(
 
 /// [`carrier_eq_reading`] at the FACE-PAIR door: a coincidence glues
 /// the pair only where the displacement's upper bound over the pair's
-/// extent decides Zero too ([`coincident_over_extent`]). A torus pair's
+/// extent decides Zero too ([`coincident_over_extent_as`]). A torus pair's
 /// coincidence already stands on that bound
 /// ([`geom_brep::tori_coincide`]), and a torus pair the ring reads apart
 /// comes back as such, for the door to ask the faces for a witness
-/// ([`PairDoorReading::RingApart`]). The corner sites read their own arm,
-/// not a pair's extent, and take [`carrier_eq_reading`] as it is.
+/// ([`PairDoorReading::RingApart`]).
 ///
 /// # Errors
 ///
@@ -611,12 +610,11 @@ pub(super) fn pair_door_reading<T: Decide>(
 ) -> Result<PairDoorReading, CarrierEqError> {
     match ladder_reading(c1, c2, extent, band)? {
         PairDoorReading::Verdict(CarrierVerdict::One { relation, margin }) => {
-            let margin = coincident_over_extent(c1, c2, extent, (relation, margin), band).map_err(
-                |diag| CarrierEqError::Undecided {
+            let margin = coincident_over_extent_as(c1, c2, extent, (relation, margin), band)
+                .map_err(|diag| CarrierEqError::Undecided {
                     coincidence: CoincidenceMeasure::not_zero(diag),
                     relation,
-                },
-            )?;
+                })?;
             Ok(PairDoorReading::Verdict(CarrierVerdict::One {
                 relation,
                 margin,
@@ -629,11 +627,21 @@ pub(super) fn pair_door_reading<T: Decide>(
 /// A margin the ladder reads, by its predicate's name.
 type Datum<T> = (&'static str, Margin<T>);
 
+/// The names the sphere's, cylinder's and cone's data are decided under.
+const CARRIER_SPHERE_CENTER: &str = "carrier_sphere_center";
+const CARRIER_SPHERE_RADIUS: &str = "carrier_sphere_radius";
+pub(super) const CARRIER_CYL_AXIS_PARALLEL: &str = "carrier_cyl_axis_parallel";
+const CARRIER_CYL_AXIS_OFFSET: &str = "carrier_cyl_axis_offset";
+const CARRIER_CYL_RADIUS: &str = "carrier_cyl_radius";
+const CARRIER_CONE_APEX: &str = "carrier_cone_apex";
+const CARRIER_CONE_AXIS_PARALLEL: &str = "carrier_cone_axis_parallel";
+const CARRIER_CONE_HALF_ANGLE: &str = "carrier_cone_half_angle";
+
 /// The sphere's data: centre separation, radius difference.
 fn sphere_data<T: Decide>(p1: Point3<T>, r1: T, p2: Point3<T>, r2: T) -> Vec<Datum<T>> {
     vec![
-        ("carrier_sphere_center", Margin::norm3(p1 - p2)),
-        ("carrier_sphere_radius", Margin::of(r1 - r2)),
+        (CARRIER_SPHERE_CENTER, Margin::norm3(p1 - p2)),
+        (CARRIER_SPHERE_RADIUS, Margin::of(r1 - r2)),
     ]
 }
 
@@ -649,14 +657,14 @@ fn cylinder_data<T: Decide>(
 ) -> Vec<Datum<T>> {
     vec![
         (
-            "carrier_cyl_axis_parallel",
+            CARRIER_CYL_AXIS_PARALLEL,
             Margin::levered(a1.cross(a2).norm(), arm),
         ),
         (
-            "carrier_cyl_axis_offset",
+            CARRIER_CYL_AXIS_OFFSET,
             Margin::norm3(perpendicular(p2 - p1, a1)),
         ),
-        ("carrier_cyl_radius", Margin::of(r1 - r2)),
+        (CARRIER_CYL_RADIUS, Margin::of(r1 - r2)),
     ]
 }
 
@@ -669,12 +677,12 @@ fn cone_data<T: Decide>(
     arm: geom_core::Lever<T>,
 ) -> Vec<Datum<T>> {
     vec![
-        ("carrier_cone_apex", Margin::norm3(p1 - p2)),
+        (CARRIER_CONE_APEX, Margin::norm3(p1 - p2)),
         (
-            "carrier_cone_axis_parallel",
+            CARRIER_CONE_AXIS_PARALLEL,
             Margin::levered(a1.cross(a2).norm(), arm),
         ),
-        ("carrier_cone_half_angle", Margin::levered(t1 - t2, arm)),
+        (CARRIER_CONE_HALF_ANGLE, Margin::levered(t1 - t2, arm)),
     ]
 }
 
@@ -697,6 +705,17 @@ fn perpendicular<T: geom_core::Real>(v: Vec3<T>, axis: Vec3<T>) -> Vec3<T> {
 
 pub(crate) use geom_brep::line_tilt;
 
+/// **The arm the ladder levers a pair's angular data at** over
+/// `reach` ([`at_consumed_extent`]'s third part): the reach from the
+/// pivot each kind's position datum is read at.
+pub(super) fn consumed_arm<T: geom_core::Real>(
+    c1: &CarrierDesc<T>,
+    c2: &CarrierDesc<T>,
+    reach: geom_brep::ExtentBall<T>,
+) -> geom_core::Lever<T> {
+    at_consumed_extent(c1, c2, reach).2
+}
+
 /// **The pair as the ladder reads it when its verdict is
 /// consumed over `reach`**: each description anchored where its
 /// position datum is read nearest the extent's centre, and the lever
@@ -704,7 +723,7 @@ pub(crate) use geom_brep::line_tilt;
 /// pivot ([`geom_brep::ExtentBall`]'s module docs). Each datum is
 /// decided on its own: a definite one says the carriers differ, and the
 /// face-pair door then reads the data as one sum
-/// ([`coincident_over_extent`]).
+/// ([`coincident_over_extent_as`]).
 ///
 /// - plane — the plane ladder reads the extent itself (offsets at its
 ///   centre, the arm its radius) and the pair passes through;
@@ -785,7 +804,7 @@ fn at_consumed_extent<T: geom_core::Real>(
 ///   two angles;
 /// - torus — the pair's coincidence already stands on its own bound
 ///   ([`geom_brep::tori_coincide`]), and reads nothing more here.
-fn coincident_over_extent<T: Decide>(
+fn coincident_over_extent_as<T: Decide>(
     c1: &CarrierDesc<T>,
     c2: &CarrierDesc<T>,
     extent: &ConsumedExtent<T>,
@@ -811,9 +830,15 @@ fn coincident_over_extent<T: Decide>(
     }
 }
 
+/// [`reading`]'s rows: each kind's predicate and its straddle row.
+const PLANE_REACH: (&str, &str) = ("bool_plane_reach", "bool_plane_reach_straddle");
+const SPHERE_REACH: (&str, &str) = ("carrier_sphere_reach", "carrier_sphere_reach_straddle");
+const CYL_REACH: (&str, &str) = ("carrier_cyl_reach", "carrier_cyl_reach_straddle");
+const CONE_REACH: (&str, &str) = ("carrier_cone_reach", "carrier_cone_reach_straddle");
+
 /// The displacement's upper bound between a same-kind, non-torus pair
 /// over `reach`, with its predicate's name and its straddle row's
-/// ([`coincident_over_extent`]), the planes' orientation sign `sigma`
+/// ([`coincident_over_extent_as`]), the planes' orientation sign `sigma`
 /// decided; `None` for a kind mismatch or two tori.
 fn reading<T: Decide>(
     c1: &CarrierDesc<T>,
@@ -835,10 +860,7 @@ fn reading<T: Decide>(
             let centre = reach.center();
             let offset = n1.dot(o1 - centre) - sigma * n2.dot(o2 - centre);
             let swing = Margin::levered((n1 - n2 * sigma).norm(), reach.lever()).value();
-            (
-                ("bool_plane_reach", "bool_plane_reach_straddle"),
-                offset.abs() + swing,
-            )
+            (PLANE_REACH, offset.abs() + swing)
         }
         (
             CarrierDesc::Sphere {
@@ -851,10 +873,7 @@ fn reading<T: Decide>(
                 radius: r2,
                 ..
             },
-        ) => (
-            ("carrier_sphere_reach", "carrier_sphere_reach_straddle"),
-            (r1 - r2).abs() + (p1 - p2).norm(),
-        ),
+        ) => (SPHERE_REACH, (r1 - r2).abs() + (p1 - p2).norm()),
         (
             CarrierDesc::Cylinder {
                 origin: o1,
@@ -876,10 +895,7 @@ fn reading<T: Decide>(
             let apart = perpendicular(pivot - o1, a1).norm();
             let arm = reach.lever_from_within(pivot, apart);
             let core = apart + Margin::levered(line_tilt(a1, a2), arm).value();
-            (
-                ("carrier_cyl_reach", "carrier_cyl_reach_straddle"),
-                (r1 - r2).abs() + core,
-            )
+            (CYL_REACH, (r1 - r2).abs() + core)
         }
         (
             CarrierDesc::Cone {
@@ -898,7 +914,7 @@ fn reading<T: Decide>(
             let apart = (p1 - p2).norm();
             let arm = reach.lever_from_within(p1, apart);
             let core = apart + Margin::levered(line_tilt(a1, a2) + (t1 - t2).abs(), arm).value();
-            (("carrier_cone_reach", "carrier_cone_reach_straddle"), core)
+            (CONE_REACH, core)
         }
         _ => return None,
     })
@@ -1109,7 +1125,7 @@ mod tests {
                 ..
             }) => {
                 assert!(
-                    !diag.margin.is_invalid() && diag.predicate == Some("carrier_sphere_reach"),
+                    !diag.margin.is_invalid() && diag.predicate == Some(SPHERE_REACH.0),
                     "the sum in band: {diag:?}"
                 );
             }
@@ -1172,7 +1188,7 @@ mod tests {
                     ..
                 }) => {
                     assert!(diag.margin.is_invalid(), "{radius}: {diag:?}");
-                    assert_eq!(diag.predicate, Some("carrier_sphere_radius"), "{radius}");
+                    assert_eq!(diag.predicate, Some(CARRIER_SPHERE_RADIUS), "{radius}");
                 }
                 other => panic!("a radius of {radius} is unreadable: {other:?}"),
             }
@@ -1465,7 +1481,7 @@ mod tests {
     /// a quarter turn and a smaller one.
     #[test]
     fn the_ladder_reads_two_tori_as_their_pose_does() {
-        use crate::boolean::boxes::tests::torus_wall;
+        use crate::boxes::tests::torus_wall;
         let b = band();
         let e = b.zero();
         let surface = |(center, axis, major, minor): (Point3<f64>, Vec3<f64>, f64, f64)| {

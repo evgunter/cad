@@ -9,9 +9,7 @@
 //! square builds.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use geom_core::{
-    Affine3, Band, Decide, Interval, Mat3, Real, RigidMotion, RigidMotionError, Tol, Vec3,
-};
+use geom_core::{Affine3, Decide, Interval, Mat3, Real, RigidMotion, RigidMotionError, Tol, Vec3};
 use profile::SketchPlane;
 use sweep::loft_body;
 use sweep::test_support::loft_prism_sections;
@@ -23,10 +21,6 @@ fn at_z1<T: Real>(cols: [[f64; 3]; 3]) -> Affine3<T> {
         Mat3::from_cols(v(cols[0]), v(cols[1]), v(cols[2])),
         v([0.0, 0.0, 1.0]),
     )
-}
-
-fn band() -> Band {
-    Band::linear(Tol::witness()).expect("the witness tolerance forms a band")
 }
 
 /// The placements that are not rigid, each with the check that must
@@ -54,9 +48,14 @@ const NOT_RIGID: [(&str, [[f64; 3]; 3], &str, &str); 3] = [
     ),
 ];
 
-fn refuses_at<T: Decide>(lane: &str) {
+/// Every [`NOT_RIGID`] placement refused by `door` at `T`, naming its
+/// margin.
+fn refuses_at<T: Decide>(
+    lane: &str,
+    door: impl Fn(&geom_core::Affine3<T>) -> Result<RigidMotion<T>, RigidMotionError>,
+) {
     for (label, cols, want, defect) in NOT_RIGID {
-        match RigidMotion::<T>::check_rigid(&at_z1::<T>(cols), band()) {
+        match door(&at_z1::<T>(cols)) {
             Err(e @ RigidMotionError::NotRigid { check }) => {
                 assert_eq!(check, want, "{lane} {label}: the refusing check");
                 let text = e.to_string();
@@ -72,8 +71,12 @@ fn refuses_at<T: Decide>(lane: &str) {
 
 #[test]
 fn a_placement_that_mirrors_scales_or_shears_never_becomes_a_frame() {
-    refuses_at::<f64>("f64");
-    refuses_at::<Interval>("Interval");
+    refuses_at::<f64>("f64", RigidMotion::check_rigid);
+    // No production door admits a frame from entries at a box scalar;
+    // the suites' own door refuses these as the `f64` one does.
+    refuses_at::<Interval>("Interval", |map| {
+        geom_core::test_support::admitted(map, Tol::witness())
+    });
 }
 
 /// The square rolled a quarter turn about `+z` at `z = 1`: proper, so
@@ -86,7 +89,7 @@ fn a_placement_that_mirrors_scales_or_shears_never_becomes_a_frame() {
 #[test]
 fn a_proper_rotation_of_the_square_lofts_its_twisted_volume() {
     let quarter = [[0.0, 1.0, 0.0], [-1.0, 0.0, 0.0], [0.0, 0.0, 1.0]];
-    let top = RigidMotion::check_rigid(&at_z1::<f64>(quarter), band())
+    let top = RigidMotion::check_rigid(&at_z1::<f64>(quarter))
         .expect("a quarter turn and a translation are rigid");
     let square = loft_prism_sections().swap_remove(0);
     let tol = Tol::witness();

@@ -70,3 +70,16 @@ unchanged on the PR's head. What blocks it is FUSE's
 `blocked_on` names that row now.
 
 - 2026-11-03 — moved from CLEAVE to CLEAVETAIL by `git mv` when CLEAVE closed, id and body unchanged (CLEAVE had no dispatchable row above P2 left, and CLEAVETAIL is its own tail on the same ground; Ev, in chat).
+
+## Re-measured (GAUGE, lane `gauge-svc`, 2026-11-11)
+
+On main `0f42d98351` the pin passes. Its three refusals are the laminar
+interleave class of
+`work/gauge/shared-vertex-crossings-that-tie-or-interleave-are-unprobed.md`:
+the band's pair is paired along both of its Out arcs, and the second
+and third corners sit on one each. Re-planned with the other pairing
+start (a local experiment), `cube ∖ y` builds: volume 0.97142669 =
+1 − `cube ∩ y`, and 3′ and tier 2 pass. `y ∩ cube` and `cube ∪ y`
+refuse `JoinDesync { what: "conflicting seam vertex correspondence" }`.
+Which pairing the shared corner should take is now that row's design
+question.

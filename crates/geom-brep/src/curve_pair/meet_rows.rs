@@ -421,7 +421,7 @@ fn coplanar_conics_with_an_ellipse() {
 
 /// The ellipse `(2, 0.5)` about the origin in `z = 0`, its major axis
 /// turned to `u`, moved by `at`.
-fn flat_ellipse(at: [f64; 2], u: [f64; 2], a: f64, b: f64) -> Curve3<f64> {
+pub(super) fn flat_ellipse(at: [f64; 2], u: [f64; 2], a: f64, b: f64) -> Curve3<f64> {
     ellipse(
         [at[0], at[1], 0.0],
         [0.0, 0.0, 1.0],
@@ -2517,8 +2517,8 @@ fn a_candidate_with_no_window_reads_as_its_point_alone() {
                     c.point,
                     || {
                         super::both(
-                            a.contact(c.point, c.ta, band()).map_err(|r| r.refused),
-                            b.contact(c.point, c.tb, band()).map_err(|r| r.refused),
+                            a.contact(c.point, c.ta, band()).map_err(|r| r.refused()),
+                            b.contact(c.point, c.tb, band()).map_err(|r| r.refused()),
                         )
                     },
                     band(),

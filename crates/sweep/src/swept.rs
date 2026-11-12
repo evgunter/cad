@@ -45,6 +45,7 @@
 //! **says so at its own site**; that marker is the only thing tying
 //! the two together, and it is deliberately not deleted.
 
+pub(crate) use crate::rows::CosurfaceNames;
 use geom::{Curve3, Surface};
 use geom_brep::{
     EdgeCurveSpec, EdgeDescriptionSpec, MappedCurve, MappedSource, NewellError, SketchSegment,
@@ -78,6 +79,11 @@ pub(crate) struct Placing<T: Real> {
 /// ([`Affine3::rotate_point_about_unit_axis`], W1's spelling), and the
 /// same rotation minted anchored at the axis point, which turns a
 /// placement.
+///
+/// It holds the axis as a decided unit direction ([`UnitVec3`]) beside its
+/// point, not as a [`geom::Line`]: the rotation reads a unit axis, and a
+/// `Line` reads any nonzero direction, so the unit is minted once where
+/// the turn is built and carried here as the value the rotation takes.
 #[derive(Clone, Copy, Debug)]
 struct Turn<T: Real> {
     origin: Point3<T>,
@@ -1080,23 +1086,6 @@ pub(crate) fn describe_wrap_edge<T: Decide + topo::AtRestPolicy>(
     Ok(())
 }
 
-/// The predicate names one verb's cosurface decision reports under —
-/// the K recorder meters each sweep's line and arc margins separately,
-/// so the names are per-verb data passed into the shared body rather
-/// than a property of the body.
-///
-/// **A table of row names, so a new value here is a roster change**
-/// (`docs/K-REPORT.md`, "The inventory method, restated"): a name
-/// reaching the funnel as a field is invisible to any grep for a
-/// literal at the decide site.
-#[derive(Clone, Copy, Debug)]
-pub(crate) struct CosurfaceNames {
-    /// The line/line predicate (chord collinearity).
-    pub(crate) lines: &'static str,
-    /// The arc/arc predicate (carrier identity).
-    pub(crate) arcs: &'static str,
-}
-
 /// Decides whether two consecutive segments sweep the
 /// identical-by-construction surface (crate docs, cosurface sharing):
 /// collinear lines share one surface, same-carrier same-turn arcs
@@ -1123,7 +1112,7 @@ pub(crate) fn cosurface<T: Decide, S: SweptChord<T>>(
             }
             .side(next.b());
             Ok(matches!(
-                decide(names.lines, Margin::of(margin), band)?,
+                decide(names.lines(), Margin::of(margin), band)?,
                 Sign::Zero
             ))
         }
@@ -1135,7 +1124,7 @@ pub(crate) fn cosurface<T: Decide, S: SweptChord<T>>(
             // direct — the profile crate's carrier-identity pattern).
             let margin = a1.centre.distance(a2.centre) + (a1.radius - a2.radius).abs();
             Ok(matches!(
-                decide(names.arcs, Margin::of(margin), band)?,
+                decide(names.arcs(), Margin::of(margin), band)?,
                 Sign::Zero
             ))
         }
@@ -2078,8 +2067,8 @@ pub(crate) mod undecided_fixtures {
 
     /// The lever-only ending on each of [`readings`].
     pub(crate) const LEVER: [&str; 3] = [
-        "Recourse: move the geometry",
-        "Recourse: move the geometry",
+        geom_core::MOVE_RECOURSE,
+        geom_core::MOVE_RECOURSE,
         "Recourse: move the geometry; an unreadable margin may indicate a kernel bug worth \
          reporting",
     ];

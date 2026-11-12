@@ -1585,6 +1585,8 @@ fn repair_named(kind: &NodeErrorKind) -> Option<RecipeNodeId> {
         | NodeErrorKind::ToleranceConflict { .. }
         | NodeErrorKind::ParamBox { .. }
         | NodeErrorKind::Seed { .. }
+        | NodeErrorKind::RecordRefused
+        | NodeErrorKind::RecordMispaired(_)
         | NodeErrorKind::DegenerateDirection { .. }
         | NodeErrorKind::NonFiniteDirection { .. }
         | NodeErrorKind::UnderflowedDirection { .. }

@@ -147,10 +147,7 @@ use crate::splitting::containment::{ConicRows, SCHEDULE};
 use crate::validate::decide;
 
 /// The boundary reading's rows (module docs).
-const BOUNDARY: ConicRows = ConicRows::bounded(
-    "bool_sphere_region_arc_span",
-    "bool_sphere_region_arc_straddle",
-);
+const BOUNDARY: ConicRows = crate::rows::SPHERE_REGION_CONIC;
 
 /// The fraction of each arc's span [`SphereFaceRegion::aim`] steps from:
 /// the golden section ([`geom_core::GOLDEN_SECTION`]), off the middle a
@@ -221,13 +218,8 @@ pub(crate) fn sphere_face_region<T: Decide>(
     let geom::Surface::Sphere { .. } = surface else {
         return Err(PointInSolidError::CorruptFace { face });
     };
-    // The sphere in a frame of the door's own, `z` and `x`: a foot's
-    // reading depends on no frame, and this one keeps the chart's poles
-    // where the door's rows were measured.
-    let (zero, one) = (T::zero(), T::one());
     Ok(Some(SphereFaceRegion::on(
-        Charted::record(f.surface, surface)
-            .framed(Vec3::new(zero, zero, one), Vec3::new(one, zero, zero)),
+        Charted::record(f.surface, surface),
         f.sense,
         f.outer,
         edges,
@@ -361,7 +353,11 @@ impl<T: Decide> SphereFaceRegion<T> {
                 &arc.carrier,
                 arc.carrier.distance_within(m, (arc.t0, arc.t1)),
             ) else {
-                unreachable!("sphere_face_region admits circles only")
+                unreachable!(
+                    "sphere_face_region admits circles only, and a circle's arc distance is \
+                     closed-form (geom::Curve3::distance_within): a non-circle arc, or a circle \
+                     whose azimuth read no parameter"
+                )
             };
             least = Some(least.map_or(gap, |l| l.min(gap)));
         }
@@ -372,7 +368,8 @@ impl<T: Decide> SphereFaceRegion<T> {
     /// The ray from `a` along the unit tangent `t` (module docs, step 1):
     /// the great circle round the centre from `a` toward `t`.
     fn ray(&self, foot: QueryFoot<T>, t: Vec3<T>) -> Leg<T, Round<T>> {
-        let curve = SurfaceCurve::great_circle(&self.charted, foot.uv(), t);
+        let curve = SurfaceCurve::great_circle(&self.charted, foot.uv(), t)
+            .map(|c| c.starting_at(foot.at()));
         Leg::whole(Round::on(region::built(curve)))
     }
 
@@ -458,7 +455,8 @@ impl<T: Decide> Paths<T> for SphereFaceRegion<T> {
         // The parallel about `a` through the corner, starting along
         // `side`; the corner is a foot of its own, read on the sphere.
         let corner = QueryFoot::read(self.charted.surface(), corner, band);
-        let curve = SurfaceCurve::about(&self.charted, p.uv(), corner.uv(), then_forward);
+        let curve = SurfaceCurve::about(&self.charted, p.uv(), corner.uv(), then_forward)
+            .map(|c| c.starting_at(corner.at()));
         let then = move || Leg::whole(Round::on(region::built(curve)));
         Ok((first, end, then))
     }
@@ -496,7 +494,7 @@ impl<T: Decide> Legs<T> for SphereFaceRegion<T> {
 
     const COMPONENT: &'static str = "bool_sphere_region_component";
 
-    const SIDE: (&'static str, &'static str) =
+    const SIDE_ROWS: (&'static str, &'static str) =
         ("bool_sphere_region_order", "bool_sphere_region_cross");
 
     fn lever(&self) -> T {
@@ -539,8 +537,13 @@ mod tests {
     /// 60°, one arc round the whole turn: the cap above it run
     /// `forward`, the rest of the sphere otherwise.
     fn carved(forward: bool) -> SphereFaceRegion<f64> {
+        carved_on(fixture_sphere(Point3::origin(), 1.0), forward)
+    }
+
+    /// [`carved`] on the unit sphere `on`, charted on its own frame.
+    fn carved_on(on: Charted<f64>, forward: bool) -> SphereFaceRegion<f64> {
         SphereFaceRegion::on(
-            fixture_sphere(Point3::origin(), 1.0),
+            on,
             true,
             LoopKey::default(),
             vec![RegionEdge {
@@ -559,6 +562,60 @@ mod tests {
                 forward,
             }],
         )
+    }
+
+    /// **A face's answer depends on no chart frame.** The cap of
+    /// [`carved`] is read on the unit sphere charted on five frames, at
+    /// 200 azimuths, at the band's zero and its escalation off the rim and
+    /// past it, each way, and every frame answers as the first. The
+    /// query's foot was read back through the chart, whose round trip
+    /// lands a few ulps off the sphere's own foot, in ulps that depend on
+    /// the frame. A point at the band's edge then read in band on one
+    /// frame and past it on another, as the hemisphere's ray row in
+    /// `sweep` (`rays_in_band_of_a_curved_edge_read_it_once`) did on its
+    /// record's own frame.
+    #[test]
+    fn a_faces_answer_depends_on_no_chart_frame() {
+        let band = Band::new(1e-9, 1e-8).unwrap();
+        let rim = core::f64::consts::FRAC_PI_3;
+        let unit = |x: f64, y: f64, z: f64| Vec3::new(x, y, z) / Vec3::new(x, y, z).norm();
+        let skew = unit(1.0, 2.0, 3.0);
+        let frames = [
+            (unit(0.0, 0.0, 1.0), unit(1.0, 0.0, 0.0)),
+            (unit(1.0, 0.0, 0.0), unit(0.0, 1.0, 0.0)),
+            (unit(0.0, 1.0, 0.0), unit(0.0, 0.0, 1.0)),
+            (unit(0.0, 0.0, -1.0), unit(0.0, -1.0, 0.0)),
+            (skew, unit(2.0, -1.0, 0.0)),
+        ];
+        let read = crate::boolean::region::refusal_class;
+        for forward in [true, false] {
+            let regions: Vec<SphereFaceRegion<f64>> = frames
+                .iter()
+                .map(|&(axis, u_ref)| {
+                    let sphere = geom::Surface::Sphere {
+                        center: Point3::origin(),
+                        radius: 1.0,
+                        axis,
+                        u_ref,
+                    };
+                    carved_on(Charted::record(Default::default(), &sphere), forward)
+                })
+                .collect();
+            for i in 0..200 {
+                let az = f64::from(i) * core::f64::consts::TAU / 200.0 + 1e-4;
+                for off in [-1e-8, -1e-9, 1e-9, 1e-8, -2e-8, 2e-8] {
+                    let p = at(rim + off, az);
+                    let first = read(regions[0].contains(p, band));
+                    for (k, region) in regions.iter().enumerate().skip(1) {
+                        assert_eq!(
+                            read(region.contains(p, band)),
+                            first,
+                            "frame {k}: forward {forward}, azimuth {az}, {off:e} off"
+                        );
+                    }
+                }
+            }
+        }
     }
 
     /// The point at polar angle `polar` and azimuth `az` on the unit sphere.
@@ -837,7 +894,7 @@ mod tests {
     #[test]
     fn a_zones_null_edge_leaves_no_region() {
         let sheet = || {
-            crate::boolean::boxes::sphere_rect_rows::sphere_zone_sheet(
+            crate::boxes::sphere_rect_rows::sphere_zone_sheet(
                 (0.2, 1.0),
                 (-0.3, 0.4),
                 geom_core::Tol::witness(),

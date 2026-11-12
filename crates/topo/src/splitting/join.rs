@@ -62,7 +62,7 @@
 //! (`Sweep::strip_spurs`), so the finish and the section query read one
 //! loop. Last, it writes the F9 record.
 
-use geom_core::k_stats::NonzeroSign;
+use geom_core::NonzeroSign;
 use geom_core::{Band, Decide, Margin, Point3, Sign};
 use slotmap::SecondaryMap;
 
@@ -578,6 +578,11 @@ fn ruling_pairs<T: Decide>(
     crossings: &[Crossing<T>],
     band: Band,
 ) -> Result<Vec<(HalfEdgeKey, HalfEdgeKey)>, SplitJoinError> {
+    // Each ruling runs along the cylinder's stored axis
+    // (`PlaneCylinderSection::ParallelLines`, nonzero at rest by tier 3's
+    // check 1) or a ruling of the cone's squared frame
+    // (`PlaneConeSection::ApexLinePair`, never the zero vector), so its
+    // direction normalizes with no decision.
     let mut lines = Vec::with_capacity(2);
     for ruling in rulings {
         let Some(geom::Line { origin, dir }) = ruling.as_line() else {
@@ -1585,7 +1590,7 @@ mod torn_hop_rows {
                     on_vertices: Vec::new(),
                     null_edges: null_edges.clone(),
                     apex_germs: SecondaryMap::new(),
-                    coincidences: Vec::new(),
+                    coincidences: crate::splitting::ReducedRows(Vec::new()),
                     edge_pieces: crate::lineage::SplitEdgeDivisions::new(
                         crate::lineage::LineageRows::EdgeDivisions(None),
                     ),

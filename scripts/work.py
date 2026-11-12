@@ -46,9 +46,9 @@ WORK = "work"
 STATUS_FILE = "work/STATUS.md"
 FREE_FILES = {"README.md", "STATUS.md"}       # unparsed, at the top of work/
 NARRATIVE = {"plan.md", "log.md", "process-observations.md"}   # inside a program, unparsed
-LOG_EXEMPT = {"docs/MODEL-AB-LOG.md",        # the non-program logs in docs/
-              "docs/DUAL-REVIEW-LOG.md",
-              "docs/DESIGN-FORK-LOG.md"}
+LOG_EXEMPT = {"docs/DUAL-REVIEW-LOG.md",     # the non-program logs in docs/
+              "docs/DESIGN-FORK-LOG.md",
+              "docs/MODEL-COMPARE-LOG.md"}
 LOG_EXEMPT_DUAL = "docs/DUAL-REVIEW-LOG.md"
 STALE_DAYS = 14
 
@@ -1432,7 +1432,7 @@ def selftest() -> int:
         _write(root, "docs/S-MESH-LOG.md", "old\n")
         expect("log in docs", lint(root), "plans and logs live in work/")
         os.remove(os.path.join(root, "docs/S-MESH-LOG.md"))
-        _write(root, "docs/MODEL-AB-LOG.md", "experiment\n")
+        _write(root, "docs/MODEL-COMPARE-LOG.md", "experiment\n")
         expect("the exempt log", lint(root))
 
         # territory

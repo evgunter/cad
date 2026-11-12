@@ -126,15 +126,14 @@
 //!     distance from the second circle has those extremes less `r₂`,
 //!     exactly; and its square is a first harmonic in the first circle's
 //!     angle, whose roots are read from the extremes (below);
-//!   - **a circle and an ellipse**: the ellipse's distance from the
-//!     circle, `|E(θ) − c| − r`, whose square less `r²` is of degree two in
-//!     the ellipse's angle, goes to the certified subdivision
-//!     ([`crate::half_angle::certified_subdivision`]);
-//!   - **two ellipses**: the first's level on the second, of degree two
-//!     in the first's angle, goes to the certified subdivision in the
-//!     metres of the lower bound on a point's distance from an ellipse
-//!     ([`geom::ellipse_level_clearance`], [`Curve3::clearance`]'s), with
-//!     a ceiling on the level per metre of it (`coplanar_ellipses`).
+//!   - **two ellipses, or an ellipse and a circle**: the first's level on
+//!     the second, of degree two in the first's angle, goes to the
+//!     certified subdivision ([`crate::half_angle::certified_subdivision`])
+//!     in the metres of the lower bound on a point's distance from an
+//!     ellipse ([`geom::ellipse_level_clearance`], [`Curve3::clearance`]'s),
+//!     with a ceiling on the level per metre of it (`coplanar_ellipses`).
+//!     A circle is the ellipse of its equal semi-axes, its level
+//!     `(|q − c|² − r²)/r²`; the ellipse is the one parametrized.
 //!
 //! # A first harmonic's roots, and a double root
 //!
@@ -201,8 +200,7 @@
 //! the arc between the piece's roots is read
 //! (`curve_pair_coplanar_sub_touch`): the most `|F|` convexity leaves
 //! there, over the frame's floor on `|F|` per metre. Neither door charges
-//! a jet's rounding: the coplanar ellipses read `F` locally and exactly
-//! ([`Level`]), the circle and ellipse from their harmonics.
+//! a jet's rounding: `F` is read locally and exactly ([`Level`]).
 //! - **Zero** is one touch. The arc lies everywhere within the zero band
 //!   of the other carrier, so by C5 (`crates/geom-brep/README.md`: a
 //!   meeting is a longest interval of one span everywhere definitely on
@@ -215,6 +213,43 @@
 //!
 //! The touch is the extremum's own point, on the first carrier exactly,
 //! and is read on both spans like any candidate.
+//!
+//! # A touch's spread
+//!
+//! **A coplanar touch is reported at one point, and that point is held
+//! to within the band of every other reading of it**
+//! (`curve_pair_pose_touch_spread`; `work/onecopy/touch-point-spread.md`).
+//! Its readers match it by distance against the band (census pass 5′'s
+//! `Declared::confine`, the boolean's curved pierce `held_on`), so two
+//! readings of one touch (two spans, two operand orders, two callers)
+//! must place it within the band of each other. Each **coplanar** path
+//! bounds how far two readings of its point on one carrier can lie
+//! apart, and that is read in the zero band: zero keeps the touch; in the
+//! gap it escalates ([`MeetFault::Escalated`]); decided past the band it
+//! refuses on that row's meter ([`Unsettled::Meter`]).
+//! - **The subdivision**: `θ*` is a bisection midpoint on `F′`, and
+//!   `G″ ≥ c` on the piece, read, so it lies within `(|G′(θ*)| + e₁)/c`
+//!   of the extremum; at the carrier's top speed that is its spread
+//!   ([`crate::half_angle::Touch`]), and two readings of one `F` lie
+//!   within twice that.
+//! - **The closed forms**: the touch is `C(θ_hi)`, `θ_hi` the angle of the
+//!   first harmonic's coefficients, a well-conditioned reading of them.
+//!   At a point scalar it is exact by `[simple.conditioned]`, so two
+//!   readings are one; at `Interval` the angle's own enclosure is the
+//!   spread, read as `r·width(θ_hi)` (`angle_spread`).
+//!
+//! **Two operand orders read two carriers.** Swapped, the touch is
+//! placed on the other carrier, whose point lies from the first's by up
+//! to twice the spread and the gap between the carriers there (at most
+//! the zero band, the touch read in it). The spread held is the
+//! reading's own; the gap is the touch's, and C5 admits it.
+//!
+//! **The across-planes touch and the walk's are not held here**:
+//! `work/onecopy/a-touch-point-read-across-planes-or-by-the-walk-carries-an-unheld-spread.md`.
+//!
+//! Whether one point may stand for the whole in-band arc, where a
+//! reader's question straddles the arc, is a separate question, open on
+//! PR 6570.
 //!
 //! # Across planes: the closest pair
 //!
@@ -428,9 +463,9 @@ use geom_core::{Band, Decide, Lever, Margin, Point3, Sign, Vec3};
 use super::span::Span;
 use super::{Arm, MeetFault, Method};
 use crate::half_angle::{
-    DegreeTwo, Local, SubdivisionFrame, SubdivisionRows, Terms, TouchRows,
-    certified_subdivision_touching,
+    Local, SubdivisionFrame, SubdivisionRows, Terms, TouchRows, certified_subdivision_touching,
 };
+use crate::ladder::read_identity;
 use crate::roots::{Roots, Unsettled, arc_past};
 use geom::Conic;
 
@@ -545,22 +580,15 @@ mod row {
     pub(super) const ONE_CURVE: &str = "curve_pair_pose_one_curve";
     pub(super) const BRANCH: &str = "curve_pair_pose_branch";
     pub(super) const ACROSS: &str = "curve_pair_pose_across";
+    pub(super) const TOUCH_SPREAD: &str = "curve_pair_pose_touch_spread";
 }
 
-/// The coplanar circle × ellipse subdivision's rows.
-const COPLANAR_ROWS: SubdivisionRows = SubdivisionRows {
-    clear: "curve_pair_coplanar_sub_clear",
-    monotone: "curve_pair_coplanar_sub_monotone",
-    side: "curve_pair_coplanar_sub_side",
-    width: "curve_pair_coplanar_sub_width",
-};
+/// The coplanar conic subdivision's rows.
+const COPLANAR_ROWS: SubdivisionRows = crate::rows::COPLANAR;
 
 /// The coplanar subdivision's touch rows (module docs, "A touch in the
 /// subdivision").
-const COPLANAR_TOUCH: TouchRows = TouchRows {
-    convex: "curve_pair_coplanar_sub_convex",
-    stretch: "curve_pair_coplanar_sub_touch",
-};
+const COPLANAR_TOUCH: TouchRows = crate::rows::COPLANAR_TOUCH;
 
 /// **The pose of `a`'s and `b`'s carriers** (module docs), dispatched
 /// through the table ([`super::method`]).
@@ -598,11 +626,11 @@ pub(super) fn closed<T: Decide>(
         Arm::LineConic => line_conic(a, b, known, band),
         Arm::ConicLine => Ok(swapped(line_conic(b, a, &flipped, band)?)),
         Arm::CircleCircle => conic_conic(a, b, Coplanar::Circles, known, band),
-        Arm::EllipseCircle => conic_conic(a, b, Coplanar::EllipseCircle, known, band),
+        Arm::EllipseCircle => conic_conic(a, b, Coplanar::Ellipses, known, band),
         Arm::CircleEllipse => Ok(swapped(conic_conic(
             b,
             a,
-            Coplanar::EllipseCircle,
+            Coplanar::Ellipses,
             &flipped,
             band,
         )?)),
@@ -730,7 +758,7 @@ fn sense<T: Decide>(cosine: T, lever: Lever<T>, band: Band) -> Result<Sense, Mee
 }
 
 /// Whether `margin` is definitely nonzero (`row`).
-fn definite<T: Decide>(
+fn definite_as<T: Decide>(
     row: &'static str,
     margin: Margin<T>,
     band: Band,
@@ -963,7 +991,7 @@ fn route<T: Decide>(
         Margin::levered(tilt, geom_core::Lever::unsourced(length + e + e)),
         band,
     ) == Ok(Sign::Zero)
-        || !definite(row::TILT, Margin::levered(tilt, lever), band)?;
+        || !definite_as(row::TILT, Margin::levered(tilt, lever), band)?;
     if !level {
         return Ok(Route::Crossing);
     }
@@ -999,14 +1027,15 @@ fn one_line<T: Decide>(
     (b, lb): (Ends<T>, geom::Line<T>),
     band: Band,
 ) -> Result<bool, MeetFault> {
-    for ((p0, p1), other) in [(a, lb), (b, la)] {
-        for q in [p0, p1] {
-            if definite(row::OFFSET, Margin::of(other.distance(q)), band)? {
-                return Ok(false);
-            }
-        }
-    }
-    Ok(true)
+    // One line is an identity: any end decided off the other's line
+    // answers "not one line", whatever an earlier end read
+    // ([`read_identity`]).
+    let offsets = [(a, lb), (b, la)]
+        .into_iter()
+        .flat_map(|((p0, p1), other)| {
+            [p0, p1].map(|q| (row::OFFSET, Margin::of(other.distance(q))))
+        });
+    Ok(read_identity(offsets, band).holds()?)
 }
 
 /// Two lines (module docs).
@@ -1085,7 +1114,7 @@ fn line_line<T: Decide>(
         // Level where they can meet but apart past the band along a span:
         // a shallow corner, read as the crossing the longer span's tilt
         // decides.
-        Route::Level if definite(row::TILT, Margin::levered(s, arm), band)? => Ok(crossing()),
+        Route::Level if definite_as(row::TILT, Margin::levered(s, arm), band)? => Ok(crossing()),
         Route::Level => Err(MeetFault::Unsettled(Unsettled::Meter { row: row::TILT })),
     }
 }
@@ -1158,7 +1187,7 @@ fn line_conic<T: Decide>(
     let c0 = (k.frame().origin - o).dot(m);
     let (cp, sp) = k.along(m);
     let swing = (cp.powi(2) + sp.powi(2)).sqrt();
-    if !definite(row::SWING, Margin::of(swing), band)? {
+    if !definite_as(row::SWING, Margin::of(swing), band)? {
         return Err(MeetFault::Unsupported {
             pose: "a conic the band reads as thin as the line it lies beside",
         });
@@ -1180,7 +1209,10 @@ fn line_conic<T: Decide>(
     let found: Vec<T> = known.iter().map(|c| c.tb).collect();
     Ok(match owed(&k, &range, &found, band)? {
         Harmonic::Apart => Pose::Apart,
-        Harmonic::Touch(theta) => Pose::Tangent(place(theta)),
+        Harmonic::Touch(theta) => {
+            spread_held(angle_spread(k.speed_hi(), theta), band)?;
+            Pose::Tangent(place(theta))
+        }
         Harmonic::Cross(thetas) => Pose::Generic(thetas.into_iter().map(place).collect()),
     })
 }
@@ -1191,9 +1223,8 @@ fn line_conic<T: Decide>(
 enum Coplanar {
     /// Two circles.
     Circles,
-    /// An ellipse, then a circle.
-    EllipseCircle,
-    /// Two ellipses.
+    /// Two conics, not both circles: an ellipse and a circle are read as
+    /// two ellipses, the circle's level that of its equal semi-axes.
     Ellipses,
 }
 
@@ -1225,7 +1256,7 @@ fn conic_conic<T: Decide>(
     // The one reading of a conic's height against the other's plane:
     // clear of it all round is apart, whatever the swing reads.
     for (swing, (c0, _, _)) in sides {
-        if matches!(constant(row::PARALLEL, c0, swing, band), Ok(true)) {
+        if matches!(constant_as(row::PARALLEL, c0, swing, band), Ok(true)) {
             return Ok(Pose::Apart);
         }
     }
@@ -1295,7 +1326,6 @@ fn conic_conic<T: Decide>(
     };
     match coplanar {
         Coplanar::Circles => coplanar_circles(&ka, &kb, slant, &place, known, band),
-        Coplanar::EllipseCircle => coplanar_ellipse_circle(a, &ka, &kb, &place, band),
         Coplanar::Ellipses => coplanar_ellipses(a, &ka, &kb, &place, band),
     }
 }
@@ -1311,7 +1341,7 @@ pub(super) fn one_curve<T: Decide>(
     f: &dyn Conic<T>,
     band: Band,
 ) -> Result<bool, MeetFault> {
-    Ok(!definite(
+    Ok(!definite_as(
         row::ONE_CURVE,
         Margin::of(one_curve_gap(e, f)),
         band,
@@ -1462,7 +1492,7 @@ fn transverse<T: Decide>(
 /// # Errors
 ///
 /// An end in the band's gap, or ends that straddle the band.
-fn constant<T: Decide>(
+fn constant_as<T: Decide>(
     row: &'static str,
     value: T,
     spread: T,
@@ -1490,11 +1520,11 @@ fn coplanar_circles<T: Decide>(
     let w = ka.frame().origin - kb.frame().origin;
     let w = w - ka.frame().axis * w.dot(ka.frame().axis);
     let d = w.norm();
-    if !definite(row::CENTRES, Margin::norm3(w), band)? {
+    if !definite_as(row::CENTRES, Margin::norm3(w), band)? {
         // The one-curve gap is at most `d + |r₁ − r₂|` plus the slant, so
         // radii whose gap reads zero all round with the centres' are one
         // curve, which the one-curve reading has just denied.
-        return if constant(row::RADII, ra - rb, d + slant, band)? {
+        return if constant_as(row::RADII, ra - rb, d + slant, band)? {
             Ok(Pose::Concentric)
         } else {
             Err(MeetFault::Contradiction {
@@ -1520,50 +1550,12 @@ fn coplanar_circles<T: Decide>(
     let found: Vec<T> = known.iter().map(|c| c.ta).collect();
     Ok(match owed(ka, &range, &found, band)? {
         Harmonic::Apart => Pose::Apart,
-        Harmonic::Touch(theta) => Pose::Tangent(place(theta)),
+        Harmonic::Touch(theta) => {
+            spread_held(angle_spread(ra, theta), band)?;
+            Pose::Tangent(place(theta))
+        }
         Harmonic::Cross(thetas) => Pose::Generic(thetas.into_iter().map(place).collect()),
     })
-}
-
-/// An ellipse `ke` (the span `e`) and a circle `kc` in one plane, not one
-/// curve (module docs): the ellipse's distance from the circle, through
-/// the certified subdivision in the ellipse's angle.
-fn coplanar_ellipse_circle<T: Decide>(
-    e: &Span<'_, T>,
-    ke: &dyn Conic<T>,
-    kc: &dyn Conic<T>,
-    place: &impl Fn(T) -> Candidate<T>,
-    band: Band,
-) -> Result<Pose<T>, MeetFault> {
-    let r = kc.speed_hi();
-    let w = ke.frame().origin - kc.frame().origin;
-    let (a, b) = ke.semi_axes();
-    let two = T::from_f64(2.0);
-    // `|E(θ) − c|² − r²` in the ellipse's angle.
-    let poly = DegreeTwo::new(
-        w.norm_squared() + (a.powi(2) + b.powi(2)) / two - r.powi(2),
-        two * a * w.dot(ke.frame().u_ref),
-        two * b * w.dot(ke.frame().v_ref()),
-        (a.powi(2) - b.powi(2)) / two,
-        T::zero(),
-    )
-    .poly();
-    let terms = (w.norm() + a.abs() + b.abs()).powi(2) + r.powi(2);
-    let (t0, t1) = e.params();
-    // `F = (ρ − r)(ρ + r)` in the distance `ρ` from the centre: `|F|` per
-    // metre of `ρ − r` is `ρ + r`, at least `r`, and at most `3r` within
-    // `r` of the circle.
-    let frame = SubdivisionFrame {
-        t0,
-        t1,
-        speed_hi: ke.speed_hi(),
-        noise: geom_core::rounding_charge(terms),
-        f_per_metre: r,
-        f_per_metre_hi: T::from_f64(3.0) * r,
-        residual_reach: Some(r),
-    };
-    let residual = |theta: T| (ke.point_at(theta) - kc.frame().origin).norm() - r;
-    subdivided(Terms::Harmonics(&poly), &residual, &frame, place, band)
 }
 
 /// A coplanar pair's roots and touches from the certified subdivision
@@ -1590,14 +1582,18 @@ fn subdivided<T: Decide>(
         Roots::Certified(r) => r.roots(),
         Roots::On(never) => match *never {},
     };
+    for touch in &found.touches {
+        spread_held(touch.spread + touch.spread, band)?;
+    }
     Ok(match (roots, &found.touches[..]) {
         ([], []) => Pose::Apart,
-        ([], &[touch]) => Pose::Tangent(place(touch)),
+        ([], &[touch]) => Pose::Tangent(place(touch.at)),
         _ => Pose::Generic(
             roots
                 .iter()
-                .chain(&found.touches)
-                .map(|&t| place(t))
+                .copied()
+                .chain(found.touches.iter().map(|t| t.at))
+                .map(place)
                 .collect(),
         ),
     })
@@ -1826,6 +1822,58 @@ impl<T: Decide> Range<T> {
     }
 }
 
+/// **Whether a coplanar touch's reported point is one point to its
+/// readers** (module docs, "A touch's spread"): `apart`, the most two
+/// readings of the touch can lie apart, read in the zero band
+/// (`curve_pair_pose_touch_spread`). In the band's gap it escalates,
+/// since a narrower enclosure shrinks the spread; decided past the band
+/// it refuses on the meter, as a root's slack past the band does
+/// ([`Unsettled::Meter`]).
+///
+/// # Errors
+///
+/// [`MeetFault::Escalated`] in the gap, [`Unsettled::Meter`] past it.
+fn spread_held<T: Decide>(apart: T, band: Band) -> Result<(), MeetFault> {
+    match decide(row::TOUCH_SPREAD, Margin::of(apart), band) {
+        Ok(Sign::Zero) => Ok(()),
+        Err(gap) => Err(MeetFault::Escalated(gap)),
+        Ok(Sign::Positive | Sign::Negative) => Err(MeetFault::Unsettled(Unsettled::Meter {
+            row: row::TOUCH_SPREAD,
+        })),
+    }
+}
+
+/// **A closed-form touch's spread** (module docs, "A touch's spread"):
+/// `radius·width(θ)` ([`geom_core::width`]), how far in metres along the
+/// carrier the touch at `θ` can lie from another reading of it on the
+/// same carrier, `radius` the carrier's top speed.
+///
+/// **Why `θ` is well conditioned** (the premise the zero spread at a
+/// point scalar rests on). `θ` is the angle of the first harmonic's
+/// coefficients, and an angle moves by at most its components' error
+/// over their length. The coefficients' error is relative to that length:
+/// - two circles' coefficients are `w`'s components in the first frame,
+///   `w` the centres' difference. Where the centres are near, each
+///   component of `w` subtracts exactly (Sterbenz: `a − b` is exact for
+///   `b/2 ≤ a ≤ 2b`); otherwise it rounds at `u` of its own size. The
+///   projection square to the axis and the frame's dots then round at
+///   `u` of `|w|`. So `w`'s error is a few `u` of `|w|`, however near the
+///   centres;
+/// - a conic beside a line reads `(a·(u_ref·m), b·(v_ref·m))`, `m` a
+///   computed unit direction, each a product and a short dot, at a few
+///   `u` of the semi-axes.
+///
+/// A refactor that computes `w` another way (from points far from it,
+/// say, not from the two centres) breaks this premise.
+///
+/// So at a point scalar `θ` is treated as exact and the spread is zero
+/// (`[simple.conditioned]`: no site charges rounding). At `Interval` it
+/// is the angle's own enclosure, its width either side of zero, so the
+/// spread is certified there and charges nothing.
+fn angle_spread<T: Decide>(radius: T, theta: T) -> T {
+    radius * geom_core::width(theta)
+}
+
 /// What a first harmonic's extremes and root gap decide.
 enum Harmonic<T> {
     /// No root: the extremes definitely one-signed.
@@ -1970,5 +2018,40 @@ mod polish_rows {
             ),
             "{got:?}"
         );
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used)]
+mod one_line_rows {
+    use super::*;
+
+    /// **An end in band does not hide a later end decided off the line**
+    /// ([`one_line`]'s [`read_identity`], `Any`). Line `a` runs from the
+    /// origin along `x`; line `b` starts `3e-9` above the origin and
+    /// rises at 45°. `a`'s first end is read first, a mid-band distance
+    /// from `b`; its second end is about `0.7` off `b`, decided apart,
+    /// so the lines are not one. A first-refusal loop escalated at the
+    /// first end.
+    #[test]
+    fn an_end_decided_off_answers_past_an_end_in_band() {
+        let band = Band::new(1e-9, 1e-8).unwrap();
+        let p = |x: f64, y: f64| Point3::new(x, y, 0.0);
+        let a = (p(0.0, 0.0), p(1.0, 0.0));
+        let la = geom::Line {
+            origin: a.0,
+            dir: Vec3::new(1.0, 0.0, 0.0),
+        };
+        let b = (p(0.0, 3e-9), p(1.0, 1.0 + 3e-9));
+        let lb = geom::Line {
+            origin: b.0,
+            dir: (b.1 - b.0).normalize(),
+        };
+        let first = lb.distance(a.0);
+        assert!(
+            first > 1e-9 && first < 1e-8,
+            "the first end is in band: {first}"
+        );
+        assert_eq!(one_line((a, la), (b, lb), band), Ok(false));
     }
 }

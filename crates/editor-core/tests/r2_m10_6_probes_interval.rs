@@ -94,7 +94,7 @@ fn bname(node: RecipeNodeId) -> StableName {
     }
 }
 
-fn eval_over<T: editor_core::EvalScalar>(
+fn eval_over<T: editor_core::test_support::AnyEvaluate>(
     doc: &ProfileDoc,
     box_: Option<ParamBox>,
 ) -> editor_core::Evaluation<T> {
@@ -102,7 +102,7 @@ fn eval_over<T: editor_core::EvalScalar>(
         param_box: box_.map(std::sync::Arc::new),
         ..EvalOptions::default()
     };
-    editor_core::evaluate(
+    editor_core::test_support::evaluate_any(
         doc,
         None,
         &editor_core::CancelToken::new(),

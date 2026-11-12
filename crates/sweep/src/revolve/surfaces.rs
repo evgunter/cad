@@ -29,12 +29,12 @@ pub(super) fn wall_surface<T: Real>(
     match *kind {
         WallKind::Plane { .. } => Surface::Plane {
             origin: frame.world(seg.a),
-            normal: frame.a3,
+            normal: frame.axis.get(),
             u_ref: frame.u3,
         },
         WallKind::Cylinder { radius } => Surface::Cylinder {
             origin: frame.foot3(seg.a),
-            axis: frame.a3,
+            axis: frame.axis.get(),
             radius,
             u_ref: frame.u3,
         },
@@ -43,14 +43,14 @@ pub(super) fn wall_surface<T: Real>(
             half_angle,
         } => Surface::Cone {
             apex: frame.foot3(apex_sk),
-            axis: frame.a3,
+            axis: frame.axis.get(),
             half_angle,
             u_ref: frame.u3,
         },
         WallKind::Sphere { center_sk, radius } => Surface::Sphere {
             center: frame.foot3(center_sk),
             radius,
-            axis: frame.a3,
+            axis: frame.axis.get(),
             u_ref: frame.u3,
         },
         WallKind::Torus {
@@ -59,7 +59,7 @@ pub(super) fn wall_surface<T: Real>(
             minor,
         } => Surface::Torus {
             center: frame.foot3(center_sk),
-            axis: frame.a3,
+            axis: frame.axis.get(),
             major_radius: major,
             minor_radius: minor,
             u_ref: frame.u3,
@@ -70,7 +70,7 @@ pub(super) fn wall_surface<T: Real>(
             minor,
         } => Surface::Spindle {
             center: frame.foot3(center_sk),
-            axis: frame.a3,
+            axis: frame.axis.get(),
             major_radius: major,
             minor_radius: minor,
             u_ref: frame.u3,
@@ -113,8 +113,7 @@ pub(super) fn revolved_strut_spec<T: Real>(
             MappedSource::RevolvedPoint {
                 point,
                 place: frame.place,
-                axis_origin: frame.o3,
-                axis_dir: frame.a3,
+                axis: frame.line3(),
                 angle: theta,
             },
         )),

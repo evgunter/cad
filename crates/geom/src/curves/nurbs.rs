@@ -1128,8 +1128,7 @@ macro_rules! nurbs_curve {
             /// the domain, `(b − a)·bound ≤ ∫ₐᵇ ‖C′‖`. That is exactly
             /// what every consumer asks of it — `interval_span_forward`
             /// converts a parameter span to metres of arc,
-            /// `split_edge_param_interior` converts a distance-to-
-            /// endpoint the same way.
+            /// and a span's interior reads it as its inf speed.
             ///
             /// It certifies **nothing about injectivity, turning, or
             /// monotone advance along any direction**. A carrier may
@@ -1856,7 +1855,7 @@ impl NurbsCurve3<Interval> {
 
     fn read_span_deriv(&self, lo: f64, hi: f64) -> Option<Vec3<Interval>> {
         let about = |a: f64, b: f64| {
-            let m = net::middle(a, b);
+            let m = geom_core::mid_param(a, b);
             net::cell_origin(self.eval(Interval::from_bounds(m, m)))
         };
         let mut acc: Option<Vec3<Interval>> = None;

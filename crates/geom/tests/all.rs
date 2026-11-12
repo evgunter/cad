@@ -104,6 +104,8 @@ mod curves_m8_14_long_turn_meter;
 mod curves_n1r1_c24_dump;
 #[path = "r2_turn_probes.rs"]
 mod r2_turn_probes;
+#[path = "recourse_roster.rs"]
+mod recourse_roster;
 #[path = "review_turn_follow_ups_probes.rs"]
 mod review_turn_follow_ups_probes;
 // Lane registration (aggregation guard): the R1 meter probe was pushed

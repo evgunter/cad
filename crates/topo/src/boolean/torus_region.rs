@@ -114,21 +114,13 @@ use crate::splitting::{Uncrossable, UncrossableCarrier};
 use crate::validate::decide;
 
 /// The row a place is read against a first leg's corner on.
-const CORNER: &str = "bool_torus_region_corner";
+const TORUS_REGION_CORNER: &str = "bool_torus_region_corner";
 
 /// A circle edge's boundary reading's rows (module docs).
-const BOUNDARY: ConicRows = ConicRows::bounded(
-    "bool_torus_region_arc_span",
-    "bool_torus_region_arc_straddle",
-);
+const BOUNDARY: ConicRows = crate::rows::TORUS_REGION_CONIC;
 
 /// An oval edge's boundary reading's rows (module docs).
-const SPIRIC: ArcRows = ArcRows {
-    end: "bool_torus_region_spiric_end",
-    clear: "bool_torus_region_spiric_clear",
-    on: "bool_torus_region_spiric_on",
-    leaf: "bool_torus_region_spiric_leaf",
-};
+const SPIRIC: ArcRows = crate::rows::TORUS_REGION_SPIRIC;
 
 /// A trimmed torus face's boundary: every edge of every loop, each with
 /// the direction its loop traverses it.
@@ -161,7 +153,7 @@ type Leg<T> = region::Leg<T, Round<T>>;
 /// plane — a spline — or is neither a circle nor a spiric. A circle or a
 /// spiric is taken as a plane section of this torus, unchecked: every
 /// such edge of a torus face is one at rest (tier 3 places each edge on
-/// both its faces' carriers).
+/// both its faces' carriers (at a dual, [`crate::Replay`]'s "A tier-3 premise at a dual")).
 ///
 /// Null scaffolding, a zero-length copy of a vertex (its two ends on one
 /// point), bounds nothing and is left out; an uncertified edge between
@@ -264,14 +256,16 @@ impl<T: Decide> TorusFaceRegion<T> {
     /// increasing) or back: the tube's circle at `p`'s tube angle, on
     /// the tube side `p` lies on ([`Section::TubeSide`]).
     fn parallel(&self, p: QueryFoot<T>, forward: bool) -> Leg<T> {
-        let curve = SurfaceCurve::parallel(&self.charted, p.uv(), forward);
+        let curve =
+            SurfaceCurve::parallel(&self.charted, p.uv(), forward).map(|c| c.starting_at(p.at()));
         Leg::whole(Round::on(region::built(curve)))
     }
 
     /// The meridian through `p`, run `forward` (the minor angle
     /// increasing) or back: the tube's circle at `p`'s azimuth.
     fn meridian(&self, p: QueryFoot<T>, forward: bool) -> Leg<T> {
-        let curve = SurfaceCurve::meridian(&self.charted, p.uv(), forward);
+        let curve =
+            SurfaceCurve::meridian(&self.charted, p.uv(), forward).map(|c| c.starting_at(p.at()));
         Leg::whole(Round::on(region::built(curve)))
     }
 
@@ -286,7 +280,14 @@ impl<T: Decide> TorusFaceRegion<T> {
         band: Band,
     ) -> Result<Option<(T, bool)>, Fault> {
         let theta = geom::Azimuth::of(y, x).near(geom::mid_param(t0, t1));
-        match span_place(theta, (t0, t1), geom_core::InfSpeed::new(lever), band) {
+        // The arc's circle in its own frame, where `(x, y)` is read: its
+        // chords are the arc's.
+        let circle = geom::Curve3::circle(Point3::origin(), Vec3::unit_z(), lever, Vec3::unit_x());
+        match span_place(
+            &geom_brep::curve_pair::Span::new(&circle, (t0, t1)),
+            theta,
+            band,
+        ) {
             Some(RootPlace::Inside) => Ok(Some((theta, false))),
             Some(RootPlace::AtEnd) => Ok(Some((theta, true))),
             Some(RootPlace::Undecided(diag)) => Err(in_band(diag)),
@@ -411,7 +412,7 @@ impl<T: Decide> Paths<T> for TorusFaceRegion<T> {
         };
         let end = End {
             place: first.course.arc(corner.at()),
-            row: CORNER,
+            row: TORUS_REGION_CORNER,
             open: false,
         };
         let then = move || {
@@ -432,7 +433,7 @@ impl<T: Decide> Legs<T> for TorusFaceRegion<T> {
 
     const COMPONENT: &'static str = "bool_torus_region_component";
 
-    const SIDE: (&'static str, &'static str) =
+    const SIDE_ROWS: (&'static str, &'static str) =
         ("bool_torus_region_order", "bool_torus_region_cross");
 
     fn lever(&self) -> T {
@@ -1114,7 +1115,7 @@ mod tests {
     #[test]
     fn a_walls_null_edge_bounds_nothing() {
         let wall = || {
-            crate::boolean::boxes::tests::torus_wall(
+            crate::boxes::tests::torus_wall(
                 Point3::origin(),
                 Vec3::unit_z(),
                 Vec3::unit_x(),
@@ -1155,5 +1156,139 @@ mod tests {
             matches!(torus_face_region(&nulled, nulled_face), Ok(None)),
             "a parted null edge is a gap in the boundary"
         );
+    }
+
+    /// The parallel at minor angle `v` over the major angles `us`.
+    fn parallel_arc(v: f64, us: (f64, f64), forward: bool, key: u64) -> Edge<f64> {
+        let mut e = arc(
+            Point3::new(0.0, 0.0, MINOR * v.sin()),
+            Vec3::new(0.0, 0.0, 1.0),
+            R + MINOR * v.cos(),
+            Vec3::new(1.0, 0.0, 0.0),
+            us,
+        );
+        e.forward = forward;
+        e.edge = EdgeKey::from(KeyData::from_ffi(key));
+        e
+    }
+
+    /// **A torus face's answer about the band's zero depends on no chart
+    /// frame.** The patch `0.4 < u < 2.9`, `−0.5 < v < 0.8`, two parallels
+    /// and two meridians, is read on the six frames of
+    /// [`geom::test_support::CHART_FRAMES`] (the axis flipped on one), at
+    /// 60 stations along each edge, at `±5e-10`, `±1e-9` and `±5e-9` off
+    /// it, 1440 queries, and every frame answers as the first. (The
+    /// measurement on the row read 2400, adding `±1e-8` and `±2e-8`: at
+    /// `±1e-8` the legs, built from the chart's coordinates, still answer
+    /// by frame, filed.)
+    #[test]
+    fn a_torus_faces_answer_about_the_bands_zero_depends_on_no_chart_frame() {
+        let band = Band::new(1e-9, 1e-8).unwrap();
+        let regions = patch_on_frames();
+        let class = crate::boolean::region::refusal_class;
+        for (what, p) in patch_edge_queries(&[-5e-9, -1e-9, -5e-10, 5e-10, 1e-9, 5e-9]) {
+            let first = class(regions[0].contains(p, band));
+            for (k, region) in regions.iter().enumerate().skip(1) {
+                assert_eq!(class(region.contains(p, band)), first, "frame {k}: {what}");
+            }
+        }
+    }
+
+    /// **A torus face's circle legs start at the query's closed-form foot,
+    /// so the crossing's place along them reads no chart frame in their
+    /// start.** The patch of
+    /// [`a_torus_faces_answer_about_the_bands_zero_depends_on_no_chart_frame`]
+    /// on its six frames, read at the band's escalation, `±1e-8` off each
+    /// edge at 60 stations (480 queries). A query counts where any frame
+    /// answers otherwise than the first. With the legs started at
+    /// `surface.eval(uv)`, the chart's round trip of the foot, 142 do;
+    /// started at the foot, 31. What is left is the frame a curve
+    /// carries in its section and plane
+    /// (`work/onecopy/a-cone-or-torus-leg-carries-its-charts-frame-into-a-crossing-at-the-band.md`).
+    #[test]
+    fn a_torus_faces_circle_legs_read_no_chart_frame_at_the_escalation() {
+        let band = Band::new(1e-9, 1e-8).unwrap();
+        let regions = patch_on_frames();
+        let class = crate::boolean::region::refusal_class;
+        let by_frame = patch_edge_queries(&[-1e-8, 1e-8])
+            .into_iter()
+            .filter(|&(_, p)| {
+                let first = class(regions[0].contains(p, band));
+                regions
+                    .iter()
+                    .skip(1)
+                    .any(|r| class(r.contains(p, band)) != first)
+            })
+            .count();
+        assert_eq!(
+            by_frame, KEPT_TORUS,
+            "queries a frame answers at the escalation"
+        );
+    }
+
+    /// [`a_torus_faces_circle_legs_read_no_chart_frame_at_the_escalation`]'s
+    /// count.
+    const KEPT_TORUS: usize = 31;
+
+    /// The frame pins' patch, `0.4 < u < 2.9`, `−0.5 < v < 0.8`, on each of
+    /// [`geom::test_support::CHART_FRAMES`], its 3D edges fixed.
+    fn patch_on_frames() -> Vec<TorusFaceRegion<f64>> {
+        let torus = geom::Surface::Torus {
+            center: Point3::origin(),
+            axis: Vec3::new(0.0, 0.0, 1.0),
+            major_radius: R,
+            minor_radius: MINOR,
+            u_ref: Vec3::new(1.0, 0.0, 0.0),
+        };
+        let (us, vs) = PATCH;
+        geom::test_support::CHART_FRAMES
+            .iter()
+            .map(|&(t, flip)| {
+                let torus = geom::test_support::reframed(&torus, t, flip);
+                let meridian = |u: f64, forward: bool, key: u64| {
+                    let mut e = meridian_arc(u, vs);
+                    e.forward = forward;
+                    e.edge = EdgeKey::from(KeyData::from_ffi(key));
+                    e
+                };
+                TorusFaceRegion::on(
+                    Charted::record(Default::default(), &torus),
+                    true,
+                    LoopKey::default(),
+                    vec![
+                        parallel_arc(vs.0, us, true, 1),
+                        meridian(us.1, true, 2),
+                        parallel_arc(vs.1, us, false, 3),
+                        meridian(us.0, false, 4),
+                    ],
+                )
+            })
+            .collect()
+    }
+
+    /// [`patch_on_frames`]'s `u` and `v` windows.
+    const PATCH: ((f64, f64), (f64, f64)) = ((0.4, 2.9), (-0.5, 0.8));
+
+    /// Queries `o` off each of the patch's four edges, for each offset in
+    /// `offsets`, at 60 stations along them, each named.
+    fn patch_edge_queries(offsets: &[f64]) -> Vec<(String, Point3<f64>)> {
+        let (us, vs) = PATCH;
+        let mut queries = Vec::new();
+        for i in 0..60 {
+            let t = f64::from(i) / 60.0 + 0.004;
+            let (u, v) = (us.0 + t * (us.1 - us.0), vs.0 + t * (vs.1 - vs.0));
+            let rho = R + MINOR * v.cos();
+            for &o in offsets {
+                for (what, p) in [
+                    ("parallel v0", at(u, vs.0 + o / MINOR)),
+                    ("parallel v1", at(u, vs.1 + o / MINOR)),
+                    ("meridian u0", at(us.0 + o / rho, v)),
+                    ("meridian u1", at(us.1 + o / rho, v)),
+                ] {
+                    queries.push((format!("{what} at station {t}, {o:e} off"), p));
+                }
+            }
+        }
+        queries
     }
 }

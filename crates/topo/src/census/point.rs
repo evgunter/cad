@@ -22,8 +22,8 @@
 
 use geom_core::{Band, Decide, Margin, Point3, Real, Sign, Vec3};
 
-use super::curved::{self, decided};
-use super::{CensusSubject, CensusUnsupportedCause, FaceContainment, ValidationError, face_holds};
+use super::curved::{self, decided_as};
+use super::{CensusSubject, CensusUnsupportedCause, FaceContainment, ValidationError};
 use crate::body::Body;
 use crate::entity::{EdgeKey, EntityId, FaceKey};
 
@@ -76,7 +76,7 @@ fn separates<T: Decide>(
     errors: &mut Vec<ValidationError>,
 ) -> Option<bool> {
     Some(
-        decided(
+        decided_as(
             "pm_census_point_kappa",
             Margin::sagitta(kappa, arm),
             band,
@@ -96,7 +96,7 @@ fn coincident<T: Decide>(
     errors: &mut Vec<ValidationError>,
 ) -> Option<Touch<T>> {
     Some(
-        match decided("pm_census_point_gap", Margin::of(gap - reach), band, errors)? {
+        match decided_as("pm_census_point_gap", Margin::of(gap - reach), band, errors)? {
             Sign::Zero => Touch::At(at),
             _ => Touch::Apart,
         },
@@ -118,7 +118,7 @@ fn on_sphere<T: Decide>(
     let d = w.norm();
     // The touch point is on the sphere along `c → foot`, so a foot at
     // the centre (the carrier through it) crosses.
-    if decided("pm_census_point_centre", Margin::of(d), band, errors)? != Sign::Positive {
+    if decided_as("pm_census_point_centre", Margin::of(d), band, errors)? != Sign::Positive {
         return Some(Touch::Apart);
     }
     coincident(d, r, c + w * (r / d), band, errors)
@@ -139,14 +139,14 @@ fn circle_plane<T: Decide>(
     let s = n.dot(c - o);
     if !separates(sin / r, r, band, errors)? {
         return Some(
-            match decided("pm_census_point_plane", Margin::of(s), band, errors)? {
+            match decided_as("pm_census_point_plane", Margin::of(s), band, errors)? {
                 Sign::Zero => Locus::Lies,
                 _ => Locus::Touch(Touch::Apart),
             },
         );
     }
     Some(Locus::Touch(
-        match decided("pm_census_point_plane", Margin::of(s), band, errors)? {
+        match decided_as("pm_census_point_plane", Margin::of(s), band, errors)? {
             Sign::Positive => coincident(s, r * sin, c - toward * r, band, errors)?,
             Sign::Negative => coincident(T::zero() - s, r * sin, c + toward * r, band, errors)?,
             Sign::Zero => Touch::Apart,
@@ -190,11 +190,11 @@ fn sphere_sphere<T: Decide>(
 ) -> Option<Touch<T>> {
     let v = c2 - c1;
     let (u, dist) = v.direction_and_length();
-    if decided("pm_census_point_centre", Margin::of(dist), band, errors)? != Sign::Positive {
+    if decided_as("pm_census_point_centre", Margin::of(dist), band, errors)? != Sign::Positive {
         return Some(Touch::Apart);
     }
     let small = r1.min(r2);
-    match decided(
+    match decided_as(
         "pm_census_point_gap",
         Margin::of(dist - (r1 + r2)),
         band,
@@ -214,7 +214,7 @@ fn sphere_sphere<T: Decide>(
         return Some(Touch::Apart);
     }
     // The point is on the big sphere away from the small one's centre.
-    let (cb, out) = match decided("pm_census_point_radii", Margin::of(r1 - r2), band, errors)? {
+    let (cb, out) = match decided_as("pm_census_point_radii", Margin::of(r1 - r2), band, errors)? {
         Sign::Positive => (c1, u),
         Sign::Negative => (c2, -u),
         Sign::Zero => return Some(Touch::Apart),
@@ -231,7 +231,12 @@ fn refused(subject: CensusSubject, what: &'static str) -> ValidationError {
     }
 }
 
-/// Whether `face` holds `p` strictly inside it.
+/// Whether `face` holds `p`, a touch point on its carrier, strictly
+/// inside it. The touch is the closed form of a point of both carriers
+/// (a plane's foot, or a sphere's point the touch's own reading decided
+/// on it, [`on_sphere`], [`sphere_sphere`]), on each to within the band,
+/// so it is held in band ([`crate::held::Held::in_band`]) and placed with
+/// no on-carrier decision ([`super::placed`]).
 fn in_face<T: Decide>(
     body: &Body<T>,
     face: FaceKey,
@@ -239,7 +244,7 @@ fn in_face<T: Decide>(
     band: Band,
     errors: &mut Vec<ValidationError>,
 ) -> Option<bool> {
-    match face_holds(body, face, p, band, "pm_census_point_on_plane", errors)? {
+    match super::placed(body, face, crate::held::Held::in_band(p), band, errors)? {
         Some(at) => Some(at == FaceContainment::In),
         None => {
             errors.push(refused(

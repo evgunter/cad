@@ -41,12 +41,12 @@
 
 use geom_core::{Band, Decide, Indeterminate, Margin, Point3, Real, Vec3};
 
-use super::contain::{
-    ContainError, CurvedPlacement, FaceContainment, PlacementError, face_placement,
-};
+use super::contain::{ContainError, CurvedPlacement, FaceContainment, placement_on_carrier};
 use crate::{Body, FaceKey};
 use geom_brep::PairSide;
-use geom_brep::ladder::{Answering, IdentityLadder, Rung, climb, read_identity};
+use geom_core::ladder::{
+    Answering, Differing, IdentityLadder, Rung, climb, climb_differing, read_identity,
+};
 
 /// A rim circle, in the data the curve carries: centre, unit axis,
 /// radius and the seam reference the sampling phase starts from.
@@ -69,8 +69,8 @@ pub(crate) enum RimRouting {
     /// leave it on opposite sides (the smooth seam, the built arm), a
     /// nested touch if on one side. [`departures`] decides which.
     Seam,
-    /// Wedge 0 or 2π: outward normals opposed along the rim
-    /// ([`super::BooleanError::RimCuspArmUnbuilt`]).
+    /// Wedge 0 or 2π: outward normals opposed along the rim. The glue
+    /// door leaves it unglued; no arm builds its junction.
     Cusp(geom_brep::WedgeEnd),
     /// Opposed sides whose jets osculate — conformal contact along the
     /// locus, which is a `Rest` claim wearing a rim's clothes.
@@ -187,6 +187,13 @@ fn rims<T: Decide>(
     .into_reading()
 }
 
+/// The names [`same_circle`]'s data are decided under.
+const RIM_CIRCLE_RADIUS: &str = "rim_circle_radius";
+const RIM_CIRCLE_CENTER: &str = "rim_circle_center";
+const RIM_CIRCLE_AXIS_PARALLEL: &str = "rim_circle_axis_parallel";
+/// The name a seam's end points are each decided on a line under.
+const SEAM_LINE_COLLINEAR: &str = "seam_line_collinear";
+
 /// Whether two circles are one, on their own data at `band`: the
 /// identity ladder ([`read_identity`]), so an in-band radius never hides
 /// a centre decided elsewhere. Radius and centre first, angle last — the
@@ -200,10 +207,10 @@ fn same_circle<T: Decide>(
 ) -> Result<Option<geom_core::MarginDiag>, Indeterminate> {
     match read_identity(
         [
-            ("rim_circle_radius", Margin::of(ra.radius - rb.radius)),
-            ("rim_circle_center", Margin::norm3(ra.center - rb.center)),
+            (RIM_CIRCLE_RADIUS, Margin::of(ra.radius - rb.radius)),
+            (RIM_CIRCLE_CENTER, Margin::norm3(ra.center - rb.center)),
             (
-                "rim_circle_axis_parallel",
+                RIM_CIRCLE_AXIS_PARALLEL,
                 // Unsourced lever: the two rims' radii summed, which no
                 // one extent's read is; their union's (the larger)
                 // would move verdicts by a shorter arm.
@@ -358,7 +365,8 @@ pub(crate) fn departures<T: Decide>(
     locus: Locus<T>,
     band: Band,
 ) -> Result<Departure, RimUnread> {
-    let (Some(ra), Some(rb)) = (reach(a, fa, locus, band)?, reach(b, fb, locus, band)?) else {
+    let (Some(ra), Some(rb)) = (reach_as(a, fa, locus, band)?, reach_as(b, fb, locus, band)?)
+    else {
         return Ok(Departure::EdgeKindUnread);
     };
     let tau = T::from_f64(core::f64::consts::TAU);
@@ -385,6 +393,15 @@ pub(crate) fn departures<T: Decide>(
         }
     };
     let (mut opposite, mut same, mut touched) = (false, false, false);
+    // `First` by construction, not `Any`: the pieces are read in order,
+    // the first piece whose covers settle the kind answers it, and two
+    // pieces can settle different kinds (`EdgeKindUnread`, `Mixed`,
+    // `NoEdge`). So a piece kept in band ahead may have been the answer,
+    // and its cover reads refuse there by `?`: an earlier unreadable piece
+    // blocks, which is the honest reading ([`Answering::First`]'s rule,
+    // "several can"). Do not port this to `climb(Any)`: `Any`'s
+    // keep-and-supersede would answer past a piece that may have settled
+    // another kind.
     for (s0, s1) in pieces {
         // A piece of no length between two cuts is a point, and so is
         // one within the band of none: two cuts that close are one
@@ -528,24 +545,34 @@ impl<T: Decide> FaceOnLocus<T> {
             Locus::Rim(_) => &[-1.0, 0.0, 1.0],
             Locus::Line(_) => &[0.0],
         };
-        let inside = |m: T| -> Result<bool, Indeterminate> {
-            Ok(
-                crate::validate::decide("seam_cover_ride", Margin::of(m * scale), band)?
-                    == geom_core::Sign::Positive,
-            )
+        // A ride covers the point where it is inside both ends of its
+        // span. Two covering rides of opposite sign answer
+        // `RidesBothWays`, a theorem whatever the other rides read, so
+        // they answer past a ride kept in band (`climb_differing`); only
+        // where every ride decided does one sign, or none, stand.
+        let inside = |m: T| {
+            crate::validate::decide("seam_cover_ride", Margin::of(m * scale), band)
+                .map(|sign| sign == geom_core::Sign::Positive)
         };
-        let mut seen: Option<geom_core::Sign> = None;
-        for &(lo, hi, sign) in &self.rides {
-            for &k in wraps {
-                let s = s + tau * T::from_f64(k);
-                if inside(s - lo)? && inside(hi - s)? {
-                    if seen.is_some_and(|x| x != sign) {
-                        return Ok(Cover::RidesBothWays);
-                    }
-                    seen = Some(sign);
-                }
-            }
-        }
+        // A start in band is kept without reading the end: on a span
+        // (`lo ≤ hi`) the end then reads at least the start's band short
+        // of inside, so it cannot decide the ride off the point.
+        let ride = |&(lo, hi, sign): &(T, T, geom_core::Sign), k: f64| {
+            let s = s + tau * T::from_f64(k);
+            let covers = inside(s - lo).and_then(|lo_in| Ok(lo_in && inside(hi - s)?));
+            Rung::of_reading(covers.map(|covers| covers.then_some(sign)))
+        };
+        let rides = self
+            .rides
+            .iter()
+            .flat_map(|r| wraps.iter().map(move |&k| (r, k)));
+        let seen = match climb_differing(rides, |(r, k)| ride(r, k), |a, b| a != b) {
+            Differing::Differ(_) => return Ok(Cover::RidesBothWays),
+            Differing::Undecided(cause) => return Err(cause.into()),
+            // No ride aborts: a ride's reading is a margin's alone.
+            Differing::Aborted(sign) => Some(sign),
+            Differing::Agreed(signs) => signs.first().copied(),
+        };
         Ok(match seen {
             Some(sign) => Cover::Rides(sign),
             None => match contains((body, face, side), locus_point(locus, s), band)? {
@@ -586,15 +613,15 @@ fn locus_param<T: Decide>(locus: Locus<T>, p: Point3<T>) -> T {
     }
 }
 
-/// The predicate [`contains`] decides a midpoint on a planar face's
-/// plane by ([`super::contain::face_placement`]).
-const RIM_ON_PLANE: &str = "bool_rim_wedge_on_plane";
-
 /// Whether the face holds `p`, a piece's midpoint on its carrier, as
-/// the one placement reads it ([`super::contain::face_placement`]): `In`
-/// is `true`, `Out` is `false`, and a point the read does not place is
-/// `None`. A reading off the carrier refuses: the midpoint is on it by
-/// construction.
+/// the held placement reads it ([`placement_on_carrier`]): `In` is
+/// `true`, `Out` is `false`, and a point the read does not place is
+/// `None`. The locus was decided one with the face's boundary carrier
+/// (a decision on the carriers' data, not a construction, and no margin
+/// of the point itself is in hand), so the midpoint is held in band
+/// ([`crate::held::Held::in_band`]) and no on-plane margin is decided
+/// again. A reading definitely off a curved face's carrier (a planar
+/// face's placement never says so) contradicts that decision, a fault.
 ///
 /// **A midpoint on the face's boundary is not placed.** The cut walk
 /// puts every point where the face's boundary meets the locus at a cut,
@@ -611,22 +638,20 @@ fn contains<T: Decide>(
     band: Band,
 ) -> Result<Option<bool>, RimUnread> {
     let unread = |why| RimUnread::Unplaced { side, why };
-    let read = match face_placement(body, face, p, band, RIM_ON_PLANE) {
+    let held = crate::held::Held::in_band(p);
+    let read = match placement_on_carrier(body, face, held, band).map(|(at, _, _)| at) {
         Ok(read) => read,
         // The boundary pass placed the point at an arc's end and clear of
         // its corners, two definite readings no verdict reconciles at this
         // band: the read does not place the point, as it does not place a
         // boundary curve outside its envelope.
-        Err(PlacementError::Door(ContainError::ArcEndClearOfCorners(_))) => return Ok(None),
-        Err(PlacementError::Door(ContainError::StaleFace(face))) => {
-            super::contain::driver_face_stale(face)
-        }
-        Err(PlacementError::OnPlane(diag)) => return Err(diag.into()),
+        Err(ContainError::ArcEndClearOfCorners(_)) => return Ok(None),
+        Err(ContainError::StaleFace(face)) => super::contain::driver_face_stale(face),
         // Any other refusal, by its standing ([`ContainError::refusal`]):
         // a margin is the escalation, the rest leave the piece unread.
-        Err(PlacementError::Door(e)) => {
+        Err(e) => {
             return Err(match e.refusal() {
-                Ok(geom_brep::ladder::Refusal::Margin(diag)) => diag.into(),
+                Ok(geom_core::ladder::Refusal::Margin(diag)) => diag.into(),
                 _ => unread(Unplaced::Door(e)),
             });
         }
@@ -650,7 +675,7 @@ fn contains<T: Decide>(
 /// The face's reach along `locus`; `None` when one of its boundary
 /// edges is a curve the read does not place (neither a line nor a
 /// circle).
-fn reach<T: Decide>(
+fn reach_as<T: Decide>(
     body: &Body<T>,
     face: FaceKey,
     locus: Locus<T>,
@@ -977,7 +1002,7 @@ fn rides<T: Decide>(
             read_identity(
                 [t0, t1].map(|t| {
                     let off = line.distance(curve.carrier().eval(t));
-                    ("seam_line_collinear", Margin::of(off))
+                    (SEAM_LINE_COLLINEAR, Margin::of(off))
                 }),
                 band,
             )
@@ -1175,6 +1200,32 @@ mod cover_rows {
             Cover::Rides(Positive),
             "two edges one way are one side"
         );
+        // A ride whose end is in band of the point is kept: two decided
+        // rides of opposite sign still answer mixed past it
+        // (`climb_differing`), and with no difference it refuses. A
+        // first-refusal loop escalated on it in both.
+        let h = 0.5 * (band.zero() + band.escalate());
+        let reads = |rides: Vec<(f64, f64, geom_core::Sign)>| {
+            FaceOnLocus {
+                rides,
+                cuts: Vec::new(),
+            }
+            .at((&body, face, PairSide::First), line, 0.5, 1.0, band)
+        };
+        assert_eq!(
+            reads(vec![
+                (0.0, 0.5 + h, Positive),
+                (0.0, 1.0, Positive),
+                (0.0, 1.0, Negative)
+            ])
+            .unwrap(),
+            Cover::RidesBothWays,
+            "mixed past a ride in band"
+        );
+        assert!(
+            reads(vec![(0.0, 0.5 + h, Positive), (0.0, 1.0, Positive)]).is_err(),
+            "one sign with a ride in band refuses"
+        );
     }
 }
 
@@ -1197,40 +1248,13 @@ mod redfirst {
         }
     }
 
-    /// The rim-identity comparison, driven directly on two circles —
-    /// the three-outcome ε row every one of its margins owes, stated in
-    /// BAND UNITS so it means the same thing at every ε the matrix
-    /// runs.
-    ///
-    /// `shared_rim` reads circles off face boundaries, which no unit
-    /// fixture in this crate can mint; the comparison it performs is
-    /// this one, so the rows drive it through the same `decide` calls
-    /// with the same names and the same band.
+    /// The rim-identity comparison ([`same_circle`]), driven directly
+    /// on two circles — the three-outcome ε row every one of its
+    /// margins owes, stated in BAND UNITS so it means the same thing at
+    /// every ε the matrix runs. `shared_rim` reads circles off face
+    /// boundaries, which no unit fixture in this crate can mint.
     fn rim_identity(ra: &Rim<f64>, rb: &Rim<f64>, band: Band) -> Result<bool, Indeterminate> {
-        let mut same = true;
-        for (name, margin) in [
-            ("rim_circle_radius", Margin::of(ra.radius - rb.radius)),
-            ("rim_circle_center", Margin::norm3(ra.center - rb.center)),
-            (
-                "rim_circle_axis_parallel",
-                // Unsourced lever: the two rims' radii summed, which no
-                // one extent's read is; their union's (the larger)
-                // would move verdicts by a shorter arm.
-                Margin::levered(
-                    ra.axis.cross(rb.axis).norm(),
-                    geom_core::Lever::unsourced(ra.radius + rb.radius),
-                ),
-            ),
-        ] {
-            match crate::validate::decide(name, margin, band)? {
-                geom_core::Sign::Zero => {}
-                _ => {
-                    same = false;
-                    break;
-                }
-            }
-        }
-        Ok(same)
+        same_circle(*ra, *rb, band).map(|one| one.is_some())
     }
 
     /// **MIN-3, the swallowed escalation.** A radius perturbed INTO the
@@ -1248,7 +1272,7 @@ mod redfirst {
             5.06 + (b.zero() + b.escalate()) * 0.5,
         );
         match rim_identity(&base, &in_band, b) {
-            Err(d) => assert_eq!(d.predicate, Some("rim_circle_radius")),
+            Err(d) => assert_eq!(d.predicate, Some(RIM_CIRCLE_RADIUS)),
             Ok(v) => panic!("in-band must escalate, not answer {v}"),
         }
         let definite = circle([0.0, 0.0, 0.0], [0.0, 0.0, 1.0], 5.06 + b.escalate() * 1e6);
@@ -1269,7 +1293,7 @@ mod redfirst {
             5.06,
         );
         match rim_identity(&base, &in_band, b) {
-            Err(d) => assert_eq!(d.predicate, Some("rim_circle_center")),
+            Err(d) => assert_eq!(d.predicate, Some(RIM_CIRCLE_CENTER)),
             Ok(v) => panic!("in-band must escalate, not answer {v}"),
         }
         let definite = circle([1.0, 0.0, 0.0], [0.0, 0.0, 1.0], 5.06);
@@ -1575,11 +1599,11 @@ mod arc_end_rows {
         let (body, cap, end) = half_disc_cap(0.0, tol);
         let q = beside_the_arc_end(end, zero);
         let narrow = Band::new(zero, 1.25 * zero).unwrap();
-        let straddle = |d: &Indeterminate| d.predicate == Some("curve_pair_span_end_straddle");
+        let is_straddle = |d: &Indeterminate| d.predicate == Some("curve_pair_span_end_straddle");
         assert!(
             matches!(
                 contains((&body, cap, PairSide::First), q, narrow),
-                Err(RimUnread::InBand(ref d)) if straddle(d)
+                Err(RimUnread::InBand(ref d)) if is_straddle(d)
             ),
             "the band's parting escalates: {:?}",
             contains((&body, cap, PairSide::First), q, narrow)
@@ -1605,7 +1629,7 @@ mod arc_end_rows {
         });
         let got = departures(&body, cap, &block.body, block.top_face, locus, narrow);
         assert!(
-            matches!(got, Err(RimUnread::InBand(ref d)) if straddle(d)),
+            matches!(got, Err(RimUnread::InBand(ref d)) if is_straddle(d)),
             "the touch piece at the arc's end escalates: {got:?}"
         );
     }

@@ -304,6 +304,10 @@ pub mod touch_union;
 /// The 7–15 Gauss–Kronrod panel the volume oracles integrate with.
 pub mod quadrature;
 
+/// The volume of a boolean of the donut and a straight rod, sliced along
+/// the donut's axis: a truth that reads no kernel code.
+pub mod donut_slices;
+
 /// The volume of a boolean of two crossed finite cylinders, sliced
 /// parallel to both axes: a truth that reads no kernel code.
 pub mod crossed_cylinders;
@@ -341,7 +345,7 @@ use sweep::{ProfileLoop, Section};
 use topo::Body;
 
 /// **A sketch plane from a placement a suite holds as twelve numbers**,
-/// admitted at the decided door (`geom_core::test_support::rigid`) at
+/// admitted at the suites' door (`geom_core::test_support::rigid`) at
 /// the witness tolerance: a suite that writes its plane as a matrix
 /// asks this before the plane exists. Panics, naming the refusal, when
 /// the map is not rigid.
@@ -902,4 +906,104 @@ pub fn to_offset(d: f64) -> sweep::Extrusion<f64> {
             sweep::ExtrudeSide::Along
         },
     }
+}
+
+/// **The session box's refusal** (`[tolerance.units]`): `got`, a door's
+/// answer on a body whose largest `|coordinate|` is `reach`, past the
+/// 1 km box, is its refusal by the box: its finding `OutsideSessionBox`,
+/// its margin the box's extent less `reach` (to a part in 1e9 of
+/// `reach`), and its sentence the box's one recourse
+/// (`topo::FindingFamily::SessionBox`). `what` names the body.
+///
+/// # Panics
+///
+/// Where the door builds, or refuses otherwise.
+pub fn refused_by_the_session_box<T, E: core::fmt::Display + core::fmt::Debug>(
+    what: &str,
+    reach: f64,
+    got: Result<T, E>,
+) {
+    let Err(e) = got else {
+        panic!("{what}: past the session box, yet the door builds it");
+    };
+    let recourse = topo::FindingFamily::SessionBox
+        .recourse()
+        .expect("the box has one recourse");
+    let (said, debug) = (e.to_string(), format!("{e:?}"));
+    let margin = debug
+        .split_once("OutsideSessionBox { margin: MarginDiag(Value(")
+        .and_then(|(_, rest)| rest.split_once(',')?.0.parse::<f64>().ok())
+        .unwrap_or_else(|| panic!("{what}: the door refuses by the session box: {debug}"));
+    let want = geom_core::tolerance::SESSION_BOX_EXTENT - reach;
+    assert!(
+        (margin - want).abs() <= 1e-9 * reach,
+        "{what}: the box's margin is its extent less the body's reach {reach}, {want}, got \
+         {margin}"
+    );
+    assert!(
+        said.contains(recourse),
+        "{what}: the box's refusal says its recourse: {said}"
+    );
+}
+
+/// **The far end a row places its farthest fixture at**: nine tenths
+/// of the session box's extent (`[tolerance.units]`), 900 m, clear of
+/// the box's band.
+pub const FAR_END: f64 = 0.9 * geom_core::tolerance::SESSION_BOX_EXTENT;
+
+/// **The length a fixture scaled with ε is built in**: ε, or less where
+/// a fixture reaching `reach` of them would pass `far`, but never under
+/// `floor`. A row measures such a fixture at [`unit_resolution`], so its
+/// size against its resolution is the same at every ε row; a `floor`
+/// of `ε/1024` keeps that resolution no finer than ε
+/// (`Settle::Resolution`). Where the floor holds the unit up, the
+/// fixture may pass the box: [`in_the_box`] says.
+pub fn box_unit(reach: f64, far: f64, floor: f64) -> f64 {
+    (far / reach).clamp(floor, Tol::witness().get().eps)
+}
+
+/// Whether a fixture reaching `reach` [`box_unit`]s of `unit` lies in
+/// the session box.
+pub fn in_the_box(reach: f64, unit: f64) -> bool {
+    reach * unit <= geom_core::tolerance::SESSION_BOX_EXTENT
+}
+
+/// The pinned `1024·ε`, in [`box_unit`]s.
+pub fn unit_resolution<T: geom_core::Real>(unit: f64) -> topo::Settle<T> {
+    topo::test_support::resolution(1024.0 * unit)
+}
+
+/// **A curved fixture past the session box, refused**: by the box
+/// ([`refused_by_the_session_box`]) at every ε but those of
+/// `limb_2_first_at`, where the carrier's own certificate reads first
+/// and refuses as limb 2's `KernelLimit` (the curved carriers'
+/// sup-norm bound grows with the carrier's extent, and at ε = 1e-12 it
+/// passes ε before the finished-body gate runs). That arm is asserted,
+/// so the row goes red the day the order moves.
+///
+/// # Panics
+///
+/// As [`refused_by_the_session_box`], or where a pinned row refuses
+/// otherwise.
+pub fn refused_by_the_box_or_limb_2<T, E: core::fmt::Display + core::fmt::Debug>(
+    what: &str,
+    reach: f64,
+    limb_2_first_at: &[f64],
+    got: Result<T, E>,
+) {
+    let eps = Tol::witness().get().eps;
+    if !test_utils::kernel_limit::at_row(eps, limb_2_first_at) {
+        return refused_by_the_session_box(what, reach, got);
+    }
+    let Err(e) = got else {
+        panic!("{what}: past the session box, yet the door builds it at ε {eps:e}");
+    };
+    assert!(
+        format!("{e:?}").contains("KernelLimit"),
+        "{what}: at ε {eps:e} limb 2's kernel limit reads before the box: {e:?}"
+    );
+    test_utils::vacuity::stood_down(
+        &format!("{what} at ε {eps:e}"),
+        "limb 2's kernel limit refuses before the session box reads",
+    );
 }

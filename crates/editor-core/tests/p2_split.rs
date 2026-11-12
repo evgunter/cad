@@ -488,7 +488,7 @@ fn s5_a_kept_mate_reading_a_cut_instance_crosses_wherever_it_stands() {
             panic!("the target reads one face")
         };
         assert_eq!(
-            out.remainder.selection(select).map(|s| s.body),
+            out.remainder.selection(select).map(|s| s.body.read),
             out.remainder.output(out.instance, 0),
             "the kept mate's target reads the instance's copies"
         );

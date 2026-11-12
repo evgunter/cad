@@ -2,11 +2,11 @@
 id: a-rigid-motion-rewrites-and-recertifies-every-edge
 kind: issue
 title: transform_rigid rewrites every coordinate of a finished body and re-certifies every edge, where an isometry of a certified body could stay certified or be carried as a placement
-status: open
+status: dispatched
 opened: 2026-11-02
 priority: P1
 cost: M
-design: true
+branch: onehome/rigid-motion
 ---
 
 Filed at Ev's request on PR 6329 (2026-11-02): "this sounds pretty inefficient though maybe it's unavoidable? i'd have hoped it would fall into the general 'pretend float noise doesn't exist' case. also wait doesn't transform_rigid keep the same underlying representation anyway".
@@ -24,3 +24,15 @@ Ev's principle for f64 (PR 6329): make operations well-conditioned, then treat v
 - **(b)** The motion is carried as a placement (DESIGN `[placement]`, "a moved body is a placement") and the representation is not rewritten at all.
 
 Read with: PR 6329's outcome on charges and the session box, and `the-at-rest-result-gate-and-its-typing-live-in-five-homes` (rigid placement is a door returning the finished type).
+
+## Decided (fork 256, PR 6589)
+
+Ev approved on 2026-11-10 ("this sounds good overall"). A finished body moved by a `topo::Isometry` stays finished. The move carries its verdict and asks only the session box again. `finish` is the one place a verdict is derived. Ev's DESIGN edits: the at-rest row, one `[topology.tiers]` sentence, and MIRROR-DESIGN P2. The build is the agreed recommendation on PR 6589:
+- one `moved` door on every finished and leaf type;
+- `ReadIn` goes;
+- the twist and the mirror leave the box-scalar switch;
+- STEP finishes each distinct solid once;
+- `TransformError`'s certification arms, the `map_approx` re-fit and the panic path are deleted;
+- the test-only pin `finish(b.moved(iso).into_body())` agrees with `b.moved(iso)` verdict for verdict.
+
+The re-mint at admission comes first: `a-rigid-map-admitted-on-the-metre-band-mints-frames-check-1-refuses`.

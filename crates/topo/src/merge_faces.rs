@@ -776,7 +776,9 @@ pub(crate) fn edge_on_faces_reading(
             geom::CurveKind::Line,
             geom_brep::CertifyError::Escalated {
                 check:
-                    geom_brep::CertCheck::SurfaceResidual { .. } | geom_brep::CertCheck::ChartResidual,
+                    geom_brep::CertCheck::SurfaceResidual { .. }
+                    | geom_brep::CertCheck::ChartResidual
+                    | geom_brep::CertCheck::StatedImage,
                 cause,
                 ..
             },
@@ -882,7 +884,7 @@ impl DescribeRefusal {
 /// The recourse of the decision whether the faces at a kept face's
 /// boundary edge cross or meet smoothly, shared by its refused arms.
 const CROSS_OR_SMOOTH: &str =
-    "Recourse: move the geometry so the faces at that edge clearly cross or are clearly smooth";
+    geom_core::move_recourse!("so the faces at that edge clearly cross or are clearly smooth");
 
 impl MergeCoplanarError {
     /// The door's refusal for `refusal` at one of `boundary`'s edges,
@@ -3520,7 +3522,7 @@ mod tests {
                 let p = body
                     .get_point(body.get_vertex(v).expect("live").point)
                     .expect("live");
-                p.to_array() == at
+                p.equals_exactly(geom_core::Point3::from_array(at))
             })
             .expect("a half-edge starts there")
     }

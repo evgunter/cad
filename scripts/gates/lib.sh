@@ -136,6 +136,25 @@ gate_require_file() {
   GATE_SCAN_FILES=1
 }
 
+# gate_ladder_entry_points — the ladder's entry points, one per line:
+# each `pub fn climb*` in `geom_core::ladder` (crates/geom-core/src/ladder.rs),
+# the one home a gate reading climbs takes its list from, so a combinator
+# added there joins every such gate by construction. Sets
+# `GATE_LADDER_ENTRY_POINTS`; a home that is gone or names none is an
+# error, not an empty list.
+gate_ladder_entry_points() {
+  local home=crates/geom-core/src/ladder.rs
+  if [ ! -f "$home" ]; then
+    gate_error "$(gate_name): $home does not exist under $PWD — the ladder's entry points are gone, so no climb can be read"
+    exit 1
+  fi
+  GATE_LADDER_ENTRY_POINTS=$(sed -n 's/^pub fn \(climb[a-z_]*\)[<(].*/\1/p' "$home" | sort -u)
+  if [ -z "$GATE_LADDER_ENTRY_POINTS" ]; then
+    gate_error "$(gate_name): $home declares no \`pub fn climb*\` — the ladder's entry points are gone, so no climb can be read"
+    exit 1
+  fi
+}
+
 # gate_base_file FILE — FILE (relative to the root) as the merge base
 # holds it, written to `$GATE_BASE_FILE`: what a pin that only falls is
 # compared against. `GATE_BASE` names the base, a commit or tree in the root's
@@ -465,9 +484,19 @@ gate_rust_code() {
     # A single quote cannot be written inside this program, which is
     # itself single-quoted; CODEBRK is built rather than spelled.
     BEGIN { Q = sprintf("%c", 39); CODEBRK = "[\"" Q "/]" }
+    # A KEPT LITERAL\x27S BRACES ARE NOT CODE: a test that searches its own
+    # source for `"\n}\n"` once closed its `#[cfg(test)]` module early in
+    # the skip below, and the rest of the module read as production. Each
+    # piece of a literal the view keeps goes through `lit`, which tallies
+    # its braces (`lo`, `lc`) for the skip to take back out.
+    function lit(t,   u) {
+      u = t; lo += gsub(/\{/, "{", u)
+      u = t; lc += gsub(/\}/, "}", u)
+      return t
+    }
     FNR == 1 { state = 0; cdepth = 0; depth = 0; skipping = 0; seen_open = 0 }
     {
-      s = $0; out = ""; i = 1; n = length(s)
+      s = $0; out = ""; i = 1; n = length(s); lo = 0; lc = 0
       # THE FAST PATH, and it is worth its four lines: a line carrying no
       # quote, no apostrophe and no block-comment opener has nothing in
       # it but code and possibly a trailing `//`. That is most of the
@@ -521,19 +550,19 @@ gate_rust_code() {
         }
         if (state == 2) {                      # inside "..." (or b"...")
           p = match(rest, /["\\]/)
-          if (p == 0) { if (KEEPLIT == 1) out = out rest; i = n + 1; continue }
+          if (p == 0) { if (KEEPLIT == 1) out = out lit(rest); i = n + 1; continue }
           if (substr(rest, p, 1) == "\\") {
-            if (KEEPLIT == 1) out = out substr(rest, 1, p + 1)
+            if (KEEPLIT == 1) out = out lit(substr(rest, 1, p + 1))
             i += p + 1; continue
           }
-          if (KEEPLIT == 1) out = out substr(rest, 1, p - 1)
+          if (KEEPLIT == 1) out = out lit(substr(rest, 1, p - 1))
           out = out "\""; state = 0; i += p
           continue
         }
         if (state == 3) {                      # inside r#*"..."#*
           p = index(rest, "\"" rawhashes)
-          if (p == 0) { if (KEEPLIT == 1) out = out rest; i = n + 1; continue }
-          if (KEEPLIT == 1) out = out substr(rest, 1, p - 1)
+          if (p == 0) { if (KEEPLIT == 1) out = out lit(rest); i = n + 1; continue }
+          if (KEEPLIT == 1) out = out lit(substr(rest, 1, p - 1))
           out = out "\"" rawhashes; state = 0; i += p + rawh
           continue
         }
@@ -575,12 +604,12 @@ gate_rust_code() {
         if (substr(s, i + 1, 1) == "\\") {
           j = i + 3          # the backslash escapes exactly one char
           while (j <= n && substr(s, j, 1) != Q) j++
-          if (KEEPLIT == 1) out = out substr(s, i, j - i + 1)
+          if (KEEPLIT == 1) out = out lit(substr(s, i, j - i + 1))
           else out = out Q Q
           i = j + 1; continue
         }
         if (substr(s, i + 2, 1) == Q) {
-          if (KEEPLIT == 1) out = out substr(s, i, 3)
+          if (KEEPLIT == 1) out = out lit(substr(s, i, 3))
           else out = out Q Q
           i += 3; continue
         }
@@ -598,6 +627,7 @@ gate_rust_code() {
         opens = 0; closes = 0
         if (index(out, "{") > 0) opens = gsub(/\{/, "{", out)
         if (index(out, "}") > 0) closes = gsub(/\}/, "}", out)
+        opens -= lo; closes -= lc
         if (skipping == 0 && out ~ ENVIRON["GATE_CFG_TEST_RE"] &&
             out !~ ENVIRON["GATE_CFG_TEST_NOT_RE"]) {
           skipping = 1; seen_open = 0; skip_depth = depth

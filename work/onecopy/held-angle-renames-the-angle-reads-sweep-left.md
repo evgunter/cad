@@ -2,8 +2,11 @@
 id: held-angle-renames-the-angle-reads-sweep-left
 kind: issue
 title: The forward reductions into [0, τ) that the angle-reads sweep left are extents, the turn rule's question, not swept site by site
-status: open
+status: closed
 opened: 2026-11-03
+closed: 2026-11-10
+pr: 6710
+branch: onecopy/edge-ends-turns
 ---
 
 
@@ -74,3 +77,30 @@ multi-line loop; `rim_wedge.rs`'s four floors wait on PR 6443.
 - `profile/src/sugar.rs` `swept` and `signed_swept`: argued in their
   docs. They are a sketch's own forward and signed turns, whose floors
   carry the exact-fit structural zero, and are not a carrier's rename.
+
+## Closed by `onecopy/edge-ends-turns`
+
+Measured first: production `reduce_periodic(` is down to nine sites, not
+about forty; `boxes`' and `classify`'s had already gone. Each is one of
+two questions, and each now asks it through `Period`:
+- **A rename into a window from an end**, `Period::at_or_above`:
+  `chart_singularity::foot` (now `[from, from + τ)`: a point a hair
+  behind `from` whose lift rounds onto `from + τ` reads `from`, the same
+  point), `pair_section::within_span`, `chord_join`'s `place`, and
+  `shell`'s moved-wall split at period π.
+- **A forward run between two angles**, the new
+  `Period::run_from(from, to)` (`[0, P]`: `to`'s copy near `from`, lifted a period where it lies behind, less `from`; a hair behind runs a hair short of a turn):
+  `chord_join::oriented_arc` ×2, `chord_arc`'s middle ×2, and `shell`'s
+  half-turn test. A `to` equal to `from` runs nothing; `oriented_arc`'s
+  whole turn is `ArcEnd::WholeTurn`, stated by its caller, as before.
+  Pinned by `run_from_runs_from_its_start`.
+
+Stay, each argued at its site:
+- `profile::sugar::swept`, a sketch's own forward turn (already argued);
+- `editor-core` `ComputingTwist::for_node`'s `rem_euclid(τ)` and the
+  viewer's `wrap_angle`. Both are of any magnitude, and `Period`'s renames
+  read NaN past `i32::MAX` turns.
+
+Not touched: the four sites of
+`a-turn-renamed-parameter-is-placed-against-a-span-at-four-sites`
+(the census lane's unit). None of them is a site above.

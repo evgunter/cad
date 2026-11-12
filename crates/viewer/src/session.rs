@@ -735,7 +735,7 @@ struct LandedRun {
     files: PartFiles,
     /// **What the certifying scalar said of this pair's clearance
     /// requirements** ([`Clearances`]): owed by the landing, and settled
-    /// into it when the certify seam answers ([`DocSession::certified`]).
+    /// into it when the certify seam answers ([`DocSession::settle`]).
     clearances: Clearances,
 }
 
@@ -2202,7 +2202,7 @@ impl DocSession {
             SessionOp::PreviewFreeMove { node, frame } => {
                 match self
                     .display
-                    .preview_free_move(self.history.doc(), node, frame, self.tol())
+                    .preview_free_move(self.history.doc(), node, frame)
                 {
                     Ok(()) => OpOutcome::default(),
                     Err(fault) => OpOutcome::refused(Refusal::Display(fault)),
@@ -3178,7 +3178,7 @@ impl DocSession {
     /// nothing; no layout restores nothing and says nothing.
     fn restore_layout(&mut self, path: &Path) -> LayoutReport {
         let document = self.history.doc().id();
-        match layout::read(path, self.tol) {
+        match layout::read(path) {
             Ok(None) => LayoutReport::default(),
             Ok(Some((saved, skipped))) if saved.document != document => LayoutReport {
                 skipped,
@@ -3379,10 +3379,13 @@ impl DocSession {
         spin: Formula,
     ) -> Result<Creating, Refusal> {
         let doc = self.committed_doc();
-        let (body, name) = picked_body(doc, face);
-        self.require_read(&body, NodeKindWanted::Body)?;
+        let (body, name) =
+            picked_body(doc, self.evaluation(), face).ok_or_else(|| Refusal::PickedMember {
+                node: doc.spoken(face.node),
+            })?;
+        self.require_read(&body.read, NodeKindWanted::Body)?;
         let opts = self.eval_options();
-        let takeover = self.takeover(&body)?;
+        let takeover = self.takeover(&body.read)?;
         Ok(taking_over(takeover, move |run| {
             let sketched = run.sketch_on_face(
                 body,
@@ -3435,7 +3438,12 @@ impl DocSession {
             &self.eval_options(),
             self.tol,
         );
-        let frame = match drawn_frame(doc, &ev, plane, first, self.tol) {
+        let read = |face: &FaceSelection| {
+            pick_read(doc, Some(&ev), face).ok_or_else(|| Refusal::PickedMember {
+                node: doc.spoken(face.node),
+            })
+        };
+        let frame = match drawn_frame(doc, &ev, (&read(plane)?, &read(first)?), self.tol) {
             Ok(frame) => frame,
             Err(fault) => {
                 return Err(Refusal::Frame(Box::new(GestureFrameFault::Traced(
@@ -3443,7 +3451,7 @@ impl DocSession {
                 ))));
             }
         };
-        let faces = traced.iter().map(|face| pick_read(doc, face)).collect();
+        let faces = traced.iter().map(read).collect::<Result<Vec<_>, _>>()?;
         match pncad::trace::drawn_profile(frame, faces, chains) {
             Ok(node) => Ok(creating(move |run| run.insert(node))),
             Err(error) => Err(Refusal::Edit(Box::new(error))),
@@ -3466,14 +3474,22 @@ impl DocSession {
         face: &FaceSelection,
     ) -> Result<pncad::trace::TraceMarks, SketchTraceFault> {
         let (doc, ev) = self.name_run().ok_or(SketchTraceFault::Unevaluated)?;
-        let frame = drawn_frame(doc, ev, plane, face, self.tol)
+        let read = |face: &FaceSelection| {
+            pick_read(doc, Some(ev), face).ok_or_else(|| {
+                SketchTraceFault::Picked(Arc::new(Refusal::PickedMember {
+                    node: doc.spoken(face.node),
+                }))
+            })
+        };
+        let traced = read(face)?;
+        let frame = drawn_frame(doc, ev, (&read(plane)?, &traced), self.tol)
             .map_err(|fault| SketchTraceFault::Frame(Arc::new(fault)))?;
         let half = TRACE_WINDOW_MARGIN * body_reach(ev, face.node).unwrap_or(1.0);
         pncad::trace::sketch_trace(
             doc,
             ev,
             frame,
-            pick_read(doc, face),
+            traced,
             (pncad::geom_core::Point2::origin(), half),
             SKETCH_TRACE_RAYS,
             self.tol,
@@ -3661,7 +3677,11 @@ impl DocSession {
         self.require_read(&target, NodeKindWanted::Body)?;
         let tool = match plane {
             SplitPlane::Face(face) => {
-                let (on, name) = picked_body(doc, face);
+                let (on, name) = picked_body(doc, self.evaluation(), face).ok_or_else(|| {
+                    Refusal::PickedMember {
+                        node: doc.spoken(face.node),
+                    }
+                })?;
                 RoleRead::plain(crate::matetool::plane_of(Operand::select(on, vec![name])))
             }
             SplitPlane::Read(read) => read.clone(),
@@ -3703,7 +3723,10 @@ impl DocSession {
         let body = as_body(self.committed_doc(), body);
         self.require_read(&body, NodeKindWanted::Body)?;
         let doc = self.committed_doc();
-        let (on, face) = picked_body(doc, plane);
+        let (on, face) =
+            picked_body(doc, self.evaluation(), plane).ok_or_else(|| Refusal::PickedMember {
+                node: doc.spoken(plane.node),
+            })?;
         let takeover = self.takeover(&body)?;
         let node = combine::mirror_node(body.clone(), on, face);
         Ok(taking_over(takeover, move |run| {
@@ -3756,7 +3779,12 @@ impl DocSession {
                         .ok_or_else(|| Refusal::NotABodyRead {
                             read: Box::new(Operand::Node(face.node)),
                         })?;
-                    Ok(Operand::select(body, vec![face.name]))
+                    let (body, names) =
+                        picked_selection(doc, self.evaluation(), body, vec![face.name])
+                            .ok_or_else(|| Refusal::PickedMember {
+                                node: doc.spoken(face.node),
+                            })?;
+                    Ok(Operand::select(body, names))
                 }
             }
         };
@@ -3905,10 +3933,18 @@ impl DocSession {
         let candidates: Vec<RoleRead<Operand>> = match picked {
             PatternDirection::Axis(_) => Vec::new(),
             PatternDirection::Edge(edge) => vec![RoleRead::plain(pose(PoseDef::Axis {
-                of: pick_read(doc, edge),
+                of: pick_read(doc, self.evaluation(), edge).ok_or_else(|| {
+                    Refusal::PickedMember {
+                        node: doc.spoken(edge.node),
+                    }
+                })?,
             }))],
             PatternDirection::Face(face) => {
-                let of = pick_read(doc, face);
+                let of = pick_read(doc, self.evaluation(), face).ok_or_else(|| {
+                    Refusal::PickedMember {
+                        node: doc.spoken(face.node),
+                    }
+                })?;
                 let normal =
                     RoleRead::through(pose(PoseDef::Plane { face: of.clone() }), PoseRole::Normal);
                 let carrier = RoleRead::plain(pose(PoseDef::Axis { of }));
@@ -4028,9 +4064,13 @@ impl DocSession {
             _ => self.require_read(&read, NodeKindWanted::Body)?,
         }
         let takeover = self.takeover(&read)?;
+        let (body, selection) = picked_selection(doc, self.evaluation(), read, selection)
+            .ok_or_else(|| Refusal::PickedMember {
+                node: doc.spoken(target),
+            })?;
         let node = match kind {
-            BlendKindChoice::Fillet => Node::fillet(read, size, selection),
-            BlendKindChoice::Chamfer => Node::chamfer(read, size, selection),
+            BlendKindChoice::Fillet => Node::fillet(body, size, selection),
+            BlendKindChoice::Chamfer => Node::chamfer(body, size, selection),
         };
         // A feature gesture's one action (A10, Ev's residue 1): the
         // result, taking over what read the target, so the picture
@@ -5472,9 +5512,12 @@ fn followed(
     moved: &std::collections::BTreeMap<StableName, StableName>,
 ) -> Operand {
     match read {
-        Operand::Select { body, names } if crate::world::read_var(doc, body) == Some(was) => {
+        Operand::Select { body, names } if crate::world::read_var(doc, &body.read) == Some(was) => {
             Operand::Select {
-                body: Box::new(Operand::Var(now)),
+                body: Box::new(pncad::document::BodyRead {
+                    read: Operand::Var(now),
+                    at: body.at.clone(),
+                }),
                 names: names
                     .iter()
                     .map(|name| moved.get(name).cloned().unwrap_or_else(|| name.clone()))
@@ -5839,6 +5882,8 @@ pub enum SketchTraceFault {
     /// The trace's own refusal: the plane misses the face, the carrier
     /// has no closed form, or a read refused.
     Trace(Arc<pncad::trace::SketchTraceError>),
+    /// A pick is read in no one body ([`Refusal::PickedMember`]).
+    Picked(Arc<Refusal>),
 }
 
 impl core::fmt::Display for SketchTraceFault {
@@ -5847,6 +5892,7 @@ impl core::fmt::Display for SketchTraceFault {
             Self::Unevaluated => f.write_str("the document has not been evaluated yet"),
             Self::Frame(e) => write!(f, "{e}"),
             Self::Trace(e) => write!(f, "{e}"),
+            Self::Picked(refusal) => write!(f, "{refusal}"),
         }
     }
 }
@@ -5856,29 +5902,81 @@ impl core::error::Error for SketchTraceFault {}
 /// **The body a pick is read on, and the entity's name there**: the
 /// drawn body it landed on, a copy as itself (a copy carries its body's
 /// names, so the name is the pick's) — the node's output by its port
-/// where it holds several, its body output otherwise.
+/// where it holds several, its body output otherwise — read as one body
+/// ([`picked_selection`]). `None` where that body is a family whose
+/// member the pick cannot be read in.
 pub(crate) fn picked_body(
     doc: &Doc<ProfileProgram>,
+    ev: Option<&Evaluation<f64>>,
     pick: &impl crate::tree::PickedEntity,
-) -> (Operand, StableName) {
+) -> Option<(pncad::document::BodyRead<Formula>, StableName)> {
     let on = pick.on();
-    let name = pick.name().clone();
     let body = match crate::world::seat_read(doc, on.node(), Some(on.body())) {
         (at, None) => body_of(doc, at),
         (at, port) => crate::seats::Output::named(port).read(at),
     };
-    (body, name)
+    let (body, mut names) = picked_selection(doc, ev, body, vec![pick.name().clone()])?;
+    Some((body, names.pop()?))
+}
+
+/// **The body entities picked on `read`'s drawn bodies are selected in,
+/// and their names there** (REFERENCES DM3: a selection reads one body).
+/// Where `read` is one body, `read` and the names as picked. Where it is
+/// a family, a name its own table holds (a pick on a drawn member) is
+/// read in the member that entity lies in, `xs[i]`, by the member's own
+/// name ([`pncad::select::member_entity`]), and a name it does not hold
+/// (a member's own, as the body a pattern copies names it) is read in
+/// every member, the plain read. `None` where no selection reads them:
+/// `read` is a family and there is no evaluation to look in, or the
+/// names lie in two members, or mix the two spellings — the tool
+/// refuses rather than author a selection that names nothing.
+pub(crate) fn picked_selection(
+    doc: &Doc<ProfileProgram>,
+    ev: Option<&Evaluation<f64>>,
+    read: Operand,
+    names: Vec<StableName>,
+) -> Option<(pncad::document::BodyRead<Formula>, Vec<StableName>)> {
+    let var = crate::world::read_var(doc, &read);
+    let family = var.is_some_and(|var| doc.var_reach(var).chain().is_some_and(|c| !c.is_empty()));
+    if !family {
+        return Some((pncad::document::BodyRead::plain(read), names));
+    }
+    let (ev, var) = (ev?, var?);
+    let table = ev.table(var)?;
+    let held = names
+        .iter()
+        .filter(|name| table.lookup(name).is_some())
+        .count();
+    if held == 0 {
+        return Some((pncad::document::BodyRead::plain(read), names));
+    }
+    if held != names.len() {
+        return None;
+    }
+    let found: Vec<(Vec<u32>, StableName)> = names
+        .iter()
+        .map(|name| pncad::select::member_entity(ev, var, name))
+        .collect::<Option<_>>()?;
+    let (member, _) = found.first()?;
+    if found.iter().any(|(other, _)| other != member) {
+        return None;
+    }
+    Some((
+        pncad::document::BodyRead::member(read, member),
+        found.into_iter().map(|(_, own)| own).collect(),
+    ))
 }
 
 /// **The entity a pick selects, as an operand** — a face, or for the
 /// mate tool an edge or a vertex: its name on the body the pick is read
-/// on ([`picked_body`]).
+/// on ([`picked_body`]); `None` where no selection reads it.
 pub(crate) fn pick_read(
     doc: &Doc<ProfileProgram>,
+    ev: Option<&Evaluation<f64>>,
     pick: &impl crate::tree::PickedEntity,
-) -> Operand {
-    let (body, name) = picked_body(doc, pick);
-    Operand::select(body, vec![name])
+) -> Option<Operand> {
+    let (body, name) = picked_body(doc, ev, pick)?;
+    Some(Operand::select(body, vec![name]))
 }
 
 /// **The frame a sketch tracing `traced` stands on, in the plane of
@@ -5890,17 +5988,10 @@ pub(crate) fn pick_read(
 fn drawn_frame(
     doc: &Doc<ProfileProgram>,
     ev: &Evaluation<f64>,
-    plane: &FaceSelection,
-    traced: &FaceSelection,
+    (plane, traced): (&Operand, &Operand),
     tol: Tol,
 ) -> Result<Operand, pncad::trace::TracedFrameFault> {
-    pncad::trace::traced_frame(
-        doc,
-        ev,
-        &pick_read(doc, plane),
-        &pick_read(doc, traced),
-        tol,
-    )
+    pncad::trace::traced_frame(doc, ev, plane, traced, tol)
 }
 
 /// How far `node`'s body reaches from its own origin across its `xy`:

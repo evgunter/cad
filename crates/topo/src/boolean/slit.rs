@@ -161,6 +161,17 @@ pub enum EdgeInFaceGap {
     /// midpoint (a spline or approximating face, which this reading does
     /// not read, among them), to read the side by.
     NoNormal,
+    /// The face the edge lies in, or one of the edge's own faces, is a
+    /// torus decided outside the ring convention, whose normal there
+    /// refuses as an invalid input
+    /// ([`crate::face_normal::NormalAbort::InvalidInput`], DESIGN
+    /// `[failure.taxonomy]` row 1(a)): a shape the kernel's model never
+    /// represents, carried whole. Its standing is the convention's own
+    /// ([`geom_brep::TorusRefusal::refusal`]), and it ends on the
+    /// convention's lever. The operand that carried it in is not in scope
+    /// here, so the gap names it rather than
+    /// [`crate::BooleanError::DegenerateTorus`].
+    DegenerateTorus(geom_brep::TorusRefusal),
     /// One of the edge's faces is tangent to the face along the line,
     /// so each of the two edges would bound a cusp, a wedge of no angle
     /// (D1's doubled cusp), whose reading on a line of coincident edges
@@ -258,6 +269,15 @@ impl EdgeInFaceGap {
         matches!(self, Self::Crossed | Self::TwinIncident | Self::Redivided)
     }
 
+    /// The torus convention's refusal the gap carries, whose standing and
+    /// lever are its own; `None` for a parting gap.
+    pub const fn torus(&self) -> Option<geom_brep::TorusRefusal> {
+        match self {
+            Self::DegenerateTorus(refusal) => Some(*refusal),
+            _ => None,
+        }
+    }
+
     /// The words a refusal says it in: after "where" for a construction
     /// gap, after "and" for a defect.
     pub(super) const fn words(&self) -> &'static str {
@@ -267,6 +287,8 @@ impl EdgeInFaceGap {
                  the edge's own faces none at the midpoint (a spline face among them), to read \
                  the side by"
             }
+            // Rendered by its own refusal ([`Self::torus`]), never by words.
+            Self::DegenerateTorus(_) => "the face, or one of the edge's own faces, is a torus",
             Self::Shared => {
                 "an end of the edge lies on the face's boundary more than once, or the edge's \
                  faces go into the material of two faces it lies in, wholly in one of them"
@@ -1160,7 +1182,7 @@ fn piece_rung(
             geom_brep::ladder::rung_or_abort(why.refusal(), unread(Some(why)), Err)
         }
         Ok(PieceRead::Unread(None)) => Rung::Blocked(unread(None)),
-        Err(read) => Rung::refused(read, BooleanError::refusal),
+        Err(read) => Rung::refused(read, BooleanError::refusal, Err),
     }
 }
 
@@ -1210,9 +1232,9 @@ pub(super) const RIDER_ON_PLANE: &str = "bool_rider_on_plane";
 /// under.
 pub(super) const RIDER_ON_CURVED: &str = "bool_rider_on_curved";
 
-/// The site [`carrier_on_surface`] decides a torus face a ring under
-/// ([`geom_brep::variety::Variety::of`]).
-const RIDER_RING_TORUS: &str = "bool_rider_ring_torus";
+/// The rows [`carrier_on_surface`] decides a torus face a ring under, its
+/// tube and then its ring ([`geom_brep::variety::Variety::of`]).
+const RIDER_RING_TORUS: geom::RingSites = geom::RingReader::BooleanRider.sites();
 
 /// The site [`carrier_on_surface`] decides a spiric's plane against a
 /// plane face's under: their tilt over the spiric's reach, then the
@@ -1524,11 +1546,7 @@ fn clears_plane<T: Decide>(
 
 /// The rows [`spiric_on_curved`] reads a spiric's regime under
 /// ([`geom::spiric_regime`]): its offset off zero, and short of `R − r`.
-const RIDER_SPIRIC_REGIME: geom::SpiricRegimeSites = geom::SpiricRegimeSites::new(
-    "bool_rider_spiric_off_axis",
-    "bool_rider_spiric_regime",
-    "bool_rider_spiric_regime_floor",
-);
+const RIDER_SPIRIC_REGIME: geom::SpiricRegimeSites = geom::SpiricReader::BooleanRider.sites();
 
 /// **Where spiric `carrier`, over `(t0, t1)`, lies against sphere,
 /// cylinder, cone or ring torus `surface`**: off it along every piece
@@ -1690,7 +1708,7 @@ mod torus_rows {
 
     #[test]
     fn a_torus_conic_reads_on_it_and_a_near_miss_does_not() {
-        let (body, face) = crate::boolean::boxes::tests::torus_wall(
+        let (body, face) = crate::boxes::tests::torus_wall(
             Point3::origin(),
             Vec3::unit_z(),
             Vec3::unit_x(),
@@ -1944,7 +1962,17 @@ fn walls_inside<T: Decide>(
                 diag,
             })
         }
-        Err(_) => Err(refused(EdgeInFaceGap::NoNormal)),
+        // A normal kept as its refusal states it is this reading's limit;
+        // an abort is answered by its own row.
+        Err(why) => Err(match why.standing() {
+            Ok(_) => refused(EdgeInFaceGap::NoNormal),
+            Err(abort) => match abort.torus() {
+                Some(torus) => refused(EdgeInFaceGap::DegenerateTorus(torus)),
+                None => BooleanError::ClassificationInvariant {
+                    what: "an edge's midpoint reads off the surface of a face it lies in or bounds",
+                },
+            },
+        }),
     };
     // A face the point door reads no normal on (a spline or an
     // approximating face, `Ok(None)`) is an input this reading does not
@@ -2058,12 +2086,23 @@ fn walls_inside<T: Decide>(
 /// **A spline face `f`'s outward normal at the in-trim foot its placement
 /// reads `p` at** ([`super::spline_region::spline_face_placement`],
 /// [`crate::face_normal::spline_outward_normal_at`]): `None` where `p`
-/// reads at no in-trim foot, or the chart has no one normal there.
+/// reads at no in-trim foot, or where the placement or the normal
+/// refuses as a refusal that keeps its query ([`ContainError::refusal`],
+/// [`crate::face_normal::NormalAtError::refusal`]): the chart has no one
+/// normal there.
 ///
 /// # Errors
 ///
 /// [`BooleanError::Escalated`] where the placement, or `p` on the chart
-/// at its foot, is in band.
+/// at its foot, is in band; [`BooleanError::ClassificationInvariant`]
+/// where either refuses the whole query (two of the door's definite
+/// readings disagree, or `p` reads off the chart at the foot it was
+/// placed at).
+///
+/// # Panics
+///
+/// Where the door answers that `f`, read out of `body`, does not
+/// resolve ([`super::contain::driver_face_stale`]).
 fn spline_floor<T: Decide>(
     body: &Body<T>,
     f: FaceKey,
@@ -2091,7 +2130,15 @@ fn spline_floor<T: Decide>(
                 diag,
             });
         }
-        Err(_) => return Ok(None),
+        Err(ContainError::StaleFace(face)) => super::contain::driver_face_stale(face),
+        Err(why) => {
+            return match why.refusal() {
+                Ok(_) => Ok(None),
+                Err(geom_brep::ladder::Aborts) => Err(BooleanError::ClassificationInvariant {
+                    what: "a spline floor's placement of an edge's midpoint refuses the whole query",
+                }),
+            };
+        }
     };
     match crate::face_normal::spline_outward_normal_at(body, f, uv, p, band) {
         Ok(n) => Ok(Some(n.vec())),
@@ -2101,7 +2148,17 @@ fn spline_floor<T: Decide>(
                 diag,
             })
         }
-        Err(_) => Ok(None),
+        Err(SplineNormalError::StaleFace) => super::contain::driver_face_stale(f),
+        // The chart was read as a spline above, so the point door's arm
+        // and the placeholder's are a chart with no one normal here.
+        Err(SplineNormalError::NotSpline | SplineNormalError::PlaceholderChart) => Ok(None),
+        Err(SplineNormalError::At(why)) => match why.refusal() {
+            Ok(_) => Ok(None),
+            Err(geom_brep::ladder::Aborts) => Err(BooleanError::ClassificationInvariant {
+                what: "a spline floor reads an edge's midpoint off its chart at the foot its \
+                       placement read",
+            }),
+        },
     }
 }
 
@@ -2132,8 +2189,8 @@ fn coplanar_wall_inside<T: Decide>(
     )
     .map_err(|diag| BooleanError::coincidence(Coincide::Sectors, DeclarationRead::Moot, diag))?
     {
-        geom_core::k_stats::NonzeroSign::Negative => Ok(false),
-        geom_core::k_stats::NonzeroSign::Positive => Err(refused(EdgeInFaceGap::Tangent)),
+        geom_core::NonzeroSign::Negative => Ok(false),
+        geom_core::NonzeroSign::Positive => Err(refused(EdgeInFaceGap::Tangent)),
     }
 }
 
@@ -2783,7 +2840,7 @@ fn crossing_escalated(diag: geom_core::Indeterminate) -> BooleanError {
 fn meet_refused(fault: MeetFault, unread: BooleanError) -> BooleanError {
     match fault.kind() {
         MeetKind::Escalated(diag) | MeetKind::Touch(diag) => crossing_escalated(diag),
-        MeetKind::Unread => unread,
+        MeetKind::Unread(_) => unread,
         MeetKind::Fault { .. } => BooleanError::ClassificationInvariant {
             what: "the meeting reader contradicted itself on two edges' carriers",
         },
@@ -3438,7 +3495,7 @@ mod curved_carrier_rows {
         matches!(
             read,
             Err(super::BooleanError::Escalated { diag, .. })
-                if diag.predicate == Some(super::RIDER_RING_TORUS)
+                if diag.predicate == Some(super::RIDER_RING_TORUS.ring())
         )
     }
 
@@ -4101,6 +4158,7 @@ mod piece_rung_rows {
             diag: geom_core::Indeterminate {
                 margin: geom_core::MarginDiag::value(5e-9),
                 band: geom_core::Band::new(1e-9, 1e-8).unwrap(),
+                // UNDECIDED-NAME: the piece's cause an unread piece refuses ahead of
                 predicate: Some("test_piece"),
                 terminal_sliver: false,
             },

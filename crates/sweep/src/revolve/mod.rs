@@ -146,7 +146,7 @@ mod upgrade;
 use core::fmt;
 
 use crate::swept::CapPlaneError;
-use geom_core::k_stats::NonzeroSign;
+use geom_core::NonzeroSign;
 use geom_core::period::{Exact, Extent, Period, TurnRows};
 use geom_core::{Band, BandError, Decide, Indeterminate, InfSpeed, Point2, Real, Sign, Tol, Vec2};
 use profile::ValidatedProfile;
@@ -156,10 +156,7 @@ use topo::{Body, DihedralReading, EdgeKey, EulerOpError, FaceKey, ShellKey, Soli
 /// The predicate names a revolve's cosurface decision reports under
 /// (the revolution walls: planes, cylinders and cones from lines,
 /// spheres and tori from arcs).
-pub(super) const WALL_COSURFACE: crate::swept::CosurfaceNames = crate::swept::CosurfaceNames {
-    lines: "wall_lines_cosurface",
-    arcs: "wall_arcs_cosurface",
-};
+pub(super) const WALL_COSURFACE: crate::swept::CosurfaceNames = crate::rows::WALL_COSURFACE;
 
 /// The revolve axis: a line in **sketch coordinates** (module docs).
 /// The profile must lie in the closed half-plane `r ≥ 0`, where `r` is
@@ -871,20 +868,20 @@ impl RevolveError {
             Self::NonFiniteAxis => write!(
                 f,
                 "the revolve axis direction has no finite length (a component overflows \
-                 the norm or is not a number). Recourse: {}",
-                geom_core::RANGE_RECOURSE
+                 the norm or is not a number). {}",
+                geom_core::RANGE_ENDING
             ),
             Self::UnderflowedAxis => write!(
                 f,
                 "the revolve axis direction's length underflowed out of the format: it \
-                 measures zero while still naming a direction. Recourse: {}",
-                geom_core::RANGE_RECOURSE
+                 measures zero while still naming a direction. {}",
+                geom_core::RANGE_ENDING
             ),
             Self::DegenerateAxis => write!(
                 f,
                 "the revolve axis direction has no definite length (zero or a sliver). \
-                 Recourse: {}",
-                geom_core::COINCIDENCE_RECOURSE
+                 {}",
+                geom_core::MOVE_RECOURSE
             ),
             Self::AxisEscalated { source } => write!(
                 f,
@@ -898,8 +895,8 @@ impl RevolveError {
             Self::DegenerateAngle => write!(
                 f,
                 "the revolve angle is zero at tolerance (measured at the profile's widest \
-                 radius). Recourse: {}",
-                geom_core::COINCIDENCE_RECOURSE
+                 radius). {}",
+                geom_core::MOVE_RECOURSE
             ),
             Self::FullRangeAngle => f.write_str(
                 "the partial revolve angle reaches a full turn at tolerance; an exactly \
@@ -1046,15 +1043,15 @@ impl RevolveError {
                 mixed: Some(stations),
             } => write!(
                 f,
-                "along the join {edge:?}, {stations}. Recourse: {}",
-                geom_core::COINCIDENCE_RECOURSE
+                "along the join {edge:?}, {stations}. {}",
+                geom_core::MOVE_RECOURSE
             ),
             Self::SmoothJoinRefuted { edge, mixed: None } => write!(
                 f,
                 "the join along {edge:?} classified definitely smooth at its witness but \
                  definitely a corner at every certification station, so the construction \
-                 refuses rather than choose a description for it. Recourse: {}",
-                geom_core::COINCIDENCE_RECOURSE
+                 refuses rather than choose a description for it. {}",
+                geom_core::MOVE_RECOURSE
             ),
             Self::PinnedRunStation {
                 loop_index,
@@ -1110,7 +1107,7 @@ fn partial_angle_reverses<T: Decide>(t: T, r_max: T, band: Band) -> Result<bool,
             _ => RevolveError::AngleEscalated { source },
         })?;
     let rows = TurnRows::exact("revolve_angle_headroom");
-    match Period::new(T::tau()).strictly_partial(rows, angle, Exact::new(r_max), band) {
+    match Period::angle().strictly_partial(rows, angle, Exact::new(r_max), band) {
         Ok(true) => Ok(sign == NonzeroSign::Positive),
         Ok(false) => Err(RevolveError::FullRangeAngle),
         Err(undecided) => Err(RevolveError::AngleEscalated {
