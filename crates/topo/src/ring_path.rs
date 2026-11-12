@@ -2102,6 +2102,10 @@ use spline_wall::IsoPiece;
 
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod spline_wall_rows;
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod span_turn_rows;
 
 #[cfg(test)]

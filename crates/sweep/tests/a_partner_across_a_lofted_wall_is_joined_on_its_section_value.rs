@@ -217,18 +217,24 @@ fn a_brick_across_a_lofted_wall_is_joined_on_its_carried_arcs() {
 fn probe_brick_inside_wall() {
     let t = Tol::witness();
     let prism = finished("the loft prism", loft_prism(t), t);
-    let brick = finished(
-        "the brick",
-        topo::test_support::brick_with_fresh_keys::<f64>((-0.25, 0.25), (0.75, 1.25), (0.75, 1.25), t),
-        t,
-    );
-    for (what, run) in [
-        ("prism ∪ brick", topo::union(&prism, &brick, t).map(|_| ())),
-        ("prism ∖ brick", topo::subtract(&prism, &brick, t).map(|_| ())),
-        ("prism ∩ brick", topo::intersect(&prism, &brick, t).map(|_| ())),
-        ("brick ∪ prism", topo::union(&brick, &prism, t).map(|_| ())),
-        ("brick ∖ prism", topo::subtract(&brick, &prism, t).map(|_| ())),
-    ] {
-        eprintln!("PROBE {what}: {run:?}");
-    }
+    let brick = |x, y, z| {
+        finished(
+            "a brick",
+            topo::test_support::brick_with_fresh_keys::<f64>(x, y, z, t),
+            t,
+        )
+    };
+    let z = (0.75, 1.25);
+    let left = brick((-0.6, -0.3), (0.75, 1.5), z);
+    let right = brick((0.3, 0.6), (0.75, 1.5), z);
+    let bridge = brick((-0.6, 0.6), (1.5, 1.8), z);
+    let half = topo::union(&left, &bridge, t).expect("left ∪ bridge");
+    let half = half.body().expect("a union is never empty").body.clone();
+    let fork = topo::union(&half, &right, t).expect("fork");
+    let fork = fork.body().expect("a union is never empty").body.clone();
+    let start = std::time::Instant::now();
+    let run = topo::union(&prism, &fork, t).map(|_| ());
+    eprintln!("PROBE prism ∪ fork: {run:?} in {:?}", start.elapsed());
+    let run = topo::subtract(&fork, &prism, t).map(|_| ());
+    eprintln!("PROBE fork ∖ prism: {run:?}");
 }
