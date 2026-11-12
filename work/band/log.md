@@ -1293,3 +1293,9 @@ A new sitting holds the track for its P0 and P1 rows: the bracket's mixed-convex
 - 2026-11-12 — 6807: Ev approved ("if you are sure then just go ahead"). Fork row 260 completed (decision; Opus = A, Fable = B), the kiss row's rule gains the request type (one key enum, edge | contact, on `BlendRequest`/`Link`/`BlendSite`), and `a-blend-names-a-line-contact-as-its-site` (P1, H) filed, blocked on HELDRECORDS' `a-finished-body-holds-its-contact-records-at-every-door`. `[ev]` off; merges on green. 6514's DR row pushed (d3a7afb287); merges on green.
 
 - 2026-11-12 — 6807 merged (a1d8b22cd7). 6514 merged (9ee1c046ef) over one inherited red: geom-brep `a_stated_image_on_its_carrier_certifies` at ε 1e-12 at fuzz seed 0x3f4f8ff23555b906, reproduced on main 63d935ad38 and filed `pcert/a-cone-stated-image-at-a-fuzz-seed-reads-in-band-at-eps-1e-12` (P1) on this branch; noted on the PR. The chain lane is folding main into 6520. Freed disk by removing clones of merged PRs.
+
+- 2026-11-12 — band-mixgates: both shared-support gates on the mixed rim were measured before lifting.
+  - Cross-drilled plate: drilled-then-filleted ΔV 0.0031196575015717 against Pappus 0.0031196575015719, equal to filleted-then-drilled. The bore's rings stay on the walls.
+  - Plate with a round hole, every edge: one call ΔV 0.0076629944986384, bit-equal to the two calls (closed form 0.0076629944986383). Its hole rim is a LADDER. The reversed carve order, forced on scratch, built the same.
+  - Both gates are dropped. A mixed link's co-requested trim is read between its feet, so a hole beside a corner arc no longer refuses on the arc's whole circle.
+  - A mixed rim and a true annulus still refuse at the gate. The support meter's ranged read straddles them. Filed: `an-annulus-rim-around-a-mixed-rim-refuses-in-one-call`, `a-mixed-ring-inside-a-few-wide-arcs-refuses-at-the-support-meter`, `a-ladder-or-annulus-rims-mate-with-a-ring-refuses-at-its-resolver`.
