@@ -2,8 +2,7 @@
 id: a-cut-across-its-tools-seat-leaves-a-sliver-between-the-seats-two-sections
 kind: issue
 title: A cut across its tool's declared seat leaves a sliver of the cut part between the seat's two sections, which the finish keeps: X − (bolt ⊔ plate) refuses ToolSeatCrossed
-status: parked
-blocked_on: [6765]
+status: dispatched
 opened: 2026-11-09
 priority: P1
 cost: H
@@ -87,3 +86,11 @@ Three designers, drawn by the protocol, independently recommended one final stat
 Measured with the tool fused, each union deciding the seat itself: every refused cut builds or is typed empty, at tiers 3 and 3′. That covers the faces-only seats (slab, cap) and the `VertexReadTwice` rows (above, below, blade, corner); the volumes are in PR 6765. One designer measured the coaxial and flush curved cuts: two solids each.
 
 The build checks first that a union can be handed the seat's record as its verdict; no designer exercised that path. The new `[operations.operators]` sentence is put to Ev on `[ev]` PR 6765, fork row 260.
+
+## Decided (Ev, PR 6765, 2026-11-12)
+
+Ev approved the final state: a cut reads its tool as material, the tool fused on the `⊔`'s records, each record taken as the verdict. Ev ruled that it is semantically the same as `[operations.operators]`'s statement, so `docs/DESIGN.md` is unchanged. The rule and why it is sound go in an architecture note in `crates/topo/README.md`, under "The body, its operators and its tiers", with a clause id.
+
+## Dispatch (the build, 2026-11-12)
+
+Lane `seal-material`, branch `seal/cut-tool-material`. Review tier: full (a P1 on shared ground, `crates/topo/src/boolean/*`). The build first checks that an area record can be handed to the union as its given verdict; if it cannot, it stops and reports, without re-deciding the seat.
