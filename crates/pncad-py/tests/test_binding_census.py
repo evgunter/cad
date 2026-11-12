@@ -1412,6 +1412,10 @@ BOUND_AS = {
     # Why an index is refused as declared crosses at the carrier's
     # second word (`count_not_count`, `within_no_index`).
     "IndexFault": "EditError.inner_variant",
+    # Why a source is refused as declared crosses at the carrier's second
+    # word (`unresolved`, `written_in_place`, `kind`, `index_not_count`,
+    # `fresh`, `not_a_source`).
+    "SourceFault": "EditError.inner_variant",
     # Why a family's members could not be listed: the evaluator turns
     # it into its node refusal (`MemberCountFault::node_error`), so it
     # crosses as the tags `index_count` / `index_count_out_of_range`.
@@ -3655,6 +3659,8 @@ MEMBERS_BOUND_AS = {
     "EditError::ConstraintOnNonPlacement": "EditError.variant",
     "EditError::SpaceMismatch": "EditError.variant",
     "EditError::PickPath": "EditError.variant",
+    "EditError::PlacementReadsNoSource": "EditError.variant",
+    "EditError::SourceRead": "EditError.variant",
     "EditError::ProductRead": "EditError.variant",
     "DocEdit::SetProduct": "Doc.set_product",
     "EditError::UnknownConstraint": "EditError.variant",

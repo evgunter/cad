@@ -1200,6 +1200,23 @@ impl Doc {
         node: d::AuthoredNode,
         label: Option<d::Label>,
     ) -> Result<NodeId, d::EditError> {
+        // A placement of a body variable reads it through a source minted
+        // for it, as `Doc.place` does (VR4); a source read is shared.
+        let node = match node {
+            d::Node::Place {
+                source,
+                target,
+                constraints,
+            } => d::Node::Place {
+                source: d::BodyRead {
+                    read: self.inner.place_read(source.read),
+                    at: source.at,
+                },
+                target,
+                constraints,
+            },
+            node => node,
+        };
         self.minting(label, |action| action.insert(node))
     }
 

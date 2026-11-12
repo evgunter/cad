@@ -8949,12 +8949,19 @@ mod properties_pane_tests {
     fn an_edge_direction_mate_at_the_panels_default_keeps_its_copy_upright() {
         let mut driven = Driven::with(Vec::new());
         driven.settle();
-        let place = SessionOp::place_where_it_stands(
+        // The second placement shares the startup copy's source, named as
+        // the person names it (VR2).
+        let Some(SessionOp::Place { body, target, .. }) = SessionOp::place_where_it_stands(
             driven.app.session.committed_doc(),
             pncad::document::Operand::Node(extrude()),
-        )
-        .expect("a body in a space");
-        driven.perform(place);
+        ) else {
+            panic!("a body in a space")
+        };
+        driven.perform(SessionOp::Place {
+            body,
+            target,
+            name: Some(pncad::document::VarName::from_static("bracket")),
+        });
         let doc = driven.app.session.committed_doc().clone();
         let [copy] = doc
             .placements()

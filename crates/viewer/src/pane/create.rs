@@ -689,7 +689,6 @@ impl ViewerBehavior<'_> {
             }),
         );
         self.place_ask_ui(ui, &tool, &mut edited);
-        self.copy_of_row(ui, &tool);
         if let Some(target) = tool.target() {
             let doc = self.session.committed_doc();
             let loaded = tool.loaded_target().cloned();
@@ -804,6 +803,7 @@ impl ViewerBehavior<'_> {
                 edited.strike_reading(doc, ev, old);
             }
         }
+        self.copy_of_row(ui, &tool);
         if tool.door().is_some() && ui.button("add a mate").clicked() {
             edited.add_mate(tool.active_kind());
         }
@@ -1037,7 +1037,11 @@ impl ViewerBehavior<'_> {
             .node()
             .filter(|&node| node != door.placement && doc.read_of_node(node).is_some());
         ui.horizontal(|ui| {
-            ui.label(format!("copy of: {}{through}", doc.spoken_var(body)));
+            let copied = doc.operation_of(body).map_or_else(
+                || doc.spoken_var(body).to_string(),
+                |node| doc.spoken(node).to_string(),
+            );
+            ui.label(format!("copy of: {copied}{through}"));
             if ui
                 .add_enabled(
                     selected.is_some(),
