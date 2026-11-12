@@ -436,3 +436,8 @@ Newest entries at the bottom; the tail is the program's live status.
 - 2026-11-12 — **`[ev]` PR 6672 merged** (`e996c00498`). Ev: "you should go ahead, but i'm not totally sure that this variable design i proposed is right … please feel free to push back on this decision".
   - Ev's invitation to push back is recorded in VARIABLES VR4 itself and in fork row 260 (renumbered from 255), so a later reader meets it.
   - **Sequencing:** the named-source build follows the target build that is now running, because both change `SessionOp::Place` (its target, and its name) and `session.rs`. The named-source lane, idle at `/home/user/wt-named-source`, is resumed when the target PR lands. (PLACING orchestrator)
+- 2026-11-12 — **PR 6850 is open** (the 6600 target build), green at `bc4feaf182`.
+  - **Single FULL review dispatched** (`placing-review-6850`).
+  - **Four lane decisions touch README sentences:** `movable_into_world`'s extra condition; `IntoOwnSpace` refusing on an old-space mate; "an operand that is no copy"; a family read whole keeping `SpaceMismatch`. The review judges each as a consequence of the ruling or a new decision. Any new decision goes to Ev on the PR before merge.
+  - **The lane filed** `a-combine-re-targets-a-copy-another-copy-is-mated-to`, a probe on main, fixed by 6850.
+  - **The orchestrator filed** COINCIDE's `main-red-two-door-at-rest-rows-on-the-2026-11-11-nightly` (P1). (PLACING orchestrator)
