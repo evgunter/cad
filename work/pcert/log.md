@@ -1299,6 +1299,29 @@ E1c waits on the answer.
     - P1 `a-derived-sphere-image-misses-its-circle-by-1e-11-near-five-half-pi-at-eps-1e-12`: a real derivation miss; the mint refuses in band.
     - Two P3 station rows, for the other computed-station lanes and check 4.
 
+- 2026-11-12 — **PR 6872 merged: the closed-form bound's ε 1e-12 seeds are real misses, not excess.** It closes the P1 `a-closed-form-image-at-a-fuzz-seed-reads-its-coefficient-bound-in-band-at-eps-1e-12`. Review tier: the orchestrator's read, since the change is test-only.
+  - Every refusal measured is a real miss of the stated image. The bound reads it to about 0.1%, 7% at worst, against a 20k-point dense meter, and seed 1 was also checked exactly in rational arithmetic. So `closed_bound.rs` and `trig.rs` are unchanged, and the soundness rows and mutants of 6845 and 6857 are untouched.
+  - Seed `0x4661d077090b3597` was a fixture defect. The rows' frame squared `u_ref` once, so with `b` near the axis the chart left a line drawn square to the normal by 1.02e-12. `across()` now squares twice, the seed is pinned (`fuzz::pinned_sweep`), and a frame-witness row is added. The mutant `across-once` turns both red.
+  - Seed `0x8ffe04db921f5cff` is a near-pole sphere meridian's azimuth: the same class as the derived-sphere P1, landing in band. The every-spelling row stays red by seed at ε 1e-12 until that P1 lands.
+  - Over 2000 seeds at ε 1e-12, refusals went from 9 to 4, all near-pole sphere meridians. At ε 1e-9 there were none before or after.
 - 2026-11-12 — **Dispatched the two P1s PR 6857 filed**, both main reds by fuzz seed at ε 1e-12, both from `e61f2dc848`. Each gets a single FULL review, soundness-led.
   - `a-closed-form-image-at-a-fuzz-seed-reads-its-coefficient-bound-in-band-at-eps-1e-12`, on branch `pcert/closed-bound-fine-band`. The lane root-causes the bound's excess and keeps every 6845/6857 mutant red.
   - `a-derived-sphere-image-misses-its-circle-by-1e-11-near-five-half-pi-at-eps-1e-12`, on branch `pcert/derived-sphere-image-accuracy`. The defect is in `chart_pcurve_over`'s accuracy near t ≡ π/2. The lane also sweeps the other charts' derivations.
+
+- 2026-11-12 — **PR 6864 merged: check 4's projected door reads a chord's spans in the parts their turn needs.** It closes the P1 `check-4s-projected-door-reads-every-span-of-a-chord-in-eight-parts`, which spiricarm had re-banded under the blocker rule.
+  - **The change.**
+    - Check 4 first reads a curved chart's net at `Parts::ByTurn`, inside `k_stats::detached` and the new `geom_core::sym::aside`.
+    - If that read passes, it is the verdict, and its recording is spliced in.
+    - Anything else gets main's eight-part re-read, with main's trail. So every refusal and escalation, and the sliver, are main's.
+  - **Cost** on `cylinder_pair_cost_probe`: 4.7–7.3 s per boolean, down from 6.1–8.7 s. Check 4 itself takes 0.36–0.46 s, down from 1.75–2.15 s. Volumes are bit-identical.
+  - **The trade.** A first reading that passes states a wider envelope: median 1.6×, max 2.1×. The volume pads on `cylinder_sphere_frame` grow 1.5–1.9×.
+    - `MEASURED_PAD` is re-baselined for this PR's share. The 4× guard was never designed to catch a widening under 2×.
+    - Main's earlier drift, up to 3.66×, is filed on spiricarm as P3 `the-cylinder-sphere-frame-pad-table-drifted-past-its-guard-on-main`.
+  - **Review.** Single FULL, then the VV fixes, a delta review, and the WW fixes (the orchestrator read the WW diff). APPROVE.
+    - Enclosure at any parts held: 622 adversarial ByTurn reads, and no false Ok in 300 tries.
+    - The decision trail matches main rung for rung at Interval and Sym.
+    - The splice, drop and Sym-keep rules each have a row and a named mutant.
+  - **Filed:**
+    - P4 `check-4s-first-reading-states-an-envelope-up-to-twice-the-eight-parts`, which includes the two-parts-a-span floor that was not taken;
+    - P4 `limb-2s-set-aside-first-reading-leaves-its-decisions-on-the-trail`;
+    - spiricarm P3 for the pad drift.

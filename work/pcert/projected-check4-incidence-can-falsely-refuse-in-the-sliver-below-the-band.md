@@ -38,3 +38,20 @@ terms. The template is `ssi::certify::subdivide`, which
 takes `cuts`, and every `SpanHull` carries `meters` and `floors`. A row
 needs a constructed carrier in the sliver that refuses today and
 certifies after.
+
+## Census (2026-11-12)
+Re-measured by the lane that closed
+`check-4s-projected-door-reads-every-span-of-a-chord-in-eight-parts`
+(branch `pcert/check4-parts-by-turn`). The probe is
+`pcert/census-probes`' `P4INC`, plus a verdict line; the run was
+release, `--ignore-default-filter`, over geom-brep, topo, sweep,
+step-import and editor-core, on main at `9550b98e39`.
+
+Check 4's eight-part incidence against the same read cut 64 times over
+the edge, on 6,664 reads outside the envelope-lemma fuzz:
+- median 1.00000, p99 1.010, max 1.175;
+- 139 reads lie in `[0.1·zero, 10·zero]`, and all of them pass.
+
+The fuzz rows reach 5.65 (`a_cone_carrier_leaving_the_apex_is_dominated`).
+That PR's first reading at `Parts::ByTurn` only ever passes, so every
+refusal is still read on these parts and the sliver is unchanged.

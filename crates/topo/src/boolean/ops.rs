@@ -136,14 +136,13 @@ use super::{
 };
 use crate::body::Body;
 use crate::boxes;
-use crate::carve::carve;
+use crate::carve::{carve, single_solid};
 use crate::coincidence::{Backing, Cited, Cites};
 use crate::entity::{EdgeKey, EntityId, FaceKey, LoopBoundary, ShellKey, VertexKey};
 use crate::geometry::{PointKey, SurfaceKey};
 use crate::live::{BoundaryMember, linked, proven};
 use crate::merge_faces::{DescribeRefusal, DihedralReading, EdgeDescribeFailure};
 use crate::props::AtRestPolicy;
-use crate::splitting::finish::single_solid;
 use crate::validate::decide;
 use geom_brep::recourse::Refused;
 use geom_core::NonzeroSign;
@@ -1974,8 +1973,8 @@ fn pair_verdict<T: Decide + Bounds + crate::props::AtRestPolicy>(
     let held = sections.held((a, fa.face), (b, fb.face));
     // A spline pair is read here, with the rows and corners its faces
     // share handed in; the glue door's table never holds one
-    // (`geom_brep::pair_section::serves`), and one held would be read with
-    // no lane and none of them.
+    // (`glue::section_door`), and one held would be read with none of
+    // them.
     if held.is_some() && spline(&fa.surface) && spline(&fb.surface) {
         return Err(BooleanError::ClassificationInvariant {
             what: "the section table holds a spline pair, which the guard reads only with its \
@@ -1983,6 +1982,14 @@ fn pair_verdict<T: Decide + Bounds + crate::props::AtRestPolicy>(
         });
     }
     let section = match held {
+        // A spline wall against an implicit partner is read off its
+        // listing, as an unheld one is: the table's whole reading, which
+        // the join carries.
+        Some(held) if spline(&fa.surface) || spline(&fb.surface) => {
+            super::section_cert::of_listed(held, band, |_| {
+                sections.listed((a, fa.face), (b, fb.face))
+            })
+        }
         Some(held) => of_pair_section(held, band, |_| {
             match sections.carried((a, fa.face), (b, fb.face)) {
                 Some(Ok(carried)) => of_carried(Ok(carried)),
@@ -6805,7 +6812,7 @@ fn apply_recuts<T: Decide + Bounds + crate::props::AtRestPolicy>(
         }
         let src: &Body<T> = if operand == Operand::A { a } else { b };
         let corrupt = |what| BooleanError::ClassificationInvariant { what };
-        let solid = single_solid(src).map_err(|_| corrupt("re-cut operand is not one solid"))?;
+        let solid = single_solid(src).map_err(|e| super::CarveStep::Recut(operand).refused(e))?;
         let mut rotated: Vec<(Body<T>, Vec<FaceKey>)> = Vec::new();
         let mut cut_shells: Vec<ShellKey> = Vec::new();
         for r in &mine {
@@ -6824,7 +6831,7 @@ fn apply_recuts<T: Decide + Bounds + crate::props::AtRestPolicy>(
             .faces
             .clone();
             let ball = carve(src, solid, &[shell])
-                .map_err(|_| corrupt("re-cut carve of the sphere shell failed"))?;
+                .map_err(|e| super::CarveStep::Recut(operand).refused(e))?;
             recut_lean(r.axis, r.align, r.radius, band)?;
             // The alignment turn and the seam spin, each MINTED as the
             // turn between two unit witnesses (`RigidMotion::turned_between`,
@@ -6883,7 +6890,7 @@ fn apply_recuts<T: Decide + Bounds + crate::props::AtRestPolicy>(
         } else {
             Some(
                 carve(src, solid, &keep)
-                    .map_err(|_| corrupt("re-cut carve of the kept shells failed"))?,
+                    .map_err(|e| super::CarveStep::Recut(operand).refused(e))?,
             )
         };
         // A turned shell that becomes the base keeps its input keys at
@@ -6897,8 +6904,8 @@ fn apply_recuts<T: Decide + Bounds + crate::props::AtRestPolicy>(
                     cells
                 }
                 Some(base) => {
-                    let base_solid =
-                        single_solid(base).map_err(|_| corrupt("re-cut base is not one solid"))?;
+                    let base_solid = single_solid(base)
+                        .map_err(|e| super::CarveStep::Recut(operand).refused(e))?;
                     let before = cells_of(base);
                     graft_solids_disjoint(base, &[base_solid], &turned)?;
                     cells_of(base).difference(&before).copied().collect()
@@ -7680,8 +7687,8 @@ fn fallback<T: Decide + Bounds + crate::props::AtRestPolicy>(
     )?;
 
     let carve_kept = |body: &Body<T>, keep: &[ShellKey]| -> Result<Body<T>, BooleanError> {
-        let solid = single_solid(body).map_err(|_| desync("fallback operand not one solid"))?;
-        carve(body, solid, keep).map_err(|_| desync("fallback carve failed"))
+        let solid = single_solid(body).map_err(|e| super::CarveStep::Fallback.refused(e))?;
+        carve(body, solid, keep).map_err(|e| super::CarveStep::Fallback.refused(e))
     };
 
     match (a_keep.is_empty(), b_keep.is_empty()) {
@@ -7729,8 +7736,7 @@ fn fallback<T: Decide + Bounds + crate::props::AtRestPolicy>(
                 // reading is structural.
                 no_unjoined_line(&b_body, band)?;
             }
-            let solid =
-                single_solid(&body).map_err(|_| desync("fallback A carve not one solid"))?;
+            let solid = single_solid(&body).map_err(|e| super::CarveStep::Fallback.refused(e))?;
             let graft = if op == BooleanOp::Subtract {
                 // ∖ with disjoint boundaries and kept B shells: every
                 // kept shell classified strictly `In` A, so this is

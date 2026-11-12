@@ -3244,7 +3244,7 @@ fn a_solid_with_a_genuine_cavity_certifies() {
 /// a cavity half-edge, the carve refuses rather than leave the link dangling.
 #[test]
 fn the_carve_refuses_to_drop_a_record_a_kept_one_names() {
-    use crate::carve::{Corrupt, carve};
+    use crate::carve::{CarveError, carve};
     use crate::entity::LoopBoundary;
     let tol = Tol::witness();
     let mut body = Body::<f64>::new();
@@ -3274,7 +3274,10 @@ fn the_carve_refuses_to_drop_a_record_a_kept_one_names() {
     let mut shared_vertex = body.clone();
     shared_vertex.half_edges[kept].start = body.get_half_edge(dropped).unwrap().start;
     assert!(
-        matches!(carve(&shared_vertex, keeper, &shells[..1]), Err(Corrupt)),
+        matches!(
+            carve(&shared_vertex, keeper, &shells[..1]),
+            Err(CarveError::KeptStartsAtDropped { .. })
+        ),
         "a kept half-edge starting at a dropped vertex"
     );
     let mut shared_edge = body.clone();
@@ -3286,7 +3289,10 @@ fn the_carve_refuses_to_drop_a_record_a_kept_one_names() {
         e.he_plus = dropped;
     }
     assert!(
-        matches!(carve(&shared_edge, keeper, &shells[..1]), Err(Corrupt)),
+        matches!(
+            carve(&shared_edge, keeper, &shells[..1]),
+            Err(CarveError::KeptSharesEdge { .. })
+        ),
         "a kept edge naming a dropped half-edge"
     );
     let mut shared_lone = body.clone();
@@ -3295,7 +3301,10 @@ fn the_carve_refuses_to_drop_a_record_a_kept_one_names() {
         vertex: body.get_half_edge(dropped).unwrap().start,
     };
     assert!(
-        matches!(carve(&shared_lone, keeper, &shells[..1]), Err(Corrupt)),
+        matches!(
+            carve(&shared_lone, keeper, &shells[..1]),
+            Err(CarveError::KeptLoopHoldsDropped { .. })
+        ),
         "a kept lone-vertex loop holding a dropped vertex"
     );
 }

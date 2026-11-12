@@ -27,10 +27,10 @@ use geom_brep::{EdgeDescription, Pcurve};
 use geom_core::{Band, Point2, Point3, Tol, UnitVec3, Vec3};
 use profile::{ProfileLoop, RawLoop};
 use sweep::{Revolution, revolve};
-use topo::splitting::{
-    SplitError, SplitFinishError, SplitJoinError, SplitPart, SplitPlane, SplitResult, split,
+use topo::splitting::{SplitError, SplitFinishError, SplitPart, SplitPlane, SplitResult, split};
+use topo::{
+    Body, JoinError, POSE_UNIT_NORM, ValidationError, validate, validate_closed, validate_geometric,
 };
-use topo::{Body, POSE_UNIT_NORM, ValidationError, validate, validate_closed, validate_geometric};
 
 /// The cone's half-angle: the radius changes by 1/2 per unit height.
 fn alpha() -> f64 {
@@ -303,7 +303,7 @@ fn the_parabola_and_hyperbola_refuse_naming_their_conic() {
             Tol::witness(),
         )
         .unwrap_err();
-        let SplitError::Join(SplitJoinError::OpenConicChord { conic: named, .. }) = &err else {
+        let SplitError::Join(JoinError::OpenConicChord { conic: named, .. }) = &err else {
             panic!("{conic:?}: expected the open-conic refusal, got {err:?}");
         };
         assert_eq!(*named, conic);
@@ -322,7 +322,7 @@ fn the_parabola_and_hyperbola_refuse_naming_their_conic() {
             Tol::witness(),
         )
         .unwrap_err();
-        let SplitError::Join(SplitJoinError::Escalated { diag, .. }) = &err else {
+        let SplitError::Join(JoinError::Escalated { diag, .. }) = &err else {
             panic!("{k}ε: expected the in-band escalation, got {err:?}");
         };
         assert_eq!(diag.predicate, Some("pn_conic_type"), "{k}ε");
