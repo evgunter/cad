@@ -144,7 +144,7 @@ use crate::face_reach::{face_axial_range, face_extent};
 use crate::geometry::SurfaceKey;
 use crate::live::{Proven, linked, proven};
 use crate::null::CurveGeom;
-use crate::ring_path::{LoopArc, LoopSplit, Path, Quadric, SplineArc, path_parity};
+use crate::ring_path::{Carrier, LoopArc, LoopSplit, Path, Quadric, SplineArc, path_parity};
 use crate::splitting::containment::{LoopContainment, PointInLoopError, point_in_loop};
 use crate::unresolved::Unresolved;
 use crate::validate::decide;
@@ -3938,16 +3938,17 @@ fn quadric_loop_arc<T: Decide>(
 /// The loop arcs of the half-edges `run` on the face `face` of
 /// `surface`: a null edge (a pierce point's scaffolding, no length)
 /// contributes none, and an edge on a carrier the surface's loops do
-/// not carry ([`quadric_loop_arc`]) is a ring the lane does not read
+/// not carry ([`quadric_loop_arc`]; on a spline wall, any but a spline)
+/// is a ring the lane does not read
 /// ([`JoinError::RingIslandUnread`]). A spline edge is read on a
-/// cylinder, a sphere or a torus face where it is the certified
-/// intersection of the face's surface with another
+/// cylinder, a sphere, a torus or a spline face where it is the
+/// certified intersection of the face's surface with another
 /// ([`SplineArc::of_edge`]), and is unread on a cone, whose pairs the
 /// section table does not carry.
 fn run_loop_arcs<T: Decide>(
     body: &Body<T>,
     face: FaceKey,
-    (surface, quadric): (&geom::Surface<T>, &Quadric<T>),
+    (surface, carrier): (&geom::Surface<T>, &Carrier<T>),
     run: &[HalfEdgeKey],
     band: Band,
 ) -> Result<Vec<LoopArc<T>>, JoinError> {
@@ -3962,14 +3963,20 @@ fn run_loop_arcs<T: Decide>(
         let Some(curve) = body.edge_curve_linked(edge, data).certified() else {
             continue;
         };
-        let arc = match (quadric, curve.carrier()) {
+        let arc = match (carrier, curve.carrier()) {
             (
-                Quadric::Cylinder { .. } | Quadric::Sphere { .. } | Quadric::Torus { .. },
+                Carrier::Quadric(
+                    Quadric::Cylinder { .. } | Quadric::Sphere { .. } | Quadric::Torus { .. },
+                )
+                | Carrier::Wall(_),
                 geom::Curve3::Nurbs(_),
             ) => SplineArc::of_edge(curve, own).map(LoopArc::Spline),
-            (Quadric::Cone { .. }, geom::Curve3::Nurbs(_)) => None,
-            _ => quadric_loop_arc(quadric, curve.carrier(), curve.params(), band)
-                .map_err(|diag| JoinError::Escalated { face, diag })?,
+            (Carrier::Quadric(Quadric::Cone { .. }), geom::Curve3::Nurbs(_))
+            | (Carrier::Wall(_), _) => None,
+            (Carrier::Quadric(quadric), _) => {
+                quadric_loop_arc(quadric, curve.carrier(), curve.params(), band)
+                    .map_err(|diag| JoinError::Escalated { face, diag })?
+            }
         };
         arcs.push(arc.ok_or_else(|| ring_island_unread(face, surface))?);
     }
@@ -4079,7 +4086,7 @@ pub(crate) fn path_island_winding_closed_by<T: Decide>(
 /// run's loop arcs closed by the chord, the chord's midpoint `q` the
 /// paths arrive at, and its left normal there.
 pub(crate) struct IslandReading<T: Real> {
-    quadric: Quadric<T>,
+    carrier: Carrier<T>,
     arcs: Vec<LoopArc<T>>,
     q: Point3<T>,
     left: Vec3<T>,
@@ -4112,31 +4119,38 @@ impl<T: Decide> IslandReading<T> {
         let invariant = |what| JoinError::SectionInvariant { face, what };
         let view = body.face(face).ok_or_else(|| corrupt_face(face))?;
         let surface = view.surface();
-        let quadric = Quadric::of(surface).ok_or_else(|| ring_island_unread(face, surface))?;
+        let carrier = Carrier::of(surface).ok_or_else(|| ring_island_unread(face, surface))?;
         let cycle = body.loop_cycle(h1).ok_or_else(|| corrupt_he(h1))?;
         let end = cycle
             .iter()
             .position(|&he| he == h2)
             .ok_or_else(|| corrupt_he(h2))?;
-        let mut arcs = run_loop_arcs(body, face, (surface, &quadric), &cycle[..=end], band)?;
+        let mut arcs = run_loop_arcs(body, face, (surface, &carrier), &cycle[..=end], band)?;
         let (chord, q, travel) = match closing {
             Some(spec) => {
                 let (t0, t1) = (spec.param_start, spec.param_end);
-                let chord = match &spec.carrier {
+                let chord = match (&spec.carrier, &carrier) {
                     // The chord's locus, read in either sense: the arc
                     // its evidence was taken on.
-                    geom::Curve3::Nurbs(_) => arc.cloned().map(LoopArc::Spline),
-                    _ => quadric_loop_arc(&quadric, &spec.carrier, (t0, t1), band)
-                        .map_err(|diag| JoinError::Escalated { face, diag })?,
+                    (geom::Curve3::Nurbs(_), _) => arc.cloned().map(LoopArc::Spline),
+                    (_, Carrier::Quadric(quadric)) => {
+                        quadric_loop_arc(quadric, &spec.carrier, (t0, t1), band)
+                            .map_err(|diag| JoinError::Escalated { face, diag })?
+                    }
+                    (_, Carrier::Wall(_)) => None,
                 }
                 .ok_or_else(|| ring_island_unread(face, surface))?;
                 let travel = spec.carrier.deriv(geom::mid_param(t0, t1)) * (t1 - t0);
                 (chord, spec.carrier.mid_point(t0, t1), travel)
             }
-            None if matches!(quadric, Quadric::Sphere { .. } | Quadric::Torus { .. }) => {
+            None if !matches!(
+                carrier,
+                Carrier::Quadric(Quadric::Cylinder { .. } | Quadric::Cone { .. })
+            ) =>
+            {
                 return Err(invariant(
-                    "a sphere or torus ring run is closed by a straight chord (the section lanes \
-                     mint an arc on a sphere or a torus)",
+                    "a sphere, torus or spline ring run is closed by a straight chord (the \
+                     section lanes mint an arc on a sphere, a torus or a spline)",
                 ));
             }
             None => {
@@ -4151,15 +4165,23 @@ impl<T: Decide> IslandReading<T> {
                 (LoopArc::segment(from, to), from.mid(to), to - from)
             }
         };
-        match quadric.off_apex(q, band) {
-            Ok(true) => {}
-            Ok(false) => return Err(ring_island_unread(face, surface)),
-            Err(diag) => return Ok(Err(diag)),
-        }
+        let outward = match &carrier {
+            Carrier::Quadric(quadric) => {
+                match quadric.off_apex(q, band) {
+                    Ok(true) => {}
+                    Ok(false) => return Err(ring_island_unread(face, surface)),
+                    Err(diag) => return Ok(Err(diag)),
+                }
+                quadric.outward(q, view.sense())
+            }
+            Carrier::Wall(wall) => wall
+                .outward(q, view.sense())
+                .ok_or_else(|| ring_island_unread(face, surface))?,
+        };
         arcs.push(chord);
-        let left = quadric.outward(q, view.sense()).cross(travel);
+        let left = outward.cross(travel);
         Ok(Ok(Self {
-            quadric,
+            carrier,
             arcs,
             q,
             left,
@@ -4205,7 +4227,7 @@ impl<T: Decide> IslandReading<T> {
         let references = outer_references(body, face, &[])?;
         climb_agreeing(
             references,
-            |w| paths_rung(&self.quadric, (w, self.q), band, &mut read),
+            |w| paths_rung(&self.carrier, (w, self.q), band, &mut read),
             |a, b| a == b,
         )
         .map(Climb::into_reading)
@@ -4224,7 +4246,7 @@ impl<T: Decide> IslandReading<T> {
             "split_ring_path_lean",
             Margin::levered(
                 -path.arrival.dot(self.left) / self.left.norm(),
-                self.quadric.lever(self.q),
+                self.carrier.lean_lever(self.q, &path),
             ),
             band,
         )?;
@@ -4281,12 +4303,12 @@ impl<T: Decide> IslandReading<T> {
 ///
 /// Under it, which decided reading is taken changes nothing.
 fn paths_rung<T: Decide, R>(
-    quadric: &Quadric<T>,
+    carrier: &Carrier<T>,
     ends: (Point3<T>, Point3<T>),
     band: Band,
     mut read: impl FnMut(Path<T>) -> Result<Option<R>, Indeterminate>,
 ) -> Rung<R, Indeterminate> {
-    match quadric.paths(ends, band) {
+    match carrier.paths(ends, band) {
         Ok(paths) => Rung::of_reading(
             climb(Answering::Any, paths, |path| Rung::of_reading(read(path))).into_reading(),
         ),
@@ -4314,7 +4336,7 @@ fn paths_rung<T: Decide, R>(
 /// as a loop arc and never through a chart image.
 fn path_ring_side<T: Decide>(
     body: &Body<T>,
-    (surface, quadric): (&geom::Surface<T>, &Quadric<T>),
+    (surface, carrier): (&geom::Surface<T>, &Carrier<T>),
     (oldf, newf): (FaceKey, FaceKey),
     ring: LoopKey,
     band: Band,
@@ -4323,7 +4345,7 @@ fn path_ring_side<T: Decide>(
         face: newf,
         what: "ring re-homing on a curved face: the run is not a cycle",
     })?;
-    let arcs = run_loop_arcs(body, newf, (surface, quadric), &cycle, band)?;
+    let arcs = run_loop_arcs(body, newf, (surface, carrier), &cycle, band)?;
     let run_edges = cycle
         .iter()
         .map(|&he| Ok(body.get_half_edge(he).ok_or_else(|| corrupt_he(he))?.edge))
@@ -4333,7 +4355,7 @@ fn path_ring_side<T: Decide>(
         .into_iter()
         .flat_map(|p| outside.iter().map(move |&w| (p, w)));
     match climb(Answering::Any, pairs, |ends| {
-        paths_rung(quadric, ends, band, |path| {
+        paths_rung(carrier, ends, band, |path| {
             path_parity(&path, &arcs, None, band)
         })
     })
@@ -5529,12 +5551,12 @@ impl ChordJoiner {
         // cylinder, a sphere, a cone or a torus.
         enum Homing<T: geom_core::Real> {
             Plane(Vec3<T>),
-            Path(Quadric<T>),
+            Path(Carrier<T>),
         }
         let homing = match &surface {
             geom::Surface::Plane { .. } => Homing::Plane(face_plane_normal(body, oldf)?),
             other => {
-                Homing::Path(Quadric::of(other).ok_or_else(|| ring_island_unread(newf, other))?)
+                Homing::Path(Carrier::of(other).ok_or_else(|| ring_island_unread(newf, other))?)
             }
         };
         for ring in rings {
@@ -5543,8 +5565,8 @@ impl ChordJoiner {
             }
             let side = match &homing {
                 Homing::Plane(normal) => ring_side(body, ring, run, *normal, self.band)?,
-                Homing::Path(quadric) => {
-                    path_ring_side(body, (&surface, quadric), (oldf, newf), ring, self.band)?
+                Homing::Path(carrier) => {
+                    path_ring_side(body, (&surface, carrier), (oldf, newf), ring, self.band)?
                 }
             };
             match side {
@@ -5843,7 +5865,7 @@ mod side_ladder_rows {
         );
         let rung = |margins: [f64; 2]| {
             let mut next = margins.into_iter();
-            super::paths_rung(&quadric, ends, band, |_| {
+            super::paths_rung(&super::Carrier::Quadric(quadric), ends, band, |_| {
                 let m = next.next().unwrap();
                 crate::validate::decide("test_side", Margin::of(m), band)
                     .map(|sign| (sign != Sign::Zero).then_some(sign))

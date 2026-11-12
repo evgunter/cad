@@ -4715,6 +4715,7 @@ fn choose_roles<T: crate::props::AtRestPolicy>(
                 | crate::ring_path::Quadric::Sphere { .. }
                 | crate::ring_path::Quadric::Torus { .. },
             ) => RingFace::Carried,
+            None if crate::ring_path::SplineWall::of(surface()).is_some() => RingFace::Carried,
             _ => {
                 return Err(BooleanError::CurvedBooleanUnsupported {
                     operand,

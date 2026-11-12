@@ -355,7 +355,7 @@ impl<T: Decide> Quadric<T> {
                     to,
                 );
                 paths.push(Path {
-                    pieces: vec![lead, Piece::Meridian(meridian), Piece::Arc(round)],
+                    pieces: vec![lead.clone(), Piece::Meridian(meridian), Piece::Arc(round)],
                     arrival: round.tangent(round.span.1),
                 });
                 // Round the start's parallel to `to`'s meridian, then round.
@@ -563,8 +563,10 @@ impl<T: Decide> CircleArc<T> {
 }
 
 /// A piece of a [`Path`].
-#[derive(Clone, Copy)]
+#[derive(Clone)]
 enum Piece<T: Real> {
+    /// An arc of an iso curve of a spline wall's chart.
+    Iso(IsoPiece<T>),
     /// An arc of a great circle, or of a parallel of a cone or a torus.
     Arc(CircleArc<T>),
     /// An arc of a torus's meridian (a circle round the tube, in a plane
@@ -582,11 +584,53 @@ enum Piece<T: Real> {
     },
 }
 
-/// A path on a [`Quadric`] between two points, and its unit direction
+/// A path on a [`Carrier`] between two points, and its unit direction
 /// of travel where it arrives.
 pub(crate) struct Path<T: Real> {
     pieces: Vec<Piece<T>>,
     pub(crate) arrival: Vec3<T>,
+}
+
+/// The surface a path runs on: a [`Quadric`], or a spline wall.
+#[derive(Clone)]
+pub(crate) enum Carrier<T: Real> {
+    Quadric(Quadric<T>),
+    Wall(SplineWall<T>),
+}
+
+impl<T: Decide> Carrier<T> {
+    /// The carrier of `surface`; `None` for a plane, and for a spline
+    /// whose iso curves the paths do not read ([`SplineWall::of`]).
+    pub(crate) fn of(surface: &geom::Surface<T>) -> Option<Self> {
+        Quadric::of(surface)
+            .map(Self::Quadric)
+            .or_else(|| SplineWall::of(surface).map(Self::Wall))
+    }
+
+    /// The paths from `from` to `to` ([`Quadric::paths`],
+    /// [`SplineWall::paths`]).
+    pub(crate) fn paths(
+        &self,
+        ends: (Point3<T>, Point3<T>),
+        band: Band,
+    ) -> Result<Vec<Path<T>>, Indeterminate> {
+        match self {
+            Self::Quadric(quadric) => quadric.paths(ends, band),
+            Self::Wall(wall) => wall.paths(ends, band),
+        }
+    }
+
+    /// The length the lean of `path`'s arrival at `q` is levered by: a
+    /// quadric's own at `q` ([`Quadric::lever`]); on a spline wall the
+    /// chord of the piece the path arrives along, which the arrival
+    /// stands off the closing chord's tangent across.
+    pub(crate) fn lean_lever(&self, q: Point3<T>, path: &Path<T>) -> Lever<T> {
+        match (self, path.pieces.last()) {
+            (Self::Quadric(quadric), _) => quadric.lever(q),
+            (Self::Wall(_), Some(Piece::Iso(piece))) => piece.travel().0,
+            (Self::Wall(_), _) => unreachable!("a spline wall's path arrives along an iso curve"),
+        }
+    }
 }
 
 /// An arc of a section conic, a circle or an ellipse carrier, over its
@@ -1279,7 +1323,7 @@ pub(crate) fn path_parity<T: Decide>(
             let mut flip = false;
             let arrival = i == last && arrives_on == Some(j);
             let mut readings: Vec<[Result<Sign, Indeterminate>; 5]> = Vec::with_capacity(2);
-            match (*piece, arc.clone()) {
+            match (piece.clone(), arc.clone()) {
                 (Piece::Arc(p) | Piece::Meridian(p), LoopArc::Conic(_) | LoopArc::Oval(_)) => {
                     let sec = section(arc);
                     let Some(roots) =
@@ -1535,6 +1579,13 @@ pub(crate) fn path_parity<T: Decide>(
                 }
                 // A crest is a torus's, whose paths hold no cylinder ruling.
                 (Piece::Ruling { .. }, LoopArc::Crest { .. }) => return Ok(None),
+                (
+                    Piece::Iso(_),
+                    LoopArc::Conic(_)
+                    | LoopArc::Oval(_)
+                    | LoopArc::Line { .. }
+                    | LoopArc::Crest { .. },
+                ) => unreachable!("a spline wall's loops are read as spline arcs alone"),
                 // A spline arc meets a piece where the curve-pair table
                 // says ([`spline_crossings`]).
                 (piece, LoopArc::Spline(arc)) => {
@@ -1600,30 +1651,51 @@ fn spline_crossings<T: Decide>(
     band: Band,
 ) -> Result<Option<usize>, Indeterminate> {
     use geom_brep::curve_pair::{Hit, Span, SpanEnd, meet};
-    let (curve, params, length) = match *piece {
-        Piece::Arc(p) | Piece::Meridian(p) => (
-            geom::Curve3::Circle(p.circle),
-            p.span,
+    // The piece's carrier and span, the arm its crossings are levered
+    // at, its length where that is the arm's (an iso curve's is bounded
+    // below), and the span end it stops at.
+    let (curve, params, length, extent, stop) = match piece {
+        &(Piece::Arc(p) | Piece::Meridian(p)) => {
             // Unsourced lever: the arc's length, its angular span times its radius, longer
             // than the arc's extent, which `edge_extent_inf` reads as its chord or fold.
-            Lever::unsourced(p.circle.radius * (p.span.1 - p.span.0)),
-        ),
-        Piece::Segment { from, to, .. } | Piece::Ruling { from, to } => (
-            geom::Curve3::line(from, to - from),
-            (T::zero(), T::one()),
-            geom_brep::ExtentBall::point(from).lever_from(to),
+            let length = Lever::unsourced(p.circle.radius * (p.span.1 - p.span.0));
+            (
+                geom::Curve3::Circle(p.circle),
+                p.span,
+                length,
+                Margin::of(charge(length.length(), slack)),
+                SpanEnd::Stop,
+            )
+        }
+        &(Piece::Segment { from, to, .. } | Piece::Ruling { from, to }) => {
+            let length = geom_brep::ExtentBall::point(from).lever_from(to);
+            (
+                geom::Curve3::line(from, to - from),
+                (T::zero(), T::one()),
+                length,
+                Margin::of(charge(length.length(), slack)),
+                SpanEnd::Stop,
+            )
+        }
+        Piece::Iso(p) => (
+            p.carrier(),
+            p.span,
+            p.travel().0,
+            // No longer than its span at the curve's greatest speed: a
+            // chord says nothing of the length of a curve that turns.
+            Margin::metered_sup(p.span.1 - p.span.0, p.curve.speed_upper_bound()),
+            if p.forward {
+                SpanEnd::Stop
+            } else {
+                SpanEnd::Start
+            },
         ),
     };
-    // A piece of no length (a ruled path's first, from an end already on
-    // the turn's height or parallel) crosses nothing: the next piece
-    // starts at its point and reads a meeting there as its own start
-    // (**`split_ring_path_spline_piece`**, its length).
-    if decide(
-        "split_ring_path_spline_piece",
-        Margin::of(charge(length.length(), slack)),
-        band,
-    )? == Sign::Zero
-    {
+    // A piece of no length (a path's first, from an end already on the
+    // turn's height, parallel or iso curve) crosses nothing: the next
+    // piece starts at its point and reads a meeting there as its own
+    // start (**`split_ring_path_spline_piece`**, its length).
+    if decide("split_ring_path_spline_piece", extent, band)? == Sign::Zero {
         return Ok(Some(0));
     }
     let on_piece = Span::new(&curve, params);
@@ -1638,7 +1710,7 @@ fn spline_crossings<T: Decide>(
     let mut crossings = 0;
     for m in met.points {
         let (tp, ta) = match (m.on_a, m.on_b) {
-            (Hit::End(SpanEnd::Stop), Hit::On { .. }) if arrival => continue,
+            (Hit::End(end), Hit::On { .. }) if arrival && end == stop => continue,
             (Hit::On { t: tp, .. }, Hit::On { t: ta, .. }) => (tp, ta),
             _ => return Ok(None),
         };
@@ -1785,12 +1857,16 @@ fn resolution<T: Real>(points: &[Point3<T>]) -> T {
 fn path_resolution<T: Decide>(path: &Path<T>, arcs: &[LoopArc<T>]) -> T {
     let mut points = Vec::with_capacity(3 * path.pieces.len() + arcs.len());
     for piece in &path.pieces {
-        match *piece {
-            Piece::Arc(p) | Piece::Meridian(p) => {
+        match piece {
+            &(Piece::Arc(p) | Piece::Meridian(p)) => {
                 points.extend([p.circle.frame.origin, p.at(p.span.0), p.at(p.span.1)]);
             }
-            Piece::Segment { from, to, .. } | Piece::Ruling { from, to } => {
+            &(Piece::Segment { from, to, .. } | Piece::Ruling { from, to }) => {
                 points.extend([from, to]);
+            }
+            Piece::Iso(p) => {
+                let (start, stop) = p.ends();
+                points.extend([start, stop]);
             }
         }
     }
@@ -2019,6 +2095,10 @@ mod graze_rows;
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod spline_fuzz;
+
+mod spline_wall;
+pub(crate) use spline_wall::SplineWall;
+use spline_wall::IsoPiece;
 
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
@@ -2271,6 +2351,7 @@ mod tests {
         let ends = |piece: &Piece<f64>| match *piece {
             Piece::Arc(a) | Piece::Meridian(a) => (a.at(a.span.0), a.at(a.span.1)),
             Piece::Segment { from, to, .. } | Piece::Ruling { from, to } => (from, to),
+            Piece::Iso(ref p) => p.ends(),
         };
         let b = band();
         let mut asked = 0usize;
@@ -3238,6 +3319,7 @@ mod tests {
         let ends = |piece: &Piece<f64>| match *piece {
             Piece::Arc(a) | Piece::Meridian(a) => (a.at(a.span.0), a.at(a.span.1)),
             Piece::Segment { from, to, .. } | Piece::Ruling { from, to } => (from, to),
+            Piece::Iso(ref p) => p.ends(),
         };
         let b = band();
         let mut asked = 0usize;

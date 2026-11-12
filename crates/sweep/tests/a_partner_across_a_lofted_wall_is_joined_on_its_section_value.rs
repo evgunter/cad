@@ -212,3 +212,23 @@ fn a_brick_across_a_lofted_wall_is_joined_on_its_carried_arcs() {
          reads: {refusal:?}"
     );
 }
+
+#[test]
+fn probe_brick_inside_wall() {
+    let t = Tol::witness();
+    let prism = finished("the loft prism", loft_prism(t), t);
+    let brick = finished(
+        "the brick",
+        topo::test_support::brick_with_fresh_keys::<f64>((-0.25, 0.25), (0.75, 1.25), (0.75, 1.25), t),
+        t,
+    );
+    for (what, run) in [
+        ("prism ∪ brick", topo::union(&prism, &brick, t).map(|_| ())),
+        ("prism ∖ brick", topo::subtract(&prism, &brick, t).map(|_| ())),
+        ("prism ∩ brick", topo::intersect(&prism, &brick, t).map(|_| ())),
+        ("brick ∪ prism", topo::union(&brick, &prism, t).map(|_| ())),
+        ("brick ∖ prism", topo::subtract(&brick, &prism, t).map(|_| ())),
+    ] {
+        eprintln!("PROBE {what}: {run:?}");
+    }
+}
