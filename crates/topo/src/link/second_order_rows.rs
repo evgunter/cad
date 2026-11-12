@@ -106,25 +106,29 @@ fn a_cusp_corner_reads_as_its_edges_bend<T: Decide>() {
     let (zero, escalate) = (band().zero(), band().escalate());
     // The parting `(κ₁ − κ₀)·ŷ·l²/2` at the arm `l = 2`.
     let past = (escalate + 0.5 * zero) / 2.0;
-    type Row<T> = (&'static str, Vec3<T>, [f64; 2], Option<bool>);
+    let (in_band, third) = (
+        Err(TouchUnread::InBand),
+        Err(TouchUnread::Curved(CurvedUnread::Unreadable)),
+    );
+    type Row<T> = (&'static str, Vec3<T>, [f64; 2], Result<bool, TouchUnread>);
     let rows: [Row<T>; 7] = [
-        ("in left of out", d, [1.0, 2.0], Some(true)),
-        ("in right of out", d, [2.0, 1.0], Some(false)),
-        ("alike", d, [1.0, 1.0], None),
-        ("just past the escalation", d, [0.0, past], Some(true)),
+        ("in left of out", d, [1.0, 2.0], Ok(true)),
+        ("in right of out", d, [2.0, 1.0], Ok(false)),
+        ("alike", d, [1.0, 1.0], third),
+        ("just past the escalation", d, [0.0, past], Ok(true)),
         (
             "just past it, parted by a residue",
             v(2.0, 0.9 * zero, 0.0),
             [0.0, past],
-            None,
+            in_band,
         ),
         (
             "just past it, parted by a residue the other way",
             v(2.0, -0.9 * zero, 0.0),
             [0.0, past],
-            None,
+            in_band,
         ),
-        ("along the normal", d, [f64::NAN, f64::NAN], None),
+        ("along the normal", d, [f64::NAN, f64::NAN], third),
     ];
     for p in apexes::<T>() {
         for (what, d1, [k0, k1], horn) in rows {
@@ -185,13 +189,14 @@ fn thorn<T: Decide>(p: Point3<T>, keys: [EdgeKey; 3], void: bool) -> Vec<Tangent
 
 /// **A ring of horns reads as the thorn it bounds**: a thorn of
 /// material alone rests, and beside a plane whose material lies away
-/// from it; inside that material it refuses. A needle of void refuses
-/// alone, and rests inside a plane's material. A ring with a horn
+/// from it; inside that material it crosses. A needle of void refuses
+/// alone, rests inside a plane's material, and crosses outside it. A ring with a horn
 /// missing, a ring of two horns, a triangle squashed flat, and two
 /// thorns along one ray refuse; two along opposite rays rest. Red where
 /// a thorn's side is read the other way round, the cone round it is not
-/// read, a ring is closed that does not close, or two thorns are taken
-/// apart that lie along one ray.
+/// read, a ring is closed that does not close, two thorns are taken
+/// apart that lie along one ray, or a needle alone, which no material
+/// round it places, is read as an overlap.
 fn a_ring_of_horns_reads_as_its_thorn<T: Decide>() {
     let unread = TouchVerdict::Unread(TouchUnread::Curved(CurvedUnread::Unreadable));
     let rest = |v: &TouchVerdict| matches!(v, TouchVerdict::Rest(_));
@@ -212,8 +217,13 @@ fn a_ring_of_horns_reads_as_its_thorn<T: Decide>() {
         );
         assert_eq!(
             read(p, with(thorn(p, keys, false), toward())),
-            unread,
+            TouchVerdict::Crossing,
             "a thorn inside a plane's material at {p:?}"
+        );
+        assert_eq!(
+            read(p, with(thorn(p, keys, true), away())),
+            TouchVerdict::Crossing,
+            "a needle outside a plane's material at {p:?}"
         );
         assert_eq!(
             read(p, thorn(p, keys, true)),
@@ -476,7 +486,7 @@ fn thin_thorn<T: Decide>(
 /// escalation off the face in `z = 0` and its line `L` as far off the
 /// curved face, one order down. It rests; with `B` leaving the tip
 /// tilted off that face by nine tenths of the band's zero at the arm it
-/// refuses, the tilt charged; with `B` leaving it by twice the
+/// refuses in band, the tilt charged; with `B` leaving it by twice the
 /// escalation, so that `B`'s edge leaves the face's plane at first
 /// order, it refuses however far `B` bends. A ring of four whose third
 /// corner lies on the line of the first two refuses. Red where a
@@ -499,7 +509,7 @@ fn a_thorn_is_read_with_its_first_order_charged<T: Decide>() {
         );
         assert_eq!(
             read(p, thin(p, [0.0, 0.0, beta], 0.9 * zero)),
-            unread,
+            TouchVerdict::Unread(TouchUnread::InBand),
             "a thin thorn, its edge tilted at {p:?}"
         );
         assert_eq!(
@@ -562,7 +572,7 @@ fn two_wedges_tilted<T: Decide>(p: Point3<T>, rise: f64, tilt: f64) -> Vec<Tange
 /// the first's edge just past the escalation above the other's line one
 /// order down. They rest; with the first's face leaning toward the
 /// other's line by nine tenths of the band's zero at the arm, they
-/// refuse. Red where a sheet's lean along another's line is not
+/// refuse in band. Red where a sheet's lean along another's line is not
 /// charged.
 fn a_sheet_along_anothers_line_is_read_with_its_lean_charged<T: Decide>() {
     let (zero, escalate) = (band().zero(), band().escalate());
@@ -577,7 +587,7 @@ fn a_sheet_along_anothers_line_is_read_with_its_lean_charged<T: Decide>() {
         );
         assert_eq!(
             read(p, two_wedges_tilted(p, rise, 0.45 * zero)),
-            TouchVerdict::Unread(TouchUnread::Curved(CurvedUnread::Unreadable)),
+            TouchVerdict::Unread(TouchUnread::InBand),
             "two wedges, one leaning toward the other's line, at {p:?}"
         );
     }
@@ -650,9 +660,9 @@ fn a_fin_on_a_plane<T: Decide>(p: Point3<T>) -> Vec<TangentPiece<T>> {
 }
 
 /// **What one order down leaves unread stays unread**: an arc bending
-/// off a plane by just past the escalation rests, and refuses where its
-/// departure leans toward the plane by seven tenths of the band's zero,
-/// the lean charged; over a sphere's tangent plane the arc is read
+/// off a plane by just past the escalation rests, and refuses in band
+/// where its departure leans toward the plane by seven tenths of the
+/// band's zero, the lean charged; over a sphere's tangent plane the arc is read
 /// against the sphere's line in the cut, at its normal section's
 /// curvature: a ball under the plane, or a cavity over it bending up
 /// slower than the arc, rests, and a cavity bending up faster, reaching
@@ -677,7 +687,7 @@ fn what_one_order_down_leaves_unread_stays_unread<T: Decide>() {
         );
         assert_eq!(
             read(p, wedge_over_a_sheet(p, up, 0.7 * zero, None)),
-            unread,
+            TouchVerdict::Unread(TouchUnread::InBand),
             "the arc leaning toward the plane at {p:?}"
         );
         for (what, r, rests) in [
@@ -869,12 +879,16 @@ fn a_cusp_is_parted_only_past_the_escalation<T: Decide>() {
     let d = v::<T>(2.0, 0.0, 0.0);
     let (zero, escalate) = (band().zero(), band().escalate());
     for p in apexes::<T>() {
+        let in_band = Err(TouchUnread::InBand);
         for (k1, want) in [
-            ((escalate - 0.5 * zero) / 2.0, None),
-            ((escalate + 0.5 * zero) / 2.0, Some(true)),
-            (-(escalate + 0.5 * zero) / 2.0, Some(false)),
-            (-(escalate - 0.5 * zero) / 2.0, None),
-            (0.4 * zero, None),
+            ((escalate - 0.5 * zero) / 2.0, in_band),
+            ((escalate + 0.5 * zero) / 2.0, Ok(true)),
+            (-(escalate + 0.5 * zero) / 2.0, Ok(false)),
+            (-(escalate - 0.5 * zero) / 2.0, in_band),
+            (
+                0.4 * zero,
+                Err(TouchUnread::Curved(CurvedUnread::Unreadable)),
+            ),
         ] {
             let got = second_order::cusp(p, m, (d, d), [v(0.0, 0.0, 0.0), v(0.0, k1, 0.0)], band())
                 .map(|c| matches!(c, second_order::Cusp::Horn));
@@ -903,10 +917,9 @@ fn a_cusp_is_parted_only_past_the_escalation_interval() {
 /// `p`, alone and beside a plane whose material lies away from it. With
 /// one horn's vertex on another key, tied off `p` by three quarters of
 /// the band's zero, the cone is read over that tie and the bend no
-/// longer clears it: it refuses, alone and beside the plane. Red where a
-/// horn's vertex is left out of the cone's tie.
+/// longer clears it: it refuses in band, alone and beside the plane. Red
+/// where a horn's vertex is left out of the cone's tie.
 fn a_thorn_is_read_over_the_tie_of_its_horns<T: Decide>() {
-    let unread = TouchVerdict::Unread(TouchUnread::Curved(CurvedUnread::Unreadable));
     let (zero, escalate) = (band().zero(), band().escalate());
     let beta = (escalate + 0.5 * zero) / 2.0;
     let rest = |v: &TouchVerdict| matches!(v, TouchVerdict::Rest(_));
@@ -926,7 +939,7 @@ fn a_thorn_is_read_over_the_tie_of_its_horns<T: Decide>() {
             );
             assert_eq!(
                 thin(off, beside),
-                unread,
+                TouchVerdict::Unread(TouchUnread::InBand),
                 "a vertex tied off the point, beside a plane {beside}, at {p:?}"
             );
         }

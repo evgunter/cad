@@ -369,7 +369,10 @@ fn vf_reading(
 /// from the wall past the band's escalation edge read it stale; a cube
 /// set in by half the band confirms it. A record on a spline face (a
 /// swept elbow's NURBS wall) of a vertex off it reads stale too, its trim
-/// read on its chart (`topo::boolean::spline_region`).
+/// read on its chart (`topo::boolean::spline_region`); the record ties the
+/// vertex to the wall for the self-touch sweep, where a spline face held
+/// inside has no carrier frame for its tangent plane's fan, and the point
+/// refuses undecided.
 #[test]
 fn a_vertex_on_a_curved_face_is_confirmed_by_its_trim() {
     let tol = Tol::witness();
@@ -472,5 +475,22 @@ fn a_vertex_on_a_curved_face_is_confirmed_by_its_trim() {
             Err([topo::ValidationError::StaleContactDeclaration { .. }])
         ),
         "a vertex off a NURBS wall is stale on it: {r:?}"
+    );
+    let contacts = topo::test_support::records(
+        &elbow,
+        [(topo::Cell::Vertex(vertex), topo::Cell::Face(face))],
+    );
+    let errors = topo::validate_pseudomanifold(&elbow, &contacts, tol)
+        .err()
+        .unwrap_or_default();
+    assert!(
+        errors.iter().any(|e| matches!(
+            e,
+            topo::ValidationError::BoundaryCrossesItselfUndecided {
+                why: topo::TouchUnread::Curved(topo::CurvedUnread::Unreadable),
+                ..
+            }
+        )),
+        "the vertex the record ties to the NURBS wall refuses undecided: {errors:?}"
     );
 }

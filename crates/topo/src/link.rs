@@ -2914,8 +2914,8 @@ impl<T: Decide> FaceSector<T> {
     /// horn about it is no sector, and is kept as its [`Horn`]
     /// ([`TangentPiece::Horn`]); one the bends do not part is
     /// [`crate::CurvedUnread::Unreadable`]. A spur's tip, the loop back along the
-    /// half-edge it came in by, is the whole turn. One whose turn reads in
-    /// band is [`TouchUnread::InBand`].
+    /// half-edge it came in by, is the whole turn. One whose turn, or
+    /// whose bends' parting, reads in band is [`TouchUnread::InBand`].
     pub(crate) fn tangent(
         surface: geom::Surface<T>,
         sense: bool,
@@ -3106,10 +3106,9 @@ fn corner_fan<T: Decide>(
         Some(Sign::Zero) => match ahead(apex, a, b, rd) {
             Some(Sign::Negative) => rays.push(apex + quarter * reach),
             Some(Sign::Positive) => {
-                return match second_order::cusp(apex, m, (d0, d1), bends, band) {
-                    Some(second_order::Cusp::Whole) => Ok(whole(&mut rays, b)),
-                    Some(second_order::Cusp::Horn) => Ok(CornerTurn::Horn),
-                    None => Err(TouchUnread::Curved(CurvedUnread::Unreadable)),
+                return match second_order::cusp(apex, m, (d0, d1), bends, band)? {
+                    second_order::Cusp::Whole => Ok(whole(&mut rays, b)),
+                    second_order::Cusp::Horn => Ok(CornerTurn::Horn),
                 };
             }
             Some(Sign::Zero) => return Err(TouchUnread::Curved(CurvedUnread::Unreadable)),
@@ -4637,8 +4636,8 @@ pub(crate) mod rest {
     /// it is one too ([`kept_bound`]), or inside a
     /// cylinder's sector as a line on its carrier, a ruling
     /// ([`on_carrier`]); else it is a tangency, kept where the sheets
-    /// along that ray part one order down ([`super::second_order::parts`])
-    /// and [`crate::CurvedUnread::Unreadable`] where they do not.
+    /// along that ray part one order down ([`super::second_order::parts`]),
+    /// and refused as `parts` refuses where they do not.
     /// Two closed sectors have no bounds, so each pair of them with a plane
     /// not its face's own is read for one plane, each against the other:
     /// two rays of one's fan a quarter turn apart on the other's plane,
@@ -4680,8 +4679,8 @@ pub(crate) mod rest {
                         }
                         Err(_) => return Some(TouchUnread::InBand),
                     };
-                    if !kept && !super::second_order::parts(link, r, rd) {
-                        return Some(TouchUnread::Curved(CurvedUnread::Unreadable));
+                    if !kept && let Err(why) = super::second_order::parts(link, r, rd) {
+                        return Some(why);
                     }
                 }
             }
@@ -4738,10 +4737,11 @@ pub(crate) mod rest {
     /// reads one material ([`one_material`] over it); and the axis reads
     /// decidedly outside that material where the cone's is inside it (a
     /// thorn), inside it where the cone's is round it (a needle). A whole
-    /// plane about the point holding rulings decidedly on both sides is a
-    /// [`TouchVerdict::Crossing`]; a side the charge leaves in band is
+    /// plane about the point holding rulings decidedly on both sides, or
+    /// an axis read decidedly on the other side of the rest's material, is
+    /// a [`TouchVerdict::Crossing`]; a side the charge leaves in band is
     /// [`TouchUnread::InBand`]; anything else is
-    /// [`crate::CurvedUnread::NoTangentPlane`], the apex left unread. The
+    /// [`crate::CurvedUnread::NoTangentPlane`], the apex refused. The
     /// argument: `crates/topo/README.md`, beside the first-order one.
     fn at_apex<T: Decide>(link: &Link<T>, band: Band, rd: Reading<T>) -> TouchVerdict {
         let unread = TouchVerdict::Unread(TouchUnread::Curved(CurvedUnread::NoTangentPlane));
@@ -4798,31 +4798,33 @@ pub(crate) mod rest {
                 })
             })
             .collect();
-        let around = if pieces.is_empty() {
-            super::Material::Out
-        } else {
-            let rest = match Link::of_tangent(p, pieces) {
-                Ok(rest) => rest,
-                Err(why) => return TouchVerdict::Unread(why),
-            };
-            match one_material(&rest, band) {
-                TouchVerdict::Rest(_) => {}
-                other => return other,
-            }
-            match rest.cone.material_round(c, rd) {
-                Some(m) => m,
-                None => return TouchVerdict::Unread(TouchUnread::InBand),
-            }
-        };
         let want = if cone.material_inside() {
             super::Material::Out
         } else {
             super::Material::In
         };
-        if around == want {
-            TouchVerdict::Rest(Rest { _sealed: () })
-        } else {
-            unread
+        // No other sheet: the nappe alone is a thorn, or a needle whose
+        // void no material round it decides.
+        if pieces.is_empty() {
+            return if want == super::Material::Out {
+                TouchVerdict::Rest(Rest { _sealed: () })
+            } else {
+                unread
+            };
+        }
+        let rest = match Link::of_tangent(p, pieces) {
+            Ok(rest) => rest,
+            Err(why) => return TouchVerdict::Unread(why),
+        };
+        match one_material(&rest, band) {
+            TouchVerdict::Rest(_) => {}
+            other => return other,
+        }
+        match rest.cone.material_round(c, rd) {
+            Some(around) if around == want => TouchVerdict::Rest(Rest { _sealed: () }),
+            // The nappe winds a third value beside the rest's two.
+            Some(_) => TouchVerdict::Crossing,
+            None => TouchVerdict::Unread(TouchUnread::InBand),
         }
     }
 
@@ -4831,8 +4833,8 @@ pub(crate) mod rest {
     /// two edges, their rulings decidedly apart; and every lobe's ruling
     /// at the arm (their least reach) decidedly ahead of the plane through
     /// `p` square to the first ruling's nappe axis. A lobe, the axis and
-    /// the arm's length; a ruling in band of that plane is
-    /// [`TouchUnread::InBand`], anything else no nappe
+    /// the arm's length; a ruling in band of that plane, or rulings in band
+    /// of each other, is [`TouchUnread::InBand`], anything else no nappe
     /// ([`crate::CurvedUnread::NoTangentPlane`]).
     fn whole_nappe<T: Decide>(
         link: &Link<T>,
@@ -4854,8 +4856,10 @@ pub(crate) mod rest {
                 let [(d0, _), (d1, _)] = a.ends;
                 let l = reach(d0).min(reach(d1)).length();
                 let apart = Distance::apart(p + d0.normalize() * l, p + d1.normalize() * l);
-                if metric::sign_as(super::LINK_TIE, apart, rd.band) != Some(Sign::Positive) {
-                    return Err(unread);
+                match metric::sign_as(super::LINK_TIE, apart, rd.band) {
+                    Some(Sign::Positive) => {}
+                    Some(Sign::Zero | Sign::Negative) => return Err(unread),
+                    None => return Err(TouchVerdict::Unread(TouchUnread::InBand)),
                 }
                 *a
             }
@@ -4933,7 +4937,9 @@ pub(crate) mod rest {
     /// is otherwise held to its first order ([`first_order`]); one whose
     /// sheets pair into lenses or lunes is read over the rest of it, its
     /// horns but the lunes' caps among it ([`lensed`]), and any other
-    /// holds its horns to the thorns they bound.
+    /// holds its horns to the thorns they bound, a thorn its sectors'
+    /// material holds (or a needle outside it) a [`TouchVerdict::Crossing`]
+    /// where the sectors read one material ([`super::second_order::thorns`]).
     pub(crate) fn one_material<T: Decide>(link: &Link<T>, band: Band) -> TouchVerdict {
         // The link is read against its own planes and rays: the reading
         // over the pair it makes with itself.
@@ -4959,9 +4965,22 @@ pub(crate) mod rest {
             Ok(lenses) => return lensed(link, &lenses, band, rd),
             Err(why) => return TouchVerdict::Unread(why),
         }
-        if let Err(why) = super::second_order::thorns(link, rd) {
-            return TouchVerdict::Unread(why);
+        // A thorn read inside the sectors' material, or a needle outside
+        // it, winds a third value beside the two of a rest: a crossing
+        // wherever the sectors read one material.
+        let overlap = match super::second_order::thorns(link, rd) {
+            Ok(overlap) => overlap,
+            Err(why) => return TouchVerdict::Unread(why),
+        };
+        match sectors_material(link, rd) {
+            TouchVerdict::Rest(_) if overlap => TouchVerdict::Crossing,
+            verdict => verdict,
         }
+    }
+
+    /// **[`one_material`] over the link's sectors**, its horns read
+    /// ([`super::second_order::thorns`]).
+    fn sectors_material<T: Decide>(link: &Link<T>, rd: Reading<T>) -> TouchVerdict {
         // Every face a horn: the material is the thorns', each read whole.
         if link.cone.sectors.is_empty() {
             return TouchVerdict::Rest(Rest { _sealed: () });

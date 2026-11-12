@@ -180,11 +180,14 @@ fn read<T: Decide>(p: Point3<T>, pieces: Vec<TangentPiece<T>>) -> TouchVerdict {
 /// cone under the plane's material above (a thorn, `c ∪ h`), rest, as
 /// they do with the plane tilted while it holds the nappe off, and with
 /// the nappe as two faces' halves on one carrier. A solid cone inside
-/// the material, or a void one outside it, is no one material and is not
-/// read; nor is a nappe not held whole (one half alone, two halves on two
-/// carriers or of two senses, or two whole turns). Red where the region
+/// the material, or a void one outside it, winds a third value beside the
+/// plane's two: a crossing. A thorn alone rests; a needle alone, with
+/// no material round it to read, is not read, nor is a nappe not held
+/// whole (one half alone, two halves on two carriers or of two senses, or
+/// two whole turns). Red where the region
 /// round the nappe is not read, its material is read the other way
-/// round, or a nappe not held whole is read.
+/// round, a nappe on the wrong side of the material passes, or a nappe
+/// not held whole is read.
 fn a_nappe_off_every_plane_is_the_thorn_or_needle_it_bounds<T: Decide>() {
     let unread = TouchVerdict::Unread(TouchUnread::Curved(CurvedUnread::NoTangentPlane));
     let up = v::<T>(0.0, 1.0, 0.0);
@@ -219,13 +222,19 @@ fn a_nappe_off_every_plane_is_the_thorn_or_needle_it_bounds<T: Decide>() {
         rests("a needle in two halves", two);
         assert_eq!(
             read(p, vec![spur(p, true), whole(p, up)]),
-            unread,
+            TouchVerdict::Crossing,
             "a thorn inside the material at {p:?}"
         );
         assert_eq!(
             read(p, vec![spur(p, false), whole(p, -up)]),
-            unread,
+            TouchVerdict::Crossing,
             "a needle outside the material at {p:?}"
+        );
+        rests("a thorn alone", vec![spur(p, true)]);
+        assert_eq!(
+            read(p, vec![spur(p, false)]),
+            unread,
+            "a needle alone, no material round it, at {p:?}"
         );
         let [a, _] = halves(p, core::f64::consts::PI, [k[0], k[0]], [false; 2]);
         assert_eq!(
@@ -419,8 +428,8 @@ fn boss_on_hole<T: Decide>(p: Point3<T>, hole: f64, circle: bool) -> Vec<Tangent
 /// plate's hole, the two rims one circle through the point (the boss's
 /// vertex inside the shared arc), touches along the rim with its
 /// material and the plate's in opposite quarters: a rest. The same rims
-/// held as arcs of no circle, or the hole's rim bending in band of the
-/// boss's, are not read, nor is the hole's rim bending tighter, which
+/// held as arcs of no circle are not read, the hole's rim bending in band
+/// of the boss's refuses in band, and the hole's rim bending tighter, which
 /// puts the boss's floor on the plate's top over a crescent. Red where
 /// two arcs are kept by their bends alone, or two bends that differ are
 /// kept.
@@ -443,7 +452,7 @@ fn two_arcs_of_one_circle_are_kept_as_one<T: Decide>() {
         let off = 2.0 * 0.5 * e / 0.04;
         assert_eq!(
             read(p, boss_on_hole(p, boss - off, true)),
-            unread,
+            TouchVerdict::Unread(TouchUnread::InBand),
             "the hole's rim bending in band of the boss's at {p:?}"
         );
         assert_eq!(

@@ -1226,12 +1226,40 @@ down where it ties at a cusp corner or along a ray
 lune their bends make, two planar faces on each other refused as the planar link
 refuses them, a cone's apex read as the nappe of its rulings, and refused
 undecided where none of these decides (`BoundaryCrossesItselfUndecided`,
-its cause the reading's: a cone's apex that reading does not
-decide, a horn beside a sheet
-along its ray, sheets the bends do not part, a face whose tangent
-reading does not build, or tangent sectors lying on each other that no
-lens or lune reads). Every other use of a face's normal in the coincidence
-sweeps is sense-invariant.
+its cause the reading's; no such point is passed). Every other use of a
+face's normal in the coincidence sweeps is sense-invariant.
+
+The self-touch points the tangent reading refuses, by the cause each
+names (`TouchUnread`):
+
+- **in band** (`InBand`): a sign at first order or one order down that
+  the band leaves undecided, in band or moved there by the first
+  order's charged residue (below);
+- **no tangent plane** (`CurvedUnread::NoTangentPlane`): a vertex in the
+  band of a cone's axis; a face held inside in band of its axis, centre
+  or apex; a cone's apex its nappe does not decide (a nappe not held
+  whole, a second apex, a horn beside it, a half-plane cutting it);
+- **no sector arm** or **not placed** (`CurvedUnread::NoSectorArm`,
+  `CurvedUnread::Unplaced`): a corner face `sector_face::resolve`
+  refuses, a surface with no sector arm or a spline edge with no chart
+  image (a spline corner on a crease reads its sector's side, or
+  refuses by the crease's own standing, not here);
+- **unreadable** (`CurvedUnread::Unreadable`), every other structural
+  refusal of the reading: a cusp corner whose edges' bends read Zero
+  apart; a horn beside a sector along its ray that caps no lune, a ring
+  of horns that bounds no convex polygon, or a needle with no sector
+  round it; a spline face held off a corner, or held inside with no
+  carrier frame for its fan; a face whose normal at the foot or whose
+  reach does not read; a curved edge with no certified curve; sheets
+  along a tied ray that one order down meet, or a curved sheet holding
+  such a ray inside it with no certified bend; two whole tangent planes
+  on one plane (two kissing balls at any pose included); two sectors
+  lying on each other where one is no plane and no lens or lune reads
+  them, or a lens or lune of the wrong kind for the region the link
+  round it gives it.
+
+Two planar faces lying on each other are no such point: the link refuses
+them `Degenerate`, as the planar link does.
 
 The tangent reading is the germ's (`rest::first_order`). Under the
 blow-up `q ↦ p + (q − p)/t` the faces about `p` tend in C¹, as
@@ -1298,16 +1326,31 @@ resolves. The residue's part grows as `δ·s` and the bend's as
 `|Δκ|·l²/2 − δ·l` past the escalation `K·zero` (`K` the band's
 escalation over its zero) and `δ·l` within `zero`, `s₀ < l/K`; and
 below `s₀` each term is at most `δ·s₀ ≤ (δl)²/(|Δκ|l²/2) ≤ zero/K`:
-inside the band. Left unread:
+inside the band. A sign the charge leaves in band, and a thorn whose
+ray the cone round it does not read decidedly inside or outside its
+material, refuse in band. Refused as unreadable: a picture whose sheets
+meet; a horn beside a sector along its ray, but a lune's cap (below);
+and a curved sheet holding a tied ray inside it whose face has no
+certified bend.
 
-- a sign the charge leaves in band;
-- a picture whose sheets meet;
-- a horn beside a sector along its ray, but a lune's cap (below);
-- a thorn the cone round it reaches (the ray not decidedly outside the
-  cone's material for a thorn, inside it for a needle), which may be a
-  real overlap;
-- a curved sheet holding a tied ray inside it whose face has no
-  certified bend.
+**A thorn read inside the material is a crossing** (`second_order::thorns`,
+`rest::one_material`). A ring read as a polygon whose ray the cone of
+the link's sectors reads decidedly inside its material for a thorn, or
+outside it for a needle, crosses, where every other ring reads and the
+sectors read one material by themselves (two consecutive windings, the
+material the higher). The ray is decidedly off every sector's plane, so
+no sheet of the cone comes near it at any small enough scale, and the
+cut's whole picture about the ray lies in one region of the sectors:
+the higher winding for a thorn read inside, the lower for a needle read
+outside. Inside the polygon the winding is one more than round it for a
+thorn (its faces' outward normals all point out of it) and one less for
+a needle: a third value. The polygon is the germ's one order down at
+every small enough scale `s` (each side's sign the bend's, decided with
+the residue charged), an area of order `s⁴` in the cut at `s`, so the
+third value meets every neighbourhood of the point, and three windings
+are no one material. A cone of no sector places no polygon: a thorn
+alone rests, and a needle alone refuses as unreadable. Where the sectors
+cross, the link crosses; where they refuse, so does it.
 
 Two sectors of one wedge each, lying on each other the other way round
 (each one's rays on the other's, on its plane, so their outward normals
@@ -1331,8 +1374,9 @@ positive, each sheet on the other's outward side, a void between them;
 negative, a sliver of material. With `|b₀|, |b₂|` within the band's
 zero `z` at the arm, a sign other than the middle's takes by at most
 `z`: there the sheets lie within the band of each other, beside the
-edges they share. A face with no certified bend, a bound not read Zero,
-a middle in band, or a sector in two pairs is left unread; a pair one
+edges they share. A bound or a middle in band refuses in band; a face
+with no certified bend, a bound read off Zero, or a sector in two pairs
+refuses as unreadable; a pair one
 of whose sectors runs on past the wedge, or is capped by a horn, is a
 lune (below).
 
@@ -1355,8 +1399,8 @@ sector and no horn has no material to read, and its lenses are then all
 of one kind. So no sheet but its own meets a lens off `p`, the lens lies
 in one region of the remainder, and cutting it out or adding it moves
 that region's winding one step toward the other value: the windings
-stay two consecutive values. A lens of the wrong kind for its region is
-left unread.
+stay two consecutive values. A lens of the wrong kind for its region
+refuses as unreadable.
 
 A pair need not be bounded by one edge at both ends. Two sectors on one
 wedge `W`, from `u₀` to `u₁`, of opposed outward normals and not both
@@ -1477,12 +1521,22 @@ rest's two values, as at a thorn. A whole plane about the point (a face
 holding it inside) with rulings decidedly on both sides, read at the two
 rulings farthest either way (real points of the face, read only where
 the spread `ρ|m × a|` is decided, so the direction toward them reads),
-crosses the nappe along the rulings between: a crossing. Left unread: a nappe not
-held whole, a second apex, a horn beside the nappe (its ray may lie in
-`C`, which no region holds), a sector whose plane cuts the nappe and
-whose wedges may pass it by, and an axis read on the wrong side of the
-rest's material. A plane whose side the charge leaves in band, a plane
-tangent to the cone along a ruling among them, refuses in band.
+crosses the nappe along the rulings between: a crossing. An axis read
+decidedly on the other side of the rest's material is a crossing too:
+`C` lies in one region of the rest, which reads one material, and that
+region winds the rest's higher value for a thorn read inside it, its
+lower for a needle read outside; crossing the nappe into `C` moves the
+winding one further, to a third value (into the face's material for a
+thorn, out of it for a needle). `C` is the face itself at every scale
+its corner reaches, a solid cone of half-angle `α > 0`, so the third
+value meets every neighbourhood of `p`. A link of no other sector has no
+rest to read against: a thorn alone rests, and a needle alone refuses.
+Refused as having no tangent plane: a nappe not held whole, a second
+apex, a horn beside the nappe (its ray may lie in `C`, which no region
+holds), and a sector whose plane cuts the nappe and whose wedges may
+pass it by. A plane whose side the charge leaves in band, a plane
+tangent to the cone along a ruling among them, or rulings in band of
+each other, refuses in band.
 
 The chord reading is the cross-section's (`FaceSector::chord`). A
 cylinder or cone face along a line edge of it, the edge lying in a

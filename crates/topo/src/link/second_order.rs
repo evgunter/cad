@@ -55,8 +55,9 @@ pub(super) enum Cusp {
 /// the edge back in stands left of the edge out (`(κ₁ − κ₀)·ŵ > 0`),
 /// the whole turn but a horn where it stands right. Read at the
 /// shorter departure, the departures' first-order parting across the
-/// ray charged ([`Reading::charged`]); `None` where it does not part
-/// them.
+/// ray charged ([`Reading::charged`]). A bend read Zero, which leaves the
+/// face to third order, is [`crate::CurvedUnread::Unreadable`]; one the
+/// charge leaves in band, [`TouchUnread::InBand`].
 ///
 /// Not `geom_brep::tied_germ_turn`, which reads the same sign: it decides
 /// through `dihedral::decide`, a levered reading the link's doors keep
@@ -67,7 +68,7 @@ pub(super) fn cusp<T: Decide>(
     (d0, d1): (Vec3<T>, Vec3<T>),
     [k0, k1]: [Vec3<T>; 2],
     band: Band,
-) -> Option<Cusp> {
+) -> Result<Cusp, TouchUnread> {
     let arm = reach(apex, d0).min(reach(apex, d1));
     let l = arm.length();
     let (t0, t1) = (d0.normalize(), d1.normalize());
@@ -79,9 +80,10 @@ pub(super) fn cusp<T: Decide>(
         bend,
         Reading::plain(band).charged(residue),
     ) {
-        Ok(Sign::Positive) => Some(Cusp::Horn),
-        Ok(Sign::Negative) => Some(Cusp::Whole),
-        Ok(Sign::Zero) | Err(_) => None,
+        Ok(Sign::Positive) => Ok(Cusp::Horn),
+        Ok(Sign::Negative) => Ok(Cusp::Whole),
+        Ok(Sign::Zero) => Err(TouchUnread::Curved(CurvedUnread::Unreadable)),
+        Err(_) => Err(TouchUnread::InBand),
     }
 }
 
@@ -100,11 +102,18 @@ pub(super) fn cusp<T: Decide>(
 /// ([`super::Cone::reads_over`]; a cone of no sector is nowhere): so no
 /// sheet of the cone comes near the ray, and the region round the
 /// polygon winds one less than inside it for a thorn, one more for a
-/// needle. Two cycles must lie on rays decidedly apart. Anything else
-/// is [`crate::CurvedUnread::Unreadable`]: a horn beside a sector along its ray,
-/// a ring of two horns (no vertex off a side), a polygon the band does
-/// not part.
-pub(super) fn thorns<T: Decide>(link: &Link<T>, rd: Reading<T>) -> Result<(), TouchUnread> {
+/// needle. Two cycles must lie on rays decidedly apart.
+///
+/// `Ok(true)` where a cone of some sector reads a thorn's ray decidedly
+/// inside its material, or a needle's outside it: the polygon then winds
+/// a third value against the two the cone's region takes, which is an
+/// overlap wherever the cone reads one material (`rest::one_material`
+/// reads that, and the argument is `crates/topo/README.md`'s). A reading
+/// the band leaves undecided is [`TouchUnread::InBand`]; anything else is
+/// [`crate::CurvedUnread::Unreadable`]: a horn beside a sector along its
+/// ray, a ring of two horns (no vertex off a side), a polygon not convex,
+/// a needle in a cone of no sector.
+pub(super) fn thorns<T: Decide>(link: &Link<T>, rd: Reading<T>) -> Result<bool, TouchUnread> {
     let (p, horns) = (link.cone.p, &link.horns);
     let unread = TouchUnread::Curved(CurvedUnread::Unreadable);
     let along = |d: Vec3<T>, l: T| p + d.normalize() * l;
@@ -113,17 +122,18 @@ pub(super) fn thorns<T: Decide>(link: &Link<T>, rd: Reading<T>) -> Result<(), To
     let next = |i: usize| -> Result<usize, TouchUnread> {
         let (d1, b1) = horns[i].ends[1];
         let l = d1.norm();
-        let mut found = (0..horns.len()).filter(|&j| {
-            let (d0, b0) = horns[j].ends[0];
-            b0.edge == b1.edge && ahead(p, along(d1, l), along(d0, l), rd) == Some(Sign::Positive)
-        });
+        let ahead_of = |j: usize| ahead(p, along(d1, l), along(horns[j].ends[0].0, l), rd);
+        let on = || (0..horns.len()).filter(|&j| horns[j].ends[0].1.edge == b1.edge);
+        let mut found = on().filter(|&j| ahead_of(j) == Some(Sign::Positive));
         match (found.next(), found.next()) {
             (Some(j), None) => Ok(j),
+            _ if on().any(|j| ahead_of(j).is_none()) => Err(TouchUnread::InBand),
             _ => Err(unread),
         }
     };
     let mut seen = vec![false; horns.len()];
     let mut rays: Vec<(Point3<T>, Vec<usize>)> = Vec::new();
+    let mut overlap = false;
     for start in 0..horns.len() {
         if seen[start] {
             continue;
@@ -162,24 +172,27 @@ pub(super) fn thorns<T: Decide>(link: &Link<T>, rd: Reading<T>) -> Result<(), To
             |(i, j)| {
                 let (ta, a) = vertex(i);
                 match beside(p, (ta, a), vertex(j), horns[cycle[i]].outward, arm, rd) {
-                    Some(s) => Rung::Answers(Some(s)),
-                    None => Rung::Aborts(None),
+                    Ok(s) => Rung::Answers(Ok(s)),
+                    Err(why) => Rung::Aborts(Err(why)),
                 }
             },
-            |x: &Option<Sign>, y: &Option<Sign>| x == y,
+            |x: &Result<Sign, TouchUnread>, y: &Result<Sign, TouchUnread>| x == y,
         ) {
-            Ok(Climb::Answered {
-                answer: Some(s), ..
-            }) => Some(s),
-            Ok(Climb::Passed) => None,
-            Ok(Climb::Answered { answer: None, .. } | Climb::Undecided(())) | Err(_) => {
-                return Err(unread);
-            }
+            Ok(Climb::Answered { answer, .. }) => answer?,
+            Ok(Climb::Passed | Climb::Undecided(())) | Err(_) => return Err(unread),
         };
         let ray = along(horns[start].ends[0].0, l);
-        let around = link.cone.material_round(ray, rd).ok_or(unread)?;
+        let around = link
+            .cone
+            .material_round(ray, rd)
+            .ok_or(TouchUnread::InBand)?;
         match (side, around) {
-            (Some(Sign::Negative), Material::Out) | (Some(Sign::Positive), Material::In) => {}
+            (Sign::Negative, Material::Out) | (Sign::Positive, Material::In) => {}
+            (Sign::Negative, Material::In) | (Sign::Positive, Material::Out)
+                if !link.cone.sectors.is_empty() =>
+            {
+                overlap = true;
+            }
             _ => return Err(unread),
         }
         rays.push((ray, cycle));
@@ -187,29 +200,39 @@ pub(super) fn thorns<T: Decide>(link: &Link<T>, rd: Reading<T>) -> Result<(), To
     for (k, (ray, cycle)) in rays.iter().enumerate() {
         for (other, _) in &rays[k + 1..] {
             let off = |f: &usize| {
-                matches!(
-                    metric::sign_as(
-                        LINK_PLANE,
-                        Distance::of(*other, p, horns[*f].outward),
-                        rd.band
-                    ),
-                    Some(Sign::Positive | Sign::Negative)
+                metric::sign_as(
+                    LINK_PLANE,
+                    Distance::of(*other, p, horns[*f].outward),
+                    rd.band,
                 )
             };
-            if ahead(p, *ray, *other, rd) != Some(Sign::Negative) && !cycle.iter().any(off) {
-                return Err(unread);
+            let apart = ahead(p, *ray, *other, rd);
+            if apart == Some(Sign::Negative)
+                || cycle
+                    .iter()
+                    .any(|f| matches!(off(f), Some(Sign::Positive | Sign::Negative)))
+            {
+                continue;
             }
+            return Err(
+                if apart.is_none() || cycle.iter().any(|f| off(f).is_none()) {
+                    TouchUnread::InBand
+                } else {
+                    unread
+                },
+            );
         }
     }
-    Ok(())
+    Ok(overlap)
 }
 
 /// **The edge `c`'s point against the face through the edge `a`'s, one
 /// order down**: the sign of `(κ_c − κ_a)·m · l²/2`, `m` the face's
 /// outward unit normal and `ta`, `tc` the edges' departures, their
-/// first-order parting off the face's plane charged; `None` where that
-/// parting is not decided zero (the edge leaves the face's plane, so it
-/// is no point of the picture) or the sign does not read.
+/// first-order parting off the face's plane charged. Where that parting
+/// is decided off zero the edge leaves the face's plane, so it is no
+/// point of the picture: [`crate::CurvedUnread::Unreadable`]. A parting
+/// or a sign the band leaves undecided is [`TouchUnread::InBand`].
 fn beside<T: Decide>(
     p: Point3<T>,
     (ta, a): (Vec3<T>, Bound<T>),
@@ -217,18 +240,22 @@ fn beside<T: Decide>(
     m: Vec3<T>,
     arm: Lever<T>,
     rd: Reading<T>,
-) -> Option<Sign> {
+) -> Result<Sign, TouchUnread> {
     let l = arm.length();
     let residue = Distance::of(p + tc.normalize() * l, p + ta.normalize() * l, m);
-    if metric::sign_as(LINK_PLANE, residue, rd.band) != Some(Sign::Zero) {
-        return None;
+    match metric::sign_as(LINK_PLANE, residue, rd.band) {
+        Some(Sign::Zero) => {}
+        Some(Sign::Positive | Sign::Negative) => {
+            return Err(TouchUnread::Curved(CurvedUnread::Unreadable));
+        }
+        None => return Err(TouchUnread::InBand),
     }
     metric::settle_as(
         LINK_SECOND_ORDER,
         Distance::departure(Departure::Parted(c.bend - a.bend), m, arm),
         rd.charged(residue),
     )
-    .ok()
+    .map_err(|_| TouchUnread::InBand)
 }
 
 /// **Two circles' arcs along one ray, on one circle** (`rest::kept_bound`):
@@ -296,8 +323,15 @@ enum Run<T: Decide> {
 /// folding there: one strictly on one side of the other's line, or
 /// touching it only at its own anchor, decidedly behind the other's, or
 /// running along it away from it. A horn is no sheet ([`thorns`] refuses
-/// one a sector reaches); a curved face with no certified bend is false.
-pub(super) fn parts<T: Decide>(link: &Link<T>, r: Point3<T>, rd: Reading<T>) -> bool {
+/// one a sector reaches). Where they do not part, a reading the band
+/// leaves undecided is [`TouchUnread::InBand`]; sheets that meet, or a
+/// curved face with no certified bend, [`crate::CurvedUnread::Unreadable`].
+pub(super) fn parts<T: Decide>(
+    link: &Link<T>,
+    r: Point3<T>,
+    rd: Reading<T>,
+) -> Result<(), TouchUnread> {
+    let unread = TouchUnread::Curved(CurvedUnread::Unreadable);
     let p = link.cone.p;
     let unit = (r - p).normalize();
     let mut arm = reach(p, r - p);
@@ -306,7 +340,7 @@ pub(super) fn parts<T: Decide>(link: &Link<T>, r: Point3<T>, rd: Reading<T>) -> 
         match link.cone.side(t, r, rd) {
             Some(Sign::Zero) => {}
             Some(_) => continue,
-            None => return false,
+            None => return Err(TouchUnread::InBand),
         }
         let tangent = link.faces[j].tangent;
         match t.place(p, r, rd) {
@@ -321,12 +355,9 @@ pub(super) fn parts<T: Decide>(link: &Link<T>, r: Point3<T>, rd: Reading<T>) -> 
                         let face = &link.faces[j];
                         let bend =
                             crate::bound_side::FaceBend::at(&face.surface, face.sense, t.apex);
-                        match bend.section(at, t.outward) {
-                            Some(h) => t.outward * h,
-                            None => return false,
-                        }
+                        t.outward * bend.section(at, t.outward).ok_or(unread)?
                     }
-                    None => return false,
+                    None => return Err(unread),
                 };
                 sheets.push(Sheet {
                     anchor,
@@ -339,13 +370,14 @@ pub(super) fn parts<T: Decide>(link: &Link<T>, r: Point3<T>, rd: Reading<T>) -> 
             Ok(Place::Bound) => {
                 let (Some(bounds), Some(rays)) = (tangent.and_then(|g| g.bounds), t.bounds())
                 else {
-                    return false;
+                    return Err(unread);
                 };
                 let before = sheets.len();
+                let mut band = false;
                 for (i, (b, q)) in bounds.into_iter().zip(rays).enumerate() {
-                    if wedge_side(p, t.outward, q, r, rd) != Some(Sign::Zero)
-                        || ahead(p, q, r, rd) != Some(Sign::Positive)
-                    {
+                    let (on, ahead) = (wedge_side(p, t.outward, q, r, rd), ahead(p, q, r, rd));
+                    if on != Some(Sign::Zero) || ahead != Some(Sign::Positive) {
+                        band |= on.is_none() || (on == Some(Sign::Zero) && ahead.is_none());
                         continue;
                     }
                     let at = (q - p).normalize();
@@ -364,62 +396,100 @@ pub(super) fn parts<T: Decide>(link: &Link<T>, r: Point3<T>, rd: Reading<T>) -> 
                     });
                 }
                 if sheets.len() == before {
-                    return false;
+                    return Err(if band { TouchUnread::InBand } else { unread });
                 }
             }
-            Err(_) => return false,
+            Err(_) => return Err(TouchUnread::InBand),
         }
     }
-    sheets.len() >= 2
-        && sheets
-            .iter()
-            .enumerate()
-            .all(|(i, a)| sheets[i + 1..].iter().all(|b| apart(p, a, b, arm, rd)))
+    if sheets.len() < 2 {
+        return Err(unread);
+    }
+    let mut band = false;
+    for (i, a) in sheets.iter().enumerate() {
+        for b in &sheets[i + 1..] {
+            match apart(p, a, b, arm, rd) {
+                Some(true) => {}
+                Some(false) => return Err(unread),
+                None => band = true,
+            }
+        }
+    }
+    if band {
+        Err(TouchUnread::InBand)
+    } else {
+        Ok(())
+    }
+}
+
+/// Three-valued and: false where either is, else unknown (`None`, a
+/// reading in band) where either is.
+fn and3(a: Option<bool>, b: Option<bool>) -> Option<bool> {
+    match (a, b) {
+        (Some(false), _) | (_, Some(false)) => Some(false),
+        (Some(true), Some(true)) => Some(true),
+        _ => None,
+    }
+}
+
+/// Three-valued or: true where either is, else unknown where either is.
+fn or3(a: Option<bool>, b: Option<bool>) -> Option<bool> {
+    and3(a.map(|x| !x), b.map(|x| !x)).map(|x| !x)
+}
+
+/// A sign read equal to `want`: `None` where it read nothing.
+fn is(sign: Option<Sign>, want: Sign) -> Option<bool> {
+    sign.map(|s| s == want)
 }
 
 /// Whether two sheets along a ray decidedly do not meet one order down
-/// but at an edge's point they share ([`parts`]).
+/// but at an edge's point they share ([`parts`]); `None` where only a
+/// reading in band stands between them and a decision.
 fn apart<T: Decide>(
     p: Point3<T>,
     a: &Sheet<T>,
     b: &Sheet<T>,
     arm: Lever<T>,
     rd: Reading<T>,
-) -> bool {
+) -> Option<bool> {
     let l = arm.length();
     let toward = |v, n| toward(p, l, v, n, rd);
     if a.edge.is_some() && a.edge == b.edge {
         // One edge's two faces, from its one point: they part unless
         // they run on along one line one way.
         return match (a.run, b.run) {
-            (Run::Half(wa), Run::Half(wb)) => match toward(wb, a.normal) {
-                Some(Sign::Positive | Sign::Negative) => true,
-                Some(Sign::Zero) => toward(wb, wa) == Some(Sign::Negative),
-                None => false,
+            (Run::Half(wa), Run::Half(wb)) => match toward(wb, a.normal)? {
+                Sign::Positive | Sign::Negative => Some(true),
+                Sign::Zero => is(toward(wb, wa), Sign::Negative),
             },
-            _ => false,
+            _ => Some(false),
         };
     }
-    misses(p, a, b, arm, rd) || misses(p, b, a, arm, rd)
+    or3(misses(p, a, b, arm, rd), misses(p, b, a, arm, rd))
 }
 
 /// Whether the sheet `b` decidedly does not meet the sheet `a`, read
-/// against `a`'s line in the cut ([`parts`]).
+/// against `a`'s line in the cut ([`parts`]); `None` where a reading in
+/// band leaves it open.
 fn misses<T: Decide>(
     p: Point3<T>,
     a: &Sheet<T>,
     b: &Sheet<T>,
     arm: Lever<T>,
     rd: Reading<T>,
-) -> bool {
+) -> Option<bool> {
     let l = arm.length();
     let toward = |v, n| toward(p, l, v, n, rd);
     // `b`'s anchor against a line through `a`'s, of normal `n`, with
-    // `also` charged beside the anchors' first-order parting.
-    let off = |n: Vec3<T>, also: Option<Distance<T>>| {
+    // `also` charged beside the anchors' first-order parting: `Err(true)`
+    // where a reading is in band, `Err(false)` where the anchors part at
+    // first order (no point of the picture).
+    let off = |n: Vec3<T>, also: Option<Distance<T>>| -> Result<Sign, bool> {
         let residue = Distance::of(p + b.at * l, p + a.at * l, n);
-        if metric::sign_as(LINK_PLANE, residue, rd.band) != Some(Sign::Zero) {
-            return None;
+        match metric::sign_as(LINK_PLANE, residue, rd.band) {
+            Some(Sign::Zero) => {}
+            Some(Sign::Positive | Sign::Negative) => return Err(false),
+            None => return Err(true),
         }
         let rd = also.map_or(rd, |d| rd.charged(d)).charged(residue);
         metric::settle_as(
@@ -427,12 +497,21 @@ fn misses<T: Decide>(
             Distance::departure(Departure::Parted(b.anchor - a.anchor), n, arm),
             rd,
         )
-        .ok()
+        .map_err(|_| true)
+    };
+    let read = |r: Result<Sign, bool>| match r {
+        Ok(s) => Some(s),
+        Err(_) => None,
+    };
+    // Whether `r` reads `want`, unknown where it is in band.
+    let reads = |r: Result<Sign, bool>, want: Sign| match r {
+        Ok(s) => Some(s == want),
+        Err(band) => (!band).then_some(false),
     };
     // `b`'s anchor decidedly behind `a`'s along `a`'s half-line.
     let behind = || match a.run {
-        Run::Half(wa) => off(wa, None) == Some(Sign::Negative),
-        Run::Both(_) => false,
+        Run::Half(wa) => reads(off(wa, None), Sign::Negative),
+        Run::Both(_) => Some(false),
     };
     let wb = match b.run {
         Run::Both(w) | Run::Half(w) => w,
@@ -443,20 +522,22 @@ fn misses<T: Decide>(
     let tilt = Distance::of(p + wb * l, p, a.normal);
     let side = off(a.normal, None);
     let clear = off(a.normal, Some(tilt));
+    let decided = |r: Result<Sign, bool>| match r {
+        Ok(s) => Some(s != Sign::Zero),
+        Err(band) => (!band).then_some(false),
+    };
     match b.run {
-        Run::Both(wb) => {
-            matches!(clear, Some(Sign::Positive | Sign::Negative))
-                && toward(wb, a.normal) == Some(Sign::Zero)
-        }
-        Run::Half(wb) => match (side, toward(wb, a.normal)) {
-            (Some(s @ (Sign::Positive | Sign::Negative)), Some(Sign::Zero)) => clear == Some(s),
-            (Some(s @ (Sign::Positive | Sign::Negative)), Some(g)) => g == s,
+        Run::Both(wb) => and3(decided(clear), is(toward(wb, a.normal), Sign::Zero)),
+        Run::Half(wb) => match (read(side), toward(wb, a.normal)) {
+            (Some(s @ (Sign::Positive | Sign::Negative)), Some(Sign::Zero)) => reads(clear, s),
+            (Some(s @ (Sign::Positive | Sign::Negative)), Some(g)) => Some(g == s),
             (Some(Sign::Zero), Some(Sign::Positive | Sign::Negative)) => behind(),
             (Some(Sign::Zero), Some(Sign::Zero)) => match a.run {
-                Run::Half(wa) => toward(wb, wa) == Some(Sign::Negative) && behind(),
-                Run::Both(_) => false,
+                Run::Half(wa) => and3(is(toward(wb, wa), Sign::Negative), behind()),
+                Run::Both(_) => Some(false),
             },
-            _ => false,
+            (_, None) => None,
+            (None, Some(_)) => (!side.is_err_and(|band| band)).then_some(false),
         },
     }
 }
@@ -477,7 +558,7 @@ pub(super) enum Lens {
 /// are a slit, [`super::rest::one_material`]'s to refuse). Both ends
 /// pinches is a **lens**; a cap or a mouth at either end, a **lune**.
 /// Each pair's kind is read by [`kind`]. A candidate pair that does not
-/// read, or a sector in two pairs, is
+/// read refuses as [`kind`] says; a sector in two pairs is
 /// [`crate::CurvedUnread::Unreadable`]; a pair whose ends do not close is
 /// none, and its sheets stay on each other. The argument:
 /// `crates/topo/README.md`, beside the first-order one.
@@ -503,7 +584,7 @@ pub(super) fn lenses<T: Decide>(
             {
                 return Err(unread);
             }
-            out.push(found.ok_or(unread)?);
+            out.push(found?);
         }
     }
     Ok(out)
@@ -540,13 +621,13 @@ enum Close {
 /// **The pair `(i, j)` on one wedge** ([`lenses`]): `None` where it is no
 /// candidate — `j` not one wedge, `W`, `i` not holding `W` on its plane
 /// the other way round as its first or last wedge, both planes, or an
-/// end that does not close ([`Close`]); `Some(None)` where it is one and
+/// end that does not close ([`Close`]); `Some(Err)` where it is one and
 /// does not read ([`kind`]).
 fn pair<T: Decide>(
     link: &Link<T>,
     [i, j]: [usize; 2],
     rd: Reading<T>,
-) -> Option<Option<OneWedge<T>>> {
+) -> Option<Result<OneWedge<T>, TouchUnread>> {
     let p = link.cone.p;
     let (s, t) = (&link.cone.sectors[i], &link.cone.sectors[j]);
     let (Some(ti), Some(tj)) = (link.faces[i].tangent, link.faces[j].tangent) else {
@@ -658,15 +739,17 @@ fn developable<T: Decide>(link: &Link<T>, k: usize) -> bool {
 /// decides `σ` (a lens). Each sign is read at the arm with the two planes'
 /// parting along its ray charged. `σ` positive is a void, each sheet on
 /// the other's outward side, and a cap's horn must face into `W` for a
-/// void and out of it for a sliver. `None` where any of these does not
-/// hold or a face has no certified bend. The argument:
-/// `crates/topo/README.md`, beside the first-order one.
+/// void and out of it for a sliver. A sign the band leaves undecided is
+/// [`TouchUnread::InBand`]; any other reading that does not hold, or a
+/// face with no certified bend, is [`crate::CurvedUnread::Unreadable`].
+/// The argument: `crates/topo/README.md`, beside the first-order one.
 fn kind<T: Decide>(
     link: &Link<T>,
     [i, j]: [usize; 2],
     ends: [(Point3<T>, Close); 2],
     rd: Reading<T>,
-) -> Option<Lens> {
+) -> Result<Lens, TouchUnread> {
+    let unread = TouchUnread::Curved(CurvedUnread::Unreadable);
     let p = link.cone.p;
     let (s, t) = (&link.cone.sectors[i], &link.cone.sectors[j]);
     let m = s.outward;
@@ -684,7 +767,9 @@ fn kind<T: Decide>(
     let (first, second) = (bend(i), bend(j));
     // The second sheet past the first along `m`, per arc length squared,
     // along `u` (a quadratic form: `u` need not be a unit).
-    let rise = |u: Vec3<T>| -> Option<T> { Some(second.section(u, m)? - first.section(u, m)?) };
+    let rise = |u: Vec3<T>| -> Result<T, TouchUnread> {
+        Ok(second.section(u, m).ok_or(unread)? - first.section(u, m).ok_or(unread)?)
+    };
     let gap = |r: T| Distance::departure(Departure::Parted(m * r), m, arm);
     // The two planes' parting along the unit `u`: its distance off each,
     // whichever sector's rays it was read from.
@@ -701,8 +786,10 @@ fn kind<T: Decide>(
             Close::Pinch { straight: line } => {
                 pinched = true;
                 straight &= line;
-                if metric::sign_as(LINK_SECOND_ORDER, b, rd.band) != Some(Sign::Zero) {
-                    return None;
+                match metric::sign_as(LINK_SECOND_ORDER, b, rd.band) {
+                    Some(Sign::Zero) => {}
+                    Some(Sign::Positive | Sign::Negative) => return Err(unread),
+                    None => return Err(TouchUnread::InBand),
                 }
             }
             Close::Cap(_) | Close::Mouth => {
@@ -710,7 +797,8 @@ fn kind<T: Decide>(
                     Ok(g @ (Sign::Positive | Sign::Negative)) if sigma.is_none_or(|x| x == g) => {
                         sigma = Some(g);
                     }
-                    _ => return None,
+                    Ok(_) => return Err(unread),
+                    Err(_) => return Err(TouchUnread::InBand),
                 }
             }
         }
@@ -738,16 +826,19 @@ fn kind<T: Decide>(
         (Ok(Sign::Zero), Some(g)) if flat => g,
         (Ok(g @ (Sign::Positive | Sign::Negative)), None) => g,
         (Ok(g), Some(e)) if g == e => g,
-        _ => return None,
+        (Ok(_), _) => return Err(unread),
+        (Err(_), _) => return Err(TouchUnread::InBand),
     };
     for (_, close) in ends {
-        if let Close::Cap(h) = close
-            && toward(p, l, mid, link.horns[h].outward, rd) != Some(sigma)
-        {
-            return None;
+        if let Close::Cap(h) = close {
+            match toward(p, l, mid, link.horns[h].outward, rd) {
+                Some(g) if g == sigma => {}
+                Some(_) => return Err(unread),
+                None => return Err(TouchUnread::InBand),
+            }
         }
     }
-    Some(if sigma == Sign::Positive {
+    Ok(if sigma == Sign::Positive {
         Lens::Void
     } else {
         Lens::Sliver

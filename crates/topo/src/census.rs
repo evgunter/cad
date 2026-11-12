@@ -87,29 +87,10 @@
 //!   a cylinder or cone face, read for whether the face runs through its
 //!   wedge ([`sweep_edge_in_curved_face`]);
 //!   and a point where a solid touches itself whose link there bounds
-//!   no one material ([`sweep_self_touch_points`]).
+//!   no one material ([`sweep_self_touch_points`]), a point its reading
+//!   does not decide refused undecided with the reading's cause.
 //! - **Genuinely undetected until C9/C6**: the other SAME-solid
-//!   distinct-key curved pairs (the backstop is cross-solid); a point
-//!   where a solid touches itself with a curved face or edge in its link
-//!   whose tangent cones leave it unread, at first order and one order
-//!   down ([`crate::link::FaceSector::tangent`], `link::second_order`;
-//!   [`SelfTouch::SecondOrder`]) — a cone's apex its nappe does not
-//!   decide (`link::rest::at_apex`), a vertex in the band of a cone's
-//!   axis, a cusp corner whose edges' bends do not part it, a horn
-//!   beside a sheet along its ray or a ring of horns that reads as no
-//!   thorn, a spline face held off a corner, a face whose foot normal
-//!   or reach does not read, a spline corner face on a placeholder chart
-//!   or with no certified curve or pcurve there (a spline corner on a
-//!   crease reads its sector's side, or refuses by the crease's
-//!   standing; it is not left here), a curved edge with no certified
-//!   curve, sheets along a tied ray that one order down meet or do not
-//!   part, a curved sheet holding a tied ray inside it with no certified
-//!   bend, two whole tangent planes on one plane, or two tangent sectors
-//!   lying on each other that no lens or lune reads
-//!   (`link::second_order::lenses`) — which
-//!   [`sweep_self_touch_points`] leaves unread
-//!   (`work/restread/tier-3-prime-reads-no-side-where-a-solid-touches-itself-at-a-point-on-a-curved-face.md`);
-//!   and one
+//!   distinct-key curved pairs (the backstop is cross-solid); and one
 //!   cross-solid residue named at that loop: a pair whose ONLY
 //!   meetings are declared has some of its records taken on their word
 //!   (`work/atrest/declared-only-meetings-clear-at-the-census-gate-unread.md`).
@@ -8901,8 +8882,9 @@ fn edge_in_own_face<T: Decide>(
 /// refusal) is read as its faces' tangent cones ([`self_touch_verdict`]),
 /// wherever their first order decides, or one order down where it ties
 /// at a cusp corner or along a ray (`link::second_order`). Where neither
-/// decides, or the cones do not build, the point is left unread, named
-/// ([`SelfTouch::SecondOrder`]).
+/// decides, or the cones do not build, the point refuses undecided with
+/// the reading's cause (the classes: `crates/topo/README.md`, tier 3′'s
+/// self-touch reading).
 fn sweep_self_touch_points<T: Decide>(
     body: &Body<T>,
     geo: &Geo<T>,
@@ -8950,12 +8932,8 @@ fn sweep_self_touch_points<T: Decide>(
         if !read.insert((s, least)) {
             continue;
         }
-        let verdict = match self_touch_verdict(body, geo, &ties, s, &keys, at, band) {
-            SelfTouch::Read(verdict) => verdict,
-            // Left to second order: genuinely undetected (the module
-            // doc's class list), not refused.
-            SelfTouch::SecondOrder(_) => continue,
-        };
+        let verdict = self_touch_verdict(body, geo, &ties, s, &keys, at, band);
+        eprintln!("STVERDICT {} {:?}", witness(at), verdict);
         match verdict {
             TouchVerdict::Rest(_) => {}
             TouchVerdict::Crossing => errors.push(ValidationError::BoundaryCrossesItself {
@@ -8973,52 +8951,13 @@ fn sweep_self_touch_points<T: Decide>(
     }
 }
 
-/// **What the self-touch reading made of a point** ([`self_touch_verdict`]).
-#[derive(Debug, PartialEq)]
-enum SelfTouch {
-    /// The link's verdict.
-    Read(TouchVerdict),
-    /// A curved face or edge takes part and the faces' tangent cones do
-    /// not decide the point ([`Link::tangent_of`]), at first order or one
-    /// order down (`link::second_order`), or the tangent reading cannot
-    /// build. [`crate::CurvedUnread::Unreadable`], or the cause the corner names
-    /// ([`TouchUnread::curved_unread`]), for a face with no tangent plane
-    /// there that no reading takes ([`crate::CurvedUnread::NoTangentPlane`]:
-    /// a vertex in the band of a cone's axis, a face held inside in band
-    /// of its axis, centre or apex, or a cone's apex its nappe does not
-    /// decide: a nappe not held whole, a horn beside it, a half-plane
-    /// cutting it, or its axis on the wrong side of the rest's
-    /// material), a cusp
-    /// corner its edges' bends do not part, a horn beside a sector along
-    /// its ray that caps no lune or a ring of horns that reads as no
-    /// thorn, a spline face held off a corner, a face whose normal at the
-    /// foot or whose reach does not read, a corner face [`crate::sector_face::resolve`]
-    /// refuses (a surface with no sector arm, a spline edge not placed:
-    /// [`crate::CurvedUnread::NoSectorArm`], [`crate::CurvedUnread::Unplaced`];
-    /// a spline corner on a crease reads the normal on its sector's side,
-    /// and one the band cannot read refuses the reading by the crease's
-    /// standing, not here), a curved edge with no certified curve, sheets
-    /// along a tied ray that one order down meet or do not part (a curved
-    /// sheet holding such a ray inside it with no certified bend among
-    /// them), two whole tangent planes on one plane (two kissing balls at
-    /// any pose included), two sectors lying on each other where one is no
-    /// plane and no lens or lune reads them, or a lens or lune the link
-    /// round it does not hold. A sign one order down that the band leaves
-    /// undecided, in band or moved there by the first order's charged residue, is
-    /// [`crate::CurvedUnread::Unreadable`] too: this `why` does not part an
-    /// in-band reading one order down from a structural refusal. Two
-    /// planar faces lying on each other are no such point: the link
-    /// refuses them [`TouchUnread::Degenerate`], as the planar link does.
-    SecondOrder(TouchUnread),
-}
-
 /// **Solid `s`'s whole link at the touch point of `keys`, read for
 /// one material** ([`rest::one_material`]): the link of the faces'
 /// sectors where every face reads one ([`Germ::of_holds`]), and where a
 /// curved face or edge takes part, the link of their tangent cones
 /// ([`Link::tangent_of`]), over the one gathering of the faces
 /// ([`gather`]). What the tangent cones leave unread is
-/// [`SelfTouch::SecondOrder`].
+/// [`TouchVerdict::Unread`] with the reading's cause.
 #[allow(clippy::too_many_arguments)] // the snapshot, the ties, whose link, and where
 fn self_touch_verdict<T: Decide>(
     body: &Body<T>,
@@ -9028,24 +8967,16 @@ fn self_touch_verdict<T: Decide>(
     keys: &BTreeSet<PointKey>,
     at: Point3<T>,
     band: Band,
-) -> SelfTouch {
+) -> TouchVerdict {
     let holds = match gather(body, geo, ties, s, keys) {
         Ok(holds) => holds,
-        Err(why) => return SelfTouch::Read(TouchVerdict::Unread(why)),
+        Err(why) => return why.into(),
     };
     match Link::planar_of(body, geo, &holds, at, band) {
-        Ok(link) => SelfTouch::Read(rest::one_material(&link, band)),
-        Err(why) if why.curved_unread() => {
-            match Link::tangent_of(body, geo, &holds, at, band)
-                .map(|link| rest::one_material(&link, band))
-            {
-                Ok(TouchVerdict::Unread(why)) if why.curved_unread() => SelfTouch::SecondOrder(why),
-                Err(why) if why.curved_unread() => SelfTouch::SecondOrder(why),
-                Ok(verdict) => SelfTouch::Read(verdict),
-                Err(why) => SelfTouch::Read(TouchVerdict::Unread(why)),
-            }
-        }
-        Err(why) => SelfTouch::Read(TouchVerdict::Unread(why)),
+        Ok(link) => rest::one_material(&link, band),
+        Err(why) if why.curved_unread() => Link::tangent_of(body, geo, &holds, at, band)
+            .map_or_else(TouchVerdict::from, |link| rest::one_material(&link, band)),
+        Err(why) => why.into(),
     }
 }
 
@@ -13572,8 +13503,11 @@ mod tests {
 
     /// **A `(vertex, edge)` record on a circle edge is witnessed by the
     /// curved lane**: a vertex off the rim's carrier reads stale, as it
-    /// would against a line. Red when the arm skips the record or still
-    /// refuses the circle as unsupported.
+    /// would against a line. The record ties the vertex to the rim for the
+    /// self-touch sweep too, where the sheet's corner face there has no
+    /// sector arm: the point refuses undecided, naming that. Red when the
+    /// arm skips the record or still refuses the circle as unsupported, or
+    /// when the self-touch point passes unread.
     #[test]
     fn a_vertex_on_edge_record_off_a_circle_edge_reads_stale() {
         let mut body = Body::<f64>::new();
@@ -13624,6 +13558,16 @@ mod tests {
                 .iter()
                 .any(|e| matches!(e, ValidationError::CensusUnsupported { .. })),
             "{errors:?}"
+        );
+        assert!(
+            errors.iter().any(|e| matches!(
+                e,
+                ValidationError::BoundaryCrossesItselfUndecided {
+                    why: TouchUnread::Curved(CurvedUnread::NoSectorArm),
+                    ..
+                }
+            )),
+            "the self-touch point refuses, no sector arm: {errors:?}"
         );
     }
 
