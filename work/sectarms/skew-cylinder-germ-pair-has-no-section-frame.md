@@ -2,13 +2,14 @@
 id: skew-cylinder-germ-pair-has-no-section-frame
 kind: issue
 title: Two cylinder walls with skew axes, or coplanar axes and unequal radii, refuse GermFrameUnsupported: cylinder x cylinder is not on the section value
-status: dispatched
+status: closed
 opened: 2026-10-04
 priority: P1
 cost: H
 refs: [4025, cylinder-sphere-germ-pair-has-no-join-lane]
 pr: 6139
 branch: sectarms/cylinder-pair-on-the-value
+closed: 2026-11-04
 ---
 
 Found by the cylinder × sphere frame lane's sweep of the germ pairs that
@@ -178,3 +179,15 @@ The bisector arcs' winding moved to `PairSection::node_sets`.
 The parallel and bisector lanes stay as plane lanes, because the carried
 lane chords only spline components. That extension is stage 3b:
 `the-carried-lane-chords-only-spline-components`.
+
+## Closed (2026-11-04)
+
+Cylinder × cylinder is on the section value end to end, for every pose:
+- the pose and region (PR 6139);
+- the readers (PR 6151);
+- the ruling sweep and exhaustiveness (PR 6309);
+- the join reading the value (PR 6373);
+- the carried closed forms (PR 6405);
+- nodes on the value (PR 6466).
+
+Skew and unequal-radius walls no longer refuse `GermFrameUnsupported`. They carry, and the result gate refuses `VolumeUncomputable`, because spline chords on an analytic chart have no volume lane (`spiricarm/a-projected-boundary-on-an-analytic-chart-has-no-volume-lane`). The cost of that refusal is filed at P1 under SPIRICARM (`a-carried-cylinder-pair-marches-for-minutes-before-the-volume-lane-refuses`).

@@ -7083,6 +7083,88 @@ fn fidelity<T: Decide>(
     Ok(())
 }
 
+/// **A focal-section image's structure**, decided in band, the one
+/// spelling of it for every door that reads one: its sense `±1` and its
+/// tube rate `±1` on a torus (`tube` its minor radius), each a residue
+/// metered at its channel's rate; `|β| < 1`, levered at the azimuth's.
+/// Returns the azimuth's arm, metres per radian over the image's box.
+pub(super) fn focal_section_identity<T: Decide>(
+    pcurve: &Pcurve<T>,
+    (t0, t1): (T, T),
+    surface: &Surface<T>,
+    tube: Option<T>,
+    band: Band,
+) -> Result<T, PcurveCertifyError> {
+    let Pcurve::FocalSection(image) = *pcurve else {
+        unreachable!("focal_section_identity: its callers hold a focal-section image")
+    };
+    let esc = |check| {
+        move |cause| PcurveCertifyError::Escalated {
+            check,
+            sample: 0,
+            cause,
+        }
+    };
+    let mismatch = |why| PcurveCertifyError::ImageMismatch {
+        image: PcurveKind::FocalSection,
+        why,
+    };
+    let boxed = pcurve.chart_box(t0, t1);
+    let v_sup = boxed.v_reach();
+    let arm = azimuth_lever(surface, v_sup);
+    match decide(
+        "pcurve_focal_section_sense",
+        Margin::metered_sup(image.sense.abs() - T::one(), SupSpeed::new(arm)),
+        band,
+    )
+    .map_err(esc(PcurveCheck::ImageIdentity))?
+    {
+        Sign::Zero => {}
+        Sign::Positive | Sign::Negative => {
+            return Err(mismatch(
+                "the stored sense is not ±1, so the image winds no section",
+            ));
+        }
+    }
+    match decide(
+        "pcurve_focal_section_beta",
+        // Unsourced lever: `1 − |β|` is the true-anomaly map's cut-free
+        // headroom, a coefficient that is no parameter span, and the
+        // azimuth arm is a rate (metres per radian), not an extent.
+        Margin::levered(
+            T::one() - image.beta.abs(),
+            geom_core::Lever::unsourced(arm),
+        ),
+        band,
+    )
+    .map_err(esc(PcurveCheck::ImageIdentity))?
+    {
+        Sign::Positive => {}
+        Sign::Zero | Sign::Negative => {
+            return Err(mismatch(
+                "the stored |β| is not below 1, so the true-anomaly map is not cut-free",
+            ));
+        }
+    }
+    if let Some(r) = tube {
+        match decide(
+            "pcurve_focal_section_tube_rate",
+            Margin::metered_sup(image.vl.abs() - T::one(), SupSpeed::new(r)),
+            band,
+        )
+        .map_err(esc(PcurveCheck::ImageIdentity))?
+        {
+            Sign::Zero => {}
+            Sign::Positive | Sign::Negative => {
+                return Err(mismatch(
+                    "the stored tube rate is not ±1, so the image is no Villarceau circle's",
+                ));
+            }
+        }
+    }
+    Ok(arm)
+}
+
 /// **The focal-section lane's four checks** — the harmonic lane's
 /// order and meters. As on a harmonic row (C4), check 4's envelope is
 /// the whole certified statement and check 3 its cross-check.
@@ -7150,59 +7232,8 @@ fn run_focal_section_checks<T: Decide>(
     let Some(carrier_form) = carrier_harmonic(carrier) else {
         unreachable!("carrier_harmonic: an ellipse or circle has its harmonic form")
     };
-    let boxed = pcurve.chart_box(t0, t1);
-    let v_sup = boxed.v_reach();
-    let arm = azimuth_lever(surface, v_sup);
-    match decide(
-        "pcurve_focal_section_sense",
-        Margin::metered_sup(image.sense.abs() - T::one(), SupSpeed::new(arm)),
-        band,
-    )
-    .map_err(esc(PcurveCheck::ImageIdentity))?
-    {
-        Sign::Zero => {}
-        Sign::Positive | Sign::Negative => {
-            return Err(mismatch(
-                "the stored sense is not ±1, so the image winds no section",
-            ));
-        }
-    }
-    match decide(
-        "pcurve_focal_section_beta",
-        // Unsourced lever: `1 − |β|` is the true-anomaly map's cut-free
-        // headroom, a coefficient that is no parameter span, and the
-        // azimuth arm is a rate (metres per radian), not an extent.
-        Margin::levered(
-            T::one() - image.beta.abs(),
-            geom_core::Lever::unsourced(arm),
-        ),
-        band,
-    )
-    .map_err(esc(PcurveCheck::ImageIdentity))?
-    {
-        Sign::Positive => {}
-        Sign::Zero | Sign::Negative => {
-            return Err(mismatch(
-                "the stored |β| is not below 1, so the true-anomaly map is not cut-free",
-            ));
-        }
-    }
-    if let Some(r) = tube {
-        match decide(
-            "pcurve_focal_section_tube_rate",
-            Margin::metered_sup(image.vl.abs() - T::one(), SupSpeed::new(r)),
-            band,
-        )
-        .map_err(esc(PcurveCheck::ImageIdentity))?
-        {
-            Sign::Zero => {}
-            Sign::Positive | Sign::Negative => {
-                return Err(mismatch(
-                    "the stored tube rate is not ±1, so the image is no Villarceau circle's",
-                ));
-            }
-        }
-    }
+    focal_section_identity(pcurve, (t0, t1), surface, tube, band)?;
+    let v_sup = pcurve.chart_box(t0, t1).v_reach();
 
     let mut max_residual = T::zero();
 
@@ -7407,6 +7438,69 @@ fn focal_section_envelope<T: Real>(
         + frame_defect(surface, v_sup)
 }
 
+/// **A spiric image's copies of its carrier's three scalars**, decided
+/// against them in band, each a metre comparand: `Zero` is the carrier's
+/// own, past the band the image's structure read wrong
+/// ([`PcurveCertifyError::ImageMismatch`]), in band the image's identity
+/// escalated. The one spelling of this identity, for every door that
+/// reads a stated spiric image.
+pub(super) fn spiric_copies<T: Decide>(
+    (major, minor, offset): (T, T, T),
+    (c_major, c_minor, c_offset): (T, T, T),
+    band: Band,
+) -> Result<(), PcurveCertifyError> {
+    for (name, diff) in [
+        ("pcurve_spiric_major", major - c_major),
+        ("pcurve_spiric_minor", minor - c_minor),
+        ("pcurve_spiric_offset", offset - c_offset),
+    ] {
+        match decide(name, Margin::of(diff), band).map_err(|cause| {
+            PcurveCertifyError::Escalated {
+                check: PcurveCheck::ImageIdentity,
+                sample: 0,
+                cause,
+            }
+        })? {
+            Sign::Zero => {}
+            Sign::Positive | Sign::Negative => {
+                return Err(PcurveCertifyError::ImageMismatch {
+                    image: PcurveKind::Spiric,
+                    why: "the image's major radius, minor radius or offset is not the carrier's",
+                });
+            }
+        }
+    }
+    Ok(())
+}
+
+/// **A spiric wall image's sense**, `σ = ±1`: its residue `|sense| − 1`
+/// decided `Zero` at the chart's azimuth rate over `reach`, the one
+/// spelling of that identity. Returns the residue.
+pub(super) fn spiric_sense<T: Decide>(
+    sense: T,
+    surface: &Surface<T>,
+    reach: T,
+    band: Band,
+) -> Result<T, PcurveCertifyError> {
+    let residue = sense.abs() - T::one();
+    match decide(
+        "pcurve_spiric_sense",
+        Margin::metered_sup(residue, SupSpeed::new(azimuth_lever(surface, reach))),
+        band,
+    )
+    .map_err(|cause| PcurveCertifyError::Escalated {
+        check: PcurveCheck::ImageIdentity,
+        sample: 0,
+        cause,
+    })? {
+        Sign::Zero => Ok(residue),
+        Sign::Positive | Sign::Negative => Err(PcurveCertifyError::ImageMismatch {
+            image: PcurveKind::Spiric,
+            why: "the wall image's sense is not a unit sign",
+        }),
+    }
+}
+
 /// **The spiric lane's four checks** — the harmonic lane's order, the
 /// harmonic lane's meters, and two different check-4 statements, one
 /// per [`SpiricImage`].
@@ -7488,13 +7582,6 @@ fn run_spiric_checks_as<T: Decide>(
         });
     };
     let chart = surface.kind();
-    let esc = |check: PcurveCheck| {
-        move |cause| PcurveCertifyError::Escalated {
-            check,
-            sample: 0,
-            cause,
-        }
-    };
     // The image kind IS the chart kind, exhaustively: a spiric lies on
     // its own cutting plane and on the two tori that hold it (its own
     // and that torus's mirror through the plane; which one is check 1's
@@ -7509,21 +7596,7 @@ fn run_spiric_checks_as<T: Decide>(
     // is a metre comparand and must be Zero; what the band admits is
     // measured below.
     let (d_major, d_minor, d_offset) = (major - r_major, minor - r_minor, offset - c_offset);
-    for (name, diff) in [
-        ("pcurve_spiric_major", d_major),
-        ("pcurve_spiric_minor", d_minor),
-        ("pcurve_spiric_offset", d_offset),
-    ] {
-        match decide(name, Margin::of(diff), band).map_err(esc(PcurveCheck::ImageIdentity))? {
-            Sign::Zero => {}
-            Sign::Positive | Sign::Negative => {
-                return Err(PcurveCertifyError::ImageMismatch {
-                    image: PcurveKind::Spiric,
-                    why: "the image's major radius, minor radius or offset is not the carrier's",
-                });
-            }
-        }
-    }
+    spiric_copies((major, minor, offset), (r_major, r_minor, c_offset), band)?;
     let reach = t0.abs().max(t1.abs());
     // The wall's sense is a unit sign, the azimuth's turn per radian of
     // the carrier: its residue is metered at the chart's azimuth rate, a
@@ -7532,24 +7605,7 @@ fn run_spiric_checks_as<T: Decide>(
     // `±1` of the image's `WallTorus` tag, so this one residue is the
     // residue of both channels.
     let sense_drift = match *image {
-        SpiricImage::Wall { sense, .. } => {
-            let residue = sense.abs() - T::one();
-            match decide(
-                "pcurve_spiric_sense",
-                Margin::metered_sup(residue, SupSpeed::new(azimuth_lever(surface, reach))),
-                band,
-            )
-            .map_err(esc(PcurveCheck::ImageIdentity))?
-            {
-                Sign::Zero => residue.abs(),
-                Sign::Positive | Sign::Negative => {
-                    return Err(PcurveCertifyError::ImageMismatch {
-                        image: PcurveKind::Spiric,
-                        why: "the wall image's sense is not a unit sign",
-                    });
-                }
-            }
-        }
+        SpiricImage::Wall { sense, .. } => spiric_sense(sense, surface, reach, band)?.abs(),
         SpiricImage::Cap { .. } => T::zero(),
     };
     // **The wall's own premise: the chart IS the torus its tag

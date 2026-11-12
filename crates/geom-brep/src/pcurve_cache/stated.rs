@@ -31,12 +31,12 @@ use crate::certify::CERT_SAMPLES;
 pub(crate) enum StatedDoor<'a, T: Real> {
     /// The image's own pcurve door ([`PcurveCache::certify_stated_image`]):
     /// every image on a spline chart, and on an analytic one a projected
-    /// image, which is that door's class there, and an iso arc, which is
-    /// a spline chart's image and which that door refuses on any other.
+    /// image, which is that door's class there.
     Pcurve(&'a Pcurve<T>),
     /// A closed-form image on an analytic chart (harmonic, spiric, focal
     /// section), bounded by the coefficients of its residual against the
-    /// carrier ([`super::closed_bound`]).
+    /// carrier ([`super::closed_bound`]); an iso arc there, a spline
+    /// chart's image, refused as its structure.
     Closed(&'a Pcurve<T>, ClosedForm<T>),
     /// An iso line or a curve in UV on an analytic chart: the fitted
     /// door's composite against the patch of its [`PatchClass`], which

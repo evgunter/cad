@@ -24,7 +24,7 @@ const NAME: Option<&str> = option_env!("PCERT_RADIAL_PAIR_MUTANT");
 
 /// Every site this crate's hooks name. topo's `chord_join` declares its
 /// own one (`topo-v-var`) under the same variable.
-pub(super) const SITES: [&str; 45] = [
+pub(super) const SITES: [&str; 49] = [
     "class-circle",
     "zero-winding",
     "torus-parallel",
@@ -66,6 +66,10 @@ pub(super) const SITES: [&str; 45] = [
     "arc-rim-span-unpaid",
     "arc-rim-tangent-under",
     "closed-image-sampled",
+    "patch-remainder-dropped",
+    "focal-floor-single",
+    "spiric-floor-major",
+    "closed-sup-half-span",
     "stated-image-sampled",
     "net-bound-sampled",
     "general-image-class-gate",
@@ -347,6 +351,29 @@ pub(crate) fn analytic_image_sampled() -> bool {
 /// coefficients (its rows are `pcurve_cache::closed_image_rows`).
 pub(crate) fn closed_image_sampled() -> bool {
     on("closed-image-sampled")
+}
+
+/// The enclosing patch's controls without their Lagrange remainder (its
+/// row is `closed_image_rows::an_enclosing_patch_holds_its_chart`).
+pub(super) fn patch_remainder_dropped() -> bool {
+    on("patch-remainder-dropped")
+}
+
+/// A focal section's multiplier floor read `1 − |β|`, not its square
+/// (`closed_image_rows::each_floor_is_its_multipliers_least_value`).
+pub(super) fn focal_floor_single() -> bool {
+    on("focal-floor-single")
+}
+
+/// A spiric wall's multiplier floor read `R`, not `R − r` (the same row).
+pub(super) fn spiric_floor_major() -> bool {
+    on("spiric-floor-major")
+}
+
+/// A closed form's coefficient bound read over half its span
+/// (`closed_image_rows::a_closed_forms_bound_holds_its_dense_miss`).
+pub(super) fn closed_sup_half_span() -> bool {
+    on("closed-sup-half-span")
 }
 
 /// A lane choice's envelope refusal left as the envelope's own (a bound

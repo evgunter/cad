@@ -111,7 +111,22 @@ fn lift<T: Real>(image: &Pcurve<f64>) -> Pcurve<T> {
             beta: c(f.beta),
             sense: c(f.sense),
         }),
-        Pcurve::Fitted(_) | Pcurve::IsoArc { .. } | Pcurve::Projected(_) => {
+        Pcurve::IsoArc {
+            p0,
+            pd,
+            t0,
+            angle,
+            breaks,
+            ends,
+        } => Pcurve::IsoArc {
+            p0: p2(*p0),
+            pd: v2(*pd),
+            t0: c(*t0),
+            angle: c(*angle),
+            breaks: breaks.clone(),
+            ends: ends.iter().map(|&e| c(e)).collect(),
+        },
+        Pcurve::Fitted(_) | Pcurve::Projected(_) => {
             unreachable!("the rows state the images this lift writes")
         }
     }
@@ -734,6 +749,9 @@ impl Mirror {
 /// A spelling of an image: its name, chart, carrier and image.
 type Spelled = (&'static str, Surface<f64>, Curve3<f64>, Pcurve<f64>);
 
+/// A case of a structure read wrong: its name, chart, image and carrier.
+type Wrong = (&'static str, Surface<f64>, Pcurve<f64>, Curve3<f64>);
+
 /// A drawn case: its name, chart, carrier and span.
 type Case = (String, Surface<f64>, Curve3<f64>, (f64, f64));
 
@@ -1193,7 +1211,14 @@ fn dense_miss(
 fn nudged(image: &Pcurve<f64>, which: usize, delta: f64) -> Pcurve<f64> {
     let mut image = image.clone();
     let nudge = |ch: &mut Channel<f64>, k: usize| match ch {
-        Channel::Angle { phase, .. } => *phase += delta,
+        // Past the coefficients, a winding moved by one.
+        Channel::Angle { phase, winding } => {
+            if k < 3 {
+                *phase += delta;
+            } else {
+                *winding += 1;
+            }
+        }
         Channel::Free { c, a, b, l } => *[c, a, b, l][k % 4] += delta,
     };
     match &mut image {
@@ -1204,13 +1229,26 @@ fn nudged(image: &Pcurve<f64>, which: usize, delta: f64) -> Pcurve<f64> {
                 nudge(v, which / 2);
             }
         }
-        Pcurve::Spiric { image, .. } => match image {
-            SpiricImage::Cap { p0, pm, pa } => {
-                *[
-                    &mut p0.x, &mut p0.y, &mut pm.x, &mut pm.y, &mut pa.x, &mut pa.y,
-                ][which % 6] += delta;
-            }
-            SpiricImage::Wall { u0, v0, .. } => *[u0, v0][which % 2] += delta,
+        // The image's copies of the carrier's scalars, then its own.
+        Pcurve::Spiric {
+            major,
+            minor,
+            offset,
+            image,
+        } => match which % 9 {
+            0 => *major += delta,
+            1 => *minor += delta,
+            2 => *offset += delta,
+            k => match image {
+                SpiricImage::Cap { p0, pm, pa } => {
+                    *[
+                        &mut p0.x, &mut p0.y, &mut pm.x, &mut pm.y, &mut pa.x, &mut pa.y,
+                    ][k - 3] += delta;
+                }
+                SpiricImage::Wall { u0, v0, sense, .. } => {
+                    *[u0, v0, sense][(k - 3) % 3] += delta;
+                }
+            },
         },
         Pcurve::FocalSection(f) => {
             *[
@@ -1220,7 +1258,8 @@ fn nudged(image: &Pcurve<f64>, which: usize, delta: f64) -> Pcurve<f64> {
                 &mut f.vb,
                 &mut f.vl,
                 &mut f.beta,
-            ][which % 6] += delta;
+                &mut f.sense,
+            ][which % 7] += delta;
         }
         _ => unreachable!("the search nudges closed forms"),
     }
@@ -1274,7 +1313,7 @@ fn no_closed_form_is_certified_past_its_miss() {
             let delta = (b.zero() * 1e-2)
                 * (1e5 * b.escalate() / b.zero()).powf(g.range(0.0, 1.0))
                 * sign(&mut g);
-            let wrong = nudged(&image, g.below(8), delta);
+            let wrong = nudged(&image, g.below(9), delta);
             let miss = dense_miss(&surface, &wrong, &carrier, span);
             for door in DOORS {
                 let got = (door.certify)(&surface, &wrong, &carrier, span);
@@ -1289,7 +1328,11 @@ fn no_closed_form_is_certified_past_its_miss() {
                 // A number the image's structure fixes (a whole winding,
                 // a unit sense) moved off it ends as that structure's
                 // refusal, its own defect ending.
-                let structural = matches!(got, Err(CertifyError::ChartImageUnavailable { .. }));
+                // Or read in band, its lever: a unit sign moved a hair.
+                let structural = matches!(
+                    got,
+                    Err(CertifyError::ChartImageUnavailable { .. } | CertifyError::Escalated { .. })
+                );
                 assert!(
                     miss <= 2.0 * b.escalate() || end == Ended::Missed || structural,
                     "{what} at {}: a dense miss of {miss:e} (δ {delta:e}) ends {end:?}, not as its \
@@ -1309,6 +1352,526 @@ fn no_closed_form_is_certified_past_its_miss() {
         "certified {}, missed {}, otherwise {}",
         tally[0], tally[1], tally[2]
     );
+}
+
+/// A harmonic image on the unit cylinder: the azimuth `phase + w·t`, the
+/// height `z`.
+fn rim_image(phase: f64, winding: i32, z: f64) -> Pcurve<f64> {
+    Pcurve::Harmonic {
+        u: Channel::Angle { phase, winding },
+        v: Channel::constant(z),
+    }
+}
+
+/// The unit cylinder's rim at height `z`.
+fn rim(z: f64) -> Curve3<f64> {
+    Curve3::circle(
+        Point3::new(0.0, 0.0, z),
+        Vec3::unit_z(),
+        1.0,
+        Vec3::unit_x(),
+    )
+}
+
+/// **An angle read as an angle forgives a whole period and nothing
+/// more**: the rim's image a whole number of turns off certifies, and
+/// off by a hair more, wound backwards or wound twice it misses; so does
+/// one across the seam.
+#[test]
+fn an_angle_forgives_a_whole_period_and_nothing_more() {
+    let b = band();
+    for door in DOORS {
+        for turns in [-3.0, 1.0, 5.0] {
+            let on = rim_image(TAU * turns, 1, 0.5);
+            let got = (door.certify)(&unit_cylinder(), &on, &rim(0.5), (0.3, 2.9));
+            assert!(got.is_ok(), "at {}, {turns} turns: {got:?}", door.name);
+            for delta in [1e-3, 1e3 * b.escalate(), 4.0 * b.escalate()] {
+                let off = rim_image(TAU * turns + delta, 1, 0.5);
+                let got = (door.certify)(&unit_cylinder(), &off, &rim(0.5), (0.3, 2.9));
+                assert_eq!(
+                    ended(&got),
+                    Ended::Missed,
+                    "at {}, {turns} turns + {delta:e}: {got:?}",
+                    door.name
+                );
+            }
+        }
+        for (what, image, span) in [
+            ("wound backwards", rim_image(0.0, -1, 0.5), (0.3, 2.9)),
+            ("wound twice", rim_image(0.0, 2, 0.5), (0.3, 2.9)),
+        ] {
+            let got = (door.certify)(&unit_cylinder(), &image, &rim(0.5), span);
+            assert_eq!(
+                ended(&got),
+                Ended::Missed,
+                "at {}, {what}: {got:?}",
+                door.name
+            );
+        }
+        let seam = rim_image(TAU, 1, 0.5);
+        let got = (door.certify)(&unit_cylinder(), &seam, &rim(0.5), (-0.5, 0.5));
+        assert!(got.is_ok(), "at {}, across the seam: {got:?}", door.name);
+        let seam_off = rim_image(TAU + 4.0 * b.escalate(), 1, 0.5);
+        let got = (door.certify)(&unit_cylinder(), &seam_off, &rim(0.5), (-0.5, 0.5));
+        assert_eq!(
+            ended(&got),
+            Ended::Missed,
+            "at {}, across the seam: {got:?}",
+            door.name
+        );
+    }
+}
+
+/// **A sphere point's other name certifies, and a hair off it misses**:
+/// a parallel stated by the involution twin `(u + π, π − v)`.
+#[test]
+fn a_spheres_twin_certifies_and_a_hair_off_it_misses() {
+    let b = band();
+    let sphere = Surface::Sphere {
+        center: Point3::origin(),
+        radius: 2.0,
+        axis: Vec3::unit_z(),
+        u_ref: Vec3::unit_x(),
+    };
+    let lat: f64 = 0.4;
+    let parallel = Curve3::circle(
+        Point3::new(0.0, 0.0, 2.0 * lat.sin()),
+        Vec3::unit_z(),
+        2.0 * lat.cos(),
+        Vec3::unit_x(),
+    );
+    let twin = |du: f64, dv: f64| Pcurve::Harmonic {
+        u: Channel::Angle {
+            phase: PI + du,
+            winding: 1,
+        },
+        v: Channel::Angle {
+            phase: PI - lat + dv,
+            winding: 0,
+        },
+    };
+    for door in DOORS {
+        let got = (door.certify)(&sphere, &twin(0.0, 0.0), &parallel, (0.1, 5.0));
+        assert!(got.is_ok(), "at {}: the twin: {got:?}", door.name);
+        for d in [4.0 * b.escalate(), 1e-4] {
+            for (du, dv) in [(d, 0.0), (0.0, d)] {
+                let got = (door.certify)(&sphere, &twin(du, dv), &parallel, (0.1, 5.0));
+                assert_eq!(
+                    ended(&got),
+                    Ended::Missed,
+                    "at {}, ({du:e}, {dv:e}): {got:?}",
+                    door.name
+                );
+            }
+        }
+    }
+}
+
+/// **A closed form's structure read wrong ends as its defect, never "not
+/// yet"**: a winding past the family's reach, a free channel where the
+/// chart's coordinate is an angle, a spiric or focal-section image on a
+/// chart that holds none, an iso arc on an analytic chart, and a focal
+/// section whose `|β|` is one. At a build the kernel's defect, at rest
+/// the kernel's or the file's, at the import door the damaged file.
+#[test]
+fn a_closed_forms_structure_read_wrong_ends_as_its_defect() {
+    let file = FileCoincidence::new(band().zero() * 1e-3);
+    let doors: [ReadAt; 3] = [
+        ReadAt::Run(Reading::Build),
+        ReadAt::Run(Reading::AtRest),
+        file.into(),
+    ];
+    let want = [
+        KERNEL_DEFECT_ENDING,
+        KERNEL_OR_FILE_DEFECT_ENDING,
+        DAMAGED_FILE_ENDING,
+    ];
+    let focal = |beta: f64| {
+        Pcurve::FocalSection(FocalImage {
+            u0: 0.0,
+            t0: 0.0,
+            v0: 0.5,
+            va: 0.0,
+            vb: 0.0,
+            vl: 0.0,
+            beta,
+            sense: 1.0,
+        })
+    };
+    let (oval, [_, _, oval_plane]) = spiric(&mut fuzz::Rng::from_seed(7));
+    let spiric_cap = chart_pcurve_over(&oval, 0.3, 2.2, &oval_plane, band()).unwrap();
+    let iso_arc = Pcurve::IsoArc {
+        p0: Point2::new(0.0, 0.0),
+        pd: Vec2::new(1.0, 0.0),
+        t0: 0.0,
+        angle: PI,
+        breaks: KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap(),
+        ends: Box::new([]),
+    };
+    let mut cases: Vec<Wrong> = vec![
+        (
+            "winding 65",
+            unit_cylinder(),
+            rim_image(0.0, 65, 0.5),
+            rim(0.5),
+        ),
+        (
+            "a free azimuth",
+            unit_cylinder(),
+            Pcurve::free_harmonic(
+                Point2::new(0.0, 0.5),
+                Vec2::new(0.0, 0.0),
+                Vec2::new(0.0, 0.0),
+                Vec2::new(1.0, 0.0),
+            ),
+            rim(0.5),
+        ),
+        (
+            "a focal section on a cylinder",
+            unit_cylinder(),
+            focal(0.0),
+            rim(0.5),
+        ),
+        (
+            "a spiric cap on a cylinder",
+            unit_cylinder(),
+            spiric_cap,
+            oval,
+        ),
+        (
+            "an iso arc on a plane",
+            plane(),
+            iso_arc,
+            Curve3::line(Point3::origin(), Vec3::unit_x()),
+        ),
+    ];
+    let mut g = fuzz::Rng::from_seed(11);
+    let (cone, section) = loop {
+        if let Some(c) = super::envelope_lemma_fuzz::cone_section(&mut g) {
+            break c;
+        }
+    };
+    let Pcurve::FocalSection(derived) =
+        chart_pcurve_over(&section, 0.0, 2.0, &cone, band()).unwrap()
+    else {
+        unreachable!("a cone's tilted section is its focal-section image")
+    };
+    for beta in [1.0, -1.0] {
+        cases.push((
+            "a focal section with |β| one",
+            cone.clone(),
+            Pcurve::FocalSection(FocalImage { beta, ..derived }),
+            section.clone(),
+        ));
+    }
+    for (what, surface, image, carrier) in cases {
+        for door in DOORS {
+            let got = (door.certify)(&surface, &image, &carrier, (0.0, 2.0));
+            let Err(e) = got else {
+                panic!("{what} at {}: certified", door.name)
+            };
+            for (at, want) in doors.into_iter().zip(want) {
+                let ending = e.ending(at).unwrap();
+                assert_eq!(ending, want, "{what} at {}, {at:?}: {e:?}", door.name);
+            }
+        }
+    }
+}
+
+/// **A spiric image whose copies of its carrier's scalars are an ulp
+/// off certifies**: the copies are decided in band, as the image's own
+/// door decides them, and the bound reads each side's `f` on its own
+/// scalars. On the oval's torus, its mirror torus and its plane.
+#[test]
+fn a_spiric_image_whose_copies_are_an_ulp_off_certifies() {
+    let mut g = fuzz::start("spiric_copies_an_ulp_off");
+    let mut read = 0;
+    for _ in 0..8 {
+        let (oval, charts) = spiric(&mut g);
+        for chart in charts {
+            let span = (0.3, 2.2);
+            let image = chart_pcurve_over(&oval, span.0, span.1, &chart, band()).unwrap();
+            let Pcurve::Spiric {
+                major,
+                minor,
+                offset,
+                image: im,
+            } = image
+            else {
+                unreachable!("a spiric's image on its own chart is a spiric image")
+            };
+            for (what, nudged) in [
+                ("major", (major.next_up(), minor, offset)),
+                ("minor", (major, minor.next_down(), offset)),
+                ("offset", (major, minor, offset.next_up())),
+            ] {
+                let image = Pcurve::Spiric {
+                    major: nudged.0,
+                    minor: nudged.1,
+                    offset: nudged.2,
+                    image: im,
+                };
+                for door in DOORS {
+                    let got = (door.certify)(&chart, &image, &oval, span);
+                    assert!(
+                        got.is_ok(),
+                        "{what} an ulp off at {} on {:?}: {got:?} ({})",
+                        door.name,
+                        chart.kind(),
+                        fuzz::replay()
+                    );
+                    read += 1;
+                }
+            }
+        }
+    }
+    assert!(read > 0);
+}
+
+/// Whether the enclosing patch over `(u, v)` holds `chart` at points of
+/// the window: the patch's value, in interval arithmetic, against the
+/// chart's own, also in interval arithmetic. Counts the coordinates
+/// outside.
+fn patch_holds(
+    chart: &Surface<f64>,
+    (u, v): ((f64, f64), (f64, f64)),
+    b: geom_core::Band,
+) -> usize {
+    use geom_core::Bounds;
+    let lifted = chart.map_scalar(Interval::from_certified);
+    let (ku, kv, _, coords) =
+        super::patch::patch(super::patch::PatchClass::Enclosed, &lifted, (u, v), b)
+            .unwrap_or_else(|e| panic!("{:?} over {u:?} {v:?}: {e:?}", chart.kind()));
+    let nv = kv.control_count();
+    let mut g = fuzz::start("enclosing_patch_holds");
+    let mut outside = 0;
+    let n = 400;
+    for i in 0..=n {
+        let (uu, vv) = if i % 2 == 0 {
+            (g.range(u.0, u.1), g.range(v.0, v.1))
+        } else {
+            let f = f64::from(i) / f64::from(n);
+            (u.0 + (u.1 - u.0) * f, v.1 - (v.1 - v.0) * f)
+        };
+        let (su, sv) = (ku.span_at(uu).unwrap(), kv.span_at(vv).unwrap());
+        let bu = geom_core::spline::basis::basis_funs(su, Interval::from_bounds(uu, uu));
+        let bv = geom_core::spline::basis::basis_funs(sv, Interval::from_bounds(vv, vv));
+        let (fu, fv) = (su.first_control(), sv.first_control());
+        let mut at = [Interval::from_bounds(0.0, 0.0); 3];
+        for (a, &nu) in bu.iter().enumerate() {
+            for (c, &nvv) in bv.iter().enumerate() {
+                let idx = (fu + a) * nv + (fv + c);
+                for (lane, slot) in at.iter_mut().enumerate() {
+                    *slot = *slot + nu * nvv * coords[lane][idx];
+                }
+            }
+        }
+        let truth = lifted.eval(Interval::from_bounds(uu, uu), Interval::from_bounds(vv, vv));
+        for (lane, t) in [truth.x, truth.y, truth.z].into_iter().enumerate() {
+            let p = at[lane];
+            if p.lo() > t.lo() || t.hi() > p.hi() {
+                outside += 1;
+            }
+        }
+    }
+    outside
+}
+
+/// **The enclosing patch holds its chart at every point of its window**:
+/// a wide cylinder window, a cone across and near its apex, a sphere at
+/// a pole and across both, a torus about its inner equator and whole, a
+/// spindle, a large torus off the origin; at ε 1e-6, 1e-9 and 1e-12.
+#[test]
+fn an_enclosing_patch_holds_its_chart() {
+    let at = |eps: f64| geom_core::Band::linear_at(geom_core::Tol::witness(), eps).unwrap();
+    let cone = Surface::Cone {
+        apex: Point3::new(0.1, 0.2, 0.3),
+        axis: Vec3::unit_z(),
+        half_angle: 0.6,
+        u_ref: Vec3::unit_x(),
+    };
+    let sphere = Surface::Sphere {
+        center: Point3::new(1.0, -2.0, 0.5),
+        radius: 3.0,
+        axis: Vec3::unit_y(),
+        u_ref: Vec3::unit_z(),
+    };
+    let torus = |center, major, minor| Surface::Torus {
+        center,
+        axis: Vec3::unit_z(),
+        major_radius: major,
+        minor_radius: minor,
+        u_ref: Vec3::unit_x(),
+    };
+    let spindle = Surface::Spindle {
+        center: Point3::origin(),
+        axis: Vec3::unit_z(),
+        major_radius: 0.5,
+        minor_radius: 1.0,
+        u_ref: Vec3::unit_x(),
+    };
+    let cases = [
+        (
+            "a wide cylinder window",
+            unit_cylinder(),
+            ((-20.0, 20.0), (0.0, 1.0)),
+        ),
+        (
+            "a cone across its apex",
+            cone.clone(),
+            ((0.0, TAU), (-1.0, 1.0)),
+        ),
+        (
+            "a cone at its apex",
+            cone.clone(),
+            ((0.0, 3.0), (-1e-3, 1e-3)),
+        ),
+        ("a wide cone window", cone, ((-9.0, 9.0), (2.0, 5.0))),
+        (
+            "a sphere's pole",
+            sphere.clone(),
+            ((0.0, TAU), (1.4, PI / 2.0)),
+        ),
+        (
+            "both of a sphere's poles",
+            sphere,
+            ((0.0, 1.0), (-PI / 2.0, PI / 2.0)),
+        ),
+        (
+            "a torus's inner equator",
+            torus(Point3::origin(), 2.0, 0.5),
+            ((0.0, 4.0), (PI - 0.3, PI + 0.3)),
+        ),
+        (
+            "a whole torus",
+            torus(Point3::origin(), 2.0, 0.5),
+            ((0.0, TAU), (0.0, TAU)),
+        ),
+        ("a spindle", spindle, ((0.0, 2.0), (2.0, 4.0))),
+        (
+            "a large torus off the origin",
+            torus(Point3::new(8.0, 3.0, -2.0), 9.0, 1.0),
+            ((0.0, 2.0), (-1.0, 3.0)),
+        ),
+    ];
+    for eps in [1e-6, 1e-9, 1e-12] {
+        for (what, chart, window) in &cases {
+            let outside = patch_holds(chart, *window, at(eps));
+            assert_eq!(
+                outside, 0,
+                "{what} at ε {eps:e}: {outside} coordinates outside the patch"
+            );
+        }
+    }
+}
+
+/// **Each floor is its multiplier's least value**: the residual's
+/// multiplier `m(t)` is at least the floor it is divided by, which is
+/// what makes the division an upper bound, and the floor is that least
+/// value, so the bound is no looser than it reads. A focal section's
+/// `q² = 1 − 2β·cos E + β²` over a whole turn of `E`; a spiric wall's
+/// `ρ = R + r·cos t`.
+#[test]
+fn each_floor_is_its_multipliers_least_value() {
+    let n = 1 << 14;
+    let least = |f: &dyn Fn(f64) -> f64| {
+        (0..=n)
+            .map(|i| f(TAU * f64::from(i) / f64::from(n)))
+            .fold(f64::INFINITY, f64::min)
+    };
+    for beta in [-0.97, -0.5, 0.0, 0.3, 0.9, 0.995] {
+        let floor = super::closed_bound::focal_floor(beta);
+        let m = least(&|e: f64| 1.0 - 2.0 * beta * e.cos() + beta * beta);
+        assert!(
+            floor <= m * (1.0 + 1e-12) && floor >= m * (1.0 - 1e-6),
+            "β {beta}: the floor {floor:e} is not q²'s least value {m:e}"
+        );
+    }
+    for (major, minor) in [(2.0, 0.5), (3.0, 2.9), (10.0, 1.0)] {
+        let floor = super::closed_bound::spiric_floor(major, minor);
+        let m = least(&|t: f64| major + minor * t.cos());
+        assert!(
+            floor <= m * (1.0 + 1e-12) && floor >= m * (1.0 - 1e-6),
+            "R {major}, r {minor}: the floor {floor:e} is not ρ's least value {m:e}"
+        );
+    }
+}
+
+/// **A closed form's bound holds its dense miss** (shape 1, a
+/// counterexample search, beside the static rows below it): the
+/// coefficient bound a certificate would read
+/// (`closed_bound::bound_of`) is never under the dense f64 read of the
+/// miss it bounds, for every closed form the rows draw with one number
+/// moved by up to a millimetre. Two static rows head it: a line's image
+/// whose slope is off, whose miss is exactly the bound at the span's
+/// ends, and a rim's image whose height is off, whose miss is the bound
+/// everywhere.
+#[test]
+fn a_closed_forms_bound_holds_its_dense_miss() {
+    let check = |what: &str,
+                 surface: &Surface<f64>,
+                 image: &Pcurve<f64>,
+                 carrier: &Curve3<f64>,
+                 span: (f64, f64)| {
+        let Some(bound) = super::closed_bound::bound_of(image, carrier, surface, span, band())
+        else {
+            return false;
+        };
+        let miss = dense_miss(surface, image, carrier, span);
+        assert!(
+            // The dense read's own f64 rounding, a few ulps of metre-scale
+            // coordinates.
+            bound >= miss * (1.0 - 1e-9) - 1e-13,
+            "{what}: the bound {bound:e} is under the dense miss {miss:e}: {image:?} on \
+             {carrier:?} over {span:?} ({})",
+            fuzz::replay()
+        );
+        true
+    };
+    let slope = Pcurve::free_harmonic(
+        Point2::new(0.0, 0.3),
+        Vec2::new(0.0, 0.0),
+        Vec2::new(0.0, 0.0),
+        Vec2::new(1.0, 1e-4),
+    );
+    let line = Curve3::line(Point3::new(0.0, 0.3, 0.0), Vec3::unit_x());
+    assert!(check("a slope off", &plane(), &slope, &line, (2.0, 10.0)));
+    assert!(check(
+        "a height off",
+        &unit_cylinder(),
+        &rim_image(0.0, 1, 0.5 + 1e-4),
+        &rim(0.5),
+        (0.3, 2.9)
+    ));
+    let mut g = fuzz::start("closed_form_bound_holds");
+    let mut read = 0;
+    for _ in 0..fuzz::scaled(16) {
+        let mut cases: Vec<Case> = KINDS
+            .iter()
+            .map(|&kind| {
+                let (s, c, span) = drawn(&mut g, kind);
+                (format!("{kind:?}"), s, c, span)
+            })
+            .collect();
+        let (oval, charts) = spiric(&mut g);
+        for chart in charts {
+            cases.push(("spiric".into(), chart, oval.clone(), (0.3, 2.2)));
+        }
+        if let Some((cone, ellipse)) = super::envelope_lemma_fuzz::cone_section(&mut g) {
+            cases.push(("cone section".into(), cone, ellipse, (-1.0, 2.0)));
+        }
+        let (torus, circle) = super::envelope_lemma_fuzz::villarceau(&mut g);
+        cases.push(("villarceau".into(), torus, circle, (0.5, 4.0)));
+        for (what, surface, carrier, span) in cases {
+            let Ok(image) = chart_pcurve_over(&carrier, span.0, span.1, &surface, band()) else {
+                continue;
+            };
+            let delta = 1e-3 * 10f64.powf(-g.range(0.0, 6.0)) * sign(&mut g);
+            let wrong = nudged(&image, g.below(9), delta);
+            read += usize::from(check(&what, &surface, &wrong, &carrier, span));
+        }
+    }
+    assert!(read > 0, "the search reads some bound ({})", fuzz::replay());
 }
 
 #[path = "review_6845_probes.rs"]

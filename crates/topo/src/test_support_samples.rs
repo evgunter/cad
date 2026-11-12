@@ -610,6 +610,10 @@ fn certify_errors() -> Vec<CertifyError> {
             surface: key,
             refusal: geom_brep::RowRefusal::OffSide,
         },
+        CertifyError::Row {
+            surface: key,
+            refusal: geom_brep::RowRefusal::Singular,
+        },
         CertifyError::WrapOnNonPeriodic,
         // Both zero-span stories: a length a smaller tolerance decides,
         // and a span of no length, which none does.
@@ -2999,7 +3003,7 @@ mod tests {
                     | CertifyError::TangentCertificateUnsupported
                     | CertifyError::Band(_)
                     | CertifyError::Row {
-                        refusal: geom_brep::RowRefusal::OffSide,
+                        refusal: geom_brep::RowRefusal::OffSide | geom_brep::RowRefusal::Singular,
                         ..
                     }
             )

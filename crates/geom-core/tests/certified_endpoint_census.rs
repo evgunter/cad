@@ -426,8 +426,8 @@ const ROSTER: &[(&str, usize, usize, &str)] = &[
          many pieces an angle's window is cut into and at what degree. Every control is formed \
          in interval arithmetic from the chart's own brackets, so a refused one's decoration \
          rides into the controls and the composite that reads them; a refused bracket moves \
-         where the window is cut, never what a control encloses, and a NaN magnitude cuts it \
-         into no finite count and refuses (`PatchRefusal::Pieces`)",
+         where the window is cut, never what a control encloses, and a NaN magnitude \
+         refuses as no size (`PatchRefusal::NoWidth`)",
     ),
     ("crates/geom-brep/src/pcurve_cache/projected.rs", 2, 2, ""),
     ("crates/geom-brep/src/props/bracket.rs", 8, 8, ""),

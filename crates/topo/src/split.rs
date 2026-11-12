@@ -226,26 +226,7 @@ impl<T: Decide> Body<T> {
             | geom_brep::EdgeDescriptionSpec::Scaffold(_) => return Ok(spec),
         };
         let [ka, kb] = pair.keys();
-        // The parent's two faces, each beside the key it lies on: the
-        // region the rest is read over.
-        let sides = crate::readback::edge_sides_of(
-            self,
-            edge,
-            crate::live::proven(&self.edges, edge, EntityId::Edge),
-        );
-        let face_on = |k| {
-            [sides.plus, sides.minus]
-                .into_iter()
-                .find(|side| side.surface == k)
-                .map(|side| side.face)
-        };
-        let rest = crate::rest_locus(
-            self,
-            [(ka, face_on(ka)), (kb, face_on(kb))],
-            &spec.carrier,
-            (spec.param_start, spec.param_end),
-            band,
-        );
+        let rest = crate::rest_locus([ka, kb]);
         let description = geom_brep::must_carry_description(
             geom_brep::SmoothJoin {
                 surfaces: [(ka, surface(ka)), (kb, surface(kb))],

@@ -48,17 +48,18 @@ use geom_core::predicate::{Band, Decided, Sign};
 use geom_core::{Decide, Margin, Real, Vec3};
 
 use super::trig::{Trig, Trig3};
-use super::{Channel, EdgeSpan, FocalImage, PcurveCertifyError, PcurveCheck, SpiricImage};
-
-/// The largest winding a channel's frequency is read at. A closed-form
-/// table holds one turn per carrier period; past this the image is not a
-/// closed form any construction states.
-const MAX_WINDING: i32 = 64;
+use super::{
+    Channel, EdgeSpan, FocalImage, PcurveCertifyError, PcurveCheck, PcurveKind, SpiricImage,
+};
 
 /// Grid points per unit of the residual's highest frequency per radian
 /// of span, for the search that locates a miss: at this density the
-/// grid's nearest point to the peak of a frequency-`k` term reads it at
-/// `cos(π·k/(2·GRID_DENSITY·k))`, `> 0.99` of its height.
+/// grid's nearest point to the peak of a frequency-`k` term is within
+/// `1/(2·GRID_DENSITY·k)` radians of it in `k·t`, and reads it at
+/// `cos(1/(2·GRID_DENSITY)) > 0.99` of its height. Past [`GRID_CAP`]
+/// points (a span longer than `GRID_CAP/(GRID_DENSITY·k)`) the grid is
+/// coarser and that fraction no longer holds; a miss the grid does not
+/// locate ends unsettled, the lever, and is never certified.
 const GRID_DENSITY: f64 = 16.0;
 
 /// The most points the search reads.
@@ -70,12 +71,11 @@ const GRID_CAP: usize = 4096;
 ///
 /// # Errors
 ///
-/// The image's structure read wrong: a channel kind the chart's coordinate
-/// is not ([`PcurveCertifyError::ChannelKindMismatch`]), a winding past
-/// [`MAX_WINDING`] ([`PcurveCertifyError::ChartWindingUnsupported`]), a
-/// carrier with no `{1, cos, sin, t}` form
-/// ([`PcurveCertifyError::ImageMismatch`]), a spline chart
-/// ([`PcurveCertifyError::UnsupportedChart`]).
+/// The image's structure read wrong, its own defect ending: a channel
+/// kind the chart's coordinate is not
+/// ([`PcurveCertifyError::ChannelKindMismatch`]); a winding past the
+/// family's reach or a carrier with no `{1, cos, sin, t}` form
+/// ([`PcurveCertifyError::ImageMismatch`]).
 pub(super) fn harmonic_residual<T: Real>(
     (u, v): (Channel<T>, Channel<T>),
     carrier: &Curve3<T>,
@@ -84,23 +84,16 @@ pub(super) fn harmonic_residual<T: Real>(
 ) -> Result<Residual<T>, PcurveCertifyError> {
     let chart = surface.kind();
     let Some((period_u, period_v)) = surface.angle_periods() else {
-        return Err(PcurveCertifyError::UnsupportedChart { chart });
+        unreachable!("harmonic_residual: a closed form takes this door on an analytic chart only")
     };
     if (u.winding().is_some(), v.winding().is_some()) != (period_u.is_some(), period_v.is_some()) {
         return Err(PcurveCertifyError::ChannelKindMismatch { chart });
     }
-    if [u.winding(), v.winding()]
-        .into_iter()
-        .flatten()
-        .any(|w| w.abs() > MAX_WINDING)
-    {
-        return Err(PcurveCertifyError::ChartWindingUnsupported);
-    }
     let Some(form) = super::carrier_harmonic(carrier) else {
-        return Err(PcurveCertifyError::ImageMismatch {
-            image: super::PcurveKind::Harmonic,
-            why: "the carrier has no {1, cos, sin, t} form, so no harmonic image is its own",
-        });
+        return Err(unheld(
+            PcurveKind::Harmonic,
+            "the carrier has no {1, cos, sin, t} form, so no harmonic image is its own",
+        ));
     };
     let (t_m, h) = centre(span);
     let carrier = Trig3::harmonic(
@@ -112,18 +105,25 @@ pub(super) fn harmonic_residual<T: Real>(
         plain: carrier.minus(&image),
         factors: Vec::new(),
         floor: T::one(),
+        slack: T::zero(),
         h,
     })
 }
 
 /// **A residual brought into the family**: `m(t)·R(t) = plain(s) +
-/// Σ gᵢ(t)·Fᵢ(s)` with `m(t) ≥ floor > 0` and `|gᵢ(t)| ≤ sup gᵢ` over the
-/// span, so `sup |R| ≤ (sup|plain| + Σ sup gᵢ·sup|Fᵢ|)/floor`.
+/// Σ gᵢ(t)·Fᵢ(s) + E(t)·m(t)` with `m(t) ≥ floor > 0`, `|gᵢ(t)| ≤ sup gᵢ`
+/// over the span and `|E(t)| ≤ slack`, so
+/// `sup |R| ≤ (sup|plain| + Σ sup gᵢ·sup|Fᵢ|)/floor + slack`. Every
+/// builder decides its floor positive before it writes one, so the
+/// division is by a positive number.
 pub(super) struct Residual<T> {
     plain: Trig3<T>,
     /// `(sup gᵢ, Fᵢ)`.
     factors: Vec<(T, Trig3<T>)>,
     floor: T,
+    /// A displacement the stored image makes beyond the family's image
+    /// of it (a unit sign's or a whole rate's residue), bounded.
+    slack: T,
     /// The span's half-width about its midpoint.
     h: T,
 }
@@ -131,13 +131,18 @@ pub(super) struct Residual<T> {
 impl<T: Real> Residual<T> {
     /// The bound on `sup |R|` over the span.
     fn bound(&self) -> T {
+        let h = self.h;
+        #[cfg(test)]
+        let h = if super::mutants::closed_sup_half_span() {
+            h * T::from_f64(0.5)
+        } else {
+            h
+        };
         let sum = self
             .factors
             .iter()
-            .fold(self.plain.sup(self.h), |acc, (g, f)| {
-                acc + *g * f.sup(self.h)
-            });
-        sum / self.floor
+            .fold(self.plain.sup(h), |acc, (g, f)| acc + *g * f.sup(h));
+        sum / self.floor + self.slack
     }
 
     /// The highest frequency of any part, plus one where a factor `g`
@@ -151,36 +156,108 @@ impl<T: Real> Residual<T> {
     }
 }
 
-/// `x`'s sign where `x` is exactly `±1`.
-fn unit<T: Real>(x: T) -> Option<i32> {
-    if geom_core::is_exact_zero(x - T::one()) {
-        Some(1)
-    } else if geom_core::is_exact_zero(x + T::one()) {
-        Some(-1)
-    } else {
-        None
-    }
-}
-
 /// The radial and tangential directions of a frame at the angle `u0`.
 fn radial_pair<T: Real>(frame: &Frame<T>, u0: T) -> (Vec3<T>, Vec3<T>) {
     (frame.radial(u0), frame.tangential(u0))
 }
 
+/// A closed form's structure read wrong: its own defect ending, never a
+/// lane's gap.
+fn unheld(image: PcurveKind, why: &'static str) -> PcurveCertifyError {
+    PcurveCertifyError::ImageMismatch { image, why }
+}
+
+/// An identity of the image's structure the band could not decide.
+fn identity_escalated(cause: geom_core::Indeterminate) -> PcurveCertifyError {
+    PcurveCertifyError::Escalated {
+        check: PcurveCheck::ImageIdentity,
+        sample: 0,
+        cause,
+    }
+}
+
+/// **The whole winding `σ = ±1` of a unit sign** whose residue `|x| − 1`
+/// a door has decided `Zero`: the sign of `x`, decided. `|x|` is one to
+/// within the band, so only a band past a metre leaves it undecided.
+fn unit_winding<T: Decide>(
+    name: &'static str,
+    x: T,
+    image: PcurveKind,
+    band: Band,
+) -> Result<(i32, T), PcurveCertifyError> {
+    match geom_core::k_stats::decide(name, Margin::of(x), band).map_err(identity_escalated)? {
+        Sign::Positive => Ok((1, T::one())),
+        Sign::Negative => Ok((-1, -T::one())),
+        Sign::Zero => Err(unheld(image, "a unit sign reads zero")),
+    }
+}
+
+/// `ρ = R + r·cos t ≥ R − r` on a ring, the floor of a spiric wall's
+/// multiplier.
+pub(super) fn spiric_floor<T: Real>(major: T, minor: T) -> T {
+    #[cfg(test)]
+    if super::mutants::spiric_floor_major() {
+        return major;
+    }
+    major - minor
+}
+
+/// `q² = 1 − 2β·cos E + β² ≥ (1 − |β|)²`, the floor of a focal section's
+/// multiplier.
+pub(super) fn focal_floor<T: Real>(beta: T) -> T {
+    let gap = T::one() - beta.abs();
+    #[cfg(test)]
+    if super::mutants::focal_floor_single() {
+        return gap;
+    }
+    gap.powi(2)
+}
+
+/// **A spiric's torus is a ring cut in two ovals**, decided: `r > 0` and
+/// `R − r − |d| > 0`, so `ρ ≥ R − r > 0` and `f ≥ √((R − r)² − d²) > 0`
+/// over every `t`, the floors the residual divides by.
+fn two_ovals<T: Decide>((big, small, d): (T, T, T), band: Band) -> Result<(), PcurveCertifyError> {
+    for (name, margin) in [
+        ("pcurve_closed_spiric_tube", small),
+        ("pcurve_closed_spiric_ring", big - small - d.abs()),
+    ] {
+        match geom_core::k_stats::decide(name, Margin::of(margin), band)
+            .map_err(identity_escalated)?
+        {
+            Sign::Positive => {}
+            Sign::Zero | Sign::Negative => {
+                return Err(unheld(
+                    PcurveKind::Spiric,
+                    "the spiric's torus is no ring cut in two ovals, so its f and ρ have no \
+                     positive floor",
+                ));
+            }
+        }
+    }
+    Ok(())
+}
+
 /// **The residual of a spiric image against its carrier** (module docs):
-/// the cap on its plane, the wall on a torus.
+/// the cap on its plane, the wall on a torus. The image's copies of the
+/// carrier's scalars are decided in band first ([`super::spiric_copies`]),
+/// and the residual reads each side's `f` on its own scalars: `f_c` the
+/// carrier's, `f_i` the image's, their difference
+/// `|f_i − f_c| = |f_i² − f_c²|/(f_i + f_c)` bounded by the scalars'
+/// differences over the two `f` floors.
 ///
 /// # Errors
 ///
-/// A carrier that is no spiric or an image on a chart that holds no
-/// spiric image ([`PcurveCertifyError::ImageMismatch`],
-/// [`PcurveCertifyError::UnsupportedChart`]); a wall's sense that is not
-/// exactly `±1` ([`PcurveCertifyError::ImageMismatch`]).
-fn spiric_residual<T: Real>(
+/// The image's structure read wrong ([`PcurveCertifyError::ImageMismatch`]):
+/// a carrier that is no spiric, a chart that holds no spiric image of
+/// this kind, copies past the band, a ring that is not cut in two ovals,
+/// a wall's sense that is no unit sign; or one of those in band
+/// ([`PcurveCertifyError::Escalated`] at [`PcurveCheck::ImageIdentity`]).
+fn spiric_residual<T: Decide>(
     (major, minor, offset, image): (T, T, T, SpiricImage<T>),
     carrier: &Curve3<T>,
     surface: &Surface<T>,
     span: EdgeSpan<T>,
+    band: Band,
 ) -> Result<Residual<T>, PcurveCertifyError> {
     let Curve3::Spiric {
         center,
@@ -191,11 +268,14 @@ fn spiric_residual<T: Real>(
         offset: c_offset,
     } = *carrier
     else {
-        return Err(PcurveCertifyError::ImageMismatch {
-            image: super::PcurveKind::Spiric,
-            why: "the carrier is no spiric, so no spiric image is its own",
-        });
+        return Err(unheld(
+            PcurveKind::Spiric,
+            "the carrier is no spiric, so no spiric image is its own",
+        ));
     };
+    super::spiric_copies((major, minor, offset), (c_major, c_minor, c_offset), band)?;
+    two_ovals((major, minor, offset), band)?;
+    two_ovals((c_major, c_minor, c_offset), band)?;
     let (t_m, h) = centre(span);
     let origin = geom_core::Point3::origin();
     let m = c_axis.cross(n);
@@ -203,21 +283,16 @@ fn spiric_residual<T: Real>(
     let sin_t = Trig::free([T::zero(), T::zero(), T::one(), T::zero()], t_m);
     let carrier_plain = Trig3::constant(center + n * c_offset - origin)
         .plus(&Trig3::along(&sin_t.scaled(c_minor), c_axis));
-    let f_sup = |big: T, small: T, d: T| geom::spiric_f_range(big, small, d).1;
-    // One `f` where the image's copies are the carrier's scalars, two
-    // factors where they are not.
-    let same = [major - c_major, minor - c_minor, offset - c_offset]
-        .into_iter()
-        .all(geom_core::is_exact_zero);
-    let factors = |carrier_f: Trig3<T>, image_f: Trig3<T>| {
-        if same {
-            vec![(f_sup(major, minor, offset), carrier_f.minus(&image_f))]
-        } else {
-            vec![
-                (f_sup(c_major, c_minor, c_offset), carrier_f),
-                (f_sup(major, minor, offset), image_f.scaled_by(-T::one())),
-            ]
-        }
+    let (lo_i, _) = geom::spiric_f_range(major, minor, offset);
+    let (lo_c, hi_c) = geom::spiric_f_range(c_major, c_minor, c_offset);
+    let delta_f = ((major - c_major).abs() + (minor - c_minor).abs())
+        * (major + c_major + minor + c_minor)
+        + (offset - c_offset).abs() * (offset.abs() + c_offset.abs());
+    let delta_f = delta_f / (lo_i + lo_c);
+    // `R = plain + f_c·(F_c − F_i) + (f_c − f_i)·F_i`, `F_c` and `F_i`
+    // the two sides' `f` coefficients.
+    let factors = |f_carrier: Trig3<T>, f_image: Trig3<T>| {
+        vec![(hi_c, f_carrier.minus(&f_image)), (delta_f, f_image)]
     };
     match (image, surface) {
         (
@@ -236,6 +311,7 @@ fn spiric_residual<T: Real>(
                 plain: carrier_plain.minus(&image_plain),
                 factors: factors(Trig3::constant(m), Trig3::constant(chart(pm))),
                 floor: T::one(),
+                slack: T::zero(),
                 h,
             })
         }
@@ -254,16 +330,18 @@ fn spiric_residual<T: Real>(
                 u_ref,
             },
         ) => {
-            let Some(sigma) = unit(sense) else {
-                return Err(PcurveCertifyError::ImageMismatch {
-                    image: super::PcurveKind::Spiric,
-                    why: "the wall image's sense is not a unit sign",
-                });
-            };
-            let kappa = sense * torus.mu::<T>();
-            // `ρ_i = R + r·cos t`, the image's own, positive on the ring.
+            let reach = t_m.abs() + h;
+            let residue = super::spiric_sense(sense, surface, reach, band)?;
+            let (sigma, s) = unit_winding(
+                "pcurve_closed_spiric_sense",
+                sense,
+                PcurveKind::Spiric,
+                band,
+            )?;
+            let kappa = s * torus.mu::<T>();
+            // `ρ_i = R + r·cos t`, the image's own, `≥ R − r > 0`.
             let rho = Trig::free([major, minor, T::zero(), T::zero()], t_m);
-            let (cos_v, sin_v) = Trig::angle(v0, sigma, t_m);
+            let (cos_v, sin_v) = Trig::angle(v0, sigma, t_m).ok_or_else(winding_past)?;
             let (a0, b0) = radial_pair(&Frame::new(c_s, a_s, u_ref), u0);
             // `ρ·radial(u) = a₀·d + κ·b₀·f`, times the tube's `R_s + r_s·cos v`.
             let tube = Trig::constant(big_s).plus(&cos_v.scaled(small_s));
@@ -271,51 +349,71 @@ fn spiric_residual<T: Real>(
                 .times(&rho)
                 .plus(&Trig3::along(&sin_v.times(&rho).scaled(small_s), a_s))
                 .plus(&Trig3::along(&tube, a0 * offset));
+            // The stored sense's residue from `σ` moves the azimuth by at
+            // most `|residue|·π` and the tube angle by `|residue|·|t|`.
+            let arm_u = big_s.abs() + small_s.abs();
+            let slack = residue.abs() * (T::pi() * arm_u + small_s.abs() * reach);
             Ok(Residual {
                 plain: carrier_plain.times(&rho).minus(&image_plain),
                 factors: factors(Trig3::along(&rho, m), Trig3::along(&tube, b0 * kappa)),
-                floor: major - minor,
+                floor: spiric_floor(major, minor),
+                slack,
                 h,
             })
         }
-        _ => Err(PcurveCertifyError::UnsupportedChart {
-            chart: surface.kind(),
-        }),
+        _ => Err(unheld(
+            PcurveKind::Spiric,
+            "a spiric image is its cutting plane's cap or a torus's wall, and this chart is \
+             neither of its kind",
+        )),
     }
 }
 
 /// **The residual of a focal-section image against its carrier**
 /// (module docs): on a cone, its slant a free channel; on a torus, its
-/// tube angle `v₀ + w·t`.
+/// tube angle `v₀ + w·t` with `w` the decided tube rate, the rest of the
+/// stored channel a slack at the tube's radius. The image's structure is
+/// decided in band first ([`super::focal_section_identity`]), and the
+/// stored sense's residue from `σ` is a slack at the azimuth's arm.
 ///
 /// # Errors
 ///
-/// A carrier with no `{1, cos, sin, t}` form, a sense that is not
-/// exactly `±1`, or a tube angle that is no whole winding
-/// ([`PcurveCertifyError::ImageMismatch`]); a chart that holds no focal
-/// section ([`PcurveCertifyError::UnsupportedChart`]).
-fn focal_residual<T: Real>(
+/// The image's structure read wrong ([`PcurveCertifyError::ImageMismatch`]):
+/// a chart and carrier no focal section is the image of, a sense or tube
+/// rate past the band from `±1`, `|β|` not below one; or one of those in
+/// band ([`PcurveCertifyError::Escalated`] at
+/// [`PcurveCheck::ImageIdentity`]).
+fn focal_residual<T: Decide>(
+    pcurve: &super::Pcurve<T>,
     image: FocalImage<T>,
     carrier: &Curve3<T>,
     surface: &Surface<T>,
     span: EdgeSpan<T>,
+    band: Band,
 ) -> Result<Residual<T>, PcurveCertifyError> {
-    let mismatch = |why| PcurveCertifyError::ImageMismatch {
-        image: super::PcurveKind::FocalSection,
-        why,
+    let kind = PcurveKind::FocalSection;
+    let tube = match (surface, carrier) {
+        (Surface::Cone { .. }, Curve3::Ellipse(..)) => None,
+        (&Surface::Torus { minor_radius, .. }, Curve3::Circle(..)) => Some(minor_radius),
+        _ => {
+            return Err(unheld(
+                kind,
+                "a focal-section image is a cone's ellipse or a torus's circle, and this chart \
+                 and carrier are neither",
+            ));
+        }
     };
+    let arm = super::focal_section_identity(pcurve, span.params, surface, tube, band)?;
     let Some(form) = super::carrier_harmonic(carrier) else {
-        return Err(mismatch("the carrier has no {1, cos, sin, t} form"));
+        unreachable!("focal_residual: an ellipse or a circle has its harmonic form")
     };
-    let Some(_) = unit(image.sense) else {
-        return Err(mismatch("the image's sense is not a unit sign"));
-    };
+    let (_, s) = unit_winding("pcurve_closed_focal_sense", image.sense, kind, band)?;
     let (t_m, h) = centre(span);
     let origin = geom_core::Point3::origin();
     let beta = image.beta;
     let one = Trig::constant(T::one());
     // `E = t − t₀`.
-    let (cos_e, sin_e) = Trig::angle(-image.t0, 1, t_m);
+    let (cos_e, sin_e) = Trig::angle(-image.t0, 1, t_m).ok_or_else(winding_past)?;
     let a = one.minus(&cos_e.scaled(beta));
     let b = sin_e.scaled(beta);
     let (c2, s2) = (
@@ -329,8 +427,12 @@ fn focal_residual<T: Real>(
     let carrier = Trig3::harmonic((form.c - origin, form.a, form.b, form.l), t_m).times(&q2);
     let along = |frame: Frame<T>| {
         let (a0, b0) = radial_pair(&frame, image.u0);
-        Trig3::along(&n_c, a0).plus(&Trig3::along(&n_s, b0 * image.sense))
+        Trig3::along(&n_c, a0).plus(&Trig3::along(&n_s, b0 * s))
     };
+    // The stored sense's residue from `σ` moves the azimuth by at most
+    // `|residue|·sup|ν|`, `|ν| ≤ |E| + π`, at the azimuth's arm.
+    let e_reach = (t_m - image.t0).abs() + h;
+    let mut slack = (image.sense - s).abs() * (e_reach + T::pi()) * arm;
     let mapped = match *surface {
         Surface::Cone {
             apex,
@@ -352,32 +454,40 @@ fn focal_residual<T: Real>(
             minor_radius,
             u_ref,
         } => {
-            let whole = [image.va, image.vb]
-                .into_iter()
-                .all(geom_core::is_exact_zero);
-            let Some(w) = unit(image.vl).filter(|_| whole) else {
-                return Err(mismatch("the image's tube angle is not one whole winding"));
-            };
-            let (cos_v, sin_v) = Trig::angle(image.v0, w, t_m);
+            // The tube angle as `v₀ + w·t`; the stored `va·cos t + vb·sin t
+            // + (vl − w)·t` beside it is a slack at the tube's radius.
+            let (w, w_t) = unit_winding("pcurve_closed_focal_tube_rate", image.vl, kind, band)?;
+            let reach = t_m.abs() + h;
+            slack = slack
+                + minor_radius.abs()
+                    * (image.va.abs() + image.vb.abs() + (image.vl - w_t).abs() * reach);
+            let (cos_v, sin_v) = Trig::angle(image.v0, w, t_m).ok_or_else(winding_past)?;
             let tube = Trig::constant(major_radius).plus(&cos_v.scaled(minor_radius));
             Trig3::constant(center - origin)
                 .times(&q2)
                 .plus(&Trig3::along(&sin_v.times(&q2).scaled(minor_radius), axis))
                 .plus(&along(Frame::new(center, axis, u_ref)).times(&tube))
         }
-        _ => {
-            return Err(PcurveCertifyError::UnsupportedChart {
-                chart: surface.kind(),
-            });
-        }
+        _ => unreachable!("focal_residual: the chart was read a cone or a torus above"),
     };
-    let gap = T::one() - beta.abs();
     Ok(Residual {
         plain: carrier.minus(&mapped),
         factors: Vec::new(),
-        floor: gap.powi(2),
+        floor: focal_floor(beta),
+        slack,
         h,
     })
+}
+
+/// A winding past the trigonometric family's reach
+/// ([`super::trig::MAX_WINDING`]): no closed form of a line or a conic
+/// turns that often per period, so the image's structure is read wrong.
+fn winding_past() -> PcurveCertifyError {
+    unheld(
+        PcurveKind::Harmonic,
+        "the image winds more often per period of its carrier than any closed form of a line \
+         or a conic does",
+    )
 }
 
 /// The span's midpoint `t_m` and a half-width `h` with every `t` the
@@ -397,14 +507,14 @@ enum Read<T> {
     Angle(Trig<T>, Trig<T>),
 }
 
-fn read<T: Real>(channel: Channel<T>, t_m: T) -> Read<T> {
-    match channel {
+fn read<T: Real>(channel: Channel<T>, t_m: T) -> Result<Read<T>, PcurveCertifyError> {
+    Ok(match channel {
         Channel::Free { .. } => Read::Free(Trig::free(channel.coefficients(), t_m)),
         Channel::Angle { phase, winding } => {
-            let (cos, sin) = Trig::angle(phase, winding, t_m);
+            let (cos, sin) = Trig::angle(phase, winding, t_m).ok_or_else(winding_past)?;
             Read::Angle(cos, sin)
         }
-    }
+    })
 }
 
 /// **`S(P(t))` for a harmonic image**, exactly, in the family. The channel
@@ -418,7 +528,7 @@ fn chart_image<T: Real>(
     let mismatch = || PcurveCertifyError::ChannelKindMismatch {
         chart: surface.kind(),
     };
-    let (u, v) = (read(u, t_m), read(v, t_m));
+    let (u, v) = (read(u, t_m)?, read(v, t_m)?);
     // `radial(u) = u_ref·cos u + v_ref·sin u`, the charts' own frame
     // (`Frame::radial`).
     let radial = |frame: Frame<T>| match &u {
@@ -498,31 +608,39 @@ fn chart_image<T: Real>(
                 .plus(&Trig3::along(&sin_v.scaled(minor_radius), axis))
         }
         Surface::Nurbs(_) | Surface::Approx(_) => {
-            return Err(PcurveCertifyError::UnsupportedChart {
-                chart: surface.kind(),
-            });
+            unreachable!("chart_image: a closed form takes this door on an analytic chart only")
         }
     })
 }
 
 /// **The bound's verdict**: `Zero` certifies, and the bound is the
 /// certificate's envelope. Otherwise the miss is read at a grid over the
-/// span: a point past the band is a located miss; else a bound past the
-/// band is [`PcurveCertifyError::ResidualExceeded`] at
-/// [`PcurveCheck::Envelope`] (nothing located, a sum of upper bounds), and
-/// one in band [`PcurveCertifyError::Escalated`] there.
+/// span and its maximum decided: past the band, a located miss, the
+/// largest the grid saw; else a bound past the band is
+/// [`PcurveCertifyError::ResidualExceeded`] at [`PcurveCheck::Envelope`]
+/// (nothing located, a sum of upper bounds), and one in band
+/// [`PcurveCertifyError::Escalated`] there. A bound that reads negative
+/// is no sum of magnitudes over a positive floor: the image's structure,
+/// read wrong.
 ///
 /// `frequency` is the residual's highest frequency, which sets the grid;
 /// `miss` is the meter `|C(t) − S(P(t))|` at a point.
 pub(super) fn verdict<T: Decide>(
     bound: T,
     frequency: usize,
-    span: EdgeSpan<T>,
+    (span, kind): (EdgeSpan<T>, PcurveKind),
     band: Band,
     miss: impl Fn(T) -> T,
 ) -> Result<T, PcurveCertifyError> {
     let refused = match geom_core::k_stats::decide("pcurve_closed_bound", Margin::of(bound), band) {
         Ok(Sign::Zero) => return Ok(bound),
+        Ok(Sign::Negative) => {
+            return Err(unheld(
+                kind,
+                "the residual's bound reads negative, which no sum of magnitudes over a \
+                 positive floor does",
+            ));
+        }
         refused => refused,
     };
     let (lo, hi) = span.outer;
@@ -535,16 +653,19 @@ pub(super) fn verdict<T: Decide>(
         let per_radian = GRID_DENSITY * (frequency.max(1) as f64);
         (((hi - lo) * per_radian).ceil() as usize).clamp(2, GRID_CAP)
     };
-    for i in 0..=points {
-        #[allow(clippy::cast_precision_loss)]
-        let t = lo + (hi - lo) * (i as f64 / points as f64);
-        if let Ok(Decided {
-            sign: Sign::Positive | Sign::Negative,
-            margin,
-        }) = decide_reported("pcurve_closed_miss", Margin::of(miss(T::from_f64(t))), band)
-        {
-            return Err(PcurveCertifyError::MissLocated { margin });
-        }
+    let largest = (0..=points)
+        .map(|i| {
+            #[allow(clippy::cast_precision_loss)]
+            let t = lo + (hi - lo) * (i as f64 / points as f64);
+            miss(T::from_f64(t))
+        })
+        .fold(T::zero(), T::max);
+    if let Ok(Decided {
+        sign: Sign::Positive,
+        margin,
+    }) = decide_reported("pcurve_closed_miss", Margin::of(largest), band)
+    {
+        return Err(PcurveCertifyError::MissLocated { margin });
     }
     Err(match refused {
         Err(cause) => PcurveCertifyError::Escalated {
@@ -570,10 +691,14 @@ pub(crate) enum ClosedForm<T: Real> {
     Spiric(T, T, T, SpiricImage<T>),
     /// A [`super::Pcurve::FocalSection`] image.
     Focal(FocalImage<T>),
+    /// An image kind no analytic chart holds: an iso arc, a spline
+    /// chart's rim. Its structure, read wrong.
+    Unheld(PcurveKind),
 }
 
 impl<T: Real> ClosedForm<T> {
-    /// The form of `image`, where this door writes its residual.
+    /// The form of `image` on an analytic chart, where this door reads
+    /// it.
     pub(super) fn of(image: &super::Pcurve<T>) -> Option<Self> {
         match *image {
             super::Pcurve::Harmonic { u, v } => Some(Self::Harmonic(u, v)),
@@ -584,8 +709,8 @@ impl<T: Real> ClosedForm<T> {
                 image,
             } => Some(Self::Spiric(major, minor, offset, image)),
             super::Pcurve::FocalSection(image) => Some(Self::Focal(image)),
+            super::Pcurve::IsoArc { .. } => Some(Self::Unheld(PcurveKind::IsoArc)),
             super::Pcurve::IsoLine { .. }
-            | super::Pcurve::IsoArc { .. }
             | super::Pcurve::Fitted(_)
             | super::Pcurve::General(_)
             | super::Pcurve::Projected(_) => None,
@@ -594,14 +719,14 @@ impl<T: Real> ClosedForm<T> {
 }
 
 /// **The certificate of a closed-form `image` stated over `span`**: the
-/// residual's coefficient bound over the span ([`Trig3::sup`]), decided
-/// by [`verdict`]. The carrier's incidence on its chart is the caller's
-/// to read first.
+/// residual's coefficient bound over the span ([`Residual::bound`]),
+/// decided by [`verdict`]. The carrier's incidence on its chart is the
+/// caller's to read first.
 ///
 /// # Errors
 ///
-/// The residual's structural refusals ([`harmonic_residual`]) and the
-/// verdict's.
+/// The residual's structural refusals, each its own defect ending, and
+/// the verdict's.
 pub(super) fn certify<T: Decide>(
     (image, form): (&super::Pcurve<T>, ClosedForm<T>),
     span: EdgeSpan<T>,
@@ -609,22 +734,64 @@ pub(super) fn certify<T: Decide>(
     surface: &Surface<T>,
     band: Band,
 ) -> Result<super::PcurveCertificate<T>, PcurveCertifyError> {
-    let residual = match form {
-        ClosedForm::Harmonic(u, v) => harmonic_residual((u, v), carrier, surface, span)?,
-        ClosedForm::Spiric(major, minor, offset, image) => {
-            spiric_residual((major, minor, offset, image), carrier, surface, span)?
-        }
-        ClosedForm::Focal(image) => focal_residual(image, carrier, surface, span)?,
-    };
+    let residual = residual_of((image, form), span, carrier, surface, band)?;
     let miss = |t: T| {
         let p = image.eval(t);
         carrier.eval(t).distance(surface.eval(p.x, p.y))
     };
-    let bound = verdict(residual.bound(), residual.frequency(), span, band, miss)?;
+    let kind = PcurveKind::of(image);
+    let bound = verdict(
+        residual.bound(),
+        residual.frequency(),
+        (span, kind),
+        band,
+        miss,
+    )?;
     Ok(super::PcurveCertificate::closed(
         0,
         T::zero(),
         bound,
         super::EnvelopeStatement::MapResidualClosedForm,
     ))
+}
+
+/// The residual of a closed form against its carrier, by its form.
+fn residual_of<T: Decide>(
+    (image, form): (&super::Pcurve<T>, ClosedForm<T>),
+    span: EdgeSpan<T>,
+    carrier: &Curve3<T>,
+    surface: &Surface<T>,
+    band: Band,
+) -> Result<Residual<T>, PcurveCertifyError> {
+    match form {
+        ClosedForm::Harmonic(u, v) => harmonic_residual((u, v), carrier, surface, span),
+        ClosedForm::Spiric(major, minor, offset, spiric) => {
+            spiric_residual((major, minor, offset, spiric), carrier, surface, span, band)
+        }
+        ClosedForm::Focal(focal) => focal_residual(image, focal, carrier, surface, span, band),
+        ClosedForm::Unheld(kind) => Err(unheld(
+            kind,
+            "an iso arc is a spline chart's rim, and no analytic chart holds one",
+        )),
+    }
+}
+
+/// The coefficient bound a closed form's certificate would read, for the
+/// rows that hold it against a dense miss.
+#[cfg(test)]
+pub(super) fn bound_of(
+    image: &super::Pcurve<f64>,
+    carrier: &Curve3<f64>,
+    surface: &Surface<f64>,
+    (t0, t1): (f64, f64),
+    band: Band,
+) -> Option<f64> {
+    let form = ClosedForm::of(image)?;
+    let span = EdgeSpan {
+        params: (t0, t1),
+        outer: (t0, t1),
+    };
+    residual_of((image, form), span, carrier, surface, band)
+        .ok()
+        .map(|r| r.bound())
 }
