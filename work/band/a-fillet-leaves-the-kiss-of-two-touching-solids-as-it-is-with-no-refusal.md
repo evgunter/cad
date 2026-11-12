@@ -6,7 +6,7 @@ status: open
 opened: 2026-11-04
 priority: P1
 cost: M
-design: true
+pr: 6807
 refs: [6510]
 ---
 
@@ -30,3 +30,17 @@ A plate whose top face passes through both tube axes and the kiss, unioned with 
 1. **A blend that fuses the two solids**: read the request across the touch as the valley's two supports, fill both valleys of the kiss (above and below the line of centres), and return one solid. This is a new kind of band: it changes the result's solid count, and it needs a rule for which side or sides of the kiss it fills.
 2. **A refusal that names the touch**: the kiss edge of an assembly refuses typed (the edge touches another solid of the assembly, so its blend is between solids), with the plate-union route as the recourse.
 3. **Keep the silent no-op**: the kiss is a seam of each solid, and a requested seam is left as it is everywhere else.
+
+## The rule
+
+A blend site is an edge or a recorded **line contact**: a place where two pieces of material, or one piece and itself, touch along a curve, as the body's contact record names it. A blend of a contact fills every void crescent at that line. A tangent touch's crescents go through the knife arm (PR 6510), and a transverse touch's notches through the rim arms. Where the band joins two pieces, the result's solid count drops, and the piece sort every finish runs works that out; the blend decides no count. That fusion is not implied: a concave band's result is `S ∪ F` (C8, "What a blend does with the body's other features is Boolean semantics", `crates/geom-brep/README.md`), so a blend that names the contact is an explicit boolean, and `[assemblies.document]`'s "fusing copies is an explicit boolean, never implied" stands as written (Ev, PR 6807). A chamfer at a contact refuses its one plane–plane arm, as at every knife.
+
+- **An edge request is unchanged.** A smooth edge that lies on a contact (a chart seam that happens to fall on the touch line) is a seam of its own solid, and its blend is the identity, as every requested smooth edge's is.
+- **The union is unchanged.** Pieces that only touch are distinct solids (`[topology.conventions]`).
+- **Not built yet:** filling one side only (a one-sided weld bead). In the face–face form both crescents lie between the same two faces, so a face pair names no side. That waits for a consumer.
+- **The request's type.** The request, `battery::Link` and the refusal site `BlendSite` name where two faces meet by one key enum, an edge or a contact (Ev, PR 6807). `Link` already bundles the two supports every arm and predicate reads, so a contact lowers to the same link with no parallel pipeline. A contact is one link with its own ends, joined to no other link, until something needs a chain of them; the surgery merges the band's caps across the two pieces.
+- **Prerequisite:** the blend door must see its operand's contact records, which the ratified heldrecords unit provides (`AtRestBody` holding the records, PR 5967).
+
+Measured by the designers: with the tubes bridged by a block away from the kiss, the union is ONE solid with no edge on the kiss and a face–face record. A rod on a plate gives a face–face record (seam elsewhere) or an edge–face record (seam on the line), so whether an edge lies on the touch is an accident of where a circle's chart is split.
+
+- 2026-11-12 — the rule approved by Ev on PR 6807; built by `a-blend-names-a-line-contact-as-its-site`.

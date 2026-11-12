@@ -773,7 +773,13 @@ BOUNDS_ALLOWLIST=(
   # `BlendError::BallDoesNotFit`. The next tighter
   # bound, `Decide` alone, fails there: `classified` takes `T: Bounds`.
   # Neither picks anything from a bracket.
-  'crates/sweep/src/blend/battery.rs 23 M5 PR 12 (orchestrator ruling 2026-08-03), the edge-blend battery'
+  # 23 -> 24: `closed_chain_apart`, which takes from the support
+  # screen the pairs of one closed chain's links joined by a run turning
+  # less than a half turn. Its one bracket read, `(sum - π).hi() < 0`, is
+  # a SELECTION that only narrows the screen: a sum not certainly below
+  # the half turn leaves the pair screened as before, the conservative
+  # reading. `Decide` alone has no bracket to read.
+  'crates/sweep/src/blend/battery.rs 24 M5 PR 12 (orchestrator ruling 2026-08-03), the edge-blend battery'
   # build.rs 5 -> 3 (ONEHOME, finished-body doors): `fillet_edges` and
   # `chamfer_edges` take the scalar's finished body (`F: FinishedBody`),
   # so their `T: Decide + Bounds` is now `F::Scalar: Bounds` in a
@@ -839,7 +845,23 @@ BOUNDS_ALLOWLIST=(
   #   down on is left to the ring pass, which meters it whole; any
   #   reading not certain is neither, metered as before. It inherits
   #   `ring_clearance`'s DL5(b) disposition and the reach's.
-  'crates/sweep/src/blend/surgery.rs 22 M5 PR 12 (orchestrator ruling 2026-08-03), the edge-blend battery'
+  # surgery.rs 22 -> 24: the mixed rim's carve and the support-boundary
+  # meter's level, each needing `Bounds` only for callees argued above,
+  # so `Decide` alone fails to compile at those calls:
+  # - `rim_phase_mixed`, `rim_phase_annulus`'s walk with one band face
+  #   per link, calls `seam_split_param`, `split_fragment` and
+  #   `strut_foot`. It reads no bracket of its own.
+  # - `impl StripLevel`, the level `support_boundary_clearance` reads
+  #   each strip through, calls `piece_distance`, `piece_along` and
+  #   `boxed_reach`, and inherits their dispositions. It makes two
+  #   bracket reads, both SELECTIONS. `(rim_at - at_trim).lo() > 0.0`
+  #   picks which side of the trim the rim lies on, definite by a setback
+  #   (DL5(b)); an indefinite read refuses. An arc window's
+  #   `(t1 - t0).lo() > 0` and `(sweep - π).hi() < 0` admit the wedge
+  #   only when it is certainly one, since an uncertain read takes the
+  #   whole circle, a sound bound. Its margins are `max`es of the
+  #   pieces' extents, arithmetic, and `ring_clearance` decides them.
+  'crates/sweep/src/blend/surgery.rs 24 M5 PR 12 (orchestrator ruling 2026-08-03), the edge-blend battery'
   # reach.rs 9 -> 14: `sign` decides a reference point's side of a
   # bound past its bracket (`±1` decided, `0` -- a vacuous bound --
   # where not), replacing the self-division `x/|x|` that gave the

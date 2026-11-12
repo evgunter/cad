@@ -48,3 +48,5 @@ refuses `EdgeInFace` with the `CurvedFace` gap; both there, every op).
 ## Slate triage
 
 2026-11-01: claimed from CLEAVE by `git mv` after PR 6177 merged (CLEAVE's split note: the cylinder-tangent rows 6177 files move to TANGRIM); id and body unchanged. (TANGRIM orchestrator)
+
+- 2026-11-10 — Evidence from BAND's kiss-of-two-solids designers: two external cylinders tangent along a ruling, with their chart seams off the kiss (discs about (0,0) and (2,0) split at π/2 or 0.7), refuse `topo::union` with `CurvedPierceUnsupported`. The same pair with both seams on the kiss unions to two solids. Likely the same root as this row, for an external pair rather than a cylinder through a hole.

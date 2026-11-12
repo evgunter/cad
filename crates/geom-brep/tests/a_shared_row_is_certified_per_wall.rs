@@ -950,8 +950,8 @@ fn a_shared_row_reads_one_verdict_wherever_its_charts_sit() {
 
 /// **An interior row refuses, whichever way a crease beside it folds.** A
 /// floor creased along its interior column `u = ½`, one sheet folded up to
-/// within `0.1 ε` of the upright `x = ½`, on either side: the shared row
-/// is built for boundary rows, so both mirror images refuse
+/// within `0.1 ε` of the upright `x = ½`, on either side: a spline
+/// wall's shared row is read on a domain side only, so both mirror images refuse
 /// `CertifyError::Row { refusal: RowRefusal::OffSide, .. }` on the floor, before any reading that
 /// could tell the two sides apart.
 #[test]

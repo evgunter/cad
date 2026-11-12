@@ -238,6 +238,11 @@ const INDIRECT: &[(&str, &str)] = &[
         ROW_FIELD,
     ),
     ("curve_face/composite.rs: settle: row", CLOSURE_FORWARDS),
+    ("description.rs: harmonic_row: name", CLOSURE_FORWARDS),
+    (
+        "row_contact.rs: row_clear_of_singularities: name",
+        CLOSURE_FORWARDS,
+    ),
     ("curve_face/spline_face.rs: settle: row", CLOSURE_FORWARDS),
     ("curve_pair/on_surface.rs: decided: row", FORWARDS),
     ("curve_pair/on_surface.rs: section_of: row", FORWARDS),

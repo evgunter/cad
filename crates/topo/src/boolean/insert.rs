@@ -1,15 +1,45 @@
 //! Paired null-edge insertion (Programs 15.11/15.12 motion, F9/F12).
 //!
 //! Surviving records — each a section-polygon edge germ with one In and
-//! one Out code per side — are paired **consecutively in A's walk
-//! order** (the book's consumption): by sector entry, and round the
-//! sector within one entry, never by the other solid's entry; with more
-//! than two, from the germ whose run lies on the side the op keeps of
-//! A. Each pair mints one null edge in each solid spanning an orbit run
-//! between its two germs: in A the run that holds no third germ in A's
-//! walk order, in B the same where the pair is adjacent in B's, and
-//! otherwise the run that holds other pairs' runs whole ([`b_runs`]),
-//! each until a shared vertex turns it ([`reconcile_shared`]), with:
+//! one Out code per side — are paired **consecutively in the lead's
+//! walk order** (the book's consumption): by sector entry, and round
+//! the sector within one entry, never by the other solid's entry. The
+//! **lead** is the solid whose vertex other crossing pairs share, A's
+//! where neither is ([`pairing_leads`]).
+//!
+//! **The start takes the kept side.** The codes alternate round the
+//! vertex, so either start pairs the corner; the pairing starts where
+//! the lead's runs lie on the side the op keeps of it ([`start_pairs`]),
+//! two survivors included, so no plan reads the records' order.
+//! A kept arc is a stretch of one cone of the result, so each null edge
+//! joins germs of one cone, which the join's one-site rim lane needs to
+//! close a rim. The op enters only there, and it is the fact the result
+//! is selected by. The codes read are op-free nowhere they matter: at
+//! coincident faces `recl` already codes the sectors by the op
+//! (Eq. 15.3).
+//!
+//! **A blocked pair takes the other start.** At a vertex other crossing
+//! pairs share, a run must hold no other pair's cut, or its mint would
+//! move a half-edge another pair's plan read. One operand's curves at a
+//! point are disjoint curves, but not the boundaries of disjoint disks:
+//! a vertex's link may lie inside the region another's bounds (a void
+//! reaching the boundary at the point, nested cones). So a pair whose
+//! kept-side runs hold another pair's cuts takes its other start, and
+//! the pairs at one vertex choose together, the fewest off the kept side
+//! ([`reconcile_shared`]); on every pose measured that is each pair
+//! blocked against the others' kept starts, and choosing together
+//! guards a clearance that reads another pair's run (a strut nesting in
+//! a strut). Where no choice is clear the vertex refuses
+//! [`super::BooleanError::SharedVertexCrossings`], typed: a pair's curve
+//! with other curves on both of its sides (three nested cones of one
+//! operand at an apex, a shell beside a separate piece), which needs
+//! the vertex's chords placed as one non-crossing family.
+//!
+//! Each pair mints one null edge in each solid spanning an orbit run
+//! between its two germs: in the lead the run that holds no third germ
+//! in its walk order, in the other solid the same where the pair is
+//! adjacent in its walk, and otherwise the run that holds other pairs'
+//! runs whole ([`run_holders`]), with:
 //!
 //! - **F9 attributes as data**: the run's side (the shared code between
 //!   the paired records) decides the minted copy's side —
@@ -21,18 +51,19 @@
 //!   engineered out).
 //! - **The 15.11 consecutive-pairing invariant, GUARDED (F12)**: the
 //!   book consumes surviving records two at a time and never argues
-//!   what A-consecutive pairs are in B for > 2 crossings. Each solid's
-//!   link round its vertex is a simple closed curve, and A's runs on
-//!   one side of B are disjoint arcs of one disk B's link bounds, so the
-//!   pairs cannot cross in B's walk order. At four crossings that makes
-//!   each pair adjacent in B too. At six or more a pair may hold
-//!   another's germs between its own either way round B's vertex (a
-//!   nested matching): B's run for it then holds the other pair's run,
-//!   which mints at its copy ([`b_runs`]). We check both halves: no two
-//!   pairs cross in B's walk order, and the run-side codes agree at both
-//!   ends (`r.own_start_code == r'.own_end_code` per solid). Violation ⇒
-//!   typed [`super::BooleanError::PairingMismatch`] — fail-loud, never
-//!   a mis-joined seam.
+//!   what lead-consecutive pairs are in the other solid for > 2
+//!   crossings. Each solid's link round its vertex is a simple closed
+//!   curve, and the lead's runs of one start, all on one side of the
+//!   other solid, are disjoint arcs of one disk the other solid's link
+//!   bounds, so the pairs cannot cross in the other solid's walk order. At four crossings that makes each pair
+//!   adjacent there too. At six or more a pair may hold another's germs
+//!   between its own either way round the other vertex (a nested
+//!   matching): its run there then holds the other pair's run, which
+//!   mints at its copy ([`run_holders`]). We check both halves: no two
+//!   pairs cross in either solid's walk order, and the run-side codes
+//!   agree at both ends (`r.own_start_code == r'.own_end_code` per
+//!   solid). Violation ⇒ typed [`super::BooleanError::PairingMismatch`]
+//!   — fail-loud, never a mis-joined seam.
 //!
 //! Run extraction: walking the array forward (array order follows the
 //! orbit), an entry is entered across its END bound and left across its
@@ -51,21 +82,17 @@
 //! pair before it mints any: one vertex can sit in several pairs (an
 //! operand whose own contact left several vertices at one point pairs
 //! each with the other operand's vertex there), and a mint moves its
-//! vertex's orbit. Where several crossing pairs cut one vertex,
-//! [`reconcile_shared`] turns each run that would hold another pair's
-//! cut the other way round its orbit, so no pair's run holds another
-//! pair's and no mint moves a half-edge another pair's plan read, unless
-//! one strut's segment holds another's whole: the inner then hangs at
-//! the outer's tip ([`holds_whole`]). A turned run holds the rest of its
-//! own pair's runs. Wherever several null edges cut one
-//! vertex, several pairs' or one pair's crossing it more than twice,
-//! struts mint before any fan, an outer before its inner, each spliced
-//! past those hung earlier at its vertex at a lower germ
-//! ([`strut_anchor`]). A run that runs of its own pair hold, nested in
-//! B's walk order ([`b_runs`]) or inside a run a shared vertex turned
-//! ([`hang_at_shared`]), as arcs of its walk ([`arc_holders`]), mints
-//! after them, at the copy the innermost fan among them took its germs
-//! to.
+//! vertex's orbit. Where several crossing pairs cut one vertex, no
+//! pair's run holds another pair's cut ([`reconcile_shared`]), so no
+//! mint moves a half-edge another pair's plan read, unless one strut's
+//! segment holds another's whole: the inner then hangs at the outer's
+//! tip ([`holds_whole`]). Wherever several
+//! null edges cut one vertex, several pairs' or one pair's crossing it
+//! more than twice, struts mint before any fan, an outer before its
+//! inner, each spliced past those hung earlier at its vertex at a lower
+//! germ ([`strut_anchor`]). A run that runs of its own pair hold, as
+//! arcs of its walk ([`run_holders`], [`arc_holders`]), mints after
+//! them, at the copy the innermost fan among them took its germs to.
 
 use geom_core::NonzeroSign;
 use geom_core::ladder::{Answering, Rung, climb};
@@ -110,7 +137,18 @@ fn insert_null_pairs<T: Decide>(
     band: Band,
 ) -> Result<InsertOut<T>, BooleanError> {
     let mut plans = [plan_null_pairs(
-        a_body, b_body, contact, a_sectors, b_sectors, records, raw, declared, contacts, op, band,
+        a_body,
+        b_body,
+        contact,
+        a_sectors,
+        b_sectors,
+        records,
+        raw,
+        declared,
+        contacts,
+        op,
+        Operand::A,
+        band,
     )?];
     let orbits = [(a_sectors, b_sectors)];
     reconcile_shared(&mut plans, &orbits, band)?;
@@ -136,20 +174,14 @@ pub(super) struct SideRun<T: geom_core::Real> {
     /// against other pairs' cuts only: a pair's own runs are disjoint,
     /// or one holds another whole ([`Self::held`]).
     shared: bool,
-    /// Its germs' positions in its solid's walk order ([`walk_order`]),
-    /// `from`'s first: the run is the arc of the walk between them,
-    /// forward ([`arc_holders`]).
-    walk: [usize; 2],
-    /// Where the runs of its own plan hold this one ([`arc_holders`]): a
-    /// pair nested in B's walk order ([`b_runs`]), or one inside a run
-    /// turned round a shared vertex ([`hang_at_shared`]).
+    /// Where the runs of its own plan hold this one ([`run_holders`]): a
+    /// pair nested in the other solid's walk order, or one inside a
+    /// strut spelled for a run crossing every real edge.
     held: Option<Held>,
 }
 
-/// How a run's own plan holds it: written at the plan for B's nested
-/// pairings ([`b_runs`]), and read again after the reconcile at a
-/// shared vertex, where a turned run holds what lay outside it
-/// ([`hang_at_shared`]).
+/// How a run's own plan holds it, read at the plan off its solid's
+/// walk ([`run_holders`]).
 #[derive(Clone, Copy, Debug)]
 struct Held {
     /// How many of the plan's runs hold it: it mints after each.
@@ -393,8 +425,14 @@ fn across_tangent<T: Decide>(
 pub(super) struct NullPlan<T: geom_core::Real> {
     /// The vertex pair.
     pub contact: VvContact,
-    /// One `[A, B]` run per null-edge pair, in A's walk order.
+    /// One `[A, B]` run per null-edge pair, in its lead's walk order:
+    /// the start whose runs lie on the side the op keeps of the lead
+    /// ([`start_pairs`]), or the other start where [`reconcile_shared`]
+    /// takes it.
     runs: Vec<[SideRun<T>; 2]>,
+    /// The other start's runs, which [`reconcile_shared`] swaps in for a
+    /// pair whose kept-side runs at a shared vertex are blocked.
+    other: Vec<[SideRun<T>; 2]>,
 }
 
 /// Validates codes, pairs survivors and reads every germ's cells and
@@ -412,6 +450,7 @@ pub(super) fn plan_null_pairs<T: Decide>(
     declared: &super::GluedPairs<T>,
     contacts: &super::ReductionContacts,
     op: BooleanOp,
+    lead: Operand,
     band: Band,
 ) -> Result<NullPlan<T>, BooleanError> {
     let (mut survivors, mut raw): (Vec<&PairRecord>, Vec<&PairRecord>) = records
@@ -426,6 +465,7 @@ pub(super) fn plan_null_pairs<T: Decide>(
     let mut plan = NullPlan {
         contact,
         runs: Vec::new(),
+        other: Vec::new(),
     };
     if survivors.is_empty() {
         return Ok(plan); // touching without crossing: 3′ contact only
@@ -570,7 +610,7 @@ pub(super) fn plan_null_pairs<T: Decide>(
     // survivors pair with each other and run either way round, so only
     // more need one.
     let n = survivors.len();
-    let (mut a_order, b_order) = if n > 2 {
+    let (a_order, b_order) = if n > 2 {
         (
             walk_order(a_sectors, &a_cuts, band)?,
             walk_order(b_sectors, &b_cuts, band)?,
@@ -578,11 +618,6 @@ pub(super) fn plan_null_pairs<T: Decide>(
     } else {
         ((0..n).collect(), (0..n).collect())
     };
-    // Pair consecutively in A's walk order, from the start
-    // [`pairing_start_turns`] picks.
-    if n > 2 && pairing_start_turns(survivors[a_order[0]].sa.0, op) {
-        a_order.rotate_left(1);
-    }
     let positions = |order: &[usize]| {
         let mut pos = vec![0; n];
         for (p, &i) in order.iter().enumerate() {
@@ -591,14 +626,20 @@ pub(super) fn plan_null_pairs<T: Decide>(
         pos
     };
     let (a_pos, b_pos) = (positions(&a_order), positions(&b_order));
-    // F12 guard 1: the pairs do not cross in B's walk order either
-    // ([`b_runs`]), checked for every pair before the first mint.
-    let pairs: Vec<(usize, usize)> = a_order.chunks(2).map(|c| (c[0], c[1])).collect();
+    let order = match lead {
+        Operand::A => &a_order,
+        Operand::B => &b_order,
+    };
+    let forward = |i: usize| match lead {
+        Operand::A => survivors[i].sa.0,
+        Operand::B => survivors[i].sb.0,
+    };
     // Which way round each solid runs each pair: its walk order's
-    // ([`walk_run`]), in A the run that holds no third germ, in B a nested
-    // pair's run holding other pairs' runs whole, and either way for two
-    // survivors; then spelled as the strut its reverse is where that way
-    // crosses every real edge ([`spelled_reversed`]).
+    // ([`walk_run`]), in the lead the run that holds no third germ, in
+    // the other solid the same where the pair is adjacent in its walk,
+    // and otherwise the run that holds other pairs' runs whole; then
+    // spelled as the strut its reverse is where that way crosses every
+    // real edge ([`spelled_reversed`]).
     let spelled =
         |sectors: &[BoolSector<T>], cuts: &[Cut<T>], pos: &[usize], (i0, i1): (usize, usize)| {
             let swapped = walk_run(n, pos[i0], pos[i1]).unwrap_or(false);
@@ -607,59 +648,76 @@ pub(super) fn plan_null_pairs<T: Decide>(
                 swapped != spelled_reversed(sectors, cuts[from].entry, cuts[to].entry)?,
             )
         };
-    let swapped = pairs
-        .iter()
-        .map(|&p| {
-            Ok([
-                spelled(a_sectors, &a_cuts, &a_pos, p)?,
-                spelled(b_sectors, &b_cuts, &b_pos, p)?,
-            ])
-        })
-        .collect::<Result<Vec<[bool; 2]>, BooleanError>>()?;
-    let b_swapped: Vec<bool> = swapped.iter().map(|s| s[1]).collect();
-    let holders = b_runs(&pairs, &b_pos, &b_swapped).map_err(|refusal| match refusal {
-        ArcRefusal::Crossing => BooleanError::PairingMismatch {
-            a_vertex: contact.a,
-            b_vertex: contact.b,
-        },
-        ArcRefusal::Cover => BooleanError::ClassificationInvariant {
-            what: "two runs of a plan read from its walk's first entry cover the walk",
-        },
-    })?;
-    let shared = pairs.len() > 1;
-    for (&(i0, i1), &[a_swapped, b_swapped]) in pairs.iter().zip(&swapped) {
-        let (r0, r1) = (survivors[i0], survivors[i1]);
-        let g0_faces = ((a_sectors[r0.a].face, b_sectors[r0.b].face), loci[i0]);
-        let g1_faces = ((a_sectors[r1.a].face, b_sectors[r1.b].face), loci[i1]);
-        // The run-side agreement guard runs against whichever direction
-        // is chosen.
-        let side = |swapped: bool, g0: Germ<T>, g1: Germ<T>, pos: &[usize]| SideRun {
-            shared,
-            ..SideRun::directed(g0, g1, swapped, [pos[i0], pos[i1]])
-        };
-        plan.runs.push([
-            side(
-                a_swapped,
-                Germ::new(a_cuts[i0], r0.sa, g0_faces, branches[i0]),
-                Germ::new(a_cuts[i1], r1.sa, g1_faces, branches[i1]),
-                &a_pos,
-            ),
-            side(
-                b_swapped,
-                Germ::new(b_cuts[i0], r0.sb, g0_faces, branches[i0]),
-                Germ::new(b_cuts[i1], r1.sb, g1_faces, branches[i1]),
-                &b_pos,
-            ),
-        ]);
-    }
-    let strut = plan
-        .runs
-        .iter()
-        .map(|r| is_strut(b_sectors, r[1].from.cut.entry, r[1].to.cut.entry))
-        .collect::<Result<Vec<bool>, BooleanError>>()?;
-    for (r, held) in plan.runs.iter_mut().zip(held_by(&holders, &strut)) {
-        r[1].held = held;
-    }
+    let kept = super::finish::kept_side(op, lead);
+    // The runs of the kept start, or of the other. Two survivors pair
+    // with each other, and the start says which way round their run
+    // goes: from the germ whose forward run lies on the start's side.
+    let runs_on = |other: bool| -> Result<Vec<[SideRun<T>; 2]>, BooleanError> {
+        let side = if other { kept.opposite() } else { kept };
+        let pairs = start_pairs(order, forward, side);
+        let swapped = pairs
+            .iter()
+            .map(|&p| {
+                Ok([
+                    spelled(a_sectors, &a_cuts, &a_pos, p)?,
+                    spelled(b_sectors, &b_cuts, &b_pos, p)?,
+                ])
+            })
+            .collect::<Result<Vec<[bool; 2]>, BooleanError>>()?;
+        let shared = pairs.len() > 1;
+        let mut runs = Vec::with_capacity(pairs.len());
+        for (&(i0, i1), &[a_swapped, b_swapped]) in pairs.iter().zip(&swapped) {
+            let (r0, r1) = (survivors[i0], survivors[i1]);
+            let g0_faces = ((a_sectors[r0.a].face, b_sectors[r0.b].face), loci[i0]);
+            let g1_faces = ((a_sectors[r1.a].face, b_sectors[r1.b].face), loci[i1]);
+            // The run-side agreement guard runs against whichever
+            // direction is chosen.
+            let side = |swapped: bool, g0: Germ<T>, g1: Germ<T>| SideRun {
+                shared,
+                ..SideRun::directed(g0, g1, swapped)
+            };
+            runs.push([
+                side(
+                    a_swapped,
+                    Germ::new(a_cuts[i0], r0.sa, g0_faces, branches[i0]),
+                    Germ::new(a_cuts[i1], r1.sa, g1_faces, branches[i1]),
+                ),
+                side(
+                    b_swapped,
+                    Germ::new(b_cuts[i0], r0.sb, g0_faces, branches[i0]),
+                    Germ::new(b_cuts[i1], r1.sb, g1_faces, branches[i1]),
+                ),
+            ]);
+        }
+        // F12 guard 1, in each solid: the pairs do not cross in its walk
+        // order ([`run_holders`]), checked for every pair before the
+        // first mint.
+        for (slot, (sectors, pos)) in [(a_sectors, &a_pos), (b_sectors, &b_pos)]
+            .into_iter()
+            .enumerate()
+        {
+            let ways: Vec<bool> = swapped.iter().map(|s| s[slot]).collect();
+            let holders = run_holders(&pairs, pos, &ways).map_err(|refusal| match refusal {
+                ArcRefusal::Crossing => BooleanError::PairingMismatch {
+                    a_vertex: contact.a,
+                    b_vertex: contact.b,
+                },
+                ArcRefusal::Cover => BooleanError::ClassificationInvariant {
+                    what: "two runs of a plan read from its walk's first entry cover the walk",
+                },
+            })?;
+            let strut = runs
+                .iter()
+                .map(|r| is_strut(sectors, r[slot].from.cut.entry, r[slot].to.cut.entry))
+                .collect::<Result<Vec<bool>, BooleanError>>()?;
+            for (r, held) in runs.iter_mut().zip(held_by(&holders, &strut)) {
+                r[slot].held = held;
+            }
+        }
+        Ok(runs)
+    };
+    plan.runs = runs_on(false)?;
+    plan.other = runs_on(true)?;
     Ok(plan)
 }
 
@@ -681,19 +739,38 @@ fn held_by(holders: &[Option<usize>], strut: &[bool]) -> Vec<Option<Held>> {
         .collect()
 }
 
-/// Whether the pairing starts at A's second germ rather than its first:
-/// where the first's forward run, on side `first`, is not the side `op`
-/// keeps of A. The runs alternate In and Out round the vertex, so either
-/// start pairs the corner, and this one makes each run A keeps a copy of
-/// its own, so no kept vertex of A holds two null edges.
-///
-/// B is not consulted. Both solids pair the same germs, so the start
-/// that fixes A's runs fixes B's too: B keeps either its run copies,
-/// and the result pinches at the point, or its own vertex with every
-/// null edge there, and the finish builds both. Only one solid's side
-/// can be chosen; A's is the one the finish needs.
-fn pairing_start_turns(first: SideCode, op: BooleanOp) -> bool {
-    first != super::finish::kept_side(op, Operand::A)
+/// **The pairs of one start**: the survivors paired consecutively in
+/// the lead's walk `order` ([`pairing_leads`]), each pair from the germ
+/// whose forward run, on side `forward(germ)`, lies on `side`. The codes
+/// alternate round the vertex, so either side pairs the corner, and
+/// every one of the lead's runs then lies on `side`.
+fn start_pairs(
+    order: &[usize],
+    forward: impl Fn(usize) -> SideCode,
+    side: SideCode,
+) -> Vec<(usize, usize)> {
+    let mut order = order.to_vec();
+    if order.first().is_some_and(|&i| forward(i) != side) {
+        order.rotate_left(1);
+    }
+    order.chunks(2).map(|c| (c[0], c[1])).collect()
+}
+
+/// **Which solid leads each vertex pair's pairing** ([`start_pairs`]):
+/// the one whose vertex other crossing pairs share, A's where neither
+/// is. `crossing[i]` says whether `contacts[i]` crosses at all. Where
+/// both vertices are shared [`reconcile_shared`] refuses, and A leads.
+pub(super) fn pairing_leads(contacts: &[VvContact], crossing: &[bool]) -> Vec<Operand> {
+    let shared = |i: usize, same: fn(VvContact, VvContact) -> bool| {
+        (0..contacts.len()).any(|j| j != i && crossing[j] && same(contacts[i], contacts[j]))
+    };
+    (0..contacts.len())
+        .map(|i| {
+            let b_only =
+                crossing[i] && shared(i, |c, d| c.b == d.b) && !shared(i, |c, d| c.a == d.a);
+            if b_only { Operand::B } else { Operand::A }
+        })
+        .collect()
 }
 
 /// Which way round a solid runs the null edge between the survivors at
@@ -715,29 +792,32 @@ fn run_order(n: usize, p0: usize, p1: usize) -> Option<Option<bool>> {
 /// [`run_order`] says where the two are adjacent, so the run holds no
 /// third germ, `None` where either way does (two survivors); else
 /// forward from the earlier position to the later, so the run is an
-/// interval of the walk order ([`b_runs`]).
+/// interval of the walk order ([`run_holders`]).
 fn walk_run(n: usize, p0: usize, p1: usize) -> Option<bool> {
     run_order(n, p0, p1).unwrap_or(Some(p1 < p0))
 }
 
-/// **The pair whose B run holds each of A's `pairs`' B runs.** `b_pos`
-/// is each survivor's position in B's walk order, and `swapped` whether
-/// each pair's B run leaves from its second germ. Each pair
-/// joins the ends of one of A's runs, and A's runs on one side of B's
-/// surface are disjoint arcs in one of the two disks B's link bounds on
-/// the sphere round the vertex, so the pairs cannot cross in B's walk
-/// order. At four crossings that makes each pair adjacent in B too; at
-/// six or more a pair may hold others between its two germs either way
-/// round (a nested matching). Each runs as [`walk_run`] says, spelled as
-/// its strut where that crosses every real edge ([`spelled_reversed`]),
-/// so the runs are arcs of B's walk order ([`arc_holders`]): disjoint or
-/// nested. A pair whose run holds another's mints first, and the one it
-/// holds mints where its run went ([`mint_plans`]).
-/// [`ArcRefusal::Crossing`]: two pairs cross, and the walks are not two
-/// simple links'.
-fn b_runs(
+/// **The run of its own plan that holds each run, in one solid's
+/// walk**: `pos` is each survivor's position in that walk, and
+/// `swapped` whether each pair's run there leaves from its second germ.
+/// Each pair joins the ends of one of the lead's runs ([`start_pairs`]),
+/// all on one side of the other solid, so they are disjoint arcs of the
+/// lead's link inside one of the two disks the other solid's link
+/// bounds on the sphere round the vertex, and the pairs cannot cross in
+/// either solid's walk order. In the lead each pair is adjacent, and
+/// its runs are disjoint, but a strut spelled for a run crossing every
+/// real edge ([`spelled_reversed`]), which holds the rest. In the other
+/// solid, at four crossings each pair is adjacent too; at six or more a
+/// pair may hold others between its two germs either way round (a
+/// nested matching). Each runs as [`walk_run`] says, spelled as its
+/// strut where that crosses every real edge, so the runs are arcs of
+/// the walk order ([`arc_holders`]): disjoint or nested. A pair whose
+/// run holds another's mints first, and the one it holds mints where
+/// its run went ([`mint_plans`]). [`ArcRefusal::Crossing`]: two pairs
+/// cross, and the walks are not two simple links'.
+fn run_holders(
     pairs: &[(usize, usize)],
-    b_pos: &[usize],
+    pos: &[usize],
     swapped: &[bool],
 ) -> Result<Vec<Option<usize>>, ArcRefusal> {
     let arcs: Vec<[usize; 2]> = pairs
@@ -745,9 +825,9 @@ fn b_runs(
         .zip(swapped)
         .map(|(&(i0, i1), &swapped)| {
             if swapped {
-                [b_pos[i1], b_pos[i0]]
+                [pos[i1], pos[i0]]
             } else {
-                [b_pos[i0], b_pos[i1]]
+                [pos[i0], pos[i1]]
             }
         })
         .collect();
@@ -770,14 +850,13 @@ enum ArcRefusal {
 /// forward between them, so a run's parent is its innermost holder, the
 /// shortest arc holding both its positions. Refuses
 /// [`ArcRefusal::Crossing`] where two runs' chords cross: two pairs
-/// crossing, which only [`b_runs`] can meet, as it checks a reading of
-/// B's walk. Two arcs of non-crossing pairs, either way round, are
-/// disjoint, nested, or each holds the other's ends, so a turn
-/// ([`reconcile_pass`]), which keeps a run's ends, can only make two
-/// runs cover the walk between them, leaving no region outside every
-/// run: [`ArcRefusal::Cover`], which no known pose reaches. Arcs that
-/// both cross and cover refuse as crossing: their pairs cross whichever
-/// way each runs.
+/// crossing, which only the other solid's walk can show, as the lead's
+/// pairs are adjacent in its own. Two arcs of non-crossing pairs,
+/// either way round, are disjoint, nested, or each holds the other's
+/// ends: two runs that cover the walk between them leave no region
+/// outside every run, [`ArcRefusal::Cover`], which the plan's ways
+/// round never give. Arcs that both cross and cover refuse as
+/// crossing: their pairs cross whichever way each runs.
 fn arc_holders(arcs: &[[usize; 2]]) -> Result<Vec<Option<usize>>, ArcRefusal> {
     // The arcs' germs in walk order: run `k`'s `from` is germ `2k`.
     let mut walk: Vec<(usize, usize)> = arcs
@@ -844,31 +923,14 @@ fn walk_order<T: Decide>(
 }
 
 impl<T: geom_core::Real> SideRun<T> {
-    fn directed(g0: Germ<T>, g1: Germ<T>, swapped: bool, [p0, p1]: [usize; 2]) -> Self {
-        let ((from, to), walk) = if swapped {
-            ((g1, g0), [p1, p0])
-        } else {
-            ((g0, g1), [p0, p1])
-        };
+    fn directed(g0: Germ<T>, g1: Germ<T>, swapped: bool) -> Self {
+        let (from, to) = if swapped { (g1, g0) } else { (g0, g1) };
         Self {
             from,
             to,
             swapped,
             shared: false,
-            walk,
             held: None,
-        }
-    }
-
-    /// The same null edge run the other way round its orbit.
-    fn reversed(self) -> Self {
-        Self {
-            from: self.to,
-            to: self.from,
-            swapped: !self.swapped,
-            shared: self.shared,
-            walk: [self.walk[1], self.walk[0]],
-            held: self.held,
         }
     }
 }
@@ -940,8 +1002,8 @@ pub(super) fn mint_plans<T: Decide>(
                 None
             };
             // A run a fan holds after every run that holds it, at the
-            // fan's copy: the reconcile cleared that fan of every other
-            // pair's cut ([`reconcile_pass`]), so nothing there nests a
+            // fan's copy: no fan holds another pair's cut
+            // ([`reconcile_shared`]), so nothing there nests a
             // strut of theirs. A run only struts hold mints at the plan's
             // own vertex, whose struts another pair's strut may nest in
             // ([`held_cut`] leaves a nested strut to [`holds_whole`]), so
@@ -1146,31 +1208,25 @@ fn holds_whole<T: Decide>(
 /// the other operand's vertex there, and when both pairs cross, both
 /// cut that vertex's orbit. Each plan read the orbit before any mint,
 /// and a mint keeps every half-edge outside its run where it was, so
-/// each run is planned to hold no other pair's cut: the runs are then
-/// disjoint, every later mint finds its run's half-edges still at the
-/// vertex, and its cuts land beside the earlier mint's in the order
-/// the corner reads. A run that holds one is turned the other way
-/// round its orbit, every run re-read until none turns (one turn can
-/// make another's nested run the one to turn), and the runs of its own
-/// pair it then holds mint at its copy ([`hang_at_shared`]); cuts along one
+/// no run may hold another pair's cut: the runs are then disjoint,
+/// every later mint finds its run's half-edges still at the vertex,
+/// and its cuts land beside the earlier mint's in the order the corner
+/// reads. The other operand's curves at the point are disjoint, but the
+/// regions they bound may nest, so a pair's kept-side runs can hold
+/// another's cuts; such a pair takes its other start, the pairs at a
+/// vertex choosing together ([`choose_starts`]). Cuts along one
 /// direction lie where the orbit's order reads their tie, by the sides
 /// of the line they lie beside ([`cut_order`]), and where it does not,
-/// by the runs ([`tied_held`]). A strut (whose
-/// other way round is the whole orbit) whose segment holds another
-/// pair's strut whole keeps it, the inner hanging at its tip
-/// ([`holds_whole`]): a piece with a reflex corner at the point leaves
-/// such a segment outside it. Another pair's cut strictly inside a
-/// strut's segment lies outside the strut's piece, and so does that
-/// pair's piece's In arc from it, up to the segment's ends: both its
-/// cuts lie in the segment, and its run is a strut that nests (the
-/// other way round would be the whole orbit). A null edge both of
-/// whose runs hold another pair's cut otherwise refuses
-/// [`BooleanError::SharedVertexCrossings`]: a fan whose two ways round
-/// both hold one, which needs a pair paired across the arcs outside its
-/// piece. Two crossing pairs that share both their
-/// vertices refuse
-/// [`BooleanError::NonManifoldResult`]: the result would hold a
-/// shared-entity wedge fan there.
+/// by the runs ([`tied_held`]). A strut (whose other way round is the
+/// whole orbit) whose segment holds another pair's strut whole keeps
+/// it, the inner hanging at its tip ([`holds_whole`]): a piece with a
+/// reflex corner at the point leaves such a segment outside it.
+///
+/// A vertex where no choice of starts is clear refuses
+/// [`BooleanError::SharedVertexCrossings`]: a pair's curve with other
+/// curves on both of its sides. Two crossing pairs that share both
+/// their vertices refuse [`BooleanError::NonManifoldResult`]: the
+/// result would hold a shared-entity wedge fan there.
 pub(super) fn reconcile_shared<T: Decide>(
     plans: &mut [NullPlan<T>],
     sectors: &[Orbits<'_, T>],
@@ -1192,68 +1248,142 @@ pub(super) fn reconcile_shared<T: Decide>(
             });
         }
     }
-    // Each pass re-reads every run against the others' current runs; a
-    // pass that turns none is the fixed point.
-    let limit = plans.iter().map(|p| p.runs.len()).sum::<usize>() + 1;
-    for _ in 0..limit {
-        if !reconcile_pass(plans, sectors, band)? {
-            return hang_at_shared(plans, sectors);
-        }
-    }
-    Err(BooleanError::ClassificationInvariant {
-        what: "the runs at a shared vertex do not settle",
-    })
-}
-
-/// **A run turned round a shared vertex holds what lay outside it.**
-/// [`reconcile_pass`] turns a run onto its complement to clear another
-/// pair's cuts, and the runs of its own pair that lay outside it then
-/// lie inside that complement, while those it held lie outside. So at
-/// each shared vertex every plan's holders are read again off its runs'
-/// arcs ([`arc_holders`]), B's nested pairings and turned runs as one
-/// laminar family, and each held run mints after its holders, at the
-/// copy of the innermost fan among them ([`Held`]): the shared vertex
-/// keeps what lies outside the plan's outermost runs, with the other
-/// pairs' ends, and each copy what its own fan holds, so no vertex is
-/// the In end of one null edge and the Out end of another
-/// ([`mint_directed`]). A run only struts hold stays at the shared
-/// vertex, among its struts ([`mint_plans`]). A turned run and a run of
-/// its plan that held it would cover the walk between them, and refuse
-/// [`BooleanError::SharedVertexCrossings`]: a backstop no known pose
-/// reaches.
-fn hang_at_shared<T: Decide>(
-    plans: &mut [NullPlan<T>],
-    sectors: &[Orbits<'_, T>],
-) -> Result<(), BooleanError> {
     for slot in 0..2 {
+        let mut done: Vec<VertexKey> = Vec::new();
         for i in 0..plans.len() {
             let Some(at) = shared_at(plans, sectors, slot, i) else {
                 continue;
             };
-            let runs: Vec<SideRun<T>> = plans[i].runs.iter().map(|r| r[slot]).collect();
-            let strut = runs
-                .iter()
-                .map(|r| is_strut(at.secs, r.from.cut.entry, r.to.cut.entry))
-                .collect::<Result<Vec<bool>, BooleanError>>()?;
-            let partners = [at.partner, ends(plans[at.others[0]].contact, slot).1];
-            let arcs: Vec<[usize; 2]> = runs.iter().map(|r| r.walk).collect();
-            let holders = arc_holders(&arcs).map_err(|refusal| match refusal {
-                ArcRefusal::Cover => BooleanError::SharedVertexCrossings {
-                    operand: at.operand,
-                    vertex: at.vertex,
-                    partners,
-                },
-                ArcRefusal::Crossing => BooleanError::ClassificationInvariant {
-                    what: "two runs of one plan cross in its walk after the reconcile",
-                },
-            })?;
-            let held = held_by(&holders, &strut);
-            for (r, held) in plans[i].runs.iter_mut().zip(held) {
-                r[slot].held = held;
+            if done.contains(&at.vertex) {
+                continue;
+            }
+            done.push(at.vertex);
+            let orbit = |j: usize| orbit_of(sectors, slot, j);
+            let same_reading = |o: &[BoolSector<T>]| {
+                o.len() == at.secs.len()
+                    && o.iter()
+                        .zip(at.secs)
+                        .all(|(x, y)| x.he == y.he && x.end_edge() == y.end_edge())
+            };
+            if !at.others.iter().all(|&j| same_reading(orbit(j))) {
+                return Err(BooleanError::ClassificationInvariant {
+                    what: "two readings of one vertex's orbit disagree",
+                });
+            }
+            let mut members: Vec<usize> = std::iter::once(i)
+                .chain(at.others.iter().copied())
+                .collect();
+            members.sort_by_key(|&j| ends(plans[j].contact, slot).1);
+            choose_starts(plans, &members, &at, slot, band)?;
+            for &j in &members {
+                for r in &mut plans[j].runs {
+                    r[slot].shared = true;
+                }
             }
         }
     }
     Ok(())
+}
+
+/// The most pairs one vertex's choice of starts reads
+/// ([`choose_starts`]): `2^CHOICE_PAIRS` choices at most.
+const CHOICE_PAIRS: usize = 12;
+
+/// **The starts of the pairs at one shared vertex**, chosen together:
+/// the choice with the fewest pairs off the kept side whose runs each
+/// hold no other pair's cut ([`held_cut`]), among choices of equal count
+/// the first in the order of the pairs' partner vertices, so the plans'
+/// order does not choose. `members` are the plans at the vertex, sorted
+/// so. Whether a run holds another's cut reads the other's run, a strut
+/// nesting in a strut ([`nested`]), so the pairs choose together, not
+/// one blocked pair at a time.
+///
+/// # Errors
+///
+/// [`BooleanError::SharedVertexCrossings`] where no choice is clear
+/// ([`super::SharedStarts::NoneClear`]), or the vertex holds more than
+/// [`CHOICE_PAIRS`] crossing pairs ([`super::SharedStarts::TooMany`]).
+fn choose_starts<T: Decide>(
+    plans: &mut [NullPlan<T>],
+    members: &[usize],
+    at: &SharedAt<'_, T>,
+    slot: usize,
+    band: Band,
+) -> Result<(), BooleanError> {
+    let partner = |j: usize, plans: &[NullPlan<T>]| ends(plans[j].contact, slot).1;
+    let refuse =
+        |blocker: Option<usize>, why, plans: &[NullPlan<T>]| BooleanError::SharedVertexCrossings {
+            operand: at.operand,
+            vertex: at.vertex,
+            partners: [
+                at.partner,
+                blocker.map_or(at.partner, |j| partner(j, plans)),
+            ],
+            why,
+        };
+    let choices = choice_order(members.len())
+        .map_err(|pairs| refuse(None, super::SharedStarts::TooMany { pairs }, plans))?;
+    let mut first_blocker = None;
+    for (n, &choice) in choices.iter().enumerate() {
+        let flip = |plans: &mut [NullPlan<T>]| {
+            for (b, &j) in members.iter().enumerate() {
+                if choice >> b & 1 == 1 {
+                    let p = &mut plans[j];
+                    std::mem::swap(&mut p.runs, &mut p.other);
+                }
+            }
+        };
+        flip(plans);
+        let blocker = blocked(plans, members, at.secs, slot, band)?;
+        if blocker.is_none() {
+            return Ok(());
+        }
+        if n == 0 {
+            first_blocker = blocker;
+        }
+        flip(plans);
+    }
+    Err(refuse(first_blocker, super::SharedStarts::NoneClear, plans))
+}
+
+/// **The order [`choose_starts`] reads the choices of `pairs` pairs'
+/// starts in**: each a bit set of the pairs off the kept side, the
+/// fewest first, then by the bits. More than [`CHOICE_PAIRS`] pairs is
+/// `Err(pairs)`: no choice is read.
+fn choice_order(pairs: usize) -> Result<Vec<u32>, usize> {
+    if pairs > CHOICE_PAIRS {
+        return Err(pairs);
+    }
+    let mut choices: Vec<u32> = (0..1u32 << pairs).collect();
+    choices.sort_by_key(|&m| (m.count_ones(), m));
+    Ok(choices)
+}
+
+/// Whether a run at the vertex of one of `members` holds another
+/// member's cut ([`held_cut`]): a held cut's owner. Any run that holds
+/// one answers, whatever another read ([`climb`], [`Answering::Any`]).
+fn blocked<T: Decide>(
+    plans: &[NullPlan<T>],
+    members: &[usize],
+    secs: &[BoolSector<T>],
+    slot: usize,
+    band: Band,
+) -> Result<Option<usize>, BooleanError> {
+    let mut reads: Vec<(SideRun<T>, Vec<OtherCut<T>>)> = Vec::new();
+    for &i in members {
+        let mut cuts: Vec<OtherCut<T>> = Vec::new();
+        for &j in members.iter().filter(|&&j| j != i) {
+            for r in &plans[j].runs {
+                cuts.extend(run_cuts(secs, r[slot], j, band)?);
+            }
+        }
+        reads.extend(plans[i].runs.iter().map(|r| (r[slot], cuts.clone())));
+    }
+    climb(Answering::Any, reads, |(run, cuts)| {
+        Rung::answers(held_cut(secs, run, &cuts, band), BooleanError::refusal)
+    })
+    .into_reading()
+    .and_then(Option::transpose)
 }
 
 /// Contact `c`'s two vertices as solid `slot` reads it: its own, then
@@ -1289,8 +1419,8 @@ struct SharedAt<'s, T: geom_core::Real> {
 }
 
 /// Crossing plan `i` read in solid `slot`, where another crossing plan
-/// shares its vertex there; `None` elsewhere. What [`reconcile_pass`]
-/// and [`hang_at_shared`] read at a shared vertex.
+/// shares its vertex there; `None` elsewhere. What [`reconcile_shared`]
+/// reads at a shared vertex.
 fn shared_at<'s, T: geom_core::Real>(
     plans: &[NullPlan<T>],
     sectors: &[Orbits<'s, T>],
@@ -1309,83 +1439,6 @@ fn shared_at<'s, T: geom_core::Real>(
         others,
         secs: orbit_of(sectors, slot, i),
     })
-}
-
-/// One pass of [`reconcile_shared`]: keeps each run that holds none of
-/// the other pairs' cuts, else turns it the other way round when that
-/// holds none, else refuses. Returns whether any run turned.
-fn reconcile_pass<T: Decide>(
-    plans: &mut [NullPlan<T>],
-    sectors: &[Orbits<'_, T>],
-    band: Band,
-) -> Result<bool, BooleanError> {
-    let mut turned = false;
-    for slot in 0..2 {
-        let key = |c: VvContact| ends(c, slot);
-        for i in 0..plans.len() {
-            let Some(SharedAt {
-                operand,
-                vertex,
-                partner,
-                others,
-                secs,
-            }) = shared_at(plans, sectors, slot, i)
-            else {
-                continue;
-            };
-            let orbit = |j: usize| orbit_of(sectors, slot, j);
-            let same_reading = |o: &[BoolSector<T>]| {
-                o.len() == secs.len()
-                    && o.iter()
-                        .zip(secs)
-                        .all(|(x, y)| x.he == y.he && x.end_edge() == y.end_edge())
-            };
-            if !others.iter().all(|&j| same_reading(orbit(j))) {
-                return Err(BooleanError::ClassificationInvariant {
-                    what: "two readings of one vertex's orbit disagree",
-                });
-            }
-            let mut cuts: Vec<OtherCut<T>> = Vec::new();
-            for &j in &others {
-                for r in &plans[j].runs {
-                    cuts.extend(run_cuts(secs, r[slot], j, band)?);
-                }
-            }
-            for k in 0..plans[i].runs.len() {
-                let current = plans[i].runs[k][slot];
-                let mut blocker = None;
-                let mut chosen = None;
-                for run in [current, current.reversed()] {
-                    // Not the run rule ([`walk_run`]): whether this way
-                    // round can mint at all.
-                    if spelled_reversed(secs, run.from.cut.entry, run.to.cut.entry)? {
-                        continue;
-                    }
-                    match held_cut(secs, run, &cuts, band)? {
-                        Some(j) => blocker = blocker.or(Some(j)),
-                        None => {
-                            chosen = Some(run);
-                            break;
-                        }
-                    }
-                }
-                let chosen = chosen.ok_or_else(|| {
-                    let other = blocker.map_or(partner, |j| key(plans[j].contact).1);
-                    BooleanError::SharedVertexCrossings {
-                        operand,
-                        vertex,
-                        partners: [partner, other],
-                    }
-                })?;
-                turned |= chosen.swapped != current.swapped;
-                plans[i].runs[k][slot] = SideRun {
-                    shared: true,
-                    ..chosen
-                };
-            }
-        }
-    }
-    Ok(turned)
 }
 
 /// `run`'s two cuts, as [`OtherCut`]s of `owner`.
@@ -1465,10 +1518,10 @@ fn held_cut<T: Decide>(
     let before = |p: Cut<T>, q: Cut<T>| walks_before(secs, p, q, band);
     // Any cut the run holds answers, whatever an earlier cut read
     // ([`climb`], [`Answering::Any`]). The owner is a witness only
-    // (`Answering::Any`'s diagnostic payload): `reconcile_pass` reads
-    // whether a cut is held to choose the way round, and the owner only
-    // names the second partner of the `SharedVertexCrossings` refusal it
-    // raises where neither way mints. A cut read in
+    // (`Answering::Any`'s diagnostic payload): [`choose_starts`] reads
+    // whether a cut is held to choose the pairs' starts, and the owner
+    // only names the second partner of the `SharedVertexCrossings`
+    // refusal it raises where no choice is clear. A cut read in
     // band is kept by its standing ([`BooleanError::refusal`]), refusing
     // only where no other cut is held. Each cut's reads are premises of
     // one another, so they stay inside its rung.
@@ -1518,13 +1571,12 @@ fn nested<T: Decide>(
 /// own piece's faces, give it, which [`segment`] records as after or
 /// before the cut. Runs on opposite sides are disjoint: not held. Runs
 /// on one side are nested: not held either, as the longer holds the
-/// shorter's far cut strictly and turns ([`reconcile_shared`]'s fixed
-/// point); unless both ends tie, one arc, which holds, and the other
-/// way round is the complement, on the opposite side, so a fan turns,
-/// while a strut's is the whole orbit. Struts nest before this reading
-/// ([`nested`]), at one arc too. No witness reaches a fan's one arc, nor
-/// the invariant that the two directions are opposite rays (a convex
-/// sector holds none).
+/// shorter's far cut strictly ([`reconcile_shared`] reads that);
+/// unless both ends tie, one arc, which holds. Struts nest before this
+/// reading ([`nested`]), at one arc too. Two pieces' In runs on one arc
+/// leave it from opposite ends, so no witness reaches a fan's one arc,
+/// nor the invariant that the two directions are opposite rays (a
+/// convex sector holds none).
 ///
 /// The far ends are one arc's only where they tie in the walk's own
 /// order ([`CutOrder::Tied`] with nothing reading the tie). Far ends
@@ -1814,10 +1866,8 @@ pub(super) type Cells = ((FaceKey, FaceKey), (super::Locus, super::Locus));
 /// Where [`mint_directed`] mints a run: in `operand` at `vertex`, the
 /// plan's own or the copy of the innermost fan of its plan that holds it,
 /// whose null half from that copy is `fan_half` ([`corner_bound`]).
-/// `by_strut`, in a plan any of whose runs is held ([`Held`]: B's
-/// nested pairing, or a run a turned run holds), says whether a strut of
-/// the plan holds the run directly; a turned run is a fan, so the runs
-/// it holds directly read `Some(false)`.
+/// `by_strut`, in a plan any of whose runs is held ([`Held`]), says
+/// whether a strut of the plan holds the run directly.
 #[derive(Clone, Copy)]
 struct MintSite {
     operand: Operand,
@@ -1828,8 +1878,7 @@ struct MintSite {
 
 /// Mints one solid's null edge along its planned run, forward
 /// `from → to`: `g0 → g1` unless that run crosses every real edge of
-/// the orbit ([`spelled_reversed`]) or holds another pair's cut at a
-/// shared vertex ([`reconcile_shared`]). The F12 run-side agreement guard
+/// the orbit ([`spelled_reversed`]). The F12 run-side agreement guard
 /// (`entry germ's exit code == closing germ's entry code`) applies to
 /// whichever direction was planned. Returns the record with the end on
 /// the run's side, where the runs it holds mint, and its null half from
@@ -1878,7 +1927,7 @@ fn mint_directed<T: Decide>(
             }
         }
         // In a nested plan the strut that holds it was named twice: by
-        // the walk order ([`b_runs`]) and here by the geometry.
+        // the walk order ([`run_holders`]) and here by the geometry.
         if by_strut.is_some_and(|b| b != holder.is_some()) {
             return Err(BooleanError::ClassificationInvariant {
                 what: "the walk order and the corner's geometry disagree on which strut holds a \
@@ -2911,31 +2960,92 @@ mod tests {
         assert!(matches!(err, BooleanError::ClassificationInvariant { .. }));
     }
 
-    /// The pairing start reads the op: it turns exactly when A's first
-    /// forward run lies on the side the op discards of A — In for ∪ and
-    /// `A ∖ B`, Out for ∩.
+    /// **A start pairs from a germ whose run lies on its side**
+    /// ([`start_pairs`]): pairs are consecutive in the lead's walk order
+    /// from the first germ whose forward run lies on the side asked,
+    /// whichever germ the walk lists first; the other side is the other
+    /// start.
     #[test]
-    fn the_pairing_start_puts_as_runs_on_the_side_the_op_keeps() {
+    fn a_start_pairs_from_a_germ_whose_run_lies_on_its_side() {
         use SideCode::{In, Out};
-        for (op, turns_on) in [
-            (BooleanOp::Union, In),
-            (BooleanOp::Intersect, Out),
-            (BooleanOp::Subtract, In),
-        ] {
-            for first in [In, Out] {
-                assert_eq!(
-                    pairing_start_turns(first, op),
-                    first == turns_on,
-                    "{op:?}, first run {first:?}"
-                );
-            }
-        }
+        let order = [2, 0, 3, 1];
+        let codes = [Out, In, In, Out];
+        assert_eq!(
+            start_pairs(&order, |i| codes[i], In),
+            vec![(2, 0), (3, 1)],
+            "In"
+        );
+        assert_eq!(
+            start_pairs(&order, |i| codes[i], Out),
+            vec![(0, 3), (1, 2)],
+            "Out"
+        );
+        assert_eq!(start_pairs(&[0, 1], |i| [Out, In][i], In), vec![(1, 0)]);
+        assert_eq!(start_pairs(&[0, 1], |i| [Out, In][i], Out), vec![(0, 1)]);
+    }
+
+    /// **The choices of a shared vertex's starts, in the order read**
+    /// ([`choice_order`]): the kept starts first, then one pair off the
+    /// kept side, then two; past [`CHOICE_PAIRS`] pairs none is read,
+    /// and the refusal says how many there were.
+    #[test]
+    fn a_shared_vertex_reads_its_choices_fewest_departures_first_up_to_its_cap() {
+        assert_eq!(
+            choice_order(3),
+            Ok(vec![0b000, 0b001, 0b010, 0b100, 0b011, 0b101, 0b110, 0b111]),
+            "three pairs"
+        );
+        assert_eq!(choice_order(0), Ok(vec![0]), "no pair");
+        assert_eq!(
+            choice_order(CHOICE_PAIRS).map(|c| c.len()),
+            Ok(1 << CHOICE_PAIRS),
+            "at the cap"
+        );
+        assert_eq!(
+            choice_order(CHOICE_PAIRS + 1),
+            Err(CHOICE_PAIRS + 1),
+            "past it"
+        );
+    }
+
+    /// **The lead is the shared vertex's solid, else A**
+    /// ([`pairing_leads`]): a pair that crosses nowhere shares nothing.
+    #[test]
+    fn the_lead_is_the_vertex_other_crossing_pairs_share() {
+        let (mut a, mut b) = (
+            slotmap::SlotMap::<VertexKey, ()>::with_key(),
+            slotmap::SlotMap::<VertexKey, ()>::with_key(),
+        );
+        let (a0, a1) = (a.insert(()), a.insert(()));
+        let (b0, b1) = (b.insert(()), b.insert(()));
+        let c = |a, b| VvContact { a, b };
+        let contacts = [c(a0, b0), c(a1, b0), c(a1, b1)];
+        assert_eq!(
+            pairing_leads(&contacts, &[true, true, false]),
+            vec![Operand::B, Operand::B, Operand::A],
+            "B's vertex shared by two crossing pairs"
+        );
+        assert_eq!(
+            pairing_leads(&contacts, &[false, true, true]),
+            vec![Operand::A, Operand::A, Operand::A],
+            "A's vertex shared"
+        );
+        assert_eq!(
+            pairing_leads(&contacts, &[true, false, true]),
+            vec![Operand::A; 3],
+            "nothing shared among the crossing pairs"
+        );
+        assert_eq!(
+            pairing_leads(&contacts, &[true, true, true]),
+            vec![Operand::B, Operand::A, Operand::A],
+            "the middle pair shares both: A leads, and the reconcile refuses"
+        );
     }
 
     /// A pair runs from the germ the other follows in the solid's walk
     /// order, either way round when there are two; a pair neither of
     /// whose germs follows the other has no run that holds no third
-    /// germ, and [`b_runs`] nests it.
+    /// germ, and [`run_holders`] nests it.
     #[test]
     fn f12_run_order_reads_cyclic_adjacency() {
         assert_eq!(run_order(4, 1, 2), Some(Some(false)), "forward");
@@ -3023,7 +3133,7 @@ mod tests {
             intersect: true,
             coincident: None,
         };
-        let plan = |laps: (usize, bool), recs: &[PairRecord], op| {
+        let plan = |laps: (usize, bool), recs: &[PairRecord], op, lead| {
             let (va, a_secs) = sectors_of(&abody, z, v3(1.0, 0.0, 0.0), v3(0.0, 1.0, 0.0), laps);
             let (vb, b_secs) = sectors_of(&bbody, x, v3(0.0, 1.0, 0.0), v3(0.0, 0.0, 1.0), laps);
             let p = plan_null_pairs(
@@ -3037,59 +3147,82 @@ mod tests {
                 &crate::boolean::GluedPairs::default(),
                 &crate::boolean::ReductionContacts::default(),
                 op,
+                lead,
                 band,
             )
             .unwrap();
             (p, a_secs)
         };
         // Four survivors in entries 0, 1, 3, 4 of a doubled orbit, their
-        // forward codes alternating Out, In: ∪ keeps A's Out runs and
-        // pairs from the first germ, ∩ keeps the In runs and turns.
+        // forward codes alternating Out, In: paired from the first In
+        // germ on the side the op keeps of the lead: Out for ∪ and for
+        // A in `A ∖ B`, In for ∩ and for B in `A ∖ B`.
         let four = [
             rec(0, (Out, In)),
             rec(1, (In, Out)),
             rec(3, (Out, In)),
             rec(4, (In, Out)),
         ];
-        for (op, want) in [
-            (BooleanOp::Union, [(0, 1), (3, 4)]),
-            (BooleanOp::Intersect, [(1, 3), (4, 0)]),
+        for (op, lead, want) in [
+            (BooleanOp::Union, Operand::A, [(0, 1), (3, 4)]),
+            (BooleanOp::Subtract, Operand::A, [(0, 1), (3, 4)]),
+            (BooleanOp::Intersect, Operand::A, [(1, 3), (4, 0)]),
+            (BooleanOp::Subtract, Operand::B, [(1, 3), (4, 0)]),
+            (BooleanOp::Union, Operand::B, [(0, 1), (3, 4)]),
+            (BooleanOp::Intersect, Operand::B, [(1, 3), (4, 0)]),
         ] {
-            let (p, _) = plan((2, false), &four, op);
-            let got: Vec<(usize, usize)> = p
-                .runs
-                .iter()
-                .map(|r| (r[0].from.cut.entry, r[0].to.cut.entry))
+            let (p, _) = plan((2, false), &four, op, lead);
+            let entries = |runs: &[[SideRun<f64>; 2]]| -> Vec<(usize, usize)> {
+                runs.iter()
+                    .map(|r| (r[0].from.cut.entry, r[0].to.cut.entry))
+                    .collect()
+            };
+            assert_eq!(entries(&p.runs), want, "{op:?}, {lead:?} leads: A's runs");
+            let other: Vec<(usize, usize)> = [(0, 1), (3, 4), (1, 3), (4, 0)]
+                .into_iter()
+                .filter(|r| !want.contains(r))
                 .collect();
-            assert_eq!(got, want, "{op:?}: A's runs");
+            assert_eq!(
+                entries(&p.other),
+                other,
+                "{op:?}, {lead:?} leads: the other start"
+            );
             assert!(
                 p.runs.iter().all(|r| !r[0].swapped),
-                "{op:?}: each runs forward from its pair's first germ"
+                "{op:?}, {lead:?} leads: each runs forward from its pair's first germ"
             );
         }
-        // Two survivors, either record order: forward unless
-        // [`spelled_reversed`]. On the bisected orbit, the forward run from the twin
-        // entry 3 to entry 2 crosses every edge, so it runs from 2.
-        for (recs, degenerates) in [
-            ([rec(0, (Out, In)), rec(1, (In, Out))], false),
-            ([rec(1, (In, Out)), rec(0, (Out, In))], false),
-            ([rec(3, (Out, In)), rec(2, (In, Out))], true),
-            ([rec(2, (In, Out)), rec(3, (Out, In))], false),
-        ] {
-            let (p, secs) = plan((1, true), &recs, BooleanOp::Union);
-            let r = p.runs[0][0];
-            let degenerate = spelled_reversed(&secs, recs[0].a, recs[1].a).unwrap();
-            assert_eq!(degenerate, degenerates, "{recs:?}: the fixture");
-            assert_eq!(r.swapped, degenerate, "{recs:?}");
-            assert_eq!(
-                (r.from.cut.entry, r.to.cut.entry),
-                if degenerate {
-                    (recs[1].a, recs[0].a)
-                } else {
+        // Two survivors, either record order: forward from the germ whose
+        // forward run lies on the kept side (In for ∩, Out for ∪) unless
+        // [`spelled_reversed`]. On the bisected orbit, one forward run from
+        // a kept germ crosses every edge, and runs from the other germ.
+        let mut degenerates = 0;
+        for op in [BooleanOp::Intersect, BooleanOp::Union] {
+            let kept = crate::boolean::finish::kept_side(op, Operand::A);
+            for recs in [
+                [rec(0, (Out, In)), rec(1, (In, Out))],
+                [rec(1, (In, Out)), rec(0, (Out, In))],
+                [rec(3, (Out, In)), rec(2, (In, Out))],
+                [rec(2, (In, Out)), rec(3, (Out, In))],
+                [rec(3, (In, Out)), rec(2, (Out, In))],
+            ] {
+                let (p, secs) = plan((1, true), &recs, op, Operand::A);
+                let r = p.runs[0][0];
+                let (on, off) = if recs[0].sa.0 == kept {
                     (recs[0].a, recs[1].a)
-                }
-            );
+                } else {
+                    (recs[1].a, recs[0].a)
+                };
+                let degenerate = spelled_reversed(&secs, on, off).unwrap();
+                degenerates += usize::from(degenerate);
+                assert_eq!(
+                    (r.from.cut.entry, r.to.cut.entry),
+                    if degenerate { (off, on) } else { (on, off) },
+                    "{op:?} {recs:?}"
+                );
+            }
         }
+        assert!(degenerates > 0, "the fixture spells a run as its strut");
     }
 
     /// **A run crossing every real edge is spelled as its strut, at any
@@ -3176,6 +3309,7 @@ mod tests {
             &crate::boolean::GluedPairs::default(),
             &crate::boolean::ReductionContacts::default(),
             BooleanOp::Intersect,
+            Operand::A,
             band,
         )
         .unwrap();
@@ -3366,17 +3500,16 @@ mod tests {
     /// **[`arc_holders`]' readings, and the chain [`held_by`] reads
     /// off them.** Six walk positions:
     /// - three nested arcs: each is held by the shortest arc round it;
-    /// - the pinch-first shared corner's six-crossing pair: a fan from 1
-    ///   to 4 holds a strut from 2 to 3 beside a fan from 5 to 0. Turned
-    ///   onto its complement, from 4 to 1, the fan holds the other fan
-    ///   and no longer the strut;
-    /// - a turned run inside a run of its plan that held it: the two
-    ///   cover the walk, each holding the other's ends, and refuse;
+    /// - a six-crossing pair nested in its walk: a fan from 1 to 4 holds
+    ///   a strut from 2 to 3 beside a fan from 5 to 0; with the fan from
+    ///   4 to 1 it holds the other fan and not the strut;
+    /// - two runs each holding the other's ends cover the walk, and
+    ///   refuse;
     /// - two pairs crossing refuse, and so do pairs that cross and cover
     ///   at once;
     /// - no run: no holder.
     #[test]
-    fn arc_holders_nest_the_runs_a_turn_reroots_and_refuse_a_cover() {
+    fn arc_holders_nest_the_runs_and_refuse_a_cover() {
         assert_eq!(
             arc_holders(&[[0, 5], [1, 4], [2, 3]]),
             Ok(vec![None, Some(0), Some(1)]),
@@ -3390,12 +3523,12 @@ mod tests {
         assert_eq!(
             arc_holders(&[[4, 1], [2, 3], [5, 0]]),
             Ok(vec![None, None, Some(0)]),
-            "the turn holds the run outside it, and leaves the one inside"
+            "the complement holds the run outside it, and leaves the one inside"
         );
         assert_eq!(
             arc_holders(&[[0, 5], [4, 1]]),
             Err(ArcRefusal::Cover),
-            "a turned run and its holder cover the walk"
+            "two runs each holding the other's ends cover the walk"
         );
         assert_eq!(
             arc_holders(&[[0, 2], [1, 3]]),
@@ -3425,14 +3558,14 @@ mod tests {
     /// adjacent and held by none. Two pairs that cross in B's walk order
     /// are no two simple links' crossings: refused.
     #[test]
-    fn f12_b_runs_nest_a_pair_and_refuse_a_crossing() {
+    fn f12_run_holders_nest_a_pair_and_refuse_a_crossing() {
         let pairs = [(0, 3), (2, 4), (5, 1)];
         let b_pos = [2, 3, 0, 5, 1, 4];
         let ways =
             |pos: &[usize]| pairs.map(|(i0, i1)| walk_run(6, pos[i0], pos[i1]).unwrap_or(false));
         assert_eq!(ways(&b_pos), [false, false, true], "nested: the ways round");
         assert_eq!(
-            b_runs(&pairs, &b_pos, &ways(&b_pos)),
+            run_holders(&pairs, &b_pos, &ways(&b_pos)),
             Ok(vec![None, None, Some(0)]),
             "nested"
         );
@@ -3445,17 +3578,17 @@ mod tests {
             "read from another start"
         );
         assert_eq!(
-            b_runs(&pairs, &turned, &ways(&turned)),
+            run_holders(&pairs, &turned, &ways(&turned)),
             Ok(vec![None, Some(0), None]),
             "nested, read from another start"
         );
         assert_eq!(
-            b_runs(&[(0, 2), (1, 3)], &[0, 1, 2, 3], &[false, false]),
+            run_holders(&[(0, 2), (1, 3)], &[0, 1, 2, 3], &[false, false]),
             Err(ArcRefusal::Crossing),
             "crossing"
         );
         assert_eq!(
-            b_runs(&[(0, 1), (2, 3)], &[0, 1, 2, 3], &[false, false]),
+            run_holders(&[(0, 1), (2, 3)], &[0, 1, 2, 3], &[false, false]),
             Ok(vec![None, None]),
             "four, adjacent"
         );
@@ -3482,7 +3615,7 @@ mod tests {
         out
     }
 
-    /// **[`b_runs`] over every matching B's walk can read, to ten
+    /// **[`run_holders`] over every matching a walk can read, to ten
     /// crossings.** A pairing is laid out with each germ at its own B
     /// position, read from every start round the walk and with each pair
     /// either way round. For every non-crossing one: each run walks
@@ -3492,7 +3625,7 @@ mod tests {
     /// germs, by containment. A pairing is refused exactly when two of
     /// its pairs cross (every perfect matching to eight).
     #[test]
-    fn b_runs_nest_every_non_crossing_matching_and_refuse_every_crossing_one() {
+    fn run_holders_nest_every_non_crossing_matching_and_refuse_every_crossing_one() {
         let crosses = |p: (usize, usize), q: (usize, usize)| {
             let ((a, b), (c, d)) = ((p.0.min(p.1), p.0.max(p.1)), (q.0.min(q.1), q.0.max(q.1)));
             (a < c && c < b) != (a < d && d < b)
@@ -3511,7 +3644,7 @@ mod tests {
                         let b_pos: Vec<usize> = (0..n).collect();
                         let ways = vec![false; m.len()];
                         assert_eq!(
-                            b_runs(m, &b_pos, &ways),
+                            run_holders(m, &b_pos, &ways),
                             Err(ArcRefusal::Crossing),
                             "crossing {m:?}"
                         );
@@ -3534,7 +3667,7 @@ mod tests {
                             .iter()
                             .map(|&(i0, i1)| walk_run(n, b_pos[i0], b_pos[i1]).unwrap_or(false))
                             .collect();
-                        let runs = b_runs(&pairs, &b_pos, &ways)
+                        let runs = run_holders(&pairs, &b_pos, &ways)
                             .unwrap_or_else(|e| panic!("refused {pairs:?}: {e:?}"));
                         let span = |k: usize| {
                             let (i0, i1) = pairs[k];

@@ -210,6 +210,9 @@ pub(super) enum RoleSeg {
         band: Vec<StableName>,
     },
     BandCut(NameRef),
+    BandSection {
+        vertex: NameRef,
+    },
     BandSlit {
         edge: NameRef,
         band: Vec<StableName>,
