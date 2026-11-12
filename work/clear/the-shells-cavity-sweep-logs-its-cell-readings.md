@@ -6,6 +6,7 @@ status: closed
 opened: 2026-11-11
 closed: 2026-11-12
 branch: clear/verdict-door
+pr: 6885
 priority: P2
 cost: E
 refs: [clearance-cell-enclosures-are-typed-as-the-interval-scalar]
@@ -23,7 +24,7 @@ Found by both designers on fork `clear-enclosure` (2026-11-11), reading the code
 
 The fork's answer may move where that scope lives, into the engine's door or into a type, so build this after the fork is decided if the decision lands soon.
 
-## Closed (2026-11-12, CLEAR's verdict-door lane)
+## Closed (2026-11-12, #6885)
 
 Measured: a shell at `Interval` did log the sweep's cell rows. With
 the scope dropped, the tube's shell logs 1,027 of them and the vessel's

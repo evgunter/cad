@@ -294,7 +294,7 @@ snowman.
 
 ### Lane A — the verdict door, one crossing, the engine's own scope (M) — done
 
-**Landed (CLEAR lane `clear/verdict-door`, 2026-11-12).**
+**Landed (PR 6885, 2026-11-12).**
 - The verdict door is `topo::clearance::embedded`, bounded on
   `Decide + CertifiedBounds`. It asks the strict question of a `Side`
   and answers `Embedding::{Embedded, Crosses(Crossing), Refused}` with
