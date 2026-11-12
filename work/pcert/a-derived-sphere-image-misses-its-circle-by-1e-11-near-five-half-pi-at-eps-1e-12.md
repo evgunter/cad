@@ -8,6 +8,7 @@ priority: P1
 cost: M
 refs: [a-closed-form-image-at-a-fuzz-seed-reads-its-coefficient-bound-in-band-at-eps-1e-12]
 branch: pcert/derived-sphere-image-accuracy
+pr: 6870
 closed: 2026-11-12
 ---
 
@@ -54,7 +55,7 @@ mint also refuses, never as certified).
 
 ## Closed
 
-Closed by `pcert/derived-sphere-image-accuracy`. The seed's great circle
+Closed by PR 6870 (`pcert/derived-sphere-image-accuracy`). The seed's great circle
 starts `4.4e-5` rad from the sphere's pole. The meridian arm read its
 azimuth direction `d̂` off the radial part `a − axis·(a·axis)`. That is
 a cancellation: its absolute error is about `ulp(r)`, so its direction
