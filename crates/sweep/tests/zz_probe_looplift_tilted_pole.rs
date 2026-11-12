@@ -20,7 +20,7 @@ use geom::Curve3;
 use geom_brep::{EdgeCurveSpec, Pcurve};
 use geom_core::{Band, Point3, Tol, Vec3};
 use topo::construction::{Construct, FaceSurface, MefSite, MevSite};
-use topo::{Body, FaceKey, LoopBoundary, face_azimuth_window_traces, validate, validate_pcurves};
+use topo::{Body, FaceKey, LoopBoundary, face_azimuth_window_traces, validate};
 
 pub(crate) fn band() -> Band {
     Band::linear(Tol::witness()).unwrap()
@@ -61,13 +61,23 @@ fn meridian_from_north() -> Curve3<f64> {
 /// element, and its start vertex's point.
 pub(crate) fn dump_face(body: &Body<f64>, fk: FaceKey) {
     let face = body.get_face(fk).unwrap();
-    println!("== face {fk:?} sense {} surface {:?}", face.sense, face.surface);
+    println!(
+        "== face {fk:?} sense {} surface {:?}",
+        face.sense, face.surface
+    );
     for lk in core::iter::once(face.outer).chain(face.rings.iter().copied()) {
         let LoopBoundary::Cycle { first } = body.get_loop(lk).unwrap().boundary else {
             println!("   loop {lk:?}: not a cycle");
             continue;
         };
-        println!("   loop {lk:?}{}", if lk == face.outer { " (outer)" } else { " (ring)" });
+        println!(
+            "   loop {lk:?}{}",
+            if lk == face.outer {
+                " (outer)"
+            } else {
+                " (ring)"
+            }
+        );
         for he in body.loop_cycle(first).unwrap() {
             let h = body.get_half_edge(he).unwrap();
             let p = body
@@ -132,7 +142,10 @@ pub(crate) fn dump_face(body: &Body<f64>, fk: FaceKey) {
 pub(crate) fn dump_body(name: &str, body: &Body<f64>) {
     println!("######## {name}");
     println!("tier 1: {:?}", validate(body));
-    println!("tier 3 (validate_pcurves): {:?}", validate_pcurves(body, band()));
+    println!(
+        "tier 3 (validate_geometric): {:?}",
+        topo::validate_geometric(body, Tol::witness())
+    );
     let faces: Vec<FaceKey> = body.faces().map(|(k, _)| k).collect();
     for fk in faces {
         dump_face(body, fk);
@@ -199,6 +212,42 @@ fn lens(beta: f64, sense: bool) -> Body<f64> {
     body
 }
 
+/// The boolean route to the same joint: a z-poled unit ball and a
+/// z-poled ball of radius 1.3 at `(1.2, 0, 0.5)`, whose sphere passes
+/// through the first ball's north pole. Their section circle (in the
+/// plane `2.4x + z = 1`) is tilted and passes through `N`, where the
+/// first ball's seam meridian puts a vertex.
+#[test]
+fn probe_a_tilted_section_through_the_pole_by_boolean() {
+    let tol = Tol::witness();
+    let a = sweep::test_support::finished(
+        "unit ball",
+        sweep::test_support::ball_poled_z(1.0, Vec3::new(0.0, 0.0, 0.0), tol),
+        tol,
+    );
+    let b = sweep::test_support::finished(
+        "the ball through N",
+        sweep::test_support::ball_poled_z(1.3, Vec3::new(1.2, 0.0, 0.5), tol),
+        tol,
+    );
+    for (name, got) in [
+        ("union", topo::boolean::union(&a, &b, tol)),
+        ("a minus b", topo::boolean::subtract(&a, &b, tol)),
+        ("intersection", topo::boolean::intersect(&a, &b, tol)),
+    ] {
+        match got {
+            Err(e) => println!("######## boolean {name}: refuses {e:?}"),
+            Ok(r) => match r.body() {
+                Some(fb) => {
+                    let body = fb.body.clone().into_body();
+                    dump_body(&format!("boolean {name}"), &body);
+                }
+                None => println!("######## boolean {name}: no body ({r:?})"),
+            },
+        }
+    }
+}
+
 #[test]
 fn probe_a_tilted_circle_through_the_pole() {
     for beta in [0.3, 0.6] {
@@ -209,7 +258,10 @@ fn probe_a_tilted_circle_through_the_pole() {
             let got = topo::mint_pcurves(&mut minted, Tol::witness());
             println!("-- after mint_pcurves (the at-rest mint pass): {got:?}");
             if got.is_ok() {
-                dump_body(&format!("lens β = {beta}, sense {sense}, re-minted"), &minted);
+                dump_body(
+                    &format!("lens β = {beta}, sense {sense}, re-minted"),
+                    &minted,
+                );
             }
         }
     }

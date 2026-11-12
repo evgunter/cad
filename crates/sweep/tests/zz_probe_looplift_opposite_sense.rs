@@ -28,7 +28,7 @@ use geom::Curve3;
 use geom_brep::EdgeCurveSpec;
 use geom_core::{Point3, Tol, Vec3};
 use topo::construction::{Construct, FaceSurface, MefSite, MevSite};
-use topo::{Body, FaceKey, LoopBoundary, LoopKey, face_azimuth_window_traces, validate_pcurves};
+use topo::{Body, FaceKey, LoopBoundary, LoopKey, face_azimuth_window_traces};
 
 use crate::zz_probe_looplift_tilted_pole::{band, dump_body, unit_sphere};
 
@@ -72,7 +72,7 @@ fn pole_joints(body: &Body<f64>, lk: LoopKey) -> String {
     out += &format!(
         " | window of its face: {:?} | tier 3: {:?}",
         face_azimuth_window_traces(body, l.face, band()),
-        validate_pcurves(body, band())
+        topo::validate_geometric(body, Tol::witness())
     );
     out
 }
@@ -136,7 +136,10 @@ fn probe_loop_moves_between_opposite_sense_faces() {
         spec,
         tol,
     );
-    println!("mef F1 with Shared {{ sense: false }}: {:?}", split.as_ref().map(|_| ()));
+    println!(
+        "mef F1 with Shared {{ sense: false }}: {:?}",
+        split.as_ref().map(|_| ())
+    );
     let f1 = match split {
         Ok(c) => c.face,
         Err(e) => {
@@ -152,7 +155,10 @@ fn probe_loop_moves_between_opposite_sense_faces() {
                     tol,
                 )
                 .unwrap();
-            println!("   set_face_sense(F1, false): {:?}", body.set_face_sense(c.face, false));
+            println!(
+                "   set_face_sense(F1, false): {:?}",
+                body.set_face_sense(c.face, false)
+            );
             c.face
         }
     };
@@ -197,8 +203,35 @@ fn probe_loop_moves_between_opposite_sense_faces() {
         spec,
         tol,
     );
-    println!("mef Fx with Shared {{ sense: false }}: {:?}", split.as_ref().map(|_| ()));
-    let fx = split.unwrap().face;
+    println!(
+        "mef Fx with Shared {{ sense: false }}: {:?}",
+        split.as_ref().map(|_| ())
+    );
+    let fx = match split {
+        Ok(c) => c.face,
+        Err(_) => {
+            let c = body
+                .mef(
+                    MefSite::Chords {
+                        he1: m3.he_minus,
+                        he2: from_b,
+                    },
+                    arc(mz, y),
+                    FaceSurface::Inherit,
+                    tol,
+                )
+                .unwrap();
+            println!(
+                "   Inherit, then set_face_sense(Fx, false): {:?}",
+                body.set_face_sense(c.face, false)
+            );
+            c.face
+        }
+    };
+    println!(
+        "mint_pcurves on the built body: {:?}",
+        topo::mint_pcurves(&mut body, tol)
+    );
     dump_body("built: F0 true, F1 false, Fx false", &body);
     let f1_loop = body.get_face(f1).unwrap().outer;
     println!("BEFORE kfmrh: {}", pole_joints(&body, f1_loop));
@@ -241,7 +274,10 @@ fn probe_loop_moves_between_opposite_sense_faces() {
     // A same-sense control: Fx's loop onto F1, both sense false.
     let mut k2 = body.clone();
     let got = k2.kfmrh(f1, fx);
-    println!("kfmrh(F1 false, Fx false) (same sense, control): {:?}", got.as_ref().map(|_| ()));
+    println!(
+        "kfmrh(F1 false, Fx false) (same sense, control): {:?}",
+        got.as_ref().map(|_| ())
+    );
     if got.is_ok() {
         let lk = body.get_face(fx).unwrap().outer;
         println!("AFTER control kfmrh: {}", pole_joints(&k2, lk));

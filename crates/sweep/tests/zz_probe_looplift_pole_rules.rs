@@ -74,7 +74,10 @@ fn slits(body: &Body<f64>) -> Vec<(String, Body<f64>)> {
             let mut slit = body.clone();
             slit.kef(he).unwrap();
             assert_eq!(validate(&slit), Ok(()));
-            (format!("dome slit (meridian {i}, killed from {half})"), slit)
+            (
+                format!("dome slit (meridian {i}, killed from {half})"),
+                slit,
+            )
         })
         .collect()
 }
@@ -230,7 +233,10 @@ fn flat(travs: &[Vec<(f64, f64)>], du: impl Fn(usize) -> f64) -> Vec<(f64, f64)>
         let t = &travs[k];
         out.extend(t[..t.len() - 1].iter().map(|&(u, v)| (u + du(k), v)));
         let last = (t[t.len() - 1].0 + du(k), t[t.len() - 1].1);
-        let next = (travs[(k + 1) % m][0].0 + du((k + 1) % m), travs[(k + 1) % m][0].1);
+        let next = (
+            travs[(k + 1) % m][0].0 + du((k + 1) % m),
+            travs[(k + 1) % m][0].1,
+        );
         #[allow(clippy::float_cmp)]
         if at_pole(last.1) && last != next {
             out.push(last);
@@ -446,4 +452,17 @@ fn probe_pole_rule_agreement() {
     }
     report("hemisphere_on_flat_base", &hemisphere());
     report("tilted_sphere_pair", &tilted_sphere_pair());
+    // The same fixtures reverted (`Body::revert`): every face sense false.
+    let reverted = |name: &str, b: Body<f64>| match b.revert() {
+        Ok(r) => report(&format!("{name} REVERTED"), &r),
+        Err(e) => println!("== {name}: revert refuses {e:?}"),
+    };
+    reverted("dome", dome());
+    for (name, slit) in slits(&dome()) {
+        reverted(&name, slit);
+    }
+    reverted("ball", ball());
+    reverted("sphere_wedge(0.7854)", sphere_wedge(PI / 4.0));
+    reverted("sphere_wedge(4.7124)", sphere_wedge(1.5 * PI));
+    reverted("tilted_sphere_pair", tilted_sphere_pair());
 }
