@@ -133,6 +133,7 @@ pub mod body;
 pub mod boolean;
 pub(crate) mod bound_side;
 pub(crate) mod boxes;
+pub(crate) mod carve;
 pub mod cell_region;
 pub(crate) mod census;
 pub mod chart;
@@ -154,6 +155,7 @@ pub mod euler_kill;
 pub mod euler_ring;
 pub mod face_boxes;
 pub mod face_normal;
+pub(crate) mod face_reach;
 mod finish;
 #[cfg(test)]
 pub(crate) mod fixtures;
@@ -176,6 +178,7 @@ pub mod link;
 pub(crate) mod live;
 pub(crate) mod loop_side;
 pub(crate) mod loop_winding;
+pub(crate) mod meeting;
 pub mod merge_faces;
 pub mod mirror;
 pub mod movefac;
@@ -1383,6 +1386,7 @@ mod tier3_tests;
 pub mod transform;
 #[cfg(test)]
 mod turn_rows;
+pub(crate) mod unresolved;
 pub mod validate;
 pub use edge_wedge::{edge_wedge, edge_wedge_description, edge_wedge_walk};
 mod wedge_reach;
@@ -1509,6 +1513,11 @@ pub use provenance::{Provenance, SplitLineageCycle};
 // The query VOCABULARY rides at the root like every other type;
 // the query DOORS (materializers, predicates) keep their module
 // identity, like `readback`'s.
+pub use carve::{CarveError, NotOneSolid};
+pub use chord_join::{
+    ApexSectionReading, ConicCrossingsCase, JoinError, OrderDecision, SectionEndReading,
+    SectionPinMiss,
+};
 pub use face_boxes::{FaceBox, FaceBoxes};
 #[cfg(debug_assertions)]
 pub use finish::finishes_on_this_thread;
@@ -1538,16 +1547,16 @@ pub use shell::{
     HoleRim, RimNaming, RimShell, ShellError, ShellNaming, ShellRetired, Shelled, shell, shell_open,
 };
 pub use splitting::{
-    ApexSectionReading, BoundClass, ConicCrossingsCase, Escalation, KnifeEdge, KnifeEdgeSite,
-    LoopContainment, LoopDecision, NullEdgeRecord, OffPlane, OffPlaneCause, PlaneSide,
-    PointInLoopError, Section, SectionEdge, SectionEndReading, SectionError, SectionGermFault,
-    SectionGermReading, SectionPinMiss, SectionPolygon, SectionRegion, SectorReading,
-    SplitContacts, SplitError, SplitFinishError, SplitJoinError, SplitPart, SplitPlane,
+    BoundClass, Escalation, FinishDesync, KnifeEdge, KnifeEdgeSite, LoopContainment, LoopDecision,
+    NullEdgeRecord, OffPlane, OffPlaneCause, PlaneSide, PointInLoopError, Section, SectionEdge,
+    SectionError, SectionGermFault, SectionGermReading, SectionPolygon, SectionRegion,
+    SectorReading, SplitContacts, SplitError, SplitFinishError, SplitPart, SplitPlane,
     SplitReduceError, SplitReduction, SplitResult, TangencyReadings, Uncrossable,
     UncrossableCarrier, classify_neighborhood, plane_section, point_in_loop, split, split_reduce,
     vertex_sides,
 };
 pub use transform::{Isometry, TransformError, transform_rigid};
+pub use unresolved::Unresolved;
 pub use validate::{
     AtRestBody, CensusContact, CensusSubject, CensusUnsupportedCause, ContactMark,
     CrossingSideVerdict, INSIDE_OUT_REFUSAL, OrientationUnread, RingContact, RingPairContact,

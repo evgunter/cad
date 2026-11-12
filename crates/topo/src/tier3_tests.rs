@@ -3251,9 +3251,8 @@ fn a_solid_with_a_genuine_cavity_certifies() {
 /// a cavity half-edge, the carve refuses rather than leave the link dangling.
 #[test]
 fn the_carve_refuses_to_drop_a_record_a_kept_one_names() {
+    use crate::carve::{CarveError, carve};
     use crate::entity::LoopBoundary;
-    use crate::splitting::SplitFinishError;
-    use crate::splitting::finish::carve;
     let tol = Tol::witness();
     let mut body = Body::<f64>::new();
     cube_solid(&mut body, (0.0, 0.0, 0.0), 1.0, false, tol);
@@ -3284,7 +3283,7 @@ fn the_carve_refuses_to_drop_a_record_a_kept_one_names() {
     assert!(
         matches!(
             carve(&shared_vertex, keeper, &shells[..1]),
-            Err(SplitFinishError::Corrupt)
+            Err(CarveError::KeptStartsAtDropped { .. })
         ),
         "a kept half-edge starting at a dropped vertex"
     );
@@ -3299,7 +3298,7 @@ fn the_carve_refuses_to_drop_a_record_a_kept_one_names() {
     assert!(
         matches!(
             carve(&shared_edge, keeper, &shells[..1]),
-            Err(SplitFinishError::Corrupt)
+            Err(CarveError::KeptSharesEdge { .. })
         ),
         "a kept edge naming a dropped half-edge"
     );
@@ -3311,7 +3310,7 @@ fn the_carve_refuses_to_drop_a_record_a_kept_one_names() {
     assert!(
         matches!(
             carve(&shared_lone, keeper, &shells[..1]),
-            Err(SplitFinishError::Corrupt)
+            Err(CarveError::KeptLoopHoldsDropped { .. })
         ),
         "a kept lone-vertex loop holding a dropped vertex"
     );
