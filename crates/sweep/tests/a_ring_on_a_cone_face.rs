@@ -316,11 +316,31 @@ fn the_overlap_is_its_grid_integral() {
     );
 }
 
+/// **One body reads alike whichever operand was written first**: the
+/// two ∪ orders' volume enclosures, `widths[0]` and `widths[1]`, are as
+/// wide as each other within a factor of three. A plane face's measure
+/// is read about a point its storage does not move
+/// (`geom_brep::props::face_anchor`); read about the first point of its
+/// loops, each plane face is levered from wherever its traversal starts,
+/// and the two orders' widths stand 7.7 times apart (measured).
+fn one_body_reads_alike_in_both_orders(widths: &[f64]) {
+    let [ab, ba, ..] = widths[..] else {
+        return;
+    };
+    assert!(
+        ab.max(ba) <= 3.0 * ab.min(ba),
+        "cone ∪ box reads {ab:e} wide, box ∪ cone {ba:e}: one body's width depends on the order \
+         its operands were written in"
+    );
+}
+
 /// **The ring's volume at the certified scalar.** T1 built at
 /// `Interval` (the cone revolved from the same triangle, the box turned
 /// and moved by the same maps, lifted): ∪ and cone ∖ box, which keep
 /// the lune as a ring on the cone face, pass tier 3 and their volume
-/// enclosures bracket the closed forms (about 1.3e-11 wide, measured).
+/// enclosures bracket the closed forms (2.6e-11 and 5e-11 wide for the
+/// two ∪ orders, measured), as wide as each other in both orders
+/// ([`one_body_reads_alike_in_both_orders`]).
 /// At the 1e-12 row the build stops before the volume, typed: the join
 /// certifies each section on its surfaces, and that residual's
 /// enclosure, ±1.3e-12 wide, escalates against the band's 1e-12.
@@ -365,6 +385,7 @@ fn the_rings_volume_brackets_its_closed_form_at_the_certified_scalar() {
     );
     let vc = core::f64::consts::PI * R * R * height() / 3.0;
     let i = overlap(0.6);
+    let mut widths = Vec::new();
     for (op, r, want) in [
         ("cone ∪ box", topo::union(&c, &x, tol), vc + 216.0 - i),
         ("box ∪ cone", topo::union(&x, &c, tol), vc + 216.0 - i),
@@ -403,7 +424,9 @@ fn the_rings_volume_brackets_its_closed_form_at_the_certified_scalar() {
             v.lo(),
             v.hi()
         );
+        widths.push(v.hi() - v.lo());
     }
+    one_body_reads_alike_in_both_orders(&widths);
 }
 
 /// **A ringed cone face's sense is checked against its boundary.** In
@@ -494,6 +517,7 @@ fn the_rings_volume_brackets_its_closed_form_through_point_maps() {
     );
     let vc = core::f64::consts::PI * R * R * height() / 3.0;
     let i = overlap(0.6);
+    let mut widths = Vec::new();
     for (op, r, want) in [
         ("cone ∪ box", topo::union(&c, &x, tol), vc + 216.0 - i),
         ("box ∪ cone", topo::union(&x, &c, tol), vc + 216.0 - i),
@@ -515,5 +539,7 @@ fn the_rings_volume_brackets_its_closed_form_through_point_maps() {
             v.lo(),
             v.hi()
         );
+        widths.push(v.hi() - v.lo());
     }
+    one_body_reads_alike_in_both_orders(&widths);
 }

@@ -2305,8 +2305,9 @@ their freedoms. Every bundle pins its copy. The mate tool is the
 **placement editor** (`matetool::MateTool`), whose draft is one
 placement's whole bundle, as the profile editor's is one profile's
 program. A body is placed by one gesture, **Place**
-(`SessionOp::Place`), which inserts its placement into the body's own
-space standing where the body is, with no mates and every slide and
+(`SessionOp::Place`), which inserts its placement into the target the
+op names; the viewer's Place names the body's own space, so the copy
+stands where the body is, with no mates and every slide and
 spin at zero (taking over what read the body along a seen path, never
 a copy's source), and opens the editor on it (**A create gesture
 commits the node**, above). A pick on a body picked as itself is Place
@@ -2392,14 +2393,25 @@ unpinned, two spaces, a side off the copy, a pick its kind cannot read
 stays open through every change (`ToolKind::commits` closes it on
 none). A copy that would not stand (a fault, or a read that does not
 evaluate) is not written: `SessionOp::SetBundle` refuses it
-(`Refusal::PlacementFails`), and the editor holds the draft. Where `to` is read in another space
-than the one the copy is placed into, the door refuses the Edit,
-`EditError::SpaceMismatch` naming both spaces: the gesture never moves
-a copy as a side effect. The panel's "move the copy into the target's
-space" choice asks for the move by name
-(`MateProposal::op_into_target_space`): the same action stands the copy
-by the identity bundle where its bundle holds a mate and re-targets the
-placement into `to`'s space before writing the bundle.
+(`Refusal::PlacementFails`), and the editor holds the draft. **A placement's target is its own property, and no mate changes it**
+(Ev, 2026-11-01). The editor's first row is the target ("into:
+<space>"), and re-seating it is the one edit that changes a placement's
+target: a live change like any other, judged by the same door and
+undone as one step. The target is picked as a body (its space) or as
+the world or a new space. A mate is a constraint of one placement and
+reads its `to` in that placement's target: a `to` picked in another
+space is held, the panel naming both spaces, with "into <that space>"
+beside it as a target change of its own. A target change keeps every
+value's number, now on the new target's axes, so changing the target
+back restores the document. It keeps every mate as written; a mate
+whose `to` reads the old space makes the copy fail, so the change is
+held, each such row marked, until its `to` is re-picked or it is struck
+("strike the N that read <old space>", the freed values measured where
+the copy stood, as `remove` measures them). Reads of the copy left in
+the old space are admitted, unresolved and typed (D10
+`[placement.spaces]`, as deleting a variable leaves its readers): the
+change names each one it strands and marks it on its row, and one undo
+takes it back.
 `SessionOp::AddMate` is the API's spelling of one mate added to a
 placement's draft and applied as the editor applies it.
 
@@ -2453,9 +2465,10 @@ written. The editor's own first pick takes the same route
 nothing, said: a profile, a pattern's family (its values are the rule;
 the pattern is edited instead), and a split picked whole, which asks for
 its half. Place refuses a copy (`Refusal::PlaceOnACopy`): a copy is
-edited by its own placement. A combine re-places an operand from
-another space at the pose it held, by values on the first operand's
-space's axes. Nothing a place gesture writes reads the copy's geometry.
+edited by its own placement. A combine places an operand nothing
+places into the first operand's space; it changes no existing
+placement's target, and refuses a copy in another space, naming that
+copy's into row. Nothing a place gesture writes reads the copy's geometry.
 
 **A delete splices by continuation** (DM6,
 `crates/editor-core/REFERENCES.md`; `editor_core::continuation::splice`). The
@@ -2482,7 +2495,7 @@ body's tree row, and as the action of the `EmptyProduct`,
 `StrandedProduct` and `unused` recourses, each one action and one undo:
 a copy in the world is added to the slot (`SetProduct`); a placement's
 copy that nothing in its space reads (no operand, no mate pose, no
-pick) has its placement re-targeted into the world, a space the
+pick) has its placement re-targeted into the world by the target edit, a space the
 gesture minted and left empty deleted, and is added; any other body is
 placed into the world by the identity bundle and that copy added. A
 fresh body therefore reports `unused` (D10 `[operations]`), with this
@@ -2499,7 +2512,7 @@ refuses one (`Refusal::ValueNotRemoved`) — and opens the editor with
 that mate struck out, a change offered as every other is, the freed
 values measured where the copy stands; the op writes the same draft. `SessionOp::IntoOwnSpace` gives a copy a
 space of its own — a `new_space()`, the placement re-targeted into it
-at the identity — which the Properties pane offers beside the free-move
+by the target edit, its values kept — which the Properties pane offers beside the free-move
 probe's refusal for a copy in the world.
 
 **The rule reads the document alone.** The mate reads poses off
