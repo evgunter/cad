@@ -2,11 +2,12 @@
 id: topo-shared-cores-hosted-in-one-half
 kind: issue
 title: topo — two shared cores still hosted inside one half, finish and plane_crossing_lane
-status: open
+status: dispatched
 opened: 2026-08-20
 refs: [690, S5, S173]
 priority: P1
 cost: H
+branch: onedoor/shared-cores
 ---
 
 ## From GitHub issue 695
