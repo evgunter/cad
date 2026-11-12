@@ -6510,6 +6510,29 @@ fn class_circle<T: Decide>(
     }
 }
 
+/// A sphere meridian's azimuth direction `d̂`: the direction of `â_r`, or
+/// of `b̂_r` at a pole start, read as that radial part's length along
+/// `m = e × n`, the one horizontal direction in the carrier's plane
+/// (normal `n = a × b`, chart axis `e`). The class holds a centred great
+/// circle whose plane contains the axis, so `a` and `b`, and their radial
+/// parts, lie in that plane. A radial part is a cancellation
+/// (`v − e·(v·e)`) whose error is an ulp of the radius, so where it is
+/// short (a start near the pole) its own direction is off by that ulp
+/// over its length, across the plane and toward the axis; `m` is read off
+/// the long `e` and `n`, and the short part sets only a length along it.
+/// The derivation reads its azimuth off `d̂`, and [`incidence()`] models the
+/// image with it, so the two read the one direction.
+fn sphere_meridian_direction<T: Real>(form: &Harmonic3<T>, axis: Vec3<T>, pole: bool) -> Vec3<T> {
+    let part = if pole { form.b } else { form.a };
+    let radial = part - axis * part.dot(axis);
+    #[cfg(test)]
+    if mutants::sphere_meridian_unprojected() {
+        return radial.normalize();
+    }
+    let m = axis.cross(form.a.cross(form.b));
+    (m * (m.dot(radial) / m.norm_squared())).normalize()
+}
+
 /// Check 4's **incidence** terms: a bound on `sup |S(P_d(t)) − C(t)|`
 /// for the image `P_d` that [`derive_harmonic`] builds from `form`
 /// under `derivation`, in the carrier's own coefficients and the
@@ -6638,7 +6661,7 @@ fn incidence<T: Decide>(
             let radial = |v: Vec3<T>| v - axis * v.dot(axis);
             let w = c - center;
             let (h, w_r) = (w.dot(axis), radial(w));
-            let (a_r, b_r) = (radial(a), radial(b));
+            let a_r = radial(a);
             let aa = a.dot(axis);
             terms.add(Line, l.norm() * reach);
             match derivation {
@@ -6652,30 +6675,26 @@ fn incidence<T: Decide>(
                     // The image turns `(1 + k)·(a′·cos t + σ·b′·sin t)` with
                     // `a′ = ‖a_r‖·d̂ + (a·e)·e` and `b′ = ‖a_r‖·e − (a·e)·d̂`
                     // (`‖a′‖ = ‖b′‖ = ‖a‖`), `d̂` the azimuth direction the
-                    // derivation read: `â_r`, where `a′ = a` and `b′ = J·a`, or
-                    // `b̂_r` at a pole start. A pole start with `b_r` zero too
+                    // derivation read ([`sphere_meridian_direction`]): `â_r`
+                    // in the carrier's plane, where `a′` is `a` up to that
+                    // plane's part of `a_r`, or `b̂_r` at a pole start. A pole start with `b_r` zero too
                     // is no circle; its `b̂_r` is NaN or an entire enclosure,
                     // which refuses at the envelope's decision.
                     // On the far half the derivation read `d̂` negated, and
                     // `‖a_r‖` with it: the same `a′`, `b′`.
                     let flip = if far { T::zero() - T::one() } else { T::one() };
                     let s_r = a_r.norm() * flip;
-                    let d = if pole {
-                        b_r.normalize()
-                    } else {
-                        a_r.normalize()
-                    } * flip;
+                    let d = sphere_meridian_direction(&form, axis, pole) * flip;
                     let jb = (axis * s_r - d * aa) * angle_rate::<T>(sigma);
                     let k = stretch(radius, radius.powi(2), a);
                     terms.add(Centre, w.norm());
+                    let ja = d * s_r + axis * aa;
+                    let cos_part = ja * k + (ja - a);
+                    #[cfg(test)]
                     let cos_part = if pole {
-                        let ja = d * s_r + axis * aa;
-                        let cos_part = ja * k + (ja - a);
-                        #[cfg(test)]
-                        let cos_part = mutants::pole_start_under(a, k).unwrap_or(cos_part);
-                        cos_part
+                        mutants::pole_start_under(a, k).unwrap_or(cos_part)
                     } else {
-                        a * k
+                        cos_part
                     };
                     let pair = harmonic_sup(cos_part, jb * k + (jb - b));
                     #[cfg(test)]
@@ -6699,7 +6718,7 @@ fn incidence<T: Decide>(
                         pole,
                         radius,
                         (a, b),
-                        (a_r, b_r),
+                        (a_r, radial(b)),
                         (aa, b.dot(axis)),
                         read,
                         jb,
@@ -11406,11 +11425,7 @@ fn derive_class_zero<T: Decide>(
                             Sign::Positive | Sign::Negative => true,
                             Sign::Zero => false,
                         };
-                    let d_hat = if use_a {
-                        a_r.normalize()
-                    } else {
-                        b_r.normalize()
-                    };
+                    let d_hat = sphere_meridian_direction(&form, axis, !use_a);
                     // σ: the polar rate at t = 0 is v′(0) = σ, and
                     // e′(0)·axis = ba, with e·axis = r·sin v ⇒
                     // ba = r·cos δ·σ. At a pole start (cos δ = 0) the
