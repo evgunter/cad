@@ -232,3 +232,22 @@ crossing lane and the edge-on-face lane (plan.md, Order).
   - **Correction:** both rows keep their findings and are marked `excluded` as recorded in error. Neither unit is a model-compare row, since no draw was made. Both are missing data for both questions.
   - **Code:** the reviews themselves were full, with a fix pass and a verifier, so the merged code is unaffected.
   - **From the next unit on:** RESTREAD dispatches under the model comparison. — (RESTREAD orchestrator)
+- 2026-11-12 — PR 6854 (`restread/self-touch-refuses`) merges. It closes `a-self-touch-point-its-tangent-cones-leave-to-second-order-passes-unread`.
+  - **What it does:**
+    - It carries out Ev's ruling on PR 6847: a self-touch point the reading reaches and cannot decide refuses `BoundaryCrossesItselfUndecided` with its cause.
+    - `census::SelfTouch` and the skip are gone.
+    - A sign in band reports `InBand`.
+    - Two decided overlaps report `Crossing`, each argued in a README clause: a thorn inside one-material sectors, and an apex nappe with its axis on the wrong side.
+  - **Results:** skipped triples go 2 → 0; the two NURBS triples refuse. Measured at `172d5bb04d` against `0951e6260c`, and re-taken by the reviewer at `f162f739de`. No triple read at the base changes verdict.
+  - **Two valid slow-set bodies now refuse:** two cones meeting at one apex on two carriers, and a ridge's ends on an arc wall tangent to its floor. They are pinned as typed refusals and filed P1:
+    - `two-cones-apex-lobes-on-two-carriers-refuse-a-valid-body`;
+    - `a-ridge-end-on-an-arc-wall-tangent-to-its-floor-refuses-unreadable`.
+
+    This is an orchestrator ruling, on the pattern of Ev's PR 6847 ruling. PR 6847's measurement of zero rows red covered only the nine sweep families, and these two rows lie outside them.
+  - **Also filed:**
+    - the pose-dependent lune (P2);
+    - the wrong-kind lens that could cross (P3);
+    - the wrong-cause labels, as one row (P3);
+    - the cause arms no row reaches (P3).
+  - **Tier:** dual, sequential (letter M), under `docs/MODEL-COMPARE-PROTOCOL.md`. Row: `docs/model-compare-log/rows/PR-6854.md`. The review was APPROVE-WITH-FIXES with no MAJOR, so there was no second review.
+  - **Fix pass:** rows for two unpinned crossing guards, the thorn clause reworded, `at_apex` enumerated, and the README class list checked against its return sites. — (RESTREAD orchestrator)
