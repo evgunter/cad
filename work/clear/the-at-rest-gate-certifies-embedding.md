@@ -292,7 +292,58 @@ before C. Otherwise C's gate refuses 23 tour bodies at their doors,
 among them the lily, the teapot's handle, the heatsinks and the
 snowman.
 
-### Lane A — the verdict door, one crossing, the engine's own scope (M)
+### Lane A — the verdict door, one crossing, the engine's own scope (M) — done
+
+**Landed (PR 6885, 2026-11-12).**
+- The verdict door is `topo::clearance::embedded`, bounded on
+  `Decide + CertifiedBounds`. It asks the strict question of a `Side`
+  and answers `Embedding::{Embedded, Crosses(Crossing), Refused}` with
+  its receipt. The verifier lives in the door. Lane C's gate calls the
+  same door, so it gets the witness verifier with it.
+- The shell's `cavity_embedded` maps the door's answer onto
+  `CavityCrosses` / `CavityUncertified`. Its `lift` parameter is gone.
+- **The f64 switch moved out** to
+  `the-f64-cavity-gate-refuses-thirty-two-valid-shells` (P0). Asked at
+  f64, the gate refused 32 valid shell rows the engine cannot certify
+  yet: 22 out of pairs, 8 on the departure arm, 2 at a window. The
+  orchestrator ruled that the spec's ordering covers it, so it waits on
+  the engine rows. The shell asks through `CavityGate`, only where the
+  measure door answers (`Interval`, `Sym<Interval>`). The coaxial and
+  dumbbell f64 pins, and the mutant that skips the shell's gate at f64,
+  went with it.
+- The verifier reads `Candidate::enclosure`: the window carriers the
+  engine already crossed. So neither the door nor the shell lifts a
+  chart, and no caller spells `Interval::from_certified`.
+- `Sweep::run` and `min_separation` run their whole walk under
+  `k_stats::unlogged("F41")`. F28, F29 and F30 are gone. F29's
+  dimension disposition moved into F17. The one logged reading, the
+  box-dependent cue in `wire_clearance`, is F41's stated exception.
+- One deviation in change 1. The engine's own crossings (`window_of`,
+  `boundary_of`, `cell_region`) still call `Interval::from_certified`
+  in place. They do not go through a function the lane value holds,
+  because the internals are generic over `T` and are never handed the
+  lane. The rule "no caller crosses" holds; "one function on the lane"
+  holds as the lane's bound and doc.
+- Measured: the f64 "curved window" row was never a crossing. Its
+  dumbbell carried its bulges on the blob walls, not the neck
+  (evidence added to
+  `shell/offset-corner-on-surface-escalates-at-interval-on-an-arc-necked-extrude`).
+  The fixture now bows the neck. Its Interval row still refuses in the
+  offset door, and at f64 it would refuse `CavityCrosses` (the moved
+  row's pin).
+- Pins:
+  - `the_measure_door_answers_at_the_enclosure_scalars_and_nowhere_else`
+    and `the_verdict_door_answers_at_every_certifying_scalar` (a cube at
+    f64, Interval, `Sym<f64>`, `Sym<Interval>`, and Probe under the
+    feature), plus `embedded`'s `compile_fail` doctest at `Dual64`;
+  - `holds` (the tube and the vessel at `Interval`), which asserts the
+    shell logs none of the engine's cell readings.
+- Mutants, both run:
+  - the door answering `Embedded` at f64 with nothing read reds the
+    verdict table;
+  - `Sweep::run` without its scope reds the tube (1,027 rows logged),
+    the vessel (588) and editor-core's notch node (2,140 verdicts and
+    297 escalations).
 
 Items 1 and 7, and changes 1 and 4. Rows touched: this one, and
 `the-shells-cavity-sweep-logs-its-cell-readings` (closes).
@@ -357,6 +408,11 @@ Change 2, at the three sites of section 4. Rows touched: this one.
   singular vertices.
 
 ### Lane C — the gate asks the certificate (H)
+
+**Note from lane A's review (PR 6885).** Until change 3 lands here, a
+shell at `Interval` that refuses `CavityCrosses` or `CavityUncertified`
+carries no logged reading: the witness confirmation runs inside F41's
+scope. Change 3 is what puts that one row in the log.
 
 Items 2 and 3, and change 3. It needs lane A, and the engine rows
 filed below. Rows touched: this one, and

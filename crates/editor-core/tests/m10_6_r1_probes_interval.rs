@@ -228,10 +228,10 @@ fn true_notch_clearance() -> f64 {
 
 /// **The engine's readings stay out of the clearance node's log.** The
 /// notch's sweep decides cells and stations at every level, and every
-/// one of those readings runs in the unlogged scope (audit row F30), so
-/// the node records none of their rows and none of their in-band
-/// escalations. Breaks if the scope is removed: measured, the node then
-/// holds 2140 region-reading verdicts and 297 escalations.
+/// one of those readings runs in the engine's unlogged scope (audit row
+/// F41), so the node records none of their rows and none of their
+/// in-band escalations. Breaks if the scope is removed: measured, the
+/// node then holds 2140 region-reading verdicts and 297 escalations.
 #[test]
 fn the_notch_clearance_records_none_of_the_engines_region_readings() {
     let n = notch_nodes(0.2, AssertionRelation::AtLeast);
