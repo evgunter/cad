@@ -69,10 +69,15 @@ fn sole_whole(reads: &[(VarId, bool)]) -> Option<VarId> {
 /// the delete's to say ([`splice`]), not the cut's.
 pub fn continues<P: crate::ProfilePayload>(doc: &Doc<P>, node: RecipeNodeId) -> Option<VarId> {
     match doc.node(node)? {
-        Node::Fillet { selection, .. } | Node::Chamfer { selection, .. } => {
-            doc.selection(*selection).map(|select| select.body)
-        }
-        Node::Shell { open, .. } => doc.selection(*open).map(|select| select.body),
+        // A member read is no variable a reader could read in its place.
+        Node::Fillet { selection, .. } | Node::Chamfer { selection, .. } => doc
+            .selection(*selection)
+            .filter(|select| !select.body.is_indexed())
+            .map(|select| select.body.read),
+        Node::Shell { open, .. } => doc
+            .selection(*open)
+            .filter(|select| !select.body.is_indexed())
+            .map(|select| select.body.read),
         Node::Union { members } | Node::Intersect { members } | Node::Assemble { members } => {
             match members {
                 Bodies::Spelled(reads) => sole_whole(
@@ -373,10 +378,15 @@ fn handed<P: crate::ProfilePayload>(
         }
         Operand::Node(_) | Operand::Output { .. } => Ok(Some(read.clone())),
         Operand::Select { body, names } => {
-            Ok(handed(doc, dead, body, at)?.map(|body| Operand::Select {
-                body: Box::new(body),
-                names: names.iter().map(|name| back(dead, name)).collect(),
-            }))
+            Ok(
+                handed(doc, dead, &body.read, at)?.map(|read| Operand::Select {
+                    body: Box::new(crate::BodyRead {
+                        read,
+                        at: body.at.clone(),
+                    }),
+                    names: names.iter().map(|name| back(dead, name)).collect(),
+                }),
+            )
         }
         Operand::Pose(def) => {
             let mut fault = None;
@@ -728,7 +738,7 @@ fn rebinds<P: crate::ProfilePayload>(
         let VarDef::Select(select) = held.def() else {
             continue;
         };
-        let on_a_carrier = bodies.contains(&select.body);
+        let on_a_carrier = bodies.contains(&select.body.read);
         for name in &select.names {
             if !on_a_carrier
                 && !crate::resolve::derivation_reads(name)
@@ -743,9 +753,9 @@ fn rebinds<P: crate::ProfilePayload>(
                 name.clone()
             };
             let to = crate::names::recarried_by(&top, &carry).unwrap_or(top);
-            if to != *name && seen.insert((select.body, name.clone())) {
+            if to != *name && seen.insert((select.body.read, name.clone())) {
                 out.push(DocEdit::Rebind {
-                    body: Some(select.body),
+                    body: Some(select.body.read),
                     from: name.clone(),
                     to,
                 });

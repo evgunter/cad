@@ -1092,9 +1092,19 @@ pub struct ConicHarmonics<T> {
     /// its form at its own factor, and `λ_ρ`, `λ_h` the levers its
     /// projections' rounding enters at (the magnitudes `d·â`, `u·â`,
     /// `v·â`, `⊥d` and `n × u` are formed at, read per component) — the
-    /// scale their rounding is charged against, read at
-    /// the semi-axes' MAGNITUDES (a signed or ordered read under-charges a
-    /// negative `semi_u`, or a `semi_v` stored larger).
+    /// scale their rounding is charged against.
+    ///
+    /// **Every charge here reads the semi-axes through
+    /// [`Conic::speed_hi`]**, the larger stored one, and that is
+    /// `max(|a|, |b|)` because a conic's semi-axes are positive lengths:
+    /// the edge certificate refuses a stored semi-axis that is not a
+    /// finite number or is definitely negative
+    /// (`CertifyError::SemiAxisNotFinite`, `CertifyError::SemiAxisNegative`)
+    /// before any charge reads it, and its span check reads a zero one
+    /// as a collapsed length (`CertifyError::StatedInterval`). This is
+    /// the invariant's one statement for this module's charges: these
+    /// terms, the cone's reach in [`conic_cone_harmonics`] and
+    /// [`conic_axis_distance_floor`]'s terms each read it.
     pub terms: T,
     /// The length the m² form is divided by to give the polynomial:
     /// `2r` on a sphere or a wall, the carrier's reach from the apex on
@@ -1123,11 +1133,19 @@ fn quadric_harmonics<T: Real>(
     let (up, vp) = (perp(conic.frame().u_ref), perp(conic.frame().v_ref()));
     let (aa, bb) = (a.powi(2) * up.norm_squared(), b.powi(2) * vp.norm_squared());
     let per = two * r;
+    #[cfg(test)]
+    let c2_bb = if crate::pcurve_cache::mutants::ellipse_term_dropped() {
+        a.powi(2) * vp.norm_squared()
+    } else {
+        bb
+    };
+    #[cfg(not(test))]
+    let c2_bb = bb;
     ConicHarmonics {
         c0: (e.norm_squared() + (aa + bb) * half - r.powi(2)) / per,
         c1: two * a * e.dot(up) / per,
         s1: two * b * e.dot(vp) / per,
-        c2: (aa - bb) * half / per,
+        c2: (aa - c2_bb) * half / per,
         s2: a * b * up.dot(vp) / per,
         terms: (d.norm() + conic.speed_hi()).powi(2) + r.powi(2),
         per,
@@ -1210,22 +1228,32 @@ pub fn conic_cone_harmonics<T: Real>(
     let (e, up, vp) = (perp(d), perp(u), perp(v));
     // `|⊥q|²`, the wall's form before its `r²` and its division.
     let (aa, bb) = (a.powi(2) * up.norm_squared(), b.powi(2) * vp.norm_squared());
+    // `h² = (h₀ + h_u cos θ + h_v sin θ)²`.
+    let (h0, hu, hv) = (d.dot(c_axis), a * u.dot(c_axis), b * v.dot(c_axis));
+    #[cfg(test)]
+    let (c2_bb, c2_hv) = if crate::pcurve_cache::mutants::ellipse_term_dropped() {
+        (a.powi(2) * vp.norm_squared(), a * v.dot(c_axis))
+    } else {
+        (bb, hv)
+    };
+    #[cfg(not(test))]
+    let (c2_bb, c2_hv) = (bb, hv);
     let wall = [
         e.norm_squared() + (aa + bb) * half,
         two * a * e.dot(up),
         two * b * e.dot(vp),
-        (aa - bb) * half,
+        (aa - c2_bb) * half,
         a * b * up.dot(vp),
     ];
-    // `h² = (h₀ + h_u cos θ + h_v sin θ)²`.
-    let (h0, hu, hv) = (d.dot(c_axis), a * u.dot(c_axis), b * v.dot(c_axis));
     let height = [
         h0.powi(2) + (hu.powi(2) + hv.powi(2)) * half,
         two * h0 * hu,
         two * h0 * hv,
-        (hu.powi(2) - hv.powi(2)) * half,
+        (hu.powi(2) - c2_hv.powi(2)) * half,
         hu * hv,
     ];
+    // `speed_hi` bounds both semi-axes: the invariant `ConicHarmonics::terms`
+    // states.
     let reach_m = d.norm() + conic.speed_hi();
     let pad = T::from_f64(CEILING_PAD);
     let per = reach_m * pad;
@@ -1236,8 +1264,17 @@ pub fn conic_cone_harmonics<T: Real>(
     // wide cone's tiny `cos²α` charges its large radial terms only that
     // much, and a circle across the axis charges no radial reach to its
     // height.
-    let radial_reach = e.norm() + crate::harmonic::harmonic_sup(up * a, vp * b);
-    let axial_reach = h0.abs() + harmonic_sup_scalar(hu, hv);
+    // The charge's own read of the second semi-axis (a mutant reads it
+    // as the first's, `|a| = |b|`).
+    let (b_c, hv_c) = (b, hv);
+    #[cfg(test)]
+    let (b_c, hv_c) = if crate::pcurve_cache::mutants::charge_circular() {
+        (a, a * v.dot(c_axis))
+    } else {
+        (b_c, hv_c)
+    };
+    let radial_reach = e.norm() + crate::harmonic::harmonic_sup(up * a, vp * b_c);
+    let axial_reach = h0.abs() + harmonic_sup_scalar(hu, hv_c);
     // Each part also carries the rounding of the projections it is read
     // from, which is not relative to the part: `d·â`, `u·â` and `v·â`
     // round at the scale of their products' magnitudes however small
@@ -1262,7 +1299,7 @@ pub fn conic_cone_harmonics<T: Real>(
         abs_dot(u, c_axis),
         abs_dot(v_abs, c_axis),
     );
-    let (a_m, b_m) = (a.abs(), b.abs());
+    let (a_m, b_m) = (a.abs(), b_c.abs());
     let radial_lever = d.norm()
         + T::from_f64(5.0) * d_dot
         + T::from_f64(4.0) * a_m * u_dot
@@ -1417,6 +1454,8 @@ pub(crate) fn conic_axis_distance_floor<T: Real>(conic: &dyn Conic<T>, axis: geo
         perp(conic.frame().v_ref()),
     );
     let (aa, bb) = (a.powi(2) * up.norm_squared(), b.powi(2) * vp.norm_squared());
+    // `speed_hi` bounds both semi-axes: the invariant `ConicHarmonics::terms`
+    // states.
     let terms = (d.norm() + conic.speed_hi()).powi(2);
     let near_sq = e.norm_squared() + (aa + bb) * half
         - harmonic_sup_scalar(two * a * e.dot(up), two * b * e.dot(vp))
@@ -1594,11 +1633,19 @@ pub fn conic_torus_harmonics<T: Real>(
     let rr = major_radius.powi(2);
     let k = rr - minor_radius.powi(2);
     let zero = T::zero();
+    #[cfg(test)]
+    let c2_bb = if crate::pcurve_cache::mutants::ellipse_term_dropped() {
+        a.powi(2) * v.norm_squared()
+    } else {
+        bb
+    };
+    #[cfg(not(test))]
+    let c2_bb = bb;
     let s = (
         [
             w.norm_squared() + (aa + bb) * half,
             two * a * w.dot(u),
-            (aa - bb) * half,
+            (aa - c2_bb) * half,
             zero,
             zero,
         ],

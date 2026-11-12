@@ -18,7 +18,7 @@ use profile::{Profile, SketchPlane, test_support::bulge_loop};
 use sweep::ExtrudeSide;
 use sweep::blend::arms::BlendArm;
 use sweep::blend::battery::{BlendRequest, ChainClosure, Convexity, run_battery};
-use sweep::blend::{BlendError, CornerConfig, RunOutPolicy};
+use sweep::blend::{BlendError, CornerConfig};
 use sweep::test_support::{ball_poled_y, block, circle_arcs_at_z, disc_of_arcs, realized};
 use sweep::{Extrusion, extrude};
 use topo::boolean::BooleanOp;
@@ -457,13 +457,6 @@ fn p5_convexity_sign_flip_refuses_across_the_notch() {
                 Convexity::Convex => convex += 1,
                 Convexity::Concave => concave += 1,
             },
-            // A concave vertical edge terminates at vertices whose
-            // corner is mixed-convexity — a predicate-6 refusal that
-            // still proves the sign was read.
-            Err(BlendError::UnsupportedCorner {
-                corner: CornerConfig::MixedConvexity { .. },
-                ..
-            }) => concave += 1,
             other => panic!("unexpected: {other:?}"),
         }
     }
@@ -478,36 +471,38 @@ fn p5_convexity_sign_flip_refuses_across_the_notch() {
 // Predicate 6 — fillet3_corner_independence, and the OQ6 vocabulary.
 // ---------------------------------------------------------------------
 
-/// The notch's reflex vertical edge terminates at vertices where two
-/// convex edges meet one concave one: `MixedConvexity { convex: 2 }`,
-/// and the policy that would handle it is `RunOutFeather` (a corner
-/// patch cannot help when the ball changes sides).
+/// The notch's reflex vertical edge ends at vertices where two convex
+/// edges meet it, the odd one. Requested with one of those convex edges
+/// it refuses `MixedConvexity { convex: 2 }`, naming no run-out policy:
+/// the mixed corner's own rule is not built.
 #[test]
-fn p6_mixed_convexity_corner_refuses_naming_the_feather_policy() {
+fn p6_mixed_convexity_corner_refuses_the_odd_edge_with_another() {
     let body = notched();
-    let reflex = body
-        .edges()
-        .filter_map(|(k, e)| {
-            let c = body.get_curve_geom(e.curve)?.certified()?;
-            let (t0, t1) = c.params();
-            let d = c.carrier().eval(t1) - c.carrier().eval(t0);
-            (d.z.abs() > 0.9 * d.norm()).then_some(k)
-        })
-        .find(|k| {
-            let req = BlendRequest {
-                body: &body,
-                edges: vec![*k],
-                size: 0.1,
-            };
-            matches!(
-                run_battery(&req, band()),
-                Err(BlendError::UnsupportedCorner { .. })
-            )
-        })
-        .expect("the reflex edge");
+    let point = |v| *body.get_point(body.get_vertex(v).unwrap().point).unwrap();
+    let ends = |k: EdgeKey| {
+        let he = body.get_edge(k).unwrap().he_plus;
+        [
+            point(body.get_half_edge(he).unwrap().start),
+            point(body.half_edge_end(he).unwrap()),
+        ]
+    };
+    let at = |p: geom_core::Point3<f64>, q: [f64; 3]| {
+        (p.x - q[0]).abs() + (p.y - q[1]).abs() + (p.z - q[2]).abs() < 1e-12
+    };
+    let between = |a: [f64; 3], b: [f64; 3]| {
+        body.edges()
+            .map(|(k, _)| k)
+            .find(|&k| {
+                let [s, t] = ends(k);
+                (at(s, a) && at(t, b)) || (at(s, b) && at(t, a))
+            })
+            .unwrap_or_else(|| panic!("an edge between {a:?} and {b:?}"))
+    };
+    let reflex = between([1.0, 1.0, 0.0], [1.0, 1.0, 1.0]);
+    let rim = between([1.0, 1.0, 1.0], [2.0, 1.0, 1.0]);
     let req = BlendRequest {
         body: &body,
-        edges: vec![reflex],
+        edges: vec![reflex, rim],
         size: 0.1,
     };
     match run_battery(&req, band()) {
@@ -517,7 +512,7 @@ fn p6_mixed_convexity_corner_refuses_naming_the_feather_policy() {
             ..
         }) => {
             assert_eq!(convex, 2);
-            assert_eq!(policy, Some(RunOutPolicy::RunOutFeather));
+            assert_eq!(policy, None);
         }
         other => panic!("expected a mixed-convexity corner refusal, got {other:?}"),
     }

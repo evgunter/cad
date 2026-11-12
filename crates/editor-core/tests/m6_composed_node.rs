@@ -116,6 +116,7 @@ fn target_read(
             doc.selection(*selection)
                 .expect("a fillet reads a selection")
                 .body
+                .read
         }
         other => panic!("{fillet} is a fillet, got {other:?}"),
     }
