@@ -315,7 +315,7 @@ Built as re-decided (`## Decided, revised`).
 - **Family 2:** all 22 tests of its file pass.
 - **The dual pose:** `a_peg_in_a_pocket_tangent_to_its_rim_builds_its_unions_and_intersections`.
 - **Mutants**, all on this head: an Out default (the dual `∩`), an In default (family 2), no other start (the witness, `SharedVertexCrossings`) and the restored check (the witness, `JoinDesync`) are each red on a named test. Greedy one-pair flipping survives, consistent with the measured independence.
-- **Slow sets:** topo and sweep with `--ignore-default-filter` at default ε ran 7,803 tests with 8 red, all 8 red on main too.
+- **Slow sets:** topo and sweep with `--ignore-default-filter` ran 7,803 tests at default ε with 8 red, and 7,803 at 1e-6 with 19 red. Every red is red on main too.
 
 **Filed:**
 - `a-pair-curve-with-partner-curves-on-both-sides-refuses-shared-vertex-crossings` (GAUGE, P3), the typed limit;
