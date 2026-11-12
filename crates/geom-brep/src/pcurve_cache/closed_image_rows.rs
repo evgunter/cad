@@ -2087,6 +2087,38 @@ fn enclosed_miss(
         .fold(0.0, f64::max)
 }
 
+/// How the mint door ends `image` on `surface` over `span`, where it ends
+/// short of certifying: at `f64` any refusal, and at `Interval` any but
+/// an escalation. An interval enclosure of a pole start's short radial
+/// part is wide (its width over its length), and reads in band; that is
+/// the lever, never a refusal of a correct image.
+fn mint_refusals(
+    surface: &Surface<f64>,
+    carrier: &Curve3<f64>,
+    image: &Pcurve<f64>,
+    (t0, t1): (f64, f64),
+) -> Vec<String> {
+    let f64_door =
+        super::PcurveCache::<f64>::certify(image.clone(), t0, t1, carrier, surface, band());
+    let interval_door = super::PcurveCache::<Interval>::certify(
+        lift::<Interval>(image),
+        Interval::from_certified(t0),
+        Interval::from_certified(t1),
+        &carrier.map_scalar(Interval::from_certified),
+        &surface.map_scalar(Interval::from_certified),
+        band(),
+    );
+    let mut out = Vec::new();
+    if let Err(e) = f64_door {
+        out.push(format!("mint f64: {e:?}"));
+    }
+    match interval_door {
+        Ok(_) | Err(super::PcurveCertifyError::Escalated { .. }) => {}
+        Err(e) => out.push(format!("mint interval: {e:?}")),
+    }
+    out
+}
+
 /// A pinned seed's name, its sphere, its great circle and its span.
 type PinnedMeridian = (&'static str, Surface<f64>, Curve3<f64>, (f64, f64));
 
@@ -2196,7 +2228,7 @@ fn a_pole_start_meridian_at_a_fuzz_seed_certifies() {
     for (seed, sphere, carrier, span) in pole_start_meridians() {
         let image = chart_pcurve_over(&carrier, span.0, span.1, &sphere, band())
             .unwrap_or_else(|e| panic!("{seed}: the meridian derives: {e:?}"));
-        let miss = enclosed_miss(&sphere, &carrier, &image, span, 4096);
+        let miss = enclosed_miss(&sphere, &carrier, &image, span, 1024);
         if miss >= 1e-13 {
             off.push(format!("{seed}: {image:?} misses its circle by {miss:e}"));
         }
@@ -2205,6 +2237,9 @@ fn a_pole_start_meridian_at_a_fuzz_seed_certifies() {
             if got.is_err() {
                 off.push(format!("{seed} at {}: {image:?}: {got:?}", door.name));
             }
+        }
+        for refusal in mint_refusals(&sphere, &carrier, &image, span) {
+            off.push(format!("{seed} at the {refusal}"));
         }
     }
     assert!(
@@ -2282,11 +2317,14 @@ fn a_derived_circle_image_is_on_its_circle_where_its_azimuth_shows_most() {
             ] {
                 let image = chart_pcurve_over(&carrier, span.0, span.1, &surface, b)
                     .unwrap_or_else(|e| panic!("the {what} circle at s = {s:e} derives: {e:?}"));
-                let miss = enclosed_miss(&surface, &carrier, &image, span, 512);
+                let miss = enclosed_miss(&surface, &carrier, &image, span, 256);
                 if miss >= 1e-13 {
                     missed.push(format!(
                         "{what} at u0 = {u0}, s = {s:e}: {image:?} by {miss:e}"
                     ));
+                }
+                for refusal in mint_refusals(&surface, &carrier, &image, span) {
+                    missed.push(format!("{what} at u0 = {u0}, s = {s:e}, at the {refusal}"));
                 }
                 read += 1;
             }
