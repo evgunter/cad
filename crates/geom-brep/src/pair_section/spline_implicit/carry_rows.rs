@@ -336,11 +336,13 @@ fn rod_arcs(w: &Surface<f64>, s: f64, r: f64) -> [Vec<Point3<f64>>; 2] {
 /// arc's witness and every point of each arc (bisected along the wall's
 /// iso-lines) reads on that arc and on no other (`CarriedSection::site`);
 /// refused, the refusal is [`CarryRefusal::PadsMeet`]. A site read on two
-/// arcs that share no node is a desync, so neither may be met.
+/// arcs that share no node is a desync, so neither may be met. At
+/// `r = 0.15` the arcs stand about three rungs apart, and are carried.
 ///
-/// Red against: a pad an eighth of the arc's length (the window read
-/// whole), which reaches across to the other arc: a witness on two
-/// components.
+/// Red against: the carry holding no arcs apart, with a pad an eighth of
+/// the arc's length (the window read whole), which reaches across to the
+/// other arc: a witness on two components; and, with the arcs held apart,
+/// the window read whole, which refuses at `r = 0.15`.
 #[test]
 fn each_point_of_two_close_rim_arcs_reads_on_its_own_arc_or_the_carry_refuses() {
     for s in [1e-2, 1.0, 10.0] {
@@ -348,7 +350,9 @@ fn each_point_of_two_close_rim_arcs_reads_on_its_own_arc_or_the_carry_refuses() 
             let w = wall(s);
             let carried = match listed(&w, &rod(s, r)).carry(Some(SsiLane::marched()), band()) {
                 Ok(carried) => carried,
-                Err(CarryError::Refused(CarryRefusal::PadsMeet { .. })) => continue,
+                // Three rungs apart, the arcs carry: a measurement held as
+                // a tripwire on the pad's cells, not a bound the code proves.
+                Err(CarryError::Refused(CarryRefusal::PadsMeet { .. })) if r < 0.15 => continue,
                 Err(e) => panic!("s = {s}, r = {r}: carried, or refused by name: {e:?}"),
             };
             let [lower, upper] = carried.components() else {
