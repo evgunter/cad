@@ -219,7 +219,10 @@ fn two_own_space_copies(tol: Tol) -> (DocSession, RecipeNodeId, RecipeNodeId, Re
     session.pump();
     let mut copies = Vec::new();
     for _ in 0..2 {
-        let out = session.perform(SessionOp::Place { body: body.into() });
+        let out = session.perform(
+            SessionOp::place_where_it_stands(session.committed_doc(), body.into())
+                .expect("a body in a space"),
+        );
         assert!(out.refusal.is_none(), "{:?}", out.refusal);
         session.pump();
         copies.push(out.made.expect("a placement"));
@@ -468,7 +471,10 @@ fn a_place_into_the_bodys_own_space_is_a_copy() {
     let body = common::xy_box_in(&mut session, SIZE);
     session.pump();
     let place = |session: &mut DocSession| {
-        let out = session.perform(SessionOp::Place { body: body.into() });
+        let out = session.perform(
+            SessionOp::place_where_it_stands(session.committed_doc(), body.into())
+                .expect("a body in a space"),
+        );
         assert!(out.refusal.is_none(), "{:?}", out.refusal);
         session.pump();
         out.made.expect("a placement")
@@ -533,9 +539,10 @@ fn designer_as_worked_example() {
     session.pump();
     let mut copies = Vec::new();
     for _ in 0..2 {
-        let out = session.perform(SessionOp::Place {
-            body: bracket.into(),
-        });
+        let out = session.perform(
+            SessionOp::place_where_it_stands(session.committed_doc(), bracket.into())
+                .expect("a body in a space"),
+        );
         assert!(out.refusal.is_none(), "{:?}", out.refusal);
         copies.push(out.made.expect("a placement"));
     }
@@ -726,7 +733,9 @@ fn delete_splices_by_continuation() {
     let mut session = common::inline_without_door(Doc::empty_derived("dup", tol), tol);
     let body = common::xy_box_in(&mut session, SIZE);
     session.pump();
-    let placed = common::session_insert(&mut session, SessionOp::Place { body: body.into() });
+    let place = SessionOp::place_where_it_stands(session.committed_doc(), body.into())
+        .expect("a body in a space");
+    let placed = common::session_insert(&mut session, place);
     let (doc, world_copy) = viewer::test_support::inserted(
         session.committed_doc(),
         common::world_place(Operand::Node(placed)),
@@ -775,7 +784,10 @@ fn bracket(name: &str, tol: Tol) -> (DocSession, RecipeNodeId) {
 
 /// One Place of `body`, landed.
 fn place(session: &mut DocSession, body: RecipeNodeId) -> RecipeNodeId {
-    let out = session.perform(SessionOp::Place { body: body.into() });
+    let out = session.perform(
+        SessionOp::place_where_it_stands(session.committed_doc(), body.into())
+            .expect("a body in a space"),
+    );
     assert!(out.refusal.is_none(), "{:?}", out.refusal);
     session.pump();
     out.made.expect("a placement")
@@ -1508,7 +1520,10 @@ fn the_offer_leaves_out_a_placement_read_through_a_mate() {
     let tol = Tol::witness();
     let (mut session, body) = bracket("rc-mate-cycle", tol);
     let place = |session: &mut DocSession| {
-        let out = session.perform(SessionOp::Place { body: body.into() });
+        let out = session.perform(
+            SessionOp::place_where_it_stands(session.committed_doc(), body.into())
+                .expect("a body in a space"),
+        );
         assert!(out.refusal.is_none(), "{:?}", out.refusal);
         session.pump();
         out.made.expect("a copy")
@@ -1530,7 +1545,6 @@ fn the_offer_leaves_out_a_placement_read_through_a_mate() {
                 Operand::select(Operand::Node(c2), vec![top_name(body)]),
             )),
             values: Vec::new(),
-            into_target_space: false,
         },
     );
     let (mut session, u) = with(

@@ -63,3 +63,12 @@ generic body (`a_stated_wrong_general_row_keeps_its_term::<T>`) and left
 the two `#[test]` wrappers alone, so its first gated run (run
 43019583177) selected 0 slow tests. Naming the rows in the generic's doc
 made the gate select them.
+
+## Recurrence, noted by PCERT's orchestrator (2026-11-11/12)
+
+The class came back three more times in one sitting. Each time, geom-brep's `recourse_roster` went red on main after a merge, and PR CI never ran it:
+- onehome 6717: a `rigid_motion.rs` site, mended by PR 6813;
+- sectarms f0f80143: a test operand `x`, mended by PR 6842;
+- band 72188539ad: two closures that forward their callers' names, mended on `pcert/roster-band-rows`.
+
+Each occurrence costs a main red and a mend. The priority is green's call.
