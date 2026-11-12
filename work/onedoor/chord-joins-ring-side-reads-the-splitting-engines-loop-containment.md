@@ -46,3 +46,14 @@ move clears. The cited rises include `contain_loop.rs`, the containment
 door's `From<PointInLoopError> for ContainError` (moved out of
 `boolean/contain.rs` by PR 6683). It is mechanical, but it touches about twenty files, so it
 costs M.
+
+## Evidence (`topo-shared-cores-hosted-in-one-half`, 2026-11-12)
+
+After that unit, loop containment is the only thing `chord_join.rs`
+names from `splitting/`: `point_in_loop`, `LoopContainment` and
+`PointInLoopError` at `JoinError::RingHoming`, its `From` impl,
+`ring_side`'s `vertex_side`, and `Escalation` and `LoopDecision` in the
+`ring_homing` rows. `ApexSectionReading`, the join-order frame's K names
+and the face reach readers left `splitting/` in that unit; the pin fell
+from 46 to 22 and what remains is this row's. `SplitFinishError` reads
+the same error at `SlitHoming`, inside the engine.
