@@ -74,7 +74,7 @@ fn a_flipped_sphere_face_is_named_by_its_regions_side() {
         let sphere = sphere_faces(&body);
         assert_eq!(sphere.len(), 4, "{name}: the sphere's faces: {sphere:?}");
         for face in sphere {
-            let flipped = body.flipped_face_sense_for_tests(face).unwrap();
+            let flipped = body.flipped_face_sense_for_tests(face, geom_core::Tol::witness()).unwrap();
             let errs = topo::validate_geometric(&flipped, tol).unwrap_err();
             assert!(
                 errs.iter().any(
@@ -96,7 +96,7 @@ fn the_side_cut_ball_flipped_whole_is_refused_by_its_cover_and_its_side() {
         let body = import(name);
         let sphere = sphere_faces(&body);
         let flipped = sphere.iter().fold(body.clone(), |b, &k| {
-            b.flipped_face_sense_for_tests(k).unwrap()
+            b.flipped_face_sense_for_tests(k, geom_core::Tol::witness()).unwrap()
         });
         let errs = topo::validate_geometric(&flipped, tol).unwrap_err();
         assert!(

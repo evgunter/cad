@@ -5334,6 +5334,80 @@ fn decide_plain_joint<T: Decide>(
     )
 }
 
+/// **The stored joints of `face`'s loops, decided again on the side the
+/// face now states**: each joint between two stored images takes the
+/// element [`decide_joint`] gives it at `band`, read off the stored
+/// images. Off the chart's singular set that is the element it had; on
+/// it, the turn on the face's side as its sense now reads. A joint that
+/// decides none keeps what it stored, which tier 3 then reads as it
+/// reads any element the decision does not give.
+///
+/// # Panics
+///
+/// Where `face` or a record on the walk from it does not resolve.
+#[track_caller]
+pub(crate) fn restate_joints<T: Decide>(body: &mut Body<T>, face: FaceKey, band: Band) {
+    let view = body.proven_face(face);
+    let surface = view.surface().clone();
+    let Some(chart) = DescribedChart::of(&surface) else {
+        return;
+    };
+    let sense = view.sense();
+    let periods = ChartPeriods::of(&surface, band);
+    let cycles: Vec<Vec<HalfEdgeKey>> = view.cycles().map(|(_, cycle)| cycle).collect();
+    let mut decided: Vec<(HalfEdgeKey, JointElement)> = Vec::new();
+    for cycle in &cycles {
+        let n = cycle.len();
+        for (i, &he) in cycle.iter().enumerate() {
+            let arrived_on = cycle[(i + n - 1) % n];
+            let (Some(row), Some(before), Some(_), Ok((leaving, ..)), Ok((arrived, ..))) = (
+                body.pcurve(he),
+                body.pcurve(arrived_on),
+                body.joint(he),
+                half_edge_carrier(body, he),
+                half_edge_carrier(body, arrived_on),
+            ) else {
+                continue;
+            };
+            let (t0, t1) = row.params();
+            let (entry_t, leaving_far) = entry_exit(is_plus(body, he), t0, t1);
+            let (b0, b1) = before.params();
+            let (arrived_far, exit_t) = entry_exit(is_plus(body, arrived_on), b0, b1);
+            let element = decide_joint(
+                chart,
+                row.pcurve(),
+                entry_t,
+                before.pcurve().eval(exit_t),
+                entry_vertex(body, he),
+                periods,
+                band,
+                JointSides {
+                    sense,
+                    mates: arrived_on != he
+                        && half_edge_record(body, arrived_on).edge
+                            == half_edge_record(body, he).edge,
+                    arrived: EdgeEnd {
+                        carrier: &arrived,
+                        at: exit_t,
+                        far: arrived_far,
+                    },
+                    leaving: EdgeEnd {
+                        carrier: &leaving,
+                        at: entry_t,
+                        far: leaving_far,
+                    },
+                },
+            );
+            if let Ok(element) = element {
+                decided.push((he, element));
+            }
+        }
+    }
+    for (he, element) in decided {
+        body.write_joint(he, Some(element));
+    }
+}
+
 /// **A killed half's turn**: the element carrying its image's exit onto
 /// its entry, where the two coincide in space — a closed carrier, whose
 /// two vertices hold one point. A kill that crosses the half whole sums
@@ -9440,6 +9514,10 @@ pub(crate) mod pole_slit_tests {
         }
     }
 }
+
+#[cfg(test)]
+#[path = "pcurves_lift_rows.rs"]
+mod lift_agreement_rows;
 
 #[cfg(test)]
 mod lift_tests {

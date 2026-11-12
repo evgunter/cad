@@ -393,15 +393,18 @@ fn face_cover_in<T: Decide>(
 }
 
 /// **Whether a face on `cone` may hold its apex**: unless every loop's
-/// stored lift closes in the chart
+/// lift closes in the chart
 /// ([`crate::pcurves::Lift::closes_in_chart`], an integer winding) and
-/// every vertex of it is decided off the apex. The apex is the chart's
+/// every vertex of it is decided off the apex. The lift is decided
+/// here, at the band ([`crate::pcurves::Lift::decided`]): the cover is
+/// read mid-operation too, of faces whose rows are not all written. The apex is the chart's
 /// pole, and a bounded face holding it has a loop that winds round it a
 /// whole turn, or one that passes through it, where a loop that closes
 /// in the chart clear of it leaves it outside. Every loop, not the
 /// outer alone: a file's designated outer bound can be a hole, and the
-/// loop enclosing the apex then a ring. A loop with no lift to read, or
-/// a vertex whose incidence on the apex is undecided, may hold it.
+/// loop enclosing the apex then a ring. A loop whose lift is not
+/// decided, or a vertex whose incidence on the apex is undecided, may
+/// hold it.
 pub(crate) fn cone_may_hold_apex<T: Decide>(
     body: &Body<T>,
     face: FaceKey,
@@ -414,8 +417,11 @@ pub(crate) fn cone_may_hold_apex<T: Decide>(
     let Some(view) = body.face(face) else {
         return true;
     };
-    view.cycles().any(|(lk, cycle)| {
-        let closes = crate::pcurves::Lift::read(body, lk).is_ok_and(|lift| lift.closes_in_chart());
+    view.cycles().any(|(_, cycle)| {
+        let closes = constraint(|| {
+            crate::pcurves::Lift::decided(body, face, cone, &cycle, true, band)
+        })
+        .is_some_and(|lift| lift.closes_in_chart());
         !closes
             || cycle.iter().any(|&he| {
                 let start = proven(&body.half_edges, he, EntityId::HalfEdge).start;

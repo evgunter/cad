@@ -2293,7 +2293,7 @@ pub(crate) fn shell_open_at<T: Decide + geom_core::CertifiedBounds + crate::prop
                 error: error.from_driver(),
             };
             let made = out
-                .mfkrh(guest_ring, crate::euler::FaceSurface::Inherit)
+                .mfkrh_minting(guest_ring, crate::euler::FaceSurface::Inherit, tol)
                 .map_err(rim_error)?;
             rechart_rekeyed(
                 &mut out,

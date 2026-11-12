@@ -429,7 +429,7 @@ fn a_lone_lune_through_both_poles_flips_into_another_valid_body() {
         (boss - (48.0 + half)).abs() <= 1e-9 * boss,
         "the boss measures {boss}"
     );
-    let dimple = measure(&body.flipped_face_sense_for_tests(faces[0]).unwrap());
+    let dimple = measure(&body.flipped_face_sense_for_tests(faces[0], geom_core::Tol::witness()).unwrap());
     assert!(
         (dimple - (48.0 - half)).abs() <= 1e-9 * dimple,
         "the flipped lune measures the dimpled brick, {dimple}"

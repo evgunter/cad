@@ -3746,7 +3746,7 @@ fn read_every_key(body: &Body<f64>, capture: &PanicCapture) -> Exposure {
         // it that does not resolve had to panic.
         judge_read(capture, &mut census, "face_azimuth_window_traces", || {
             use crate::chart_window::ChartWindowError;
-            match crate::chart_window::face_azimuth_window_traces(body, face) {
+            match crate::chart_window::face_azimuth_window_traces(body, face, band) {
                 Err(e @ ChartWindowError::Stale(_)) => Err(e.to_string()),
                 answer => Ok(answer.is_ok()),
             }

@@ -931,14 +931,25 @@ impl<T: Real> Body<T> {
     /// chart normal?". Tier-3 validation is *expected to refuse* such a
     /// body; that refusal is one of the acceptance rows.
     ///
+    /// The flipped face's stored joint elements are decided again at
+    /// `tol`'s band: a joint on its chart's singular set stores the turn
+    /// on the face's side ([`crate::joint`]), so the rows follow the bit
+    /// and the bit against the winding is the body's one incoherence.
+    ///
     /// Returns `None` if `face` is stale;
     /// [a foreign key is not caught](self#key-validity-stale-vs-foreign).
     #[doc(hidden)]
     #[must_use]
-    pub fn flipped_face_sense_for_tests(&self, face: FaceKey) -> Option<Self> {
+    pub fn flipped_face_sense_for_tests(&self, face: FaceKey, tol: geom_core::Tol) -> Option<Self>
+    where
+        T: geom_core::Decide,
+    {
         let mut out = self.clone();
         let f = out.faces.get_mut(face)?;
         f.sense = !f.sense;
+        if let Ok(band) = geom_core::Band::linear(tol) {
+            crate::pcurves::restate_joints(&mut out, face, band);
+        }
         Some(out)
     }
 

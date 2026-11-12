@@ -149,12 +149,13 @@ fn a_slit_dome_answers_containment_at_interval() {
 /// The slit face's azimuth window walk: the one sphere face the slit
 /// leaves.
 fn window<T: Decide>(slit: &Body<T>) -> Result<Option<(T, T)>, topo::ChartWindowError> {
+    let band = Band::linear(Tol::witness()).expect("the witness band");
     let mut spheres = slit
         .faces()
         .filter(|(fk, _)| matches!(slit.face_surface(*fk), Some(geom::Surface::Sphere { .. })));
     let (face, _) = spheres.next().expect("the slit sphere face");
     assert!(spheres.next().is_none(), "one sphere face after the kill");
-    face_azimuth_window_traces(slit, face)
+    face_azimuth_window_traces(slit, face, band)
 }
 
 #[test]

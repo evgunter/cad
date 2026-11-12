@@ -75,7 +75,7 @@ fn plane() -> Surface<f64> {
 fn face_pose_reports_the_stored_sense_beside_an_uncorrected_axis() {
     let (body, face) = seed_face(plane());
     let flipped = body
-        .flipped_face_sense_for_tests(face)
+        .flipped_face_sense_for_tests(face, geom_core::Tol::witness())
         .expect("the seed face is live");
     for (label, b, stored) in [("minted", &body, true), ("flipped", &flipped, false)] {
         let stored_flag = b.get_face(face).expect("live").sense;
@@ -130,7 +130,7 @@ fn face_carrier_kind_copies_the_tag_out_for_every_kind() {
         let (body, face) = seed_face(surface);
         assert_eq!(face_carrier_kind(&body, face), Ok(kind));
         // The sense flip changes nothing about the kind: two facts.
-        let flipped = body.flipped_face_sense_for_tests(face).expect("live");
+        let flipped = body.flipped_face_sense_for_tests(face, geom_core::Tol::witness()).expect("live");
         assert_eq!(face_carrier_kind(&flipped, face), Ok(kind));
     }
 }

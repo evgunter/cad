@@ -709,7 +709,7 @@ fn loft_concave_arc_walls_face_out_and_a_flip_is_invisible_below() {
         "the flipped wall is the concave arc, sampled on the notch floor \
          y = 2.5 − √2; got {p:?}"
     );
-    let lied = lofted.body.flipped_face_sense_for_tests(wall).unwrap();
+    let lied = lofted.body.flipped_face_sense_for_tests(wall, geom_core::Tol::witness()).unwrap();
     assert_eq!(topo::validate(&lied), Ok(()), "tier 1");
     assert_eq!(topo::validate_closed(&lied), Ok(()), "tier 2");
     // The recorded residual, stated as what it is: a CHANGE DETECTOR,

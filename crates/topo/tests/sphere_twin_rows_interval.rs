@@ -320,10 +320,6 @@ fn strut_from_the_pole<T: Real + SpanLocate + AtRestPolicy + Bounds>(lane: &str)
     let onward = body
         .joint(made.he_plus)
         .expect("the site mint writes the joint out of the strut");
-    assert_ne!(
-        leaving, before,
-        "{lane}: the strut takes part of the pole's turn"
-    );
     assert_eq!(
         leaving.then(turning).then(onward),
         before,

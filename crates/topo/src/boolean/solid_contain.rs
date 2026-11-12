@@ -1496,14 +1496,19 @@ pub(crate) fn sphere_chart_trim<T: Decide>(
             levels.push((w.dot(axis), r_c));
         }
     }
-    // The window is the stored lift's: the face's boundary in the
-    // chart, read with no band. A face whose outer loop has an image
-    // with no closed-form box, or stores no lift to read, is out of the
-    // class, NOT a broken body; a key that does not resolve is not a
-    // class statement, and keeps the arena claim's own door.
-    let raw = match crate::chart_window::face_azimuth_window(body, face) {
+    // The window is the lift's: the face's boundary in the chart,
+    // decided here at the band, since containment reads bodies
+    // mid-operation too. A face whose outer loop has an image with no
+    // closed-form box, or a joint that names no branch, is out of the
+    // class, NOT a broken body: only the in-band arm is an escalation,
+    // and a key that does not resolve is not a class statement, and
+    // keeps the arena claim's own door.
+    let raw = match crate::chart_window::face_azimuth_window(body, face, band) {
         Ok(Some(w)) => w,
-        Ok(None) | Err(crate::chart_window::ChartWindowError::Gap(_)) => return Ok(None),
+        Ok(None) | Err(crate::chart_window::ChartWindowError::Unread) => return Ok(None),
+        Err(crate::chart_window::ChartWindowError::Escalated(diag)) => {
+            return Err(escalate(diag));
+        }
         Err(crate::chart_window::ChartWindowError::Stale(_)) => {
             return Err(PointInSolidError::CorruptFace { face });
         }

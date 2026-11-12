@@ -27,7 +27,7 @@ fn the_reviews_flipped_shell_and_reverted_bodies_do_not_finish() {
     let mut refused = Vec::new();
     for (shell, s) in h.shells() {
         let flipped = s.faces.iter().fold(Body::clone(&h), |b, &k| {
-            b.flipped_face_sense_for_tests(k).unwrap()
+            b.flipped_face_sense_for_tests(k, geom_core::Tol::witness()).unwrap()
         });
         assert!(
             topo::finish(flipped, tol).is_err(),

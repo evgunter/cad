@@ -270,7 +270,7 @@ fn a_flipped_chorded_sphere_face_is_refused_as_a_lamina() {
         .collect();
     assert!(!spheres.is_empty(), "the union holds a sphere face");
     for k in spheres {
-        let flipped = body.flipped_face_sense_for_tests(k).unwrap();
+        let flipped = body.flipped_face_sense_for_tests(k, geom_core::Tol::witness()).unwrap();
         let errs = topo::finish::<f64>(flipped, tol)
             .err()
             .unwrap_or_else(|| panic!("{k:?} flipped finishes"));
