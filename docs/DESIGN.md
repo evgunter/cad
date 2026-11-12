@@ -839,16 +839,17 @@ tiers".
   along its own edges and its recorded contacts), certified by the
   clearance engine's body-level injectivity question at every scalar
   with certification rights (`f64`, `Probe`, `Interval` and `Sym`;
-  a scalar without them, such as a dual, cannot reach the gate). At a point scalar (`f64`,
-  `Probe`) the question decides with the band every verdict decides
+  a scalar without them, such as a dual, cannot reach the gate). At every
+  scalar the question decides with the band every verdict decides
   with, K·ε ([tolerance.recourse]). Pieces of the boundary that do not
   meet in the body (no shared edge, vertex or recorded contact) are
   more than K·ε apart. Where faces do meet, or a face is read against
   itself, the local reading (how the faces leave their shared edge or
   vertex, or a face's own turning) passes by more than the band. A
   reading inside the band refuses as ambiguous, never as Holds or
-  Violated. At
-  `Interval` and `Sym` the stored brackets carry the family instead.
+  Violated. An exact
+  value `x` enters the question as `[x, x]`; a stored bracket enters as
+  itself, and the verdict then holds for the whole family.
   It passes both once, at the door that
   built it; construction state becomes a finished body only through
   that gate. An isometry, exact apart from rounding, keeps a finished
