@@ -5287,13 +5287,7 @@ fn attach_contact<T: Decide + Bounds + topo::AtRestPolicy>(
         // a fillet and its support are never one carrier, so a reading
         // in band of one is the surgery contradicting its own routing,
         // as below.
-        let rest = topo::rest_locus(
-            body,
-            [(s1, Some(sides.plus.face)), (s2, Some(sides.minus.face))],
-            &curve,
-            (t0, t1),
-            band,
-        );
+        let rest = topo::rest_locus([s1, s2]);
         must_carry_description(
             SmoothJoin {
                 surfaces: [(s1, surf1), (s2, surf2)],

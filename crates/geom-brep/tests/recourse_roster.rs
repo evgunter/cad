@@ -385,7 +385,15 @@ const INDIRECT: &[(&str, &str)] = &[
         "pair_section/ruling.rs: a_spheres_discriminant_extremes_are_the_poses_reaches: x",
         NOT_A_NAME,
     ),
+    (
+        "pair_section/ruling.rs: a_loop_is_witnessed_at_the_near_ruling: x",
+        NOT_A_NAME,
+    ),
     ("pair_section/ruling.rs: ruled: a", NOT_A_NAME),
+    (
+        "pair_section/spline_implicit.rs: ray_of: name",
+        CLOSURE_FORWARDS,
+    ),
     (
         "pair_section/spline_implicit/sweep.rs: sweep: jets",
         NOT_A_NAME,

@@ -4,7 +4,7 @@ kind: issue
 title: The chord join's island winding takes 2.6–3.2 s per unequal-radius cylinder boolean in release, crossing every span of 625-span chords
 status: open
 opened: 2026-11-10
-priority: P2
+priority: P1
 cost: M
 refs: [a-carried-cylinder-pair-marches-for-minutes-before-the-volume-lane-refuses]
 ---
@@ -34,3 +34,6 @@ over every span.
 
 A fifth of each unequal-radius cylinder boolean, on ordinary geometry
 (the P1 row's measured cost).
+
+## Re-banded P1 (2026-11-11)
+By SPIRICARM's orchestrator, under the blocker rule (`work/README.md`, Priority): `spiricarm/a-carried-cylinder-pair-marches-for-minutes-before-the-volume-lane-refuses` (P1, about 10 s per ordinary cylinder boolean in release) is parked on this row and ONEHOME's/PCERT's sibling, which are the remainder of its cost after PCERT's chord hulls (re-measured there).
