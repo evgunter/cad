@@ -94,7 +94,6 @@
 //! arcs of its walk ([`run_holders`], [`arc_holders`]), mints after
 //! them, at the copy the innermost fan among them took its germs to.
 
-use geom_core::NonzeroSign;
 use geom_core::ladder::{Answering, Rung, climb};
 use geom_core::{Band, Decide, Margin, Sign, Vec3};
 
@@ -2480,32 +2479,15 @@ pub(super) fn strut_order<T: Decide>(
     tie: impl FnOnce() -> Result<Option<Sign>, BooleanError>,
     band: Band,
 ) -> Result<bool, BooleanError> {
-    let refuse = |diag| BooleanError::coincidence(Coincide::Sectors, DeclarationRead::Moot, diag);
-    let far = |g: Leaned<T>| -> Result<bool, BooleanError> {
-        let lever = leaned_lever(reach, (e.lean, g.lean));
-        let side = Margin::levered(g.dir.cross(e.dir).dot(normal), lever);
-        match crate::validate::decide("bool_strut_side", side, band).map_err(refuse)? {
-            Sign::Positive => Ok(false),
-            Sign::Negative => Ok(true),
-            Sign::Zero => Ok(!super::sectors::direction_sense(g.dir, e.dir, reach, band)?),
-        }
-    };
-    let (far0, far1) = (far(germs.0)?, far(germs.1)?);
-    if far0 != far1 {
-        return Ok(far1);
-    }
-    let (g0, g1) = germs;
-    let lever = leaned_lever(arm, (g0.lean, g1.lean));
-    let order = Margin::levered(g0.dir.cross(g1.dir).dot(normal), lever);
-    match crate::validate::decide_nonzero("bool_strut_order", order, band) {
-        Ok(sign) => Ok(sign == NonzeroSign::Negative),
-        Err(diag) if diag.margin.rejected_sign() == Some(Sign::Zero) => match tie()? {
-            Some(Sign::Negative) => Ok(true),
-            Some(Sign::Positive) => Ok(false),
-            Some(Sign::Zero) | None => Err(refuse(diag)),
-        },
-        Err(diag) => Err(refuse(diag)),
-    }
+    crate::star::before(
+        (e, reach),
+        normal,
+        germs,
+        arm,
+        tie,
+        super::sectors::order_fault,
+        band,
+    )
 }
 
 /// The record's germ direction, by declared class: a `Tangent` pair's

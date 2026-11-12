@@ -1170,65 +1170,27 @@ pub(super) fn exact_lever<T: geom_core::Real>(bound: Lever<T>, own: Option<Lever
 /// Every reading of it against another direction levers by the lean
 /// ([`leaned_lever`]); read against a sector's bounds ([`rays_within`])
 /// the same lean scales the direction itself, its [`Leaned::line`].
-#[derive(Clone, Copy, Debug)]
-pub(super) struct Leaned<T: geom_core::Real> {
-    /// The unit direction.
-    pub dir: Vec3<T>,
-    /// Its lean, in `(0, 1]`.
-    pub lean: T,
-}
+pub(super) use crate::star::Leaned;
 
-impl<T: geom_core::Real> Leaned<T> {
-    /// A direction read off one carrier: lean 1.
-    pub(super) fn upright(dir: Vec3<T>) -> Self {
-        Self {
-            dir,
-            lean: T::from_f64(1.0),
+pub(super) use crate::star::leaned_lever;
+
+/// The star's order refusals ([`crate::star::OrderFault`]) as the
+/// Boolean's: germs coincident to the tolerance are the sectors'
+/// coincidence; a sense in band, the direction sense's escalation.
+pub(super) fn order_fault(fault: crate::star::OrderFault) -> BooleanError {
+    use crate::star::OrderFault;
+    match fault {
+        OrderFault::Coincident(diag) => {
+            BooleanError::coincidence(Coincide::Sectors, DeclarationRead::Moot, diag)
         }
+        OrderFault::Sense(diag) => BooleanError::Escalated {
+            decision: BooleanDecision::DirectionSense,
+            diag,
+        },
+        OrderFault::Opposite => BooleanError::ClassificationInvariant {
+            what: "two germs along an order's first germ point opposite ways",
+        },
     }
-
-    /// Two faces' line from its un-normalized cross `m = n_a × n_b`.
-    pub(super) fn of_line(m: Vec3<T>) -> Self {
-        Self {
-            dir: m.normalize(),
-            lean: m.norm(),
-        }
-    }
-
-    /// The direction scaled by its lean: two faces' line un-normalized.
-    pub(super) fn line(self) -> Vec3<T> {
-        self.dir * self.lean
-    }
-
-    /// The opposite ray, its lean unchanged.
-    pub(super) fn reversed(self) -> Self {
-        Self {
-            dir: -self.dir,
-            lean: self.lean,
-        }
-    }
-}
-
-/// **The lever a reading of two directions' sides carries, given their
-/// leans**: `lever · min(lean₀, lean₁)` ([`Leaned`]).
-///
-/// A unit face line is steeper than its faces' own tilt: a tilt `δ` of
-/// either face, a displacement `δ·L ≤ zero` at the reach `L` it governs,
-/// turns their line in the reading's plane by up to `δ / sin φ`. A side
-/// read at `lever` therefore carries noise up to
-/// `lever · (δ₀ / s₀ + δ₁ / s₁)`, `sᵢ` each direction's lean (an edge's
-/// `δ` its own departure, its lean 1). Levered at `lever · min(s₀, s₁)`
-/// that noise is at most `lever · (δ₀ + δ₁)`: the two directions' own
-/// tolerances, whatever the faces' angle. One direction tilted within
-/// the zero therefore decides as the upright pose; two tilted the same
-/// way can add past it, as they do between two edges. Against an edge
-/// lying in the reading's plane, the reading is the edge's far end's
-/// offset from the face line's other face; an edge off that plane adds
-/// its own departure, foreshortened by `cos φ` ([`rays_within`]).
-pub(super) fn leaned_lever<T: geom_core::Real>(lever: Lever<T>, (l0, l1): (T, T)) -> Lever<T> {
-    // Unsourced lever: an arm scaled by a sine (the directions' lean),
-    // a length no source reads.
-    Lever::unsourced(lever.length() * l0.min(l1))
 }
 
 /// [`within_reaching`]'s two readings of `dir` against `s`'s bounds:

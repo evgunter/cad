@@ -113,7 +113,11 @@
 
 use geom_core::{Decide, Real};
 
+mod cut;
+mod order;
 mod walk;
+pub(crate) use order::{OrderFault, Ties, before, germ_order, leaned_lever};
+pub(crate) use cut::{Cut, CutEnd, GermLineFault, Leaned, cuts, germ_line};
 pub(crate) use walk::{Bound, Corner, Datum, Orbit, Star, StarFace, StarFault, departure};
 
 use crate::body::{Body, WALKS_CLOSE};
@@ -179,6 +183,15 @@ pub(crate) struct Run {
     pub start: usize,
     /// Number of entries in the run (≥ 1).
     pub len: usize,
+}
+
+impl Run {
+    /// The run's two cut sectors ([`Cut`]) round an orbit of `n`: the
+    /// one before its first bound, whose start that bound is, and the one
+    /// holding its last bound as its end.
+    pub(crate) fn cut_sectors(self, n: usize) -> [usize; 2] {
+        [(self.start + n - 1) % n, (self.start + self.len - 1) % n]
+    }
 }
 
 /// The maximal cyclic runs of moved entries, in order from the first

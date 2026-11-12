@@ -1094,7 +1094,7 @@ fn pierce_germ_line() -> Result<(), BooleanError> {
     super::super::vtxfac::pierce_germ_dir(
         &s,
         Vec3::new(D.sin(), 0.0, D.cos()),
-        super::super::vtxfac::OutBound::Start,
+        crate::star::CutEnd::Start,
         band(),
     )
     .map(|_| ())
