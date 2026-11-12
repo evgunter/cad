@@ -3132,14 +3132,13 @@ impl<T: Decide> Body<T> {
             &[loop_key],
             |body| {
                 let old = body.site_face(face_key, &[(loop_key, vec![SiteHalf::NewPlus])], None);
-                let new =
-                    body.new_site_face(
-                        face_key,
-                        &surface,
-                        ParentSide::With,
-                        !carried,
-                        vec![SiteHalf::NewMinus],
-                    )?;
+                let new = body.new_site_face(
+                    face_key,
+                    &surface,
+                    ParentSide::With,
+                    !carried,
+                    vec![SiteHalf::NewMinus],
+                )?;
                 Ok(vec![old, new])
             },
             &certified,

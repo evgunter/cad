@@ -797,7 +797,9 @@ fn a_sense_flipped_wall_is_refused_by_check_6_alone() {
         Ok(()),
         "the honest wall validates"
     );
-    let flipped = body.flipped_face_sense_for_tests(face, geom_core::Tol::witness()).unwrap();
+    let flipped = body
+        .flipped_face_sense_for_tests(face, geom_core::Tol::witness())
+        .unwrap();
     let errors = topo::validate_geometric_structural(&flipped, tol()).unwrap_err();
     assert!(
         errors

@@ -19,6 +19,5 @@
 
 /// Whether `predicate` is one the crossing pipeline decides.
 pub fn decided_by_crossing(predicate: &str) -> bool {
-    predicate.starts_with("bool_")
-        || geom_brep::curve_face::decided_by_curve_face(predicate)
+    predicate.starts_with("bool_") || geom_brep::curve_face::decided_by_curve_face(predicate)
 }

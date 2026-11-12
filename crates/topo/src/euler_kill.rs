@@ -1930,12 +1930,8 @@ impl<T: Decide> Body<T> {
         // normal (interior-left), and as an outer loop it winds
         // counter-clockwise about the new face's, so on the parent's
         // chart the new face takes the parent's bit negated.
-        let resolved = self.resolve_face_surface(
-            &surface,
-            old_face,
-            (inherit_surface, inherit_sense),
-            side,
-        )?;
+        let resolved =
+            self.resolve_face_surface(&surface, old_face, (inherit_surface, inherit_sense), side)?;
         let ring_halves = self.whole_cycle(ring);
         self.vouch_move(
             door,

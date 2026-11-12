@@ -53,7 +53,9 @@ fn a_reversed_rod_wall_is_named_by_check_4_and_read_as_lamina_at_both_seams() {
         .copied()
         .collect();
     assert_eq!(seams.len(), 2, "the half walls share two seams");
-    let flipped = r.flipped_face_sense_for_tests(wall, geom_core::Tol::witness()).unwrap();
+    let flipped = r
+        .flipped_face_sense_for_tests(wall, geom_core::Tol::witness())
+        .unwrap();
     let errs = validate_geometric(&flipped, Tol::witness()).unwrap_err();
     let lamina: BTreeSet<EdgeKey> = errs
         .iter()

@@ -17422,7 +17422,9 @@ mod tests {
 
         let (face, f) = cube.faces.iter().next().unwrap();
         let outer = f.outer;
-        let flipped = cube.flipped_face_sense_for_tests(face, geom_core::Tol::witness()).unwrap();
+        let flipped = cube
+            .flipped_face_sense_for_tests(face, geom_core::Tol::witness())
+            .unwrap();
         let errors = validate_geometric(&flipped, Tol::witness()).unwrap_err();
         assert!(
             errors.contains(&ValidationError::LoopRoleInverted {

@@ -132,14 +132,17 @@ fn the_decided_lift_is_the_read_lift_through_a_twin_and_a_pole() {
                 .iter()
                 .filter(|&&he| {
                     let record = body.get_half_edge(he).unwrap();
-                    let at_pole = body.vertex_points().any(|(v, p)| {
-                        v == record.start && (p.z - 1.0).abs() < 1e-12
-                    });
+                    let at_pole = body
+                        .vertex_points()
+                        .any(|(v, p)| v == record.start && (p.z - 1.0).abs() < 1e-12);
                     at_pole && body.joint(he).is_some_and(|e| !e.deck().twin)
                 })
                 .count();
         }
     }
-    assert!(twins > 0, "the over-pole half closes through the twin sheet");
+    assert!(
+        twins > 0,
+        "the over-pole half closes through the twin sheet"
+    );
     assert_eq!(turns, 2, "each face's loop turns once at the pole vertex");
 }

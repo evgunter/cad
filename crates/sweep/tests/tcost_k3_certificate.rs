@@ -263,7 +263,8 @@ fn ball() -> Body<f64> {
 fn flip_all(body: &Body<f64>) -> Body<f64> {
     let keys: Vec<_> = body.faces().map(|(k, _)| k).collect();
     keys.iter().fold(body.clone(), |b, &k| {
-        b.flipped_face_sense_for_tests(k, geom_core::Tol::witness()).expect("live face key")
+        b.flipped_face_sense_for_tests(k, geom_core::Tol::witness())
+            .expect("live face key")
     })
 }
 

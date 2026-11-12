@@ -43,8 +43,8 @@ use sweep::Revolution;
 use sweep::test_support::{finished, revolved_about_y_at};
 use topo::construction::Construct;
 use topo::{
-    Body, BooleanError, BooleanOp, BooleanResult, SolidContainment, SweepStrategy,
-    ValidationError, face_azimuth_window_traces, point_in_solid, validate, validate_closed,
+    Body, BooleanError, BooleanOp, BooleanResult, SolidContainment, SweepStrategy, ValidationError,
+    face_azimuth_window_traces, point_in_solid, validate, validate_closed,
 };
 
 fn f<T: Real>(x: f64) -> T {

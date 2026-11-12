@@ -70,7 +70,8 @@ fn assert_flip_refuses(body: &Body<f64>, face: FaceKey, label: &str) {
 fn flip_all(body: &Body<f64>) -> Body<f64> {
     let keys: Vec<FaceKey> = body.faces().map(|(k, _)| k).collect();
     keys.iter().fold(body.clone(), |b, &k| {
-        b.flipped_face_sense_for_tests(k, geom_core::Tol::witness()).expect("live face key")
+        b.flipped_face_sense_for_tests(k, geom_core::Tol::witness())
+            .expect("live face key")
     })
 }
 
@@ -369,7 +370,9 @@ fn cut_cylinder_conic_trim_wall_flip_is_caught_and_the_inversion_refuses_at_both
     let walls = faces_where(&body, |s| matches!(s, Surface::Cylinder { .. }));
     assert!(!walls.is_empty(), "cut_cylinder: trimmed wall present");
     for &(k, _) in &walls {
-        let flipped = body.flipped_face_sense_for_tests(k, geom_core::Tol::witness()).expect("live face key");
+        let flipped = body
+            .flipped_face_sense_for_tests(k, geom_core::Tol::witness())
+            .expect("live face key");
         let errs = validate_geometric(&flipped, Tol::witness())
             .expect_err("a lone conic-trimmed wall flip is a lamina at its shared edges");
         assert!(
@@ -481,7 +484,9 @@ fn a_one_face_conic_trimmed_wall_flip_refuses() {
             "{name}: the bore and the outer wall, one face each"
         );
         for (k, sense) in walls {
-            let flipped = half.flipped_face_sense_for_tests(k, geom_core::Tol::witness()).expect("live face key");
+            let flipped = half
+                .flipped_face_sense_for_tests(k, geom_core::Tol::witness())
+                .expect("live face key");
             let errs = validate_geometric(&flipped, tol)
                 .expect_err("a lone one-face conic-trimmed wall flip refuses");
             assert!(

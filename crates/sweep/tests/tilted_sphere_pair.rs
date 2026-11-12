@@ -380,7 +380,9 @@ fn a_flipped_tilted_face_is_refused_by_name() {
             if on_b_only && !on_b {
                 continue;
             }
-            let inverted = body.flipped_face_sense_for_tests(k, geom_core::Tol::witness()).expect("the face");
+            let inverted = body
+                .flipped_face_sense_for_tests(k, geom_core::Tol::witness())
+                .expect("the face");
             assert_eq!(
                 topo::validate_geometric(&inverted, Tol::witness()),
                 Err(vec![
@@ -452,7 +454,9 @@ fn a_flipped_remnant_with_a_pole_off_its_loop_is_refused_by_name() {
             continue;
         }
         encoded += 1;
-        let inverted = body.flipped_face_sense_for_tests(k, geom_core::Tol::witness()).expect("the face");
+        let inverted = body
+            .flipped_face_sense_for_tests(k, geom_core::Tol::witness())
+            .expect("the face");
         let errors = topo::validate_geometric(&inverted, tol).expect_err("tier 3 refuses");
         assert!(
             errors.contains(&topo::ValidationError::CurvedSenseInverted { face: k }),

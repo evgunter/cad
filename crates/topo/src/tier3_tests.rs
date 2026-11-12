@@ -2174,7 +2174,9 @@ fn the_seam_is_legal_and_the_same_geometry_flipped_is_a_lamina() {
     let tol = Tol::witness();
     let (body, split) = coplanar_pillow(tol);
     assert_pillow_rests(&body, tol);
-    let flipped = body.flipped_face_sense_for_tests(split.face, geom_core::Tol::witness()).unwrap();
+    let flipped = body
+        .flipped_face_sense_for_tests(split.face, geom_core::Tol::witness())
+        .unwrap();
     let errs = validate_geometric(&flipped, tol).unwrap_err();
     assert!(
         errs.iter()
@@ -2684,7 +2686,9 @@ fn kissing_cylinder_pillow(
         body.set_edge_curve(e, spec, tol).unwrap();
     }
     crate::pcurves::mint_pcurves(&mut body, tol).unwrap();
-    let flipped = body.flipped_face_sense_for_tests(split.face, geom_core::Tol::witness()).unwrap();
+    let flipped = body
+        .flipped_face_sense_for_tests(split.face, geom_core::Tol::witness())
+        .unwrap();
     (
         validate_geometric(&flipped, tol).unwrap_err(),
         [seg.edge, split.edge],

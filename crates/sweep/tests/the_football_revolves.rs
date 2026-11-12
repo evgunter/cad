@@ -593,7 +593,9 @@ fn a_football_with_a_sheet_faces_bit_flipped_is_refused() {
         for keys in [vec![sheet[0]], sheet.clone()] {
             let mut body = built.body.clone().into_body();
             for &k in &keys {
-                body = body.flipped_face_sense_for_tests(k, geom_core::Tol::witness()).unwrap();
+                body = body
+                    .flipped_face_sense_for_tests(k, geom_core::Tol::witness())
+                    .unwrap();
             }
             let errors = topo::finish(body, tol).expect_err("a flipped bit");
             let refused = if keys.len() == 1 {

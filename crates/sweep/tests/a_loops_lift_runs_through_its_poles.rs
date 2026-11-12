@@ -259,7 +259,10 @@ fn region_area(body: &Body<f64>, face: FaceKey) -> Option<(f64, bool)> {
         .iter()
         .flat_map(|row| {
             let (entry, exit) = row.entry_exit();
-            (0..=64).map(move |k| row.pcurve.eval(entry + (exit - entry) * f64::from(k) / 64.0))
+            (0..=64).map(move |k| {
+                row.pcurve
+                    .eval(entry + (exit - entry) * f64::from(k) / 64.0)
+            })
         })
         .collect();
     let n = polygon.len();
@@ -285,7 +288,10 @@ fn the_stored_lift_bounds_the_faces_own_region_through_its_poles() {
     };
     let fixtures: Vec<(&str, Body<f64>)> = vec![
         ("the lune", lune().body),
-        ("the ball", ball_poled_y(1.0, Vec3::new(0.0, 0.0, 0.0), tol())),
+        (
+            "the ball",
+            ball_poled_y(1.0, Vec3::new(0.0, 0.0, 0.0), tol()),
+        ),
         ("the narrow wedge", wedge(0.7)),
         ("the wide wedge", wedge(4.0)),
     ];

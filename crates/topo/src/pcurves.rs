@@ -2746,8 +2746,8 @@ impl<T: Decide> Lift<T> {
             .collect();
         let item = |i: usize| -> Result<WalkItem<T, DerivedRow<T>>, LiftRefusal> {
             let (he, carrier, t0, t1) = &charted[i];
-            let pcurve = chart_pcurve_over(carrier, *t0, *t1, surface, band)
-                .map_err(LiftRefusal::Image)?;
+            let pcurve =
+                chart_pcurve_over(carrier, *t0, *t1, surface, band).map_err(LiftRefusal::Image)?;
             Ok(walk_item(
                 (
                     carrier.clone(),
@@ -3525,7 +3525,15 @@ fn derive_face<T: AtRestPolicy>(
         if refused.iter().all(not_owed::<T>) {
             for lp in broken {
                 let cycle = loop_rows(body, lp);
-                walk_runs(body, chart, view.sense(), &cycle, band, &mut walked, &mut refused);
+                walk_runs(
+                    body,
+                    chart,
+                    view.sense(),
+                    &cycle,
+                    band,
+                    &mut walked,
+                    &mut refused,
+                );
             }
             if let Err(certs) = certify_walked(walked, surface, band, Some(&fitted)) {
                 refused.extend(
@@ -4338,13 +4346,14 @@ pub(crate) fn walk_halves<T: AtRestPolicy>(
             stored_edge(body, he),
         ))
     };
-    let walked = walk_cycle(chart, sense, halves.len(), item, |_| None, band, closes).map_err(
-        |fail| match fail {
-            WalkFail::Item(e) => e,
-            WalkFail::Miss { index, miss } => joint_refusal(halves[index], miss),
-            WalkFail::NotClosed => PcurveMintError::LoopNotClosed { face },
-        },
-    )?;
+    let walked =
+        walk_cycle(chart, sense, halves.len(), item, |_| None, band, closes).map_err(|fail| {
+            match fail {
+                WalkFail::Item(e) => e,
+                WalkFail::Miss { index, miss } => joint_refusal(halves[index], miss),
+                WalkFail::NotClosed => PcurveMintError::LoopNotClosed { face },
+            }
+        })?;
     out.extend(
         halves
             .iter()
@@ -5915,29 +5924,29 @@ fn read_loop<T: AtRestPolicy>(
         else {
             continue;
         };
-            if pcurve.certifying_door() != CertifyingDoor::Fitted {
-                PcurveCache::certify(pcurve.clone(), *t0, *t1, &w.carrier, chart, band).map_err(
-                    |error| PcurveMintError::Certify {
-                        half_edge: w.key,
-                        error: match w.image {
-                            ChartImage::Image { .. } => {
-                                geom_brep::minted_refusal(error, pcurve, &w.carrier, chart)
-                            }
-                            ChartImage::Stated { .. } | ChartImage::Certified(_) => error,
-                        },
-                    },
-                )?;
-            }
-    }
-        for w in &walked {
-            let orbit = Orbit::of(chart, w.pcurve());
-            if !joint_has_room(described, entry_vertex(body, w.key), period, orbit, band) {
-                return Err(PcurveMintError::JointWithoutRoom {
-                    face,
-                    r#loop: lp,
+        if pcurve.certifying_door() != CertifyingDoor::Fitted {
+            PcurveCache::certify(pcurve.clone(), *t0, *t1, &w.carrier, chart, band).map_err(
+                |error| PcurveMintError::Certify {
                     half_edge: w.key,
-                });
-            }
+                    error: match w.image {
+                        ChartImage::Image { .. } => {
+                            geom_brep::minted_refusal(error, pcurve, &w.carrier, chart)
+                        }
+                        ChartImage::Stated { .. } | ChartImage::Certified(_) => error,
+                    },
+                },
+            )?;
+        }
+    }
+    for w in &walked {
+        let orbit = Orbit::of(chart, w.pcurve());
+        if !joint_has_room(described, entry_vertex(body, w.key), period, orbit, band) {
+            return Err(PcurveMintError::JointWithoutRoom {
+                face,
+                r#loop: lp,
+                half_edge: w.key,
+            });
+        }
     }
     Ok(Some(ReadLoop {
         elements,
@@ -7298,7 +7307,9 @@ mod stretch_meter {
     /// image a period over, two half steps off.
     #[test]
     fn a_narrow_cone_loop_joint_clear_of_the_apex_takes_a_lift_of_its_point() {
-        use super::{Deck, JointElement, NearRead, Orbit, decide_plain_joint, near_pole_gap_closes};
+        use super::{
+            Deck, JointElement, NearRead, Orbit, decide_plain_joint, near_pole_gap_closes,
+        };
         use geom_brep::Pcurve;
         use geom_core::Point2;
         let tau = std::f64::consts::TAU;
@@ -7498,7 +7509,7 @@ mod stretch_meter {
                 Err(super::PinMiss::Discontinuity) => "Discontinuity".into(),
                 Err(super::PinMiss::Escalated(_)) => "Escalated".into(),
                 Err(super::PinMiss::NetStretchUndecided(_)) => "NetStretchUndecided".into(),
-            Err(super::PinMiss::Singular(miss)) => format!("{miss:?}"),
+                Err(super::PinMiss::Singular(miss)) => format!("{miss:?}"),
             }
         };
         // `π·lever` as a fraction of the escalate edge, in band: the
@@ -9289,9 +9300,9 @@ pub(crate) mod pole_slit_tests {
                     "{label}: the split's rows are the mint's"
                 );
                 let new = body.get_edge(made.new_edge).unwrap();
-                let apart = [new.he_plus, new.he_minus, he].into_iter().any(
-                    |h| matches!(body.joint(h), Some(crate::JointElement(d)) if d.u != 0),
-                );
+                let apart = [new.he_plus, new.he_minus, he]
+                    .into_iter()
+                    .any(|h| matches!(body.joint(h), Some(crate::JointElement(d)) if d.u != 0));
                 assert_eq!(
                     apart, straddles,
                     "{label}: the premise, the children a whole turn apart where the arc \

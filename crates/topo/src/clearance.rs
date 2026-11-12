@@ -3631,10 +3631,7 @@ fn iso_bounded_domain<T: Decide + CertifiedBounds>(
     };
     let mut path: Vec<[(Interval, Interval); 2]> = Vec::with_capacity(rows.rows().len());
     for row in &rows {
-        if !matches!(
-            &row.pcurve,
-            Pcurve::IsoLine { .. } | Pcurve::IsoArc { .. }
-        ) {
+        if !matches!(&row.pcurve, Pcurve::IsoLine { .. } | Pcurve::IsoArc { .. }) {
             return Err(NOT_ISO);
         }
         let (t0, t1) = row.params;

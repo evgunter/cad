@@ -130,7 +130,9 @@ fn face_carrier_kind_copies_the_tag_out_for_every_kind() {
         let (body, face) = seed_face(surface);
         assert_eq!(face_carrier_kind(&body, face), Ok(kind));
         // The sense flip changes nothing about the kind: two facts.
-        let flipped = body.flipped_face_sense_for_tests(face, geom_core::Tol::witness()).expect("live");
+        let flipped = body
+            .flipped_face_sense_for_tests(face, geom_core::Tol::witness())
+            .expect("live");
         assert_eq!(face_carrier_kind(&flipped, face), Ok(kind));
     }
 }

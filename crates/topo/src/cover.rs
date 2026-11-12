@@ -418,10 +418,9 @@ pub(crate) fn cone_may_hold_apex<T: Decide>(
         return true;
     };
     view.cycles().any(|(_, cycle)| {
-        let closes = constraint(|| {
-            crate::pcurves::Lift::decided(body, face, cone, &cycle, true, band)
-        })
-        .is_some_and(|lift| lift.closes_in_chart());
+        let closes =
+            constraint(|| crate::pcurves::Lift::decided(body, face, cone, &cycle, true, band))
+                .is_some_and(|lift| lift.closes_in_chart());
         !closes
             || cycle.iter().any(|&he| {
                 let start = proven(&body.half_edges, he, EntityId::HalfEdge).start;
@@ -900,7 +899,9 @@ pub(crate) fn face_window_steps<T: Decide>(
                 })
                 .collect();
             let lift = crate::pcurves::Lift::read(body, lk).ok();
-            let closes = lift.as_ref().is_some_and(crate::pcurves::Lift::closes_in_chart);
+            let closes = lift
+                .as_ref()
+                .is_some_and(crate::pcurves::Lift::closes_in_chart);
             let mut lifted: slotmap::SecondaryMap<HalfEdgeKey, geom_brep::Pcurve<T>> =
                 slotmap::SecondaryMap::new();
             for row in lift.into_iter().flatten() {
