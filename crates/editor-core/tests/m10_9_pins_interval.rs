@@ -233,7 +233,16 @@ pub(crate) struct Study {
 /// placed map's seven `transform_rigid_*` margins: 7 symbolic per
 /// map, numeric and frozen unmoved, the plate 1203 -> 1189, the annulus
 /// 720 -> 713, the link 998 -> 991, the bracket 1613 -> 1599 (door shut
-/// 1542 -> 1528) and the pad 1704 -> 1697 (door shut alike). The moves
+/// 1542 -> 1528) and the pad 1704 -> 1697 (door shut alike). Then
+/// the extrude and revolve read each edge they write by its whole
+/// wedge, the arm, the wedge and a corner's sign at each of its 7
+/// interior stations, where they read the class at one witness,
+/// identical at all three ε rows: symbolic the link 991 -> 987, the
+/// bracket 1599 -> 1597 and the pad 1697 -> 1689, the witness
+/// reads the tier proved, which no station's read reproduces; door shut
+/// the link (727, 585) -> (723, 846), the bracket (1528, 1226) ->
+/// (1527, 1764) and the pad (1697, 1368) -> (1689, 1852). The plate and
+/// the annulus do not move symbolic. The moves
 /// this ledger lists between PR 5728 and PR 5811
 /// are PR 5728's (the pad and the link door shut) and PR 5811's (the
 /// bracket door shut), measured at each merge and its first parent.
@@ -291,8 +300,8 @@ pub(crate) fn measured_studies(tol: Tol) -> [Study; 5] {
             // at the pcurve's certification, its merge (709, 585)): shut, the door now refuses earlier,
             // at limb 2's stall against the cylinder rather than at
             // `pcurve_envelope`, after (709, 585), where it read (722, 702).
-            without_the_registry: Some(((727, 585), Some("Stalled { operand: Cylinder"))),
-            symbolic: [991, 991, 991],
+            without_the_registry: Some(((723, 846), Some("Stalled { operand: Cylinder"))),
+            symbolic: [987, 987, 987],
             at: Box::new(move |s: f64| crate::m10_9_r2_probes_interval::link(s, tol).0),
         },
         Study {
@@ -326,13 +335,13 @@ pub(crate) fn measured_studies(tol: Tol) -> [Study; 5] {
             // is a norm the tier does not reduce with the door shut, so two
             // `pcurve_chart_radial_moving` decisions it proved are numeric.
             // The shipped count, with the registry, does not move.
-            without_the_registry: Some(((1528, 1226), None)),
+            without_the_registry: Some(((1527, 1764), None)),
             // One is the fillet run out read against its arrival carrier
             // (`path_run_out_carrier`), a margin the tier proves zero.
             // How many the tier reaches depends on the order the
             // variables' symbols sort in
             // (`work/sym/sym-tier-reach-depends-on-symbol-order`).
-            symbolic: [1599, 1599, 1599],
+            symbolic: [1597, 1597, 1597],
             at: Box::new(move |s: f64| crate::m10_7_r2_probes_interval::bracket(s, tol).0),
         },
         Study {
@@ -356,7 +365,7 @@ pub(crate) fn measured_studies(tol: Tol) -> [Study; 5] {
             // first parent; the step from (1546, 1260) is not bisected.
             // Then (1660, 1250) -> (1684, 1262) -> (1704, 1368) with
             // PR 6594 and PR 6682 (`symbolic` below).
-            without_the_registry: Some(((1697, 1368), None)),
+            without_the_registry: Some(((1689, 1852), None)),
             // Three are the fillet run outs read against their arrival
             // carriers (`path_run_out_carrier`), margins the tier proves
             // zero.
@@ -371,7 +380,7 @@ pub(crate) fn measured_studies(tol: Tol) -> [Study; 5] {
             // extension's run became its own segment (Ev, PR 6542; PR
             // 6682, "the same added-vertex move as sym_9"): each corner
             // after a straight leg keeps the leg's end as a vertex.
-            symbolic: [1697, 1697, 1697],
+            symbolic: [1689, 1689, 1689],
             at: Box::new(move |s: f64| crate::m10_8_r2_probes_interval::pad(s, tol).0),
         },
     ]
@@ -900,7 +909,9 @@ fn m10_9_the_pad_at_both_rule_f_dials() {
     // over 175 first-parent commits) and 3751 with PR 6682. Then ONEHOME's
     // seven rigidity margins, which a placement composed as motions decides
     // none of (`mate::solve::admitted` removed): 1704 -> 1697 symbolic.
-    assert_eq!(got[0], (1697, 1368, 3751), "rule F shut: the pad's receipt");
+    // Then the constructors' whole-wedge reads (the study's `symbolic`):
+    // (1697, 1368, 3751) -> (1689, 1852, 4080).
+    assert_eq!(got[0], (1689, 1852, 4080), "rule F shut: the pad's receipt");
     assert_eq!(
         got[1], got[0],
         "rule F moves nothing on the pad: the basis mints no copysign for it to fold"

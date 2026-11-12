@@ -261,8 +261,12 @@ const D_TAB_AT_THE_NOMINAL: &[(&str, [u64; 2])] = &[
     ("circle_side", [2, 2]),
     ("contact_at_shared_vertex", [12, 4]),
     ("pose_unit_norm", [0, 2]),
-    ("dihedral_arm", [0, 156]),
-    ("dihedral_wedge", [0, 156]),
+    // The extrude reads each of its 16 edges by its whole wedge, the
+    // arm, the wedge and a corner's sign at 7 stations, where it read
+    // the class at one witness: [0, 156] -> [0, 252], and the sign new.
+    ("dihedral_arm", [0, 252]),
+    ("dihedral_sign", [0, 112]),
+    ("dihedral_wedge", [0, 252]),
     ("extrusion_normal_component", [0, 2]),
     ("interval_span_forward", [0, 42]),
     ("interval_span_winding", [0, 16]),
@@ -469,8 +473,11 @@ fn m10_bulge_the_bosss_split_at_the_nominal() {
             ("carrier_on_surface_2", [126, 0]),
             ("contact_at_shared_vertex", [6, 3]),
             ("pose_unit_norm", [0, 2]),
-            ("dihedral_arm", [0, 108]),
-            ("dihedral_wedge", [0, 108]),
+            // The extrude's 10 edges read whole: [0, 108] -> [0, 168],
+            // and the sign new (the d-tab's table says how).
+            ("dihedral_arm", [0, 168]),
+            ("dihedral_sign", [0, 70]),
+            ("dihedral_wedge", [0, 168]),
             ("extrusion_normal_component", [0, 2]),
             ("interval_span_forward", [0, 30]),
             ("interval_span_winding", [0, 16]),
