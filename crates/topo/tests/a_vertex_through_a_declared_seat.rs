@@ -595,7 +595,11 @@ fn a_cut_by_its_tools_seat_reads_the_tool_as_material() {
         let b = Blocks::of(&seat);
         let s = Shape::Seat;
         let what = seat.label(BooleanOp::Subtract, [&Shape::Block("post", &b.post), &s]);
-        match seat.run(BooleanOp::Subtract, [&Shape::Block("post", &b.post), &s], true) {
+        match seat.run(
+            BooleanOp::Subtract,
+            [&Shape::Block("post", &b.post), &s],
+            true,
+        ) {
             Ok(BooleanResult::Empty) => {}
             other => panic!("{what}: the empty result, got {:?}", other.map(|_| ())),
         }

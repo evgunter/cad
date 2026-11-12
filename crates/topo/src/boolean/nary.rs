@@ -39,8 +39,8 @@ use super::holdings::{Held, HeldRefusal, Holdings};
 use super::ops::boolean_op_given;
 use super::overlap::overlap;
 use super::{
-    BooleanBody, BooleanError, BooleanInputs, BooleanNaming, BooleanOp, BooleanResult, GivenDecision,
-    GlueVerdict, GluedPair, Operand, OperandRecords, SweepStrategy,
+    BooleanBody, BooleanError, BooleanInputs, BooleanNaming, BooleanOp, BooleanResult,
+    GivenDecision, GlueVerdict, GluedPair, Operand, OperandRecords, SweepStrategy,
 };
 use crate::body::Body;
 use crate::entity::FaceKey;
@@ -685,9 +685,7 @@ fn fold<T: Decide + Bounds + AtRestPolicy>(
     for member in 1..members.len() {
         let acc = steps.last().map_or(members[0].body, |s| &s.body.body);
         let given = match verdicts {
-            Some(verdicts) => {
-                Some(given_pairs(verdicts, member, &lineage, acc).map_err(refused)?)
-            }
+            Some(verdicts) => Some(given_pairs(verdicts, member, &lineage, acc).map_err(refused)?),
             None => None,
         };
         let inputs = BooleanInputs {
@@ -1149,7 +1147,8 @@ pub(crate) fn tool_material<T: Decide + Bounds + AtRestPolicy>(
     let place = |cell: super::Cell| {
         crate::census_cell_solid(tool, cell).and_then(|s| solids.iter().position(|&k| k == s))
     };
-    let unread = |record: u32, cells: [super::Cell; 2]| BooleanError::ToolSeatUnread { record, cells };
+    let unread =
+        |record: u32, cells: [super::Cell; 2]| BooleanError::ToolSeatUnread { record, cells };
     let mut verdicts: Vec<PairVerdict<T>> = Vec::new();
     for carried in &records.ff {
         let (x, y) = (carried.contact.a, carried.contact.b);
@@ -1177,12 +1176,13 @@ pub(crate) fn tool_material<T: Decide + Bounds + AtRestPolicy>(
     // Each record within one solid rides with its member; one between
     // two is a planar face pair's, which the fold takes as its verdict.
     let n = solids.len();
-    let split = |cells: [super::Cell; 2], record: u32, face_pair: bool| {
-        match (place(cells[0]), place(cells[1])) {
-            (Some(i), Some(j)) if i == j => Ok(Some(i)),
-            (Some(_), Some(_)) if !face_pair => Err(unread(record, cells)),
-            _ => Ok(None),
-        }
+    let split = |cells: [super::Cell; 2], record: u32, face_pair: bool| match (
+        place(cells[0]),
+        place(cells[1]),
+    ) {
+        (Some(i), Some(j)) if i == j => Ok(Some(i)),
+        (Some(_), Some(_)) if !face_pair => Err(unread(record, cells)),
+        _ => Ok(None),
     };
     use super::Cell::{Edge, Face, Vertex};
     let mut own: Vec<OperandRecords> = vec![OperandRecords::default(); n];
@@ -1192,12 +1192,20 @@ pub(crate) fn tool_material<T: Decide + Bounds + AtRestPolicy>(
         }
     }
     for c in &records.vf {
-        if let Some(i) = split([Vertex(c.contact.vertex), Face(c.contact.face)], c.record, false)? {
+        if let Some(i) = split(
+            [Vertex(c.contact.vertex), Face(c.contact.face)],
+            c.record,
+            false,
+        )? {
             own[i].vf.push(*c);
         }
     }
     for c in &records.ve {
-        if let Some(i) = split([Vertex(c.contact.vertex), Edge(c.contact.edge)], c.record, false)? {
+        if let Some(i) = split(
+            [Vertex(c.contact.vertex), Edge(c.contact.edge)],
+            c.record,
+            false,
+        )? {
             own[i].ve.push(*c);
         }
     }
@@ -1207,7 +1215,11 @@ pub(crate) fn tool_material<T: Decide + Bounds + AtRestPolicy>(
         }
     }
     for c in &records.ef {
-        if let Some(i) = split([Edge(c.contact.edge), Face(c.contact.face)], c.record, false)? {
+        if let Some(i) = split(
+            [Edge(c.contact.edge), Face(c.contact.face)],
+            c.record,
+            false,
+        )? {
             own[i].ef.push(*c);
         }
     }
@@ -1242,7 +1254,14 @@ pub(crate) fn tool_material<T: Decide + Bounds + AtRestPolicy>(
         .map(|(body, inputs)| NaryMember { body, inputs })
         .collect();
     let mut steps = Vec::new();
-    match fold(NaryOp::Union, &views, Some(&verdicts), sweep, tol, &mut steps) {
+    match fold(
+        NaryOp::Union,
+        &views,
+        Some(&verdicts),
+        sweep,
+        tol,
+        &mut steps,
+    ) {
         Ok(()) => Ok(Some(ToolMaterial { members, steps })),
         Err(NaryEnd::Refused(NaryRefusal::Step { error, .. })) => Err(*error),
         Err(_) => Err(BooleanError::ClassificationInvariant {

@@ -23,9 +23,7 @@ use geom_core::{Bounds, Decide, Tol};
 use super::holdings::{Held, Holdings};
 use super::nary::{ToolMaterial, tool_material};
 use super::ops::{BooleanBody, OperandKeys, boolean_op_given};
-use super::{
-    BooleanError, BooleanInputs, BooleanOp, BooleanResult, Cell, Operand, SweepStrategy,
-};
+use super::{BooleanError, BooleanInputs, BooleanOp, BooleanResult, Cell, Operand, SweepStrategy};
 use crate::body::Body;
 use crate::coincidence::{Backing, RowCell};
 use crate::entity::{EdgeKey, FaceKey, VertexKey};
@@ -134,9 +132,27 @@ impl Through {
                     }
                 }
                 OperandKeys::Direct => {
-                    f2.extend(result.faces().map(|(f, _)| f).filter(|&f| member.get_face(f).is_some()).map(|f| (f, f)));
-                    e2.extend(result.edges().map(|(e, _)| e).filter(|&e| member.get_edge(e).is_some()).map(|e| (e, e)));
-                    v2.extend(result.vertices().map(|(v, _)| v).filter(|&v| member.get_vertex(v).is_some()).map(|v| (v, v)));
+                    f2.extend(
+                        result
+                            .faces()
+                            .map(|(f, _)| f)
+                            .filter(|&f| member.get_face(f).is_some())
+                            .map(|f| (f, f)),
+                    );
+                    e2.extend(
+                        result
+                            .edges()
+                            .map(|(e, _)| e)
+                            .filter(|&e| member.get_edge(e).is_some())
+                            .map(|e| (e, e)),
+                    );
+                    v2.extend(
+                        result
+                            .vertices()
+                            .map(|(v, _)| v)
+                            .filter(|&v| member.get_vertex(v).is_some())
+                            .map(|v| (v, v)),
+                    );
                 }
                 OperandKeys::Absent => {}
             }
@@ -168,10 +184,9 @@ impl Through {
                 match (b, &acc_records) {
                     (Backing::Carried { input: 1, record }, _)
                     | (Backing::Carried { input: 0, record }, None) => Ok(vec![record]),
-                    (Backing::Carried { input: 0, record }, Some(acc)) => acc
-                        .get(record as usize)
-                        .cloned()
-                        .ok_or_else(unread),
+                    (Backing::Carried { input: 0, record }, Some(acc)) => {
+                        acc.get(record as usize).cloned().ok_or_else(unread)
+                    }
                     _ => Err(unread()),
                 }
             };
@@ -244,7 +259,9 @@ impl Through {
     /// piece of, an edge it split the edge it was split from.
     fn input_cell(&self, cell: Cell) -> Cell {
         match cell {
-            Cell::Face(f) => Cell::Face(self.pieces.get(&f).copied().unwrap_or_else(|| self.face(f))),
+            Cell::Face(f) => {
+                Cell::Face(self.pieces.get(&f).copied().unwrap_or_else(|| self.face(f)))
+            }
             Cell::Edge(e) => {
                 let mut at = e;
                 while let Some(&up) = self.hops.get(&at) {
@@ -326,7 +343,11 @@ impl Through {
             .hops
             .iter()
             .map(|(&e, &up)| (e, up))
-            .chain(carved.into_iter().map(|(e, up)| (self.edge(e), self.edge(up))))
+            .chain(
+                carved
+                    .into_iter()
+                    .map(|(e, up)| (self.edge(e), self.edge(up))),
+            )
             .collect();
         let rc = &mut n.reduction_contacts;
         for c in &mut rc.vv {
@@ -355,7 +376,11 @@ impl Through {
         }
         for row in &mut out.coincidences {
             for cell in row.cells.iter_mut().chain(row.more.iter_mut().flatten()) {
-                if let RowCell::Input { input: Operand::B, cell } = cell {
+                if let RowCell::Input {
+                    input: Operand::B,
+                    cell,
+                } = cell
+                {
                     *cell = self.input_cell(*cell);
                 }
             }

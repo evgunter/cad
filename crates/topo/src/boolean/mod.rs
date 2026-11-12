@@ -169,12 +169,12 @@ pub(crate) use ops::{boundary_edges, describe_edges};
 pub(crate) use ops::{
     no_crossings_certificates, no_crossings_section_report, no_event_section_report,
 };
+mod material;
 #[cfg(test)]
 mod node_probe_rows;
 pub mod plane_eq;
 #[cfg(test)]
 mod r2_probes;
-mod material;
 pub(crate) mod recl;
 pub(crate) mod records;
 pub(crate) mod reduce;
