@@ -429,3 +429,7 @@ Newest entries at the bottom; the tail is the program's live status.
   - Row: `the-mate-editor-asks-before-moving-a-copy-into-the-targets-space`.
   - **Review: single FULL.** The design is ratified, but the re-target edit spans four doors, the held-draft state and stranding, so the review carries claims.
   - The named-source build waits on `[ev]` 6672. (PLACING orchestrator)
+- 2026-11-12 — **Ev on `[ev]` 6672** (a review comment on the source paragraph): "this sounds good but might be a little too detailed for this design document".
+  - **Trimmed** (`20bf41c6cd`): DESIGN keeps the rule only, and the mechanics move to VARIABLES VR4.
+  - **Read as approval of the design.** The two offered points default to: Place on a copy is not built (the refusal stays), and two anonymous sources raise no finding. Both are stated on the thread.
+  - It merges on green, and then the named-source build starts. (PLACING orchestrator)
