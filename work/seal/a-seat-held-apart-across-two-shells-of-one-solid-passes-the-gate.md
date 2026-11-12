@@ -17,3 +17,7 @@ The result gate `crates/topo/src/boolean/ops.rs` `Held::apart` (~5630) refuses w
 Today the curved seat is read by no gate (the referenced row). No planar flush analog was testable: the census does not record that seat (five findings), and the cut refuses `LineWedges`.
 
 Done when the gate compares solids, or a reason is recorded why shells suffice, with a pinned planar or curved flush row.
+
+## Narrowed (2026-11-12): the flush cut no longer reaches the gate
+
+The flush coaxial cut this row measured is a cut by a tool whose solids rest on each other, which the cut now reads as material (`crates/topo/README.md` `[topo.cut-material]`). The tool's curved record refuses `ToolSeatUnread` at the cut's door (`crates/sweep/tests/a_cut_by_a_curved_seat_refuses_its_material.rs`, the `flush` case), and a planar flush tool is fused before the cut, so no cut reaches `Held::apart` with a tool's record. The row narrows to the ops that keep the pieces: a `∪` that bridges a seat and leaves its two faces in two shells of one solid.

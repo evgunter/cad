@@ -82,3 +82,9 @@ The lane stopped before building, as it should have. The dispatch claimed the ca
 3. **Surface kinds alone.** Ruled out: two cylinders can be one carrier or tangent.
 
 Either way, the gate likely compares solids rather than shells (the flush finding).
+
+## Narrowed (2026-11-12): a cut no longer reaches it
+
+`a-cut-across-its-tools-seat-leaves-a-sliver-between-the-seats-two-sections` landed the cut that reads its tool as material (`crates/topo/README.md` `[topo.cut-material]`, `crates/topo/src/boolean/material.rs`). A cut by a tool whose solids rest on each other fuses them on its face–face records before it cuts. A record of two curved faces is not taken as a glue, since it may be a line tangency, so the cut refuses `ToolSeatUnread` naming it, before any pass writes. The shaft through the bore and the flush shaft, cut by the block, are pinned at that refusal (`crates/sweep/tests/a_cut_by_a_curved_seat_refuses_its_material.rs`). The wrong body this row measured is no longer built by a cut.
+
+What remains is an op that keeps the pieces: a `∪` that bridges a curved seat and joins its two pieces elsewhere, where `Held::apart` reads only planar records. `S − X` and `∩` keep both pieces and do not join them. The "Done when" now reads: a bridged `∪` of a curved seat refuses typed or builds the op's body, with a pinned row. A cut by a curved seat builds once the record's class can be read without a band decision; that is this row's open design question (options 1 and 2 above), now asked for the fuse rather than the gate.

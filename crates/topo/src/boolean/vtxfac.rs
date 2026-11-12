@@ -139,7 +139,7 @@ pub(super) fn pierced_and_paired<T: Decide>(
     ] {
         let theirs = usize::from(operand == Operand::A);
         let declared = |x: FaceKey, y: FaceKey| {
-            records[theirs].ff.iter().find(|r| {
+            records[theirs].ff.iter().any(|r| {
                 ([r.contact.a, r.contact.b] == [x, y] || [r.contact.a, r.contact.b] == [y, x])
                     && crate::contact::area_record(bodies[theirs], x, y)
             })
@@ -151,13 +151,11 @@ pub(super) fn pierced_and_paired<T: Decide>(
                 continue;
             };
             let twice = BooleanError::pierced_twice(operand, c.vertex, [face, c.face]);
-            let Some(record) = declared(face, c.face) else {
+            if !declared(face, c.face) {
                 return Err(twice);
-            };
+            }
             let wall = Wall {
                 faces: [face, c.face],
-                record: record.record,
-                seat: [record.contact.a, record.contact.b],
             };
             if walls.insert((operand, c.vertex), wall).is_some() {
                 return Err(twice);
@@ -202,10 +200,6 @@ pub(super) fn pierced_and_paired<T: Decide>(
 pub(super) struct Wall {
     /// The pierced faces, in pierce order.
     pub faces: [FaceKey; 2],
-    /// The record's index in the pierced operand's records.
-    pub record: u32,
-    /// The record's two faces, in its own order.
-    pub seat: [FaceKey; 2],
 }
 
 /// Each vertex that pierces a declared wall ([`Wall`]).
