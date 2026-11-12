@@ -512,3 +512,12 @@ Newest entries at the bottom; the tail is the program's live status.
   - Every source walk is bounded.
   - VR4 gains one sentence, called out as a consequence.
   - **A second targeted re-check is dispatched** to the same reviewer, on the diff only. Each prior round found MAJORs. (PLACING orchestrator)
+- 2026-11-12 — **6856 re-check round 2: NOT-MERGEABLE-AS-IS.**
+  - **One MAJOR, demonstrated:** a pick is a reader the redefinition check misses, so the door writes what the load refuses. This is the fourth reader kind missed across rounds.
+  - **MINORs:**
+    - the offer's dry run is not the action, so it misses `StrandedPick`;
+    - it costs a door run per candidate per frame, uncached (65 ms at 641 nodes in debug);
+    - a member source's rank is unchecked at rest.
+  - The round-1 MAJORs are closed. The load-semantics change and the VR4 sentence are judged faithful.
+  - **Orchestrator ruling, structural:** a source's redefinition, or a source handover, runs the load's own whole-document check, or its downstream-scoped equivalent. Door/load parity then holds by construction, so no more per-reader arms.
+  - **Fix pass 3 dispatched.** (PLACING orchestrator)
