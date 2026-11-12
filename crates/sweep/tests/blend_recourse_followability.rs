@@ -1185,9 +1185,11 @@ fn the_spine_recourse_has_no_witness_in_this_suite_the_clearance_screen_answers_
 /// blends — a chain door admitting a non-rim G1 run is exactly where
 /// the witness would come from, and this row goes red there.
 ///
-/// The L prism is that body: its reflex edge makes one vertex
-/// mixed-convexity, and the whole-body request meets
-/// `UnsupportedCorner`, never `ConvexitySignFlip`. The adversarial
+/// The L prism is that body: its reflex edge makes its two ends
+/// mixed-convexity vertices, and a request naming the reflex edge with
+/// one other edge of its corner meets `UnsupportedCorner`, never
+/// `ConvexitySignFlip` (the whole body builds, through the mixed
+/// corner). The adversarial
 /// corpus agrees — `review_d2_adv_probes::d2_reached_variants` reaches
 /// ten refusal classes over hundreds of requests and this is not one
 /// of them.
@@ -1205,11 +1207,31 @@ fn the_convexity_recourse_has_no_witness_in_this_suite() {
         1.0,
         tol(),
     );
+    let ends = |e: topo::EdgeKey| {
+        let (a, b) = l.edge_vertices(e).unwrap();
+        let p = |v| *l.get_point(l.get_vertex(v).unwrap().point).unwrap();
+        (p(a), p(b))
+    };
+    let odd_and_one: Vec<topo::EdgeKey> = query::all_edges(&l)
+        .into_iter()
+        .filter(|&e| {
+            let (a, b) = ends(e);
+            let at_reflex = |p: geom_core::Point3<f64>| p.x == 1.0 && p.y == 1.0;
+            let vertical = at_reflex(a) && at_reflex(b);
+            let floor_leg = a.z == 0.0 && b.z == 0.0 && a.y == 1.0 && b.y == 1.0;
+            vertical || floor_leg
+        })
+        .collect();
+    assert_eq!(
+        odd_and_one.len(),
+        2,
+        "the reflex edge and one floor edge of its corner"
+    );
     let err = refusal(
         &l,
-        &query::all_edges(&l),
+        &odd_and_one,
         0.1,
-        "every edge of an L prism",
+        "an L prism's reflex edge and one floor edge of its corner",
         false,
     );
     assert!(

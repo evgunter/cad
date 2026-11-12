@@ -304,7 +304,8 @@ fn r2_corner_arcs_are_sub_pi_turns_about_the_stored_centre_on_both_sides() {
 /// discipline the retired row articulated left the tree with it.
 /// This restores it at the surviving fixture: the bracket's reflex
 /// edge ends at corners where exactly two of three edges are convex,
-/// requested whole with every other edge of the bracket.
+/// requested with one floor edge of its corner (all three build, the
+/// mixed corner).
 #[test]
 fn r2_the_mixed_corner_refusals_count_is_two_of_three() {
     let lp = ProfileLoop::polygon([
@@ -349,9 +350,24 @@ fn r2_the_mixed_corner_refusals_count_is_two_of_three() {
         .map(|(k, _)| k)
         .collect();
     assert_eq!(reflex.len(), 1, "the bracket's one reflex vertical edge");
+    let floor_leg: Vec<EdgeKey> = bracket
+        .edges()
+        .filter(|(k, _)| {
+            let (start, end) = bracket.edge_vertices(*k).unwrap();
+            let pt = |vk| {
+                *bracket
+                    .get_point(bracket.get_vertex(vk).unwrap().point)
+                    .unwrap()
+            };
+            let (a, b): (Point3<f64>, Point3<f64>) = (pt(start), pt(end));
+            a.z == 0.0 && b.z == 0.0 && a.y == 1.0 && b.y == 1.0
+        })
+        .map(|(k, _)| k)
+        .collect();
+    assert_eq!(floor_leg.len(), 1, "one floor edge of the reflex corner");
     let refused = fillet_edges(
         &sweep::test_support::at_rest(&bracket, Tol::witness()),
-        &topo::query::all_edges(&bracket),
+        &[reflex[0], floor_leg[0]],
         0.1,
         Tol::witness(),
     )

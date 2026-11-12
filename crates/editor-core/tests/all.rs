@@ -97,6 +97,8 @@ mod atrest_operation_rows_quiet;
 mod band_closed_mixed_chain_names;
 #[path = "band_joined_rim_names.rs"]
 mod band_joined_rim_names;
+#[path = "band_mixed_corner_names.rs"]
+mod band_mixed_corner_names;
 #[path = "band_planar_cut_off_names.rs"]
 mod band_planar_cut_off_names;
 #[path = "band_planar_mitre_names.rs"]

@@ -2876,6 +2876,10 @@ fn embedded<'a>(name: &'a StableName, partners: Partners, f: &mut Vec<(&'a Stabl
             | RoleSeg::EndArc {
                 vertex: a,
                 edge: b,
+            }
+            | RoleSeg::HostFoot {
+                vertex: a,
+                edge: b,
             } => {
                 visit(a, partners, f);
                 visit(b, partners, f);

@@ -161,6 +161,8 @@ pub(crate) enum SegTag {
     HoleRim,
     // Repetition
     Member,
+    // Blend, appended
+    HostFoot,
 }
 
 impl SegTag {
@@ -205,6 +207,7 @@ impl SegTag {
             Self::Mitre => s::SegTag::Mitre,
             Self::TurnFoot => s::SegTag::TurnFoot,
             Self::BandSection => s::SegTag::BandSection,
+            Self::HostFoot => s::SegTag::HostFoot,
             Self::BandFace => s::SegTag::BandFace,
             Self::BandTrim => s::SegTag::BandTrim,
             Self::BandFoot => s::SegTag::BandFoot,
@@ -961,6 +964,7 @@ mod growth_tripwire {
             s::SegTag::Mitre => SegTag::Mitre,
             s::SegTag::TurnFoot => SegTag::TurnFoot,
             s::SegTag::BandSection => SegTag::BandSection,
+            s::SegTag::HostFoot => SegTag::HostFoot,
             s::SegTag::BandFace => SegTag::BandFace,
             s::SegTag::BandTrim => SegTag::BandTrim,
             s::SegTag::BandFoot => SegTag::BandFoot,

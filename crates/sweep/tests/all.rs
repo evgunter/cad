@@ -212,6 +212,8 @@ mod band_apart_partners_on_a_steep_ellipse;
 mod band_closed_mixed_chain;
 #[path = "band_closed_mixed_chain_shapes.rs"]
 mod band_closed_mixed_chain_shapes;
+#[path = "band_mixed_corner.rs"]
+mod band_mixed_corner;
 #[path = "band_subdivided_side_walls.rs"]
 mod band_subdivided_side_walls;
 #[path = "bisector_lane_stubs.rs"]

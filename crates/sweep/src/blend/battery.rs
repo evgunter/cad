@@ -1058,11 +1058,12 @@ pub fn chain_g1<T: Decide + Bounds>(
 /// predicate admits it on both, for both verbs: the chamfer's ruled
 /// strip and flat patch take no convexity argument, and the rolling
 /// ball's corner — its ball, its contact feet, its octant chart —
-/// folds the side as one verdict. A MIXED corner has no patch, because
-/// the patch would change sides mid-corner, and no rule of its own yet:
-/// [`corner_at`] asks this predicate at a mixed vertex only where the
-/// request wants one of those, and reads the independence alone where
-/// a uniform rule's cut-off or mitre ends the band.
+/// folds the side as one verdict. A MIXED corner has no such patch,
+/// because the patch would change sides mid-corner: [`corner_at`] asks
+/// this predicate at a mixed vertex only where the request wants a rule
+/// that is not built, and reads the independence alone where a uniform
+/// rule's cut-off or mitre ends the band or all three edges build the
+/// mixed corner ([`mixed_corner_square`]).
 ///
 /// # Errors
 ///
@@ -3039,10 +3040,12 @@ fn point_at<T: Decide>(body: &Body<T>, vertex: VertexKey) -> Result<Point3<T>, B
 /// from a chamfer and from a fillet the section [`cap_transverse`]
 /// picks. The patch needs the vertex's three edges of one convexity;
 /// at a plane–plane end where they mix, one edge and the two that round
-/// alike end as they do at a uniform vertex, and any other request
-/// refuses [`CornerConfig::MixedConvexity`] through [`corner_config`]
-/// ([`mixed_end_is_built`]). A curved link's end at a mixed vertex is
-/// judged as at a uniform one: its open-chain door refuses it.
+/// alike end as they do at a uniform vertex, all three build the mixed
+/// corner where [`mixed_corner_square`] admits it, and the odd edge with
+/// one other refuses [`CornerConfig::MixedConvexity`] through
+/// [`corner_config`] ([`mixed_end_is_built`]). A curved link's end at a
+/// mixed vertex is judged as at a uniform one, short of all three: its
+/// open-chain door refuses it.
 /// The uniform trihedron returns `None`: the carved trihedral
 /// configuration has no tag of its own ([`CornerConfig::ThreeConvexEdges`]
 /// names the convex one, and by Ev's ruling on PR 1935 none names the

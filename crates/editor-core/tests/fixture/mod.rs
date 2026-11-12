@@ -3771,7 +3771,8 @@ fn embedded_names(seg: &RoleSeg) -> Vec<&StableName> {
             vertex: x,
             support: y,
         }
-        | RoleSeg::EndArc { vertex: x, edge: y } => vec![x.as_ref(), y.as_ref()],
+        | RoleSeg::EndArc { vertex: x, edge: y }
+        | RoleSeg::HostFoot { vertex: x, edge: y } => vec![x.as_ref(), y.as_ref()],
         RoleSeg::EdgeCrossing(run) => run
             .iter()
             .flat_map(|l| std::iter::once(l.line.as_ref()).chain(sensed(&l.sense)))

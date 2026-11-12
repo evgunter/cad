@@ -20,8 +20,8 @@
 //!   with the smaller shape a reviewer would reach for first — an open
 //!   POCKET. Its floor corners ARE all-concave trihedra, so the corner
 //!   door is not what stops it: the floor alone walks into a closed
-//!   sharp chain (G1 refusal), and any completion walks up the struts
-//!   into the rim's MIXED corners. Both refusals are pinned.
+//!   sharp chain (G1 refusal), and the whole component walks up the
+//!   struts into the rim's MIXED corners, which build.
 //! - P4: the L-bracket's mixed corner, its odd edge requested with a
 //!   rim edge, refuses the fillet with the MixedConvexity tag.
 
@@ -149,8 +149,8 @@ fn p2_all_twelve_cavity_edges_are_concave_and_the_eight_corners_trivalent() {
 /// **P3 — the impossibility argument, attacked with a pocket.** A
 /// pocket `[1,3]² × [2,4]` open to the top face has FOUR floor corners
 /// that are genuinely all-concave trihedra — so the smaller fixture is
-/// not stopped by the corner door reading them wrong. What stops it is
-/// the argument's actual mechanism, and both halves are pinned here:
+/// not stopped by the corner door reading them wrong. Both halves of the
+/// argument are pinned here:
 ///
 /// - requesting the four floor edges alone leaves each floor corner
 ///   with exactly two requested edges, so the battery walks them into
@@ -158,11 +158,11 @@ fn p2_all_twelve_cavity_edges_are_concave_and_the_eight_corners_trivalent() {
 ///   open chains, and each corner — two of its three edges requested,
 ///   the walls square to the floor — is a concave mitre, which builds;
 /// - completing the request — here the WHOLE pocket component, floor,
-///   struts and even the convex rim — reaches the struts' top ends,
-///   which are the rim's mixed corners: the corner door refuses
-///   `MixedConvexity`, and no subset of this body's edge graph avoids
-///   them, because the concave edges and the convex rim are ONE
-///   component.
+///   struts and the convex rim — reaches the struts' top ends, the rim's
+///   mixed corners, with all three of their edges requested, which build
+///   the mixed corner: by pieces, the strips over every edge's length,
+///   less `2d³/3` at each floor corner and `K·d³` more at each rim corner
+///   (`K = 5/3 − 7√2/6`, `band_mixed_corner`).
 #[test]
 fn p3_a_pocket_cannot_supply_a_complete_concave_request() {
     let block = brick(Point3::new(0.0, 0.0, 0.0), Point3::new(4.0, 4.0, 4.0));
@@ -200,18 +200,28 @@ fn p3_a_pocket_cannot_supply_a_complete_concave_request() {
 
     let full = edges_with_corners(&body, on_pocket_vertical);
     assert_eq!(full.len(), 12, "floor, struts, and the pocket's convex rim");
-    let err = chamfer_edges(&body, &full, D, Tol::witness())
-        .expect_err("even the whole pocket component meets the rim's mixed corners");
+    let out = chamfer_edges(&body, &full, D, Tol::witness()).unwrap_or_else(|e| {
+        panic!(
+            "the whole pocket component builds through the rim's mixed corners, got {:?}",
+            e.error
+        )
+    });
+    let volume = |b: &Body<f64>| {
+        topo::mass_properties(
+            &topo::test_support::finished("the measured body", b.clone(), Tol::witness()),
+            Tol::witness(),
+            topo::test_support::pinned_resolution(Tol::witness()),
+        )
+        .expect("closed-form props")
+        .enclosure
+        .volume
+    };
+    let k = 5.0 / 3.0 - 7.0 * 2f64.sqrt() / 6.0;
+    let truth = D * D / 2.0 * (16.0 - 8.0) - 4.0 * 2.0 / 3.0 * D.powi(3) + 4.0 * k * D.powi(3);
+    let dv = volume(&out.body.clone().into_body()) - volume(&body.clone().into_body());
     assert!(
-        matches!(
-            err.error,
-            BlendError::UnsupportedCorner {
-                corner: CornerConfig::MixedConvexity { .. },
-                ..
-            }
-        ),
-        "the struts' top ends are mixed corners, got {:?}",
-        err.error
+        (dv - truth).abs() < 1e-12,
+        "the whole pocket's ΔV {dv} is its closed form {truth}"
     );
 }
 

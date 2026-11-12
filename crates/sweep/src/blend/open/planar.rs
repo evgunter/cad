@@ -3,7 +3,9 @@
 //! trivalent vertex whose edges the request names all — the corner
 //! patch, at a vertex of one convexity, the fillet's sphere octant or
 //! the chamfer's flat patch through the three trimline feet
-//! ([`corner_plan`]) — two: the mitre where the two bands meet
+//! ([`corner_plan`]), and at a vertex whose convexity mixes the link
+//! resting on the shared face and the odd band ([`MixedCorner`]) — two:
+//! the mitre where the two bands meet
 //! ([`turn_plan`]) — or one: the cut-off in the plane end face
 //! ([`cut_off_plan`], [`super::end_face`]).
 //!
@@ -19,7 +21,8 @@
 //! requested edge. Per edge one `kef` merges the two strips across the
 //! dying sharp edge; per corner three arc `mef`s, two `kef`s and one
 //! `kev` fuse the corner triangles into the patch and retire the struts
-//! and the sharp vertex; per turn the mitre `mef`'d across one band, a
+//! and the sharp vertex (at a mixed corner, `E` takes two struts and the
+//! link's arc between them first, and the fusion three `kef`s); per turn the mitre `mef`'d across one band, a
 //! `kef` and a `kev` retiring the strut, the third edge's piece and the
 //! vertex ([`turn_fusion`]); per cut-off its last step folds the sliver into
 //! the band and retires the old vertex; per joint (two links of one
@@ -130,7 +133,15 @@ pub(in crate::blend) struct MixedCorner<T: Real> {
     /// along (a pair band's ball circle, and the odd band's circle `r`
     /// off `E`), and the centre and radius of the link's arc on `E`.
     /// `None` for a chamfer, whose edges are all chords.
-    arcs: Option<([(EdgeKey, BallSection<T>); 3], (Point3<T>, T))>,
+    arcs: Option<MixedArcs<T>>,
+}
+
+/// A fillet's mixed corner arcs ([`MixedCorner`]'s).
+struct MixedArcs<T: Real> {
+    /// Each link and the section its band meets the patch along.
+    sections: [(EdgeKey, BallSection<T>); 3],
+    /// The centre and radius of the link's arc on `E`.
+    host: (Point3<T>, T),
 }
 
 /// The corner patch at one fully-requested trivalent vertex: its
@@ -263,7 +274,7 @@ pub(in crate::blend) fn corner_plan<'a, T: Decide + Bounds>(
 ///   meets the chord strip's, the line `s` in from the chord the odd
 ///   strip leaves in `E`; the patch is the plane through the four.
 #[allow(clippy::too_many_arguments)]
-fn mixed_corner_plan<'a, T: Decide + Bounds>(
+fn mixed_corner_plan<'a, T: Real>(
     links: CornerLinks<'a, T>,
     faces: CornerFaces,
     all: &[AdmittedOpen<'a, T>],
@@ -340,7 +351,10 @@ fn mixed_corner_plan<'a, T: Decide + Bounds>(
             let u_ref = (centres[0] - q).normalize();
             (
                 host_feet,
-                Some((rests, (p_e, two_r))),
+                Some(MixedArcs {
+                    sections: rests,
+                    host: (p_e, two_r),
+                }),
                 Surface::Torus {
                     center: q,
                     axis: a_odd,
@@ -1193,8 +1207,14 @@ pub(in crate::blend) fn blank_phase<'a, T: Decide + Bounds + topo::AtRestPolicy>
                 .map_err(|e| op("mixed host arc mef", e))?;
             described.push((
                 created.edge,
-                match m.arcs {
-                    Some((_, (center, radius))) => ContactCarrier::CornerArc { center, radius },
+                match &m.arcs {
+                    Some(MixedArcs {
+                        host: (center, radius),
+                        ..
+                    }) => ContactCarrier::CornerArc {
+                        center: *center,
+                        radius: *radius,
+                    },
                     None => ContactCarrier::Chord,
                 },
                 m.odd,
@@ -1348,7 +1368,8 @@ pub(in crate::blend) fn blank_phase<'a, T: Decide + Bounds + topo::AtRestPolicy>
             // section, a row of both charts, as a junction's does.
             let carrier = match (&c.mixed, c.arc) {
                 (Some(m), _) => match &m.arcs {
-                    Some((rests, _)) => rests
+                    Some(arcs) => arcs
+                        .sections
                         .iter()
                         .find(|(e, _)| *e == l.edge)
                         .map(|(_, s)| ContactCarrier::Section(*s))
