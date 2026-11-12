@@ -8931,7 +8931,7 @@ fn validate_declarations<T: Decide>(
 ///
 /// [`BooleanError::InvalidInput`] naming the first record kind that
 /// fails.
-pub(super) fn validate_carried<T: Real>(
+pub(in crate::boolean) fn validate_carried<T: Real>(
     body: &Body<T>,
     c: &OperandRecords,
     operand: Operand,

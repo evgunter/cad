@@ -405,15 +405,18 @@ impl Through {
             ef,
             ff,
         } = &mut records;
-        macro_rules! place {
-            ($($list:ident),*) => {
-                $(for c in $list.iter_mut() {
-                    through.records.push(vec![c.record]);
-                    c.record = super::reduce::index(through.records.len() - 1);
-                })*
-            };
-        }
-        place!(vv, vf, ve, ee, ef, ff);
+        let mut places = Vec::new();
+        let mut place = |record: &mut u32| {
+            places.push(vec![*record]);
+            *record = super::reduce::index(places.len() - 1);
+        };
+        vv.iter_mut().for_each(|c| place(&mut c.record));
+        vf.iter_mut().for_each(|c| place(&mut c.record));
+        ve.iter_mut().for_each(|c| place(&mut c.record));
+        ee.iter_mut().for_each(|c| place(&mut c.record));
+        ef.iter_mut().for_each(|c| place(&mut c.record));
+        ff.iter_mut().for_each(|c| place(&mut c.record));
+        through.records = places;
         (through, records)
     }
 
