@@ -49,7 +49,7 @@ use crate::matetool::{MateTool, MateToolEvent};
 use crate::pickcache::NotIndexed;
 use crate::pickindex::{PickIndex, PickKinds};
 use crate::seats::SeatEvent;
-use crate::session::{Selection, SessionOp};
+use crate::session::{Refusal, Selection, SessionOp};
 use crate::vocab::vocabulary;
 
 vocabulary! {
@@ -841,6 +841,26 @@ impl Tools {
             }
             _ => {}
         }
+    }
+
+    /// **A door's target change held** ([`Refusal::TargetHeld`]): the
+    /// placement editor opens on the copy with the door's target set, so
+    /// the change is held there as the editor holds one — the rows
+    /// reading the old space marked, and the strike offered. Answers
+    /// whether it opened; any other refusal opens nothing.
+    pub fn held_target(&mut self, refusal: &Refusal, doc: &Doc<ProfileProgram>) -> bool {
+        let Refusal::TargetHeld {
+            placement, target, ..
+        } = refusal
+        else {
+            return false;
+        };
+        let Ok(mut tool) = MateTool::edit(doc, *placement) else {
+            return false;
+        };
+        tool.set_target(target.clone());
+        self.open_mate(tool);
+        true
     }
 
     /// **A document replaced this one**: the open tool starts over,

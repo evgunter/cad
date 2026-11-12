@@ -201,9 +201,10 @@ fn r1_place_undoes_to_the_exact_prior_document() {
     let body = common::xy_box_in(&mut session, [0.02, 0.03, 0.01]);
     session.pump();
     let before = session.committed_doc().clone();
-    let outcome = session.perform(SessionOp::Place {
-        body: Operand::Node(body),
-    });
+    let outcome = session.perform(
+        SessionOp::place_where_it_stands(session.committed_doc(), Operand::Node(body))
+            .expect("a body in a space"),
+    );
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
     session.pump();
     let outcome = session.perform(SessionOp::Undo);

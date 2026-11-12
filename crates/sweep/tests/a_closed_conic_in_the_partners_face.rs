@@ -2170,3 +2170,76 @@ fn review3_a_meeting_off_the_carrier_says_so() {
         "the rim is not on the hole's wall: {text}"
     );
 }
+
+/// **A peg hanging into a pocket, tangent inside its rim**: the mirror
+/// of [`a_boss_over_a_hole_by_pose`]'s tangent crescent. `A` is a block
+/// `[−1, 1]² × [−0.5, 1]` with a blind pocket `r = 0.3` about the
+/// origin, floor at `z = 0`; `B` a slab `[−1, 1]² × [0, 0.5]` with a peg
+/// `r = 0.1` about `(0.2, 0)` hanging to `z = −0.5`, tangent inside the
+/// pocket's rim at `(0.3, 0, 0)`, both rims one segment or two arcs. Its
+/// vertex pair crosses four times in `∩`, where the kept start pairs
+/// each rim with itself (`insert::start_pairs`): the unions build
+/// `SOUND`, and the intersections at their closed form in two shells,
+/// the pocket's floor ring and the peg touching at the point, whose tier
+/// 3′ reads curved pairs it cannot decide
+/// (`work/restread/census-cross-solid-curved-pairs-undecidable-on-shell-results.md`).
+/// The differences build with two-arc rims and refuse at the join with
+/// one-segment rims, `UnpairedLooseEnds`: the join's one-site rim lane
+/// closes a one-vertex rim only where its two germs share a null edge,
+/// under either start
+/// (`work/honejoin/a-one-vertex-rim-in-its-partners-coplanar-face-closes-only-when-its-germs-share-a-null-edge.md`).
+/// Red as `UnpairedLooseEnds` in the intersections when the pairing
+/// starts on the Out side.
+#[test]
+fn a_peg_in_a_pocket_tangent_to_its_rim_builds_its_unions_and_intersections() {
+    use Reads::{Loose, Sound, Undecided};
+    for one in [true, false] {
+        let cutter = fin(
+            "the cutter",
+            extruded(vec![rim(one, 0.0, 0.3, 0.0)], 0.0, 1.5),
+        );
+        let block = fin(
+            "the block",
+            brick((-1.0, 1.0), (-1.0, 1.0), (-0.5, 1.0), tol()),
+        );
+        let a = topo::subtract(&block, &cutter, tol()).expect("the pocket");
+        let a = fin(
+            "the pocketed block",
+            a.body().expect("a body").body.clone().into_body(),
+        );
+        let slab = fin(
+            "the slab",
+            brick((-1.0, 1.0), (-1.0, 1.0), (0.0, 0.5), tol()),
+        );
+        let peg = fin(
+            "the peg",
+            extruded(vec![rim(one, 0.2, 0.1, 0.0)], -0.5, 0.75),
+        );
+        let b = topo::union(&slab, &peg, tol()).expect("the peg");
+        let b = fin(
+            "the pegged slab",
+            b.body().expect("a body").body.clone().into_body(),
+        );
+        let (va, vb, vab) = (6.0 - 0.09 * PI, 2.0 + 0.005 * PI, 2.0 - 0.04 * PI);
+        let less = if one {
+            [Loose(4); 2]
+        } else {
+            [Sound(2), Sound(1)]
+        };
+        for (op, (x, y), want, reads) in [
+            ("A ∪ B", (&a, &b), va + vb - vab, Sound(1)),
+            ("B ∪ A", (&b, &a), va + vb - vab, Sound(1)),
+            ("A ∩ B", (&a, &b), vab, Undecided),
+            ("B ∩ A", (&b, &a), vab, Undecided),
+            ("A ∖ B", (&a, &b), va - vab, less[0]),
+            ("B ∖ A", (&b, &a), vb - vab, less[1]),
+        ] {
+            let r = match op {
+                "A ∪ B" | "B ∪ A" => topo::union(x, y, tol()),
+                "A ∩ B" | "B ∩ A" => topo::intersect(x, y, tol()),
+                _ => topo::subtract(x, y, tol()),
+            };
+            reads_as(&format!("{op}, one segment {one}"), r, want, reads);
+        }
+    }
+}

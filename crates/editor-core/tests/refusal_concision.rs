@@ -672,6 +672,7 @@ fn rendered_boolean_refusals() -> Vec<(&'static str, String)> {
                 operand: Operand::B,
                 vertex: VertexKey::default(),
                 partners: [VertexKey::default(); 2],
+                why: topo::SharedStarts::NoneClear,
             },
         ),
         (

@@ -1260,3 +1260,5 @@ E1c waits on the answer.
     - P3 `a-correct-stated-image-far-from-the-origin-reads-in-band-at-a-fine-band`: a false refusal at 1 km, ε 1e-12, which ends in the lever and certifies nothing false.
     - P3 `readers-of-the-stated-image-lever-match-escalated-alone`: two error shapes for one lever. It also records the class finding that an unlocated bound past the band is spelled two ways, the lever on the envelope and "not yet" on the fitted composite.
   - **Not filed, argued.** An iso line outside its column's spline space ends "not yet" (`IsoUnsupported`), but product builders state the column itself as the carrier. The census found no other kind.
+
+- 2026-11-12 — **geom-brep `recourse_roster` red on main mended again** (orchestrator; PR 6845's lane met it after a main merge). band's structural-section row (72188539ad) added two closures that forward their callers' names: `description.rs` `harmonic_row` and `row_contact.rs` `row_clear_of_singularities`. Both are now listed as `CLOSURE_FORWARDS`. It is the third such red this sitting, the same class as P4 `a-src-change-that-moves-a-decide-site-skips-its-crates-recourse-roster`.

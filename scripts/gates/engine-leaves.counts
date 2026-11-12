@@ -36,7 +36,7 @@ boolean-names-splitting     1  boolean/carrier_touch_rows.rs
 boolean-names-splitting    57  boolean/contain.rs
 boolean-names-splitting    17  boolean/fate.rs
 boolean-names-splitting     7  boolean/finish.rs
-boolean-names-splitting    21  boolean/insert.rs
+boolean-names-splitting    19  boolean/insert.rs
 boolean-names-splitting    16  boolean/join.rs
 boolean-names-splitting     1  boolean/join_walk_order_rows.rs
 boolean-names-splitting     6  boolean/mod.rs
@@ -61,7 +61,7 @@ crate-visible              10  boolean/fate.rs
 crate-visible               5  boolean/glue.rs
 crate-visible               5  boolean/holdings.rs
 crate-visible               2  boolean/insert.rs
-crate-visible             160  boolean/mod.rs
+crate-visible             159  boolean/mod.rs
 crate-visible               3  boolean/nary.rs
 crate-visible              22  boolean/ops.rs
 crate-visible               1  boolean/overlap.rs
