@@ -409,6 +409,11 @@ Change 2, at the three sites of section 4. Rows touched: this one.
 
 ### Lane C — the gate asks the certificate (H)
 
+**Note from lane A's review (PR 6885).** Until change 3 lands here, a
+shell at `Interval` that refuses `CavityCrosses` or `CavityUncertified`
+carries no logged reading: the witness confirmation runs inside F41's
+scope. Change 3 is what puts that one row in the log.
+
 Items 2 and 3, and change 3. It needs lane A, and the engine rows
 filed below. Rows touched: this one, and
 `a-recorded-contact-refuses-the-injectivity-question-until-contact-design-hands-it-off`

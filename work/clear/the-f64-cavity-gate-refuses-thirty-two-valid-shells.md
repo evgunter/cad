@@ -75,3 +75,15 @@ row's table 1:
 **Done when** every row above shells at f64 with the gate asking, and
 the switch, the two f64 pins and the mutant land, with the two
 crossings re-pinned to their refusals.
+
+## Carried by the switch (review of PR 6885)
+
+- At `Probe` the switch puts the cavity sweep's samples into the K
+  population (audit row F41). Run the k-probe sweep with it.
+- The valid-shell rows of `shell_cavity_embedded.rs` (`holds`, `shells`)
+  lost their `gap > 0` assertions in PR 6885, so the pot, the frustum,
+  the Klein elbow and the tube at `Sym<Interval>` no longer show the
+  gate ran on them. A gate skipped everywhere still dies on the vessel
+  crossing rows. Put "the gate ran" back on them with the switch.
+- `min_separation`'s F41 scope has no pin (no production caller reads
+  it).

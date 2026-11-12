@@ -1831,10 +1831,11 @@ Flagged, NOT fixed here (dispositions):
     dumbbell neck, drives that certified at once ran past ten minutes,
     and on M10-6's neck and notch fixtures every `min_separation` call
     carries 137–186 such escalations.
-  - **Why the entry points, and not each caller.** Three callers kept
-    the scope by hand, and the shell's cavity gate, a fourth, did not,
-    so a shell node at `Interval` logged the cavity sweep's readings as
-    its own. No production site reads a cell outside the two entry
+  - **Why the entry points, and not each caller.** The scope was kept
+    by hand in three places, two inside the engine (F28, F29) and one
+    caller (`wire_clearance`, F30), and the shell's cavity gate, a
+    second caller, did not keep it, so a shell node at `Interval`
+    logged the cavity sweep's readings as its own. No production site reads a cell outside the two entry
     points.
   - **The one reading that goes in** is a caller's, after the sweep
     returns: an upper bound the box decides only in part
@@ -1848,11 +1849,12 @@ Flagged, NOT fixed here (dispositions):
   - **What the scope does not hide.** The symbolic tier's decision
     counts (`SymCounts`) still count the in-scope decisions, and they
     reach a drive verdict's `content_key` through its serialized
-    receipt. The readings' K samples keep their names: at `Probe` the
-    verdict door runs the bound sweep (the shell's cavity gate), so its
-    samples enter the K population; a k-lint row that fires on them is a
-    finding to re-derive per the K-REPORT runbook, not a reason to log
-    them.
+    receipt. The readings' K samples keep their names. The shell's cavity
+    gate does not ask at `Probe` yet (`CavityGate`), so no K population
+    moves here; once `the-f64-cavity-gate-refuses-thirty-two-valid-shells`
+    switches it on, its samples enter the K population, and a k-lint row
+    that fires on them is a finding to re-derive per the K-REPORT
+    runbook, not a reason to log them.
 
   **Carried as `k_stats::unlogged("F41", ..)`**, at the head of each
   entry point. Not a `decide_flagged` site; `LEDGER_FLAGGED_SITES` does

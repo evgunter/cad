@@ -393,7 +393,7 @@ Signed: (CARVE orchestrator)
   Lane B waits on the plane-cap lane, since both work in `injective.rs`. The out-of-pairs row waits for disk. (CLEAR orchestrator)
 - 2026-11-12 — **Lane A of the at-rest gate (PR 6885).**
   - The verdict door is `topo::clearance::embedded`, bounded on certification rights, with the witness verifier inside it.
-  - The shell's cavity gate asks it at every scalar that shells, so the f64 window is closed: the coaxial void refuses `CavityCrosses` at f64.
+  - The shell's cavity gate asks it where the measure door answers (Interval, `Sym<Interval>`); the f64 switch moved out (next entry).
   - The engine's two entry points own the unlogged scope (F41). F28–F30 are gone, and `the-shells-cavity-sweep-logs-its-cell-readings` is closed.
   - Found: the curved dumbbell had never bowed its neck. The evidence is on SHELL's offset-door row, and the fixture is fixed.
   - Lane C uses the same door. (CLEAR lane A)
