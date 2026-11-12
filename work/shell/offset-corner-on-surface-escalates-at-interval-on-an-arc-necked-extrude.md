@@ -42,10 +42,11 @@ dumbbell put its bulges on `(3, 0.8)` and `(2, 1.2)`. Those start the
 blob walls `x = 3` and `x = 2`, so its neck stayed straight and 0.4
 wide, and at `f64` its cavity certifies embedded (bulge 0.2,
 `t = 0.15`: 56 candidates, nothing refused). With the bulges moved to
-`(2, 0.8)` and `(3, 1.2)`, the neck walls are arcs. At `f64` the cavity
-gate refuses `CavityCrosses` at bulge −0.2 and at +0.2 (`t = 0.15`),
+`(2, 0.8)` and `(3, 1.2)`, the neck walls are arcs. At `f64`, with the
+cavity gate asking there (PR 6885's branch, before that switch moved to
+`clear/the-f64-cavity-gate-refuses-thirty-two-valid-shells`), it refuses `CavityCrosses` at bulge −0.2 and at +0.2 (`t = 0.15`),
 and shells Ok at −0.2, `t = 0.05`. At `Interval` all three refuse here,
 `Face { Escalated offset_corner_on_surface }`, with enclosures of
 1.3–1.6e-6. The row's finding holds for a real arc neck. Its exhibit,
-`shell_cavity_embedded`'s `the_curved_dumbbell_refuses_at_f64_and_waits_on_the_offset_door_at_interval`,
+`shell_cavity_embedded`'s `the_curved_dumbbell_waits_on_the_offset_door_at_interval`,
 now builds the arc neck.

@@ -301,8 +301,16 @@ snowman.
   its receipt. The verifier lives in the door. Lane C's gate calls the
   same door, so it gets the witness verifier with it.
 - The shell's `cavity_embedded` maps the door's answer onto
-  `CavityCrosses` / `CavityUncertified` and runs at every scalar that
-  shells. Its `lift` parameter is gone.
+  `CavityCrosses` / `CavityUncertified`. Its `lift` parameter is gone.
+- **The f64 switch moved out** to
+  `the-f64-cavity-gate-refuses-thirty-two-valid-shells` (P0). Asked at
+  f64, the gate refused 32 valid shell rows the engine cannot certify
+  yet: 22 out of pairs, 8 on the departure arm, 2 at a window. The
+  orchestrator ruled that the spec's ordering covers it, so it waits on
+  the engine rows. The shell asks through `CavityGate`, only where the
+  measure door answers (`Interval`, `Sym<Interval>`). The coaxial and
+  dumbbell f64 pins, and the mutant that skips the shell's gate at f64,
+  went with it.
 - The verifier reads `Candidate::enclosure`: the window carriers the
   engine already crossed. So neither the door nor the shell lifts a
   chart, and no caller spells `Interval::from_certified`.
@@ -320,18 +328,19 @@ snowman.
   dumbbell carried its bulges on the blob walls, not the neck
   (evidence added to
   `shell/offset-corner-on-surface-escalates-at-interval-on-an-arc-necked-extrude`).
-  The fixture now bows the neck, and at f64 it refuses `CavityCrosses`.
+  The fixture now bows the neck. Its Interval row still refuses in the
+  offset door, and at f64 it would refuse `CavityCrosses` (the moved
+  row's pin).
 - Pins:
   - `the_measure_door_answers_at_the_enclosure_scalars_and_nowhere_else`
     and `the_verdict_door_answers_at_every_certifying_scalar` (a cube at
     f64, Interval, `Sym<f64>`, `Sym<Interval>`, and Probe under the
     feature), plus `embedded`'s `compile_fail` doctest at `Dual64`;
-  - the coaxial f64 row, and the curved dumbbell's f64 row;
   - `holds` (the tube and the vessel at `Interval`), which asserts the
     shell logs none of the engine's cell readings.
 - Mutants, both run:
   - the door answering `Embedded` at f64 with nothing read reds the
-    coaxial and dumbbell f64 rows and the verdict table;
+    verdict table;
   - `Sweep::run` without its scope reds the tube (1,027 rows logged),
     the vessel (588) and editor-core's notch node (2,140 verdicts and
     297 escalations).

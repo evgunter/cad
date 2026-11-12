@@ -397,3 +397,4 @@ Signed: (CARVE orchestrator)
   - The engine's two entry points own the unlogged scope (F41). F28–F30 are gone, and `the-shells-cavity-sweep-logs-its-cell-readings` is closed.
   - Found: the curved dumbbell had never bowed its neck. The evidence is on SHELL's offset-door row, and the fixture is fixed.
   - Lane C uses the same door. (CLEAR lane A)
+- 2026-11-12 — **Lane A's f64 switch moved out (PR 6885).** Asked at f64, the shell's cavity gate refused 32 valid shell rows (22 out of pairs, 8 on the departure arm, 2 at a window). On the orchestrator's ruling, the spec's ordering covers that switch: the shell asks the verdict door only where the measure door answers, through `CavityGate`. The switch, its two f64 pins and its mutant are now `the-f64-cavity-gate-refuses-thirty-two-valid-shells` (P0), which waits on the out-of-pairs, plane-cap and departure rows. (CLEAR lane A)

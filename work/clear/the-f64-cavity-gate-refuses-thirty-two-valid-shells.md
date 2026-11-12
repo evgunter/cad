@@ -1,23 +1,49 @@
 ---
 id: the-f64-cavity-gate-refuses-thirty-two-valid-shells
 kind: issue
-title: The shell's cavity gate asked at f64 refuses 32 valid shell rows the engine cannot certify: 22 out of pairs, 8 uncertified on the departure arm, 2 on a refused carrier
+title: The shell's cavity gate asks the verdict door at f64, Probe and Sym<f64> — the switch waits on the engine rows, since asked today it refuses 32 valid shell rows (22 out of pairs, 8 uncertified on the departure arm, 2 on a refused carrier)
 status: open
 opened: 2026-11-12
 priority: P0
-cost: H
-refs: [the-at-rest-gate-certifies-embedding, the-certificate-runs-out-of-pairs-on-eight-finished-tour-bodies, departure-reads-no-curved-corner-off-its-shared-edge]
+cost: E
+refs: [the-certificate-runs-out-of-pairs-on-eight-finished-tour-bodies, the-certificate-refuses-a-plane-cap-on-a-torus-or-cone-wall-at-their-circle, departure-reads-no-curved-corner-off-its-shared-edge, the-at-rest-gate-certifies-embedding]
 ---
 
+Split out of lane A of `the-at-rest-gate-certifies-embedding` (PR
+6885), on the CLEAR orchestrator's ruling that the spec's ordering
+covers this switch too: no gate that refuses valid bodies lands ahead
+of the engine rows.
 
-Found by CLEAR's lane A of `the-at-rest-gate-certifies-embedding` (PR
-6885). Run locally under `--profile ci` and on hosted CI; the two agree.
+**The switch.** `topo::shell` `cavity_embedded` asks the verdict door
+(`topo::clearance::embedded`) only where `CavityGate::at` answers
+`Asks`, which is where the clearance measure answers: `Interval` and
+`Sym<Interval>`. At `f64`, `Probe` and `Sym<f64>` it answers
+`WaitsOnTheEngineRows`, and there a curved crossing still shells
+silently wrong. The door itself answers at every certifying scalar; the
+switch is this unit. When it lands:
+- `CavityGate` goes, and `cavity_embedded` asks at every scalar that
+  shells;
+- `shell_cavity_embedded`'s coaxial row gains its f64 half: the vessel
+  with a coaxial void refuses `CavityCrosses` at f64, on the Interval
+  row's operand faces;
+- its curved dumbbell (the arc-necked fixture, bulge −0.2, `t = 0.15`)
+  gains its f64 half: it refuses `CavityCrosses`, the witness on the
+  two neck walls. Measured on PR 6885's branch;
+- the mutant "the shell's gate skipped at f64" reds both of those
+  rows. The door's own f64 mutant already dies on
+  `clearance::wiring_rows::the_verdict_door_answers_at_every_certifying_scalar`.
 
-With the shell's cavity gate on the verdict door
-(`topo::clearance::embedded`, called from `topo::shell`
-`cavity_embedded`), the gate runs at f64. 34 shell rows that run at
-f64 only turn red. Two are true crossings. The other 32 are valid
-bodies that the engine refuses:
+**What it will catch.** Two rows that pin main's behaviour turn into
+refusals, and their pins move with the switch:
+- `shell5_r2_probes::r2_a_thin_curved_wall_shells_silently_into_crossing_walls`
+  pins the silent wrong shell, and will refuse `CavityCrosses`;
+- `a_move_through_a_neighbour_inverts_the_body::the_shell_verb_refuses_the_crossing_at_its_closing_gate`
+  will be refused `CavityCrosses` before its closing gate.
+
+**What it waits on.** Asked at f64 on PR 6885's branch (local
+`--profile ci` and hosted CI agree), the gate refused 32 valid bodies
+that run at f64 only. They are the engine limits of the at-rest gate
+row's table 1:
 
 - **22 `Budget(Pairs { max_cell_pairs: 65536 })`:**
   - `cross_solid_apart::a_hollow_shelled_again_passes_the_census`;
@@ -46,20 +72,6 @@ bodies that the engine refuses:
   `sf2b_r2_probes::r2_a_conical_wedge_hollows_with_hyperbolic_meridian_edges`
   and `shell7_seam_corner::a_three_quarter_turn_cone_frustum_hollows`.
 
-The two true crossings:
-- `shell5_r2_probes::r2_a_thin_curved_wall_shells_silently_into_crossing_walls`
-  pinned the silent wrong shell, and it now refuses `CavityCrosses`;
-- `a_move_through_a_neighbour_inverts_the_body::the_shell_verb_refuses_the_crossing_at_its_closing_gate`
-  is refused `CavityCrosses` before its closing gate.
-
-These are the engine limits of the at-rest gate row's table 1: the
-pair budget on spheres, domes and tori, and the departure floor. The
-row sequenced the engine rows before lane C, so that the gate would
-not refuse valid bodies. It did not sequence lane A's f64 switch for
-the shell, which has the same exposure. Not measured: the tour's shell
-scenes (nightly) and their wall time at f64.
-
-**Done when** every row above shells at f64 with the gate on, or is
-re-pinned to the refusal it should give. Until then, whether the shell
-asks at f64 is the orchestrator's call on PR 6885.
-
+**Done when** every row above shells at f64 with the gate asking, and
+the switch, the two f64 pins and the mutant land, with the two
+crossings re-pinned to their refusals.
