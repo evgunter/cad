@@ -1434,6 +1434,7 @@ pub fn assert_naming_totality<T: topo::AtRestPolicy>(
         .chain(rec.meridian_splits.iter().map(|(v, _, _)| *v))
         .chain(rec.feet.iter().map(|(v, _, _)| *v))
         .chain(rec.turn_feet.iter().map(|(v, _)| *v))
+        .chain(rec.host_feet.iter().map(|(v, _, _)| *v))
         .collect();
     // (e) recorded once each.
     fn once<K: Ord + Copy>(v: &mut Vec<K>, what: &str, kind: &str) {

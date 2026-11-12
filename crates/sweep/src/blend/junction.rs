@@ -495,7 +495,10 @@ pub(super) fn feet_clear<T: Decide + Bounds>(
             st.vertex == v
                 && matches!(
                     st.kind,
-                    StationKind::JunctionHost | StationKind::JunctionMate
+                    StationKind::JunctionHost
+                        | StationKind::JunctionMate
+                        | StationKind::MixedFoot
+                        | StationKind::MixedHost
                 )
         })
     };
@@ -800,6 +803,7 @@ mod tests {
                         (l.face_a, c.end.foot_a, StationKind::CutOff),
                         (l.face_b, c.end.foot_b, StationKind::CutOff),
                     ],
+                    edge_feet: Vec::new(),
                 }
             })
             .collect::<Vec<_>>();
@@ -825,12 +829,14 @@ mod tests {
                     PlannedStation {
                         vertex: j.vertex(),
                         on,
+                        edge_feet: Vec::new(),
                     }
                 })
                 .collect();
             planned.extend(cuts.iter().map(|c| PlannedStation {
                 vertex: c.vertex,
                 on: c.on.clone(),
+                edge_feet: Vec::new(),
             }));
             RequestedBoundary::admit(&body, host, &opens, &planned)
                 .expect("the top admits its stations")

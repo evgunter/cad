@@ -55,7 +55,7 @@ use crate::blend::admit::{
     AdmittedOpen, CornerFaces, CornerLinks, Joint, Junction, OpenBand, PlannedStation,
     RequestedBoundary, StationKind,
 };
-use crate::blend::arms::{chamfer_corner_patch, corner_ball, line_meet};
+use crate::blend::arms::{BallSection, chamfer_corner_patch, corner_ball, line_meet};
 use crate::blend::battery::{Convexity, EndSection, Link, Overrun, Turn};
 use crate::blend::build::{fan_at, octant_chart, outward_of};
 use crate::blend::junction::{self, JunctionReading, MixedTrim, strut_foot};
@@ -101,8 +101,36 @@ pub(in crate::blend) struct Corner<'a, T: Real> {
     /// termination reaches the carve only through predicate 6, which
     /// runs at every open chain's two ends and admits a corner patch
     /// only where its three edges carry ONE convexity. So the three
-    /// links here cannot disagree — on either side of the material.
+    /// links here cannot disagree — on either side of the material. At a
+    /// mixed corner ([`Corner::mixed`]) it is the pair's, whose link the
+    /// patch is.
     pub(in crate::blend) convexity: Convexity,
+    /// A mixed corner's own shape, where the three edges' convexity
+    /// mixes: `None` at a uniform corner.
+    pub(in crate::blend) mixed: Option<MixedCorner<T>>,
+}
+
+/// **A mixed corner whose three edges are all requested**: the odd band
+/// is cut off in `host` (`E`, the face the odd edge does not lie in) and
+/// the pair runs on through the link resting on `E` and on the odd band
+/// — a fillet's torus about the odd band's axis, major radius `2r`, or a
+/// chamfer's strip mitred onto the pair's. The rule fixes that geometry,
+/// not a carve order, so it is carved as a corner station in the one
+/// pass: the link is the patch, its feet on the two faces the odd edge
+/// lies in are where their trimlines cross, and on `E` each pair band's
+/// trimline ends at its own foot, the link's arc on `E` between them.
+pub(in crate::blend) struct MixedCorner<T: Real> {
+    /// The face the pair shares, `E`.
+    pub(in crate::blend) host: FaceKey,
+    /// The odd edge.
+    pub(in crate::blend) odd: EdgeKey,
+    /// Each pair edge and its band's foot on `E`.
+    pub(in crate::blend) host_feet: [(EdgeKey, Point3<T>); 2],
+    /// A fillet's arcs: the section each link's band meets the patch
+    /// along (a pair band's ball circle, and the odd band's circle `r`
+    /// off `E`), and the centre and radius of the link's arc on `E`.
+    /// `None` for a chamfer, whose edges are all chords.
+    arcs: Option<([(EdgeKey, BallSection<T>); 3], (Point3<T>, T))>,
 }
 
 /// The corner patch at one fully-requested trivalent vertex: its
@@ -154,6 +182,14 @@ pub(in crate::blend) fn corner_plan<'a, T: Decide + Bounds>(
         *slot = outward_of(body, f)
             .ok_or_else(|| unbuilt_geometry(EntityId::Face(f), CORNER_SUPPORT_NOT_PLANAR))?
             .vec();
+    }
+    let (seed, others) = links.sorted();
+    let all: Vec<AdmittedOpen<'a, T>> = core::iter::once(seed).chain(others).collect();
+    if all
+        .iter()
+        .any(|o| o.convexity() != links.first().convexity())
+    {
+        return mixed_corner_plan(links, faces, &all, p, normals, radius, kind);
     }
     // Any one incident link answers for all of them (`Corner`'s field
     // doc): the battery's corner predicate admits a corner patch only
@@ -208,6 +244,169 @@ pub(in crate::blend) fn corner_plan<'a, T: Decide + Bounds>(
         arc,
         surface,
         convexity,
+        mixed: None,
+    })
+}
+
+/// **The mixed corner's plan** ([`MixedCorner`]), the battery having
+/// admitted it: three plane–plane links, `E` square to the odd edge.
+///
+/// - **Fillet**: each pair band's ball comes to rest against the odd
+///   band where its axis passes nearest the odd band's (`2r` from it,
+///   the pair's ball and the odd band's on opposite sides of the face
+///   they share); the patch is the torus about the odd band's axis
+///   through those rests, centred `r` off `E`, major radius `2r`. Each
+///   rest's foot on a support is the rest displaced toward it, as at a
+///   uniform corner.
+/// - **Chamfer**: on each face the odd edge lies in, the foot is where
+///   its two strips' trimlines cross; on `E`, each pair strip's trimline
+///   meets the chord strip's, the line `s` in from the chord the odd
+///   strip leaves in `E`; the patch is the plane through the four.
+#[allow(clippy::too_many_arguments)]
+fn mixed_corner_plan<'a, T: Decide + Bounds>(
+    links: CornerLinks<'a, T>,
+    faces: CornerFaces,
+    all: &[AdmittedOpen<'a, T>],
+    p: Point3<T>,
+    normals: [Vec3<T>; 3],
+    radius: T,
+    kind: BlendKind,
+) -> Result<Corner<'a, T>, BlendError> {
+    let vertex = links.vertex();
+    let shape = || {
+        disagrees(
+            EntityId::Vertex(vertex),
+            "a mixed corner the battery admitted is not one odd link and a pair of \
+             plane–plane links about a face square to the odd edge",
+        )
+    };
+    let convex = all
+        .iter()
+        .filter(|o| matches!(o.convexity(), Convexity::Convex))
+        .count();
+    let odd_is_convex = convex == 1;
+    let is_odd = |o: &AdmittedOpen<'a, T>| matches!(o.convexity(), Convexity::Convex) == odd_is_convex;
+    let pair: Vec<&Link<T>> = all
+        .iter()
+        .filter(|o| !is_odd(o))
+        .map(AdmittedOpen::link)
+        .collect();
+    let (Some(odd), &[p1, p2]) = (
+        all.iter().find(|o| is_odd(o)).map(AdmittedOpen::link),
+        &pair[..],
+    ) else {
+        return Err(shape());
+    };
+    let pair_convexity = p1.convexity;
+    let host = faces.third(odd.face_a, odd.face_b).ok_or_else(shape)?;
+    let slot = |f: FaceKey| faces.as_slice().iter().position(|g| *g == f);
+    let other = |l: &Link<T>| if l.face_a == host { l.face_b } else { l.face_a };
+    let n_of = |f: FaceKey| slot(f).map(|i| normals[i]).ok_or_else(shape);
+    let n_e = n_of(host)?;
+    let mut feet = [p; 3];
+    let (host_feet, arcs, surface) = match kind {
+        BlendKind::Fillet => {
+            let axis_of = |l: &Link<T>| match l.blend.surface {
+                Surface::Cylinder { origin, axis, .. } => Ok((origin, axis.normalize())),
+                _ => Err(shape()),
+            };
+            let (o_odd, a_odd) = axis_of(odd)?;
+            // The odd band's axis pierces `E` at `p_e`; the rests lie in
+            // the plane `r` off `E` on the pair balls' side.
+            let p_e = o_odd + a_odd * ((p - o_odd).dot(n_e) / a_odd.dot(n_e));
+            let toward = pair_convexity.signed(radius);
+            let q = p_e - n_e * toward;
+            let mut host_feet = [(p1.edge, p); 2];
+            let section = |centre: Point3<T>, normal: Vec3<T>| BallSection {
+                centre,
+                normal,
+                radius,
+            };
+            let mut rests = [(p1.edge, section(q, a_odd)); 3];
+            let mut centres = [q; 2];
+            for (i, l) in [p1, p2].into_iter().enumerate() {
+                let (o, a) = axis_of(l)?;
+                let c = o + a * (q - o).dot(a);
+                let f = other(l);
+                feet[slot(f).ok_or_else(shape)?] = c + n_of(f)? * toward;
+                host_feet[i] = (l.edge, c + n_e * toward);
+                rests[i] = (l.edge, section(c, a));
+                centres[i] = c;
+            }
+            rests[2] = (odd.edge, section(q, a_odd));
+            feet[slot(host).ok_or_else(shape)?] = host_feet[0].1;
+            let two_r = radius + radius;
+            let u_ref = (centres[0] - q).normalize();
+            (
+                host_feet,
+                Some((rests, (p_e, two_r))),
+                Surface::Torus {
+                    center: q,
+                    axis: a_odd,
+                    major_radius: two_r,
+                    minor_radius: radius,
+                    u_ref,
+                },
+            )
+        }
+        BlendKind::Chamfer => {
+            let trim = |l: &Link<T>, f: FaceKey| {
+                l.trim_on(f)
+                    .and_then(|(c, _)| c.as_line())
+                    .ok_or_else(shape)
+            };
+            for l in [p1, p2] {
+                let f = other(l);
+                let (a, b) = (trim(l, f)?, trim(odd, f)?);
+                feet[slot(f).ok_or_else(shape)?] = line_meet(a, b, a.dir.cross(b.dir));
+            }
+            // The chord the odd strip leaves in `E`, between its two
+            // trimlines' crossings of `E`, and the chord strip's trimline
+            // `s` in from it, toward the vertex.
+            let pierce = |f: FaceKey| -> Result<Point3<T>, BlendError> {
+                let l = trim(odd, f)?;
+                Ok(l.origin + l.dir * ((p - l.origin).dot(n_e) / l.dir.dot(n_e)))
+            };
+            let (g1, g2) = (pierce(other(p1))?, pierce(other(p2))?);
+            let d = (g2 - g1).normalize();
+            let w = p - g1;
+            let w = (w - d * w.dot(d)).normalize();
+            let chord_trim = geom::Line {
+                origin: g1 + w * radius,
+                dir: d,
+            };
+            let mut host_feet = [(p1.edge, p); 2];
+            for (i, l) in [p1, p2].into_iter().enumerate() {
+                let a = trim(l, host)?;
+                host_feet[i] = (l.edge, line_meet(a, chord_trim, a.dir.cross(d)));
+            }
+            feet[slot(host).ok_or_else(shape)?] = host_feet[0].1;
+            let Surface::Plane { normal: n_s, .. } = odd.blend.surface else {
+                return Err(shape());
+            };
+            let zero = Vec3::new(T::zero(), T::zero(), T::zero());
+            let f1 = feet[slot(other(p1)).ok_or_else(shape)?];
+            let f2 = feet[slot(other(p2)).ok_or_else(shape)?];
+            (
+                host_feet,
+                None,
+                chamfer_corner_patch([f1, host_feet[0].1, f2], [n_e, n_s, zero]),
+            )
+        }
+    };
+    Ok(Corner {
+        links,
+        faces,
+        feet,
+        arc: None,
+        surface,
+        convexity: pair_convexity,
+        mixed: Some(MixedCorner {
+            host,
+            odd: odd.edge,
+            host_feet,
+            arcs,
+        }),
     })
 }
 
@@ -440,9 +639,28 @@ pub(in crate::blend) fn planned_stations<T: Real>(
     let mut planned = Vec::new();
     for c in corners {
         let on = c.faces.as_slice().iter().zip(c.feet);
+        let (on, edge_feet) = match &c.mixed {
+            None => (
+                on.map(|(f, p)| (*f, p, StationKind::Corner)).collect(),
+                Vec::new(),
+            ),
+            Some(m) => (
+                on.map(|(f, p)| {
+                    let kind = if *f == m.host {
+                        StationKind::MixedHost
+                    } else {
+                        StationKind::MixedFoot
+                    };
+                    (*f, p, kind)
+                })
+                .collect(),
+                m.host_feet.iter().map(|(e, p)| (m.host, *e, *p)).collect(),
+            ),
+        };
         planned.push(PlannedStation {
             vertex: c.links.vertex(),
-            on: on.map(|(f, p)| (*f, p, StationKind::Corner)).collect(),
+            on,
+            edge_feet,
         });
     }
     for j in joints {
@@ -450,6 +668,7 @@ pub(in crate::blend) fn planned_stations<T: Real>(
         planned.push(PlannedStation {
             vertex: j.joint.vertex(),
             on: on.map(|(f, p)| (f, p, StationKind::Joint)).collect(),
+            edge_feet: Vec::new(),
         });
     }
     for c in cut_offs {
@@ -458,6 +677,7 @@ pub(in crate::blend) fn planned_stations<T: Real>(
         planned.push(PlannedStation {
             vertex: c.end.vertex,
             on: on.map(|(f, p)| (f, p, StationKind::CutOff)).to_vec(),
+            edge_feet: Vec::new(),
         });
     }
     for t in turns {
@@ -470,6 +690,7 @@ pub(in crate::blend) fn planned_stations<T: Real>(
         planned.push(PlannedStation {
             vertex: t.vertex,
             on,
+            edge_feet: Vec::new(),
         });
     }
     for jp in junctions {
@@ -482,6 +703,7 @@ pub(in crate::blend) fn planned_stations<T: Real>(
         planned.push(PlannedStation {
             vertex: j.vertex(),
             on,
+            edge_feet: Vec::new(),
         });
     }
     planned
@@ -874,6 +1096,8 @@ pub(in crate::blend) fn blank_phase<'a, T: Decide + Bounds + topo::AtRestPolicy>
     // Per vertex: its strut edges, one per support (for the corner and
     // joint fusions).
     let mut strut_of: BTreeMap<VertexKey, Vec<EdgeKey>> = BTreeMap::new();
+    // Per (mixed corner, its host, pair edge): that pair band's foot there.
+    let mut host_foot_of: BTreeMap<(VertexKey, FaceKey, EdgeKey), VertexKey> = BTreeMap::new();
     for support in supports {
         let f = support.face();
         for station in support.stations().iter().filter(|s| s.kind.spins_a_strut()) {
@@ -905,14 +1129,79 @@ pub(in crate::blend) fn blank_phase<'a, T: Decide + Bounds + topo::AtRestPolicy>
             }
             once(&mut foot_of, (v, f), created.vertex, EntityId::Vertex(v))?;
         }
+        // A mixed corner's host: a strut to each pair band's foot, the
+        // arriving band's first so the two lie in cycle order, then the
+        // resting link's arc between them, which cuts the pocket at the
+        // vertex off this face.
+        for c in corners {
+            let Some(m) = c.mixed.as_ref().filter(|m| m.host == f) else {
+                continue;
+            };
+            let v = c.links.vertex();
+            let station = support
+                .stations()
+                .iter()
+                .find(|s| s.vertex == v && s.kind == StationKind::MixedHost)
+                .ok_or_else(|| disagrees(EntityId::Vertex(v), "a mixed corner's host station"))?;
+            let arriving = support
+                .chords()
+                .iter()
+                .find(|ch| ch.to == v)
+                .map(|ch| ch.edge)
+                .ok_or_else(|| {
+                    disagrees(EntityId::Vertex(v), "a mixed corner's arriving pair edge")
+                })?;
+            let mut order = m.host_feet;
+            if order[0].0 != arriving {
+                order.swap(0, 1);
+            }
+            let mut ends = [v; 2];
+            for (slot, (edge, foot)) in ends.iter_mut().zip(order) {
+                let created =
+                    strut_foot(body, station.half_edge, v, foot, "mixed host strut mev", tol)?;
+                strut_of.entry(v).or_default().push(created.edge);
+                rec.host_feet.push((created.vertex, v, edge));
+                once(
+                    &mut host_foot_of,
+                    (v, f, edge),
+                    created.vertex,
+                    EntityId::Vertex(v),
+                )?;
+                *slot = created.vertex;
+            }
+            let (he1, he2) = (half_from(body, f, ends[0])?, half_from(body, f, ends[1])?);
+            let (p1, p2) = (
+                point_of(body, ends[0]).ok_or_else(|| unresolved(EntityId::Vertex(ends[0]), "a foot"))?,
+                point_of(body, ends[1]).ok_or_else(|| unresolved(EntityId::Vertex(ends[1]), "a foot"))?,
+            );
+            let created = body
+                .mef(
+                    MefSite::Chords { he1, he2 },
+                    EdgeCurveSpec::line_between(p1, p2),
+                    FaceSurface::Inherit,
+                    tol,
+                )
+                .map_err(|e| op("mixed host arc mef", e))?;
+            described.push((
+                created.edge,
+                match m.arcs {
+                    Some((_, (center, radius))) => ContactCarrier::CornerArc { center, radius },
+                    None => ContactCarrier::Chord,
+                },
+                m.odd,
+            ));
+            rec.trims.push((created.edge, m.odd, f));
+        }
         for chord in support.chords() {
             // The strip is the run from the foot at `from` through the
             // edge to the foot at `to` (`MefSite::Chords` moves `he1`'s
-            // side onto the new face), so the support keeps its key.
-            let (x, y) = (
-                foot_at(&foot_of, chord.from, f)?,
-                foot_at(&foot_of, chord.to, f)?,
-            );
+            // side onto the new face), so the support keeps its key. A
+            // pair band ends at its own foot on a mixed corner's host.
+            let at = |v: VertexKey| match host_foot_of.get(&(v, f, chord.edge)) {
+                Some(x) => Ok(*x),
+                None => foot_at(&foot_of, v, f),
+            };
+            let (x, y) = (at(chord.from)?, at(chord.to)?);
             let (he1, he2) = (half_from(body, f, x)?, half_from(body, f, y)?);
             let (px, py) = (
                 point_of(body, x).ok_or_else(|| unresolved(EntityId::Vertex(x), "a foot"))?,
@@ -1046,14 +1335,23 @@ pub(in crate::blend) fn blank_phase<'a, T: Decide + Bounds + topo::AtRestPolicy>
                     tol,
                 )
                 .map_err(|e| op("corner-arc mef", e))?;
-            described.push((
-                created.edge,
-                match c.arc {
-                    Some((center, radius)) => ContactCarrier::CornerArc { center, radius },
+            // A mixed corner's link meets each band along that band's
+            // section, a row of both charts, as a junction's does.
+            let carrier = match (&c.mixed, c.arc) {
+                (Some(m), _) => match &m.arcs {
+                    Some((rests, _)) => rests
+                        .iter()
+                        .find(|(e, _)| *e == l.edge)
+                        .map(|(_, s)| ContactCarrier::Section(*s))
+                        .ok_or_else(|| {
+                            disagrees(EntityId::Edge(l.edge), "a mixed corner's link section")
+                        })?,
                     None => ContactCarrier::Chord,
                 },
-                l.edge,
-            ));
+                (None, Some((center, radius))) => ContactCarrier::CornerArc { center, radius },
+                (None, None) => ContactCarrier::Chord,
+            };
+            described.push((created.edge, carrier, l.edge));
             rec.arcs.push((created.edge, vertex, l.edge));
             Ok(created.edge)
         };
@@ -1076,7 +1374,8 @@ pub(in crate::blend) fn blank_phase<'a, T: Decide + Bounds + topo::AtRestPolicy>
         // refuses a second — so three at this vertex is three struts on
         // three DISTINCT supports —
         // which is the whole premise of the one-spur fusion below.
-        if struts_here.len() != 3 {
+        let expected = if c.mixed.is_some() { 4 } else { 3 };
+        if struts_here.len() != expected {
             return Err(unbuilt_run_out(
                 EntityId::Vertex(vertex),
                 "a corner did not receive a strut on each of three distinct supports",

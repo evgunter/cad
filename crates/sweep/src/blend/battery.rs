@@ -3246,8 +3246,13 @@ fn corner_at<T: Decide + Bounds>(
     // A mixed vertex wants the patch's uniformity only where the request
     // asks for the patch or for the mixed corner's own rule; a curved
     // link's end is judged as at a uniform vertex, where its open-chain
-    // door says what it builds.
-    if matches!(convex, 0 | 3) || (plane_plane && !mixed_end_is_built(&resolved, requested, convex))
+    // door says what it builds. All three named is the mixed corner's
+    // own rule, built between planes where `E` is square to the odd edge.
+    if !matches!(convex, 0 | 3) && named == 3 {
+        mixed_corner_square(vertex, &resolved, &faces, normals, radius, kind, band)?;
+        corner_independence(vertex, normals, radius, band)?;
+    } else if matches!(convex, 0 | 3)
+        || (plane_plane && !mixed_end_is_built(&resolved, requested, convex))
     {
         corner_config(vertex, valence, convex, normals, radius, band)?;
     } else {
@@ -3283,15 +3288,77 @@ fn corner_at<T: Decide + Bounds>(
     }
 }
 
+/// **The mixed corner with all three edges requested** (a vertex whose
+/// three edges mix convexity): the odd band is cut off in `E`, the face
+/// the odd edge does not lie in, and the pair runs on through a link
+/// resting on `E` and on the odd band. Built where every link is
+/// plane–plane and `E` is square to the odd edge
+/// ([`cap_transverse`]'s circle); an oblique `E` refuses, the fillet
+/// [`BlendError::SpineUnsupported`] (its link would be a canal surface)
+/// and the chamfer [`CornerConfig::MixedConvexity`], as does a curved
+/// link at the corner.
+///
+/// # Errors
+///
+/// As above; [`BlendError::Escalated`] on an in-band tilt.
+fn mixed_corner_square<T: Decide + Bounds>(
+    vertex: VertexKey,
+    links: &[Link<T>],
+    faces: &[FaceKey],
+    normals: [Vec3<T>; 3],
+    radius: T,
+    kind: BlendKind,
+    band: Band,
+) -> Result<(), BlendError> {
+    let convex = links
+        .iter()
+        .filter(|l| matches!(l.convexity, Convexity::Convex))
+        .count();
+    let unbuilt = || {
+        super::surgery::unbuilt_corner_config(vertex, CornerConfig::MixedConvexity { convex })
+    };
+    if links.len() != 3 || !links.iter().all(|l| l.arm.is_plane_plane()) {
+        return Err(unbuilt());
+    }
+    let odd_is_convex = convex == 1;
+    let Some(odd) = links
+        .iter()
+        .find(|l| matches!(l.convexity, Convexity::Convex) == odd_is_convex)
+    else {
+        return Err(unbuilt());
+    };
+    let Some(slot) = faces
+        .iter()
+        .position(|f| *f != odd.face_a && *f != odd.face_b)
+    else {
+        return Err(unbuilt());
+    };
+    let Curve3::Line(spine) = &odd.blend.trim_a.0 else {
+        return Err(unbuilt());
+    };
+    match cap_transverse(vertex, normals[slot], spine.dir, radius, odd.arm_len, band)? {
+        EndSection::Circle => Ok(()),
+        _ => match kind {
+            BlendKind::Fillet => Err(BlendError::SpineUnsupported {
+                edge: odd.edge,
+                supports: "plane–(cylinder band) at a mixed corner whose shared face is \
+                           oblique to the odd edge (a canal surface)",
+            }),
+            BlendKind::Chamfer => Err(unbuilt()),
+        },
+    }
+}
+
 /// **Whether a plane–plane end at a vertex whose three edges mix
 /// convexity is one the uniform rules already build.** The ODD edge is
 /// the one whose convexity differs from the other two, the PAIR. One
 /// requested edge, odd or of the pair, ends in the cut-off; the pair
 /// alone meets in the mitre, which at the reflex sector of their shared
-/// face is a join over the corner's wedge. The odd edge together with
-/// any other edge there wants the mixed corner's own rule (the odd band
-/// cut off, the pair carried through), which is not built. `convex` is
-/// the vertex's count of convex edges, `1` or `2`.
+/// face is a join over the corner's wedge. All three is the mixed
+/// corner ([`mixed_corner_square`]). The odd edge together with one
+/// other edge there wants the mixed corner's own rule for that request,
+/// which is not built. `convex` is the vertex's count of convex edges,
+/// `1` or `2`.
 fn mixed_end_is_built<T: Real>(links: &[Link<T>], requested: &[EdgeKey], convex: usize) -> bool {
     let odd_is_convex = convex == 1;
     let mut named = links.iter().filter(|l| requested.contains(&l.edge));
