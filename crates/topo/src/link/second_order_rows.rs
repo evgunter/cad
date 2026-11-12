@@ -190,7 +190,9 @@ fn thorn<T: Decide>(p: Point3<T>, keys: [EdgeKey; 3], void: bool) -> Vec<Tangent
 /// **A ring of horns reads as the thorn it bounds**: a thorn of
 /// material alone rests, and beside a plane whose material lies away
 /// from it; inside that material it crosses. A needle of void refuses
-/// alone, rests inside a plane's material, and crosses outside it. A ring with a horn
+/// alone, rests inside a plane's material, and crosses outside it. A
+/// thorn whose ray a plane holds, no material read round it, refuses in
+/// band. A ring with a horn
 /// missing, a ring of two horns, a triangle squashed flat, and two
 /// thorns along one ray refuse; two along opposite rays rest. Red where
 /// a thorn's side is read the other way round, the cone round it is not
@@ -224,6 +226,12 @@ fn a_ring_of_horns_reads_as_its_thorn<T: Decide>() {
             read(p, with(thorn(p, keys, true), away())),
             TouchVerdict::Crossing,
             "a needle outside a plane's material at {p:?}"
+        );
+        let s = core::f64::consts::FRAC_1_SQRT_2;
+        assert_eq!(
+            read(p, with(thorn(p, keys, false), whole(p, v(0.0, s, -s)))),
+            TouchVerdict::Unread(TouchUnread::InBand),
+            "a thorn along a plane through its ray at {p:?}"
         );
         assert_eq!(
             read(p, thorn(p, keys, true)),
@@ -486,7 +494,8 @@ fn thin_thorn<T: Decide>(
 /// escalation off the face in `z = 0` and its line `L` as far off the
 /// curved face, one order down. It rests; with `B` leaving the tip
 /// tilted off that face by nine tenths of the band's zero at the arm it
-/// refuses in band, the tilt charged; with `B` leaving it by twice the
+/// refuses in band, the tilt charged, as it does tilted in band of the
+/// face's plane; with `B` leaving it by twice the
 /// escalation, so that `B`'s edge leaves the face's plane at first
 /// order, it refuses however far `B` bends. A ring of four whose third
 /// corner lies on the line of the first two refuses. Red where a
@@ -511,6 +520,11 @@ fn a_thorn_is_read_with_its_first_order_charged<T: Decide>() {
             read(p, thin(p, [0.0, 0.0, beta], 0.9 * zero)),
             TouchVerdict::Unread(TouchUnread::InBand),
             "a thin thorn, its edge tilted at {p:?}"
+        );
+        assert_eq!(
+            read(p, thin(p, [0.0, 0.0, beta], 0.5 * (zero + escalate))),
+            TouchVerdict::Unread(TouchUnread::InBand),
+            "a thin thorn, its edge tilted in band of the face's plane at {p:?}"
         );
         assert_eq!(
             read(p, thin(p, [0.0, 0.0, 1.0], 4.0 * escalate)),
