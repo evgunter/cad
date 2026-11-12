@@ -3463,9 +3463,15 @@ pub fn sample_param<T: Real>(t0: T, t1: T, i: u32) -> T {
 /// the held ends themselves (the carrier's own data), and every other
 /// station is the `f64` [`schedule_param`] over `domain`, a point the
 /// schedule chose, entered as the constant it is. Bit for bit
-/// [`schedule_param`] at `f64`; at an enclosure scalar an interior
-/// station stays a point rather than widening by the station's own
-/// arithmetic, which a check at a chosen point has no use for.
+/// [`schedule_param`] at `f64` when `domain` is `held`'s value, in its
+/// order; at an enclosure scalar an interior station stays a point
+/// rather than widening by the station's own arithmetic, which a check
+/// at a chosen point has no use for.
+///
+/// A read at a held station is never wider than the same read at the
+/// computed one: the point lies in the computed station's enclosure, so
+/// by inclusion isotonicity its read's enclosure lies in that read's,
+/// and a decision can only move out of the band, never across it.
 pub(crate) fn held_station<T: Real>(domain: (f64, f64), held: (T, T), i: u32, samples: u32) -> T {
     match schedule_fraction(i, samples) {
         0.0 => held.0,
@@ -3491,8 +3497,11 @@ pub(crate) fn schedule_fraction(i: u32, samples: u32) -> f64 {
 /// reader of an edge shares, so the middle sample is the parameter
 /// [`Curve3::mid_point`] evaluates at and a certificate that samples
 /// the carrier and checks its midpoint witness evaluates that point
-/// once. Every other station is `t₀ + (t₁ − t₀)·(i/(samples − 1))` in
-/// that association order (D9). `t₀ + (t₁ − t₀)·1` is not `t₁` in
+/// once. A schedule read at held stations (a stated image's) is the
+/// exception: at an enclosure scalar its middle is `mid_param` of the
+/// `f64` ends, entered as a point, not the scalar's own middle. Every
+/// other station is `t₀ + (t₁ − t₀)·(i/(samples − 1))` in that
+/// association order (D9). `t₀ + (t₁ − t₀)·1` is not `t₁` in
 /// `f64` in general, and an image re-expressed on `[t₀, t₁]` exactly
 /// has its last knot at `t₁` itself, so a last sample computed rather
 /// than assigned sits an ulp outside it.
