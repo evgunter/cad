@@ -271,22 +271,29 @@ fn eps_row(eps: f64) -> usize {
 /// `Plain/Decision` 9815 →
 /// 9809, `Plain/Assertion` 2861 → 2807, `Early/Assertion` 4295 → 4235,
 /// with the same calls; `Early/Decision` does not move.
+///
+/// **Moved with the constructors' whole-wedge reads**: the extrude and
+/// revolve read each edge they write by its whole wedge, the arm, the
+/// wedge and a corner's sign at each of its 7 interior stations, where
+/// they read the class at one witness. `Plain/Assertion` and
+/// `Early/Assertion` 532 → 988 calls (2807 → 3503 and 4235 → 4931
+/// forms), `Plain/Decision` 9809 → 9765 forms over the same calls.
 const SLAB_LEDGER: [&str; 3] = [
     "\
-     Plain/Decision calls 976 forms 9809 frozen 0 digest 85691fc488314dfa9178aada7b7d8a5c\n\
-     Plain/Assertion calls 532 forms 2807 frozen 0 digest 23aed61776245fd60ded06e51d1a64ba\n\
+     Plain/Decision calls 976 forms 9765 frozen 0 digest a267a794eb00b700b020c5e435aefbf4\n\
+     Plain/Assertion calls 988 forms 3503 frozen 0 digest d29e6603588f9290df3ef832f6e6a695\n\
      Early/Decision calls 16 forms 38 frozen 0 digest 9da516ca1875052288aafee2b397dd61\n\
-     Early/Assertion calls 532 forms 4235 frozen 0 digest f7e79d81392ee399acb39ea4fe33d62a",
+     Early/Assertion calls 988 forms 4931 frozen 0 digest 7b8f13deaebfb7286d3d5cae4aa38359",
     "\
-     Plain/Decision calls 976 forms 9809 frozen 0 digest 46a69cbf4d863556afffce3f2493df1a\n\
-     Plain/Assertion calls 532 forms 2807 frozen 0 digest ca86c0a2a8b953f421b787f18b851e46\n\
+     Plain/Decision calls 976 forms 9765 frozen 0 digest 10be2875a24f931e7125e141a82bcec3\n\
+     Plain/Assertion calls 988 forms 3503 frozen 0 digest 8ba06018ed2547dbea4dd12d641db960\n\
      Early/Decision calls 16 forms 38 frozen 0 digest 9da516ca1875052288aafee2b397dd61\n\
-     Early/Assertion calls 532 forms 4235 frozen 0 digest 2a81bb704ba55eefb96301de157dd239",
+     Early/Assertion calls 988 forms 4931 frozen 0 digest 132566a5d2a8c5015e646a317640f1df",
     "\
-     Plain/Decision calls 976 forms 9809 frozen 0 digest 1be4aca2e27bcf361f51b6e4249b1db1\n\
-     Plain/Assertion calls 532 forms 2807 frozen 0 digest 400102962153fb1d7a98a6e99cb8559e\n\
+     Plain/Decision calls 976 forms 9765 frozen 0 digest 1e6085a79c70e744aedad95d5e2327eb\n\
+     Plain/Assertion calls 988 forms 3503 frozen 0 digest 0a321bffbfb7de6a6e9bf1bc04eadca6\n\
      Early/Decision calls 16 forms 38 frozen 0 digest 9da516ca1875052288aafee2b397dd61\n\
-     Early/Assertion calls 532 forms 4235 frozen 0 digest b68d8cbe651229cac212e435995984d5",
+     Early/Assertion calls 988 forms 4931 frozen 0 digest 3d94bcd55c6752fd6cc9b3256f656dce",
 ];
 
 /// The largest form (numerator plus denominator terms) any op built
@@ -463,12 +470,21 @@ const PLATE_MAX_TERMS: usize = 38;
 /// `b8f04c55`), move none of these counts: the stated images sit on moved
 /// copies whose certificates are carried, so no bound is built again in
 /// the measuring frame.
+///
+/// **Moved with the constructors' whole-wedge reads**: the extrude and
+/// revolve read each edge they write by its whole wedge, the arm, the
+/// wedge and a corner's sign at each of its 7 interior stations, where
+/// they read the class at one witness. The assertions 670 → 1050 calls
+/// on both walks (`Plain` 9047 → 13400 forms, frozen 137 → 245; `Early`
+/// 10422 → 14775), `Door/Decision` 403 → 555 calls (11719 → 15037
+/// forms), and `Plain/Decision` and `Early/Decision` keep their calls
+/// over fewer forms (41501 → 40789, 28904 → 28232).
 const PLATE_LEDGER: &str = "\
-     Plain/Decision calls 1015 forms 41501 frozen 54 digest 1b310266a1968c11616d2750affc0dfa\n\
-     Plain/Assertion calls 670 forms 9047 frozen 137 digest ebdae96f526ae41ae0680df5d5bb5545\n\
-     Early/Decision calls 308 forms 28904 frozen 0 digest 3352b4ae55ef1b7fc0dd378dde163b3c\n\
-     Early/Assertion calls 670 forms 10422 frozen 0 digest 78eb95dd6549092cd88f101dfd74c22c\n\
-     Door/Decision calls 403 forms 11719 frozen 0 digest 007b3254e77f798485bfc9cf5c6b9cc3";
+     Plain/Decision calls 1015 forms 40789 frozen 54 digest 4800100500f0ffd235f544a41ad75986\n\
+     Plain/Assertion calls 1050 forms 13400 frozen 245 digest 0c08c295799141fb624ae59bcad32c59\n\
+     Early/Decision calls 308 forms 28232 frozen 0 digest d3ce1e02bc1dbb309fe24a2b5bc1e603\n\
+     Early/Assertion calls 1050 forms 14775 frozen 0 digest a11a330641699ef49bafd67159091d6b\n\
+     Door/Decision calls 555 forms 15037 frozen 0 digest f7a62be70c285dbb3ec5814b1cc5eb57";
 
 /// **What the walks BUILD is pinned, not only what the tier decides.**
 /// For the slab and the plate at their nominals, every (walk, origin)
