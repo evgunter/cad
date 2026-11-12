@@ -5356,7 +5356,7 @@ fn decide_joint<T: Decide>(
 
 /// [`decide_joint`] for a row that reads a joint off the chart's
 /// singular set, where the face's side is not read: the two edges are
-/// stated as one line through the vertex.
+/// stated as two lines through the vertex.
 #[cfg(test)]
 fn decide_plain_joint<T: Decide>(
     chart: DescribedChart<'_, T>,
@@ -5368,10 +5368,15 @@ fn decide_plain_joint<T: Decide>(
     band: Band,
 ) -> Result<JointElement, PinMiss> {
     let line = geom::Curve3::line(vertex, geom_core::Vec3::unit_x());
+    let other = line.clone();
     let edge = EdgeEnd {
         carrier: &line,
         at: T::zero(),
         far: T::one(),
+    };
+    let arrived = EdgeEnd {
+        carrier: &other,
+        ..edge
     };
     decide_joint(
         chart,
@@ -5384,7 +5389,7 @@ fn decide_plain_joint<T: Decide>(
         JointSides {
             sense: true,
             mates: false,
-            arrived: edge,
+            arrived,
             leaving: edge,
         },
     )
