@@ -21,7 +21,7 @@ accurate, and the bound is fine.
 `a_closed_form_on_its_carrier_certifies_in_every_spelling`, at ε 1e-12,
 seed `0x6c321abd1c3c3bb8`:
 
-- The carrier is a circle of radius 2.13 about 4.6 m from the origin.
+- The carrier is a circle of radius 2.13, centred 4.45 m from the origin.
 - Its image on a sphere is derived by `pcurve_cache.rs`
   `chart_pcurve_over`: a harmonic with `u` phase 2.678 and `v` phase
   −10.9955, winding 1.
@@ -32,7 +32,7 @@ At f64 the read ends
 is a located miss past the escalation edge, not an in-band read. The
 review's probe shows the derived image really misses its carrier by
 about 1.05e-11 near t ≈ 7.85 (≈ 5π/2), and the mint refuses the same
-image. Nothing false is certified: the certificate is right, and the
+image (in band: `Escalated` MapResidual at sample 0, 4.07e-12). Nothing false is certified: the certificate is right, and the
 derivation is what is wrong at this band.
 
     CAD_TOLERANCE_EPS=1e-12 CAD_FUZZ_SEED=0x6c321abd1c3c3bb8 CAD_FUZZ_EFFORT=1 \
