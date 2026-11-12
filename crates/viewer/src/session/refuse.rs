@@ -442,6 +442,15 @@ pub enum Refusal {
         /// The copy, as the document held it at the refusal.
         copy: SpokenNode,
     },
+    /// Place was asked of a body several sources read (VARIABLES VR4):
+    /// which of them the new placement shares is the person's to say, so
+    /// each is offered as the body to place.
+    SeveralSources {
+        /// The body, as the document held it at the refusal.
+        body: SpokenVar,
+        /// The sources reading it, in id order.
+        sources: Vec<SpokenVar>,
+    },
     /// A door's change of a copy's target ([`super::SessionOp::AddToProduct`]
     /// moving it into the world, [`super::SessionOp::IntoOwnSpace`]) over
     /// a bundle of its own that reads the space it leaves: the change is
@@ -548,6 +557,10 @@ impl Refusal {
             Self::ProfileEditStale { node } => Self::ProfileEditStale { node: again(node) },
             Self::BundleStale { node } => Self::BundleStale { node: again(node) },
             Self::PlaceOnACopy { copy } => Self::PlaceOnACopy { copy: again(copy) },
+            Self::SeveralSources { body, sources } => Self::SeveralSources {
+                body: body.respoken(doc),
+                sources: sources.iter().map(|source| source.respoken(doc)).collect(),
+            },
             Self::TargetHeld {
                 copy,
                 placement,
@@ -660,6 +673,7 @@ impl Refusal {
             | Self::ProfileEditStale { .. }
             | Self::BundleStale { .. }
             | Self::PlaceOnACopy { .. }
+            | Self::SeveralSources { .. }
             | Self::CopyInAnotherSpace { .. }
             | Self::TargetHeld { .. }
             | Self::NothingPlaced { .. }
@@ -712,6 +726,7 @@ impl Refusal {
             | Self::ProfileEditStale { .. }
             | Self::BundleStale { .. }
             | Self::PlaceOnACopy { .. }
+            | Self::SeveralSources { .. }
             | Self::CopyInAnotherSpace { .. }
             | Self::TargetHeld { .. }
             | Self::NothingPlaced { .. }
@@ -1055,6 +1070,16 @@ impl Refusal {
                 "{copy} is a copy; move it by its own placement in the placement editor, not \
                  by a copy of it"
             ),
+            Self::SeveralSources { body, sources } => {
+                write!(f, "{body} is placed through {} sources (", sources.len())?;
+                for (k, source) in sources.iter().enumerate() {
+                    if k > 0 {
+                        f.write_str(", ")?;
+                    }
+                    write!(f, "{source}")?;
+                }
+                f.write_str("); place one of them, and the new copy shares it")
+            }
             Self::TargetHeld {
                 copy,
                 space,

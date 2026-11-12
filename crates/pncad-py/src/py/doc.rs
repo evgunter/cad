@@ -1902,22 +1902,11 @@ impl Doc {
         let label = label.map(|text| label_from_text(py, text)).transpose()?;
         let constraints = constraints.map_or_else(|| d::stand().bundle(), super::mate::bundle);
         let (read, target) = (source.read(), target.read());
-        // A body read by a variable that is no source is placed through
-        // a source minted for this call, as a node read is (VR4).
-        let unsourced = match &read.read {
-            d::Operand::Var(var) => self.inner.source(*var).is_none(),
-            d::Operand::Name(name) => self
-                .inner
-                .var_named(name.as_str())
-                .is_some_and(|var| self.inner.source(var).is_none()),
-            _ => false,
-        };
-        let read = match unsourced {
-            true => d::BodyRead {
-                read: d::Operand::source(d::BodyRead::plain(read.read)),
-                at: read.at,
-            },
-            false => read,
+        // A body read that is no source is placed through a source minted
+        // for this call; a source is shared (VR4).
+        let read = d::BodyRead {
+            read: self.inner.place_read(read.read),
+            at: read.at,
         };
         Node::placed(py, read.clone(), target.clone(), constraints.clone())?;
         self.insert_edit(d::DocEdit::place(read, target, constraints), label)

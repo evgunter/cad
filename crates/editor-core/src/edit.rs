@@ -1383,7 +1383,7 @@ fn lower_read<P: crate::ProfilePayload>(
         }
         crate::Operand::Pose(def) => mint_pose(doc, spoken, slot, def)?,
         crate::Operand::Pick { placement, of } => mint_pick(doc, spoken, slot, placement, of)?,
-        crate::Operand::Source(body) => mint_source(doc, spoken, slot, body)?,
+        crate::Operand::Source(body) => mint_source(doc, spoken, slot, body, expected)?,
     };
     // A selection read here is read in a body this seat admits, whoever
     // authored it: a selection of a pattern's copies, authored at a mate
@@ -1832,25 +1832,26 @@ fn mint_pick<P: crate::ProfilePayload>(
 }
 
 /// **A source authored at a seat, minted** (VARIABLES VR4): its body
-/// read lowered as the seat reads a body — one member of a family
-/// where it is indexed, each index a `Count` written at the seat — and
-/// one anonymous source variable minted for the seat to read.
+/// read lowered as the seat (`expected`) reads a body — one member of a
+/// family where it is indexed, each index a `Count` written at the seat —
+/// and one anonymous source variable minted for the seat to read.
 fn mint_source<P: crate::ProfilePayload>(
     doc: &mut Doc<P>,
     spoken: &impl Fn() -> SpokenNode,
     slot: SlotId,
     body: &crate::BodyRead<Formula>,
+    expected: crate::SlotKind,
 ) -> Result<VarId, EditError> {
     let read = lower_read(
         doc,
         spoken,
         slot,
         &body.read,
-        crate::SlotKind::Is(match body.is_indexed() {
-            true => VarKind::Bodies,
-            false => VarKind::Body,
-        }),
-        Reader::Constructs,
+        match body.is_indexed() {
+            true => crate::SlotKind::Is(VarKind::Bodies),
+            false => expected,
+        },
+        Reader::of(expected),
     )?;
     let mut at = Vec::with_capacity(body.at.len());
     for (k, formula) in body.rows() {
@@ -1962,7 +1963,7 @@ pub(crate) fn pick_fault<P>(doc: &Doc<P>, copy: VarId, of: &[VarId]) -> Option<O
             continue;
         }
         match doc.operation_of(var).and_then(|at| doc.node(at)) {
-            Some(Node::Place { source, .. }) => var = source.read,
+            Some(Node::Place { source, .. }) => var = doc.through_sources(source.read).read,
             Some(Node::InstantiatePart { .. }) => return Reached::Part,
             _ => return Reached::Body(var),
         }
@@ -2001,7 +2002,7 @@ fn inside_part<P>(doc: &Doc<P>, mut copy: VarId) -> bool {
             continue;
         }
         match doc.operation_of(copy).and_then(|at| doc.node(at)) {
-            Some(Node::Place { source, .. }) => copy = source.read,
+            Some(Node::Place { source, .. }) => copy = doc.through_sources(source.read).read,
             Some(Node::InstantiatePart { .. }) => return true,
             _ => return false,
         }
@@ -6932,7 +6933,9 @@ fn check_written_node<P: crate::ProfilePayload>(
     if let Writes::Node = writes {
         check_payload_refs(doc, new, node)?;
     }
-    check_node_inputs(doc, id, node)?;
+    // Asked of the written document: a read this edit minted (a source
+    // or a selection written in place) is held there.
+    check_node_inputs(new, id, node)?;
     check_loft_shape(new, node).map_err(|fault| EditError::LoftShape {
         node: spoken(),
         fault,
@@ -9490,10 +9493,11 @@ fn selections_going<P: crate::ProfilePayload>(doc: &Doc<P>) -> std::collections:
 }
 
 /// **What a read at a seat reaches**: the read itself, a selection's
-/// body, and through a pose written in place (an anonymous definition)
-/// every read inside it, in read order. A named pose is a read of its
-/// own and is not walked: removing what it reads strands the pose, not
-/// the seat ([`stranded_reads`]).
+/// body, through a pose written in place (an anonymous definition) every
+/// read inside it, in read order, and through an anonymous source its
+/// body read. A named pose or source is a read of its own and is not
+/// walked: removing what it reads strands it, not the seat
+/// ([`stranded_reads`]).
 pub(crate) fn seat_reads<P>(doc: &Doc<P>, var: VarId) -> Vec<VarId> {
     reached(doc, var, false)
 }
@@ -9523,6 +9527,9 @@ fn reached<P>(doc: &Doc<P>, var: VarId, named: bool) -> Vec<VarId> {
                 for (_, &read, _, _) in def.reads() {
                     walk(doc, read, named, out);
                 }
+            }
+            Some(crate::var::VarDef::Source(body)) if named || doc.var_name(var).is_none() => {
+                walk(doc, body.read, named, out);
             }
             _ => {}
         }

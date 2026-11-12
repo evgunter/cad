@@ -217,8 +217,8 @@ fn taken_over(
         .expect("the gesture's result offers the re-point");
     let made = doc.clone();
     let outcome = session.perform(SessionOp::RepointPlacements {
-        body: Operand::Var(offer.body),
-        onto,
+        source: offer.rows[0].source,
+        onto: onto.into(),
     });
     (made, outcome)
 }

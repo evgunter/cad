@@ -496,7 +496,7 @@ pub(crate) fn carrying_chains<P: crate::ProfilePayload>(
                     .node(node)
                     .and_then(crate::names::verbatim_edge)
                     .and_then(|edge| edge.carried_read())
-                    .is_some_and(|read| outs.contains(&read))
+                    .is_some_and(|read| outs.contains(&doc.through_sources(read).read))
             {
                 chains.insert(node, root);
                 frontier.push(node);

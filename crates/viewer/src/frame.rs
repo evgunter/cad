@@ -2576,8 +2576,10 @@ pub fn product_recourse(
 ///   that placed copy, with a button to its original body
 ///   ([`crate::world::built_on_copy`]);
 /// - a body built on a body picked as itself, where placements read that
-///   body, offers to re-point them onto it, as one explicit step
-///   ([`crate::world::repoint_offer`], [`SessionOp::RepointPlacements`]).
+///   body through a source, offers to redefine each source onto it, one
+///   explicit step per source (`bracket = F`;
+///   [`crate::world::repoint_offer`], [`SessionOp::RepointPlacements`]).
+///   A source defined as another source follows it and has no button.
 ///
 /// The sentence, where there is one, then each button's label and op.
 pub fn placement_offers(
@@ -2610,19 +2612,33 @@ pub fn placement_offers(
         ));
     }
     if let Some(offer) = crate::world::repoint_offer(doc, node) {
-        let count = offer.placements.len();
-        let plural = if count == 1 { "" } else { "s" };
-        offers.push((
-            format!(
-                "Re-point the {count} placement{plural} of {} onto {}",
-                by.read(offer.body),
-                by.node(node)
-            ),
-            SessionOp::RepointPlacements {
-                body: pncad::document::Operand::Var(offer.body),
-                onto: node,
-            },
-        ));
+        for row in offer.rows {
+            let label = match doc.var_name(row.source) {
+                Some(name) => {
+                    let count = row.placements.len();
+                    let plural = if count == 1 { "y" } else { "ies" };
+                    format!(
+                        "Re-point {name} ({count} cop{plural}) onto {}",
+                        by.node(node)
+                    )
+                }
+                None => format!(
+                    "Re-point the copy {} onto {}",
+                    row.placements.first().map_or_else(
+                        || by.read(row.source).to_string(),
+                        |&copy| { by.node(copy).to_string() }
+                    ),
+                    by.node(node)
+                ),
+            };
+            offers.push((
+                label,
+                SessionOp::RepointPlacements {
+                    source: row.source,
+                    onto: node.into(),
+                },
+            ));
+        }
     }
     (said, offers)
 }

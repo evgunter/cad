@@ -371,8 +371,8 @@ fn a_combine_offers_the_re_point_of_the_operand_the_world_places() {
     let offer = viewer::world::repoint_offer(doc, union).expect("the union offers the re-point");
     assert_eq!(Some(offer.body), doc.output(b, 0), "of b's placement");
     let out = session.perform(SessionOp::RepointPlacements {
-        body: pncad::document::Operand::Var(offer.body),
-        onto: union,
+        source: offer.rows[0].source,
+        onto: union.into(),
     });
     assert!(out.refusal.is_none(), "{:?}", out.refusal);
     assert_eq!(
@@ -2228,6 +2228,7 @@ fn a_refusal_at_any_body_seated_door_leaves_no_history_state() {
         SessionOp::Place {
             body: plane.into(),
             target: Operand::Var(pncad::document::VarId::WORLD),
+            name: None,
         },
         SessionOp::AddPattern {
             input: plane.into(),
@@ -4193,8 +4194,8 @@ fn a_combine_that_would_strand_a_pick_refuses_typed() {
     let seat_body = doc.output(seat, 0).expect("the `⊔`'s body");
     let steps = session.history().len();
     let out = session.perform(SessionOp::RepointPlacements {
-        body: Operand::Var(seat_body),
-        onto: union,
+        source: doc.sources_of(seat_body)[0],
+        onto: union.into(),
     });
     assert!(
         matches!(

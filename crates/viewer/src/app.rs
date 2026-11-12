@@ -7680,8 +7680,8 @@ mod properties_pane_tests {
             let doc = self.app.session.committed_doc();
             let offer = crate::world::repoint_offer(doc, onto).expect("an offer");
             self.app.perform_batch(vec![SessionOp::RepointPlacements {
-                body: pncad::document::Operand::Var(offer.body),
-                onto,
+                source: offer.rows[0].source,
+                onto: onto.into(),
             }]);
             if land {
                 self.quiet();

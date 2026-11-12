@@ -224,8 +224,9 @@ fn a_pick_reads_one_piece_and_two_picks_are_two_variables() {
     let pick = || BodyRead::plain(Operand::pick(Operand::Node(place), vec![bolt_var]));
     let (doc, first) = put(doc, fixture::stood(pick()));
     let (doc, second) = put(doc, fixture::stood(pick()));
+    // Each placement reads its pick through a source of its own.
     let source = |at: RecipeNodeId| match doc.node(at) {
-        Some(Node::Place { source, .. }) => source.read,
+        Some(Node::Place { source, .. }) => doc.through_sources(source.read).read,
         other => panic!("a placement, not {other:?}"),
     };
     let (one, two) = (source(first), source(second));

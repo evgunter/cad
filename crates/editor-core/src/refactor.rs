@@ -3040,7 +3040,8 @@ pub fn split(
                         cut.contains(&p)
                             && world(p)
                             && matches!(doc.node(p), Some(Node::Place { source, .. })
-                                if !source.is_member() && source.read == var)
+                                if !source.is_member()
+                                    && doc.through_sources(source.read).read == var)
                     })
                     .collect();
                 match copies.as_slice() {
@@ -4541,6 +4542,24 @@ pub fn inline(
             )?;
         }
     }
+    // A source reading the instance's copy, or a piece of it, reads the
+    // new placement's (VARIABLES VR4): its definition is a reader.
+    for (&var, held) in doc.vars() {
+        let crate::VarDef::Source(body) = held.def() else {
+            continue;
+        };
+        if !reads_instance(body.read) {
+            continue;
+        }
+        step(
+            &mut current,
+            DocEdit::DefineVar {
+                var: var.into(),
+                def: VarDecl::Source(doc.written_body(body, host_body(body.read))),
+                fresh: Vec::new(),
+            },
+        )?;
+    }
     // The product reads the new placement's copy where it read the
     // instance's.
     if doc.product().is_some_and(reads_instance) {
@@ -4836,7 +4855,12 @@ pub fn flatten(
     let copy = doc
         .output(placement, 0)
         .unwrap_or_else(|| unreachable!("a placement defines its copy"));
-    let source = source.read;
+    // The copy's readers read the body its source reads: a source adds no
+    // name segment, and an anonymous one is the placement's own.
+    let source = match doc.through_sources(source.read) {
+        read if read.is_indexed() => source.read,
+        read => read.read,
+    };
     // A name of the copy is its source's, verbatim, the copy's own body
     // name aside.
     let shape_of = |name: &StableName| -> Option<(VarId, StableName)> {
@@ -5006,6 +5030,24 @@ pub fn flatten(
                 }
             }
         }
+    }
+    // A source reading the copy, or a piece of it, reads what the copy
+    // copied (VARIABLES VR4): its definition is a reader.
+    for (&var, held) in doc.vars() {
+        let VarDef::Source(body) = held.def() else {
+            continue;
+        };
+        if !reads_copy(body.read) {
+            continue;
+        }
+        step(
+            &mut current,
+            DocEdit::DefineVar {
+                var: var.into(),
+                def: VarDecl::Source(doc.written_body(body, in_source(body.read))),
+                fresh: Vec::new(),
+            },
+        )?;
     }
     // An appearance key read in the copy re-attaches in its shape,
     // before the rebinding below would rename it where it is held.

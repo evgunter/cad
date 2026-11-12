@@ -999,6 +999,34 @@ pub fn world_copy(
     }
 }
 
+/// **The viewer's Place of `body` where it stands, named as the person
+/// names it** ([`SessionOp::place_where_it_stands`]): where `body`'s one
+/// source is anonymous and already read, this placement makes it shared,
+/// and the person types `bracket` (VR2: a shared variable has a name).
+pub fn place_named(
+    doc: &Doc<ProfileProgram>,
+    body: impl Into<pncad::document::Operand>,
+) -> SessionOp {
+    let body = body.into();
+    let mut op = SessionOp::place_where_it_stands(doc, body.clone()).expect("a body in a space");
+    let read = match &body {
+        pncad::document::Operand::Node(node) => doc.output(*node, 0),
+        pncad::document::Operand::Var(var) => Some(*var),
+        _ => None,
+    };
+    let shared = read.and_then(|var| match doc.sources_of(var)[..] {
+        [one] => Some(one),
+        _ => None,
+    });
+    if let (SessionOp::Place { name, .. }, Some(source)) = (&mut op, shared)
+        && doc.var_name(source).is_none()
+        && !viewer::world::placements_of_var(doc, source).is_empty()
+    {
+        *name = Some(pncad::document::VarName::from_static("bracket"));
+    }
+    op
+}
+
 /// **A `Place` of `read` into the world by the identity bundle** — the
 /// placement a person writes by hand, which no gesture writes for them.
 pub fn world_place(read: pncad::document::Operand) -> pncad::document::AuthoredNode {

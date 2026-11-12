@@ -1351,7 +1351,7 @@ impl<P> Doc<P> {
 
     /// The variables `var`'s definition reads, directly; none for a
     /// free variable.
-    pub(crate) fn definition_reads(&self, var: VarId) -> Vec<VarId> {
+    pub fn definition_reads(&self, var: VarId) -> Vec<VarId> {
         let mut reads = Vec::new();
         match self.vars.get(&var).map(Var::def) {
             Some(VarDef::Defined(expr)) => expr.var_reads(&mut reads),
@@ -1992,6 +1992,24 @@ impl<P> Doc<P> {
         }
     }
 
+    /// **What a placement of `read` reads** (VARIABLES VR4): `read` itself
+    /// where it names a source, so placements share it; any other body read
+    /// written as a source in place ([`crate::Operand::Source`]), minted
+    /// for that placement alone, as the façade's `place(B, …)` does.
+    #[must_use]
+    pub fn place_read(&self, read: crate::Operand) -> crate::Operand {
+        let var = match &read {
+            crate::Operand::Var(var) => Some(*var),
+            crate::Operand::Name(name) => self.var_named(name.as_str()),
+            crate::Operand::Source(_) => return read,
+            _ => None,
+        };
+        match var {
+            Some(var) if self.source(var).is_some() => read,
+            _ => crate::Operand::source(crate::BodyRead::plain(read)),
+        }
+    }
+
     /// **The sources whose definitions read `var` directly**, in id
     /// order: what re-pointing the placements of `var`'s body redefines.
     pub fn sources_of(&self, var: VarId) -> Vec<VarId> {
@@ -2094,9 +2112,10 @@ impl<P> Doc<P> {
     }
 
     /// **A read as it was written**: an anonymous selection as the
-    /// selection it is, an anonymous pose as its definition, each read
-    /// within written the same way and each scalar as the formula it
-    /// was written as; any other read by id.
+    /// selection it is, an anonymous pose as its definition, an anonymous
+    /// source as the read it is, each read within written the same way
+    /// and each scalar as the formula it was written as; any other read
+    /// by id.
     pub fn written_operand(&self, var: VarId) -> crate::Operand {
         if self.var_names.contains_key(&var) {
             return crate::Operand::Var(var);
@@ -2117,6 +2136,12 @@ impl<P> Doc<P> {
                 );
                 let Ok(written) = written;
                 crate::Operand::Pose(Box::new(written))
+            }
+            // An anonymous source is its placement's own, written in place
+            // as a selection is: its read as written, a further source in
+            // place too where it is anonymous.
+            Some(VarDef::Source(body)) => {
+                crate::Operand::source(self.written_body(body, self.written_operand(body.read)))
             }
             _ => crate::Operand::Var(var),
         }
@@ -2338,25 +2363,27 @@ impl<P> Doc<P> {
     }
 
     /// **Every output variable and the port that defines it**, the map
-    /// an evaluation answers [`crate::Evaluation::table`] through, and
-    /// every source reading an output whole (VARIABLES VR4) with that
-    /// output's port: a source adds no name segment, so its table is the
-    /// body's.
+    /// an evaluation answers [`crate::Evaluation::table`] through.
     pub(crate) fn output_ports(&self) -> BTreeMap<VarId, (RecipeNodeId, u8)> {
         self.vars
             .iter()
-            .filter_map(|(&id, var)| {
-                let port = match var.def() {
-                    VarDef::Source(_) => {
-                        let body = self.through_sources(id);
-                        if body.is_indexed() {
-                            return None;
-                        }
-                        self.defined_by(body.read)?
-                    }
-                    def => def.output()?,
-                };
-                Some((id, port))
+            .filter_map(|(&id, var)| Some((id, var.def().output()?)))
+            .collect()
+    }
+
+    /// **Every source reading an output whole and that output's port**
+    /// (VARIABLES VR4): a source adds no name segment, so an evaluation
+    /// answers its table as the body's ([`crate::Evaluation::read_port`]).
+    pub(crate) fn source_ports(&self) -> BTreeMap<VarId, (RecipeNodeId, u8)> {
+        self.vars
+            .iter()
+            .filter(|(_, var)| var.def().source().is_some())
+            .filter_map(|(&id, _)| {
+                let body = self.through_sources(id);
+                (!body.is_indexed())
+                    .then(|| self.defined_by(body.read))
+                    .flatten()
+                    .map(|port| (id, port))
             })
             .collect()
     }
@@ -2461,7 +2488,11 @@ impl<P> Doc<P> {
                     crate::PortKind::Placed => match node {
                         // One shape's shape: a member read is a body.
                         Node::Place { source, .. } if !source.is_member() => {
-                            match self.vars.get(&source.read)?.kind() {
+                            match self
+                                .vars
+                                .get(&self.through_sources(source.read).read)?
+                                .kind()
+                            {
                                 crate::VarKind::Bodies => crate::VarKind::Bodies,
                                 _ => crate::VarKind::Body,
                             }

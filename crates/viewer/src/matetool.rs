@@ -1777,6 +1777,7 @@ impl MateTool {
         self.placing.take().map(|(body, space)| SessionOp::Place {
             body,
             target: Operand::Var(space),
+            name: None,
         })
     }
 

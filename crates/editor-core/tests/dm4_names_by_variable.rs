@@ -570,7 +570,9 @@ fn a_repoint_that_takes_a_keys_name_out_of_reach_strands_it() {
         &DocEdit::SetParam {
             node: t,
             slot: SlotId::Operand(editor_core::OperandSlot::Source),
-            value: editor_core::Operand::from(fixture::out(&doc, b)).into(),
+            value: doc
+                .place_read(editor_core::Operand::from(fixture::out(&doc, b)))
+                .into(),
             fresh: Vec::new(),
         },
         Tol::witness(),

@@ -28,7 +28,7 @@ use common::{displayed_face_at, len, plate_index};
 use pncad::document::Bodies;
 use pncad::document::{
     AuthoredNode, Dimension, Doc, DocEdit, Formula, Node, Operand, OperandSlot, ProfileProgram,
-    RecipeNodeId, SlotId, VarId,
+    RecipeNodeId, SlotId, VarId, VarName,
 };
 use pncad::geom_core::Tol;
 use pncad::prelude::{CapEnd, EntityKind, RoleSeg, StableName};
@@ -59,12 +59,14 @@ fn world(doc: &Doc<ProfileProgram>) -> World {
     )
 }
 
-/// What `copy` copies.
+/// The body `copy` copies, through its source (VARIABLES VR4).
 fn source_of(doc: &Doc<ProfileProgram>, copy: RecipeNodeId) -> Option<VarId> {
     doc.copied_read(copy)
+        .map(|source| doc.through_sources(source).read)
 }
 
-/// Whether `edits` write a placement's source.
+/// Whether `edits` re-point a placement: write its source slot, or
+/// redefine a source.
 fn writes_a_source(edits: &[DocEdit<ProfileProgram>]) -> bool {
     edits.iter().any(|edit| {
         matches!(
@@ -72,21 +74,29 @@ fn writes_a_source(edits: &[DocEdit<ProfileProgram>]) -> bool {
             DocEdit::SetParam {
                 slot: SlotId::Operand(OperandSlot::Source),
                 ..
+            } | DocEdit::DefineVar {
+                def: pncad::document::VarDecl::Source(_),
+                ..
             }
         )
     })
 }
 
-/// The bracket, two world copies of it placed by hand (the first at the
-/// identity, the second 0.1 m along y), the product reading the first:
-/// the session, the bracket and the two copies.
+/// The bracket, two world copies of it placed by hand through one named
+/// source, `bracket = B` (the first at the identity, the second 0.1 m
+/// along y), the product reading the first: the session, the bracket and
+/// the two copies.
 fn two_world_copies(tol: Tol) -> (DocSession, RecipeNodeId, RecipeNodeId, RecipeNodeId) {
     let mut session = common::inline_without_door(Doc::empty_derived("copy-reads", tol), tol);
     let body = common::xy_box_in(&mut session, SIZE);
     let doc = session.committed_doc().clone();
     let (doc, first) = common::world_copy(&doc, body, tol);
-    let (doc, second) =
-        viewer::test_support::inserted(&doc, common::world_place(Operand::Node(body)), tol);
+    let doc = named_source(&doc, first, "bracket", tol);
+    let (doc, second) = viewer::test_support::inserted(
+        &doc,
+        common::world_place(Operand::Name(VarName::from_static("bracket"))),
+        tol,
+    );
     let doc = drawn::pinned(doc, second, &drawn::translated([0.0, 0.1, 0.0]));
     let mut session = common::inline_without_door(doc, tol);
     let product = session.perform(SessionOp::SetProduct {
@@ -95,6 +105,26 @@ fn two_world_copies(tol: Tol) -> (DocSession, RecipeNodeId, RecipeNodeId, Recipe
     assert!(product.refusal.is_none(), "{:?}", product.refusal);
     session.pump();
     (session, body, first, second)
+}
+
+/// `doc` with the source `copy` reads named `name`, as the person names
+/// it when the body is placed a second time (VR2).
+fn named_source(
+    doc: &Doc<ProfileProgram>,
+    copy: RecipeNodeId,
+    name: &'static str,
+    tol: Tol,
+) -> Doc<ProfileProgram> {
+    let source = doc.copied_read(copy).expect("a placement reads a source");
+    doc.apply(
+        &DocEdit::RenameVar {
+            var: source.into(),
+            name: Some(VarName::from_static(name)),
+        },
+        tol,
+    )
+    .expect("the source is named")
+    .doc
 }
 
 /// The vertical edges of `node`, by their names in the landed run.
@@ -219,10 +249,7 @@ fn two_own_space_copies(tol: Tol) -> (DocSession, RecipeNodeId, RecipeNodeId, Re
     session.pump();
     let mut copies = Vec::new();
     for _ in 0..2 {
-        let out = session.perform(
-            SessionOp::place_where_it_stands(session.committed_doc(), body.into())
-                .expect("a body in a space"),
-        );
+        let out = session.perform(common::place_named(session.committed_doc(), body));
         assert!(out.refusal.is_none(), "{:?}", out.refusal);
         session.pump();
         copies.push(out.made.expect("a placement"));
@@ -366,26 +393,33 @@ fn a_feature_picked_on_a_copy_in_the_product_reads_that_copy_alone() {
 }
 
 /// **A feature on a body picked as itself offers the re-point, and
-/// writes nothing to its placements** (Ev, PR 6353): both world copies
-/// read one variable, the bracket's output — the variable they share.
-/// A fillet of the bracket picked as itself makes `F = fillet(bracket)`
-/// and writes no placement; `F` offers, as one explicit step, to
-/// re-point both placements onto it. Accepted, it is one action: both
-/// copies place `F`, the product reading the first copy still reads it,
-/// and one undo takes the re-point back alone.
+/// writes nothing to its placements** (Ev, PR 6353 and PR 6581): both
+/// world copies read one named source, `bracket = B` (VARIABLES VR4). A
+/// fillet of the bracket picked as itself makes `F = fillet(B)` and
+/// writes no placement; `F` offers, as one explicit step, to redefine
+/// `bracket` onto it. Accepted, it is one action, one `DefineVar` and the
+/// `Rebind`s it owes: both copies place `F`, the product reading the
+/// first copy still reads it, and one undo takes the re-point back alone.
 ///
 /// *Breaks if* the gesture re-points silently, the offer is missing or
-/// names other placements, or the re-point is not one action.
+/// names another source, or the re-point is not one action of one
+/// definition edit.
 #[test]
 fn a_feature_on_a_body_picked_as_itself_offers_the_re_point() {
     let tol = Tol::witness();
     let (mut session, body, first, second) = two_world_copies(tol);
     let doc = session.committed_doc();
     let shared = doc.output(body, 0).expect("the bracket's body");
+    let bracket = doc.var_named("bracket").expect("the named source");
+    assert_eq!(
+        [first, second].map(|copy| doc.copied_read(copy)),
+        [Some(bracket); 2],
+        "the placements share one named source"
+    );
     assert_eq!(
         [first, second].map(|copy| source_of(doc, copy)),
         [Some(shared); 2],
-        "the placements share one variable"
+        "which reads the bracket"
     );
     let edge = lateral_edges(&session, body)[0].clone();
     let out = session.perform(SessionOp::AddFillet {
@@ -403,20 +437,27 @@ fn a_feature_on_a_body_picked_as_itself_offers_the_re_point() {
         "no placement is re-pointed unasked"
     );
     let offer = viewer::world::repoint_offer(&after, fillet).expect("the fillet offers");
-    assert_eq!(offer.body, shared, "the variable the placements share");
-    assert_eq!(offer.placements, [first, second], "both placements");
+    assert_eq!(offer.body, shared, "the body the source reads");
+    assert_eq!(
+        offer.rows,
+        [viewer::world::RepointRow {
+            source: bracket,
+            placements: vec![first, second],
+        }],
+        "one row, the shared source and both its placements"
+    );
     let (said, offers) = viewer::frame::placement_offers(&after, fillet);
     assert_eq!(said, None, "a body picked as itself is on no copy");
     let repoint = SessionOp::RepointPlacements {
-        body: Operand::Var(shared),
-        onto: fillet,
+        source: bracket,
+        onto: fillet.into(),
     };
     let [(label, op)] = &offers[..] else {
         panic!("one offer: {offers:?}")
     };
-    assert_eq!(*op, repoint, "the offer is the re-point");
+    assert_eq!(*op, repoint, "the offer is the redefinition");
     assert!(
-        label.starts_with("Re-point the 2 placements of "),
+        label.starts_with("Re-point bracket (2 copies) onto "),
         "{label}"
     );
 
@@ -424,6 +465,19 @@ fn a_feature_on_a_body_picked_as_itself_offers_the_re_point() {
     let done = session.perform(repoint);
     assert!(done.refusal.is_none(), "{:?}", done.refusal);
     assert_eq!(session.history().len(), steps + 1, "one action");
+    assert!(
+        done.committed
+            .iter()
+            .all(|edit| matches!(edit, DocEdit::DefineVar { .. } | DocEdit::Rebind { .. }))
+            && done
+                .committed
+                .iter()
+                .filter(|edit| matches!(edit, DocEdit::DefineVar { .. }))
+                .count()
+                == 1,
+        "one DefineVar and its Rebinds: {:?}",
+        done.committed
+    );
     session.pump();
     let doc = session.committed_doc();
     let filleted = doc.output(fillet, 0);
@@ -471,10 +525,7 @@ fn a_place_into_the_bodys_own_space_is_a_copy() {
     let body = common::xy_box_in(&mut session, SIZE);
     session.pump();
     let place = |session: &mut DocSession| {
-        let out = session.perform(
-            SessionOp::place_where_it_stands(session.committed_doc(), body.into())
-                .expect("a body in a space"),
-        );
+        let out = session.perform(common::place_named(session.committed_doc(), body));
         assert!(out.refusal.is_none(), "{:?}", out.refusal);
         session.pump();
         out.made.expect("a placement")
@@ -539,10 +590,7 @@ fn designer_as_worked_example() {
     session.pump();
     let mut copies = Vec::new();
     for _ in 0..2 {
-        let out = session.perform(
-            SessionOp::place_where_it_stands(session.committed_doc(), bracket.into())
-                .expect("a body in a space"),
-        );
+        let out = session.perform(common::place_named(session.committed_doc(), bracket));
         assert!(out.refusal.is_none(), "{:?}", out.refusal);
         copies.push(out.made.expect("a placement"));
     }
@@ -597,10 +645,11 @@ fn designer_as_worked_example() {
     assert!(!writes_a_source(&out.committed));
     let f = out.made.expect("F");
     let offer = viewer::world::repoint_offer(session.committed_doc(), f).expect("F offers");
-    assert_eq!(offer.placements, [c1, c2]);
+    assert_eq!(offer.rows.len(), 1, "one source: {:?}", offer.rows);
+    assert_eq!(offer.rows[0].placements, [c1, c2]);
     let done = session.perform(SessionOp::RepointPlacements {
-        body: Operand::Var(offer.body),
-        onto: f,
+        source: offer.rows[0].source,
+        onto: f.into(),
     });
     assert!(done.refusal.is_none(), "{:?}", done.refusal);
     session.pump();
@@ -784,10 +833,7 @@ fn bracket(name: &str, tol: Tol) -> (DocSession, RecipeNodeId) {
 
 /// One Place of `body`, landed.
 fn place(session: &mut DocSession, body: RecipeNodeId) -> RecipeNodeId {
-    let out = session.perform(
-        SessionOp::place_where_it_stands(session.committed_doc(), body.into())
-            .expect("a body in a space"),
-    );
+    let out = session.perform(common::place_named(session.committed_doc(), body));
     assert!(out.refusal.is_none(), "{:?}", out.refusal);
     session.pump();
     out.made.expect("a placement")
@@ -803,20 +849,35 @@ fn with(session: &DocSession, node: AuthoredNode, tol: Tol) -> (DocSession, Reci
 }
 
 /// **The offer's button does what the offer says** (PR 6581's review,
-/// R1 m1 and R2 M1): the bracket Placed twice, then a body built on the
-/// bracket and one of its own copies — by hand, `U = B ∪ C1`, and through
-/// the combine gesture with `C1` slid aside. The offer leaves `C1` out,
-/// since `U` reads it; the button re-points `C2` alone, and lands.
+/// R1 m1 and R2 M1): the bracket Placed once, a second copy placed by
+/// hand through a source of its own, then a body built on the bracket
+/// and the first copy — by hand, `U = B ∪ C1`, and through the combine
+/// gesture with `C1` slid aside. The offer leaves `C1`'s source out,
+/// since `U` reads it; the button redefines `C2`'s alone, and lands.
+/// Shared by one named source, the two copies offer nothing: redefining
+/// it onto `U` would close a cycle through `C1`.
 ///
-/// *Breaks if* the action re-derives a placement list other than the
-/// offer's (the button is refused `WouldCycle` on `C1`).
+/// *Breaks if* the action re-derives a source list other than the
+/// offer's (the button is refused `WouldCycle` on `C1`'s source).
 #[test]
 fn the_offer_and_its_button_re_point_the_same_placements() {
     let tol = Tol::witness();
     for gesture in [false, true] {
         let (mut session, body) = bracket("offer-cycle", tol);
         let c1 = place(&mut session, body);
-        let c2 = place(&mut session, body);
+        let space = session
+            .committed_doc()
+            .node_space(body)
+            .expect("the bracket's space");
+        let (mut session, c2) = with(
+            &session,
+            Node::place(
+                pncad::document::BodyRead::plain(Operand::Node(body)),
+                Operand::Var(space),
+                pncad::document::stand().bundle(),
+            ),
+            tol,
+        );
         let (mut session, u) = if gesture {
             let op = common::transformed(&mut session, c1, &common::slides([0.01, 0.0, 0.0]));
             assert!(session.perform(op).refusal.is_none());
@@ -843,13 +904,20 @@ fn the_offer_and_its_button_re_point_the_same_placements() {
         };
         let doc = session.committed_doc().clone();
         let offer = viewer::world::repoint_offer(&doc, u).expect("U offers");
-        assert_eq!(offer.placements, [c2], "gesture={gesture}: C1 left out");
+        assert_eq!(
+            offer.rows,
+            [viewer::world::RepointRow {
+                source: doc.copied_read(c2).expect("C2's source"),
+                placements: vec![c2],
+            }],
+            "gesture={gesture}: C1's source left out"
+        );
         let (_, offers) = viewer::frame::placement_offers(&doc, u);
         let (label, op) = offers
             .into_iter()
             .find(|(_, op)| matches!(op, SessionOp::RepointPlacements { .. }))
             .expect("the button");
-        assert!(label.starts_with("Re-point the 1 placement "), "{label}");
+        assert!(label.starts_with("Re-point the copy "), "{label}");
         let out = session.perform(op);
         assert!(
             out.refusal.is_none(),
@@ -857,9 +925,29 @@ fn the_offer_and_its_button_re_point_the_same_placements() {
             out.refusal
         );
         let doc = session.committed_doc();
-        assert_eq!(doc.copied_read(c2), doc.output(u, 0), "C2 re-pointed");
-        assert_eq!(doc.copied_read(c1), doc.output(body, 0), "C1 left");
+        assert_eq!(source_of(doc, c2), doc.output(u, 0), "C2 re-pointed");
+        assert_eq!(source_of(doc, c1), doc.output(body, 0), "C1 left");
     }
+    // Shared by one named source, the cycle through C1 leaves nothing to
+    // offer.
+    let (mut session, body) = bracket("offer-cycle-shared", tol);
+    let c1 = place(&mut session, body);
+    place(&mut session, body);
+    let (session, u) = with(
+        &session,
+        Node::Union {
+            members: pncad::document::Bodies::Spelled(vec![
+                Operand::Node(body).into(),
+                Operand::Node(c1).into(),
+            ]),
+        },
+        tol,
+    );
+    assert_eq!(
+        viewer::world::repoint_offer(session.committed_doc(), u),
+        None,
+        "redefining the shared source onto U would read U's own copy"
+    );
 }
 
 /// **Delete is the inverse two features deep** (PR 6581's review, R2
@@ -924,8 +1012,8 @@ fn a_chain_on_a_copy_survives_the_re_point_and_its_delete() {
     session.pump();
     let offer = viewer::world::repoint_offer(session.committed_doc(), f).expect("F offers");
     let out = session.perform(SessionOp::RepointPlacements {
-        body: Operand::Var(offer.body),
-        onto: f,
+        source: offer.rows[0].source,
+        onto: f.into(),
     });
     assert!(out.refusal.is_none(), "{:?}", out.refusal);
     session.pump();
@@ -1298,8 +1386,8 @@ fn fillet_and_repoint(session: &mut DocSession, body: RecipeNodeId) -> RecipeNod
     session.pump();
     let offer = viewer::world::repoint_offer(session.committed_doc(), f).expect("F offers");
     let out = session.perform(SessionOp::RepointPlacements {
-        body: Operand::Var(offer.body),
-        onto: f,
+        source: offer.rows[0].source,
+        onto: f.into(),
     });
     assert!(out.refusal.is_none(), "re-point: {:?}", out.refusal);
     session.pump();
@@ -1512,25 +1600,32 @@ fn on_this_copy_at_depth_and_through_member_copies() {
     assert!(bad.is_empty(), "{bad:#?}");
 }
 
-/// **The offer leaves out a cycle through a mate** (re-check, claim 1). C1 is mated onto C2; U = B ∪ C1 reads
-/// C2 through C1's pose. C3 is free. The offer must leave C1 and C2 out,
-/// and its button must land.
+/// **The offer leaves out a cycle through a mate** (re-check, claim 1):
+/// three copies, each placed by hand through a source of its own. C1 is
+/// mated onto C2; U = B ∪ C1 reads C2 through C1's pose. C3 is free. The
+/// offer must leave C1's and C2's sources out, and its button must land.
 #[test]
 fn the_offer_leaves_out_a_placement_read_through_a_mate() {
     let tol = Tol::witness();
-    let (mut session, body) = bracket("rc-mate-cycle", tol);
-    let place = |session: &mut DocSession| {
-        let out = session.perform(
-            SessionOp::place_where_it_stands(session.committed_doc(), body.into())
-                .expect("a body in a space"),
-        );
-        assert!(out.refusal.is_none(), "{:?}", out.refusal);
-        session.pump();
-        out.made.expect("a copy")
+    let (session, body) = bracket("rc-mate-cycle", tol);
+    let space = session
+        .committed_doc()
+        .node_space(body)
+        .expect("the bracket's space");
+    let apart = |session: &DocSession| {
+        with(
+            session,
+            Node::place(
+                pncad::document::BodyRead::plain(Operand::Node(body)),
+                Operand::Var(space),
+                pncad::document::stand().bundle(),
+            ),
+            tol,
+        )
     };
-    let c1 = place(&mut session);
-    let c2 = place(&mut session);
-    let c3 = place(&mut session);
+    let (session, c1) = apart(&session);
+    let (session, c2) = apart(&session);
+    let (mut session, c3) = apart(&session);
     let bottom = StableName {
         kind: EntityKind::Face,
         node: body,
@@ -1556,7 +1651,13 @@ fn the_offer_leaves_out_a_placement_read_through_a_mate() {
     );
     let doc = session.committed_doc().clone();
     let offer = viewer::world::repoint_offer(&doc, u).expect("U offers");
-    assert_eq!(offer.placements, [c3], "C1 and C2 left out");
+    assert_eq!(
+        offer.rows.len(),
+        1,
+        "C1's and C2's sources left out: {:?}",
+        offer.rows
+    );
+    assert_eq!(offer.rows[0].placements, [c3]);
     let (_, offers) = viewer::frame::placement_offers(&doc, u);
     let (_, op) = offers
         .into_iter()
@@ -1565,7 +1666,7 @@ fn the_offer_leaves_out_a_placement_read_through_a_mate() {
     let out = session.perform(op);
     assert!(out.refusal.is_none(), "{:?}", out.refusal);
     let doc = session.committed_doc();
-    assert_eq!(doc.copied_read(c3), doc.output(u, 0));
+    assert_eq!(source_of(doc, c3), doc.output(u, 0));
 }
 
 /// **A split of a body only placements read makes `above ⊔ below` and
@@ -1595,7 +1696,8 @@ fn a_split_of_a_body_only_placements_read_offers_the_re_point() {
         .find(|&&n| matches!(doc.node(n), Some(Node::Assemble { .. })))
         .expect("above ⊔ below");
     let offer = viewer::world::repoint_offer(doc, both).expect("the ⊔ offers");
-    assert_eq!(offer.placements, [copy], "the copy");
+    assert_eq!(offer.rows.len(), 1, "one source: {:?}", offer.rows);
+    assert_eq!(offer.rows[0].placements, [copy], "the copy");
     assert_eq!(Some(offer.body), doc.output(body, 0));
 }
 

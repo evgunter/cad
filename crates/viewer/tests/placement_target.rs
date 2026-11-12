@@ -145,7 +145,8 @@ fn the_target_row_re_targets_a_placement_in_one_step() {
         op,
         SessionOp::Place {
             body: bolt.into(),
-            target: Operand::Var(own)
+            target: Operand::Var(own),
+            name: None,
         },
         "the viewer's Place names the body's own space"
     );
