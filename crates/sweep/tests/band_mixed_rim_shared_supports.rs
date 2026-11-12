@@ -223,6 +223,41 @@ fn a_bore_reaching_a_mates_strip_refuses_at_the_meter() {
     }
 }
 
+/// **The holed plate cut by a Boolean carves its ladder rims first**:
+/// a slab with the hole already through it, intersected with the
+/// rounded prism, keys the hole's rims before the outline's, so the
+/// mixed carves read caps the ladder carves already cut.
+#[test]
+fn the_holed_plate_intersected_carves_its_ladders_first_at_the_closed_form() {
+    let square: Vec<_> = [(-1.5, -1.5), (1.5, -1.5), (1.5, 1.5), (-1.5, 1.5)]
+        .iter()
+        .map(|&(x, y)| (Point2::new(x, y), 0.0))
+        .collect();
+    let hole = vec![(Point2::new(-0.2, 0.0), -1.0), (Point2::new(0.2, 0.0), -1.0)];
+    let slab = extruded(
+        SketchPlane::xy_at(Point3::new(0.0, 0.0, -0.1)),
+        vec![bulge_loop(square), bulge_loop(hole)],
+        0.7,
+        tol(),
+    );
+    let body = boolean_op_with(
+        BooleanOp::Intersect,
+        &finished("the holed slab", slab, tol()),
+        &finished("the rounded prism", prism::<f64>(&outline(), 0.0, 0.5), tol()),
+        &BooleanInputs::default(),
+        SweepStrategy::Realized,
+        tol(),
+    )
+    .unwrap_or_else(|e| panic!("the intersection builds: {e:?}"))
+    .body()
+    .expect("the intersection is a body")
+    .body
+    .clone()
+    .into_body();
+    let truth = 2.0 * outline().pappus(R, true) + 2.0 * circle_rim(0.2, true, R);
+    carve("intersected holed plate", &body, &every_edge(&body), truth, Z);
+}
+
 /// **A rounded plate with a round hole fillets every edge in one call**:
 /// each cap hosts the outer mixed rim and the hole's ladder rim, and the
 /// call removes both rims' closed forms on both caps — the volume of the
@@ -298,16 +333,38 @@ fn a_pockets_mouth_and_a_hole_beside_it_fillet_in_one_call() {
         ((p.x - 0.22).hypot(p.y - 1.0) - 0.1).abs() < 1e-9
     });
     assert_eq!((mouth.len(), hole.len()), (8, 2), "the mouth and the hole");
-    let both: Vec<EdgeKey> = mouth.into_iter().chain(hole).collect();
+    let both: Vec<EdgeKey> = mouth.iter().chain(&hole).copied().collect();
     let out = fillet_edges(&at_rest(&body, tol()), &both, R, tol())
         .unwrap_or_else(|e| panic!("the mouth and the hole fillet together: {:?}", e.error));
     validate_geometric(&out.body, tol()).unwrap_or_else(|e| panic!("tier 3, got {e:?}"));
+    let mut hosts = ring_hosts(&out.body);
+    hosts.sort_by_key(|&(_, count)| count);
+    assert!(
+        hosts.len() == 2
+            && hosts.iter().all(|&(n, _)| (n - Z).norm() < 1e-9)
+            && hosts.iter().map(|&(_, c)| c).eq([1, 2]),
+        "the top keeps the mouth's and the hole's rings, the bottom the hole's: {hosts:?}"
+    );
     let truth = o.pappus(R, false) + circle_rim(0.1, true, R);
     let ((v0, w0), (v1, w1)) = (volume(&body), volume(&out.body));
     assert!(
         ((v0 - v1) - truth).abs() <= w0 + w1 + 1e-12,
         "ΔV {} is the closed form {truth}",
         v0 - v1
+    );
+
+    let first = fillet_edges(&at_rest(&body, tol()), &mouth, R, tol())
+        .unwrap_or_else(|e| panic!("the mouth alone: {:?}", e.error));
+    let b1 = Body::clone(&first.body);
+    let hole = rim_where(&b1, 1.0, |p| {
+        ((p.x - 0.22).hypot(p.y - 1.0) - 0.1).abs() < 1e-9
+    });
+    let second = fillet_edges(&at_rest(&b1, tol()), &hole, R, tol())
+        .unwrap_or_else(|e| panic!("the hole after the mouth: {:?}", e.error));
+    let (vs, ws) = volume(&second.body);
+    assert!(
+        (v1 - vs).abs() <= w1 + ws + 1e-12,
+        "one call {v1} is the two calls' {vs}"
     );
 }
 
@@ -343,6 +400,58 @@ fn a_hole_reaching_a_links_strip_refuses_at_the_meter() {
         assert!(
             (read + 0.01).abs() < 1e-9,
             "{what}: the meter reads the hole's trim 0.01 into the strip, got {read}"
+        );
+    }
+}
+
+/// **Holes near a corner arc that the meter cannot clear refuse with
+/// the sequential recourse, which builds**: each hole's trim circle
+/// passes the corner arc's wedge or a straight link's slab end, where
+/// the ranged read straddles the strip though the circle clears it. The
+/// outline's rims first, then the hole's, build at the closed form.
+#[test]
+fn holes_beside_a_corner_refuse_with_the_sequential_recourse_which_builds() {
+    for (at, hr) in [
+        ((0.559, 0.159), 0.1),
+        ((0.6, 0.2), 0.1),
+        ((0.845, 0.25), 0.05),
+        ((0.849, 0.25), 0.05),
+    ] {
+        let what = format!("hole r {hr} at {at:?}");
+        let (o, body) = holed_plate::<f64>(at, hr);
+        let Err(e) = fillet_edges(&at_rest(&body, tol()), &every_edge(&body), R, tol()) else {
+            panic!("{what}: built in one call; this row pins the meter's unclear read");
+        };
+        assert!(
+            matches!(&e.error, BlendError::UnsupportedChain { detail, .. }
+                if detail.contains("ladder ring beside a mixed rim")
+                    && detail.contains("SEQUENTIAL calls")),
+            "{what}: refuses with the sequential recourse, got {:?}",
+            e.error
+        );
+        let outer: Vec<EdgeKey> = outer_rim(&body, 0.0)
+            .into_iter()
+            .chain(outer_rim(&body, 0.5))
+            .collect();
+        let first = fillet_edges(&at_rest(&body, tol()), &outer, R, tol())
+            .unwrap_or_else(|e| panic!("{what}: the outline's rims: {:?}", e.error));
+        let b1 = Body::clone(&first.body);
+        let on_hole = |p: Point3<f64>| ((p.x - at.0).hypot(p.y - at.1) - hr).abs() < 1e-9;
+        let hole: Vec<EdgeKey> = rim_where(&b1, 0.0, on_hole)
+            .into_iter()
+            .chain(rim_where(&b1, 0.5, on_hole))
+            .collect();
+        assert_eq!(hole.len(), 4, "{what}: the hole's two rims of two arcs");
+        let second = fillet_edges(&at_rest(&b1, tol()), &hole, R, tol())
+            .unwrap_or_else(|e| panic!("{what}: the hole's rims after: {:?}", e.error));
+        validate_geometric(&second.body, tol())
+            .unwrap_or_else(|e| panic!("{what}: tier 3, got {e:?}"));
+        let truth = 2.0 * o.pappus(R, true) + 2.0 * circle_rim(hr, true, R);
+        let ((v0, w0), (v1, w1)) = (volume(&body), volume(&second.body));
+        assert!(
+            ((v0 - v1) - truth).abs() <= w0 + w1 + 1e-12,
+            "{what}: ΔV {} is the closed form {truth}",
+            v0 - v1
         );
     }
 }

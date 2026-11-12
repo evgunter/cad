@@ -23,8 +23,8 @@ Witness: a rounded plate with a round hole.
 
 The gate keeps the two walks off one face because only the annulus walk's own seam keys are re-read live (`refresh_annulus_seams`). The mixed walk reads its junction edges live itself, but nothing yet shows that either walk takes the face the other has carved. Lifting the gate needs that, and a row that proves it.
 
-Closed by the band-mixgates lane (2026-11-12). The witness's hole rim is a LADDER rim, a ring of two arcs on the cap. Lifting the mixed arm built it in one call at tier 3, bit-equal in volume to the two sequential calls. It also built with the carve order reversed, measured on scratch: no fixture the doors mint carves the ladder first. The arm is dropped.
+Closed by the band-mixgates lane (2026-11-12). The witness's hole rim is a LADDER rim, a ring of two arcs on the cap. Lifting the mixed arm built it in one call at tier 3, bit-equal in volume to the two sequential calls. It also builds with the ladder carved first: the plate built as `Intersect(a slab with the hole through it, the rounded prism)` keys the hole's rims first, and it builds at the closed form (pinned). The arm is dropped.
 
-A hole beside a corner arc then refused, because the meter read the arc's whole trim circle. A mixed link is now read at its own trim between its feet (`co_requested_trim`). Pinned at f64 and Interval with a hole moved into a strip that refuses (`crates/sweep/tests/band_mixed_rim_shared_supports.rs`).
+A hole beside a corner arc then refused, because the meter read the arc's whole trim circle. A mixed link is now read at its own trim between its feet (`co_requested_trim`). Pinned at f64 and Interval with a hole moved into a strip that refuses (`crates/sweep/tests/band_mixed_rim_shared_supports.rs`). A hole near a corner that the ranged meter cannot read clear refuses with the sequential recourse, which builds (`a-mixed-ring-inside-a-few-wide-arcs-refuses-at-the-support-meter`).
 
 A mixed rim and an actual ANNULUS rim on one support still refuse at the gate's remaining arm. The reason and the measurement are in `an-annulus-rim-around-a-mixed-rim-refuses-in-one-call`.

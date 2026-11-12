@@ -1877,9 +1877,9 @@ fn rims_share_support<T: Real>(a: &RimPlan<'_, T>, b: &RimPlan<'_, T>) -> bool {
 ///   plan names the junction vertices and the rim arcs, which no other
 ///   carve touches, and every face, loop and edge off the rim its walk
 ///   reaches is read live; a ladder's plan names its ring, which a
-///   mixed carve of the host's other cycle leaves in place. Pinned
-///   against the sequential composition
-///   (`band_mixed_rim_shared_supports`).
+///   mixed carve of the host's other cycle leaves in place. Pinned in
+///   both carve orders against the closed form and the sequential
+///   composition (`band_mixed_rim_shared_supports`).
 /// - **An ANNULUS and a LADDER or MIXED rim** sharing a support are
 ///   refused: an annulus carve consumes structure of the shared face
 ///   beyond its own rim (the seam split, the trimline carve of the
@@ -3083,6 +3083,7 @@ fn ring_clearance_pass<T: Decide + Bounds>(
                 (opens, rims),
                 l.convexity,
                 band,
+                false,
             )?;
         }
     }
@@ -3316,7 +3317,7 @@ fn support_boundary_clearance<T: Decide + Bounds>(
             |edge: EdgeKey, outer: bool| arcs.contains(&edge) || outer && drops_into_rim(edge);
         let read = (opens, rims);
         if per_link {
-            level_clearance(body, &level, face, replaced, read, convexity, band)?;
+            level_clearance(body, &level, face, replaced, read, convexity, band, true)?;
         } else {
             let fd = body
                 .get_face(face)
@@ -3362,6 +3363,17 @@ fn outer_pieces<'b, T: Decide>(
 /// box as the outer cycle's is. `replaced` names the edges the carve
 /// replaces (with whether the cycle is the outer one), which are not
 /// metered. A mixed rim's link and an open torus link are read so.
+///
+/// A ring that another rim of the call carries is read at that rim's
+/// trim, a whole circle for a ladder's ring, whose ranges across and
+/// along a windowed strip straddle it wherever the circle passes the
+/// strip's wedge or slab ends, though the circle clears the strip
+/// (`work/band/a-mixed-ring-inside-a-few-wide-arcs-refuses-at-the-support-meter.md`).
+/// Under `beside_rim` such a ring that does not read clear refuses
+/// with the sequential recourse rather than a margin the read cannot
+/// vouch for: each call then meters the other rim's carved, stored
+/// ring.
+#[allow(clippy::too_many_arguments)]
 fn level_clearance<T: Decide + Bounds>(
     body: &Body<T>,
     level: &StripLevel<T>,
@@ -3370,6 +3382,7 @@ fn level_clearance<T: Decide + Bounds>(
     (opens, rims): (&[AdmittedOpen<'_, T>], &[RimPlan<'_, T>]),
     convexity: Convexity,
     band: Band,
+    beside_rim: bool,
 ) -> Result<(), BlendError> {
     let fd = body
         .get_face(face)
@@ -3385,7 +3398,35 @@ fn level_clearance<T: Decide + Bounds>(
         }
         cycles.push((pieces, false));
     }
-    cycles_clearance(face, level, cycles, replaced, convexity, band)
+    for (cycle, outer) in cycles {
+        let other_rim = (beside_rim && !outer)
+            .then(|| {
+                cycle.iter().map(|(edge, _, _)| *edge).find(|&e| {
+                    !replaced(e, false)
+                        && rims
+                            .iter()
+                            .flat_map(|r| r.chain.links())
+                            .any(|l| l.edge == e)
+                })
+            })
+            .flatten();
+        let read = cycles_clearance(
+            face,
+            level,
+            vec![(cycle, outer)],
+            &replaced,
+            convexity,
+            band,
+        );
+        if let (Err(BlendError::RingClearance { .. }), Some(edge)) = (&read, other_rim) {
+            return Err(unbuilt_chain(
+                edge,
+                "a ladder ring beside a mixed rim reads unclear; blend them in SEQUENTIAL calls",
+            ));
+        }
+        read?;
+    }
+    Ok(())
 }
 
 /// Each cycle of `face` against `level`, refusing at its least margin
@@ -3687,35 +3728,34 @@ fn co_requested_trim<T: Decide>(
         let window = (line.param(stored.eval(ta)), line.param(stored.eval(tb)));
         (Curve3::Line(line), window)
     };
-    if let Some((rim, l)) = rims
+    // Each requested link with the host its own trims are read from:
+    // a mixed rim's link alone has one.
+    let mixed_host = |r: &RimPlan<'_, T>| matches!(r.shape, RimShape::Mixed(_)).then(|| r.host0());
+    let Some((l, host)) = opens
         .iter()
-        .filter(|r| matches!(r.shape, RimShape::Mixed(_)))
-        .find_map(|r| r.chain.links().find(|l| l.edge == edge).map(|l| (r, l)))
-    {
-        if face != l.face_a && face != l.face_b {
-            return Err(not_a_support(edge));
-        }
-        let (host, mate) = junction::mixed_trims(body, l, rim.host0())?;
-        return Ok(Some(match if face == rim.host0() { host } else { mate } {
+        .map(|o| (o.link(), None))
+        .chain(
+            rims.iter()
+                .flat_map(|r| r.chain.links().map(move |l| (l, mixed_host(r)))),
+        )
+        .find(|(l, _)| l.edge == edge)
+    else {
+        return Ok(None);
+    };
+    let (trim, _) = l.trim_on(face).ok_or_else(|| not_a_support(edge))?;
+    if let Some(host) = host {
+        let (on_host, on_mate) = junction::mixed_trims(body, l, host)?;
+        return Ok(Some(match if face == host { on_host } else { on_mate } {
             junction::MixedTrim::Line(line) => projected(line),
             junction::MixedTrim::Arc(c, window) => (c, window),
         }));
     }
-    if let Some(l) = opens
-        .iter()
-        .map(AdmittedOpen::link)
-        .chain(rims.iter().flat_map(|r| r.chain.links()))
-        .find(|l| l.edge == edge)
-    {
-        // A straight link reads its trimline over the stored window
-        // projected onto it; an arc, its whole trim circle.
-        let (trim, _) = l.trim_on(face).ok_or_else(|| not_a_support(edge))?;
-        if let Curve3::Line(line) = trim {
-            return Ok(Some(projected(*line)));
-        }
-        return Ok(Some((trim.clone(), (T::zero(), T::tau()))));
-    }
-    Ok(None)
+    // A straight link reads its trimline over the stored window
+    // projected onto it; an arc, its whole trim circle.
+    Ok(Some(match trim {
+        Curve3::Line(line) => projected(*line),
+        _ => (trim.clone(), (T::zero(), T::tau())),
+    }))
 }
 
 /// **An open link's trimline on its support `face`**, as its line.

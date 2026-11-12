@@ -630,8 +630,11 @@ one adds, the section `r²(1 − π/4)` along the path its centroid takes
 (`band_closed_mixed_chain`). A mate's rings stay on the mate the trim
 shrinks, each metered against its link's strip (a cross-drilled wall
 keeps its bore), and a ladder rim on the shared face (a round hole
-through the plate) carves in the same call
-(`band_mixed_rim_shared_supports`). An annulus rim sharing a support
+through the plate) carves in the same call, in either carve order
+(`band_mixed_rim_shared_supports`). A ladder ring the meter cannot
+read clear of a mixed link's windowed strip refuses `UnsupportedChain`
+with the sequential recourse rather than a margin
+(`work/band/a-mixed-ring-inside-a-few-wide-arcs-refuses-at-the-support-meter.md`). An annulus rim sharing a support
 with a mixed rim refuses `UnsupportedChain` with the sequential
 recourse
 (`work/band/an-annulus-rim-around-a-mixed-rim-refuses-in-one-call.md`).
