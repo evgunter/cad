@@ -494,3 +494,15 @@ fn probe_focal_beta_one() {
     }
     assert!(seen > 0);
 }
+
+/// TT2 probe: can code outside the identity doors hold a `UnitDecided`
+/// whose magnitude nothing decided? (Compiles iff the type does not
+/// enforce the order.)
+#[test]
+fn probe_unit_decided_is_constructible_anywhere() {
+    let forged = crate::pcurve_cache::UnitDecided {
+        value: 0.3_f64,
+        residue: 0.0,
+    };
+    println!("forged a UnitDecided with value {}", forged.value);
+}
