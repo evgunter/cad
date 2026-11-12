@@ -39,7 +39,7 @@ fn seat(z0: f64, h: f64) -> (AtRestBody<f64>, OperandRecords) {
         geom_core::Vec3::new(2.0, 0.0, 0.0),
     )
     .unwrap();
-    let shaft = topo::transform_rigid(&shaft, &turn, t()).unwrap();
+    let shaft = topo::transform_rigid(&shaft, &turn).unwrap();
     topo::graft_disjoint_all_keyed(&mut body, &shaft).unwrap();
     let body = finished("the seat", body, t());
     let walls: Vec<(FaceKey, SolidKey)> = body
