@@ -191,8 +191,8 @@ fn thorn<T: Decide>(p: Point3<T>, keys: [EdgeKey; 3], void: bool) -> Vec<Tangent
 /// material alone rests, and beside a plane whose material lies away
 /// from it; inside that material it crosses. A needle of void refuses
 /// alone, rests inside a plane's material, and crosses outside it. A
-/// thorn whose ray a plane holds, no material read round it, refuses in
-/// band. A ring with a horn
+/// thorn whose ray lies in band of a plane, no material read round it,
+/// refuses in band. A ring with a horn
 /// missing, a ring of two horns, a triangle squashed flat, and two
 /// thorns along one ray refuse; two along opposite rays rest. Red where
 /// a thorn's side is read the other way round, the cone round it is not
@@ -227,11 +227,15 @@ fn a_ring_of_horns_reads_as_its_thorn<T: Decide>() {
             TouchVerdict::Crossing,
             "a needle outside a plane's material at {p:?}"
         );
+        // A plane through the point whose side of the ray, at the arm
+        // `2`, lies between the band's zero and its escalation.
+        let (zero, escalate) = (band().zero(), band().escalate());
+        let lean = 0.25 * (zero + escalate);
         let s = core::f64::consts::FRAC_1_SQRT_2;
         assert_eq!(
-            read(p, with(thorn(p, keys, false), whole(p, v(0.0, s, -s)))),
+            read(p, with(thorn(p, keys, false), whole(p, v(lean, s, -s)))),
             TouchVerdict::Unread(TouchUnread::InBand),
-            "a thorn along a plane through its ray at {p:?}"
+            "a thorn in band of a plane at {p:?}"
         );
         assert_eq!(
             read(p, thorn(p, keys, true)),
