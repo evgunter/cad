@@ -4,7 +4,7 @@ kind: issue
 title: The injectivity check reads a curved corner only through a shared edge of a curved chart or a plane's arc, so a pair touching at the corner's vertex alone, or across a plane's line edge that meets an arc, refuses; the tee refuses so
 status: open
 opened: 2026-10-29
-priority: P2
+priority: P0
 cost: M
 ---
 
@@ -53,5 +53,24 @@ still splits, because the wall presents. Today it refuses at depth 40
 has the cells). There the binding obstacle is the wall's zero-side
 residual, so this row's corner reading alone would not certify those
 pairs.
+
+## Further evidence: eight finished tour bodies (CLEAR, lane clear-gate, 2026-11-12)
+
+Measured for `the-at-rest-gate-certifies-embedding` (its Measured
+section), at main `348ec09727`, f64, the body-level question at the
+default depth and 65,536 pairs. These tour bodies pass tier 3 and
+refuse `Uncertified { arm: Departure }` at depth 40. Their pairs have
+this row's shapes (not traced to the cell):
+- **Plane × plane across a `Line`**: `chute` (faces 1 and 6, edge
+  `20v1`, 0.06 s) and the lily's three buds (faces 1 and 6, edge
+  `12v1`, 0.18–0.31 s). This is the third bullet's shape, a plane's
+  line edge meeting an arc.
+- **Plane × sphere at a vertex alone**: `diefillet` (1.5 s) and
+  `heatsink5`, `7` and `9` (1.8–2.2 s, about 29,000 pairs each). This
+  is the first bullet's shape.
+
+Re-banded P0: the at-rest gate (P0) refuses these bodies at their
+doors until this row lands, and a blocker inherits the band of what
+waits on it.
 
 - 2026-11-02 — moved from CLEARTAIL to CLEAR when CLEARTAIL merged back into CLEAR (the budget rule now counts P0/P1 only); id and body unchanged.
