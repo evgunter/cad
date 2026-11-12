@@ -2087,13 +2087,16 @@ fn enclosed_miss(
         .fold(0.0, f64::max)
 }
 
+/// A pinned seed's name, its sphere, its great circle and its span.
+type PinnedMeridian = (&'static str, Surface<f64>, Curve3<f64>, (f64, f64));
+
 /// The spheres and great circles of two fuzz seeds in
 /// `a_closed_form_on_its_carrier_certifies_in_every_spelling`, each a
 /// meridian whose `t = 0` point lies near the pole:
 /// - `0x6c321abd1c3c3bb8`, `4.4e-5` rad from it, over a span crossing the
 ///   equator near `t = 5π/2`;
 /// - `0x8ffe04db921f5cff`, about `1e-4` rad from it.
-fn pole_start_meridians() -> [(&'static str, Surface<f64>, Curve3<f64>, (f64, f64)); 2] {
+fn pole_start_meridians() -> [PinnedMeridian; 2] {
     let first = {
         let centre = Point3::new(
             3.415_608_021_271_088_6,
