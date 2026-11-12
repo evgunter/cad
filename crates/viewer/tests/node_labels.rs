@@ -433,22 +433,18 @@ fn every_creation_labelled_is_one_undo_whatever_door_commits_it() {
     );
     // The Transform tool on a body nothing places: Place, the creation,
     // then its slides typed in the editor, which creates nothing.
-    let moved = run(
-        &mut session,
-        SessionOp::Place { body: block.into() },
-        "moved",
-    );
+    let place_block = SessionOp::place_where_it_stands(session.committed_doc(), block.into())
+        .expect("a body in a space");
+    let moved = run(&mut session, place_block, "moved");
     let op = common::transformed(&mut session, moved, &common::slides([0.005, 0.007, 0.003]));
     let edited = session.perform(op);
     assert!(edited.refusal.is_none(), "{:?}", edited.refusal);
     // Place places a body not yet placed.
     let loose = common::xy_box_in(&mut session, [0.01, 0.01, 0.01]);
     session.pump();
-    run(
-        &mut session,
-        SessionOp::Place { body: loose.into() },
-        "placed",
-    );
+    let place_loose = SessionOp::place_where_it_stands(session.committed_doc(), loose.into())
+        .expect("a body in a space");
+    run(&mut session, place_loose, "placed");
     run(
         &mut session,
         SessionOp::AddBoolean {

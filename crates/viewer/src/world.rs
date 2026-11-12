@@ -925,7 +925,9 @@ pub fn body_read(
 /// `node`'s copy where `node` is a placement (a `Place` or an instance)
 /// into a space other than the world whose copy nothing reads — no
 /// operand, no mate pose, no pick ([`Doc::reader_counts`]). `None` for
-/// any other node.
+/// any other node. A copy whose own bundle reads that space is movable
+/// all the same: the door's target change is then held in its placement
+/// editor ([`crate::session::Refusal::TargetHeld`]).
 pub fn movable_into_world(doc: &Doc<ProfileProgram>, node: RecipeNodeId) -> Option<VarId> {
     if !matches!(
         doc.node(node),

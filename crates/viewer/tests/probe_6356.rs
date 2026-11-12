@@ -110,9 +110,10 @@ fn p4_place_of_a_copy_into_its_space_lands() {
     let (mut session, copy) = common::world_copy_in(&session, body, tol);
     let doc = session.committed_doc();
     eprintln!("P4 copy {copy:?} space {:?}", doc.node_space(copy));
-    let outcome = session.perform(SessionOp::Place {
-        body: Operand::Node(copy),
-    });
+    let outcome = session.perform(
+        SessionOp::place_where_it_stands(session.committed_doc(), Operand::Node(copy))
+            .expect("a body in a space"),
+    );
     eprintln!("P4 refusal {:?} made {:?}", outcome.refusal, outcome.made);
     if let Some(made) = outcome.made {
         let doc = session.committed_doc();
@@ -170,7 +171,10 @@ fn p6_place_on_a_placed_body_is_a_second_placement() {
     let mut session = session(tol);
     let body = common::xy_box_in(&mut session, A);
     let (mut session, _copy) = common::world_copy_in(&session, body, tol);
-    let outcome = session.perform(SessionOp::Place { body: body.into() });
+    let outcome = session.perform(
+        SessionOp::place_where_it_stands(session.committed_doc(), body.into())
+            .expect("a body in a space"),
+    );
     eprintln!(
         "P6 refusal: {:?}",
         outcome.refusal.as_ref().map(|r| r.to_string())

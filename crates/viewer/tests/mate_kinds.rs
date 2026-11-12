@@ -206,7 +206,11 @@ fn two_straight_edges_mated_as_axes_are_collinear() {
     assert_eq!((b_edge.node, a_edge.node), (bench.post_b, bench.post_a));
     asm::unpin(&mut session, bench.post_b);
     let tools = mate_fed(&session, &index, &picks);
-    let tool = tools.mate().expect("the mate tool is open");
+    let mut tool = tools.mate().expect("the mate tool is open").clone();
+    // post_b is in a space of its own: its "into" row set to the other
+    // body's.
+    common::into_to_space(&session, &mut tool);
+    let tool = &tool;
     match common::proposed(&session, tool, choice(VarKind::Plane, true)) {
         Err(MateToolError::KindDoesNotRead {
             side, kind, entity, ..
@@ -221,7 +225,7 @@ fn two_straight_edges_mated_as_axes_are_collinear() {
     let proposal = common::proposed(&session, tool, choice(VarKind::Axis, false))
         .expect("two edges mate as axes");
     assert_eq!(proposal.door.placement, bench.post_b, "the on pick's copy");
-    common::commit_mate(&mut session, proposal.op_into_target_space());
+    common::commit_mate(&mut session, proposal.op());
     let index = asm::index_of(&session);
     let ids = index.edges_of_target(b_edge);
     let [id] = ids[..] else {
@@ -284,7 +288,11 @@ fn a_vertex_mated_on_a_vertex_coincides() {
     );
     asm::unpin(&mut session, bench.post_b);
     let tools = mate_fed(&session, &index, &picks);
-    let tool = tools.mate().expect("the mate tool is open");
+    let mut tool = tools.mate().expect("the mate tool is open").clone();
+    // post_b is in a space of its own: its "into" row set to the other
+    // body's.
+    common::into_to_space(&session, &mut tool);
+    let tool = &tool;
     assert!(
         matches!(
             common::proposed(&session, tool, choice(VarKind::Point, true)),
@@ -296,7 +304,7 @@ fn a_vertex_mated_on_a_vertex_coincides() {
     );
     let proposal = common::proposed(&session, tool, choice(VarKind::Point, false))
         .expect("two vertices mate as points");
-    common::commit_mate(&mut session, proposal.op_into_target_space());
+    common::commit_mate(&mut session, proposal.op());
     let index = asm::index_of(&session);
     let now = crossing(&index, b_vertex);
     assert!(
@@ -336,13 +344,11 @@ fn an_edge_mated_as_a_direction_runs_parallel() {
     assert!(along.len() >= 2, "the shelf's edge is drawn");
     asm::unpin(&mut session, bench.post_b);
     let tools = mate_fed(&session, &index, &picks);
-    let proposal = common::proposed(
-        &session,
-        tools.mate().expect("the mate tool is open"),
-        choice(VarKind::Direction, false),
-    )
-    .expect("two edges mate as directions");
-    common::commit_mate(&mut session, proposal.op_into_target_space());
+    let mut tool = tools.mate().expect("the mate tool is open").clone();
+    common::into_to_space(&session, &mut tool);
+    let proposal = common::proposed(&session, &tool, choice(VarKind::Direction, false))
+        .expect("two edges mate as directions");
+    common::commit_mate(&mut session, proposal.op());
     let index = asm::index_of(&session);
     let ids = index.edges_of_target(b_edge);
     let moved = index.edge_polyline_for(ids[0], &DisplayView::none());
@@ -577,6 +583,7 @@ fn a_frame_mated_on_a_frame_coincides() {
             );
         }
     }
+    common::into_to_space(&session, &mut tool);
     let proposal = common::proposed(&session, &tool, choice(VarKind::Frame, false))
         .expect("two frames propose");
     let mate = &proposal.mates[0].mate;
@@ -586,7 +593,7 @@ fn a_frame_mated_on_a_frame_coincides() {
         mate.on
     );
     assert!(proposal.values.is_empty(), "a frame leaves no freedom");
-    common::commit_mate(&mut session, proposal.op_into_target_space());
+    common::commit_mate(&mut session, proposal.op());
     let index = asm::index_of(&session);
     let legs = index.vertex_legs_for(b_vertex, &DisplayView::none());
     let [from, to] = *legs.first().expect("a drawn vertex is marked");
