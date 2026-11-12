@@ -5047,7 +5047,7 @@ mod cone_window {
             .collect();
         let winding = crate::joint::Winding::of(joints.expect("the cap's joints are stored"));
         assert!(
-            !winding.reset && winding.deck.u.abs() == 1,
+            winding.deck.u.abs() == 1,
             "the cap's circle winds once about the axis: {winding:?}"
         );
         let w = window_of(&body, face, Which::First).unwrap();

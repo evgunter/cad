@@ -5078,6 +5078,42 @@ fn decide_joint<T: Decide>(
     }))
 }
 
+/// [`decide_joint`] for a row that reads a joint off the chart's
+/// singular set, where the face's side is not read: the two edges are
+/// stated as one line through the vertex.
+#[cfg(test)]
+fn decide_plain_joint<T: Decide>(
+    chart: DescribedChart<'_, T>,
+    image: &Pcurve<T>,
+    entry_t: T,
+    prev: geom_core::Point2<T>,
+    vertex: geom_core::Point3<T>,
+    periods: ChartPeriods<T>,
+    band: Band,
+) -> Result<JointElement, PinMiss> {
+    let line = geom::Curve3::line(vertex, geom_core::Vec3::unit_x());
+    let edge = EdgeEnd {
+        carrier: &line,
+        at: T::zero(),
+        far: T::one(),
+    };
+    decide_joint(
+        chart,
+        image,
+        entry_t,
+        prev,
+        vertex,
+        periods,
+        band,
+        JointSides {
+            sense: true,
+            mates: false,
+            arrived: edge,
+            leaving: edge,
+        },
+    )
+}
+
 /// **A killed half's turn**: the element carrying its image's exit onto
 /// its entry, where the two coincide in space — a closed carrier, whose
 /// two vertices hold one point. A kill that crosses the half whole sums
@@ -6863,7 +6899,7 @@ mod stretch_meter {
         // A chart whose whole u stretch is 1e-12 m per chart unit: no u
         // displacement on it moves a point past the band.
         assert!(
-            matches!(read(&flat_chart(1e-12), anywhere), Singular::On),
+            matches!(read(&flat_chart(1e-12), anywhere), Singular::Collapsed),
             "a sub-band chart stretch is a collapsed lever"
         );
         for span in [5e-9_f64, 2e-9] {
@@ -6882,7 +6918,7 @@ mod stretch_meter {
         };
         assert!(matches!(
             read(&sphere, Point3::new(0.0, 0.0, -2.0)),
-            Singular::On
+            Singular::On(_)
         ));
         assert!(matches!(
             read(&sphere, Point3::new(5e-9, 0.0, 2.0)),
@@ -6912,24 +6948,24 @@ mod stretch_meter {
     /// azimuth integer, so none is decided, and the joint's chart-space
     /// gap is what decides it (`spline_gap_closes`, here a zero gap).
     /// Read off a net whose reach is under the band, in it, and past it,
-    /// on a chart given a period of 1: a reset, a reset, an ordinary
+    /// on a chart given a period of 1: an identity with no period read
+    /// (every lift names the point), a refusal, and an ordinary
     /// identity. The net's control points are all within the band of
     /// each other below the band, so it also reads closed in `v`
     /// (`chart_v_period`); its `v` reach gates the `v` periods the same
-    /// way (`pcurve_loop_v_stretch`), so no `v` mark is read there and
-    /// the reset carries `v = 0`.
+    /// way (`pcurve_loop_v_stretch`).
     #[test]
-    fn a_spline_gate_that_is_not_off_writes_a_reset() {
-        use super::{Deck, JointElement, decide_joint};
+    fn a_spline_gate_that_is_undecided_refuses_and_writes_nothing() {
+        use super::{JointElement, PinMiss, decide_plain_joint};
         use geom_brep::Pcurve;
         use geom_core::{Point2, Vec2};
         let zero = Vec2::new(0.0, 0.0);
         let at = Point2::new(0.4, 0.5);
         let image = Pcurve::free_harmonic(at, zero, zero, zero);
-        for (span, reset) in [(1e-12, true), (5e-9, true), (100.0, false)] {
+        for (span, decided) in [(1e-12, true), (5e-9, false), (100.0, true)] {
             let s = flat_chart(span);
             let vertex = Point3::new(0.4 * span, 0.5 * span, 0.0);
-            let out = decide_joint(
+            let out = decide_plain_joint(
                 chart(&s),
                 &image,
                 0.0,
@@ -6938,16 +6974,19 @@ mod stretch_meter {
                 super::ChartPeriods::given_u(Some(geom_brep::Period::new(1.0)), &s, band()),
                 band(),
             );
-            let want = if reset {
-                JointElement::Reset(Deck::IDENTITY)
+            if decided {
+                assert!(
+                    matches!(out, Ok(JointElement::IDENTITY)),
+                    "span {span:e}: the identity, read {:?}",
+                    out.as_ref().ok()
+                );
             } else {
-                JointElement::IDENTITY
-            };
-            assert!(
-                matches!(out, Ok(element) if element == want),
-                "span {span:e}: {want:?}, read {:?}",
-                out.as_ref().ok()
-            );
+                assert!(
+                    matches!(out, Err(PinMiss::NetStretchUndecided(_))),
+                    "span {span:e}: an undecided u gate refuses, read {:?}",
+                    out.as_ref().ok()
+                );
+            }
         }
     }
 
@@ -6965,7 +7004,7 @@ mod stretch_meter {
     /// image a period over, two half steps off.
     #[test]
     fn a_narrow_cone_loop_joint_clear_of_the_apex_takes_a_lift_of_its_point() {
-        use super::{Deck, JointElement, NearRead, Orbit, decide_joint, near_pole_gap_closes};
+        use super::{Deck, JointElement, NearRead, Orbit, decide_plain_joint, near_pole_gap_closes};
         use geom_brep::Pcurve;
         use geom_core::Point2;
         let tau = std::f64::consts::TAU;
@@ -6975,7 +7014,7 @@ mod stretch_meter {
                 v: geom_brep::Channel::constant(v),
             };
             let prev = Point2::new(gap, v);
-            decide_joint(
+            decide_plain_joint(
                 chart(surface),
                 &image,
                 0.0,
@@ -6990,6 +7029,7 @@ mod stretch_meter {
             Err(super::PinMiss::Discontinuity) => "Discontinuity".into(),
             Err(super::PinMiss::Escalated(_)) => "Escalated".into(),
             Err(super::PinMiss::NetStretchUndecided(_)) => "NetStretchUndecided".into(),
+            Err(super::PinMiss::Singular(miss)) => format!("{miss:?}"),
         };
         let lift = |u| {
             format!(
@@ -7128,7 +7168,7 @@ mod stretch_meter {
     /// gap at those levers is a lift a whole number of periods over.
     #[test]
     fn a_half_turn_gap_answers_by_the_band_at_every_turn_count() {
-        use super::{JointElement, decide_joint};
+        use super::{JointElement, decide_plain_joint};
         use geom_brep::Pcurve;
         use geom_core::Point2;
         let alpha = 0.01f64;
@@ -7148,7 +7188,7 @@ mod stretch_meter {
                 v: geom_brep::Channel::constant(d),
             };
             let prev = Point2::new(gap, d);
-            match decide_joint(
+            match decide_plain_joint(
                 chart(&cone),
                 &image,
                 0.0,
@@ -7164,6 +7204,7 @@ mod stretch_meter {
                 Err(super::PinMiss::Discontinuity) => "Discontinuity".into(),
                 Err(super::PinMiss::Escalated(_)) => "Escalated".into(),
                 Err(super::PinMiss::NetStretchUndecided(_)) => "NetStretchUndecided".into(),
+            Err(super::PinMiss::Singular(miss)) => format!("{miss:?}"),
             }
         };
         // `π·lever` as a fraction of the escalate edge, in band: the
@@ -8459,7 +8500,7 @@ pub(crate) mod pole_slit_tests {
             pl: geom_core::Vec2::new(0.0, 0.3),
         };
         let joint = |s: &Surface<f64>| {
-            super::decide_joint(
+            super::decide_plain_joint(
                 super::DescribedChart::of(s).unwrap(),
                 &image,
                 0.0,
@@ -8476,6 +8517,7 @@ pub(crate) mod pole_slit_tests {
             Err(super::PinMiss::NetStretchUndecided(cause)) => {
                 format!("NetStretchUndecided({cause:?})")
             }
+            Err(super::PinMiss::Singular(miss)) => format!("{miss:?}"),
         };
         let closed = net(c0);
         assert!(
@@ -9073,10 +9115,24 @@ pub(crate) mod pole_slit_tests {
         }
     }
 
+    /// The slit cap's joint at the pole: the one into a half from its
+    /// own mate.
+    fn pole_joint(body: &Body<f64>, members: &[crate::HalfEdgeKey]) -> crate::HalfEdgeKey {
+        let edge = |he: crate::HalfEdgeKey| body.get_half_edge(he).unwrap().edge;
+        let mut at_tips = members
+            .iter()
+            .copied()
+            .filter(|&he| edge(body.get_half_edge(he).unwrap().prev) == edge(he));
+        let pole = at_tips.next().expect("the slit turns at its tip");
+        assert!(at_tips.next().is_none(), "the slit has one tip");
+        pole
+    }
+
     /// **The pass re-mints a pole-slit loop from every anchor, and reads
-    /// what tier 3 reads.** The slit's two halves meet at the pole, a
-    /// zero-lever joint whose element is the reset marker: the closure
-    /// counts no azimuth across it, in the pass and at tier 3 alike. So
+    /// what tier 3 reads.** The slit's two halves meet at the pole, where
+    /// the cap wraps the point: the element is one whole turn, against
+    /// the rim's own, so the loop's chain closes on its start as the
+    /// cap's rectangle in the chart, in the pass and at tier 3 alike. So
     /// with the loop anchored at each of its four half-edges in turn the
     /// pass mints the cap, writes the same images and elements, and
     /// tier 3 reads it clean (`work/topo/the-pass-refuses-a-tier-3-clean-
@@ -9088,13 +9144,14 @@ pub(crate) mod pole_slit_tests {
         let (mut body, cap, members) = slit_cap();
         let band = Band::linear(Tol::witness()).unwrap();
         let cap_loop = body.get_half_edge(members[0]).unwrap().parent_loop;
-        let pole_joints = members
-            .iter()
-            .filter(|&&he| body.joint(he).is_some_and(crate::JointElement::is_reset))
-            .count();
-        assert_eq!(
-            pole_joints, 1,
-            "the slit's turn at the pole is the one reset"
+        let turn = body.joint(pole_joint(&body, &members)).unwrap().deck();
+        assert!(
+            turn.u.abs() == 1 && turn.v == 0 && !turn.twin,
+            "the slit's turn at the pole is one whole turn: {turn:?}"
+        );
+        assert!(
+            crate::joint::Winding::of(members.iter().map(|&he| body.joint(he).unwrap())).is_zero(),
+            "the cap's chain closes on its start"
         );
         let minted = rows(&body, &members);
         for &anchor in &members {
@@ -9116,7 +9173,7 @@ pub(crate) mod pole_slit_tests {
 
     /// **A planted pole twin is loud.** At the slit's pole every azimuth
     /// names one point and the twin fixes the pole's latitude, so the
-    /// reset with the twin composed in carries the slit's image onto the
+    /// turn with the twin composed in carries the slit's image onto the
     /// same pole point — and draws the slit's other half on the twin
     /// representation, off the cap's chart region. Tier 3 reads a stored
     /// element only as the one it decides there, so the planted twin is
@@ -9125,22 +9182,14 @@ pub(crate) mod pole_slit_tests {
     fn a_planted_twin_on_the_pole_joint_is_loud() {
         let (mut body, _, members) = slit_cap();
         let band = Band::linear(Tol::witness()).unwrap();
-        let pole = *members
-            .iter()
-            .find(|&&he| body.joint(he).is_some_and(crate::JointElement::is_reset))
-            .expect("the slit's turn at the pole is a reset");
+        let pole = pole_joint(&body, &members);
         let decided = body.joint(pole).unwrap().deck();
         let sigma = crate::Deck {
             u: 0,
             v: 0,
             twin: true,
         };
-        let planted = crate::JointElement::Reset(decided.compose(sigma).without_u());
-        assert_ne!(
-            Some(planted),
-            body.joint(pole),
-            "the plant is another element"
-        );
+        let planted = crate::JointElement(decided.compose(sigma));
         body.attach_joint(pole, planted);
         let findings = super::validate_pcurves(&body, band);
         assert!(
@@ -9149,39 +9198,24 @@ pub(crate) mod pole_slit_tests {
         );
     }
 
-    /// **A joint's kind is part of its element at rest.** The same deck
-    /// stored as the other kind — the pole's reset as an ordinary shift,
-    /// and an ordinary joint's identity as a reset — is a discontinuity
-    /// at that joint: tier 3 reads the stored element whole, not its deck
-    /// alone. A shift at the pole would count the slit's azimuth winding
-    /// across a point that has none, and a reset off it would drop a
-    /// winding the loop has.
+    /// **A turn at a pole is the face's, and no other is read as it.**
+    /// The pole joint stored with no turn (the identity: the two halves'
+    /// one image, met on itself), or with the turn the other way round
+    /// (the complement's), is a discontinuity at that joint: tier 3
+    /// reads the stored element as the one decided on the face's side.
     #[test]
-    fn a_joint_stored_as_the_other_kind_is_loud() {
+    fn a_pole_turn_stored_as_another_is_loud() {
         let (body, _, members) = slit_cap();
         let band = Band::linear(Tol::witness()).unwrap();
-        let flip = |e: crate::JointElement| match e {
-            crate::JointElement::Reset(deck) => crate::JointElement(deck),
-            crate::JointElement(deck) => crate::JointElement::Reset(deck),
-        };
-        let reset = members
-            .iter()
-            .copied()
-            .find(|&he| body.joint(he).is_some_and(crate::JointElement::is_reset))
-            .expect("the slit's turn at the pole is a reset");
-        let shift = members
-            .iter()
-            .copied()
-            .find(|&he| body.joint(he).is_some_and(|e| !e.is_reset()))
-            .expect("the cap's rim joints are ordinary");
-        for he in [reset, shift] {
+        let pole = pole_joint(&body, &members);
+        let decided = body.joint(pole).unwrap();
+        for other in [crate::JointElement::IDENTITY, decided.inverse()] {
             let mut planted = body.clone();
-            let swapped = flip(planted.joint(he).unwrap());
-            planted.attach_joint(he, swapped);
+            planted.attach_joint(pole, other);
             let findings = super::validate_pcurves(&planted, band);
             assert!(
-                findings.contains(&super::PcurveMintError::LoopDiscontinuity { half_edge: he }),
-                "{swapped:?} planted at {he:?} is a discontinuity there: {findings:?}"
+                findings.contains(&super::PcurveMintError::LoopDiscontinuity { half_edge: pole }),
+                "{other:?} planted at the pole is a discontinuity there: {findings:?}"
             );
         }
     }
@@ -9192,43 +9226,34 @@ mod lift_tests {
     use super::lift_decks;
     use crate::joint::{Deck, JointElement, Winding};
 
-    /// **The lift from every start is one chain.** A loop through both
-    /// poles of a sphere, whose resets carry the twin and a
-    /// second-channel period, closes on a whole number of azimuth
-    /// periods. Rotated to start at each member — so the lift starts
-    /// after one reset or the other — each member's lift differs from
-    /// its lift in the original order by ONE deck transformation applied
-    /// to the whole chain, read modulo the azimuth periods a reset
-    /// restarts. A reset crossed without its twin or its second-channel
-    /// period, or a start that dropped them, is a second offset.
+    /// **The lift from every start is one chain.** A loop whose joints
+    /// carry twins and second-channel periods and compose to the
+    /// identity, rotated to start at each member: each member's lift
+    /// differs from its lift in the original order by ONE deck
+    /// transformation applied to the whole chain.
     #[test]
-    fn a_two_reset_loop_lifts_to_one_chain_from_every_start() {
-        let elements = [
-            JointElement::Reset(Deck {
+    fn a_closed_loop_lifts_to_one_chain_from_every_start() {
+        let [a, b, c] = [
+            Deck {
                 u: 0,
                 v: 0,
                 twin: true,
-            }),
-            JointElement(Deck {
+            },
+            Deck {
                 u: 1,
                 v: 0,
                 twin: false,
-            }),
-            JointElement::Reset(Deck {
-                u: 0,
+            },
+            Deck {
+                u: -2,
                 v: 1,
                 twin: true,
-            }),
-            JointElement(Deck {
-                u: 0,
-                v: 1,
-                twin: false,
-            }),
+            },
         ];
-        let winding = Winding::of(elements);
+        let elements = [a, b, c, a.compose(b).compose(c).inverse()].map(JointElement);
         assert!(
-            winding.deck.without_u() == Deck::IDENTITY && winding.closes(),
-            "the premise: the loop closes on a whole number of azimuth periods: {winding:?}"
+            Winding::of(elements).is_zero(),
+            "the premise: the loop closes on its start"
         );
         let n = elements.len();
         let base = lift_decks(&elements);
@@ -9240,8 +9265,8 @@ mod lift_tests {
             let offset = base[0].compose(lift(0).inverse());
             for i in 0..n {
                 assert_eq!(
-                    offset.compose(lift(i)).without_u(),
-                    base[i].without_u(),
+                    offset.compose(lift(i)),
+                    base[i],
                     "start {start}, member {i}: {decks:?} against {base:?}"
                 );
             }
@@ -9356,7 +9381,7 @@ mod lift_rows {
     //! so the digits mean the same at every ε row.
     #![allow(clippy::unwrap_used, clippy::panic)]
 
-    use super::{DescribedChart, PinMiss, Singular, decide_joint, singular_at};
+    use super::{DescribedChart, PinMiss, Singular, decide_plain_joint, singular_at};
     use crate::joint::{Deck, JointElement};
     use geom::Surface;
     use geom_brep::Pcurve;
@@ -9415,7 +9440,7 @@ mod lift_rows {
         k: f64,
     ) -> Result<JointElement, PinMiss> {
         let f = T::from_f64;
-        decide_joint(
+        decide_plain_joint(
             DescribedChart::of(surface).unwrap(),
             &at(u, v),
             f(0.0),
@@ -9507,36 +9532,49 @@ mod lift_rows {
         );
     }
 
-    /// **A joint whose vertex is on a pole is a reset**, whatever the
-    /// azimuth gap: every azimuth names the point, so no period is
-    /// decided, and the element says so rather than claiming the
-    /// identity.
-    fn on_the_pole_resets<T: Decide>(lane: &str) {
+    /// **A joint whose vertex is on a pole takes the turn on the face's
+    /// side.** On the north pole of an outward face the azimuth returns,
+    /// so the entry is placed in `(exit − τ, exit)`: an entry one radian
+    /// or half a turn past the exit goes one period back. An entry at
+    /// the exit's own azimuth, or a whole turn from it, is two edges
+    /// leaving the pole along one direction, and refuses.
+    fn on_the_pole_turns_on_the_faces_side<T: Decide>(lane: &str) {
         let s = unit_sphere::<T>();
         let v = core::f64::consts::FRAC_PI_2;
         let f = T::from_f64;
         let pole = Point3::new(f(0.0), f(0.0), f(1.0));
-        for gap in [0.0, 1.0, core::f64::consts::PI, core::f64::consts::TAU] {
-            let out = lift(&s, (0.0, v), (gap, v), pole, 10.0);
+        for gap in [1.0, core::f64::consts::PI] {
+            let out = lift(&s, (gap, v), (0.0, v), pole, 10.0);
             assert!(
                 matches!(
                     out,
-                    Ok(JointElement::Reset(Deck {
-                        u: 0,
+                    Ok(JointElement(Deck {
+                        u: -1,
                         v: 0,
                         twin: false
                     }))
                 ),
-                "{lane} gap {gap}: a reset with no periods: {:?}",
+                "{lane} gap {gap}: one period back, on the principal sheet: {:?}",
+                out.as_ref().ok()
+            );
+        }
+        for gap in [0.0, core::f64::consts::TAU] {
+            let out = lift(&s, (gap, v), (0.0, v), pole, 10.0);
+            assert!(
+                matches!(
+                    out,
+                    Err(PinMiss::Singular(super::SingularMiss::EdgesCoincide))
+                ),
+                "{lane} gap {gap}: one direction out of the pole refuses: {:?}",
                 out.as_ref().ok()
             );
         }
     }
 
     #[test]
-    fn a_joint_on_a_pole_is_a_reset() {
-        on_the_pole_resets::<f64>("f64");
-        on_the_pole_resets::<Interval>("Interval");
+    fn a_joint_on_a_pole_takes_the_faces_turn() {
+        on_the_pole_turns_on_the_faces_side::<f64>("f64");
+        on_the_pole_turns_on_the_faces_side::<Interval>("Interval");
     }
 
     /// **Near a pole the fallback takes the orbit point the gap meets.**
@@ -9974,7 +10012,7 @@ mod villarceau_joint_tests {
                                      psi {psi}, k {k}: the lifted copy is no row"
                                 );
                             }
-                            let joint = decide_joint(
+                            let joint = decide_plain_joint(
                                 chart,
                                 &lifted,
                                 t0,
@@ -10141,7 +10179,7 @@ mod from_computed_rows {
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::panic)]
 mod net_period_rows {
-    use super::{ChartPeriods, DescribedChart, PinMiss, chart_v_period, decide_joint};
+    use super::{ChartPeriods, DescribedChart, PinMiss, chart_v_period, decide_plain_joint};
     use crate::joint::{Deck, JointElement};
     use geom::Surface;
     use geom_brep::Pcurve;
@@ -10200,7 +10238,7 @@ mod net_period_rows {
             p0: Point2::new(f(0.5), f(entry_v)),
             pl: Vec2::new(f(0.0), f(0.1)),
         };
-        decide_joint(
+        decide_plain_joint(
             DescribedChart::of(&s).unwrap(),
             &image,
             f(0.0),
@@ -10284,7 +10322,7 @@ mod net_period_rows {
         let s = Surface::Nurbs(std::sync::Arc::new(
             geom::NurbsSurface::new(ku, kv, control, vec![1.0; 8]).unwrap(),
         ));
-        let out = decide_joint(
+        let out = decide_plain_joint(
             DescribedChart::of(&s).unwrap(),
             &Pcurve::IsoLine {
                 p0: Point2::new(0.0, 0.5),
@@ -10368,7 +10406,7 @@ mod net_period_rows {
     fn u_crossing<T: Decide>(s: &Surface<f64>) -> Result<JointElement, PinMiss> {
         let s: Surface<T> = s.map_scalar(T::from_f64);
         let f = T::from_f64;
-        decide_joint(
+        decide_plain_joint(
             DescribedChart::of(&s).unwrap(),
             &Pcurve::IsoLine {
                 p0: Point2::new(f(0.0), f(0.5)),
