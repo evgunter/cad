@@ -2830,23 +2830,23 @@ pub(super) enum FrameExtent<T: geom_core::Real> {
     },
     /// A plane×torus pair's torus face: its farthest distance from `at`,
     /// each edge levered round its whole carrier
-    /// ([`face_reach_from`](crate::splitting::rules::face_reach_from)).
+    /// ([`face_reach_from`](crate::face_reach::face_reach_from)).
     Reach(geom_core::Lever<T>),
     /// A plane×cone pair's cone face, against the cone's axis
-    /// ([`cone_face_reach`](crate::splitting::rules::cone_face_reach)).
+    /// ([`cone_face_reach`](crate::face_reach::cone_face_reach)).
     Cone(geom_brep::Reach<T>),
 }
 
 /// **The consumed region's measure [`pair_section_frame_at`] levers at**,
 /// taken from the reading point `at`. A plane×cylinder pair's section
 /// lies on the wall face, which hands the table its axial range from
-/// `at` ([`face_axial_range`](crate::splitting::rules::face_axial_range),
+/// `at` ([`face_axial_range`](crate::face_reach::face_axial_range),
 /// its curved edges included) and its farthest distance from `at`, read
 /// from the rulings' hinge ([`geom_brep::Reach::Face`]): each edge over
 /// the span it holds
-/// ([`face_reach_from`](crate::splitting::rules::face_reach_from)) and
+/// ([`face_reach_from`](crate::face_reach::face_reach_from)) and
 /// round its whole carrier
-/// ([`face_reach_round_from`](crate::splitting::rules::face_reach_round_from)),
+/// ([`face_reach_round_from`](crate::face_reach::face_reach_round_from)),
 /// which [`agreed_section`](crate::chord_join::agreed_section) reads
 /// together. A plane×cone pair's section lies on the cone face, which
 /// hands the table its range along the cone's axis from `at` and its
@@ -2887,10 +2887,9 @@ pub(super) fn frame_extent<T: Decide>(
         _ => return Ok(FrameExtent::Radii),
     };
     let lone = |_| LONE_WALL;
-    let (below, above) =
-        crate::splitting::rules::face_axial_range(body, face, at, axis).map_err(lone)?;
-    let across = crate::splitting::rules::face_reach_from(body, face, at).map_err(lone)?;
-    let round = crate::splitting::rules::face_reach_round_from(body, face, at).map_err(lone)?;
+    let (below, above) = crate::face_reach::face_axial_range(body, face, at, axis).map_err(lone)?;
+    let across = crate::face_reach::face_reach_from(body, face, at).map_err(lone)?;
+    let round = crate::face_reach::face_reach_round_from(body, face, at).map_err(lone)?;
     Ok(FrameExtent::Wall {
         below,
         above,
@@ -2903,7 +2902,7 @@ pub(super) fn frame_extent<T: Decide>(
 const LONE_WALL: &str = "a germ wall's outer loop is a lone vertex";
 
 /// The window along a cone wall's axis that `face` reaches over
-/// ([`cone_axial_window`](crate::splitting::rules::cone_axial_window)):
+/// ([`cone_axial_window`](crate::face_reach::cone_axial_window)):
 /// the partner's face, which the planar side's section lies in, or the
 /// planar face, which the frame's does. `None` off a cone.
 fn cone_window<T: Decide>(
@@ -2919,7 +2918,7 @@ fn cone_window<T: Decide>(
     // has no extent to narrow by: the reader's own face's window holds
     // the section without it, and that face's own lone loop is refused
     // where its reach is measured.
-    crate::splitting::rules::cone_axial_window(body, face, wall, band).ok()
+    crate::face_reach::cone_axial_window(body, face, wall, band).ok()
 }
 
 /// [`frame_extent`]'s plane×cone arm: the cone face's reach from `at`,
@@ -2933,7 +2932,7 @@ fn cone_reach<T: Decide>(
     band: Band,
 ) -> Result<FrameExtent<T>, &'static str> {
     let within = cone_window(plane_body, plane_face, cone, band);
-    crate::splitting::rules::cone_face_reach(body, face, at, (cone, within), band)
+    crate::face_reach::cone_face_reach(body, face, at, (cone, within), band)
         .map(FrameExtent::Cone)
         .map_err(|_| LONE_WALL)
 }
@@ -2992,7 +2991,7 @@ fn face_reach<T: Decide>(
     face: FaceKey,
     at: geom_core::Point3<T>,
 ) -> Result<FrameExtent<T>, &'static str> {
-    crate::splitting::rules::face_reach_from(body, face, at)
+    crate::face_reach::face_reach_from(body, face, at)
         .map(FrameExtent::Reach)
         .map_err(|_| LONE_WALL)
 }
@@ -6964,9 +6963,9 @@ mod frame_dispatch_tests {
             };
             let wall = frame.surface::<f64>();
             let main_at = |at: Point3<f64>| {
-                let rules = crate::splitting::rules::face_axial_range(&body, face, at, axis);
+                let rules = crate::face_reach::face_axial_range(&body, face, at, axis);
                 let (below, above) = rules.expect("a bounded patch");
-                let across = crate::splitting::rules::face_reach_round_from(&body, face, at)
+                let across = crate::face_reach::face_reach_round_from(&body, face, at)
                     .expect("a bounded patch");
                 let reach = geom_brep::Reach::of_face(at, (below, above), across);
                 class(&geom_brep::plane_cylinder_section(&plane, &wall, &reach, b))

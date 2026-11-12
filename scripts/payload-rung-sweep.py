@@ -210,7 +210,7 @@ DISPOSITIONS: dict[str, tuple[str, str]] = {
     # `SplitReduceError::ApexSection`): how the section table disagrees
     # with the walk at a cone's apex.
     "ApexSectionReading": ("argued", "non-carriage with its falsifier, beside the declaration "
-                           "in crates/topo/src/splitting/mod.rs"),
+                           "in crates/topo/src/chord_join.rs"),
     # `BooleanError::EdgeInFace`'s gap: why an edge lying in a face is not
     # parted.
     "EdgeInFaceGap": ("argued", "non-carriage with its falsifier, beside the declaration "

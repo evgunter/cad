@@ -132,14 +132,12 @@ use crate::body::Body;
 use crate::entity::{EdgeKey, EntityId, FaceKey, HalfEdgeKey, LoopBoundary, LoopKey, VertexKey};
 use crate::euler::{EulerOpError, FaceSurface, MefSite};
 use crate::euler_ring::MekrSite;
+use crate::face_reach::{face_axial_range, face_extent};
 use crate::geometry::SurfaceKey;
 use crate::live::{Proven, linked, proven};
 use crate::null::CurveGeom;
 use crate::ring_path::{LoopArc, LoopSplit, Path, Quadric, SplineArc, path_parity};
-use crate::splitting::ApexSectionReading;
 use crate::splitting::containment::{LoopContainment, PointInLoopError, point_in_loop};
-use crate::splitting::order::{FRAME_ARM, FRAME_AXIS};
-use crate::splitting::rules::{face_axial_range, face_extent};
 use crate::validate::decide;
 use geom_core::Tol;
 
@@ -713,6 +711,14 @@ impl From<PointInLoopError> for JoinError {
 /// Boolean alike: the geometry.
 use geom_core::COINCIDENCE_RECOURSE as JOIN_RECOURSE;
 
+/// The join order's frame gate's row: a schedule member's in-plane
+/// fraction, levered by the points' spread.
+pub(crate) const FRAME_ARM: &str = "split_join_frame_arm";
+
+/// The join order's axis-plane test's row: a component of the plane's
+/// normal, levered by the points' spread.
+pub(crate) const FRAME_AXIS: &str = "split_join_frame_axis";
+
 /// What a [`JoinError::OrderEscalated`] could not decide, by its
 /// predicate: the join order's frame, or the order of two points in it.
 fn order_decision(predicate: Option<&str>) -> &'static str {
@@ -1092,7 +1098,7 @@ pub(crate) fn corrupt_face(face: FaceKey) -> JoinError {
 /// Where the section table reads a wall's pose, and how far `face`
 /// reaches from there, measured from the base vertex `at`'s point: on a
 /// cone the [`geom_brep::Reach::Face`] the cone lane reads
-/// (`splitting::rules::cone_face_reach`), and on a cylinder the
+/// (`face_reach::cone_face_reach`), and on a cylinder the
 /// [`WallReach`] [`agreed_section`] reads: the face's axial range from
 /// the vertex ([`face_axial_range`], the curved edges' bulge included)
 /// and its distance from it, each edge read over its span
@@ -1114,7 +1120,7 @@ fn section_reach<T: Decide>(
             let extent = face_extent(body, at, face).map_err(unbounded)?;
             let (below, above) = face_axial_range(body, face, p, *axis).map_err(unbounded)?;
             let round =
-                crate::splitting::rules::face_reach_round_from(body, face, p).map_err(unbounded)?;
+                crate::face_reach::face_reach_round_from(body, face, p).map_err(unbounded)?;
             SectionReach::Cylinder(WallReach {
                 at: p,
                 below,
@@ -1124,11 +1130,11 @@ fn section_reach<T: Decide>(
             })
         }
         geom::Surface::Cone { .. } => SectionReach::Cone(
-            crate::splitting::rules::cone_face_reach(body, face, p, (wall, within), band)
+            crate::face_reach::cone_face_reach(body, face, p, (wall, within), band)
                 .map_err(unbounded)?,
         ),
         geom::Surface::Torus { .. } => SectionReach::Torus(
-            crate::splitting::rules::face_reach_from(body, face, p).map_err(unbounded)?,
+            crate::face_reach::face_reach_from(body, face, p).map_err(unbounded)?,
         ),
         _ => SectionReach::Unmeasured,
     })
@@ -1136,7 +1142,7 @@ fn section_reach<T: Decide>(
 
 /// [`face_extent`]'s refusal as the join's typed frontier: a face with
 /// no outer boundary has no extent to meter a section across.
-fn unbounded(e: crate::splitting::rules::UnboundedFace) -> JoinError {
+fn unbounded(e: crate::face_reach::UnboundedFace) -> JoinError {
     JoinError::SectionInvariant {
         face: e.face,
         what: "the face's outer loop is a lone vertex, so it has no extent to meter the \
@@ -1375,7 +1381,7 @@ pub(crate) enum JoinLane<'a, T: Real> {
         /// The partner wall surface (value; from the other operand).
         wall: geom::Surface<T>,
         /// The partner wall face's window along a cone's axis
-        /// (`splitting::rules::cone_axial_window`), which the section
+        /// (`face_reach::cone_axial_window`), which the section
         /// this face shares with it lies in; `None` off a cone.
         window: Option<(T, T)>,
         /// The aux wall key in THIS body (minted once, caller-cached).
@@ -1662,7 +1668,7 @@ pub(crate) enum SectionReach<T: Real> {
 /// **A plane×cylinder wall face's reach from the one point it is read
 /// from**: how far it reaches either way along the cylinder's axis from
 /// `at`, and its farthest distance from `at` measured two ways — each
-/// edge read over the span it holds (`splitting::rules::face_reach_from`)
+/// edge read over the span it holds (`face_reach::face_reach_from`)
 /// and round its whole carrier (`face_reach_round_from`).
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct WallReach<T: geom_core::Real> {
@@ -2846,6 +2852,123 @@ pub(crate) fn apex_section_ruling<T: Decide>(
     inside.ok_or(ApexRulingFault::Disagrees(
         ApexSectionReading::NoRulingInside,
     ))
+}
+
+/// How the section table's reading of a plane against a cone disagrees
+/// with the walk, which read the plane crossing one of the cone's
+/// sub-sectors at its apex: the split's
+/// ([`crate::SplitReduceError::ApexSection`]) and the Boolean's pierce
+/// ([`crate::BooleanError::ApexSection`]) one vocabulary and one
+/// rating, a typed disagreement.
+///
+/// **NOT carried to the façade's curated list, and that is a decision
+/// rather than an omission** (`scripts/payload-rung-sweep.py` names
+/// this rung; the disposition table cites this paragraph as its home).
+/// A Rust caller can already name and match it — `pncad` re-exports
+/// `topo` whole — and each refusal's sentence names the disagreement and
+/// states its own recourse: move the face so it passes clear of the
+/// cone's tip, or through it clearly across the cone. Every arm is the
+/// section table and the walk disagreeing, a kernel limit no caller
+/// steers by arm.
+///
+/// **The falsifier is a caller that acts on the arm by itself**: a
+/// driver that nudges a part one way on `ClosedOffApex` and another on
+/// `NoRulingInside`. Then carry it and delete this paragraph and the
+/// disposition row with it.
+#[derive(Debug)]
+pub enum ApexSectionReading {
+    /// The table reads the plane's section of the cone as a closed
+    /// conic, standing off the apex.
+    ClosedOffApex,
+    /// The table reads the plane's section of the cone as an open conic
+    /// (a parabola or a hyperbola), standing off the apex: the walk read
+    /// the plane through it ([`JoinError::OpenConicChord`] at the
+    /// table).
+    OpenOffApex,
+    /// The table refused the pair for a cause other than an open conic.
+    Refused(Box<JoinError>),
+    /// The table's section rulings through the apex: none of them lies
+    /// inside the sub-sector the walk read the plane crossing.
+    NoRulingInside,
+    /// Both of the table's section rulings lie inside one sub-sector,
+    /// across which the walk read the plane's side monotone.
+    BothRulingsInside,
+}
+
+impl ApexSectionReading {
+    /// **The table reads the plane's section of the cone as a conic clear
+    /// of the apex**, which the walk read the plane through: one
+    /// disagreement, open or closed, and its one home. A closed conic is
+    /// the table's section ([`Self::ClosedOffApex`]); an open one is its
+    /// refusal ([`JoinError::OpenConicChord`], [`Self::OpenOffApex`],
+    /// through [`Self::of_table_refusal`]).
+    #[must_use]
+    pub const fn clear_of_apex(open: bool) -> Self {
+        if open {
+            Self::OpenOffApex
+        } else {
+            Self::ClosedOffApex
+        }
+    }
+
+    /// **The reading of the table's refusal of the plane against the
+    /// cone**: an open conic is the plane clear of the apex
+    /// ([`Self::clear_of_apex`]); any other refusal is carried whole
+    /// ([`Self::Refused`]).
+    #[must_use]
+    pub fn of_table_refusal(section: JoinError) -> Self {
+        match section {
+            JoinError::OpenConicChord { .. } => Self::clear_of_apex(true),
+            other => Self::Refused(Box::new(other)),
+        }
+    }
+
+    /// **What this reading is to a ladder** (the Boolean's vertex-on-face
+    /// climb reads it, [`crate::BooleanError::ApexSection`]): the table and
+    /// the walk disagreeing on one apex is a kernel fault, and the table's
+    /// own refusal stands as it does ([`JoinError::refusal`]).
+    ///
+    /// # Errors
+    ///
+    /// [`geom_core::ladder::Aborts`] for a disagreement, and the table
+    /// refusal's own aborts.
+    pub fn refusal(&self) -> Result<geom_core::ladder::Refusal, geom_core::ladder::Aborts> {
+        match self {
+            // An open conic is the disagreement, however it was built
+            // ([`Self::clear_of_apex`]), never the join's limit.
+            Self::Refused(section) if matches!(**section, JoinError::OpenConicChord { .. }) => {
+                Err(geom_core::ladder::Aborts)
+            }
+            Self::Refused(section) => section.refusal(),
+            Self::ClosedOffApex
+            | Self::OpenOffApex
+            | Self::NoRulingInside
+            | Self::BothRulingsInside => Err(geom_core::ladder::Aborts),
+        }
+    }
+
+    /// The disagreement in words, completing "a plane passes through the
+    /// tip of a cone, and …": the one wording the split's and the
+    /// Boolean's refusals both read.
+    pub(crate) fn what(&self) -> &'static str {
+        match self {
+            Self::ClosedOffApex => {
+                "the section it cuts in the cone reads as a closed curve clear of the tip"
+            }
+            Self::OpenOffApex => {
+                "the section it cuts in the cone reads as an open curve clear of the tip"
+            }
+            Self::Refused(_) => "the section it cuts in the cone does not read there",
+            Self::NoRulingInside => {
+                "no line of the section it cuts in the cone leaves the tip where the plane \
+                 crosses the cone there"
+            }
+            Self::BothRulingsInside => {
+                "both lines of the section it cuts in the cone leave the tip where the plane \
+                 crosses the cone once there"
+            }
+        }
+    }
 }
 
 /// Why [`apex_section_ruling`] names no ruling: an escalation, or the
@@ -6314,13 +6437,13 @@ mod tests {
         };
         let wall = crate::test_support_fixtures::CylFrame::canonical(r).surface::<f64>();
         let (below, above) =
-            crate::splitting::rules::face_axial_range(&body, face, base, Vec3::unit_z()).unwrap();
+            crate::face_reach::face_axial_range(&body, face, base, Vec3::unit_z()).unwrap();
         let read = |across| {
             let reach = geom_brep::Reach::of_face(base, (below, above), across);
             geom_brep::plane_cylinder_section(&plane, &wall, &reach, band)
         };
-        let span = crate::splitting::rules::face_reach_from(&body, face, base).unwrap();
-        let round = crate::splitting::rules::face_reach_round_from(&body, face, base).unwrap();
+        let span = crate::face_reach::face_reach_from(&body, face, base).unwrap();
+        let round = crate::face_reach::face_reach_round_from(&body, face, base).unwrap();
         assert!(
             matches!(read(round), Err(geom_brep::SectionError::Escalated(_))),
             "main's whole-turn reading escalates"
@@ -7765,5 +7888,38 @@ mod run_edge_carrier_rows {
                 other => panic!("{name}: expected the run-edge refusal, got {other:?}"),
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod apex_section_standing_rows {
+    use geom_core::ladder::{Aborts, Refusal};
+
+    use super::{ApexSectionReading, JoinError};
+    use crate::entity::FaceKey;
+
+    /// **An apex section stands by its reading** (the Boolean's
+    /// vertex-on-face climb reads it): the table and the walk disagreeing
+    /// is a kernel fault, and the table's own refusal stands as it does.
+    /// Red where a reading reverts to one standing for all.
+    #[test]
+    fn an_apex_section_stands_by_its_reading() {
+        for disagrees in [
+            ApexSectionReading::ClosedOffApex,
+            ApexSectionReading::OpenOffApex,
+            ApexSectionReading::NoRulingInside,
+            ApexSectionReading::BothRulingsInside,
+        ] {
+            assert_eq!(disagrees.refusal(), Err(Aborts), "{disagrees:?}");
+        }
+        let unarmed = ApexSectionReading::Refused(Box::new(JoinError::SectionUnarmed {
+            face: FaceKey::default(),
+            divided: geom::SurfaceKind::Plane,
+            wall: geom::SurfaceKind::Nurbs,
+        }));
+        assert_eq!(unarmed.refusal(), Ok(Refusal::Limit), "a section not built");
+        let mixed =
+            ApexSectionReading::Refused(Box::new(JoinError::UnpairedLooseEnds { count: 2 }));
+        assert_eq!(mixed.refusal(), Err(Aborts), "a mixed cause");
     }
 }

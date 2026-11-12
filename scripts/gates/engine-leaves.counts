@@ -35,12 +35,11 @@ boolean-names-splitting     2  boolean/carrier_touch.rs
 boolean-names-splitting     1  boolean/carrier_touch_rows.rs
 boolean-names-splitting    57  boolean/contain.rs
 boolean-names-splitting    17  boolean/fate.rs
-boolean-names-splitting     7  boolean/finish.rs
 boolean-names-splitting    21  boolean/insert.rs
-boolean-names-splitting    16  boolean/join.rs
+boolean-names-splitting     6  boolean/join.rs
 boolean-names-splitting     1  boolean/join_walk_order_rows.rs
-boolean-names-splitting     6  boolean/mod.rs
-boolean-names-splitting    16  boolean/ops.rs
+boolean-names-splitting     4  boolean/mod.rs
+boolean-names-splitting     7  boolean/ops.rs
 boolean-names-splitting     3  boolean/reduce.rs
 boolean-names-splitting     9  boolean/refusal_routes.rs
 boolean-names-splitting    16  boolean/region.rs
@@ -61,7 +60,7 @@ crate-visible              10  boolean/fate.rs
 crate-visible               5  boolean/glue.rs
 crate-visible               5  boolean/holdings.rs
 crate-visible               2  boolean/insert.rs
-crate-visible             160  boolean/mod.rs
+crate-visible             157  boolean/mod.rs
 crate-visible               3  boolean/nary.rs
 crate-visible              22  boolean/ops.rs
 crate-visible               1  boolean/overlap.rs
@@ -86,14 +85,13 @@ crate-visible               2  boolean/voids.rs
 crate-visible               4  boolean/vtxfac.rs
 crate-visible               5  boolean/zip.rs
 crate-visible              42  splitting/containment.rs
-crate-visible               6  splitting/finish.rs
+crate-visible               4  splitting/finish.rs
 crate-visible               8  splitting/join.rs
-crate-visible              17  splitting/mod.rs
+crate-visible              15  splitting/mod.rs
 crate-visible               4  splitting/neighborhood.rs
-crate-visible               3  splitting/order.rs
+crate-visible               1  splitting/order.rs
 crate-visible              13  splitting/pieced_arc.rs
 crate-visible               2  splitting/reassembly.rs
-crate-visible               9  splitting/rules.rs
 crate-visible              10  splitting/spiric_arc.rs
 crate-visible               3  splitting/spline_arc.rs
 
@@ -110,7 +108,7 @@ names-boolean               3  census/point.rs
 names-boolean              40  census/self_touch.rs
 names-boolean               3  cert_m3r1_probes.rs
 names-boolean               4  chart_region.rs
-names-boolean              21  chord_join.rs
+names-boolean              15  chord_join.rs
 names-boolean               7  chord_join/island_rows.rs  # work/boxes/the-face-covers-sphere-arm-reads-the-booleans-chart-trim-and-face-placement
 names-boolean               1  chord_join/sphere_island_rows.rs
 names-boolean               9  clearance.rs
@@ -141,7 +139,7 @@ names-boolean               1  ring_path/cone_islands.rs
 names-boolean               1  sector_shape.rs
 names-boolean               6  separation.rs
 names-boolean              39  shell.rs
-names-boolean              77  side_reader.rs
+names-boolean              76  side_reader.rs
 names-boolean              21  stands.rs
 names-boolean               2  surgery.rs
 names-boolean               2  test_support_fixtures.rs
@@ -150,18 +148,17 @@ names-boolean              31  test_support_samples.rs
 names-boolean              26  test_support_volume.rs
 names-boolean              48  tier3_tests.rs
 names-boolean               2  turn_rows.rs
-names-boolean              76  validate.rs
+names-boolean              75  validate.rs
 
 names-splitting            10  cell_region.rs
-names-splitting            53  census.rs
+names-splitting            52  census.rs
 names-splitting             1  census/self_touch.rs
-names-splitting            46  chord_join.rs  # work/onedoor/chord-joins-ring-side-reads-the-splitting-engines-loop-containment
+names-splitting            22  chord_join.rs  # work/onedoor/chord-joins-ring-side-reads-the-splitting-engines-loop-containment
 names-splitting            16  chord_join/ring_side_rows.rs  # work/onedoor/chord-joins-ring-side-reads-the-splitting-engines-loop-containment
 names-splitting             7  chord_join/sibling_escalation_rows.rs
 names-splitting             9  contain_loop.rs  # work/onedoor/chord-joins-ring-side-reads-the-splitting-engines-loop-containment
 names-splitting            11  lib.rs
 names-splitting             1  lineage.rs
-names-splitting             1  link.rs
 names-splitting             3  offset_together.rs
 names-splitting             6  props.rs
 names-splitting            10  review_d18.rs
@@ -170,7 +167,7 @@ names-splitting             2  shell.rs
 names-splitting             2  surgery.rs
 names-splitting             2  test_support_fixtures.rs
 names-splitting            27  test_support_samples.rs
-names-splitting            13  tier3_tests.rs
+names-splitting             4  tier3_tests.rs
 names-splitting            41  validate.rs
 names-splitting            27  vertex_section.rs
 

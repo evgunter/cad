@@ -3205,7 +3205,7 @@ pub enum BooleanError {
     /// ([`crate::SplitReduceError::ApexSection`]).
     ///
     /// The vertex-on-face climb reads it (`vtxfac::pierce_apex_germ`), so
-    /// it stands by its reading ([`crate::splitting::ApexSectionReading::refusal`]):
+    /// it stands by its reading ([`crate::ApexSectionReading::refusal`]):
     /// the table and the walk disagreeing on one apex is a kernel fault,
     /// and the table's own refusal stands as that refusal does.
     ApexSection {
@@ -3214,7 +3214,7 @@ pub enum BooleanError {
         /// The cone face.
         face: FaceKey,
         /// How the table disagrees.
-        reading: crate::splitting::ApexSectionReading,
+        reading: crate::ApexSectionReading,
     },
     /// The result has a cone face whose boundary loop passes the cone's
     /// apex vertex twice: two lobes of the face pinched at the apex, as a
@@ -9710,7 +9710,7 @@ mod tests {
             BooleanError::ApexSection {
                 operand: Operand::A,
                 face,
-                reading: crate::splitting::ApexSectionReading::NoRulingInside,
+                reading: crate::ApexSectionReading::NoRulingInside,
             },
             BooleanError::NormalAtSplineCrease {
                 operand: Operand::B,

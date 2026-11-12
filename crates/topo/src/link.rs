@@ -2793,7 +2793,7 @@ impl<T: Decide> FaceSector<T> {
     ///
     /// The fan itself runs further, past the face ([`fan`]): its every
     /// chord stands past the farthest the face's boundary stands from `p`
-    /// ([`face_reach_from`](crate::splitting::rules::face_reach_from)),
+    /// ([`face_reach_from`](crate::face_reach::face_reach_from)),
     /// so every point of the rim lies past every point of the face, and a
     /// coincidence read there holds over the whole face.
     ///
@@ -2860,7 +2860,7 @@ impl<T: Decide> FaceSector<T> {
             }
         }
         let radius = radius.ok_or(TouchUnread::Corrupt)?;
-        let far = crate::splitting::rules::face_reach_from(body, f, p)
+        let far = crate::face_reach::face_reach_from(body, f, p)
             .map_err(|_| TouchUnread::Corrupt)?
             .length();
         for length in [radius, far] {

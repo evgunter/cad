@@ -95,6 +95,7 @@ use geom_core::{
 };
 
 use super::SplitPlane;
+use crate::chord_join::{FRAME_ARM, FRAME_AXIS};
 use crate::validate::decide;
 use geom_brep::ExtentBall;
 use geom_brep::ladder::{Answering, Climb, Rung, climb};
@@ -187,14 +188,6 @@ pub(super) fn in_plane_frame<T: Decide>(
         SizedPass::Positive,
     ))
 }
-
-/// The frame gate's row: a schedule member's in-plane fraction, levered
-/// by the points' spread.
-pub(crate) const FRAME_ARM: &str = "split_join_frame_arm";
-
-/// The axis-plane test's row: a component of the plane's normal,
-/// levered by the points' spread ([`axis_plane`]).
-pub(crate) const FRAME_AXIS: &str = "split_join_frame_axis";
 
 /// Whether the unit normal `n` is a coordinate axis: two of its
 /// components exactly zero (**`split_join_frame_axis`**, at the exact
