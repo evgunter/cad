@@ -69,3 +69,17 @@ builds at ε 1e-9 too. Every run that builds is held to the rows'
 checks (tier 3′, volume, corners).
 
 Moved from GERMCERT to GERM on 2026-11-02, by `git mv`, when GERMCERT merged into GERM: the track budget now counts only the P0, P1 and unbanded rows a sitting dispatches (Ev, in chat, 2026-11-02), so GERM, GERMCERT, ROOTS and APEX came in under one budget.
+
+## `bool_sector_coplanar` retired (SEAL PR 6693, 2026-11-10)
+
+SEAL's `a-corner-reads-only-its-own-sectors` deletes `bool_sector_coplanar`. A flat sector of a pair the glue door did not glue refuses on its steeper bound's tie (`Coincide::CornerBound`). The turned 12ε rows that refused on it would now refuse there or on `bool_sector_within`, and the pin's expected arm says so (`shell_role_reader.rs` `channel_rows`). On that head the turned 12ε union meets FLUSH's main red first (`Containment` at `bool_contact_vertex`), so which of the two it reaches is not observed.
+
+## The turned 12ε channel's unglued end faces (FLUSH, `flush/needle-12eps`, 2026-11-10)
+
+Measured at `067bb6e8` with the FLUSH red fixed
+(`work/flush/main-red-a-needle-cavity-12eps-channel-escalates-at-bool-contact-vertex.md`).
+- **Every run of the pin builds at ε 1e-9 but the turned 12ε channel's five.** That includes the moved channel below 30ε. Nothing here refuses `bool_sector_within` any more.
+- **The five refuse at their corner.** Each refuses `Coincidence(CornerCrossing)` at `bool_faces_parallel`, a Zero rejected (`9.48e-17` levered at the corner's arm).
+- **Why that pair is unglued.** The glue door reads the slab's and the fill's end faces (`x = 1`, 0.3 × w) on the carrier ladder's parallel rung, `bool_plane_parallel`. That read is in band, at `1.19e-9` and `1.06e-9` against zero `1e-9`, so the door leaves the pair unglued, and the corner refuses it as SEAL's corner suite does.
+- **Rounding decides it.** At 10.5 and 15ε turned, and in every aligned and moved pose, the same pair reads Zero and glues. Both carriers are fitted from corners `w` apart in one direction, so their normals carry rounding near `u·|p|/w`, about `1e-8` rad. That is this row's hypothesis, on the carriers rather than a sector direction.
+- **The moved pose now builds at every width.** This row's "fitting the planes from corners is not the cause" was read while the moved channel still refused. On this head, the one refusal left is in the fitted pose.

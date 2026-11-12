@@ -345,14 +345,16 @@ impl<T: Decide> CylinderSpherePose<T> {
         band: Band,
     ) -> Result<(Point3<T>, T, CsStance<T>), PoseRefusal> {
         let geom::Line { origin, dir: axis } = axis;
-        let read = |name: &'static str, value: T| {
+        let read_as = |name: &'static str, value: T| {
             geom_core::k_stats::decide_reported(name, Margin::of(value), band)
         };
+        const CYLINDER_RADIUS: &str = "cs_cylinder_radius";
+        const SPHERE_RADIUS: &str = "cs_sphere_radius";
         for (name, value, radius) in [
-            ("cs_cylinder_radius", r, SectionRadius::Cylinder),
-            ("cs_sphere_radius", big_r, SectionRadius::Sphere),
+            (CYLINDER_RADIUS, r, SectionRadius::Cylinder),
+            (SPHERE_RADIUS, big_r, SectionRadius::Sphere),
         ] {
-            match read(name, value) {
+            match read_as(name, value) {
                 Ok(Decided {
                     sign: Sign::Positive,
                     ..
@@ -366,7 +368,8 @@ impl<T: Decide> CylinderSpherePose<T> {
             }
         }
         let pose = |decision: CsDecision, value: T| {
-            read(decision.name(), value).map_err(|diag| PoseRefusal::Undecided { decision, diag })
+            read_as(decision.name(), value)
+                .map_err(|diag| PoseRefusal::Undecided { decision, diag })
         };
         // `axis` is unit by the surface's own invariant.
         let (off, d) = square_part(center - origin, axis);
@@ -429,6 +432,43 @@ impl<T: Decide> CylinderSpherePose<T> {
     /// The sphere's own ball, which holds the section.
     pub fn ball(&self) -> ExtentBall<T> {
         ExtentBall::of_sphere(self.center, self.big_r)
+    }
+
+    /// **The ball the ruling sweep reads the section against**: about the
+    /// sphere's centre, of radius `R + max(R, 64·escalate)`. The section
+    /// lies on the sphere, so its own ball holds it whole and no component
+    /// has a cut end; but every meeting lies on that ball's boundary,
+    /// where no leaf of the sweep decides a side. Every meeting stands `R`
+    /// from the centre, so a cell's meetings read inside exactly where
+    /// their enclosure's reach past its true points is under the padding
+    /// (less the band). The padding is the sphere's own
+    /// scale, so that it grows with the loops a cell must hold; and never
+    /// under 64 escalation widths, so that a sphere a few bands across
+    /// still has room many bands past the band. A cell's two ends then
+    /// always read inside, so a sheet is never cut, and the sweep's
+    /// reading of a sheet's monotonicity and velocity can answer nothing
+    /// but inside: neither enters this pair's count.
+    pub(crate) fn sweep_ball(&self, band: Band) -> ExtentBall<T> {
+        let pad = self.big_r.max(T::from_f64(64.0 * band.escalate()));
+        ExtentBall::of_sphere(self.center, self.big_r + pad)
+    }
+
+    /// **The cylinder's rulings against the sphere**
+    /// ([`ruling::RuledCylinderSphere`]), in the frame toward the centre,
+    /// where the centre stands off the axis.
+    pub(crate) fn ruled(&self) -> Option<ruling::RuledCylinderSphere<T>> {
+        let CsStance::Apart { toward, .. } = self.stance else {
+            return None;
+        };
+        Some(ruling::RuledCylinderSphere {
+            foot: self.foot,
+            n: toward,
+            v: self.axis.cross(toward),
+            axis: self.axis,
+            r: self.r,
+            d: self.offset,
+            big_r: self.big_r,
+        })
     }
 
     /// The cylinder's radius `r` and the sphere's `R`, both decided
@@ -659,7 +699,7 @@ pub enum RaySense {
 }
 
 /// One surface of the pair, in the order the section was asked of.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum PairSide {
     /// The first.
     First,
@@ -743,6 +783,15 @@ impl<T: Real> SectionNode<T> {
             .iter()
             .position(|&r| r == (line, sense))
             .unwrap_or_else(|| unreachable!("every line and sense is a ray"))
+    }
+
+    /// **The ray nearest a direction**, by index in [`Self::RAYS`], from
+    /// its dots with the four rays: the largest, the first of equals
+    /// (D9). The one home of the rule; what decides its lead is the
+    /// caller's.
+    #[must_use]
+    pub fn nearest_ray(dots: [f64; 4]) -> usize {
+        (1..4).fold(0, |best, i| if dots[i] > dots[best] { i } else { best })
     }
 
     /// The four rays, unit, in their turn ([`Self::RAYS`]).
@@ -1073,6 +1122,39 @@ pub struct NodeSet {
     pub winds: [bool; 2],
 }
 
+/// **The node-joined sets of `listed`** ([`NodeSet`]): arcs joined where
+/// they share a node, each set claiming `winds`.
+pub(super) fn node_joined<T: Real>(
+    listed: &[SectionComponent<T>],
+    nodes: usize,
+    winds: [bool; 2],
+) -> Vec<NodeSet> {
+    let ends = |c: &SectionComponent<T>| match c.shape {
+        ComponentShape::Open { ends } => ends.nodes.nodes(),
+        ComponentShape::Loop | ComponentShape::Point => [None, None],
+    };
+    let mut sets: Vec<NodeSet> = Vec::new();
+    for node in 0..nodes {
+        let arcs: Vec<usize> = (0..listed.len())
+            .filter(|&i| ends(&listed[i]).contains(&Some(node)))
+            .collect();
+        if arcs.is_empty() {
+            continue;
+        }
+        // Merge every set already holding one of these arcs.
+        let (mut joined, rest): (Vec<NodeSet>, Vec<NodeSet>) = sets
+            .into_iter()
+            .partition(|set| set.arcs.iter().any(|a| arcs.contains(a)));
+        let mut all: Vec<usize> = joined.drain(..).flat_map(|set| set.arcs).collect();
+        all.extend(arcs);
+        all.sort_unstable();
+        all.dedup();
+        sets = rest;
+        sets.push(NodeSet { arcs: all, winds });
+    }
+    sets
+}
+
 /// **The pose a section was built over**, one per pair it serves.
 #[derive(Clone, Debug)]
 pub enum PairPose<T: Real> {
@@ -1263,7 +1345,7 @@ pub fn pair_section<T: Decide>(
     let (ka, kb) = (a.kind(), b.kind());
     match (ka, kb) {
         (Cylinder, Sphere) | (Sphere, Cylinder) => match CylinderSpherePose::decide(a, b, band) {
-            Some(pose) => Ok(SectionRead::Built(cylinder_sphere(pose?))),
+            Some(pose) => cylinder_sphere(pose?, band).map(SectionRead::Built),
             None => Err(SectionError::WrongLane {
                 expected: "a cylinder and a sphere",
             }),
@@ -1373,7 +1455,10 @@ pub fn traced_in_r3(a: SurfaceKind, b: SurfaceKind) -> bool {
 }
 
 /// The cylinder × sphere arm over its decided pose.
-fn cylinder_sphere<T: Decide>(pose: CylinderSpherePose<T>) -> PairSection<T> {
+fn cylinder_sphere<T: Decide>(
+    pose: CylinderSpherePose<T>,
+    band: Band,
+) -> Result<PairSection<T>, SectionError> {
     // `winds` is read in the order the pose was asked of.
     let order = |on_cylinder: bool, on_sphere: bool| {
         if pose.cylinder_first {
@@ -1425,36 +1510,72 @@ fn cylinder_sphere<T: Decide>(pose: CylinderSpherePose<T>) -> PairSection<T> {
                 Some(pose.nearest_ruling(toward)),
                 ClassCarrier::Unminted(NoCarrier::Tangent),
             )],
-            // One loop, witnessed on the ruling nearest the centre,
-            // `√((R − |d − r|)(R + |d − r|))` above the foot.
-            (Sign::Positive, Some(Sign::Negative | Sign::Zero) | None) => {
+            // One loop, or two past the far ruling: the ruling sweep
+            // counts them and witnesses each. The sphere's ball holds the
+            // section, so a swept component with a cut end is a sweep
+            // that disagrees with the pose.
+            (Sign::Positive, Some(Sign::Negative | Sign::Positive)) => {
+                let ruled = pose.ruled().unwrap_or_else(|| {
+                    unreachable!("an off-axis stance's pose reads its ruled side")
+                });
+                let swept = ruling::sweep(&ruled, pose.sweep_ball(band), band)?;
+                debug_assert_eq!(
+                    swept.loops,
+                    if far.map(|f| f.sign) == Some(Sign::Positive) {
+                        2
+                    } else {
+                        1
+                    },
+                    "the ruling sweep's arcs of a positive discriminant are the loops the \
+                     pose's far reach counts: one arc bounded by two branch points where the \
+                     sphere crosses the wall in one loop, the whole turn past the far ruling"
+                );
+                swept
+                    .components
+                    .into_iter()
+                    .map(|c| match c.cut_ends {
+                        Some(_) => Err(SectionError::Unaccounted {
+                            cause: "the ruling sweep cut a cylinder × sphere component, \
+                                    which the sphere's own ball holds whole"
+                                .to_owned(),
+                        }),
+                        None => Ok(SectionComponent::closed_form(
+                            ComponentShape::Loop,
+                            order(c.encircles, false),
+                            Some(c.witness),
+                            ClassCarrier::General,
+                        )),
+                    })
+                    .collect::<Result<_, _>>()?
+            }
+            // The figure-eight through the far ruling's node, witnessed on
+            // the ruling nearest the centre, `√((R − |d − r|)(R + |d − r|))`
+            // above the foot.
+            (Sign::Positive, Some(Sign::Zero)) => {
                 let q = (pose.offset - pose.r).abs();
                 let t = ((pose.big_r - q) * (pose.big_r + q)).sqrt();
-                let carrier = match far.map(|f| f.sign) {
-                    Some(Sign::Negative) => ClassCarrier::General,
-                    _ => ClassCarrier::Unminted(NoCarrier::Tangent),
-                };
                 vec![SectionComponent::closed_form(
                     ComponentShape::Loop,
                     [false, false],
                     Some(pose.nearest_ruling(toward) + pose.axis * t),
-                    carrier,
+                    ClassCarrier::Unminted(NoCarrier::Tangent),
                 )]
             }
-            (Sign::Positive, Some(Sign::Positive)) => {
-                vec![ring(ClassCarrier::General), ring(ClassCarrier::General)]
-            }
+            (Sign::Positive, None) => unreachable!(
+                "the pose reads the far reach wherever the near reach is positive \
+                 (`CylinderSpherePose::decide_stance`)"
+            ),
         },
     };
     decided.extend(pose.tangency());
-    PairSection {
+    Ok(PairSection {
         lever: geom_core::Lever::curvature_radius(pose.r),
         pose: PairPose::CylinderSphere(pose),
         decided,
         components: Components::Counted(components),
         nodes: Vec::new(),
         node_sets: Vec::new(),
-    }
+    })
 }
 
 /// The desync of a component whose tube pads no band, read by the carry
@@ -2009,9 +2130,9 @@ impl<T: Decide> FittedCarrier<T> {
                     "the march left the ball's box, which holds the whole section",
                 ));
             }
-            (BranchEnd::Rim { .. }, _) => {
+            (BranchEnd::Rim { .. } | BranchEnd::Node { .. }, _) => {
                 return Err(CarryError::Desync(
-                    "an ℝ³ march ended on a chart's side, which it does not trace",
+                    "an ℝ³ march ended on a chart's side or at a node, which it does not trace",
                 ));
             }
         };
@@ -2092,7 +2213,7 @@ fn march_over_the_ball(
     let branches = |o: crate::ssi::SsiOutcome| o.branches;
     let out = match pose {
         PairPose::CylinderSphere(p) => {
-            crate::ssi::march_cylinder_sphere(p, domain, band).map(branches)
+            crate::ssi::march_cylinder_sphere(p, &section.seeds(), domain, band)
         }
         PairPose::SphereTorus(p) => crate::ssi::march_sphere_torus(p, domain, band).map(branches),
         PairPose::CylinderTorus(p) => {
@@ -2343,7 +2464,9 @@ fn seat_at(
             let ends = [net.eval(lo), net.eval(hi)];
             return match at_the_start(net.eval(at), ends, band) {
                 Ok(true) => Ok(component.clone()),
-                Ok(false) => Err(CarryError::Refused(CarryRefusal::Seat(e))),
+                Ok(false) => Err(CarryError::Refused(CarryRefusal::Seat(
+                    geom_core::spline::Built::new(e),
+                ))),
                 Err(diag) => Err(CarryError::Escalated(diag)),
             };
         }
@@ -2482,7 +2605,7 @@ pub enum CarryRefusal {
     Unwalked(geom::PieceWalkRefusal),
     /// A closed fitted component could not be opened at its first site
     /// ([`PairSection::seat`]): the knot edit refused.
-    Seat(geom_core::spline::KnotAlgebraError),
+    Seat(geom_core::spline::Built<geom_core::spline::KnotAlgebraError>),
 }
 
 impl CarryRefusal {
@@ -2537,12 +2660,9 @@ impl CarryRefusal {
                  {why}. {}",
                 why.recourse()
             ),
-            // The seat is a knot edit at a parameter the kernel chose
-            // strictly inside the carrier, so its refusal is the kernel's.
             Self::Seat(e) => write!(
                 f,
-                "the section's closed loop could not be opened at its first site: {}. {defect}",
-                e.fact()
+                "the section's closed loop could not be opened at its first site: {e}. {defect}"
             ),
         }
     }
@@ -2772,16 +2892,19 @@ impl<T: Decide> CarriedComponent<T> {
     /// and only a fitted component has one, on a spline carrier, which
     /// returns above. A conic component with a pad is a desync.
     fn within_span(&self, t: T, band: Band) -> Result<Option<T>, SiteRefusal> {
-        if self.closed() || !matches!(self.carrier, Curve3::Circle(_) | Curve3::Ellipse(_)) {
+        // An open conic component, read in its carrier's own period.
+        let (Some(_), Some(turn), false) =
+            (self.carrier.conic(), self.carrier.period(), self.closed())
+        else {
             return Ok(Some(t));
-        }
+        };
         if self.pad > 0.0 {
             return Err(SiteRefusal::Desync(
                 "a conic component carries a pad: its witness can stand past the band from its foot",
             ));
         }
         let (lo, hi) = self.span;
-        let t = geom_core::period::Period::new(T::tau()).at_or_above(t, lo);
+        let t = turn.at_or_above(t, lo);
         let speed = self.carrier.ders1(t).1.norm();
         use geom_core::NonzeroSign;
         use geom_core::k_stats::decide_nonzero;
@@ -2802,28 +2925,53 @@ impl<T: Decide> CarriedComponent<T> {
         }
     }
 
-    /// **This component's end at the node `n`** ([`ArcPlace::AtEnd`]).
+    /// **This component's end at the node `n`** ([`ArcPlace::AtEnd`]),
+    /// the one leaving along `ray` where the germ reading it names one
+    /// (its line and sense, [`NodeEnd`]): an arc with both ends at one
+    /// node is read at it by the end its germ leaves along, and a germ
+    /// naming a ray reads an arc's one end there only where it is that
+    /// end's own.
     ///
     /// # Errors
     ///
-    /// [`SiteRefusal::Desync`] where it has no end at `n`, or both: an
-    /// arc with both ends at one node is read at it by the end its germ
-    /// leaves along, which no germ names yet.
-    pub fn end_at(&self, n: usize) -> Result<ArcPlace<T>, SiteRefusal> {
-        match node_of_ends(self) {
-            [Some(a), Some(b)] if a == n && b == n => Err(SiteRefusal::Desync(
-                "an arc with both ends at one node is read at it by the end its germ leaves \
-                 along, which no germ names",
+    /// [`SiteRefusal::Desync`] where it has no end at `n`; where both are
+    /// at `n` and `ray` names neither, or none is named; and where `ray`
+    /// is named and the one end at `n` leaves along another.
+    pub fn end_at(
+        &self,
+        n: usize,
+        ray: Option<(NodeLine, RaySense)>,
+    ) -> Result<ArcPlace<T>, SiteRefusal> {
+        let ComponentShape::Open { ends } = self.shape else {
+            return Err(SiteRefusal::Desync(
+                "a site at a node lies on a component with no end there",
+            ));
+        };
+        let at = |end: Option<NodeEnd>| end.filter(|e| e.node == n);
+        let named = |end: NodeEnd| ray.is_none_or(|r| r == (end.line, end.sense));
+        let start = ArcPlace::AtEnd {
+            t: self.span.0,
+            end: SpanEnd::Start,
+        };
+        let finish = ArcPlace::AtEnd {
+            t: self.span.1,
+            end: SpanEnd::End,
+        };
+        match (at(ends.nodes.start), at(ends.nodes.end)) {
+            (Some(a), Some(b)) => match ray {
+                Some(_) if named(a) && !named(b) => Ok(start),
+                Some(_) if named(b) && !named(a) => Ok(finish),
+                _ => Err(SiteRefusal::Desync(
+                    "an arc with both ends at one node is read at it by the end its germ \
+                     leaves along, and the germ names neither",
+                )),
+            },
+            (Some(a), None) if named(a) => Ok(start),
+            (None, Some(b)) if named(b) => Ok(finish),
+            (Some(_), None) | (None, Some(_)) => Err(SiteRefusal::Desync(
+                "a site at a node is read off the end its germ does not leave along",
             )),
-            [Some(a), _] if a == n => Ok(ArcPlace::AtEnd {
-                t: self.span.0,
-                end: SpanEnd::Start,
-            }),
-            [_, Some(b)] if b == n => Ok(ArcPlace::AtEnd {
-                t: self.span.1,
-                end: SpanEnd::End,
-            }),
-            _ => Err(SiteRefusal::Desync(
+            (None, None) => Err(SiteRefusal::Desync(
                 "a site at a node lies on a component with no end there",
             )),
         }
@@ -2845,7 +2993,7 @@ impl<T: Decide> CarriedComponent<T> {
         band: Band,
     ) -> Result<ArcPlace<T>, SiteRefusal> {
         if let (Some(n), _) = at_node(nodes, p, band)? {
-            return self.end_at(n);
+            return self.end_at(n, None);
         }
         self.reads(p, band)?
             .map(ArcPlace::At)
@@ -3095,18 +3243,39 @@ impl<T: Decide> CarriedSection<T> {
         ))
     }
 
-    /// **Component `k`'s end at the node `n`** ([`ArcPlace::AtEnd`]).
+    /// **Component `k`'s end at the node `n`** ([`ArcPlace::AtEnd`]),
+    /// the one leaving along `ray` where the germ names it
+    /// ([`CarriedComponent::end_at`]).
     ///
     /// # Errors
     ///
-    /// [`SiteRefusal::Desync`] where `k` has no end at `n`, or both: an
-    /// arc with both ends at one node is read at it by the end its germ
-    /// leaves along, which no germ names yet.
-    pub fn end_at(&self, k: usize, n: usize) -> Result<ArcPlace<T>, SiteRefusal> {
+    /// [`SiteRefusal::Desync`] as [`CarriedComponent::end_at`] reads it,
+    /// and for a component not in the section.
+    pub fn end_at(
+        &self,
+        k: usize,
+        n: usize,
+        ray: Option<(NodeLine, RaySense)>,
+    ) -> Result<ArcPlace<T>, SiteRefusal> {
         let c = self.components.get(k).ok_or(SiteRefusal::Desync(
             "a site's component is not in its section",
         ))?;
-        c.end_at(n)
+        c.end_at(n, ray)
+    }
+
+    /// **The ray of node `n` a germ leaving along `dir` names**, by its
+    /// line and sense ([`SectionNode::RAYS`]): the ray nearest `dir`
+    /// ([`SectionNode::nearest_ray`]), as a germ minted from an arc end
+    /// there leaves along that end's ray, exactly. `None` for a node not
+    /// in the section, and where a dot is not a point the scalar holds: a
+    /// germ whose ray is not read names none, and [`Self::end_at`] reads
+    /// it so.
+    pub fn ray_along(&self, n: usize, dir: Vec3<T>) -> Option<(NodeLine, RaySense)> {
+        let node = self.nodes.get(n)?;
+        let rays = node.rays();
+        let dots = [0, 1, 2, 3].map(|i| dir.dot(rays[i]).point_value());
+        let dots = [dots[0]?, dots[1]?, dots[2]?, dots[3]?];
+        Some(SectionNode::<T>::RAYS[SectionNode::<T>::nearest_ray(dots)])
     }
 }
 
@@ -3380,20 +3549,28 @@ mod wiring {
     /// **A doubled ring is caught** (R1): two general rings of a sphere
     /// past a wall's far ruling, and the ball round the donut's axis,
     /// listed from a march that found one loop twice, read counted and
-    /// read marched. The count agrees and no witness is listed, so only
-    /// the loops' identity can see it: each branch's witness lies on the
-    /// other branch. (The lane is the door's own: its fields are written
-    /// by its constructor alone, so the doubled march is handed to the
-    /// listing `carry` hands its march to.)
+    /// read marched. The count agrees. The wall's rings are each
+    /// witnessed by the ruling sweep, so the counted listing sees it as a
+    /// witness on no branch; the donut's are witnessless, and there, as
+    /// in every marched listing, only the loops' identity can see it: each
+    /// branch's witness lies on the other branch. (The lane is the door's
+    /// own: its fields are written by its constructor alone, so the
+    /// doubled march is handed to the listing `carry` hands its march
+    /// to.)
     #[test]
     fn a_doubled_ring_is_caught() {
         use super::{CarryError, ClassCarrier, Components, SsiLane};
-        for (what, (a, b)) in [
+        for (what, (a, b), witnessed) in [
             (
                 "two rings round the wall",
                 wall_and_ball((0.1, 0.0, 0.2), 0.7),
+                true,
             ),
-            ("the ball round the donut's axis", ball_round_the_axis()),
+            (
+                "the ball round the donut's axis",
+                ball_round_the_axis(),
+                false,
+            ),
         ] {
             let section = built(&a, &b);
             let listed = section
@@ -3401,10 +3578,11 @@ mod wiring {
                 .unwrap_or_else(|| panic!("{what}: counted"));
             assert!(
                 listed.len() == 2
-                    && listed
-                        .iter()
-                        .all(|c| c.witness.is_none() && matches!(c.carrier, ClassCarrier::General)),
-                "{what}: two witnessless general loops"
+                    && listed.iter().all(|c| {
+                        c.witness.is_some() == witnessed
+                            && matches!(c.carrier, ClassCarrier::General)
+                    }),
+                "{what}: two general loops, witnessed: {witnessed}"
             );
             assert!(
                 section.carry(Some(SsiLane::marched()), band()).is_ok(),
@@ -3415,7 +3593,9 @@ mod wiring {
                 ..section.clone()
             };
             for (read, s) in [("counted", &section), ("marched", &marched)] {
-                let got = s.listed(|| doubled(s, band()), band());
+                // The counted section's march, doubled: a marched cylinder ×
+                // sphere section states no seeds to march from.
+                let got = s.listed(|| doubled(&section, band()), band());
                 assert!(
                     matches!(got, Err(CarryError::Desync(_))),
                     "{what}, {read}: one loop marched twice: {:?}",
@@ -3596,6 +3776,99 @@ mod wiring {
             coverage(a, b, pose.region(), &tubes(&fitted[..1])).is_err(),
             "a branch's tubes dropped: a cell uncovered"
         );
+    }
+
+    /// **The cylinder × sphere coverage keeps its headroom** (the row-5
+    /// `debug_assert` in `ssi::march_cylinder_sphere`): over a sphere
+    /// crossing the wall in one loop, in two, centred on it, and on a
+    /// turned wall, read in both orders, each march's coverage closes
+    /// within a third of `COVERAGE_DEPTH`'s halvings and a sixty-fourth of
+    /// `COVERAGE_CELLS`'s cells, and with any one branch's tubes dropped
+    /// a cell is uncovered: no meeting lies outside the sphere's ball, so
+    /// every one needs a tube. The calibration it measures is printed.
+    #[test]
+    fn the_cylinder_sphere_coverage_keeps_its_headroom() {
+        use super::ruling::{COVERAGE_CELLS, COVERAGE_DEPTH, coverage};
+        use geom_core::{Point3, Vec3};
+        let tubes = |branches: &[super::FittedCarrier<f64>]| -> Vec<_> {
+            branches
+                .iter()
+                .flat_map(|b| {
+                    let (geom::Curve3::Nurbs(net), crate::ssi::SsiTube::Spatial { radius }) =
+                        (&b.carrier, b.certificate.tube)
+                    else {
+                        panic!("a fitted ℝ³ branch");
+                    };
+                    crate::ssi::certify::tube_boxes(net, radius)
+                })
+                .collect()
+        };
+        let turned = Vec3::new(0.3, -0.2, 1.0).normalize();
+        let turned_wall = geom::Surface::Cylinder {
+            origin: Point3::new(0.1, -0.2, 0.3),
+            axis: turned,
+            radius: 0.4,
+            u_ref: turned.orthonormal_basis().0,
+        };
+        let ball = |c: (f64, f64, f64), radius: f64| geom::Surface::Sphere {
+            center: Point3::new(c.0, c.1, c.2),
+            radius,
+            axis: Vec3::unit_z(),
+            u_ref: Vec3::unit_x(),
+        };
+        let (wall, _) = wall_and_ball((0.0, 0.0, 0.0), 1.0);
+        let (mut deepest, mut most) = (0, 0);
+        for (what, a, b) in [
+            ("one loop", wall.clone(), ball((0.7, 0.1, 0.2), 0.4)),
+            ("two loops", wall.clone(), ball((0.1, 0.0, 0.2), 0.7)),
+            (
+                "centred on the wall",
+                wall.clone(),
+                ball((0.0, 0.5, -0.1), 0.4),
+            ),
+            (
+                "turned, one loop",
+                turned_wall.clone(),
+                ball((0.6, 0.1, 0.5), 0.35),
+            ),
+            (
+                "turned, two loops",
+                turned_wall.clone(),
+                ball((0.2, -0.1, 0.0), 0.9),
+            ),
+        ] {
+            for (order, x, y) in [("cylinder, sphere", &a, &b), ("sphere, cylinder", &b, &a)] {
+                let label = format!("{what} ({order})");
+                let section = built(x, y);
+                let super::PairPose::CylinderSphere(pose) = section.pose() else {
+                    panic!("{label}: a cylinder × sphere pose");
+                };
+                let fitted = march_over_the_ball(&section, band())
+                    .unwrap_or_else(|e| panic!("{label}: the march: {e:?}"));
+                assert_eq!(
+                    fitted.len(),
+                    section.seeds().len(),
+                    "{label}: one branch per witness"
+                );
+                let read = coverage(pose.cylinder(), pose.sphere(), pose.ball(), &tubes(&fitted))
+                    .unwrap_or_else(|cell| panic!("{label}: uncovered at {cell:?}"));
+                assert!(
+                    read.depth <= COVERAGE_DEPTH / 3 && read.cells <= COVERAGE_CELLS / 64,
+                    "{label}: headroom: {read:?}"
+                );
+                (deepest, most) = (deepest.max(read.depth), most.max(read.cells));
+                for k in 0..fitted.len() {
+                    let mut kept = fitted.clone();
+                    kept.remove(k);
+                    assert!(
+                        coverage(pose.cylinder(), pose.sphere(), pose.ball(), &tubes(&kept))
+                            .is_err(),
+                        "{label}: branch {k}'s tubes dropped: a cell uncovered"
+                    );
+                }
+            }
+        }
+        println!("cylinder × sphere coverage: deepest {deepest} halvings, at most {most} cells");
     }
 
     /// **Cut ends matched one to one, not by count or by witness**: each
@@ -3820,10 +4093,12 @@ mod wiring {
 
     /// **Close loops carry**: the wall of radius `1/2` against a sphere at
     /// `(0.1, 0, 0.2)` of radius `0.6 + δ`, its two rings `δ` from
-    /// meeting at the far ruling, carry as counted and as marched, two
-    /// loops each, from `δ = 3e-2` down to `3e-4`.
+    /// meeting at the far ruling, carry as counted, two loops, from
+    /// `δ = 3e-2` down to `3e-4`. (The pair is always counted, and its
+    /// march starts from the count's witnesses, so it has no marched
+    /// reading.)
     #[test]
-    fn close_rings_carry_counted_and_marched() {
+    fn close_rings_carry_counted() {
         // Pinned red at 1e-6: at δ 3e-4 no rung of the march's tube is a
         // graph, and nothing refines it
         // (`work/ssiarith/an-r3-tube-no-rung-makes-a-graph-is-never-refined.md`).
@@ -3832,34 +4107,29 @@ mod wiring {
             &[1e-6],
             "the close rings",
             &[
-                "δ 3e-4, counted: March(TubeStraddles { verdict: Zero(Classified { margin: MarginDiag(Value(0.0, None, ZeroWord(0))), band: Band { zero: 1e-6, escalate: 9.999999999999999e-6 } }), boxes: 206 })",
+                "δ 3e-4, counted: Refused(March(TubeStraddles { verdict: Zero(Classified { margin: MarginDiag(Value(0.0, None, ZeroWord(0))), band: Band { zero: 1e-6, escalate: 9.999999999999999e-6 } }), boxes: 206 }))",
             ],
-            close_rings_carry_counted_and_marched_row,
+            close_rings_carry_counted_row,
         );
     }
 
-    /// The row [`close_rings_carry_counted_and_marched`] runs, under its pin.
-    fn close_rings_carry_counted_and_marched_row() {
-        use super::{Components, SsiLane};
+    /// The row [`close_rings_carry_counted`] runs, under its pin.
+    fn close_rings_carry_counted_row() {
+        use super::SsiLane;
         for delta in [3e-2, 1e-2, 3e-3, 1e-3, 3e-4] {
             let (wall, ball) = wall_and_ball((0.1, 0.0, 0.2), 0.6 + delta);
-            let section = built(&wall, &ball);
-            let marched = super::PairSection {
-                components: Components::Marched,
-                ..section.clone()
-            };
-            for (read, s) in [("counted", &section), ("marched", &marched)] {
-                let got = s
-                    .carry(Some(SsiLane::marched()), band())
-                    .unwrap_or_else(|e| panic!("δ {delta:e}, {read}: {e:?}"));
-                assert_eq!(got.components().len(), 2, "δ {delta:e}, {read}");
-            }
+            let got = built(&wall, &ball)
+                .carry(Some(SsiLane::marched()), band())
+                .unwrap_or_else(|e| panic!("δ {delta:e}, counted: {e:?}"));
+            assert_eq!(got.components().len(), 2, "δ {delta:e}, counted");
         }
     }
 
     /// **A count the march disagrees with is a desync**: the two loops of
     /// a sphere reaching past a wall's far ruling, listed as three. As
-    /// counted, they carry; read as marched, the march's two.
+    /// counted, they carry; read as marched, the march of the counted
+    /// section is listed as its two (the pair's march starts from the
+    /// count's witnesses, so a section restated as marched states none).
     #[test]
     #[allow(clippy::unwrap_used)]
     fn a_count_the_march_disagrees_with_refuses() {
@@ -3884,7 +4154,9 @@ mod wiring {
             matches!(three.carry(lane, band()), Err(CarryError::Desync(_))),
             "three listed, two marched"
         );
-        let marched = restated(Components::Marched).carry(lane, band()).unwrap();
+        let marched = restated(Components::Marched)
+            .listed(|| march_over_the_ball(&section, band()), band())
+            .unwrap();
         assert_eq!(marched.components().len(), 2, "marched, the march's two");
     }
 
@@ -3895,5 +4167,130 @@ mod wiring {
             Ok(()),
             "`SsiLane::marched()` holds something other than its march"
         );
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::panic, clippy::expect_used, clippy::unwrap_used)]
+mod end_at_rows {
+    use geom::{Curve3, Line};
+    use geom_core::{Point3, Vec3};
+
+    use super::{
+        ArcPlace, CarriedComponent, ComponentEnds, ComponentShape, NodeEnd, NodeEnds, NodeLine,
+        RaySense, SiteRefusal, SpanEnd,
+    };
+
+    /// An arc over `[0, 1]` with both ends at node 0: it starts along
+    /// `+lines[0]` and ends along `+lines[1]`.
+    fn loop_at_node() -> CarriedComponent<f64> {
+        let ends = NodeEnds {
+            start: Some(NodeEnd {
+                node: 0,
+                line: NodeLine::First,
+                sense: RaySense::Along,
+            }),
+            end: Some(NodeEnd {
+                node: 0,
+                line: NodeLine::Second,
+                sense: RaySense::Along,
+            }),
+        };
+        CarriedComponent {
+            carrier: Curve3::Line(Line {
+                origin: Point3::new(0.0, 0.0, 0.0),
+                dir: Vec3::new(1.0, 0.0, 0.0),
+            }),
+            span: (0.0, 1.0),
+            shape: ComponentShape::Open {
+                ends: ComponentEnds {
+                    nodes: ends,
+                    ..ComponentEnds::default()
+                },
+            },
+            certificate: None,
+            winds: [false, false],
+            pad: 0.0,
+            reach: 0.0,
+            witness: Point3::new(0.5, 0.0, 0.0),
+        }
+    }
+
+    /// **An arc with both ends at one node is read by the end its germ
+    /// names** (D2): the ray `(First, Along)` reads the start, `(Second,
+    /// Along)` the end, no ray or another ray neither; an arc with one end
+    /// there is read at it with no ray named or its own, and refused on
+    /// another. Red against the start read whatever the ray, and against
+    /// a single end read whatever the ray.
+    #[test]
+    fn an_arc_with_both_ends_at_one_node_is_read_by_its_ray() {
+        let c = loop_at_node();
+        assert!(matches!(
+            c.end_at(0, Some((NodeLine::First, RaySense::Along))),
+            Ok(ArcPlace::AtEnd {
+                end: SpanEnd::Start,
+                ..
+            })
+        ));
+        assert!(matches!(
+            c.end_at(0, Some((NodeLine::Second, RaySense::Along))),
+            Ok(ArcPlace::AtEnd {
+                end: SpanEnd::End,
+                ..
+            })
+        ));
+        for ray in [None, Some((NodeLine::First, RaySense::Against))] {
+            assert!(
+                matches!(c.end_at(0, ray), Err(SiteRefusal::Desync(_))),
+                "{ray:?}"
+            );
+        }
+        assert!(matches!(c.end_at(1, None), Err(SiteRefusal::Desync(_))));
+        // The arc's end alone at the node, and its start alone.
+        let mut one = loop_at_node();
+        if let ComponentShape::Open { ends } = &mut one.shape {
+            ends.nodes.start = None;
+        }
+        let mut first = loop_at_node();
+        if let ComponentShape::Open { ends } = &mut first.shape {
+            ends.nodes.end = None;
+        }
+        for ray in [None, Some((NodeLine::First, RaySense::Along))] {
+            assert!(
+                matches!(
+                    first.end_at(0, ray),
+                    Ok(ArcPlace::AtEnd {
+                        end: SpanEnd::Start,
+                        ..
+                    })
+                ),
+                "{ray:?}"
+            );
+        }
+        assert!(matches!(
+            first.end_at(0, Some((NodeLine::First, RaySense::Against))),
+            Err(SiteRefusal::Desync(_))
+        ));
+        for ray in [None, Some((NodeLine::Second, RaySense::Along))] {
+            assert!(
+                matches!(
+                    one.end_at(0, ray),
+                    Ok(ArcPlace::AtEnd {
+                        end: SpanEnd::End,
+                        ..
+                    })
+                ),
+                "{ray:?}"
+            );
+        }
+        for ray in [
+            Some((NodeLine::Second, RaySense::Against)),
+            Some((NodeLine::First, RaySense::Along)),
+        ] {
+            assert!(
+                matches!(one.end_at(0, ray), Err(SiteRefusal::Desync(_))),
+                "{ray:?}"
+            );
+        }
     }
 }

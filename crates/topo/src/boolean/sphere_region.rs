@@ -147,10 +147,7 @@ use crate::splitting::containment::{ConicRows, SCHEDULE};
 use crate::validate::decide;
 
 /// The boundary reading's rows (module docs).
-const BOUNDARY: ConicRows = ConicRows::bounded(
-    "bool_sphere_region_arc_span",
-    "bool_sphere_region_arc_straddle",
-);
+const BOUNDARY: ConicRows = crate::rows::SPHERE_REGION_CONIC;
 
 /// The fraction of each arc's span [`SphereFaceRegion::aim`] steps from:
 /// the golden section ([`geom_core::GOLDEN_SECTION`]), off the middle a
@@ -371,7 +368,8 @@ impl<T: Decide> SphereFaceRegion<T> {
     /// The ray from `a` along the unit tangent `t` (module docs, step 1):
     /// the great circle round the centre from `a` toward `t`.
     fn ray(&self, foot: QueryFoot<T>, t: Vec3<T>) -> Leg<T, Round<T>> {
-        let curve = SurfaceCurve::great_circle(&self.charted, foot.uv(), t);
+        let curve = SurfaceCurve::great_circle(&self.charted, foot.uv(), t)
+            .map(|c| c.starting_at(foot.at()));
         Leg::whole(Round::on(region::built(curve)))
     }
 
@@ -457,7 +455,8 @@ impl<T: Decide> Paths<T> for SphereFaceRegion<T> {
         // The parallel about `a` through the corner, starting along
         // `side`; the corner is a foot of its own, read on the sphere.
         let corner = QueryFoot::read(self.charted.surface(), corner, band);
-        let curve = SurfaceCurve::about(&self.charted, p.uv(), corner.uv(), then_forward);
+        let curve = SurfaceCurve::about(&self.charted, p.uv(), corner.uv(), then_forward)
+            .map(|c| c.starting_at(corner.at()));
         let then = move || Leg::whole(Round::on(region::built(curve)));
         Ok((first, end, then))
     }
@@ -895,7 +894,7 @@ mod tests {
     #[test]
     fn a_zones_null_edge_leaves_no_region() {
         let sheet = || {
-            crate::boolean::boxes::sphere_rect_rows::sphere_zone_sheet(
+            crate::boxes::sphere_rect_rows::sphere_zone_sheet(
                 (0.2, 1.0),
                 (-0.3, 0.4),
                 geom_core::Tol::witness(),

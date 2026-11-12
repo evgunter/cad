@@ -131,7 +131,16 @@ pub fn stored_reading(
                 panic!("an operand read as given has no name: {name}")
             }
             crate::Operand::Select { body, names } => {
-                let body = given(doc, slot, body, read);
+                let read = given(doc, slot, &body.read, read);
+                let at = body
+                    .at
+                    .iter()
+                    .map(|index| {
+                        crate::edit::lower_slot_into(&mut doc.borrow_mut(), index)
+                            .expect("an index lowers as given")
+                    })
+                    .collect();
+                let body = crate::BodyRead { read, at };
                 crate::edit::selection_into(&mut doc.borrow_mut(), slot, body, names)
             }
             crate::Operand::Pick { placement, of } => {
@@ -496,7 +505,7 @@ pub fn placed_against_in(
     else {
         return crate::Placed::of(doc, Vec::new(), moves_at(at));
     };
-    let placed = at.affine::<f64>();
+    let placed = at.affine();
     // The copy's face's normal where `at` puts it.
     let m = placed.linear * geom_core::linalg::Vec3::new(0.0, 0.0, copy_z);
     // The target's axis its face's normal lies along, where it stands.
@@ -1475,6 +1484,28 @@ pub fn row_quietable(
 ) -> bool {
     crate::checks::at_rest::row_quietable(doc, evaluation, row, tol)
 }
+
+/// **A dual evaluation bound to a build of record built here**: the
+/// base-scalar evaluation of `doc` at [`crate::EvalOptions::of_record`],
+/// as `stackup`'s driver builds its record, then
+/// [`crate::eval::evaluate_recorded`] over it. The door a test that
+/// evaluates at a dual reads, so every dual run in the tests is bound
+/// to a record as a production one is (DUAL-DESIGN DL3).
+pub fn evaluate_bound<T: crate::eval::BoundToRecord>(
+    doc: &crate::Doc<crate::ProfileProgram>,
+    prior: Option<&crate::Evaluation<T>>,
+    cancel: &crate::CancelToken,
+    opts: &crate::EvalOptions,
+    tol: geom_core::Tol,
+) -> crate::Evaluation<T> {
+    let record = crate::evaluate::<T::Record>(doc, None, cancel, &opts.of_record(), tol);
+    crate::eval::evaluate_recorded(doc, prior, &record, cancel, opts, tol)
+}
+
+// The scalar-generic test doors live at the evaluation-service seam
+// (they name `EvalScalar`, which `scripts/gates/evalscalar-allowlist.sh`
+// confines there) and are re-exported here.
+pub use crate::eval::testing::{AnyEvaluate, evaluate_any};
 
 #[cfg(test)]
 mod tests {

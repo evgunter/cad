@@ -74,8 +74,12 @@ use crate::sugar::ArcSweep;
 /// The leading guide is the chain's own: a resolution is where the
 /// discrete choices live, so it is where a recording pass writes them
 /// down and a guided pass reads them back.
+///
+/// The `usize` is the fillet step whose fit this is: a drawing pass
+/// files a refused fit's overruns against it.
 pub(crate) type ArcResolver<T> = fn(
     &mut crate::structure::Guide<T>,
+    usize,
     FilletSide<T>,
     FilletSide<T>,
     T,
@@ -424,7 +428,7 @@ pub(crate) fn sweep_gates<T: Decide>(r: T, angle: T, band: Band) -> Result<(), P
         )?
         .ok_or(PathError::DegenerateArcSpec { value: angle })?;
     let short = Gate::PathArcSweepFull.read(|name| {
-        Period::new(T::tau())
+        Period::angle()
             .strictly_partial(TurnRows::exact(name), sweep, Exact::new(r), band)
             .map_err(|undecided| undecided.diag)
     })?;

@@ -770,7 +770,7 @@ fn the_windmill_story() {
         common::solve(&session, doc, tol)
             .placement(doc, sail_a)
             .expect("the instance is solved")
-            .affine::<f64>()
+            .affine()
             .transform_vec(long_axis)
     };
     close3(
@@ -855,7 +855,7 @@ fn the_windmill_story() {
             poses
                 .placement(doc, node)
                 .expect("the instance is solved")
-                .affine::<f64>()
+                .affine()
         };
         let (_, eval) = session.landed_pair().expect("landed");
         for (sail_pick, wall_pick) in [(&sail_a_bottom, &front_wall), (&sail_b_bottom, &back_wall)]

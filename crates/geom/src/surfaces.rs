@@ -60,8 +60,10 @@ pub mod boxes;
 pub mod nurbs;
 pub mod projection;
 
+use crate::rows::{RingReader, RingSites};
 use std::sync::Arc;
 
+use geom_core::period::Period;
 use geom_core::spline::SpanLocate;
 use geom_core::{Band, Point3, Real, Vec3};
 
@@ -72,7 +74,9 @@ use crate::frame::Frame;
 
 use crate::azimuth;
 pub use approx::{ApproxSurface, ApproxWindow, OffsetCertificate, SurfaceDescription, SurfaceSpec};
-pub use nurbs::{NetState, NurbsSurface, SurfaceJet, SurfaceJet3, SurfaceWindow};
+pub use nurbs::{
+    NetState, NurbsSurface, RunSide, SpanBeside, SurfaceJet, SurfaceJet3, SurfaceWindow,
+};
 pub use projection::{SurfaceProjection, SurfaceProjectionInconclusive};
 
 /// An analytic surface — a **complete locus**. Units, the
@@ -519,8 +523,8 @@ pub fn ring_torus<T: geom_core::Decide>(
     minor_radius: T,
     band: Band,
 ) -> Result<geom_core::Decided, geom_core::Indeterminate> {
-    ring_half(
-        RingReader::Convention.sites().ring,
+    ring_half_as(
+        RingReader::Convention.sites().ring(),
         major_radius,
         minor_radius,
         band,
@@ -528,7 +532,7 @@ pub fn ring_torus<T: geom_core::Decide>(
 }
 
 /// The ring half's one spelling, `R − r` as a length, under `name`.
-fn ring_half<T: geom_core::Decide>(
+fn ring_half_as<T: geom_core::Decide>(
     name: &'static str,
     major_radius: T,
     minor_radius: T,
@@ -555,11 +559,11 @@ pub fn torus_tube<T: geom_core::Decide>(
     minor_radius: T,
     band: Band,
 ) -> Result<geom_core::Decided, geom_core::Indeterminate> {
-    tube_half(RingReader::Convention.sites().tube, minor_radius, band)
+    tube_half_as(RingReader::Convention.sites().tube(), minor_radius, band)
 }
 
 /// The tube half's one spelling, `r` as a length, under `name`.
-fn tube_half<T: geom_core::Decide>(
+fn tube_half_as<T: geom_core::Decide>(
     name: &'static str,
     minor_radius: T,
     band: Band,
@@ -605,95 +609,6 @@ pub fn is_ring_torus<T: geom_core::Decide>(major_radius: T, minor_radius: T, ban
 pub struct RingTorus<T> {
     major_radius: T,
     minor_radius: T,
-}
-
-/// **The site names one reader decides the ring convention under**, one
-/// per half, so a refusal and its `k_stats` stream name the reading that
-/// met them ([`RingTorus::of_at`]). Minted only by its reader
-/// ([`RingReader::sites`]), so no two readers share a name: the roster
-/// of every reader's rows is one const, checked distinct when this crate
-/// compiles (`reader_rows`, in this crate's root).
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct RingSites {
-    tube: &'static str,
-    ring: &'static str,
-}
-
-impl RingSites {
-    /// The rows for the tube half (`r`) and the ring half (`R − r`).
-    /// Private to this module: a reader names its rows at
-    /// [`RingReader::sites`], and no code mints a bundle elsewhere, this
-    /// crate's included.
-    ///
-    /// # Panics
-    ///
-    /// Where the two names are equal: each names its own margin. In a
-    /// `const` item the panic is a compile error.
-    #[must_use]
-    const fn new(tube: &'static str, ring: &'static str) -> Self {
-        assert!(
-            !crate::str_eq(tube, ring),
-            "the ring convention's two halves need two names"
-        );
-        Self { tube, ring }
-    }
-
-    /// The ring half's row.
-    #[must_use]
-    pub const fn ring(self) -> &'static str {
-        self.ring
-    }
-
-    /// The tube half's row.
-    #[must_use]
-    pub const fn tube(self) -> &'static str {
-        self.tube
-    }
-}
-
-/// **Every reader of the ring convention**, each with its own rows
-/// ([`Self::sites`]): a new reader is a variant here, which the roster
-/// (`reader_rows`, in this crate's root) reads off this enum, so its names are
-/// checked against every other reader's when this crate compiles.
-///
-/// **This enum is the registry of who reads the convention.** It spells
-/// its callers' row names, `topo`'s and `geom-brep`'s, as strings only:
-/// those names are global to the `k_stats` stream and the ledger
-/// (`docs/predicate-dimension-audit.md`) already, and this crate depends
-/// on nothing of its callers to hold them.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, strum::VariantArray)]
-pub enum RingReader {
-    /// The convention's own rows ([`torus_tube`], [`ring_torus`]), which
-    /// tier 3, the pierce normal and the plane×torus section read.
-    Convention,
-    /// `topo`'s self-intersection engine, deciding a torus face
-    /// injective by its kind.
-    SelfIntersection,
-    /// The Boolean's spline-sheet reduction, deciding a torus carrier a
-    /// ring before reading a sheet off it.
-    BooleanSheet,
-    /// The Boolean's rider, deciding a torus face a ring before reading
-    /// an edge's carrier on it.
-    BooleanRider,
-}
-
-impl RingReader {
-    /// The reader's rows, its tube half's and then its ring half's.
-    #[must_use]
-    pub const fn sites(self) -> RingSites {
-        match self {
-            Self::Convention => RingSites::new("torus_tube_positive", "ring_torus_convention"),
-            Self::SelfIntersection => RingSites::new(
-                "self_intersection_torus_tube",
-                "self_intersection_ring_torus",
-            ),
-            Self::BooleanSheet => RingSites::new(
-                "bool_spline_sheet_torus_tube",
-                "bool_spline_sheet_ring_torus",
-            ),
-            Self::BooleanRider => RingSites::new("bool_rider_torus_tube", "bool_rider_ring_torus"),
-        }
-    }
 }
 
 /// **Radii that are not a ring**, by the first half of the convention
@@ -779,17 +694,17 @@ impl<T: geom_core::Decide> RingTorus<T> {
         band: Band,
     ) -> Result<Self, NotARing> {
         let positive = |d: &Result<geom_core::Decided, geom_core::Indeterminate>| matches!(d, Ok(d) if d.sign == geom_core::Sign::Positive);
-        let tube = tube_half(sites.tube, minor_radius, band);
+        let tube = tube_half_as(sites.tube(), minor_radius, band);
         if !positive(&tube) {
             return Err(NotARing::Tube {
-                site: sites.tube,
+                site: sites.tube(),
                 verdict: tube,
             });
         }
-        let ring = ring_half(sites.ring, major_radius, minor_radius, band);
+        let ring = ring_half_as(sites.ring(), major_radius, minor_radius, band);
         if !positive(&ring) {
             return Err(NotARing::Ring {
-                site: sites.ring,
+                site: sites.ring(),
                 verdict: ring,
             });
         }
@@ -887,23 +802,23 @@ pub fn spindle_sheet<T: geom_core::Decide>(
         Ok(d) if passes.contains(&d.sign) => Ok(()),
         _ => Err(SpindleMiss { end, verdict }),
     };
-    let read = |name, margin: T| {
+    let read_as = |name, margin: T| {
         geom_core::k_stats::decide_reported(name, geom_core::Margin::of(margin), band)
     };
     held(
-        read("spindle_far_end", major_radius + minor_radius),
+        read_as("spindle_far_end", major_radius + minor_radius),
         SpindleEnd::Far,
         &[Positive],
     )?;
     held(
-        read("spindle_not_sphere", major_radius),
+        read_as("spindle_not_sphere", major_radius),
         SpindleEnd::Sphere,
         &[Positive, Negative],
     )?;
     // The horn end is the ring convention's ring half read from the other
     // side: the sheet holds where `R − r` is not positive.
     held(
-        ring_half("spindle_horn_end", major_radius, minor_radius, band),
+        ring_half_as("spindle_horn_end", major_radius, minor_radius, band),
         SpindleEnd::Horn,
         &[Negative, Zero],
     )
@@ -955,6 +870,10 @@ pub fn sheet_apex<T: Real>(major_radius: T, minor_radius: T) -> SheetApex<T> {
     }
 }
 
+/// An analytic chart's `(u, v)` angle periods ([`Surface::angle_periods`]):
+/// `Some` on a channel that is an angle, `None` on one that is a length.
+pub type AnglePeriods<T> = (Option<Period<T>>, Option<Period<T>>);
+
 impl<T: Real> Surface<T> {
     /// The "no description yet" NURBS state (the former unit
     /// placeholder variant, as data): a structurally valid payload
@@ -987,6 +906,34 @@ impl<T: Real> Surface<T> {
             | Surface::Spindle { .. } => None,
             Surface::Nurbs(n) => Some(n),
             Surface::Approx(a) => Some(a.fit()),
+        }
+    }
+
+    /// **The analytic chart's angle channels, `(u, v)`, each with its
+    /// period**: [`Period::angle`] where the chart's coordinate is an
+    /// angle, none where it is a length (a plane's two, a cylinder's or a
+    /// cone's `v`). The question is whether `S` is periodic in the channel,
+    /// `S(u, v + τ) = S(u, v)`, which a lifted copy and a seam's two images
+    /// read; a sphere's latitude is such an angle, though its chart's
+    /// domain does not wrap in it (`topo`'s `Chart::v_domain_wraps` asks
+    /// that other question). `None` on a spline chart, whose periods are
+    /// its knot domains' and are decided closed at a band (`topo`'s
+    /// `chart_u_period`, `chart_v_period`).
+    ///
+    /// The one home of which analytic channel is an angle (geom-brep's
+    /// C4: "every whole-period question uses the channel's own period,
+    /// which the chart owns"), matched exhaustively so a new kind decides
+    /// here.
+    #[must_use]
+    pub fn angle_periods(&self) -> Option<AnglePeriods<T>> {
+        let angle = || Some(Period::angle());
+        match *self {
+            Surface::Plane { .. } => Some((None, None)),
+            Surface::Cylinder { .. } | Surface::Cone { .. } => Some((angle(), None)),
+            Surface::Sphere { .. } | Surface::Torus { .. } | Surface::Spindle { .. } => {
+                Some((angle(), angle()))
+            }
+            Surface::Nurbs(_) | Surface::Approx(_) => None,
         }
     }
 

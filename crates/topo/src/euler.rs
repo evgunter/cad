@@ -766,8 +766,9 @@ fn require_chord_adjacent<T: Real>(
 /// The lever of an edge at rest whose faces' join reads in band or mixed
 /// along it ([`EulerOpError::RestJoinUndecided`],
 /// [`EulerOpError::RestJoinMixed`]).
-pub(crate) const REST_JOIN_LEVER: &str =
-    "move the geometry so the faces meet clearly smoothly or clearly at a corner along the edge";
+pub(crate) const REST_JOIN_LEVER: &str = geom_core::move_lever!(
+    "so the faces meet clearly smoothly or clearly at a corner along the edge"
+);
 
 /// A failed Euler-operator precondition. Closed enum (D3 style); the
 /// body is untouched whenever one of these is returned (the operators
@@ -1960,14 +1961,16 @@ pub(crate) fn every_euler_op_error_once()
             // Read in band at a pose: the geometry's lever. A definite miss
             // names the kernel's defect, the one exception
             // `no_refusal_names_a_defect` pins.
-            error: geom_brep::PcurveCertifyError::CarrierOffChart {
-                chart: geom::SurfaceKind::Cone,
-                carrier: geom::CurveKind::Circle,
-                why: "the circle sits at the apex's height",
-                margin: Some(geom_brep::OffMargin::InBand(geom_core::MarginDiag::value(
-                    5e-10,
-                ))),
-            },
+            error: geom_brep::PcurveCertifyError::Incidence(
+                geom_brep::IncidenceRefusal::off_chart(
+                    geom::SurfaceKind::Cone,
+                    geom::CurveKind::Circle,
+                    "the circle sits at the apex's height",
+                    Some(geom_brep::OffMargin::InBand(geom_core::MarginDiag::value(
+                        5e-10,
+                    ))),
+                ),
+            ),
         },
         EulerOpError::PcurveMint {
             face: fc,
@@ -5380,13 +5383,9 @@ mod tests {
             circle.he_minus
         };
         body.kev_ungated(kill).unwrap();
-        let e = body.get_edge(nul.edge).unwrap();
-        let (hp, hm) = (e.he_plus, e.he_minus);
-        assert_eq!(
-            body.get_half_edge(hp).unwrap().start,
-            body.get_half_edge(hm).unwrap().start,
-            "the null edge is a self-loop"
-        );
+        let hp = body.get_edge(nul.edge).unwrap().he_plus;
+        let (s, t) = body.edge_vertices(nul.edge).unwrap();
+        assert_eq!(s, t, "the null edge is a self-loop");
         let strut = body
             .mev_line(
                 MevSite::Fan { he1: hp, he2: hp },
@@ -5773,34 +5772,19 @@ mod tests {
             .unwrap();
         // Both checks run before the pcurve pass (check 8). The pillow
         // reads its rowless spline face as unminted, an image derivable
-        // for every edge; the split's circle has none on the spline
-        // chart, so the pass's reading of that face is the circle's
-        // refusal instead.
+        // for every edge, and the split's circle, in the patch's plane,
+        // has one too: its `General` image.
         let at = expected
             .iter()
             .position(|e| matches!(e, crate::ValidationError::Pcurve { .. }))
             .unwrap_or(expected.len());
-        let spline_half = [created.he_plus, created.he_minus]
-            .into_iter()
-            .find(|he| body.face_of_half_edge(*he) != Some(plane_face))
-            .unwrap();
         expected.splice(
-            at..,
+            at..at,
             [
                 crate::ValidationError::ScaffoldAtRest { edge: created.edge },
                 crate::ValidationError::PlanarBoundaryResidual {
                     face: plane_face,
                     edge: created.edge,
-                },
-                crate::ValidationError::Pcurve {
-                    finding: crate::PcurveMintError::Certify {
-                        half_edge: spline_half,
-                        error: geom_brep::PcurveCertifyError::NoGeneralLane {
-                            chart: geom::SurfaceKind::Nurbs,
-                            carrier: geom::CurveKind::Circle,
-                            gap: geom_brep::LaneGap::Unwritten,
-                        },
-                    },
                 },
             ],
         );
@@ -7089,12 +7073,14 @@ mod tests {
         let split = EulerOpError::PcurveSplit {
             edge: EdgeKey::default(),
             half_edge: HalfEdgeKey::default(),
-            error: geom_brep::PcurveCertifyError::CarrierOffChart {
-                chart: geom::SurfaceKind::Torus,
-                carrier: geom::CurveKind::Spiric,
-                why: "the spiric lies on neither its own torus nor that torus's mirror",
-                margin: None,
-            },
+            error: geom_brep::PcurveCertifyError::Incidence(
+                geom_brep::IncidenceRefusal::off_chart(
+                    geom::SurfaceKind::Torus,
+                    geom::CurveKind::Spiric,
+                    "the spiric lies on neither its own torus nor that torus's mirror",
+                    None,
+                ),
+            ),
         };
         assert!(
             split

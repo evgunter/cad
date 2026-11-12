@@ -1,8 +1,10 @@
 ---
 id: three-raw-sign-within-reads-predate-their-gate
 kind: issue
-title: Three production files read sign_within raw, outside a named k_stats door: each is either no decision (say so) or an unnamed one (route it)
-status: open
+title: Three production files read sign_within raw, outside a named k_stats door (replay.rs, cylinders.rs, edge_join.rs); each is now routed or says it decides nothing
+status: closed
+closed: 2026-11-10
+pr: 6709
 opened: 2026-11-06
 priority: P3
 cost: E
@@ -27,3 +29,16 @@ For each: if no outcome changes what is certified, say so where it is read (or t
 So the read stays registered.
 
 **An open question it raises.** Reading a straddle as "no crease" lets a join run a spline carrier on through a knot it cannot tell it is not on. The module docs rest the join on Ev's PR 5913 ruling, that every edge carrier is C¹ by its knot structure strictly inside its cell. A straddle read as "crease" (keep the other edge, or do not join) is the side that ruling allows. That reading is `choose` with its tie taken as a crease, and it moves outcomes only at an interval scalar, where a straddle can occur. Whether to take it is a design call, not a routing one.
+
+**Two of the three are done** (2026-11-10, ONECOPY roster-reach):
+- `coincide/replay.rs::one_cylinder` decides (discharged or deferred), so it goes through `k_stats::decide_reported`. The metre data are under `replay_one_cylinder`, and the axis sines under `replay_one_cylinder_axis` at an unsourced metre of lever: bit-identical, audit F40. The lever's real source is `the-replays-cylinder-axis-is-levered-at-an-unsourced-metre`. editor-core's `ci` suite does not move.
+- `pair_section/cylinders.rs::placement` decides nothing (a choice of listing, each sound), and says so at the read: `// NO-DECISION: …`. `raw-sign-within.sh` now reads that marker on the line directly above a raw read and does not count the read. Its selftest plants a marked read, one with no why, and one not directly above.
+
+**`edge_join::crease_at` is done** (2026-11-10, `onecopy/crease-at`, PR 6709; the orchestrator's ruling, revised on that PR's review). It reads whether an edge's end parameter `t` lies on a crease of its spline carrier as two parameters compared exactly: `crease_read`, through `geom_core::k_stats::param_order`, the one home it shares with the curve pair's walks (`prove`, the least band).
+- A zero difference is `Crease::Decided`; every difference decided nonzero is `Crease::No`.
+- A straddle is the join's undecided reading, `JoinReading::Crease` through `JoinUndecided`, at the join and at tier 3's check 11 alike, as every other undecided join reading is, **for a vertex otherwise joinable**. The structural tests run first, and the refusal stands only where a join would be built. It is not a guess either way: "no join" would leave a non-maximal edge where the truth is no crease, and check 11 could not see it.
+- Only a decided pair picks the kept edge (`kept_edge`). Ev's PR 5913 ruling holds: no spline runs on through a knot the join could not rule out.
+- Pinned by `edge_join::crease::a_crease_is_read_decided_or_its_straddle_escalates` and, end to end, by `a_split_straddling_a_crease_refuses_the_join_undecided`: a spline split at an interval straddling its crease refuses undecided. That row is red where `joinable` drops the undecided channel.
+- Measured: no outcome moved anywhere in `topo`, `sweep` or `editor-core`, at both ε, fast suites and the join-related slow set. No test reaches a straddled knot.
+- **The per-knot logging, accepted.** `prove` is logged, so each knot compared at a join vertex adds a verdict row. That is the reading's own record: the comparison now decides an outcome, the join or its refusal, so the verdict-diff engine should see it. A straddle is an escalation a narrower enclosure answers, which is the subdivision driver's cue by design. The rows are one per knot of the two edges, at every valence-2 vertex the join visits; the crease is read before the structural tests, so a vertex no join could take is read too, though it refuses only where otherwise joinable.
+- The read is no longer raw, so `edge_join.rs` leaves `scripts/gates/raw-sign-within.counts`. With the two above, no raw read remains.

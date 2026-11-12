@@ -31,7 +31,7 @@ fn pad_of(face: &RotationalFaceQ) -> f64 {
                 .collect()
         })
         .collect();
-    chart_term_pad(face, &entries)
+    chart_term_pad(face, &entries, Band::linear(Tol::witness()).unwrap())
 }
 
 /// A unit-cylinder rectangle `u ∈ [0, θ]`, `v ∈ [0, h]` (frame: the axis
@@ -50,7 +50,7 @@ fn off_surface_face(delta: f64, lever: f64) -> (RotationalFaceQ, f64) {
     let env = pt(delta * 1.01);
     let (c, s) = (theta.cos(), theta.sin());
     let bottom = EdgeTermQ::Projected(ProjectedEdgeQ {
-        carrier: FramedQ::Circle {
+        carrier: FramedQ::Conic {
             centre: [Interval::zero(); 3],
             a: [pt(r_big), Interval::zero(), Interval::zero()],
             b: [Interval::zero(), pt(r_big), Interval::zero()],
@@ -97,6 +97,7 @@ fn off_surface_face(delta: f64, lever: f64) -> (RotationalFaceQ, f64) {
             closed: pt(lever) * pt(va_z),
             lever: [Interval::zero(), Interval::zero(), pt(lever)],
             rationals: Vec::new(),
+            spirics: Vec::new(),
             ribbon,
         },
         loops: vec![vec![
@@ -274,6 +275,7 @@ fn a_pcurve_off_its_carrier_is_paid_for_by_the_map_residual() {
                 closed: Interval::zero(),
                 lever: [Interval::zero(); 3],
                 rationals: Vec::new(),
+                spirics: Vec::new(),
                 ribbon: 0.0,
             },
             loops: vec![loops],

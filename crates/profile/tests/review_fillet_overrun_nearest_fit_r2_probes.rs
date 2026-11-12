@@ -21,10 +21,9 @@
 //!   not below the radius) at 469, and STILL REFUSES at 2 111 — the
 //!   reported number is the overrun in the setback metric, and the
 //!   radius reduction a corner needs ranges from 0.04× to 29× of it on
-//!   this grid — which is why the sites call the recourse un-metered
-//!   and why the residue
-//!   `work/blend/anchor-fit-refusal-reports-a-setback-excess-not-a-radius-reduction.md`
-//!   owns a metered form.
+//!   this grid — which is why the refusal meters the radius lever by
+//!   `radius_at_anchor`, not by this number
+//!   (`fillet_radius_at_anchor`).
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 

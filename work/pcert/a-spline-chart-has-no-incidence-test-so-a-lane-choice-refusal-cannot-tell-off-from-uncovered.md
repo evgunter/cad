@@ -78,7 +78,7 @@ reads it before the general image:
 - not shown off takes the lane gap (`NoGeneralLane`, "not yet").
 
 Rows: `spline_incidence::rows`,
-`topo/tests/a_circle_not_shown_on_a_spline_row_refuses_alike_in_every_form.rs`,
+`topo/tests/a_circle_no_row_holds_ends_alike_in_every_form.rs`,
 and the catch-all's own,
 `sweep/tests/a_tangent_seam_on_a_spline_wall_ends_as_its_incidence_read.rs`.
 The read's cost is still open: a band-scale sample dives (about 8× main on

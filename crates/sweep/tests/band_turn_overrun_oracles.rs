@@ -517,8 +517,18 @@ fn same_vertices(a: &Body<f64>, b: &Body<f64>, eps: f64) -> Result<(), String> {
 
 /// The operand less one slab per requested edge of the convex `body`
 /// whose half-spaces are `halves`, each edge's two faces read off
-/// `halves` by incidence.
-fn slab_oracle(body: &Body<f64>, edges: &[EdgeKey], halves: &[Half], d: f64, r: f64) -> Body<f64> {
+/// `halves` by incidence. Each slab's half-size is `2.2·ρ`, `ρ` the
+/// operand's farthest vertex from the origin: a cut plane meets the
+/// operand, so every point of it lies within `2ρ` of the plane and `ρ`
+/// of its foot, and the slab reaches no farther than `ρ + 2.2·√3·ρ`,
+/// which keeps the oracle in the session box wherever the operand is
+/// within `0.12` of it.
+fn slab_oracle(body: &Body<f64>, edges: &[EdgeKey], halves: &[Half], d: f64) -> Body<f64> {
+    let r = 2.2
+        * body
+            .vertices()
+            .map(|(v, _)| norm(point_at(body, v)))
+            .fold(0.0, f64::max);
     let mut out = body.clone();
     for &e in edges {
         let [a, b] = ends(body, e).map(|v| point_at(body, v));
@@ -549,7 +559,7 @@ fn matches_the_slab_oracle(
     d: f64,
     k: f64,
 ) -> Result<(), String> {
-    let want = slab_oracle(body, edges, halves, d, 20.0 * k);
+    let want = slab_oracle(body, edges, halves, d);
     same_vertices(built, &want, 1e-9 * k)?;
     let (got, exp) = (volume(built), volume(&want));
     if (got - exp).abs() > 1e-10 * k * k * k {
@@ -601,33 +611,17 @@ fn the_bracket_corner_matches_a_hand_integrated_closed_form() {
 /// orders, against the slab oracle: every one builds, every vertex
 /// trivalent, the vertex set and volume the oracle's. The small scale
 /// is `10⁷` zero widths (`0.01` at the default band), so its shortest
-/// edges stand the same count of band widths long at every eps row.
+/// edges stand the same count of band widths long at every eps row; the
+/// large, ×60, puts the oracle's slabs within 800 m, in the 1 km session
+/// box (`[tolerance.units]`).
 #[test]
 fn leaning_prisms_match_the_slab_oracle_over_leans_setbacks_and_scales() {
-    // Pinned since PR 5728 (limb 2 for every carrier): at ε = 1e-12 a leaning
-    // prism (extent 2000) refuses to extrude as limb 2's kernel limit on a
-    // plane, bound 1.08e-12. Whether that is an accepted kernel limit or a
-    // regression is the question of
-    // `work/shell/main-red-five-slow-rows-refuse-at-limb-2s-kernel-limit-since-5728`;
-    // until it closes, the row stops there, and the pin goes red the day the
-    // row passes.
-    test_utils::kernel_limit::pinned_row(
-        geom_core::Tol::witness().eps(),
-        &[1e-12],
-        "the leaning prisms",
-        leaning_prisms_match_the_slab_oracle_over_leans_setbacks_and_scales_row,
-    );
-}
-
-/// The row [`leaning_prisms_match_the_slab_oracle_over_leans_setbacks_and_scales`]
-/// runs, under its pin.
-fn leaning_prisms_match_the_slab_oracle_over_leans_setbacks_and_scales_row() {
     let mut failures = Vec::new();
     let small = 1e7
         * geom_core::Band::linear(tol())
             .expect("the run's band")
             .zero();
-    for k in [1.0, small, 100.0] {
+    for k in [1.0, small, 60.0] {
         for s in [-2.0, -1.0, -0.5, 0.25, 0.5, 1.0, 1.5] {
             let p = leaning(s, 1.0, k);
             for d in [0.05, 0.1, 0.3] {

@@ -23,7 +23,7 @@ use editor_core::{
     ProfileDoc, RecipeNodeId, TargetAxis, VarId,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
-use fixture::{in_copy, insert, len, on_frame, run, solve};
+use fixture::{insert, len, on_frame, run, solve};
 use geom_core::Tol;
 
 // ---- Substrate (the shared resolver, `fixture::resolver`) ----
@@ -244,7 +244,7 @@ fn r2_off_origin_circular_seat_at_a_pinned_world_frame() {
         let (next, top) = insert(doc, fixture::mated_instance(top_ref));
         let (next, mate) = seat(
             next,
-            in_copy(pattern, k, member, in_part(leg, leg_body, CapEnd::End)),
+            fixture::copy_site(pattern, k, member, in_part(leg, leg_body, CapEnd::End)),
             in_part(top, top_body, CapEnd::Start),
             [0.0, 0.0],
             true,
@@ -317,7 +317,7 @@ fn r2_a_seat_still_verifies_under_a_pinned_world_frame() {
     // and moved by (1, 2), then 1.5 along ŷ.
     let (doc, m0) = seat(
         doc,
-        in_copy(pattern, k, 0, in_part(leg, leg_body, CapEnd::End)),
+        fixture::copy_site(pattern, k, 0, in_part(leg, leg_body, CapEnd::End)),
         in_part(top, top_body, CapEnd::Start),
         [0.0, 3.5],
         true,
@@ -354,12 +354,12 @@ fn r2_a_pattern_copy_of_the_placed_instance_is_not_its_copy() {
     let doc = ProfileDoc::empty(DocumentId::derive("r2-rev"), Tol::witness());
     let (doc, top) = insert(doc, fixture::mated_instance(top_ref));
     let (doc, leg) = insert(doc, fixture::mated_instance(leg_ref));
-    let (doc, k, pattern) = crate::fixture::linear(doc, leg, [1.0, 0.0, 0.0], 2.0, 2);
+    let (doc, _k, pattern) = crate::fixture::linear(doc, leg, [1.0, 0.0, 0.0], 2.0, 2);
     let refused = fixture::at_the_door_of(
         &doc,
         leg,
         fixture::rest(
-            fixture::head(in_copy(pattern, k, 1, in_part(leg, leg_body, CapEnd::End))),
+            fixture::member_head(pattern, &[1], in_part(leg, leg_body, CapEnd::End)),
             fixture::head_at(top, in_part(top, top_body, CapEnd::Start)),
         ),
     );
@@ -383,8 +383,9 @@ fn r2_a_pattern_copy_of_the_placed_instance_is_not_its_copy() {
 /// — the pattern shrunk under a mate that named copy 1.
 ///
 /// It refuses where the second top's placement EVALUATES, naming the
-/// mate and its target pose, whose selection no longer resolves — not
-/// "somewhere" and not at the gate. A pose is read once per mate, where
+/// mate and its target pose, whose selection's member read is past the
+/// family (`MemberOutOfRange`, REFERENCES DM3) — not "somewhere" and not
+/// at the gate. A pose is read once per mate, where
 /// its placement folds, and the sibling on copy 0 is unaffected.
 #[test]
 fn r2_an_out_of_range_copy_on_a_sibling_mate_refuses_at_its_placement() {
@@ -399,7 +400,7 @@ fn r2_an_out_of_range_copy_on_a_sibling_mate_refuses_at_its_placement() {
     let (doc, top2) = insert(doc, fixture::mated_instance(top_ref));
     let (doc, m0) = seat(
         doc,
-        in_copy(pattern, k, 0, in_part(leg, leg_body, CapEnd::End)),
+        fixture::copy_site(pattern, k, 0, in_part(leg, leg_body, CapEnd::End)),
         in_part(top, top_body, CapEnd::Start),
         [0.0, 0.0],
         true,
@@ -410,7 +411,7 @@ fn r2_an_out_of_range_copy_on_a_sibling_mate_refuses_at_its_placement() {
     // stops resolving after insert (N5).
     let (doc, m1) = seat(
         doc,
-        in_copy(pattern, k, 1, in_part(leg, leg_body, CapEnd::End)),
+        fixture::copy_site(pattern, k, 1, in_part(leg, leg_body, CapEnd::End)),
         in_part(top2, top_body, CapEnd::Start),
         [0.0, 0.0],
         true,
@@ -429,7 +430,8 @@ fn r2_an_out_of_range_copy_on_a_sibling_mate_refuses_at_its_placement() {
         matches!(
             &fault,
             editor_core::MateFault::SideUnevaluated { mate, side: MateSide::To, refusal }
-                if *mate == m1 && matches!(refusal.kind(), NodeErrorKind::SelectResolve { .. })
+                if *mate == m1
+                    && matches!(refusal.kind(), NodeErrorKind::MemberOutOfRange { at, .. } if at == &[1])
         ),
         "the refusal names the mate whose target's selection the count left: {fault:?}"
     );

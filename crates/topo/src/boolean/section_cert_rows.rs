@@ -803,7 +803,7 @@ fn sphere_pairs_every_class() {
     let other = sphere(p(0.9, 0.5, 0.2), 0.7);
     on_both(witness(&classify(&ball, &other)), &ball, &other);
     assert_eq!(shape(&classify(&ball, &sphere(p(0.1, 0.0, 0.0), 0.3))).0, 0);
-    // Cylinder: one loop off the axis, witnessed on the nearest ruling.
+    // Cylinder: one loop off the axis, witnessed by the ruling sweep.
     let wall = cylinder(p(0.8, 0.0, -2.0), Vec3::unit_z(), 0.5);
     on_both(witness(&classify(&ball, &wall)), &ball, &wall);
     on_both(witness(&classify(&wall, &ball)), &ball, &wall);
@@ -1883,12 +1883,39 @@ fn at_most_one_loop_meets_the_singular_set() {
     }
 }
 
-/// **A witness placed OFF a face's carrier is no verdict, never `Out`.**
-/// Every witness is built on both carriers, so a definite off-carrier
-/// answer contradicts its construction; reading it as `Out` would clear
-/// a component by W3 on a point that is not on the component at all.
+/// **A witness placed OFF a curved face's carrier is the section's
+/// defect, never `Out`.** Every witness is built on both carriers to
+/// within the band, so a definite off-carrier answer contradicts its
+/// construction; reading it as `Out` would clear a component by W3 on a
+/// point that is not on the component at all. A debug build stops at the
+/// held point's own check; a release build answers the invariant, which
+/// `ops::witness_rows` pins in every build.
 #[test]
-fn an_off_carrier_witness_places_nowhere() {
+#[cfg_attr(debug_assertions, should_panic(expected = "(read in band) reads"))]
+fn an_off_carrier_witness_is_a_defect() {
+    let wall = half_wall();
+    let got = ops::place_witness(&wall.0, wall.1, p(0.0, 1.5, 0.0), band());
+    assert!(
+        matches!(
+            got,
+            Err(crate::BooleanError::ClassificationInvariant { .. })
+        ),
+        "release: 0.5 off the unit wall is the section's defect: {got:?}"
+    );
+}
+
+/// **A witness on a wall's carrier, outside its window, is `Out`.**
+#[test]
+fn an_on_carrier_witness_outside_the_window_is_out() {
+    let wall = half_wall();
+    assert_eq!(
+        ops::place_witness(&wall.0, wall.1, p(0.0, -1.0, 0.0), band()).expect("no defect"),
+        Some(FaceContainment::Out)
+    );
+}
+
+/// The unit cylinder's half-wall `u ∈ (0, π)`, `z ∈ (−1, 1)`.
+fn half_wall() -> (Body<f64>, FaceKey) {
     let mut body = Body::<f64>::new();
     let wall = cyl_wall_sheet(
         &mut body,
@@ -1898,16 +1925,7 @@ fn an_off_carrier_witness_places_nowhere() {
         Tol::witness(),
     );
     crate::test_support_fixtures::set_sheet_sense(&mut body, wall, true, Tol::witness());
-    assert_eq!(
-        ops::place_witness(&body, wall, p(0.0, 1.5, 0.0), band()),
-        None,
-        "0.5 off the unit wall"
-    );
-    // On the carrier and outside the half-wall's window: a real `Out`.
-    assert_eq!(
-        ops::place_witness(&body, wall, p(0.0, -1.0, 0.0), band()),
-        Some(FaceContainment::Out)
-    );
+    (body, wall)
 }
 
 /// **A lone-vertex ring on operand B's face refuses too.** The wall is
@@ -2688,14 +2706,9 @@ fn a_gap_in_the_torus_boundary_refuses() {
     let mut bad = Vec::new();
     for (i, &he) in cycle.iter().enumerate() {
         let mut gapped = body.clone();
-        let edge = gapped
-            .get_edge(gapped.get_half_edge(he).unwrap().edge)
-            .unwrap();
-        let (curve, he_plus, he_minus) = (edge.curve, edge.he_plus, edge.he_minus);
-        let ends = (
-            gapped.get_half_edge(he_plus).unwrap().start,
-            gapped.get_half_edge(he_minus).unwrap().start,
-        );
+        let key = gapped.get_half_edge(he).unwrap().edge;
+        let curve = gapped.get_edge(key).unwrap().curve;
+        let ends = gapped.edge_vertices(key).unwrap();
         gapped.curves[curve] = CurveGeom::NullScaffold(NullEdge {
             below_end: ends.0,
             above_end: ends.1,

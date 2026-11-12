@@ -18,7 +18,7 @@ use crate::shared::tol::{band, eps};
 use geom::{Curve3, Surface};
 use geom_brep::{Pcurve, PcurveCertifyError, chart_pcurve};
 use geom_core::spline::KnotVector;
-use geom_core::{Interval, Point3, Real, Tol, Vec3};
+use geom_core::{Bounds, Interval, Point3, Real, Tol, Vec3};
 
 /// The right circular cone of half-angle `alpha` about `+z` with its
 /// apex at the origin.
@@ -477,11 +477,10 @@ fn a_rim_at_the_apex_height_refuses_as_not_shown_with_its_margin() {
     };
     let rim = Curve3::circle(apex + axis * (0.2 * eps()), axis, 0.3, u_ref);
     let check = |got: Result<String, PcurveCertifyError>, lane: &str| match got {
-        Err(PcurveCertifyError::CarrierOffChart {
-            why,
-            margin: Some(geom_brep::OffMargin::InBand(_)),
-            ..
-        }) => {
+        Err(PcurveCertifyError::Incidence(r))
+            if matches!(r.read(), geom_brep::IncidenceRead::AtPose(_)) && r.why().is_some() =>
+        {
+            let why = r.why().unwrap_or_default();
             assert!(
                 why.contains("is not shown away from the apex"),
                 "{lane}: {why}"
@@ -621,16 +620,18 @@ fn only_an_incidence_reading_ends_as_one() {
     );
 }
 
-/// **A class rate read Zero is no incidence reading, so the incidence test
-/// decides** (D3; review on PR 5844, H2). Each closed-form arm that reads
-/// a class's rate (`pcurve_chart_orientation` on a cone ellipse,
+/// **A class rate read Zero is no incidence reading: the carrier takes
+/// the general lane unless the incidence test shows it off** (D3; review
+/// on PR 5844, H2). Each closed-form arm that reads a class's rate
+/// (`pcurve_chart_orientation` on a cone ellipse,
 /// `pcurve_sphere_chart_polar_rate`, `pcurve_torus_chart_meridional_rate`)
 /// and reads it Zero sends the carrier through D3's one door to the
 /// general lane: a carrier off the chart is the test's definite miss, one
-/// not shown off is the general lane's, here "not yet". Each arm is
-/// reached:
+/// not shown off is the general lane's, which images it where the lane is
+/// written and is "not yet" where it is not. Each arm is reached:
 /// - a thin ellipse (minor semi-axis under ε) along a cone generator,
-///   whose radial projection does not wind: on the cone, "not yet";
+///   whose radial projection does not wind: on the cone, the projected
+///   image;
 /// - a great circle of the sphere whose plane leans `4.1e-10` off the
 ///   axis, turned so its radial part passes the escalation band, at band
 ///   `(1e-9, 1.05e-9)`: its polar rate reads `9.75e-10`, Zero, though it
@@ -639,10 +640,11 @@ fn only_an_incidence_reading_ends_as_one() {
 ///   the meridian: its meridional rate is exactly 0, and it is off the
 ///   torus, so the incidence test's definite miss, the kernel's defect.
 ///
-/// A Zero read here as a pose (`OffMargin::InBand`) reds the first two
-/// as an incidence ending and the third as a lever.
+/// A Zero read here as a pose (`OffMargin::InBand`) reds the first as an
+/// incidence refusal, the second as an incidence ending and the third as
+/// a lever.
 #[test]
-fn a_class_rate_read_zero_takes_the_incidence_door() {
+fn a_class_rate_read_zero_takes_the_general_lane_unless_shown_off() {
     use geom_brep::IncidenceRead;
     use geom_brep::recourse::Reading;
     let e = eps();
@@ -654,18 +656,18 @@ fn a_class_rate_read_zero_takes_the_incidence_door() {
     };
     let alpha = 0.5_f64;
     let g = Vec3::new(alpha.sin(), 0.0, alpha.cos());
-    not_incidence(
-        "a thin ellipse along a generator",
-        chart_pcurve(
-            &Curve3::Ellipse(geom::Ellipse::new(
-                geom::Frame::new(Point3::origin() + g * 2.0, Vec3::unit_y(), g),
-                0.5,
-                0.3 * e,
-            )),
-            &cone(alpha),
-            band(),
-        )
-        .map(|_| ()),
+    let thin = chart_pcurve(
+        &Curve3::Ellipse(geom::Ellipse::new(
+            geom::Frame::new(Point3::origin() + g * 2.0, Vec3::unit_y(), g),
+            0.5,
+            0.3 * e,
+        )),
+        &cone(alpha),
+        band(),
+    );
+    assert!(
+        matches!(thin, Ok(Pcurve::Projected(_))),
+        "a thin ellipse along a generator: on the chart, the general lane: {thin:?}"
     );
     let (lean, turn) = (4.125e-10_f64, 9.75e-10_f64);
     let up = (1.0 - lean * lean).sqrt();
@@ -798,19 +800,42 @@ fn a_closed_form_re_read_with_its_class_in_band_is_undecided() {
     );
 }
 
-/// **An edge described on a chart whose general lane is unwritten for
-/// its carrier ends lever-only "not yet" at the edge certificate, never
-/// as the description's defect** (D3). The carrier is an ellipse
-/// within the band of the unit sphere (a parallel's circle whose semi-axis
-/// along `x` is lengthened by `ε/4`), which no general lane images: the
-/// mint refuses `NoGeneralLane`, and the edge
-/// certificate carries it as its own `NoGeneralLane` under the
-/// class check, not folded into `ChartImageUnavailable`'s defect. Read
-/// at a build and at rest.
+/// The edge certificate of `carrier` over `(t0, t1)`, described on the
+/// unit sphere's chart.
+fn sphere_chart_edge(
+    carrier: &Curve3<f64>,
+    (t0, t1): (f64, f64),
+) -> Result<geom_brep::EdgeCurve<f64>, geom_brep::CertifyError> {
+    use geom_brep::{EdgeCurve, EdgeCurveSpec, EdgeDescriptionSpec};
+    let sphere = Surface::Sphere {
+        center: Point3::origin(),
+        radius: 1.0,
+        axis: Vec3::unit_z(),
+        u_ref: Vec3::unit_x(),
+    };
+    let (keys, lookup) = crate::shared::surf::table(vec![sphere]);
+    EdgeCurve::certify(
+        EdgeCurveSpec {
+            description: EdgeDescriptionSpec::chart(keys[0]),
+            carrier: carrier.clone(),
+            param_start: t0,
+            param_end: t1,
+        },
+        carrier.eval(t0),
+        carrier.eval(t1),
+        &lookup,
+        geom_core::test_support::fixture_lever(1.0),
+        band(),
+        geom_brep::NurbsLane::certified(),
+    )
+}
+
+/// **An ellipse edge within the band of the sphere, described on its
+/// chart, certifies through the general lane** (D3): a parallel's
+/// circle whose semi-axis along `x` is lengthened by `ε/4`, built
+/// through the ellipse door, stores the projected image.
 #[test]
-fn an_edge_on_a_chart_with_no_general_lane_ends_not_yet() {
-    use geom_brep::recourse::Reading;
-    use geom_brep::{CertCheck, CertifyError, EdgeCurve, EdgeCurveSpec, EdgeDescriptionSpec};
+fn an_ellipse_edge_within_the_band_of_a_sphere_certifies() {
     let e = eps();
     let (h, rho) = (0.6, 0.8);
     let ellipse = Curve3::ellipse(
@@ -822,29 +847,36 @@ fn an_edge_on_a_chart_with_no_general_lane_ends_not_yet() {
         band(),
     )
     .expect("an ellipse");
-    let sphere = Surface::Sphere {
-        center: Point3::origin(),
-        radius: 1.0,
-        axis: Vec3::unit_z(),
-        u_ref: Vec3::unit_x(),
-    };
-    let (keys, lookup) = crate::shared::surf::table(vec![sphere]);
-    let (t0, t1) = (0.0, 1.0);
-    let err = EdgeCurve::certify(
-        EdgeCurveSpec {
-            description: EdgeDescriptionSpec::chart(keys[0]),
-            carrier: ellipse.clone(),
-            param_start: t0,
-            param_end: t1,
-        },
-        ellipse.eval(t0),
-        ellipse.eval(t1),
-        &lookup,
-        geom_core::test_support::fixture_lever(1.0),
-        band(),
-        geom_brep::NurbsLane::certified(),
-    )
-    .expect_err("an ellipse on a sphere has no image yet");
+    let edge = sphere_chart_edge(&ellipse, (0.0, 1.0))
+        .unwrap_or_else(|err| panic!("the ellipse's edge certifies: {err:?}"));
+    assert!(
+        matches!(
+            edge.description(),
+            geom_brep::EdgeDescription::Chart(c) if matches!(c.pcurve, Pcurve::Projected(_))
+        ),
+        "{edge:?}"
+    );
+}
+
+/// **An edge described on a chart whose general lane is unwritten for
+/// its carrier ends lever-only "not yet" at the edge certificate, never
+/// as the description's defect** (D3). The carrier is a line within the
+/// band of the unit sphere (tangent to the parallel at height `0.6`,
+/// moved in by `ε/8` and read over a span whose sagitta is `ε/4`), which
+/// no general lane images: the mint refuses `NoGeneralLane`, and the
+/// edge certificate carries it as its own `NoGeneralLane` under the
+/// class check, not folded into `ChartImageUnavailable`'s defect. Read
+/// at a build and at rest.
+#[test]
+fn an_edge_on_a_chart_with_no_general_lane_ends_not_yet() {
+    use geom_brep::recourse::Reading;
+    use geom_brep::{CertCheck, CertifyError};
+    let e = eps();
+    let (h, rho) = (0.6_f64, 0.8_f64);
+    let half = (0.5 * e).sqrt();
+    let line = Curve3::line(Point3::new(rho - 0.125 * e, 0.0, h), Vec3::unit_y());
+    let err =
+        sphere_chart_edge(&line, (-half, half)).expect_err("a line on a sphere has no image yet");
     assert!(matches!(err, CertifyError::NoGeneralLane { .. }), "{err:?}");
     assert_eq!(
         err.decision().map(|(check, _)| check),
@@ -1163,15 +1195,15 @@ fn a_wrong_radius_circle_on_each_class_arm_ends_as_its_incidence_read() {
 
 /// **An ellipse within ε of the sphere or the torus is no carrier the
 /// incidence test shows off** (D3; the review probes on PR 5844): the
-/// kind gate reads incidence first, and an ellipse not shown off is a
-/// class reading, "not yet" until its lane is written, never the
-/// definite miss. The ellipse has semi-axes `a = √(0.2·ε)` and `a/2` in
+/// kind gate reads incidence first, and an ellipse not shown off takes
+/// the general lane, its projected image, which certifies at both
+/// scalars, never the definite miss. The ellipse has semi-axes `a = √(0.2·ε)` and `a/2` in
 /// the tangent plane at the sphere's pole, set at mid-sagitta, and the
 /// same at the torus's outer equator. Its far, near-round twin is the
 /// definite miss (`only_an_incidence_reading_ends_as_one`).
 #[test]
-fn a_tiny_ellipse_within_eps_of_the_sphere_or_torus_is_not_yet() {
-    use geom_brep::recourse::Reading;
+fn a_tiny_ellipse_within_eps_of_the_sphere_or_torus_takes_the_general_lane() {
+    use geom_brep::PcurveCache;
     let e = eps();
     let a = (0.2 * e).sqrt();
     let rows = [
@@ -1213,20 +1245,34 @@ fn a_tiny_ellipse_within_eps_of_the_sphere_or_torus_is_not_yet() {
             )),
         ),
     ];
+    let lift = Interval::from_f64;
+    let tau = core::f64::consts::TAU;
     for (face, surface, ellipse) in rows {
-        for (lane, err) in at_both_lanes(&ellipse, &surface) {
-            assert!(
-                matches!(err, PcurveCertifyError::NoGeneralLane { .. }),
-                "{face} ({lane}): a class reading: {err:?}"
-            );
-            for reading in [Reading::Build, Reading::AtRest] {
-                let ending = err.ending(reading);
-                assert!(
-                    ending.starts_with(geom_core::NOT_YET_ENDING) && !ending.contains("defect"),
-                    "{face} ({lane}) {reading:?}: {ending}"
-                );
-            }
-        }
+        let image = chart_pcurve(&ellipse, &surface, band());
+        let Ok(image @ Pcurve::Projected(_)) = image else {
+            panic!("{face} (f64): the projected image: {image:?}")
+        };
+        let (carrier_i, surface_i) = (ellipse.map_scalar(lift), surface.map_scalar(lift));
+        let image_i = chart_pcurve(&carrier_i, &surface_i, band());
+        let Ok(image_i @ Pcurve::Projected(_)) = image_i else {
+            panic!("{face} (Interval): the projected image: {image_i:?}")
+        };
+        let at_f64 = PcurveCache::certify(image, 0.0, tau, &ellipse, &surface, band())
+            .unwrap_or_else(|e| panic!("{face} (f64): certifies: {e:?}"));
+        let at_interval = PcurveCache::certify(
+            image_i,
+            lift(0.0),
+            lift(tau),
+            &carrier_i,
+            &surface_i,
+            band(),
+        )
+        .unwrap_or_else(|e| panic!("{face} (Interval): certifies: {e:?}"));
+        assert!(
+            at_f64.certificate().envelope < band().zero()
+                && at_interval.certificate().envelope.hi() < band().zero(),
+            "{face}: the envelopes are inside the band"
+        );
     }
 }
 
@@ -1817,7 +1863,7 @@ fn an_arc_on_its_face_is_read_on_it_by_the_edges_own_read() {
 /// edge's span. That is the mint's imaging, which reads a conic over its
 /// whole turn. On the arc of [`an_arc_on_its_face_is_read_on_it_by_the_edges_own_read`]
 /// (the unit circle tilted `1e3·ε` about `x`, edged over
-/// `t ∈ [−1e-4, 1e-4]`, on `z = 0`) it refuses `CarrierOffChart`, the
+/// `t ∈ [−1e-4, 1e-4]`, on `z = 0`) it refuses, read off its chart (`IncidenceRead::Off`), the
 /// full turn's farthest point (`Past(1.0e-6)` at ε 1e-9). `chart_region`
 /// ends that as `TrimOffFace`, the stored culprit at rest, while the planar
 /// tier's [`geom_brep::read_edge_incidence`] reads the same arc on its

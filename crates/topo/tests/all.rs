@@ -63,12 +63,16 @@ use topo::test_support as common;
 mod fixture;
 mod probe_support;
 
+#[path = "a_bending_carrier_on_a_spline_wall_takes_the_general_lane.rs"]
+mod a_bending_carrier_on_a_spline_wall_takes_the_general_lane;
 #[path = "a_block_resting_in_the_zero_band_unions.rs"]
 mod a_block_resting_in_the_zero_band_unions;
 #[path = "a_callers_interval_is_refused_at_its_door.rs"]
 mod a_callers_interval_is_refused_at_its_door;
-#[path = "a_circle_not_shown_on_a_spline_row_refuses_alike_in_every_form.rs"]
-mod a_circle_not_shown_on_a_spline_row_refuses_alike_in_every_form;
+#[path = "a_circle_no_row_holds_ends_alike_in_every_form.rs"]
+mod a_circle_no_row_holds_ends_alike_in_every_form;
+#[path = "a_corner_reads_only_its_own_sectors.rs"]
+mod a_corner_reads_only_its_own_sectors;
 #[path = "a_corrupted_row_is_never_read_as_its_carrier_off_the_face.rs"]
 mod a_corrupted_row_is_never_read_as_its_carrier_off_the_face;
 #[path = "a_decided_overlap_decides_its_pair.rs"]
@@ -85,8 +89,12 @@ mod a_keel_on_the_floor_subtracts_as_a_slit;
 mod a_keel_wrapped_at_both_ends_splits_as_a_ring;
 #[path = "a_slit_tip_at_a_cone_apex_reads_its_full_turn.rs"]
 mod a_slit_tip_at_a_cone_apex_reads_its_full_turn;
+#[path = "a_spline_faces_stated_image_ends_by_its_carriers_incidence.rs"]
+mod a_spline_faces_stated_image_ends_by_its_carriers_incidence;
 #[path = "a_trace_reads_a_piece_against_its_carrier.rs"]
 mod a_trace_reads_a_piece_against_its_carrier;
+#[path = "a_verdict_moves_only_the_faces_it_read.rs"]
+mod a_verdict_moves_only_the_faces_it_read;
 #[path = "a_zero_vertex_pair_keeps_the_kept_sides_point.rs"]
 mod a_zero_vertex_pair_keeps_the_kept_sides_point;
 #[path = "an_off_iso_straight_edge_takes_its_general_row.rs"]

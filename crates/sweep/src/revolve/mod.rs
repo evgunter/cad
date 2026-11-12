@@ -156,10 +156,7 @@ use topo::{Body, DihedralReading, EdgeKey, EulerOpError, FaceKey, ShellKey, Soli
 /// The predicate names a revolve's cosurface decision reports under
 /// (the revolution walls: planes, cylinders and cones from lines,
 /// spheres and tori from arcs).
-pub(super) const WALL_COSURFACE: crate::swept::CosurfaceNames = crate::swept::CosurfaceNames {
-    lines: "wall_lines_cosurface",
-    arcs: "wall_arcs_cosurface",
-};
+pub(super) const WALL_COSURFACE: crate::swept::CosurfaceNames = crate::rows::WALL_COSURFACE;
 
 /// The revolve axis: a line in **sketch coordinates** (module docs).
 /// The profile must lie in the closed half-plane `r ≥ 0`, where `r` is
@@ -395,6 +392,11 @@ pub enum RevolvedKind {
         start_meridians: Vec<Vec<EdgeKey>>,
         /// End-chain meridian edges, per loop, per canonical segment.
         end_meridians: Vec<Vec<EdgeKey>>,
+        /// The row of the caps' coincidence where an axis edge joins its
+        /// two caps smoothly (a half turn): the caps then wear one
+        /// surface record (`topo::Body::one_record_across`). `None`
+        /// where they are two.
+        coplanar_caps: Option<topo::Coincidence>,
     },
     /// θ = 2π: no caps. The **lamina** case (no axis contact) sweeps
     /// one full-period band: `walls`/`rims` carry the complete
@@ -1110,7 +1112,7 @@ fn partial_angle_reverses<T: Decide>(t: T, r_max: T, band: Band) -> Result<bool,
             _ => RevolveError::AngleEscalated { source },
         })?;
     let rows = TurnRows::exact("revolve_angle_headroom");
-    match Period::new(T::tau()).strictly_partial(rows, angle, Exact::new(r_max), band) {
+    match Period::angle().strictly_partial(rows, angle, Exact::new(r_max), band) {
         Ok(true) => Ok(sign == NonzeroSign::Positive),
         Ok(false) => Err(RevolveError::FullRangeAngle),
         Err(undecided) => Err(RevolveError::AngleEscalated {

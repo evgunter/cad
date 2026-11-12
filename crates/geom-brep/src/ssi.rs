@@ -148,7 +148,7 @@ pub(crate) use four::{RowCrossing, RowUnreadable, row_crossing, row_piece};
 pub(crate) use implicit_chart::PassKey;
 pub use implicit_chart::{ImplicitSection, SectionReading};
 pub use march::{
-    BranchEnd, ReachBound, SSI_IDEALIZED_STEP, SSI_NEWTON_ITERS, SSI_NEWTON_TOL,
+    BranchEnd, BranchTip, ReachBound, SSI_IDEALIZED_STEP, SSI_NEWTON_ITERS, SSI_NEWTON_TOL,
     SSI_QUADRIC_NOISE_ULPS, SSI_SETTLE_MAX, SSI_SPLINE_NOISE_ULPS, SSI_STEP_DEVIATION,
     STEP_BOUND_MINORITY, SettlingRefusal, StepBound, StepCap, StepFault, StepperMode,
 };
@@ -736,8 +736,8 @@ pub enum SsiError {
     /// that validated, and surfaced with the spline layer's own
     /// refusal rather than swallowed (D4 ¶2).
     ChartRow {
-        /// The spline layer's typed refusal.
-        source: geom_core::spline::SplineError,
+        /// The spline layer's typed refusal of the row read.
+        source: geom_core::spline::Built<geom_core::spline::SplineError>,
     },
     /// The NURBS × NURBS boundary pass isolated no answer on a face of
     /// the two knot rectangles' product, or could not read a row or
@@ -1261,9 +1261,9 @@ impl core::fmt::Display for SsiError {
                 write!(f, "ssi: {what}")
             }
             Self::CarrierEnclosure(r) => write!(f, "ssi: {r}"),
-            Self::ChartRow { .. } => write!(
+            Self::ChartRow { source } => write!(
                 f,
-                "ssi: a NURBS wall's boundary row is not valid spline structure"
+                "ssi: a NURBS wall's boundary row is not valid spline structure: {source}"
             ),
             Self::PairBoundaryUnresolved { pieces, cause } => match cause {
                 PairBoundaryCause::Unresolved => write!(
@@ -1538,9 +1538,11 @@ impl SsiError {
             // is the kernel's.
             Self::Fit(FitError::TooFewPoints { .. }) => defect_ending(reading).to_owned(),
             // Interpolation takes no tolerance, runs no knot algebra and
-            // reads no rows: these are the approximating fits' refusals.
+            // reads no rows: these are the approximating fits' refusals,
+            // and the march asks no degree 0 (`Structure`).
             Self::Fit(
                 FitError::InvalidTolerance { .. }
+                | FitError::Structure(_)
                 | FitError::KnotAlgebra(_)
                 | FitError::RaggedRows { .. }
                 | FitError::BudgetExhausted { .. },
@@ -1549,7 +1551,7 @@ impl SsiError {
             // 3-D images and chord parameters are computed afterwards in
             // f64. A chord below the running total's rounding is absorbed,
             // so two parameters tie (`ParamCountMismatch`, its knots
-            // `Structure`); a step below an image's resolution repeats a
+            // `Assembly`); a step below an image's resolution repeats a
             // point, and two images too far apart or too near for their
             // distance to be represented leave a chord with no length
             // (`DegenerateChord`); an image can overflow
@@ -1560,7 +1562,7 @@ impl SsiError {
                 FitError::NonFinitePoint { .. }
                 | FitError::DegenerateChord { .. }
                 | FitError::ParamCountMismatch { .. }
-                | FitError::Structure(_)
+                | FitError::Assembly(_)
                 | FitError::Lsq(_),
             ) => Unsized::Fit.recourse(RefusedArm::SignCertain(None), reading),
             Self::TraceUnresolved { .. } => TRACE_UNRESOLVED_RECOURSE.to_owned(),
@@ -2314,8 +2316,9 @@ pub(crate) const WRONG_LANE_RECOURSE: &str = "Recourse: look the pair up in the 
 /// zero ([`TubeDegeneracy::WallConstantAcrossLocus`]): the face's own
 /// degeneracy. The stored face is what the lever edits, so the ending
 /// is the same at rest as at a build.
-const WALL_COLLAPSED_RECOURSE: &str = "Recourse: move the geometry so the spline face does not \
-     collapse to a point or a curve where the surfaces meet";
+const WALL_COLLAPSED_RECOURSE: &str = geom_core::move_recourse!(
+    "so the spline face does not collapse to a point or a curve where the surfaces meet"
+);
 
 /// Fit a marched polyline into a cubic NURBS carrier and its pcurves,
 /// on **one shared parameter** (the OQ4 contract).
@@ -2922,8 +2925,13 @@ fn finite_net(operand: &'static str, net: &NurbsSurface<f64>) -> Result<(), SsiE
 /// docs). Shape (iv)'s planted small loop lives here.
 ///
 /// The pair's pose is decided first, once, by the section value's own
-/// reading ([`crate::CylinderSpherePose::decide`]), and the march reads
-/// it ([`march_cylinder_sphere`]).
+/// reading ([`crate::CylinderSpherePose::decide`]); past it, this door
+/// seeds and accounts the caller's slab by the 3-D cell sweeps
+/// ([`implicit_pair_r3`]). No production path reads it: the section
+/// value counts this pair on its ruling sweep and marches from the
+/// count's witnesses. It is the generic ℝ³ implicit-pair door's test
+/// vehicle, a caller's slab cutting the section as the value's ball
+/// never does.
 ///
 /// # Errors
 ///
@@ -2967,34 +2975,67 @@ pub fn cylinder_sphere_ssi(
     )
 }
 
-/// **The ℝ³ march of a decided cylinder × sphere pose** over `domain`,
-/// in the order the pose was asked of.
+/// **The ℝ³ march of a decided cylinder × sphere pose**, from the
+/// `seeds` its ruling sweep states (the counted loops' witnesses), over
+/// `domain`, the cube about the sphere's ball. No seeding or accounting
+/// sweep runs: the pose counted the section, the sphere's ball holds
+/// every loop of it, and the carry matches these branches one to one to
+/// the count's witnesses, each on a closed branch. The section value
+/// marches only a transverse pose, so a tangent pose here is the
+/// caller's defect.
 ///
-/// A tangent pose refuses before any rung ([`SsiError::PairTangent`]):
-/// a tangency is C7's construction, and near one the exhaustiveness
-/// subdivision's surviving set is a three-dimensional shell rather than
-/// a curve, so a marcher that found out later would first exhaust its
-/// cell budget.
+/// Where debug assertions are on the count is re-derived by the ruling
+/// angle's coverage ([`crate::pair_section::ruling::coverage`]).
 ///
 /// # Errors
 ///
-/// [`cylinder_sphere_ssi`]'s, but the pose's own.
-pub fn march_cylinder_sphere(
+/// [`march_seeds`]'s; [`SsiError::WrongLane`] for a tangent pose.
+pub(crate) fn march_cylinder_sphere(
     pose: &crate::CylinderSpherePose<f64>,
+    seeds: &[Point3<f64>],
     domain: SsiDomain,
     band: Band,
-) -> Result<SsiOutcome, SsiError> {
+) -> Result<Vec<SsiBranch>, SsiError> {
+    let (a, b) = pose.operands();
     checked(
         [("sphere", pose.sphere()), ("cylinder", pose.cylinder())],
         domain,
     )?;
-    past_the_gap(
-        TangentPair::CylinderSphere,
-        pose.operands(),
-        pose.tangency(),
-        domain,
-        band,
-    )
+    if pose.tangency().is_some() {
+        return Err(SsiError::WrongLane {
+            expected: "a transverse cylinder × sphere pair, whose tangent poses are never marched",
+        });
+    }
+    let tol = MarchTol::from_band(band, quadric_readout(a, b, domain.slab()))?;
+    let (branches, tubes) = march_seeds(a, b, seeds, &march::SlabExit, domain, tol, band)?;
+    // DESIGN's error taxonomy, row 5, as for two cylinders
+    // ([`march_cylinder_cylinder`]). No meeting lies outside the sphere's
+    // ball, so every cell's meetings must lie in a found branch's tube.
+    //
+    // **Calibration** (2026-11-04): over the ten carries of
+    // `pair_section::wiring::the_cylinder_sphere_coverage_keeps_its_headroom`
+    // (one loop, two, a centre on the wall, a turned wall; both orders),
+    // every coverage closed by its 3rd halving of the first cut's 64 cells
+    // and within 98 cells, at ε 1e-6, 1e-9 and 1e-12, against
+    // `COVERAGE_DEPTH`'s 30 halvings and `COVERAGE_CELLS`'s 2¹⁸; that row
+    // guards the headroom.
+    #[cfg(debug_assertions)]
+    {
+        let covered = crate::pair_section::ruling::coverage(
+            pose.cylinder(),
+            pose.sphere(),
+            pose.ball(),
+            &tubes,
+        );
+        debug_assert!(
+            covered.is_ok(),
+            "the ruling angle's cells {covered:?} hold meetings with the sphere in no found \
+             branch's tube: the count missed a loop, or a tube is not its branch's"
+        );
+    }
+    #[cfg(not(debug_assertions))]
+    let _ = tubes;
+    Ok(branches)
 }
 
 /// **sphere × torus** — the ℝ³ implicit-pair arm, as
@@ -3036,8 +3077,8 @@ pub fn sphere_torus_ssi(
 }
 
 /// **The ℝ³ march of a decided sphere × torus pose** over `domain`, in
-/// the order the pose was asked of: only past a transverse gap, as
-/// [`march_cylinder_sphere`].
+/// the order the pose was asked of: only past a transverse gap, a
+/// tangent pose refusing before any rung ([`SsiError::PairTangent`]).
 ///
 /// # Errors
 ///
@@ -3095,8 +3136,8 @@ pub fn cylinder_torus_ssi(
 }
 
 /// **The ℝ³ march of a decided cylinder × torus pose** over `domain`,
-/// in the order the pose was asked of: only past a transverse gap, as
-/// [`march_cylinder_sphere`].
+/// in the order the pose was asked of: only past a transverse gap, a
+/// tangent pose refusing before any rung ([`SsiError::PairTangent`]).
 ///
 /// # Errors
 ///
@@ -3156,8 +3197,8 @@ pub fn torus_torus_ssi(
 }
 
 /// **The ℝ³ march of a decided torus × torus pose** over `domain`, in
-/// the order the pose was asked of: only past a transverse gap, as
-/// [`march_cylinder_sphere`].
+/// the order the pose was asked of: only past a transverse gap, a
+/// tangent pose refusing before any rung ([`SsiError::PairTangent`]).
 ///
 /// # Errors
 ///
@@ -3552,7 +3593,7 @@ fn plane_pcurve(
         control,
         carrier.weights().to_vec(),
     )
-    .map_err(|e| SsiError::Fit(geom::FitError::Structure(e)))
+    .map_err(|e| SsiError::Fit(geom::FitError::Assembly(geom_core::spline::Built::new(e))))
 }
 
 /// The ℝ⁴ trace's fitted product **without a certificate** — the OQ4
@@ -3657,7 +3698,7 @@ fn trace_plane_nurbs_within(
     // certifies, as every plane × NURBS branch does.
     let pass = read.pass(&form)?;
     let wall_op = SsiOperand::Nurbs(read.charted().clone());
-    let ends = ends::Ends::implicit(&sys, ctx, &wall_op, band);
+    let ends = ends::Ends::implicit(&sys, ctx, &wall_op, band, &[]);
     let (states, _) = ends.through_seed([seed_uv.0, seed_uv.1], &pass.crossings)?;
     // The last triple the certificate refused; the verdict is the
     // certifying door's to report, not this one's.
@@ -5117,10 +5158,12 @@ mod ending_tests {
             (
                 "chart row",
                 SsiError::ChartRow {
-                    source: geom_core::spline::SplineError::ControlCountMismatch {
-                        control: 3,
-                        expected: 4,
-                    },
+                    source: geom_core::spline::Built::new(
+                        geom_core::spline::SplineError::ControlCountMismatch {
+                            control: 3,
+                            expected: 4,
+                        },
+                    ),
                 },
             ),
             (

@@ -301,10 +301,11 @@ pub fn route(a: SurfaceKind, b: SurfaceKind) -> PairRoute {
             note: "built by the section value (geom_brep::pair_section) over its pose, \
                    decided once: the coaxial pose, the axis-to-centre distance decided \
                    Zero by its margin, is two closed-form circles, the tangent circle as \
-                   classification data, or empty, and every transversal pose still \
-                   marches in ℝ³ on the IMPLICIT PAIR (2×3 SVD, Hoffmann §6.2) and is \
-                   fitted, with the full three-limb certificate and in-op exhaustiveness \
-                   (geom_brep::ssi::march_cylinder_sphere)",
+                   classification data, or empty, and every off-axis transversal pose is \
+                   counted by the ruling sweep along the cylinder's rulings, each loop \
+                   witnessed, marched in ℝ³ on the IMPLICIT PAIR (2×3 SVD, Hoffmann §6.2) \
+                   from those witnesses and fitted with the full three-limb certificate, \
+                   exhaustiveness closing by the count",
         },
         // ---- Rung 3: quartic-and-worse loci. The general rung is
         // implemented, but it retires per arm (C12.1), so these still
@@ -902,7 +903,9 @@ pub enum PlaneCylinderSection<T: Real> {
     /// Axis ∥ normal: the rung-1 rim `Circle` (the M2 case, unchanged —
     /// carrier axis is the CYLINDER axis, u_ref the cylinder's seam).
     Rim(Curve3<T>),
-    /// Axis in-plane, axis-to-plane gap definitely < r: two rulings.
+    /// Axis in-plane, axis-to-plane gap definitely < r: two rulings,
+    /// each along the cylinder's stored axis (nonzero at rest, tier 3's
+    /// check 1), as is [`Self::TangentLine`].
     ParallelLines {
         /// The ruling on the `+axis×normal`-ish side.
         l1: Curve3<T>,
@@ -1915,7 +1918,9 @@ pub(crate) fn parallel_cylinder_gap_reported<T: Decide>(
 pub enum PlaneConeSection<T: Real> {
     /// Apex on the plane, plane cutting inside the cone, and the real
     /// plane's section starting within the zero band of the apex on both
-    /// nappes: two generator lines through the apex.
+    /// nappes: two generator lines through the apex, each along a ruling
+    /// over the cone's squared frame, unit to rounding and never the zero
+    /// vector, so a reader needs no decision that it has a direction.
     ApexLinePair {
         /// The generator at azimuth `φ + δ`.
         l1: Curve3<T>,
@@ -1996,7 +2001,13 @@ impl<T: Real> ApexFan<T> {
         self.v.dot(n).atan2(self.u.dot(n))
     }
 
-    /// The ruling at azimuth `phi`.
+    /// The ruling at azimuth `phi`: `a·cos α + (u·cos φ + v·sin φ)·sin α`
+    /// over the [squared](geom::Frame::square) frame, whose `a`, `u` and
+    /// `v` are orthonormal, so it is unit to rounding at every `φ` and
+    /// never the zero vector. A line built along it names a direction
+    /// with no decision (`work/onecopy/an-axis-reads-its-direction-as-unit-by-convention-not-type.md`):
+    /// [`PlaneConeSection::ApexLinePair`]'s and
+    /// [`PlaneConeSection::ApexTangentLine`]'s readers rely on it.
     fn ruling(&self, phi: T) -> Vec3<T> {
         let (s, c) = phi.sin_cos();
         self.a * self.cos_a + (self.u * c + self.v * s) * self.sin_a
@@ -2233,21 +2244,24 @@ pub fn plane_cone_section<T: Decide>(
     // axis-normal lane by `cos α`, so each clause is decided before
     // either lane runs. They run BEFORE the pose trileans, so a refusal
     // here has classified no pose — `route_pose` reads it as unserved.
+    const PN_APERTURE_SIN: &str = "pn_aperture_sin";
+    const PN_APERTURE_COS: &str = "pn_aperture_cos";
+    const PN_SEAM_OFF_AXIS: &str = "pn_seam_off_axis";
     for (name, margin, what) in [
         (
-            "pn_aperture_sin",
+            PN_APERTURE_SIN,
             sin_a,
             "the cone's half-angle does not definitely open off its axis, so the \
              apex lane's division by sin α is not decided",
         ),
         (
-            "pn_aperture_cos",
+            PN_APERTURE_COS,
             cos_a,
             "the cone's half-angle is not definitely under a right angle, so the \
              axis-normal circle's division by cos α is not decided",
         ),
         (
-            "pn_seam_off_axis",
+            PN_SEAM_OFF_AXIS,
             seam_width,
             "the cone's seam does not definitely leave its axis, so where its \
              azimuth zero lies is not decided",
@@ -2300,9 +2314,12 @@ pub fn plane_cone_section<T: Decide>(
         };
         let gap_err = rounding(apex - q, n, T::from_f64(2.5 * f64::EPSILON));
         let size = apex_gap.abs() + gap_err;
+        const PN_APEX_PAIR_REACH: &str = "pn_apex_pair_reach";
+        const PN_APEX_TANGENT_REACH: &str = "pn_apex_tangent_reach";
+        const PN_APEX_POINT_REACH: &str = "pn_apex_point_reach";
         let (name, bound) = match verdict {
             Sign::Positive => (
-                "pn_apex_pair_reach",
+                PN_APEX_PAIR_REACH,
                 pair_bound(
                     reach,
                     (apex, a, cos_a, sin_a, seam_width),
@@ -2318,12 +2335,12 @@ pub fn plane_cone_section<T: Decide>(
             // Unsourced lever: the plane's stand-off from the apex plus its rounding, a datum
             // length rather than an extent; its honest door `levered_inv(size, steep)` rounds apart.
             Sign::Zero => (
-                "pn_apex_tangent_reach",
+                PN_APEX_TANGENT_REACH,
                 Margin::levered(T::one() / steep, geom_core::Lever::unsourced(size)),
             ),
             // Unsourced lever: as `pn_apex_tangent_reach`'s, over the discriminant.
             Sign::Negative => (
-                "pn_apex_point_reach",
+                PN_APEX_POINT_REACH,
                 Margin::levered(T::one() / discr.abs(), geom_core::Lever::unsourced(size)),
             ),
         };
@@ -3033,21 +3050,24 @@ pub fn cone_cylinder_section<T: Decide>(
     // question; `coc_seam_off_axis` because the circles' seam is the
     // cone's squared to the axis. All three meter through the operand extent, the lever every
     // angular margin here takes.
+    const COC_APERTURE_SIN: &str = "coc_aperture_sin";
+    const COC_APERTURE_COS: &str = "coc_aperture_cos";
+    const COC_SEAM_OFF_AXIS: &str = "coc_seam_off_axis";
     for (name, margin, what) in [
         (
-            "coc_aperture_sin",
+            COC_APERTURE_SIN,
             sin_a,
             "the cone's half-angle does not definitely open off its axis, so the \
              station's division by sin α is not decided",
         ),
         (
-            "coc_aperture_cos",
+            COC_APERTURE_COS,
             cos_a,
             "the cone's half-angle is not definitely under a right angle, so cot α's \
              sign — and with it which nappe each circle is on — is not decided",
         ),
         (
-            "coc_seam_off_axis",
+            COC_SEAM_OFF_AXIS,
             seam_width,
             "the cone's seam does not definitely leave its axis, so the circles' \
              azimuth zero is not decided",

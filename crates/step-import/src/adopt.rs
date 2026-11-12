@@ -44,7 +44,7 @@
 use geom::Curve3;
 use geom::{Surface, SurfaceData};
 use geom_brep::{EdgeCurveSpec, EdgeDescriptionSpec, MappedCurve, MappedSource, SurfacePair};
-use geom_core::spline::SplineError;
+use geom_core::spline::{Built, SplineError};
 use geom_core::{Affine3, FileCoincidence, Point2, Point3};
 use topo::construction::Construct;
 use topo::construction::FaceSurface;
@@ -588,13 +588,11 @@ fn adopt_edges(
             && let Some(mapped) =
                 mapped_self_description(&spec.carrier, p_start, p_end, spec.t0, spec.t1, nurbs_rim)
         {
-            // The conventional rung (D2): two COINCIDENT surface
-            // records are one carrier, so the locus rests in one
-            // record's chart, as `topo::rest_locus` decides (the
-            // carrier-equality ladder, over the faces' region), and the
-            // rung's own gate has just metered the carrier onto it
-            // (`carrier_on_surface`); one surface on both sides is an
-            // image in its chart. The pushforward that used to BE the
+            // The conventional rung (D2): the locus rests where
+            // `topo::rest_locus` says by key, an image in the chart of
+            // one surface on both sides and the pair of two records
+            // otherwise, and the rung's own gate has just metered the
+            // carrier onto it (`carrier_on_surface`). The pushforward that used to BE the
             // description becomes the authority record beside it
             // (U2 Q3).
             //
@@ -616,23 +614,7 @@ fn adopt_edges(
                     plane_of_pair(body, fs_plus, fs_minus).unwrap_or(fs_plus),
                 )
             } else {
-                let band = geom_core::Band::linear(tol).map_err(|_| {
-                    resolve(
-                        "internal: the run's tolerance forms no band, which the importer's own \
-                         tolerance gate admits no file past",
-                    )
-                })?;
-                topo::rest_locus(
-                    body,
-                    [
-                        (fs_plus, Some(sides.plus.face)),
-                        (fs_minus, Some(sides.minus.face)),
-                    ],
-                    &spec.carrier,
-                    (spec.t0, spec.t1),
-                    band,
-                )
-                .spec()
+                topo::rest_locus([fs_plus, fs_minus]).spec()
             };
             candidates.push((
                 AdoptionCandidate::MappedCurve,
@@ -758,7 +740,7 @@ fn iso_curve_candidates(
     fs_minus: topo::SurfaceKey,
     tol: Tol,
     candidates: &mut Vec<(AdoptionCandidate, EdgeDescriptionSpec<f64>)>,
-) -> Result<(), SplineError> {
+) -> Result<(), Built<SplineError>> {
     // Carriers outside the rung's vocabulary — neither the bitwise
     // NURBS match nor the promoted-line vertex match — take no
     // candidates and read no wall columns.
@@ -1174,7 +1156,7 @@ enum ArcRimRefusal {
     /// body this reader assembles reaches it — and the refusal names
     /// which invariant broke rather than being reported as a rim
     /// deviation.
-    ChartRow(SplineError),
+    ChartRow(Built<SplineError>),
 }
 
 /// One side a described (non-placeholder) NURBS wall, the other a

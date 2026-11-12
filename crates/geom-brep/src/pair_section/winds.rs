@@ -235,27 +235,25 @@ impl Channel {
         let b = Point3::new(b.x, b.y, b.z);
         let w = |o: Point3<f64>| Vec3::new(b.x - lift(o.x), b.y - lift(o.y), b.z - lift(o.z));
         match self {
+            // The frame's own `in_plane` is not read here: it would lift
+            // the frame and form `v_ref` as the lifted axis × the lifted
+            // `u_ref`, an enclosure of the exact cross product, where this
+            // reads the lift of the `f64` `v_ref` the channel's azimuth
+            // reads (`Self::azimuth`). The box is cleared against that
+            // same `v_ref`, so the two readings stay one frame's.
             Self::Axis(frame) => {
                 let w = w(frame.origin);
                 clears(w.dot(lift3(frame.u_ref))) || clears(w.dot(lift3(frame.v_ref())))
             }
             Self::Core(circle) => {
-                use geom_core::Real as _;
                 let (frame, big_r) = (circle.frame, circle.radius);
                 let w = w(frame.origin);
                 let a = lift3(frame.axis);
-                let lifted = geom::Frame::new(
-                    Point3::new(
-                        lift(frame.origin.x),
-                        lift(frame.origin.y),
-                        lift(frame.origin.z),
-                    ),
-                    a,
-                    lift3(frame.u_ref),
-                );
-                let h = lifted.height(b);
+                // The box's height over the core's plane: `w` is already
+                // the offset from the lifted centre.
+                let h = w.dot(a);
                 let perp = a.cross(w.cross(a));
-                let rho = perp.dot(perp).sqrt();
+                let rho = perp.norm();
                 clears(rho - lift(big_r)) || clears(h)
             }
         }

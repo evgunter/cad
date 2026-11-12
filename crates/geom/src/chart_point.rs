@@ -130,8 +130,7 @@ pub enum ChartArm<T> {
         minor: T,
     },
     /// A spindle sheet; `v` the tube angle, closed on `[−v*, v*]` and read
-    /// in the latitude window, which holds that interval whole only for
-    /// `v* < π − 1` (`work/spiricarm/a-wide-apples-tube-angle-passes-the-latitude-windows-cut.md`).
+    /// in [`Window::Sheet`].
     Spindle {
         /// The signed major radius R.
         major: T,
@@ -205,12 +204,13 @@ pub enum ChartAngle {
 
 impl ChartAngle {
     /// The window a point reading names this angle in (C4): the
-    /// latitude's for a sphere's latitude and a spindle sheet's tube
-    /// angle, the angle window for the rest.
+    /// latitude's for a sphere's latitude, the sheet's for a spindle
+    /// sheet's tube angle, the angle window for the rest.
     pub fn window(self) -> Window {
         match self {
             Self::Azimuth | Self::Tube => Window::Angle,
-            Self::Latitude | Self::SheetTube => Window::Latitude,
+            Self::Latitude => Window::Latitude,
+            Self::SheetTube => Window::Sheet,
         }
     }
 }
@@ -344,7 +344,7 @@ impl<T: Decide> ChartInverse<T> {
     /// each angle named in its window, the cone's nappe decided on `h`.
     pub fn point(&self, p: Point3<T>, band: Band) -> ChartPoint<T> {
         let (x, y, h) = self.frame.local(p);
-        let off =
+        let off_as =
             |name, length: T| !matches!(decide(name, Margin::of(length), band), Ok(Sign::Positive));
         // The cone's nappe: the nearer of the two generators in the
         // point's half-plane pair, the `+radial` one where `h > 0`, the
@@ -366,9 +366,6 @@ impl<T: Decide> ChartInverse<T> {
             }
             ChartArm::Sphere { .. } => ChartChannels::Sphere,
             ChartArm::Torus { major, .. } => ChartChannels::Torus { major },
-            // A sheet's `v` is closed on `[−v*, v*]` about zero, read in the
-            // latitude's window, which holds it whole only for `v* < π − 1`:
-            // a wider apple's far side reads a turn off (filed).
             ChartArm::Spindle { major, .. } => ChartChannels::Spindle { major },
         };
         let mut tube = None;
@@ -378,9 +375,12 @@ impl<T: Decide> ChartInverse<T> {
             }
             direction.principal_in(angle.window(), band)
         });
-        let on_axis = || read.rho.is_some_and(|rho| off("chart_point_on_axis", rho));
+        let on_axis = || {
+            read.rho
+                .is_some_and(|rho| off_as("chart_point_on_axis", rho))
+        };
         let on_tube_circle =
-            || tube.is_some_and(|tube| off("chart_point_on_tube_circle", tube.length()));
+            || tube.is_some_and(|tube| off_as("chart_point_on_tube_circle", tube.length()));
         let singular = !nappe_decided || on_axis() || on_tube_circle();
         ChartPoint {
             uv: read.uv,
@@ -404,7 +404,10 @@ impl<T: Decide> Surface<T> {
     /// the point of the surface nearest `p`, read off the surface's
     /// geometric fields alone. It reads no `u_ref` and no chart frame, so a
     /// surface charted on another frame, or about its flipped axis, has
-    /// the same foot to the bit.
+    /// the same foot to the bit, with one exception: a `p` exactly on a
+    /// cone's apex plane, where `axis · (p − apex)` rounds to a zero whose
+    /// sign does not follow the axis. There the nappe is the stored axis's,
+    /// and the flipped axis names the other.
     ///
     /// | kind | foot |
     /// |---|---|
@@ -439,7 +442,10 @@ impl<T: Decide> Surface<T> {
         // the axis no longer than `p`'s last place. Beside the axis that
         // part is not small against the offset, and a radial read with
         // it would tilt a cone's generator, or lift a torus's tube
-        // circle off its plane, by as much.
+        // circle off its plane, by as much. Both rejections are
+        // subtractive, not [`Vec3::reject_from`]'s triple product, which
+        // amplifies an axis carrying width at the interval scalar
+        // ([`Line::offset`]).
         let about = |origin: Point3<T>, axis: Vec3<T>| {
             let line = Line { origin, dir: axis };
             let (t, off) = line.param_and_offset(p);
@@ -501,8 +507,9 @@ mod tests {
         Band::new(1e-9, 1e-8).unwrap()
     }
 
-    /// A lemon and an apple with `R < r·cos 1`, as `(R, r)`.
-    const SHEETS: [(f64, f64); 2] = [(-0.1, 0.9), (0.4, 1.0)];
+    /// A lemon, an apple, a wide apple (`v* > π − 1`) and one near the
+    /// horn, as `(R, r)`.
+    const SHEETS: [(f64, f64); 4] = [(-0.1, 0.9), (0.4, 1.0), (0.8, 1.0), (0.999, 1.0)];
 
     fn surfaces() -> Vec<Surface<f64>> {
         let axis = Vec3::new(0.0, 0.6, 0.8);
@@ -573,11 +580,11 @@ mod tests {
                 u_ref: Vec3::new(1.0, 0.0, 0.0),
             });
         }
-        // A lemon (`v* ≈ 1.459`) and an apple narrow enough for the
-        // latitude window (`R < r·cos 1`, `v* ≈ 1.982`): the sheet's
-        // foot is read by the signed major radius. On a sheet the walk's
-        // `|v| ≤ 1.42` is stretched onto `0.97·v*`, so the apple's
-        // samples run past `π/2` to near its apexes.
+        // A lemon (`v* ≈ 1.459`) and apples from `v* ≈ 1.982` to within
+        // `0.045` of the horn: the sheet's foot is read by the signed
+        // major radius. On a sheet the walk's `|v| ≤ 1.42` is stretched
+        // onto `0.97·v*`, so an apple's samples run past `π/2` to near
+        // its apexes, and a wide one's past `1 − π`.
         for (major_radius, minor_radius) in SHEETS {
             all.push(Surface::Spindle {
                 center: Point3::new(0.2, -0.1, 0.3),
@@ -639,9 +646,11 @@ mod tests {
         for k in 0..12 {
             let phi = f64::from(k) * 0.53;
             let radial = e1 * phi.cos() + e2 * phi.sin();
-            for off in [5e-10, -5e-11] {
+            for off in [5e-10, -5e-11, 0.0] {
                 // Beside the axis, at heights along it.
-                out.push(axis.origin + a * (f64::from(k) * 0.3 - 1.6) + radial * off.abs());
+                if off != 0.0 {
+                    out.push(axis.origin + a * (f64::from(k) * 0.3 - 1.6) + radial * off.abs());
+                }
                 match *surface {
                     // Beside the apex plane, out along it.
                     Surface::Cone { apex, .. } => {
@@ -652,7 +661,7 @@ mod tests {
                         center,
                         major_radius,
                         ..
-                    } => {
+                    } if off != 0.0 => {
                         let m = center + radial * major_radius;
                         out.push(m + radial * off);
                         out.push(m + a * off);
@@ -718,7 +727,18 @@ mod tests {
                         "{surface:?} at {p:?}: p lies off the foot along the normal"
                     );
                 }
-                for other in &others {
+                // Exactly on a cone's apex plane the nappe is the stored
+                // axis's, so the flipped frame names the other (`foot`'s
+                // docs).
+                let on_apex_plane = match surface {
+                    Surface::Cone { apex, axis, .. } => axis.dot(p - apex) == 0.0,
+                    _ => false,
+                };
+                let frames = crate::test_support::CHART_FRAMES[1..].iter();
+                for (other, &(_, flip)) in others.iter().zip(frames) {
+                    if on_apex_plane && flip {
+                        continue;
+                    }
                     let again = other.foot(p).unwrap();
                     assert_eq!(
                         (again.x.to_bits(), again.y.to_bits(), again.z.to_bits()),
@@ -797,14 +817,54 @@ mod tests {
         assert!(plane.foot(o).is_some(), "a plane has a foot everywhere");
     }
 
+    /// **At the interval scalar, a horn reads its cusp's `v` as `π`, and
+    /// the points beside it on their own side.** The horn `R = r = 1`
+    /// lifted to `Interval`: its cusp, the one point of the sheet on
+    /// [`Window::Sheet`]'s cut, reads `π` (the read's tie); a point a
+    /// micro-radian to a milliradian from it along the meridian, above
+    /// or below, reads an enclosure narrower than `1e-9` about its own
+    /// `±(π − δ)`, never a turn off or across the cut.
+    #[test]
+    fn a_horns_cusp_and_its_neighbours_read_their_own_side_at_interval() {
+        use geom_core::{Bounds, Interval};
+        let iv = Interval::from_f64;
+        let horn = Surface::Spindle {
+            center: Point3::new(iv(0.0), iv(0.0), iv(0.0)),
+            axis: Vec3::new(iv(0.0), iv(0.0), iv(1.0)),
+            major_radius: iv(1.0),
+            minor_radius: iv(1.0),
+            u_ref: Vec3::new(iv(1.0), iv(0.0), iv(0.0)),
+        };
+        let pi = core::f64::consts::PI;
+        let cusp = horn
+            .chart_point(Point3::new(iv(0.0), iv(0.0), iv(0.0)), band())
+            .unwrap();
+        assert!(
+            cusp.uv.y.lo() >= pi - 1e-12 && cusp.uv.y.hi() <= pi + 1e-12,
+            "the cusp reads {:?}",
+            cusp.uv.y
+        );
+        for delta in [1e-6, 1e-4, 1e-3] {
+            for v in [pi - delta, delta - pi] {
+                let p = Point3::new(1.0 + v.cos(), 0.0, v.sin()).map(iv);
+                let read = horn.chart_point(p, band()).unwrap().uv.y;
+                assert!(
+                    read.lo() >= v - 1e-9 && read.hi() <= v + 1e-9,
+                    "v = {v}: read {read:?}"
+                );
+            }
+        }
+    }
+
     /// **At the interval scalar, a point whose direction's enclosure
     /// holds zero has no foot**, on every arm that reads one: on a skew
     /// axis lifted to `Interval`, a point on the axis is on it only to the
     /// axis's enclosure, so the radial offset straddles zero, and the foot
     /// is refused rather than read along a direction that is not one. So
-    /// for the cylinder's, cone's and torus's axes, the cone's apex, the
-    /// sphere's centre and the torus's tube circle; a point a millimetre
-    /// off each has a foot.
+    /// for the cylinder's, cone's and torus's axes and the torus's tube
+    /// circle, and for an enclosure of a point that holds the cone's apex
+    /// or the sphere's centre (each also an exact zero vector at its own
+    /// point); a point a millimetre off each has a foot.
     #[test]
     fn an_enclosure_that_holds_the_zero_direction_has_no_foot() {
         use geom_core::Interval;
@@ -814,6 +874,8 @@ mod tests {
         let o = Point3::new(0.3, 0.1, 0.2);
         let (a, u) = (axis.map(iv), u_ref.map(iv));
         let lifted = |p: Point3<f64>| p.map(iv);
+        // An enclosure of `p` a femtometre wide each way.
+        let about_p = |p: Point3<f64>| p.map(|x| Interval::from_bounds(x - 1e-15, x + 1e-15));
         let off = u_ref.cross(axis) * 1e-3;
         let on_axis = o + axis * 1.5;
         let tube = o + u_ref * 2.0;
@@ -891,8 +953,16 @@ mod tests {
                 "the cylinder's axis, below its origin",
             ),
         ];
+        // The apex and the centre are points, and a point there is the
+        // exact zero vector; an enclosure holding one straddles it.
+        let points = ["the cone's apex", "the sphere's centre"];
         for (surface, p, what) in rows {
-            assert!(surface.foot(lifted(p)).is_none(), "on {what}");
+            let at = if points.contains(&what) {
+                about_p(p)
+            } else {
+                lifted(p)
+            };
+            assert!(surface.foot(at).is_none(), "on {what}");
             assert!(surface.foot(lifted(p + off)).is_some(), "off {what}");
         }
     }

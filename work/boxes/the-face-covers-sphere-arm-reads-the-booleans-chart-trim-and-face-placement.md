@@ -65,3 +65,50 @@ the root (`census::face_holds`, `census/in_plane.rs`), is not
 theirs: it decides the on-plane margin, and these two trust the point
 on the plane (the follow-up row's subject); making them decide it is
 that row's outcome-moving change, not a reroute.
+
+## A second held door waits on this move too (PR 6741, 2026-11-10)
+
+`census.rs` `placed` is the census's held placement. It checks the
+point's premise (`Held::check`), then places it with no on-carrier
+decision: a plane through `contfp` (census `contain`), a curved face
+through `crate::boolean::curved_face_placement`. That is a near-copy of
+the boolean's `placement_on_carrier` + `placement_unheld`. The census
+cannot call those, since they are engine-private
+(`pub(in crate::boolean)`, taking the `pub(crate)` `Held`).
+
+PR 6741 gave the copy the boolean's policy: a curved `OffCarrier` is the
+kernel's fault (`census_fault`), no longer read as `Out`. It also routed
+two more census sites through it (`curved_overlap_cells`, point.rs
+`in_face`). `placed` now serves four held sites:
+- `in_overlap_closure`'s touch, `constructed`;
+- `meets_at`'s probe, `in_band`;
+- the two above, `in_band`.
+
+Their probe readings were 100% Zero (6669: 40,379 calls; 6741: 276 and
+60 calls), so no production answer moved. The change raised `census.rs`'s
+`names-boolean` pin from 432 to 434, cited to
+`work/onecopy/the-census-sort-of-a-boolean-refusal-has-no-legal-home-under-topo-homes.md`,
+whose placement move retires these names.
+
+**When containment moves to the root**, `placed` should become a call to
+the moved `placement_on_carrier`, with the census mapping its
+`OffCarrier` to `census_fault`. Census `contain`'s `contfp` site and
+`placed`'s two `crate::boolean` lines go with it.
+
+## A third: `cell_region.rs` `place` (2026-11-10)
+
+`cell_region.rs` `place` holds a station of the face's own stored chart
+(`Held::constructed`) and placed a curved one through
+`curved_face_containment`, which reads `OffCarrier` as `Out`. It now
+reads `curved_face_placement`. An analytic carrier's `OffCarrier` panics
+as the kernel's defect, in every build, through the public
+`station_region` too: the policy every held door has. A spline face's
+reads `None` (the cell kept): `Held::check` does not read a spline, so
+the spline region's own search is the only reading of its station. A
+spline-station row (`spline_region_rows`'s
+`a_spline_faces_stations_read_on_its_own_chart`) reads none off the
+carrier on a 21 × 21 grid. That raised
+`cell_region.rs`'s `names-boolean` pin from 11 to 14
+(`curved_face_placement` and `CurvedPlacement`'s two arms, where it
+named `curved_face_containment`), cited here. When containment moves to
+the root, `place` reads the moved door, and the line drops.

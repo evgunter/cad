@@ -35,7 +35,7 @@
 //!   validation's ring nesting rely on. Served to a planar loop in
 //!   3-space (`splitting::containment`) and a chart-space polygon
 //!   (`chart_region`).
-//! - **The closest crossing** ([`Crossings`], [`advance`]): keep the
+//! - **The closest crossing** ([`Crossings`], [`advance_as`]): keep the
 //!   crossing nearest `q` and read the material side from the ray's
 //!   heading there — the 3-D sweep (`boolean::solid_contain`) and a
 //!   trimmed sphere face's great circles (`boolean::sphere_region`).
@@ -48,7 +48,7 @@
 //!
 //! Every decision here funnels through [`crate::validate::decide`]
 //! under a name the caller supplies ([`ParityRows`], or the row passed
-//! to [`advance`] and [`Crossings::closest`]). The K ledger meters each
+//! to [`advance_as`] and [`Crossings::closest`]). The K ledger meters each
 //! consumer's margins separately — a 3-D loop's metres and a chart
 //! polygon's metres are different populations — so the shared code
 //! must not pool them under one name. Sharing the walk and sharing the
@@ -70,6 +70,7 @@
 //! exhaustion. [`walk`]'s exhaustion argument receives nothing to
 //! relabel.
 
+pub(crate) use crate::rows::{ParityRows, SegmentRows};
 use geom_brep::ladder::{Answering, Climb, Rung, climb};
 use geom_core::{
     Band, Decide, Indeterminate, MOVE_RECOURSE, Margin, Point2, Point3, Sign, Vec2, Vec3,
@@ -217,7 +218,7 @@ impl core::fmt::Display for NoRaySettled {
 ///
 /// [`RayFault::Graze`] or [`RayFault::InBand`], over the raw
 /// [`Indeterminate`].
-pub(crate) fn advance<T: Decide>(
+pub(crate) fn advance_as<T: Decide>(
     row: &'static str,
     at: Margin<T>,
     band: Band,
@@ -225,13 +226,13 @@ pub(crate) fn advance<T: Decide>(
     crossing_side(decide(row, at, band))
 }
 
-/// [`advance`]'s reading of a crossing's side already decided (a
+/// [`advance_as`]'s reading of a crossing's side already decided (a
 /// [`geom::Ray::ahead`]): a `Zero` grazes, an undecided one sets the ray
 /// aside.
 ///
 /// # Errors
 ///
-/// As [`advance`].
+/// As [`advance_as`].
 pub(crate) fn crossing_side(
     decided: Result<Sign, Indeterminate>,
 ) -> Result<Sign, RayFault<Indeterminate>> {
@@ -247,13 +248,13 @@ pub(crate) fn crossing_side(
 /// `at` the crossing's distance from `q` (nonnegative: a magnitude, the
 /// shorter way round). Only that distance is read: a `Zero` is a
 /// crossing at `q`, which the boundary pre-pass has ruled out, so it
-/// grazes, as in [`advance`].
+/// grazes, as in [`advance_as`].
 ///
 /// # Errors
 ///
 /// [`RayFault::Graze`] or [`RayFault::InBand`], over the raw
 /// [`Indeterminate`].
-pub(crate) fn apart<T: Decide>(
+pub(crate) fn apart_as<T: Decide>(
     row: &'static str,
     at: Margin<T>,
     band: Band,
@@ -268,7 +269,7 @@ pub(crate) fn apart<T: Decide>(
 /// **One ray's crossings ahead of `q`, read to the closest** — the fold
 /// the closest-crossing readers share. Each crossing is offered with its
 /// distance along the ray in metres, already decided ahead of `q`
-/// ([`advance`]), and whether its material side cannot be read there.
+/// ([`advance_as`]), and whether its material side cannot be read there.
 pub(crate) struct Crossings<T, H> {
     ahead: Vec<(T, H, bool)>,
     /// Each crossing's span along the ray, `[from, to]`: the point `at`
@@ -296,7 +297,7 @@ impl<T: Decide, H> Crossings<T, H> {
 
     /// A crossing `at` metres ahead of `q` that lies somewhere in
     /// `[from, to]` along the ray, as [`Self::push`] offers one:
-    /// [`Self::first_count`] orders it against another only where the
+    /// [`Self::first_count_as`] orders it against another only where the
     /// whole span lies definitely before or after it.
     pub(crate) fn push_span(&mut self, at: T, (from, to): (T, T), hit: H, sideless: bool) {
         self.ahead.push((at, hit, sideless));
@@ -337,16 +338,16 @@ impl<T: Decide, H> Crossings<T, H> {
         band: Band,
         escalate: impl FnOnce(Indeterminate, &H, &H) -> E,
     ) -> Result<Option<H>, RayFault<E>> {
-        let gap =
+        let gap_as =
             |k: usize, b: usize| decide(order, Margin::of(self.ahead[k].0 - self.ahead[b].0), band);
         let mut best = 0;
         for k in 1..self.ahead.len() {
-            if gap(k, best) == Ok(Sign::Negative) {
+            if gap_as(k, best) == Ok(Sign::Negative) {
                 best = k;
             }
         }
         for k in (0..self.ahead.len()).filter(|&k| k != best) {
-            match gap(k, best) {
+            match gap_as(k, best) {
                 Ok(Sign::Positive) => {}
                 // A tie, or a crossing the scan above left behind the
                 // one it kept: the closest is not certain.
@@ -392,7 +393,7 @@ impl<T: Decide, H> Crossings<T, H> {
     /// # Errors
     ///
     /// [`RayFault::Graze`] or [`RayFault::InBand`].
-    pub(crate) fn first_count<E>(
+    pub(crate) fn first_count_as<E>(
         self,
         order: &'static str,
         band: Band,
@@ -537,56 +538,6 @@ impl<T: Decide> RaySpace<T> for Point2<T> {
     }
 }
 
-/// The four K rows one consumer meters its walk through. Distinct
-/// names per consumer are the point: see the module docs.
-///
-/// **These name literals are the greppable K roster entry for the
-/// walk.** A name passed as a parameter is invisible to a grep for a
-/// literal at the funnel site, so this type is named explicitly in
-/// `K-REPORT.md`'s inventory method. It is one of several such
-/// carriers, not the only one — the restated method there enumerates
-/// the classes and their measured residue. A new `ParityRows` value is
-/// a roster change and belongs in that document.
-pub(crate) struct ParityRows {
-    /// A segment's own length — the degeneracy gate. Zero ⇒ the
-    /// segment is null scaffolding and the point distance is measured
-    /// exactly (the foot division below would poison on it, `w·e/0`);
-    /// a certified-short-but-nonzero segment is a genuine sliver and
-    /// escalates like any in-band comparison.
-    pub segment: &'static str,
-    /// The distance from `q` to a closed segment — perpendicular at
-    /// an interior foot, endpoint otherwise. Zero ⇒ on the boundary.
-    pub boundary: &'static str,
-    /// A vertex's signed offset from the ray line. Zero ⇒ grazing ⇒
-    /// next ray.
-    pub side: &'static str,
-    /// A straddling segment's crossing advance along the ray. Zero
-    /// would be a crossing at `q` itself, contradicting the boundary
-    /// pre-pass ⇒ next ray.
-    pub advance: &'static str,
-}
-
-/// The two of a [`ParityRows`] that [`on_segment`] reads, for a caller
-/// that reads a segment's boundary and casts no ray through it, so
-/// mints no `side` or `advance`. A new value is a roster change, as a
-/// [`ParityRows`] value is.
-pub(crate) struct SegmentRows {
-    /// As [`ParityRows::segment`].
-    pub segment: &'static str,
-    /// As [`ParityRows::boundary`].
-    pub boundary: &'static str,
-}
-
-impl ParityRows {
-    /// The two rows of a segment's boundary reading.
-    pub(crate) const fn segment_rows(&self) -> SegmentRows {
-        SegmentRows {
-            segment: self.segment,
-            boundary: self.boundary,
-        }
-    }
-}
-
 /// The boundary pre-pass: is `q` within the band of any closed
 /// segment of the cycle `verts`?
 ///
@@ -612,12 +563,17 @@ where
     P: RaySpace<T>,
 {
     let n = verts.len();
-    for i in 0..n {
-        if on_segment(verts[i], verts[(i + 1) % n], q, &rows.segment_rows(), band)? {
-            return Ok(true);
-        }
-    }
-    Ok(false)
+    // Any segment holding `q` puts it on the boundary, whatever an
+    // earlier segment read ([`climb`], [`Answering::Any`]): a segment read
+    // in band is kept, refusing only where no segment holds `q`.
+    climb(Answering::Any, 0..n, |i| {
+        Rung::of_reading(
+            on_segment(verts[i], verts[(i + 1) % n], q, &rows.segment_rows(), band)
+                .map(|on| on.then_some(())),
+        )
+    })
+    .into_reading()
+    .map(|on| on.is_some())
 }
 
 /// Is `q` within the band of the closed segment `[a, b]`? One step of
@@ -663,13 +619,13 @@ where
     // door (`Margin::norm2`/`norm3`); a span's is its line's home
     // (`segment_distance`), a length upstream geometry states in metres,
     // which `Margin::of` admits. The two are the same norm, bit for bit.
-    let gap = match decide(rows.segment, P::length_margin(b.disp(a)), band)? {
+    let gap = match decide(rows.segment(), P::length_margin(b.disp(a)), band)? {
         Sign::Zero => P::length_margin(q.disp(a)),
         _ => Margin::of(P::segment_distance(a, b, q)),
     };
     // Zero ⇒ on boundary; Positive (Negative unreachable for a
     // distance) ⇒ strictly off this segment.
-    let decided = geom_core::k_stats::decide_reported(rows.boundary, gap, band)?;
+    let decided = geom_core::k_stats::decide_reported(rows.boundary(), gap, band)?;
     Ok((decided.sign == Sign::Zero).then_some(decided.margin))
 }
 
@@ -735,7 +691,7 @@ where
         xs.push(P::dot(w, d));
         let y = P::dot(w, side_axis);
         ys.push(y);
-        match decide(rows.side, Margin::of(y), band)? {
+        match decide(rows.side(), Margin::of(y), band)? {
             Sign::Zero => return Ok(None), // vertex on the ray line
             s => sides.push(s),
         }
@@ -749,7 +705,7 @@ where
         }
         // Straddling: the crossing's advance along the ray.
         let advance = Margin::over_lever(xs[i] * ys[j] - xs[j] * ys[i], ys[j] - ys[i]);
-        match decide(rows.advance, advance, band)? {
+        match decide(rows.advance(), advance, band)? {
             Sign::Positive => crossings += 1,
             Sign::Negative => {}
             // A crossing at q itself contradicts the boundary
@@ -765,12 +721,7 @@ where
 mod tests {
     use super::*;
 
-    const ROWS: ParityRows = ParityRows {
-        segment: "test_ray_walk_segment",
-        boundary: "test_ray_walk_boundary",
-        side: "test_ray_walk_side",
-        advance: "test_ray_walk_advance",
-    };
+    const ROWS: ParityRows = crate::rows::TEST_RAY_WALK;
 
     fn band() -> Band {
         Band::new(1e-9, 1e-8).unwrap()
@@ -792,7 +743,7 @@ mod tests {
             let got = walk(
                 rays.iter().copied(),
                 |ray| match ray {
-                    Some(margin) => advance("test_ray_walk_advance", Margin::of(margin), band())
+                    Some(margin) => advance_as("test_ray_walk_advance", Margin::of(margin), band())
                         .map_err(|fault| fault.map(|_| ())),
                     None => Err(RayFault::Unread),
                 },
@@ -821,7 +772,7 @@ mod tests {
         let got: Result<Sign, &str> = walk(
             [Some(5e-9), None],
             |ray| match ray {
-                Some(m) => advance("test_ray_walk_advance", Margin::of(m), band())
+                Some(m) => advance_as("test_ray_walk_advance", Margin::of(m), band())
                     .map_err(|f| f.map(|_| "in band")),
                 None => Err(RayFault::Fatal("corrupt")),
             },
@@ -847,6 +798,28 @@ mod tests {
             Point2::new(1.0, 1.0),
             Point2::new(0.0, 1.0),
         ]
+    }
+
+    /// **A segment holding the point answers past a segment read in
+    /// band** ([`on_boundary`] climbs the segments under `Any`, QML T4): a
+    /// box `5e-9` tall, the point on its bottom edge, so its top edge
+    /// (read first) is in band of it, its left edge decidedly off, and its
+    /// bottom edge holds it. The first-refusal loop refused at the top.
+    #[test]
+    fn a_segment_holding_the_point_answers_past_one_in_band() {
+        let h = 5e-9;
+        let poly = [
+            Point2::new(1.0, h),
+            Point2::new(0.0, h),
+            Point2::new(0.0, 0.0),
+            Point2::new(1.0, 0.0),
+        ];
+        let q = Point2::new(0.5, 0.0);
+        assert!(
+            on_segment(poly[0], poly[1], q, &ROWS.segment_rows(), band()).is_err(),
+            "the top edge reads the point in band"
+        );
+        assert_eq!(on_boundary(&poly, q, &ROWS, band()), Ok(true));
     }
 
     #[test]
@@ -1045,14 +1018,14 @@ mod tests {
         );
     }
 
-    /// [`Crossings::first_count`] over `(advance, count, a pair's party,
+    /// [`Crossings::first_count_as`] over `(advance, count, a pair's party,
     /// sideless)` crossings: a pair is two parties in band of each other.
     fn count_of(hits: &[(f64, i32, bool, bool)]) -> Result<Option<Sign>, &'static str> {
         let mut c = Crossings::new();
         for &(at, count, party, sideless) in hits {
             c.push(at, (at, count, party), sideless);
         }
-        c.first_count(
+        c.first_count_as(
             "test_ray_walk_order",
             band(),
             |h| h.1,
@@ -1148,14 +1121,51 @@ mod tests {
     /// is set aside, and only [`advance`] reads a side of `q`.
     #[test]
     fn a_crossing_at_q_grazes() {
-        let a = |m: f64| advance("test_ray_walk_advance", Margin::of(m), band());
+        let a = |m: f64| advance_as("test_ray_walk_advance", Margin::of(m), band());
         assert!(matches!(a(1.0), Ok(Sign::Positive)));
         assert!(matches!(a(-1.0), Ok(Sign::Negative)));
         assert!(matches!(a(5e-10), Err(RayFault::Graze)));
         assert!(matches!(a(5e-9), Err(RayFault::InBand(_))));
-        let p = |m: f64| apart("test_ray_walk_advance", Margin::of(m), band());
+        let p = |m: f64| apart_as("test_ray_walk_advance", Margin::of(m), band());
         assert!(matches!(p(1.0), Ok(())));
         assert!(matches!(p(5e-10), Err(RayFault::Graze)));
         assert!(matches!(p(5e-9), Err(RayFault::InBand(_))));
+    }
+
+    /// **A ray that decides answers past rays set aside ahead of it**
+    /// ([`walk`], `Any`), and the kept rays rank where none decides. Rays
+    /// read as the test says:
+    /// - in band, then deciding → the verdict;
+    /// - in band, then at a limit, then grazing → the limit, ranked ahead
+    ///   of the earlier in-band ray;
+    /// - in band, then fatal, then deciding → the fatal error;
+    /// - grazing only → the exhaustion.
+    ///
+    /// The first-refusal loop refused at the first ray of each.
+    #[test]
+    fn a_deciding_ray_answers_past_one_in_band_and_a_limit_outranks_it() {
+        let run = |rays: &[(&'static str, char)]| {
+            walk(
+                rays.iter().copied(),
+                |(name, kind)| match kind {
+                    'v' => Ok(name),
+                    'i' => Err(RayFault::InBand(name)),
+                    'b' => Err(RayFault::Blocked(name)),
+                    'f' => Err(RayFault::Fatal(name)),
+                    _ => Err(RayFault::Graze),
+                },
+                || "exhausted",
+            )
+        };
+        assert_eq!(run(&[("in band", 'i'), ("decides", 'v')]), Ok("decides"));
+        assert_eq!(
+            run(&[("in band", 'i'), ("limit", 'b'), ("graze", 'g')]),
+            Err("limit")
+        );
+        assert_eq!(
+            run(&[("in band", 'i'), ("fatal", 'f'), ("decides", 'v')]),
+            Err("fatal")
+        );
+        assert_eq!(run(&[("graze", 'g')]), Err("exhausted"));
     }
 }

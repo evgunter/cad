@@ -140,6 +140,10 @@ const LEDGER: &[Entry] = &[
                              // needles, code view
     },
     Entry {
+        path: "crates/editor-core/tests/every_predicate_name_is_minted_once.rs",
+        disposition: Shared, // every crate's row registry and its turn-bundle door, code view
+    },
+    Entry {
         path: "crates/editor-core/tests/fix_loop_polygon_expr.rs",
         disposition: Shared, // polygon-close uniqueness census, code view
     },
@@ -364,11 +368,17 @@ const LEDGER: &[Entry] = &[
                              // they walk, code view
     },
     Entry {
+        path: "crates/test-utils/tests/predicate_name_coverage.rs",
+        disposition: Shared, // every crate's predicate census, references and
+                             // holds, through source::predicate_census,
+                             // test_references and held_spellings
+    },
+    Entry {
         path: "crates/test-utils/tests/reader_census.rs",
         disposition: Shared, // this census, literal view
     },
     Entry {
-        path: "crates/topo/src/boolean/boxes.rs",
+        path: "crates/topo/src/boxes.rs",
         disposition: Unconverted(
             "Track Q — reaches the shared lexer only through `source_walk::CodeOnly`, \
              topo's handle on it; the direct call is Track Q's to make",
@@ -1315,8 +1325,9 @@ fn scope_needle_hits(code: &str) -> Vec<(usize, &'static str)> {
 /// and every `const` and `static` item with its whole extent: the items
 /// a scope-ledger line names.
 fn fn_bodies(code: &str) -> Vec<(String, std::ops::Range<usize>)> {
-    let mut out = Vec::new();
-    for keyword in ["fn ", "const ", "static "] {
+    let mut out = test_utils::source::fn_items(code)
+        .unwrap_or_else(|why| panic!("the walk cannot place a function: {why}"));
+    for keyword in ["const ", "static "] {
         for (at, _) in code.match_indices(keyword) {
             if !test_utils::source::boundary_before(code, at) {
                 continue;
@@ -1326,17 +1337,11 @@ fn fn_bodies(code: &str) -> Vec<(String, std::ops::Range<usize>)> {
             if name.is_empty() || name == "fn" || name == "mut" {
                 continue;
             }
-            let extent = match test_utils::source::item_body(code, at) {
-                test_utils::source::ItemBody::Body(body) if keyword == "fn " => body,
-                // A `const`/`static` runs to its `;`, through any brace in
-                // its initializer.
-                _ if keyword != "fn " => match code[at..].find(";\n") {
-                    Some(end) => at..at + end + 1,
-                    None => continue,
-                },
-                _ => continue,
-            };
-            out.push((name.to_string(), extent));
+            // A `const`/`static` runs to its `;`, through any brace in
+            // its initializer.
+            if let Some(end) = code[at..].find(";\n") {
+                out.push((name.to_string(), at..at + end + 1));
+            }
         }
     }
     out

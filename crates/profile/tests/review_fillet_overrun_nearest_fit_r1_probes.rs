@@ -1,26 +1,21 @@
 //! **What the anchor-fit refusal's number promises the author, measured
 //! over the whole of grid A.**
 //!
-//! The nearest-fit rule picks the reported candidate and leg by the
-//! least overrun `setback − extent`, and the sentence that carries the
-//! number ends in "reduce the radius or move the anchor". A reader can
-//! take the number for the radius reduction that would make the corner
-//! fit; it is the overrun in the SETBACK metric, and the recourse is
-//! un-metered on purpose. These rows execute that reading at every
-//! anchor-fit entry grid A produces, rather than at one fixture, and
-//! pin what following it actually does:
+//! The nearest-fit rule picks the reported candidate, and its worse
+//! leg's overrun `setback − extent` (`common::worse_leg`) is the number
+//! a reader could take for the radius reduction that makes the corner
+//! fit. It is the overrun in the SETBACK metric, the anchor lever's
+//! metre and not the radius lever's, which is why the refusal states
+//! the radius lever by `radius_at_anchor` instead
+//! (`fillet_radius_at_anchor` pins that one). These rows execute the
+//! misreading at every anchor-fit entry grid A produces, rather than at
+//! one fixture, and pin what following it actually does:
 //!
-//! - the reported leg always really overran — `setback > available` on
+//! - the worse leg always really overran — `setback > available` on
 //!   every entry, which is what makes the rendered sentence true;
 //! - the number is never the reduction that would make the corner fit.
 //!   At most entries it is too SMALL: reducing the radius by exactly it
 //!   leaves the same corner refusing with the same reason.
-//!
-//! The census is the mechanical guard of the "not a radius amount"
-//! sentence at the site: it moves the day the pick moves, in either
-//! direction, and it says which way the number errs. The residue that
-//! owns a metered form is
-//! `work/blend/anchor-fit-refusal-reports-a-setback-excess-not-a-radius-reduction.md`.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 

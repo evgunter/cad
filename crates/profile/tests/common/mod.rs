@@ -16,8 +16,8 @@ use geom_core::{Arc2, Point2, Real};
 use profile::RawLoop;
 use profile::{
     ArcSweep, Center, ClosedLoop, ConstructedLoop, CornerReason, CornerRefusal, FilletLeg,
-    FilletLegCarrier, Open, PathError, Profile, ProfileLoop, Segment, SketchPlane, Start,
-    test_support::bulge_loop,
+    FilletLegCarrier, LegFit, LeverValue, Open, OverrunLegs, PathError, Profile, ProfileLoop,
+    Segment, SketchPlane, Start, test_support::bulge_loop,
 };
 
 /// The quarter tangent `tan(Δθ/4)` a stored segment's sweep reads as —
@@ -104,15 +104,51 @@ pub fn enclosing<T: Real>(err: &PathError<T>) -> Option<(Option<FilletLeg>, T, T
     })
 }
 
-/// The first entry refusing on the anchor fit, as its payload.
-pub fn anchor_fit<T: Real>(err: &PathError<T>) -> Option<(FilletLeg, FilletLegCarrier, T, T)> {
+/// **The leg a census keyed on one leg reads**: the overrun leg whose
+/// setback outruns its extent by more, ties to the incoming leg. The
+/// payload carries both legs; this is the one a single-leg sentence
+/// would have named, and the census suites that measure that number
+/// read it here.
+pub fn worse_leg<T: Real + PartialOrd>(
+    legs: &[LegFit<T>; 2],
+    overrun: OverrunLegs,
+) -> (FilletLeg, LegFit<T>) {
+    let margin = |l: &LegFit<T>| l.available - l.setback;
+    match overrun {
+        OverrunLegs::One(FilletLeg::Outgoing) => (FilletLeg::Outgoing, legs[1]),
+        OverrunLegs::Both if margin(&legs[1]) < margin(&legs[0]) => (FilletLeg::Outgoing, legs[1]),
+        OverrunLegs::One(FilletLeg::Incoming) | OverrunLegs::Both => (FilletLeg::Incoming, legs[0]),
+    }
+}
+
+/// The first entry refusing on the anchor fit, as its worse leg's
+/// numbers ([`worse_leg`]).
+pub fn anchor_fit<T: Real + PartialOrd>(
+    err: &PathError<T>,
+) -> Option<(FilletLeg, FilletLegCarrier, T, T)> {
+    corners(err).iter().find_map(|c| match &c.reason {
+        CornerReason::AnchorOutsideTrimmedExtent { legs, overrun, .. } => {
+            let (side, leg) = worse_leg(legs, *overrun);
+            Some((side, leg.carrier, leg.setback, leg.available))
+        }
+        _ => None,
+    })
+}
+
+/// An anchor-fit entry's payload: both legs, which of them overrun, and
+/// the radius lever.
+pub type AnchorFitPayload<T> = ([LegFit<T>; 2], OverrunLegs, Option<LeverValue<T>>);
+
+/// The first anchor-fit entry's whole payload: both legs and the radius
+/// at the anchor.
+pub fn anchor_fit_payload<T: Real>(err: &PathError<T>) -> Option<AnchorFitPayload<T>> {
     corners(err).iter().find_map(|c| match &c.reason {
         CornerReason::AnchorOutsideTrimmedExtent {
-            side,
-            carrier,
-            setback,
-            available,
-        } => Some((*side, *carrier, *setback, *available)),
+            legs,
+            overrun,
+            radius_at_anchor,
+            ..
+        } => Some((*legs, *overrun, *radius_at_anchor)),
         _ => None,
     })
 }
@@ -215,14 +251,14 @@ pub fn replayed<T: profile::ArcCarrierScalar>(
 }
 
 /// **An `f64` fixture plane minted at `T`**: its placement's twelve
-/// entries, as point values at `T`, admitted at the decided door
-/// ([`geom_core::RigidMotion::check_rigid`]). A frame crosses no
-/// scalar upward; a fixture holding one as numbers mints it again.
+/// entries, as point values at `T`, admitted by the suites' own door
+/// ([`geom_core::test_support::rigid`]). A frame crosses no scalar
+/// upward; a fixture holding one as numbers mints it again.
 pub fn plane_at<T: geom_core::Decide>(plane: SketchPlane<f64>) -> SketchPlane<T> {
-    let band = geom_core::Band::linear(tol()).expect("the suite tolerance forms a band");
-    let frame = geom_core::RigidMotion::check_rigid(&plane.placement().map(T::from_f64), band)
-        .unwrap_or_else(|e| panic!("the fixture plane is rigid at the lane scalar: {e}"));
-    SketchPlane::from_frame(frame)
+    SketchPlane::from_frame(geom_core::test_support::rigid(
+        &plane.placement().map(T::from_f64),
+        tol(),
+    ))
 }
 
 /// Replays a recorded `f64` program at `T`, at the suite tolerance: each
@@ -1383,26 +1419,25 @@ pub fn line_arc_grid(mut visit: impl FnMut(&Result<ProfileLoop<f64>, PathError<f
 }
 
 /// Every anchor-fit entry of a refusal, in envelope order, as
-/// `(corner, side, setback, available)`; empty for any other refusal.
+/// `(corner, side, setback, available)` of its worse leg
+/// ([`worse_leg`]); empty for any other refusal.
 pub fn anchor_fit_entries(err: &PathError<f64>) -> Vec<(Point2<f64>, FilletLeg, f64, f64)> {
     corners(err)
         .iter()
-        .filter_map(|c| match c.reason {
-            CornerReason::AnchorOutsideTrimmedExtent {
-                side,
-                setback,
-                available,
-                ..
-            } => Some((c.at, side, setback, available)),
+        .filter_map(|c| match &c.reason {
+            CornerReason::AnchorOutsideTrimmedExtent { legs, overrun, .. } => {
+                let (side, leg) = worse_leg(legs, *overrun);
+                Some((c.at, side, leg.setback, leg.available))
+            }
             _ => None,
         })
         .collect()
 }
 
-/// The anchor-fit entry at the corner `at` (to 1e-9), as
-/// `(side, carrier, setback, available)`; a row asserting a corner's
-/// numbers names the corner, so a wrong-corner entry reads as the
-/// wrong refusal rather than as the wrong number.
+/// The anchor-fit entry at the corner `at` (to 1e-9), as its worse
+/// leg's `(side, carrier, setback, available)`; a row asserting a
+/// corner's numbers names the corner, so a wrong-corner entry reads as
+/// the wrong refusal rather than as the wrong number.
 pub fn anchor_fit_at(
     err: &PathError<f64>,
     at: (f64, f64),
@@ -1410,13 +1445,29 @@ pub fn anchor_fit_at(
     corners(err)
         .iter()
         .find(|c| (c.at.x - at.0).abs() < 1e-9 && (c.at.y - at.1).abs() < 1e-9)
-        .and_then(|c| match c.reason {
+        .and_then(|c| match &c.reason {
+            CornerReason::AnchorOutsideTrimmedExtent { legs, overrun, .. } => {
+                let (side, leg) = worse_leg(legs, *overrun);
+                Some((side, leg.carrier, leg.setback, leg.available))
+            }
+            _ => None,
+        })
+        .unwrap_or_else(|| panic!("no anchor-fit entry at {at:?} in {err:?}"))
+}
+
+/// The anchor-fit entry at the corner `at` (to 1e-9), as its whole
+/// payload: both legs and the radius at the anchor.
+pub fn anchor_fit_payload_at(err: &PathError<f64>, at: (f64, f64)) -> AnchorFitPayload<f64> {
+    corners(err)
+        .iter()
+        .find(|c| (c.at.x - at.0).abs() < 1e-9 && (c.at.y - at.1).abs() < 1e-9)
+        .and_then(|c| match &c.reason {
             CornerReason::AnchorOutsideTrimmedExtent {
-                side,
-                carrier,
-                setback,
-                available,
-            } => Some((side, carrier, setback, available)),
+                legs,
+                overrun,
+                radius_at_anchor,
+                ..
+            } => Some((*legs, *overrun, *radius_at_anchor)),
             _ => None,
         })
         .unwrap_or_else(|| panic!("no anchor-fit entry at {at:?} in {err:?}"))

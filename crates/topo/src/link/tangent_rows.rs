@@ -29,7 +29,9 @@ fn sector<T: Decide>(
 ) -> Result<FaceSector<T>, TouchUnread> {
     match FaceSector::tangent(surface, sense, outward, apex, fan_of, band)? {
         TangentPiece::Sector(sector) => Ok(sector),
-        TangentPiece::Horn(_) => Err(TouchUnread::Unreadable),
+        TangentPiece::Horn(_) | TangentPiece::Apex(_) => {
+            Err(TouchUnread::Curved(CurvedUnread::Unreadable))
+        }
     }
 }
 
@@ -94,6 +96,7 @@ fn tag(edge: EdgeKey, line: bool) -> Bound<f64> {
     Bound {
         edge,
         line,
+        circle: false,
         bend: Vec3::zero(),
     }
 }
@@ -213,7 +216,7 @@ fn a_corners_fan_turns_as_its_departures_do() {
                 false,
                 band()
             ),
-            Err(TouchUnread::Unreadable)
+            Err(TouchUnread::Curved(CurvedUnread::Unreadable))
         ),
         "a cusp"
     );
@@ -222,8 +225,9 @@ fn a_corners_fan_turns_as_its_departures_do() {
 /// **A tangent link reads only the coincidences its faces keep**: a
 /// corner on a ball's tangent plane rests off the ball and crosses into
 /// it; a corner edge along that plane leaves the ball only to second
-/// order and refuses, but along a cylinder's ruling it lies in the
-/// cylinder and reads; a planar corner's line edge lying in a planar
+/// order, the ball bending away from the corner's faces there, and
+/// rests, and refuses under a spherical cavity bending up into them;
+/// along a cylinder's ruling it lies in the cylinder and reads; a planar corner's line edge lying in a planar
 /// face reads as the planar link does; two line edges on one ray of a
 /// curved corner read, a curve's tangent on a line refuses; two balls'
 /// tangent planes on one plane refuse. Red where a kept coincidence
@@ -245,10 +249,16 @@ fn a_tangent_link_reads_only_the_coincidences_its_faces_keep() {
     let flat = [v(1.0, 0.0, 0.0), v(-0.2, 0.3, 1.0), v(-0.1, -0.4, 1.0)];
     let mut on_ball = corner(&flat, true, &k, &[]);
     on_ball.push(whole(sphere(-1.0), true));
-    assert_eq!(
-        read(on_ball),
-        Unread(TouchUnread::Unreadable),
+    assert!(
+        matches!(read(on_ball), TouchVerdict::Rest(_)),
         "along a ball"
+    );
+    let mut under_cavity = corner(&flat, true, &k, &[]);
+    under_cavity.push(whole(sphere(0.5), false));
+    assert_eq!(
+        read(under_cavity),
+        Unread(TouchUnread::Curved(CurvedUnread::Unreadable)),
+        "along a cavity bending up into the corner"
     );
     let mut on_ruling = corner(&flat, true, &k, &[]);
     on_ruling.push(whole(cylinder(), true));
@@ -266,7 +276,7 @@ fn a_tangent_link_reads_only_the_coincidences_its_faces_keep() {
     arc_on_floor.push(whole(plane(v(0.0, 0.0, 1.0)), true));
     assert_eq!(
         read(arc_on_floor),
-        Unread(TouchUnread::Unreadable),
+        Unread(TouchUnread::Curved(CurvedUnread::Unreadable)),
         "a curve's tangent along a floor"
     );
     // Two corners on one point, meeting along the ray `x`: edge 0 of
@@ -294,30 +304,34 @@ fn a_tangent_link_reads_only_the_coincidences_its_faces_keep() {
     );
     assert_eq!(
         pinch(false, true),
-        Unread(TouchUnread::Unreadable),
+        Unread(TouchUnread::Curved(CurvedUnread::Unreadable)),
         "a line on a curve's tangent"
     );
     assert_eq!(
         pinch(true, false),
-        Unread(TouchUnread::Unreadable),
+        Unread(TouchUnread::Curved(CurvedUnread::Unreadable)),
         "a curve's tangent on a line"
     );
     // Two balls kissing at the origin, and a ball in a socket.
     for (c, up) in [(1.0, false), (-2.0, true)] {
         let s = vec![whole(sphere(-1.0), true), whole(sphere(c), up)];
-        assert_eq!(read(s), Unread(TouchUnread::Unreadable), "two balls, {c}");
+        assert_eq!(
+            read(s),
+            Unread(TouchUnread::Curved(CurvedUnread::Unreadable)),
+            "two balls, {c}"
+        );
     }
     // No reading but the one-material one takes a tangent link.
     let tangent = Link::of(Point3::origin(), corner(&up, true, &k, &[])).unwrap();
     let ball = Round::of(&sphere(-1.0), true).unwrap();
     assert_eq!(
         rest::judge(&tangent, &tangent, band()),
-        Unread(TouchUnread::Unreadable),
+        Unread(TouchUnread::Curved(CurvedUnread::Unreadable)),
         "judged"
     );
     assert_eq!(
         rest::by_round(&tangent, &ball, 1.0, band()),
-        Unread(TouchUnread::Unreadable),
+        Unread(TouchUnread::Curved(CurvedUnread::Unreadable)),
         "against a ball"
     );
 }
@@ -379,7 +393,7 @@ fn a_sphere_poles_whole_plane_reads_by_its_first_order_at_any_tilt() {
             let socket = whole_at(ball(p - a * (2.0 * r), 2.0 * r, a), -a, p, 1.0);
             for (what, other) in [("kissing", kiss), ("in a socket", socket)] {
                 let got = read_at(p, vec![other, below()]);
-                if got != Unread(TouchUnread::Unreadable) {
+                if got != Unread(TouchUnread::Curved(CurvedUnread::Unreadable)) {
                     bad.push(format!("{raw:?} {far}: {what}: {got:?}"));
                 }
             }
@@ -392,7 +406,7 @@ fn a_sphere_poles_whole_plane_reads_by_its_first_order_at_any_tilt() {
                 whole_at(ball(p + n * r, r, a), -n, p, 1.0),
             );
             let got = read_at(p, vec![one, two]);
-            if got != Unread(TouchUnread::Unreadable) {
+            if got != Unread(TouchUnread::Curved(CurvedUnread::Unreadable)) {
                 bad.push(format!("{raw:?} {far}: kissing off the pole: {got:?}"));
             }
             let ring = [
@@ -430,7 +444,7 @@ fn two_whole_planes_are_read_one_plane_either_way_round() {
     ] {
         assert_eq!(
             read(s),
-            TouchVerdict::Unread(TouchUnread::Unreadable),
+            TouchVerdict::Unread(TouchUnread::Curved(CurvedUnread::Unreadable)),
             "{what}"
         );
     }
@@ -458,7 +472,7 @@ fn a_spurs_tip_is_the_whole_turn_and_a_cusp_refuses() {
             false,
             band()
         ),
-        Err(TouchUnread::Unreadable)
+        Err(TouchUnread::Curved(CurvedUnread::Unreadable))
     ));
 }
 
@@ -502,7 +516,10 @@ fn a_bound_is_kept_only_on_a_bound_it_lies_ahead_on() {
         half(v(0.0, 0.0, 1.0), [tag(a, true), tag(d, false)]),
         half(v(0.0, -1.0, 0.0), [tag(d, false), tag(c, true)]),
     ];
-    assert_eq!(read(s), TouchVerdict::Unread(TouchUnread::Unreadable));
+    assert_eq!(
+        read(s),
+        TouchVerdict::Unread(TouchUnread::Curved(CurvedUnread::Unreadable))
+    );
 }
 
 /// **Only a spur's tip is the whole turn**: two departures a tenth of the
@@ -525,7 +542,7 @@ fn a_near_full_turn_off_one_edge_is_a_cusp() {
                     false,
                     band()
                 ),
-                Err(TouchUnread::Unreadable)
+                Err(TouchUnread::Curved(CurvedUnread::Unreadable))
             ),
             "{d1:?}"
         );
@@ -550,9 +567,12 @@ fn corner_on(other: geom::Surface<f64>, sense: bool) -> TouchVerdict {
 /// **A line edge in a huge sphere's or cylinder's tangent plane lies in
 /// the face only along a cylinder's ruling**: radius 1e9, so the edge's
 /// far end stands within the band of the carrier whichever way it runs.
-/// On a sphere, which has no ruling, and across a cylinder's ruling, it
-/// refuses; along the ruling it reads. Red where the band alone keeps a
-/// line on a carrier.
+/// Along the ruling it reads. On a sphere, which has no ruling, and
+/// across a cylinder's ruling, it is read one order down, where the
+/// carrier falls `l²/2R` under the edge at its unit arm: refused where
+/// the band leaves that fall in band, and a rest where the band reads
+/// it, never kept at first order. Red where the band alone keeps a line
+/// on a carrier.
 #[test]
 fn a_line_in_a_huge_carriers_plane_is_kept_only_along_a_ruling() {
     let big = 1e9;
@@ -568,13 +588,23 @@ fn a_line_in_a_huge_carriers_plane_is_kept_only_along_a_ruling() {
         radius: big,
         u_ref: v(0.0, 0.0, 1.0),
     };
-    let refused = TouchVerdict::Unread(TouchUnread::Unreadable);
-    assert_eq!(corner_on(sphere, true), refused, "a sphere");
-    assert_eq!(
-        corner_on(tube(v(0.0, 1.0, 0.0)), true),
-        refused,
-        "across a ruling"
-    );
+    let refused = TouchVerdict::Unread(TouchUnread::Curved(CurvedUnread::Unreadable));
+    let fall = 0.5 / big;
+    for (what, got) in [
+        ("a sphere", corner_on(sphere, true)),
+        ("across a ruling", corner_on(tube(v(0.0, 1.0, 0.0)), true)),
+    ] {
+        if fall < band().zero() {
+            assert_eq!(got, refused, "{what}");
+        } else if fall > 2.0 * band().escalate() {
+            assert!(matches!(got, TouchVerdict::Rest(_)), "{what}: {got:?}");
+        } else {
+            assert!(
+                got == refused || matches!(got, TouchVerdict::Rest(_)),
+                "{what}: {got:?}"
+            );
+        }
+    }
     assert!(
         matches!(
             corner_on(tube(v(1.0, 0.0, 0.0)), true),
@@ -606,5 +636,8 @@ fn a_frame_direction_opposite_the_normal_turns_no_fan() {
         whole_at(ball(p + u * r, r, a), -u, p, 1.0),
         whole_at(ball(p - u * r, r, a), u, p, 1.0),
     ];
-    assert_eq!(read_at(p, s), TouchVerdict::Unread(TouchUnread::Unreadable));
+    assert_eq!(
+        read_at(p, s),
+        TouchVerdict::Unread(TouchUnread::Curved(CurvedUnread::Unreadable))
+    );
 }

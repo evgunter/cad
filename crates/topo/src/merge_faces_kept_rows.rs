@@ -100,7 +100,7 @@ fn a_declared_merge_on_distinct_keys_returns_no_strand() {
     );
 
     let outcome = body
-        .merge_coplanar_faces_glued(&[(ks, ka)], tol)
+        .merge_coplanar_faces_glued(&[(kept, absorbed)], tol)
         .expect("the declared coplanar pair merges");
 
     assert_one_group(&outcome, kept, absorbed);
@@ -254,9 +254,8 @@ fn an_in_band_lean_between_neighbours_refuses_at_the_scan() {
     let tol = Tol::witness();
     let (mut body, kept, absorbed, _) = wall_beside_a_leaning_neighbour(tol);
     let before = crate::fixtures::deep_snapshot(&body);
-    let pair = (surface_of(&body, kept), surface_of(&body, absorbed));
     let refusal = body
-        .merge_coplanar_faces_glued(&[pair], tol)
+        .merge_coplanar_faces_glued(&[(kept, absorbed)], tol)
         .expect_err("the leaning neighbour's dihedral is in band");
     assert!(
         matches!(

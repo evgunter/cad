@@ -259,10 +259,10 @@
 //! columns within a few percent said the faces and their bounds were
 //! still the block's. It did not by itself say which sizing rule
 //! changed: a re-cut taken after a schedule
-//! change and the schedule change landing are one event. The dated
-//! record settles that — `docs/MODEL-AB-LOG.md`'s TESS-SPLIT row reads
-//! *"tour NURBS cells 163,182 -> 46,102"*, and 46,102 is what the
-//! committed file carried from that cut on.
+//! change and the schedule change landing are one event. The merge
+//! settles that: TESS-SPLIT (PR #951) took the tour's NURBS cells from
+//! 163,182 to 46,102, and 46,102 is what the committed file carries
+//! from that cut on.
 //!
 //! **The numeric form of that argument is a comparison between two
 //! NAMED cuts, it lives in `docs/TESS-BUDGET.md` under "The finding",
@@ -528,13 +528,16 @@ fn the_committed_baseline_carries_this_many_indistinguishable_pairs() {
     // The census over the SIZED rows — the one that matters, because
     // an unsized swap costs rule 2 nothing.
     let (pairs, in_pairs, scenes) = census(&sized);
-    assert_eq!(pairs, 8, "indistinguishable pairs among the sized rows");
-    assert_eq!(in_pairs, 16, "sized rows sitting in such a pair");
+    assert_eq!(pairs, 12, "indistinguishable pairs among the sized rows");
+    assert_eq!(in_pairs, 24, "sized rows sitting in such a pair");
     assert_eq!(
         scenes,
         [
+            "klein/klein_loop",
             "lofts/loft_prism",
             "lofts/nonuniform_loft",
+            "projectbox/cutaway_spring",
+            "projectbox/spring",
             "s_duct/s_duct",
             "teapot/teapotspout",
         ],
@@ -557,7 +560,7 @@ fn the_committed_baseline_carries_this_many_indistinguishable_pairs() {
     // what it measures is the size of the hole the sized-row census
     // above sits inside.
     let (all_pairs, _, all_scenes) = census(&all);
-    assert_eq!(all_pairs, 26_634, "pairs across every row");
+    assert_eq!(all_pairs, 26_638, "pairs across every row");
     assert_eq!(all_scenes.len(), 85, "scenes carrying one, corpus-wide");
 }
 
@@ -821,16 +824,25 @@ fn an_undetected_swap_costs_the_gate_nothing_on_the_committed_baseline() {
     // have different CURVATURE, so the sizing lane gives them
     // different divisions and the identity columns separate them.
     //
-    // It reads NONE now. At the 2026-10-02 cut it read two pairs, faces
-    // 5 and 9 of `lily_sepal_b` and of `lily_sepal_c`, the two opposite
-    // walls of one blade with different curvature: their identity
-    // columns agreed while their certificates and cell counts did not.
-    // The sepals have since been rebuilt with fewer faces, and the
-    // re-cut carries no such pair. A pair arriving reds here and is
-    // read before it is pinned by name.
-    let none: [&str; 0] = [];
+    // At the 2026-10-02 cut it read two pairs, faces 5 and 9 of
+    // `lily_sepal_b` and of `lily_sepal_c`, the two opposite walls of
+    // one blade with different curvature: their identity columns agreed
+    // while their certificates and cell counts did not. The sepals have
+    // since been rebuilt with fewer faces and carry no such pair.
+    //
+    // It reads one pair now, faces 3 and 5 of both spring scenes: two
+    // opposite walls of the coil's square wire. Their whole-patch
+    // divisions agree (`nu` 1, `nv` 1348) while their per-cell grids
+    // do not (1048 cells against 1052). The two slacks are 1.478 and
+    // 1.484, 0.4% apart and far inside `GROWTH_TOLERANCE`, which is why
+    // the assertion above holds. A pair arriving reds here and is read
+    // before it is pinned by name.
+    let read = [
+        "projectbox/cutaway_spring faces 3/5: grid_cells/span_opt_cells 1048/709 against 1052/709",
+        "projectbox/spring faces 3/5: grid_cells/span_opt_cells 1048/709 against 1052/709",
+    ];
     assert_eq!(
-        drifted, none,
+        drifted, read,
         "the pairs whose two recoverable slacks differ. The swap still costs the \
          gate nothing, but the margin that made it free has gone on these"
     );
@@ -980,9 +992,9 @@ fn the_committed_baseline_sizes_this_much() {
     // `the_committed_baseline_carries_this_many_indistinguishable_pairs`
     // above and is deliberately not restated here; the report prints
     // its two percentages from that pair against this one.
-    assert_eq!(t.triangles, 470_050, "triangles over the whole sweep");
+    assert_eq!(t.triangles, 428_290, "triangles over the whole sweep");
     assert_eq!(
-        t.nurbs_triangles, 400_302,
+        t.nurbs_triangles, 358_574,
         "triangles the Hessian-sized faces carry"
     );
 
@@ -992,14 +1004,14 @@ fn the_committed_baseline_sizes_this_much() {
     // retired schedule's own (`NurbsColumns::nu` says so); the other
     // two are the optima the same certificates still admit
     // (whole-patch bound / per cell).
-    assert_eq!(t.grid_cells, 175_334.0, "grid cells the lane built");
-    assert_eq!(t.patch_cells, 196_504.0, "the whole-patch counterfactual");
+    assert_eq!(t.grid_cells, 164_574.0, "grid cells the lane built");
+    assert_eq!(t.patch_cells, 151_470.0, "the whole-patch counterfactual");
     assert_eq!(
-        t.opt_cells, 174_964.0,
+        t.opt_cells, 140_675.0,
         "cheapest split under the whole-patch bound"
     );
     assert_eq!(
-        t.span_opt_cells, 161_227.0,
+        t.span_opt_cells, 150_020.0,
         "per-cell sizing at the cheapest split in each cell"
     );
 
@@ -1007,11 +1019,11 @@ fn the_committed_baseline_sizes_this_much() {
     let held = t.span_held().expect("the sweep has Hessian-sized faces");
     let recoverable = t.recoverable().expect("the sweep has Hessian-sized faces");
     assert!(
-        (held - 1.1207).abs() < 5e-4,
+        (held - 0.9204).abs() < 5e-4,
         "the held span gain, patch_cells / grid_cells; got {held}"
     );
     assert!(
-        (recoverable - 1.0875).abs() < 5e-4,
+        (recoverable - 1.0970).abs() < 5e-4,
         "slack still recoverable, grid_cells / span_opt_cells; got {recoverable}"
     );
 }
@@ -1052,7 +1064,7 @@ fn the_committed_baseline_meets_the_split_bound_on_this_many_rows() {
         .collect();
     assert_eq!(
         at_bound.len(),
-        8,
+        7,
         "sized rows whose whole-patch schedule already is the cheapest split. \
          A row arriving or leaving is a face whose bound or divisions moved; \
          read which, then re-pin: {at_bound:#?}"

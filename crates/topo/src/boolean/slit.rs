@@ -1708,7 +1708,7 @@ mod torus_rows {
 
     #[test]
     fn a_torus_conic_reads_on_it_and_a_near_miss_does_not() {
-        let (body, face) = crate::boolean::boxes::tests::torus_wall(
+        let (body, face) = crate::boxes::tests::torus_wall(
             Point3::origin(),
             Vec3::unit_z(),
             Vec3::unit_x(),
@@ -4158,6 +4158,7 @@ mod piece_rung_rows {
             diag: geom_core::Indeterminate {
                 margin: geom_core::MarginDiag::value(5e-9),
                 band: geom_core::Band::new(1e-9, 1e-8).unwrap(),
+                // UNDECIDED-NAME: the piece's cause an unread piece refuses ahead of
                 predicate: Some("test_piece"),
                 terminal_sliver: false,
             },

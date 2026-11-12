@@ -72,6 +72,12 @@ pub(crate) enum RelOp {
 /// **The names a sign is decided under**: the walk's own sums under
 /// `walk`, and the round re-derived in interval arithmetic under
 /// `certified` ([`super::Round::certify`]).
+///
+/// **No row registry of its own, and why**: it is two [`super::RoleNames`],
+/// each a registered bundle (`crate::rows::PLUS_V`) or a name passed in
+/// through [`super::RoleNames::one`], so it mints no name of its own and
+/// `topo::rows` holds the bundles it is built of. Plain sites' uniqueness is the tree-wide census's question
+/// (`work/onecopy/plain-predicate-sites-have-no-tree-wide-census.md`).
 #[derive(Clone, Copy, Debug)]
 pub struct SignNames {
     /// The names on the walk's sums.

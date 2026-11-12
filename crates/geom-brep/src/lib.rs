@@ -106,6 +106,7 @@ pub mod props;
 pub mod quartic;
 pub mod recourse;
 pub mod roots;
+pub mod rows;
 pub mod sector_shape;
 pub(crate) mod shape_operator;
 pub mod ssi;
@@ -132,13 +133,13 @@ pub use dihedral::{
     MustCarryEscalation, MustCarryRefusal, MustCarryVerdict, PairRefusal, PositiveArm, RestLocus,
     SeamEscalation, SeamFace, SecondOrder, SmoothJoin, Station, Tangency, WedgeEnd,
     WedgeEscalation, WedgeRung, classify_dihedral, classify_edge_wedge,
-    classify_material_pairing_as, classify_seam, dihedral_class, folded_lever_arm,
-    material_kappa_rel, must_carry_description, must_carry_over_edge, reask_chart, reask_pair,
-    tangent_second_order,
+    classify_material_pairing_as, classify_seam, dihedral_class, dihedral_decided,
+    folded_lever_arm, material_kappa_rel, must_carry_description, must_carry_over_edge,
+    reask_chart, reask_pair, rest_locus, tangent_second_order,
 };
 pub use dihedral_side::{
     ChartPointRefusal, CreaseReading, EdgeHalf, EdgeWalk, FaceSide, SideEscalation, SideFace,
-    SideRole, chart_normal_at, chart_point_normal, dihedral_side, regular_jet,
+    SideRole, chart_normal_at, chart_normal_beside, chart_point_normal, dihedral_side, regular_jet,
 };
 pub use edge_nurbs::{
     AnalyticRung3Refusal, ArcRimRefusal, CARRIER_DOMAIN_RECOURSE, CarrierDomainFault,
@@ -157,8 +158,9 @@ pub use enters::{
     tied_germ_turn,
 };
 pub use extent::{
-    ExtentBall, LeverBounds, Reach, edge_coordinate_reach_below, edge_extent_inf, edge_extent_sup,
-    edge_reach_bounds, points_diameter, points_lever_from, polygon_half_perimeter,
+    ExtentBall, Forgets, LeverBounds, Reach, anchored_at, edge_coordinate_reach_below,
+    edge_extent_inf, edge_extent_sup, edge_reach_bounds, points_diameter, points_lever_from,
+    polygon_half_perimeter, surface_anchored_at,
 };
 pub use fitted_lane::{FITTED_DOOR_HOLDERS, FittedLane};
 /// The ring-torus convention's one home is `geom` (below this crate, so
@@ -175,6 +177,7 @@ pub use implicit::{
     implicit_graph_acceleration, implicit_hessian, implicit_hessian_form,
     implicit_max_normal_curvature, implicit_outward_normal, implicit_residual,
     implicit_section_acceleration, min_radius_of_curvature, min_radius_of_curvature_toward,
+    ring_floor,
 };
 pub use intersect::{
     ApexFansMeeting, ConeCylinderSection, ConicArcError, ConicBranch, EqualCylinderSection,
@@ -226,14 +229,16 @@ pub use pcurve::{
     PCURVE_FIT_SAMPLES, PcurveError, ellipse_pcurve_on_cylinder, ellipse_pcurve_on_plane,
 };
 pub use pcurve_cache::{
-    ANGLE_WINDOW_START, AxisMap, Azimuth, BranchMiss, Channel, ChartMap, ChartMapRefusal,
-    ChartStretchInf, ChartWindow, EnvelopeStatement, EnvelopeTerm, FocalImage, FramedCarrier,
-    ISO_FAMILY_CLAUSE, IncidenceRead, IsoFamily, IsoFamilyRefusal, IsoReading, LaneGap, NoChartSup,
-    OffMargin, Pcurve, PcurveCache, PcurveCertificate, PcurveCertifyError, PcurveCheck, PcurveKind,
-    Period, ProjectedChart, ProjectedImage, Ruling, SectorChannel, SpiricImage, WalkStop,
-    WallTorus, angle_rate, chart_iso_family, chart_pcurve, chart_pcurve_over, chart_stretch_inf,
-    chart_stretch_sup, chart_stretch_sup_v, chart_sup_arms_at, harmonic_form_of, iso_arc_spans,
-    minted_refusal, read_edge_incidence, read_incidence, read_point_incidence, ruling_miss,
+    ANGLE_WINDOW_START, AxisMap, Azimuth, BranchMiss, CertifyingDoor, Channel, ChartImage,
+    ChartMap, ChartMapRefusal, ChartStretchInf, ChartWindow, EnvelopeStatement, EnvelopeTerm,
+    FocalImage, FramedCarrier, ISO_FAMILY_CLAUSE, IncidenceRead, IncidenceRefusal, IsoFamily,
+    IsoFamilyRefusal, IsoReading, LaneGap, NoChartSup, OffMargin, Pcurve, PcurveCache,
+    PcurveCertificate, PcurveCertifyError, PcurveCheck, PcurveKind, Period, ProjectedChart,
+    ProjectedImage, Ruling, SectorChannel, SpiricImage, WalkStop, WallTorus, angle_rate,
+    chart_iso_family, chart_pcurve, chart_pcurve_over, chart_stretch_inf, chart_stretch_sup,
+    chart_stretch_sup_v, chart_sup_arms_at, harmonic_form_of, incidence_ended_unwitnessed,
+    iso_arc_skew, iso_arc_spans, minted_refusal, read_edge_incidence, read_incidence,
+    read_point_incidence, ruling_miss,
 };
 pub use props::{
     FaceContribution, LoopEdge, PropsError, curved_face, planar_face, require_iso_rectangle,
@@ -247,9 +252,8 @@ pub use ssi::{
     SettlingRefusal, SsiBoundaryContact, SsiBranch, SsiCertificate, SsiDecision, SsiDomain,
     SsiError, SsiLimb, SsiOperand, SsiOutcome, SsiTube, StepFault, StepperMode, TangentPair,
     TorusPair, TraceDecision, TubeDegeneracy, boundary_section, certify_rung3, cylinder_sphere_ssi,
-    cylinder_torus_ssi, idealized_trace_r3, march_cylinder_sphere, march_cylinder_torus,
-    march_torus_torus, plane_nurbs_ssi, sphere_torus_ssi, torus_torus_ssi,
-    trace_plane_nurbs_uncertified,
+    cylinder_torus_ssi, idealized_trace_r3, march_cylinder_torus, march_torus_torus,
+    plane_nurbs_ssi, sphere_torus_ssi, torus_torus_ssi, trace_plane_nurbs_uncertified,
 };
 #[cfg(any(test, feature = "test-support"))]
 #[doc(hidden)]

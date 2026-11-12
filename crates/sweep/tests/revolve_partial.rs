@@ -42,11 +42,20 @@ fn check_wedge(theta: f64) {
         end_cap,
         start_meridians,
         end_meridians,
+        coplanar_caps,
     } = &t.kind
     else {
         panic!("partial revolve");
     };
     assert_ne!(start_cap, end_cap);
+    // A quarter turn's caps are two carriers: two records, no row.
+    let key = |f: &topo::FaceKey| t.body.get_face(*f).unwrap().surface;
+    assert_ne!(
+        key(start_cap),
+        key(end_cap),
+        "the wedge's caps are two surfaces"
+    );
+    assert_eq!(*coplanar_caps, None, "no coincidence is decided");
     // The axis segment (canonical 3) has no wall and ONE shared edge.
     assert_eq!(t.walls()[0][3], None);
     assert_eq!(start_meridians[0][3], end_meridians[0][3]);
@@ -99,14 +108,14 @@ fn half_revolve_axis_edge_stays_conventional() {
     // its locus and the description stays conventional (the D2 split;
     // tier 3 permits it).
     //
-    // A smooth join at rest says where it rests: the two cap planes are
-    // two records of one carrier, which determine nothing incidence on
-    // one does not, so it rests in the chart of the pair's first record
-    // (`topo::rest_locus`), while the pushforward the sweep scaffolded
-    // it from stays beside it as the authority record (U2 Q3). Both
-    // halves are asserted: the locus is NOT intrinsically described (no
-    // Intersection the coplanar pair could not support), and a profile
-    // entity is what determined it.
+    // The two caps are one carrier, decided from θ's value: the revolve
+    // leaves them on one surface record and records the decision
+    // (DESIGN `[coincidence.door]`), so the axis edge lies between two
+    // faces of one record and is an image in its chart, while the
+    // pushforward the sweep scaffolded it from stays beside it as the
+    // authority record (U2 Q3). Both halves are asserted: the locus is
+    // NOT intrinsically described (no Intersection the coplanar pair
+    // could not support), and a profile entity is what determined it.
     let vp = validated(vec![square()]);
     let t = revolve(&vp, axis_y(), Revolution::Partial(PI), Tol::witness()).unwrap();
     assert_all_tiers(&t.body);
@@ -114,17 +123,30 @@ fn half_revolve_axis_edge_stays_conventional() {
         start_meridians,
         start_cap,
         end_cap,
+        coplanar_caps,
         ..
     } = &t.kind
     else {
         panic!("partial revolve");
     };
     let key = |f: &topo::FaceKey| t.body.get_face(*f).unwrap().surface;
-    assert_declared_image_in(
-        &t.body,
-        start_meridians[0][3],
-        geom_brep::SurfacePair::new(key(start_cap), key(end_cap)).keys()[0],
+    assert_eq!(
+        key(start_cap),
+        key(end_cap),
+        "the coplanar caps wear one record"
     );
+    assert_declared_image_in(&t.body, start_meridians[0][3], key(start_cap));
+    let row = coplanar_caps.expect("the caps' coincidence is recorded");
+    let mut cells = row.cells.map(|c| match c {
+        topo::RowCell::Result {
+            cell: topo::Cell::Face(f),
+        } => Some(f),
+        _ => None,
+    });
+    cells.sort();
+    let mut caps = [Some(*start_cap), Some(*end_cap)];
+    caps.sort();
+    assert_eq!(cells, caps, "the row names the two caps: {row:?}");
     assert!(signed_volume(&t.body) > 0.0);
 }
 
