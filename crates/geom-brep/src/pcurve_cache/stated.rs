@@ -79,6 +79,21 @@ pub(crate) struct EdgeSpan<T> {
     pub(crate) outer: (f64, f64),
 }
 
+impl<T: Real> EdgeSpan<T> {
+    /// The schedule's stations over the span: its ends as held, every
+    /// other one a point of the outer ends' `f64` schedule.
+    fn stations(self) -> super::Stations<T> {
+        #[cfg(test)]
+        if super::mutants::stated_station_computed() {
+            return super::Stations::Computed(self.params.0, self.params.1);
+        }
+        super::Stations::Held {
+            domain: self.outer,
+            held: self.params,
+        }
+    }
+}
+
 impl<T: Decide> PcurveCache<T> {
     /// Certifies `image`, a chart image of `carrier` on `surface` that a
     /// caller holds, over `[t0, t1]` through the door its kind names
@@ -188,7 +203,6 @@ impl<T: Decide> PcurveCache<T> {
         band: Band,
         lane: crate::FittedLane<T>,
     ) -> Result<PcurveCertificate<T>, PcurveCertifyError> {
-        let (t0, t1) = span.params;
         #[cfg(test)]
         if let Some(image) = sampled_mutant(door, surface) {
             return sampled(image, span, carrier, surface, band);
@@ -227,8 +241,7 @@ impl<T: Decide> PcurveCache<T> {
         super::schedule_residuals(
             Record::Verdict,
             image,
-            t0,
-            t1,
+            span.stations(),
             carrier,
             surface,
             band,
@@ -275,12 +288,10 @@ fn sampled<T: Decide>(
     band: Band,
 ) -> Result<PcurveCertificate<T>, PcurveCertifyError> {
     let mut max_residual = T::zero();
-    let (t0, t1) = span.params;
     super::schedule_residuals(
         Record::Verdict,
         image,
-        t0,
-        t1,
+        span.stations(),
         carrier,
         surface,
         band,
