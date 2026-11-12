@@ -2,12 +2,13 @@
 id: placement-primitives-take-and-return-construction-state
 kind: issue
 title: transform_rigid and mirror_body stay Body-to-Body; each placement door finishes after calling them
-status: review
+status: closed
 opened: 2026-11-02
 priority: P2
 cost: M
 branch: onehome/rigid-motion
 pr: 6820
+closed: 2026-11-12
 ---
 
 
@@ -39,3 +40,12 @@ is answered, the placement doors pay one finish per map.
 ## Decided (fork 256, PR 6589)
 
 Answered with `a-rigid-motion-rewrites-and-recertifies-every-edge`. The primitives take and return the finished type through one `moved` door. The move carries the verdict and asks only the session box again, and `finish` is the one place a verdict is derived. Both rows close in one unit.
+
+## Closed (ONEHOME forks 256 and 259, PR 6824, PR 6820, 2026-11-12)
+
+Closed with `a-rigid-motion-rewrites-and-recertifies-every-edge`, in one unit. Every placement door moves a finished value through the one `moved` door (`topo::FinishedBody::moved_by`) and finishes nothing after the map:
+- the editor's twist, mirror and fused member read (`ReadIn` is gone);
+- `pncad::export`'s placed bodies;
+- step-import's placed copies.
+
+`finish` stays the one place a verdict is derived; a move carries the source's verdict and asks the session box of the image again. Fork 259 kept a box scalar's leaf a replay whose taker finishes the image (the switch's price), and its certifier fix (PR 6824) made the carried verdict agree with a later finish.
