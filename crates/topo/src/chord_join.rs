@@ -548,7 +548,7 @@ pub enum SplitJoinError {
     /// Whether a split plane is tangent to a curved face along the
     /// ruling it cuts the face on is in band, at a station of the
     /// must-carry rule over the ruling
-    /// ([`geom_brep::MustCarryEscalation::FirstOrder`]).
+    /// (a first-order [`geom_brep::WedgeRung`]).
     ///
     /// No shipped pose reaches it: a cut turned off tangent by an
     /// angle the rule's first order would leave in band refuses at the
@@ -563,7 +563,7 @@ pub enum SplitJoinError {
     /// Whether a curved face curves away from a split plane tangent to
     /// it along a ruling, or shares its curvature there, is in band
     /// (`"tangent_second_order"`,
-    /// [`geom_brep::MustCarryEscalation::SecondOrder`]): the ruling is
+    /// [`geom_brep::WedgeRung::Bend`]): the ruling is
     /// certifiable as neither the intrinsic tangency nor a conventional
     /// image (D4 ¶3).
     TangentChordBendEscalated {
@@ -2607,8 +2607,15 @@ fn chord_spec<T: Decide>(
                     witness,
                 },
                 band,
-                |_, diag| SplitJoinError::TangentChordEscalated { face, diag },
-                |_, diag| SplitJoinError::TangentChordBendEscalated { face, diag },
+                |escalation| {
+                    let diag = escalation.diag();
+                    match escalation.rung() {
+                        geom_brep::WedgeRung::Bend => {
+                            SplitJoinError::TangentChordBendEscalated { face, diag }
+                        }
+                        _ => SplitJoinError::TangentChordEscalated { face, diag },
+                    }
+                },
                 |mixed| SplitJoinError::TangentChordRefuted { face, mixed },
             )?
             .spec(rest);

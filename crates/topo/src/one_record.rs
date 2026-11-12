@@ -166,27 +166,22 @@ impl<T: Decide + crate::props::AtRestPolicy> Body<T> {
     }
 }
 
-/// **What a sweep's dihedral reading decided across an edge**
+/// **What a sweep's reading of an edge's wedge decided across it**
 /// ([`Body::dihedral_across`]).
 #[derive(Debug)]
-pub enum DihedralAcross {
-    /// The two surfaces cross at the edge.
-    Transverse,
-    /// The join is smooth, on `margin`. Two planes joined smoothly along
-    /// a line of both are one plane: `one_carrier` is that verdict, and
-    /// `None` for every other pair of kinds, which a smooth join leaves
-    /// two carriers tangent along the edge.
-    Smooth {
-        /// The margin the reading decided the join smooth on.
-        margin: geom_core::MarginDiag,
-        /// The verdict that the two faces are one carrier.
-        one_carrier: Option<SmoothAcross>,
-    },
+pub struct DihedralAcross<T: Real> {
+    /// What the wedge demands the edge store
+    /// ([`crate::edge_wedge_description`]).
+    pub description: geom_brep::MustCarryDescription<T>,
+    /// Two planes meeting at the π seam are one plane: the verdict that
+    /// the two faces are one carrier. `None` for every other wedge and
+    /// every other pair of kinds.
+    pub one_carrier: Option<SmoothAcross>,
 }
 
 /// **The verdict that the two faces either side of an edge are one
-/// carrier**, as the dihedral reading across it decided two planes'
-/// join smooth.
+/// carrier**, as the wedge reading across it decided two planes' join
+/// the π seam.
 /// Only that reading constructs one ([`Body::dihedral_across`]), and only
 /// the act consumes it ([`Body::one_record_across`]): no caller states a
 /// coincidence from an edge and a face.
@@ -215,24 +210,28 @@ impl SmoothAcross {
 }
 
 impl<T: Decide> Body<T> {
-    /// **The dihedral across `edge` between its faces' records
-    /// `surfaces`**, read at the edge's stored carrier's mid-parameter
-    /// point and levered at its faces' extent ([`crate::wedge_reach()`]):
-    /// [`geom_brep::dihedral_decided`], the reading a sweep takes at an
-    /// edge it wrote. A smooth join of two planes comes back with the
-    /// verdict that its two faces are one carrier ([`SmoothAcross`]).
+    /// **The wedge across `edge` between its faces' records
+    /// `surfaces`**: the whole-edge fold over its walk, levered at its
+    /// faces' extent, and what it demands the edge store
+    /// ([`crate::edge_wedge_description`]), the reading a sweep takes at
+    /// an edge it wrote. Two planes at the π seam come back with the
+    /// verdict that its two faces are one carrier ([`SmoothAcross`]), on
+    /// the wedge decision's margin at the carrier's middle: two planes'
+    /// normals are constant along their line, so every station decides
+    /// on that margin.
     ///
     /// # Errors
     ///
     /// [`BadArgument::Stale`](crate::euler::BadArgument::Stale) where
-    /// `edge` does not resolve or `surfaces` are not its two faces'
-    /// records; the inner `Err` is the reading's escalation.
+    /// `edge` does not resolve, carries no certified curve, or
+    /// `surfaces` are not its two faces' records; the inner `Err` is the
+    /// wedge's refusal.
     pub fn dihedral_across(
         &self,
         edge: crate::entity::EdgeKey,
         surfaces: [SurfaceKey; 2],
         band: geom_core::Band,
-    ) -> Result<Result<DihedralAcross, geom_brep::LeverEscalation>, EulerOpError> {
+    ) -> Result<Result<DihedralAcross<T>, geom_brep::PairRefusal>, EulerOpError> {
         let curve = self.stored_curve(edge)?;
         let stale = || {
             EulerOpError::Argument(crate::euler::BadArgument::Stale {
@@ -254,26 +253,33 @@ impl<T: Decide> Body<T> {
         }
         let surface = |s: SurfaceKey| self.get_surface(s).ok_or_else(stale);
         let (s1, s2) = (surface(surfaces[0])?, surface(surfaces[1])?);
-        let reach = crate::wedge_reach::wedge_reach(self, sides, curve.carrier(), curve.params());
-        Ok(
-            geom_brep::dihedral_decided(s1, s2, curve.mid_point(), reach, band).map(
-                |(class, margin)| match class {
-                    geom_brep::DihedralClass::Transverse => DihedralAcross::Transverse,
-                    geom_brep::DihedralClass::Smooth => DihedralAcross::Smooth {
-                        margin,
-                        one_carrier: matches!(
-                            (s1, s2),
-                            (geom::Surface::Plane { .. }, geom::Surface::Plane { .. })
-                        )
-                        .then_some(SmoothAcross {
-                            edge,
-                            faces: [f1, f2],
-                            margin,
-                        }),
-                    },
-                },
-            ),
-        )
+        let verdict = crate::edge_wedge(self, edge, band).ok_or_else(stale)?;
+        let description = crate::edge_wedge::demanded(self, edge, verdict).ok_or_else(stale)?;
+        let description = match description {
+            Ok(description) => description,
+            Err(refusal) => return Ok(Err(refusal)),
+        };
+        let planes = matches!(
+            (s1, s2),
+            (geom::Surface::Plane { .. }, geom::Surface::Plane { .. })
+        );
+        let one_carrier = if planes && matches!(verdict, geom_brep::WedgeVerdict::Seam { .. }) {
+            let reach = crate::wedge_reach::wedge_reach(self, sides, curve.carrier(), curve.params());
+            match geom_brep::classify_dihedral_reported(s1, s2, curve.mid_point(), reach, band) {
+                Ok((_, margin)) => Some(SmoothAcross {
+                    edge,
+                    faces: [f1, f2],
+                    margin,
+                }),
+                Err(escalation) => return Ok(Err(geom_brep::PairRefusal::InBand(escalation))),
+            }
+        } else {
+            None
+        };
+        Ok(Ok(DihedralAcross {
+            description,
+            one_carrier,
+        }))
     }
 }
 

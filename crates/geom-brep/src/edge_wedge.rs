@@ -94,6 +94,49 @@ pub enum WedgeVerdict {
     InBand(WedgeEscalation),
 }
 
+impl WedgeVerdict {
+    /// **What the edge stores, by its wedge** (D2's prefer-intrinsic):
+    /// a crease is the pair's `Intersection` and a tangency the
+    /// must-carry rule's description, intrinsic where the bend is
+    /// jet-determinate and the pair is inside `lane`
+    /// ([`crate::tangent_certificate_lane`] over the edge's carrier), and
+    /// conventional otherwise. `pair` names the edge's two surfaces and
+    /// `witness` is a point of its carrier. The material verdict of a
+    /// tangency (the seam, an end, the lamina) is tier 3's to judge, so a
+    /// constructor stores each by its bend alone.
+    ///
+    /// # Errors
+    ///
+    /// [`crate::PairRefusal`] on an in-band or mixed verdict.
+    pub fn description<T: Real>(
+        self,
+        lane: bool,
+        pair: crate::SurfacePair,
+        witness: geom_core::Point3<T>,
+    ) -> Result<crate::MustCarryDescription<T>, crate::PairRefusal> {
+        use crate::MustCarryDescription as D;
+        match self {
+            Self::Crease(_) => Ok(D::Intrinsic(crate::EdgeDescriptionSpec::Intersection {
+                pair,
+                selector: crate::CurveSelector::Witness(witness),
+            })),
+            Self::Seam {
+                bend: Bend::Determinate,
+            }
+            | Self::End(_)
+                if lane =>
+            {
+                Ok(D::Intrinsic(
+                    crate::EdgeDescriptionSpec::TangentIntersection { pair, witness },
+                ))
+            }
+            Self::Seam { .. } | Self::End(_) | Self::Lamina => Ok(D::Conventional),
+            Self::Mixed(stations) => Err(crate::PairRefusal::Mixed(stations)),
+            Self::InBand(escalation) => Err(crate::PairRefusal::InBand(escalation)),
+        }
+    }
+}
+
 /// **The faces and stations of one wedge read, built together**, so the
 /// face order and the walk cannot be paired by hand ([`Convexity`]'s
 /// convention). Non-empty by construction: each door yields at least one
@@ -191,17 +234,17 @@ pub fn edge_wedge_over<T: Decide>(
 ) -> WedgeVerdict {
     let (plus, minus) = (walk.plus, walk.minus);
     let senses = [plus.sense, minus.sense];
-    let read = |(i, station): (u32, Station<T>)| match classify_dihedral(
-        plus.surface,
-        minus.surface,
-        station.point(),
-        reach,
-        band,
-    )? {
-        Dihedral::Corner(c) => Ok((i, Read::Corner(c.convexity(&station, senses, band)?))),
-        Dihedral::Tangent(t) => Ok((i, Read::Tangent(station, t))),
+    let classes = match class_pass(plus.surface, minus.surface, walk.stations(), reach, band) {
+        Ok(classes) => classes,
+        Err(escalation) => return WedgeVerdict::InBand(escalation),
     };
-    let reads: Result<Vec<_>, WedgeEscalation> = walk.stations().map(read).collect();
+    let reads: Result<Vec<_>, WedgeEscalation> = classes
+        .into_iter()
+        .map(|(i, station, dihedral)| match dihedral {
+            Dihedral::Corner(c) => Ok((i, Read::Corner(c.convexity(&station, senses, band)?))),
+            Dihedral::Tangent(t) => Ok((i, Read::Tangent(station, t))),
+        })
+        .collect();
     let reads = match reads {
         Ok(reads) => reads,
         Err(escalation) => return WedgeVerdict::InBand(escalation),
@@ -248,6 +291,25 @@ pub fn edge_wedge_over<T: Decide>(
         SecondOrderWalk::Stopped(escalation) => return WedgeVerdict::InBand(escalation),
     };
     material_outcome(&reads.pairings, bend, &reads.ends)
+}
+
+/// **The class pass**: [`classify_dihedral`] at every station, in
+/// schedule order, each station with its sample; the first escalation
+/// is the pass's. The one first-order loop of the fold and of the
+/// must-carry rule over an edge ([`crate::must_carry_over_edge`]), so
+/// the two read one class at one schedule.
+pub(crate) fn class_pass<T: Decide>(
+    s1: &geom::Surface<T>,
+    s2: &geom::Surface<T>,
+    stations: impl Iterator<Item = (u32, Station<T>)>,
+    reach: geom_core::Lever<T>,
+    band: Band,
+) -> Result<Vec<(u32, Station<T>, Dihedral<T>)>, WedgeEscalation> {
+    stations
+        .map(|(i, station)| {
+            classify_dihedral(s1, s2, station.point(), reach, band).map(|d| (i, station, d))
+        })
+        .collect()
 }
 
 /// **The material reads at each tangent station**, taken inside the

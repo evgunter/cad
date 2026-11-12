@@ -359,45 +359,26 @@ pub fn classify_dihedral<T: Decide>(
         .map_err(|e| e.into_lever().into())
 }
 
-/// [`classify_dihedral`]'s class alone, with its escalation as the
-/// levered reading's rungs: for a reader whose refusals carry a
-/// [`LeverEscalation`].
+/// [`classify_dihedral`] with the wedge decision's reporting margin: a
+/// caller that decides a coincidence from a smooth join records that
+/// margin as the decision's row.
 ///
 /// # Errors
 ///
-/// As [`classify_dihedral`]: [`crate::LeverRung::Reading`] where it
-/// escalates at [`WedgeRung::Wedge`], [`crate::LeverRung::Arm`] where at
-/// [`WedgeRung::Arm`].
-pub fn dihedral_class<T: Decide>(
+/// As [`classify_dihedral`].
+pub fn classify_dihedral_reported<T: Decide>(
     s1: &Surface<T>,
     s2: &Surface<T>,
     p: Point3<T>,
     reach: geom_core::Lever<T>,
     band: Band,
-) -> Result<DihedralClass, LeverEscalation> {
-    dihedral_decided(s1, s2, p, reach, band).map(|(class, _)| class)
-}
-
-/// [`dihedral_class`] with the wedge decision's margin: a caller that
-/// decides a coincidence from a smooth join records that margin as the
-/// decision's row.
-///
-/// # Errors
-///
-/// As [`dihedral_class`].
-pub fn dihedral_decided<T: Decide>(
-    s1: &Surface<T>,
-    s2: &Surface<T>,
-    p: Point3<T>,
-    reach: geom_core::Lever<T>,
-    band: Band,
-) -> Result<(DihedralClass, geom_core::MarginDiag), LeverEscalation> {
-    wedge_decided(s1, s2, p, reach, band).map_err(FirstOrderEscalation::into_lever)
+) -> Result<(Dihedral<T>, geom_core::MarginDiag), WedgeEscalation> {
+    read_dihedral(s1, s2, p, reach, band).map_err(|e| e.into_lever().into())
 }
 
 /// The first-order reading at `p` as its token, with the wedge
 /// decision's reporting margin: the one reading [`classify_dihedral`],
-/// [`dihedral_class`] and [`wedge_decided`] share.
+/// [`classify_dihedral_reported`] and [`wedge_decided`] share.
 fn read_dihedral<T: Decide>(
     s1: &Surface<T>,
     s2: &Surface<T>,
@@ -677,8 +658,11 @@ pub struct WedgeEscalation {
 }
 
 impl WedgeEscalation {
-    /// A rung other than the arm's, escalated with `diag`.
-    pub(crate) const fn at(rung: WedgeRung, diag: Indeterminate) -> Self {
+    /// `rung` escalated with `diag`, carrying no refused arm: the arm's
+    /// own verdict is minted only by its gate, through
+    /// `From<LeverEscalation>`.
+    #[must_use]
+    pub const fn at(rung: WedgeRung, diag: Indeterminate) -> Self {
         Self {
             rung,
             diag,
@@ -1299,8 +1283,8 @@ pub struct SecondOrder<T: geom_core::Real> {
 ///   certificate's lane and cannot store one (see the variant). The
 ///   conventional description is the honest one either way.
 /// - **[`MustCarryVerdict::InBand`]** — a station was certifiable as
-///   neither, carrying that station's escalation and the reading that
-///   raised it ([`MustCarryEscalation`]): the caller refuses TYPED
+///   neither, carrying that station's escalation tagged with the rung
+///   that raised it ([`WedgeEscalation`]): the caller refuses TYPED
 ///   (D4 ¶3). An in-band verdict is never silently either side, so no
 ///   caller may fold it into "conventional".
 /// - **[`MustCarryVerdict::Transverse`]** — every station's tangent
@@ -1330,9 +1314,9 @@ pub struct SecondOrder<T: geom_core::Real> {
 /// station that did NOT fail — a caller reporting its margin as the
 /// cause would report a margin that passed. The station that decided
 /// is the one a caller has to name, and it is already inside
-/// [`MustCarryVerdict::InBand`]'s [`MustCarryEscalation`]: which
-/// reading raised it (the first-order rung, or the second-order
-/// sagitta), its margin, its band and the predicate it was classified
+/// [`MustCarryVerdict::InBand`]'s [`WedgeEscalation`]: the rung that
+/// raised it (the first-order arm or wedge, or the second-order bend),
+/// its margin, its band and the predicate it was classified
 /// under. [`MustCarryVerdict::Mixed`] names the two stations that
 /// bracket its unsampled in-band point. The three other verdicts carry
 /// no cause, and a caller that wants the jet re-reads it at the station
@@ -1359,7 +1343,9 @@ pub struct SecondOrder<T: geom_core::Real> {
 /// then the coincidence levers) names no lever that reaches it.
 ///
 /// **The stations are the certification schedule's interior**
-/// ([`interior_stations`]), read in two passes, in tier 3's order.
+/// ([`interior_stations`]), read in two passes, in tier 3's order: the
+/// first is the whole-edge fold's class pass, so the rule and the fold
+/// read one class at one schedule ([`crate::edge_wedge_over`]).
 /// Every station is classified first-order before any is metered
 /// second-order: an in-band station anywhere answers `InBand`, else a
 /// transverse one anywhere answers `Transverse` (every station) or
@@ -1403,23 +1389,25 @@ pub fn must_carry_over_edge<T: Decide>(
     reach: geom_core::Lever<T>,
     band: Band,
 ) -> MustCarryVerdict {
-    let mut transverse = Vec::with_capacity(crate::CERT_SAMPLES as usize - 2);
-    for station in interior_stations(carrier, t0, t1) {
-        match dihedral_class(s1, s2, station.point(), reach, band) {
-            Ok(DihedralClass::Smooth) => transverse.push(false),
-            Ok(DihedralClass::Transverse) => transverse.push(true),
-            Err(escalation) => {
-                return MustCarryVerdict::InBand(MustCarryEscalation::FirstOrder(escalation));
-            }
-        }
-    }
-    if let Some(verdict) = MixedStations::corner_verdict(&transverse) {
-        return verdict;
+    let stations = interior_stations(carrier, t0, t1)
+        .zip(1_u32..)
+        .map(|(station, i)| (i, station));
+    let reads = match crate::edge_wedge::class_pass(s1, s2, stations, reach, band) {
+        Ok(reads) => reads,
+        Err(escalation) => return MustCarryVerdict::InBand(escalation),
+    };
+    let class: Vec<_> = reads
+        .iter()
+        .map(|(i, _, d)| (*i, matches!(d, Dihedral::Corner(_))))
+        .collect();
+    if class.iter().any(|&(_, corner)| corner) {
+        return MixedStations::class(&class)
+            .map_or(MustCarryVerdict::Transverse, MustCarryVerdict::Mixed);
     }
     match second_order_walk(
         s1,
         s2,
-        interior_stations(carrier, t0, t1).map(|station| (station, ())),
+        reads.into_iter().map(|(_, station, _)| (station, ())),
         reach,
         band,
         &mut (),
@@ -1433,7 +1421,7 @@ pub fn must_carry_over_edge<T: Decide>(
             MustCarryVerdict::UnderDetermined
         }
         SecondOrderWalk::InBand(source) => {
-            MustCarryVerdict::InBand(MustCarryEscalation::SecondOrder(source))
+            MustCarryVerdict::InBand(WedgeEscalation::at(WedgeRung::Bend, source))
         }
         SecondOrderWalk::Stopped(never) => match never {},
     }
@@ -1484,13 +1472,6 @@ pub enum MixedStations {
     },
 }
 
-/// The schedule sample interior station `k` is.
-fn interior_sample(k: usize) -> u32 {
-    u32::try_from(k + 1).unwrap_or_else(|_| {
-        unreachable!("an interior station indexes a schedule of `CERT_SAMPLES` samples")
-    })
-}
-
 /// **The first neighbouring readings that disagree**, over readings in
 /// schedule order each with its sample: the reading `is` matches first,
 /// then the other. The one home of every bracket [`MixedStations`] names.
@@ -1501,23 +1482,6 @@ fn bracket<R: Copy + PartialEq>(reads: &[(u32, R)], is: impl Fn(R) -> bool) -> O
 }
 
 impl MixedStations {
-    /// The corner verdict over the first-order readings of the
-    /// interior stations in schedule order (`true` = transverse):
-    /// `None` when no station read a corner, [`MustCarryVerdict::Transverse`]
-    /// when every one did, else [`MustCarryVerdict::Mixed`] naming the
-    /// first neighbouring pair that disagrees.
-    fn corner_verdict(transverse: &[bool]) -> Option<MustCarryVerdict> {
-        if !transverse.contains(&true) {
-            return None;
-        }
-        let reads: Vec<_> = transverse
-            .iter()
-            .enumerate()
-            .map(|(k, &t)| (interior_sample(k), t))
-            .collect();
-        Some(Self::class(&reads).map_or(MustCarryVerdict::Transverse, MustCarryVerdict::Mixed))
-    }
-
     /// The first disagreeing class bracket (`true` = transverse).
     pub(crate) fn class(reads: &[(u32, bool)]) -> Option<Self> {
         bracket(reads, |t| t).map(|(transverse, smooth)| Self::Class { transverse, smooth })
@@ -1576,13 +1540,16 @@ impl core::fmt::Display for MixedStations {
     }
 }
 
-/// What a join entered as definitely smooth stores, by the must-carry
-/// rule's verdict ([`MustCarryVerdict::description`]).
+/// What a join stores, by the must-carry rule's verdict
+/// ([`MustCarryVerdict::description`]) or by its whole wedge
+/// ([`crate::WedgeVerdict::description`]).
 #[derive(Clone, Debug)]
 pub enum MustCarryDescription<T: Real> {
-    /// The intrinsic [`crate::EdgeDescriptionSpec::TangentIntersection`]
-    /// over the pair the rule was asked about, in that order; the caller
-    /// stores it on its carrier.
+    /// The intrinsic description over the pair the rule was asked about:
+    /// a determinate tangency's
+    /// [`crate::EdgeDescriptionSpec::TangentIntersection`], or a crease's
+    /// [`crate::EdgeDescriptionSpec::Intersection`]; the caller stores it
+    /// on its carrier.
     Intrinsic(crate::EdgeDescriptionSpec<T>),
     /// The conventional description: a locus the pair under-determines
     /// ([`crate::EdgeDescriptionSpec::OnPair`]). Whether the stored
@@ -1699,23 +1666,21 @@ pub struct SmoothJoin<'a, T: Real> {
 /// pair itself ([`crate::EdgeDescriptionSpec::OnPair`]), so no caller
 /// chooses a chart.
 ///
-/// Each refusal is built by the caller, from the reading that raised it
-/// ([`DihedralReading::of_must_carry`]) and its diagnostics: an in-band
-/// first-order station (the dihedral, by the rung that raised it)
-/// through `first_order`, an in-band second-order station (the bend)
-/// through `second_order`, a refuted smooth premise through `refuted`
-/// — with the two bracketing stations where the edge is mixed
-/// ([`MixedStations`]), `None` where every station read a corner.
+/// Each refusal is built by the caller: an in-band station's escalation,
+/// tagged with the rung that raised it (the first-order arm or wedge, or
+/// the second-order bend), through `escalated`, and a refuted smooth
+/// premise through `refuted` — with the two bracketing stations where
+/// the edge is mixed ([`MixedStations`]), `None` where every station
+/// read a corner.
 ///
 /// # Errors
 ///
-/// What `first_order`, `second_order` or `refuted` builds, on an
-/// in-band, transverse or mixed verdict.
+/// What `escalated` or `refuted` builds, on an in-band, transverse or
+/// mixed verdict.
 pub fn must_carry_description<T: Decide, E>(
     join: SmoothJoin<'_, T>,
     band: Band,
-    first_order: impl FnOnce(DihedralReading, Indeterminate) -> E,
-    second_order: impl FnOnce(DihedralReading, Indeterminate) -> E,
+    escalated: impl FnOnce(WedgeEscalation) -> E,
     refuted: impl FnOnce(Option<MixedStations>) -> E,
 ) -> Result<MustCarryDescription<T>, E> {
     let [(ka, a), (kb, b)] = join.surfaces;
@@ -1725,24 +1690,19 @@ pub fn must_carry_description<T: Decide, E>(
         .description(pair, join.witness)
     {
         Ok(description) => Ok(description),
-        Err(MustCarryRefusal::InBand(escalation)) => {
-            let (reading, diag) = DihedralReading::of_must_carry(escalation);
-            Err(match escalation {
-                MustCarryEscalation::FirstOrder(_) => first_order(reading, diag),
-                MustCarryEscalation::SecondOrder(_) => second_order(reading, diag),
-            })
-        }
+        Err(MustCarryRefusal::InBand(escalation)) => Err(escalated(escalation)),
         Err(MustCarryRefusal::Refuted) => Err(refuted(None)),
         Err(MustCarryRefusal::Mixed(stations)) => Err(refuted(Some(stations))),
     }
 }
 
-/// Why a conventional pair re-asked the rule ([`reask_pair`]) has no
-/// description.
+/// Why an edge has no description: a conventional pair re-asked the rule
+/// ([`reask_pair`]), or an edge's wedge read whole
+/// ([`crate::WedgeVerdict::description`]).
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum PairRefusal {
     /// A station certifiable as neither, with its escalation.
-    InBand(MustCarryEscalation),
+    InBand(WedgeEscalation),
     /// Neighbouring stations that disagree ([`MixedStations`]).
     Mixed(MixedStations),
 }
@@ -1834,7 +1794,7 @@ pub enum MustCarryRefusal {
     /// [`MustCarryVerdict::InBand`]: certifiable as neither, refused
     /// typed with the deciding station's escalation (D4 ¶3) — never
     /// folded into either description.
-    InBand(MustCarryEscalation),
+    InBand(WedgeEscalation),
     /// [`MustCarryVerdict::Transverse`]: every station read the join a
     /// corner, refuting the smooth premise the caller entered on.
     Refuted,
@@ -1895,7 +1855,7 @@ pub enum MustCarryVerdict {
     /// A station was in-band: near-osculating geometry, certifiable as
     /// neither, carrying that station's escalation for the caller to
     /// refuse typed, tagged with the reading that raised it.
-    InBand(MustCarryEscalation),
+    InBand(WedgeEscalation),
     /// Every station's tangent planes are definitely distinct
     /// ([`DihedralClass::Transverse`]): the join is not first-order
     /// smooth, so the second-order question was never posed and the
@@ -1910,64 +1870,6 @@ pub enum MustCarryVerdict {
     /// sample, so the edge is certifiable as neither (D2) and every
     /// caller refuses it typed, tier 3 included.
     Mixed(MixedStations),
-}
-
-/// Which of a station's two readings escalated a
-/// [`MustCarryVerdict::InBand`], so a caller routes each to the decision
-/// it asks rather than telling them apart by predicate name.
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub enum MustCarryEscalation {
-    /// The first-order dihedral ([`classify_dihedral`],
-    /// `"dihedral_arm"` or `"dihedral_wedge"`), with the rung that
-    /// raised it.
-    FirstOrder(LeverEscalation),
-    /// The second-order sagitta ([`tangent_second_order`],
-    /// `"tangent_second_order"`).
-    SecondOrder(Indeterminate),
-}
-
-impl MustCarryEscalation {
-    /// The deciding station's escalation, whichever reading raised it.
-    #[must_use]
-    pub const fn diag(self) -> Indeterminate {
-        match self {
-            Self::FirstOrder(escalation) => escalation.diag(),
-            Self::SecondOrder(diag) => diag,
-        }
-    }
-}
-
-/// The reading of the two faces at an edge that could not decide: the
-/// first-order dihedral by the rung that raised it, or the second-order
-/// bend.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum DihedralReading {
-    /// The first-order dihedral: the angle between the faces, metered
-    /// over the edge, at the rung that could not decide.
-    Lever(crate::LeverRung),
-    /// The second-order bend of two faces that meet smoothly.
-    Bend,
-}
-
-impl DihedralReading {
-    /// A first-order dihedral escalation ([`classify_dihedral`])
-    /// as the rung that raised it, with its diagnostics.
-    #[must_use]
-    pub const fn of_lever(escalation: crate::LeverEscalation) -> (Self, Indeterminate) {
-        (Self::Lever(escalation.rung()), escalation.diag())
-    }
-
-    /// A must-carry station's escalation
-    /// ([`crate::MustCarryEscalation`]) as the reading that raised
-    /// it — the first-order dihedral by rung, or the second-order bend —
-    /// with its diagnostics.
-    #[must_use]
-    pub const fn of_must_carry(escalation: crate::MustCarryEscalation) -> (Self, Indeterminate) {
-        match escalation {
-            crate::MustCarryEscalation::FirstOrder(lever) => Self::of_lever(lever),
-            crate::MustCarryEscalation::SecondOrder(diag) => (Self::Bend, diag),
-        }
-    }
 }
 
 /// **Which end of the wedge range** two tangent faces with opposed
@@ -2294,6 +2196,17 @@ mod tests {
     use super::*;
     use crate::LeverRung;
 
+    /// The class [`classify_dihedral`] reads, as these rows compare it.
+    pub(super) fn dihedral_class<T: Decide>(
+        s1: &Surface<T>,
+        s2: &Surface<T>,
+        p: Point3<T>,
+        reach: geom_core::Lever<T>,
+        band: Band,
+    ) -> Result<DihedralClass, WedgeEscalation> {
+        classify_dihedral(s1, s2, p, reach, band).map(|d| d.class())
+    }
+
     fn band() -> Band {
         Band::linear(Tol::witness()).unwrap()
     }
@@ -2315,7 +2228,7 @@ mod tests {
             dihedral_class(&floor, &wall, Point3::origin(), fixture_lever(mid), b).unwrap_err();
         assert_eq!(
             (err.rung(), err.diag().predicate),
-            (LeverRung::Arm, Some("dihedral_arm_wedge"))
+            (WedgeRung::Arm, Some("dihedral_arm_wedge"))
         );
     }
 
@@ -2339,7 +2252,7 @@ mod tests {
         );
         let undecided =
             dihedral_class(&floor, &leaning, Point3::origin(), fixture_lever(arm), b).unwrap_err();
-        assert_eq!(undecided.rung(), LeverRung::Arm);
+        assert_eq!(undecided.rung(), WedgeRung::Arm);
         assert_eq!(
             undecided.diag().margin.rejected_sign(),
             Some(Sign::Zero),
@@ -2533,7 +2446,7 @@ mod tests {
             else {
                 panic!("a point margin: {err:?}");
             };
-            assert_eq!(err.rung(), LeverRung::Arm);
+            assert_eq!(err.rung(), WedgeRung::Arm);
             if b.offer_deciding(extent).is_none() {
                 // The arm offers no tolerance (D4 ¶4), so there is none
                 // to decide the wedge by: the arm keeps its own margin.
@@ -2548,7 +2461,7 @@ mod tests {
             dihedral_class(&floor, &floor, Point3::origin(), fixture_lever(mid), b).unwrap_err();
         assert_eq!(
             (err.rung(), err.diag().predicate),
-            (LeverRung::Arm, Some("dihedral_arm"))
+            (WedgeRung::Arm, Some("dihedral_arm"))
         );
         assert_eq!(
             err.diag().margin.diagnostic_f64_for_error_text(),
@@ -2583,7 +2496,7 @@ mod tests {
             else {
                 panic!("a point margin: {err:?}");
             };
-            assert_eq!(err.rung(), LeverRung::Arm, "{err:?}");
+            assert_eq!(err.rung(), WedgeRung::Arm, "{err:?}");
             (err.diag().predicate, m)
         };
         // The coincv5 review's tangent pose (`seam_tangent_noise`).
@@ -2684,12 +2597,15 @@ mod tests {
             MustCarryVerdict::UnderDetermined.description::<f64>(pair, witness),
             Ok(MustCarryDescription::Conventional)
         ));
-        let source = MustCarryEscalation::SecondOrder(Indeterminate {
-            margin: geom_core::MarginDiag::value(5e-9),
-            band: band(),
-            predicate: Some("tangent_second_order"),
-            terminal_sliver: false,
-        });
+        let source = WedgeEscalation::at(
+            WedgeRung::Bend,
+            Indeterminate {
+                margin: geom_core::MarginDiag::value(5e-9),
+                band: band(),
+                predicate: Some("tangent_second_order"),
+                terminal_sliver: false,
+            },
+        );
         assert!(matches!(
             MustCarryVerdict::InBand(source).description::<f64>(pair, witness),
             Err(MustCarryRefusal::InBand(s)) if s == source
@@ -2708,30 +2624,25 @@ mod tests {
         ));
     }
 
-    /// **The corner verdict over a station row**, as an enumeration: no
-    /// corner reads no verdict, every corner reads `Transverse`, and a
-    /// row that changes names the first neighbouring pair that
-    /// disagrees, as schedule samples (interior station `k` is sample
-    /// `k + 1`), each in its role whichever way the row turns.
+    /// **The class bracket over a station row**, as an enumeration: a
+    /// row of one class reads none, and a row that changes names the
+    /// first neighbouring pair that disagrees, as schedule samples, each
+    /// in its role whichever way the row turns.
     #[test]
     fn mixed_stations_name_the_first_disagreeing_neighbours() {
         let (t, s) = (true, false);
-        let mixed = |transverse, smooth| {
-            Some(MustCarryVerdict::Mixed(MixedStations::Class {
-                transverse,
-                smooth,
-            }))
-        };
-        let rows: [(&[bool], Option<MustCarryVerdict>); 6] = [
+        let mixed = |transverse, smooth| Some(MixedStations::Class { transverse, smooth });
+        let rows: [(&[bool], Option<MixedStations>); 6] = [
             (&[s, s, s, s], None),
-            (&[t, t, t, t], Some(MustCarryVerdict::Transverse)),
+            (&[t, t, t, t], None),
             (&[t, s, s, s], mixed(1, 2)),
             (&[s, s, s, t], mixed(4, 3)),
             (&[s, t, s, t], mixed(2, 1)),
             (&[t, t, s, t], mixed(2, 3)),
         ];
         for (row, want) in rows {
-            assert_eq!(MixedStations::corner_verdict(row), want, "{row:?}");
+            let reads: Vec<_> = (1_u32..).zip(row.iter().copied()).collect();
+            assert_eq!(MixedStations::class(&reads), want, "{row:?}");
         }
         let text = MixedStations::Class {
             transverse: 2,
@@ -2763,8 +2674,7 @@ mod tests {
     fn must_carry_description_answers_with_the_callers_constructors() {
         #[derive(Debug, PartialEq)]
         enum Refused {
-            FirstOrder(DihedralReading, Indeterminate),
-            SecondOrder(DihedralReading, Indeterminate),
+            Escalated(WedgeRung, Indeterminate),
             Refuted(Option<MixedStations>),
         }
         let mut keys = slotmap::SlotMap::<crate::SurfaceKey, ()>::with_key();
@@ -2782,8 +2692,7 @@ mod tests {
                         witness: carrier.mid_point(t0, t1),
                     },
                     band(),
-                    Refused::FirstOrder,
-                    Refused::SecondOrder,
+                    |e: WedgeEscalation| Refused::Escalated(e.rung(), e.diag()),
                     Refused::Refuted,
                 );
                 format!("{answer:?}")
@@ -2826,8 +2735,8 @@ mod tests {
         let theta = 3.0 * eps();
         let near = plane(Vec3::new(theta.sin(), 0.0, theta.cos()), Vec3::unit_y());
         assert!(
-            ask(&floor, &near, &y_axis, (0.0, 1.0)).starts_with("Err(FirstOrder(Lever(Reading), "),
-            "an in-band dihedral is the first-order constructor's, by its rung"
+            ask(&floor, &near, &y_axis, (0.0, 1.0)).starts_with("Err(Escalated(Wedge, "),
+            "an in-band dihedral escalates at its rung"
         );
 
         let (sin, cos) = std::f64::consts::FRAC_PI_4.sin_cos();
@@ -2843,8 +2752,8 @@ mod tests {
         let generator = along(ruling);
         let bend = ask(&cone, &tangent, &generator, (100.0, 100.0 + len));
         assert!(
-            bend.starts_with("Err(SecondOrder(Bend, ") && bend.contains("tangent_second_order"),
-            "an in-band sagitta is the second-order constructor's, as the bend: {bend}"
+            bend.starts_with("Err(Escalated(Bend, ") && bend.contains("tangent_second_order"),
+            "an in-band sagitta escalates as the bend: {bend}"
         );
 
         // A sphere in a cylinder of its own radius, touching along the
@@ -2878,7 +2787,7 @@ mod tests {
         let turn = (2.0 * (band().zero() * band().escalate()).sqrt() * radius).sqrt() / radius;
         let bend = ask(&sleeve, &ball, &equator, (0.15, 0.15 + turn));
         assert!(
-            bend.starts_with("Err(SecondOrder(Bend, "),
+            bend.starts_with("Err(Escalated(Bend, "),
             "the equator's sagitta is in band: {bend}"
         );
 
@@ -2933,8 +2842,9 @@ mod tests {
             assert!(
                 matches!(
                     verdict,
-                    MustCarryVerdict::InBand(MustCarryEscalation::SecondOrder(diag))
-                        if diag.predicate == Some("tangent_second_order")
+                    MustCarryVerdict::InBand(e)
+                        if e.rung() == WedgeRung::Bend
+                            && e.diag().predicate == Some("tangent_second_order")
                 ),
                 "order {order}: an in-band sagitta out of lane escalates, got {verdict:?}"
             );
@@ -3171,7 +3081,7 @@ mod tests {
             dihedral_class(&s1, &s2, Point3::origin(), fixture_lever(1.0), band()).unwrap_err();
         assert_eq!(
             (err.rung(), err.diag().predicate),
-            (LeverRung::Reading, Some("dihedral_wedge"))
+            (WedgeRung::Wedge, Some("dihedral_wedge"))
         );
     }
 
@@ -3224,7 +3134,7 @@ mod tests {
                 err.diag().margin.rejected_sign()
             ),
             (
-                crate::LeverRung::Arm,
+                WedgeRung::Arm,
                 Some("dihedral_arm"),
                 geom_core::ErrorTextReading::Value(0.0),
                 Some(Sign::Zero)
@@ -3493,7 +3403,7 @@ mod tests {
         .unwrap_err();
         assert_eq!(
             public,
-            LeverEscalation::reading(diag),
+            WedgeEscalation::from(LeverEscalation::reading(diag)),
             "classify_dihedral reports the same escalation it always did"
         );
         let off_locus = wedge_decided(
@@ -3574,6 +3484,7 @@ mod tests {
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod seam_rows {
+    use super::tests::dihedral_class;
     use super::*;
     use crate::NurbsLane;
     use geom::NurbsSurface;
@@ -4043,8 +3954,9 @@ mod seam_rows {
                         chart_arm,
                         band()
                     ),
-                    dihedral_class(a, b, ORIGIN, fixture_lever(1.0), band())
-                        .map_err(SeamEscalation::Lever),
+                    wedge_decided(a, b, ORIGIN, fixture_lever(1.0), band())
+                        .map(|(class, _)| class)
+                        .map_err(|e| SeamEscalation::Lever(e.into_lever())),
                     "{what}, {a:?} against {b:?}"
                 );
             }

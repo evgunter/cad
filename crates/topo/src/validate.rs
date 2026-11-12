@@ -7050,38 +7050,6 @@ fn plus_v_errors<T: Decide>(
     errors
 }
 
-/// **An edge's wedge walk** ([`geom_brep::WedgeWalk::along_edge`]): the
-/// face of its `he_plus` as the plus face and of its `he_minus` as the
-/// minus face, each with its `Face::sense` bit, and the interior stations
-/// of its certified curve, whose increasing parameter is the way
-/// `he_plus` walks it (`crate::entity`'s orientation section). The one
-/// door from an edge to its wedge's faces and walk, so no reader pairs a
-/// face order with a direction by hand (`geom_brep::Convexity`'s
-/// convention). `None` where a record on the way does not resolve, which
-/// tier 1 rules out.
-pub(crate) fn edge_wedge_walk<T: geom_core::Decide>(
-    body: &Body<T>,
-    edge: EdgeKey,
-) -> Option<geom_brep::WedgeWalk<'_, T>> {
-    let e = body.get_edge(edge)?;
-    let curve = body.curves.get(e.curve).and_then(CurveGeom::certified)?;
-    let sides = crate::readback::edge_sides(body, edge).ok()?;
-    let side = |side: crate::readback::EdgeSide| {
-        Some(geom_brep::SideFace {
-            surface: body.surfaces.get(side.surface)?,
-            sense: body.get_face(side.face)?.sense,
-        })
-    };
-    let (t0, t1) = curve.params();
-    Some(geom_brep::WedgeWalk::along_edge(
-        side(sides.plus)?,
-        side(sides.minus)?,
-        curve.carrier(),
-        t0,
-        t1,
-    ))
-}
-
 /// **Check 4's reading of an edge's wedge**: the contact mark the
 /// whole-edge fold's verdict earns ([`geom_brep::edge_wedge_over`]), and
 /// the finding it raises, if any. `wrap` is a chart seam's edge, marked
@@ -7928,7 +7896,7 @@ pub(crate) fn tier3_local_checks_marked<
         let mark = if nurbs_adjacent {
             ContactMark::Unmarked
         } else {
-            let Some(walk) = edge_wedge_walk(body, edge_key) else {
+            let Some(walk) = crate::edge_wedge::edge_wedge_walk(body, edge_key) else {
                 continue; // unreachable on tier-1 input
             };
             let verdict = geom_brep::edge_wedge_over(&walk, reach, band);
@@ -13565,7 +13533,7 @@ mod tests {
         let merge = crate::merge_faces::MergeCoplanarError::KeptBoundaryUndecided {
             face: FaceKey::default(),
             edge: EdgeKey::default(),
-            reading: crate::merge_faces::DihedralReading::Lever(geom_brep::LeverRung::Arm),
+            reading: geom_brep::WedgeRung::Arm,
             diag: in_band,
         };
         let tellings = [

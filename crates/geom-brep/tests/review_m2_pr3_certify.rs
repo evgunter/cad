@@ -19,11 +19,22 @@ use geom::Surface;
 use geom_brep::recourse::Refused;
 use geom_brep::{
     CertCheck, CertifyError, DihedralClass, EdgeCurve, EdgeCurveSpec, EdgeDescriptionSpec,
-    MappedCurve, MappedSource, NewellError, SketchSegment, SurfacePair, dihedral_class,
-    newell_plane,
+    MappedCurve, MappedSource, NewellError, SketchSegment, SurfacePair, WedgeEscalation,
+    classify_dihedral, newell_plane,
 };
 use geom_brep::{ForwardReading, StatedSpan, WindingReading};
 use geom_core::{Affine3, Arc2, Point2, Point3, Vec3};
+
+/// The class [`classify_dihedral`] reads, as these rows compare it.
+fn dihedral_class<T: geom_core::Decide>(
+    s1: &Surface<T>,
+    s2: &Surface<T>,
+    p: Point3<T>,
+    reach: geom_core::Lever<T>,
+    band: geom_core::Band,
+) -> Result<DihedralClass, WedgeEscalation> {
+    classify_dihedral(s1, s2, p, reach, band).map(|d| d.class())
+}
 
 // =====================================================================
 // Target 1 — certification aliasing: is the 9-sample schedule enough?
@@ -568,7 +579,7 @@ fn fixed_sub_epsilon_cone_arm_escalates() {
     let err = dihedral_class(&cone, &plane_through(p), p, fixture_lever(1.0), band()).unwrap_err();
     assert_eq!(
         (err.rung(), err.diag().predicate),
-        (geom_brep::LeverRung::Arm, Some(sub_eps_arm_quotes()))
+        (geom_brep::WedgeRung::Arm, Some(sub_eps_arm_quotes()))
     );
 }
 
@@ -618,14 +629,14 @@ fn fixed_sub_epsilon_extent_true_corner_escalates() {
     .unwrap_err();
     assert_eq!(
         (err.rung(), err.diag().predicate),
-        (geom_brep::LeverRung::Arm, Some(sub_eps_arm_quotes())),
+        (geom_brep::WedgeRung::Arm, Some(sub_eps_arm_quotes())),
         "sub-eps extent"
     );
     let err =
         dihedral_class(&floor, &wall, Point3::origin(), fixture_lever(0.0), band()).unwrap_err();
     assert_eq!(
         (err.rung(), err.diag().predicate),
-        (geom_brep::LeverRung::Arm, Some("dihedral_arm")),
+        (geom_brep::WedgeRung::Arm, Some("dihedral_arm")),
         "zero extent"
     );
 }

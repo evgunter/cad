@@ -140,7 +140,7 @@ use crate::coincidence::{Backing, Cited, Cites};
 use crate::entity::{EdgeKey, EntityId, FaceKey, LoopBoundary, ShellKey, VertexKey};
 use crate::geometry::{PointKey, SurfaceKey};
 use crate::live::{BoundaryMember, linked, proven};
-use crate::merge_faces::{DescribeRefusal, DihedralReading, EdgeDescribeFailure};
+use crate::merge_faces::{DescribeRefusal, EdgeDescribeFailure};
 use crate::props::AtRestPolicy;
 use crate::splitting::finish::{carve, single_solid};
 use crate::validate::decide;
@@ -3094,8 +3094,8 @@ pub(crate) fn describe_edges<T: Decide + crate::props::AtRestPolicy>(
         match crate::pcurves::seam_reading(faces, witness, reach, band).map_err(|refusal| {
             match refusal {
                 crate::pcurves::SeamUnread::Lever(e) => {
-                    let (reading, diag) = DihedralReading::of_lever(e);
-                    DescribeRefusal::undecided(edge, reading, diag)
+                    let e = geom_brep::WedgeEscalation::from(e);
+                    DescribeRefusal::undecided(edge, e.rung(), e.diag())
                 }
                 crate::pcurves::SeamUnread::Crease(_) => {
                     DescribeRefusal::failed(edge, EdgeDescribeFailure::Crease)
@@ -3242,8 +3242,8 @@ pub(super) fn seam_class<T: Decide + crate::props::AtRestPolicy>(
     let reach = geom_core::test_support::fixture_lever(reach);
     crate::pcurves::seam_reading(faces, witness, reach, band).map_err(|refusal| match refusal {
         crate::pcurves::SeamUnread::Lever(e) => {
-            let (reading, diag) = DihedralReading::of_lever(e);
-            seam_refusal(reading, diag)
+            let e = geom_brep::WedgeEscalation::from(e);
+            seam_refusal(e.rung(), e.diag())
         }
         crate::pcurves::SeamUnread::Crease(_) => {
             unreachable!("seam_class reads analytic pairs: {surf1:?} {surf2:?}")
@@ -3255,19 +3255,27 @@ pub(super) fn seam_class<T: Decide + crate::props::AtRestPolicy>(
 /// first-order arm or wedge, by rung, or its second-order bend. The
 /// boolean's decision reads the rung and the margin alone, so no
 /// [`geom_brep::LeverEscalation`] is rebuilt from the two: the arm's
-/// verdict is the gate's to mint.
-pub(super) fn seam_refusal(reading: DihedralReading, diag: Indeterminate) -> BooleanError {
-    match reading {
-        DihedralReading::Lever(rung) => BooleanError::of_lever_rung(
+/// verdict is the gate's to mint. A seam is read by its class and the
+/// must-carry rule, which ask no sign, pairing or end.
+pub(super) fn seam_refusal(rung: geom_brep::WedgeRung, diag: Indeterminate) -> BooleanError {
+    let lever = |rung| {
+        BooleanError::of_lever_rung(
             super::LeverArm::Seam,
             super::DeclarationRead::Moot,
             rung,
             diag,
-        ),
-        DihedralReading::Bend => BooleanError::Escalated {
+        )
+    };
+    match rung {
+        geom_brep::WedgeRung::Arm => lever(geom_brep::LeverRung::Arm),
+        geom_brep::WedgeRung::Wedge => lever(geom_brep::LeverRung::Reading),
+        geom_brep::WedgeRung::Bend => BooleanError::Escalated {
             decision: BooleanDecision::SeamJet,
             diag,
         },
+        geom_brep::WedgeRung::Sign | geom_brep::WedgeRung::Pairing | geom_brep::WedgeRung::End => {
+            unreachable!("a seam's class and must-carry reads raise no {rung:?} rung")
+        }
     }
 }
 
@@ -3318,7 +3326,7 @@ pub(super) fn seam_must_carry<T: Decide>(
 /// one that reads a corner (`seam_must_carry`).
 #[derive(Clone, Copy, Debug)]
 pub(super) enum SeamRefusal {
-    Undecided(DihedralReading, Indeterminate),
+    Undecided(geom_brep::WedgeRung, Indeterminate),
     Mixed(Option<geom_brep::MixedStations>),
 }
 
@@ -3347,10 +3355,10 @@ fn must_carry_reading<T: Decide>(
         MustCarryVerdict::UnderDetermined => Ok(SeamReading::Conventional),
         MustCarryVerdict::Transverse => Err(SeamRefusal::Mixed(None)),
         MustCarryVerdict::Mixed(stations) => Err(SeamRefusal::Mixed(Some(stations))),
-        MustCarryVerdict::InBand(escalation) => {
-            let (reading, diag) = DihedralReading::of_must_carry(escalation);
-            Err(SeamRefusal::Undecided(reading, diag))
-        }
+        MustCarryVerdict::InBand(escalation) => Err(SeamRefusal::Undecided(
+            escalation.rung(),
+            escalation.diag(),
+        )),
     }
 }
 
@@ -9888,9 +9896,8 @@ mod tests {
             assert!(
                 matches!(
                     verdict,
-                    geom_brep::MustCarryVerdict::InBand(
-                        geom_brep::MustCarryEscalation::FirstOrder(escalation)
-                    ) if escalation.rung() == geom_brep::LeverRung::Reading
+                    geom_brep::MustCarryVerdict::InBand(escalation)
+                        if escalation.rung() == geom_brep::WedgeRung::Wedge
                 ),
                 "an in-band wedge anywhere escalates, got {verdict:?}"
             );
@@ -10009,7 +10016,8 @@ mod tests {
     /// boolean's own description pass raises for it.
     #[test]
     fn a_kept_boundary_refusal_comes_back_as_the_booleans_own() {
-        use crate::merge_faces::{DescribeRefusal, DihedralReading, EdgeDescribeFailure};
+        use crate::merge_faces::{DescribeRefusal, EdgeDescribeFailure};
+        use geom_brep::WedgeRung;
         let (kept, strut) = (
             crate::entity::FaceKey::default(),
             crate::entity::EdgeKey::default(),
@@ -10023,7 +10031,7 @@ mod tests {
         };
         let text = BooleanError::from(crate::merge_faces::MergeCoplanarError::of_kept_boundary(
             &[(kept, strut)],
-            DescribeRefusal::undecided(strut, DihedralReading::Bend, diag),
+            DescribeRefusal::undecided(strut, WedgeRung::Bend, diag),
         ))
         .render(geom_brep::recourse::Reading::Build);
         assert!(
@@ -10031,17 +10039,9 @@ mod tests {
             "the boolean words it as its own seam's: {text}"
         );
         let mut every = vec![
-            DescribeRefusal::undecided(
-                strut,
-                DihedralReading::Lever(geom_brep::LeverRung::Arm),
-                diag,
-            ),
-            DescribeRefusal::undecided(
-                strut,
-                DihedralReading::Lever(geom_brep::LeverRung::Reading),
-                diag,
-            ),
-            DescribeRefusal::undecided(strut, DihedralReading::Bend, diag),
+            DescribeRefusal::undecided(strut, WedgeRung::Arm, diag),
+            DescribeRefusal::undecided(strut, WedgeRung::Wedge, diag),
+            DescribeRefusal::undecided(strut, WedgeRung::Bend, diag),
         ];
         let residual = crate::euler::EulerOpError::Certification {
             error: geom_brep::CertifyError::ResidualExceeded {

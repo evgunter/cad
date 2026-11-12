@@ -1,6 +1,7 @@
-//! Reclassification rules (a) and (b) — every sign derived from
-//! [`geom_brep::enters_material`] (F3), nothing sign-copied; the
-//! derivation is this module's docs.
+//! Reclassification rules (a) and (b) — every sign derived, from
+//! [`geom_brep::enters_material`] (F3) and a corner's
+//! [`geom_brep::Corner::convexity`], nothing sign-copied; the derivation
+//! is this module's docs.
 //!
 //! **[`face_extent`] is not one of those rules, and this is not its
 //! home.** It is the `Margin::levered` lever arm for the
@@ -51,7 +52,7 @@
 //! faces, and the edge's wedge (`edge_wedge`): whether the two faces
 //! are tangent-continuous, read by [`geom_brep::classify_dihedral`],
 //! and otherwise whether the material wedge is under 180° (convex) or
-//! over it (reflex), read by [`geom_brep::enters_material`].
+//! over it (reflex), read by the corner's [`geom_brep::Corner::convexity`].
 //!
 //! | neighbours | entry | verdict |
 //! |---|---|---|
@@ -160,7 +161,7 @@
 //! manifold results; `Below` is kept for both witnesses' agreement and
 //! for rule (a)'s Fig. 14.8 coplanar-edge-goes-below choice.
 
-use geom_brep::{EntersMaterial, NormalAlignment, ParallelSense, WallBend, enters_material};
+use geom_brep::{NormalAlignment, ParallelSense, WallBend};
 use geom_core::k_stats::{Magnitude, decide_magnitude_reported};
 use geom_core::{Band, Decide, Indeterminate, Lever, Margin, MarginDiag, Point3, Real, Sign};
 
@@ -528,19 +529,18 @@ pub(super) fn apply_rule_b<T: Decide>(
 }
 
 /// The wedge of the edge that is bound `k` of `star`: `None` where its
-/// two faces are tangent-continuous ([`geom_brep::DihedralClass::Smooth`]),
-/// else whether the material wedge is under 180°. The sector before the
-/// bound is its own face's, the sector after it its mate's.
+/// two faces are tangent-continuous ([`geom_brep::Dihedral::Tangent`]),
+/// else whether the corner is convex, its material wedge under 180°.
 ///
-/// Smooth or not is the dihedral classifier's own question, read
-/// through [`geom_brep::classify_dihedral`] with the edge's extent, as
-/// the tier-3 validator reads it, so the two cannot disagree on one
-/// edge. That classifier is unsigned, and which side of 180° a corner
-/// is on is not its question: that sign is [`enters_material`] of the
-/// direction into the mate's face, across the edge, against the own
-/// face's outward normal, metered over the same folded lever arm.
-/// Where either face is a cone at its apex, both are read along the
-/// edge's ray ([`StarFace::normal_along`]).
+/// Class and sign are read as tier 3 reads them, at one station of the
+/// edge's own carrier levered at its faces' extent
+/// ([`crate::edge_wedge_reach`]): [`geom_brep::classify_dihedral`] over
+/// the faces of its `he_plus` and `he_minus`, then the corner's
+/// [`geom_brep::Corner::convexity`] at that station, which is the edge's
+/// and not the star's, so no order of the two sectors enters. The
+/// station is the vertex, or, where either face is a cone at its apex,
+/// the edge's schedule sample nearest it, off the apex, where both faces
+/// have a tangent plane.
 fn edge_wedge<T: Decide>(
     body: &Body<T>,
     star: &Star<T>,
@@ -550,43 +550,45 @@ fn edge_wedge<T: Decide>(
     let vertex = star.vertex;
     let n = star.bounds.len();
     let (own, mate) = (&star.sectors[(k + n - 1) % n], &star.sectors[k]);
-    let (own_face, own_at, mate_face, mate_at) = (own.face, own.at, mate.face, mate.at);
     let sliver = |diag| SplitReduceError::SliverSector {
         vertex,
-        face: mate_face,
+        face: mate.face,
         reading: SectorReading::Escalated(diag),
     };
-    let sector_surface = |f| body.proven_face(f).surface();
-    let (s_own, s_mate) = (sector_surface(own_face), sector_surface(mate_face));
-    let along = star.bounds[k].ray();
-    let extent = star.bounds[k].reach.lever();
-    // Both faces are read along the edge's ray: at the vertex where each
-    // has a tangent plane, and out along the ray where either is a cone at
-    // its apex, whose normal is constant along the ruling the ray lies on
-    // and undefined at the apex itself.
-    let p = body.resolve_vertex_point(vertex, Proven);
-    let p = match (own_at, mate_at) {
-        (StarFace::Tangent(_), StarFace::Tangent(_)) => p,
-        _ => p + along,
+    let edge = proven(&body.half_edges, star.bounds[k].he, EntityId::HalfEdge).edge;
+    let data = proven(&body.edges, edge, EntityId::Edge);
+    let (Some(curve), Some(reach)) = (
+        body.edge_curve_linked(edge, data).certified(),
+        crate::edge_wedge_reach(body, edge),
+    ) else {
+        unreachable!("the star read {edge:?}'s departure off its certified carrier")
     };
-    let (n_own, n_mate) = (own_at.normal_along(along), mate_at.normal_along(along));
-    match geom_brep::classify_dihedral(s_own, s_mate, p, extent, band) {
-        Ok(geom_brep::Dihedral::Tangent(_)) => return Ok(None),
-        Ok(geom_brep::Dihedral::Corner(_)) => {}
-        Err(escalation) => return Err(sliver(escalation.diag())),
-    }
-    // The mate runs the edge backwards, so its face's interior lies at
-    // `n_mate × (−along)` (interior-left, the orbit conventions in
-    // `neighborhood`).
-    let into_mate = along.cross(n_mate.vec());
-    let arm = geom_brep::folded_lever_arm(s_own, s_mate, p, extent);
-    match enters_material(into_mate, n_own, arm, band) {
-        Ok(EntersMaterial::Enters) => Ok(Some(true)),
-        Ok(EntersMaterial::Exits) => Ok(Some(false)),
-        // The same wedge over the same arm read transverse just above,
-        // so only the two normal reads' rounding can land here; it reads
-        // as smooth.
-        Ok(EntersMaterial::Tangent) => Ok(None),
+    let sides = crate::readback::edge_sides(body, edge)
+        .unwrap_or_else(|_| unreachable!("{edge:?} bounds the star's two sectors"));
+    let (t0, t1) = curve.params();
+    let from_start = proven(&body.half_edges, data.he_plus, EntityId::HalfEdge).start == vertex;
+    let t = match (own.at, mate.at, from_start) {
+        (StarFace::Tangent(_), StarFace::Tangent(_), true) => t0,
+        (StarFace::Tangent(_), StarFace::Tangent(_), false) => t1,
+        (.., true) => geom_brep::sample_param(t0, t1, 1),
+        (.., false) => geom_brep::sample_param(t0, t1, geom_brep::CERT_SAMPLES - 2),
+    };
+    let station = geom_brep::Station::on(curve.carrier(), t);
+    let face = |side: crate::readback::EdgeSide| proven(&body.faces, side.face, EntityId::Face);
+    let (plus, minus) = (face(sides.plus), face(sides.minus));
+    let surface = |side: crate::readback::EdgeSide| body.proven_face(side.face).surface();
+    match geom_brep::classify_dihedral(
+        surface(sides.plus),
+        surface(sides.minus),
+        station.point(),
+        reach,
+        band,
+    ) {
+        Ok(geom_brep::Dihedral::Tangent(_)) => Ok(None),
+        Ok(geom_brep::Dihedral::Corner(corner)) => corner
+            .convexity(&station, [plus.sense, minus.sense], band)
+            .map(|c| Some(c == geom_brep::Convexity::Convex))
+            .map_err(|e| sliver(e.diag())),
         Err(escalation) => Err(sliver(escalation.diag())),
     }
 }

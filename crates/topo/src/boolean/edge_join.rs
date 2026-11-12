@@ -1243,8 +1243,7 @@ fn joined_spec<T: Decide>(
     // the joined span.
     let refused = |refusal| match refusal {
         geom_brep::PairRefusal::InBand(escalation) => {
-            let (reading, diag) = geom_brep::DihedralReading::of_must_carry(escalation);
-            super::ops::seam_refusal(reading, diag)
+            super::ops::seam_refusal(escalation.rung(), escalation.diag())
         }
         geom_brep::PairRefusal::Mixed(stations) => BooleanError::MixedSeam {
             edge: join.kept,

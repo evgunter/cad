@@ -588,7 +588,7 @@ pub enum MergeCoplanarError {
         /// Its boundary edge.
         edge: EdgeKey,
         /// The reading that could not decide.
-        reading: DihedralReading,
+        reading: geom_brep::WedgeRung,
         /// Its diagnostics.
         diag: Indeterminate,
     },
@@ -654,8 +654,6 @@ impl EdgeDescribeFailure {
     }
 }
 
-pub use geom_brep::DihedralReading;
-
 /// Why the edge describer refused one edge, before a door words it:
 /// the merge door as [`MergeCoplanarError::KeptBoundaryUndescribed`] /
 /// [`MergeCoplanarError::KeptBoundaryUndecided`], the boolean in its
@@ -673,7 +671,7 @@ pub(crate) enum DescribeRefusal {
     /// A reading of its two faces could not decide.
     Undecided {
         edge: EdgeKey,
-        reading: DihedralReading,
+        reading: geom_brep::WedgeRung,
         diag: Indeterminate,
     },
     /// Its line chord reads within the band of one of its two faces'
@@ -849,7 +847,7 @@ impl DescribeRefusal {
 
     pub(crate) const fn undecided(
         edge: EdgeKey,
-        reading: DihedralReading,
+        reading: geom_brep::WedgeRung,
         diag: Indeterminate,
     ) -> Self {
         Self::Undecided {
@@ -1246,18 +1244,32 @@ impl MergeCoplanarError {
                 diag,
             } => {
                 let (question, ending) = match reading {
-                    DihedralReading::Lever(geom_brep::LeverRung::Arm) => (
+                    geom_brep::WedgeRung::Arm => (
                         concat!("whether the edge is ", geom_brep::dihedral_arm_clause!()),
                         at.map(|at| {
                             geom_brep::DIHEDRAL_ARM.recourse(RefusedArm::Undecided(diag), at)
                         }),
                     ),
-                    DihedralReading::Lever(geom_brep::LeverRung::Reading) => (
+                    geom_brep::WedgeRung::Wedge => (
                         "whether the faces at it cross or meet smoothly",
                         Some(CROSS_OR_SMOOTH.to_owned()),
                     ),
-                    DihedralReading::Bend => (
+                    geom_brep::WedgeRung::Sign => (
+                        "whether the corner at it is convex or concave",
+                        Some(CROSS_OR_SMOOTH.to_owned()),
+                    ),
+                    geom_brep::WedgeRung::Pairing => (
+                        geom_brep::MATERIAL_PAIRING_CLAUSE,
+                        at.map(|at| {
+                            geom_brep::MATERIAL_PAIRING.recourse(RefusedArm::Undecided(diag), at)
+                        }),
+                    ),
+                    geom_brep::WedgeRung::Bend => (
                         "whether the faces at it bend apart",
+                        Some(CROSS_OR_SMOOTH.to_owned()),
+                    ),
+                    geom_brep::WedgeRung::End => (
+                        "which end of the wedge its opposed faces close",
                         Some(CROSS_OR_SMOOTH.to_owned()),
                     ),
                 };

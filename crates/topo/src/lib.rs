@@ -1383,6 +1383,8 @@ pub mod transform;
 #[cfg(test)]
 mod turn_rows;
 pub mod validate;
+mod edge_wedge;
+pub use edge_wedge::{edge_wedge, edge_wedge_description, edge_wedge_walk};
 mod wedge_reach;
 pub use wedge_reach::{WedgeReach, edge_faces, edge_wedge_reach, wedge_reach};
 pub(crate) mod vertex_section;
@@ -1483,7 +1485,7 @@ pub use instance::{
     GraftKeys, graft_disjoint, graft_disjoint_all, graft_disjoint_all_keyed, per_part_gate_owed,
 };
 pub use merge_faces::{
-    DihedralReading, EdgeDescribeFailure, MergeCoplanarError, MergeCoplanarOutcome, MergeDecision,
+    EdgeDescribeFailure, MergeCoplanarError, MergeCoplanarOutcome, MergeDecision,
     MergeKind, MergedGroup, OutlineVerdict, SkippedMerge,
 };
 pub use null::CurveGeom;
