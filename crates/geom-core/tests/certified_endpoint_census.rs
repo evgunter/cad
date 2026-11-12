@@ -451,8 +451,8 @@ const ROSTER: &[(&str, usize, usize, &str)] = &[
     ),
     (
         "crates/geom-brep/src/props/quad/projected_edge.rs",
-        1,
-        1,
+        5,
+        5,
         "",
     ),
     (
@@ -464,9 +464,12 @@ const ROSTER: &[(&str, usize, usize, &str)] = &[
     ),
     (
         "crates/geom-brep/src/props/quad/rotational.rs",
-        4,
-        3,
-        "3 read after asking by name. The remainder is `piece_reach`'s 1, the chart radius's \
+        20,
+        19,
+        "19 read after asking by name. `rotational_cut_face_rounds`' 2 are the ring torus's \
+         floor, `(R − r).lo()` and `r.lo()`; `torus_face`'s 14 are its count window, every one past a refusal \
+         unless `x` and `A` both certify with `A.lo() > 0`, so `x + n·A` at the finite count `n` \
+         certifies too. The remainder is `piece_reach`'s 1, the chart radius's \
          upper end scaled to the length a rational chart term's round-0 piece may span: a \
          schedule (`term_schedule`, whose pieces each ask their own speed's `is_certified()`, \
          feeding the rounds' cost), so a refused radius moves how finely the term is first cut, \
@@ -486,16 +489,20 @@ const ROSTER: &[(&str, usize, usize, &str)] = &[
          `lo_or_refuse`/`certified_hi`/`mid` (`props/bracket.rs`), which are the guarded ones, \
          or asks `is_certified()` of the bracket it reads (`rotational.rs`)",
     ),
-    ("crates/geom-brep/src/props/spiric.rs", 15, 15, ""),
+    ("crates/geom-brep/src/props/spiric.rs", 13, 13, ""),
     (
         "crates/geom-brep/src/props/taylor.rs",
-        15,
-        12,
+        16,
+        13,
         "the remaining 3 are safe by construction. `trig_range`'s 2, its half-width, read `pt` \
          differences of two f64 ends the function has checked finite and ordered, so no operand \
          can be refused. `rate_bound_over`'s 1, its sum, reads the `hi` of a product of point \
          brackets: `q − p` of two finite nodes, and the rate the caller's own `f64` upper bound, \
-         `NaN` where it reads none, which the sum carries. Every other read sits in a function \
+         `NaN` where it reads none, which the sum carries. `primitive_each`'s 1 is counted \
+         asking, but its `is_certified()` is `start`'s: the read is a piece's length `h`, the \
+         `hi` of `q − p`. A node is `NaN` where `b − a` overflows, and then `pt` of it is NaI, \
+         so `total` refuses; `h` scales only `removable`, the width a later round removes, \
+         whose `NaN` makes `Run::stop`'s floor comparison false. Every other read sits in a function \
          that refuses a refused input by name (`composite_by`, 10; `trig_of`, 2), and the \
          integrands' trig jets read through `trig_of` (`trig_jets`)",
     ),

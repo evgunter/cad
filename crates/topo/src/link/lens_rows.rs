@@ -70,6 +70,7 @@ fn corner<T: Decide>(
     let bend = |edge| Bound {
         edge,
         line: false,
+        circle: false,
         bend: v(-0.5, 0.0, 0.0),
     };
     let fan = TangentFan::Corner {
@@ -342,6 +343,7 @@ fn a_lens_the_bends_do_not_decide_is_not_read<T: Decide>() {
                 edge: Bound {
                     edge,
                     line: true,
+                    circle: false,
                     bend: Vec3::zero(),
                 },
             };
@@ -458,6 +460,7 @@ fn flat<T: Decide>(
     let line = |edge| Bound {
         edge,
         line: true,
+        circle: false,
         bend: Vec3::zero(),
     };
     let fan = TangentFan::Corner {
@@ -568,6 +571,7 @@ fn a_dihedral_along_two_edges_on_one_line_is_no_lens<T: Decide>() {
         let line = |edge| Bound {
             edge,
             line: true,
+            circle: false,
             bend: Vec3::zero(),
         };
         let top = flat(p, v(0.0, 0.0, 1.0), (x, -x), [k[0], k[1]]);
@@ -617,11 +621,13 @@ fn thorn<T: Decide>(
     let bound = |edge, bend: Vec3<T>| Bound {
         edge,
         line: false,
+        circle: false,
         bend,
     };
     let l = Bound {
         edge: keys[0],
         line: true,
+        circle: false,
         bend: Vec3::zero(),
     };
     let (a, b) = (
@@ -918,6 +924,7 @@ fn line<T: Real>(edge: EdgeKey) -> Bound<T> {
     Bound {
         edge,
         line: true,
+        circle: false,
         bend: Vec3::zero(),
     }
 }
@@ -927,6 +934,7 @@ fn curve<T: Real>(edge: EdgeKey, bend: Vec3<T>) -> Bound<T> {
     Bound {
         edge,
         line: false,
+        circle: false,
         bend,
     }
 }

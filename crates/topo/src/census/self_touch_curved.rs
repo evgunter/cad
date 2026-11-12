@@ -876,3 +876,27 @@ fn a_solid_touching_itself_at_a_spline_crease_corner_is_read() {
         }
     }
 }
+
+/// **A bound is a circle's only on a circle** ([`super::on_circle`],
+/// `link::Bound::circle`): the oblique rim, an ellipse, is none, nor is
+/// a half-disc post's line; its bottom arc is one. Two ellipse arcs
+/// agreeing at a point to second order part at third, so only a circle
+/// may be kept by its bend (`link::second_order::one_circle`). Red where
+/// every edge reads as a circle's, or none does.
+#[test]
+fn a_bound_is_a_circles_only_on_a_circle() {
+    let (rim, _, _) = crate::test_support_fixtures::oblique_rim_wall_in::<f64>(0.4);
+    for (e, _) in &rim.edges {
+        assert!(!on_circle(&rim, e), "the oblique rim {e:?} is an ellipse");
+    }
+    let post = crate::tier3_tests::half_disc(R, H, (0.0, 0.0, 0.0), false, Tol::witness());
+    let kinds: Vec<bool> = post.edges.keys().map(|e| on_circle(&post, e)).collect();
+    assert!(
+        kinds.contains(&true),
+        "the post's arcs are circles': {kinds:?}"
+    );
+    assert!(
+        kinds.contains(&false),
+        "the post's lines are not: {kinds:?}"
+    );
+}

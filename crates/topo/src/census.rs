@@ -93,8 +93,9 @@
 //!   where a solid touches itself with a curved face or edge in its link
 //!   whose tangent cones leave it unread, at first order and one order
 //!   down ([`crate::link::FaceSector::tangent`], `link::second_order`;
-//!   [`SelfTouch::SecondOrder`]) — a cone's apex or a vertex in the band
-//!   of its axis, a cusp corner whose edges' bends do not part it, a horn
+//!   [`SelfTouch::SecondOrder`]) — a cone's apex its nappe does not
+//!   decide (`link::rest::at_apex`), a vertex in the band of a cone's
+//!   axis, a cusp corner whose edges' bends do not part it, a horn
 //!   beside a sheet along its ray or a ring of horns that reads as no
 //!   thorn, a spline face held off a corner, a face whose foot normal
 //!   or reach does not read, a spline corner face on a placeholder chart
@@ -8926,8 +8927,12 @@ enum SelfTouch {
     /// order down (`link::second_order`), or the tangent reading cannot
     /// build. [`crate::CurvedUnread::Unreadable`], or the cause the corner names
     /// ([`TouchUnread::curved_unread`]), for a face with no tangent plane
-    /// there (a cone's apex, or a vertex in the band of its axis:
-    /// [`crate::CurvedUnread::NoTangentPlane`]), a cusp
+    /// there that no reading takes ([`crate::CurvedUnread::NoTangentPlane`]:
+    /// a vertex in the band of a cone's axis, a face held inside in band
+    /// of its axis, centre or apex, or a cone's apex its nappe does not
+    /// decide: a nappe not held whole, a horn beside it, a half-plane
+    /// cutting it, or its axis on the wrong side of the rest's
+    /// material), a cusp
     /// corner its edges' bends do not part, a horn beside a sector along
     /// its ray that caps no lune or a ring of horns that reads as no
     /// thorn, a spline face held off a corner, a face whose normal at the
@@ -9253,9 +9258,12 @@ impl<T: Decide> Link<T> {
     /// coincidences its faces keep).
     ///
     /// A cusp corner reads as its edges bend: the whole turn, or a horn
-    /// the link keeps beside its sectors ([`Link::of_tangent`]). A face
-    /// with no tangent plane at the point (a cone's apex, or a vertex in
-    /// the band of its axis: [`crate::CurvedUnread::NoTangentPlane`]), a corner
+    /// the link keeps beside its sectors ([`Link::of_tangent`]). A cone
+    /// face's corner at its apex is kept as its lobe of the nappe
+    /// ([`crate::link::ApexLobe`]), which [`rest::one_material`] reads. A
+    /// face with no tangent plane at the point otherwise (a vertex in the
+    /// band of a cone's axis, or a face held inside in band of its axis,
+    /// centre or apex: [`crate::CurvedUnread::NoTangentPlane`]), a corner
     /// face [`crate::sector_face::resolve`] refuses (its named cause; a
     /// corner on a crease is read on its sector's side), a cusp corner its
     /// bends do not part, a spline face held anywhere but a corner, a
@@ -9281,7 +9289,8 @@ impl<T: Decide> Link<T> {
 /// **Face `f`'s tangent sectors at `p`**, held as `holds` say
 /// ([`Link::tangent_of`]): one per pass of its loops through a corner it
 /// is held at (a horn where a cusp corner is one,
-/// [`crate::link::FaceSector::tangent`]), then one per pass along
+/// [`crate::link::FaceSector::tangent`], and a lobe where the corner is
+/// its cone's apex, [`crate::link::ApexLobe`]), then one per pass along
 /// an edge it is held inside whose ends are no such corner, and where
 /// neither holds it, its whole tangent plane. A lone-vertex loop at a
 /// corner held is [`TouchUnread::LoneLoop`].
@@ -9321,7 +9330,25 @@ fn tangent_sectors<T: Decide>(
             }
             let into = half.prev;
             let back = body.mate(into).ok_or(TouchUnread::Corrupt)?;
-            let normal = corner_normal(body, half.start, back, band)?;
+            let at = crate::sector_face::resolve(body, half.start, back, band)
+                .map_err(|why| corner_cause(&why))?
+                .at_vertex;
+            // A cone face's corner at its apex has no tangent plane: its
+            // rulings are its own there, read as the nappe they make.
+            if let crate::sector_face::VertexFace::Apex(cone) = at {
+                let (d0, ..) = departure(body, half.start, he)?;
+                let (d1, ..) = departure(body, half.start, back)?;
+                let e_in = body.get_half_edge(into).ok_or(TouchUnread::Corrupt)?.edge;
+                out.push(crate::link::TangentPiece::Apex(crate::link::ApexLobe {
+                    cone,
+                    carrier: face.surface,
+                    vertex: *geo.vmap.get(&half.start).ok_or(TouchUnread::Corrupt)?,
+                    ends: [(d0, half.edge), (d1, e_in)],
+                    spur: back == he,
+                }));
+                continue;
+            }
+            let normal = vertex_normal(at)?;
             let (d0, line0, bend0) = departure(body, half.start, he)?;
             let (d1, line1, bend1) = departure(body, half.start, back)?;
             let e_in = body.get_half_edge(into).ok_or(TouchUnread::Corrupt)?.edge;
@@ -9333,11 +9360,13 @@ fn tangent_sectors<T: Decide>(
                     Bound {
                         edge: half.edge,
                         line: line0,
+                        circle: on_circle(body, half.edge),
                         bend: bend0,
                     },
                     Bound {
                         edge: e_in,
                         line: line1,
+                        circle: on_circle(body, e_in),
                         bend: bend1,
                     },
                 ],
@@ -9373,6 +9402,7 @@ fn tangent_sectors<T: Decide>(
                 edge: Bound {
                     edge: half.edge,
                     line,
+                    circle: on_circle(body, half.edge),
                     bend,
                 },
             };
@@ -9419,24 +9449,20 @@ pub(crate) fn carrier_frame<T: Real>(surface: &geom::Surface<T>) -> Option<[Vec3
     Some([u, a.cross(u), a])
 }
 
-/// The outward unit normal of the face whose corner at `v` the orbit
-/// half-edge `he` leaves along ([`crate::sector_face::resolve`]): its
-/// tangent plane's there, where it has one.
-fn corner_normal<T: Decide>(
-    body: &Body<T>,
-    v: VertexKey,
-    he: HalfEdgeKey,
-    band: Band,
-) -> Result<Vec3<T>, TouchUnread> {
-    match crate::sector_face::resolve(body, v, he, band) {
-        Ok(face) => vertex_normal(face.at_vertex),
-        Err(why) => Err(corner_cause(&why)),
-    }
+/// Whether edge `e`'s certified carrier is a circle
+/// ([`crate::link::Bound::circle`]).
+fn on_circle<T: Real>(body: &Body<T>, e: EdgeKey) -> bool {
+    body.get_edge(e)
+        .and_then(|d| body.get_curve_geom(d.curve))
+        .and_then(|g| g.certified())
+        .is_some_and(|c| matches!(c.carrier(), geom::Curve3::Circle(..)))
 }
 
 /// **A resolved corner face's normal at the vertex**, or no tangent
 /// plane there ([`CurvedUnread::NoTangentPlane`]): a vertex in the band
-/// of the carrier's axis, or a cone's apex.
+/// of the carrier's axis, or a cone's apex. Its one caller,
+/// [`tangent_sectors`], takes a cone's apex as its lobe before asking,
+/// so the `Apex` arm is dead there and answers only its row.
 fn vertex_normal<T: Decide>(at: crate::sector_face::VertexFace<T>) -> Result<Vec3<T>, TouchUnread> {
     use crate::sector_face::VertexFace;
     match at {
@@ -9447,7 +9473,7 @@ fn vertex_normal<T: Decide>(at: crate::sector_face::VertexFace<T>) -> Result<Vec
     }
 }
 
-/// **The cause [`corner_normal`] names for a corner face
+/// **The cause [`tangent_sectors`] names for a corner face
 /// [`crate::sector_face::resolve`] refuses**: an apex in band by its own
 /// standing, and every other refusal the curved reading's abort under
 /// its own name ([`TouchUnread::Curved`]).
@@ -22941,8 +22967,11 @@ mod corner_cause_rows {
     use crate::entity::FaceKey;
     use crate::sector_face::{ConeApex, SectorFaceError, VertexFace};
 
-    /// **[`corner_normal`](super::corner_normal) names each cause of a
-    /// corner left unread**: a cone's apex no tangent plane, a surface with
+    /// **[`tangent_sectors`](super::tangent_sectors) names each cause of a
+    /// corner left unread** ([`vertex_normal`], [`corner_cause`]): a vertex
+    /// with no tangent plane (`vertex_normal`'s `Apex` arm, which
+    /// `tangent_sectors` no longer reaches, taking an apex as its lobe
+    /// first; its `NearAxis` arm, which it does, reads the same), a surface with
     /// no sector arm and a spline edge not placed their own, each the
     /// curved reading's abort ([`TouchUnread::Curved`]); a crease refuses
     /// by its own standing instead.
