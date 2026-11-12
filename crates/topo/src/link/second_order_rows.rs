@@ -52,6 +52,7 @@ fn bound<T: Real>(edge: EdgeKey, [x, y, z]: [f64; 3]) -> Bound<T> {
     Bound {
         edge,
         line: [x, y, z] == [0.0; 3],
+        circle: false,
         bend: v(x, y, z),
     }
 }
@@ -340,6 +341,7 @@ fn wedge_over_a_plane<T: Decide>(p: Point3<T>, up: f64) -> Vec<TangentPiece<T>> 
     let e = Bound {
         edge: k[0],
         line: up == 0.0,
+        circle: false,
         bend: turned(0.0, 0.0, up),
     };
     let y = turned::<T>(2.0, 0.0, 0.0);
@@ -605,6 +607,7 @@ fn wedge_over_a_sheet<T: Decide>(
     let e = Bound {
         edge: k[0],
         line: up == 0.0,
+        circle: false,
         bend: turned(0.0, 0.0, up),
     };
     let (x, out) = (turned::<T>(2.0, 0.0, 0.0), turned::<T>(2.0, 0.0, -lean));
