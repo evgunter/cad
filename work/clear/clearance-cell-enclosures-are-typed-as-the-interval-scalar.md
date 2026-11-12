@@ -2,7 +2,9 @@
 id: clearance-cell-enclosures-are-typed-as-the-interval-scalar
 kind: issue
 title: The clearance engine's cell enclosures are typed as the Interval scalar: every input value enters through Interval::from_certified, so a bound on a function over a cell and an uncertain number are one type
-status: review
+status: closed
+closed: 2026-11-12
+pr: 6821
 opened: 2026-11-02
 priority: P0
 cost: M
@@ -61,3 +63,14 @@ Two designers, first reports and two reconciliation rounds (`docs/DESIGN-FORK-LO
 - the yes/no verdict is a function bounded on certification rights; only the minimum-clearance measure keeps its `None` at f64, and `Sym<f64>`'s door is to be stated;
 - each local reading in `topo::injective` states either that it passes by the band, or which topology or tier-3 fact it reads in place of a cell Zero;
 - measure a `Sym<Interval>` leaf on a box wide enough that tier 3 needs its symbolic proof.
+
+## Decided (Ev, PR 6821, 2026-11-12)
+
+Ev approved the converged answer above ("ok! this sounds good!"), after three questions on the PR.
+- **`[x, x]` stays a point.** `Interval::from_f64` stores `x` at both ends. Width comes only from outward rounding in arithmetic, or from a cell's extent in the engine.
+- **Why `Interval` rather than the generics.** A cell's bound is set-valued at every scalar. Every decision about the body stays at its own `T`.
+- **The fix for "no second reading".** The three Zero sites in `injective.rs` read the fact from topology or tier 3 instead of from a cell.
+- **Decision 3: the engine's door** (`Sweep::run` and `min_separation` own the unlogged scope), not `CellBound`.
+- **`[topology.tiers]`** takes Ev's wording: an exact value `x` enters the question as `[x, x]`, and a stored bracket as itself.
+
+Changes 1–4 are built with `the-at-rest-gate-certifies-embedding`, which this row unblocks, and with `the-shells-cavity-sweep-logs-its-cell-readings`, which the door closes.
