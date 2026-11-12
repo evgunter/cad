@@ -8,7 +8,6 @@ priority: P3
 cost: E
 ---
 
-
 Filed by `pcert/cone-image-fine-band`, from its class sweep.
 
 ## What
@@ -29,8 +28,10 @@ On the PCERT seed that this branch pins
 (`analytic_image_rows.rs` `a_cone_image_at_a_steep_sample_certifies`)
 a 3-ulp station gave each point about 5e-13 of width and the read
 [0, 1.03e-12]. Held at a point, the same read is 2.0e-13. On the stated
-route, a 3000-seed sweep at ε 1e-12 found 19 such refusals of correct
-images, up to 3.0e-12, all removed by the held stations.
+route, a 3000-seed sweep of `a_stated_image_on_its_carrier_certifies` at
+ε 1e-12 found 333 seeds that refused a correct image: 233 on a cone, 57 on
+a cylinder and 43 on a plane. Their reads went up to [0, 1.89e-11]. Held
+stations removed all 333.
 
 ## Callers still computed
 
