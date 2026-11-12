@@ -1247,7 +1247,10 @@ names (`TouchUnread`):
   senses or with rulings read together), a ruling decidedly on the other
   nappe, a horn beside a nappe, a half-plane cutting one, a needle
   inside no other nappe with no rest round it to read its void against,
-  or an axis read on a sector of the rest rather than in a region;
+  an axis read on a sector of the rest rather than in a region, or
+  nappes round one that make no chain (`rest::nesting`; no decided
+  geometry reaches it, since two nappes holding a third are nested or
+  across each other, and the arm refuses rather than guesses);
 - **no sector arm** or **not placed** (`CurvedUnread::NoSectorArm`,
   `CurvedUnread::Unplaced`): a corner face `sector_face::resolve`
   refuses, a surface with no sector arm or a spline edge with no chart
@@ -1272,7 +1275,7 @@ names (`TouchUnread`):
   them (`rest::one_material`: a sheet on a whole tangent plane among
   them, but one on a planar face along a line, below); a sheet on a
   planar face along a line whose ray another sector holds inside it
-  (`second_order::lenses`); a lens or lune whose bends do not decide
+  (`second_order::along_a_line`); a lens or lune whose bends do not decide
   it (a pinch read off Zero, ends or middle read decided but disagreeing,
   a polar value Zero beside a curved pinch, a cap facing the wrong way,
   a face with no certified bend: `second_order::kind`), a sector in two
@@ -1493,7 +1496,7 @@ and the pair is refused undecided, in that pose only.
 The sector that runs on may also be a planar face's whole plane, the
 point inside the face, with a curved sheet's one wedge `W` on it the
 other way round, bounded at one end by a line edge: **a sheet on a
-planar face along a line** (`second_order::lenses`). The ridge of a
+planar face along a line** (`second_order::along_a_line`). The ridge of a
 cylinder wall tangent to its floor along its tip ends so. `W`'s two ends
 close as follows.
 
@@ -1516,8 +1519,14 @@ the plane along the line would hide a sheet that crosses it there, so no
 other sector may hold the line's ray inside it: such a link refuses. A
 sector bounded along the line leaves the plane at an angle `δ > 0` (in
 the plane it is a slit, a second pair or a sheet on a sheet, each
-refused), so it stands `t·tan δ` over a point `t` from the line where
-the lune is of order `t²` thick, and does not enter it. Not read, and
+refused). Leaving on the sheet's side, it stands `t·tan δ` over a point
+`t` from the line where the lune is of order `t²` thick, so it stays
+out of the lune. Leaving through the plane, into the planar face's
+material, it crosses the face along the line, and that is not what the
+angle rules out: it is refused by the lune's kind against its region
+(`rest::lensed`). The remainder then closes the plane's rest against
+that sector below the plane, so the wedge's middle reads outside the
+remainder's material, and a void lune needs material round it. Not read, and
 refused as sheets lying on each other: a sheet on a curved face's whole
 tangent plane, and one neither of whose ends, or both, is a line.
 

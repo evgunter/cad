@@ -832,15 +832,17 @@ fn a_nappe_near_flat_refuses_in_band<T: Decide>() {
 /// A whole nappe at `p` as one spur corner: half-angle `alpha`, its axis
 /// turned `gamma` off `−y` toward `+x`, of `Face::sense` `sense` (a thorn
 /// where set), its ruling toward `+z` scaled to `reach`, its carrier's
-/// apex `off` from `p`.
+/// apex `off` from `p`; its carrier and its edge the `key`th keys, so
+/// two nappes of one link are two carriers, as two cones' are.
 fn nappe_by<T: Real>(
     p: Point3<T>,
+    key: usize,
     (alpha, gamma): (f64, f64),
     sense: bool,
     reach: f64,
     off: Vec3<T>,
 ) -> TangentPiece<T> {
-    let (e, k) = (edges(1)[0], carriers(1)[0]);
+    let (e, k) = (edges(key + 1)[key], carriers(key + 1)[key]);
     let (s, c) = alpha.sin_cos();
     let along = v::<T>(c * gamma.sin(), -c * gamma.cos(), s) * T::from_f64(reach);
     TangentPiece::Apex(ApexLobe {
@@ -860,9 +862,16 @@ fn nappe_by<T: Real>(
 }
 
 /// [`nappe_by`] a unit out, its apex at `p`; `alpha` and `gamma` in degrees.
-fn nappe<T: Real>(p: Point3<T>, alpha: f64, gamma: f64, sense: bool) -> TangentPiece<T> {
+fn nappe<T: Real>(
+    p: Point3<T>,
+    key: usize,
+    alpha: f64,
+    gamma: f64,
+    sense: bool,
+) -> TangentPiece<T> {
     nappe_by(
         p,
+        key,
         (alpha.to_radians(), gamma.to_radians()),
         sense,
         1.0,
@@ -880,7 +889,8 @@ fn nappe<T: Real>(p: Point3<T>, alpha: f64, gamma: f64, sense: bool) -> TangentP
 /// the wrong side of the rest's material, winds a third value: a
 /// crossing. Two nappes with rulings of one on both sides of the other
 /// cross, read by the far ruling outside or, for each of two nappes
-/// 20° and 60° wide and 75° apart, behind the other's axis plane. A needle inside no nappe with no rest round it is not read. Red
+/// 20° and 60° wide and 75° apart, behind the other's axis plane. A
+/// needle inside no nappe with no rest round it is not read. Red
 /// where a second nappe is not read, the nesting is read the wrong way
 /// round or by the wrong nappe, a nappe inside another is read against
 /// the rest, or two nappes that cross pass.
@@ -889,7 +899,12 @@ fn nappes_apart_or_nested_rest_where_their_kinds_alternate<T: Decide>() {
     let up = v::<T>(0.0, 1.0, 0.0);
     let (thorn, needle) = (true, false);
     for p in apexes::<T>() {
-        let n = |alpha: f64, gamma: f64, sense: bool| nappe(p, alpha, gamma, sense);
+        // Each nappe on its own carrier and edge, past the halves' two.
+        let keys = core::cell::Cell::new(2);
+        let n = |alpha: f64, gamma: f64, sense: bool| {
+            keys.set(keys.get() + 1);
+            nappe(p, keys.get(), alpha, gamma, sense)
+        };
         let k = carriers(1)[0];
         let halved: Vec<_> = halves(p, core::f64::consts::PI, [k, k], [thorn; 2])
             .into_iter()
@@ -1013,7 +1028,12 @@ fn two_nappes_in_band_of_each_other_refuse_in_band<T: Decide>() {
     let (thorn, needle) = (true, false);
     let up = v::<T>(0.0, 1.0, 0.0);
     for p in apexes::<T>() {
-        let n = |alpha: f64, gamma: f64, sense: bool| nappe(p, alpha, gamma, sense);
+        // Each nappe on its own carrier and edge, past the halves' two.
+        let keys = core::cell::Cell::new(2);
+        let n = |alpha: f64, gamma: f64, sense: bool| {
+            keys.set(keys.get() + 1);
+            nappe(p, keys.get(), alpha, gamma, sense)
+        };
         for (frac, rests) in [(0.5, false), (2.0, true)] {
             let slip = (frac * e).asin().to_degrees();
             for (what, pieces) in [
@@ -1073,7 +1093,7 @@ fn two_nappes_in_band_of_each_other_refuse_in_band<T: Decide>() {
             let gamma = 30f64.to_radians() - (frac * e).asin();
             vec![
                 n(50.0, 0.0, thorn),
-                nappe_by(p, (20f64.to_radians(), gamma), needle, reach, off),
+                nappe_by(p, 1, (20f64.to_radians(), gamma), needle, reach, off),
             ]
         };
         assert_eq!(
