@@ -44,10 +44,11 @@
 //! support faces, which a coplanar-face merge leaves wherever a wall
 //! was subdivided — and is carved as ONE face over all its links.
 //!
-//! **Closed chains** (any link whose blend is a TORUS) come in TWO
-//! shapes, which
-//! are different surgeries and not two settings of one — see
-//! [`RimShape`].
+//! **Closed chains** come in THREE shapes, which are different
+//! surgeries and not settings of one — see [`RimShape`]: the ladder and
+//! the annulus, one torus band over a rim on one support pair, and the
+//! MIXED rim, one band face per link where the links' supports differ
+//! ([`rim_phase_mixed`]).
 //!
 //! The **LADDER** rim (the pip rims): the chain must be a ring of its
 //! PLANE support and the entire boundary of its curved support (a
@@ -158,7 +159,9 @@
 //! edges requested),
 //! closed rims that are neither a circle-carried ring of a PLANE
 //! against ring-free caps nor a rim between two revolution walls (of
-//! one edge, or of several arcs a chart seam split), and a LADDER rim
+//! one edge, or of several arcs a chart seam split) nor a MIXED rim of
+//! links on different supports around one shared face ([`MixedRim`]),
+//! a mixed rim sharing a support with a ladder or annulus rim, and a LADDER rim
 //! sharing a support with an ANNULUS rim in ONE call (the annulus
 //! band consumes structure of the shared face beyond its own rim —
 //! [`shared_support_gate`], whose recourse is sequential calls; two
@@ -221,9 +224,10 @@ use topo::{
 use super::admit::{
     AdmittedOpen, CornerFaces, CornerLinks, CutOffRow, Joint, OpenBand, RequestedBoundary,
 };
-use super::arms::EdgeBlend;
+use super::arms::{BallSection, EdgeBlend, torus_radial};
 use super::battery::{
     BatteryVerdict, Chain, ChainClosure, Convexity, Link, Turn, face_clearance_margin,
+    same_supports,
 };
 use super::build::{Blended, face_cycle, face_cycle_edges, fan_at};
 use super::consume::Feature;
@@ -419,6 +423,31 @@ enum RimShape {
     /// one-edge rim's lone strut reaches its host trim by
     /// [`lone_host_trim`]'s route rather than a chord.
     Annulus(AnnulusRim),
+    /// **The mixed rim** ([`MixedRim`]): links on different supports,
+    /// one band face each.
+    Mixed(MixedRim),
+}
+
+/// **A closed rim of links on different supports**: one band face per
+/// link, consecutive faces meeting G1 along the section the battery
+/// read shared at each junction (predicate 4's band reading). The host
+/// is the one face every link shares, the rim exactly one of its
+/// cycles; each link's mate is its own face, ring-free and carrying
+/// that one arc of the chain, and consecutive mates meet along one edge
+/// running off the rim at each junction.
+struct MixedRim {
+    /// One per link, keyed by the vertex the link's host-side traversal
+    /// ENDS at, with the source edge between the two mates there.
+    crossings: Vec<MixedCrossing>,
+}
+
+/// One junction of a [`MixedRim`].
+struct MixedCrossing {
+    vertex: VertexKey,
+    /// The source edge between the junction's two mates (on an extruded
+    /// outline, the wall's smooth vertical edge), which the carve splits
+    /// at the mate foot; its rim-side piece becomes the section.
+    mate_edge: EdgeKey,
 }
 
 /// A closed rim resolved onto the two SURFACES it separates.
@@ -858,6 +887,17 @@ pub(super) fn blend_surgery<T: Decide + Bounds + topo::AtRestPolicy>(
     let mut band_faces = Vec::with_capacity(rims.len());
     let mut band_surfaces = Vec::with_capacity(rims.len());
     for (i, rim) in rims.iter().enumerate() {
+        let sense = rim.chain.first().convexity.blend_sense();
+        if let RimShape::Mixed(mixed) = &rim.shape {
+            let (faces, mut arcs) =
+                rim_phase_mixed(&mut body, rim, mixed, &sources, &mut rec, tol)?;
+            for (face, surface) in faces {
+                band_faces.push(face);
+                band_surfaces.push((surface, sense));
+            }
+            described.append(&mut arcs);
+            continue;
+        }
         let (band_face, band_surface, mut arcs) = match &rim.shape {
             RimShape::Ladder { ring } => rim_phase(&mut body, rim, *ring, &sources, &mut rec, tol)?,
             RimShape::Annulus(ann) => {
@@ -879,9 +919,10 @@ pub(super) fn blend_surgery<T: Decide + Bounds + topo::AtRestPolicy>(
                 };
                 rim_phase_annulus(&mut body, rim, ann, &live, &sources, &mut rec, tol)?
             }
+            RimShape::Mixed(_) => unreachable!("a mixed rim is carved above"),
         };
         band_faces.push(band_face);
-        band_surfaces.push(band_surface);
+        band_surfaces.push((band_surface, sense));
         described.append(&mut arcs);
     }
 
@@ -927,13 +968,12 @@ pub(super) fn blend_surgery<T: Decide + Bounds + topo::AtRestPolicy>(
         )
         .map_err(|e| op("corner patch surface", e))?;
     }
-    for (i, rim) in rims.iter().enumerate() {
-        let fk = band_faces[i];
+    for (fk, (surface, sense)) in band_faces.iter().zip(&band_surfaces) {
         body.set_face_surface(
-            fk,
+            *fk,
             FaceSurface::New {
-                surface: band_surfaces[i].clone(),
-                sense: rim.chain.first().convexity.blend_sense(),
+                surface: surface.clone(),
+                sense: *sense,
             },
         )
         .map_err(|e| op("band face surface", e))?;
@@ -1109,6 +1149,13 @@ fn resolve_rim<'a, T: Decide + Bounds>(
     let is_plane = |f: FaceKey| -> Option<bool> {
         Some(matches!(body.face_surface(f)?, Surface::Plane { .. }))
     };
+    // Links on different supports are the MIXED rim, one band face per
+    // link; links all on one support pair are one torus band.
+    for link in chain.rest() {
+        if !same_supports(body, link0, link)? {
+            return resolve_mixed_rim(body, chain);
+        }
+    }
     for link in chain.links() {
         if !link.arm.is_coaxial_torus() {
             return Err(unbuilt_chain(
@@ -1663,6 +1710,160 @@ fn resolve_seam_split_rim<'a, T: Decide + Bounds>(
     })
 }
 
+/// **Resolve a closed chain whose links lie on different supports** onto
+/// its one shared HOST face and each link's own MATE, with the edge the
+/// carve splits at every junction ([`MixedRim`]). Every gate reads the
+/// source body, before any mutation:
+///
+/// - each link a rolling-ball band with a section: a cylinder over two
+///   planes or a torus;
+/// - every junction between links on different supports (a run of links
+///   on one pair inside a mixed rim is not carved);
+/// - ONE face shared by every link, the host, whose rim cycle (its
+///   outer cycle or a ring) is exactly the chain;
+/// - each mate ring-free and carrying exactly its own arc of the chain;
+/// - at every junction the two arcs and ONE other edge, which separates
+///   the junction's two mates.
+fn resolve_mixed_rim<'a, T: Decide>(
+    body: &Body<T>,
+    chain: &'a Chain<T>,
+) -> Result<RimPlan<'a, T>, BlendError> {
+    let link0 = chain.first();
+    let links: Vec<&Link<T>> = chain.links().collect();
+    for link in &links {
+        if !(link.arm.is_coaxial_torus() || link.arm == super::arms::BlendArm::PlanePlaneCylinder) {
+            return Err(unbuilt_chain(
+                link.edge,
+                "a closed mixed chain's link is neither a plane–plane cylinder nor a torus",
+            ));
+        }
+    }
+    for j in &chain.junctions {
+        if same_supports(body, links[j.arriving], links[j.leaving])? {
+            return Err(unbuilt_chain(
+                link0.edge,
+                "a closed mixed chain runs two consecutive links on one support pair",
+            ));
+        }
+    }
+    // Faces, not surfaces: the carve cuts the host's one cycle, so the
+    // links must share a FACE. Links sharing only the host's surface over
+    // several faces refuse below.
+    let shared = |f: FaceKey| links.iter().all(|l| l.face_a == f || l.face_b == f);
+    let host = match (shared(link0.face_a), shared(link0.face_b)) {
+        (true, false) => link0.face_a,
+        (false, true) => link0.face_b,
+        _ => {
+            return Err(unbuilt_chain(
+                link0.edge,
+                "a closed chain of links on different supports shares no one support face",
+            ));
+        }
+    };
+    let mates: Vec<FaceKey> = links
+        .iter()
+        .map(|l| if l.face_a == host { l.face_b } else { l.face_a })
+        .collect();
+    let chain_edges: Vec<EdgeKey> = links.iter().map(|l| l.edge).collect();
+
+    // The host's rim cycle is exactly the chain: a trim chord runs
+    // between consecutive feet IN it, so an edge it did not name would
+    // end up inside a strip the carve excises.
+    let half0 = host_side_half(body, link0, host)
+        .ok_or_else(|| unresolved(EntityId::Edge(link0.edge), "a rim arc's host-side half"))?;
+    let lp = loop_of_half(body, half0)
+        .ok_or_else(|| unresolved(EntityId::HalfEdge(half0), "a rim arc's host-side loop"))?;
+    let mut cycle: Vec<EdgeKey> = loop_walk(body, lp)
+        .ok_or_else(|| unwalked(EntityId::Loop(lp), "a rim's host cycle"))?
+        .into_iter()
+        .map(|(_, _, e)| e)
+        .collect();
+    cycle.sort_unstable();
+    let mut want = chain_edges.clone();
+    want.sort_unstable();
+    if cycle != want {
+        return Err(unbuilt_chain(
+            link0.edge,
+            "a closed mixed chain is not a whole cycle of its shared face",
+        ));
+    }
+    for (link, &m) in links.iter().zip(&mates) {
+        let fd = body
+            .get_face(m)
+            .ok_or_else(|| unresolved(EntityId::Face(m), "a rim arc's mate"))?;
+        // `work/band/a-mixed-rims-mate-with-a-ring-refuses-at-the-mate-gate.md`.
+        if !fd.rings.is_empty() {
+            return Err(unbuilt_chain(
+                link.edge,
+                "a mixed rim's mate support carries rings of its own",
+            ));
+        }
+        let carried: Vec<EdgeKey> = face_cycle_edges(body, m)
+            .ok_or_else(|| unwalked(EntityId::Face(m), "a rim arc's mate cycle"))?
+            .into_iter()
+            .filter(|e| chain_edges.contains(e))
+            .collect();
+        if carried != [link.edge] {
+            return Err(unbuilt_chain(
+                link.edge,
+                "a mixed rim's mate support does not carry exactly its own arc of the chain",
+            ));
+        }
+    }
+    let mut crossings = Vec::with_capacity(links.len());
+    for (i, link) in links.iter().enumerate() {
+        let half = host_side_half(body, link, host)
+            .ok_or_else(|| unresolved(EntityId::Edge(link.edge), "a rim arc's host-side half"))?;
+        let vertex = body
+            .half_edge_end(half)
+            .ok_or_else(|| unresolved(EntityId::HalfEdge(half), "a rim arc's host-side end"))?;
+        let Some(next) = links.iter().position(|l| {
+            host_side_half(body, l, host)
+                .and_then(|h| body.get_half_edge(h))
+                .is_some_and(|h| h.start == vertex)
+        }) else {
+            return Err(disagrees(
+                EntityId::Vertex(vertex),
+                "a rim arc's host-side end starts no other arc of the chain",
+            ));
+        };
+        let incident = fan_at(body.edges_of_vertex(vertex))
+            .ok_or_else(|| unwalked(EntityId::Vertex(vertex), "a rim vertex's edge orbit"))?;
+        let others: Vec<EdgeKey> = incident
+            .into_iter()
+            .filter(|e| !chain_edges.contains(e))
+            .collect();
+        let [strut] = others[..] else {
+            return Err(unbuilt_chain(
+                link.edge,
+                "a mixed rim's junction carries other than one edge off the rim",
+            ));
+        };
+        let sides = topo::readback::edge_sides(body, strut)
+            .map_err(|_| unresolved(EntityId::Edge(strut), "a junction edge's two faces"))?;
+        let mut faces = [sides.plus.face, sides.minus.face];
+        faces.sort_unstable();
+        let mut pair = [mates[i], mates[next]];
+        pair.sort_unstable();
+        if faces != pair {
+            return Err(unbuilt_chain(
+                link.edge,
+                "a mixed rim's junction edge does not separate the junction's two mates",
+            ));
+        }
+        crossings.push(MixedCrossing {
+            vertex,
+            mate_edge: strut,
+        });
+    }
+    Ok(RimPlan {
+        chain,
+        hosts: vec![host; links.len()],
+        mates,
+        shape: RimShape::Mixed(MixedRim { crossings }),
+    })
+}
+
 /// **A band's identity in the birth record**: its closed chain's source
 /// edges, in chain order. Every row that names the band — its face,
 /// its seam splits, its slit — carries this one value, and its
@@ -1731,6 +1932,15 @@ fn shared_support_gate<T: Real>(rims: &[RimPlan<'_, T>]) -> Result<(), BlendErro
         for b in rims.iter().skip(i + 1) {
             if !rims_share_support(a, b) {
                 continue;
+            }
+            // `work/band/a-mixed-rim-and-an-annulus-rim-on-one-support-refuse-in-one-call.md`.
+            let mixed = |r: &RimPlan<'_, T>| matches!(r.shape, RimShape::Mixed(_));
+            if mixed(a) != mixed(b) {
+                return Err(unbuilt_chain(
+                    b.chain.first().edge,
+                    "a mixed rim shares a support with another rim; blend them in SEQUENTIAL \
+                     calls",
+                ));
             }
             let annulus = |r: &RimPlan<'_, T>| matches!(r.shape, RimShape::Annulus(_));
             if annulus(a) != annulus(b) {
@@ -3049,15 +3259,24 @@ fn strip_clearance<T: Decide + Bounds>(
 }
 
 /// **Each support's boundary against that support's trim**, for one
-/// closed rim: on every distinct host and mate face, each edge of its
-/// outer cycle and of its rings ([`ring_pieces`]) the carve does not
-/// replace, over its own stored window. The carve excises the strip between the rim and the trim, so
-/// every other boundary edge must lie wholly on the trim's FAR side
-/// from the rim. Side and reach are read through a function whose level
-/// sets on the support are its latitude circles: the distance from the
-/// trim's centre on a PLANE (perpendicular to the axis), the height
-/// along the axis on a cylinder, cone or sphere, where a latitude is
-/// one height.
+/// closed rim: on every host and mate face, each edge of its outer cycle
+/// and of its rings ([`ring_pieces`]) the carve does not replace, over
+/// its own stored window. The carve excises the strip between the rim
+/// and the trim, so every other boundary edge must lie wholly outside
+/// it: on the trim's far side from the rim, or beyond the rim's own
+/// level (a part of the face the strip does not reach), or past the
+/// strip's window along its spine. Side and reach are read through a
+/// LEVEL function of the support ([`StripLevel`]): a torus band's
+/// latitudes (the distance from the trim's centre on a PLANE, the height
+/// along the axis on a cylinder, cone or sphere), a plane–plane band's
+/// distance across its edge ([`strip_frame`]).
+///
+/// A rim on one support pair reads one level per face, over the whole
+/// turn, since its links' strips make one band. A MIXED rim
+/// ([`MixedRim`]) reads each link's level on each of its supports, within
+/// that link's window: a straight link's slab between its end normals,
+/// an arc's wedge (when it sweeps less than a half turn; a wider arc is
+/// read over its whole circle).
 ///
 /// Not metered, because the carve replaces them: the rim's arcs, and
 /// the one seam or meridian each support's OUTER cycle drops into every
@@ -3079,9 +3298,10 @@ fn strip_clearance<T: Decide + Bounds>(
 /// Its own function, and so a compound bound of its own in this file:
 /// it is the edge-blend seam's ring carry-through pass split by arm,
 /// reading brackets only where [`ring_clearance`] and the piece meters
-/// already do, plus one selection — which side of the trim the rim
-/// lies on — that is definite by a setback (DL5(b), as
-/// [`ArcReads::arc_misses`]' selection).
+/// already do, plus two selections: which side of the trim the rim lies
+/// on, definite by a setback (DL5(b), as [`ArcReads::arc_misses`]'
+/// selection), and whether an arc's window is a wedge, read only to
+/// narrow (an uncertain read takes the whole circle).
 fn support_boundary_clearance<T: Decide + Bounds>(
     body: &Body<T>,
     rim: &RimPlan<'_, T>,
@@ -3093,85 +3313,30 @@ fn support_boundary_clearance<T: Decide + Bounds>(
     let rim_vertices: Vec<VertexKey> = rim.chain.links().flat_map(|l| [l.start, l.end]).collect();
     let drops_into_rim = |edge: EdgeKey| rim_vertices.iter().any(|&v| edge_touches(body, edge, v));
     let convexity = rim.chain.first().convexity;
+    let per_link = matches!(rim.shape, RimShape::Mixed(_));
     let sides = rim
         .chain
         .links()
         .zip(rim.hosts.iter())
         .chain(rim.chain.links().zip(rim.mates.iter()));
-    let mut seen: Vec<FaceKey> = Vec::with_capacity(2 * rim.hosts.len());
+    let mut seen: Vec<(EdgeKey, FaceKey)> = Vec::with_capacity(2 * rim.hosts.len());
     for (l, &face) in sides {
-        if seen.contains(&face) {
+        // One read per face of a rim on one pair; per link of a mixed rim.
+        let key = (if per_link { l.edge } else { arcs[0] }, face);
+        if seen.contains(&key) {
             continue;
         }
-        seen.push(face);
-        let ((ci, si), _) = rim_trim_circles(l.edge, &l.blend, l.face_a == face)?;
-        let (rim_carrier, _) = stored_piece(body, l.edge)?;
-        let Some(rim_circle) = rim_carrier.as_circle() else {
-            return Err(unbuilt_geometry(
-                EntityId::Edge(l.edge),
-                "a closed rim's arc is not a circle",
-            ));
-        };
-        let fd = body
-            .get_face(face)
-            .ok_or_else(|| unresolved(EntityId::Face(face), "a rim's support"))?;
-        let surface = body
-            .face_surface(face)
-            .ok_or_else(|| unresolved(EntityId::Face(face), "a rim's support"))?;
-        // The latitude function: `None` the distance from the trim
-        // centre, `Some(axis)` the height along the axis.
-        let direction = match surface {
-            Surface::Plane { .. } => None,
-            Surface::Cylinder { .. } | Surface::Cone { .. } | Surface::Sphere { .. } => {
-                Some(rim_circle.frame.axis)
-            }
-            _ => {
-                return Err(unbuilt_geometry(
-                    EntityId::Face(face),
-                    "a rim's support is not a plane, cylinder, cone or sphere, whose \
-                     latitudes the support-boundary meter reads",
-                ));
-            }
-        };
-        // The latitude function's range over one piece, and whether that
-        // range is a bound rather than the piece's own.
-        let reach = |carrier: &Curve3<T>, (ta, tb): (T, T)| match carrier {
-            Curve3::Line(_) | Curve3::Circle(..) => match direction {
-                None => piece_distance(carrier, (ta, tb), ci),
-                Some(u) => piece_along(carrier, (ta, tb), ci, u),
-            }
-            .map(|r| (r, false)),
-            Curve3::Ellipse(..) | Curve3::Spiric { .. } | Curve3::Nurbs(_) => {
-                let ends = (carrier.eval(ta), carrier.eval(tb));
-                boxed_reach(carrier, (ta, tb), ends, ci, direction).map(|r| (r, true))
-            }
-        };
-        // The rim's own value: its radius on a plane (coplanar and
-        // coaxial with the trim), its height along the axis on a wall.
-        let (at_trim, rim_at) = match direction {
-            None => (si, rim_circle.radius),
-            Some(u) => (T::zero(), (rim_circle.frame.origin - ci).dot(u)),
-        };
-        // The rim lies one setback off the trim, so this bracket read is
-        // definite wherever the trim exists; it selects which end of an
-        // edge's range is decided, and an indefinite read refuses.
-        let rim_above = (rim_at - at_trim).lo() > 0.0;
-        if !rim_above && (rim_at - at_trim).hi() >= 0.0 {
-            return Err(unbuilt_geometry(
-                EntityId::Edge(l.edge),
-                "a rim and its trim are not separated on their support",
-            ));
-        }
+        seen.push(key);
+        let level = StripLevel::of(body, l, face, per_link)?;
         let outer = face_cycle(body, face).ok_or_else(|| {
             unwalked(
                 EntityId::Face(face),
                 "a rim's support has no outer cycle that walks",
             )
         })?;
-        // The face's cycles, each as its pieces: the outer cycle, then
-        // every ring. Curved mates and seam-split hosts are ring-free by
-        // gate (`resolve_rim`'s ladder, half-band and second-support
-        // refusals), so the rings read here are a planar host's.
+        let fd = body
+            .get_face(face)
+            .ok_or_else(|| unresolved(EntityId::Face(face), "a rim's support"))?;
         let mut outer_pieces = Vec::with_capacity(outer.len());
         for he in outer {
             let edge = body
@@ -3183,26 +3348,36 @@ fn support_boundary_clearance<T: Decide + Bounds>(
         }
         let mut cycles = vec![(outer_pieces, true)];
         for &ring in &fd.rings {
-            cycles.push((ring_pieces(body, ring, face, opens, rims)?, false));
+            // A mixed rim reads a ring's ellipse, spiric or NURBS edge
+            // through its certified box, as it reads its outer cycle's; a
+            // rim on one pair keeps `ring_pieces`' refusal of them
+            // (`work/bandmeter/a-ring-of-ellipse-edges-refuses-the-ring-meter.md`).
+            let pieces = if per_link {
+                let walk = loop_walk(body, ring)
+                    .ok_or_else(|| unwalked(EntityId::Loop(ring), "a support face's ring"))?;
+                let mut pieces = Vec::with_capacity(walk.len());
+                for (_, _, edge) in walk {
+                    let (carrier, window) = metered_piece(body, edge, face, opens, rims)?;
+                    pieces.push((edge, carrier, window));
+                }
+                pieces
+            } else {
+                ring_pieces(body, ring, face, opens, rims)?
+            };
+            cycles.push((pieces, false));
         }
         for (cycle, outer) in cycles {
             let margins = cycle
                 .into_iter()
                 .filter(|&(edge, _, _)| !(arcs.contains(&edge) || outer && drops_into_rim(edge)))
-                .map(|(edge, carrier, window)| {
-                    let ((low, high), bounded) = reach(&carrier, window).ok_or_else(|| {
+                .map(|(edge, carrier, piece)| {
+                    level.clearance(&carrier, piece).ok_or_else(|| {
                         unbuilt_geometry(
                             EntityId::Edge(edge),
                             "an outer-boundary edge of a rim's support has no finite certified \
                              box",
                         )
-                    })?;
-                    let margin = if rim_above {
-                        at_trim - high
-                    } else {
-                        low - at_trim
-                    };
-                    Ok((margin, bounded))
+                    })
                 })
                 .collect::<Result<Vec<_>, BlendError>>()?;
             // A cycle the carve replaces whole (a hostless annulus's
@@ -3214,6 +3389,131 @@ fn support_boundary_clearance<T: Decide + Bounds>(
         }
     }
     Ok(())
+}
+
+/// **The strip one band takes off one support, as a level function**
+/// ([`support_boundary_clearance`]): `(centre, None)` the distance from
+/// the centre, `(origin, Some(u))` the reach along `u`; the trim's level
+/// and the rim's, which side of the trim the rim lies on, and the strip's
+/// window along its spine, if it has one.
+struct StripLevel<T: Real> {
+    centre: Point3<T>,
+    direction: Option<Vec3<T>>,
+    at_trim: T,
+    rim_at: T,
+    rim_above: bool,
+    /// Half-spaces `(origin, u)` the strip lies within, `(p − origin)·u ≥ 0`.
+    window: Vec<(Point3<T>, Vec3<T>)>,
+}
+
+impl<T: Decide + Bounds> StripLevel<T> {
+    /// The level of link `l`'s strip on `face`, windowed when `windowed`.
+    fn of(body: &Body<T>, l: &Link<T>, face: FaceKey, windowed: bool) -> Result<Self, BlendError> {
+        let (rim_carrier, (t0, t1)) = stored_piece(body, l.edge)?;
+        let (centre, direction, at_trim, rim_at) = if l.arm.is_coaxial_torus() {
+            let ((ci, si), _) = rim_trim_circles(l.edge, &l.blend, l.face_a == face)?;
+            let Some(rim_circle) = rim_carrier.as_circle() else {
+                return Err(unbuilt_geometry(
+                    EntityId::Edge(l.edge),
+                    "a closed rim's arc is not a circle",
+                ));
+            };
+            let fd = body
+                .get_face(face)
+                .ok_or_else(|| unresolved(EntityId::Face(face), "a rim's support"))?;
+            match body.get_surface(fd.surface) {
+                Some(Surface::Plane { .. }) => (ci, None, si, rim_circle.radius),
+                Some(Surface::Cylinder { .. } | Surface::Cone { .. } | Surface::Sphere { .. }) => {
+                    let u = rim_circle.frame.axis;
+                    (
+                        ci,
+                        Some(u),
+                        T::zero(),
+                        (rim_circle.frame.origin - ci).dot(u),
+                    )
+                }
+                Some(_) => {
+                    return Err(unbuilt_geometry(
+                        EntityId::Face(face),
+                        "a rim's support is not a plane, cylinder, cone or sphere, whose \
+                         latitudes the support-boundary meter reads",
+                    ));
+                }
+                None => return Err(unresolved(EntityId::Face(face), "a rim support's surface")),
+            }
+        } else {
+            let (o, m, across) = strip_frame(body, l, face)?;
+            (o, Some(m), T::zero(), -across)
+        };
+        // The rim lies one setback off the trim, so this bracket read is
+        // definite wherever the trim exists; it selects which end of an
+        // edge's range is decided, and an indefinite read refuses.
+        let rim_above = (rim_at - at_trim).lo() > 0.0;
+        if !rim_above && (rim_at - at_trim).hi() >= 0.0 {
+            return Err(unbuilt_geometry(
+                EntityId::Edge(l.edge),
+                "a rim and its trim are not separated on their support",
+            ));
+        }
+        let mut window = Vec::new();
+        if windowed {
+            let (a, b) = (rim_carrier.eval(t0), rim_carrier.eval(t1));
+            match rim_carrier.as_circle() {
+                // The wedge of an arc sweeping less than a half turn: ahead
+                // of its start tangent, behind its end tangent, about its
+                // centre. Wider, it is read over its whole circle.
+                Some(c) if (t1 - t0).lo() > 0.0 && ((t1 - t0) - T::pi()).hi() < 0.0 => {
+                    let o = c.frame.origin;
+                    window.push((o, rim_carrier.deriv(t0).normalize()));
+                    window.push((o, -rim_carrier.deriv(t1).normalize()));
+                }
+                Some(_) => {}
+                None => {
+                    let tau = (b - a).normalize();
+                    window.push((a, tau));
+                    window.push((b, -tau));
+                }
+            }
+        }
+        Ok(Self {
+            centre,
+            direction,
+            at_trim,
+            rim_at,
+            rim_above,
+            window,
+        })
+    }
+
+    /// A piece's clearance of the strip, and whether it is a bound: the
+    /// most it lies on the trim's far side, beyond the rim's level, or
+    /// outside one of the window's half-spaces. `None` where the piece
+    /// has no finite reading.
+    fn clearance(&self, carrier: &Curve3<T>, piece: (T, T)) -> Option<(T, bool)> {
+        let ((low, high), bounded) = match carrier {
+            Curve3::Line(_) | Curve3::Circle(..) => match self.direction {
+                None => piece_distance(carrier, piece, self.centre),
+                Some(u) => piece_along(carrier, piece, self.centre, u),
+            }
+            .map(|r| (r, false))?,
+            Curve3::Ellipse(..) | Curve3::Spiric { .. } | Curve3::Nurbs(_) => {
+                let ends = (carrier.eval(piece.0), carrier.eval(piece.1));
+                boxed_reach(carrier, piece, ends, self.centre, self.direction).map(|r| (r, true))?
+            }
+        };
+        let (trim_side, far_side) = if self.rim_above {
+            (self.at_trim - high, low - self.rim_at)
+        } else {
+            (low - self.at_trim, self.rim_at - high)
+        };
+        let mut margin = trim_side.max(far_side);
+        for &(o, u) in &self.window {
+            if let Some((_, hi)) = piece_along(carrier, piece, o, u) {
+                margin = margin.max(-hi);
+            }
+        }
+        Some((margin, bounded))
+    }
 }
 
 /// A boundary piece built here rather than read off the body: a carrier
@@ -3268,6 +3568,12 @@ fn co_requested_trim<T: Decide>(
         .find(|l| l.edge == edge)
     {
         let (trim, _) = l.trim_on(face).ok_or_else(|| not_a_support(edge))?;
+        // A mixed rim's straight link reads its trimline over the stored
+        // window projected onto it, as an open link does.
+        if let Curve3::Line(line) = trim {
+            let window = (line.param(stored.eval(ta)), line.param(stored.eval(tb)));
+            return Ok(Some((trim.clone(), window)));
+        }
         return Ok(Some((trim.clone(), (T::zero(), T::tau()))));
     }
     Ok(None)
@@ -3369,6 +3675,18 @@ pub(super) enum ContactCarrier<T: Real> {
     /// described as the SEAM image of the band's own
     /// surface (sweep < π; the donut's representation).
     SeamArc { center: Point3<T>, radius: T },
+    /// A mixed rim's SECTION: the rolling ball's circle where two links'
+    /// bands meet (sweep < π) — in exact arithmetic a row of both bands'
+    /// charts, a cylinder's transverse circle and a torus's meridian.
+    /// Computed, it is that only to rounding: its centre is one link's
+    /// spine point, which predicate 4's band reading found within the band
+    /// of the other's, and its frame is built from computed directions.
+    /// So it is described as the two charts' shared row
+    /// ([`geom_brep::analytic_shared_row`]), whose admission decides within
+    /// the band whether the carrier is that row, and never as a tangency to
+    /// be witnessed, which the meeting of both bands with the cap at its
+    /// end puts out of any witness's reach.
+    Section(BallSection<T>),
 }
 
 /// The third element is the REQUESTED link the contact edge belongs
@@ -4987,6 +5305,390 @@ fn rim_phase_annulus<T: Decide + Bounds + topo::AtRestPolicy>(
     Ok((band_face, band_surface, described))
 }
 
+/// A mixed rim's band faces with their surfaces, in chain-link order.
+type BandFaces<T> = Vec<(FaceKey, Surface<T>)>;
+
+/// One support's trimline of one link of a [`MixedRim`], run the way
+/// that support's loop runs along the link.
+enum MixedTrim<T: Real> {
+    /// A cylinder band's straight trim, between the feet the carve
+    /// mints: the carrier is the line through them.
+    Line(geom::Line<T>),
+    /// A torus band's trim circle in the rim arc's own frame, scaled
+    /// ([`scaled`]), over the arc's window.
+    Arc(Curve3<T>, (T, T)),
+}
+
+impl<T: Decide> MixedTrim<T> {
+    /// The foot on this trim at a junction `p`, read from the end of
+    /// the run `at_start` names: a straight trim's foot of `p`, an arc's
+    /// window end.
+    fn foot(&self, p: Point3<T>, at_start: bool) -> Point3<T> {
+        match self {
+            Self::Line(line) => line.foot(p),
+            Self::Arc(c, (t0, t1)) => c.eval(if at_start { *t0 } else { *t1 }),
+        }
+    }
+
+    /// The scaffolding the trim's `mef` stores between its two feet.
+    fn spec(&self, p0: Point3<T>, p1: Point3<T>) -> Option<EdgeCurveSpec<T>> {
+        match self {
+            Self::Line(_) => Some(EdgeCurveSpec::line_between(p0, p1)),
+            Self::Arc(c, (t0, t1)) => EdgeCurveSpec::arc_of_circle(c.clone(), *t0, *t1),
+        }
+    }
+
+    /// The description the pass states it as.
+    fn contact(&self) -> ContactCarrier<T> {
+        match self {
+            Self::Line(line) => ContactCarrier::TrimLine(*line),
+            Self::Arc(c, (t0, t1)) => ContactCarrier::Exact(c.clone(), *t0, *t1),
+        }
+    }
+}
+
+/// A link's two trims, host then mate, each run with its own loop.
+fn mixed_trims<T: Decide>(
+    body: &Body<T>,
+    l: &Link<T>,
+    host: FaceKey,
+) -> Result<(MixedTrim<T>, MixedTrim<T>), BlendError> {
+    if l.arm.is_coaxial_torus() {
+        let ((ca, sa), (cb, sb)) = rim_trim_circles(l.edge, &l.blend, l.face_a == host)?;
+        let rc = rim_carrier(body, l, host)?;
+        let (hc, h0, h1) = scaled(&rc, ca, sa, rc.plus_on_host);
+        let (mc, m0, m1) = scaled(&rc, cb, sb, !rc.plus_on_host);
+        return Ok((MixedTrim::Arc(hc, (h0, h1)), MixedTrim::Arc(mc, (m0, m1))));
+    }
+    let ((ht, _), (mt, _)) = l.blend.trims(l.face_a == host);
+    let line = |c: &Curve3<T>| match c {
+        Curve3::Line(line) => Ok(MixedTrim::Line(*line)),
+        _ => Err(unbuilt_geometry(
+            EntityId::Edge(l.edge),
+            "a cylinder band's trimline on a plane is not a line",
+        )),
+    };
+    Ok((line(ht)?, line(mt)?))
+}
+
+/// **The mixed rim's carve** ([`MixedRim`]): the annulus walk's moves
+/// with one band face per link.
+///
+/// 1. at each junction, split the edge off the rim between the two
+///    mates where the mate trimlines cross it — its rim-side piece will
+///    be the section;
+/// 2. strut each junction out to its host foot ([`strut_foot`]);
+/// 3. `mef` each link's host trim between the struts flanking its arc;
+/// 4. `mef` each link's mate trim between the split points at its ends;
+/// 5. `kef` each rim arc from the host strip's side, merging its two
+///    strips into that link's band face;
+/// 6. `kev` each strut from its foot, the junction vertex dying and the
+///    split's rim-side piece re-basing onto the host foot, where it runs
+///    between the two feet as the section the two bands share.
+///
+/// The edge off the rim is read LIVE at each junction: another band of
+/// the same call carving the same mates (the other rim of an extruded
+/// wall) has split it already, and its fragment is what meets this rim.
+/// Returns each band face with its surface, in chain-link order.
+#[allow(clippy::too_many_lines)]
+fn rim_phase_mixed<T: Decide + Bounds + topo::AtRestPolicy>(
+    body: &mut Body<T>,
+    rim: &RimPlan<'_, T>,
+    mixed: &MixedRim,
+    sources: &SourceFaces,
+    rec: &mut BlendNaming,
+    tol: Tol,
+) -> Result<(BandFaces<T>, Described<T>), BlendError> {
+    let links: Vec<&Link<T>> = rim.chain.links().collect();
+    let n = links.len();
+    let host = rim.host0();
+    let chain_edges: Vec<EdgeKey> = links.iter().map(|l| l.edge).collect();
+    let mut trims = Vec::with_capacity(n);
+    let mut halves = Vec::with_capacity(n);
+    let mut surfaces = Vec::with_capacity(n);
+    for l in &links {
+        trims.push(mixed_trims(body, l, host)?);
+        halves.push(
+            host_side_half(body, l, host)
+                .ok_or_else(|| unresolved(EntityId::Edge(l.edge), "a rim arc's host-side half"))?,
+        );
+        // A torus face's chart is seamed opposite the middle of its
+        // arc, so no face boundary runs along the chart seam.
+        let surface = match l.blend.surface {
+            Surface::Torus {
+                center,
+                axis,
+                major_radius,
+                minor_radius,
+                ..
+            } => {
+                let (c, (t0, t1)) = stored_piece(body, l.edge)?;
+                let radial = torus_radial(center, axis, c.eval(geom::mid_param(t0, t1)));
+                Surface::Torus {
+                    center,
+                    axis,
+                    major_radius,
+                    minor_radius,
+                    u_ref: -radial,
+                }
+            }
+            ref s => s.clone(),
+        };
+        surfaces.push(surface);
+    }
+    // The link whose host-side traversal STARTS at each junction reads
+    // that junction's feet, as the annulus's do.
+    let mut starters = Vec::with_capacity(n);
+    for c in &mixed.crossings {
+        let Some(i) = halves
+            .iter()
+            .position(|&h| body.get_half_edge(h).is_some_and(|h| h.start == c.vertex))
+        else {
+            return Err(disagrees(
+                EntityId::Vertex(c.vertex),
+                "a mixed rim's junction no arc's host-side traversal starts at",
+            ));
+        };
+        starters.push(i);
+    }
+    let mut targets = Vec::with_capacity(n);
+    // Each junction's section, read off the link that starts there; its
+    // plane is stated from a cylinder band where the junction has one,
+    // whose axis is the stored direction itself (crossing `k` ends link
+    // `k`).
+    let mut sections = Vec::with_capacity(n);
+    for (k, (c, &i)) in mixed.crossings.iter().zip(&starters).enumerate() {
+        let p = point_of(body, c.vertex)
+            .ok_or_else(|| unresolved(EntityId::Vertex(c.vertex), "a rim junction"))?;
+        let (ht, mt) = &trims[i];
+        targets.push((ht.foot(p, true), mt.foot(p, false)));
+        let of = |l: &Link<T>| {
+            BallSection::of(&l.blend, p).ok_or_else(|| {
+                unbuilt_geometry(
+                    EntityId::Edge(l.edge),
+                    "a mixed rim's band has no rolling-ball section",
+                )
+            })
+        };
+        let mut section = of(links[i])?;
+        if matches!(links[k].blend.surface, Surface::Cylinder { .. }) {
+            section.normal = of(links[k])?.normal;
+        }
+        sections.push(section);
+    }
+
+    // A cylinder face's chart is seamed opposite the middle of its
+    // section, so no section runs across the chart seam.
+    for (k, &i) in starters.iter().enumerate() {
+        if let Surface::Cylinder {
+            origin,
+            axis,
+            radius,
+            ..
+        } = surfaces[i]
+        {
+            let (host, mate) = targets[k];
+            let mid = (host - sections[k].centre) + (mate - sections[k].centre);
+            surfaces[i] = Surface::Cylinder {
+                origin,
+                axis,
+                radius,
+                u_ref: -(mid - axis * mid.dot(axis)).normalize(),
+            };
+        }
+    }
+
+    // ---- (1) The mate splits, on the live edge off the rim. ----
+    let mut mate_feet: Vec<SplitFragments> = Vec::with_capacity(n);
+    for (k, c) in mixed.crossings.iter().enumerate() {
+        let incident = fan_at(body.edges_of_vertex(c.vertex))
+            .ok_or_else(|| unwalked(EntityId::Vertex(c.vertex), "a rim junction's edge orbit"))?;
+        let off: Vec<EdgeKey> = incident
+            .into_iter()
+            .filter(|e| !chain_edges.contains(e))
+            .collect();
+        let [live] = off[..] else {
+            return Err(disagrees(
+                EntityId::Vertex(c.vertex),
+                "a mixed rim's junction carries other than one edge off the rim at the carve",
+            ));
+        };
+        let named = links[starters[k]].edge;
+        let t = seam_split_param(body, live, named, targets[k].1)?;
+        let expected = ExpectedSource {
+            source: c.mate_edge,
+            chain: chain_edges[0],
+        };
+        mate_feet.push(split_fragment(
+            body,
+            live,
+            c.vertex,
+            t,
+            Some(expected),
+            rec,
+            "mixed rim junction split",
+            tol,
+        )?);
+    }
+    let mate_chord_feet: Vec<(VertexKey, EdgeKey, EdgeKey)> = mate_feet
+        .iter()
+        .map(|f| (f.vertex, f.near, f.far))
+        .collect();
+
+    // ---- (2) The host struts. ----
+    let mut host_struts: Vec<(VertexKey, EdgeKey)> = Vec::with_capacity(n);
+    for (k, c) in mixed.crossings.iter().enumerate() {
+        let created = strut_foot(
+            body,
+            halves[starters[k]],
+            c.vertex,
+            targets[k].0,
+            "mixed rim host strut mev",
+            tol,
+        )?;
+        host_struts.push((created.vertex, created.edge));
+    }
+    let host_feet: Vec<VertexKey> = host_struts.iter().map(|(v, _)| *v).collect();
+
+    // ---- (3)+(4) The trims. ----
+    let foot_point = |body: &Body<T>, v: VertexKey| {
+        point_of(body, v).ok_or_else(|| unresolved(EntityId::Vertex(v), "a mixed rim's foot"))
+    };
+    let mut host_trims = Vec::with_capacity(n);
+    for (i, l) in links.iter().enumerate() {
+        let lp = loop_of_half(body, halves[i])
+            .ok_or_else(|| unresolved(EntityId::Edge(l.edge), "a rim arc's host-side loop"))?;
+        let ((h1, v1), (h2, v2)) =
+            flank(body, lp, |row| row.0 == halves[i], 1, 2)?.ok_or_else(|| {
+                disagrees(
+                    EntityId::Loop(lp),
+                    "this arc's two strut feet around it in the host's loop",
+                )
+            })?;
+        if !(host_feet.contains(&v1) && host_feet.contains(&v2)) {
+            return Err(disagrees(
+                EntityId::Loop(lp),
+                "this arc's two strut feet around it in the host's loop",
+            ));
+        }
+        let spec = trims[i]
+            .0
+            .spec(foot_point(body, v1)?, foot_point(body, v2)?)
+            .ok_or_else(|| {
+                unbuilt_geometry(EntityId::Edge(l.edge), "a mixed rim's host trim arc")
+            })?;
+        host_trims.push(
+            body.mef(
+                MefSite::Chords { he1: h1, he2: h2 },
+                spec,
+                FaceSurface::Inherit,
+                tol,
+            )
+            .map_err(|e| op("mixed rim host trim mef", e))?,
+        );
+    }
+    let mut mate_trims = Vec::with_capacity(n);
+    for (i, l) in links.iter().enumerate() {
+        let ed = body
+            .get_edge(l.edge)
+            .ok_or_else(|| unresolved(EntityId::Edge(l.edge), "a rim arc"))?;
+        let mhalf = if ed.he_plus == halves[i] {
+            ed.he_minus
+        } else {
+            ed.he_plus
+        };
+        let lp = loop_of_half(body, mhalf)
+            .ok_or_else(|| unresolved(EntityId::HalfEdge(mhalf), "a rim arc's mate-side loop"))?;
+        let (he1, he2) = trim_chords(body, lp, &mate_chord_feet)?;
+        let at = |h: HalfEdgeKey| {
+            body.get_half_edge(h)
+                .and_then(|h| point_of(body, h.start))
+                .ok_or_else(|| unresolved(EntityId::HalfEdge(h), "a mate trim's foot"))
+        };
+        let spec = trims[i].1.spec(at(he1)?, at(he2)?).ok_or_else(|| {
+            unbuilt_geometry(EntityId::Edge(l.edge), "a mixed rim's mate trim arc")
+        })?;
+        mate_trims.push(
+            body.mef(
+                MefSite::Chords { he1, he2 },
+                spec,
+                FaceSurface::Inherit,
+                tol,
+            )
+            .map_err(|e| op("mixed rim mate trim mef", e))?,
+        );
+    }
+
+    // ---- (5) Excise each arc from the host strip's side. ----
+    for (i, _) in links.iter().enumerate() {
+        sources.kef_minted(body, halves[i], "mixed rim kef", tol)?;
+    }
+
+    // ---- (6) The junctions: each strut dies from its foot, and the
+    // split's rim-side piece re-bases onto the host foot. ----
+    for (k, c) in mixed.crossings.iter().enumerate() {
+        let Some((sp, sm)) = halves_of(body, host_struts[k].1) else {
+            unreachable!(
+                "mixed rim: the strut came out of this phase's own `mev` and nothing between \
+                 there and here kills it"
+            )
+        };
+        let dying = if body.half_edge_end(sm) == Some(c.vertex) {
+            sm
+        } else {
+            sp
+        };
+        let member = mate_feet[k].near;
+        let chord = merged_chord_spec(body, member, dying, "mixed rim junction kev")?;
+        body.kev_describing(dying, &[(member, chord)], tol)
+            .map_err(|e| op("mixed rim junction kev", e))?;
+    }
+
+    let mut faces = Vec::with_capacity(n);
+    for (i, l) in links.iter().enumerate() {
+        let Some(face) = face_of_half(body, mate_trims[i].he_minus) else {
+            unreachable!(
+                "mixed rim: a mate trim's minus half bounds the strip its `mef` minted, and \
+                 the `kef`s above kill the host strips"
+            )
+        };
+        if rim.mates.contains(&face) || face == host || faces.iter().any(|(f, _)| *f == face) {
+            return Err(disagrees(
+                EntityId::Face(face),
+                "a mixed rim's band face merged into a support or another link's band",
+            ));
+        }
+        faces.push((face, surfaces[i].clone()));
+        rec.blends.push((face, l.edge));
+    }
+
+    let mut described: Described<T> = Vec::new();
+    for (i, l) in links.iter().enumerate() {
+        described.push((host_trims[i].edge, trims[i].0.contact(), l.edge));
+        described.push((mate_trims[i].edge, trims[i].1.contact(), l.edge));
+        rec.rim_trims
+            .push((host_trims[i].edge, l.edge, RimSide::Host));
+        rec.rim_trims
+            .push((mate_trims[i].edge, l.edge, RimSide::Mate));
+        rec.dead.edges.push(l.edge);
+    }
+    let band_named = band_identity(rim);
+    for (k, c) in mixed.crossings.iter().enumerate() {
+        described.push((
+            mate_feet[k].near,
+            ContactCarrier::Section(sections[k]),
+            links[starters[k]].edge,
+        ));
+        rec.rim_feet.push((host_feet[k], c.vertex));
+        rec.meridian_splits
+            .push((mate_feet[k].vertex, mate_feet[k].source, band_named.clone()));
+        rec.sections
+            .push((mate_feet[k].near, mate_feet[k].source, c.vertex));
+        rec.dead.vertices.push(c.vertex);
+    }
+    Ok((faces, described))
+}
+
 /// Whether `edge` has `v` as one of its endpoints.
 pub(super) fn edge_touches<T: Decide>(body: &Body<T>, edge: EdgeKey, v: VertexKey) -> bool {
     halves_of(body, edge).is_some_and(|(hp, hm)| {
@@ -5173,6 +5875,11 @@ fn attach_contact<T: Decide + Bounds + topo::AtRestPolicy>(
         }
     };
     let is_seam = matches!(carrier, ContactCarrier::SeamArc { .. });
+    let is_section = matches!(carrier, ContactCarrier::Section { .. });
+    let plane = match &carrier {
+        ContactCarrier::Section(section) => Some(section.normal),
+        _ => None,
+    };
     let transverse = matches!(
         carrier,
         ContactCarrier::Chord | ContactCarrier::Transverse(_)
@@ -5196,19 +5903,43 @@ fn attach_contact<T: Decide + Bounds + topo::AtRestPolicy>(
             let len = p0.distance(p1);
             (Curve3::line(p0, (p1 - p0) / len), T::zero(), len)
         }
-        // ONE construction for both arc kinds, deliberately: a corner
-        // arc and a band's slit are the same short arc about a stored
+        // ONE construction for the three arc kinds, deliberately: a corner
+        // arc, a band's slit and a section are the same short arc about a stored
         // centre (sweep < π, so the `atan2` turn is unambiguous), and
-        // the only thing that differs is the DESCRIPTION they take
-        // below. Byte-identical copies of the geometry would let one
+        // what differs is the DESCRIPTION they take below and, for a
+        // section, the plane its frame is stated in. Byte-identical copies of the geometry would let one
         // drift from the other with nothing to say so.
         ContactCarrier::CornerArc { center, radius }
-        | ContactCarrier::SeamArc { center, radius } => {
-            let u = (p0 - center).normalize();
-            let w = (p1 - center).normalize();
+        | ContactCarrier::SeamArc { center, radius }
+        | ContactCarrier::Section(BallSection {
+            centre: center,
+            radius,
+            ..
+        }) => {
+            // A section lies in the plane normal to the spine at its
+            // centre (a cylinder band's axis where the junction has one,
+            // else a torus band's azimuth there), and its frame is stated
+            // in that plane rather than read off the feet, so its normal is
+            // the stored axis where there is one and a computed direction
+            // otherwise; the feet are projected into that plane, so the
+            // carrier misses them by rounding, which the attachment gate
+            // reads within the band.
+            let flat = |p: Point3<T>| {
+                let d = p - center;
+                match plane {
+                    Some(n) => (d - n * d.dot(n)).normalize(),
+                    None => d.normalize(),
+                }
+            };
+            let (u, w) = (flat(p0), flat(p1));
             let turn = u.cross(w);
+            let n = match plane {
+                Some(n) if turn.dot(n).lo() < 0.0 => -n,
+                Some(n) => n,
+                None => turn.normalize(),
+            };
             (
-                Curve3::circle(center, turn.normalize(), radius, u),
+                Curve3::circle(center, n, radius, u),
                 T::zero(),
                 turn.norm().atan2(u.dot(w)),
             )
@@ -5228,6 +5959,29 @@ fn attach_contact<T: Decide + Bounds + topo::AtRestPolicy>(
             ));
         }
         EdgeDescriptionSpec::wrap(s1)
+    } else if is_section {
+        let (Some(surf1), Some(surf2)) = (body.get_surface(s1), body.get_surface(s2)) else {
+            return Err(unresolved(EntityId::Edge(edge), "a section's two surfaces"));
+        };
+        let pair = SurfacePair::new(s1, s2);
+        let selector = geom_brep::analytic_shared_row(
+            pair,
+            [(s1, surf1), (s2, surf2)],
+            &curve,
+            (t0, t1),
+            band,
+        )
+        // The section IS a row of both charts; what can fail is the
+        // admission's reading of it at this scalar, a capability of the
+        // certificate rather than a contradiction of the carve, so it
+        // refuses at the requested link as an unbuilt geometry.
+        .ok_or_else(|| {
+            unbuilt_geometry(
+                EntityId::Edge(link),
+                "a junction's section does not certify as the shared row of its two bands",
+            )
+        })?;
+        EdgeDescriptionSpec::Intersection { pair, selector }
     } else if transverse {
         // The chamfer's edges and the ruled band's cut-off arcs: two
         // surfaces crossing at a definite angle, so the intrinsic
@@ -5444,6 +6198,7 @@ fn records_rooted<T: Real>(source: &topo::Body<T>, rec: &BlendNaming) {
         meridian_splits,
         meridian_remnants,
         slits,
+        sections,
         dead:
             super::naming::Retired {
                 faces: _,
@@ -5472,7 +6227,8 @@ fn records_rooted<T: Real>(source: &topo::Body<T>, rec: &BlendNaming) {
             slits
                 .iter()
                 .flat_map(|(_, e, b)| core::iter::once(e).chain(b)),
-        );
+        )
+        .chain(sections.iter().map(|(_, e, _)| e));
     for e in edge_sources {
         assert!(
             source.get_edge(*e).is_some(),
@@ -5487,7 +6243,8 @@ fn records_rooted<T: Real>(source: &topo::Body<T>, rec: &BlendNaming) {
         .chain(arcs.iter().map(|(_, v, _)| v))
         .chain(mitres.iter().map(|(_, v)| v))
         .chain(turn_feet.iter().map(|(_, v)| v))
-        .chain(rim_feet.iter().map(|(_, v)| v));
+        .chain(rim_feet.iter().map(|(_, v)| v))
+        .chain(sections.iter().map(|(_, _, v)| v));
     for v in vertex_sources {
         assert!(
             source.get_vertex(*v).is_some(),

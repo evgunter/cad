@@ -128,6 +128,58 @@ impl<T: Real> EdgeBlend<T> {
     }
 }
 
+/// **The rolling ball's section of a link's band through `p`**: the
+/// circle of the ball's radius about the spine's point in the plane
+/// through `p` normal to the spine, and that plane's unit normal. A
+/// cylinder band's is its transverse circle (centre the axis foot, normal
+/// the axis), a torus band's its meridian (centre the spine circle at
+/// `p`'s azimuth, normal the azimuth's tangent). `None` for a band with no
+/// rolling ball.
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct BallSection<T: Real> {
+    pub(crate) centre: Point3<T>,
+    pub(crate) normal: Vec3<T>,
+    pub(crate) radius: T,
+}
+
+impl<T: Real> BallSection<T> {
+    pub(crate) fn of(blend: &EdgeBlend<T>, p: Point3<T>) -> Option<Self> {
+        match blend.surface {
+            Surface::Cylinder {
+                origin,
+                axis,
+                radius,
+                ..
+            } => Some(Self {
+                centre: origin + axis * (p - origin).dot(axis),
+                normal: axis,
+                radius,
+            }),
+            Surface::Torus {
+                center,
+                axis,
+                major_radius,
+                minor_radius,
+                ..
+            } => {
+                let radial = torus_radial(center, axis, p);
+                Some(Self {
+                    centre: center + radial * major_radius,
+                    normal: axis.cross(radial).normalize(),
+                    radius: minor_radius,
+                })
+            }
+            _ => None,
+        }
+    }
+}
+
+/// The unit radial of a torus about `center` and `axis` at `p`'s azimuth.
+pub(crate) fn torus_radial<T: Real>(center: Point3<T>, axis: Vec3<T>, p: Point3<T>) -> Vec3<T> {
+    let q = p - center;
+    (q - axis * q.dot(axis)).normalize()
+}
+
 /// The corner ball of a uniform trihedral vertex: a sphere patch (the
 /// spherical triangle bounded by the three contact circles with the
 /// three incident edge cylinders), resting inside the material at a
