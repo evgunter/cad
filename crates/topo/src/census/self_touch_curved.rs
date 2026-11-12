@@ -9,7 +9,8 @@
 //! wall's ruling (a line the wall keeps), along an arc's tangent (a
 //! tangency the bends part one order down, [`crate::link::FaceSector::tangent`]'s
 //! second-order reading: off the post or under it a rest, into it
-//! refused), or along the wall's circle's tangent (refused).
+//! refused), or along the wall's circle's tangent (a rest: one order
+//! down the wall bends away under the corner's faces).
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use super::*;
@@ -198,7 +199,7 @@ fn rows_hold(at: Seat) {
             ("straddling", straddle, crossing),
             ("along the ruling", ruling, rest),
             ("along the ruling, into", ruling_into, crossing),
-            ("along the circle", circle, tangency),
+            ("along the circle", circle, rest),
             (
                 "along the circle, off it in band",
                 lift(3.0 * zero),
@@ -255,9 +256,9 @@ fn a_corner_inside_its_own_curved_posts_arc_reads_its_two_half_planes() {
 /// crosses; an edge along the wall's ruling lies in the wall as the
 /// wall keeps it, so the corner reads as its other edges place it; an
 /// edge along the wall's circle leaves the wall only to second order,
-/// which no reading here parts, and refuses. Red where the wall's normal
-/// reads the other way, a crossing reads as a rest, or the tangency
-/// reads at all.
+/// where the wall bends away under the corner's faces: a rest. Red where
+/// the wall's normal reads the other way, a crossing reads as a rest, or
+/// the circle's tangency is kept at first order or read the other way.
 #[test]
 fn a_corner_inside_its_own_curved_posts_wall_reads_its_tangent_plane() {
     rows_hold(Seat::Wall);
@@ -779,5 +780,123 @@ fn a_self_touch_at_a_lone_vertex_of_a_curved_wall_refuses_as_a_lone_loop() {
         verdict,
         SelfTouch::Read(TouchVerdict::Unread(TouchUnread::LoneLoop)),
         "the tangent cones refuse the wall's lone vertex as a lone loop"
+    );
+}
+
+/// The unit cube whose top face is carried on a degree-1 chart creased at
+/// the knot `u = ½` and whose `y = 0` top edge is split there
+/// ([`crate::sector_face::tests::split_at_half`]), and a parallelepiped
+/// `u·a + v·b + w·c` cornered at the split vertex `(½, 0, 1)`, its shell
+/// moved into the cube's solid and its corner on the vertex's point key.
+fn crease_corner_and(edges: [Vec3<f64>; 3]) -> (Body<f64>, VertexKey) {
+    let tol = Tol::witness();
+    let chart =
+        crate::sector_face::tests::planar_chart(vec![0.0, 0.0, 0.5, 1.0, 1.0], 1, &[0.0, 0.5, 1.0]);
+    let (mut body, _, mid) = crate::sector_face::tests::split_at_half(chart);
+    let p = body.points[body.vertices[mid].point];
+    let [mut a, mut b, c] = edges;
+    if a.cross(b).dot(c) < 0.0 {
+        std::mem::swap(&mut a, &mut b);
+    }
+    let part = mapped_cube::<f64>(move |u, v, w| p + a * u + b * v + c * w, tol);
+    let before: BTreeSet<VertexKey> = body.vertices.keys().collect();
+    let keep = census_entity_solid(&body, EntityId::Vertex(mid)).unwrap();
+    let gone = crate::instance::graft_disjoint(&mut body, &part).unwrap();
+    for sh in body.solids.remove(gone).unwrap().shells {
+        body.shells[sh].solid = keep;
+        body.solids[keep].shells.push(sh);
+    }
+    body.solid_provenance.remove(gone);
+    let corner = body
+        .vertices
+        .keys()
+        .find(|&v| !before.contains(&v) && (body.points[body.vertices[v].point] - p).norm() < 1e-12)
+        .expect("the parallelepiped's corner on the split vertex");
+    let (old, key) = (body.vertices[corner].point, body.vertices[mid].point);
+    body.vertices[corner].point = key;
+    body.points.remove(old);
+    (body, corner)
+}
+
+/// **A solid touching itself at a spline crease corner is read**
+/// (`work/onecopy/a-solid-touching-itself-at-a-spline-crease-corner-finishes-undetected.md`):
+/// the top face's corner at the split vertex lies on the chart's crease,
+/// and reads the normal on its sector's side
+/// ([`geom_brep::chart_normal_beside`]) where it once refused and the
+/// point went to second order, skipped. A parallelepiped reaching into
+/// the cube from the vertex crosses it, through the whole census; one
+/// turned up and away from it rests. Red where the crease corner leaves
+/// the point unread.
+#[test]
+fn a_solid_touching_itself_at_a_spline_crease_corner_is_read() {
+    let into = [
+        Vec3::new(0.1, 0.3, -0.3),
+        Vec3::new(-0.1, 0.3, -0.3),
+        Vec3::new(0.0, 0.2, -0.5),
+    ];
+    let away = [
+        Vec3::new(0.1, -0.3, 0.3),
+        Vec3::new(-0.1, -0.3, 0.3),
+        Vec3::new(0.0, -0.2, 0.5),
+    ];
+    for (edges, crosses) in [(into, true), (away, false)] {
+        let (body, corner) = crease_corner_and(edges);
+        let geo = snapshot(&body);
+        let ties = Ties::default();
+        let keys = touch_keys(&geo, &ties, &[corner]).expect("the corner's keys");
+        let s = census_entity_solid(&body, EntityId::Vertex(corner)).unwrap();
+        let verdict = self_touch_verdict(&body, &geo, &ties, s, &keys, geo.vmap[&corner], band());
+        let found: Vec<_> =
+            census_and_certify(&body, &Default::default(), band(), Tol::witness(), None)
+                .into_iter()
+                .filter(|e| {
+                    matches!(
+                        e,
+                        ValidationError::BoundaryCrossesItself { .. }
+                            | ValidationError::BoundaryCrossesItselfUndecided { .. }
+                    )
+                })
+                .collect();
+        if crosses {
+            assert_eq!(
+                verdict,
+                SelfTouch::Read(TouchVerdict::Crossing),
+                "reaching in"
+            );
+            assert!(
+                matches!(&found[..], [ValidationError::BoundaryCrossesItself { .. }]),
+                "reaching in: {found:?}"
+            );
+        } else {
+            assert!(
+                matches!(verdict, SelfTouch::Read(TouchVerdict::Rest(_))),
+                "turned away: {verdict:?}"
+            );
+            assert!(found.is_empty(), "turned away: {found:?}");
+        }
+    }
+}
+
+/// **A bound is a circle's only on a circle** ([`super::on_circle`],
+/// `link::Bound::circle`): the oblique rim, an ellipse, is none, nor is
+/// a half-disc post's line; its bottom arc is one. Two ellipse arcs
+/// agreeing at a point to second order part at third, so only a circle
+/// may be kept by its bend (`link::second_order::one_circle`). Red where
+/// every edge reads as a circle's, or none does.
+#[test]
+fn a_bound_is_a_circles_only_on_a_circle() {
+    let (rim, _, _) = crate::test_support_fixtures::oblique_rim_wall_in::<f64>(0.4);
+    for (e, _) in &rim.edges {
+        assert!(!on_circle(&rim, e), "the oblique rim {e:?} is an ellipse");
+    }
+    let post = crate::tier3_tests::half_disc(R, H, (0.0, 0.0, 0.0), false, Tol::witness());
+    let kinds: Vec<bool> = post.edges.keys().map(|e| on_circle(&post, e)).collect();
+    assert!(
+        kinds.contains(&true),
+        "the post's arcs are circles': {kinds:?}"
+    );
+    assert!(
+        kinds.contains(&false),
+        "the post's lines are not: {kinds:?}"
     );
 }

@@ -244,14 +244,13 @@ pub enum MassPropsError {
         source: PropsError,
     },
     /// A curved face carries interior rings and is neither a cone wall,
-    /// a cylinder wall (its closed form and its quadrature both read
-    /// every loop: `geom_brep::props::curved_face_loops`,
+    /// a cylinder wall nor a sphere face (each one's closed form and its
+    /// quadrature read every loop: `geom_brep::props::curved_face_loops`,
     /// `geom_brep::props::quad::rotational_cut_face_rounds`), nor a torus wall
     /// bounded by rims and rulings, nor a torus wall any of whose loops
     /// carries a spiric (the spiric lane reads every loop,
-    /// `geom_brep::props::spiric::rim_face_rounds`), nor a sphere face
-    /// bounded by circles. A boolean pierce leaves a ring in the wall it
-    /// pierces.
+    /// `geom_brep::props::spiric::rim_face_rounds`). A boolean pierce
+    /// leaves a ring in the wall it pierces.
     RingOnCurvedFace {
         /// The offending face.
         face: FaceKey,
@@ -629,6 +628,7 @@ fn round_hook<T: Decide>(
 ) -> impl Fn(
     &Body<T>,
     &Surface<T>,
+    bool,
     &[FlatLoop<T>],
     Band,
     Tol,
@@ -638,7 +638,7 @@ fn round_hook<T: Decide>(
 ) -> Result<Option<LaneRun>, PropsError>
 + Sync
 + Copy {
-    move |body, surface, loops, band, tol, window, about: Point3<T>, resolution| match quad {
+    move |body, surface, sense, loops, band, tol, window, about: Point3<T>, resolution| match quad {
         Some(lane) => {
             let about = Point3::new(
                 (lane.lift)(about.x),
@@ -648,6 +648,7 @@ fn round_hook<T: Decide>(
             (lane.cut_face_rounds)(
                 body,
                 surface,
+                sense,
                 loops,
                 band,
                 tol,
@@ -1462,7 +1463,8 @@ pub(crate) fn certify_role<T: Decide>(
 /// `b`): `ROUNDING_TERMS · u · Σ_f (n_f + 1) · R_f · D_f²` over the walk's
 /// faces, `u` the unit roundoff and `n_f` a face's edge count. A face's
 /// closed form is taken about its surface's anchor (a plane's or a
-/// cylinder's origin, a cone's apex, a sphere's or a torus's centre), on
+/// cylinder's origin re-anchored at the face, [`face_anchored`]; a
+/// cone's apex; a sphere's or a torus's centre), on
 /// its geometry moved by `−c`, `c` its shell's reference
 /// ([`shell_reference`]): `R_f` is the larger 1-norm of the anchor and of
 /// the face's loop points about `c` (their distance from the point the
@@ -1484,10 +1486,11 @@ fn rounding_bound<T: Decide>(body: &Body<T>, runs: &[FaceRun<T>]) -> Result<T, M
     let mut bound = T::zero();
     for run in runs {
         let face = body.proven_face(run.face);
-        let surface = face.surface();
+        let loops = face_loops(body, face.record())?;
+        let surface = face_anchored(face.surface(), &loops);
         let c = run.about.point();
         let about = |p: Point3<T>| one_norm(p.x - c.x, p.y - c.y, p.z - c.z);
-        let anchor = match *surface {
+        let anchor = match surface {
             Surface::Plane { origin, .. } | Surface::Cylinder { origin, .. } => Some(origin),
             Surface::Cone { apex, .. } => Some(apex),
             Surface::Sphere { center, .. }
@@ -1501,8 +1504,8 @@ fn rounding_bound<T: Decide>(body: &Body<T>, runs: &[FaceRun<T>]) -> Result<T, M
         let mut spread = T::zero();
         let mut box_lo: Option<Point3<T>> = None;
         let mut box_hi: Option<Point3<T>> = None;
-        for lp in face_loops(body, face.record())? {
-            for e in &lp {
+        for lp in &loops {
+            for e in lp {
                 terms = terms + T::one();
                 for p in [e.carrier.eval(e.t0), e.carrier.eval(e.t1)] {
                     reach = reach.max(about(p));
@@ -1702,6 +1705,7 @@ fn rederive_faces<T: Decide>(
                     (lane.cut_face_rounds)(
                         body,
                         surface,
+                        face.record().sense,
                         &flat,
                         band,
                         tol,
@@ -1916,12 +1920,14 @@ impl Rederived {
 ///
 /// Any fixed point is a sound centre for a closed surface; this is the
 /// same point for one stored body every time (D9), and two bodies
-/// storing one boundary in different orders take different vertices. The
-/// value about it also reads a plane's flux from its loop's first point,
-/// and where a loop's points stand off their plane two such bodies
-/// re-derive values that differ by up to `Σ_f δ_f·(Σ|T^a| + Σ|T^b|)` over
-/// those faces, `|T^a|` and `|T^b|` the unsigned areas of face `f`'s fan
-/// triangles from either first point. On the polygon route
+/// storing one boundary in different orders take different vertices. A
+/// plane's flux about it is read from its face's anchor, which no
+/// storage order moves ([`geom_brep::props::face_anchor`]), and where a
+/// loop's points stand off their plane two such bodies re-derive values
+/// that differ by up to `|c^a − c^b|·Σ_f |A⃗⊥_f|`, the two centres' gap
+/// times each face's vector area across its plane: the faces' vector
+/// areas sum to zero over a closed shell, so only the parts the plane's
+/// normal drops are levered by the centre. On the polygon route
 /// ([`shell_polygons`]) that is the whole difference; on the fan route
 /// the loops' gaps at their carrier ends add their own
 /// (`work/tally/a-fan-over-carrier-ends-reads-an-ulp-gap-at-the-faces-length-times-its-lever`).
@@ -2302,6 +2308,7 @@ pub(crate) fn mass_properties_closed_form_of<T: Decide>(
 type QuadHook<'h, T> = dyn Fn(
         &Body<T>,
         &Surface<T>,
+        bool,
         &[FlatLoop<T>],
         Band,
         Tol,
@@ -2468,7 +2475,7 @@ mod face_walk_composition_tests {
     }
 
     /// A detached run that records exactly one verdict, under `name`.
-    fn one_verdict(name: &'static str) -> Detached {
+    fn one_verdict_as(name: &'static str) -> Detached {
         detached(|| {
             let _ = crate::validate::decide(name, Margin::of(1.0f64), band());
         })
@@ -2494,12 +2501,12 @@ mod face_walk_composition_tests {
 
     /// The slots, with a hard refusal at `refuse_at` when one is asked
     /// for; every slot carries a recording naming itself.
-    fn slots(names: &[&'static str], refuse_at: Option<usize>) -> Vec<FaceDecision<f64>> {
+    fn slots_as(names: &[&'static str], refuse_at: Option<usize>) -> Vec<FaceDecision<f64>> {
         names
             .iter()
             .enumerate()
             .map(|(i, &name)| {
-                let recording = one_verdict(name);
+                let recording = one_verdict_as(name);
                 let run = if refuse_at == Some(i) {
                     Err(MassPropsError::Corrupt {
                         what: "the injected refusal",
@@ -2642,7 +2649,7 @@ mod face_walk_composition_tests {
 
     #[test]
     fn every_recording_splices_in_arena_order_when_no_face_refuses() {
-        let decided = slots(&NAMES, None);
+        let decided = slots_as(&NAMES, None);
         let bracket = Bracket::open();
         let runs = splice_in_arena_order(decided).expect("no face refused");
         let log = bracket.finish();
@@ -2717,7 +2724,7 @@ mod face_walk_composition_tests {
 
     #[test]
     fn the_refusing_faces_recording_splices_and_every_later_one_is_dropped() {
-        let decided = slots(&NAMES, Some(2));
+        let decided = slots_as(&NAMES, Some(2));
         let bracket = Bracket::open();
         let err = match splice_in_arena_order(decided) {
             Err(err) => err,
@@ -4063,11 +4070,23 @@ fn closed_form_of<U: Decide>(
     match *surface {
         // A plane with no loop that bounds area takes the empty rule's
         // dispatch below, which refuses it.
-        Surface::Plane { origin, .. } if !loops.is_empty() => planar_face(origin, loops),
+        Surface::Plane { .. } if !loops.is_empty() => planar_face(loops),
         _ => {
+            let surface = face_anchored(surface, loops);
             let loops: Vec<&[LoopEdge<U>]> = loops.iter().map(Vec::as_slice).collect();
-            curved_face_holding(surface, &loops, held, sense, band)
+            curved_face_holding(&surface, &loops, held, sense, band)
         }
+    }
+}
+
+/// **`surface` re-anchored at its face** ([`geom_brep::surface_anchored_at`]),
+/// at its mean vertex ([`geom_brep::props::loops_anchor`]): the face's
+/// measure reads no datum its kind forgets at a lever beyond the face
+/// (`[tolerance.epsilon]`). Unmoved where the face has no loop point.
+fn face_anchored<U: Decide>(surface: &Surface<U>, loops: &[Vec<LoopEdge<U>>]) -> Surface<U> {
+    match geom_brep::props::loops_anchor(loops) {
+        Some(anchor) => geom_brep::surface_anchored_at(surface, anchor.at()),
+        None => surface.clone(),
     }
 }
 
@@ -5113,41 +5132,34 @@ fn face_flux_about<T: Decide>(
             closed_form_about(surface, &loops, &held, face.sense(), band, about).map_err(wrap)?
         }
         _ => {
-            let trimmed = loops
-                .iter()
-                .flat_map(|(edges, _)| edges)
-                .any(|e| trims(&e.carrier));
             // Which lanes read a ring: the cone's closed form (every
-            // loop's vector area, whatever trims it), the cylinder's
-            // closed form and quadrature alike (each a Green form summed
-            // over every loop), and the torus's closed form over rims
-            // and rulings, the sphere's over circles (Gauss–Bonnet over
-            // every loop), and the spiric lane every loop of a
-            // spiric-bounded plane or torus wall: on a wall, every loop's
-            // spirics, rims and meridians, each ring wound against the
-            // face, and any other edge refuses typed in that lane. No
-            // other kind reads one.
-            let spiric = loops
-                .iter()
-                .flat_map(|(edges, _)| edges)
-                .any(|e| matches!(e.carrier, geom::Curve3::Spiric { .. }));
+            // loop's vector area, whatever trims it), the cylinder's, the
+            // sphere's and the torus's closed forms and quadrature alike
+            // (each a Green form, or Gauss–Bonnet, summed over every
+            // loop), and the spiric lane every loop of a spiric-bounded
+            // plane cap. No other kind reads one.
             let reads_rings = match surface {
                 // A plane reaches this arm only bounded by a spiric or a
                 // rational spline rim, and the plane cap reads every loop
                 // of its face.
-                Surface::Cone { .. } | Surface::Cylinder { .. } | Surface::Plane { .. } => true,
-                Surface::Torus { .. } => !trimmed || spiric,
-                Surface::Sphere { .. } => !trimmed,
+                Surface::Cone { .. }
+                | Surface::Cylinder { .. }
+                | Surface::Plane { .. }
+                | Surface::Sphere { .. }
+                | Surface::Torus { .. } => true,
                 _ => false,
             };
             if loops.len() > 1 && !reads_rings {
                 return Err(MassPropsError::RingOnCurvedFace { face: face_key });
             }
-            // The S10 sense bit does not enter the quadrature lane: its
-            // Green form is winding-derived end to end (the signed UV area
-            // IS s_f·|Ω| through the stored loop traversal). An
-            // approximating face takes it as its fit's flux, the geometry
-            // the face carries.
+            // The S10 sense bit enters the quadrature lane on the sphere
+            // and the torus alone: a cylinder's or a plane's Green form is
+            // winding-derived end to end (the signed UV area IS s_f·|Ω|
+            // through the stored loop traversal), while a loop on a closed
+            // chart bounds a face on each side and the rotational lane
+            // reads the bit to say which (`quad_lane::cut_face_lane`),
+            // with no cross-check against the boundary. An approximating face
+            // takes it as its fit's flux, the geometry the face carries.
             let quad_out = if takes_quadrature(
                 surface,
                 loops
@@ -5155,7 +5167,18 @@ fn face_flux_about<T: Decide>(
                     .flat_map(|(edges, _)| edges)
                     .map(|e| &e.carrier),
             ) {
-                quad(body, surface, &loops, band, tol, window, about, resolution).map_err(wrap)?
+                quad(
+                    body,
+                    surface,
+                    face.sense(),
+                    &loops,
+                    band,
+                    tol,
+                    window,
+                    about,
+                    resolution,
+                )
+                .map_err(wrap)?
             } else {
                 None
             };
@@ -5611,7 +5634,7 @@ pub enum ShellClassifyError {
 /// definite gap. One decision and one lever, at rest and at a boolean's
 /// door alike (`BooleanDecision::ShellRole`).
 pub const AIMED_PAIR: SizedDecision = SizedDecision {
-    lever: "move the geometry so the two faces the aimed ray met are clearly apart",
+    lever: geom_core::move_lever!("so the two faces the aimed ray met are clearly apart"),
     size: "gap",
     passes: SizedPass::Positive,
     side: RefusedSide::Lever,
@@ -6317,6 +6340,7 @@ pub struct QuadLane<T: Decide> {
     cut_face_rounds: fn(
         &Body<T>,
         &Surface<T>,
+        bool,
         &[FlatLoop<T>],
         Band,
         Tol,
@@ -6456,7 +6480,7 @@ mod wiring_rows {
     -> Result<(), &'static str> {
         if !std::ptr::fn_addr_eq(
             QuadLane::<T>::certified().cut_face_rounds,
-            quad_lane::cut_face_rounds::<T> as fn(_, _, _, _, _, _, _, _) -> _,
+            quad_lane::cut_face_rounds::<T> as fn(_, _, _, _, _, _, _, _, _) -> _,
         ) {
             return Err("cut_face_rounds is not `quad_lane::cut_face_rounds`");
         }
@@ -8211,16 +8235,102 @@ mod face_list_door_tests {
         ]
     }
 
-    /// The whole-body closed-form door's bits on the corpus, recorded
-    /// before the face-list door existed (base `3f2336b21`): the door
-    /// became the face-list door handed the arena, and these are what
-    /// say it changed no number.
+    /// A cylinder wall patch about an axis turned off every coordinate
+    /// axis, its record alone on its key: the corpus's curved face.
+    fn tilted_wall() -> (Body<f64>, FaceKey) {
+        use crate::test_support_fixtures::{CylFrame, CylKey, cyl_wall_sheet_keyed};
+        let tol = Tol::witness();
+        let mut frame = CylFrame::tilted(0.8, 0.4);
+        frame.origin = Point3::new(0.3, -0.7, 1.1);
+        let mut body = Body::new();
+        let (face, _) =
+            cyl_wall_sheet_keyed(&mut body, frame, CylKey::Bare, (0.2, 1.9), (0.1, 1.4), tol);
+        crate::pcurves::mint_pcurves(&mut body, tol).unwrap();
+        (body, face)
+    }
+
+    /// **A reading of a face takes no datum its record's kind forgets**
+    /// (`[tolerance.epsilon]`): sliding every plane record's origin far
+    /// along its plane, and every cylinder record's far along its axis,
+    /// changes no closed-form volume beyond rounding. Each plane record
+    /// is first turned `1e-9` about a corner of its face, which is not
+    /// the point the face is read about, so its loops stand off it as a
+    /// face moved onto a record in band of its own does: a reading that
+    /// took the stored origin would move by the face's area times that
+    /// lean times the slide. A cylinder's term reads its datum on the
+    /// axis at the lever its rounding is taken at: unanchored, the slide
+    /// rounds the term at its length squared.
+    #[test]
+    fn sliding_every_record_along_its_symmetry_moves_no_reading() {
+        let tol = Tol::witness();
+        let band = Band::linear(tol).unwrap();
+        let lean = 1e-9;
+        let slide = 1e4;
+        let (wall, _) = tilted_wall();
+        let mut bodies = corpus();
+        bodies.push(("tilted wall", wall));
+        for (name, mut body) in bodies {
+            let faces: Vec<FaceKey> = body.faces().map(|(k, _)| k).collect();
+            for &f in &faces {
+                let at = face_start(&body, f);
+                let k = body.proven_face(f).record().surface;
+                let Some(Surface::Plane {
+                    origin,
+                    normal,
+                    u_ref,
+                }) = body.surfaces.get_mut(k)
+                else {
+                    continue;
+                };
+                // Turned about `u_ref` through a corner.
+                let v = normal.cross(*u_ref);
+                let turned = (*normal + v * lean).normalize();
+                *origin = at;
+                *normal = turned;
+            }
+            let read = |body: &Body<f64>| {
+                let faces: Vec<FaceKey> = body
+                    .faces()
+                    .filter(|&(_, face)| {
+                        matches!(
+                            body.surfaces.get(face.surface),
+                            Some(Surface::Plane { .. } | Surface::Cylinder { .. })
+                        )
+                    })
+                    .map(|(k, _)| k)
+                    .collect();
+                mass_properties_closed_form_of(body, &faces, band, tol)
+                    .unwrap()
+                    .volume
+            };
+            let before = read(&body);
+            for (_, surface) in body.surfaces.iter_mut() {
+                match surface {
+                    Surface::Plane { origin, u_ref, .. } => *origin = *origin + *u_ref * slide,
+                    Surface::Cylinder { origin, axis, .. } => *origin = *origin + *axis * slide,
+                    _ => {}
+                }
+            }
+            let after = read(&body);
+            assert!(
+                (after - before).abs() <= 1e-12,
+                "{name}: sliding every record {slide} along its symmetry moved the volume from \
+                 {before} to {after}"
+            );
+        }
+    }
+
+    /// The whole-body closed-form door's bits on the corpus, each plane
+    /// face's term its boundary's flux about its anchor
+    /// (`geom_brep::props::planar_face`). The door is the face-list door
+    /// handed the arena, bit for bit; the pins are the bits a face's
+    /// reading gives today, so a change to that reading moves them.
     const PINNED: [(&str, u64, u64); 5] = [
         ("unit", 0x3ff0_0000_0000_0000, 0x4018_0000_0000_0000),
-        ("skew", 0x4001_0d4f_df3b_6459, 0x4026_2907_4669_574e),
+        ("skew", 0x4001_0d4f_df3b_6459, 0x4026_2907_4669_5750),
         ("tall", 0x3ff0_0000_0000_0000, 0x4021_0000_0000_0000),
         ("pair", 0x4000_0000_0000_0000, 0x402d_0000_0000_0000),
-        ("trio", 0x4010_86a7_ef9d_b22d, 0x4039_9483_a334_aba7),
+        ("trio", 0x4010_86a7_ef9d_b22d, 0x4039_9483_a334_aba8),
     ];
 
     #[test]

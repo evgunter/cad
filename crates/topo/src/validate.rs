@@ -490,7 +490,7 @@ pub(crate) fn decide_positive<T: Decide>(
 ///
 /// The rounding `K` times over, as the band read it, where it is past
 /// that share.
-pub(crate) fn resolved<T: Decide>(
+pub(crate) fn resolved_as<T: Decide>(
     name: &'static str,
     rounding: T,
     band: Band,
@@ -1672,8 +1672,15 @@ pub enum ValidationError {
     /// traversal-derived, so a lone `sense` flip there is BIT-IDENTICAL
     /// in volume (executed truth table, M6-6 substrate — washer walls,
     /// cone laterals, torus bands all certified green before this arm),
-    /// and the sphere's flux refuses the same face
-    /// (`PropsError::SenseContradicted`).
+    /// and on a sphere face bounded by circles the closed form's flux
+    /// refuses the same face (`PropsError::SenseContradicted`). A sphere
+    /// face trimmed by a chord measures through the rotational lane, which
+    /// reads the bit with no cross-check (a loop on a sphere bounds a face
+    /// on each side): under a flipped bit it certifies the complement,
+    /// and this arm exempts it (below); the flipped face then meets its
+    /// neighbours along a wedge of no angle, which check 4 refuses
+    /// ([`Self::LaminaWedge`]; `sweep/tests/verbs_cylsph_opening.rs`,
+    /// `a_flipped_chorded_sphere_face_is_refused_as_a_lamina`).
     ///
     /// The comparison is **combinatorial** — two exact ±1s, no
     /// comparand, no new margin: the derived side reuses the flux
@@ -3215,7 +3222,7 @@ impl WedgeCheck {
 /// crease (positive) and on a smooth join (zero), and refuses only in
 /// band.
 const WEDGE: SizedDecision = SizedDecision {
-    lever: "move the geometry so the faces meet either clearly creased or clearly smooth",
+    lever: geom_core::move_lever!("so the faces meet either clearly creased or clearly smooth"),
     size: "angle",
     passes: SizedPass::NonNegative,
     side: RefusedSide::Lever,
@@ -3226,8 +3233,10 @@ const WEDGE: SizedDecision = SizedDecision {
 /// they curve apart (positive) and when they do not (zero), and refuses
 /// only in band.
 const SEPARATION: SizedDecision = SizedDecision {
-    lever: "move the geometry so the faces either clearly curve apart where they touch or \
-            clearly share their curvature there",
+    lever: geom_core::move_lever!(
+        "so the faces either clearly curve apart where they touch or \
+            clearly share their curvature there"
+    ),
     size: "curvature difference",
     passes: SizedPass::NonNegative,
     side: RefusedSide::Lever,
@@ -3432,7 +3441,9 @@ fn classify_certify(e: &CertifyError) -> (&'static str, Cow<'static, str>) {
         // An arc rim's refusal reads as its exact image's check where
         // that names a limb, and as its fitted path's otherwise, as its
         // decision does (`ArcRimRefusal::decision`).
-        CertifyError::PlaneNurbs(P::ArcRim(geom_brep::ArcRimRefusal { iso, limb, bound })) => {
+        CertifyError::PlaneNurbs(P::ArcRim(geom_brep::ArcRimRefusal {
+            iso, limb, bound, ..
+        })) => {
             let limb = iso
                 .and_then(geom_brep::PcurveCheck::incidence_limb)
                 .unwrap_or(*limb);
@@ -3441,6 +3452,12 @@ fn classify_certify(e: &CertifyError) -> (&'static str, Cow<'static, str>) {
                 margin: *bound,
             }))
             .0
+        }
+        CertifyError::StatedImageMissed { .. } => {
+            "the chart image it states does not follow its carrier"
+        }
+        CertifyError::StatedImageUnsettled => {
+            geom_core::undecided!("whether the chart image it states follows it")
         }
         CertifyError::ChartImageUnavailable { .. }
         | CertifyError::UnresolvedSurface { .. }
@@ -3451,6 +3468,13 @@ fn classify_certify(e: &CertifyError) -> (&'static str, Cow<'static, str>) {
             ..
         }
         | CertifyError::PlaneNurbs(P::PcurveFit) => MISMATCH,
+        CertifyError::SemiAxisNegative { .. } => {
+            "its conic carrier stores a negative semi-axis, which no edge can have"
+        }
+        CertifyError::SemiAxisNotFinite { .. } => {
+            "its conic carrier stores a semi-axis that is not a finite number, which no edge can \
+             have"
+        }
         // A row image's escalation reads as its decision's check, routed
         // as an arc rim's is (`RowRefusal::decision`).
         CertifyError::Row {
@@ -3629,12 +3653,16 @@ fn classify_certify(e: &CertifyError) -> (&'static str, Cow<'static, str>) {
             | CertifyError::TangentCertificateUnsupported => NOT_YET_ENDING,
             CertifyError::Band(_) => TOLERANCE,
             CertifyError::ChartImageUnavailable { .. }
+            | CertifyError::StatedImageMissed { .. }
+            | CertifyError::StatedImageUnsettled
             | CertifyError::NoGeneralLane { .. }
             | CertifyError::Incidence(_)
             | CertifyError::ResidualExceeded { .. }
             | CertifyError::IntervalNotForward { .. }
             | CertifyError::WindingExceeded
             | CertifyError::StatedInterval { .. }
+            | CertifyError::SemiAxisNegative { .. }
+            | CertifyError::SemiAxisNotFinite { .. }
             | CertifyError::NotTransverse { .. }
             | CertifyError::ArmCollapsed { .. }
             | CertifyError::SpanMeterCollapsed { .. }
@@ -3703,6 +3731,9 @@ fn certify_undecided(check: CertCheck) -> &'static str {
         CertCheck::ChartIncidence => incidence_reasons::UNSHOWN,
         CertCheck::GeneralLane => {
             geom_core::undecided!("whether its face's general image covers it")
+        }
+        CertCheck::StatedImage => {
+            geom_core::undecided!("whether the chart image it states follows it")
         }
         CertCheck::EndpointStart
         | CertCheck::EndpointEnd
@@ -4776,9 +4807,11 @@ impl ValidationError {
                 f,
                 "two faces lie flat against each other from opposite sides at an edge, \
                  which no contact declaration can make valid: either the body has zero \
-                 thickness here, or one face is inside-out. Recourse: move the geometry so \
-                 the body has thickness here; if it already has, report the inside-out face \
-                 as a kernel defect"
+                 thickness here, or one face is inside-out. {}",
+                geom_core::move_recourse!(
+                    "so the body has thickness here; if it already has, report the \
+                     inside-out face as a kernel defect"
+                )
             ),
             Self::LoopRoleInverted { .. } => write!(
                 f,
@@ -5578,7 +5611,7 @@ pub enum RingPairContact {
 
 impl RingPairContact {
     /// The pair's contact from the arms' answer for `other` read in the
-    /// outer loop's seat ([`ring_outer_contact_about`]).
+    /// outer loop's seat ([`ring_outer_contact_about_as`]).
     fn of(contact: RingContact) -> Self {
         match contact {
             RingContact::Vertex {
@@ -8657,7 +8690,7 @@ pub(crate) fn tier3_local_checks_marked<
     for (face_key, face) in body.faces.iter() {
         let normal = plane_chart_normal(body, face.surface);
         for &ring in &face.rings {
-            match ring_outer_contact_about(body, face.outer, ring, normal, band) {
+            match ring_outer_contact_about_as(body, face.outer, ring, normal, band) {
                 RingOuterVerdict::Disjoint => {
                     let Some(normal) = normal else {
                         continue; // the nesting residue, enumerated above
@@ -8698,7 +8731,7 @@ pub(crate) fn tier3_local_checks_marked<
         }
         for (i, j) in ring_pairs(body, &face.rings, band) {
             let (ring, other) = (face.rings[i], face.rings[j]);
-            match ring_outer_contact_about(body, other, ring, normal, band) {
+            match ring_outer_contact_about_as(body, other, ring, normal, band) {
                 RingOuterVerdict::Disjoint => {}
                 RingOuterVerdict::Contact(contact) => {
                     errors.push(ValidationError::RingMeetsRing {
@@ -8788,7 +8821,7 @@ pub(crate) fn joinable_at_rest_errors<T: geom_core::Decide>(
 /// every pair reads them in, less the pairs the boxes clear (D9).
 ///
 /// A ring's box is the hull of its edges' boxes
-/// ([`crate::boolean::boxes::edge_box`]: a superset of each edge's
+/// ([`crate::boxes::edge_box`]: a superset of each edge's
 /// locus, the poison box where an edge has none), padded by the
 /// sweep's own pad, `escalate + 2·zero`. A pair is cleared only when
 /// the two boxes are strictly disjoint on some axis, so the rings are
@@ -8810,7 +8843,7 @@ fn ring_pairs<T: Decide + geom_core::Bounds>(
     if rings.len() < 2 {
         return Vec::new();
     }
-    let pad = crate::boolean::boxes::sweep_pad(band);
+    let pad = crate::boxes::sweep_pad(band);
     let (index, boxes): (Vec<usize>, Vec<bvh::Aabb>) = rings
         .iter()
         .enumerate()
@@ -8819,7 +8852,7 @@ fn ring_pairs<T: Decide + geom_core::Bounds>(
             let ring_box = cycle
                 .iter()
                 .filter_map(|&he| body.half_edges.get(he))
-                .map(|h| crate::boolean::boxes::edge_box(body, h.edge, pad))
+                .map(|h| crate::boxes::edge_box(body, h.edge, pad))
                 .reduce(|a, b| a.hull(&b))?;
             Some((i, ring_box))
         })
@@ -9218,25 +9251,26 @@ pub(crate) fn wedge_holds_named<T: Decide>(
     let (a, b, d) = (a.into(), b.into(), d.into());
     // `f(x, y)` is levered at `y`'s length: read once where it is exact,
     // else at both its scalings.
-    let read = |name,
-                x: Departure<T>,
-                y: Departure<T>,
-                f: &dyn Fn(geom_core::Vec3<T>, geom_core::Vec3<T>) -> T| match y {
-        Departure::Exact(y) => decide(name, Margin::of(f(x.above(), y)), band),
-        Departure::Between(lo, hi) => decide_agreed(
-            (name, names.straddle()),
-            Margin::of(f(x.below(), lo)),
-            Margin::of(f(x.above(), hi)),
-            band,
-        ),
-    };
+    let read_as =
+        |name,
+         x: Departure<T>,
+         y: Departure<T>,
+         f: &dyn Fn(geom_core::Vec3<T>, geom_core::Vec3<T>) -> T| match y {
+            Departure::Exact(y) => decide(name, Margin::of(f(x.above(), y)), band),
+            Departure::Between(lo, hi) => decide_agreed(
+                (name, names.straddle()),
+                Margin::of(f(x.below(), lo)),
+                Margin::of(f(x.above(), hi)),
+                band,
+            ),
+        };
     let off = |x: geom_core::Vec3<T>, y: geom_core::Vec3<T>| n.dot(x.cross(y)) / x.norm();
-    let left = |name, x, y| read(name, x, y, &off).map(|s| s == Sign::Positive);
+    let left_as = |name, x, y| read_as(name, x, y, &off).map(|s| s == Sign::Positive);
     let (after_a, before_b) = (
-        left(names.after_leaving(), a, d),
-        left(names.before_arriving(), d, b),
+        left_as(names.after_leaving(), a, d),
+        left_as(names.before_arriving(), d, b),
     );
-    match read(names.turn(), a, b, &off)? {
+    match read_as(names.turn(), a, b, &off)? {
         // Under a half turn: inside both bounds.
         Sign::Positive => match (after_a, before_b) {
             (Ok(false), _) | (_, Ok(false)) => Ok(false),
@@ -9249,7 +9283,7 @@ pub(crate) fn wedge_holds_named<T: Decide>(
             (Ok(false), Ok(false)) => Ok(false),
             (Err(e), _) | (_, Err(e)) => Err(e),
         },
-        Sign::Zero => match read(names.straight(), a, b, &|x, y| x.dot(y) / x.norm())? {
+        Sign::Zero => match read_as(names.straight(), a, b, &|x, y| x.dot(y) / x.norm())? {
             Sign::Negative => after_a,
             Sign::Zero | Sign::Positive => Ok(false),
         },
@@ -9293,14 +9327,14 @@ pub(crate) fn ring_outer_contact<T: Decide>(
         .get_loop(outer)
         .and_then(|l| body.get_face(l.face))
         .and_then(|f| plane_chart_normal(body, f.surface));
-    ring_outer_contact_about(body, outer, ring, normal, band)
+    ring_outer_contact_about_as(body, outer, ring, normal, band)
 }
 
 /// [`ring_outer_contact`] for two loops in the plane with `normal`,
 /// whatever face they bound — the split's section loops, read before
 /// their faces wear the section plane. `None` is the recorded residue
 /// of a face with no plane: the edge-pair arm sees nothing.
-pub(crate) fn ring_outer_contact_about<T: Decide>(
+pub(crate) fn ring_outer_contact_about_as<T: Decide>(
     body: &Body<T>,
     outer: LoopKey,
     ring: LoopKey,

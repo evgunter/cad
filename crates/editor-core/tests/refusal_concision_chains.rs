@@ -864,7 +864,7 @@ mod kernel {
         /// `BlendError`'s arms, for the `Blend/` rows.
         pub(super) const BLEND_ERROR: BlendError = [
             Band, ChainNotConnected, RadiusHeadroom, FaceClearanceUncertified,
-            FaceClearance, KnifeEdge, SpineIrregular, ChainNotG1,
+            FaceClearance, KnifeEdge, BallDoesNotFit, SpineIrregular, ChainNotG1,
             ConvexitySignFlip, UnsupportedCorner, SpineUnsupported,
             ChamferArmUnsupported, Escalated, RepeatedEdge, NonpositiveSize,
             UnsupportedChain, UnsupportedRunOut, UnsupportedGeometry, BodyNotIntact,
@@ -926,7 +926,7 @@ mod kernel {
     test_utils::f6_variants! {
         /// `TraceFault`'s arms, for the `Trace/Carrier/` rows.
         pub(super) const TRACE_FAULT: TraceFault = [
-            Unsupported, Unbounded, Grazing, Apex, OnCarrier, Escalated, Unsettled,
+            Unsupported, Unbounded, Grazing, Apex, OnCarrier, Escalated, Unsettled, Torus,
         ];
     }
 
@@ -1685,12 +1685,10 @@ fn own_arms() -> Vec<(String, NodeErrorKind)> {
         row("RecordRefused", NodeErrorKind::RecordRefused),
         row(
             "RecordMispaired",
-            NodeErrorKind::RecordMispaired(editor_core::RecordMispairing::Document(
-                editor_core::ident::Mispaired {
-                    expected: editor_core::ident::DocumentId(1),
-                    found: editor_core::ident::DocumentId(2),
-                },
-            )),
+            NodeErrorKind::RecordMispaired(editor_core::RecordMispairing::Document {
+                expected: editor_core::ident::DocumentId(1),
+                found: editor_core::ident::DocumentId(2),
+            }),
         ),
         row(
             "WrongOperand",
@@ -3708,6 +3706,14 @@ fn blend() -> Vec<(String, NodeErrorKind)> {
             },
         ),
         (
+            "BallDoesNotFit",
+            E::BallDoesNotFit {
+                edge,
+                margin: decided("fillet3_ball_room", -0.2, Sign::Negative),
+                radius: 0.6,
+            },
+        ),
+        (
             "SpineIrregular",
             E::SpineIrregular {
                 margin: decided("fillet3_spine_regularity", -1e-3, Sign::Negative),
@@ -4653,6 +4659,13 @@ fn trace() -> Vec<(String, NodeErrorKind)> {
             "Carrier/Unsettled",
             F::Carrier(TraceFault::Unsettled(geom_brep::roots::Unsettled::Meter {
                 row: "test_meter",
+            })),
+        ),
+        (
+            "Carrier/Torus",
+            F::Carrier(TraceFault::Torus(geom_brep::TorusRefusal {
+                convention: geom_brep::TorusConvention::Ring,
+                verdict: geom_brep::TorusVerdict::Undecided(diag()),
             })),
         ),
         ("Uncovered", F::Uncovered(uncovered_face())),

@@ -158,15 +158,15 @@ fn step_taken<T: Decide>(moved: T, slack: T) -> bool {
 /// `row`: within the floor, or within the band where there is no finite
 /// floor.
 fn stops<T: Decide>(row: &'static str, reach: T, floor: Option<T>, band: Band) -> bool {
-    let within = |margin: T| {
+    let within_as = |margin: T| {
         matches!(
             decide(row, Margin::of(margin), band),
             Ok(Sign::Negative | Sign::Zero)
         )
     };
     match floor {
-        Some(f) if geom_core::is_finite_length(f) => within(reach - f),
-        Some(_) | None => within(reach),
+        Some(f) if geom_core::is_finite_length(f) => within_as(reach - f),
+        Some(_) | None => within_as(reach),
     }
 }
 

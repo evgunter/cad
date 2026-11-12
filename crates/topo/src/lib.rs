@@ -132,6 +132,7 @@ pub mod attach;
 pub mod body;
 pub mod boolean;
 pub(crate) mod bound_side;
+pub(crate) mod boxes;
 pub mod cell_region;
 pub(crate) mod census;
 pub mod chart;
@@ -187,6 +188,8 @@ pub mod offset_general;
 pub mod offset_nappe;
 pub(crate) mod offset_restate;
 pub mod offset_together;
+pub(crate) mod one_record;
+pub use one_record::{DihedralAcross, SmoothAcross};
 pub(crate) mod one_region;
 pub mod pcurves;
 pub mod pieces;
@@ -224,6 +227,7 @@ mod row_walk_proofs;
 pub mod rows;
 pub(crate) mod sector_face;
 pub(crate) mod sector_shape;
+pub(crate) mod separating;
 pub mod separation;
 #[cfg(test)]
 pub(crate) mod seqgen;
@@ -324,7 +328,13 @@ pub mod test_support {
     /// A test whose assertion needs another width states that one.
     #[must_use]
     pub fn pinned_resolution<T: Real>(tol: geom_core::Tol) -> crate::Settle<T> {
-        crate::Settle::Resolution(quantity::Length::from_meters(pinned_len(tol)))
+        resolution(pinned_len(tol))
+    }
+
+    /// [`crate::Settle::Resolution`] of `meters`: the width a row states.
+    #[must_use]
+    pub fn resolution<T: Real>(meters: f64) -> crate::Settle<T> {
+        crate::Settle::Resolution(quantity::Length::from_meters(meters))
     }
 
     /// **`body`'s volume and area as numbers met at
@@ -409,11 +419,12 @@ pub mod test_support {
         CubeOps, CylFrame, CylKey, FaceGeometry, HINGED_ALONG_B, NullStrutListing, Prism, PrismOps,
         RingFaceOps, StraddleSeat, arc_chain_over_the_jump, assert_every_chord_named_by_the_fence,
         brick, brick_with_fresh_keys, computed_edge_channels, cube_into, cyl_arc_at,
-        cyl_wall_sheet, cyl_wall_sheet_keyed, declined_cube, describe_as_intersections, drill_hole,
-        every_chord_stated_as_its_pair, face_facing, fresh_keyed_body, geometric_cube, holed_block,
-        identity_map, kill_under_a_null_strut, line, mapped_cube, plane, plane_every_face,
-        plant_disc_face, plant_ring_face, prism, prism_ops, prism_z, set_sheet_sense, split_plane,
-        straddle_seat, tool_on_a_block_corner, wedge_on_a_block_top,
+        cyl_wall_sheet, cyl_wall_sheet_keyed, cyl_wall_sheet_tilted, declined_cube,
+        describe_as_intersections, drill_hole, every_chord_stated_as_its_pair, face_facing,
+        fresh_keyed_body, geometric_cube, holed_block, identity_map, kill_under_a_null_strut, line,
+        mapped_cube, plane, plane_every_face, plant_disc_face, plant_ring_face, prism, prism_ops,
+        prism_z, set_sheet_sense, split_plane, straddle_seat, tool_on_a_block_corner,
+        wedge_on_a_block_top,
     };
     pub use crate::test_support_impl::ArenaCounts;
 
@@ -591,10 +602,10 @@ pub mod test_support {
     }
 
     /// The pad a face's reach box takes past the band, and each face's
-    /// share of the census's gaps (`boolean::boxes::sweep_pad`): the
+    /// share of the census's gaps (`boxes::sweep_pad`): the
     /// spelling a test outside this crate reads it by.
     pub fn sweep_pad(band: geom_core::Band) -> f64 {
-        crate::boolean::boxes::sweep_pad(band)
+        crate::boxes::sweep_pad(band)
     }
 
     /// **Restates the surface at `key`** as `surface`: a row that needs
@@ -687,7 +698,7 @@ pub mod test_support {
         body: &mut Body<T>,
         tol: geom_core::Tol,
     ) -> Result<crate::MergeCoplanarOutcome, crate::MergeCoplanarError> {
-        body.merge_coplanar_faces_unjoined(&crate::boolean::GluedSurfaces::none(), tol)
+        body.merge_coplanar_faces_unjoined(tol)
     }
 
     /// **A fixture that is, or becomes, a finished body**: a door's
@@ -1399,12 +1410,13 @@ pub use boolean::{
     curved_face_containment, decision_words, face_carrier, flush_pair_relation, insert_void,
     insert_voids, intersect, is_conventional_vertex, join_covers, joinable_vertices, joined_cell,
     joined_edge, nary_boolean, nary_boolean_apart, oriented_plane_eq, overlap, point_in_solid,
-    point_in_solid_faces, point_in_solid_of, rest_locus, subtract, tangent_pair_relation, union,
+    point_in_solid_faces, point_in_solid_of, subtract, tangent_pair_relation, union,
 };
 pub use cover::{
     BoundaryUnknown, EdgeUncovered, FaceCovered, FaceUncovered, edge_cover, face_cover,
     face_cover_toward, face_nearest,
 };
+pub use geom_brep::rest_locus;
 pub use joint::{Deck, JointElement};
 pub use lineage::{
     ConeCopies, Division, FaceDivisions, Fate, Lineage, LineageError, LineageKey, LineageRows,

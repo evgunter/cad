@@ -391,6 +391,7 @@ fn blend_decision_is_matchable(decision: BlendDecision) -> &'static str {
         BlendDecision::MaterialSide => "material_side",
         BlendDecision::KnifeEnd => "knife_end",
         BlendDecision::KnifeRoom => "knife_room",
+        BlendDecision::BallRoom => "ball_room",
         BlendDecision::RingClearance => "ring_clearance",
         BlendDecision::SupportCoaxiality => "support_coaxiality",
         BlendDecision::ContactArm => "contact_arm",
@@ -633,10 +634,7 @@ fn carried_refusal_payloads_are_matchable_through_the_prelude() {
         CornerConfig::NEdgeVertex { valence: 4 }.policy(),
         Some(RunOutPolicy::RunOutStopAtVertex)
     );
-    assert_eq!(
-        CornerConfig::MixedConvexity { convex: 2 }.policy(),
-        Some(RunOutPolicy::RunOutFeather)
-    );
+    assert_eq!(CornerConfig::MixedConvexity { convex: 2 }.policy(), None);
 
     assert_eq!(
         blend_site_and_convexity_are_matchable(BlendSite::Chain, Convexity::Convex),
@@ -1304,6 +1302,7 @@ fn revolved_kind_is_matchable(kind: &RevolvedKind) -> &'static str {
             end_cap,
             start_meridians,
             end_meridians,
+            ..
         } => {
             named::<FaceKey>(*start_cap);
             named::<FaceKey>(*end_cap);
@@ -1537,6 +1536,14 @@ fn normalization_kind_is_readable(kind: &NormalizationKind) -> &'static str {
         NormalizationKind::JoinedEdges => "joined_edges",
         NormalizationKind::EdgeSplitAtC0Knot => "edge_split_at_c0_knot",
         NormalizationKind::FaceSplitAtC0Knot => "face_split_at_c0_knot",
+        NormalizationKind::PlacementReMinted {
+            transform,
+            moved_by,
+        } => {
+            named::<&u64>(transform);
+            named::<&f64>(moved_by);
+            "placement_re_minted"
+        }
         NormalizationKind::SurfacePromotion { to, residual } => {
             named::<&f64>(residual);
             match to {
@@ -7510,7 +7517,7 @@ mod pattern_presets_are_recognised_as_themselves {
     fn cap_axis(body: RecipeNodeId) -> Operand {
         Operand::Pose(Box::new(pncad::document::pose::PoseDef::Axis {
             of: Operand::Select {
-                body: Box::new(Operand::Node(body)),
+                body: Box::new(Operand::Node(body).into()),
                 names: vec![pncad::prelude::StableName {
                     kind: pncad::select::EntityKind::Face,
                     node: body,

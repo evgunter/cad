@@ -107,7 +107,7 @@ fn spindle_miss(major: f64) -> geom::SpindleMiss {
 
 /// A positive-passing gate's rejection of a reading past the band on
 /// the refused side.
-fn rejected_negative(predicate: &'static str) -> Indeterminate {
+fn rejected_negative_as(predicate: &'static str) -> Indeterminate {
     geom_core::k_stats::decide_positive(predicate, geom_core::Margin::of(-1e-3), band())
         .expect_err("a definitely negative reading is the gate's rejection")
 }
@@ -465,6 +465,7 @@ fn plane_nurbs_refusals() -> Vec<PlaneNurbsRefusal> {
         },
         PlaneNurbsRefusal::ArcRim(geom_brep::ArcRimRefusal {
             iso: Some(geom_brep::PcurveCheck::MapResidual),
+            read: None,
             limb: geom_brep::SsiLimb::HullValueChart,
             bound: MarginDiag::value(4.6e-4),
         }),
@@ -536,6 +537,15 @@ fn certify_errors() -> Vec<CertifyError> {
             chart: geom::SurfaceKind::Cone,
             carrier: geom::CurveKind::Ellipse,
         },
+        CertifyError::StatedImageMissed {
+            sample: 3,
+            margin: Some(MarginDiag::value(1e-3)),
+        },
+        CertifyError::StatedImageMissed {
+            sample: geom_brep::certify::NOT_A_SAMPLE,
+            margin: None,
+        },
+        CertifyError::StatedImageUnsettled,
         CertifyError::NoGeneralLane {
             chart: geom::SurfaceKind::Sphere,
             carrier: geom::CurveKind::Ellipse,
@@ -570,6 +580,7 @@ fn certify_errors() -> Vec<CertifyError> {
         CertifyError::Unimplemented,
         CertifyError::PlaneNurbs(PlaneNurbsRefusal::ArcRim(geom_brep::ArcRimRefusal {
             iso: None,
+            read: None,
             limb: geom_brep::SsiLimb::HullValueChart,
             bound: MarginDiag::value(4.6e-4),
         })),
@@ -641,6 +652,12 @@ fn certify_errors() -> Vec<CertifyError> {
             sample: 4,
             verdict: zero_verdict(5e-10),
         },
+        CertifyError::SemiAxisNegative {
+            carrier: geom::CurveKind::Ellipse,
+        },
+        CertifyError::SemiAxisNotFinite {
+            carrier: geom::CurveKind::Ellipse,
+        },
         CertifyError::SpanMeterCollapsed {
             verdict: zero_verdict(0.0),
         },
@@ -683,12 +700,12 @@ fn certify_errors() -> Vec<CertifyError> {
         CertifyError::Escalated {
             check: CertCheck::TransversalityArm,
             sample: 4,
-            cause: rejected_negative("dihedral_arm"),
+            cause: rejected_negative_as("dihedral_arm"),
         },
         CertifyError::Escalated {
             check: CertCheck::ParamSpanMeter,
             sample: geom_brep::certify::NOT_A_SAMPLE,
-            cause: rejected_negative("param_span_meter"),
+            cause: rejected_negative_as("param_span_meter"),
         },
     ];
     v.extend(band_errors().into_iter().map(CertifyError::Band));
@@ -2447,7 +2464,9 @@ mod tests {
             let pose = matches!(
                 e,
                 C::NoGeneralLane {
-                    gap: geom_brep::LaneGap::Pose { .. } | geom_brep::LaneGap::Envelope,
+                    gap: geom_brep::LaneGap::Pose { .. }
+                        | geom_brep::LaneGap::Envelope
+                        | geom_brep::LaneGap::Image,
                     ..
                 }
             );
@@ -2902,6 +2921,7 @@ mod tests {
                 channel: geom_brep::SectorChannel::Azimuth,
             },
             geom_brep::LaneGap::Envelope,
+            geom_brep::LaneGap::Image,
         ] {
             let (chart, carrier) = (geom::SurfaceKind::Sphere, geom::CurveKind::Circle);
             let edge = CertifyError::NoGeneralLane {

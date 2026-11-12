@@ -24,20 +24,19 @@
 //! (`q × q′ = n·r·(f cos t − f′ sin t)`, and the `f′` half integrates
 //! by parts). `J` is the only quadrature.
 //!
-//! # The wall: the torus chart's Green form
+//! # The wall: the spiric arm of the torus chart's Green form
 //!
-//! The torus face's flux about its centre and its chart area are
-//! `−∮ F(v) du` and `−∮ G(v) du` over its lifted boundary, with
-//! `F′ = r·ρ(v)·(R cos v + r)` and `G′ = r·ρ(v)` (the closed-form
-//! lane's `torus_chart`, same antiderivatives). A rim at lifted level
-//! `V` turning `Δu` gives `−F(V)·Δu` exactly; a meridian gives
-//! nothing. A spiric's lifted image is exact
+//! A torus wall is the rotational lane's
+//! ([`super::quad::rotational_cut_face_rounds`], the torus), which reads
+//! `−∮ F(v) du` and `−∮ G(v) du` over its lifted boundary,
+//! `F′ = r·ρ(v)·(R cos v + r)` and `G′ = r·ρ(v)`; this module holds its
+//! spiric arm's integrand ([`wall_terms`]). A spiric's lifted image is exact
 //! (`SpiricImage::Wall` on the carrier's own torus:
 //! `u = u₀ + σ·atan2(f, d)`, `v = v₀ + σ·t`, `v₀ = k·τ`), so `sin v = σ sin t`, `cos v = cos t` and
 //! `u′ = −σ·d·r·sin t/(ρ·f)`, and its terms are
 //!
 //! ```text
-//! −∫ F(v₀ + σt)·u′ dt,   −∫ G(v₀ + σt)·u′ dt,   ∫ u′ dt  (its Δu, for the closure check)
+//! −∫ F(v₀ + σt)·u′ dt,   −∫ G(v₀ + σt)·u′ dt,   ∫ u′ dt  (its Δu)
 //! ```
 //!
 //! # The rule and its remainder
@@ -69,14 +68,8 @@
 //! - **Endpoint brackets**: a non-thin `t₀`/`t₁` bracket adds `sup|g|`
 //!   (over the whole edge) times its half-width, and its closed-form
 //!   endpoint terms are evaluated over the bracket.
-//! - **Map residual** (the wall only): each lifted image tracks its
-//!   carrier within its certificate envelope `e` — identically `0` for a
-//!   spiric's own `SpiricImage::Wall`, an algebraic identity with its
-//!   carrier, so on every body today the pad is the rims' and
-//!   meridians' envelopes alone. The chart metric is
-//!   `ds² = ρ²du² + r²dv²` with `ρ ≥ R − r`, so the chart region moves
-//!   by at most `(chart length)·e/min(R − r, r)` of area, which costs
-//!   at most `r(R + r)²` of flux and `r(R + r)` of area per unit.
+//!
+//! A wall's other pads are the rotational lane's.
 
 use geom_core::interval::certification::Certification;
 use geom_core::interval::{Interval, certified_hi, cross, dot};
@@ -84,7 +77,6 @@ use geom_core::{Band, Bounds, Decide};
 
 use super::PropsError;
 use super::bracket::{AbsEnclosure, pt};
-use super::closure::{IntervalJunction, interval_loop_turns};
 use super::quad::{
     Accept, EDGE_INIT_PIECES, FaceCutBounds, LaneRun, RVec3, RoundWindow, Run, face_extent,
 };
@@ -235,8 +227,6 @@ pub struct SpiricEdgeQ {
     pub t1: Interval,
     /// Loop traversal direction.
     pub forward: bool,
-    /// On a torus wall, the edge's lifted chart image.
-    pub wall: Option<WallImageQ>,
 }
 
 /// A spiric's lifted image on its OWN torus wall
@@ -244,7 +234,7 @@ pub struct SpiricEdgeQ {
 /// `u = u₀ + σ·atan2(f, d)`, `v = v₀ + σ·t`. A wall on the mirror torus
 /// (`WallTorus::Mirror`, azimuth sign `−σ`) has no terms here yet, and
 /// `topo`'s quad lane refuses it typed before building one
-/// (FLUX's `the-spiric-wall-quadrature-lane-reads-only-the-own-torus`).
+/// (`the-spiric-wall-quadrature-lane-reads-only-the-own-torus`).
 #[derive(Clone, Copy, Debug)]
 pub struct WallImageQ {
     /// `σ = ±1`.
@@ -255,82 +245,12 @@ pub struct WallImageQ {
     pub env: Interval,
 }
 
-/// A rim of a torus wall on its lift: the level `V` and its signed `Δu`
-/// (traversal folded in).
-#[derive(Clone, Copy, Debug)]
-pub struct RimQ {
-    /// The lifted level.
-    pub v: Interval,
-    /// The signed azimuth turn.
-    pub du: Interval,
-    /// The image's certificate envelope (metres).
-    pub env: Interval,
-}
-
-/// A meridian of a torus wall on its lift: its signed `Δv`.
-#[derive(Clone, Copy, Debug)]
-pub struct MeridianQ {
-    /// The signed minor-angle turn.
-    pub dv: Interval,
-    /// The image's certificate envelope (metres).
-    pub env: Interval,
-}
-
-/// The torus chart a wall's Green form runs on.
-#[derive(Clone, Debug)]
-pub struct WallChartQ {
-    /// The torus's `R`.
-    pub major: Interval,
-    /// The torus's `r`.
-    pub minor: Interval,
-    /// Its rims.
-    pub rims: Vec<RimQ>,
-    /// Its meridians.
-    pub meridians: Vec<MeridianQ>,
-    /// Every edge of each of its loops on the lift, loop by loop, each in
-    /// traversal order: what the closure decision reads
-    /// ([`wall_windings`]).
-    pub ends: Vec<Vec<ChartEndsQ>>,
-    /// How many of the face's spirics, and of `rims` and `meridians`,
-    /// each loop holds, loop by loop in [`Self::ends`]' order, each list
-    /// stored loop after loop: what the rings' winding reads
-    /// ([`require_rings_wound_against`]).
-    pub parts: Vec<WallLoopParts>,
-}
-
-/// One torus wall loop's share of its face's edge lists
-/// ([`WallChartQ::parts`]).
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub struct WallLoopParts {
-    /// Its spiric edges ([`RimFaceQ::spirics`]).
-    pub spirics: usize,
-    /// Its rims ([`WallChartQ::rims`]).
-    pub rims: usize,
-    /// Its meridians ([`WallChartQ::meridians`]).
-    pub meridians: usize,
-}
-
-/// One edge of a torus wall's loop on its lift: where its traversal
-/// starts and ends, `(u, v)`, and its image's certificate envelope
-/// (metres).
-#[derive(Clone, Copy, Debug)]
-pub struct ChartEndsQ {
-    /// The traversal's start.
-    pub start: (Interval, Interval),
-    /// The traversal's end.
-    pub end: (Interval, Interval),
-    /// The image's certificate envelope (metres).
-    pub env: Interval,
-}
-
-/// One spiric-bounded face, bracketed by the caller.
+/// One spiric-bounded cap, bracketed by the caller.
 ///
-/// The face's vector area about a reference point is `closed_va` (the
+/// The cap's vector area about a reference point is `closed_va` (the
 /// closed-form edges, already summed) plus each spiric's term; its flux
-/// is `lever·A⃗` (a plane: `lever` is a point of the face less the
-/// centre; a torus: the torus centre less the centre) plus, on a wall,
-/// the chart Green form. The area is `‖A⃗‖` on a cap and the chart
-/// area's magnitude on a wall.
+/// is `lever·A⃗`, `lever` the reference less the centre. Its area is
+/// `‖A⃗‖` on a plane.
 #[derive(Clone, Debug)]
 pub struct RimFaceQ {
     /// The closed-form edges' vector-area terms, about the reference.
@@ -345,8 +265,6 @@ pub struct RimFaceQ {
     /// An upper bound on the boundary's length (metres) — the extent
     /// gate's lever.
     pub perimeter: f64,
-    /// The torus chart, for a wall; `None` for a cap.
-    pub wall: Option<WallChartQ>,
 }
 
 /// `J = ∫ f(t)·cos t dt` over the edge's carrier interval.
@@ -374,7 +292,7 @@ pub fn spiric_vector_area(e: &SpiricEdgeQ, pieces: usize) -> RVec3 {
 
 /// [`spiric_vector_area`], and the part of its moment `J`'s width a
 /// later round removes: the term carries `J` as `n·r·J`.
-fn vector_area_split(e: &SpiricEdgeQ, pieces: usize) -> (RVec3, f64) {
+pub(super) fn vector_area_split(e: &SpiricEdgeQ, pieces: usize) -> (RVec3, f64) {
     let (big, r, d) = (e.major, e.minor, e.offset);
     let (j, removable) = cos_moment_split(e, pieces);
     let end = |t: Interval| {
@@ -393,37 +311,24 @@ fn vector_area_split(e: &SpiricEdgeQ, pieces: usize) -> (RVec3, f64) {
     (if e.forward { va } else { va.map(|x| -x) }, removable)
 }
 
-/// One spiric wall edge's Green-form terms `(−∫F du, −∫G du, Δu, Δv)`
-/// on its lift (module docs), traversal folded in.
-#[cfg(test)]
-fn spiric_wall_terms(
+/// **One spiric wall edge's Green-form terms** `[−∫F du, −∫G du, Δu]`
+/// on its lift (module docs), in its carrier's order: the rotational
+/// lane's spiric arm reads them on its torus, `(R, r)`, and folds in the
+/// traversal. And the part of the flux term's width a later round
+/// removes.
+pub(super) fn wall_terms(
     e: &SpiricEdgeQ,
     w: &WallImageQ,
-    chart: &WallChartQ,
+    (big, r): (Interval, Interval),
     pieces: usize,
-) -> [Interval; 4] {
-    wall_terms_split(e, w, chart, pieces).0
-}
-
-/// `spiric_wall_terms`, and the part of the flux term's width a later
-/// round removes.
-fn wall_terms_split(
-    e: &SpiricEdgeQ,
-    w: &WallImageQ,
-    chart: &WallChartQ,
-    pieces: usize,
-) -> ([Interval; 4], f64) {
-    let (big, r) = (chart.major, chart.minor);
-    let d = e.offset;
+) -> ([Interval; 3], f64) {
     let sigma = pt(w.sense);
-    let k = sigma * d * r;
     let rr = big.sqr() + r.sqr();
     let three_half = pt(1.5) * big * r;
     let half_br = pt(0.5) * big * r;
     let v0 = w.v0;
     let ([flux, area, du], [removable, _, _]) = composite(e.t0, e.t1, pieces, |t, c, s| {
-        let (rho, f) = rho_f(big, r, d, c);
-        let wgt = s.mul(rho.mul(f).recip()).scale(k);
+        let wgt = wall_weight(e, w, (big, r), c, s);
         let v = Jet::cst(v0).add(t.scale(sigma));
         let ff = s
             .scale(sigma * rr)
@@ -433,195 +338,36 @@ fn wall_terms_split(
         let gg = v.scale(big).add(s.scale(sigma * r)).scale(r);
         [ff.mul(wgt), gg.mul(wgt), wgt.scale(-Interval::one())]
     });
-    let dv = sigma * (e.t1 - e.t0);
-    let terms = [flux, area, du, dv];
-    (if e.forward { terms } else { terms.map(|x| -x) }, removable)
+    ([flux, area, du], removable)
 }
 
-/// `F(V)` and `G(V)` at a lifted level (the closed-form lane's
-/// antiderivatives).
-fn rim_fg(big: Interval, r: Interval, v: Interval) -> (Interval, Interval) {
-    let (c, s) = trig_of(v);
-    let f = r * ((big.sqr() + r.sqr()) * s + pt(1.5) * big * r * v + pt(0.5) * big * r * s * c);
-    let g = r * (big * v + r * s);
-    (f, g)
+/// `−u′ = σ·d·r·sin t/(ρ·f)` of a spiric's wall image at the trig jets
+/// of `t`: the weight its wall terms read `F` and `G` at.
+fn wall_weight(
+    e: &SpiricEdgeQ,
+    w: &WallImageQ,
+    (big, r): (Interval, Interval),
+    c: Jet,
+    s: Jet,
+) -> Jet {
+    let (rho, f) = rho_f(big, r, e.offset, c);
+    s.mul(rho.mul(f).recip()).scale(pt(w.sense) * e.offset * r)
 }
 
-/// The wall's chart terms at `pieces`, loop by loop
-/// ([`WallChartQ::parts`]): each loop's `(flux, signed area, Σ Δu, Σ Δv)`
-/// with its share of the map-residual pad folded into the first two.
-/// The face's terms are their sum.
-#[cfg(test)]
-fn wall_chart(
-    face: &RimFaceQ,
-    chart: &WallChartQ,
+/// **One spiric wall edge's turn `Δu`** on its lift, in its carrier's
+/// order, at `pieces`: its wall terms' third alone ([`wall_terms`]).
+pub(super) fn wall_turn(
+    e: &SpiricEdgeQ,
+    w: &WallImageQ,
+    radii: (Interval, Interval),
     pieces: usize,
-) -> Result<Vec<[Interval; 4]>, PropsError> {
-    wall_chart_split(face, chart, pieces).map(|(loops, _)| loops)
+) -> Interval {
+    composite(e.t0, e.t1, pieces, |_, c, s| {
+        [wall_weight(e, w, radii, c, s).scale(-Interval::one())]
+    })
+    .0[0]
 }
 
-/// `wall_chart`, and the part of the face's chart flux width a later
-/// round removes.
-fn wall_chart_split(
-    face: &RimFaceQ,
-    chart: &WallChartQ,
-    pieces: usize,
-) -> Result<(Vec<[Interval; 4]>, f64), PropsError> {
-    let (big, r) = (chart.major, chart.minor);
-    let held = chart
-        .parts
-        .iter()
-        .fold(WallLoopParts::default(), |n, p| WallLoopParts {
-            spirics: n.spirics + p.spirics,
-            rims: n.rims + p.rims,
-            meridians: n.meridians + p.meridians,
-        });
-    if held
-        != (WallLoopParts {
-            spirics: face.spirics.len(),
-            rims: chart.rims.len(),
-            meridians: chart.meridians.len(),
-        })
-    {
-        return Err(PropsError::QuadratureUnsupported {
-            what: "a spiric torus wall whose loops' shares do not partition its edges",
-        });
-    }
-    // The chart's smallest metric scale, `min(R − r, r)`, from below — a
-    // refused radius has ordinary endpoints, so it is asked by name.
-    let floor = (big - r).lo().min(r.lo());
-    if !(big.is_certified() && r.is_certified()) || floor.is_nan() || floor <= 0.0 {
-        return Err(PropsError::QuadratureUnsupported {
-            what: "a spiric wall on a torus whose metric floor min(R − r, r) is not \
-                   certified positive, or whose radii are refused brackets",
-        });
-    }
-    let outer = big + r;
-    let (mut spirics, mut rims, mut meridians) = (
-        face.spirics.iter(),
-        chart.rims.iter(),
-        chart.meridians.iter(),
-    );
-    let mut loops = Vec::with_capacity(chart.parts.len());
-    let mut removable = 0.0_f64;
-    for part in &chart.parts {
-        let mut acc = [Interval::zero(); 4];
-        // Σ (chart length · envelope), for the map-residual pad.
-        let mut defect = Interval::zero();
-        for e in spirics.by_ref().take(part.spirics) {
-            let Some(w) = e.wall.as_ref() else {
-                return Err(PropsError::QuadratureUnsupported {
-                    what: "a spiric edge of a torus wall carries no lifted wall image",
-                });
-            };
-            let (t, rem) = wall_terms_split(e, w, chart, pieces);
-            removable += rem;
-            for k in 0..4 {
-                acc[k] = acc[k] + t[k];
-            }
-            defect = defect + spiric_chart_length(e)? * w.env;
-        }
-        for rim in rims.by_ref().take(part.rims) {
-            let (f, g) = rim_fg(big, r, rim.v);
-            acc[0] = acc[0] - f * rim.du;
-            acc[1] = acc[1] - g * rim.du;
-            acc[2] = acc[2] + rim.du;
-            defect = defect + pt(rim.du.mag()) * rim.env;
-        }
-        for mer in meridians.by_ref().take(part.meridians) {
-            acc[3] = acc[3] + mer.dv;
-            defect = defect + pt(mer.dv.mag()) * mer.env;
-        }
-        let uv = (defect / pt(floor)).mag();
-        let pad_flux = (pt(uv) * r * outer.sqr()).mag();
-        let pad_area = (pt(uv) * r * outer).mag();
-        acc[0] = acc[0] + Interval::from_bounds(-pad_flux, pad_flux);
-        acc[1] = acc[1] + Interval::from_bounds(-pad_area, pad_area);
-        loops.push(acc);
-    }
-    Ok((loops, removable))
-}
-
-/// A spiric wall edge's chart length from above: `|u′|` over its span,
-/// and `|v′| = 1`.
-fn spiric_chart_length(e: &SpiricEdgeQ) -> Result<Interval, PropsError> {
-    let Some((_, du_max)) = span_rates(e) else {
-        return Err(PropsError::QuadratureUnsupported {
-            what: "a spiric wall edge whose span's rate window has no certified \
-                   positive f",
-        });
-    };
-    Ok((du_max + Interval::one()) * (e.t1 - e.t0))
-}
-
-/// **Every ring of a torus wall winds against its face**: each loop
-/// after the first is a hole cut from the face, so its signed chart
-/// area (its `wall_chart` terms at `pieces`) must have the sign
-/// opposite to the face's whole, as the cylinder's and the planar
-/// lanes' rings must (`curved::require_holes_wound_against`, under
-/// `props_ring_winding`). A ring wound with its face would be added to
-/// the face's area, silently, and refuses
-/// [`PropsError::RingWoundWithFace`]; a whole or ring of no width is a
-/// [`PropsError::DegenerateFace`]. Every wall loop winds the torus not
-/// at all ([`wall_windings`]), so the first loop stored is the face's
-/// own, as on a cylinder face with no winding loop.
-///
-/// Each is read as its mean width `2·A/P`, `P` its metric length from
-/// above: `(R + r)` times its chart length (a spiric's
-/// [`spiric_chart_length`], a rim's `|Δu|`), and a meridian's `r·|Δv|`.
-/// Where a ring lies is not read here: a ring outside its face, or
-/// crossing it, is check 9's containment.
-fn require_rings_wound_against(
-    face: &RimFaceQ,
-    chart: &WallChartQ,
-    loops: &[[Interval; 4]],
-    band: Band,
-) -> Result<(), PropsError> {
-    if loops.len() < 2 {
-        return Ok(());
-    }
-    let (big, r) = (chart.major, chart.minor);
-    let outer = big + r;
-    let (mut spirics, mut rims, mut meridians) = (
-        face.spirics.iter(),
-        chart.rims.iter(),
-        chart.meridians.iter(),
-    );
-    let mut lengths = Vec::with_capacity(chart.parts.len());
-    for part in &chart.parts {
-        let mut chart_len = Interval::zero();
-        for e in spirics.by_ref().take(part.spirics) {
-            chart_len = chart_len + spiric_chart_length(e)?.abs_enclosure();
-        }
-        for rim in rims.by_ref().take(part.rims) {
-            chart_len = chart_len + rim.du.abs_enclosure();
-        }
-        let mut length = outer * chart_len;
-        for mer in meridians.by_ref().take(part.meridians) {
-            length = length + r * mer.dv.abs_enclosure();
-        }
-        lengths.push(length);
-    }
-    let whole = loops
-        .iter()
-        .zip(&lengths)
-        .fold((Interval::zero(), Interval::zero()), |(a, l), (t, &len)| {
-            (a + t[1], l + len)
-        });
-    let holes: Vec<(Interval, Interval)> = loops[1..]
-        .iter()
-        .zip(&lengths[1..])
-        .map(|(t, &len)| (t[1], len))
-        .collect();
-    super::curved::require_holes_wound_against("props_chart_area_side", whole, &holes, band)
-}
-
-/// The face's enclosures at `pieces` resolution, a wall's chart terms
-/// loop by loop (`wall_chart`; none for a cap), and the part of the
-/// flux's width a later round removes: each spiric's moment `J`, which
-/// the flux reads through the lever as `Σₖ leverₖ·nₖ·r·J` — component by
-/// component, as the interval sum carries `J`'s width, so a lever in the
-/// cap's own plane still carries it — and a wall's chart flux.
 /// How a cap's area reads its vector area `A⃗`: `‖A⃗‖` on a plane, and
 /// `|â·A⃗|/sin α` on a cone, whose every normal makes the angle `π/2 − α`
 /// with its axis `â`.
@@ -631,11 +377,16 @@ enum CapArea {
     Cone { axis: RVec3, sin_a: Interval },
 }
 
+/// The cap's enclosures at `pieces` resolution, and the part of the
+/// flux's width a later round removes: each spiric's moment `J`, which
+/// the flux reads through the lever as `Σₖ leverₖ·nₖ·r·J` — component by
+/// component, as the interval sum carries `J`'s width, so a lever in the
+/// cap's own plane still carries it — and each rational rim's.
 fn face_bounds(
     face: &RimFaceQ,
     cap: CapArea,
     pieces: usize,
-) -> Result<(FaceCutBounds, Vec<[Interval; 4]>, f64), PropsError> {
+) -> Result<(FaceCutBounds, f64), PropsError> {
     let mut va = face.closed_va;
     let mut removable = 0.0_f64;
     for e in &face.spirics {
@@ -653,78 +404,16 @@ fn face_bounds(
         removable += (0..3).map(|k| face.lever[k].mag() * rem[k]).sum::<f64>();
         va = [0, 1, 2].map(|k| va[k] + t[k]);
     }
-    let position = dot(&face.lever, &va);
-    Ok(match &face.wall {
-        None => (
-            FaceCutBounds {
-                flux: position,
-                area: match cap {
-                    CapArea::Plane => (va[0].sqr() + va[1].sqr() + va[2].sqr()).sqrt(),
-                    CapArea::Cone { axis, sin_a } => dot(&axis, &va).abs_enclosure() / sin_a,
-                },
+    Ok((
+        FaceCutBounds {
+            flux: dot(&face.lever, &va),
+            area: match cap {
+                CapArea::Plane => (va[0].sqr() + va[1].sqr() + va[2].sqr()).sqrt(),
+                CapArea::Cone { axis, sin_a } => dot(&axis, &va).abs_enclosure() / sin_a,
             },
-            Vec::new(),
-            removable,
-        ),
-        Some(chart) => {
-            let (loops, chart_rem) = wall_chart_split(face, chart, pieces)?;
-            let (flux, area) = loops
-                .iter()
-                .fold((Interval::zero(), Interval::zero()), |(f, a), t| {
-                    (f + t[0], a + t[1])
-                });
-            (
-                FaceCutBounds {
-                    flux: flux + position,
-                    area: area.abs_enclosure(),
-                },
-                loops,
-                removable + chart_rem,
-            )
-        }
-    })
-}
-
-/// **A torus wall's loops each close on its chart and wind it not at
-/// all** — the periodic-chart closure decision ([`super::closure`]) on
-/// each loop's lifted images ([`WallChartQ::ends`]), the outer loop and
-/// every ring alike.
-///
-/// At each junction the azimuth's gap is metered at the junction's own
-/// distance from the axis, `ρ = R + r·cos v`, enclosed over the after
-/// edge's start, and the tube angle's at `r`; the slack is the two
-/// images' envelopes. Reading `ρ` at one end is sound: the two ends'
-/// `ρ` differ by at most `r·|Δv|`, so the azimuth term moves by at most
-/// `r·|Δv|·|Δu|`, second order in a gap the decision admits. The wall's
-/// Green form is read on the lifted chart, where it bounds a region only
-/// when every loop closes there, so each loop's turns must be zero: a
-/// face whose loops wind the torus in pairs is a band the lane does not
-/// read, and refuses [`PropsError::LoopsWindChart`].
-fn wall_windings<T: Decide>(chart: &WallChartQ, band: Band) -> Result<(), PropsError> {
-    if chart.ends.is_empty() || chart.ends.iter().any(Vec::is_empty) {
-        return Err(PropsError::QuadratureUnsupported {
-            what: "a spiric torus wall handed no loop to decide closed",
-        });
-    }
-    let (big, r) = (chart.major, chart.minor);
-    for ends in &chart.ends {
-        let junctions = ends
-            .iter()
-            .zip(ends.iter().cycle().skip(1))
-            .map(|(e, next)| {
-                let (cos_v, _) = trig_of(next.start.1);
-                IntervalJunction {
-                    delta: [e.end.0 - next.start.0, e.end.1 - next.start.1],
-                    lever: [big + r * cos_v, r],
-                    slack: certified_hi(e.env + next.env),
-                }
-            });
-        let turns = interval_loop_turns::<T, 2>(junctions, [true, true], band)?;
-        if turns != [0, 0] {
-            return Err(PropsError::LoopsWindChart);
-        }
-    }
-    Ok(())
+        },
+        removable,
+    ))
 }
 
 /// The work of round `round` on a face of `spirics` spiric edges and
@@ -733,28 +422,17 @@ pub(super) fn round_cost(spirics: usize, rational: usize, round: usize) -> usize
     (W_SPIRIC * spirics + rational) * (EDGE_INIT_PIECES << round)
 }
 
-/// **The certified flux and area of a spiric-bounded face** over a
-/// [`RoundWindow`] — [`super::quad`]'s schedule and stop (pieces
-/// doubling from `EDGE_INIT_PIECES`, the caller's [`Accept`], the
-/// lane's floor and work wall, the face-extent gate on the accepted
-/// round).
-///
-/// On a wall, every loop, the outer one and each ring, must close and
-/// wind the torus not at all ([`wall_windings`]): the Green form, summed
-/// over them all, bounds a region of the lifted chart only then. Each
-/// ring must also be wound against the face at the round the call ends
-/// ([`require_rings_wound_against`]), or it would add itself to the
-/// face's area; an accepted face whose ring straddles the band refines
-/// on, and the escalation stands at the last round the window runs, or
-/// at once for a ring wholly in the band (`quad::Run::ringed`).
+/// **The certified flux and area of a spiric- or rational-rim-bounded
+/// plane cap** over a [`RoundWindow`] — [`super::quad`]'s schedule and
+/// stop (pieces doubling from `EDGE_INIT_PIECES`, the caller's
+/// [`Accept`], the lane's floor and work wall, the face-extent gate on
+/// the accepted round). A torus wall a spiric bounds is the rotational
+/// lane's ([`super::quad::rotational_cut_face_rounds`]).
 ///
 /// # Errors
 ///
 /// [`PropsError`] — `accept`'s own refusal, an escalated funnel
-/// decision, a degenerate face, a wall loop that does not close
-/// ([`PropsError::ChartLoopOpen`]) or winds the torus
-/// ([`PropsError::LoopsWindChart`]), or a ring wound with its face
-/// ([`PropsError::RingWoundWithFace`]).
+/// decision, or a degenerate face.
 pub fn rim_face_rounds<T: Decide>(
     face: &RimFaceQ,
     band: Band,
@@ -780,11 +458,6 @@ pub fn cone_cap_rounds<T: Decide>(
     window: RoundWindow,
     accept: &mut Accept<'_>,
 ) -> Result<LaneRun, PropsError> {
-    if face.wall.is_some() {
-        return Err(PropsError::QuadratureUnsupported {
-            what: "a cone cap handed a torus wall's chart",
-        });
-    }
     rounds::<T>(face, CapArea::Cone { axis, sin_a }, band, window, accept)
 }
 
@@ -795,14 +468,6 @@ fn rounds<T: Decide>(
     window: RoundWindow,
     accept: &mut Accept<'_>,
 ) -> Result<LaneRun, PropsError> {
-    if let Some(chart) = &face.wall {
-        wall_windings::<T>(chart, band)?;
-        if chart.parts.len() != chart.ends.len() {
-            return Err(PropsError::QuadratureUnsupported {
-                what: "a spiric torus wall whose loops' shares are not one per loop",
-            });
-        }
-    }
     let rational: usize = face
         .rationals
         .iter()
@@ -813,15 +478,11 @@ fn rounds<T: Decide>(
     let mut round = run.first();
     let mut pieces = EDGE_INIT_PIECES << round;
     loop {
-        let (bounds, loops, removable) = face_bounds(face, cap, pieces)?;
+        let (bounds, removable) = face_bounds(face, cap, pieces)?;
         let (stop, accepted) = run.ask(round, bounds, removable, accept, || {
             face_extent::<T>(bounds.area, face.perimeter, band)
         })?;
-        if let Some(out) = run.ringed(round, stop, accepted, bounds, || {
-            face.wall.as_ref().map_or(Ok(()), |chart| {
-                require_rings_wound_against(face, chart, &loops, band)
-            })
-        })? {
+        if let Some(out) = run.ringed(round, stop, accepted, bounds, || Ok(()))? {
             return Ok(out);
         }
         round += 1;
@@ -836,28 +497,20 @@ mod length_fuzz;
 #[allow(clippy::unwrap_used, clippy::panic)]
 mod tests {
     use super::*;
-    use crate::props::quad::test_target::to_target;
-    use crate::props::quad::{LaneEnd, LaneStop};
+    use crate::props::quad::LaneStop;
 
-    /// One loop's share of a face's edge lists.
-    fn part(spirics: usize, rims: usize, meridians: usize) -> WallLoopParts {
-        WallLoopParts {
-            spirics,
-            rims,
-            meridians,
-        }
-    }
-
-    /// The parts of a wall of one loop.
-    fn one_loop(spirics: usize, rims: usize, meridians: usize) -> Vec<WallLoopParts> {
-        vec![part(spirics, rims, meridians)]
-    }
-
-    /// A wall's chart terms summed over its loops ([`wall_chart`]).
-    fn summed(loops: Vec<[Interval; 4]>) -> [Interval; 4] {
-        loops.iter().fold([Interval::zero(); 4], |acc, t| {
-            [0, 1, 2, 3].map(|k| acc[k] + t[k])
-        })
+    /// One spiric wall edge's terms `[−∫F du, −∫G du, Δu, Δv]` on its
+    /// lift, traversal folded in: [`wall_terms`] as the rotational lane's
+    /// spiric arm reads it.
+    fn spiric_wall_terms(
+        e: &SpiricEdgeQ,
+        w: &WallImageQ,
+        radii: (Interval, Interval),
+        pieces: usize,
+    ) -> [Interval; 4] {
+        let ([f, g, du], _) = wall_terms(e, w, radii, pieces);
+        let terms = [f, g, du, pt(w.sense) * (e.t1 - e.t0)];
+        if e.forward { terms } else { terms.map(|x| -x) }
     }
 
     /// One reference case: `(R, r, d, t₀, t₁, σ, v₀)` and the four
@@ -962,7 +615,9 @@ mod tests {
         ]
     }
 
-    fn edge(c: (f64, f64, f64, f64, f64, f64, f64)) -> (SpiricEdgeQ, WallImageQ, WallChartQ) {
+    fn edge(
+        c: (f64, f64, f64, f64, f64, f64, f64),
+    ) -> (SpiricEdgeQ, WallImageQ, (Interval, Interval)) {
         let (big, r, d, t0, t1, sense, v0) = c;
         let wall = WallImageQ {
             sense,
@@ -979,17 +634,8 @@ mod tests {
             t0: pt(t0),
             t1: pt(t1),
             forward: true,
-            wall: Some(wall),
         };
-        let chart = WallChartQ {
-            parts: Vec::new(),
-            ends: Vec::new(),
-            major: pt(big),
-            minor: pt(r),
-            rims: Vec::new(),
-            meridians: Vec::new(),
-        };
-        (e, wall, chart)
+        (e, wall, (pt(big), pt(r)))
     }
 
     /// The width each case's enclosures reach at 1024 pieces, as a
@@ -1016,7 +662,7 @@ mod tests {
             let scale = refs.iter().fold(0.0_f64, |m, &(lo, _)| m.max(lo.abs()));
             let tight = tightness(name);
             for pieces in [16, 128, 1024] {
-                let [flux, area, du, _] = spiric_wall_terms(&e, &w, &chart, pieces);
+                let [flux, area, du, _] = spiric_wall_terms(&e, &w, chart, pieces);
                 let got = [cos_moment(&e, pieces), du, flux, area];
                 for (k, (g, (lo, hi))) in got.iter().zip(refs).enumerate() {
                     assert!(
@@ -1045,14 +691,14 @@ mod tests {
     fn reversal_negates_and_dv_is_the_span() {
         let (_, (c, _)) = cases().swap_remove(4);
         let (e, w, chart) = edge(c);
-        let f = spiric_wall_terms(&e, &w, &chart, 64);
+        let f = spiric_wall_terms(&e, &w, chart, 64);
         let r = spiric_wall_terms(
             &SpiricEdgeQ {
                 forward: false,
                 ..e
             },
             &w,
-            &chart,
+            chart,
             64,
         );
         for (a, b) in f.iter().zip(r) {
@@ -1081,7 +727,6 @@ mod tests {
             spirics: vec![e],
             lever: [pt(3.0), pt(3.0), Interval::zero()],
             perimeter: 1.0,
-            wall: None,
         };
         let mut first = None;
         let _ = rim_face_rounds::<f64>(
@@ -1206,7 +851,6 @@ mod tests {
             t0: pt(t0),
             t1: pt(t1),
             forward,
-            wall: None,
         };
         (e, point)
     }
@@ -1321,30 +965,9 @@ mod tests {
         for k in 0..3 {
             assert!(got[k].lo() - 1e-8 <= want[k] && want[k] <= got[k].hi() + 1e-8);
         }
-        let w = WallImageQ {
-            sense: 1.0,
-            v0: pt(0.0),
-            env: pt(1e-6),
-        };
-        let chart = WallChartQ {
-            parts: one_loop(1, 0, 0),
-            ends: Vec::new(),
-            major: pt(big),
-            minor: pt(r),
-            rims: vec![],
-            meridians: vec![],
-        };
-        let face = RimFaceQ {
-            rationals: Vec::new(),
-            closed_va: [Interval::zero(); 3],
-            spirics: vec![SpiricEdgeQ { wall: Some(w), ..e }],
-            lever: [Interval::zero(); 3],
-            perimeter: 1.0,
-            wall: Some(chart.clone()),
-        };
         assert!(
-            wall_chart(&face, &chart, 64).is_ok(),
-            "the wall's pad has a rate bound"
+            spiric_length_bound(&e, LENGTH_PIECES).is_some(),
+            "the wall arm's metric length has a rate bound"
         );
     }
 
@@ -1496,15 +1119,7 @@ mod tests {
                         v0: pt(v0),
                         env: Interval::zero(),
                     };
-                    let chart = WallChartQ {
-                        parts: Vec::new(),
-                        ends: Vec::new(),
-                        major: pt(big),
-                        minor: pt(r),
-                        rims: vec![],
-                        meridians: vec![],
-                    };
-                    let got = spiric_wall_terms(&e, &w, &chart, 256);
+                    let got = spiric_wall_terms(&e, &w, (pt(big), pt(r)), 256);
                     for k in 0..3 {
                         assert!(
                             got[k].lo() - 1e-8 <= want[k] && want[k] <= got[k].hi() + 1e-8,
@@ -1516,704 +1131,6 @@ mod tests {
                 }
             }
         }
-    }
-
-    /// **A closed wall loop's area and flux against a direct 2-D
-    /// integral** of the chart densities over the region it bounds —
-    /// spiric, rim, meridian, rim through [`wall_chart`], both `σ` — so
-    /// the `G` channel, the rims' `−F·Δu`/`−G·Δu` signs and the
-    /// assembly are measured, not only each spiric term alone.
-    #[test]
-    #[allow(clippy::cast_precision_loss)]
-    fn a_closed_wall_loop_measures_the_region_it_bounds() {
-        let (big, r, d, t0, t1, um) = (1.2_f64, 0.225_f64, 0.05_f64, 0.3_f64, 2.1_f64, -0.5_f64);
-        for sigma in [1.0_f64, -1.0] {
-            let f = |t: f64| ((big + r * t.cos()).powi(2) - d * d).sqrt();
-            let u = |t: f64| sigma * f(t).atan2(d);
-            let n = 100_000;
-            let h = (t1 - t0) / n as f64;
-            let (mut area, mut flux) = (0.0, 0.0);
-            for i in 0..n {
-                let t = t0 + h * (i as f64 + 0.5);
-                let v = sigma * t;
-                let rho = big + r * v.cos();
-                let width = u(t) - um;
-                area += r * rho * width * h;
-                flux += r * rho * (big * v.cos() + r) * width * h;
-            }
-            let (e, _) = framed(
-                (big, r, d),
-                [0.0, 0.0, 1.0],
-                [1.0, 0.0, 0.0],
-                [0.0; 3],
-                [0.0; 3],
-                (t0, t1),
-                true,
-            );
-            let chart = WallChartQ {
-                parts: one_loop(1, 2, 1),
-                ends: Vec::new(),
-                major: pt(big),
-                minor: pt(r),
-                rims: vec![
-                    RimQ {
-                        v: pt(sigma * t1),
-                        du: pt(um) - pt(u(t1)),
-                        env: Interval::zero(),
-                    },
-                    RimQ {
-                        v: pt(sigma * t0),
-                        du: pt(u(t0)) - pt(um),
-                        env: Interval::zero(),
-                    },
-                ],
-                meridians: vec![MeridianQ {
-                    dv: pt(sigma * (t0 - t1)),
-                    env: Interval::zero(),
-                }],
-            };
-            let face = RimFaceQ {
-                rationals: Vec::new(),
-                closed_va: [Interval::zero(); 3],
-                spirics: vec![SpiricEdgeQ {
-                    wall: Some(WallImageQ {
-                        sense: sigma,
-                        v0: pt(0.0),
-                        env: Interval::zero(),
-                    }),
-                    ..e
-                }],
-                lever: [Interval::zero(); 3],
-                perimeter: 1.0,
-                wall: Some(chart.clone()),
-            };
-            let got = summed(wall_chart(&face, &chart, 512).unwrap());
-            // `σ = −1` mirrors `v`, so the loop winds the other way.
-            let (area, flux) = (sigma * area, sigma * flux);
-            let near = |x: Interval, w: f64| x.lo() - 1e-8 <= w && w <= x.hi() + 1e-8;
-            assert!(near(got[1], area), "σ {sigma}: area {:?} vs {area}", got[1]);
-            assert!(near(got[0], flux), "σ {sigma}: flux {:?} vs {flux}", got[0]);
-            assert!(
-                got[2].contains(0.0) && got[3].contains(0.0),
-                "the loop closes"
-            );
-        }
-    }
-
-    /// A spiric wall edge's [`ChartEndsQ`] on its image
-    /// `u = u₀ + σ·atan2(f, d)`, `v = v₀ + σ·t` ([`WallImageQ`]), `u0` the
-    /// image's azimuth constant. `None` for an edge with no wall image.
-    fn spiric_wall_ends(e: &SpiricEdgeQ, u0: Interval) -> Option<ChartEndsQ> {
-        let w = e.wall.as_ref()?;
-        let sigma = pt(w.sense);
-        let at = |t: Interval| {
-            let (c, _) = trig_of(t);
-            let f = ((e.major + e.minor * c).sqr() - e.offset.sqr()).sqrt();
-            (
-                u0 + sigma * geom_core::Real::atan2(f, e.offset),
-                w.v0 + sigma * t,
-            )
-        };
-        let (a, b) = (at(e.t0), at(e.t1));
-        let (start, end) = if e.forward { (a, b) } else { (b, a) };
-        Some(ChartEndsQ {
-            start,
-            end,
-            env: w.env,
-        })
-    }
-
-    /// **A junction's azimuth gap is metered at the junction's own
-    /// distance from the axis** ([`wall_windings`]). On fat tori (`R = 1`,
-    /// `r = 0.5` and `0.6`), a whole oval from `t = π` closed by a meridian
-    /// back meets it at the inner equator, `ρ = R − r`. The meridian set
-    /// off in `u` by `δ` with `ρ·δ = 2ε` is within the vertex slack and
-    /// measures, at `f64` and at the interval scalar; read at `R + r` the
-    /// same gap is `6ε` and `8ε`, past it. Set off by `ρ·δ = 20ε` it is
-    /// open ([`PropsError::ChartLoopOpen`]).
-    #[test]
-    fn an_inner_equator_junction_is_metered_at_its_own_radius() {
-        let tol = geom_core::Tol::witness();
-        let band = Band::linear(tol).unwrap();
-        let eps = tol.eps();
-        for r in [0.5, 0.6] {
-            let rho = 1.0 - r;
-            let face = |gap: f64| {
-                let (e, _) = framed(
-                    (1.0, r, 0.05),
-                    [0.0, 0.0, 1.0],
-                    [1.0, 0.0, 0.0],
-                    [0.0; 3],
-                    [0.0; 3],
-                    (PI, 3.0 * PI),
-                    true,
-                );
-                let arc = SpiricEdgeQ {
-                    wall: Some(WallImageQ {
-                        sense: 1.0,
-                        v0: Interval::zero(),
-                        env: Interval::zero(),
-                    }),
-                    ..e
-                };
-                let oval = spiric_wall_ends(&arc, Interval::zero()).unwrap();
-                let du = pt(gap / rho);
-                let back = ChartEndsQ {
-                    start: (oval.end.0 + du, oval.end.1),
-                    end: (oval.end.0 + du, oval.start.1),
-                    env: Interval::zero(),
-                };
-                RimFaceQ {
-                    rationals: Vec::new(),
-                    closed_va: [Interval::zero(); 3],
-                    spirics: vec![arc],
-                    lever: [Interval::zero(); 3],
-                    perimeter: 20.0,
-                    wall: Some(WallChartQ {
-                        parts: one_loop(1, 0, 1),
-                        major: pt(1.0),
-                        minor: pt(r),
-                        rims: vec![],
-                        meridians: vec![MeridianQ {
-                            dv: oval.start.1 - oval.end.1,
-                            env: Interval::zero(),
-                        }],
-                        ends: vec![vec![oval, back]],
-                    }),
-                }
-            };
-            let near = face(2.0 * eps);
-            let at_f64 =
-                rim_face_rounds::<f64>(&near, band, RoundWindow::SCHEDULE, &mut to_target(eps));
-            assert!(at_f64.is_ok(), "r = {r}, f64: {at_f64:?}");
-            let at_iv = rim_face_rounds::<Interval>(
-                &near,
-                band,
-                RoundWindow::SCHEDULE,
-                &mut to_target(eps),
-            );
-            assert!(at_iv.is_ok(), "r = {r}, interval: {at_iv:?}");
-            let far = rim_face_rounds::<f64>(
-                &face(20.0 * eps),
-                band,
-                RoundWindow::SCHEDULE,
-                &mut to_target(eps),
-            );
-            assert!(
-                matches!(far, Err(PropsError::ChartLoopOpen)),
-                "r = {r}, 20ε: {far:?}"
-            );
-        }
-    }
-
-    /// **A junction its gap's bounds cannot decide is never measured**:
-    /// the meridian back's start held as a bracket `20ε/ρ` wide in `u`
-    /// about the oval's end, so the gap's lower bound is within the slack
-    /// and its upper bound past it. The closed decision reads the upper
-    /// bound and the open one the lower, so neither holds: it escalates,
-    /// at `f64` and at the interval scalar.
-    #[test]
-    fn a_junction_its_bounds_cannot_decide_is_never_measured() {
-        let tol = geom_core::Tol::witness();
-        let band = Band::linear(tol).unwrap();
-        let eps = tol.eps();
-        let (e, _) = framed(
-            (1.2, 0.275, 0.05),
-            [0.0, 0.0, 1.0],
-            [1.0, 0.0, 0.0],
-            [0.0; 3],
-            [0.0; 3],
-            (0.0, 2.0 * PI),
-            true,
-        );
-        let arc = SpiricEdgeQ {
-            wall: Some(WallImageQ {
-                sense: 1.0,
-                v0: Interval::zero(),
-                env: Interval::zero(),
-            }),
-            ..e
-        };
-        let oval = spiric_wall_ends(&arc, Interval::zero()).unwrap();
-        // At `v = 0` the junction sits at `ρ = R + r`.
-        let half = 10.0 * eps / 1.475;
-        let wide = oval.end.0 + Interval::from_bounds(-half, half);
-        let face = RimFaceQ {
-            rationals: Vec::new(),
-            closed_va: [Interval::zero(); 3],
-            spirics: vec![arc],
-            lever: [Interval::zero(); 3],
-            perimeter: 20.0,
-            wall: Some(WallChartQ {
-                parts: one_loop(1, 0, 1),
-                major: pt(1.2),
-                minor: pt(0.275),
-                rims: vec![],
-                meridians: vec![MeridianQ {
-                    dv: oval.start.1 - oval.end.1,
-                    env: Interval::zero(),
-                }],
-                ends: vec![vec![
-                    oval,
-                    ChartEndsQ {
-                        start: (wide, oval.end.1),
-                        end: (oval.start.0, oval.start.1),
-                        env: Interval::zero(),
-                    },
-                ]],
-            }),
-        };
-        for got in [
-            rim_face_rounds::<f64>(&face, band, RoundWindow::SCHEDULE, &mut to_target(eps)),
-            rim_face_rounds::<Interval>(&face, band, RoundWindow::SCHEDULE, &mut to_target(eps)),
-        ] {
-            assert!(
-                matches!(got, Err(PropsError::Escalated { .. })),
-                "an undecidable junction escalates: {got:?}"
-            );
-        }
-    }
-
-    /// **A wall's ring is decided closed on its own** ([`wall_windings`],
-    /// loop by loop), **and wound against its face**
-    /// ([`require_rings_wound_against`]). Beside a closed loop (a whole
-    /// oval closed by a meridian back), a ring cut from it (the smaller
-    /// loop of an oval cut nearer the torus's axis, closed the same way
-    /// and run backwards) measures the loop's area less
-    /// the ring's. The same ring wound with the loop refuses
-    /// [`PropsError::RingWoundWithFace`] rather than add itself to the
-    /// face's area, as does the loop's own copy beside it, and the loop's
-    /// copy run backwards leaves a whole of no area, on which the read
-    /// takes no side (it escalates `props_chart_area_side`); each at both
-    /// scalars. A ring wholly in the band escalates
-    /// `props_ring_winding` at once; one whose round-0 enclosure
-    /// straddles the band's edge escalates at a window ending there, and
-    /// the whole schedule refines on until a later round decides it. A ring
-    /// whose lift stays open by a part of a period, as a ring crossing
-    /// the chart's seam would where its images do not continue across
-    /// it, refuses [`PropsError::ChartLoopOpen`]; one whose lift restarts
-    /// a whole period across the seam reads as winding the tube, and
-    /// refuses [`PropsError::LoopsWindChart`]. Neither is read as closed.
-    /// Nor is a band of two loops winding the tube both ways, which
-    /// refuses [`PropsError::LoopsWindChart`] typed.
-    #[test]
-    fn a_ring_on_a_wall_is_decided_closed_on_its_own() {
-        let tol = geom_core::Tol::witness();
-        let band = Band::linear(tol).unwrap();
-        let tau = 2.0 * PI;
-        // A whole oval at offset `d`, closed by a meridian back: its edges
-        // and its lifted ends, forwards or run backwards.
-        let closed = |d: f64, forward: bool| {
-            let (oval, _) = framed(
-                (1.2, 0.275, d),
-                [0.0, 0.0, 1.0],
-                [1.0, 0.0, 0.0],
-                [0.0; 3],
-                [0.0; 3],
-                (0.0, tau),
-                true,
-            );
-            let oval = SpiricEdgeQ {
-                wall: Some(WallImageQ {
-                    sense: 1.0,
-                    v0: Interval::zero(),
-                    env: Interval::zero(),
-                }),
-                ..oval
-            };
-            let ends = spiric_wall_ends(&oval, Interval::zero()).unwrap();
-            let back = ChartEndsQ {
-                start: ends.end,
-                end: (ends.end.0, ends.start.1),
-                env: Interval::zero(),
-            };
-            let meridian = MeridianQ {
-                dv: ends.start.1 - ends.end.1,
-                env: Interval::zero(),
-            };
-            if forward {
-                (oval, meridian, vec![ends, back])
-            } else {
-                let rev = |e: ChartEndsQ| ChartEndsQ {
-                    start: e.end,
-                    end: e.start,
-                    env: e.env,
-                };
-                (
-                    SpiricEdgeQ {
-                        forward: false,
-                        ..oval
-                    },
-                    MeridianQ {
-                        dv: -meridian.dv,
-                        env: Interval::zero(),
-                    },
-                    vec![rev(back), rev(ends)],
-                )
-            }
-        };
-        let wall_face = |loops: &[(SpiricEdgeQ, MeridianQ, Vec<ChartEndsQ>)]| RimFaceQ {
-            rationals: Vec::new(),
-            closed_va: [Interval::zero(); 3],
-            spirics: loops.iter().map(|l| l.0).collect(),
-            lever: [Interval::zero(); 3],
-            perimeter: 40.0,
-            wall: Some(WallChartQ {
-                parts: loops.iter().map(|_| part(1, 0, 1)).collect(),
-                major: pt(1.2),
-                minor: pt(0.275),
-                rims: vec![],
-                meridians: loops.iter().map(|l| l.1).collect(),
-                ends: loops.iter().map(|l| l.2.clone()).collect(),
-            }),
-        };
-        // At each scalar, to a reporting target of ε `1e-6` at least: the
-        // ring's winding is read at the round returned, whatever the
-        // target, and a tighter one only costs rounds.
-        let eps = tol.eps().max(1e-6);
-        let within = |scalar: usize, f: &RimFaceQ, window: RoundWindow| {
-            if scalar == 0 {
-                rim_face_rounds::<f64>(f, band, window, &mut to_target(eps))
-            } else {
-                rim_face_rounds::<Interval>(f, band, window, &mut to_target(eps))
-            }
-        };
-        let at = |scalar: usize, f: &RimFaceQ| within(scalar, f, RoundWindow::SCHEDULE);
-        let area = |got: &Result<LaneRun, PropsError>| match got {
-            Ok(LaneRun {
-                bounds,
-                end: LaneEnd::Accepted(_),
-                ..
-            }) => bounds.area,
-            other => panic!("a face that measures: {other:?}"),
-        };
-        let outer = closed(0.3, true);
-        let inner = closed(0.05, true);
-        let hole = closed(0.05, false);
-        // A ring round 0 leaves straddling the band's escalate edge and
-        // round 1 decides. Its round-0 enclosure is some 0.13% of its
-        // mean width wide, so the offsets whose enclosure straddles the
-        // edge are a window that narrow, about `170.55·ε` to `170.77·ε`
-        // at `K = 10`: found from round 0's own readings rather than
-        // named, as the two ends of that window, between an offset whose
-        // ring is wholly in the band and one round 0 decides. A round's
-        // enclosure is about 8× narrower than the one before, so an
-        // offset a quarter of the window in from its decided end is
-        // decided at round 1.
-        let ring_at = |d: f64| closed(d, false);
-        let reading = |d: f64| match within(
-            0,
-            &wall_face(&[outer.clone(), ring_at(d)]),
-            RoundWindow::at(0),
-        ) {
-            Err(PropsError::Escalated { cause, .. })
-                if cause.predicate == Some("props_ring_winding") =>
-            {
-                usize::from(!cause.terminal_sliver)
-            }
-            _ => 2,
-        };
-        let edge = |past: usize| {
-            let (mut lo, mut hi) = (10.0 * tol.k() * tol.eps(), 30.0 * tol.k() * tol.eps());
-            assert!(
-                reading(lo) == 0 && reading(hi) == 2,
-                "the window lies between"
-            );
-            for _ in 0..24 {
-                let mid = 0.5 * (lo + hi);
-                if reading(mid) >= past {
-                    hi = mid;
-                } else {
-                    lo = mid;
-                }
-            }
-            hi
-        };
-        let (straddles, decided) = (edge(1), edge(2));
-        assert!(
-            straddles < decided,
-            "round 0 straddles the edge on a window: {straddles} {decided}"
-        );
-        let straddling = ring_at(decided - 0.25 * (decided - straddles));
-        for scalar in 0..2 {
-            let alone = |l: &(SpiricEdgeQ, MeridianQ, Vec<ChartEndsQ>)| {
-                area(&at(scalar, &wall_face(core::slice::from_ref(l))))
-            };
-            let (whole, ring) = (alone(&outer), alone(&inner));
-            assert!(
-                ring.hi() < whole.lo(),
-                "the ring is the smaller loop: {ring:?} {whole:?}"
-            );
-            let cut = area(&at(scalar, &wall_face(&[outer.clone(), hole.clone()])));
-            let want = (whole - ring).abs_enclosure();
-            assert!(
-                cut.lo() <= want.hi() && want.lo() <= cut.hi(),
-                "scalar {scalar}: the loop less its ring, {cut:?} against {want:?}"
-            );
-            // Each read at the first round, the round returned: a face of
-            // no area never converges, and would spend the whole budget
-            // before its rings are read.
-            let first = |loops: &[(SpiricEdgeQ, MeridianQ, Vec<ChartEndsQ>)]| {
-                within(scalar, &wall_face(loops), RoundWindow::at(0))
-            };
-            for (what, loops) in [
-                (
-                    "the ring wound with the loop",
-                    vec![outer.clone(), inner.clone()],
-                ),
-                (
-                    "the loop's own copy beside it",
-                    vec![outer.clone(), outer.clone()],
-                ),
-            ] {
-                let got = first(&loops);
-                assert!(
-                    matches!(got, Err(PropsError::RingWoundWithFace)),
-                    "scalar {scalar}, {what}: {got:?}"
-                );
-            }
-            // The loop's copy run backwards leaves a whole of no area,
-            // which the winding read does not take a side on: its
-            // enclosure holds zero, and the read escalates.
-            let got = first(&[outer.clone(), closed(0.3, false)]);
-            assert!(
-                matches!(&got, Err(PropsError::Escalated { cause, .. })
-                    if cause.predicate == Some("props_chart_area_side")),
-                "scalar {scalar}, the loop's copy run backwards: {got:?}"
-            );
-            // A ring whose mean width is wholly in the band escalates at
-            // once, at any window: no round decides it, and every
-            // window's escalation carries round 0's own enclosure.
-            let in_band = wall_face(&[outer.clone(), ring_at(10.0 * tol.k() * tol.eps())]);
-            let read = |window| match within(scalar, &in_band, window) {
-                Err(PropsError::Escalated { cause, .. })
-                    if cause.predicate == Some("props_ring_winding") && cause.terminal_sliver =>
-                {
-                    cause.margin
-                }
-                got => panic!("scalar {scalar}, {window:?}, a ring in the band: {got:?}"),
-            };
-            assert_eq!(
-                read(RoundWindow::SCHEDULE),
-                read(RoundWindow::at(0)),
-                "scalar {scalar}: the escalation is round 0's"
-            );
-            // The straddling ring escalates at a window ending at round
-            // 0, and the whole schedule refines on past the face's
-            // convergence until round 1 decides it a hole.
-            let face = wall_face(&[outer.clone(), straddling.clone()]);
-            let got = within(scalar, &face, RoundWindow::at(0));
-            assert!(
-                matches!(&got, Err(PropsError::Escalated { cause, .. })
-                    if cause.predicate == Some("props_ring_winding")
-                        && !cause.terminal_sliver),
-                "scalar {scalar}, a ring round 0 leaves straddling: {got:?}"
-            );
-            for window in [RoundWindow::at(1), RoundWindow::SCHEDULE] {
-                let got = within(scalar, &face, window);
-                assert!(
-                    matches!(
-                        got,
-                        Ok(LaneRun {
-                            end: LaneEnd::Accepted(_),
-                            ..
-                        })
-                    ),
-                    "scalar {scalar}, {window:?}, the straddling ring decided: {got:?}"
-                );
-            }
-        }
-        let (oval, meridian, loop_ends) = inner;
-        let (ends, back) = (loop_ends[0], loop_ends[1]);
-        let face = |ring: Vec<ChartEndsQ>| RimFaceQ {
-            rationals: Vec::new(),
-            closed_va: [Interval::zero(); 3],
-            spirics: vec![oval, oval],
-            lever: [Interval::zero(); 3],
-            perimeter: 40.0,
-            wall: Some(WallChartQ {
-                parts: vec![part(1, 0, 1), part(1, 0, 1)],
-                major: pt(1.2),
-                minor: pt(0.275),
-                rims: vec![],
-                meridians: vec![meridian, meridian],
-                ends: vec![vec![ends, back], ring],
-            }),
-        };
-        let run = |f: &RimFaceQ| {
-            rim_face_rounds::<f64>(f, band, RoundWindow::SCHEDULE, &mut to_target(tol.eps()))
-        };
-        // The ring's meridian back lands `0.3` short of its start in `u`.
-        let short = ChartEndsQ {
-            end: (back.end.0 + pt(0.3), back.end.1),
-            ..back
-        };
-        let open = run(&face(vec![ends, short]));
-        assert!(
-            matches!(open, Err(PropsError::ChartLoopOpen)),
-            "a ring open on the chart: {open:?}"
-        );
-        // The ring's meridian back restarts one period round in `u`.
-        let period = ChartEndsQ {
-            end: (back.end.0 + pt(tau), back.end.1),
-            ..back
-        };
-        let winds = run(&face(vec![ends, period]));
-        assert!(
-            matches!(winds, Err(PropsError::LoopsWindChart)),
-            "a ring a period open across the seam: {winds:?}"
-        );
-        // A band: the oval alone winds the tube once, and the same oval
-        // run back winds it once the other way. The two bound a band of
-        // the wall, which `require_boundary_windings` admits as a
-        // boundary; the lifted chart's Green form does not read it, so
-        // the wall refuses it typed rather than misread it
-        // (`work/spiricarm/a-spiric-bounded-torus-band-has-no-volume-lane.md`).
-        let back_oval = SpiricEdgeQ {
-            forward: false,
-            ..oval
-        };
-        let band_face = RimFaceQ {
-            rationals: Vec::new(),
-            closed_va: [Interval::zero(); 3],
-            spirics: vec![oval, back_oval],
-            lever: [Interval::zero(); 3],
-            perimeter: 40.0,
-            wall: Some(WallChartQ {
-                parts: vec![part(1, 0, 0), part(1, 0, 0)],
-                major: pt(1.2),
-                minor: pt(0.275),
-                rims: vec![],
-                meridians: vec![],
-                ends: vec![
-                    vec![ends],
-                    vec![spiric_wall_ends(&back_oval, Interval::zero()).unwrap()],
-                ],
-            }),
-        };
-        let band = run(&band_face);
-        assert!(
-            matches!(band, Err(PropsError::LoopsWindChart)),
-            "a band of two loops winding the tube both ways: {band:?}"
-        );
-    }
-
-    /// **The closure decision refuses an open loop and a winding one,
-    /// and admits a closed one** ([`wall_windings`]): a whole oval closed
-    /// by a meridian back passes; the oval alone winds the tube once
-    /// ([`PropsError::LoopsWindChart`]); an asymmetric arc closed by a
-    /// meridian at its end's azimuth is open in `u` by `≈ 0.0107`
-    /// ([`PropsError::ChartLoopOpen`]); the oval twice round winds twice
-    /// ([`PropsError::LoopsWindChart`]); and the closed loop with a
-    /// junction open by `2ε`, inside the vertex slack, measures.
-    #[test]
-    fn the_closure_decision_refuses_open_and_winding_and_admits_closed() {
-        let tol = geom_core::Tol::witness();
-        let band = Band::linear(tol).unwrap();
-        let tau = 2.0 * PI;
-        let wall = |d: f64, t0: f64, t1: f64| {
-            let (e, _) = framed(
-                (1.2, 0.275, d),
-                [0.0, 0.0, 1.0],
-                [1.0, 0.0, 0.0],
-                [0.0; 3],
-                [0.0; 3],
-                (t0, t1),
-                true,
-            );
-            SpiricEdgeQ {
-                wall: Some(WallImageQ {
-                    sense: 1.0,
-                    v0: Interval::zero(),
-                    env: Interval::zero(),
-                }),
-                ..e
-            }
-        };
-        // The meridian back from the arc's end to its start's level, at
-        // the end's azimuth.
-        let back = |arc: &SpiricEdgeQ| {
-            let ends = spiric_wall_ends(arc, Interval::zero()).unwrap();
-            let dv = ends.start.1 - ends.end.1;
-            (
-                MeridianQ {
-                    dv,
-                    env: Interval::zero(),
-                },
-                ChartEndsQ {
-                    start: ends.end,
-                    end: (ends.end.0, ends.start.1),
-                    env: Interval::zero(),
-                },
-            )
-        };
-        let face = |arc: SpiricEdgeQ, closed_by_back: bool| {
-            let mut ends = vec![spiric_wall_ends(&arc, Interval::zero()).unwrap()];
-            let mut meridians = vec![];
-            if closed_by_back {
-                let (m, e) = back(&arc);
-                meridians.push(m);
-                ends.push(e);
-            }
-            RimFaceQ {
-                rationals: Vec::new(),
-                closed_va: [Interval::zero(); 3],
-                spirics: vec![arc],
-                lever: [Interval::zero(); 3],
-                perimeter: 20.0,
-                wall: Some(WallChartQ {
-                    parts: one_loop(1, 0, usize::from(closed_by_back)),
-                    major: pt(1.2),
-                    minor: pt(0.275),
-                    rims: vec![],
-                    meridians,
-                    ends: vec![ends],
-                }),
-            }
-        };
-        let run = |f: &RimFaceQ| {
-            rim_face_rounds::<f64>(f, band, RoundWindow::SCHEDULE, &mut to_target(tol.eps()))
-        };
-        let closed = run(&face(wall(0.05, 0.0, tau), true));
-        assert!(closed.is_ok(), "a closed lift measures: {closed:?}");
-        let winds = run(&face(wall(0.05, 0.0, tau), false));
-        assert!(
-            matches!(winds, Err(PropsError::LoopsWindChart)),
-            "the oval alone winds the tube: {winds:?}"
-        );
-        // An arc closed by a meridian in level but at its START's
-        // azimuth, so its end meets the meridian `≈ 0.0107` away in `u`.
-        let mut f = face(wall(0.05, 0.3, 2.1), true);
-        if let Some(chart) = f.wall.as_mut() {
-            let u_start = chart.ends[0][0].start.0;
-            chart.ends[0][1].start.0 = u_start;
-            chart.ends[0][1].end.0 = u_start;
-        }
-        let open_u = run(&f);
-        assert!(
-            matches!(open_u, Err(PropsError::ChartLoopOpen)),
-            "open in u: {open_u:?}"
-        );
-        // The oval twice round winds the tube twice.
-        let mut twice = face(wall(0.05, 0.0, tau), false);
-        if let Some(chart) = twice.wall.as_mut() {
-            let first = chart.ends[0][0];
-            chart.ends[0].push(first);
-        }
-        twice.spirics.push(twice.spirics[0]);
-        let twice = run(&twice);
-        assert!(
-            matches!(twice, Err(PropsError::LoopsWindChart)),
-            "twice round the tube: {twice:?}"
-        );
-        // A meridian back that starts `2ε` round the tube from the
-        // oval's end: within the vertex slack, so the loop closes.
-        let mut near = face(wall(0.05, 0.0, tau), true);
-        if let Some(chart) = near.wall.as_mut() {
-            chart.ends[0][1].start.1 = chart.ends[0][1].start.1 + pt(2.0 * tol.eps() / 0.275);
-        }
-        let near = run(&near);
-        assert!(near.is_ok(), "open by 2ε at the junction: {near:?}");
     }
 
     /// **Non-thin endpoint brackets**: the enclosure holds the integral
@@ -2242,17 +1159,10 @@ mod tests {
             v0: pt(0.0),
             env: Interval::zero(),
         };
-        let chart = WallChartQ {
-            parts: Vec::new(),
-            ends: Vec::new(),
-            major: pt(big),
-            minor: pt(r),
-            rims: vec![],
-            meridians: vec![],
-        };
+        let chart = (pt(big), pt(r));
         let j = cos_moment(&e, 64);
         let va = spiric_vector_area(&e, 64);
-        let wb = spiric_wall_terms(&e, &w, &chart, 64);
+        let wb = spiric_wall_terms(&e, &w, chart, 64);
         for (x0, x1) in [
             (0.29, 2.05),
             (0.31, 2.15),
@@ -2269,7 +1179,7 @@ mod tests {
             };
             let (tv, tw) = (
                 spiric_vector_area(&thin, 256),
-                spiric_wall_terms(&thin, &w, &chart, 256),
+                spiric_wall_terms(&thin, &w, chart, 256),
             );
             for k in 0..3 {
                 assert!(
@@ -2310,79 +1220,6 @@ mod tests {
                     "sin {t} in [{lo}, {hi}]: {s:?}"
                 );
             }
-        }
-    }
-
-    /// **The map-residual pad pays the area the envelope can move**:
-    /// with a synthetic envelope `e` (a spiric's own wall image has
-    /// none), the flux and area widths grow by at least
-    /// `2·(chart length)·e/min(R − r, r)` times `r(R + r)²` and `r(R + r)`
-    /// — the chart length from the SAMPLED `sup|u′|` of the cut — and by
-    /// no more than sixteen times that: the rate bound pairs the span's
-    /// worst `|sin t|` with its worst `f`, which a near-tangent span never
-    /// has at once (measured `8×` here). A near-tangent cut
-    /// (`f_min = 0.05`) on a torus with `(R + r)² = 18`, so a dropped
-    /// density factor or a rate bound that misses the cut's `1/f` lands
-    /// outside the window.
-    #[test]
-    #[allow(clippy::cast_precision_loss)]
-    fn the_map_residual_pad_pays_the_area_the_envelope_moves() {
-        let (big, r, t0, t1, env) = (3.0_f64, 1.25_f64, 2.6_f64, 3.6_f64, 1e-6_f64);
-        let d = ((big - r).powi(2) - 0.05_f64.powi(2)).sqrt();
-        let (e, _) = framed(
-            (big, r, d),
-            [0.0, 0.0, 1.0],
-            [1.0, 0.0, 0.0],
-            [0.0; 3],
-            [0.0; 3],
-            (t0, t1),
-            true,
-        );
-        let du = |t: f64| {
-            let rho = big + r * t.cos();
-            (d * r * t.sin() / (rho * (rho * rho - d * d).sqrt())).abs()
-        };
-        let sup = (0..=4000)
-            .map(|i| du(t0 + (t1 - t0) * (i as f64 / 4000.0)))
-            .fold(0.0_f64, f64::max);
-        let defect = (sup + 1.0) * (t1 - t0) * env / (big - r).min(r);
-        let widths = |env: f64| {
-            let face = RimFaceQ {
-                rationals: Vec::new(),
-                closed_va: [Interval::zero(); 3],
-                spirics: vec![SpiricEdgeQ {
-                    wall: Some(WallImageQ {
-                        sense: 1.0,
-                        v0: pt(0.0),
-                        env: pt(env),
-                    }),
-                    ..e
-                }],
-                lever: [Interval::zero(); 3],
-                perimeter: 1.0,
-                wall: Some(WallChartQ {
-                    parts: one_loop(1, 0, 0),
-                    ends: Vec::new(),
-                    major: pt(big),
-                    minor: pt(r),
-                    rims: vec![],
-                    meridians: vec![],
-                }),
-            };
-            let chart = face.wall.clone().unwrap();
-            let got = summed(wall_chart(&face, &chart, 64).unwrap());
-            (got[0].width(), got[1].width())
-        };
-        let ((f1, a1), (f0, a0)) = (widths(env), widths(0.0));
-        for (name, grew, density) in [
-            ("flux", f1 - f0, r * (big + r).powi(2)),
-            ("area", a1 - a0, r * (big + r)),
-        ] {
-            let want = 2.0 * defect * density;
-            assert!(
-                want <= grew && grew <= 16.0 * want,
-                "{name}: the pad grew the width by {grew}, the envelope moves {want}"
-            );
         }
     }
 

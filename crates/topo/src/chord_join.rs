@@ -1488,7 +1488,7 @@ pub(crate) struct SectionOval<T: Real> {
 }
 
 /// The closed curve of a section a chord takes an arc of: a conic, or a
-/// spiric oval. [`arc_leaving`] and [`oriented_arc`] read it through its
+/// spiric oval. [`arc_leaving_as`] and [`oriented_arc`] read it through its
 /// parameter, its tangent and its lever, the same rule for each.
 #[derive(Clone)]
 pub(crate) enum SectionCurve<T: Real> {
@@ -2037,7 +2037,12 @@ fn oriented_arc<T: Decide>(
     to: ArcEnd<T>,
     ccw: bool,
 ) -> Result<(geom::Curve3<T>, T, T), SplitJoinError> {
-    let tau = T::tau();
+    let Some(turn) = conic.carrier().period() else {
+        return Err(SplitJoinError::SectionInvariant {
+            face,
+            what: "a chord's section curve does not close",
+        });
+    };
     // The span forward from `th1` to a distinct end, in `[0, τ)`: a
     // chord may span more than half the conic. Its window jumps at a
     // span of zero, two ends sharing a conic parameter, which is either
@@ -2049,15 +2054,15 @@ fn oriented_arc<T: Decide>(
     // less the other's, which would carry `ulp(τ)` in a short arc.
     if ccw {
         let span = match to {
-            ArcEnd::At(th2) => geom_core::period::Period::new(tau).run_from(th1, th2),
-            ArcEnd::WholeTurn => tau,
+            ArcEnd::At(th2) => turn.run_from(th1, th2),
+            ArcEnd::WholeTurn => turn.length(),
         };
         Ok((conic.carrier().clone(), th1, th1 + span))
     } else {
         // The cw arc: the carrier run back runs forward from p1.
         let span = match to {
-            ArcEnd::At(th2) => geom_core::period::Period::new(tau).run_from(th2, th1),
-            ArcEnd::WholeTurn => tau,
+            ArcEnd::At(th2) => turn.run_from(th2, th1),
+            ArcEnd::WholeTurn => turn.length(),
         };
         let flipped = conic
             .carrier()
@@ -2088,16 +2093,18 @@ fn chord_arc<T: Decide>(
 ) -> Result<(geom::Curve3<T>, T, T), SplitJoinError> {
     let seamed = match curve {
         SectionCurve::Conic(conic) => {
-            let (tau, half) = (T::tau(), T::from_f64(0.5));
+            let half = T::from_f64(0.5);
+            let Some(turn) = conic.carrier.period() else {
+                return Err(SplitJoinError::SectionInvariant {
+                    face,
+                    what: "a chord's section conic does not close",
+                });
+            };
             let th1 = conic.param(p1);
             let middle = match p2 {
                 None => th1,
-                Some(p2) if ccw => {
-                    th1 + geom_core::period::Period::new(tau).run_from(th1, conic.param(p2)) * half
-                }
-                Some(p2) => {
-                    th1 - geom_core::period::Period::new(tau).run_from(conic.param(p2), th1) * half
-                }
+                Some(p2) if ccw => th1 + turn.run_from(th1, conic.param(p2)) * half,
+                Some(p2) => th1 - turn.run_from(conic.param(p2), th1) * half,
             };
             SectionCurve::Conic(conic.seamed_near(middle))
         }
@@ -2220,7 +2227,7 @@ impl<T: Real> Leave<T> {
 /// [`SplitJoinError::SectionDepartureGrazes`] where the split's sine reads
 /// Zero along the section; [`SplitJoinError::SectionInvariant`] for a
 /// datum normal to the section; [`SplitJoinError::Escalated`] in the band.
-fn arc_leaving<T: Decide>(
+fn arc_leaving_as<T: Decide>(
     face: FaceKey,
     band: Band,
     conic: &SectionCurve<T>,
@@ -2294,7 +2301,7 @@ impl<T: Real> SectionChord<T> {
 /// ([`geom_brep::carrier_resolution::resolution`]), `K` times over,
 /// against the zero band (metres), where the gate refuses one of its
 /// attachment pins: Zero reads an in-band pin as the input's
-/// ([`crate::validate::resolved`]).
+/// ([`crate::validate::resolved_as`]).
 pub(crate) const SECTION_PIN_RESOLUTION: &str = "section_pin_resolution";
 
 /// K name: a section chord's end miss past the band, moved toward zero
@@ -2323,7 +2330,7 @@ fn section_end_reading<T: Real>(curve: &SectionCurve<T>) -> Option<SectionEndRea
 /// own resolution over the edge's span, `ρ`.
 ///
 /// - **In band.** Where `ρ` is within the `ε/K` share of the band
-///   ([`crate::validate::resolved`]), the miss is the input's: an end
+///   ([`crate::validate::resolved_as`]), the miss is the input's: an end
 ///   pin by either reading, a residual off the surfaces only on a
 ///   stood-in circle, whose plane is the section plane only to within
 ///   the tilt read Zero ([`SplitJoinError::SectionEndEscalated`], with
@@ -2369,7 +2376,7 @@ fn section_pin_refusal<T: Decide>(
                 _ => return refusal.into(),
             };
             match (
-                crate::validate::resolved(SECTION_PIN_RESOLUTION, rho, band),
+                crate::validate::resolved_as(SECTION_PIN_RESOLUTION, rho, band),
                 typed,
             ) {
                 (Err(resolution), _) => SplitJoinError::SectionUnresolved {
@@ -2432,7 +2439,7 @@ fn section_pin_refusal<T: Decide>(
 /// 2. Orient: of the conic's two arcs from `u1` to `u2`, take the one
 ///    leaving `u1` along `leave`, the section's direction of departure
 ///    there as the lane that paired the chord's ends decided it
-///    ([`Leave`], [`arc_leaving`]). Which arc lies in the face is the
+///    ([`Leave`], [`arc_leaving_as`]). Which arc lies in the face is the
 ///    pairing's answer; the chord does not ask the face again. A
 ///    chord from a vertex to itself or to a copy of its site
 ///    ([`same_site`]) is the whole conic, run the same way; on
@@ -2588,13 +2595,7 @@ fn chord_spec<T: Decide>(
             });
             // The section face is not minted yet: only the face the
             // ruling divides names its region.
-            let rest = crate::rest_locus(
-                body,
-                [(wall_key, Some(face)), (plane_key, None)],
-                &carrier,
-                (s1, s2),
-                band,
-            );
+            let rest = crate::rest_locus([wall_key, plane_key]);
             let description = geom_brep::must_carry_description(
                 geom_brep::SmoothJoin {
                     surfaces: [(wall_key, &wall), (plane_key, plane)],
@@ -2631,7 +2632,7 @@ fn chord_spec<T: Decide>(
         )?,
     };
     let p1 = body.resolve_vertex_point(u1, Proven);
-    let ccw = arc_leaving(face, band, &conic, &wall, p1, leave)?;
+    let ccw = arc_leaving_as(face, band, &conic, &wall, p1, leave)?;
     // The aux plane surface (honest u_ref: a direction in the section
     // plane, ⊥ normal by construction), minted once per split.
     let plane_key = match ctx.plane_key {
@@ -2874,7 +2875,7 @@ pub(crate) struct WallSection<T: Real> {
 /// divided face IS the germ plane, and the section conic comes from the
 /// C5 table against the partner wall (by value, from the other
 /// operand). The arc is the one the germ's direction names
-/// ([`arc_leaving`]), the same datum the wall side's chord reads, so
+/// ([`arc_leaving_as`]), the same datum the wall side's chord reads, so
 /// both operands' chords of one polygon side are one geometric arc —
 /// which is what keeps the zip's seams antiparallel-congruent.
 #[allow(clippy::too_many_arguments)]
@@ -2951,7 +2952,7 @@ fn bool_planar_chord_spec<T: Decide>(
         )?,
     };
     let p1 = body.resolve_vertex_point(u1, Proven);
-    let ccw = arc_leaving(face, band, &conic, wall, p1, leave)?;
+    let ccw = arc_leaving_as(face, band, &conic, wall, p1, leave)?;
     let ends = section_end_reading(&conic);
     let (carrier, t_start, t_end) =
         chord_arc(conic, face, p1, far_end(body, face, (u1, u2))?, ccw)?;
@@ -3046,7 +3047,7 @@ fn carried_chord_spec<T: Decide>(
     // one of the loop's sites, the least foot of any (`boolean::join`'s
     // `carried_seats`), not on anything read here: the forward reading
     // below refuses a chord that would cross it.
-    let turn = (spline.is_none() && component.closed()).then_some(hi - lo);
+    let turn = carrier.period().filter(|_| component.closed());
     let seat = carrier.eval(lo);
     let at_seat = |p: Point3<T>| -> Result<bool, SplitJoinError> {
         if !component.closed() {
@@ -3063,7 +3064,7 @@ fn carried_chord_spec<T: Decide>(
     let place = |p: Point3<T>| -> Result<geom_brep::ArcPlace<T>, SplitJoinError> {
         match component.place(&ctx.nodes, p, band) {
             Ok(geom_brep::ArcPlace::At(t)) => Ok(geom_brep::ArcPlace::At(match turn {
-                Some(turn) => geom_core::period::Period::new(turn).at_or_above(t, lo),
+                Some(turn) => turn.at_or_above(t, lo),
                 None => t,
             })),
             Ok(end) => Ok(end),
@@ -5688,6 +5689,50 @@ mod side_ladder_rows {
             "a later decided side answers"
         );
     }
+
+    /// **A path read in band hands the rung to the next path**
+    /// ([`super::paths_rung`], `Any`): on a cylinder's two ruled paths, the
+    /// first read in band and the second decided, the rung answers the
+    /// second's side; read in band on both, it is kept. A first-refusal
+    /// ladder kept the first. Read on the rung itself, since
+    /// [`super::IslandReading::read_paths`]' agreeing ladder over the outer
+    /// references would answer from another reference past it.
+    #[test]
+    fn a_path_in_band_hands_the_rung_to_the_next_path() {
+        use crate::ring_path::Quadric;
+        use geom_core::{Point3, Vec3};
+        let band = Band::new(1e-9, 1e-8).unwrap();
+        let cylinder = geom::Surface::Cylinder {
+            origin: Point3::origin(),
+            axis: Vec3::unit_z(),
+            radius: 1.0,
+            u_ref: Vec3::unit_x(),
+        };
+        let quadric = Quadric::of(&cylinder).unwrap();
+        let ends = (Point3::new(1.0, 0.0, 0.0), Point3::new(0.0, 1.0, 0.5));
+        assert_eq!(
+            quadric.paths(ends, band).unwrap().len(),
+            2,
+            "a cylinder offers two ruled paths"
+        );
+        let rung = |margins: [f64; 2]| {
+            let mut next = margins.into_iter();
+            super::paths_rung(&quadric, ends, band, |_| {
+                let m = next.next().unwrap();
+                crate::validate::decide("test_side", Margin::of(m), band)
+                    .map(|sign| (sign != Sign::Zero).then_some(sign))
+            })
+        };
+        assert_eq!(
+            rung([5e-9, -1.0]),
+            Rung::Answers(Sign::Negative),
+            "the second path answers past the first in band"
+        );
+        assert!(
+            matches!(rung([5e-9, 5e-9]), Rung::InBand(_)),
+            "both in band: kept"
+        );
+    }
 }
 
 #[cfg(test)]
@@ -6684,7 +6729,7 @@ mod tests {
     /// guard would have been green throughout.
     ///
     /// On the split the walk and the chord read one sine on one lever
-    /// ([`arc_leaving`]): that is the one duplicate this row admits, and
+    /// ([`arc_leaving_as`]): that is the one duplicate this row admits, and
     /// it names both halves so a third cannot join them unseen.
     ///
     /// **What it cannot match** — three shapes:
@@ -6693,7 +6738,7 @@ mod tests {
     ///    arc from the face. It surfaces as new rows in
     ///    `docs/K-REPORT.md`'s census, which is the mechanism that
     ///    already exists for that.
-    /// 2. **A reading of the arc from `arc_leaving`'s RESULT** —
+    /// 2. **A reading of the arc from `arc_leaving_as`'s RESULT** —
     ///    recomputing it from the returned carrier's axis, say. The rung
     ///    still fires once, and no string search can see it.
     /// 3. **A copy in another crate.** The count is scoped to
@@ -6751,7 +6796,7 @@ mod tests {
                 assert!(
                     path == &home || !text.contains(rung.as_str()),
                     "{} names {rung}: the chord's arc has been re-forked out of {}, which \
-                     must hold the only one. Call `arc_leaving` instead.",
+                     must hold the only one. Call `arc_leaving_as` instead.",
                     path.display(),
                     home.display()
                 );
@@ -7571,7 +7616,7 @@ mod cone_window_rows {
             (5.0, (0.25, 0.75)),
         ] {
             let label = format!("u ∈ [0, {u1}], z ∈ [{z0}, {z1}]");
-            let (body, face) = crate::boolean::boxes::tests::cone_wall(0.5, 0.0, u1, z0, z1);
+            let (body, face) = crate::boxes::tests::cone_wall(0.5, 0.0, u1, z0, z1);
             for (at, _) in body.vertices() {
                 let SectionReach::Cone(reach) =
                     section_reach(&body, at, face, (&cone, None), band).unwrap()

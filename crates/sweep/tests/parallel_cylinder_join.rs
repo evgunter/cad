@@ -180,7 +180,7 @@ fn pose(k: usize) -> Pose {
 }
 
 /// The row's poses (`conic_edge_curved_face`'s
-/// `a_rim_crossing_reaches_the_join`).
+/// `a_rim_crossing_builds_in_every_op`).
 fn rim_poses() -> Vec<Pose> {
     vec![
         across_the_rim(0.2, (0.5, 0.0), (0.2, 0.45)),
@@ -515,23 +515,27 @@ fn cut_and_tipped(
 
 /// **The rulings are read at the germ sites, wherever a wall's origin is
 /// stored.** Pose 0's rod cut from a long one, so its wall's origin is
-/// stored up to 1e5 m off its faces, and tipped a fifth of the zero band:
-/// every op builds SOUND at the closed-form volume, in both orders.
+/// stored up to 1 km off its faces, the session box's own extent
+/// (`[tolerance.units]`), and tipped a fifth of the zero band: every op
+/// builds SOUND at the closed-form volume, in both orders. A long rod
+/// past the box is refused at its extrude
+/// ([`a_long_rod_past_the_session_box_is_refused_by_it`]).
 ///
 /// A pose runs only inside D4 ¶4's size range at the run's ε: the long
 /// rod reaches `|z| = far`, where f64 spaces coordinates
 /// `ulp(far) ≈ far·2⁻⁵²`, so a residual between two points evaluated
-/// there can read a whole ulp of rounding. Past `far ≈ 2⁵²·ε` no stored
-/// datum certifies within ε. At `far = 1e5` and ε = 1e-12,
-/// `carrier_matches_mapped_source` reads one ulp at `|z| ≈ 6.2e4` on the
-/// long rod's strut and escalates.
+/// there can read a whole ulp of rounding, and past `far ≈ 2⁵²·zero` no
+/// stored datum certifies within the zero band. At 1 km that ceiling is
+/// `2.2e-13` m, above the least ε a run admits
+/// (`geom_core::tolerance::EPS_MIN`, ≈ 2.0e-13 at K = 10), so at an
+/// admitted ε below it the 1 km pose stands down.
 #[test]
 fn a_tipped_rod_whose_origin_is_stored_far_joins_along_its_rulings() {
     const R: f64 = 0.5;
     let zero = geom_core::Band::linear(Tol::witness()).unwrap().zero();
     let (r, c, span) = (0.2, (0.5, 0.0), (-0.5, 0.5));
     let (area, _) = lens((0.0, 0.0), R, c, r);
-    let poses: Vec<Pose> = [2.0, 1000.0, 1.0e5]
+    let poses: Vec<Pose> = [2.0, geom_core::tolerance::SESSION_BOX_EXTENT]
         .into_iter()
         .filter(|&far| {
             let in_range = far * f64::EPSILON <= zero;
@@ -562,6 +566,36 @@ fn a_tipped_rod_whose_origin_is_stored_far_joins_along_its_rulings() {
     );
     let bad = unsound(&poses);
     assert!(bad.is_empty(), "{}", bad.join("\n"));
+}
+
+/// **A long rod past the session box is refused by it**: the rod
+/// [`a_tipped_rod_whose_origin_is_stored_far_joins_along_its_rulings`]
+/// cuts from, a metre longer at each end than the box's 1 km reach.
+#[test]
+fn a_long_rod_past_the_session_box_is_refused_by_it() {
+    let tol = Tol::witness();
+    let far = geom_core::tolerance::SESSION_BOX_EXTENT + 1.0;
+    let profile = profile::Profile::new(
+        profile::SketchPlane::xy_at(Point3::new(0.0, 0.0, -far)),
+        vec![profile::test_support::bulge_loop(vec![
+            (Point2::new(0.3, 0.0), 1.0),
+            (Point2::new(0.7, 0.0), 1.0),
+        ])],
+    )
+    .validate(tol)
+    .expect("the rod's disc is a valid profile");
+    crate::common::refused_by_the_session_box(
+        &format!("the rod over z ∈ [−{far}, {far}]"),
+        far,
+        sweep::extrude(
+            &profile,
+            sweep::Extrusion::Distance {
+                depth: 2.0 * far,
+                side: sweep::ExtrudeSide::Along,
+            },
+            tol,
+        ),
+    );
 }
 
 /// The lever of an in-band reading of a cylinder pair's axes.

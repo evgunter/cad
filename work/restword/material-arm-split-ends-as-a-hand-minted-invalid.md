@@ -2,7 +2,9 @@
 id: material-arm-split-ends-as-a-hand-minted-invalid
 kind: issue
 title: validate: material_arm_error's Split arm escalates through a hand-minted INVALID Indeterminate; decide its ending and give it one
-status: open
+status: closed
+closed: 2026-11-11
+pr: 6443
 opened: 2026-10-25
 priority: P1
 cost: M
@@ -41,3 +43,12 @@ through a typed arm or the funnel's own reading, not a hand-minted
 
 The parent keeps the rest: `RingContactEscalated`'s closed decision and
 the two chart-region arms' margins, which mint nothing.
+
+## Closed (2026-11-11)
+
+Already done on main, by ONEDOOR's PR 6443 (`onedoor/wedge-fold`, merged 2026-11-03). Its commit `08c50fbaf7b` reads: "The split retires into Mixed (`MixedStations::Pairing | End`), so no INVALID is minted."
+- `material_arm_error` and `MaterialArmOutcome::Split` are gone from `crates/topo/src/validate.rs`. The material fold now lives in `geom_brep` (`crates/geom-brep/src/edge_wedge.rs`).
+- **Samples that disagree** about the pairing or the end are `WedgeVerdict::Mixed`, naming the stations. That is the typed refusal `ValidationError::MixedDihedral { edge, stations }`, a definite refusal whose lever is the geometry at those stations. It is not an escalation.
+- **An end read in band** escalates through the funnel: `decide_nonzero("material_cusp_side", Margin::sagitta(..), band)` in `edge_wedge.rs`. It reaches tier 3 as `WedgeVerdict::InBand`, never as a hand-built `Indeterminate`.
+
+So the split's ending is decided, and the hand mint this row was split out for (the part SEAL's `the-indeterminate-seal` waits on) is retired. Nobody had closed the row since. Found by the SEAL/REFS session's orchestrator, picking up RESTWORD's single P1.

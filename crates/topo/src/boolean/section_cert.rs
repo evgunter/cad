@@ -21,7 +21,7 @@
 //! `γ ⊂ F ∩ G` and `x` is a point of `γ` on a boundary, or `x` is a
 //! relative boundary point of the proper closed subset `γ ∩ F ∩ G` of
 //! the connected `γ`. The sweep examines every edge × face pair whose
-//! boxes overlap and which the narrow phase (`boolean::separating`)
+//! boxes overlap and which the narrow phase (`separating`)
 //! does not certify apart, and records the contact there, or refuses
 //! (premise **S**); a pair certified apart has no point to record. So the components no event can evidence are exactly those
 //! with `γ ⊂ int F ∩ int G`, and the certificate's job is to prove, per
@@ -329,8 +329,8 @@
 //!   never read here and the pair clears by W2 or refuses.
 //! - **Sphere × {plane, sphere}**: one circle. **Sphere × cylinder**
 //!   (axis offset `e`): one loop when `|e − ρc| < ρs < e + ρc`,
-//!   witnessed on the nearest ruling; two loops encircling the cylinder
-//!   when `e + ρc < ρs`.
+//!   two loops encircling the cylinder when `e + ρc < ρs`, each loop
+//!   witnessed by the ruling sweep.
 //! - **NURBS × plane** (an approximated face read as its fit): the
 //!   pair's classification in the section value
 //!   ([`geom_brep::pair_section()`], C5), read and never re-decided. Its

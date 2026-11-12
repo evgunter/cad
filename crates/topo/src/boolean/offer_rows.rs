@@ -345,7 +345,7 @@ cases! {
         turned_wedge(2, true, 10.0, 30.0, 1.0, 1.1e-8);
     // The rest of the census, one per arm and side.
     edge_nearly_along_an_edge: "Coincidence(EdgeOnEdge)", D, CORNER_SITE, Valued =>
-        super::super::sectors::parallel_same(
+        super::super::sectors::parallel_same_as(
             Vec3::new(1.0, 0.0, 0.0), Vec3::new(1.0, D, 0.0), geom_core::test_support::fixture_lever(1.0),
             super::RAY_COLLINEAR, band()
         ).map(|_| ());
@@ -389,13 +389,16 @@ cases! {
     // The pose's far reach a band past and short of the walls'
     // tangency. The section's coincidence names its lever and no
     // tolerance; the tolerance it withdrew decides the loop count. On
-    // either side the loops nearly meet at the far ruling (two loops
-    // past it, the figure-eight's lobes short of it), and the germ mint's
-    // march over them cannot prove one arc per tube there.
+    // either side the loops nearly meet at the far ruling. Past it, two
+    // loops, the germ mint's march over them cannot prove one arc per
+    // tube there. Short of it, the figure-eight's lobes, the ruling sweep
+    // that counts them cannot bracket the two branch points a band either
+    // side of the far ruling, and escalates on its discriminant
+    // (`work/sectarms/the-ruling-sweep-cannot-bracket-branch-points-a-band-from-a-node.md`).
     transverse_frame_reach_past_tangency: "Coincidence(Section)", D, TRANSVERSE_FRAME_SITE,
         Withdrawn(Because::MarchRefuses(TUBE_STRADDLES)) => transverse_frame(D);
     transverse_frame_reach_short_of_tangency: "Coincidence(Section)", -D,
-        TRANSVERSE_FRAME_SITE, Withdrawn(Because::MarchRefuses(TUBE_STRADDLES)) =>
+        TRANSVERSE_FRAME_SITE, Withdrawn(Because::Refuses("Coincidence(Section)")) =>
         transverse_frame(-D);
     arc_root_just_inside_its_span: "Crossing(OnEdge)", D, ROOT_SITE, Valued =>
         circle_roots(1.0 - D);
@@ -2106,6 +2109,7 @@ fn quoting(kind: BooleanErrorKind, diag: Indeterminate) -> Vec<BooleanError> {
             })
             .collect(),
         BooleanErrorKind::JoinPartnersTied => vec![BooleanError::JoinPartnersTied],
+        BooleanErrorKind::JoinPairsTied => vec![BooleanError::JoinPairsTied],
         // Every regularity reading is a magnitude: a distance from a
         // singularity, a wedge, a sagitta. It refuses on no negative.
         BooleanErrorKind::JoinUndecided => [BooleanError::JoinUndecided(crate::JoinUndecided {
@@ -2202,6 +2206,7 @@ fn quoting(kind: BooleanErrorKind, diag: Indeterminate) -> Vec<BooleanError> {
         | BooleanErrorKind::Merge
         | BooleanErrorKind::Pcurves
         | BooleanErrorKind::Euler
+        | BooleanErrorKind::OneRecordUncertified
         | BooleanErrorKind::Join
         | BooleanErrorKind::GraftRecertify
         | BooleanErrorKind::Pieces
@@ -2305,7 +2310,7 @@ fn every_site_names_the_decision_it_raises() {
                 function = name;
             }
             // A site that passes a parallelism reading raises its
-            // coincidence: `sectors::parallel_same` names none of its own.
+            // coincidence: `sectors::parallel_same_as` names none of its own.
             if !line.trim_start().starts_with("use ") {
                 for (name, reading) in PARALLEL_READINGS {
                     let passed = line
@@ -2594,7 +2599,7 @@ const SITES: &[(&str, &str, &str, usize)] = &[
     ("join.rs", "stands_on", "Coincide::Sectors", 1),
     ("mod.rs", "coincidence", "BooleanDecision::Coincidence", 1),
     ("mod.rs", "unglued_corner", "Coincide::CornerBound", 1),
-    ("mod.rs", "off_ring_torus", "BooleanDecision::Torus", 1),
+    ("mod.rs", "torus_refusal_at", "BooleanDecision::Torus", 1),
     ("mod.rs", "rim_unread", "Coincide::Rim", 1),
     (
         "mod.rs",

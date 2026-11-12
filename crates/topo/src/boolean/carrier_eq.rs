@@ -593,7 +593,7 @@ fn ladder_reading<T: Decide>(
 
 /// [`carrier_eq_reading`] at the FACE-PAIR door: a coincidence glues
 /// the pair only where the displacement's upper bound over the pair's
-/// extent decides Zero too ([`coincident_over_extent`]). A torus pair's
+/// extent decides Zero too ([`coincident_over_extent_as`]). A torus pair's
 /// coincidence already stands on that bound
 /// ([`geom_brep::tori_coincide`]), and a torus pair the ring reads apart
 /// comes back as such, for the door to ask the faces for a witness
@@ -610,12 +610,11 @@ pub(super) fn pair_door_reading<T: Decide>(
 ) -> Result<PairDoorReading, CarrierEqError> {
     match ladder_reading(c1, c2, extent, band)? {
         PairDoorReading::Verdict(CarrierVerdict::One { relation, margin }) => {
-            let margin = coincident_over_extent(c1, c2, extent, (relation, margin), band).map_err(
-                |diag| CarrierEqError::Undecided {
+            let margin = coincident_over_extent_as(c1, c2, extent, (relation, margin), band)
+                .map_err(|diag| CarrierEqError::Undecided {
                     coincidence: CoincidenceMeasure::not_zero(diag),
                     relation,
-                },
-            )?;
+                })?;
             Ok(PairDoorReading::Verdict(CarrierVerdict::One {
                 relation,
                 margin,
@@ -706,6 +705,17 @@ fn perpendicular<T: geom_core::Real>(v: Vec3<T>, axis: Vec3<T>) -> Vec3<T> {
 
 pub(crate) use geom_brep::line_tilt;
 
+/// **The arm the ladder levers a pair's angular data at** over
+/// `reach` ([`at_consumed_extent`]'s third part): the reach from the
+/// pivot each kind's position datum is read at.
+pub(super) fn consumed_arm<T: geom_core::Real>(
+    c1: &CarrierDesc<T>,
+    c2: &CarrierDesc<T>,
+    reach: geom_brep::ExtentBall<T>,
+) -> geom_core::Lever<T> {
+    at_consumed_extent(c1, c2, reach).2
+}
+
 /// **The pair as the ladder reads it when its verdict is
 /// consumed over `reach`**: each description anchored where its
 /// position datum is read nearest the extent's centre, and the lever
@@ -713,13 +723,14 @@ pub(crate) use geom_brep::line_tilt;
 /// pivot ([`geom_brep::ExtentBall`]'s module docs). Each datum is
 /// decided on its own: a definite one says the carriers differ, and the
 /// face-pair door then reads the data as one sum
-/// ([`coincident_over_extent`]).
+/// ([`coincident_over_extent_as`]).
 ///
 /// - plane — the plane ladder reads the extent itself (offsets at its
 ///   centre, the arm its radius) and the pair passes through;
 /// - cylinder — the axis offset is read at the second description's
-///   axis point, which moves along its axis to the foot of the
-///   extent's centre;
+///   axis point, re-anchored along its axis at the foot of the
+///   extent's centre ([`geom_brep::anchored_at`], the one re-anchoring a
+///   face's measure takes too);
 /// - torus — the pair's coincidence reads no extent
 ///   ([`geom_brep::tori_coincide`]), and the pair passes through;
 /// - cone — the angular data are read from the first apex, widened by
@@ -743,7 +754,7 @@ fn at_consumed_extent<T: geom_core::Real>(
                 outward,
             },
         ) if matches!(c1, CarrierDesc::Cylinder { .. }) => {
-            let foot = reach.foot_on(geom::Line { origin, dir: axis });
+            let foot = geom_brep::anchored_at(origin, geom_brep::Forgets::Axis(axis), centre);
             (
                 c1,
                 CarrierDesc::Cylinder {
@@ -794,7 +805,7 @@ fn at_consumed_extent<T: geom_core::Real>(
 ///   two angles;
 /// - torus — the pair's coincidence already stands on its own bound
 ///   ([`geom_brep::tori_coincide`]), and reads nothing more here.
-fn coincident_over_extent<T: Decide>(
+fn coincident_over_extent_as<T: Decide>(
     c1: &CarrierDesc<T>,
     c2: &CarrierDesc<T>,
     extent: &ConsumedExtent<T>,
@@ -828,7 +839,7 @@ const CONE_REACH: (&str, &str) = ("carrier_cone_reach", "carrier_cone_reach_stra
 
 /// The displacement's upper bound between a same-kind, non-torus pair
 /// over `reach`, with its predicate's name and its straddle row's
-/// ([`coincident_over_extent`]), the planes' orientation sign `sigma`
+/// ([`coincident_over_extent_as`]), the planes' orientation sign `sigma`
 /// decided; `None` for a kind mismatch or two tori.
 fn reading<T: Decide>(
     c1: &CarrierDesc<T>,
@@ -1471,7 +1482,7 @@ mod tests {
     /// a quarter turn and a smaller one.
     #[test]
     fn the_ladder_reads_two_tori_as_their_pose_does() {
-        use crate::boolean::boxes::tests::torus_wall;
+        use crate::boxes::tests::torus_wall;
         let b = band();
         let e = b.zero();
         let surface = |(center, axis, major, minor): (Point3<f64>, Vec3<f64>, f64, f64)| {

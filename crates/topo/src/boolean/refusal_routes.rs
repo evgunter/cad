@@ -664,7 +664,7 @@ impl Coincide {
     }
 }
 
-/// **A same-direction parallelism reading** ([`super::sectors::parallel_same`]):
+/// **A same-direction parallelism reading** ([`super::sectors::parallel_same_as`]):
 /// the name its levered sine is decided under, and the coincidence an
 /// in-band reading refuses as. Each reading's one home: the sites that
 /// read it pass it, [`super::decision_words`] states its words, and the
@@ -783,29 +783,37 @@ const TANGENT_SIDE: SizedDecision = SizedDecision {
 };
 
 /// [`BooleanDecision::LineEdges`]' lever.
-const LINE_EDGES_LEVER: &str = "move the geometry so the straight edges along that line clearly \
-                                stand apart";
+const LINE_EDGES_LEVER: &str = geom_core::move_lever!(
+    "so the straight edges along that line clearly \
+                                stand apart"
+);
 
 /// [`BooleanDecision::PartingOrder`]'s lever.
-const PARTING_ORDER_LEVER: &str = "move the geometry so the points where that edge crosses the \
+const PARTING_ORDER_LEVER: &str = geom_core::move_lever!(
+    "so the points where that edge crosses the \
                                    face's boundary, and the vertices resting on it, lie clearly \
-                                   apart";
+                                   apart"
+);
 
 /// [`BooleanDecision::LineSpanPrecision`]' lever: the precision limit's
 /// recourse, never a move apart.
 const LINE_SPAN_PRECISION_LEVER: &str = crate::census::SPAN_PRECISION_RECOURSE;
 
 /// [`BooleanDecision::LineWedges`]' lever.
-const LINE_WEDGES_LEVER: &str = "move the geometry so the faces meeting along that line clearly \
-                                 part there";
+const LINE_WEDGES_LEVER: &str = geom_core::move_lever!(
+    "so the faces meeting along that line clearly \
+                                 part there"
+);
 
 /// Whether the faces at a seam edge cross or touch tangentially
 /// ([`BooleanDecision::SeamWedge`]): the sine of their angle over the
 /// folded lever arm, a crease on a positive margin and a smooth join on
 /// zero. The margin is a norm over a length, so no negative one is read.
 pub(super) const SEAM_WEDGE: SizedDecision = SizedDecision {
-    lever: "move the geometry so the faces at that seam meet either clearly creased or clearly \
-            smooth",
+    lever: geom_core::move_lever!(
+        "so the faces at that seam meet either clearly creased or clearly \
+            smooth"
+    ),
     size: "fold across the seam",
     passes: SizedPass::NonNegative,
     side: RefusedSide::Lever,
@@ -818,8 +826,10 @@ pub(super) const SEAM_WEDGE: SizedDecision = SizedDecision {
 /// positive margin and an under-determined one on zero. The margin is a
 /// magnitude, so no negative one is read.
 const SEAM_JET: SizedDecision = SizedDecision {
-    lever: "move the geometry so the faces touching along that seam either clearly curve apart \
-            there or clearly share their curvature",
+    lever: geom_core::move_lever!(
+        "so the faces touching along that seam either clearly curve apart \
+            there or clearly share their curvature"
+    ),
     size: "curvature difference across the seam",
     passes: SizedPass::NonNegative,
     side: RefusedSide::Lever,
@@ -3296,7 +3306,7 @@ pub(in crate::boolean) mod tests {
         }
         .render(geom_brep::recourse::Reading::Build);
         assert!(
-            pierce.ends_with("Recourse: move the geometry"),
+            pierce.ends_with(geom_core::MOVE_RECOURSE),
             "the frontier's definite half keeps its in-band sibling's levers, less the \
              tolerance: {pierce}"
         );

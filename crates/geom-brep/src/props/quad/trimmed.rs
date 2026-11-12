@@ -400,7 +400,9 @@ fn polygon_variation(block: &[RPt2]) -> (f64, f64) {
 /// chord: the extent ALONG the chord times the extent ACROSS it, both
 /// taken outward off the brackets. Exactly zero for a two-point block
 /// — a degree-1 arc IS its chord, so there is no lune at all, which is
-/// every image this head's producer mints (`PXN_IMAGE_DEGREE = 1`).
+/// every image this head's producer mints where a carrier's feet run
+/// straight in the chart (`PXN_IMAGE_DEGREE = 1`; a path that bends
+/// takes `edge_nurbs::general_chart_image`'s finer rungs).
 fn lune_area(block: &[RPt2], a: (f64, f64), b: (f64, f64)) -> f64 {
     let (cu, cv) = (b.0 - a.0, b.1 - a.1);
     let len = (cu.powi(2) + cv.powi(2)).sqrt();
@@ -514,7 +516,7 @@ fn piece_monotone<T: Decide>(
     // at least this much — and `rate` is a certified LOWER bound, so
     // under-stating it can only fail to certify, never certify a
     // sliver.
-    super::run::classify_len::<T>(
+    super::run::classify_len_as::<T>(
         "props_trim_piece_monotone",
         Margin::metered(span, InfSpeed::new(rate)),
         band,
@@ -1516,8 +1518,7 @@ pub fn trimmed_patch_face_rounds<T: Decide>(
         return Err(PropsError::QuadratureUnsupported {
             what: "a RATIONAL chart reached the trimmed lane — the chord integrand is the \
                    polynomial `⟨S, S_u×S_v⟩`, and a quotient's is not polynomial in the \
-                   chord parameter, so the exact Newton–Cotes argument does not hold; the \
-                   rational chart carries IsoArc rims only on this head",
+                   chord parameter, so the exact Newton–Cotes argument does not hold",
         });
     }
     let (kv_u, kv_v) = (net.knots_u(), net.knots_v());
@@ -1914,7 +1915,8 @@ mod tests {
     ///
     /// The loop `(0,0) → (1,0) → (1,1) → (0,0)` closes with a
     /// degree-1 `General` image, which is the class this head's
-    /// producer actually mints (`PXN_IMAGE_DEGREE = 1`): the region is
+    /// producer mints for a line whose feet run straight in the chart
+    /// (`PXN_IMAGE_DEGREE = 1`): the region is
     /// half the unit square, so `flux = c/2` and `area = 1/2`
     /// exactly. The rectangle lane cannot answer it at all — it reads
     /// endpoints and calls a diagonal a refusal — so this row is the

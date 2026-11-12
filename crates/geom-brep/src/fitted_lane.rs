@@ -112,11 +112,20 @@ pub const FITTED_DOOR_HOLDERS: &[&str] = &[
 #[allow(clippy::type_complexity)]
 pub struct FittedLane<T: Real> {
     /// [`FittedLane::fitted_certificate`]'s body.
-    fitted_lane:
-        fn(&Curve3<T>, &NurbsCurve2<T>, &Surface<T>, (T, T), Band) -> Result<T, PcurveCertifyError>,
+    fitted_lane: fn(
+        &Curve3<T>,
+        &NurbsCurve2<T>,
+        crate::pcurve_cache::FittedChart<'_, T>,
+        (T, T),
+        Band,
+    ) -> Result<T, PcurveCertifyError>,
     /// [`FittedLane::general_image`]'s body.
-    general_image_lane:
-        fn(&Curve3<T>, (T, T), &NurbsSurface<T>) -> Result<NurbsCurve2<T>, PcurveCertifyError>,
+    general_image_lane: fn(
+        &Curve3<T>,
+        (T, T),
+        &NurbsSurface<T>,
+        Band,
+    ) -> Result<NurbsCurve2<T>, PcurveCertifyError>,
     /// [`FittedLane::chart_foot`]'s body.
     chart_foot_lane: fn(Point3<T>, &NurbsSurface<T>) -> Result<Point2<f64>, PcurveCertifyError>,
     /// [`FittedLane::projected_hull`]'s body.
@@ -149,7 +158,9 @@ impl<T: Real> FittedLane<T> {
     /// check 4 of the fitted lane's four checks, reached only from
     /// inside this crate's fitted doors: a certified bound on
     /// `sup |S(P(t)) − C(t)|` over the image's domain, which covers the
-    /// edge's interval `params`.
+    /// edge's interval `params`. `chart` is a spline chart, or an
+    /// analytic one with the class of the patch that agrees with it along
+    /// the image ([`crate::pcurve_cache::FittedChart`]).
     ///
     /// # Errors
     ///
@@ -159,27 +170,25 @@ impl<T: Real> FittedLane<T> {
         self,
         carrier: &Curve3<T>,
         image: &NurbsCurve2<T>,
-        surface: &Surface<T>,
+        chart: crate::pcurve_cache::FittedChart<'_, T>,
         params: (T, T),
         band: Band,
     ) -> Result<T, PcurveCertifyError> {
-        (self.fitted_lane)(carrier, image, surface, params, band)
+        (self.fitted_lane)(carrier, image, chart, params, band)
     }
 
     /// **The chart image of a carrier on a NURBS wall.**
     ///
-    /// The producer is `edge_nurbs`'s — the one derivation of this
-    /// object in the tree (`edge_nurbs::chart_image`): foot points at
-    /// the D9-fixed schedule, interpolated on the carrier's own
-    /// parameter at degree 1 (`PXN_IMAGE_DEGREE`). It is EVIDENCE and
-    /// certifies nothing by itself; the caller's next move is
-    /// [`crate::PcurveCache::certify_general`], which bounds
+    /// The producer is `edge_nurbs`'s: foot points at the D9-fixed
+    /// schedule, interpolated on the carrier's own parameter
+    /// (`pcurve_cache::general_image_lane`). The image is the degree-1 one
+    /// the edge certificate reads (`edge_nurbs::chart_image`) where its
+    /// miss between feet is within its share of `band`, and climbs
+    /// `edge_nurbs::general_chart_image`'s rungs where the foot path bends
+    /// past it, whatever the carrier's kind. It
+    /// is EVIDENCE and certifies nothing by itself; the caller's next
+    /// move is [`crate::PcurveCache::certify_general`], which bounds
     /// `sup_t |S(P(t)) − C(t)|` over the whole span against the chart.
-    /// A degree-1 image certifies only where the foot path is straight
-    /// to ε: a spline carrier's wherever its edge certificate holds
-    /// (that certificate reads this same image), a line's on a flat
-    /// chart, and a circle's, ellipse's or spiric's foot path bends, so
-    /// its image refuses at the hull ([`PcurveCertifyError::FittedCertificate`]).
     ///
     /// `params` is read only for a carrier with no knot domain. A
     /// spline's image spans its own knot domain, because the composite
@@ -208,8 +217,9 @@ impl<T: Real> FittedLane<T> {
         carrier: &Curve3<T>,
         params: (T, T),
         wall: &NurbsSurface<T>,
+        band: Band,
     ) -> Result<NurbsCurve2<T>, PcurveCertifyError> {
-        (self.general_image_lane)(carrier, params, wall)
+        (self.general_image_lane)(carrier, params, wall, band)
     }
 
     /// **A spline carrier's projected row's hull terms** — check 4 of
@@ -282,7 +292,7 @@ mod wiring_rows {
         }
         if !std::ptr::fn_addr_eq(
             lane.general_image_lane,
-            general_image_lane::<T> as fn(_, _, _) -> _,
+            general_image_lane::<T> as fn(_, _, _, _) -> _,
         ) {
             return Err("general_image_lane is not `pcurve_cache::general_image_lane`");
         }

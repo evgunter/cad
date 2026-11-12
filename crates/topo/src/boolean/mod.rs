@@ -73,7 +73,6 @@
 //! tests pin both directions on brick fixtures.
 
 mod arcs;
-pub(crate) mod boxes;
 mod carrier_cross;
 pub mod carrier_eq;
 pub(crate) mod carrier_pair;
@@ -158,7 +157,6 @@ mod nary;
 mod node;
 mod ops;
 mod overlap;
-pub(crate) use ops::{GluedSurfacePair, GluedSurfaces};
 pub(crate) mod section_cert;
 mod section_table;
 #[cfg(test)]
@@ -188,7 +186,6 @@ pub(crate) mod region;
 mod rim_wedge;
 pub(crate) mod ruled_region;
 pub(crate) mod sectors;
-pub(crate) mod separating;
 mod shell_witness;
 mod slit;
 pub use slit::EdgeInFaceGap;
@@ -284,8 +281,8 @@ pub use zip::{SharedClass, swap_split_roles, take_shared_points};
 // candidate-generation mode BY CONSTRUCTION.
 pub use crate::side_reader::AimedPair;
 pub use carrier_pair::{
-    PairUnread, carrier_pair_decided, carrier_pair_relation, face_carrier, flush_pair_relation,
-    rest_locus,
+    PairUnread, carrier_pair_arm, carrier_pair_decided, carrier_pair_relation, face_carrier,
+    flush_pair_relation,
 };
 pub use contact_verify::{rest_pair_verdict, tangent_pair_relation};
 pub use solid_contain::{
@@ -392,8 +389,8 @@ pub fn decision_words(predicate: &str) -> Option<&'static str> {
         | join::BOOL_GERM_PLANE_NORMAL
         | crate::cover::SPHERE_AXIS
         | crate::cover::SPHERE_SEAM_UNIT
-        | separating::PAIR_AXIS
-        | separating::PAIR_NORMAL
+        | crate::separating::PAIR_AXIS
+        | crate::separating::PAIR_NORMAL
         | solid_contain::POINT_AXIS => geom_core::DIRECTION_LENGTH_SUBJECT,
         crate::cover::SPHERE_SEAM => {
             "whether a sphere's seam direction is square to its polar axis"
@@ -403,7 +400,7 @@ pub fn decision_words(predicate: &str) -> Option<&'static str> {
         geom_core::UNIT_DIRECTION_ARM => {
             "whether the reach a direction is read over has any length"
         }
-        separating::PAIR_GAP => {
+        crate::separating::PAIR_GAP => {
             "how far apart two faces lie along a direction that turns with them"
         }
         "bool_pierce_normal_on_chart" | "bool_pierce_normal_on_cone" => {
@@ -1254,6 +1251,17 @@ pub(crate) enum Verdicts {
 }
 
 impl<T: Real> Glue<T> {
+    /// Each operand's faces in a one-carrier pair of this glue, A's then
+    /// B's ([`glue::GlueCensus`]).
+    fn one_carrier_faces(&self) -> glue::Decided {
+        let mut decided = glue::Decided::default();
+        for pair in self.pairs.iter().filter(|p| p.class().is_one_carrier()) {
+            decided[0].insert(pair.a);
+            decided[1].insert(pair.b);
+        }
+        decided
+    }
+
     /// Nothing glued and nothing carried.
     pub(crate) fn none() -> Self {
         Self {
@@ -1308,6 +1316,10 @@ enum Glued<T: Real> {
     OneCarrier {
         relation: CarrierRelation,
         margin: MarginDiag,
+        /// The side whose record its moved faces are left on, which
+        /// the census the verdict was read under took
+        /// ([`glue::GlueCensus`]).
+        kept: Operand,
     },
     /// Distinct carriers tangent along a locus the witness lane
     /// certified ([`glued_tangency`]).
@@ -1383,6 +1395,18 @@ impl<T: Real> GluedPair<T> {
         }
     }
 
+    /// What a one-carrier glue of this pair keeps and moves, read off
+    /// its operands' keys ([`glue::GlueCensus`]): the kept side its
+    /// deciding reading took, or, for a pair a fold step was given, the
+    /// census over `decided`.
+    fn census(&self, a: &Body<T>, b: &Body<T>, decided: &glue::Decided) -> glue::GlueCensus {
+        let kept = match self.origin {
+            Origin::Decided(Glued::OneCarrier { kept, .. }) => Some(kept),
+            _ => None,
+        };
+        glue::GlueCensus::of((a, self.a), (b, self.b), decided, kept)
+    }
+
     /// What the glue door decided; none for a given pair.
     fn decided(&self) -> Option<Glued<T>> {
         match self.origin {
@@ -1437,7 +1461,9 @@ impl<T: Real> GluedPair<T> {
             Ok(Ok(CarrierVerdict::One { relation, margin }))
                 if Some(relation) == class.carrier_relation() =>
             {
-                Self::one_carrier(fa, fb, relation, margin)
+                let decided = [[fa].into(), [fb].into()];
+                let census = glue::GlueCensus::of((a, fa), (b, fb), &decided, None);
+                Self::one_carrier(fa, fb, relation, margin, census.kept)
             }
             _ => None,
         }
@@ -1451,11 +1477,16 @@ impl<T: Real> GluedPair<T> {
         b: FaceKey,
         relation: CarrierRelation,
         margin: MarginDiag,
+        kept: Operand,
     ) -> Option<Self> {
         (relation != CarrierRelation::Distinct).then_some(Self {
             a,
             b,
-            origin: Origin::Decided(Glued::OneCarrier { relation, margin }),
+            origin: Origin::Decided(Glued::OneCarrier {
+                relation,
+                margin,
+                kept,
+            }),
         })
     }
 
@@ -1616,7 +1647,15 @@ fn off_ring_torus(
     refusal: geom_brep::TorusRefusal,
     pair: [(Operand, FaceKey); 2],
 ) -> BooleanError {
-    let (operand, face) = torus.of(pair);
+    torus_refusal_at(refusal, torus.of(pair))
+}
+
+/// [`BooleanError::of_torus_refusal`]'s body: a torus face `at` outside its
+/// ring convention, decided or in band.
+fn torus_refusal_at(
+    refusal: geom_brep::TorusRefusal,
+    (operand, face): (Operand, FaceKey),
+) -> BooleanError {
     match refusal.verdict {
         geom_brep::TorusVerdict::Refused(verdict) => BooleanError::DegenerateTorus {
             operand,
@@ -4155,6 +4194,14 @@ pub enum BooleanError {
     /// (`bool_join_nearest`, `bool_join_foot_travel`,
     /// `bool_join_arc_travel`), so a tighter tolerance may part them.
     JoinPartnersTied,
+    /// **Two germs' nearest pairs are decided equally near**, in a round
+    /// where committing either first can move the matching
+    /// (`join::first_pair`): some germ's nearest lies in one of them
+    /// without being mutual, so the join does not pick one by scan order.
+    /// A precision limit (row 1(b)): the two pairs lie within the band's
+    /// zero of each other (`bool_join_nearest`), so a tighter tolerance may
+    /// part them.
+    JoinPairsTied,
     /// **A curved join on a carrier the stage cannot run on.** The join
     /// restates the kept edge over both edges' span on its own carrier
     /// (`edge_join::joined_spec` says where the far parameter comes
@@ -4190,6 +4237,18 @@ pub enum BooleanError {
         row: RefusedRow,
         /// The carry's refusal.
         refusal: super::CarryRefusal,
+    },
+    /// A face a one-carrier glue moved onto the kept record has a
+    /// boundary that does not certify there
+    /// ([`crate::Body::one_record`]): the glue decided the pair one
+    /// carrier over every face it moves, so the boundary lay within the
+    /// band of the kept carrier, and a certificate that refuses it
+    /// contradicts that verdict.
+    ///
+    /// An abort: a kernel fault (row 4).
+    OneRecordUncertified {
+        /// The re-chart's refusal.
+        source: EulerOpError,
     },
     /// The A/B lockstep invariant failed during joining, finishing, or
     /// the combine door (a kernel bug or corrupt reduction, loudly).
@@ -4686,10 +4745,14 @@ pub enum BooleanErrorKind {
     JoinUndecided,
     /// [`BooleanError::JoinPartnersTied`].
     JoinPartnersTied,
+    /// [`BooleanError::JoinPairsTied`].
+    JoinPairsTied,
     /// [`BooleanError::JoinCarrierUnsupported`].
     JoinCarrierUnsupported,
     /// [`BooleanError::CarryRefused`].
     CarryRefused,
+    /// [`BooleanError::OneRecordUncertified`].
+    OneRecordUncertified,
     /// [`BooleanError::JoinDesync`].
     JoinDesync,
     /// [`BooleanError::LineageRow`].
@@ -4750,7 +4813,39 @@ impl BooleanError {
         move |refusal| match refusal {
             DoorRefusal::Escalated(diag) => Self::Escalated { decision, diag },
             DoorRefusal::Invariant(what) => Self::ClassificationInvariant { what },
+            DoorRefusal::Torus(_) => {
+                unreachable!("only a torus door refuses a torus, and it ends at its face")
+            }
         }
+    }
+
+    /// A torus root door's refusal at the torus face `at`: the torus
+    /// outside the ring convention at its face
+    /// ([`Self::of_torus_refusal`]), every other refusal as
+    /// [`Self::of_door_refusal`] ends it.
+    pub(in crate::boolean) fn of_torus_door_refusal(
+        decision: BooleanDecision,
+        at: (Operand, FaceKey),
+    ) -> impl Fn(geom_brep::curve_face::circle_roots::DoorRefusal) -> Self {
+        use geom_brep::curve_face::circle_roots::DoorRefusal;
+        move |refusal| match refusal {
+            DoorRefusal::Torus(refusal) => Self::of_torus_refusal(refusal, at),
+            other => Self::of_door_refusal(decision)(other),
+        }
+    }
+
+    /// **A torus face outside its ring convention**, as the convention
+    /// refused it ([`geom_brep::TorusRefusal`]), at the face `at`: decided,
+    /// the shape the kernel has no representation for
+    /// ([`Self::DegenerateTorus`], an abort as
+    /// [`geom_brep::TorusRefusal::refusal`] states it); in band, the
+    /// convention half's escalation ([`BooleanDecision::Torus`]). Both end
+    /// in the half's lever.
+    pub(in crate::boolean) fn of_torus_refusal(
+        refusal: geom_brep::TorusRefusal,
+        at: (Operand, FaceKey),
+    ) -> Self {
+        torus_refusal_at(refusal, at)
     }
 
     /// An escalation of the coincidence `which` between parts of the two
@@ -4960,8 +5055,10 @@ impl BooleanError {
             Self::Join(_) => BooleanErrorKind::Join,
             Self::JoinUndecided(_) => BooleanErrorKind::JoinUndecided,
             Self::JoinPartnersTied => BooleanErrorKind::JoinPartnersTied,
+            Self::JoinPairsTied => BooleanErrorKind::JoinPairsTied,
             Self::JoinCarrierUnsupported { .. } => BooleanErrorKind::JoinCarrierUnsupported,
             Self::CarryRefused { .. } => BooleanErrorKind::CarryRefused,
+            Self::OneRecordUncertified { .. } => BooleanErrorKind::OneRecordUncertified,
             Self::JoinDesync { .. } => BooleanErrorKind::JoinDesync,
             Self::LineageRow { .. } => BooleanErrorKind::LineageRow,
             Self::SplitLineage(_) => BooleanErrorKind::SplitLineage,
@@ -5032,7 +5129,7 @@ impl BooleanError {
             Self::ShellWitnessExhausted { first_in_band, .. } => first_in_band
                 .as_ref()
                 .map_or(Ok(Refusal::InBand), PointInSolidError::refusal),
-            Self::JoinPartnersTied => Ok(Refusal::InBand),
+            Self::JoinPartnersTied | Self::JoinPairsTied => Ok(Refusal::InBand),
             Self::JoinUndecided(u) => match &u.reading {
                 edge_join::JoinReading::Regularity(diag)
                 | edge_join::JoinReading::Crease(diag)
@@ -5124,6 +5221,7 @@ impl BooleanError {
             | Self::Euler(_)
             | Self::Pcurves { .. }
             | Self::CarryRefused { .. }
+            | Self::OneRecordUncertified { .. }
             | Self::JoinDesync { .. }
             | Self::LineageRow { .. }
             | Self::SplitLineage(_)
@@ -5852,6 +5950,12 @@ impl BooleanError {
                  another, so the Boolean cannot tell which to join. Recourse: move the parts \
                  so the sections' ends clearly part",
             ),
+            Self::JoinPairsTied => f.write_str(
+                "the operands' sections meet where two pairs of their ends lie equally near, \
+                 and which is joined first changes how the rest join, so the Boolean cannot \
+                 tell how to join them. Recourse: move the parts so the sections' ends \
+                 clearly part",
+            ),
             Self::JoinCarrierUnsupported {
                 edge,
                 carrier,
@@ -5884,6 +5988,11 @@ impl BooleanError {
                     "the Boolean could not carry {whose} onto its result: {refusal}"
                 )
             }
+            Self::OneRecordUncertified { source } => write!(
+                f,
+                "a face the Boolean decided one carrier with its partner does not certify on \
+                 the record they were left on: {source}. {KERNEL_DEFECT_ENDING}"
+            ),
             Self::JoinDesync { what } => write!(
                 f,
                 "A/B lockstep invariant violated: {what} (kernel bug or corrupt \
@@ -6802,14 +6911,14 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
         // a curved face only where its box holds the point.
         let mut curved_boxes = std::collections::BTreeMap::new();
         if minted.iter().any(|(_, plan)| plan.is_some()) {
-            let pad = boxes::sweep_pad(band);
+            let pad = crate::boxes::sweep_pad(band);
             let curved: Vec<FaceKey> = piercing_body
                 .faces()
                 .map(|(k, _)| k)
                 .filter(|&k| crate::face_normal::face_plane(piercing_body, k).is_none())
                 .collect();
             for face in curved {
-                curved_boxes.insert(face, boxes::face_box(piercing_body, face, pad, band));
+                curved_boxes.insert(face, crate::boxes::face_box(piercing_body, face, pad, band));
             }
         }
         let box_holds = |face: FaceKey, p: Point3<T>| {
@@ -8234,7 +8343,7 @@ fn route_rim<T: Decide>(
 /// The pad a face's reach along a witness line is widened by: the
 /// band's sweep pad, a tolerance.
 fn witness_pad<T: Real>(band: Band) -> T {
-    T::from_f64(boxes::sweep_pad(band))
+    T::from_f64(crate::boxes::sweep_pad(band))
 }
 
 /// The parameter spans of the line `origin + t·dir` (`dir` unit) the
@@ -10015,8 +10124,10 @@ mod tests {
                 BooleanErrorKind::Join => "Join",
                 BooleanErrorKind::JoinUndecided => "JoinUndecided",
                 BooleanErrorKind::JoinPartnersTied => "JoinPartnersTied",
+                BooleanErrorKind::JoinPairsTied => "JoinPairsTied",
                 BooleanErrorKind::JoinCarrierUnsupported => "JoinCarrierUnsupported",
                 BooleanErrorKind::CarryRefused => "CarryRefused",
+                BooleanErrorKind::OneRecordUncertified => "OneRecordUncertified",
                 BooleanErrorKind::JoinDesync => "JoinDesync",
                 BooleanErrorKind::LineageRow => "LineageRow",
                 BooleanErrorKind::SplitLineage => "SplitLineage",

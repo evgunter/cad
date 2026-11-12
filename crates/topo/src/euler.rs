@@ -766,8 +766,9 @@ fn require_chord_adjacent<T: Real>(
 /// The lever of an edge at rest whose faces' join reads in band or mixed
 /// along it ([`EulerOpError::RestJoinUndecided`],
 /// [`EulerOpError::RestJoinMixed`]).
-pub(crate) const REST_JOIN_LEVER: &str =
-    "move the geometry so the faces meet clearly smoothly or clearly at a corner along the edge";
+pub(crate) const REST_JOIN_LEVER: &str = geom_core::move_lever!(
+    "so the faces meet clearly smoothly or clearly at a corner along the edge"
+);
 
 /// A failed Euler-operator precondition. Closed enum (D3 style); the
 /// body is untouched whenever one of these is returned (the operators
@@ -5771,34 +5772,19 @@ mod tests {
             .unwrap();
         // Both checks run before the pcurve pass (check 8). The pillow
         // reads its rowless spline face as unminted, an image derivable
-        // for every edge; the split's circle has none on the spline
-        // chart, so the pass's reading of that face is the circle's
-        // refusal instead.
+        // for every edge, and the split's circle, in the patch's plane,
+        // has one too: its `General` image.
         let at = expected
             .iter()
             .position(|e| matches!(e, crate::ValidationError::Pcurve { .. }))
             .unwrap_or(expected.len());
-        let spline_half = [created.he_plus, created.he_minus]
-            .into_iter()
-            .find(|he| body.face_of_half_edge(*he) != Some(plane_face))
-            .unwrap();
         expected.splice(
-            at..,
+            at..at,
             [
                 crate::ValidationError::ScaffoldAtRest { edge: created.edge },
                 crate::ValidationError::PlanarBoundaryResidual {
                     face: plane_face,
                     edge: created.edge,
-                },
-                crate::ValidationError::Pcurve {
-                    finding: crate::PcurveMintError::Certify {
-                        half_edge: spline_half,
-                        error: geom_brep::PcurveCertifyError::NoGeneralLane {
-                            chart: geom::SurfaceKind::Nurbs,
-                            carrier: geom::CurveKind::Circle,
-                            gap: geom_brep::LaneGap::Unwritten,
-                        },
-                    },
                 },
             ],
         );

@@ -699,6 +699,7 @@ test_utils::f6_variants! {
         ConstantRefused,
         EmptyName,
         WrongNodeKind,
+        PickedMember,
         NotABodyRead,
         StepClear,
         Frame,

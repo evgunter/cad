@@ -1027,7 +1027,7 @@ impl<T: Real> RimArms<T> {
 ///
 /// The NEARER extreme is what is decided (`props_rim_level`), so a rim
 /// sitting exactly on one extreme is not made to escalate by the other.
-fn level_coincides<T: Decide>(
+fn level_coincides_as<T: Decide>(
     level: RimLevel<T>,
     (lo, hi): (RimLevel<T>, RimLevel<T>),
     arms: RimArms<T>,
@@ -1049,7 +1049,7 @@ fn level_coincides<T: Decide>(
 /// meters for [`RimLevel::Length`] (already a point deviation) and the
 /// dimensionless direction CHORD for [`RimLevel::Unit`] (a point
 /// deviation once levered). `None` for a mixed pair, which
-/// [`level_coincides`] turns into a refusal.
+/// [`level_coincides_as`] turns into a refusal.
 fn level_gap<T: Real>(a: RimLevel<T>, b: RimLevel<T>) -> Option<T> {
     match (a, b) {
         (RimLevel::Length(la), RimLevel::Length(lb)) => Some((la - lb).abs()),
@@ -1130,7 +1130,7 @@ fn mixed_levels(name: &'static str) -> PropsError {
 /// `ends` are the two extreme levels in the SAME representation the
 /// rims carry ([`RimLevel`]) — the torus's from its anchor meridian's
 /// stored span, the linearly-leveled kinds' from `min_max`. Every
-/// decision below is [`level_coincides`], including the fail
+/// decision below is [`level_coincides_as`], including the fail
 /// direction.
 ///
 /// **The margin is not always exactly zero.** On the ordinary
@@ -1153,7 +1153,7 @@ fn require_rims_at_extremes<T: Decide>(
     band: Band,
 ) -> Result<(), PropsError> {
     for rim in rims {
-        if !level_coincides(rim.level, ends, arms, band)? {
+        if !level_coincides_as(rim.level, ends, arms, band)? {
             return Err(PropsError::NotIsoRectangle {
                 what: "props_rim_level",
             });
@@ -1573,10 +1573,9 @@ fn cylinder_holes<T: Decide>(
 /// area, silently ([`PropsError::RingWoundWithFace`]); a whole or a
 /// hole of no width is a degenerate face.
 ///
-/// The rotational lane and the spiric lane read their rings
-/// through this same decision at the interval scalar
-/// (`quad::rotational_cut_face_rounds`,
-/// `spiric::require_rings_wound_against`), where an enclosure that
+/// The rotational lane reads its rings through this same decision at
+/// the interval scalar (`quad::rotational_cut_face_rounds`), where an
+/// enclosure that
 /// straddles the band escalates rather than takes a side.
 ///
 /// Which rings are holes is the caller's to say, and the kinds differ
@@ -2104,7 +2103,7 @@ fn apex_loop_sweep<T: Decide>(total: T, arm: T, band: Band) -> Result<(), PropsE
         },
     )?;
     let sweep = "props_cone_apex_loop_sweep";
-    match Period::new(T::tau()).not_over(TurnRows::exact(sweep), extent, Exact::new(arm), band) {
+    match Period::angle().not_over(TurnRows::exact(sweep), extent, Exact::new(arm), band) {
         Ok(true) => Ok(()),
         Ok(false) => Err(PropsError::ConeLoop { what: sweep }),
         Err(undecided) => Err(escalated(undecided.diag)),
@@ -2955,7 +2954,7 @@ fn cone_loop_winding<T: Decide>(
         }
         .offset(p)
     };
-    let off = |name, rho: T| {
+    let off_as = |name, rho: T| {
         classify_as(name, Margin::of(rho), band, PropsCheck::Inventory).map(|s| s == Sign::Positive)
     };
     let mut arm = T::zero();
@@ -2970,15 +2969,15 @@ fn cone_loop_winding<T: Decide>(
         let rho = a.norm().min(b.norm());
         match at_apex {
             AtApex::Refuse => {
-                if !off("props_cone_ring_off_apex", rho)? {
+                if !off_as("props_cone_ring_off_apex", rho)? {
                     return refuse("props_cone_ring_off_apex");
                 }
             }
             AtApex::AlongGenerator => {
                 let line = !e.carrier.is_curved();
                 match (
-                    off("props_cone_loop_off_apex", a.norm())?,
-                    off("props_cone_loop_off_apex", b.norm())?,
+                    off_as("props_cone_loop_off_apex", a.norm())?,
+                    off_as("props_cone_loop_off_apex", b.norm())?,
                 ) {
                     (true, true) => {}
                     (false, true) if line => (a, a_apex) = (b, true),
@@ -3276,7 +3275,7 @@ fn require_rim_only_closed<T: Decide>(
     band: Band,
 ) -> Result<(), PropsError> {
     let name = "props_rim_only_closed";
-    match Period::new(T::tau()).whole_turn(TurnRows::exact(name), du, Exact::new(arm), band) {
+    match Period::angle().whole_turn(TurnRows::exact(name), du, Exact::new(arm), band) {
         Ok(true) => {}
         Ok(false) => return Err(Premise::Inventory.refusal(name)),
         Err(undecided) => {
@@ -3414,7 +3413,7 @@ fn sphere_face<T: Decide>(
     // The face lies left of its loops under the OUTWARD normal, which
     // is the chart normal's left exactly when the bit is set.
     let region = solid_angle(center, outer, sense);
-    require_solid_angle(
+    require_solid_angle_as(
         "props_sphere_loop_area",
         region.min(solid_angle(center, outer, !sense)),
         radius,
@@ -3423,7 +3422,7 @@ fn sphere_face<T: Decide>(
     let mut solid = region;
     for ring in rings {
         let hole = solid_angle(center, ring, !sense);
-        require_solid_angle("props_sphere_hole_area", hole, radius, band)?;
+        require_solid_angle_as("props_sphere_hole_area", hole, radius, band)?;
         solid = solid - hole;
     }
     let area = radius.powi(2) * solid;
@@ -3610,7 +3609,7 @@ fn triangle_solid_angle<T: Real>(q: Vec3<T>, a: Vec3<T>, b: Vec3<T>) -> T {
 /// Require a solid angle (sr) to be definitely positive, levered by the
 /// sphere radius; a refusal is [`PropsError::SphereLoop`] named by the
 /// predicate.
-fn require_solid_angle<T: Decide>(
+fn require_solid_angle_as<T: Decide>(
     name: &'static str,
     angle: T,
     radius: T,
@@ -4607,7 +4606,7 @@ pub(crate) fn sphere_pole_left<T: Decide>(
 /// circle (`props_sphere_pole_arc_full`, the turn rule's whole turn).
 fn pole_arc_full<T: Decide>(extent: Extent<T>, radius: T, band: Band) -> Result<bool, PropsError> {
     let rows = TurnRows::exact("props_sphere_pole_arc_full");
-    Period::new(T::tau())
+    Period::angle()
         .whole_turn(rows, extent, Exact::new(radius), band)
         .map_err(|undecided| PropsError::Escalated {
             cause: undecided.diag,
@@ -4741,7 +4740,7 @@ fn require_span_within_period<T: Decide, R: TurnRate<T>>(
         NotForward::Zero(_) | NotForward::Reversed(_) => refuse(forward),
     })?;
     let (rate, rows) = rate(extent);
-    if Period::new(T::tau())
+    if Period::angle()
         .not_over(rows, extent, rate, band)
         .map_err(|undecided| escalated(undecided.diag))?
     {
@@ -5413,7 +5412,7 @@ fn torus_chart<T: Decide>(
                     let angle = torus_angle(sin_v, cos_v);
                     // The running `v` picks the branch, not the level.
                     let at = running.unwrap_or(angle);
-                    let (turns, v) = torus_lift(at, angle, minor, band)?;
+                    let (turns, v) = torus_lift_as(at, angle, minor, band)?;
                     running = Some(v);
                     length = length + rho * du.abs();
                     rims.push((angle, turns, du));
@@ -5427,7 +5426,7 @@ fn torus_chart<T: Decide>(
         let base = rims.iter().map(|&(_, turns, _)| turns).min().unwrap_or(0);
         let lifted: Vec<(T, T)> = rims
             .iter()
-            .map(|&(angle, turns, du)| (angle + Period::new(T::tau()).times(turns - base), du))
+            .map(|&(angle, turns, du)| (angle + Period::angle().times(turns - base), du))
             .collect();
         let (lo, hi) = min_max(&lifted.iter().map(|&(v, _)| v).collect::<Vec<_>>())?;
         let anchor = lo + (hi - lo) * half;
@@ -5464,9 +5463,9 @@ fn torus_chart<T: Decide>(
 /// before the lift is read, so `at − angle` is a whole number of turns
 /// to within `≈ Kε/minor`, half a turn clear of either mark, and the
 /// marks decide; a gap on a mark is no rim's.
-fn torus_lift<T: Decide>(at: T, angle: T, minor: T, band: Band) -> Result<(i32, T), PropsError> {
+fn torus_lift_as<T: Decide>(at: T, angle: T, minor: T, band: Band) -> Result<(i32, T), PropsError> {
     let name = "props_torus_lift_turns";
-    let period = Period::new(T::tau());
+    let period = Period::angle();
     period
         .decide(
             name,
@@ -6268,7 +6267,7 @@ mod rim_level_review_probe {
     fn mixed_kind_levels_refuse_typed() {
         let band = Band::linear(Tol::witness()).expect("band");
         let unit = RimLevel::Unit(0.5, 0.5);
-        let got = level_coincides(
+        let got = level_coincides_as(
             RimLevel::Length(1.0_f64),
             (unit, unit),
             RimArms::uniform(1.0),
@@ -6279,7 +6278,7 @@ mod rim_level_review_probe {
 
     /// **One rule, so one fail direction** (#714's review asked for the
     /// two to point the same way; S81 gave them one home). Both call
-    /// sites of [`level_coincides`] refuse a mixed representation, and
+    /// sites of [`level_coincides_as`] refuse a mixed representation, and
     /// the predicate's own entry is pinned here in both orders:
     /// whatever the poisoned classify does, a mixed-representation face
     /// never measures and never groups.
@@ -6361,7 +6360,7 @@ mod rim_level_review_probe {
         let band = Band::linear(Tol::witness()).expect("band");
         let d = band.zero() * 0.1;
         assert!(
-            level_coincides(
+            level_coincides_as(
                 RimLevel::Unit(0.0, 0.0),
                 (RimLevel::Unit(d, d), RimLevel::Unit(d, d)),
                 RimArms::uniform(1.0_f64),
@@ -6374,7 +6373,7 @@ mod rim_level_review_probe {
 }
 
 /// **A torus rim's lift is its whole turns as a theorem over a box**
-/// ([`torus_lift`]): at `Sym<Interval>`, a running angle `k` turns from
+/// ([`torus_lift_as`]): at `Sym<Interval>`, a running angle `k` turns from
 /// the rim's, both polynomials in a parameter over `[0.2, 0.4]` that are
 /// not constants (`a = p² + p + k·τ`, `b = p·(p + 1)`, whose value
 /// channels' difference is `≈ 0.64` rad wide with the dependency lost),
@@ -6405,7 +6404,7 @@ mod torus_lift_rows {
                 );
                 let a = p * p + p + Sym::from_f64(f64::from(k)) * Sym::tau();
                 let b = p * (p + Sym::<Interval>::one());
-                let (turns, level) = torus_lift(a, b, Sym::from_f64(0.5), band)
+                let (turns, level) = torus_lift_as(a, b, Sym::from_f64(0.5), band)
                     .unwrap_or_else(|e| panic!("k = {k}: {e:?}"));
                 assert_eq!(turns, k, "k = {k}: the lift's whole turns");
                 decide(

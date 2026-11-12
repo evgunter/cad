@@ -88,8 +88,8 @@
 //! while a crossing of a wall mints a strut run against each face's ring.
 
 use geom_brep::OutwardNormal;
-use geom_brep::ladder::{Answering, Evidence, Rung, climb_evidence};
 use geom_core::NonzeroSign;
+use geom_core::ladder::{Answering, Differing, Evidence, Rung, climb_differing, climb_evidence};
 use geom_core::{Band, Decide, Margin, Point3, Sign, Vec3};
 
 use super::contain::FaceContainment;
@@ -415,12 +415,13 @@ pub(super) enum PartnerRead {
 /// side the band decides but the offset could move is the slack's tie,
 /// read to the order that clears it ([`crate::bound_side::read`]).
 ///
-/// Every bound is read before any verdict, so the verdict is the bounds'
-/// whatever their order: a bound in band escalates (the first in orbit
-/// order is quoted); else bounds on both sides read [`PartnerRead::Across`];
-/// else a bound on a curved face, a sector on the face at both bounds,
-/// or a bound on it beside a touch `flush` with the face, read
-/// [`PartnerRead::Along`], in that order.
+/// The verdict is the bounds' whatever their order: two bounds decided
+/// on opposite sides read [`PartnerRead::Across`], past any bound in
+/// band; else a bound in band escalates (the one [`Evidence`] ranks,
+/// the first in orbit order among its rank); else a bound on a curved
+/// face, a sector on the face at both bounds, or a bound on it beside a
+/// touch `flush` with the face, read [`PartnerRead::Along`], in that
+/// order.
 pub(super) fn partner_side<T: Decide>(
     partner: &Partner<T>,
     own_at: Point3<T>,
@@ -429,27 +430,37 @@ pub(super) fn partner_side<T: Decide>(
     band: Band,
 ) -> Result<PartnerRead, BooleanError> {
     let rd = crate::link::metric::Reading::tied(band, (partner.at - own_at).norm());
-    let mut codes = Vec::with_capacity(partner.sectors.len());
-    for s in &partner.sectors {
-        codes.push([
-            datum.side(s.start, s.start_reach, rd)?,
-            datum.side(s.end, s.end_reach, rd)?,
-        ]);
+    // Two decided bounds on opposite sides answer `Across`, a theorem
+    // whatever the other bounds read, so they answer past a bound kept
+    // in band (`climb_differing`). Only an agreement of every bound reads
+    // on. `On` differs from neither side. The codes are each sector's
+    // start and end in turn.
+    let bounds = partner
+        .sectors
+        .iter()
+        .flat_map(|s| [(s.start, s.start_reach), (s.end, s.end_reach)]);
+    let read = |(dir, reach)| match datum.side(dir, reach, rd) {
+        Ok(code) => Rung::Answers(Ok(code)),
+        Err(e) => Rung::refused(e, BooleanError::refusal, Err),
+    };
+    let across = |a: &Result<SideCode, _>, b: &Result<SideCode, _>| matches!((a, b), (Ok(x), Ok(y)) if *x != SideCode::On && *y != SideCode::On && x != y);
+    let codes: Vec<SideCode> = match climb_differing(bounds, read, across) {
+        Differing::Differ(_) => return Ok(PartnerRead::Across),
+        Differing::Undecided(e) => return Err(e),
+        // An abort's answer is its refusal (`Rung::refused`'s `Err`),
+        // read through the one `Result` channel the agreement's are.
+        Differing::Aborted(read) => vec![read],
+        Differing::Agreed(codes) => codes,
     }
-    // Two decided bounds on opposite sides answer `Across` (a theorem),
-    // but a bound in band refuses above first: a deviation from the
-    // ladder rule, scheduled on
-    // `work/onecopy/the-ladder-has-no-climb-for-a-disagreement-that-answers.md`.
-    let mut side = None;
-    for c in codes.iter().flatten().filter(|&&c| c != SideCode::On) {
-        if side.is_some_and(|k| k != *c) {
-            return Ok(PartnerRead::Across);
-        }
-        side = Some(*c);
-    }
-    let along = codes.iter().flatten().any(|&c| c == SideCode::On);
+    .into_iter()
+    .collect::<Result<_, _>>()?;
+    let side = codes.iter().copied().find(|&c| c != SideCode::On);
+    let along = codes.contains(&SideCode::On);
     let refused = datum.curved_along(along).or_else(|| {
-        if codes.iter().any(|b| b.iter().all(|&c| c == SideCode::On)) {
+        if codes
+            .chunks_exact(2)
+            .any(|b| b.iter().all(|&c| c == SideCode::On))
+        {
             Some(AlongFace::FaceOnFace)
         } else {
             (along && flush).then_some(AlongFace::Flush)
@@ -1037,7 +1048,7 @@ pub(super) fn read_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
                 ));
             }
         };
-        if let Some(keeper) = super::tables::kept_copy(op, rel) {
+        if let Some(keeper) = super::tables::surviving_copy(op, rel) {
             covered.push(match piercing {
                 Operand::A => (s.face, contact.face),
                 Operand::B => (contact.face, s.face),
@@ -4185,6 +4196,15 @@ mod tests {
                 ),
             }
         }
+        // Two bounds decided on opposite sides answer `Across` past a
+        // bound kept in band, read first or between them in some rotation
+        // (`climb_differing`). A first-refusal loop escalated on it.
+        let rays = [[1.0, 0.0, 3.0 * z], [0.0, 1.0, 1.0], [-1.0, -1.0, -1.0]];
+        assert_eq!(
+            read(&rays, plane, false).unwrap(),
+            Across,
+            "a bound in band beside two decided across"
+        );
         // A bound rising at a slope whose side a unit radius of curvature
         // bends back within the band: off a plane, and undecided on the
         // bent face, where the lever charges it.
