@@ -5,6 +5,7 @@ title: A mixed rim whose mate carries a ring refuses at the mate gate
 status: closed
 opened: 2026-11-04
 closed: 2026-11-12
+pr: 6865
 priority: P1
 cost: M
 refs: [a-rounded-outline-is-a-closed-chain-of-mixed-links-the-blend-refuses]
