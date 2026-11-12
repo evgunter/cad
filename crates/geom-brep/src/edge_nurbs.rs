@@ -2582,6 +2582,7 @@ impl AnalyticRung3Refusal {
             | crate::PcurveCertifyError::PlacementTurnsExceeded
             | crate::PcurveCertifyError::TubePeriodExceeded
             | crate::PcurveCertifyError::ResidualExceeded { .. }
+            | crate::PcurveCertifyError::MissLocated { .. }
             | crate::PcurveCertifyError::Band(_) => Self::NoOffsetBound {
                 operand,
                 why: "the operand's canonical implicit form composed along the carrier has no \

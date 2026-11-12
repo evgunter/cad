@@ -262,6 +262,14 @@ pub(super) fn name_blend<T: geom_core::Real>(
         let m = up_e(*m)?;
         put(EntityKey::Edge(*e), RoleSeg::BandCut(m.name), m.tied)?;
     }
+    for (e, _, v) in &rec.sections {
+        let v = up_v(*v)?;
+        put(
+            EntityKey::Edge(*e),
+            RoleSeg::BandSection { vertex: v.name },
+            v.tied,
+        )?;
+    }
     for (e, m, band) in &rec.slits {
         let m = up_e(*m)?;
         let (band, band_tied) = band_set(band)?;

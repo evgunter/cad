@@ -394,7 +394,8 @@ impl ContainError {
             Self::Curved(e) => write!(f, "contfp: {}", geom_brep::recourse::read_at(e, at)),
             Self::Uncrossable(u) => write!(
                 f,
-                "contfp: {u}. Recourse: model the outline with lines, circles or ellipses"
+                "contfp: {u}. Recourse: {}",
+                crate::meeting::CONIC_OUTLINE_RECOURSE
             ),
             Self::ArcEndClearOfCorners(gaps) => write!(
                 f,

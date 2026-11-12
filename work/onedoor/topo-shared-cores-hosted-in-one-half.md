@@ -2,12 +2,12 @@
 id: topo-shared-cores-hosted-in-one-half
 kind: issue
 title: topo — two shared cores still hosted inside one half, finish and plane_crossing_lane
-status: dispatched
+status: closed
+closed: 2026-11-12
 opened: 2026-08-20
 refs: [690, S5, S173]
 priority: P1
 cost: H
-branch: onedoor/shared-cores
 ---
 
 ## From GitHub issue 695
@@ -115,3 +115,16 @@ At `d1ac6881`:
 - `SplitFinishError::Corrupt` has about 20 constructions plus 5 closures.
 
 Weighed by two designers as one question with `S173`, `chart-window-walk-written-twice` and G9's S96 (log, 2026-11-03).
+
+## Closed (ONEDOOR, PR 6858, 2026-11-12)
+
+- **Unit 1** (`carve` and `single_solid`): this PR moved them to the crate root, as `topo::carve` (crate-visible). Each refusal now states what it found: `CarveError` on both engines, and the split finish's `Desync(FinishDesync)`, `EmptyOperand` and `LineageRow`. `SplitFinishError::Corrupt` and its 37 sites are gone.
+- **Unit 2** (`plane_crossing_lane`): it lives in `geom-brep`, which is below both engines, so neither one hosts it. Its K names are `plane_crossing_*`, not `split_*`. Nothing is owed here.
+- **Deviation 2** (`chord_join`'s imports from `splitting/`): only the loop containment is left. The row `chord-joins-ring-side-reads-the-splitting-engines-loop-containment` moves it.
+- **Deviation 3** (the join error's name and wording): this PR made it `topo::JoinError`, wrapped by both engines. Its `Display` reads nothing from either.
+- **Deviation 4** (`SplitFinishError::Corrupt`): retired by this PR.
+- **The architectural question:** answered by `[topo.homes]` (`crates/topo/README.md`), and enforced by the `engine-leaves` gate. This PR lowered 17 of its pins.
+- **Filed by this PR:**
+  - `chord-join-names-the-booleans-section-branch`;
+  - `split-section-corrupt-is-payload-free`;
+  - `the-boolean-corpus-name-digests-are-red-on-main`.

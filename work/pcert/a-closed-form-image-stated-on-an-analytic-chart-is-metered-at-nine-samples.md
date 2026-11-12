@@ -2,10 +2,13 @@
 id: a-closed-form-image-stated-on-an-analytic-chart-is-metered-at-nine-samples
 kind: issue
 title: A closed-form image, or a curve in UV off its ruling, stated on an analytic chart is metered against its carrier at nine samples, so a harmonic image a millimetre off its line gets an edge certificate
-status: open
+status: closed
 opened: 2026-11-11
+closed: 2026-11-11
 priority: P1
 cost: M
+branch: pcert/closed-form-image-bounded
+pr: 6845
 ---
 
 Filed by `pcert/analytic-image-fidelity`, which closed
@@ -76,3 +79,27 @@ door's composite cannot be used without a remainder.
   is the angle.
 - Rows: both witnesses red on main and green after; the refusal census
   above rerun on the routing, and kept empty.
+
+## Closed (PR 6845, 2026-11-11)
+
+Every stated image on an analytic chart has a door that bounds its miss
+over the span (`pcurve_cache/stated.rs` `StatedDoor::of`, now total), and
+the edge certificate's sampled meter for stated images is deleted
+(`certify.rs` `StatedChart` has no `Sampled` arm).
+
+- A closed form (harmonic, spiric, focal section) is bounded by the
+  coefficients of its residual against the carrier, written exactly as
+  a trigonometric polynomial (`pcurve_cache/closed_bound.rs`,
+  `pcurve_cache/trig.rs`): angle channels read as angles, so a phase a
+  period away and a mirrored winding cost nothing; a spiric's `f` is a
+  factor over `ρ`, a focal section's azimuth is cleared by `q²`. Where the
+  bound does not clear, a grid read locates the miss
+  (`PcurveCertifyError::MissLocated`).
+- A curve in UV or iso line on a curved chart off one ruling goes to the
+  fitted composite against a patch that encloses the chart, its Taylor
+  remainder in its controls (`pcurve_cache/patch.rs`,
+  `PatchClass::Enclosed`).
+
+Both witnesses end as the stated image's miss at f64 and Interval, ε 1e-9
+and 1e-12 (`pcurve_cache/closed_image_rows.rs`). The class table, the
+refusal census and the cost are in the PR body.

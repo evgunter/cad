@@ -364,3 +364,23 @@ Ev, in chat: "go ahead in whatever order you see fit (including parallelizing th
   Both fall to the face-pair unit, and each asks for a probe.
 - **Brief error, mine:** the loop-lift brief put `torus_chart_window` in `boolean/boxes.rs`; it is in `cover.rs`. Both designers caught it.
 - (ONEDOOR orchestrator)
+- 2026-11-12 — **PR [#6858](https://github.com/evgunter/cad/pull/6858) fix pass accepted** (`79f9e088`). All 23 items of the adjudicated union were taken. Two were argued down: `JoinError` as `chart_window`'s refusal type, because three-walks deletes that walk, and the named `RingHoming` exception.
+  - **Two deviations, both accepted.** `ConeCornerUnread` and the empty `ResultInvalid` keep the defect ending spelled inline, because they name a different culprit. `CarveStep` is reachable only as `topo::boolean::CarveStep`, because a root re-export would raise a `names-boolean` pin.
+  - **Not done:** the roughly 100 old `corrupt_*` sites map to `Unresolved::Walk` without a Record-vs-Geometry audit. Recorded in the PR body.
+  - **Class finding:** a refusal arm that both a user's input and a kernel defect can reach is the fail-loud honesty defect. The empty-body split read "report it" until `single_solid`'s count got its own arm. The rule is one state, one arm, one ending. It is already the reviewer brief's claim 2; no new row.
+  - (ONEDOOR orchestrator)
+- 2026-11-12 — **Filed a main red at P0: `the-boolean-corpus-name-digests-are-red-on-main`.** It covers three editor-core slow-set rows that read `crossing_slots`. They are red at pure main `5589777fd` and filed nowhere. This program owns the filing, not the bisect owner. (ONEDOOR orchestrator)
+- 2026-11-12 — **`topo-shared-cores-hosted-in-one-half` closed** with PR 6858.
+  - Unit 2, `plane_crossing_lane`, was already in geom-brep with `plane_crossing_*` K names.
+  - **`S5` re-parked** on `engine-leaves-by-visibility` and re-banded P1 → P2. Its residue is the engine-to-engine edges, which the P2 `[topo.homes]` move rows carry, and a P1 parked on P2 work waits at the wrong band.
+  - (ONEDOOR orchestrator)
+- 2026-11-12 — **PR [#6869](https://github.com/evgunter/cad/pull/6869) (wedge fold, stage 2) fix pass accepted.**
+  - All 13 adjudicated items were taken: one door, so check 4 reads `topo::edge_wedge` with the one-surface seam inside it; one `Settled` map; one station numbering; a typed `MustCarryRung` over the fold's whole escalation; escalations carried whole; the `SmoothAcross` margin taken from the fold; the witness derived in the door; the rule levered at the faces' extent; and refusals that name their station.
+  - Item 2 ended as a filed row, `edge-join-reads-a-joined-vertex-with-one-incident-edges-tangent`: the fold reads interior stations, never an end.
+  - **Beyond the brief, accepted:** the rule's sign arm moved to the faces' extent with its class lever, which keeps the "same wedge over the same arm" argument true.
+  - **One red was the branch's.** The new in-band bend row pinned `R = 1e8`, which is in band at ε 1e-9 only, and it was red at 1e-6 and 1e-12. Fixed in `fcbdd08d` by deriving `R` from the band.
+  - **Class finding:** a row that pins a value "in band" must derive it from the active tolerance. A literal tuned at one ε is a one-row suite. This is the standing every-eps-row rule, already in `docs/prompts/implementer-discipline.md`, so no new row.
+  - The unit row stays `spec`: stage 3, the blend's `classify_edge_wedge`, is still owed.
+  - (ONEDOOR orchestrator)
+- 2026-11-12 — **PR [#6869](https://github.com/evgunter/cad/pull/6869) merged (wedge stage 2, `3b59315d`).** Hosted CI was red only on the three filed main rows (band, pcert, lathe). The main-red annotation is on the PR. Stage 3 stays owed on the unit row. (ONEDOOR orchestrator)
+- 2026-11-12 — **`face-pair-contact-pairing-has-four-spellings`: weighed as a design fork before any unit.** The row is `design: true`, and its open question has two viable answers. Three designers were dispatched concurrently at 16:03 with the same problem statement, by the protocol's draw; the labels are on the analysis branch. The tier and the implementer draw wait for the outcome. (ONEDOOR orchestrator)

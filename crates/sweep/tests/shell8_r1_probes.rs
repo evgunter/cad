@@ -302,7 +302,6 @@ fn r1_a_part_inside_another_solids_void() {
     let placed = topo::transform_rigid(
         &inner,
         &geom_core::RigidMotion::translation(Vec3::new(0.0, 0.0, 0.0)).unwrap(),
-        tol(),
     )
     .expect("identity");
     topo::graft_disjoint(&mut body, &placed).expect("the nested part grafts");

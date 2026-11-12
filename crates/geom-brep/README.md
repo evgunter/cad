@@ -1034,8 +1034,12 @@ in ℝ³, say (`pair_section::winds`); a point is read on a carried loop within 
 band padded by the loop's pad (`CarriedComponent::pad`, where its
 closeness and uniqueness are argued). A reader that needs a list no closed form
 counts carries; a site's component is its foot on the carried section,
-its one reading. A pair traced in ℝ³ is read over its own ball where
-its pose proves one, cut by one region per operation, as at one band:
+its one reading. A spline wall against a plane, cylinder, sphere or
+ring torus is carried from its whole reading: each branch between two
+rim ends as the reading fitted and certified it, its pad the chart
+tube's windows imaged on the wall by its chart speeds. A pair traced
+in ℝ³ is read over its own ball where its pose proves one, cut by one
+region per operation, as at one band:
 the ball about the overlap of the two operands' boxes, padded, which
 holds every section point the operation can use. No face's or site's
 extent enters it, so two faces on one carrier read one value. A
@@ -1322,9 +1326,10 @@ corner at one and a concave one at its neighbour, brackets an
 unsampled in-band point and is refused (`MixedDihedral`, naming the two
 stations; along a tangency, stations whose material pairings or ends
 differ are refused the same way, ending as a defect);
-`must_carry_over_edge` answers a class bracket `MustCarryVerdict::Mixed`,
-and every constructor refuses it typed but one: the blend's contact
-edge, routed smooth by its carrier's construction, ends a mixed reading
+a constructor reads the edge it wrote by the same fold
+(`topo::edge_wedge_description`), `must_carry_over_edge` answers a class
+bracket `MustCarryVerdict::Mixed` to the doors that re-ask a pair, and
+every one refuses a mixed edge typed but one: the blend's contact edge, routed smooth by its carrier's construction, ends a mixed reading
 as `SurgeryInvariant`, the surgery contradicting its own routing, since
 the rolling ball's exact contact cannot read a corner anywhere along
 it. NURBS-
