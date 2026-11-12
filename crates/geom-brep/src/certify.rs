@@ -532,11 +532,11 @@ pub enum CertifyError {
     ///
     /// THREE `Intersection` rungs certify, and this variant is what is
     /// left over. The analytic rung: both operands analytic (M5 PR 9,
-    /// C12.3 — the class the curved-boolean zip mints). The **plane ×
-    /// NURBS** rung (M7-8): exactly one PLANE and one described NURBS
-    /// wall, declare-and-check, through the [`NurbsLane`].
-    /// The **NURBS × NURBS** rung: two spline charts, through the same
-    /// lane. A spline beside a curved analytic surface has none.
+    /// C12.3 — the class the curved-boolean zip mints). The **residual ×
+    /// NURBS** rung: exactly one plane, sphere, cylinder or torus and one
+    /// described NURBS wall, declare-and-check, through the
+    /// [`NurbsLane`]. The **NURBS × NURBS** rung: two spline charts,
+    /// through the same lane. A spline beside a cone has none.
     Unimplemented,
     /// A two-surface description (`Intersection`, `TangentIntersection`,
     /// `OnPair`) names one surface twice — a locus on one surface is an
@@ -2416,8 +2416,9 @@ impl<T: Decide + geom_core::CertifiedBounds> EdgeCurve<T> {
     /// meters against `band`):
     ///
     /// 1. Implementedness: described surfaces resolve and are not
-    ///    `Nurbs`, except the described NURBS wall of a plane × NURBS
-    ///    `Intersection` (M7-8, through the [`NurbsLane`]) and
+    ///    `Nurbs`, except the described NURBS wall of an `Intersection`
+    ///    with a plane, sphere, cylinder or torus, the two charts of a
+    ///    NURBS × NURBS one (each through the [`NurbsLane`]) and
     ///    the chart of an image the construction states; a `Nurbs`
     ///    carrier certifies only under an
     ///    `Intersection` description (the rung-3 class, M5 PR 9 —
@@ -2708,19 +2709,11 @@ pub struct StatedImage<T: Real> {
 #[derive(Clone, Copy)]
 #[allow(clippy::type_complexity)]
 pub struct NurbsLane<T: Real> {
-    /// [`crate::plane_nurbs_limbs`] at `T`.
+    /// The residual × NURBS lanes' one door at `T`
+    /// (`edge_nurbs::residual_nurbs_limbs`): [`crate::plane_nurbs_limbs`]
+    /// for a plane, [`crate::curved_nurbs_limbs`] for a sphere, cylinder
+    /// or torus.
     limbs:
-        fn(
-            &Curve3<T>,
-            (T, T),
-            &Surface<T>,
-            &geom::NurbsSurface<T>,
-            geom_core::Lever<T>,
-            Band,
-        )
-            -> Result<crate::edge_nurbs::PlaneNurbsLimbs<T>, crate::edge_nurbs::PlaneNurbsRefusal>,
-    /// [`crate::curved_nurbs_limbs`] at `T`.
-    curved_limbs:
         fn(
             &Curve3<T>,
             (T, T),
@@ -2795,8 +2788,7 @@ impl<T: Decide + geom_core::CertifiedBounds> NurbsLane<T> {
     #[must_use]
     pub const fn certified() -> Self {
         Self {
-            limbs: crate::edge_nurbs::plane_nurbs_limbs::<T>,
-            curved_limbs: crate::edge_nurbs::curved_nurbs_limbs::<T>,
+            limbs: crate::edge_nurbs::residual_nurbs_limbs::<T>,
             pair_limbs: crate::edge_nurbs::nurbs_pair_limbs::<T>,
             analytic_limbs: crate::edge_nurbs::analytic_edge_limbs::<T>,
             incidence: crate::edge_nurbs::plane_nurbs_incidence::<T>,
@@ -2939,24 +2931,10 @@ impl<T: Real> NurbsLane<T> {
         (self.chart_arm)(chart, p, reach)
     }
 
-    /// The lane's limbs for a declared carrier of any kind on a plane ×
-    /// NURBS pair, over the edge's interval `params`.
-    fn limbs(
-        self,
-        carrier: &Curve3<T>,
-        params: (T, T),
-        plane: &Surface<T>,
-        wall: &geom::NurbsSurface<T>,
-        extent: geom_core::Lever<T>,
-        band: Band,
-    ) -> Result<crate::edge_nurbs::PlaneNurbsLimbs<T>, crate::edge_nurbs::PlaneNurbsRefusal> {
-        (self.limbs)(carrier, params, plane, wall, extent, band)
-    }
-
     /// The lane's limbs for a declared carrier of any kind between a
-    /// sphere, cylinder or torus and a NURBS wall
-    /// ([`crate::curved_nurbs_limbs`]), over `params`.
-    fn curved_limbs(
+    /// residual partner (a plane, sphere, cylinder or torus) and a NURBS
+    /// wall, over the edge's interval `params`.
+    fn limbs(
         self,
         carrier: &Curve3<T>,
         params: (T, T),
@@ -2965,7 +2943,7 @@ impl<T: Real> NurbsLane<T> {
         extent: geom_core::Lever<T>,
         band: Band,
     ) -> Result<crate::edge_nurbs::PlaneNurbsLimbs<T>, crate::edge_nurbs::PlaneNurbsRefusal> {
-        (self.curved_limbs)(carrier, params, partner, wall, extent, band)
+        (self.limbs)(carrier, params, partner, wall, extent, band)
     }
 
     /// The lane's incidence alone for a carrier of any kind on a plane ×
@@ -5338,12 +5316,9 @@ fn run_checks<T: Decide + geom_core::CertifiedBounds>(
         // The lane decided every residual folded into both limbs at
         // `band`; they enter the certificate's worst residual and are
         // not decided again.
-        let limbs = if matches!(partner, Surface::Plane { .. }) {
-            lane.limbs(&spec.carrier, (t0, t1), partner, wall, extent, band)
-        } else {
-            lane.curved_limbs(&spec.carrier, (t0, t1), partner, wall, extent, band)
-        }
-        .map_err(from_plane_nurbs)?;
+        let limbs = lane
+            .limbs(&spec.carrier, (t0, t1), partner, wall, extent, band)
+            .map_err(from_plane_nurbs)?;
         max_residual = max_residual
             .max(limbs.on_locus_max.abs())
             .max(limbs.hull_sup.abs());
@@ -5713,17 +5688,15 @@ fn plane_nurbs_pair<T: Real>(
 }
 
 /// The residual × NURBS pairing of an `Intersection`: [`plane_nurbs_pair`]
-/// with the partner a plane or a curved surface the rung-3 door reads in
-/// metres ([`crate::edge_nurbs::is_curved_partner`]: a sphere, cylinder
-/// or torus). A cone beside a spline chart is no such pair and refuses
-/// on the analytic path.
+/// with the partner any the lane's door reads
+/// (`edge_nurbs::is_residual_partner`: a plane, sphere, cylinder or
+/// torus). A cone beside a spline chart is no such pair and refuses on
+/// the analytic path.
 fn residual_nurbs_pair<T: Real>(
     pair: SurfacePair,
     surfaces: &impl Fn(SurfaceKey) -> Option<Surface<T>>,
 ) -> Option<(SurfaceKey, Surface<T>, SurfaceKey, Surface<T>)> {
-    partner_nurbs_pair(pair, surfaces, |s| {
-        matches!(s, Surface::Plane { .. }) || crate::edge_nurbs::is_curved_partner(s)
-    })
+    partner_nurbs_pair(pair, surfaces, crate::edge_nurbs::is_residual_partner)
 }
 
 /// Exactly one surface of `pair` a `partner` (returned with its key) and
@@ -5802,7 +5775,7 @@ mod foot_rows {
 #[cfg(test)]
 mod wiring_rows {
     use super::{NurbsLane, SplineFoot};
-    use crate::edge_nurbs::plane_nurbs_limbs;
+    use crate::edge_nurbs::residual_nurbs_limbs;
 
     /// `Ok(())` when the fields hold the lane's certified functions;
     /// otherwise the first wrong field's name.
@@ -5811,9 +5784,9 @@ mod wiring_rows {
         let lane = NurbsLane::<T>::certified();
         if !std::ptr::fn_addr_eq(
             lane.limbs,
-            plane_nurbs_limbs::<T> as fn(_, _, _, _, _, _) -> _,
+            residual_nurbs_limbs::<T> as fn(_, _, _, _, _, _) -> _,
         ) {
-            return Err("limbs is not `edge_nurbs::plane_nurbs_limbs`");
+            return Err("limbs is not `edge_nurbs::residual_nurbs_limbs`");
         }
         if !std::ptr::fn_addr_eq(
             lane.spline_face,
@@ -5826,12 +5799,6 @@ mod wiring_rows {
             crate::edge_nurbs::analytic_edge_limbs::<T> as fn(_, _, _, _, _) -> _,
         ) {
             return Err("analytic_limbs is not `edge_nurbs::analytic_edge_limbs`");
-        }
-        if !std::ptr::fn_addr_eq(
-            lane.curved_limbs,
-            crate::edge_nurbs::curved_nurbs_limbs::<T> as fn(_, _, _, _, _, _) -> _,
-        ) {
-            return Err("curved_limbs is not `edge_nurbs::curved_nurbs_limbs`");
         }
         if !std::ptr::fn_addr_eq(
             lane.pair_limbs,
@@ -5871,7 +5838,7 @@ mod wiring_rows {
         assert_eq!(
             holds_the_certified_nurbs_lane::<f64>(),
             Ok(()),
-            "`NurbsLane::<f64>::certified()` holds something other than `plane_nurbs_limbs`, `curved_nurbs_limbs`, `nurbs_pair_limbs`, `plane_nurbs_incidence`, `analytic_edge_limbs` and `composite_crossings`"
+            "`NurbsLane::<f64>::certified()` holds something other than `residual_nurbs_limbs`, `nurbs_pair_limbs`, `plane_nurbs_incidence`, `analytic_edge_limbs` and `composite_crossings`"
         );
     }
 

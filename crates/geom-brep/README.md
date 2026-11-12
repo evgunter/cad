@@ -269,12 +269,7 @@ plane×NURBS the chain is the
 wall pcurve's per-span windows, padded along each chart axis by the
 radius over that axis's chart speed (minted once over the wall's domain,
 refusing a zero or non-finite axis by name), and the enclosure is the
-chart form `∇φ·e⊥ / ‖chart stretch‖`. A sphere, cylinder or ring torus
-beside a spline chart is certified at rest on the same chain and form
-(`edge_nurbs::curved_nurbs_limbs`), each interior sample's two normals,
-the partner's gradient at the wall's foot and the wall's own, decided
-transversal at the shorter of the extent and either surface's curvature
-radius there. For NURBS×NURBS the chain is
+chart form `∇φ·e⊥ / ‖chart stretch‖`. For NURBS×NURBS the chain is
 of boxes in the ℝ⁴ state space, each the product of the two pcurves'
 padded windows over a run of consecutive spans (at most
 `PAIR_TUBE_BOXES` of them, the same windows hulled), and the enclosure
@@ -290,7 +285,22 @@ a solution or a box about it, `ε/8` per axis at that axis's chart speed,
 holds one on its boundary (`ssi/four.rs`). At rest the edge certificate
 derives both charts' images of the carrier from the fixed foot schedule,
 decides each interior sample's two normals transversal, and certifies
-the pair with this tube (`edge_nurbs::nurbs_pair_limbs`). The certificate records the tube
+the pair with this tube (`edge_nurbs::nurbs_pair_limbs`). A plane,
+sphere, cylinder or ring torus beside one spline chart is certified at
+rest through one door (`edge_nurbs::residual_nurbs_limbs`), on the wall
+pcurve's chain and the chart form above. Each interior sample's two
+normals, the partner's at the wall's foot (a curved partner's gradient
+there) and the wall's own, are decided transversal at the shorter of the
+extent and either surface's curvature radius there. The wall's image of
+the carrier is derived from the same foot schedule: beside a plane it is
+the feet's degree-1 interpolant, and beside a curved partner, whose arc
+bends in the chart, it is the image the pcurve mint climbs to for the
+same carrier (`edge_nurbs::general_chart_image`), whose nodes depend on
+the band. An image is evidence: inside the wall's knot rectangle limb 2
+bounds its distance from the carrier, and where it leaves the rectangle
+between two nodes limb 2 reads the boundary cell's polynomial extension
+and can pass, and there limb 3 refuses, its boxes cut to the rectangle
+(`SsiError::TubeNotOneArc`). The certificate records the tube
 by kind, a radius in metres or the per-axis chart pad (`SsiTube`), and
 the exhaustiveness accounting banks exactly the region it records.
 A component outside the chain is C3's exhaustiveness obligation, a
@@ -541,14 +551,15 @@ topology are named trileans on parameter-space distances. Near-tangential
 configurations refuse toward C7, each decision by what it reads. A
 decision at a point reads `sin θ · min(ρ, E)`, its arm from
 `ssi::point_arm`: `E` the extent, and `ρ` the reciprocal of the larger
-principal curvature of either surface there, read on the plane × NURBS
-lane from each chart's first and second fundamental forms
-(`shape_operator`) and on the ℝ³ lane from each implicit form's
-Hessian (`implicit_max_normal_curvature`), a plane's being zero; no
+principal curvature of either surface there, read from a chart's
+first and second fundamental forms (`shape_operator`) and from an
+implicit form's Hessian (`implicit_max_normal_curvature`), a plane's
+being zero; no
 chart's parameter lines enter it. The point decisions are the march's
 states, a Hermite candidate's two ends and refinement's unsettled chord
 midpoint, which refuse `SsiError::TransversalityBand`, and the at-rest
-per-sample check in `plane_nurbs_limbs`, which refuses
+per-sample check of the spline lanes (`residual_nurbs_limbs`,
+`nurbs_pair_limbs`), which refuses
 `PlaneNurbsRefusal::NotTransverse`; each names which of `ρ` and `E`
 its arm was (`PointLever`). A decision over a region (the boundary
 strip, and limb 3's tube on both lanes) reads the certified least
@@ -898,7 +909,7 @@ Approx)` and `(Approx, Plane)` route to the plane×NURBS arm over
 does. Nothing is composed into the edge's bound: the fit's distance from
 its description is the face's claim (O3, re-derived at rest by O5). Such
 an edge's carrier lies within `2ε / sin θ` of the described section
-along the wall, `θ` the angle between the plane and the wall, the same
+along the wall, `θ` the angle between the two surfaces, the same
 conditioning every certified `Intersection` edge already has; that is
 stated here and not enforced.
 The same rule governs curve pairs. Two carrier spans (a carrier and a
