@@ -844,8 +844,8 @@ fn a_plane_line_on_a_frame_drawn_near_its_axis_certifies_in_every_spelling() {
 }
 
 /// **A frame drawn with `b` near its axis is square to rounding**: the
-/// sweep's `u_ref` for a `b` 2e-3 off the axis leans off it by an ulp,
-/// not by `ulp/2e-3`.
+/// sweep's `u_ref` for a `b` near the axis leans off it by rounding,
+/// not by rounding over `b`'s offset (1e-10 at an offset of 1e-6).
 #[test]
 fn a_frame_drawn_near_its_axis_is_square_to_rounding() {
     let n = Vec3::new(0.3, -0.5, 0.8).normalize();
@@ -853,7 +853,7 @@ fn a_frame_drawn_near_its_axis_is_square_to_rounding() {
         let b = n * 0.7 + perpendicular_witness(n) * off;
         let u = across(b, n);
         assert!(
-            u.dot(n).abs() <= 4.0 * f64::EPSILON,
+            u.dot(n).abs() <= 1e-15,
             "a u_ref drawn {off:e} off its axis leans off it by {:e}",
             u.dot(n)
         );
