@@ -361,15 +361,17 @@ const ROSTER: &[(&str, usize, usize, &str)] = &[
     ("crates/geom-brep/src/pair_section/ruling.rs", 3, 3, ""),
     (
         "crates/geom-brep/src/pair_section/spline_implicit.rs",
-        2,
-        0,
-        "held by name since SECTARMS #6412 removed its one `is_certified()` (the bracket's), \
-         which was all the population key saw. Both reads are the pivot's: `pivot`'s shift, the \
-         upper end of the foot's lift over the stored normal's length (the normal is certified, \
-         and a quotient by a length not proven away from zero has an end that is not finite, \
-         which `band.padded` refuses, `SectionError::Unaccounted`); and `Phi::at`'s `lift`, a \
-         sum of products of certified points, no quotient, which certifies, its upper end a \
-         sound bound on the pivot's stand-off added to a height",
+        6,
+        4,
+        "the 4 that ask are `box_gap`'s per-axis gap, read only where both boxes' coordinates \
+         certify and NaN otherwise, which holds nothing apart (`PadsMeet`). The other 2 read \
+         the pivot's lift, the foot's height over the stored plane divided by the stored \
+         normal's length: `Pivot::shift`'s upper end, which pads the reading's band, and a \
+         quotient by a length not proven away from zero has an end that is not finite, which \
+         `band.padded` refuses (`SectionError::Unaccounted`) before any reading exists; and \
+         `Bracketed::at`'s, the same lift carried on the reading's form, which is only the \
+         bracket's first step, every side it keeps decided by `Bracketed::sign`, which asks \
+         `is_certified()` (`ssi::section::sign`), its pad the reach over the span it kept",
     ),
     (
         "crates/geom-brep/src/pair_section/spline_implicit/curved.rs",

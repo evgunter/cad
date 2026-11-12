@@ -95,8 +95,11 @@ const PRE_PASS: usize = 80;
 /// validated form (`editor_core::ProfileLane`) and logs what the second
 /// pass it skips decides, so its log is a lane scalar's. Its at-rest
 /// gate re-certifies the box's edges, where limb 2's distance bound (`ssi_hull_sup`, C2) adds 24 = 12 box edges × 2 operands
-/// to the 655 it held before limb 2 was owed by every carrier.
-const EXTRUDE_LOG: usize = 679;
+/// to the 655 it held before limb 2 was owed by every carrier. The
+/// extrude reads each of the 12 edges by its whole wedge, the arm, the
+/// wedge and a corner's sign at 7 stations where it read the arm and the
+/// wedge at one witness: 12 × 19 more than the 679 that leaves.
+const EXTRUDE_LOG: usize = 907;
 /// The one-solid part's second pass: the op's own guided replay and
 /// validation, after the pre-pass in the Profile node's log.
 const LANE_OP: usize = 75;

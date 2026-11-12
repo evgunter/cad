@@ -337,3 +337,11 @@ second site needs to ask the question at all. (ONEDOOR orchestrator)
   - Unit 2, `plane_crossing_lane`, was already in geom-brep with `plane_crossing_*` K names.
   - **`S5` re-parked** on `engine-leaves-by-visibility` and re-banded P1 → P2. Its residue is the engine-to-engine edges, which the P2 `[topo.homes]` move rows carry, and a P1 parked on P2 work waits at the wrong band.
   - (ONEDOOR orchestrator)
+- 2026-11-12 — **PR [#6869](https://github.com/evgunter/cad/pull/6869) (wedge fold, stage 2) fix pass accepted.**
+  - All 13 adjudicated items were taken: one door, so check 4 reads `topo::edge_wedge` with the one-surface seam inside it; one `Settled` map; one station numbering; a typed `MustCarryRung` over the fold's whole escalation; escalations carried whole; the `SmoothAcross` margin taken from the fold; the witness derived in the door; the rule levered at the faces' extent; and refusals that name their station.
+  - Item 2 ended as a filed row, `edge-join-reads-a-joined-vertex-with-one-incident-edges-tangent`: the fold reads interior stations, never an end.
+  - **Beyond the brief, accepted:** the rule's sign arm moved to the faces' extent with its class lever, which keeps the "same wedge over the same arm" argument true.
+  - **One red was the branch's.** The new in-band bend row pinned `R = 1e8`, which is in band at ε 1e-9 only, and it was red at 1e-6 and 1e-12. Fixed in `fcbdd08d` by deriving `R` from the band.
+  - **Class finding:** a row that pins a value "in band" must derive it from the active tolerance. A literal tuned at one ε is a one-row suite. This is the standing every-eps-row rule, already in `docs/prompts/implementer-discipline.md`, so no new row.
+  - The unit row stays `spec`: stage 3, the blend's `classify_edge_wedge`, is still owed.
+  - (ONEDOOR orchestrator)

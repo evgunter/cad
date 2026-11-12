@@ -129,14 +129,14 @@ pub use description::{
 };
 pub use dihedral::{
     Convexity, Corner, DIHEDRAL_ARM, DIHEDRAL_ARM_CLAUSE, DIHEDRAL_ARM_NOUN, DIHEDRAL_SIGN,
-    Dihedral, DihedralClass, DihedralReading, EdgeWedge, EdgeWedgeEscalation, MATERIAL_PAIRING,
+    Dihedral, DihedralClass, EdgeWedge, EdgeWedgeEscalation, MATERIAL_PAIRING,
     MATERIAL_PAIRING_CLAUSE, MaterialPairing, MixedStations, MustCarryDescription,
-    MustCarryEscalation, MustCarryRefusal, MustCarryVerdict, PairRefusal, PositiveArm, RestLocus,
-    SeamEscalation, SeamFace, SecondOrder, SmoothJoin, Station, Tangency, WedgeEnd,
-    WedgeEscalation, WedgeRung, classify_dihedral, classify_edge_wedge,
-    classify_material_pairing_as, classify_seam, dihedral_class, dihedral_decided,
-    folded_lever_arm, material_kappa_rel, must_carry_description, must_carry_over_edge,
-    reask_chart, reask_pair, rest_locus, tangent_second_order,
+    MustCarryEscalation, MustCarryRefusal, MustCarryRung, MustCarryVerdict, PairRefusal,
+    PositiveArm, RestLocus, SeamEscalation, SeamFace, SecondOrder, SmoothJoin, Station, Tangency,
+    WedgeEnd, WedgeEscalation, WedgeRung, classify_dihedral, classify_dihedral_reported,
+    classify_edge_wedge, classify_material_pairing_as, classify_seam, folded_lever_arm,
+    material_kappa_rel, must_carry_description, must_carry_over_edge, reask_chart, reask_pair,
+    rest_locus, tangent_second_order,
 };
 pub use dihedral_side::{
     ChartPointRefusal, CreaseReading, EdgeHalf, EdgeWalk, FaceSide, SideEscalation, SideFace,
@@ -146,11 +146,11 @@ pub use edge_nurbs::{
     AnalyticRung3Refusal, ArcRimRefusal, CARRIER_DOMAIN_RECOURSE, CarrierDomainFault,
     CarrierDomainRefusal, KERNEL_LIMIT_EXTENT_FACTOR, KERNEL_LIMIT_ROUNDING_FACTOR,
     PlaneNurbsIncidence, PlaneNurbsLimbs, PlaneNurbsRefusal, Rung3Limb, analytic_edge_limbs,
-    analytic_rung3, arc_rim_candidates, arc_rim_measured, first_within, is_analytic,
-    nurbs_pair_limbs, pick_arc_rim, plane_nurbs_incidence, plane_nurbs_limbs, probe_pick,
-    sub_arc_joint,
+    analytic_rung3, arc_rim_candidates, arc_rim_measured, curved_nurbs_limbs, first_within,
+    is_analytic, nurbs_pair_limbs, pick_arc_rim, plane_nurbs_incidence, plane_nurbs_limbs,
+    probe_pick, sub_arc_joint,
 };
-pub use edge_wedge::{Bend, WedgeVerdict, WedgeWalk, edge_wedge_over};
+pub use edge_wedge::{Bend, WedgeRefusal, WedgeVerdict, WedgeWalk, edge_wedge_over};
 pub use enters::{
     EntersMaterial, LeverEscalation, LeverRung, NormalAlignment, OutwardNormal, ParallelNormal,
     ParallelSense, ReferenceNormal, TiedGermsError, WallBend, WallBendError, bends_into_material,

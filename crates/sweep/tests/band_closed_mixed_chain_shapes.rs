@@ -61,8 +61,8 @@ enum Piece {
 
 /// A closed outline as a bulge chain, its pieces, and a dense polygon.
 #[derive(Clone, Debug)]
-struct Outline {
-    chain: Vec<(P, f64)>,
+pub(crate) struct Outline {
+    pub(crate) chain: Vec<(P, f64)>,
     pieces: Vec<Piece>,
     dense: Vec<P>,
 }
@@ -152,7 +152,7 @@ fn regular(n: usize, circ: f64, rr: f64) -> Outline {
     rounded(&poly, &vec![rr; n], &vec![0.0; n])
 }
 
-fn rect(hx: f64, hy: f64, radii: [f64; 4]) -> Outline {
+pub(crate) fn rect(hx: f64, hy: f64, radii: [f64; 4]) -> Outline {
     rounded(
         &[(-hx, -hy), (hx, -hy), (hx, hy), (-hx, hy)],
         &radii,
@@ -173,7 +173,7 @@ impl Outline {
         wn
     }
     /// Signed distance, positive inside.
-    fn sd(&self, q: P) -> f64 {
+    pub(crate) fn sd(&self, q: P) -> f64 {
         let mut d = f64::INFINITY;
         for p in &self.pieces {
             let e = match *p {
@@ -214,7 +214,7 @@ impl Outline {
     }
     /// Pappus: the section removed/added along this outline, where the
     /// ball lies on the `ball_inside` side of the wall.
-    fn pappus(&self, r: f64, ball_inside: bool) -> f64 {
+    pub(crate) fn pappus(&self, r: f64, ball_inside: bool) -> f64 {
         let a = r * r * (1.0 - PI / 4.0);
         let d = r * (10.0 - 3.0 * PI) / (3.0 * (4.0 - PI));
         let mut v = 0.0;
@@ -236,7 +236,7 @@ impl Outline {
     }
 }
 
-fn prism<T: Decide + topo::AtRestPolicy>(o: &Outline, z0: f64, h: f64) -> Body<T> {
+pub(crate) fn prism<T: Decide + topo::AtRestPolicy>(o: &Outline, z0: f64, h: f64) -> Body<T> {
     let plane = SketchPlane::xy_at(Point3::new(T::zero(), T::zero(), T::from_f64(z0)));
     let p = |q: P| Point2::new(T::from_f64(q.0), T::from_f64(q.1));
     extruded(
@@ -252,7 +252,7 @@ fn prism<T: Decide + topo::AtRestPolicy>(o: &Outline, z0: f64, h: f64) -> Body<T
     )
 }
 
-fn every_edge<T: Decide>(body: &Body<T>) -> Vec<EdgeKey> {
+pub(crate) fn every_edge<T: Decide>(body: &Body<T>) -> Vec<EdgeKey> {
     let mut all = topo::query::all_edges(body);
     all.sort_unstable();
     all
@@ -272,7 +272,7 @@ fn ends<T: Decide + Bounds>(body: &Body<T>, e: EdgeKey) -> (Point3<f64>, Point3<
 }
 
 /// The edges whose ends both lie at height `z` and satisfy `keep`.
-fn rim_where<T: Decide + Bounds>(
+pub(crate) fn rim_where<T: Decide + Bounds>(
     body: &Body<T>,
     z: f64,
     keep: impl Fn(Point3<f64>) -> bool,
@@ -286,7 +286,9 @@ fn rim_where<T: Decide + Bounds>(
         .collect()
 }
 
-fn volume<T: Decide + Bounds + CertifiedBounds + topo::AtRestPolicy>(body: &Body<T>) -> (f64, f64) {
+pub(crate) fn volume<T: Decide + Bounds + CertifiedBounds + topo::AtRestPolicy>(
+    body: &Body<T>,
+) -> (f64, f64) {
     let p = topo::mass_properties(
         &topo::test_support::finished("the measured body", Body::clone(body), tol()),
         tol(),
@@ -575,15 +577,33 @@ fn a_four_arc_barrel_fillets_whole() {
     plate_both("barrel", &o, 0.5, 0.05);
 }
 
-/// A plate with a hole of radius `hole_r` at `hole_at` in its top.
-fn holed_plate(hole_at: P, hole_r: f64) -> (Outline, Body<f64>) {
+/// A plate with a hole of radius `hole_r` at `hole_at` in its top, at
+/// any scalar.
+pub(crate) fn holed_plate<T: Decide + topo::AtRestPolicy>(
+    hole_at: P,
+    hole_r: f64,
+) -> (Outline, Body<T>) {
     let o = rect(1.0, 0.6, [0.3; 4]);
     let (x, y) = hole_at;
     let rev = vec![((x - hole_r, y), -1.0), ((x + hole_r, y), -1.0)];
-    let plane = SketchPlane::xy_at(Point3::new(0.0, 0.0, 0.0));
-    let lp =
-        |c: &[(P, f64)]| bulge_loop(c.iter().map(|&(q, b)| (Point2::new(q.0, q.1), b)).collect());
-    let body = extruded(plane, vec![lp(&o.chain), lp(&rev)], 0.5, tol());
+    let lp = |c: &[(P, f64)]| {
+        bulge_loop(
+            c.iter()
+                .map(|&(q, b)| {
+                    (
+                        Point2::new(T::from_f64(q.0), T::from_f64(q.1)),
+                        T::from_f64(b),
+                    )
+                })
+                .collect(),
+        )
+    };
+    let body = extruded(
+        SketchPlane::xy(),
+        vec![lp(&o.chain), lp(&rev)],
+        T::from_f64(0.5),
+        tol(),
+    );
     (o, body)
 }
 
@@ -599,7 +619,7 @@ fn a_hole_beside_the_rim_builds_where_it_clears_the_strips() {
         ((0.0, -0.6 + 0.03 + 0.05), 0.05, false),
         ((0.43, 0.3), 0.02, true),
     ] {
-        let (o, body) = holed_plate(at, hr);
+        let (o, body) = holed_plate::<f64>(at, hr);
         let rim = rim_where(&body, 0.5, |p| o.sd((p.x, p.y)).abs() < 1e-9);
         assert_eq!(rim.len(), 8, "the outer rim");
         let got = fillet_edges(&at_rest(&body, tol()), &rim, r, tol());
@@ -972,7 +992,7 @@ fn holes_at_an_arcs_wedge_build_clear_and_refuse_overlapping() {
         );
         let clear = o.sd(at) - hr - r;
         let what = format!("hole at {deg}°, {rad:.3} out (clear {clear:.4})");
-        let (_, body) = holed_plate(at, hr);
+        let (_, body) = holed_plate::<f64>(at, hr);
         let rim = rim_where(&body, 0.5, |p| o.sd((p.x, p.y)).abs() < 1e-9);
         let got = fillet_edges(&at_rest(&body, tol()), &rim, r, tol());
         println!(

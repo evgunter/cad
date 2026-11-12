@@ -254,7 +254,7 @@ retired (`bool_sector_*` / `split_sector_*`, unified to `sector_*` by
 # are rows of this table like any other; `gate_measured` is deliberately
 # absent — it classifies no margin and has no comparand to dimension.
 # The `_reported` doors and `check_unlogged` (the F18–F25 door, the
-# one-margin case of `unlogged`, F28's) are the same decisions keeping
+# one-margin case of `unlogged`, F41's) are the same decisions keeping
 # their verdict or leaving the log.
 grep -rnE '\b(decide|decide_reported|decide_flagged|decide_flagged_reported|decide_positive|decide_negative|decide_nonzero|decide_nonzero_reported|decide_magnitude|decide_magnitude_reported|check_unlogged|check_residual|classify|classify_len|require_zero|require_extent|gap_is_zero|signed_is_zero)\s*(::<[^()]*>)?\s*\(' \
   crates/geom-brep/src crates/topo/src
@@ -339,8 +339,9 @@ should know why. They live only in an `Indeterminate.predicate`:
     with a point between them read on (`curve_pair::meet`);
   - and a blend's battery straddle, which carries its decision's own
     funnel row, so it adds no name here;
-- four as the name argument of a `k_stats::gate_measured` call:
-  `plane_nurbs_transversality_reported` and
+- five as the name argument of a `k_stats::gate_measured` call:
+  `plane_nurbs_transversality_reported`,
+  `curved_nurbs_transversality_reported` and
   `nurbs_pair_transversality_reported` (`edge_nurbs`), and
   `shell_walls_extent` and `shell_moved_walls_extent` (`shell`).
 
@@ -431,6 +432,7 @@ which is what actually moves the number.
 | intersect.rs `plane_torus_section` | torus_tube_positive / ring_torus_convention (read from `geom::ring_torus`, the convention's one home) / pt_axis_in_plane / pt_axis_plane_gap (and `pt_axis_plane_gap_floor`) / pt_axis_normal / pt_cap_gap (and `pt_cap_gap_floor`) | r; R−r; sin×extent; the stand-off `n·(q − c)`, summed with the meridian circles' lean `r·(a·n)` (`decide_across`): each circle stands at most that sum off the plane, at any extent; sin×(R + r); r − the depth `d/(a·n)` of the plane's crossing of the axis (independent of where its origin is stored), summed with sin×(R + r) (`decide_across`): each circle is minted at that crossing and stands at most sin×(R + r) off the plane | m | OK |
 | intersect.rs:2026/2047/2053/2068/2093/2111 | coc_cylinder_radius / coc_aperture_sin / coc_aperture_cos / coc_seam_off_axis / coc_axes_parallel / coc_coaxial / coc_coaxial_floor / coc_station_reach | R; sin α×extent; cos α×extent; the seam's sine off the axis (`geom::Frame::square`'s `width`)×extent; sin×extent; the apex's distance from the cylinder's axis plus sin×extent, and less it for the floor (`decide_across`); extent − |R·cot α| (extent measured from the apex) | m | OK — the family prefix is `coc_`, not `cc_`: `cc_*` is cylinder×cylinder's glob two rows above and would over-match. `coc_station_reach` is the arm's ADMISSION criterion; the two aperture clauses are a division guard and a convention clause, not conditioning questions |
 | edge_nurbs.rs (`plane_nurbs_limbs`, the transversality hook on `chart_image`'s interior samples; through `dihedral::decide_reported`) | plane_nurbs_transversality | `sin θ` of the plane's normal against the wall's `du × dv` (`normal_angle_sine`, both normalised), levered by `ssi::point_arm`'s `extent / max(1, κ·extent)` = min(extent, 1/κ), κ the wall's largest principal curvature at the foot (1/m) | m | OK (levered door; `ssi_transversality`'s comparand at the plane × NURBS lane's own samples. The reported minimum is `plane_nurbs_transversality_reported`, a `gate_measured` name outside this table) |
+| edge_nurbs.rs (`curved_nurbs_limbs`, the same hook in `residual_nurbs_limbs`; through `dihedral::decide_reported`) | curved_nurbs_transversality | `sin θ` of the partner's gradient at the wall's foot (a sphere's, cylinder's or torus's `implicit_gradient`) against the wall's `du × dv` (`normal_angle_sine`, both normalised), levered by `ssi::point_arm`'s `extent / max(1, κ·extent)` = min(extent, 1/κ), κ the larger of the partner's largest normal curvature and the wall's largest principal curvature at the foot (1/m) | m | OK (levered door; `ssi_transversality`'s comparand, as the 1×2 trace reads it, at the curved-partner × NURBS lane's own samples. The reported minimum is `curved_nurbs_transversality_reported`, a `gate_measured` name outside this table) |
 | dihedral_side.rs (`spline_normal`, a spline face's foot of a shared edge's point; through `dihedral::decide_magnitude_reported`) | dihedral_side_foot | `‖S(u*, v*) − p‖`, the projection's own distance at `T` | m | OK (a nonnegative length on the magnitude door: zero puts the point on the spline face, positive refuses it off the face. The side itself is decided by `enters_material` over the folded arm) |
 | dihedral_side.rs (`spline_normal` through `near`, a spline face's foot against the chart's irregular points; through `dihedral::decide_magnitude_reported`) | dihedral_side_regular | `‖m‖·‖S_x‖/‖∂_x m‖` for `m = S_u × S_v`, least over the two directions and folded with the reach: the arc along `x` to where `m` vanishes (twice it at a kink) | m | OK (a nonnegative length on the magnitude door: positive reads the foot as regular; zero, in band or poison (`m` and its change both zero) escalates `Crease`) |
 | dihedral_side.rs (`on_a_crease`, a spline face's foot against each line its normal is not continuous across; through `dihedral::decide_magnitude_reported`) | dihedral_side_crease | `‖S(c, v*) − S(u*, v*)‖` (or the `v` twin), the foot's distance from a crease run or a closed chart's end along the iso line through it | m | OK (a nonnegative length on the magnitude door: positive reads the foot's span, zero or in band escalates `Crease`) |
@@ -1211,9 +1213,10 @@ Flagged, NOT fixed here (dispositions):
   band arm is `Unevaluated`, which reports the indeterminacy rather
   than picking a side. Carried as `decide_flagged(.., "F16")`.
 
-- **F17** (added by M10-5, the clearance engine)
-  `topo/src/clearance.rs` `clearance_margin` and
-  `self_intersection_gap`: the two compares the E7 inner subdivision
+- **F17** (added by M10-5, the clearance engine; the support compare
+  by CLEAR's DIRSUPPORT unit) `topo/src/clearance.rs`
+  `clearance_margin`, `self_intersection_gap` and
+  `clearance_support_gap`: the compares the E7 inner subdivision
   makes on a pair decided by DISTANCE. SELFX added the injectivity
   question's local certificates beside them, each its own row in the
   `injective.rs` block above; this entry is about the distance test,
@@ -1237,6 +1240,23 @@ Flagged, NOT fixed here (dispositions):
   scope*), so a coincidence at the run's tolerance is the violation the
   check exists to find. One name with
   two readings would put two populations under one K row.
+
+  A third compare, `clearance_support_gap` (`separated_by_support`),
+  is asked of a pair whose box margin is indeterminate, and by the
+  injectivity question's choice between a touching pair's certificate
+  and the distance test. Its comparand is `L − c`: `L` is the gap
+  between the two cells' supports along one direction `n`, over `|n|`,
+  each support the hull of `⟨P, n⟩` over the cell's restricted,
+  dehomogenized control points (`NurbsSurface::rect_net`), a plane's
+  own affine form, or the cell's box. `L` bounds the cells' separation
+  from below, so the comparand is honest METRES against the linear band
+  and **the site is not flagged**. Only `Sign::Positive` is read, and it
+  discharges the pair under either bound: `L` bounds the separation from
+  nowhere above, so a `Zero` or a `Negative` is no coincidence and no
+  violation, and the pair goes on to the box margin's indeterminate arm.
+  `n` only chooses which bound is decided; it is a raw `f64` read of the
+  cells' centre normals and centres, and the choice among three
+  directions decides nothing.
 
 - **F18** (added by M10-8's fix pass, found by scoping the recorder's
   name) `editor-core/src/expr.rs` `refuse_non_finite`: the ruled
@@ -1454,113 +1474,6 @@ Flagged, NOT fixed here (dispositions):
   the reach the margin over-reads by `ρ/reach`, and every root there
   is outside the face. Filed as
   `work/inside/ray-cone-discriminant-under-reads-by-its-lead-coefficient.md`.
-- **F28** (added by CLEAR's TIGHTEN unit) `topo/src/clearance.rs`
-  `min_separation`, the region readings its walk takes
-  (`Bracket::outside`, `Bracket::witness`): a cell's region
-  (`cell_region`, the `cell_region_*` rows above) and a centre station's
-  place on its face (the face's point door, the `bool_contact_*` and
-  point-in-face rows). Every row keeps its own dimension; what this row
-  argues is why their outcomes stay out of the verdict log.
-  - Every outcome of every reading leaves a bracket true to the band.
-    A cell read `Outside` holds no point of its face, so the pair drops
-    out of the lower end; a cell the door cannot decide (`Zero`, in
-    band, poison) stays in it. A station placed `In` is a point of its
-    face; one placed `OnEdge` or `OnVertex` is an in-band decision and
-    may lie up to the band outside the face, and either bounds the upper
-    end; a station the door does not place stays out of it. So the upper
-    end bounds the faces' separation up to the band, and an `AtLeast c`
-    over faces within the band above `c` can read `Violated`: the
-    kernel's ε model, not a defect. The readings choose which pairs feed
-    the bracket and decide nothing a census must see.
-  - `min_separation` once ran inside an evaluation, under a measure
-    that no longer exists; no evaluation asks it now. Logged, its readings would be
-    rows in the leaf's vector that the witness's cannot have, and every
-    leaf would refuse `flip_crossing`; its in-band escalations would
-    hand the driver a cue to bisect that no smaller parameter box
-    answers (measured on M10-6's neck and notch fixtures: every call
-    carries 137–186 of them).
-  - What the scope does not hide. The symbolic tier's decision counts
-    (`SymCounts`) still count the in-scope decisions, and they reach
-    the drive verdict's `content_key` through its serialized receipt,
-    which is where a receipt belongs. And the readings' K samples keep their names, which
-    is vacuous at this site today: `Probe` never runs `min_separation`,
-    since only a certifying scalar holds the engine's door. If a
-    `min_separation` call enters the driver's K population at a
-    certifying scalar, its 137–186 in-band samples per call would fire
-    k-lint rule 1; that is a finding to re-derive then, per the K-REPORT
-    runbook, not a reason to log them.
-
-  **Carried as `k_stats::unlogged("F28", ..)`**, the scoped door whose
-  one-margin case is `check_unlogged`: its verdicts and escalations are
-  discarded. `MinSeparation::decided` counts the readings as a receipt
-  line. Not a `decide_flagged` site; `LEDGER_FLAGGED_SITES` does not
-  move. `geom-core/tests/flagged_census.rs` checks that every
-  `unlogged` and `check_unlogged` site cites a row this ledger has.
-
-- **F29** (added by CLEAR's DIRSUPPORT unit) `topo/src/clearance.rs`
-  `clearance_support_gap`, at `apart_along`: the distance test's second
-  compare, asked of a cell pair whose box margin at F17's site is
-  indeterminate, and by the injectivity question's choice between a
-  touching pair's certificate and the distance test. The comparand is
-  `L − c`, where `L` is the gap between the two cells' supports along
-  one direction `n`, over `|n|`, and `c` the requested clearance (`0`
-  under the strict question). Each support is the hull of `⟨P, n⟩` over
-  the cell's restricted, dehomogenized control points
-  (`NurbsSurface::rect_net`), a plane's own affine form, or the cell's
-  box. `L` is a lower bound on the cells' separation, so the comparand
-  is honest METRES against the linear band, and **the site is not
-  flagged**; this row is the disposition, and `LEDGER_FLAGGED_SITES`
-  does not move.
-  - Only `Sign::Positive` is read, and it discharges the pair under
-    either bound. `L` bounds the separation from below and from
-    nowhere above, so a `Zero` or a `Negative` here is no coincidence
-    and no violation: the pair goes on to F17's indeterminate arm as
-    before. One name serves both bounds for that reason; F17 needs two
-    because its `Zero` is read two ways.
-  - `n` only chooses which bound is decided. The bound holds along any
-    nonzero `n`, so `n` is a raw `f64` read of the cells' centre
-    normals and centres, not a certified quantity, and the choice
-    among three directions is a raw compare that decides nothing.
-  - Logged, like F17, where it discharges: it is a decision of the
-    bound sweep. The margin is first read at the same site through
-    `k_stats::check_unlogged(.., "F29")`, and the logged `decide` runs
-    only where that reading is `Positive`, so the site's logged
-    population is `Positive` verdicts and it never logs an escalation.
-    An in-band support compare is not refinable in a parameter box (it
-    is one-sided), and logged it would cue the driver to bisect leaves
-    no smaller box answers, as F28 measured for `min_separation`.
-
-- **F30** (added by DOORS' clearance-assertion unit)
-  `editor-core/src/eval/wire.rs` `wire_clearance`: the bound sweep a
-  clearance assertion runs at a certifying lane, every decision under
-  it (F17's and F29's sites, the region readings F28 lists, the
-  injectivity rows). Every row keeps its own dimension; what this row
-  argues is why their outcomes stay out of the node's verdict log.
-  - The sweep's outcome is the assertion's REPORT: a verdict, a
-    verified pair, or a typed refusal (a sliver, a budget), with its
-    receipt. An in-band reading is split or refused inside the sweep,
-    and a refusal is the verdict's third state, never a node failure
-    the driver could re-read.
-  - Logged, the readings would be rows in the leaf's vector that the
-    `f64` witness build cannot have (a point scalar runs no sweep), so
-    every leaf of a document asserting a clearance would refuse
-    `flip_crossing`; and their in-band escalations would cue the
-    driver to bisect a parameter box over cell pairs that only a
-    smaller CELL answers (measured on the dumbbell neck: drives that
-    certified at once ran past ten minutes).
-  - **The one reading that goes in**: an upper bound the box decides
-    only in part (`EngineRefusal::BoxDependent` — its closest pair's
-    separation over the box straddles the bound). A narrower BOX is
-    what answers that, so `wire_clearance` decides the pair's reach
-    against the bound once, logged, at `CLEARANCE_MARGIN`'s site: the
-    reading straddles the bound by construction, so it is
-    indeterminate — the driver's cue to bisect, and a leaf it cannot
-    narrow refuses
-    (`m10_6_clearance_assertion_interval`'s box-dependent rows).
-
-  **Carried as `k_stats::unlogged("F30", ..)`**. Not a `decide_flagged`
-  site; `LEDGER_FLAGGED_SITES` does not move.
-
 - **F31** (added by ONECOPY's foot-and-angle unit, widened by its
   angle-reads unit, and by its half-open-angles unit) — **a renaming
   between copies equal modulo a period.** Three sites, each choosing
@@ -1891,6 +1804,63 @@ Flagged, NOT fixed here (dispositions):
   it read each component of the cross product apart at
   `Lever::unsourced(1 m)`, the raw read's own scale. Every sine the door
   read on the replay's corpus was exactly zero, so no decision moved.
+
+- **F41** (added by CLEAR's verdict-door unit) `topo/src/clearance.rs`
+  `Sweep::run` and `min_separation`: the clearance engine's two entry
+  points, and every decision under them — the distance test's three
+  compares (F17), the injectivity question's local certificates, the
+  cells' region readings (`cell_region`, the `cell_region_*` rows above)
+  and the stations' place on their faces (the face's point door), and
+  the caller's verifier. Every row keeps its own dimension; what this
+  row argues is why the engine takes their outcomes out of the caller's
+  verdict log itself, rather than each caller keeping a scope.
+  - **The outcome is the question's report.** A bound sweep answers a
+    verdict, a verified pair or a typed refusal (a sliver, a budget, an
+    uncertified pair) with its receipt; the minimum walk answers a
+    bracket. An in-band reading is split or refused inside the walk,
+    and a refusal is the verdict's third state, never a node failure
+    the driver could re-read. The minimum walk's readings choose which
+    pairs feed its bracket: every outcome leaves a bracket true to the
+    band (a cell read `Outside` holds no point of its face, a station
+    placed `OnEdge` or `OnVertex` lies within the band of it), so they
+    decide nothing a census must see.
+  - **Logged, the readings would mislead both of the log's readers.**
+    They would be rows in a leaf's vector that the `f64` witness build
+    of a clearance assertion cannot have, so every leaf of a document
+    asserting a clearance would refuse `flip_crossing`. And their
+    in-band escalations would cue the driver to bisect a parameter box
+    over cell pairs that only a smaller CELL answers: measured on the
+    dumbbell neck, drives that certified at once ran past ten minutes,
+    and on M10-6's neck and notch fixtures every `min_separation` call
+    carries 137–186 such escalations.
+  - **Why the entry points, and not each caller.** The scope was kept
+    by hand in three places, two inside the engine (F28, F29) and one
+    caller (`wire_clearance`, F30), and the shell's cavity gate, a
+    second caller, did not keep it, so a shell node at `Interval`
+    logged the cavity sweep's readings as its own. No production site reads a cell outside the two entry
+    points.
+  - **The one reading that goes in** is a caller's, after the sweep
+    returns: an upper bound the box decides only in part
+    (`EngineRefusal::BoxDependent` — its closest pair's separation over
+    the box straddles the bound). A narrower BOX answers that, so
+    `wire_clearance` decides the pair's reach against the bound once,
+    logged, at `CLEARANCE_MARGIN`'s site: the reading straddles the bound
+    by construction, so it is indeterminate, the driver's cue to bisect,
+    and a leaf it cannot narrow refuses
+    (`m10_6_clearance_assertion_interval`'s box-dependent rows).
+  - **What the scope does not hide.** The symbolic tier's decision
+    counts (`SymCounts`) still count the in-scope decisions, and they
+    reach a drive verdict's `content_key` through its serialized
+    receipt. The readings' K samples keep their names. The shell's cavity
+    gate does not ask at `Probe` yet (`CavityGate`), so no K population
+    moves here; once `the-f64-cavity-gate-refuses-thirty-two-valid-shells`
+    switches it on, its samples enter the K population, and a k-lint row
+    that fires on them is a finding to re-derive per the K-REPORT
+    runbook, not a reason to log them.
+
+  **Carried as `k_stats::unlogged("F41", ..)`**, at the head of each
+  entry point. Not a `decide_flagged` site; `LEDGER_FLAGGED_SITES` does
+  not move.
 
 **Every `props/curved.rs` row above is cited BY TARGET NAME, not by
 line** (S176(a)). The line numbers they carried were written against a
