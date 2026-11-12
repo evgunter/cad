@@ -4598,7 +4598,43 @@ fn decide_joint<T: Decide>(
     let orbit = Orbit::of(surface, image);
     let gap = prev.x - image.eval(entry_t).x;
     let marks = |p: Period<T>| lever_periods("pcurve_loop_branch", arm, gap, p, orbit, band);
-    let rule = AzimuthRule::of(u_period.is_some(), singular_at(chart, vertex, band), spline);
+    let singular = singular_at(chart, vertex, band);
+    // PROBE ONLY (onedoor/looplift-probes): tag every reset this decision
+    // writes; `PROBE_SPLINE_UNDECIDED_REFUSE` turns the undecided spline
+    // reset into a refusal. Never merged.
+    let probe_cause = match &singular {
+        Singular::Undecided(cause) => Some(*cause),
+        _ => None,
+    };
+    let rule = AzimuthRule::of(u_period.is_some(), singular, spline);
+    if matches!(rule, AzimuthRule::OnSingularSet | AzimuthRule::SplineUndecided) {
+        let case = match (rule, surface) {
+            (AzimuthRule::SplineUndecided, _) => "SPLINE_UNDECIDED",
+            (_, Surface::Cone { .. }) => "SINGULAR_CONE_APEX",
+            (_, Surface::Sphere { .. }) => "SINGULAR_SPHERE_POLE",
+            _ if spline => "SINGULAR_SPLINE_COLLAPSED_NET_EDGE",
+            _ => "SINGULAR_OTHER",
+        };
+        let exe = std::env::current_exe()
+            .ok()
+            .and_then(|p| p.file_name().map(|n| n.to_string_lossy().into_owned()))
+            .unwrap_or_default();
+        let test = std::thread::current().name().unwrap_or("?").to_owned();
+        let line = format!("PROBE_RESET\t{case}\t{exe}\t{test}");
+        eprintln!("{line}");
+        if let Ok(path) = std::env::var("PROBE_RESET_LOG") {
+            use std::io::Write as _;
+            if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(path) {
+                let _ = writeln!(f, "{line}");
+            }
+        }
+        if matches!(rule, AzimuthRule::SplineUndecided)
+            && std::env::var_os("PROBE_SPLINE_UNDECIDED_REFUSE").is_some()
+            && let Some(cause) = probe_cause
+        {
+            return Err(PinMiss::NetStretchUndecided(cause));
+        }
+    }
     let m = match (rule, u_period) {
         (AzimuthRule::Marks, Some(p)) => marks(p).map_err(PinMiss::from)?,
         (AzimuthRule::MarksNearPole(cause), Some(p)) => {
