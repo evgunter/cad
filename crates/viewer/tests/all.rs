@@ -136,6 +136,8 @@ mod named_source;
 mod review_bundle_editor_r2;
 #[path = "review_intent_e_r1.rs"]
 mod review_intent_e_r1;
+#[path = "review_named_source_r1.rs"]
+mod review_named_source_r1;
 
 #[path = "msolve3_placer_refused.rs"]
 mod msolve3_placer_refused;

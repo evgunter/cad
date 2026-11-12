@@ -279,6 +279,8 @@ mod resolve_piece_ladder;
 mod resolve_upstream_scope;
 #[path = "revalue_corpus.rs"]
 mod revalue_corpus;
+#[path = "review_named_source_r1.rs"]
+mod review_named_source_r1;
 #[path = "rv_dm7_probes.rs"]
 mod rv_dm7_probes;
 #[path = "takeover_door.rs"]
