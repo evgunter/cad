@@ -702,12 +702,20 @@ fn sym_9_the_kept_atom_ladder_recovers_what_phase_1_measured() {
     // nine samples): each document's two stated images trade eighteen
     // `pcurve_map_residual` theorems for two `pcurve_closed_bound` ones,
     // −16 symbolic both ways, the numeric unmoved.
+    // Then the extrude and revolve read each edge they write by its whole
+    // wedge, the arm, the wedge and a corner's sign at its 7 interior
+    // stations, where they read the class at one witness, identical at
+    // all three ε rows and with the ladder or without it: numeric the
+    // plate +380, the annulus +152, the boss +190, the bracket +539 and
+    // the link +280; symbolic the bracket −2 and the link −4, the witness
+    // reads the tier proved, which no station's read reproduces. The
+    // ladder's recovery on the bracket holds at 6.
     let expected: [(&str, [u64; 2], [u64; 2], u64); 5] = [
-        ("two_hole_plate", [1173, 824], [1173, 824], 0),
-        ("r1_annulus", [697, 555], [697, 555], 0),
-        ("r1_segment_boss", [664, 539], [664, 539], 0),
-        ("r2_filleted_bracket", [1569, 1155], [1575, 1149], 6),
-        ("r2_link", [975, 821], [975, 821], 0),
+        ("two_hole_plate", [1173, 1204], [1173, 1204], 0),
+        ("r1_annulus", [697, 707], [697, 707], 0),
+        ("r1_segment_boss", [664, 729], [664, 729], 0),
+        ("r2_filleted_bracket", [1567, 1694], [1573, 1688], 6),
+        ("r2_link", [971, 1101], [971, 1101], 0),
     ];
     let mut moved: Vec<String> = Vec::new();
     for (name, want_off, want_on, want_retried) in expected {
@@ -876,19 +884,24 @@ fn sym_9_the_drive_writes_the_ladders_receipt() {
     // decides no rigidity margin): the pad's placement's seven
     // `transform_rigid_*` margins log no row: 1573 -> 1566 symbolic. Then
     // PCERT's closed-form bound: the pad's two stated images' nine-sample
-    // meters become one bound each, 1566 -> 1550 symbolic.
+    // meters become one bound each, 1566 -> 1550 symbolic. Then the
+    // constructors' whole-wedge reads (the extrude reads each edge it
+    // writes at its 7 interior stations, where it read the class at one
+    // witness): [1550, 1500, 34] -> [1542, 1984, 32], the witness reads the
+    // tier proved, two of them through the ladder, and the stations'
+    // numeric reads.
     assert_eq!(
         [d.symbolic, d.numeric, d.retried],
-        [1550, 1500, 34],
+        [1542, 1984, 32],
         "the shipped ladder's leaf receipt"
     );
     assert!(
-        line.contains(" retried=34\n"),
+        line.contains(" retried=32\n"),
         "the goldening line carries `retried=` after the discharge columns: {line}"
     );
     assert!(
-        human.contains("; 34 of those discharges reached only by a second attempt"),
-        "the human form names the thirty-four as the ladder's: {human}"
+        human.contains("; 32 of those discharges reached only by a second attempt"),
+        "the human form names the thirty-two as the ladder's: {human}"
     );
     let b = bare.decisions();
     // Pinned with the shipped receipt above: [1387, 1420, 0] ->
@@ -899,8 +912,10 @@ fn sym_9_the_drive_writes_the_ladders_receipt() {
     // segment, as the shipped receipt's: [1495, 1416, 0] -> [1539, 1534, 0].
     // Then ONEHOME's seven rigidity margins, as the shipped receipt's:
     // [1539, 1534, 0] -> [1532, 1534, 0]. Then the closed-form bound, as
-    // the shipped receipt's: [1532, 1534, 0] -> [1516, 1534, 0].
-    assert_eq!([b.symbolic, b.numeric, b.retried], [1516, 1534, 0]);
+    // the shipped receipt's: [1532, 1534, 0] -> [1516, 1534, 0]. Then the
+    // constructors' whole-wedge reads, as the shipped receipt's:
+    // [1516, 1534, 0] -> [1510, 2016, 0].
+    assert_eq!([b.symbolic, b.numeric, b.retried], [1510, 2016, 0]);
     assert!(
         !bare.serialize().contains("retried="),
         "no ladder, no column"

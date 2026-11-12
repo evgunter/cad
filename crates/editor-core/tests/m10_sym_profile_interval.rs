@@ -462,12 +462,21 @@ const PLATE_MAX_TERMS: usize = 46;
 /// images' bound builds one more form, its `+ 0`, so `Plain/Decision`
 /// forms 55696 → 55698 and `Early/Decision` 42225 → 42227, at the same
 /// calls. Nothing new freezes and no decision moves.
+///
+/// **Moved with the constructors' whole-wedge reads**: the extrude and
+/// revolve read each edge they write by its whole wedge, the arm, the
+/// wedge and a corner's sign at each of its 7 interior stations, where
+/// they read the class at one witness. The assertions 824 → 1204 calls
+/// on both walks (`Plain` 9114 → 13467 forms, frozen 193 → 301; `Early`
+/// 10543 → 14896), `Door/Decision` 557 → 709 calls (13458 → 16776
+/// forms), and `Plain/Decision` and `Early/Decision` keep their calls
+/// over fewer forms (55698 → 54986, 42227 → 41555).
 const PLATE_LEDGER: &str = "\
-     Plain/Decision calls 1173 forms 55698 frozen 66 digest c7e403c2d84a55c49998984184e13408\n\
-     Plain/Assertion calls 824 forms 9114 frozen 193 digest dd673bfb67b01ff645a83264700b9100\n\
-     Early/Decision calls 396 forms 42227 frozen 0 digest a66f68b7a07cb987c38c6d5efe2d422b\n\
-     Early/Assertion calls 824 forms 10543 frozen 0 digest b0a635156255a9c708a608454ac55ae1\n\
-     Door/Decision calls 557 forms 13458 frozen 0 digest def6998cc3dfb007c479d6625f9c680e";
+     Plain/Decision calls 1173 forms 54986 frozen 66 digest 3646ad6f65e7c5201bc48cc676494138\n\
+     Plain/Assertion calls 1204 forms 13467 frozen 301 digest b23c1296d6d8943cdf1f8a579576a4c4\n\
+     Early/Decision calls 396 forms 41555 frozen 0 digest 66305558344a8385c6f46e9c103eeaf3\n\
+     Early/Assertion calls 1204 forms 14896 frozen 0 digest d3709c50f53056c5792cf2a1bbfeb0e0\n\
+     Door/Decision calls 709 forms 16776 frozen 0 digest 2227ef10ee2bae6013584e7a8d7cf591";
 
 /// **What the walks BUILD is pinned, not only what the tier decides.**
 /// For the slab and the plate at their nominals, every (walk, origin)
