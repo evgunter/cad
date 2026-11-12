@@ -3,6 +3,7 @@ id: main-red-a-cone-stated-image-fuzz-seed-fails-at-1e-12
 kind: issue
 title: Main red: analytic_image_on_its_carrier seed 0xbc20d21ae8add37e fails a cone's General stated image at eps 1e-12
 status: closed
+closed: 2026-11-12
 opened: 2026-11-12
 priority: P1
 cost: M
