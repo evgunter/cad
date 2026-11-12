@@ -40,3 +40,31 @@ these bodies refuse: the gate would refuse them at their doors.
 
 Read `across` for `snowman_union` (four faces) first: a sphere against
 a sphere along their seam circle is the likely frontier.
+
+## Diagnosis (CLEAR, lane clear-pairs, 2026-11-12)
+
+### The snowman: a sphere's pole, between the two half-bands of one ball
+
+`snowman_union` (main `c51fc90f58`, `f64`, the gate's question at
+65,536 pairs, the frontier instrumented per split): 92,093 splits, and
+91,850 of them are the two half-bands of ONE ball against each other
+(`2v1`–`5v1` the bottom ball, 47,516; `3v3`–`4v3` the head, 44,334),
+the departure arm splitting. The four pairs across the waist split
+about 50 times each and certify. At depth 32 every frontier cell has
+`v` in `[−π/2, −π/2 + π/256]` (the bottom ball's south pole) or the
+mirror strip at the head's north pole, `u` cut into strips 0.025 wide.
+
+Why they never decide: a cell holding the pole vertex is near BOTH
+seam meridians and the pole, since every ball round the pole meets
+both meridians there. `present_chart` read the pole as a loose shared
+vertex that no corner of two clips holds, and answered `Local`, so
+every pair split. The pole is a whole side of the sphere's chart, the
+latitude line `v = ±π/2`, and no split ever moves a cell off it, so a
+polar strip against every polar strip of the other half-band is a
+pair forever: the count is quadratic in the strips, which double.
+`plane_through` had a second gap there: it took a conic's own plane
+only where ONE shared edge is near, and a polar cell is near two (the
+two meridians, both arcs of one great circle).
+
+The single ball (2 faces) holds at its root; the union holds once its
+poles are read.
