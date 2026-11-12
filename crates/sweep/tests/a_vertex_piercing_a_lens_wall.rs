@@ -89,26 +89,40 @@ fn a_vertex_piercing_a_lens_wall_mints_its_ring_and_reaches_the_chords_certifica
     let pose = topo::test_support::meeting::Pose::rest();
     let pyr =
         topo::test_support::meeting::posed_pyramid_at::<f64>(&base, [p.x, p.y, p.z], &pose, tol);
-    for (what, x, y) in [("pyr ∪ blade", &pyr, &b), ("blade ∪ pyr", &b, &pyr)] {
+    // At `ε = 1e-6` the run meets the wall's ring lane first; at every
+    // other row, the chord's at-rest certificate.
+    let at_ring = tol.eps() == 1e-6;
+    for (what, x, y, wall_operand) in [
+        ("pyr ∪ blade", &pyr, &b, topo::Operand::B),
+        ("blade ∪ pyr", &b, &pyr, topo::Operand::A),
+    ] {
         let got = topo::union(x, y, tol).map(|_| ());
-        // Which stop the run meets first moves with the band: the
-        // chord's at-rest certificate, or the wall's ring lane.
-        let at_chord = matches!(
-            &got,
-            Err(BooleanError::Join(join)) if matches!(
-                join.error(),
-                topo::SplitJoinError::Euler(topo::EulerOpError::Certification { .. })
-            )
-        );
-        let at_ring = matches!(
-            &got,
-            Err(BooleanError::CurvedBooleanUnsupported { face, kind: geom::SurfaceKind::Nurbs, .. })
-                if *face == wall
-        );
-        assert!(
-            at_chord || at_ring,
-            "{what}: {got:?}, not the certificate of a chord the join cut on the carried section, \
-             nor the ring lane of the wall {wall:?}"
-        );
+        if at_ring {
+            assert!(
+                matches!(
+                    &got,
+                    Err(BooleanError::CurvedBooleanUnsupported {
+                        operand,
+                        face,
+                        kind: geom::SurfaceKind::Nurbs,
+                    }) if *face == wall && *operand == wall_operand
+                ),
+                "{what}: {got:?}, not the ring lane of the wall {wall:?}"
+            );
+        } else {
+            assert!(
+                matches!(
+                    &got,
+                    Err(BooleanError::Join(join)) if matches!(
+                        join.error(),
+                        topo::SplitJoinError::Euler(topo::EulerOpError::Certification {
+                            error: geom_brep::CertifyError::PlaneNurbs(_),
+                        })
+                    )
+                ),
+                "{what}: {got:?}, not the plane × NURBS certificate of a chord the join cut on \
+                 the carried section"
+            );
+        }
     }
 }

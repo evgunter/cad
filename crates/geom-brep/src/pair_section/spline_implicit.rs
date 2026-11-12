@@ -568,17 +568,19 @@ fn fitted(
 /// every other cell of the wall's rectangle, so every point of the
 /// component lies in some window's image on the wall.
 ///
-/// Each window is cut into a [`PAD_GRID`]² grid of cells, each imaged
-/// on the wall by its chart speeds (`NurbsBoxes::rect_box`: the cell's
-/// midpoint enclosure plus its half-widths times the certified partials
-/// over it), and read against [`PAD_GRID_SAMPLES`] carrier points over
-/// the window's span. The cells cover the window, so the pad bounds
-/// every point of its image; it is the farthest point of the window's
-/// image from the carrier, read at the cell's size. A window is the
-/// pcurve's hull over a whole span, so the pad is at least the
-/// window's own width across the carrier imaged on the wall: for a
-/// pcurve of one span, the arc's whole bend in the chart, however
-/// narrow the tube's rung.
+/// Each window is halved, along whichever chart axis leaves the
+/// narrower halves, until each cell's image on the wall
+/// (`NurbsBoxes::rect_box`: the cell's midpoint enclosure plus its
+/// half-widths times the certified partials over it) is no wider than
+/// [`PAD_CELL_RUNGS`] of the tube's rungs, or [`PAD_CUTS`] times; each cell is read against
+/// eight carrier points per cell (at most [`PAD_SAMPLES_MAX`]) over the
+/// window's span. The cells cover
+/// the window, so the pad bounds every point of its image: it is the
+/// farthest point of the window's image from the carrier, read at the
+/// cell's size. A window is the pcurve's hull over a whole span, so the
+/// pad is at least the window's own width across the carrier imaged on
+/// the wall: for a pcurve of one span, the arc's whole bend in the chart,
+/// however narrow the rung.
 ///
 /// # Errors
 ///
@@ -588,7 +590,7 @@ fn fitted(
 /// where the windows or a cell do not read.
 fn pad_of(b: &SsiBranch, net: &NurbsSurface<f64>) -> Result<(f64, f64), super::CarryError> {
     use super::{CarryError, CarryRefusal, LoopTubeRefusal, TubePiece};
-    let (SsiTube::Chart { pad_u, pad_v, .. }, Some(pcurve)) =
+    let (SsiTube::Chart { pad_u, pad_v, rung }, Some(pcurve)) =
         (b.certificate.tube, b.pcurve_b.as_ref())
     else {
         return Err(CarryError::Desync(
@@ -600,32 +602,50 @@ fn pad_of(b: &SsiBranch, net: &NurbsSurface<f64>) -> Result<(f64, f64), super::C
             "a spline × implicit branch's carrier is not a spline",
         ));
     };
-    let unread = |why| CarryError::Refused(CarryRefusal::TubeUnread(why));
-    let windows = crate::ssi::certify::chart_tube_windows(pcurve, (pad_u, pad_v))
-        .ok_or(unread(LoopTubeRefusal::Uncertified))?;
+    let unread = || CarryError::Refused(CarryRefusal::TubeUnread(LoopTubeRefusal::NotFinite));
+    let windows = crate::ssi::certify::chart_tube_windows(pcurve, (pad_u, pad_v)).ok_or(
+        CarryError::Refused(CarryRefusal::TubeUnread(LoopTubeRefusal::Uncertified)),
+    )?;
     let boxes = NurbsBoxes::new(net);
-    #[allow(clippy::cast_precision_loss)]
-    let at = |(lo, hi): (f64, f64), k: usize| lo + (hi - lo) * k as f64 / PAD_GRID as f64;
+    let image = |(u0, u1, v0, v1): (f64, f64, f64, f64)| {
+        UvWindow::new(u0, u1, v0, v1)
+            .map(|uv| boxes.rect_box(uv))
+            .ok_or_else(unread)
+    };
     let pieces: Vec<TubePiece> = windows
         .iter()
         .map(|w| {
-            let cells = (0..PAD_GRID).flat_map(|i| (0..PAD_GRID).map(move |j| (i, j)));
-            let boxes = cells
-                .map(|(i, j)| {
-                    UvWindow::new(
-                        at(w.rect.u, i),
-                        at(w.rect.u, i + 1),
-                        at(w.rect.v, j),
-                        at(w.rect.v, j + 1),
-                    )
-                    .map(|uv| boxes.rect_box(uv))
-                    .ok_or(unread(LoopTubeRefusal::NotFinite))
-                })
-                .collect::<Result<_, _>>()?;
+            let mut cells = Vec::new();
+            let mut open = vec![((w.rect.u.0, w.rect.u.1, w.rect.v.0, w.rect.v.1), 0u32)];
+            while let Some((rect, depth)) = open.pop() {
+                let whole = image(rect)?;
+                // A box no wider than the rung, or one cut as often as a
+                // window is, is read as it stands.
+                if whole.width().partial_cmp(&(PAD_CELL_RUNGS * rung)) != Some(core::cmp::Ordering::Greater)
+                    || depth == PAD_CUTS
+                {
+                    cells.push(whole);
+                    continue;
+                }
+                let (u0, u1, v0, v1) = rect;
+                let (um, vm) = (geom::mid_param(u0, u1), geom::mid_param(v0, v1));
+                let across_u = [(u0, um, v0, v1), (um, u1, v0, v1)];
+                let across_v = [(u0, u1, v0, vm), (u0, u1, vm, v1)];
+                let widest = |halves: [(f64, f64, f64, f64); 2]| -> Result<f64, CarryError> {
+                    Ok(image(halves[0])?.width().max(image(halves[1])?.width()))
+                };
+                let halves = if widest(across_u)? <= widest(across_v)? {
+                    across_u
+                } else {
+                    across_v
+                };
+                open.extend(halves.map(|half| (half, depth + 1)));
+            }
+            let samples = (8 * cells.len() + 1).min(PAD_SAMPLES_MAX);
             Ok(TubePiece {
-                boxes,
+                boxes: cells,
                 span: w.ends,
-                samples: PAD_GRID_SAMPLES,
+                samples,
             })
         })
         .collect::<Result<_, CarryError>>()?;
@@ -637,15 +657,20 @@ fn pad_of(b: &SsiBranch, net: &NurbsSurface<f64>) -> Result<(f64, f64), super::C
     )
 }
 
-/// How many cells [`pad_of`] cuts each chart window into along each
-/// chart axis.
-const PAD_GRID: usize = 8;
+/// How many rungs wide a cell's image [`pad_of`] reads as it stands:
+/// a window is padded by the rung's chart width on each side, so its
+/// image is about two rungs across the carrier however short its span.
+const PAD_CELL_RUNGS: f64 = 2.0;
 
-/// The carrier points [`pad_of`] reads each window's cells against,
-/// evenly over its span: as many intervals as the window has cells along
-/// an axis times the halvings of each cell (`super::PAD_SPLITS`), so a
-/// cell's part has a carrier point about as near as its own size.
-const PAD_GRID_SAMPLES: usize = 8 * PAD_GRID + 1;
+/// How many times [`pad_of`] halves a chart window, at most, toward
+/// cells whose image is no wider than [`PAD_CELL_RUNGS`] rungs: up to
+/// `2⁸` cells a window.
+const PAD_CUTS: u32 = 8;
+
+/// The most carrier points [`pad_of`] reads a window's cells against:
+/// eight intervals a cell, one per part (`super::PAD_SPLITS`), up to
+/// this.
+const PAD_SAMPLES_MAX: usize = 2049;
 
 /// **Two carried arcs whose pads may meet carry neither**
 /// ([`super::CarryRefusal::PadsMeet`]). A site is read on every component

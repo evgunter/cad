@@ -7,9 +7,11 @@
 //! at-rest certificate of the chord the join mints, or past the join:
 //! a curved partner's arc against a spline has no at-rest edge
 //! certificate yet, and a plane's arc across a curved wall stops at the
-//! plane × spline lane's own image. Neither is the join's.
+//! plane × spline lane's own image. Neither is the join's. Two arcs of
+//! one pair closer than the pads their points are read within carry
+//! neither, by name.
 //!
-//! Each run is a union at the witness tolerance. Red against main before
+//! Each run is at the witness tolerance. Red against main before
 //! the section value carried the pair: each refused at the join, where a
 //! germ on a spline wall has no frame (`GermFrameUnsupported`).
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
@@ -62,40 +64,67 @@ fn a_ball_across_a_lofted_wall_is_joined_on_its_carried_arc() {
     }
 }
 
+/// **A ball across two close arcs of a lofted wall refuses by name**:
+/// on the prism whose sections stand `0.2` apart, the ball of radius
+/// `0.21` about `(0.3, 0.95, 0.2)` cuts a wall in two rim arcs closer
+/// than the pads their points are read within, so a site on either would
+/// read on both. The carry refuses `PadsMeet`, and the germ
+/// `GermSectionUnbuilt` naming the wall and the ball, in union, subtract
+/// and swapped union.
+///
+/// Red against: a carry that holds no two arcs apart, where a site on
+/// one arc read on both and the run aborted `JoinDesync`.
 #[test]
-fn probe_fix6862() {
+fn a_ball_across_two_close_arcs_of_a_lofted_wall_refuses_by_name() {
     let t = Tol::witness();
     let prism = finished(
-        "p",
+        "the shallow prism",
         sweep::test_support::loft_prism_at(&[0.0, 0.2, 0.4], t),
         t,
     );
-    let ball = finished("b", ball_poled_z(0.21, Vec3::new(0.3, 0.95, 0.2), t), t);
-    eprintln!("F1 union {:?}", topo::union(&prism, &ball, t).err());
-    eprintln!("F1 subtract {:?}", topo::subtract(&prism, &ball, t).err());
-    eprintln!("F1 swapped {:?}", topo::union(&ball, &prism, t).err());
-    let prism = finished("the loft prism", loft_prism(t), t);
-    let brick = |x, y, z| {
-        finished(
-            "the brick",
-            topo::test_support::brick_with_fresh_keys::<f64>(x, y, z, t),
-            t,
-        )
-    };
-    let inside = brick((-0.25, 0.25), (-0.25, 0.25), (0.75, 1.25));
-    eprintln!("inside {:?}", topo::union(&prism, &inside, t).err());
-    let flat = brick((-0.25, 0.25), (0.75, 1.25), (-0.25, 0.25));
-    eprintln!("flat {:?}", topo::union(&prism, &flat, t).err());
-    let flared = brick((-0.25, 0.35), (-1.3, -0.8), (0.75, 1.25));
-    eprintln!("flared {:?}", topo::union(&prism, &flared, t).err());
+    let ball = finished(
+        "the ball",
+        ball_poled_z(0.21, Vec3::new(0.3, 0.95, 0.2), t),
+        t,
+    );
+    for (what, run) in [
+        ("prism ∪ ball", topo::union(&prism, &ball, t)),
+        ("prism ∖ ball", topo::subtract(&prism, &ball, t)),
+        ("ball ∪ prism", topo::union(&ball, &prism, t)),
+    ] {
+        let refusal = run.expect_err("two arcs within their pads carry neither");
+        let BooleanError::GermSectionUnbuilt {
+            a_kind,
+            b_kind,
+            why: topo::SectionUnbuilt::Carry(geom_brep::CarryRefusal::PadsMeet { pads, gap }),
+            ..
+        } = &refusal
+        else {
+            panic!("{what}: the carry refuses the two arcs by name: {refusal:?}");
+        };
+        let mut kinds = [*a_kind, *b_kind];
+        kinds.sort_by_key(|k| format!("{k:?}"));
+        assert_eq!(
+            kinds,
+            [geom::SurfaceKind::Nurbs, geom::SurfaceKind::Sphere],
+            "{what}: the germ names the wall and the ball"
+        );
+        assert!(
+            *gap <= pads[0] + pads[1],
+            "{what}: the arcs stand {gap} apart, within the pads {pads:?}"
+        );
+    }
 }
 
 /// **A brick across the prism's wall**: the brick's planes meet the wall
 /// in arcs the join carries, each plane's chord an arc of the same
-/// carrier as the wall's. Across the flat wall at its rim the join
-/// completes, and the union stops past it; across the flared wall the
-/// plane × spline certificate refuses the chord (its own image misses
-/// it, or at `ε = 1e-6` a limb escalates).
+/// carrier as the wall's. Across the flat wall at its rim the guard reads
+/// each of the wall's pairs off its listing and clears it, the join
+/// completes, and the union stops past it at the inside/outside test,
+/// which cannot cross a spline face; a brick wholly inside the prism
+/// stops there too, but with no pair crossing the wall. Across the
+/// flared wall the plane × spline certificate refuses the chord, its own
+/// image missing it.
 ///
 /// Red against: a carried chord refused on a planar face; the join
 /// reading a plane × spline germ through a frame.
@@ -111,16 +140,38 @@ fn a_brick_across_a_lofted_wall_is_joined_on_its_carried_arcs() {
         )
     };
     let flat = brick((-0.25, 0.25), (0.75, 1.25), (-0.25, 0.25));
+    let report = topo::test_support::section_report(topo::BooleanOp::Union, &prism, &flat, t)
+        .expect("the reduction reads");
+    let cleared: Vec<_> = report
+        .iter()
+        .filter(|(fa, _, verdict)| {
+            matches!(prism.face_surface(*fa), Some(geom::Surface::Nurbs(_)))
+                && verdict.starts_with("Ok(")
+        })
+        .collect();
+    assert!(
+        !cleared.is_empty(),
+        "the flat wall: the brick crosses it, and the guard clears its pairs: {report:?}"
+    );
     let refusal = topo::union(&prism, &flat, t).expect_err("the result's containment refuses");
     assert!(
-        matches!(refusal, BooleanError::Containment(_)),
-        "the flat wall: the join completes: {refusal:?}"
+        matches!(
+            refusal,
+            BooleanError::Containment(topo::PointInSolidError::KindUnsupported {
+                kind: geom::SurfaceKind::Nurbs,
+                ..
+            })
+        ),
+        "the flat wall: the join completes, and the inside/outside test cannot cross the \
+         wall: {refusal:?}"
     );
     let flared = brick((-0.25, 0.35), (-1.3, -0.8), (0.75, 1.25));
     let refusal = topo::union(&prism, &flared, t).expect_err("the plane × spline lane refuses");
     assert!(
-        chord_certificate(&refusal)
-            .is_some_and(|e| !matches!(e, geom_brep::CertifyError::Unimplemented)),
+        matches!(
+            chord_certificate(&refusal),
+            Some(geom_brep::CertifyError::PlaneNurbs(_))
+        ),
         "the flared wall: the join mints the carried chord, which the plane × spline lane \
          reads: {refusal:?}"
     );

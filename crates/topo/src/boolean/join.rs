@@ -1375,7 +1375,7 @@ pub(super) fn bool_connect<T: Decide + crate::props::AtRestPolicy>(
         let (seg_a, seg_b) = (germ.a_locus.edge(), germ.b_locus.edge());
         use geom::Surface as Sf;
         // No wired join arm for this germ pair (a coaxial cylinder pair,
-        // which the section door owns, plane×NURBS behind PR 7b): typed, citing
+        // which the section door owns): typed, citing
         // the face that holds the segment's entry half now (an earlier
         // segment's `mef` may have divided the germ's recorded face) and
         // that face's kind.

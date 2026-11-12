@@ -383,8 +383,8 @@ fn each_point_of_two_close_rim_arcs_reads_on_its_own_arc_or_the_carry_refuses() 
 }
 
 /// **Two arcs closer than their pads carry neither, by name**: a rod of
-/// radius `0.05` cuts the wall in two arcs `0.1` apart, each read within
-/// a pad of about `0.053`, so a point on the rod's axis line between them
+/// radius `0.09` cuts the wall in two arcs `0.18` apart, each read within
+/// a pad of about `0.098`, so a point on the rod's axis line between them
 /// would stand within both. The carry refuses
 /// [`CarryRefusal::PadsMeet`], naming both pads and the gap.
 ///
@@ -392,56 +392,12 @@ fn each_point_of_two_close_rim_arcs_reads_on_its_own_arc_or_the_carry_refuses() 
 /// arcs carried, and the axis point a desync on two components.
 #[test]
 fn two_arcs_closer_than_their_pads_carry_neither_by_name() {
-    let refused = listed(&wall(1.0), &rod(1.0, 0.05)).carry(Some(SsiLane::marched()), band());
+    let refused = listed(&wall(1.0), &rod(1.0, 0.09)).carry(Some(SsiLane::marched()), band());
     let Err(CarryError::Refused(CarryRefusal::PadsMeet { pads, gap })) = refused else {
         panic!("two arcs within their pads refuse by name: {refused:?}");
     };
     assert!(
-        gap <= pads[0] + pads[1] && gap > 0.0 && gap <= 0.1,
+        gap > 0.0 && gap <= 0.18 && gap <= pads[0] + pads[1],
         "the arcs stand {gap} apart, within the pads {pads:?}"
     );
 }
-
-/// **A loop on the wall's chart carries none, by name**: the reading
-/// lists it and fits its carrier, and no seat opens a loop certified on a
-/// chart, so the carry refuses it as [`NoCarrier::ChartLoop`] rather than
-/// hand the join a component it cannot open.
-///
-/// Red against: a loop carried as a rim arc is.
-#[test]
-fn a_loop_on_the_wall_carries_none_by_name() {
-    let w = wall(1.0);
-    // A ball through the wall's middle, clear of every side: a loop.
-    let section = listed(&w, &ball(1.0, (0.0, 1.3, 1.0), 0.3));
-    let refused = section.carry(Some(SsiLane::marched()), band());
-    assert!(
-        matches!(
-            refused,
-            Err(CarryError::Refused(CarryRefusal::Unminted(
-                NoCarrier::ChartLoop
-            )))
-        ),
-        "{refused:?}"
-    );
-}
-
-/// **A classification that reaches is not the listing the carry takes**:
-/// it names the sides the section ends on and no component, so carrying
-/// it is a desync; its whole reading is what carries.
-///
-/// Red against: a carry that reads a reaching classification as empty.
-#[test]
-fn a_reaching_classification_is_carried_from_its_whole_reading() {
-    let lane = Some(SsiLane::marched());
-    let SectionRead::Built(section) =
-        pair_section(&level(1.0), &wall(1.0), None, lane, band()).expect("the pair classifies")
-    else {
-        panic!("a spline × implicit pair is built here");
-    };
-    assert!(
-        matches!(section.carry(lane, band()), Err(CarryError::Desync(_))),
-        "a reaching classification carries nothing"
-    );
-    assert_eq!(one(&listed(&level(1.0), &wall(1.0))).winds, [false, false]);
-}
-

@@ -217,13 +217,20 @@ fn cut_loft_refuses_typed_naming_the_missing_boolean_layer() {
         Ok(_) => panic!("the cut-loft boolean cannot succeed before the spline containment layer"),
     };
     assert!(
-        matches!(err, topo::BooleanError::Containment(_)),
-        "the inside/outside test refuses: {err:?}"
+        matches!(
+            err,
+            topo::BooleanError::Containment(topo::PointInSolidError::KindUnsupported {
+                kind: geom::SurfaceKind::Nurbs,
+                ..
+            })
+        ),
+        "the inside/outside test refuses at a spline face: {err:?}"
     );
     let text = err.render(geom_brep::recourse::Reading::Build);
     println!("cut-loft refusal: {text}");
     assert!(
-        text.contains("spline (NURBS) face") && text.contains("Recourse: "),
+        text.contains("spline (NURBS) face")
+            && text.contains("Recourse: build the solid so no spline (NURBS) face bounds it"),
         "the refusal names the face kind with no crossing layer and ends on its \
          recourse: {text}"
     );
