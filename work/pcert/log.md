@@ -1280,3 +1280,9 @@ E1c waits on the answer.
   - **Filed.**
     - P3 `the-plane-harmonic-envelope-is-the-closed-form-bound-spelled-twice`. Folding the plane arm into the bound would move stored envelopes and the M10 ledger digests.
     - P4 `the-unit-winding-order-is-held-by-a-type-anyone-in-the-crate-can-build`, which collects the TT delta's three style items.
+
+- 2026-11-12 — **Dispatched two P1s that arrived during the sitting**, both from `9550b98e39`. Each gets a single FULL review, soundness-led.
+  - `a-cone-stated-image-at-a-fuzz-seed-reads-in-band-at-eps-1e-12`, filed by BAND. Main's kernel job goes red by fuzz seed on 6836's no-false-refusal row: a correct cone image reads in band at ε 1e-12. The lane's first task is to root-cause the read's width. Branch `pcert/cone-image-fine-band`.
+  - `check-4s-projected-door-reads-every-span-of-a-chord-in-eight-parts`, re-banded P1 by spiricarm, whose ~10 s cylinder boolean is parked on it. The lane cuts check 4's parts by turn, keeps the sliver within its 1%, and keeps the incidence term an enclosure. Branch `pcert/check4-parts-by-turn`.
+
+- 2026-11-12 — **Doc-gate red on main mended** (orchestrator; PR 6857's lane met it). `crates/viewer/src/pane/create.rs:937` had `"Into <space>"` in a doc comment, which rustdoc reads as an unclosed HTML tag; it came in with placing's 775787e8 (PR 6850). The text is now quoted as code, and `scripts/doc-gate.sh` passes. The lane's three sweep reds were already filed P1 by their owners: band's cups fixture, gauge's pole arc at ε 1e-6, and lathe's full-turn bead at ε 1e-12.
