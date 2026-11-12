@@ -2445,7 +2445,7 @@ mod torn_hop_rows {
 mod smooth_arm_rows {
     use geom_core::{Band, Point3, Tol, Vec3};
 
-    use super::SplitFinishError;
+    use super::{KnifeEdge, KnifeEdgeSite, SplitFinishError};
     use crate::body::Body;
     use crate::entity::{EdgeKey, FaceKey, LoopBoundary};
     use geom::Surface;
@@ -2532,11 +2532,74 @@ mod smooth_arm_rows {
     /// through `mid − z`, so it touches the plane at `mid` and curves
     /// to `+z` there.
     fn cylinder_under(mid: Point3<f64>, axis: Vec3<f64>) -> Surface<f64> {
+        cylinder_of_radius_under(mid, axis, 1.0)
+    }
+
+    /// [`cylinder_under`] of radius `r`.
+    fn cylinder_of_radius_under(mid: Point3<f64>, axis: Vec3<f64>, r: f64) -> Surface<f64> {
         Surface::Cylinder {
-            origin: mid - Vec3::unit_z(),
+            origin: mid - Vec3::unit_z() * r,
             axis,
-            radius: 1.0,
+            radius: r,
             u_ref: Vec3::unit_z(),
+        }
+    }
+
+    /// The section edge with its neighbour a cylinder of radius `r` along
+    /// the edge under the plane, its material turned to face the
+    /// section's: the two faces' outward normals opposed at the contact.
+    fn opposed_wall(r: f64) -> (SectionEdge, FaceKey) {
+        let mut edge = section_edge();
+        edge.body.surfaces[edge.s_other] = cylinder_of_radius_under(edge.mid, edge.along, r);
+        let wall = edge
+            .body
+            .faces()
+            .find(|(k, f)| f.surface == edge.s_other && *k != edge.face)
+            .map(|(k, _)| k)
+            .unwrap();
+        let sense = edge.body.get_face(wall).unwrap().sense;
+        edge.body.get_face_mut(wall).unwrap().sense = !sense;
+        (edge, wall)
+    }
+
+    /// **An opposed curved wall is a knife edge, refused at every
+    /// station.** A unit cylinder along the edge whose material faces the
+    /// section's: the stations read the tangency with its outward normal
+    /// opposed and its bend determinate, a wedge end nothing declared.
+    #[test]
+    fn an_opposed_curved_wall_refuses_as_a_knife_edge() {
+        let (mut fx, wall) = opposed_wall(1.0);
+        let band = Band::linear(tol()).unwrap();
+        match super::describe_section_boundary(&mut fx.body, fx.face, band, tol()) {
+            Err(SplitFinishError::KnifeEdge(KnifeEdge {
+                wall: refused,
+                at: KnifeEdgeSite::Edge(at),
+            })) => {
+                assert_eq!((refused, at), (wall, fx.edge), "the wall and its edge");
+            }
+            other => panic!("an opposed unit cylinder is a knife edge, got {other:?}"),
+        }
+    }
+
+    /// **An opposed curved wall whose bend is in band refuses at the
+    /// bend.** At `R = 1e8` the cylinder's sagitta over the edge is in the
+    /// band, and the fold meters a tangency's bend before it reads which
+    /// end the faces make, as tier 3 does: the edge refuses
+    /// `WedgeEscalated` at the bend rung, not as a knife edge.
+    #[test]
+    fn an_opposed_wall_whose_bend_is_in_band_refuses_at_the_bend() {
+        let (mut fx, _) = opposed_wall(1e8);
+        let band = Band::linear(tol()).unwrap();
+        match super::describe_section_boundary(&mut fx.body, fx.face, band, tol()) {
+            Err(SplitFinishError::WedgeEscalated { edge, escalation }) => {
+                assert_eq!(edge, fx.edge, "the refusal names the edge");
+                assert_eq!(
+                    escalation.rung(),
+                    geom_brep::WedgeRung::Bend,
+                    "the bend is metered first: {escalation:?}"
+                );
+            }
+            other => panic!("an in-band bend refuses at the bend, got {other:?}"),
         }
     }
 

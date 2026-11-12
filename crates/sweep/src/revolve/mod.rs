@@ -718,8 +718,10 @@ pub enum RevolveError {
     },
     /// Two neighbouring stations of a latitude join's or a cap rim's
     /// whole wedge disagree ([`geom_brep::WedgeVerdict::Mixed`]): a
-    /// corner beside a smooth join, or two corners of opposite turn,
-    /// bracket a point in the band no station read.
+    /// corner beside a smooth join or two corners of opposite turn
+    /// bracket a point in the band no station read; two smooth stations
+    /// whose material pairings or ends differ name a material verdict no
+    /// station established.
     ///
     /// Defense-in-depth (the `CapPlane` posture): the join's circle is
     /// carried by a symmetry flow of both surfaces, so every station

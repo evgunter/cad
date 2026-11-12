@@ -2827,6 +2827,29 @@ fn split() -> Vec<(String, NodeErrorKind)> {
             },
         ),
         (
+            "WedgeEscalated(sign)",
+            F::WedgeEscalated {
+                edge,
+                escalation: geom_brep::WedgeEscalation::at(geom_brep::WedgeRung::Sign, diag())
+                    .at_station(3),
+            },
+        ),
+        (
+            "WedgeEscalated(arm)",
+            F::WedgeEscalated {
+                edge,
+                escalation: geom_brep::WedgeEscalation::at(geom_brep::WedgeRung::Arm, diag()),
+            },
+        ),
+        (
+            "WedgeEscalated(end)",
+            F::WedgeEscalated {
+                edge,
+                escalation: geom_brep::WedgeEscalation::at(geom_brep::WedgeRung::End, diag())
+                    .at_station(5),
+            },
+        ),
+        (
             "WholeBodySideEscalated",
             F::WholeBodySideEscalated { edge, diag: diag() },
         ),
