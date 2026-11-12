@@ -696,10 +696,14 @@ fn an_offset_past_the_curvature_reach_refuses_at_the_collapse_meter() {
     }
 }
 
-/// **The sample-cap face.** At 1e-15 the bumpy patch runs five
-/// refinement rounds and is stopped by the sample cap — the sixth
-/// round's schedule would carry 66x67 samples — with a finite bound in
-/// hand. The refusal names the cap and the samples, not the rounds:
+/// **The sample-cap face.** At 1e-15 the bumpy patch runs four
+/// refinement rounds and is stopped by the sample cap — the fifth
+/// round's schedule would carry more samples than it allows — with a
+/// finite bound in hand. (Five rounds, stopping at `(41, 39)` on
+/// `6.736e-7`, before the floor on `‖E‖` became the hull's: no cell's
+/// floor fell, but the tighter cells moved where the loop refines, and
+/// its schedule reached the cap a round sooner, at `(41, 35)` on
+/// `7.047e-7`.) The refusal names the cap and the samples, not the rounds:
 /// the rounds are not a knob.
 #[test]
 fn a_cap_stop_with_a_finite_bound_names_the_cap_not_the_rounds() {
@@ -718,7 +722,7 @@ fn a_cap_stop_with_a_finite_bound_names_the_cap_not_the_rounds() {
                 grid: best_grid,
             } = best;
             assert_eq!(cap, OFFSET_FIT_SAMPLE_CAP);
-            assert_eq!(rounds, 5, "five rounds ran before the cap");
+            assert_eq!(rounds, 4, "four rounds ran before the cap");
             assert!(grid.0 * grid.1 <= OFFSET_FIT_SAMPLE_CAP);
             assert!(achieved.is_finite() && achieved > tolerance);
             assert!(
@@ -789,7 +793,8 @@ fn the_bumpy_patch_certifies_a_micron_offset_below_a_nanometre() {
 /// face says there is no number, and prints none.
 ///
 /// One decade up the face is not reached: `d = 1e-7` certifies at
-/// `5.2539e-7` on the fifth round's 1144 cells. The row pins that
+/// `4.8225e-7` on the fifth round's 1144 cells (`5.2539e-7` before the
+/// floor on `‖E‖` became the hull's). The row pins that
 /// boundary, because the two faces are one decade apart and a change
 /// that moved either would otherwise move it silently.
 #[test]
@@ -803,7 +808,7 @@ fn a_bound_that_never_became_finite_refuses_with_no_number() {
     });
     assert_eq!((cert.rounds, cert.cells), (5, 1144));
     assert!(
-        (cert.hull_sup - 5.25391e-7).abs() < 5e-11,
+        (cert.hull_sup - 4.82248e-7).abs() < 5e-11,
         "d = 1e-7 certifies at {:e}",
         cert.hull_sup
     );
@@ -868,11 +873,12 @@ fn a_bound_that_never_became_finite_refuses_with_no_number() {
 /// `dist` reaches `|d|`, which is a micron-scale offset on a
 /// metre-scale patch certifying as `inf`.
 ///
-/// The floor on `‖E‖` reads the three components TOGETHER, through
-/// the sign witness `D` (module docs), which is what keeps the bound
-/// near `|d|`'s own scale: at `d = 1e-6` the certified sup is
-/// `1.514e-5`, fifteen times `|d|`, on the same 308-cell grid a
-/// componentwise floor certified at `2.630e-4`. The sup cell's
+/// The floor on `‖E‖` reads the three components TOGETHER, off the
+/// coefficient vectors' hull and through the sign witness `D` (module
+/// docs), which is what keeps the bound near `|d|`'s own scale: at
+/// `d = 1e-6` the certified sup is `1.236e-5`, twelve times `|d|`, on
+/// the same 308-cell grid a componentwise floor certified at
+/// `2.630e-4` (and the witness alone at `1.514e-5`). The sup cell's
 /// decomposition and the two readings of `‖E‖` behind that factor are
 /// `offset_fit`'s own row.
 ///
@@ -880,8 +886,9 @@ fn a_bound_that_never_became_finite_refuses_with_no_number() {
 /// unreachable one refuses typed rather than reporting a number it
 /// cannot support. `1e-9` is the second half — the fit's own absolute
 /// accuracy does not reach it, and the grid the bound wants exceeds
-/// the sample cap first, at `achieved = 2.1241e-8`. The round-5
-/// grid's bound, `3.4524e-7`, is carried by `τ` (`1.85e-7` of it), the
+/// the sample cap first, at `achieved = 2.1205e-8` (`2.1241e-8` under
+/// the witness alone). The round-5
+/// grid's bound, `3.4493e-7`, is carried by `τ` (`1.85e-7` of it), the
 /// tangential term, which divides by the regularity floor rather than
 /// by `‖E‖`.
 #[test]
@@ -906,7 +913,7 @@ fn a_micron_scale_offset_certifies_and_names_its_limit() {
         cert.hull_sup
     );
     assert!(
-        (cert.hull_sup - 1.51411e-5).abs() < 5e-9,
+        (cert.hull_sup - 1.23609e-5).abs() < 5e-9,
         "the certified sup is {:e}",
         cert.hull_sup
     );
@@ -936,7 +943,7 @@ fn a_micron_scale_offset_certifies_and_names_its_limit() {
         }) => {
             assert_eq!(rounds, 7);
             assert!(
-                (achieved - 2.12411e-8).abs() < 5e-12,
+                (achieved - 2.12047e-8).abs() < 5e-12,
                 "the cap stop carries {achieved:e}"
             );
             eprintln!(
@@ -997,7 +1004,8 @@ fn a_zero_or_non_finite_request_refuses_at_the_door() {
 /// ring's rounding on the intermediates scaled with the base's
 /// coordinate magnitude, and a micron offset on a metre part a
 /// kilometre from the origin certified as `inf` while the same part
-/// at the origin certified at 1.5e-5.
+/// at the origin certified at 1.5e-5 (1.2e-5 since the floor on `‖E‖`
+/// became the hull's).
 ///
 /// The composite now builds every net against one recentring origin
 /// (the base control net's bbox midpoint), which is exact in ℝ and
@@ -1008,14 +1016,17 @@ fn a_zero_or_non_finite_request_refuses_at_the_door() {
 /// station on the SAME 308-cell grid:
 ///
 /// ```text
-/// 1e0..1e4   1.5141e-5   flat to five figures
-/// 1e5        1.5142e-5   1.00007x the origin
-/// 1e6        1.5150e-5   1.0006x
-/// 1e7        1.5223e-5   1.0054x
-/// 1e8        1.6110e-5   1.0640x
-/// 1e9        3.9769e-5   2.627x
+/// 1e0..1e4   1.2361e-5   flat to five figures
+/// 1e5        1.2362e-5   1.00006x the origin
+/// 1e6        1.2369e-5   1.0006x
+/// 1e7        1.2439e-5   1.0063x
+/// 1e8        1.3132e-5   1.0624x
+/// 1e9        3.0245e-5   2.447x
 /// 1e10       refused: BoundNotFinite, best None — no grid reached one
 /// ```
+///
+/// (Re-measured when the floor on `‖E‖` became the hull's; the
+/// origin's `1.5141e-5` before, `1.0054x` at 1e7 and `2.627x` at 1e9.)
 ///
 /// So the band is asserted where the claim is meaningful — out to
 /// 1e7, where rounding still tracks the recentred patch — and the
@@ -1306,7 +1317,7 @@ fn a_bound_found_then_lost_carries_the_bound_it_lost() {
             // it on an earlier round.
             assert_eq!((rounds, grid, best.grid), (10, (56, 29), (52, 29)));
             assert!(
-                (best.bound - 4.4774e-6).abs() < 1e-9,
+                (best.bound - 4.3728e-6).abs() < 1e-9,
                 "the lost bound is {:e}",
                 best.bound
             );
@@ -1316,7 +1327,7 @@ fn a_bound_found_then_lost_carries_the_bound_it_lost() {
 }
 
 /// **A round whose bound rose is answered, not refused.** The bumpy
-/// patch at `d = 5e-6` certifies `2e-9` on round 5, at 1.1284e-9, and
+/// patch at `d = 5e-6` certifies `2e-9` on round 5, at 1.1271e-9, and
 /// round 6's bound rises above that: a request between the two runs
 /// past round 6. The loop takes the both-directions step there rather
 /// than stopping, falls again, and at `1e-15` refines to the cap, far
@@ -1332,7 +1343,7 @@ fn a_round_whose_bound_rose_takes_the_both_directions_step() {
         )
     });
     assert!(
-        at5.rounds == 5 && (at5.hull_sup - 1.1285881e-9).abs() < 1e-14,
+        at5.rounds == 5 && (at5.hull_sup - 1.1270741e-9).abs() < 1e-14,
         "round {} carries {:e}",
         at5.rounds,
         at5.hull_sup
@@ -1358,7 +1369,7 @@ fn a_round_whose_bound_rose_takes_the_both_directions_step() {
         }) => {
             assert_eq!((rounds, grid), (9, (38, 37)));
             assert!(
-                (achieved - 7.39e-11).abs() < 1e-13,
+                (achieved - 7.3787e-11).abs() < 1e-14,
                 "the cap stop carries {achieved:e}"
             );
         }

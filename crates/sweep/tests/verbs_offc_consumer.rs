@@ -401,11 +401,11 @@ fn an_approx_faced_body_moves_under_a_rigid_map() {
             "d = {d}: the certificate is about the same distance"
         );
         // The SAMPLED limb is a distance and survives the map. The
-        // certified BOUND does not (geom-brep's
+        // certified BOUND survives it to the image's rounding (geom-brep's
         // `a_rigid_map_of_an_offset_is_the_offset_of_the_rigid_map`
-        // measures it moving), and on this exact planar cap it is dust
-        // either side, so nothing is asserted of it here beyond the map
-        // having re-certified at all.
+        // pins that), and on this exact planar cap it is dust either
+        // side, so nothing is asserted of it here beyond the map having
+        // re-certified at all.
         assert!(
             (c1.on_locus_max - c0.on_locus_max).abs() <= 1e-12,
             "d = {d}: the sampled residual is a distance: {} vs {}",

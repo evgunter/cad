@@ -286,6 +286,88 @@ pub struct PatchCell {
     /// from zero, or is past the integral arm's degree 28 (module docs,
     /// "Refusal").
     pub m_inf: f64,
+    /// The five partials `S_u, S_v, S_uu, S_uv, S_vv` on the cell, each
+    /// as a [`Ball`] about its coefficient vectors' centre: the readings
+    /// a vector-valued bound is formed from (DESIGN `[tolerance.residuals]`),
+    /// where the signed boxes above are per coordinate and a rotation
+    /// moves what they fold into a norm.
+    pub balls: [Ball; 5],
+}
+
+/// **A vector enclosure as a ball**: every value lies within `reach` of
+/// `centre`. Read from a list of coefficient vectors whose convex hull
+/// holds the quantity, about their mean ([`centre`]), so it is a
+/// function of the vectors and a rotation moves it only by rounding.
+/// `reach` is `NaN` when refused.
+#[derive(Clone, Copy, Debug)]
+pub struct Ball {
+    /// The centre, a point (any finite centre is sound; this one is the
+    /// mean of the vectors' midpoints).
+    pub centre: [Interval; 3],
+    /// A certified upper bound on the distance of every value from
+    /// `centre`.
+    pub reach: f64,
+}
+
+impl Ball {
+    /// The ball holding the convex hull of `vectors`; refused for none.
+    #[must_use]
+    pub fn of_vectors(vectors: &[[Interval; 3]]) -> Self {
+        if vectors.is_empty() {
+            return Self::refused();
+        }
+        let c = centre(vectors);
+        let about: Vec<[Interval; 3]> = vectors
+            .iter()
+            .map(|v| [v[0] - c[0], v[1] - c[1], v[2] - c[2]])
+            .collect();
+        Self {
+            centre: c,
+            reach: vectors_norm_sup(&about),
+        }
+    }
+
+    /// The ball of the exact zero vector.
+    #[must_use]
+    pub fn zero() -> Self {
+        Self {
+            centre: [Interval::zero(); 3],
+            reach: 0.0,
+        }
+    }
+
+    /// A refused ball: it bounds nothing.
+    #[must_use]
+    pub fn refused() -> Self {
+        Self {
+            centre: [Interval::zero(); 3],
+            reach: f64::NAN,
+        }
+    }
+
+    /// The ball holding a signed box, about its midpoint, out to its
+    /// half-diagonal: for a reader that holds only a box (a hand-built
+    /// cell). Refused for a refused coordinate.
+    #[must_use]
+    pub fn of_box(b: &[Interval; 3]) -> Self {
+        if !b.iter().all(|x| x.is_certified()) {
+            return Self::refused();
+        }
+        let centre = b.map(|x| Interval::point(geom_core::mid_param(x.lo(), x.hi())));
+        let half: [Interval; 3] =
+            core::array::from_fn(|k| Interval::point((b[k] - centre[k]).mag()));
+        Self {
+            centre,
+            reach: norm_sup(&half),
+        }
+    }
+
+    /// Whether the ball bounds anything: a finite reach and a finite,
+    /// certified centre.
+    #[must_use]
+    pub fn is_certified(&self) -> bool {
+        self.reach.is_finite() && self.centre.iter().all(|c| c.is_certified())
+    }
 }
 
 /// `n` with its weights at unit scale
@@ -605,6 +687,7 @@ fn cell_from(
     uv: ((f64, f64), (f64, f64)),
     signed: [[Interval; 3]; 5],
     [s_u_sup, s_v_sup, m_sup, m_inf]: [f64; 4],
+    balls: [Ball; 5],
 ) -> PatchCell {
     PatchCell {
         u: uv.0,
@@ -618,6 +701,7 @@ fn cell_from(
         s_v_sup,
         m_sup,
         m_inf,
+        balls,
     }
 }
 
@@ -806,10 +890,56 @@ fn integral_cells_on(base_nets: &TensorChannels<'_, 3>) -> Result<Vec<PatchCell>
                 &window_vectors(&w.u_val, &w.v_d1, |c, i, j| nets[c].d01.get(i, j)),
             );
             let m_inf = integral_area_floor(base_nets, (&held_u, &held_v), span_u, span_v);
+            // Each partial's ball about its active derived control
+            // vectors, whose convex hull holds it on the span cell.
+            let ball_of =
+                |net: [&Net; 3], wu: &RangeInclusive<usize>, wv: &RangeInclusive<usize>| {
+                    Ball::of_vectors(&window_vectors(wu, wv, |c, i, j| net[c].get(i, j)))
+                };
+            let second_ball = |sec: [&Second; 3],
+                               wu: Option<&RangeInclusive<usize>>,
+                               wv: Option<&RangeInclusive<usize>>| {
+                if sec.iter().all(|s| matches!(s, Second::Zero)) {
+                    return Ball::zero();
+                }
+                let (Some(wu), Some(wv)) = (wu, wv) else {
+                    return Ball::refused();
+                };
+                // A channel whose second partial is exactly zero
+                // contributes a zero coordinate to every vector.
+                Ball::of_vectors(&window_vectors(wu, wv, |c, i, j| match sec[c] {
+                    Second::Net(net) => net.get(i, j),
+                    Second::Zero => Interval::zero(),
+                }))
+            };
+            let balls = [
+                ball_of(
+                    [&nets[0].d10, &nets[1].d10, &nets[2].d10],
+                    &w.u_d1,
+                    &w.v_val,
+                ),
+                ball_of(
+                    [&nets[0].d01, &nets[1].d01, &nets[2].d01],
+                    &w.u_val,
+                    &w.v_d1,
+                ),
+                second_ball(
+                    [&nets[0].d20, &nets[1].d20, &nets[2].d20],
+                    w.u_d2.as_ref(),
+                    Some(&w.v_val),
+                ),
+                ball_of([&nets[0].d11, &nets[1].d11, &nets[2].d11], &w.u_d1, &w.v_d1),
+                second_ball(
+                    [&nets[0].d02, &nets[1].d02, &nets[2].d02],
+                    Some(&w.u_val),
+                    w.v_d2.as_ref(),
+                ),
+            ];
             cells.push(cell_from(
                 (span_extent(kv_u, su), span_extent(kv_v, sv)),
                 [s_u, s_v, s_uu, s_uv, s_vv],
                 [s_u_sup, s_v_sup, m_sup, m_inf],
+                balls,
             ));
         }
     }
@@ -888,6 +1018,8 @@ fn rational_cells(n: &NurbsSurface<f64>, splits: usize) -> Result<Vec<PatchCell>
                         first.area.as_ref().map_or(f64::NAN, certified_sup),
                         first.area.as_ref().map_or(0.0, certified_inf),
                     ],
+                    [&first.u, &first.v, &second.uu, &second.uv, &second.vv]
+                        .map(|q| Ball::of_vectors(&q.ratio_vectors())),
                 ));
             }
         }

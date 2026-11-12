@@ -350,10 +350,16 @@ const ROSTER: &[(&str, usize, usize, &str)] = &[
     ),
     (
         "crates/geom-brep/src/offset_meters.rs",
-        14,
+        18,
         14,
         "the mignitude, the curvature join and `cell_distance` refuse by name: a cell whose \
-         partial does not certify is read at distance `0`, the vacuous lower bound",
+         partial does not certify is read at distance `0`, the vacuous lower bound. The \
+         remainder is the ball helpers' 4 (`ball_dot`'s and `ball_cross`'s reach, \
+         `ball_norm_sq`'s two ends), whose one caller, `cell_curvature`, refuses the cell \
+         unless every ball certifies (`Ball::is_certified`: a certified centre, a finite \
+         reach) before it reads: each read is an end of a sum of products of certified \
+         intervals, which overflows only to an infinite end, a wider enclosure, never a \
+         narrower one",
     ),
     ("crates/geom-brep/src/pair_section.rs", 4, 4, ""),
     ("crates/geom-brep/src/pair_section/ruling.rs", 3, 3, ""),
@@ -392,11 +398,11 @@ const ROSTER: &[(&str, usize, usize, &str)] = &[
     ("crates/geom-brep/src/pair_section/winds.rs", 12, 12, ""),
     (
         "crates/geom-brep/src/patch_bound.rs",
+        6,
         4,
-        2,
-        "two are the rational arm's quotient readings, each guarded by the `is_certified()` this \
-         counts: `certified_sup` reads `hi` and `certified_inf` reads `lo` only after asking by \
-         name. The remainder is `centre`'s 2, safe because a centre is a translation choice and \
+        "four ask: the rational arm's two quotient readings, each guarded by the `is_certified()` \
+         this counts (`certified_sup` reads `hi` and `certified_inf` reads `lo` only after asking \
+         by name), and `Ball::of_box`'s midpoint, read after every coordinate asks. The remainder is `centre`'s 2, safe because a centre is a translation choice and \
          no enclosure rests on it: it takes midpoints, contributes `0` for a non-finite one and \
          answers `0` for a non-finite mean, so a refused input still yields a finite centre and \
          the reach about it reports the trouble",
@@ -610,6 +616,7 @@ const ROSTER: &[(&str, usize, usize, &str)] = &[
     ),
     ("crates/geom-core/src/spline/algebra.rs", 1, 1, ""),
     ("crates/geom-core/src/spline/blossom.rs", 2, 2, ""),
+    ("crates/geom-core/src/spline/compose/patch.rs", 4, 4, ""),
     ("crates/geom-core/src/spline/compose/tensor.rs", 5, 5, ""),
     (
         "crates/geom-core/src/sym/signed.rs",

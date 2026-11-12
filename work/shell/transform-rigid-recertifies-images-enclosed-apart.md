@@ -99,8 +99,9 @@ Filed by SYM-15, from the chain item it re-homes.
 
 A move no longer re-certifies its images: a finished body's move
 carries its certificates and verdict (`topo::FinishedBody::moved`,
-PR 6820), and a leaf is finished in its own frame before it is moved.
-So the failure this row names is now a later finish's: construction
+PR 6820); a box-scalar leaf moves as construction state, and its taker
+finishes the image (fork 259's take-then-move was measured and reverted
+at the box scalars, PR 6820). So the failure this row names is now a later finish's: construction
 state moved over a boxed motion and finished afresh re-derives every
 certificate from images enclosed apart, and the readings straddle. They
 are reported as undecided, ending in the box scalars' recourse, not as

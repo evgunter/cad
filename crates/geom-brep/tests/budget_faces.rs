@@ -264,11 +264,11 @@ fn quarter_cylinder_at_delta_1e_6_keeps_every_faces_payload_invariants() {
         &quarter_cylinder(1.0, 1.0),
         1e-6,
         [
-            ("cap", 2.1241105e-8),
-            ("cap", 2.1241105e-8),
-            ("cap", 2.1241105e-8),
-            ("certified", 3.4524295e-7),
-            ("certified", 1.5141122e-5),
+            ("cap", 2.1204677e-8),
+            ("cap", 2.1204677e-8),
+            ("cap", 2.1204677e-8),
+            ("certified", 3.4493099e-7),
+            ("certified", 1.2360879e-5),
         ],
     );
     assert!(

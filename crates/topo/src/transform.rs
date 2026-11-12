@@ -349,9 +349,10 @@ fn map_surface<T: Real>(
 /// the mapped net's chart normal under a rigid map and its negation
 /// under a reflection. The certificate bounds the distance between the
 /// fit and the description, which the isometry keeps, so it is the
-/// image's. Re-deriving it would read hull bounds assembled in the
-/// ambient frame, which move under a rotation, and could refuse a sound
-/// face's image.
+/// image's. Re-deriving it would read the same bound back to within the
+/// image's rounding (`geom-brep`'s
+/// `a_rigid_map_of_an_offset_is_the_offset_of_the_rigid_map`), which is
+/// all a face minted at its target could lose (`[simple.conditioned]`).
 fn map_approx<T: Real>(
     map: &Affine3<T>,
     hand: Hand,

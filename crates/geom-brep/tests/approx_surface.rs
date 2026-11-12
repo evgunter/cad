@@ -411,26 +411,25 @@ fn a_window_the_certifier_cannot_honour_refuses_typed() {
 /// the same target — a certified statement, not a sampled one — for a
 /// fit whose bound sits under the target by more than the map moves
 /// it. This row's does (0.44 of the target, asserted under half); one
-/// minted near its target need not, which `topo`'s
-/// `rigid_map_near_eps_approx` suite reproduces.
+/// minted within the image's rounding of its target may flip
+/// (`[simple.conditioned]`), which `topo`'s `rigid_map_near_eps_approx`
+/// suite states.
 ///
-/// **What survives the map is the sampled limb, not the bound.**
-/// `on_locus_max` is a distance between two points, computed the same
-/// way in either frame, and is asserted invariant to 1e-12. `hull_sup`
-/// is a certified BOUND, and while its vector upper bounds are read
-/// from coefficient norms (D4 ¶2), its LOWER bounds — the regularity
-/// floor `τ` divides by and the floors on `‖E‖` — are box-assembled in
-/// the AMBIENT frame: a rotation re-splits the same geometry across the
-/// axes and the bound moves (2.8e-10 here, 6e-4 of the bound). The row
-/// pins that movement from both sides. It is REAL on at least one map —
-/// above 5e-5 of the target, decades above rounding — so that a change
-/// making the bound frame-independent fails here rather than leaving
-/// stale caveats behind (`topo::transform`'s `map_approx` cites this).
-/// And it stays under 2e-3 of the target, where a vector upper bound
-/// read off a per-coordinate box again moves it by 1.8e-8 (4% of the
-/// bound on the oblique map). The target is 1e-6, not a tighter one,
-/// for the same reason: a slack equal to the target would hold for any
-/// two certified limbs whatever.
+/// **The bound survives the map, to its rounding.** `on_locus_max` is
+/// a distance between two points, computed the same way in either
+/// frame, and is asserted invariant to 1e-12. `hull_sup` is a certified
+/// BOUND, and every reading it takes is a function of the geometry: its
+/// vector upper bounds are coefficient norms (D4 ¶2), and its lower
+/// bounds — the regularity floor `τ` divides by and the floors on `‖E‖`
+/// — are read along the piece's own direction and as a ball about
+/// `Ẽ`'s coefficient vectors, never as a per-coordinate box folded into
+/// a norm (`[tolerance.residuals]`). So a rotation moves it only by the
+/// image's rounding: 3.2e-16 across these maps, where the box-assembled
+/// `‖E‖` floor it replaced moved it by 2.8e-10 (6e-4 of the bound).
+/// The row pins it under 1e-9 of the target, so a frame-dependent
+/// reading coming back fails here (`topo::transform`'s `map_approx`
+/// cites it). The target is 1e-6, not a tighter one, so that a slack
+/// equal to the target would not hold for two certified limbs whatever.
 #[test]
 fn a_rigid_map_of_an_offset_is_the_offset_of_the_rigid_map() {
     // The fixed fit target of this row — not the run's ε.
@@ -485,14 +484,9 @@ fn a_rigid_map_of_an_offset_is_the_offset_of_the_rigid_map() {
         }
     }
     assert!(
-        worst_hull > 5e-5 * TARGET,
-        "the hull bound moved by only {worst_hull:e} across every map — if it has become \
-         frame-independent, this row and the caveats that cite it are the things to retire"
-    );
-    assert!(
-        worst_hull < 2e-3 * TARGET,
-        "the hull bound moved by {worst_hull:e} under a rigid map — a vector upper bound \
-         is being read off a per-coordinate box again (D4 ¶2)"
+        worst_hull < 1e-9 * TARGET,
+        "the hull bound moved by {worst_hull:e} under a rigid map — a reading is being \
+         taken off a per-coordinate box again ([tolerance.residuals])"
     );
 }
 

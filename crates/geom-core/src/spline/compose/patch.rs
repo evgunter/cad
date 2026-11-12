@@ -136,6 +136,96 @@ impl PatchSpans {
         super::tensor::coefficient_norm_sup([na, nb, nc])
     }
 
+    /// A certified LOWER bound on `‖(c₀, c₁, c₂)‖` over cell `(su, sv)`
+    /// for the VECTOR form whose three coordinates are `channels` — the
+    /// inf-side twin of [`Self::cell_norm_sup`], read from the coefficient
+    /// vectors themselves rather than from three hulls folded into a norm.
+    ///
+    /// The form lies in the convex hull of its coefficient vectors `cₖ`,
+    /// so for any direction `n ≠ 0` its norm is at least
+    /// `minₖ (cₖ·n)/‖n‖`. The direction is a CHOICE (any finite one is
+    /// sound): the iterates of a Frank–Wolfe descent toward the hull's
+    /// point nearest the origin, from the mean of the coefficient
+    /// vectors' midpoints, the largest reading kept. At the start it
+    /// already reads at least the ball `‖c̄‖ − maxₖ ‖cₖ − c̄‖` about that
+    /// centre, and at the nearest point it reads the hull's distance from
+    /// the origin, which is at least any per-coordinate box's mignitude.
+    /// Every step commutes with a rotation, so the bound is a function of
+    /// the coefficient vectors and a rotation moves it only by rounding
+    /// (DESIGN `[tolerance.residuals]`). `0.0` where no direction proves
+    /// the hull clear of the origin, `NaN` as [`Self::cell_norm_sup`] is.
+    pub fn cell_norm_inf(channels: [&Self; 3], su: usize, sv: usize) -> f64 {
+        use crate::real::Bounds as _;
+        /// Descent steps past the start: a lower bound at every one, so
+        /// the cap trades tightness for time, never soundness.
+        const STEPS: usize = 64;
+        let [a, b, c] = channels;
+        if !a.aligned(b) || !a.aligned(c) || a.degree() != b.degree() || a.degree() != c.degree() {
+            return f64::NAN;
+        }
+        let (Some(na), Some(nb), Some(nc)) = (a.block(su, sv), b.block(su, sv), c.block(su, sv))
+        else {
+            return f64::NAN;
+        };
+        let blocks = [na, nb, nc];
+        if na.is_empty()
+            || blocks
+                .iter()
+                .flat_map(|b| b.iter())
+                .any(|x| !x.is_certified())
+        {
+            return f64::NAN;
+        }
+        let mids: Vec<[f64; 3]> = (0..na.len())
+            .map(|k| {
+                core::array::from_fn(|i| crate::mid_param(blocks[i][k].lo(), blocks[i][k].hi()))
+            })
+            .collect();
+        let dot = |p: &[f64; 3], q: &[f64; 3]| p[0] * q[0] + p[1] * q[1] + p[2] * q[2];
+        // The certified reading along `n`: `minₖ (cₖ·n)` over the
+        // coefficient enclosures, over `‖n‖` from above.
+        let along = |n: &[f64; 3]| -> f64 {
+            let n_iv = n.map(Interval::point);
+            let len = (n_iv[0].sqr() + n_iv[1].sqr() + n_iv[2].sqr()).sqrt();
+            let lo = (0..na.len())
+                .map(|k| {
+                    (blocks[0][k] * n_iv[0] + blocks[1][k] * n_iv[1] + blocks[2][k] * n_iv[2]).lo()
+                })
+                .fold(f64::INFINITY, f64::min);
+            let hi = len.hi();
+            if lo > 0.0 && hi > 0.0 && hi.is_finite() {
+                crate::interval::div_down(lo, hi)
+            } else {
+                0.0
+            }
+        };
+        #[allow(clippy::cast_precision_loss)]
+        let count = mids.len() as f64;
+        let mut x: [f64; 3] =
+            core::array::from_fn(|i| mids.iter().map(|m| m[i]).sum::<f64>() / count);
+        let mut best = 0.0_f64;
+        for _ in 0..=STEPS {
+            if !x.iter().all(|v| v.is_finite()) || dot(&x, &x) == 0.0 {
+                break;
+            }
+            best = best.max(along(&x));
+            let Some(s) = mids.iter().min_by(|p, q| dot(p, &x).total_cmp(&dot(q, &x))) else {
+                break;
+            };
+            let step: [f64; 3] = core::array::from_fn(|i| s[i] - x[i]);
+            let len2 = dot(&step, &step);
+            if len2.is_nan() || len2 <= 0.0 {
+                break;
+            }
+            let gamma = (-dot(&x, &step) / len2).clamp(0.0, 1.0);
+            if gamma.is_nan() || gamma <= 0.0 {
+                break;
+            }
+            x = core::array::from_fn(|i| x[i] + gamma * step[i]);
+        }
+        best
+    }
+
     /// Cell `(su, sv)`'s coefficients, row-major in `u`, `None` out of
     /// range: one coefficient's enclosure, which [`Self::cell_hull`]
     /// folds into the cell's.
