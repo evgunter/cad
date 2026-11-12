@@ -168,7 +168,8 @@ fn accepting_the_offer_redefines_the_source_once() {
         },
     );
     let before = session.committed_doc().clone();
-    let (_, offers) = viewer::frame::placement_offers(&before, fillet);
+    let (_, offers) =
+        viewer::frame::placement_offers(&before, fillet, pncad::geom_core::Tol::witness());
     let [(label, op)] = &offers[..] else {
         panic!("one offer: {offers:?}")
     };
@@ -229,7 +230,7 @@ fn accepting_the_offer_redefines_the_source_once() {
         assert_eq!(row.status, RowStatus::Ok, "{row:?}");
     }
     assert_eq!(
-        viewer::world::repoint_offer(doc, fillet),
+        viewer::world::repoint_offer(doc, fillet, pncad::geom_core::Tol::witness()),
         None,
         "nothing left to offer"
     );
@@ -459,9 +460,14 @@ fn a_member_placements_source_is_not_re_pointed_onto_one_body() {
     );
     assert!(session.committed_doc().bit_eq(&before), "nothing written");
     assert!(
-        viewer::world::repoint_targets(session.committed_doc(), doc_body(&before, family), other)
-            .iter()
-            .all(|row| row.source != source),
+        viewer::world::repoint_targets(
+            session.committed_doc(),
+            doc_body(&before, family),
+            other,
+            pncad::geom_core::Tol::witness()
+        )
+        .iter()
+        .all(|row| row.source != source),
         "no offer row re-points it onto one body"
     );
 }

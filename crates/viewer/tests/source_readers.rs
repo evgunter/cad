@@ -40,9 +40,10 @@ fn refused_and_not_offered(
     onto: RecipeNodeId,
 ) {
     let doc = session.committed_doc().clone();
-    let offered = viewer::world::repoint_targets(&doc, body, onto)
-        .iter()
-        .any(|row| row.source == source);
+    let offered =
+        viewer::world::repoint_targets(&doc, body, onto, pncad::geom_core::Tol::witness())
+            .iter()
+            .any(|row| row.source == source);
     let out = session.perform(SessionOp::RepointPlacements {
         source,
         onto: onto.into(),

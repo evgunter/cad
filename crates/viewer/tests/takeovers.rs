@@ -213,7 +213,12 @@ fn taken_over(
     let (onto, offer) = made
         .minted
         .iter()
-        .find_map(|&node| Some((node, viewer::world::repoint_offer(doc, node)?)))
+        .find_map(|&node| {
+            Some((
+                node,
+                viewer::world::repoint_offer(doc, node, pncad::geom_core::Tol::witness())?,
+            ))
+        })
         .expect("the gesture's result offers the re-point");
     let made = doc.clone();
     let outcome = session.perform(SessionOp::RepointPlacements {

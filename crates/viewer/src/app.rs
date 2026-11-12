@@ -7671,14 +7671,15 @@ mod properties_pane_tests {
             let doc = self.app.session.committed_doc();
             doc.ids()
                 .into_iter()
-                .find(|&id| crate::world::repoint_offer(doc, id).is_some())
+                .find(|&id| crate::world::repoint_offer(doc, id, self.app.session.tol()).is_some())
                 .expect("a body built on the extrude offers the re-point")
         }
 
         /// The re-point `onto` offers, accepted; `land` pumps.
         fn repoint_onto(&mut self, onto: RecipeNodeId, land: bool) {
             let doc = self.app.session.committed_doc();
-            let offer = crate::world::repoint_offer(doc, onto).expect("an offer");
+            let offer =
+                crate::world::repoint_offer(doc, onto, self.app.session.tol()).expect("an offer");
             self.app.perform_batch(vec![SessionOp::RepointPlacements {
                 source: offer.rows[0].source,
                 onto: onto.into(),

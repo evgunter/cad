@@ -706,7 +706,8 @@ impl ViewerBehavior<'_> {
         let Some(node) = self.session.selection().seat_node() else {
             return;
         };
-        let (said, offers) = crate::frame::placement_offers(self.session.committed_doc(), node);
+        let (said, offers) =
+            crate::frame::placement_offers(self.session.committed_doc(), node, self.session.tol());
         if let Some(said) = said {
             crate::widgets::message(ui, said);
         }

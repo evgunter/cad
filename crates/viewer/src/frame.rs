@@ -2585,6 +2585,7 @@ pub fn product_recourse(
 pub fn placement_offers(
     doc: &Doc<ProfileProgram>,
     node: RecipeNodeId,
+    tol: pncad::geom_core::Tol,
 ) -> (Option<String>, Vec<(String, SessionOp)>) {
     let by = Speaker::of(doc);
     let mut said = None;
@@ -2611,7 +2612,7 @@ pub fn placement_offers(
             SessionOp::Select(crate::session::Selection::Node(original)),
         ));
     }
-    if let Some(offer) = crate::world::repoint_offer(doc, node) {
+    if let Some(offer) = crate::world::repoint_offer(doc, node, tol) {
         for row in offer.rows {
             let label = match doc.var_name(row.source) {
                 Some(name) => {

@@ -705,13 +705,14 @@ pub fn repoint_targets(
     doc: &Doc<ProfileProgram>,
     body: VarId,
     onto: RecipeNodeId,
+    tol: pncad::geom_core::Tol,
 ) -> Vec<RepointRow> {
     doc.sources_of(body)
         .into_iter()
         .filter(|&source| doc.source(source).is_some_and(|read| !read.is_indexed()))
         .filter_map(|source| {
             let placements = placements_of_var(doc, source);
-            (!placements.is_empty() && redefinable(doc, source, onto))
+            (!placements.is_empty() && redefinable(doc, source, onto, tol))
                 .then_some(RepointRow { source, placements })
         })
         .collect()
@@ -719,7 +720,12 @@ pub fn repoint_targets(
 
 /// **Whether the definition door takes `source = onto`**, asked on a
 /// scratch copy of `doc` with the edit the re-point writes.
-fn redefinable(doc: &Doc<ProfileProgram>, source: VarId, onto: RecipeNodeId) -> bool {
+fn redefinable(
+    doc: &Doc<ProfileProgram>,
+    source: VarId,
+    onto: RecipeNodeId,
+    tol: pncad::geom_core::Tol,
+) -> bool {
     doc.apply(
         &pncad::document::DocEdit::DefineVar {
             var: source.into(),
@@ -728,7 +734,7 @@ fn redefinable(doc: &Doc<ProfileProgram>, source: VarId, onto: RecipeNodeId) -> 
             ))),
             fresh: Vec::new(),
         },
-        pncad::geom_core::Tol::witness(),
+        tol,
     )
     .is_ok()
 }
@@ -816,7 +822,11 @@ pub struct RepointOffer {
 }
 
 /// [`RepointOffer`] for `node`.
-pub fn repoint_offer(doc: &Doc<ProfileProgram>, node: RecipeNodeId) -> Option<RepointOffer> {
+pub fn repoint_offer(
+    doc: &Doc<ProfileProgram>,
+    node: RecipeNodeId,
+    tol: pncad::geom_core::Tol,
+) -> Option<RepointOffer> {
     if matches!(
         doc.node(node)?,
         Node::Place { .. } | Node::InstantiatePart { .. }
@@ -837,7 +847,7 @@ pub fn repoint_offer(doc: &Doc<ProfileProgram>, node: RecipeNodeId) -> Option<Re
             Node::Split { target, .. } => target.read,
             _ => doc.read_of_node(taken)?,
         };
-        let rows = repoint_targets(doc, body, node);
+        let rows = repoint_targets(doc, body, node, tol);
         (!rows.is_empty()).then_some(RepointOffer { body, rows })
     })
 }

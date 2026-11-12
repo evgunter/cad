@@ -225,7 +225,8 @@ fn a_three_pick_union_commits_one_union_of_three_spelled_members() {
         "the union of the bodies picked as themselves writes no placement"
     );
     assert_eq!(
-        viewer::world::repoint_offer(doc, union).map(|offer| offer.body),
+        viewer::world::repoint_offer(doc, union, pncad::geom_core::Tol::witness())
+            .map(|offer| offer.body),
         doc.output(a, 0),
         "and offers to re-point a's placements onto it"
     );
@@ -368,7 +369,8 @@ fn a_combine_offers_the_re_point_of_the_operand_the_world_places() {
     );
     let doc = session.committed_doc();
     assert_eq!(common::world(doc), [b], "the union writes no placement");
-    let offer = viewer::world::repoint_offer(doc, union).expect("the union offers the re-point");
+    let offer = viewer::world::repoint_offer(doc, union, pncad::geom_core::Tol::witness())
+        .expect("the union offers the re-point");
     assert_eq!(Some(offer.body), doc.output(b, 0), "of b's placement");
     let out = session.perform(SessionOp::RepointPlacements {
         source: offer.rows[0].source,
@@ -431,7 +433,7 @@ fn a_pattern_of_a_body_picked_as_itself_re_points_no_placement() {
         );
         let family = outcome.made.expect("the family");
         assert_eq!(
-            viewer::world::repoint_offer(doc, family),
+            viewer::world::repoint_offer(doc, family, pncad::geom_core::Tol::witness()),
             None,
             "{pass}: a pattern offers no re-point"
         );
@@ -4215,7 +4217,7 @@ fn a_combine_that_would_strand_a_pick_refuses_typed() {
         "the union writes no placement"
     );
     assert_eq!(
-        viewer::world::repoint_offer(doc, union),
+        viewer::world::repoint_offer(doc, union, pncad::geom_core::Tol::witness()),
         None,
         "the union is built on a copy, so it offers no re-point"
     );
