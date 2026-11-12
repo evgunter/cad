@@ -1912,8 +1912,8 @@ fn shared_support_gate<T: Real>(rims: &[RimPlan<'_, T>]) -> Result<(), BlendErro
             if annulus(a) != annulus(b) {
                 return Err(unbuilt_chain(
                     b.chain.first().edge,
-                    "an annulus rim shares its support with a ladder or mixed rim; blend them \
-                     SEQUENTIALLY",
+                    "an annulus and a ladder or mixed rim share a support; blend them in \
+                     SEQUENTIAL calls",
                 ));
             }
         }

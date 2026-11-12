@@ -383,8 +383,8 @@ fn an_annulus_rim_around_a_mixed_rim_refuses_and_composes_sequentially() {
     };
     assert!(
         matches!(&e.error, BlendError::UnsupportedChain { detail, .. }
-            if detail.contains("annulus rim shares its support with a ladder or mixed rim")
-                && detail.contains("SEQUENTIALLY")),
+            if detail.contains("an annulus and a ladder or mixed rim share a support")
+                && detail.contains("SEQUENTIAL calls")),
         "refuses at the shared-support gate, got {:?}",
         e.error
     );
