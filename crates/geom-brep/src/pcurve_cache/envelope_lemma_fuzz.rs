@@ -1136,23 +1136,20 @@ fn the_envelope_dominates_where_no_circle_reaches() {
         if pole != (a_r.norm() < z) {
             continue;
         }
-        let d_read = if pole {
-            (b - e * b.dot(e)).normalize()
-        } else {
-            a_r.normalize()
+        let form = super::Harmonic3 {
+            c: Point3::origin(),
+            a,
+            b,
+            l: Vec3::zero(),
         };
+        // The direction the derivation builds the image on.
+        let d_read = super::sphere_meridian_direction(&form, e, pole);
         let v0 = a.dot(e).atan2(a_r.norm());
         let sphere = Surface::Sphere {
             center: Point3::origin(),
             radius: r,
             axis: e,
             u_ref: d_read,
-        };
-        let form = super::Harmonic3 {
-            c: Point3::origin(),
-            a,
-            b,
-            l: Vec3::zero(),
         };
         let derivation = Derivation::SphereMeridian {
             pole,
