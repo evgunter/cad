@@ -50,8 +50,7 @@ fn nodes(doc: &Doc<ProfileProgram>) -> Vec<String> {
 #[test]
 fn probe_accept_then_delete_f_is_the_identity_on_the_variables() {
     let tol = Tol::witness();
-    let mut session =
-        common::inline_without_door(Doc::empty_derived("r2-identity", tol), tol);
+    let mut session = common::inline_without_door(Doc::empty_derived("r2-identity", tol), tol);
     let body = common::xy_box_in(&mut session, SIZE);
     session.pump();
     for _ in 0..2 {
@@ -59,7 +58,10 @@ fn probe_accept_then_delete_f_is_the_identity_on_the_variables() {
         landed(&mut session, op);
     }
     let bracket = session.committed_doc().var_named("bracket").expect("named");
-    let before = (nodes(session.committed_doc()), vars(session.committed_doc()));
+    let before = (
+        nodes(session.committed_doc()),
+        vars(session.committed_doc()),
+    );
     let edge = pncad::select::all_edges(session.evaluation().expect("landed"), body)
         .into_iter()
         .find(|name| matches!(name.path.as_slice(), [RoleSeg::LateralEdge(_)]))
@@ -85,7 +87,10 @@ fn probe_accept_then_delete_f_is_the_identity_on_the_variables() {
     for row in session.tree_rows() {
         assert_eq!(row.status, RowStatus::Ok, "{row:?}");
     }
-    let after = (nodes(session.committed_doc()), vars(session.committed_doc()));
+    let after = (
+        nodes(session.committed_doc()),
+        vars(session.committed_doc()),
+    );
     assert_eq!(after.0, before.0, "nodes");
     assert_eq!(after.1, before.1, "variables");
 }

@@ -175,8 +175,7 @@ fn probe_the_load_refuses_a_shared_anonymous_source_and_a_source_cycle() {
         matches!(
             refused,
             Err(PersistError::Snapshot(
-                SnapshotError::SharedVarNeedsName { .. }
-                    | SnapshotError::AnonymousVarUnread { .. }
+                SnapshotError::SharedVarNeedsName { .. } | SnapshotError::AnonymousVarUnread { .. }
             ))
         ),
         "shared: {:?}",
@@ -188,7 +187,10 @@ fn probe_the_load_refuses_a_shared_anonymous_source_and_a_source_cycle() {
     let cyc = text.replacen(&def, &format!("\"Source\": {}", spell(out(&doc, f))), 1);
     let refused = editor_core::load(&cyc, Tol::witness());
     assert!(
-        matches!(refused, Err(PersistError::Snapshot(SnapshotError::ReadCycle { .. }))),
+        matches!(
+            refused,
+            Err(PersistError::Snapshot(SnapshotError::ReadCycle { .. }))
+        ),
         "cycle: {:?}",
         refused.map(|_| ())
     );
@@ -225,7 +227,9 @@ fn probe_redefining_a_family_source_onto_a_body_is_refused() {
         return; // the door refuses: fine
     };
     let saved = editor_core::save(&applied.doc, &[], Tol::witness());
-    let loaded = saved.as_ref().map(|text| editor_core::load(text, Tol::witness()).map(|_| ()));
+    let loaded = saved
+        .as_ref()
+        .map(|text| editor_core::load(text, Tol::witness()).map(|_| ()));
     let ev = crate::blocks::run(&applied.doc);
     panic!(
         "the door admitted S = D under a member read S[0]; save/load: {:?}; evaluation of m: {:?}",
@@ -271,7 +275,9 @@ fn probe_redefining_a_body_source_onto_a_family_is_refused_or_saves() {
         return;
     };
     let saved = editor_core::save(&applied.doc, &[], Tol::witness());
-    let loaded = saved.as_ref().map(|text| editor_core::load(text, Tol::witness()).map(|_| ()));
+    let loaded = saved
+        .as_ref()
+        .map(|text| editor_core::load(text, Tol::witness()).map(|_| ()));
     assert!(
         matches!(loaded, Ok(Ok(()))),
         "the door admitted bracket = a family; save/load: {loaded:?}"
