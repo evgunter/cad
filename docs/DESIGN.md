@@ -279,7 +279,7 @@ of them is a defect.
 | Location | a placement | [placement] |
 | A pose's symmetry and a mate's fold | one `Subgroup` type | [variables.poses] |
 | A coincidence decided from values | recorded at the one coincidence door | [coincidence] |
-| Whether two surface records are one surface | the act that decided their coincidence, which leaves their faces on one record | [coincidence.door] |
+| Whether faces lie on one surface | the act that decided their coincidence, which leaves them on one record | [coincidence.door] |
 | Whether a coincidence is structural | that door, and nowhere else | [coincidence.structural] |
 | A value authored several ways | a family of forms lowering through one reading | [recipe.forms] |
 | Which version of a document a reference means | its content pin | [assemblies.pins] |
@@ -1705,10 +1705,10 @@ forms is only ever a cache generated from the symbolic evaluation and
 checked against it, never written by hand. A reading that only chooses
 a cell's form (a lane choice, [verdicts.consumers]) infers no
 coincidence and records nothing; a door that makes cells one on a
-class it read (the boolean's edge join) records it. A verdict that two surface records are one
-carrier ends in one surface record: the act that decided it leaves every
-face on the other record re-pointed onto the kept one, and the row
-records why. Two distinct records at rest are two surfaces.
+class it read (the boolean's edge join) records it. A verdict that faces lie on one carrier
+leaves them on one surface record, and the row records why; a verdict
+decided from values moves only the faces it was read over. Two distinct
+records at rest are two surfaces.
 
 **Booleans.** `[coincidence.booleans]` The booleans are the four
 operators ([operations.operators]), and a boolean's operands must
@@ -1727,10 +1727,8 @@ of `A` both operands carry are glued structurally.
 
 Where its verdicts decide Zero, a union, a cut or a meet glues where
 an arm exists for the carrier pair ([topology]'s frontier), keeping
-one fixed operand's description for a merged face (which one is
-arbitrary; the kernel keeps the first-written operand's, the simplest
-fixed rule, where a rule that read values would choose by rounding
-between two descriptions within the band of each other), and an assemble
+one fixed operand's description for a merged face (chosen by
+a fixed rule that reads keys, never values), and an assemble
 records the touch ([topology.records]); each refuses what falls in the
 sliver band. Its result holds no in-band pair, a pair of result cells
 whose one census number lies in band. A solid's only shell is its outer
