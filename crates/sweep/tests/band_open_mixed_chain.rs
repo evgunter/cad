@@ -444,7 +444,7 @@ fn a_smooth_outline_filleted_in_part_refuses_naming_the_whole_run() {
         );
         let shown = e.to_string();
         assert!(
-            shown.contains("every edge it runs on into smoothly"),
+            shown.contains("requesting its whole smooth run"),
             "{what}: {shown}"
         );
     }

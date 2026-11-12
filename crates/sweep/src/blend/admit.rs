@@ -43,7 +43,7 @@ use topo::{Body, EdgeKey, EntityId, FaceKey, HalfEdgeKey, VertexKey};
 
 use super::battery::{Chain, Convexity, JointVerdict, Link, joint_verdict};
 use super::build::{fan_at, outward_of};
-use super::junction;
+use super::junction::{self, JUNCTION_ON_ONE_PAIR};
 use super::surgery::{
     CORNER_SUPPORT_NOT_PLANAR, disagrees, unbuilt_chain, unbuilt_corner_config, unbuilt_geometry,
     unresolved, unwalked,
@@ -256,10 +256,12 @@ impl<'a, T: Decide> OpenBand<'a, T> {
     ///
     /// # Errors
     ///
-    /// [`Joint::admit`]'s and [`Junction::admit`]'s refusals at any
-    /// junction; [`BlendError::UnsupportedChain`] when a link's arm is
-    /// neither plane–plane nor ruled nor a torus between two junctions,
-    /// or a chain mixes joints and junctions.
+    /// [`Junction::admit`]'s refusals at a junction between links on
+    /// different supports; [`BlendError::UnsupportedCorner`] at a joint
+    /// vertex carrying other edges, and [`BlendError::BodyNotIntact`]
+    /// where its orbit does not walk; [`BlendError::UnsupportedChain`]
+    /// when a link's arm is neither plane–plane nor ruled nor a torus
+    /// between two junctions, or a chain mixes joints and junctions.
     pub(super) fn admit(body: &Body<T>, chain: &'a Chain<T>) -> Result<Self, BlendError> {
         // Three open links are built: the plane–plane link, terminating
         // in trivalent corners, cut-offs or turns; the RULED link — a
@@ -306,10 +308,7 @@ impl<'a, T: Decide> OpenBand<'a, T> {
             }
         }
         if !(joints.is_empty() || junctions.is_empty()) {
-            return Err(unbuilt_chain(
-                chain.first().edge,
-                junction::JUNCTION_ON_ONE_PAIR,
-            ));
+            return Err(unbuilt_chain(chain.first().edge, JUNCTION_ON_ONE_PAIR));
         }
         let at_junction = |v: VertexKey| junctions.iter().any(|j| j.vertex == v);
         for link in chain.links() {
@@ -318,8 +317,8 @@ impl<'a, T: Decide> OpenBand<'a, T> {
             if !(link.arm.is_plane_plane() || link.arm.is_ruled() || between) {
                 return Err(unbuilt_chain(
                     link.edge,
-                    "an open chain's link is neither plane–plane, nor a ruled cylinder pair, nor \
-                     a torus between two junctions with links on other supports",
+                    "an open chain link is not plane–plane, ruled, or a torus between two \
+                     junctions",
                 ));
             }
         }

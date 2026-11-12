@@ -12,7 +12,7 @@ refs: [an-open-tangent-chain-of-mixed-links-refuses-at-the-open-carve]
 
 Filed by the band-openmix lane (2026-11-10), measured while building the open mixed chain.
 
-An open chain admits a torus link only between two junctions (`OpenBand::admit`, `crates/sweep/src/blend/admit.rs`). A torus link at an open chain's end refuses `UnsupportedChain`: "an open chain's link is neither plane–plane, nor a ruled cylinder pair, nor a torus between two junctions with links on other supports". The witness is a half-disc's arc requested alone, `crates/sweep/tests/band_open_mixed_chain.rs::a_torus_link_at_an_open_chains_end_refuses_at_the_open_door`.
+An open chain admits a torus link only between two junctions (`OpenBand::admit`, `crates/sweep/src/blend/admit.rs`). A torus link at an open chain's end refuses `UnsupportedChain`: "an open chain link is not plane–plane, ruled, or a torus between two junctions". The witness is a half-disc's arc requested alone, `crates/sweep/tests/band_open_mixed_chain.rs::a_torus_link_at_an_open_chains_end_refuses_at_the_open_door`.
 
 The ratified cut-off rule already decides one case of it: the band ends in the end face's plane section of it. When the end face is a plane containing the torus's axis (a meridian plane), that section is the minor circle, a stored kind. A D-shaped outline's arc requested alone meets its diameter's wall like that. Any other end plane cuts a spiric quartic with no stored carrier, and it stays refused (D3). A torus band's mitre against a neighbour, and a corner patch over a curved support, stay refused as well.
 

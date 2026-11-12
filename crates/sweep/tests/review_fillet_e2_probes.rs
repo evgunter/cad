@@ -545,8 +545,7 @@ fn open_plane_sphere_arcs_meet_the_chain_gate_and_a_plane_cylinder_rim_carves() 
         let shown = err.render(geom_brep::recourse::Reading::Build);
         assert!(
             shown.contains(
-                "an open chain's link is neither plane–plane, nor a ruled cylinder pair, nor a \
-                 torus between two junctions with links on other supports"
+                "an open chain link is not plane–plane, ruled, or a torus between two junctions"
             ) && shown.contains(FILLET3_ASSEMBLY_RECOURSE),
             "{shown}"
         );

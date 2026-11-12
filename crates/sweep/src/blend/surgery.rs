@@ -40,9 +40,13 @@
 //! trivalent corners in [`super::open::planar`], the ruled band cut off
 //! at plane caps in [`super::open::ruled`]. Both are admitted here
 //! ([`OpenBand`]) and carve on the clone this door makes. A planar band
-//! may run across [`Joint`]s — consecutive links on the same two
-//! support faces, which a coplanar-face merge leaves wherever a wall
-//! was subdivided — and is carved as ONE face over all its links.
+//! may run across joints (`admit::Joint`) — consecutive links on the
+//! same two support faces, which a coplanar-face merge leaves wherever
+//! a wall was subdivided — and is then carved as ONE face over all its
+//! links; or across junctions (`admit::Junction`) onto links on other
+//! supports, a torus link between two of them, and is then carved one
+//! face per link with the section between each two
+//! ([`super::junction`]).
 //!
 //! **Closed chains** come in THREE shapes, which are different
 //! surgeries and not settings of one — see [`RimShape`]: the ladder and

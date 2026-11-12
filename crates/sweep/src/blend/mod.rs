@@ -1223,8 +1223,8 @@ pub const FILLET3_CONVEXITY_RECOURSE: &str =
 /// and `band_planar_cut_off`, which build each end it names.
 pub const FILLET3_CORNER_RECOURSE: &str = "end the blend at a flat-faced corner, \
      blending all three edges where they round alike, two that round alike meeting on the third \
-     or clearly apart, or one ending at a flat face, with every edge it runs on into smoothly \
-     requested too, in one operation";
+     or clearly apart, or one ending at a flat face, requesting its whole smooth run, in one \
+     operation";
 /// The recourse at a mixed-convexity corner whose odd edge is requested
 /// with another of its edges ([`CornerConfig::MixedConvexity`]). It
 /// names the two requests there that build, one edge alone (the

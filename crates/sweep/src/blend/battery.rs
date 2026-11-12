@@ -2449,9 +2449,8 @@ fn is_seam_vertex<T: Decide>(
 /// smoothly into an edge it does not name: part of a tangent run
 /// (`work/band/a-smooth-outline-filleted-in-part-stops-at-a-tangent-junction.md`).
 /// Its recourse asks for the whole run.
-pub const PARTIAL_TANGENT_RUN: &str = "the request stops where its edge runs on smoothly into \
-     an edge it does not name, so the blend would stop against a face tangent to its own \
-     support, which no end builds";
+pub const PARTIAL_TANGENT_RUN: &str = "the request stops where its edge runs smoothly into an \
+     unrequested one, against a face tangent to its support";
 
 /// The refusal for a straight band — either open band — ending at a
 /// curved end face.

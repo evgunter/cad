@@ -51,7 +51,7 @@ use super::open::end_face::feet_in_order;
 use super::surgery::{
     ContactCarrier, Described, ExpectedSource, SplitFragments, certified_curve, disagrees,
     halves_of, host_side_half, op, point_of, seam_split_param, split_fragment, stored_piece,
-    unbuilt_chain, unbuilt_geometry, unresolved, unwalked,
+    unbuilt_chain, unbuilt_geometry, unbuilt_run_out, unresolved, unwalked,
 };
 
 /// **What a junction is, read once for every admission**: the face its
@@ -66,12 +66,11 @@ pub(super) struct Shape {
 }
 
 /// A junction's link is neither of the two bands with a section.
-pub(super) const JUNCTION_UNSECTIONED: &str = "a chain's links meet on different supports where \
-     one is neither a rolling-ball cylinder over two planes nor a torus; that junction is not \
-     implemented";
+pub(super) const JUNCTION_UNSECTIONED: &str =
+    "a chain's junction joins a link that is neither a plane–plane cylinder nor a torus";
 /// Two consecutive links on one support pair among links on others.
-pub(super) const JUNCTION_ON_ONE_PAIR: &str = "a chain of links on different supports runs two \
-     consecutive links on one support pair; that run inside it is not implemented";
+pub(super) const JUNCTION_ON_ONE_PAIR: &str =
+    "a chain of links on different supports has two consecutive links on one support pair";
 /// The two links share no one face.
 pub(super) const JUNCTION_NO_HOST: &str =
     "a chain's links meet at a junction on supports that share no one face";
@@ -512,7 +511,12 @@ pub(super) fn feet_clear<T: Decide + Bounds>(
             };
             let d = (at(chord.to)? - at(chord.from)?).normalize();
             let span = (chord.feet[1] - chord.feet[0]).dot(d);
-            feet_in_order(chord.edge, Margin::of(span), JUNCTION_FEET_CROSS, band)?;
+            if !feet_in_order(chord.edge, Margin::of(span), band)? {
+                return Err(unbuilt_run_out(
+                    EntityId::Edge(chord.edge),
+                    JUNCTION_FEET_CROSS,
+                ));
+            }
         }
     }
     Ok(())
