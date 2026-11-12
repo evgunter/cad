@@ -172,6 +172,10 @@ pub(crate) fn patch(
 /// The degree an enclosing patch reads each angle at.
 pub(crate) const DEGREE: usize = 6;
 
+/// The degree a window too wide for [`DEGREE`] in [`MAX_PIECES`] is read
+/// at.
+pub(crate) const WIDE_DEGREE: usize = 10;
+
 /// The most pieces an enclosing patch cuts one angle's window into.
 pub(crate) const MAX_PIECES: usize = 256;
 
@@ -225,10 +229,17 @@ impl Angle {
         let half_at = |p: usize| {
             (target * factorial(p + 1) / arm.max(f64::MIN_POSITIVE)).powf(1.0 / (p + 1) as f64)
         };
+        let pieces_at = |p: usize| ((hi - lo) / (2.0 * half_at(p))).ceil();
         let p = (1..DEGREE)
             .find(|&p| hi - lo <= 2.0 * half_at(p))
             .unwrap_or(DEGREE);
-        let pieces = ((hi - lo) / (2.0 * half_at(p))).ceil();
+        // A window too wide for [`DEGREE`]'s pieces reads at [`WIDE_DEGREE`].
+        let p = if pieces_at(p) > MAX_PIECES as f64 {
+            WIDE_DEGREE
+        } else {
+            p
+        };
+        let pieces = pieces_at(p);
         if !(pieces.is_finite() && pieces <= MAX_PIECES as f64) {
             return Err(PatchRefusal::Pieces);
         }

@@ -734,19 +734,7 @@ pub(super) fn certify<T: Decide>(
     surface: &Surface<T>,
     band: Band,
 ) -> Result<super::PcurveCertificate<T>, PcurveCertifyError> {
-    let residual = match form {
-        ClosedForm::Harmonic(u, v) => harmonic_residual((u, v), carrier, surface, span)?,
-        ClosedForm::Spiric(major, minor, offset, spiric) => {
-            spiric_residual((major, minor, offset, spiric), carrier, surface, span, band)?
-        }
-        ClosedForm::Focal(focal) => focal_residual(image, focal, carrier, surface, span, band)?,
-        ClosedForm::Unheld(kind) => {
-            return Err(unheld(
-                kind,
-                "an iso arc is a spline chart's rim, and no analytic chart holds one",
-            ));
-        }
-    };
+    let residual = residual_of((image, form), span, carrier, surface, band)?;
     let miss = |t: T| {
         let p = image.eval(t);
         carrier.eval(t).distance(surface.eval(p.x, p.y))
@@ -765,4 +753,45 @@ pub(super) fn certify<T: Decide>(
         bound,
         super::EnvelopeStatement::MapResidualClosedForm,
     ))
+}
+
+/// The residual of a closed form against its carrier, by its form.
+fn residual_of<T: Decide>(
+    (image, form): (&super::Pcurve<T>, ClosedForm<T>),
+    span: EdgeSpan<T>,
+    carrier: &Curve3<T>,
+    surface: &Surface<T>,
+    band: Band,
+) -> Result<Residual<T>, PcurveCertifyError> {
+    match form {
+        ClosedForm::Harmonic(u, v) => harmonic_residual((u, v), carrier, surface, span),
+        ClosedForm::Spiric(major, minor, offset, spiric) => {
+            spiric_residual((major, minor, offset, spiric), carrier, surface, span, band)
+        }
+        ClosedForm::Focal(focal) => focal_residual(image, focal, carrier, surface, span, band),
+        ClosedForm::Unheld(kind) => Err(unheld(
+            kind,
+            "an iso arc is a spline chart's rim, and no analytic chart holds one",
+        )),
+    }
+}
+
+/// The coefficient bound a closed form's certificate would read, for the
+/// rows that hold it against a dense miss.
+#[cfg(test)]
+pub(super) fn bound_of(
+    image: &super::Pcurve<f64>,
+    carrier: &Curve3<f64>,
+    surface: &Surface<f64>,
+    (t0, t1): (f64, f64),
+    band: Band,
+) -> Option<f64> {
+    let form = ClosedForm::of(image)?;
+    let span = EdgeSpan {
+        params: (t0, t1),
+        outer: (t0, t1),
+    };
+    residual_of((image, form), span, carrier, surface, band)
+        .ok()
+        .map(|r| r.bound())
 }
