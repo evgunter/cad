@@ -1518,10 +1518,11 @@ fn in_id_order<V>(mut found: Vec<(RecipeNodeId, V)>) -> Vec<(RecipeNodeId, V)> {
 ///
 /// It passes over a corner's sign ([`geom_brep::DIHEDRAL_SIGN`]) on the
 /// same terms: tier 3 and the shared-rim routing read it off a body
-/// already built, and its population moves across signs whenever an edit
-/// trades convex corners for concave ones, with no corner turning, so a
-/// flip there changes whether a body is accepted, never which body a
-/// name was read off.
+/// already built, a constructor reads it of an edge it wrote and
+/// describes a crease of either turn alike, and its population moves
+/// across signs whenever an edit trades convex corners for concave ones,
+/// with no corner turning, so a flip there changes whether a body is
+/// accepted, never which body a name was read off.
 fn first_cause(found: Vec<(RecipeNodeId, VerdictFlip)>) -> Option<(RecipeNodeId, VerdictFlip)> {
     in_id_order(found).into_iter().find(|(_, f)| {
         !f.predicate.starts_with(topo::SIDE_READER_FAMILY)

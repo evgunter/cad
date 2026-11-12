@@ -52,6 +52,19 @@ pub(crate) enum StarFace<T: Real> {
     Apex(ConeApex<T>),
 }
 
+impl<T: Decide> StarFace<T> {
+    /// The face's outward normal along the direction `d` out of the
+    /// vertex: its tangent plane's, or at a cone's apex the normal along
+    /// the ruling `d` lies on, which is constant along it
+    /// ([`ConeApex::normal_along`]).
+    pub(crate) fn normal_along(&self, d: Vec3<T>) -> OutwardNormal<T> {
+        match self {
+            Self::Tangent(normal) => *normal,
+            Self::Apex(apex) => apex.normal_along(d),
+        }
+    }
+}
+
 #[cfg(test)]
 impl<T: Real> StarFace<T> {
     /// The tangent plane's normal; a row that reads an apex panics.

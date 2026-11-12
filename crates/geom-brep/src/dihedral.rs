@@ -490,16 +490,17 @@ fn signed_wedge<T: Real>(
 /// The name a corner's sign is decided under ([`Corner::convexity`]).
 ///
 /// **What its verdicts are.** Each records which way one corner turns at
-/// one station: a reading of the body's shape, taken by tier 3's check 4
-/// and the boolean's shared-rim routing over a body that is already
-/// built. Its population is the body's mix of convex and concave
-/// stations, so an edit that trades corners of one turn for corners of
-/// the other (a through slot becoming a blind pocket) moves the
-/// population across signs although no corner turned, and a population
+/// one station: a reading of the body's shape, taken by tier 3's check 4,
+/// the boolean's shared-rim routing and the constructors that describe an
+/// edge by its whole wedge (`topo::edge_wedge`). Its population is the
+/// body's mix of convex and concave stations, so an edit that trades
+/// corners of one turn for corners of the other (a through slot becoming
+/// a blind pocket) moves the population across signs although no corner turned, and a population
 /// diff cannot tell the two apart. A flip among them changes whether a
 /// body is accepted (a sign that turns along one edge, or reads in band),
-/// never which body was built: `editor_core::resolve`'s flip lane passes
-/// over it, as it does over the side reader's family.
+/// never which body was built, since a crease of either turn is described
+/// alike: `editor_core::resolve`'s flip lane passes over it, as it does
+/// over the side reader's family.
 pub const DIHEDRAL_SIGN: &str = "dihedral_sign";
 
 impl<T: Decide> Corner<T> {
