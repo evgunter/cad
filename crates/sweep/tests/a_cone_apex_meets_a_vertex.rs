@@ -73,7 +73,7 @@ fn forms(alpha: f64) -> [(&'static str, topo::Body<f64>); 2] {
 fn moved(body: &topo::Body<f64>, m: Affine3<f64>) -> AtRestBody<f64> {
     finished(
         "moved",
-        topo::transform_rigid(body, &geom_core::test_support::rigid(&m, tol()), tol()).unwrap(),
+        topo::transform_rigid(body, &geom_core::test_support::rigid(&m, tol())).unwrap(),
         tol(),
     )
 }

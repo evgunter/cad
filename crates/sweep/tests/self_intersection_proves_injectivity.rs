@@ -1355,11 +1355,7 @@ fn is_ellipse<T: Real>(body: &Body<T>, e: topo::EdgeKey) -> bool {
 fn moved<T: Scalar>(b: &topo::AtRestBody<T>, m: &geom_core::Affine3<f64>) -> topo::AtRestBody<T> {
     use sweep::test_support::finished;
     let rigid = geom_core::test_support::rigid(&m.map(T::from_f64), tol());
-    finished(
-        "moved",
-        topo::transform_rigid(b, &rigid, tol()).unwrap(),
-        tol(),
-    )
+    finished("moved", topo::transform_rigid(b, &rigid).unwrap(), tol())
 }
 
 /// The box `(-50, 50)² × (-100, top)`, at rest: a half-space below
@@ -1659,7 +1655,7 @@ fn a_folded_oblique_cut_reads_violated_off_its_corners() {
         let mut folded = cut.clone().into_body();
         let over = Affine3::translation(Vec3::new(0.3, 0.0, 0.0)).map(T::from_f64);
         let rigid = geom_core::test_support::rigid(&over, tol());
-        let copy = topo::transform_rigid(&cut, &rigid, tol()).unwrap();
+        let copy = topo::transform_rigid(&cut, &rigid).unwrap();
         topo::graft_disjoint(&mut folded, &copy).expect("the copy grafts");
         folded
     }
@@ -1940,7 +1936,7 @@ fn a_folded_torus_cut_reads_violated_off_its_spiric_edges() {
         let mut folded = cut.clone().into_body();
         let over = Affine3::translation(Vec3::new(0.2, 0.25, 0.0)).map(T::from_f64);
         let rigid = geom_core::test_support::rigid(&over, tol());
-        let copy = topo::transform_rigid(&cut, &rigid, tol()).unwrap();
+        let copy = topo::transform_rigid(&cut, &rigid).unwrap();
         topo::graft_disjoint(&mut folded, &copy).expect("the copy grafts");
         folded
     }
@@ -2209,7 +2205,7 @@ fn a_lens_lofts_walls_hold_against_themselves_moved_off_the_origin_at_both_scala
         let home = lens_loft::<T>();
         let by = geom_core::Vec3::new(10.0, 10.0, 10.0).map(T::from_f64);
         let motion = geom_core::RigidMotion::translation(by).expect("a translation");
-        let away = topo::transform_rigid(&home, &motion, tol()).expect("the loft moves");
+        let away = topo::transform_rigid(&home, &motion).expect("the loft moves");
         let walls: Vec<FaceKey> = home
             .faces()
             .map(|(k, _)| k)

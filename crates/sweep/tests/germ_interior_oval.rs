@@ -163,7 +163,6 @@ fn dome_bracket() -> AtRestBody<f64> {
             ),
             Tol::witness(),
         ),
-        Tol::witness(),
     )
     .expect("the foot tilts");
     let foot = finished("the tilted foot", foot, Tol::witness());
