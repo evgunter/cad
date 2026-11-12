@@ -543,8 +543,8 @@ pub(super) fn plan_null_pairs<T: Decide>(
             _ => record_germ_dir(
                 (a_body, contact.a),
                 (b_body, contact.b),
-                &a_sectors[r.a],
-                &b_sectors[r.b],
+                (&a_sectors[r.a], r.sa),
+                (&b_sectors[r.b], r.sb),
                 declared,
                 band,
             ),
@@ -1188,6 +1188,60 @@ fn holds_whole<T: Decide>(
     if secs[lo.entry].he != secs[ilo.entry].he {
         return Ok(false);
     }
+    let before = |p: Cut<T>, q: Cut<T>| walks_before(secs, p, q, band);
+    let verdict = holds_whole_inner(secs, (lo, hi, code), (ilo, ihi, icode), band);
+    // Side by side: ring_tree's parent relation over the four ends in the
+    // vertex's one cut order.
+    {
+        let ends = [lo, hi, ilo, ihi];
+        let mut labels: Vec<usize> = (0..4).collect();
+        let mut tie = false;
+        let mut failed = false;
+        for i in 1..4 {
+            let mut j = i;
+            while j > 0 {
+                match before(ends[labels[j]], ends[labels[j - 1]]) {
+                    Ok(Some(true)) => {
+                        labels.swap(j, j - 1);
+                        j -= 1;
+                    }
+                    Ok(Some(false)) => break,
+                    Ok(None) => {
+                        tie = true;
+                        break;
+                    }
+                    Err(_) => {
+                        failed = true;
+                        break;
+                    }
+                }
+            }
+        }
+        match (&verdict, tie || failed) {
+            (Ok(v), false) => {
+                let tree = crate::star::ring_tree(&labels, Some(0));
+                let ring = tree.as_ref().map(|t| {
+                    t.iter()
+                        .find(|s| s.run == 1)
+                        .is_some_and(|s| s.parent == Some(0))
+                });
+                crate::star::compare("rider", ring == Some(*v), || {
+                    format!("holds_whole {v} ring {ring:?} labels {labels:?}")
+                });
+            }
+            (Ok(v), true) => crate::star::compare("rider-tie", true, || format!("{v}")),
+            (Err(_), _) => crate::star::compare("rider-err", true, String::new),
+        }
+    }
+    verdict
+}
+
+fn holds_whole_inner<T: Decide>(
+    secs: &[BoolSector<T>],
+    (lo, hi, code): Segment<T>,
+    (ilo, ihi, icode): Segment<T>,
+    band: Band,
+) -> Result<bool, BooleanError> {
     let before = |p: Cut<T>, q: Cut<T>| walks_before(secs, p, q, band);
     if (before(lo, ilo)?, before(ihi, hi)?) == (None, None) {
         return match (code, icode) {
@@ -2499,8 +2553,8 @@ pub(super) fn strut_order<T: Decide>(
 fn record_germ_dir<T: Decide>(
     (a_body, a_vertex): (&Body<T>, VertexKey),
     (b_body, b_vertex): (&Body<T>, VertexKey),
-    sa: &BoolSector<T>,
-    sb: &BoolSector<T>,
+    (sa, codes_a): (&BoolSector<T>, (SideCode, SideCode)),
+    (sb, codes_b): (&BoolSector<T>, (SideCode, SideCode)),
     declared: &super::GluedPairs<T>,
     band: Band,
 ) -> Result<Leaned<T>, BooleanError> {
@@ -2521,7 +2575,38 @@ fn record_germ_dir<T: Decide>(
                 band,
             );
         }
-        return germ_dir(sa, sb, read, band);
+        let old = germ_dir(sa, sb, read, band);
+        let above = |c: (SideCode, SideCode)| match c {
+            (SideCode::Out, _) => crate::star::CutEnd::Start,
+            _ => crate::star::CutEnd::End,
+        };
+        let by_a = crate::star::germ_line(
+            sa.tangent().vec(),
+            sb.tangent().vec(),
+            above(codes_a),
+            sa.span(),
+            band,
+        );
+        let by_b = crate::star::germ_line(
+            sb.tangent().vec(),
+            sa.tangent().vec(),
+            above(codes_b),
+            sb.span(),
+            band,
+        );
+        let same = |x: Option<Vec3<T>>, y: Option<Vec3<T>>| match (x, y) {
+            (Some(x), Some(y)) => x.dot(y).point_value().is_some_and(|d| d > 1.0 - 1e-9),
+            (None, None) => true,
+            _ => false,
+        };
+        let o = old.as_ref().ok().map(|l| l.dir);
+        crate::star::compare("vv-germ-a", same(o, by_a.as_ref().ok().map(|l| l.dir)), || {
+            format!("old {old:?} codes {codes_a:?} new {by_a:?}")
+        });
+        crate::star::compare("vv-germ-b", same(o, by_b.as_ref().ok().map(|l| l.dir)), || {
+            format!("old {old:?} codes {codes_b:?} new {by_b:?}")
+        });
+        return old;
     }
     let s_a = a_body.proven_face(sa.face).surface().clone();
     let s_b = b_body.proven_face(sb.face).surface().clone();

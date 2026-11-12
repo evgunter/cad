@@ -81,6 +81,29 @@ pub(crate) struct Offset<T: geom_core::Real> {
     pub normal: Vec3<T>,
 }
 
+impl<T: Decide> Offset<T> {
+    /// `q`'s offset from the plane through `origin` along `normal`: the
+    /// one evaluation of an offset both doors decide a vertex by.
+    pub(crate) fn of(origin: Point3<T>, normal: Vec3<T>, q: Point3<T>) -> Self {
+        Self {
+            value: geom::plane_offset_rounded(origin, normal, q),
+            normal,
+        }
+    }
+
+    /// The offset's own side, decided under the door's `name` (a far
+    /// vertex's, for the walk's line edges).
+    ///
+    /// # Errors
+    ///
+    /// [`VertexRefusal::Offset`] where it lies in the band.
+    pub(crate) fn side(self, name: &'static str, band: Band) -> Result<PlaneSide, VertexRefusal> {
+        let decided =
+            decide_reported(name, Margin::of(self.value.value), band).map_err(VertexRefusal::Offset)?;
+        Ok(PlaneSide::of_sign(decided.sign))
+    }
+}
+
 /// Why a vertex has no verdict on a plane, by the decision that
 /// refused it.
 #[derive(Debug)]
@@ -273,7 +296,9 @@ fn read_kind<T: Decide>(body: &Body<T>, face: FaceKey, at: Point3<T>, band: Band
 }
 
 /// The read faces ([`read_kind`]) whose corner at the vertex holds the
-/// plane's trace (module docs); a corner at one of `tips` is the face's
+/// plane's trace (module docs): a cut, two of the corner's bounds read
+/// strictly apart ([`crate::star::apart`], the star's test round a
+/// vertex); a corner at one of `tips` is the face's
 /// full turn round the slit's tip.
 ///
 /// **It reads only what the question needs**: every orbit edge's side, and
@@ -308,9 +333,13 @@ fn entered_faces<T: Decide>(
             continue;
         }
         let (a, b) = (edges[i], edges[(i + 1) % n]);
+        // A cut lies between two bounds read strictly apart: the corner's
+        // two edges, or an edge and a divider inside it.
+        let cut = |x: PlaneSide, y: PlaneSide| crate::star::apart(x.strict(), y.strict());
         let holds = match (a, b) {
-            (PlaneSide::Above, PlaneSide::Below) | (PlaneSide::Below, PlaneSide::Above) => true,
-            (PlaneSide::Above, PlaneSide::Above) | (PlaneSide::Below, PlaneSide::Below) => {
+            _ if cut(a, b) => true,
+            (PlaneSide::On, _) | (_, PlaneSide::On) => false,
+            _ => {
                 // The corner and the edge after it, refined in the corner
                 // alone.
                 let Corner {
@@ -330,30 +359,21 @@ fn entered_faces<T: Decide>(
                 corner
                     .refine_first(pieces, &[Datum::Plane(plane.normal.get())], band)
                     .map_err(VertexRefusal::Star)?;
-                let mut opposed = false;
+                let mut cut_inside = false;
                 for divider in &corner.bounds[1..corner.bounds.len() - 1] {
-                    if opposes(side(divider, face)?, a) {
-                        opposed = true;
+                    if cut(side(divider, face)?, a) {
+                        cut_inside = true;
                         break;
                     }
                 }
-                opposed
+                cut_inside
             }
-            _ => false,
         };
         if holds {
             entered.push(face);
         }
     }
     Ok(entered)
-}
-
-/// Whether `a` is the strict side opposite `b`.
-fn opposes(a: PlaneSide, b: PlaneSide) -> bool {
-    matches!(
-        (a, b),
-        (PlaneSide::Above, PlaneSide::Below) | (PlaneSide::Below, PlaneSide::Above)
-    )
 }
 
 /// `sin ψ` between the plane and entered `face` at `at`, with its

@@ -201,11 +201,7 @@ pub(super) fn classify_vertices_margined<T: Decide>(
     tips: &crate::sector_shape::SlitTips,
     band: Band,
 ) -> Result<MarginedSides, SplitReduceError> {
-    let side_of = |sign| match sign {
-        Sign::Negative => PlaneSide::Below,
-        Sign::Positive => PlaneSide::Above,
-        Sign::Zero => PlaneSide::On,
-    };
+    let side_of = PlaneSide::of_sign;
     let mut offsets = SecondaryMap::new();
     let mut zero = Vec::new();
     for (vertex_key, p) in body.vertex_points() {

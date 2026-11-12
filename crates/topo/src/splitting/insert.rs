@@ -290,6 +290,165 @@ fn section_chords<T: Decide>(
         .collect())
 }
 
+/// [`section_chords`] read through the star: each germ by the star's
+/// one germ rule ([`crate::star::germ_line`]) and their order by its one
+/// door ([`crate::star::germ_order`]).
+fn section_chords_star<T: Decide>(
+    body: &Body<T>,
+    normal: Vec3<T>,
+    hood: &Neighborhood<'_, T>,
+    cuts: &[usize],
+    apex_germs: &[Option<Vec3<T>>],
+    band: Band,
+) -> Result<Vec<[usize; 2]>, SplitReduceError> {
+    use crate::star::{CutEnd, GermLineFault, Leaned, OrderFault};
+    let Neighborhood {
+        vertex,
+        star,
+        classes,
+        in_plane,
+    } = *hood;
+    let n = classes.len();
+    let escalated = |reading, diag| SplitReduceError::SectionGermsEscalated {
+        vertex,
+        reading,
+        diag,
+    };
+    let unordered = |fault| SplitReduceError::SectionGermsUnordered { vertex, fault };
+    // Each germ: its direction with its lean, its arm, and the in-plane
+    // entry it lies along, if any.
+    let germs = cuts
+        .iter()
+        .map(|&c| {
+            let (a, b) = (c, (c + 1) % n);
+            let (u, w) = (&star.bounds[a], &star.bounds[b]);
+            let arm = geom_brep::sector_shape::metering_arm(u.ray().norm().min(w.ray().norm()));
+            match (in_plane[a], in_plane[b]) {
+                (true, false) => return Ok((Leaned::upright(u.dir), arm, Some(a))),
+                (false, true) => return Ok((Leaned::upright(w.dir), arm, Some(b))),
+                (true, true) => return Err(unordered(SectionGermFault::NoLine)),
+                (false, false) => {}
+            }
+            if let Some(germ) = apex_germs[c] {
+                return Ok((Leaned::upright(germ), arm, None));
+            }
+            let StarFace::Tangent(face) = star.sectors[c].at else {
+                unreachable!("a cut sector at a cone's apex at {vertex:?} has its apex germ")
+            };
+            let above = if classes[b] == PlaneSide::Above {
+                CutEnd::Start
+            } else {
+                CutEnd::End
+            };
+            let line = crate::star::germ_line(face.vec(), normal, above, star.span(c), band)
+                .map_err(|fault| match fault {
+                    GermLineFault::Coplanar => unordered(SectionGermFault::NoLine),
+                    GermLineFault::Undecided(diag) => escalated(SectionGermReading::Line, diag),
+                })?;
+            // Side by side with the positive combination of the bounds.
+            {
+                let d = u.dir * w.dir.dot(normal).abs() + w.dir * u.dir.dot(normal).abs();
+                let agree = d
+                    .normalize()
+                    .dot(line.dir)
+                    .point_value()
+                    .is_some_and(|x| x > 1.0 - 1e-6);
+                crate::star::compare("split-germ", agree, || {
+                    format!("{vertex:?} c{c} old {:?} new {:?}", d.normalize(), line.dir)
+                });
+            }
+            Ok((line, arm, None))
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    let point = body.resolve_vertex_point(vertex, Proven);
+    let section_bend = |c: usize, t: Vec3<T>, across: Vec3<T>| -> T {
+        let sector = &star.sectors[cuts[c]];
+        if let StarFace::Apex(_) = sector.at {
+            return T::zero();
+        }
+        let surface = body.proven_face(sector.face).surface();
+        geom_brep::implicit_graph_acceleration(surface, point, t, across)
+    };
+    // Whether germ `b`, tied with germ `a` along `a`'s tangent, curves
+    // counterclockwise of it about `normal` (Positive) or clockwise.
+    let curving = |a: usize, b: usize, arm: geom_core::Lever<T>| -> Result<Sign, SplitReduceError> {
+        let t = germs[a].0.dir;
+        let across = normal.cross(t);
+        let bends = [section_bend(a, t, across), section_bend(b, t, across)];
+        match geom_brep::tied_germ_turn(normal, t, bends, arm.length(), band) {
+            Ok(Sign::Zero) => Err(unordered(SectionGermFault::Coincident)),
+            Ok(sign) => Ok(sign),
+            Err(geom_brep::TiedGermsError::Singular) => Err(unordered(SectionGermFault::Singular)),
+            Err(geom_brep::TiedGermsError::Lever(escalation)) => {
+                Err(escalated(SectionGermReading::Order, escalation.diag()))
+            }
+        }
+    };
+    // One germ per group: the two along one in-plane entry share its
+    // direction and are ordered by the alternation, not read.
+    let mut groups: Vec<Vec<usize>> = Vec::new();
+    for (i, &(_, _, along)) in germs.iter().enumerate() {
+        match groups
+            .iter_mut()
+            .find(|m| along.is_some() && germs[m[0]].2 == along)
+        {
+            Some(m) => m.push(i),
+            None => groups.push(vec![i]),
+        }
+    }
+    let reps: Vec<_> = groups.iter().map(|m| (germs[m[0]].0, germs[m[0]].1)).collect();
+    let rep = |g: usize| groups[g][0];
+    // Counterclockwise about `normal` is clockwise about `−normal`.
+    let order = crate::star::germ_order(
+        &reps,
+        -normal,
+        crate::star::Ties {
+            along: |i: usize, j: usize, _| {
+                Ok(curving(rep(j), rep(i), reps[i].1.min(reps[j].1))? == Sign::Positive)
+            },
+            pair: |i: usize, j: usize, arm| Ok(Some(curving(rep(i), rep(j), arm)?.flip())),
+        },
+        |fault| match fault {
+            OrderFault::Coincident(diag) if diag.margin.rejected_sign() == Some(Sign::Zero) => {
+                unordered(SectionGermFault::Coincident)
+            }
+            OrderFault::Coincident(diag) | OrderFault::Sense(diag) => {
+                escalated(SectionGermReading::Order, diag)
+            }
+            OrderFault::Opposite => {
+                unreachable!("two germs along the first at {vertex:?} point opposite ways")
+            }
+        },
+        band,
+    )?;
+    let groups: Vec<&Vec<usize>> = order.iter().map(|&g| &groups[g]).collect();
+    // Each pair along one in-plane entry in the order the alternation
+    // fixes from the first lone germ, or end first where there is none.
+    let starts = |i: usize| classes[cuts[i]] == PlaneSide::Above;
+    let first = groups.iter().position(|m| m.len() == 1).unwrap_or(0);
+    let mut start = groups[first].len() == 1 && starts(groups[first][0]);
+    let mut seq = Vec::with_capacity(cuts.len());
+    for k in 0..groups.len() {
+        match groups[(first + k) % groups.len()][..] {
+            [a] => seq.push(a),
+            [a, b] => seq.extend(if starts(a) == start { [a, b] } else { [b, a] }),
+            _ => unreachable!("only the two germs beside one entry share a group"),
+        }
+        start = !starts(
+            *seq.last()
+                .unwrap_or_else(|| unreachable!("a group has a germ")),
+        );
+    }
+    let m = seq.len();
+    if (0..m).any(|j| starts(seq[j]) == starts(seq[(j + 1) % m])) {
+        return Err(unordered(SectionGermFault::Alternation));
+    }
+    Ok((0..m)
+        .filter(|&j| starts(seq[j]))
+        .map(|j| [cuts[seq[j]], cuts[seq[(j + 1) % m]]])
+        .collect())
+}
+
 /// **Cut `c`'s germ where its sector is a cone face at its apex**, or
 /// `None` where the face has a tangent plane there. The sector's
 /// interior is a fan of rulings, not the positive cone of its bounds, so
@@ -386,8 +545,14 @@ pub(super) fn insert_null_edges<T: Decide>(
     let Some(anchor) = classes.iter().position(|&c| c == PlaneSide::Below) else {
         return Ok(());
     };
-    let above = |c: usize| classes[c % n] == PlaneSide::Above;
-    let cuts: Vec<usize> = (0..n).filter(|&c| above(c) != above(c + 1)).collect();
+    // The cuts: where the sides after rules (a) and (b) change round the
+    // star, each sector between an Above bound and a Below one.
+    let cuts: Vec<usize> = hood
+        .star
+        .cuts(|k| classes[k] == PlaneSide::Above)
+        .into_iter()
+        .map(|cut| cut.sector)
+        .collect();
     if cuts.is_empty() {
         return Ok(());
     }
@@ -410,7 +575,21 @@ pub(super) fn insert_null_edges<T: Decide>(
     let members = hood.star.moved(|k| classes[k] == PlaneSide::Above);
     let corners = match cuts[..] {
         [a, b] => vec![[a, b]],
-        _ => section_chords(body, plane.normal.get(), hood, &cuts, &apex_germs, band)?,
+        _ => {
+            let old = section_chords(body, plane.normal.get(), hood, &cuts, &apex_germs, band);
+            let new = section_chords_star(body, plane.normal.get(), hood, &cuts, &apex_germs, band);
+            let key = |r: &Result<Vec<[usize; 2]>, SplitReduceError>| match r {
+                Ok(c) => {
+                    let mut c: Vec<[usize; 2]> = c.clone();
+                    c.sort_unstable();
+                    format!("Ok{c:?}")
+                }
+                Err(e) => format!("Err {e:?}"),
+            };
+            let (ko, kn) = (key(&old), key(&new));
+            crate::star::compare("split-order", ko == kn, || format!("{vertex:?} old {ko} new {kn}"));
+            old?
+        }
     };
     let unordered = |fault| SplitReduceError::SectionGermsUnordered { vertex, fault };
     // Each corner as its arc after the anchor, `(p, q)`: the entries

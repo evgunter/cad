@@ -55,12 +55,21 @@ pub(crate) fn cuts(n: usize, above: impl Fn(usize) -> bool) -> Vec<Cut> {
     (0..n)
         .filter_map(|k| {
             let (end, start) = (above(k), above((k + 1) % n));
-            (end != start).then_some(Cut {
+            apart(Some(end), Some(start)).then_some(Cut {
                 sector: k,
                 above: if start { CutEnd::Start } else { CutEnd::End },
             })
         })
         .collect()
+}
+
+/// **Whether a cut lies between two bounds read so**: `Some(above)` a
+/// strict side of the datum, `None` in it. A cut lies between two
+/// bounds read strictly apart; a bound in the datum bounds none (the
+/// datum runs along it). [`cuts`] reads folded sides, where every bound is
+/// strict, and is this test round the star.
+pub(crate) fn apart(a: Option<bool>, b: Option<bool>) -> bool {
+    matches!((a, b), (Some(x), Some(y)) if x != y)
 }
 
 impl<T: Real> Star<T> {

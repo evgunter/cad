@@ -114,10 +114,27 @@
 use geom_core::{Decide, Real};
 
 mod cut;
+
+/// Side-by-side comparison log (stage 3's method; removed before merge).
+pub(crate) fn compare(kind: &str, agree: bool, detail: impl FnOnce() -> String) {
+    use std::io::Write;
+    let Ok(path) = std::env::var("STAR_CMP") else {
+        return;
+    };
+    let test = std::thread::current().name().unwrap_or("?").to_owned();
+    let line = if agree {
+        format!("{kind}\tagree\t{test}\n")
+    } else {
+        format!("{kind}\tDIFF\t{test}\t{}\n", detail())
+    };
+    if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(path) {
+        let _ = f.write_all(line.as_bytes());
+    }
+}
 mod order;
 mod walk;
 pub(crate) use order::{OrderFault, Ties, before, germ_order, leaned_lever};
-pub(crate) use cut::{Cut, CutEnd, GermLineFault, Leaned, cuts, germ_line};
+pub(crate) use cut::{Cut, CutEnd, GermLineFault, Leaned, apart, cuts, germ_line};
 pub(crate) use walk::{Bound, Corner, Datum, Orbit, Star, StarFace, StarFault, departure};
 
 use crate::body::{Body, WALKS_CLOSE};
