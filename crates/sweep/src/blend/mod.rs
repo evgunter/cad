@@ -668,6 +668,23 @@ pub(crate) fn straddle(
     }
 }
 
+/// [`classify`] for a decision with no zero side
+/// ([`geom_core::k_stats::decide_nonzero`]): a margin decided zero
+/// escalates at `site` as `decision`, as one in band does.
+pub(crate) fn classify_nonzero<T: Decide>(
+    site: BlendSite,
+    decision: BlendDecision,
+    margin: Margin<T>,
+    band: Band,
+) -> Result<geom_core::NonzeroSign, BlendError> {
+    let name = decision.predicate();
+    geom_core::k_stats::decide_nonzero(name, margin, band).map_err(|source| BlendError::Escalated {
+        site,
+        decision,
+        source,
+    })
+}
+
 /// [`classify`] gated on a definitely positive margin
 /// ([`geom_core::k_stats::decide_positive`]): a decided non-positive
 /// margin escalates at `site` as `decision`, carrying the margin it was

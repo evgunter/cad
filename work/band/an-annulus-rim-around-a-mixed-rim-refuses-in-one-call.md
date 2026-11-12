@@ -25,3 +25,16 @@ Lifting the gate's arm was measured on the lane's scratch, and by review lane ba
 - **Arm lifted, windowing on, 16-arc disc:** builds in one call at tier 3, ΔV 0.0164274846917665 against the closed form 0.0164274846917652. So the two walks do take the cap the other carved, on that fixture.
 
 So lifting the arm needs both the windowed annulus read and the meter's exact read. The 16-arc build is the witness to pin when it lands.
+
+**Measured again with the meter's exact read** (band-meter lane,
+2026-11-12, the PR that closes
+`a-mixed-ring-inside-a-few-wide-arcs-refuses-at-the-support-meter`).
+With the arm lifted alone on the lane's scratch, and no windowing of
+the annulus trims, every edge of the disc filleted in one call builds,
+at tier 3 and at the closed form 0.0164274846917652, for 8-, 4- and
+2-arc discs, at `f64` and at `Interval` (ε 1e-9): the whole trim
+circle of radius 1.45, clipped to each link's window, lies far from
+every strip. ΔV at `f64`: 0.0164274846917665 (8 arcs),
+0.0164274846917647 (4), 0.0164274846917651 (2); the `Interval`
+enclosures hold the closed form, width ≤ 6.1e-12. The gate stays in
+that PR; lifting it is this row's.

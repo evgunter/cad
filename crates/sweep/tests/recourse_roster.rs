@@ -69,6 +69,11 @@ const INDIRECT: &[(&str, &str)] = &[
          `BlendDecision::ALL`'s, read by `the_decided_names_are_the_blend_decisions_and_the_listed_doors`",
     ),
     (
+        "blend/mod.rs: classify_nonzero: name",
+        "the blend's one funnel, naming the closed `BlendDecision` it takes — its names are \
+         `BlendDecision::ALL`'s, read by `the_decided_names_are_the_blend_decisions_and_the_listed_doors`",
+    ),
+    (
         "blend/mod.rs: classify_positive: name",
         "the blend's one funnel, naming the closed `BlendDecision` it takes — its names are \
          `BlendDecision::ALL`'s, read by `the_decided_names_are_the_blend_decisions_and_the_listed_doors`",
