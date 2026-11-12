@@ -7,6 +7,7 @@ opened: 2026-11-12
 closed: 2026-11-12
 priority: P0
 cost: M
+pr: 6886
 branch: clear/plane-cap-circle
 ---
 
