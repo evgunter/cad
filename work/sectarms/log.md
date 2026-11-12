@@ -660,3 +660,7 @@ Both reds were found by PCERT's nightly lane and trace to SECTARMS merges.
 - **Done-when not met.** The sphere × lofted-wall union now stops at the at-rest certificate of the minted edge, P0 `a-curved-partners-arc-on-a-spline-wall-has-no-at-rest-certificate`. That is where stage B lands. Also filed: two P1 M stops, one P2 and one P3.
 - **Review tier: dual (P0 H).** The join is an architectural lane that later arms will follow. Slot-order byte 202 (even), so R1 = Opus and R2 = Fable, run concurrently on `fb97f06037`.
 - **Protocol deviation.** The implementer was dispatched without an arm draw, on the default model, and with the harness trailer, so its commits name the model. The row records the implementer half as unfair, and the reviewers as exposed to the implementer's model.
+- **Calls on the lane's two questions:**
+  - **The C5 sentence** describes what the code does and decides nothing the ratified text left open. It lands with the change.
+  - **Stage B (the at-rest arm for a curved partner on a spline wall) is not a fork.** C2 has rest re-derive the door's certificate. The trace certifies the branch on C3's residual × NURBS lane, and `edge_nurbs::plane_nurbs_limbs` is the plane's precedent. The arm elaborates that ratified text faithfully. Its brief still tells it to stop if its plan finds text that contradicts the code.
+- **Next:** stage B is dispatched once stage A merges.
