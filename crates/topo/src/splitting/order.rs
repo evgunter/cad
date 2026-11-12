@@ -501,7 +501,7 @@ mod tests {
                     vec![diag],
                     "{label}, {spread}: once on the frame"
                 );
-                let said = crate::chord_join::SplitJoinError::OrderEscalated { diag }
+                let said = crate::chord_join::JoinError::OrderEscalated { diag }
                     .render(geom_brep::recourse::Reading::Build);
                 assert!(
                     said.starts_with("which direction in the section plane to order points along")
@@ -607,7 +607,7 @@ mod tests {
         );
         let err = in_plane_frame(&plane, fixture_lever(iv(1.0)), band, exact).unwrap_err();
         assert_eq!(err.predicate, Some(FRAME_AXIS));
-        let said = crate::chord_join::SplitJoinError::OrderEscalated { diag: err }
+        let said = crate::chord_join::JoinError::OrderEscalated { diag: err }
             .render(geom_brep::recourse::Reading::Build);
         assert_eq!(
             said,

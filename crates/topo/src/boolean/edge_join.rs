@@ -910,7 +910,7 @@ pub enum JoinRefusal {
 }
 
 /// A refusal kind as its variant's name.
-fn kind_word(kind: super::BooleanErrorKind) -> String {
+fn error_kind_word(kind: super::BooleanErrorKind) -> String {
     format!("{kind:?}")
 }
 
@@ -993,7 +993,7 @@ impl JoinRefusal {
                 write!(
                     f,
                     "the join of two edges meeting at a vertex on one curve refused ({})",
-                    kind_word(*kind)
+                    error_kind_word(*kind)
                 )?;
                 match at {
                     None => Ok(()),

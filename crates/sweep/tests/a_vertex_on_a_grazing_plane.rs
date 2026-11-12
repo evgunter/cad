@@ -18,7 +18,8 @@ use crate::revolve_common::{axis_y, validated};
 use geom_core::{Affine3, Point2, Point3, Tol, Vec3};
 use profile::{ProfileLoop, RawLoop};
 use sweep::{Revolution, revolve};
-use topo::splitting::{SplitError, SplitJoinError, split};
+use topo::JoinError;
+use topo::splitting::{SplitError, split};
 use topo::{AtRestBody, Body, BooleanDecision, BooleanError, Coincide, SplitReduceError};
 
 fn tol() -> Tol {
@@ -262,7 +263,7 @@ fn the_split_reads_a_grazing_vertex_against_its_section() {
                             assert!(
                                 matches!(
                                     r,
-                                    Err(SplitError::Join(SplitJoinError::UnpairedLooseEnds {
+                                    Err(SplitError::Join(JoinError::UnpairedLooseEnds {
                                         count: 2
                                     }))
                                 ),
@@ -376,7 +377,7 @@ fn the_boolean_reads_a_grazing_vertex_against_its_section() {
                         matches!(
                             &r,
                             Err(BooleanError::Join(join))
-                                if matches!(join.error(), SplitJoinError::UnpairedLooseEnds { count: 2 })
+                                if matches!(join.error(), JoinError::UnpairedLooseEnds { count: 2 })
                         )
                     };
                     assert!(want, "{label}: {:?}", r.err());

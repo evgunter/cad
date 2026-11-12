@@ -4,7 +4,7 @@
 //! continuity ([`nearest_branch`]), except where the chart carries no
 //! azimuth continuity: at a sphere pole the face's orientation picks the
 //! branch ([`pole_branch`]), and at a cone apex, where no bit recovers
-//! the lift, the walk refuses ([`SplitJoinError::ApexUnlifted`]).
+//! the lift, the walk refuses ([`JoinError::ApexUnlifted`]).
 //!
 //! [`face_azimuth_images`] is the walk, one image per charted half-edge;
 //! [`face_azimuth_window`] hulls it, [`face_loop_azimuth_travels`] sums it
@@ -17,7 +17,7 @@ use geom_brep::{Pcurve, chart_pcurve_over};
 use geom_core::{Band, Decide, InfSpeed, Margin, Real, Sign};
 
 use crate::body::Body;
-use crate::chord_join::{SplitJoinError, corrupt_face};
+use crate::chord_join::{JoinError, corrupt_face};
 use crate::entity::{EdgeKey, EntityId, FaceKey, HalfEdgeKey, LoopBoundary};
 use crate::live::{Proven, linked, proven};
 use crate::null::CurveGeom;
@@ -39,7 +39,7 @@ pub(crate) fn face_azimuth_window<T: Decide>(
     surface: &geom::Surface<T>,
     face: FaceKey,
     band: Band,
-) -> Result<Option<(T, T)>, SplitJoinError> {
+) -> Result<Option<(T, T)>, JoinError> {
     Ok(face_azimuth_images(body, surface, face, band)?.and_then(|images| azimuth_hull(&images)))
 }
 
@@ -63,7 +63,7 @@ pub(crate) fn face_loop_azimuth_travels<T: Decide>(
     surface: &geom::Surface<T>,
     face: FaceKey,
     band: Band,
-) -> Result<Vec<Option<T>>, SplitJoinError> {
+) -> Result<Vec<Option<T>>, JoinError> {
     let view = body.face(face).ok_or_else(|| corrupt_face(face))?;
     view.loops()
         .filter_map(|(_, l, _)| match l.boundary {
@@ -89,7 +89,7 @@ pub(crate) fn face_loop_azimuth_travels<T: Decide>(
 ///
 /// # Errors
 ///
-/// As [`face_azimuth_window`]: [`SplitJoinError::Corrupt`] for a face
+/// As [`face_azimuth_window`]: [`JoinError::Corrupt`] for a face
 /// key that does not resolve.
 ///
 /// # Panics
@@ -101,7 +101,7 @@ pub fn face_azimuth_window_traces<T: Decide>(
     body: &Body<T>,
     face: FaceKey,
     band: Band,
-) -> Result<Option<(T, T)>, SplitJoinError> {
+) -> Result<Option<(T, T)>, JoinError> {
     let view = body.face(face).ok_or_else(|| corrupt_face(face))?;
     face_azimuth_window(body, view.surface(), face, band)
 }
@@ -172,10 +172,10 @@ pub(crate) struct AzimuthImage<T: geom_core::Real> {
 ///
 /// # Errors
 ///
-/// [`SplitJoinError::Corrupt`] where `face`, the caller's key, does not
+/// [`JoinError::Corrupt`] where `face`, the caller's key, does not
 /// resolve; otherwise the walk's geometric refusals: a boundary edge with no
 /// closed-form chart image, a fitted image, a vertex off the carrier, an
-/// apex junction ([`SplitJoinError::ApexUnlifted`]), or an escalation.
+/// apex junction ([`JoinError::ApexUnlifted`]), or an escalation.
 ///
 /// # Panics
 ///
@@ -185,7 +185,7 @@ pub(crate) fn face_azimuth_images<T: Decide>(
     surface: &geom::Surface<T>,
     face: FaceKey,
     band: Band,
-) -> Result<Option<Vec<AzimuthImage<T>>>, SplitJoinError> {
+) -> Result<Option<Vec<AzimuthImage<T>>>, JoinError> {
     let view = body.face(face).ok_or_else(|| corrupt_face(face))?;
     let Some(halves) = view.outer_cycle() else {
         return Ok(None);
@@ -194,15 +194,15 @@ pub(crate) fn face_azimuth_images<T: Decide>(
 }
 
 /// **How a boundary edge's chart-image refusal ends the walk** (D3): a
-/// class reading or a lane not built "not yet" ([`SplitJoinError::RunImageNotYet`]);
+/// class reading or a lane not built "not yet" ([`JoinError::RunImageNotYet`]);
 /// an incidence refusal by its read, through the one map
-/// ([`SplitJoinError::RunImageIncidence`]); another escalation as the
+/// ([`JoinError::RunImageIncidence`]); another escalation as the
 /// walk's; anything else an invariant the shipped carriers keep.
 fn run_image_refusal(
     face: FaceKey,
     kind: geom::SurfaceKind,
     e: geom_brep::PcurveCertifyError,
-) -> SplitJoinError {
+) -> JoinError {
     match e {
         // The class reading is a lane choice (D3): in band, and
         // with no general lane written, it ends "not yet".
@@ -211,21 +211,21 @@ fn run_image_refusal(
             ..
         }
         | geom_brep::PcurveCertifyError::NoGeneralLane { .. } => {
-            SplitJoinError::RunImageNotYet { face, kind }
+            JoinError::RunImageNotYet { face, kind }
         }
         // An incidence refusal ends by its read, through the one
         // map, never as an invariant break or the walk's own lever.
         refusal if geom_brep::IncidenceRead::of(&refusal).is_some() => {
-            SplitJoinError::RunImageIncidence {
+            JoinError::RunImageIncidence {
                 face,
                 kind,
                 refusal,
             }
         }
         geom_brep::PcurveCertifyError::Escalated { cause, .. } => {
-            SplitJoinError::Escalated { face, diag: cause }
+            JoinError::Escalated { face, diag: cause }
         }
-        _ => SplitJoinError::SectionInvariant {
+        _ => JoinError::SectionInvariant {
             face,
             what: "a run edge has no closed-form chart image on the divided face's chart",
         },
@@ -246,10 +246,10 @@ pub(crate) fn run_azimuth_images<T: Decide>(
     face: FaceKey,
     halves: &[HalfEdgeKey],
     band: Band,
-) -> Result<Vec<AzimuthImage<T>>, SplitJoinError> {
+) -> Result<Vec<AzimuthImage<T>>, JoinError> {
     // The azimuth's period is the chart's own (C4, `Surface::angle_periods`).
     let Some((Some(turn), _)) = surface.angle_periods() else {
-        return Err(SplitJoinError::SectionInvariant {
+        return Err(JoinError::SectionInvariant {
             face,
             what: "a chart with no azimuth channel has no azimuth images",
         });
@@ -302,10 +302,10 @@ pub(crate) fn run_azimuth_images<T: Decide>(
                         Margin::of((p - *apex).norm()),
                         band,
                     )
-                    .map_err(|diag| SplitJoinError::Escalated { face, diag })?
+                    .map_err(|diag| JoinError::Escalated { face, diag })?
                         == Sign::Zero
                     {
-                        return Err(SplitJoinError::ApexUnlifted { face });
+                        return Err(JoinError::ApexUnlifted { face });
                     }
                 }
                 if let geom::Surface::Sphere {
@@ -323,11 +323,11 @@ pub(crate) fn run_azimuth_images<T: Decide>(
                         Margin::of(*radius - d.abs()),
                         band,
                     )
-                    .map_err(|diag| SplitJoinError::Escalated { face, diag })?
+                    .map_err(|diag| JoinError::Escalated { face, diag })?
                     {
                         Sign::Positive => {}
                         Sign::Negative => {
-                            return Err(SplitJoinError::SectionInvariant {
+                            return Err(JoinError::SectionInvariant {
                                 face,
                                 what: "a run vertex lies off its sphere face's carrier (its \
                                        axial offset exceeds the radius)",
@@ -336,12 +336,12 @@ pub(crate) fn run_azimuth_images<T: Decide>(
                         Sign::Zero => {
                             let south =
                                 match decide("chart_window_sphere_pole_side", Margin::of(d), band)
-                                    .map_err(|diag| SplitJoinError::Escalated { face, diag })?
+                                    .map_err(|diag| JoinError::Escalated { face, diag })?
                                 {
                                     Sign::Negative => true,
                                     Sign::Positive => false,
                                     Sign::Zero => {
-                                        return Err(SplitJoinError::SectionInvariant {
+                                        return Err(JoinError::SectionInvariant {
                                             face,
                                             what: "a run vertex reads as both a pole and an \
                                                    equator point — a zero-radius sphere face",
@@ -352,7 +352,7 @@ pub(crate) fn run_azimuth_images<T: Decide>(
                                 body.get_face(face).ok_or_else(|| corrupt_face(face))?.sense;
                             let advancing = south == sense;
                             let prior: &AzimuthImage<T> =
-                                images.last().ok_or(SplitJoinError::SectionInvariant {
+                                images.last().ok_or(JoinError::SectionInvariant {
                                     face,
                                     what: "a pole joint has no previous image",
                                 })?;
@@ -398,11 +398,11 @@ pub(crate) fn run_azimuth_images<T: Decide>(
         // (`work/pcert/a-spiric-run-edge-ends-the-window-walk-as-an-invariant.md`).
         // A fitted image never comes out of that derivation.
         let (lo, hi) = chart_azimuth_range(&pcurve, t0, t1).ok_or(match &pcurve {
-            Pcurve::Projected(_) | Pcurve::General(_) => SplitJoinError::RunImageNotYet {
+            Pcurve::Projected(_) | Pcurve::General(_) => JoinError::RunImageNotYet {
                 face,
                 kind: surface.kind(),
             },
-            _ => SplitJoinError::SectionInvariant {
+            _ => JoinError::SectionInvariant {
                 face,
                 what: "a boundary edge's chart image has no closed-form azimuth box (a spiric \
                        image) — the window walk reads a closed-form azimuth",
@@ -437,9 +437,9 @@ pub(crate) fn run_azimuth_images<T: Decide>(
 ///
 /// # Errors
 ///
-/// [`SplitJoinError::Escalated`] where a mark is in band, or the gap
+/// [`JoinError::Escalated`] where a mark is in band, or the gap
 /// sits on a mark with a branch the near-pole read tries in band;
-/// [`SplitJoinError::SectionInvariant`] where the gap sits on a mark off
+/// [`JoinError::SectionInvariant`] where the gap sits on a mark off
 /// every branch that read tries, or the chart
 /// is the placeholder.
 fn nearest_branch<T: Decide>(
@@ -448,15 +448,15 @@ fn nearest_branch<T: Decide>(
     vertex: geom_core::Point3<T>,
     gap: T,
     band: Band,
-) -> Result<i32, SplitJoinError> {
-    let chart = crate::pcurves::DescribedChart::of(surface).ok_or(SplitJoinError::SectionInvariant {
+) -> Result<i32, JoinError> {
+    let chart = crate::pcurves::DescribedChart::of(surface).ok_or(JoinError::SectionInvariant {
         face,
         what: "a divided face's chart is the placeholder — it has no lever to decide a branch by",
     })?;
     let arm = crate::pcurves::joint_arm(chart, vertex);
     // The azimuth's period is the chart's own (C4, `Surface::angle_periods`).
     let Some((Some(turn), _)) = surface.angle_periods() else {
-        return Err(SplitJoinError::SectionInvariant {
+        return Err(JoinError::SectionInvariant {
             face,
             what: "a chart with no azimuth channel names no azimuth branch",
         });
@@ -470,8 +470,8 @@ fn nearest_branch<T: Decide>(
         band,
     )
     .map_err(|miss| match miss {
-        geom_brep::BranchMiss::Undecided(diag) => SplitJoinError::Escalated { face, diag },
-        geom_brep::BranchMiss::OnMark => SplitJoinError::SectionInvariant {
+        geom_brep::BranchMiss::Undecided(diag) => JoinError::Escalated { face, diag },
+        geom_brep::BranchMiss::OnMark => JoinError::SectionInvariant {
             face,
             what: "a run edge's chart entry sits half a period from the previous edge's exit — \
                    the two images name no common branch",
@@ -512,7 +512,7 @@ struct PoleJoint<T: Decide> {
 ///   `gap ± τ/2`, its marks at whole periods, metered by D4 ¶1's
 ///   parallelism lever ([`pole_lever`]). A mark decided Zero is two
 ///   distinct edges leaving along one direction, an overlap or a cusp,
-///   and refuses ([`SplitJoinError::PoleEdgesCoincide`]); one in band
+///   and refuses ([`JoinError::PoleEdgesCoincide`]); one in band
 ///   escalates.
 ///
 /// `arrived` and `leaving` are the two edges' carriers with the
@@ -526,7 +526,7 @@ fn pole_branch<T: Decide>(
     arrived: (&geom::Curve3<T>, T, T),
     leaving: (&geom::Curve3<T>, T, T),
     band: Band,
-) -> Result<i32, SplitJoinError> {
+) -> Result<i32, JoinError> {
     let PoleJoint {
         face,
         surface,
@@ -546,7 +546,7 @@ fn pole_branch<T: Decide>(
     ) {
         (Some(a), Some(b)) => a.min(b),
         _ => {
-            return Err(SplitJoinError::SectionInvariant {
+            return Err(JoinError::SectionInvariant {
                 face,
                 what: "an edge at a sphere pole is not a circle — the pole's branch has no \
                        lever to decide it by",
@@ -577,8 +577,8 @@ fn pole_branch<T: Decide>(
             band,
         )
         .map_err(|stop| match stop.miss {
-            geom_brep::BranchMiss::Undecided(diag) => SplitJoinError::Escalated { face, diag },
-            geom_brep::BranchMiss::OnMark => SplitJoinError::PoleEdgesCoincide { face },
+            geom_brep::BranchMiss::Undecided(diag) => JoinError::Escalated { face, diag },
+            geom_brep::BranchMiss::OnMark => JoinError::PoleEdgesCoincide { face },
         })
 }
 
@@ -704,7 +704,7 @@ mod nearest_branch_rows {
             for turns in [0.5, -0.5, 1.5, -1.5, 2.5, -2.5, 3.5, -3.5] {
                 let got = at(lever, turns * tau);
                 assert!(
-                    matches!(got, Err(SplitJoinError::Escalated { .. })),
+                    matches!(got, Err(JoinError::Escalated { .. })),
                     "π·lever {f}·escalate, gap {turns}τ: in band: {got:?}"
                 );
             }
@@ -713,7 +713,7 @@ mod nearest_branch_rows {
         for turns in [0.5, -2.5, 3.5] {
             let got = at(past, turns * tau);
             assert!(
-                matches!(got, Err(SplitJoinError::SectionInvariant { .. })),
+                matches!(got, Err(JoinError::SectionInvariant { .. })),
                 "π·lever 1.01·escalate, gap {turns}τ: decided off: {got:?}"
             );
         }
@@ -776,9 +776,9 @@ mod nearest_branch_rows {
             let read = if pi_lever < band.zero() {
                 matches!(got, Ok(0))
             } else if pi_lever < band.escalate() {
-                matches!(got, Err(SplitJoinError::Escalated { .. }))
+                matches!(got, Err(JoinError::Escalated { .. }))
             } else {
-                matches!(got, Err(SplitJoinError::SectionInvariant { .. }))
+                matches!(got, Err(JoinError::SectionInvariant { .. }))
             };
             assert!(read, "d = {d:e} (lever {lever:e}), gap π: {got:?}");
         }
@@ -867,7 +867,7 @@ mod pole_branch_rows {
         );
         let got = pole_branch(joint(-theta, false), (&a, 0.0, s), (&b, 0.0, s), band);
         assert!(
-            matches!(got, Err(SplitJoinError::PoleEdgesCoincide { .. })),
+            matches!(got, Err(JoinError::PoleEdgesCoincide { .. })),
             "θ = {theta:e}, s = {s:e}: the stubs are within ε everywhere: {got:?}"
         );
         // The same angle on full meridians, pole to pole, is a wedge.
@@ -910,7 +910,7 @@ mod pole_branch_rows {
             band,
         );
         assert!(
-            matches!(got, Err(SplitJoinError::PoleEdgesCoincide { .. })),
+            matches!(got, Err(JoinError::PoleEdgesCoincide { .. })),
             "θ = {theta:e}: a meridian within ε of the curved edge over its bend: {got:?}"
         );
         // A meridian half a turn off is clear at the same lever.
@@ -972,7 +972,7 @@ mod pole_branch_rows {
         let band = band();
         let a = meridian::<f64>(0.5);
         let got = pole_branch(joint(0.0, false), (&a, 0.0, PI), (&a, 0.0, PI), band);
-        let Err(e @ SplitJoinError::PoleEdgesCoincide { .. }) = got else {
+        let Err(e @ JoinError::PoleEdgesCoincide { .. }) = got else {
             panic!("an exact overlap at the pole: {got:?}");
         };
         let said = e.render(geom_brep::recourse::Reading::Build);
@@ -988,7 +988,7 @@ mod pole_branch_rows {
             band,
         );
         assert!(
-            matches!(got, Err(SplitJoinError::PoleEdgesCoincide { .. })),
+            matches!(got, Err(JoinError::PoleEdgesCoincide { .. })),
             "Interval, a whole turn's gap: {got:?}"
         );
         // In band: the wedge's displacement at the lever sits between
@@ -997,7 +997,7 @@ mod pole_branch_rows {
         let b = meridian::<f64>(0.5 + theta);
         let got = pole_branch(joint(-theta, false), (&a, 0.0, PI), (&b, 0.0, PI), band);
         assert!(
-            matches!(got, Err(SplitJoinError::Escalated { .. })),
+            matches!(got, Err(JoinError::Escalated { .. })),
             "θ = {theta:e} at a unit lever is in band: {got:?}"
         );
     }
@@ -1062,7 +1062,7 @@ mod pole_branch_rows {
                 band,
             );
             assert!(
-                matches!(got, Err(SplitJoinError::Escalated { .. })),
+                matches!(got, Err(JoinError::Escalated { .. })),
                 "[{lane}] θ = {theta:e} at a unit lever is in band: {got:?}"
             );
         }
@@ -1080,7 +1080,7 @@ mod pole_branch_rows {
 mod torn_hop_rows {
     use geom_core::{Band, Tol};
 
-    use super::SplitJoinError;
+    use super::JoinError;
     use crate::body::Body;
     use crate::body::WALKS_CLOSE;
     use crate::entity::{EntityId, FaceKey, GeomRef, HalfEdgeKey, LoopBoundary};
@@ -1147,7 +1147,7 @@ mod torn_hop_rows {
         assert!(
             matches!(
                 super::face_azimuth_images(&stale, &surface, gone, band()),
-                Err(SplitJoinError::Corrupt {
+                Err(JoinError::Corrupt {
                     entity: EntityId::Face(f)
                 }) if f == gone
             ),
@@ -1214,7 +1214,7 @@ mod torn_hop_rows {
 #[cfg(test)]
 mod run_image_incidence {
     #![allow(clippy::unwrap_used)]
-    use super::SplitJoinError;
+    use super::JoinError;
     use geom_brep::recourse::{INCIDENCE_AT_POSE, INCIDENCE_UNSHOWN};
     use geom_brep::{OffMargin, PcurveCertifyError};
     use geom_core::{Band, Indeterminate, KERNEL_DEFECT_ENDING, MarginDiag};
@@ -1258,7 +1258,7 @@ mod run_image_incidence {
                 refusal.clone(),
             );
             assert!(
-                matches!(mapped, SplitJoinError::RunImageIncidence { .. }),
+                matches!(mapped, JoinError::RunImageIncidence { .. }),
                 "{refusal:?}: {mapped:?}"
             );
             let text = mapped.render(geom_brep::recourse::Reading::Build);

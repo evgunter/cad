@@ -653,7 +653,7 @@ impl PointInSolidError {
                  surface, which the inside/outside test has no way yet to cross. The \
                  solid itself is fine. Recourse: build the solid so no spline (NURBS) \
                  face bounds it",
-                super::kind_word(*kind)
+                geom_brep::recourse::kind_word(*kind)
             ),
             Self::VolumeUncertified => write!(
                 f,
@@ -1505,8 +1505,8 @@ pub(crate) fn sphere_chart_trim<T: Decide>(
     let raw = match crate::chart_window::face_azimuth_window(body, &surf, face, band) {
         Ok(Some(w)) => w,
         Ok(None) => return Ok(None),
-        Err(crate::chord_join::SplitJoinError::Escalated { diag, .. })
-        | Err(crate::chord_join::SplitJoinError::OrderEscalated { diag }) => {
+        Err(crate::chord_join::JoinError::Escalated { diag, .. })
+        | Err(crate::chord_join::JoinError::OrderEscalated { diag }) => {
             return Err(escalate(diag));
         }
         // A CORRUPTION-shaped refusal is not a class statement and must
@@ -1514,8 +1514,8 @@ pub(crate) fn sphere_chart_trim<T: Decide>(
         // that does not close, keeps the arena claim's own door — the
         // same distinction `bool_planar_chord_spec` draws between a key
         // that does not resolve and a key of the wrong kind.
-        Err(crate::chord_join::SplitJoinError::Corrupt { .. })
-        | Err(crate::chord_join::SplitJoinError::UnpairedLooseEnds { .. }) => {
+        Err(crate::chord_join::JoinError::Corrupt { .. })
+        | Err(crate::chord_join::JoinError::UnpairedLooseEnds { .. }) => {
             return Err(PointInSolidError::CorruptFace { face });
         }
         // The honest remainder: a walk this chart cannot express.

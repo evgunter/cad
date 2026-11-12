@@ -800,9 +800,9 @@ mod kernel {
     pub(super) type PathError = profile::path::PathError<f64>;
     use editor_core::TraceStepFault;
     use profile::StructureRefusalKind;
+    use topo::JoinError;
     use topo::SplitError;
     use topo::SplitFinishError;
-    use topo::SplitJoinError;
     use topo::SplitReduceError;
     use topo::boolean::trace::TraceFault;
     pub(super) type ShellError = topo::ShellError<f64>;
@@ -950,8 +950,8 @@ mod kernel {
     }
 
     test_utils::f6_variants! {
-        /// `SplitJoinError`'s arms, for the `Split/Join/` rows.
-        pub(super) const SPLIT_JOIN_ERROR: SplitJoinError = [
+        /// `JoinError`'s arms, for the `Split/Join/` rows.
+        pub(super) const SPLIT_JOIN_ERROR: JoinError = [
             OrderEscalated, Escalated, DegenerateSection, CurvedSlitTrace, RingHoming,
             RingHomingAmbiguous, UnpairedLooseEnds, SingleSiteSectionLoop,
             SectionLoopMixed, SectionLoopUndecided, CutInvariant, Corrupt, LineageRow,
@@ -968,7 +968,7 @@ mod kernel {
     test_utils::f6_variants! {
         /// `SplitFinishError`'s arms, for the `Split/Finish/` rows.
         pub(super) const SPLIT_FINISH_ERROR: SplitFinishError = [
-            DegenerateSide, TornComponent, UnclassifiableComponent, Corrupt, Euler,
+            DegenerateSide, TornComponent, UnclassifiableComponent, Desync, Carve, Euler,
             Band, ConeCornerEscalated, ConeCornerUnread, ConeFusionDesync, DescribeEscalated, Undescribed, DescribeSideEscalated, DescribeBendEscalated,
             WholeBodySideEscalated,
             EdgeOnFacesEscalated, SmoothJoinRefuted, SectionWindingUndecided, KnifeEdge,
@@ -1063,7 +1063,7 @@ const ROSTERS: &[(&str, &[&str])] = {
         ("TraceFault", TRACE_FAULT.identifiers()),
         ("SplitError", SPLIT_ERROR.identifiers()),
         ("SplitReduceError", SPLIT_REDUCE_ERROR.identifiers()),
-        ("SplitJoinError", SPLIT_JOIN_ERROR.identifiers()),
+        ("JoinError", SPLIT_JOIN_ERROR.identifiers()),
         ("SplitFinishError", SPLIT_FINISH_ERROR.identifiers()),
         ("ShellError", SHELL_ERROR.identifiers()),
         ("ReplaceFaceError", REPLACE_FACE_ERROR.identifiers()),
@@ -1172,7 +1172,7 @@ fn forward(kind: &NodeErrorKind) -> Forward {
             let mut levels = vec![level("SplitError", e)];
             match e {
                 topo::SplitError::Reduce(e) => levels.push(level("SplitReduceError", e)),
-                topo::SplitError::Join(e) => levels.push(level("SplitJoinError", e)),
+                topo::SplitError::Join(e) => levels.push(level("JoinError", e)),
                 topo::SplitError::Finish(e) => levels.push(level("SplitFinishError", e)),
                 topo::SplitError::Pcurves(_) | topo::SplitError::Pieces(_) => {}
             }
@@ -2289,8 +2289,8 @@ fn tube() -> Vec<(String, NodeErrorKind)> {
 fn split() -> Vec<(String, NodeErrorKind)> {
     use payloads::*;
     use topo::{
-        EdgeKey, EntityId, FaceKey, LoopKey, ShellKey, SplitError, SplitFinishError as F,
-        SplitJoinError as J, SplitReduceError as R, VertexKey,
+        EdgeKey, EntityId, FaceKey, JoinError as J, LoopKey, ShellKey, SplitError,
+        SplitFinishError as F, SplitReduceError as R, VertexKey,
     };
     let (face, edge, vertex) = (FaceKey::default(), EdgeKey::default(), VertexKey::default());
     let reduce = [
@@ -2709,7 +2709,16 @@ fn split() -> Vec<(String, NodeErrorKind)> {
             "UnclassifiableComponent",
             F::UnclassifiableComponent { shell },
         ),
-        ("Corrupt", F::Corrupt),
+        (
+            "Desync",
+            F::Desync(topo::FinishDesync::SideEmpty {
+                side: topo::PlaneSide::Above,
+            }),
+        ),
+        (
+            "Carve",
+            F::Carve(topo::CarveError::NotOneSolid { solids: 2 }),
+        ),
         ("Euler", F::Euler(euler())),
         ("Band", F::Band(band_error())),
         (

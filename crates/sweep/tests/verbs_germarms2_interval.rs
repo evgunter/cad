@@ -176,7 +176,7 @@ fn assert_the_fixture_escape(d: &str, reposed: &BooleanError, what: &str) {
     let (source, site_predicate) = match reposed {
         BooleanError::CrossingInsertion { source, .. } => (source, "carrier_matches_mapped_source"),
         BooleanError::Join(j) => match j.error() {
-            topo::SplitJoinError::Euler(source) => (source, "carrier_endpoint_start"),
+            topo::JoinError::Euler(source) => (source, "carrier_endpoint_start"),
             _ => panic!("{what}: the only admitted escape is a certification escalation; got {r}"),
         },
         _ => panic!(

@@ -80,8 +80,12 @@ pub(super) fn fuse_section_cones<T: Decide + crate::props::AtRestPolicy>(
     while let Some(Fusion { face, from, to }) = next_fusion(body, side, naming, band)? {
         let start = |he| body.get_half_edge(he).map(|h| h.start);
         let (a, b) = (
-            start(from).ok_or(SplitFinishError::Desync(FinishDesync::Unresolved(EntityId::HalfEdge(from))))?,
-            start(to).ok_or(SplitFinishError::Desync(FinishDesync::Unresolved(EntityId::HalfEdge(to))))?,
+            start(from).ok_or(SplitFinishError::Desync(FinishDesync::Unresolved(
+                EntityId::HalfEdge(from),
+            )))?,
+            start(to).ok_or(SplitFinishError::Desync(FinishDesync::Unresolved(
+                EntityId::HalfEdge(to),
+            )))?,
         );
         let keep = if naming.original_of(a) <= naming.original_of(b) {
             a
@@ -91,7 +95,9 @@ pub(super) fn fuse_section_cones<T: Decide + crate::props::AtRestPolicy>(
         let p = body
             .get_vertex(keep)
             .and_then(|v| body.points.get(v.point).copied())
-            .ok_or(SplitFinishError::Desync(FinishDesync::Unresolved(EntityId::Vertex(keep))))?;
+            .ok_or(SplitFinishError::Desync(FinishDesync::Unresolved(
+                EntityId::Vertex(keep),
+            )))?;
         let fused = fuse(
             body,
             Joint::Chord { he1: from, he2: to },
@@ -134,7 +140,9 @@ fn next_fusion<T: Decide>(
             let vertices = at
                 .iter()
                 .map(|&i| {
-                    vertex(i).ok_or(SplitFinishError::Desync(FinishDesync::Unresolved(EntityId::HalfEdge(cycle[i]))))
+                    vertex(i).ok_or(SplitFinishError::Desync(FinishDesync::Unresolved(
+                        EntityId::HalfEdge(cycle[i]),
+                    )))
                 })
                 .collect::<Result<Vec<_>, _>>()?;
             if vertices.iter().all(|&v| v == vertices[0]) {

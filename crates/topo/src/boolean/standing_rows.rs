@@ -235,12 +235,12 @@ fn each_class_and_each_delegate_reads_as_its_doc_states() {
         ),
         (
             "a germ's spline component walked past its budget",
-            crate::SplitJoinError::SectionUnwalked(geom::PieceWalkRefusal::Exhausted).into(),
+            crate::JoinError::SectionUnwalked(geom::PieceWalkRefusal::Exhausted).into(),
             Ok(Refusal::Unsettled),
         ),
         (
             "a join's mixed cause",
-            crate::SplitJoinError::UnpairedLooseEnds { count: 2 }.into(),
+            crate::JoinError::UnpairedLooseEnds { count: 2 }.into(),
             Err(Aborts),
         ),
     ];

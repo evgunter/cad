@@ -45,7 +45,7 @@ fn a_free_azimuth_is_refused() {
     assert!(
         matches!(
             chart_v_du(FaceKey::default(), &image, (0.0, 1.0), 0.0),
-            Err(SplitJoinError::SectionInvariant { .. })
+            Err(JoinError::SectionInvariant { .. })
         ),
         "a free azimuth refuses"
     );

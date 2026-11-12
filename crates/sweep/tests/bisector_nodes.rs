@@ -460,13 +460,13 @@ fn an_edge_near_a_node_crosses_through_the_bisector_planes() {
 fn transversality_refused(r: &Result<BooleanResult<f64>, topo::BooleanError>) -> bool {
     use geom_brep::{CertCheck, CertifyError};
     use topo::EulerOpError;
-    use topo::splitting::SplitJoinError;
+    use topo::JoinError;
     let Err(topo::BooleanError::Join(join)) = r else {
         return false;
     };
     matches!(
         join.error(),
-        SplitJoinError::Euler(EulerOpError::Certification {
+        JoinError::Euler(EulerOpError::Certification {
             error: CertifyError::NotTransverse { .. }
                 | CertifyError::Escalated {
                     check: CertCheck::Transversality,

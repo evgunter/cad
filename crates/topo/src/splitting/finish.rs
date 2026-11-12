@@ -93,7 +93,7 @@ use crate::attach::{Named, Rechart};
 use crate::body::Body;
 use crate::boolean::{CarryRefusal, Cell};
 use crate::carve::{CarveError, carve, single_solid};
-use crate::chord_join::SplitJoinError;
+use crate::chord_join::JoinError;
 use crate::entity::{EdgeKey, EntityId, FaceKey, ShellKey, SolidKey, VertexKey};
 use crate::euler::{EulerOpError, FaceSurface};
 use crate::live::{BoundaryMember, proven};
@@ -670,7 +670,9 @@ pub(super) fn end_maximal<T: Decide + crate::props::AtRestPolicy>(
             error => SplitFinishError::Merge { side, error },
         })?;
     if !merged.placeholders.is_empty() {
-        return Err(SplitFinishError::Desync(FinishDesync::MergePlaceholders { side }));
+        return Err(SplitFinishError::Desync(FinishDesync::MergePlaceholders {
+            side,
+        }));
     }
     let skipped_faces = merged.skipped.iter().flat_map(|s| s.faces.iter().copied());
     let boundary = crate::boolean::boundary_edges(body, skipped_faces);
@@ -720,7 +722,11 @@ fn record_islands<T: Decide>(
     let mut rings = Vec::new();
     let mut outlines = Vec::with_capacity(pieces.len());
     for &f in &pieces {
-        let face = body.get_face(f).ok_or(SplitFinishError::Desync(FinishDesync::Unresolved(EntityId::Face(f))))?;
+        let face = body
+            .get_face(f)
+            .ok_or(SplitFinishError::Desync(FinishDesync::Unresolved(
+                EntityId::Face(f),
+            )))?;
         rings.extend(face.rings.iter().map(|&r| (r, r)));
         outlines.push((f, face.outer));
     }
@@ -731,7 +737,9 @@ fn record_islands<T: Decide>(
     let side_normal = section_loops::section_normal(normal, side);
     let nesting = section_loops::nest(body, rings, outlines, side_normal, band).map_err(
         |fault| match fault {
-            section_loops::NestFault::Torn => SplitFinishError::Desync(FinishDesync::NestTorn { side }),
+            section_loops::NestFault::Torn => {
+                SplitFinishError::Desync(FinishDesync::NestTorn { side })
+            }
             section_loops::NestFault::Contradiction(island) => {
                 SplitFinishError::NestingContradiction { hole: island }
             }
@@ -1435,9 +1443,9 @@ pub(super) fn split_finish<T: Decide + crate::props::AtRestPolicy>(
     let mut slits: Vec<(FaceKey, PlaneSide)> = Vec::new();
     let mut traces: Vec<FaceKey> = Vec::new();
     for section in completed {
-        let face = body
-            .get_face(section.face)
-            .ok_or(SplitFinishError::Desync(FinishDesync::Unresolved(EntityId::Face(section.face))))?;
+        let face = body.get_face(section.face).ok_or(SplitFinishError::Desync(
+            FinishDesync::Unresolved(EntityId::Face(section.face)),
+        ))?;
         let outer = face.outer;
         let ring = if outer == section.above_loop {
             section.below_loop
@@ -1554,7 +1562,9 @@ pub(super) fn split_finish<T: Decide + crate::props::AtRestPolicy>(
     // ---- Distribution: movefac every shell of the solid. ----
     let shells: Vec<ShellKey> = body
         .shells_of_solid(solid)
-        .ok_or(SplitFinishError::Desync(FinishDesync::Unresolved(EntityId::Solid(solid))))?
+        .ok_or(SplitFinishError::Desync(FinishDesync::Unresolved(
+            EntityId::Solid(solid),
+        )))?
         .to_vec();
     let mut all_shells = Vec::new();
     for shell in shells {
@@ -1566,7 +1576,9 @@ pub(super) fn split_finish<T: Decide + crate::props::AtRestPolicy>(
     for shell in all_shells {
         let faces = &body
             .get_shell(shell)
-            .ok_or(SplitFinishError::Desync(FinishDesync::Unresolved(EntityId::Shell(shell))))?
+            .ok_or(SplitFinishError::Desync(FinishDesync::Unresolved(
+                EntityId::Shell(shell),
+            )))?
             .faces;
         if faces.iter().any(|f| traces.contains(f)) {
             // The tree's vertices hold no other edge: the other side wraps
@@ -1656,7 +1668,11 @@ fn nest_hole_sections<T: Decide + crate::props::AtRestPolicy>(
         let mut outlines = Vec::new();
         let mut holes = Vec::new();
         for face in side_sections(naming, side) {
-            let data = body.get_face(face).ok_or(SplitFinishError::Desync(FinishDesync::Unresolved(EntityId::Face(face))))?;
+            let data =
+                body.get_face(face)
+                    .ok_or(SplitFinishError::Desync(FinishDesync::Unresolved(
+                        EntityId::Face(face),
+                    )))?;
             if data.sense {
                 outlines.push((face, data.outer));
             } else {
@@ -1667,7 +1683,9 @@ fn nest_hole_sections<T: Decide + crate::props::AtRestPolicy>(
         let nesting =
             section_loops::nest(body, outlines, holes, side_normal, band).map_err(|fault| {
                 match fault {
-                    section_loops::NestFault::Torn => SplitFinishError::Desync(FinishDesync::NestTorn { side }),
+                    section_loops::NestFault::Torn => {
+                        SplitFinishError::Desync(FinishDesync::NestTorn { side })
+                    }
                     section_loops::NestFault::Contradiction((hole, _)) => {
                         SplitFinishError::NestingContradiction { hole }
                     }
@@ -1680,7 +1698,9 @@ fn nest_hole_sections<T: Decide + crate::props::AtRestPolicy>(
                 for &r in &rings {
                     clear = clear
                         && section_loops::outlines_disjoint(body, r, hole_loop, side_normal, band)
-                            .map_err(|_| SplitFinishError::Desync(FinishDesync::NestTorn { side }))?;
+                            .map_err(|_| {
+                                SplitFinishError::Desync(FinishDesync::NestTorn { side })
+                            })?;
                 }
                 if clear {
                     rings.push(hole_loop);
@@ -1728,7 +1748,9 @@ fn ring_into<T: Decide + crate::props::AtRestPolicy>(
 ) -> Result<(), SplitFinishError> {
     let chart = body
         .get_face(parent)
-        .ok_or(SplitFinishError::Desync(FinishDesync::Unresolved(EntityId::Face(parent))))?
+        .ok_or(SplitFinishError::Desync(FinishDesync::Unresolved(
+            EntityId::Face(parent),
+        )))?
         .surface;
     let charts = vec![Rechart::shared(chart, face, false)];
     let stranded = body.stranded_by(&charts)?;
@@ -1774,8 +1796,16 @@ fn nest_slit<T: Decide + crate::props::AtRestPolicy>(
     band: geom_core::Band,
     tol: Tol,
 ) -> Result<(), SplitFinishError> {
-    let slit_loop = body.get_face(slit).ok_or(SplitFinishError::Desync(FinishDesync::Unresolved(EntityId::Face(slit))))?.outer;
-    let at = |l| crate::chord_join::ring_representative(body, l).map_err(|_| SplitFinishError::Desync(FinishDesync::LoopTorn { torn: l }));
+    let slit_loop = body
+        .get_face(slit)
+        .ok_or(SplitFinishError::Desync(FinishDesync::Unresolved(
+            EntityId::Face(slit),
+        )))?
+        .outer;
+    let at = |l| {
+        crate::chord_join::ring_representative(body, l)
+            .map_err(|_| SplitFinishError::Desync(FinishDesync::LoopTorn { torn: l }))
+    };
     let q = at(slit_loop)?;
     let side_normal = section_loops::section_normal(normal, side);
     let read = |l, p| {
@@ -1787,7 +1817,11 @@ fn nest_slit<T: Decide + crate::props::AtRestPolicy>(
     // holes on faces of their own that hold it.
     let (mut outlines, mut holes, mut in_hole) = (Vec::new(), Vec::new(), false);
     for face in side_sections(naming, side) {
-        let data = body.get_face(face).ok_or(SplitFinishError::Desync(FinishDesync::Unresolved(EntityId::Face(face))))?;
+        let data =
+            body.get_face(face)
+                .ok_or(SplitFinishError::Desync(FinishDesync::Unresolved(
+                    EntityId::Face(face),
+                )))?;
         match read(data.outer, q)? {
             LoopContainment::Out => continue,
             LoopContainment::OnBoundary => return unplaced(!data.sense),
@@ -2134,9 +2168,11 @@ fn whole_body_side<T: Decide>(
     let band = geom_core::Band::linear(tol).map_err(SplitFinishError::Band)?;
     let solid = single_solid(&body)?;
     let mut binned = ShellSides::default();
-    for &shell in body
-        .shells_of_solid(solid)
-        .ok_or(SplitFinishError::Desync(FinishDesync::Unresolved(EntityId::Solid(solid))))?
+    for &shell in
+        body.shells_of_solid(solid)
+            .ok_or(SplitFinishError::Desync(FinishDesync::Unresolved(
+                EntityId::Solid(solid),
+            )))?
     {
         match shell_side(&body, shell, sides, plane, band)? {
             Some(side) => binned.bin(shell, side),
@@ -2201,7 +2237,11 @@ fn shell_side<T: Decide>(
         Vertex(VertexKey),
         Edge(EdgeKey, geom::Curve3<T>, (T, T)),
     }
-    let shell_data = body.get_shell(shell).ok_or(SplitFinishError::Desync(FinishDesync::Unresolved(EntityId::Shell(shell))))?;
+    let shell_data =
+        body.get_shell(shell)
+            .ok_or(SplitFinishError::Desync(FinishDesync::Unresolved(
+                EntityId::Shell(shell),
+            )))?;
     let (mut vertices, mut edges) = (Vec::new(), Vec::new());
     let (mut seen_v, mut seen_e) = (SecondaryMap::new(), SecondaryMap::new());
     for &face in &shell_data.faces {
@@ -2270,7 +2310,7 @@ fn below_chord_u_ref<T: Decide>(
     normal: UnitVec3<T>,
 ) -> Result<Vec3<T>, SplitFinishError> {
     let points = loop_points_of(body, section.below_loop).map_err(|e| match e {
-        SplitJoinError::Euler(err) => SplitFinishError::Euler(err),
+        JoinError::Euler(err) => SplitFinishError::Euler(err),
         _ => SplitFinishError::Desync(FinishDesync::LoopTorn {
             torn: section.below_loop,
         }),
@@ -2314,7 +2354,11 @@ fn classify_shell<T: Decide>(
     plane: &super::SplitPlane<T>,
     band: geom_core::Band,
 ) -> Result<(PlaneSide, bool), SplitFinishError> {
-    let shell_data = body.get_shell(shell).ok_or(SplitFinishError::Desync(FinishDesync::Unresolved(EntityId::Shell(shell))))?;
+    let shell_data =
+        body.get_shell(shell)
+            .ok_or(SplitFinishError::Desync(FinishDesync::Unresolved(
+                EntityId::Shell(shell),
+            )))?;
     let mut side: Option<PlaneSide> = None;
     let mut has_real_face = false;
     for &face in &shell_data.faces {

@@ -1857,3 +1857,41 @@ mod tests {
         }
     }
 }
+
+/// The recourse of every refusal of a spiric or spline edge: the kinds
+/// every lane reads are the line and the two conics.
+pub const CONIC_EDGES_RECOURSE: &str =
+    "rebuild that solid so its edges are lines, circles or ellipses";
+
+/// A surface kind as the person holding the mouse reads it. The
+/// spline kinds get one spelling everywhere a Boolean refusal names
+/// them; every other kind is its own name.
+#[must_use]
+pub fn kind_word(kind: geom::SurfaceKind) -> &'static str {
+    match kind {
+        geom::SurfaceKind::Nurbs => "spline (NURBS)",
+        geom::SurfaceKind::Approx => "approximated spline",
+        other => other.name(),
+    }
+}
+
+/// The recourse every "these faces cannot meet yet" refusal ends on.
+///
+/// **This is the one statement of the pairs the Boolean can join**: the
+/// germ-pair join (`topo`'s `bool_connect`, and the chord layer it mints
+/// sections through) joins a plane face against a plane, cylinder,
+/// sphere or cone face, mirrors included, and against a torus face where
+/// the plane holds the torus's axis or stands square to it, and two
+/// spheres or two parallel cylinders along their radical plane.
+/// The rustdoc that needs the set points here. The operand gate's box
+/// test is conservative (a box overlap is a MAY),
+/// so moving the face clear of the other solid is a real recourse even
+/// where the faces never touch in exact geometry.
+#[must_use]
+pub fn meeting_recourse(kind: &str) -> String {
+    format!(
+        "Recourse: reshape the parts so every meeting is a plane against a plane, cylinder, \
+         sphere, cone, or torus whose axis it holds or is square to, or move the {kind} face \
+         clear of the other solid"
+    )
+}

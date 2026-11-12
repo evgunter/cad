@@ -397,7 +397,7 @@ fn the_rings_volume_brackets_its_closed_form_at_the_certified_scalar() {
                     &r,
                     Err(topo::BooleanError::Join(j)) if matches!(
                         j.error(),
-                        topo::SplitJoinError::Euler(topo::EulerOpError::Certification {
+                        topo::JoinError::Euler(topo::EulerOpError::Certification {
                             error: topo::CertifyError::Escalated { .. }
                         })
                     )

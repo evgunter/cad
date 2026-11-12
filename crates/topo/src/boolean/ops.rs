@@ -136,13 +136,13 @@ use super::{
 };
 use crate::body::Body;
 use crate::boxes;
+use crate::carve::{carve, single_solid};
 use crate::coincidence::{Backing, Cited, Cites};
 use crate::entity::{EdgeKey, EntityId, FaceKey, LoopBoundary, ShellKey, VertexKey};
 use crate::geometry::{PointKey, SurfaceKey};
 use crate::live::{BoundaryMember, linked, proven};
 use crate::merge_faces::{DescribeRefusal, DihedralReading, EdgeDescribeFailure};
 use crate::props::AtRestPolicy;
-use crate::carve::{carve, single_solid};
 use crate::validate::decide;
 use geom_brep::recourse::Refused;
 use geom_core::NonzeroSign;

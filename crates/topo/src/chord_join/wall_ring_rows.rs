@@ -30,7 +30,7 @@ pub(super) fn wall_side(
     body: &Body<f64>,
     (oldf, newf): (FaceKey, FaceKey),
     ring: LoopKey,
-) -> Result<RingSide, SplitJoinError> {
+) -> Result<RingSide, JoinError> {
     let surface = body.proven_face(oldf).surface().clone();
     let quadric = Quadric::of(&surface).unwrap();
     path_ring_side(body, (&surface, &quadric), (oldf, newf), ring, band())
@@ -340,7 +340,7 @@ fn random_wall_patches_re_home_as_membership_says() {
                         "({u}, {v}) in patch ({u0}, {w}, {v0}..{v1}) undecided"
                     ));
                 }
-                Err(SplitJoinError::Escalated { .. }) | Ok(_) => {}
+                Err(JoinError::Escalated { .. }) | Ok(_) => {}
                 Err(e) => fails.push(format!("({u}, {v}): {e:?}")),
             }
         }
@@ -431,7 +431,7 @@ fn spline_island_rehome(
     sphere: &geom::Surface<f64>,
     cuts: &[f64],
     points: &[Point3<f64>],
-) -> Result<Vec<bool>, SplitJoinError> {
+) -> Result<Vec<bool>, JoinError> {
     let geom::Curve3::Nurbs(net) = &c.carrier else {
         panic!("a fitted component's carrier is a spline");
     };
@@ -562,7 +562,7 @@ fn a_spline_bounded_wall_island_re_homes_its_bystanders_as_the_ball_says() {
             let points: Vec<Point3<f64>> = drawn.iter().map(|&(q, _)| q).collect();
             asked += drawn.len();
             match spline_island_rehome((&c, frame), &ball(centre, big), &cuts, &points) {
-                Err(SplitJoinError::Escalated { .. }) => refused += drawn.len(),
+                Err(JoinError::Escalated { .. }) => refused += drawn.len(),
                 Err(e) => failures.push(format!("centre {centre:?}, cuts {cuts:?}: {e:?}")),
                 Ok(moved) => {
                     for ((q, inside), moved) in drawn.into_iter().zip(moved) {
@@ -663,10 +663,7 @@ fn closed_form_chord(
     partner: geom::Surface<f64>,
     ends: (Point3<f64>, Point3<f64>),
     dir: Vec3<f64>,
-) -> (
-    Result<SectionChord<f64>, SplitJoinError>,
-    geom_brep::SurfacePair,
-) {
+) -> (Result<SectionChord<f64>, JoinError>, geom_brep::SurfacePair) {
     node_chord(component, partner, Vec::new(), ends, dir)
 }
 
@@ -677,10 +674,7 @@ fn node_chord(
     nodes: Vec<geom_brep::SectionNode<f64>>,
     (from, to): (Point3<f64>, Point3<f64>),
     dir: Vec3<f64>,
-) -> (
-    Result<SectionChord<f64>, SplitJoinError>,
-    geom_brep::SurfacePair,
-) {
+) -> (Result<SectionChord<f64>, JoinError>, geom_brep::SurfacePair) {
     let mut body = Body::<f64>::new();
     let face = cyl_wall_sheet(
         &mut body,
@@ -803,7 +797,7 @@ fn a_carried_ruling_chord_runs_back_where_it_leaves_back() {
     let comp = closed_form(line, (0.1, 0.9), open);
     let (got, _) = closed_form_chord(comp, partner, (lo, hi), -Vec3::unit_z());
     assert!(
-        matches!(got, Err(SplitJoinError::SectionInvariant { .. })),
+        matches!(got, Err(JoinError::SectionInvariant { .. })),
         "a chord leaving away from its end refuses: {:?}",
         got.err()
     );
@@ -1002,7 +996,7 @@ fn a_carried_chord_on_an_unwalkable_spline_refuses_unwalked() {
     assert!(
         matches!(
             got,
-            Err(SplitJoinError::SectionUnwalked(
+            Err(JoinError::SectionUnwalked(
                 geom::PieceWalkRefusal::Unbounded
             ))
         ),

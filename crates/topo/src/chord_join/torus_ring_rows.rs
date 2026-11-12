@@ -386,7 +386,7 @@ fn wall_off(
     (face, key): (FaceKey, SurfaceKey),
     island: &Island,
     r: usize,
-) -> Result<FaceKey, SplitJoinError> {
+) -> Result<FaceKey, JoinError> {
     let (run, closing) = run_from(body, (face, key), island, r);
     let after = body.get_half_edge(run.1).unwrap().next;
     let site = MefSite::Chords {

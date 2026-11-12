@@ -134,9 +134,9 @@ fn mass_props_payload(e: &MassPropsError) {
     }
 }
 
-// topo::SplitJoinError carries geom_brep::SectionError.
-fn split_join_payload(e: &pncad::topo::SplitJoinError) {
-    if let pncad::topo::SplitJoinError::Section { source, .. } = e {
+// topo::JoinError carries geom_brep::SectionError.
+fn split_join_payload(e: &pncad::topo::JoinError) {
+    if let pncad::topo::JoinError::Section { source, .. } = e {
         named::<&pncad::geom_brep::SectionError>(source);
     }
 }
@@ -1047,7 +1047,7 @@ fn cross_crate_error_payloads_are_nameable_through_the_facade() {
 
     // Keep the remaining pins referenced.
     named(mass_props_payload as fn(&MassPropsError));
-    named(split_join_payload as fn(&pncad::topo::SplitJoinError));
+    named(split_join_payload as fn(&pncad::topo::JoinError));
     named(section_payload as fn(&pncad::geom_brep::SectionError));
     named(skin_payload as fn(&pncad::sweep::SkinError));
     named(fit_payload as fn(&pncad::geom::FitError));

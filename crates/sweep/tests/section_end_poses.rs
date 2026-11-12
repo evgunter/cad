@@ -32,7 +32,7 @@
 use geom_brep::CertCheck;
 use geom_core::{Affine3, Point2, Point3, Tol, Vec3};
 use topo::splitting::{SplitError, split};
-use topo::{AtRestBody, Body, BooleanError, SectionEndReading, SectionPinMiss, SplitJoinError};
+use topo::{AtRestBody, Body, BooleanError, JoinError, SectionEndReading, SectionPinMiss};
 
 fn finished(body: Body<f64>, tol: Tol) -> AtRestBody<f64> {
     topo::finish(body, tol).expect("a valid operand")
@@ -110,7 +110,7 @@ fn rows<R: Copy>(all: &[R], eps_of: impl Fn(&R) -> f64, eps: f64) -> Vec<R> {
 }
 
 /// At each ε row, each split pose refuses
-/// [`SplitJoinError::SectionEndEscalated`] with its reading, its question
+/// [`JoinError::SectionEndEscalated`] with its reading, its question
 /// and its lever, on an end pin; and the lever builds: the vertex onto
 /// the plane or clearly off it, or the plane square or clearly off
 /// square.
@@ -132,7 +132,7 @@ fn a_section_end_at_the_band_edge_refuses_as_the_inputs_at_the_split_and_its_lev
             Err(SplitError::Join(e))
                 if matches!(
                     e,
-                    SplitJoinError::SectionEndEscalated { reading, .. } if reading == want
+                    JoinError::SectionEndEscalated { reading, .. } if reading == want
                 ) =>
             {
                 let (question, lever) = match want {
@@ -142,7 +142,7 @@ fn a_section_end_at_the_band_edge_refuses_as_the_inputs_at_the_split_and_its_lev
                 let text = e.render(geom_brep::recourse::Reading::Build);
                 let pin = matches!(
                     e,
-                    SplitJoinError::SectionEndEscalated { ref diag, .. }
+                    JoinError::SectionEndEscalated { ref diag, .. }
                         if matches!(
                             diag.predicate,
                             Some("carrier_endpoint_start" | "carrier_endpoint_end")
@@ -260,7 +260,7 @@ fn a_section_end_at_the_band_edge_refuses_as_the_inputs_at_the_boolean_and_its_l
                         if matches!(
                             &e,
                             BooleanError::Join(j) if matches!(j.error(),
-                            SplitJoinError::SectionEndEscalated {
+                            JoinError::SectionEndEscalated {
                                 reading: SectionEndReading::SquareToAxis,
                                 ..
                             })
@@ -357,14 +357,14 @@ fn a_section_ends_own_rounding_is_a_kernel_limitation() {
     for pose in AXIAL.into_iter().chain(AXIAL_PAST) {
         let got = axial_split(&cyl, pose, tol);
         if (tol.eps() - 1e-12).abs() > 1e-15 {
-            if let Err(SplitError::Join(e @ SplitJoinError::SectionEndEscalated { .. })) = got {
+            if let Err(SplitError::Join(e @ JoinError::SectionEndEscalated { .. })) = got {
                 wrong.push(format!("{pose:?}: read as the input's: {e:?}"));
             }
             continue;
         }
         let past = AXIAL_PAST.contains(&pose);
         let want = match &got {
-            Err(SplitError::Join(SplitJoinError::SectionUnresolved {
+            Err(SplitError::Join(JoinError::SectionUnresolved {
                 miss:
                     SectionPinMiss::Undecided {
                         check: CertCheck::EndpointStart | CertCheck::EndpointEnd,
@@ -379,7 +379,7 @@ fn a_section_ends_own_rounding_is_a_kernel_limitation() {
                 )
                 .to_string(),
             ),
-            Err(SplitError::Join(SplitJoinError::SectionUnresolved {
+            Err(SplitError::Join(JoinError::SectionUnresolved {
                 miss:
                     SectionPinMiss::Past {
                         check: check @ (CertCheck::EndpointStart | CertCheck::EndpointEnd),
@@ -464,7 +464,7 @@ fn a_section_end_reads_the_same_wherever_the_part_sits() {
         let cut = moved_cut((x0, 0.0), t, tol);
         match cut(eps) {
             Err(SplitError::Join(
-                e @ SplitJoinError::SectionEndEscalated {
+                e @ JoinError::SectionEndEscalated {
                     reading: SectionEndReading::OnPlane,
                     ..
                 },
@@ -590,7 +590,7 @@ fn a_torus_section_read_square_refuses_as_the_inputs_and_its_lever_builds() {
                         if matches!(
                             &e,
                             BooleanError::Join(j) if matches!(j.error(),
-                            SplitJoinError::SectionEndEscalated {
+                            JoinError::SectionEndEscalated {
                                 reading: SectionEndReading::SquareToAxis,
                                 ..
                             })

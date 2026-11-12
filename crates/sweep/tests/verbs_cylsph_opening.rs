@@ -502,7 +502,7 @@ fn a_torus_operand_passes_the_pair_gate_and_refuses_at_the_crossing_layer() {
 /// `join::pair_section_frame`, a different dispatch answering a
 /// different question: it names a section frame (a centre and an axis
 /// for the rotational facing test), never a seam lane. The wired pairs
-/// are stated once, in `topo`'s `meeting_recourse`, and every refusal
+/// are stated once, in `geom_brep::recourse::meeting_recourse`, and every refusal
 /// that names them renders that one sentence, so there is no second
 /// Display left to disagree with.
 ///

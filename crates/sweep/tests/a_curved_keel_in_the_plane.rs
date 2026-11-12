@@ -137,7 +137,7 @@ fn a_curved_keel_closed_at_both_ends_refuses_as_a_construction_gap() {
                 tol(),
             );
             match topo::split(&body, &plane, tol()) {
-                Err(topo::SplitError::Join(topo::SplitJoinError::CurvedSlitTrace { .. })) => {}
+                Err(topo::SplitError::Join(topo::JoinError::CurvedSlitTrace { .. })) => {}
                 other => panic!(
                     "{what}: {:?}, not the curved slit trace's refusal",
                     other.map(drop)

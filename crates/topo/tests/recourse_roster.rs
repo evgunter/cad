@@ -76,7 +76,7 @@ const SPLIT: Door = Door {
 };
 const SPLIT_JOIN: Door = Door {
     prefixes: &["chord_"],
-    error: std::any::type_name::<topo::SplitJoinError>,
+    error: std::any::type_name::<topo::JoinError>,
 };
 const POINT_IN_LOOP: Door = Door {
     prefixes: &["point_in_"],

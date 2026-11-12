@@ -212,7 +212,7 @@ use geom_core::{
 };
 
 use crate::body::Body;
-use crate::chord_join::SplitJoinError;
+use crate::chord_join::JoinError;
 use crate::coincidence::{Cited, Cites};
 use crate::contact::GlueClass;
 use crate::entity::{EdgeKey, FaceKey, HalfEdgeKey, ShellKey, VertexKey};
@@ -223,6 +223,7 @@ use crate::merge_faces::MergeCoplanarError;
 use crate::sweep_trace::SweepPairs;
 use crate::validate::ValidationError;
 use geom_brep::ladder::{Answering, Evidence, Rung, climb_evidence};
+use geom_brep::recourse::{CONIC_EDGES_RECOURSE, kind_word, meeting_recourse};
 
 pub use carrier_eq::{
     CarrierDesc, CarrierEqError, CarrierRelation, CarrierVerdict, CoincidenceMeasure,
@@ -4173,7 +4174,7 @@ pub enum BooleanError {
     ///
     /// The vertex-on-face and held-pierce climbs read it, through a pierce
     /// germ's branch (`join::germ_branch`), so it stands by its cause
-    /// ([`SplitJoinError::refusal`]): a spline component's walk as the
+    /// ([`JoinError::refusal`]): a spline component's walk as the
     /// walk's refusal does, each other cause as its own doc states it, and
     /// a cause that mixes classes as an abort.
     Join(BooleanJoin),
@@ -5250,11 +5251,6 @@ impl From<EulerOpError> for BooleanError {
     }
 }
 
-/// The recourse of every refusal of a spiric or spline edge: the kinds
-/// every lane reads are the line and the two conics.
-pub(crate) const CONIC_EDGES_RECOURSE: &str =
-    "rebuild that solid so its edges are lines, circles or ellipses";
-
 /// What the spline arm could not settle, as a clause for
 /// [`BooleanError::SplineCrossingUnsettled`]'s sentence.
 fn unsettled_crossing(why: geom_brep::roots::Unsettled) -> &'static str {
@@ -5297,37 +5293,6 @@ fn op_noun(op: BooleanOp) -> &'static str {
         BooleanOp::Intersect => "intersection",
         BooleanOp::Subtract => "subtraction",
     }
-}
-
-/// A surface kind as the person holding the mouse reads it. The
-/// spline kinds get one spelling everywhere a Boolean refusal names
-/// them; every other kind is its own name.
-pub(crate) fn kind_word(kind: geom::SurfaceKind) -> &'static str {
-    match kind {
-        geom::SurfaceKind::Nurbs => "spline (NURBS)",
-        geom::SurfaceKind::Approx => "approximated spline",
-        other => other.name(),
-    }
-}
-
-/// The recourse every "these faces cannot meet yet" refusal ends on.
-///
-/// **This is the one statement of the pairs the Boolean can join**: the
-/// germ-pair join (`join::bool_connect`, and the chord layer it mints
-/// sections through) joins a plane face against a plane, cylinder,
-/// sphere or cone face, mirrors included, and against a torus face where
-/// the plane holds the torus's axis or stands square to it, and two
-/// spheres or two parallel cylinders along their radical plane.
-/// The rustdoc that needs the set points here. The operand gate's box
-/// test is conservative (a box overlap is a MAY),
-/// so moving the face clear of the other solid is a real recourse even
-/// where the faces never touch in exact geometry.
-pub(crate) fn meeting_recourse(kind: &str) -> String {
-    format!(
-        "Recourse: reshape the parts so every meeting is a plane against a plane, cylinder, \
-         sphere, cone, or torus whose axis it holds or is square to, or move the {kind} face \
-         clear of the other solid"
-    )
 }
 
 impl BooleanError {
@@ -8945,17 +8910,17 @@ pub use join_lift::BooleanJoin;
 /// [`BooleanError::Join`] is built only here, and never around a
 /// lineage row.
 mod join_lift {
-    use super::{BooleanError, SplitJoinError};
+    use super::{BooleanError, JoinError};
 
     /// A chord-join refusal the Boolean nests whole: any
-    /// [`SplitJoinError`] but a lineage row.
+    /// [`JoinError`] but a lineage row.
     #[derive(Debug)]
-    pub struct BooleanJoin(SplitJoinError);
+    pub struct BooleanJoin(JoinError);
 
     impl BooleanJoin {
         /// The join's own refusal.
         #[must_use]
-        pub fn error(&self) -> &SplitJoinError {
+        pub fn error(&self) -> &JoinError {
             &self.0
         }
     }
@@ -8970,10 +8935,10 @@ mod join_lift {
     /// join's division list refused, which is the Boolean's own
     /// [`BooleanError::LineageRow`], so one lineage refusal reaches a
     /// caller one way.
-    impl From<SplitJoinError> for BooleanError {
-        fn from(error: SplitJoinError) -> Self {
+    impl From<JoinError> for BooleanError {
+        fn from(error: JoinError) -> Self {
             match error {
-                SplitJoinError::LineageRow(refusal) => refusal.into(),
+                JoinError::LineageRow(refusal) => refusal.into(),
                 other => Self::Join(BooleanJoin(other)),
             }
         }

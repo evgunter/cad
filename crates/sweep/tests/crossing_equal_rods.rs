@@ -34,7 +34,7 @@ use core::f64::consts::{FRAC_PI_2, PI};
 use crate::common::differential::{VOLUME_PAD_BUDGET, Verdict, judged_within, outcome};
 use geom_core::{Affine3, Point2, Point3, Tol, Vec3};
 use sweep::test_support::{brick, finished};
-use topo::{AtRestBody, BooleanError, BooleanResult, SplitJoinError};
+use topo::{AtRestBody, BooleanError, BooleanResult, JoinError};
 
 /// A rod of radius 1 about `z` over `z ∈ [z0, z1]`, spun `spin` about
 /// `z`.
@@ -121,7 +121,7 @@ fn not_ending((sa, sb, x0): (f64, f64, f64), want: Ending) -> Vec<String> {
     ] {
         let loose = matches!(
             &r,
-            Err(BooleanError::Join(j)) if matches!(j.error(), SplitJoinError::UnpairedLooseEnds { .. })
+            Err(BooleanError::Join(j)) if matches!(j.error(), JoinError::UnpairedLooseEnds { .. })
         );
         let (ending, line) = if loose {
             (Some(Ending::LooseEnds), outcome(r, volume, tol))

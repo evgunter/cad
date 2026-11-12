@@ -36,7 +36,7 @@ use geom_core::{Affine3, Arc2, Point2, Point3, Tol, Vec3};
 use profile::{Profile, ProfileLoop, RawLoop, Segment, SketchPlane};
 use sweep::test_support::{brick, revolved_about_y};
 use sweep::{ExtrudeSide, Extrusion, Revolution, extrude};
-use topo::{Body, BooleanError, SplitJoinError};
+use topo::{Body, BooleanError, JoinError};
 
 use crate::common::differential::{every_op_both_orders, outcome};
 
@@ -310,7 +310,7 @@ fn every_op_refuses(what: &str, a: Body<f64>, b: Body<f64>, count: usize) {
             matches!(
                 r,
                 Err(BooleanError::Join(ref j))
-                    if matches!(j.error(), SplitJoinError::SingleSiteSectionLoop { count: c } if *c == count)
+                    if matches!(j.error(), JoinError::SingleSiteSectionLoop { count: c } if *c == count)
             ),
             "{what}: {op}: {:?}",
             r.map(|_| "a body")

@@ -92,9 +92,7 @@ use crate::null::NullEdge;
 use geom_core::Tol;
 use slotmap::SecondaryMap;
 
-pub use crate::chord_join::{
-    ConicCrossingsCase, SectionEndReading, SectionPinMiss, SplitJoinError,
-};
+use crate::chord_join::JoinError;
 pub use containment::{
     Escalation, LoopContainment, LoopDecision, OffPlane, OffPlaneCause, PointInLoopError,
     Uncrossable, UncrossableCarrier, point_in_loop,
@@ -164,11 +162,11 @@ pub enum ApexSectionReading {
     ClosedOffApex,
     /// The table reads the plane's section of the cone as an open conic
     /// (a parabola or a hyperbola), standing off the apex: the walk read
-    /// the plane through it ([`SplitJoinError::OpenConicChord`] at the
+    /// the plane through it ([`JoinError::OpenConicChord`] at the
     /// table).
     OpenOffApex,
     /// The table refused the pair for a cause other than an open conic.
-    Refused(Box<SplitJoinError>),
+    Refused(Box<JoinError>),
     /// The table's section rulings through the apex: none of them lies
     /// inside the sub-sector the walk read the plane crossing.
     NoRulingInside,
@@ -182,7 +180,7 @@ impl ApexSectionReading {
     /// of the apex**, which the walk read the plane through: one
     /// disagreement, open or closed, and its one home. A closed conic is
     /// the table's section ([`Self::ClosedOffApex`]); an open one is its
-    /// refusal ([`SplitJoinError::OpenConicChord`], [`Self::OpenOffApex`],
+    /// refusal ([`JoinError::OpenConicChord`], [`Self::OpenOffApex`],
     /// through [`Self::of_table_refusal`]).
     #[must_use]
     pub const fn clear_of_apex(open: bool) -> Self {
@@ -198,9 +196,9 @@ impl ApexSectionReading {
     /// ([`Self::clear_of_apex`]); any other refusal is carried whole
     /// ([`Self::Refused`]).
     #[must_use]
-    pub fn of_table_refusal(section: SplitJoinError) -> Self {
+    pub fn of_table_refusal(section: JoinError) -> Self {
         match section {
-            SplitJoinError::OpenConicChord { .. } => Self::clear_of_apex(true),
+            JoinError::OpenConicChord { .. } => Self::clear_of_apex(true),
             other => Self::Refused(Box::new(other)),
         }
     }
@@ -208,7 +206,7 @@ impl ApexSectionReading {
     /// **What this reading is to a ladder** (the Boolean's vertex-on-face
     /// climb reads it, [`crate::BooleanError::ApexSection`]): the table and
     /// the walk disagreeing on one apex is a kernel fault, and the table's
-    /// own refusal stands as it does ([`SplitJoinError::refusal`]).
+    /// own refusal stands as it does ([`JoinError::refusal`]).
     ///
     /// # Errors
     ///
@@ -218,9 +216,7 @@ impl ApexSectionReading {
         match self {
             // An open conic is the disagreement, however it was built
             // ([`Self::clear_of_apex`]), never the join's limit.
-            Self::Refused(section)
-                if matches!(**section, SplitJoinError::OpenConicChord { .. }) =>
-            {
+            Self::Refused(section) if matches!(**section, JoinError::OpenConicChord { .. }) => {
                 Err(geom_core::ladder::Aborts)
             }
             Self::Refused(section) => section.refusal(),
@@ -1073,7 +1069,7 @@ pub enum SplitError {
     Reduce(SplitReduceError),
     /// The joining stage refused (incl. the degenerate one-sided
     /// tangency section).
-    Join(SplitJoinError),
+    Join(JoinError),
     /// The finish stage refused (incl. the degenerate-component net).
     Finish(SplitFinishError),
     /// The pcurve minting pass refused (M5 PR 6): a curved face's
@@ -1093,8 +1089,8 @@ impl From<SplitReduceError> for SplitError {
     }
 }
 
-impl From<SplitJoinError> for SplitError {
-    fn from(e: SplitJoinError) -> Self {
+impl From<JoinError> for SplitError {
+    fn from(e: JoinError) -> Self {
         Self::Join(e)
     }
 }
@@ -1345,7 +1341,7 @@ mod apex_section_standing_rows {
     use geom_core::ladder::{Aborts, Refusal};
 
     use super::ApexSectionReading;
-    use crate::SplitJoinError;
+    use crate::JoinError;
     use crate::entity::FaceKey;
 
     /// **An apex section stands by its reading** (the Boolean's
@@ -1362,14 +1358,14 @@ mod apex_section_standing_rows {
         ] {
             assert_eq!(disagrees.refusal(), Err(Aborts), "{disagrees:?}");
         }
-        let unarmed = ApexSectionReading::Refused(Box::new(SplitJoinError::SectionUnarmed {
+        let unarmed = ApexSectionReading::Refused(Box::new(JoinError::SectionUnarmed {
             face: FaceKey::default(),
             divided: geom::SurfaceKind::Plane,
             wall: geom::SurfaceKind::Nurbs,
         }));
         assert_eq!(unarmed.refusal(), Ok(Refusal::Limit), "a section not built");
         let mixed =
-            ApexSectionReading::Refused(Box::new(SplitJoinError::UnpairedLooseEnds { count: 2 }));
+            ApexSectionReading::Refused(Box::new(JoinError::UnpairedLooseEnds { count: 2 }));
         assert_eq!(mixed.refusal(), Err(Aborts), "a mixed cause");
     }
 }

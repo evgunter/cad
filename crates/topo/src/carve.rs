@@ -152,10 +152,8 @@ pub(crate) fn carve<T: Decide>(
         }
     }
 
-    let dropped_hes: SecondaryMap<HalfEdgeKey, ()> =
-        hes.iter().map(|&he| (he, ())).collect();
-    let dropped_loops: SecondaryMap<LoopKey, ()> =
-        loops.iter().map(|&l| (l, ())).collect();
+    let dropped_hes: SecondaryMap<HalfEdgeKey, ()> = hes.iter().map(|&he| (he, ())).collect();
+    let dropped_loops: SecondaryMap<LoopKey, ()> = loops.iter().map(|&l| (l, ())).collect();
     for (he, he_data) in &body.half_edges {
         if dropped_hes.contains_key(he) {
             continue;

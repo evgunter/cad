@@ -3243,8 +3243,8 @@ fn a_solid_with_a_genuine_cavity_certifies() {
 /// a cavity half-edge, the carve refuses rather than leave the link dangling.
 #[test]
 fn the_carve_refuses_to_drop_a_record_a_kept_one_names() {
-    use crate::entity::LoopBoundary;
     use crate::carve::{CarveError, carve};
+    use crate::entity::LoopBoundary;
     let tol = Tol::witness();
     let mut body = Body::<f64>::new();
     cube_solid(&mut body, (0.0, 0.0, 0.0), 1.0, false, tol);

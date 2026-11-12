@@ -285,7 +285,7 @@ pub enum BooleanDecision {
     /// the attachment gate that certifies its description
     /// ([`crate::merge_faces::edge_on_faces_reading`]), or a section
     /// chord's end against its vertex where the join mints it, on a
-    /// carrier that resolves the end ([`crate::SplitJoinError::SectionEndEscalated`]).
+    /// carrier that resolves the end ([`crate::JoinError::SectionEndEscalated`]).
     /// A residual
     /// passes only at zero, so no tolerance is its recourse. Its ends are
     /// vertices an earlier reading placed on the faces they meet, so a
@@ -2754,7 +2754,7 @@ pub(in crate::boolean) mod tests {
                 predicate: Some(predicate),
                 ..diag_of(MarginDiag::value((b.zero() + b.escalate()) / 2.0))
             };
-            let join = || crate::SplitJoinError::Section {
+            let join = || crate::JoinError::Section {
                 face: crate::entity::FaceKey::default(),
                 source: geom_brep::SectionError::Carrier(geom::EllipseInvalid::Escalated(diag)),
             };

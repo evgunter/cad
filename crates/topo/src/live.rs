@@ -127,7 +127,7 @@ pub(crate) const NAMES_ONLY_LIVE: &str = "every public door keeps the body tier-
 /// [`Body::remove_curve_if_orphaned`], and `splitting/finish.rs`'
 /// sweep, which collects the live ones from faces and curves first).
 /// The one removal of topology that is not an Euler operator,
-/// [`crate::splitting::finish::carve`]'s, checks its own premise (it
+/// [`crate::carve::carve`]'s, checks its own premise (it
 /// drops only records no kept record names), which a read of a carved
 /// body cites beside this one.
 pub(crate) const OPERATORS_KEEP_LINKS: &str = "mid-operation, every Euler operator leaves each \

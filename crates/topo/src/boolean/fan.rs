@@ -498,7 +498,7 @@ fn plane_fan<T: Decide>(
             | geom_brep::PlaneConeSection::TiltedEllipse(_)
             | geom_brep::PlaneConeSection::OpenConic(_),
         ) => return Ok(Meeting::Rays(Vec::new())),
-        Err(crate::chord_join::SplitJoinError::Escalated { diag, .. }) => {
+        Err(crate::chord_join::JoinError::Escalated { diag, .. }) => {
             return Err(BooleanError::coincidence(
                 Coincide::Sectors,
                 DeclarationRead::Moot,

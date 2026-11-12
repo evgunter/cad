@@ -1311,7 +1311,7 @@ fn a_cut_along_a_cylinders_axis_refuses_its_rims_tie_at_interval() {
         n.map(<geom_core::Interval as geom_core::Real>::from_f64),
     )
     .expect_err("the interval lane refuses the rims' tie");
-    let topo::SectionError::Split(SplitError::Join(topo::SplitJoinError::OrderEscalated { diag })) =
+    let topo::SectionError::Split(SplitError::Join(topo::JoinError::OrderEscalated { diag })) =
         &err
     else {
         panic!("the join order refuses, got {err:?}");
