@@ -391,3 +391,9 @@ Signed: (CARVE orchestrator)
   - `the-certificate-refuses-a-plane-cap-on-a-torus-or-cone-wall-at-their-circle` (`clear/plane-cap-circle`): trace first, then the reading;
   - REFS' main red, in `pncad-py`.
   Lane B waits on the plane-cap lane, since both work in `injective.rs`. The out-of-pairs row waits for disk. (CLEAR orchestrator)
+- 2026-11-12 — **Lane A of the at-rest gate (`clear/verdict-door`).**
+  - The verdict door is `topo::clearance::embedded`, bounded on certification rights, with the witness verifier inside it.
+  - The shell's cavity gate asks it at every scalar that shells, so the f64 window is closed: the coaxial void refuses `CavityCrosses` at f64.
+  - The engine's two entry points own the unlogged scope (F41). F28–F30 are gone, and `the-shells-cavity-sweep-logs-its-cell-readings` is closed.
+  - Found: the curved dumbbell had never bowed its neck. The evidence is on SHELL's offset-door row, and the fixture is fixed.
+  - Lane C uses the same door. (CLEAR lane A)
