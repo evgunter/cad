@@ -95,9 +95,7 @@ use super::contain::FaceContainment;
 use super::reduce::plane_desc;
 use std::collections::{BTreeMap, BTreeSet};
 
-use super::sectors::{
-    BoolSector, Leaned, PierceLever, Unparted, build_sectors, pierce_side,
-};
+use super::sectors::{BoolSector, Leaned, PierceLever, Unparted, build_sectors, pierce_side};
 use super::tables::eq15_3_lump;
 use super::{AlongFace, Coincide, DeclarationRead};
 use super::{

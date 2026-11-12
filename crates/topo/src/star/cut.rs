@@ -72,7 +72,10 @@ impl<T: Real> Star<T> {
     /// vertex the sector's own geometry is known, where [`germ_line`]
     /// levers its line.
     pub(crate) fn span(&self, k: usize) -> Lever<T> {
-        self.bounds[k].reach.lever().max(self.start(k).reach.lever())
+        self.bounds[k]
+            .reach
+            .lever()
+            .max(self.start(k).reach.lever())
     }
 }
 

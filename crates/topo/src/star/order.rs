@@ -204,13 +204,13 @@ where
         );
         match crate::validate::decide_nonzero(GERM_SIDE, side, band) {
             Ok(sign) => Ok(GermSide::Apart(sign)),
-            Err(diag) if diag.margin.rejected_sign() == Some(Sign::Zero) => Ok(
-                if same_sense(g.dir, h.dir, arm, band)? {
+            Err(diag) if diag.margin.rejected_sign() == Some(Sign::Zero) => {
+                Ok(if same_sense(g.dir, h.dir, arm, band)? {
                     GermSide::Along(diag)
                 } else {
                     GermSide::Opposite
-                },
-            ),
+                })
+            }
             Err(diag) => Err(OrderFault::Coincident(diag)),
         }
     };
@@ -272,7 +272,15 @@ where
             }
             apart(g, arm).map_err(&fault)?;
             apart(h, arm).map_err(&fault)?;
-            if before((from, arm), normal, (g, h), arm, || pair(i, j, arm), &fault, band)? {
+            if before(
+                (from, arm),
+                normal,
+                (g, h),
+                arm,
+                || pair(i, j, arm),
+                &fault,
+                band,
+            )? {
                 at = slot;
                 break;
             }

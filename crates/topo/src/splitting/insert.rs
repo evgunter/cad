@@ -168,7 +168,10 @@ fn section_chords<T: Decide>(
     };
     // Whether germ `b`, tied with germ `a` along `a`'s tangent, curves
     // counterclockwise of it about `normal` (Positive) or clockwise.
-    let curving = |a: usize, b: usize, arm: geom_core::Lever<T>| -> Result<Sign, SplitReduceError> {
+    let curving = |a: usize,
+                   b: usize,
+                   arm: geom_core::Lever<T>|
+     -> Result<Sign, SplitReduceError> {
         let t = germs[a].0.dir;
         let across = normal.cross(t);
         let bends = [section_bend(a, t, across), section_bend(b, t, across)];
@@ -193,7 +196,10 @@ fn section_chords<T: Decide>(
             None => groups.push(vec![i]),
         }
     }
-    let reps: Vec<_> = groups.iter().map(|m| (germs[m[0]].0, germs[m[0]].1)).collect();
+    let reps: Vec<_> = groups
+        .iter()
+        .map(|m| (germs[m[0]].0, germs[m[0]].1))
+        .collect();
     let rep = |g: usize| groups[g][0];
     // Counterclockwise about `normal` is clockwise about `−normal`.
     let order = crate::star::germ_order(

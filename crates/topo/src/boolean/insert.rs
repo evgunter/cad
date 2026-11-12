@@ -1862,8 +1862,10 @@ fn walks_after<T: Decide>(
     // `y`'s ([`crate::sector_face::ConeApex::turn`]).
     let refuse = |diag| BooleanError::coincidence(Coincide::Sectors, DeclarationRead::Moot, diag);
     match s.apex() {
-        Some(apex) => crate::validate::decide("bool_shared_cut_order", fan_turn(s, apex, x, y), band)
-            .map_err(refuse),
+        Some(apex) => {
+            crate::validate::decide("bool_shared_cut_order", fan_turn(s, apex, x, y), band)
+                .map_err(refuse)
+        }
         // The star's one sine of two germs' order.
         None => match crate::star::turn((x, y), s.tangent().vec(), s.arm, band).map_err(refuse)? {
             crate::star::Turn::Apart(sign) => Ok(sign.into()),
@@ -2654,9 +2656,11 @@ fn germ_dir<T: Decide>(
             band,
         );
         debug_assert!(
-            from_b
-                .as_ref()
-                .map_or(true, |b| b.dir.dot(line.dir).point_value().is_none_or(|d| d > 0.0)),
+            from_b.as_ref().map_or(true, |b| b
+                .dir
+                .dot(line.dir)
+                .point_value()
+                .is_none_or(|d| d > 0.0)),
             "a crossing germ's A codes {codes_a:?} and B codes {codes_b:?} name opposite rays"
         );
         if let Ok(within) = super::sectors::rays_within(line, &[sa, sb], read, band) {
@@ -3147,7 +3151,10 @@ mod tests {
                 .flatten()
                 .enumerate()
                 .map(|(k, he)| {
-                    let up = recs.iter().find(|r| r.a == k).is_none_or(|r| r.sa.0 == SideCode::Out);
+                    let up = recs
+                        .iter()
+                        .find(|r| r.a == k)
+                        .is_none_or(|r| r.sa.0 == SideCode::Out);
                     let (start, end) = if up { plus } else { minus };
                     BoolSector {
                         he,
@@ -3168,7 +3175,10 @@ mod tests {
                 .collect();
             if twin {
                 let k = secs.len();
-                let up = recs.iter().find(|r| r.a == k).is_none_or(|r| r.sa.0 == SideCode::Out);
+                let up = recs
+                    .iter()
+                    .find(|r| r.a == k)
+                    .is_none_or(|r| r.sa.0 == SideCode::Out);
                 let (start, end) = if up { plus } else { minus };
                 let last = secs[k - 1].clone();
                 secs.push(BoolSector {
@@ -3861,7 +3871,12 @@ mod tests {
         // Two pairs of records, each pair two crossings in one sector entry
         // of both solids, every germ along `+y`.
         let (a, b) = ((Out, In), (In, Out));
-        let recs = vec![mk(0, 0, a, b), mk(0, 1, a, b), mk(1, 1, a, b), mk(1, 2, a, b)];
+        let recs = vec![
+            mk(0, 0, a, b),
+            mk(0, 1, a, b),
+            mk(1, 1, a, b),
+            mk(1, 2, a, b),
+        ];
         let edges = (abody.edges().count(), bbody.edges().count());
         let err = insert_null_pairs(
             &mut abody,
@@ -3932,8 +3947,8 @@ mod tests {
             sector(Vec3::new(mid.sin(), 0.0, mid.cos())),
         );
         let codes = (SideCode::Out, SideCode::In);
-        let err = germ_dir((&sa, codes), (&sb, codes), DeclarationRead::Moot, band)
-            .expect_err("in band");
+        let err =
+            germ_dir((&sa, codes), (&sb, codes), DeclarationRead::Moot, band).expect_err("in band");
         assert!(
             matches!(
                 err,

@@ -159,8 +159,8 @@ mod cut;
 
 mod order;
 mod walk;
-pub(crate) use order::{OrderFault, Ties, Turn, before, germ_order, leaned_lever, turn};
 pub(crate) use cut::{Cut, CutEnd, GermLineFault, Leaned, apart, cuts, germ_line};
+pub(crate) use order::{OrderFault, Ties, Turn, before, germ_order, leaned_lever, turn};
 pub(crate) use walk::{Bound, Corner, Datum, Orbit, Star, StarFace, StarFault, departure};
 
 use crate::body::{Body, WALKS_CLOSE};

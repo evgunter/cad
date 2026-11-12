@@ -2889,7 +2889,12 @@ const SITES: &[(&str, &str, &str, usize)] = &[
         1,
     ),
     ("sectors.rs", "star_fault", "Coincide::Sectors", 1),
-    ("sectors.rs", "order_fault", "BooleanDecision::DirectionSense", 1),
+    (
+        "sectors.rs",
+        "order_fault",
+        "BooleanDecision::DirectionSense",
+        1,
+    ),
     ("sectors.rs", "order_fault", "Coincide::Sectors", 1),
     ("sectors.rs", "sector_fault", "BooleanDecision::Corner", 1),
     ("sectors.rs", "coincident_run", "Coincide::Sectors", 1),

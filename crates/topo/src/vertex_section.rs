@@ -97,9 +97,13 @@ impl<T: Decide> Offset<T> {
     /// # Errors
     ///
     /// [`VertexRefusal::Offset`] where it lies in the band.
-    pub(crate) fn side_as(self, name: &'static str, band: Band) -> Result<PlaneSide, VertexRefusal> {
-        let decided =
-            decide_reported(name, Margin::of(self.value.value), band).map_err(VertexRefusal::Offset)?;
+    pub(crate) fn side_as(
+        self,
+        name: &'static str,
+        band: Band,
+    ) -> Result<PlaneSide, VertexRefusal> {
+        let decided = decide_reported(name, Margin::of(self.value.value), band)
+            .map_err(VertexRefusal::Offset)?;
         Ok(PlaneSide::of_sign(decided.sign))
     }
 }
