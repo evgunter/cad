@@ -148,15 +148,15 @@ fn from_carrier(c: &CarriedComponent<f64>, p: Point3<f64>) -> f64 {
 ///
 /// What the code guarantees is the pad's lower side: every point of the
 /// section within it. How near the rung it stands is a measurement, held
-/// here as a tripwire: on these walls the pad is 1.0 to 1.2 rungs and the
-/// reach at most about half the wall across (one window holds the whole
-/// arc, `pad_of`).
+/// here as a tripwire: on these walls the pad is about 1.1 rungs and the
+/// reach at most about half the wall across. These arcs' pcurves hold
+/// many spans, so cutting each window into cells moves none of them; the
+/// two-arc row below holds that.
 ///
 /// Red against: a carry that refuses every spline × implicit component
 /// (the listing's `Unminted`); a pad left in chart units (the tube's
 /// `pad_u`, `pad_v`), far past the rung at `s = 0.01` and inside it at
-/// `s = 10`; a window read whole, not cut into cells (the pad an eighth
-/// of the arc's length, past two rungs). Larger walls are not read: at
+/// `s = 10`. Larger walls are not read: at
 /// `ε = 1e-12` the plane's whole reading at `s = 100` cannot decide its
 /// limb 2, and at the default `ε` the sphere's at `s = 1000` settles no
 /// foot
