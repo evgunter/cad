@@ -335,6 +335,12 @@ pub(crate) const ALLOWED: &[(&str, &str)] = &[
          swaps and re-descriptions can orphan keys",
     ),
     (
+        "one_record_across",
+        "reads its verdict's edge and two faces' keys and writes only through `one_record`, whose \
+         re-chart (`set_face_surfaces_certifying`, `set_face_surfaces_describing`'s body) \
+         declares the tier-1 postcondition",
+    ),
+    (
         "set_edge_curve",
         "declares the tier-1 postcondition directly (a curve swap can orphan a key), on \
          `set_face_surface`'s terms",
