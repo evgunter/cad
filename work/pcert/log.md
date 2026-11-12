@@ -1286,3 +1286,24 @@ E1c waits on the answer.
   - `check-4s-projected-door-reads-every-span-of-a-chord-in-eight-parts`, re-banded P1 by spiricarm, whose ~10 s cylinder boolean is parked on it. The lane cuts check 4's parts by turn, keeps the sliver within its 1%, and keeps the incidence term an enclosure. Branch `pcert/check4-parts-by-turn`.
 
 - 2026-11-12 — **Doc-gate red on main mended** (orchestrator; PR 6857's lane met it). `crates/viewer/src/pane/create.rs:937` had `"Into <space>"` in a doc comment, which rustdoc reads as an unclosed HTML tag; it came in with placing's 775787e8 (PR 6850). The text is now quoted as code, and `scripts/doc-gate.sh` passes. The lane's three sweep reds were already filed P1 by their owners: band's cups fixture, gauge's pole arc at ε 1e-6, and lathe's full-turn bead at ε 1e-12.
+
+- 2026-11-12 — **PR 6857 merged: a correct cone stated image certifies at ε 1e-12.** It closes the P1 `a-cone-stated-image-at-a-fuzz-seed-reads-in-band-at-eps-1e-12`, a main red by seed.
+  - **Cause:** at Interval, check 3's computed interior station was 3 ulps wide. The image and the carrier were each evaluated over that box, so a correct image 13 m out read [0, 1.03e-12].
+  - **Fix:** the stated route (`StatedDoor::Patch` and the sampled read) now reads at held f64 stations over the edge's outer ends, the same rule SSI limb 1 uses. By inclusion isotonicity the held read can only be narrower than the computed one.
+  - **Stations at f64:** unchanged bit for bit. A new row pins them, and the mirror mutant goes red on it.
+  - **Fuzz:** a correct image was refused at 108/1000 seeds on main and at 0/1000 on the PR, at ε 1e-12.
+  - **Review:** single FULL, then UU, then a delta; APPROVE.
+  - **m10 ledger:** UU4 found editor-core's m10 ledger red on main and bisected it to 6845's 1ce635b2. A harmonic's `+ 0` slack adds one symbolic form per stated image (+2 on the plate), and no decision moved. The ledger is re-pinned, and the review recommends keeping it.
+  - **Filed:**
+    - P1 `a-closed-form-image-at-a-fuzz-seed-reads-its-coefficient-bound-in-band-at-eps-1e-12`: 7/400 seeds.
+    - P1 `a-derived-sphere-image-misses-its-circle-by-1e-11-near-five-half-pi-at-eps-1e-12`: a real derivation miss; the mint refuses in band.
+    - Two P3 station rows, for the other computed-station lanes and check 4.
+
+- 2026-11-12 — **PR 6872 merged: the closed-form bound's ε 1e-12 seeds are real misses, not excess.** It closes the P1 `a-closed-form-image-at-a-fuzz-seed-reads-its-coefficient-bound-in-band-at-eps-1e-12`. Review tier: the orchestrator's read, since the change is test-only.
+  - Every refusal measured is a real miss of the stated image. The bound reads it to about 0.1%, 7% at worst, against a 20k-point dense meter, and seed 1 was also checked exactly in rational arithmetic. So `closed_bound.rs` and `trig.rs` are unchanged, and the soundness rows and mutants of 6845 and 6857 are untouched.
+  - Seed `0x4661d077090b3597` was a fixture defect. The rows' frame squared `u_ref` once, so with `b` near the axis the chart left a line drawn square to the normal by 1.02e-12. `across()` now squares twice, the seed is pinned (`fuzz::pinned_sweep`), and a frame-witness row is added. The mutant `across-once` turns both red.
+  - Seed `0x8ffe04db921f5cff` is a near-pole sphere meridian's azimuth: the same class as the derived-sphere P1, landing in band. The every-spelling row stays red by seed at ε 1e-12 until that P1 lands.
+  - Over 2000 seeds at ε 1e-12, refusals went from 9 to 4, all near-pole sphere meridians. At ε 1e-9 there were none before or after.
+- 2026-11-12 — **Dispatched the two P1s PR 6857 filed**, both main reds by fuzz seed at ε 1e-12, both from `e61f2dc848`. Each gets a single FULL review, soundness-led.
+  - `a-closed-form-image-at-a-fuzz-seed-reads-its-coefficient-bound-in-band-at-eps-1e-12`, on branch `pcert/closed-bound-fine-band`. The lane root-causes the bound's excess and keeps every 6845/6857 mutant red.
+  - `a-derived-sphere-image-misses-its-circle-by-1e-11-near-five-half-pi-at-eps-1e-12`, on branch `pcert/derived-sphere-image-accuracy`. The defect is in `chart_pcurve_over`'s accuracy near t ≡ π/2. The lane also sweeps the other charts' derivations.

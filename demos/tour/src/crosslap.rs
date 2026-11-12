@@ -84,7 +84,7 @@ pub(crate) fn build<S: Scalar>(
     // Exploded: beam B lifted by a rigid transform (#84 — every moved
     // edge witness is re-minted, and the moved body revalidates).
     let lift = RigidMotion::translation(v3(0.0, 0.0, 1.25)).expect("a finite lift");
-    let b_lifted = pncad::topo::transform_rigid(&b.body, &lift, tol).expect("lift beam B");
+    let b_lifted = pncad::topo::transform_rigid(&b.body, &lift).expect("lift beam B");
     (a, b, glued, b_lifted)
 }
 

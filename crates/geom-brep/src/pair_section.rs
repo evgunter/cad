@@ -1590,7 +1590,7 @@ const TUBE_PADS_NO_BAND: &str = "a component's tube pads no band";
 /// its own for the site's readers in `topo`, which map exactly these
 /// three into their own sorts and must not be handed a march, a lane or
 /// a seat refusal no site makes: `chord_join`'s
-/// `From<(FaceKey, SiteRefusal)> for SplitJoinError`, `boolean::join`'s
+/// `From<(FaceKey, SiteRefusal)> for JoinError`, `boolean::join`'s
 /// `site_refusal`, and `boolean::section_table`'s `FootRefusal::Site`.
 #[derive(Clone, Debug, PartialEq)]
 pub enum SiteRefusal {

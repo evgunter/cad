@@ -41,10 +41,10 @@ use super::shell_witness::{
 use super::zip::SeamCorrespondence;
 use super::{BooleanError, BooleanOp, BooleanReduction, Operand, SideCode};
 use crate::body::Body;
+use crate::carve::{carve, single_solid};
 use crate::entity::{EntityId, FaceKey, HalfEdgeKey, ShellKey, SolidKey, VertexKey};
 use crate::euler::FaceSurface;
 use crate::live::{BoundaryMember, proven};
-use crate::splitting::finish::{carve, single_solid};
 use geom_core::Tol;
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -231,9 +231,9 @@ pub(super) fn setopfinish<T: Decide + crate::props::AtRestPolicy>(
 
     // ---- Distribution + selection, both solids. ----
     let a_solid =
-        single_solid(&red.a).map_err(|_| desync("operand A is not a single-solid body"))?;
+        single_solid(&red.a).map_err(|e| super::CarveStep::Kept(Operand::A).refused(e))?;
     let b_solid =
-        single_solid(&red.b).map_err(|_| desync("operand B is not a single-solid body"))?;
+        single_solid(&red.b).map_err(|e| super::CarveStep::Kept(Operand::B).refused(e))?;
     debug_assert_contacts_undecisive(
         &red.contacts,
         (&red.a, b_pristine),
@@ -274,9 +274,9 @@ pub(super) fn setopfinish<T: Decide + crate::props::AtRestPolicy>(
 
     // ---- Carve both kept sub-bodies (keys preserved). ----
     let a_kept = carve(&red.a, a_solid, &a_kept_shells)
-        .map_err(|_| desync("carving the kept A component failed"))?;
+        .map_err(|e| super::CarveStep::Kept(Operand::A).refused(e))?;
     let mut b_kept = carve(&red.b, b_solid, &b_kept_shells)
-        .map_err(|_| desync("carving the kept B component failed"))?;
+        .map_err(|e| super::CarveStep::Kept(Operand::B).refused(e))?;
     let carved_lineage = [
         super::discard::carved_lineage(&red.a, &a_kept),
         super::discard::carved_lineage(&red.b, &b_kept),
@@ -289,7 +289,7 @@ pub(super) fn setopfinish<T: Decide + crate::props::AtRestPolicy>(
 
     // ---- The combine door. ----
     let mut body = a_kept;
-    let solid = single_solid(&body).map_err(|_| desync("kept A component is not one solid"))?;
+    let solid = single_solid(&body).map_err(|e| super::CarveStep::Combine.refused(e))?;
     let graft = graft_solid(&mut body, solid, &b_kept, tol)?;
 
     // ---- Seam bookkeeping in result keys. ----

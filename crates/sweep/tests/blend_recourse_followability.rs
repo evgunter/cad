@@ -104,7 +104,7 @@ fn ball_at(c: Vec3<f64>) -> Body<f64> {
         dir: Vec2::new(0.0, 1.0),
     };
     let b = revolve(&vp, axis, Revolution::Full, tol()).unwrap().body;
-    topo::transform_rigid(&b, &geom_core::RigidMotion::translation(c).unwrap(), tol()).unwrap()
+    topo::transform_rigid(&b, &geom_core::RigidMotion::translation(c).unwrap()).unwrap()
 }
 
 /// The edges of `body` on LINE carriers — on a dimpled or pocketed box,

@@ -1867,7 +1867,8 @@ impl DoorCheck for CertCheck {
     ///   D4 ¶1 (iv)).
     /// - A residual or a form selection has no size. Every arm ends in the
     ///   kernel-defect ending where the kernel built the geometry exactly
-    ///   (the file's too, at rest). Where the kernel
+    ///   (the file's too, at rest), except an undecided arm past a build,
+    ///   which is reported as undecided ([`Unsized::recourse`]). Where the kernel
     ///   approximated, an arm read at a build, and an undecided arm read at
     ///   rest, end in the last resort; a definite arm at rest ends in the
     ///   file's defect ending, since no loosening repairs a stored
@@ -2290,7 +2291,7 @@ const WINDING_ROWS: TurnRows<&str> = crate::rows::INTERVAL_SPAN_WINDING.rows();
 /// [`EdgeCurve::uncertified`] where it never does), or from such a value
 /// by a map that carries what it carries
 /// ([`EdgeCurve::with_remapped_surfaces`],
-/// [`EdgeCurve::with_chart_v_mirrored`]) — fields are private, so an
+/// [`EdgeCurve::with_chart_v_mirrored`], [`EdgeCurve::carried`]) — fields are private, so an
 /// uncertified value at a certifying scalar is unrepresentable (D4 ¶2
 /// made structural).
 #[derive(Clone, Debug)]
@@ -3252,6 +3253,36 @@ impl<T: Real> EdgeCurve<T> {
         })
     }
 
+    /// **This edge under an isometry, its certificate carried**: the
+    /// mapped `carrier`, `description` and `authority` on this edge's
+    /// own interval, with its turn and certificate verbatim.
+    ///
+    /// The certificate is `{samples, max_residual}`, a distance between
+    /// the description and its carrier at the schedule's parameters, and
+    /// the turn is the interval against one period. An isometry keeps
+    /// both, and a map keeps the carrier's parameter, so both are the
+    /// image's. That holds only where the three arguments are this
+    /// edge's data under one isometry, exact apart from rounding: the
+    /// caller's to keep, and `topo`'s data map (`map_isometry`) is the
+    /// one caller.
+    #[must_use]
+    pub fn carried(
+        &self,
+        carrier: Curve3<T>,
+        description: EdgeDescription<T>,
+        authority: EdgeAuthority<T>,
+    ) -> Self {
+        Self {
+            description,
+            authority,
+            carrier,
+            param_start: self.param_start,
+            param_end: self.param_end,
+            turn: self.turn,
+            certificate: self.certificate,
+        }
+    }
+
     /// The carrier parameter at schedule sample `i` (i ∈ 0…8): the
     /// module-doc schedule ([`sample_param`]). Exposed so the
     /// tier-3 validator samples the *same* parameters the certification
@@ -3463,9 +3494,15 @@ pub fn sample_param<T: Real>(t0: T, t1: T, i: u32) -> T {
 /// the held ends themselves (the carrier's own data), and every other
 /// station is the `f64` [`schedule_param`] over `domain`, a point the
 /// schedule chose, entered as the constant it is. Bit for bit
-/// [`schedule_param`] at `f64`; at an enclosure scalar an interior
-/// station stays a point rather than widening by the station's own
-/// arithmetic, which a check at a chosen point has no use for.
+/// [`schedule_param`] at `f64` when `domain` is `held`'s value, in its
+/// order; at an enclosure scalar an interior station stays a point
+/// rather than widening by the station's own arithmetic, which a check
+/// at a chosen point has no use for.
+///
+/// A read at a held station is never wider than the same read at the
+/// computed one: the point lies in the computed station's enclosure, so
+/// by inclusion isotonicity its read's enclosure lies in that read's,
+/// and a decision can only move out of the band, never across it.
 pub(crate) fn held_station<T: Real>(domain: (f64, f64), held: (T, T), i: u32, samples: u32) -> T {
     match schedule_fraction(i, samples) {
         0.0 => held.0,
@@ -3491,8 +3528,11 @@ pub(crate) fn schedule_fraction(i: u32, samples: u32) -> f64 {
 /// reader of an edge shares, so the middle sample is the parameter
 /// [`Curve3::mid_point`] evaluates at and a certificate that samples
 /// the carrier and checks its midpoint witness evaluates that point
-/// once. Every other station is `t₀ + (t₁ − t₀)·(i/(samples − 1))` in
-/// that association order (D9). `t₀ + (t₁ − t₀)·1` is not `t₁` in
+/// once. A schedule read at held stations (a stated image's) is the
+/// exception: at an enclosure scalar its middle is `mid_param` of the
+/// `f64` ends, entered as a point, not the scalar's own middle. Every
+/// other station is `t₀ + (t₁ − t₀)·(i/(samples − 1))` in that
+/// association order (D9). `t₀ + (t₁ − t₀)·1` is not `t₁` in
 /// `f64` in general, and an image re-expressed on `[t₀, t₁]` exactly
 /// has its last knot at `t₁` itself, so a last sample computed rather
 /// than assigned sits an ulp outside it.
@@ -8919,15 +8959,19 @@ mod tests {
                 KERNEL_LIMIT_RECOURSE,
                 KERNEL_LIMIT_RECOURSE,
                 KERNEL_DEFECT_ENDING,
+                KERNEL_DEFECT_ENDING,
             ),
+            // The chart image read at rest and not decided is reported as
+            // undecided (ONEHOME fork 259): at a point, the last resort.
             (
                 Reading::AtRest,
                 KERNEL_OR_FILE_DEFECT_ENDING,
                 KERNEL_LIMIT_RECOURSE,
                 KERNEL_OR_FILE_DEFECT_ENDING,
+                KERNEL_LIMIT_RECOURSE,
             ),
         ];
-        for (reading, definite, undecided, exact) in rows {
+        for (reading, definite, undecided, exact, chart_undecided) in rows {
             assert_eq!(limb.ending(reading), definite, "{reading:?}");
             assert_eq!(
                 P::Escalated {
@@ -8939,7 +8983,11 @@ mod tests {
                 "{reading:?}"
             );
             assert_eq!(unavailable.ending(reading).unwrap(), exact, "{reading:?}");
-            assert_eq!(chart.ending(reading).unwrap(), exact, "{reading:?}");
+            assert_eq!(
+                chart.ending(reading).unwrap(),
+                chart_undecided,
+                "{reading:?}"
+            );
         }
     }
 

@@ -24,7 +24,7 @@ const NAME: Option<&str> = option_env!("PCERT_RADIAL_PAIR_MUTANT");
 
 /// Every site this crate's hooks name. topo's `chord_join` declares its
 /// own one (`topo-v-var`) under the same variable.
-pub(super) const SITES: [&str; 50] = [
+pub(super) const SITES: [&str; 53] = [
     "class-circle",
     "zero-winding",
     "torus-parallel",
@@ -66,6 +66,8 @@ pub(super) const SITES: [&str; 50] = [
     "arc-rim-span-unpaid",
     "arc-rim-tangent-under",
     "closed-image-sampled",
+    "stated-station-computed",
+    "stated-station-mirrored",
     "patch-remainder-dropped",
     "focal-floor-single",
     "spiric-floor-major",
@@ -75,6 +77,7 @@ pub(super) const SITES: [&str; 50] = [
     "net-bound-sampled",
     "general-image-class-gate",
     "analytic-image-sampled",
+    "across-once",
 ];
 
 fn on(site: &str) -> bool {
@@ -354,6 +357,18 @@ pub(crate) fn closed_image_sampled() -> bool {
     on("closed-image-sampled")
 }
 
+/// A stated image's schedule read at stations computed at the scalar,
+/// not held (its row is `analytic_image_rows::a_cone_image_at_a_steep_sample_certifies`).
+pub(crate) fn stated_station_computed() -> bool {
+    on("stated-station-computed")
+}
+
+/// A stated image's held schedule run backwards over its outer ends
+/// (its row is `analytic_image_rows::a_stated_images_stations_are_the_schedules_at_f64`).
+pub(crate) fn stated_station_mirrored() -> bool {
+    on("stated-station-mirrored")
+}
+
 /// The enclosing patch's controls without their Lagrange remainder (its
 /// row is `closed_image_rows::an_enclosing_patch_holds_its_chart`).
 pub(super) fn patch_remainder_dropped() -> bool {
@@ -376,6 +391,12 @@ pub(super) fn spiric_floor_major() -> bool {
 /// `closed_image_rows::a_spiric_copy_moved_in_band_is_certified_only_within_it`).
 pub(super) fn spiric_copy_divisor_high() -> bool {
     on("spiric-copy-divisor-high")
+}
+
+/// The rows' frames squared once, not twice
+/// (`closed_image_rows::a_frame_drawn_near_its_axis_is_square_to_rounding`).
+pub(super) fn across_once() -> bool {
+    on("across-once")
 }
 
 /// A closed form's coefficient bound read over half its span
