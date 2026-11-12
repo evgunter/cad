@@ -164,7 +164,6 @@ fn every_corner_patch_encodes_its_side_and_holds_no_pole_off_a_vertex() {
             let body = topo::transform_rigid(
                 &cube::<f64>(scale, Tol::witness()),
                 &geom_core::test_support::rigid(&a, Tol::witness()),
-                Tol::witness(),
             )
             .unwrap();
             let edges = query::all_edges(&body);
@@ -228,7 +227,6 @@ fn every_corner_patch_encodes_its_side_and_holds_no_pole_off_a_vertex() {
     let clip_at = topo::transform_rigid(
         &clip,
         &geom_core::RigidMotion::translation(Vec3::new(1.5, 1.5, 1.5)).unwrap(),
-        Tol::witness(),
     )
     .unwrap();
     let block = brick(Point3::new(0.0, 0.0, 0.0), Point3::new(4.0, 4.0, 4.0));

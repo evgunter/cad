@@ -3169,8 +3169,7 @@ pub(super) fn run_projected_checks<T: Decide>(
             super::schedule_residuals(
                 Record::CrossCheck,
                 pcurve,
-                t0,
-                t1,
+                super::Stations::Computed(t0, t1),
                 carrier,
                 surface,
                 band,

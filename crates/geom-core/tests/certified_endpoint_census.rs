@@ -343,9 +343,10 @@ const ROSTER: &[(&str, usize, usize, &str)] = &[
     ),
     (
         "crates/geom-brep/src/offset_fit.rs",
-        11,
-        9,
-        "nine reads are in `cell_terms`, which refuses to `None` by name. The remainder is \
+        12,
+        10,
+        "nine reads are in `cell_terms`, which refuses to `None` by name, and one is \
+         `e_floors`' box mignitude, read after it asks `is_certified()`. The remainder is \
          `e_low_witness`'s 2, the `e_low` that `cell_bound` hands `cell_terms`: its only \
          production call is there, after both `e_floors` intervals have asked `is_certified()`",
     ),
@@ -393,11 +394,13 @@ const ROSTER: &[(&str, usize, usize, &str)] = &[
     ("crates/geom-brep/src/pair_section/winds.rs", 12, 12, ""),
     (
         "crates/geom-brep/src/patch_bound.rs",
-        4,
-        2,
-        "two are the rational arm's quotient readings, each guarded by the `is_certified()` this \
-         counts: `certified_sup` reads `hi` and `certified_inf` reads `lo` only after asking by \
-         name. The remainder is `centre`'s 2, safe because a centre is a translation choice and \
+        8,
+        6,
+        "six ask: the rational arm's two quotient readings, each guarded by the `is_certified()` \
+         this counts (`certified_sup` reads `hi` and `certified_inf` reads `lo` only after asking \
+         by name), and the ball algebra's four (`Ball::dot`'s and `Ball::cross`'s reach, \
+         `Ball::norm_sq`'s two ends), each read after both balls ask `Ball::is_certified`. The \
+         remainder is `centre`'s 2, safe because a centre is a translation choice and \
          no enclosure rests on it: it takes midpoints, contributes `0` for a non-finite one and \
          answers `0` for a non-finite mean, so a refused input still yields a finite centre and \
          the reach about it reports the trouble",
@@ -622,6 +625,7 @@ const ROSTER: &[(&str, usize, usize, &str)] = &[
     ),
     ("crates/geom-core/src/spline/algebra.rs", 1, 1, ""),
     ("crates/geom-core/src/spline/blossom.rs", 2, 2, ""),
+    ("crates/geom-core/src/spline/compose/patch.rs", 4, 4, ""),
     ("crates/geom-core/src/spline/compose/tensor.rs", 5, 5, ""),
     (
         "crates/geom-core/src/sym/signed.rs",

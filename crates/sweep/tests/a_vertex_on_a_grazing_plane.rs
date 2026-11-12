@@ -30,9 +30,7 @@ fn finished(body: Body<f64>) -> AtRestBody<f64> {
 }
 
 fn moved(body: &AtRestBody<f64>, by: Affine3<f64>) -> AtRestBody<f64> {
-    finished(
-        topo::transform_rigid(body, &geom_core::test_support::rigid(&by, tol()), tol()).unwrap(),
-    )
+    finished(topo::transform_rigid(body, &geom_core::test_support::rigid(&by, tol())).unwrap())
 }
 
 /// The most the two halves' certified volume pads may sum to: a half
