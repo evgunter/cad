@@ -608,14 +608,14 @@ fn a_boolean_document_round_trips_byte_identical() {
 /// same surfaces, senses, points, curves and descriptions — and only the
 /// keys the arenas hand out moved, which the digest feeds.
 ///
-/// RE-BLESSED, `crossing_slots` only, for a vertex pair whose null edges
-/// pair from the side the op keeps (PR 6832), two crossings included,
-/// where two crossings ran in the records' order: a subtract
-/// builds its null edges in another order, so its faces take other
-/// arena keys, which the digest feeds. Read by its geometry (a face by
-/// its sense, carrier and corner points, an edge by its ends and curve,
-/// a vertex by its point), every name of every node denotes what it
-/// denoted and every body holds the same cells.
+/// RE-BLESSED, `crossing_slots` only, after PR 6832. A vertex pair's
+/// null edges now pair from the side the op keeps; before, where two
+/// crossings met, they paired in the records' order. So a subtract
+/// builds its null edges in another order and its faces take other
+/// arena keys, which the digest feeds. A probe at that merge read every
+/// cell by its geometry and found every name denoting what it denoted;
+/// nothing here guards that (filed as
+/// `work/onedoor/name-digests-cannot-tell-a-renamed-cell-from-a-renumbered-arena.md`).
 #[test]
 fn the_boolean_documents_evaluate_to_their_committed_digests() {
     let mut moved: Vec<String> = Vec::new();

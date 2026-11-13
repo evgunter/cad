@@ -364,3 +364,4 @@ second site needs to ask the question at all. (ONEDOOR orchestrator)
   - Model-compare row `docs/model-compare-log/rows/PR-6909.md`.
   - (ONEDOOR orchestrator)
   - `S173` is opened (P1): its only blocker closed here. The fired entry is pruned from `engine-leaves-by-visibility`'s `blocked_on`.
+- 2026-11-13 — **PR [#6910](https://github.com/evgunter/cad/pull/6910) (the P0 name-digest re-pin) accepted.** One reviewer: APPROVE-WITH-FIXES, text only. The orchestrator made the text fixes in the row commit. The class finding is filed as `name-digests-cannot-tell-a-renamed-cell-from-a-renumbered-arena`: pin a key-free word beside the keyed one, so a key-only move no longer needs a hand dump. Model-compare row `docs/model-compare-log/rows/PR-6910.md`. (ONEDOOR orchestrator)
