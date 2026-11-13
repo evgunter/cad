@@ -1,7 +1,7 @@
 ---
 id: plane-only-readers-hold-a-dead-off-ring-arm
 kind: issue
-title: topo: PlaneEqError is CarrierEqError, so plane-only readers hold a dead OffRing arm
+title: plane-only readers of CarrierEqError hold a dead OffRing arm
 status: open
 opened: 2026-11-09
 priority: P3
@@ -13,7 +13,7 @@ Found by PR 6634's review (SEAL, `carrier-readings-keep-the-margins-they-decided
 
 ## What
 
-`PlaneEqError` is a re-export of `CarrierEqError` (`crates/topo/src/boolean/plane_eq.rs`), and since PR 6634 that error carries `OffRing { torus, refusal }`. Readers that only ever compare two planes therefore hold an arm no plane pair reaches:
+The plane ladder returns `CarrierEqError` (`crates/geom-brep/src/plane_eq.rs`; until PR 6909 it was re-exported as `PlaneEqError`), and since PR 6634 that error carries `OffRing { torus, refusal }`. Readers that only ever compare two planes therefore hold an arm no plane pair reaches:
 - `reduce.rs`'s maximal-faces gate (`oriented_plane_eq` between neighbours), routed to `off_ring_torus`;
 - `vtxfac.rs`'s coplanar corner (`carrier_eq_reading` of two `CarrierDesc::Plane`), routed to `off_ring_torus`;
 - `merge_faces.rs`'s plane call of `unglued_pair_verdict` (`oriented_plane_eq`), routed to `MergeCoplanarError::DegenerateTorus`.

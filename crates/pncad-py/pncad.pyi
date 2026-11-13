@@ -4571,6 +4571,7 @@ class SegTag:
     Rim: Final[SegTag]
     HoleRim: Final[SegTag]
     Member: Final[SegTag]
+    HostFoot: Final[SegTag]
 
 class OpGroup:
     """The op group a role segment belongs to (`SegPat.group`).

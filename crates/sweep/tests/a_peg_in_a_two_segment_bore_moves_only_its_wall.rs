@@ -81,8 +81,8 @@ fn y_span(body: &Body<f64>, face: topo::FaceKey) -> (f64, f64) {
 
 /// The ball enclosing the cylinder of radius [`R`] about `y` over
 /// `[y0, y1]`.
-fn ball(y0: f64, y1: f64) -> topo::ConsumedExtent<f64> {
-    topo::ConsumedExtent::new(geom_brep::ExtentBall::of_box(
+fn ball(y0: f64, y1: f64) -> geom_brep::ConsumedExtent<f64> {
+    geom_brep::ConsumedExtent::new(geom_brep::ExtentBall::of_box(
         Point3::new(-R, y0, -R),
         Point3::new(R, y1, R),
     ))
@@ -139,13 +139,13 @@ fn a_peg_in_one_segment_of_a_bore_moves_only_its_wall_in_both_orders() {
     );
     assert!(
         matches!(
-            topo::carrier_eq(&cp, &cb, &ball(0.0, 1.0), band),
-            Ok(topo::CarrierRelation::SameOriented | topo::CarrierRelation::SameOpposite)
+            geom_brep::carrier_eq(&cp, &cb, &ball(0.0, 1.0), band),
+            Ok(geom_brep::CarrierRelation::SameOriented | geom_brep::CarrierRelation::SameOpposite)
         ),
         "the peg's wall is one carrier with F2 over the two of them"
     );
     assert!(
-        topo::carrier_eq(&cp, &cb, &ball(0.0, 6.0), band).is_err(),
+        geom_brep::carrier_eq(&cp, &cb, &ball(0.0, 6.0), band).is_err(),
         "the peg's wall is in band of the bore's over the whole bore"
     );
 

@@ -1,7 +1,8 @@
 //! **A ring lane's chart-free reading on a cylinder, a sphere, a cone
 //! or a torus face**: the parity of a path on the face's surface across
 //! a closed curve of loop arcs, which says whether the path's ends lie
-//! on one side of the curve or on opposite sides.
+//! on one side of the curve or on opposite sides. A spline wall is read
+//! the same way along its chart's iso curves ([`SplineWall`]).
 //!
 //! The path is made of pieces whose meeting with a loop arc is closed
 //! form: on a cylinder or a cone, a segment of a ruling and an arc of a
@@ -265,6 +266,7 @@ impl<T: Decide> Quadric<T> {
                 Ok(vec![Path {
                     pieces: vec![Piece::Arc(arc)],
                     arrival: axis.cross(b),
+                    reach: None,
                 }])
             }
             Self::Cone { axis, .. } => {
@@ -355,8 +357,9 @@ impl<T: Decide> Quadric<T> {
                     to,
                 );
                 paths.push(Path {
-                    pieces: vec![lead, Piece::Meridian(meridian), Piece::Arc(round)],
+                    pieces: vec![lead.clone(), Piece::Meridian(meridian), Piece::Arc(round)],
                     arrival: round.tangent(round.span.1),
+                    reach: None,
                 });
                 // Round the start's parallel to `to`'s meridian, then round.
                 let turned = centre + axis * hs + et * rs;
@@ -381,6 +384,7 @@ impl<T: Decide> Quadric<T> {
                 paths.push(Path {
                     pieces: vec![lead, Piece::Arc(round), Piece::Meridian(meridian)],
                     arrival: meridian.tangent(meridian.span.1),
+                    reach: None,
                 });
                 Ok(paths)
             }
@@ -477,6 +481,7 @@ impl<T: Decide> Quadric<T> {
             paths.push(Path {
                 pieces: vec![piece(from, turned, from), Piece::Arc(round_at_to)],
                 arrival: round_at_to.tangent(round_at_to.span.1),
+                reach: None,
             });
         }
         if rise != Sign::Zero {
@@ -496,6 +501,7 @@ impl<T: Decide> Quadric<T> {
                 } else {
                     -ruling_at_to
                 },
+                reach: None,
             });
         }
         Ok(paths)
@@ -563,8 +569,10 @@ impl<T: Decide> CircleArc<T> {
 }
 
 /// A piece of a [`Path`].
-#[derive(Clone, Copy)]
+#[derive(Clone)]
 enum Piece<T: Real> {
+    /// An arc of an iso curve of a spline wall's chart.
+    Iso(IsoPiece<T>),
     /// An arc of a great circle, or of a parallel of a cone or a torus.
     Arc(CircleArc<T>),
     /// An arc of a torus's meridian (a circle round the tube, in a plane
@@ -582,11 +590,56 @@ enum Piece<T: Real> {
     },
 }
 
-/// A path on a [`Quadric`] between two points, and its unit direction
-/// of travel where it arrives.
+/// A path on a [`Carrier`] between two points, its unit direction of
+/// travel where it arrives, and, on a spline wall, the arm that
+/// arrival's lean is levered at ([`spline_wall::IsoPiece::reach`]): a
+/// quadric's is its own at the point arrived at ([`Quadric::lever`]).
 pub(crate) struct Path<T: Real> {
     pieces: Vec<Piece<T>>,
     pub(crate) arrival: Vec3<T>,
+    pub(crate) reach: Option<Lever<T>>,
+}
+
+/// The surface a path runs on: a [`Quadric`], or a spline wall.
+#[derive(Clone)]
+pub(crate) enum Carrier<T: Real> {
+    Quadric(Quadric<T>),
+    Wall(SplineWall<T>),
+}
+
+impl<T: Decide> Carrier<T> {
+    /// The carrier of `surface`; `None` for a plane, and for a spline
+    /// whose iso curves the paths do not read ([`SplineWall::of`]).
+    pub(crate) fn of(surface: &geom::Surface<T>) -> Option<Self> {
+        Quadric::of(surface)
+            .map(Self::Quadric)
+            .or_else(|| SplineWall::of(surface).map(Self::Wall))
+    }
+
+    /// The paths from `from` to `to` ([`Quadric::paths`],
+    /// [`SplineWall::paths`]).
+    pub(crate) fn paths(
+        &self,
+        ends: (Point3<T>, Point3<T>),
+        band: Band,
+    ) -> Result<Vec<Path<T>>, Indeterminate> {
+        match self {
+            Self::Quadric(quadric) => quadric.paths(ends, band),
+            Self::Wall(wall) => wall.paths(ends, band),
+        }
+    }
+
+    /// The length the lean of `path`'s arrival at `q` is levered by: the
+    /// arm the path states ([`Path::reach`], a spline wall's), else a
+    /// quadric's own at `q` ([`Quadric::lever`]). `None` for a path on a
+    /// spline wall that states none, which says nothing.
+    pub(crate) fn lean_lever(&self, q: Point3<T>, path: &Path<T>) -> Option<Lever<T>> {
+        match (path.reach, self) {
+            (Some(reach), _) => Some(reach),
+            (None, Self::Quadric(quadric)) => Some(quadric.lever(q)),
+            (None, Self::Wall(_)) => None,
+        }
+    }
 }
 
 /// An arc of a section conic, a circle or an ellipse carrier, over its
@@ -652,9 +705,9 @@ pub(crate) struct Oval<T: Real> {
     own: Option<ArcLoop<T>>,
 }
 
-/// An arc of a loop on a cylinder, sphere, cone or torus face, over its
-/// increasing span: a section conic, a spiric oval, a ruling
-/// (`origin + dir·t`) or a spline.
+/// An arc of a loop on a cylinder, sphere, cone, torus or spline face,
+/// over its increasing span: a section conic, a spiric oval, a ruling
+/// (`origin + dir·t`) or a spline, which is all a spline face's is.
 #[derive(Clone)]
 pub(crate) enum LoopArc<T: Real> {
     Conic(ConicArc<T>),
@@ -681,8 +734,9 @@ pub(crate) enum LoopArc<T: Real> {
     Spline(SplineArc<T>),
 }
 
-/// **A spline arc on a cylinder, a sphere or a torus face, with the
-/// evidence that it lies on the face's surface to within the band.**
+/// **A spline arc on a cylinder, a sphere, a torus or a spline face,
+/// with the evidence that it lies on the face's surface to within the
+/// band.**
 ///
 /// [`spline_crossings`] reads a spline arc's meetings with a path's
 /// pieces through the curve-pair table, which finds the points where
@@ -701,10 +755,11 @@ pub(crate) enum LoopArc<T: Real> {
 ///   with its three-limb certificate against both surfaces of the
 ///   section, the chord a join is about to mint from it.
 ///
-/// Both are read on a cylinder, a sphere or a torus face: the faces a
-/// carried chord bounds, which the ring lane's rows read
-/// (`ring_path::tests`). Every piece of a torus path past its lead lies
-/// on the tube through its end, within the band of the face's own, so the
+/// Both are read on a cylinder, a sphere, a torus or a spline face: the
+/// faces a carried chord bounds, which the ring lane's rows read
+/// (`ring_path::tests`, `ring_path::spline_wall_rows`). A spline wall's
+/// pieces are its own iso curves, which lie on it. Every piece of a
+/// torus path past its lead lies on the tube through its end, within the band of the face's own, so the
 /// argument is the cylinder's: a crossing on the surface is a meeting in
 /// space. The lead, which moves the start onto that tube along its own
 /// tube radius, is off the surface but no longer than the two ends'
@@ -1279,7 +1334,7 @@ pub(crate) fn path_parity<T: Decide>(
             let mut flip = false;
             let arrival = i == last && arrives_on == Some(j);
             let mut readings: Vec<[Result<Sign, Indeterminate>; 5]> = Vec::with_capacity(2);
-            match (*piece, arc.clone()) {
+            match (piece.clone(), arc.clone()) {
                 (Piece::Arc(p) | Piece::Meridian(p), LoopArc::Conic(_) | LoopArc::Oval(_)) => {
                     let sec = section(arc);
                     let Some(roots) =
@@ -1535,6 +1590,15 @@ pub(crate) fn path_parity<T: Decide>(
                 }
                 // A crest is a torus's, whose paths hold no cylinder ruling.
                 (Piece::Ruling { .. }, LoopArc::Crest { .. }) => return Ok(None),
+                // An iso piece is read against a spline arc alone: of any
+                // other arc the path says nothing.
+                (
+                    Piece::Iso(_),
+                    LoopArc::Conic(_)
+                    | LoopArc::Oval(_)
+                    | LoopArc::Line { .. }
+                    | LoopArc::Crest { .. },
+                ) => return Ok(None),
                 // A spline arc meets a piece where the curve-pair table
                 // says ([`spline_crossings`]).
                 (piece, LoopArc::Spline(arc)) => {
@@ -1584,9 +1648,10 @@ pub(crate) fn path_parity<T: Decide>(
 /// on it ([`SplineArc`]):
 /// every meeting it finds lies inside both spans and is a crossing, the
 /// sine between the two curves' directions there decided past the band
-/// (**`split_ring_path_spline_across`**, levered at the piece's length
-/// and charged `slack`). The arrival on the closing chord, at the end of
-/// the path's last piece, is no crossing before it (`arrival`). `None`
+/// (**`split_ring_path_spline_across`**, levered at the piece's length,
+/// an iso curve's chord, and charged `slack`). The arrival on the closing
+/// chord, at the end of the path's last piece, is no crossing before it
+/// (`arrival`). `None`
 /// where the path says nothing: a meeting at either span's end (the
 /// path starts on the arc or runs through its end) or in the zero band
 /// of the crossing reading, a shared run, or a meeting the reader could
@@ -1600,30 +1665,51 @@ fn spline_crossings<T: Decide>(
     band: Band,
 ) -> Result<Option<usize>, Indeterminate> {
     use geom_brep::curve_pair::{Hit, Span, SpanEnd, meet};
-    let (curve, params, length) = match *piece {
-        Piece::Arc(p) | Piece::Meridian(p) => (
-            geom::Curve3::Circle(p.circle),
-            p.span,
+    // The piece's carrier and span, the arm its crossings are levered
+    // at, its length where that is the arm's (an iso curve's is bounded
+    // below), and the span end it stops at.
+    let (curve, params, length, extent, stop) = match piece {
+        &(Piece::Arc(p) | Piece::Meridian(p)) => {
             // Unsourced lever: the arc's length, its angular span times its radius, longer
             // than the arc's extent, which `edge_extent_inf` reads as its chord or fold.
-            Lever::unsourced(p.circle.radius * (p.span.1 - p.span.0)),
-        ),
-        Piece::Segment { from, to, .. } | Piece::Ruling { from, to } => (
-            geom::Curve3::line(from, to - from),
-            (T::zero(), T::one()),
-            geom_brep::ExtentBall::point(from).lever_from(to),
+            let length = Lever::unsourced(p.circle.radius * (p.span.1 - p.span.0));
+            (
+                geom::Curve3::Circle(p.circle),
+                p.span,
+                length,
+                Margin::of(charge(length.length(), slack)),
+                SpanEnd::Stop,
+            )
+        }
+        &(Piece::Segment { from, to, .. } | Piece::Ruling { from, to }) => {
+            let length = geom_brep::ExtentBall::point(from).lever_from(to);
+            (
+                geom::Curve3::line(from, to - from),
+                (T::zero(), T::one()),
+                length,
+                Margin::of(charge(length.length(), slack)),
+                SpanEnd::Stop,
+            )
+        }
+        Piece::Iso(p) => (
+            p.carrier(),
+            p.span,
+            p.travel().0,
+            // No longer than its span at the curve's greatest speed: a
+            // chord says nothing of the length of a curve that turns.
+            Margin::metered_sup(p.span.1 - p.span.0, p.curve.speed_upper_bound()),
+            if p.forward {
+                SpanEnd::Stop
+            } else {
+                SpanEnd::Start
+            },
         ),
     };
-    // A piece of no length (a ruled path's first, from an end already on
-    // the turn's height or parallel) crosses nothing: the next piece
-    // starts at its point and reads a meeting there as its own start
-    // (**`split_ring_path_spline_piece`**, its length).
-    if decide(
-        "split_ring_path_spline_piece",
-        Margin::of(charge(length.length(), slack)),
-        band,
-    )? == Sign::Zero
-    {
+    // A piece of no length (a path's first, from an end already on the
+    // turn's height, parallel or iso curve) crosses nothing: the next
+    // piece starts at its point and reads a meeting there as its own
+    // start (**`split_ring_path_spline_piece`**, its length).
+    if decide("split_ring_path_spline_piece", extent, band)? == Sign::Zero {
         return Ok(Some(0));
     }
     let on_piece = Span::new(&curve, params);
@@ -1638,7 +1724,7 @@ fn spline_crossings<T: Decide>(
     let mut crossings = 0;
     for m in met.points {
         let (tp, ta) = match (m.on_a, m.on_b) {
-            (Hit::End(SpanEnd::Stop), Hit::On { .. }) if arrival => continue,
+            (Hit::End(end), Hit::On { .. }) if arrival && end == stop => continue,
             (Hit::On { t: tp, .. }, Hit::On { t: ta, .. }) => (tp, ta),
             _ => return Ok(None),
         };
@@ -1662,9 +1748,9 @@ fn spline_crossings<T: Decide>(
 /// nothing there, as a probe ray grazes; so does a limit of the reader
 /// or a pose it has no closed form for. An escalation escalates. A
 /// carrier of a kind its arm does not read, or two readings that
-/// contradict, is the kernel's fault: a piece is a circle or a line and
-/// the arc a spline, which the table reads, and a contradiction is ruled
-/// out by the readings' definitions.
+/// contradict, is the kernel's fault: a piece is a circle, a line or a
+/// spline and the arc a spline, which the table reads, and a
+/// contradiction is ruled out by the readings' definitions.
 fn meet_refused(fault: geom_brep::curve_pair::MeetFault) -> Result<Option<usize>, Indeterminate> {
     use geom_brep::curve_pair::MeetKind;
     match fault.kind() {
@@ -1785,12 +1871,16 @@ fn resolution<T: Real>(points: &[Point3<T>]) -> T {
 fn path_resolution<T: Decide>(path: &Path<T>, arcs: &[LoopArc<T>]) -> T {
     let mut points = Vec::with_capacity(3 * path.pieces.len() + arcs.len());
     for piece in &path.pieces {
-        match *piece {
-            Piece::Arc(p) | Piece::Meridian(p) => {
+        match piece {
+            &(Piece::Arc(p) | Piece::Meridian(p)) => {
                 points.extend([p.circle.frame.origin, p.at(p.span.0), p.at(p.span.1)]);
             }
-            Piece::Segment { from, to, .. } | Piece::Ruling { from, to } => {
+            &(Piece::Segment { from, to, .. } | Piece::Ruling { from, to }) => {
                 points.extend([from, to]);
+            }
+            Piece::Iso(p) => {
+                let (start, stop) = p.ends();
+                points.extend([start, stop]);
             }
         }
     }
@@ -2019,6 +2109,14 @@ mod graze_rows;
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod spline_fuzz;
+
+mod spline_wall;
+use spline_wall::IsoPiece;
+pub(crate) use spline_wall::SplineWall;
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod spline_wall_rows;
 
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
@@ -2271,6 +2369,7 @@ mod tests {
         let ends = |piece: &Piece<f64>| match *piece {
             Piece::Arc(a) | Piece::Meridian(a) => (a.at(a.span.0), a.at(a.span.1)),
             Piece::Segment { from, to, .. } | Piece::Ruling { from, to } => (from, to),
+            Piece::Iso(ref p) => p.ends(),
         };
         let b = band();
         let mut asked = 0usize;
@@ -3035,6 +3134,7 @@ mod tests {
         let path = Path {
             pieces: vec![Piece::Arc(piece)],
             arrival: Vec3::new(0.0, 1.0, 0.0),
+            reach: None,
         };
         let span = (-0.01, 0.01);
         let conic = ConicArc::of_frame(
@@ -3177,6 +3277,7 @@ mod tests {
                 let path = Path {
                     pieces: vec![piece],
                     arrival: f.z,
+                    reach: None,
                 };
                 assert_eq!(
                     path_parity(&path, &crest, None, band()).unwrap(),
@@ -3217,6 +3318,7 @@ mod tests {
                     lever: geom_brep::ExtentBall::point(from).lever(),
                 }],
                 arrival: f.z,
+                reach: None,
             };
             assert_eq!(
                 path_parity(&path, &crest, None, band()),
@@ -3238,6 +3340,7 @@ mod tests {
         let ends = |piece: &Piece<f64>| match *piece {
             Piece::Arc(a) | Piece::Meridian(a) => (a.at(a.span.0), a.at(a.span.1)),
             Piece::Segment { from, to, .. } | Piece::Ruling { from, to } => (from, to),
+            Piece::Iso(ref p) => p.ends(),
         };
         let b = band();
         let mut asked = 0usize;

@@ -2174,7 +2174,9 @@ fn the_seam_is_legal_and_the_same_geometry_flipped_is_a_lamina() {
     let tol = Tol::witness();
     let (body, split) = coplanar_pillow(tol);
     assert_pillow_rests(&body, tol);
-    let flipped = body.flipped_face_sense_for_tests(split.face).unwrap();
+    let flipped = body
+        .flipped_face_sense_for_tests(split.face, geom_core::Tol::witness())
+        .unwrap();
     let errs = validate_geometric(&flipped, tol).unwrap_err();
     assert!(
         errs.iter()
@@ -2338,16 +2340,17 @@ fn the_second_order_band_has_three_outcomes_and_they_are_three_answers() {
     );
 }
 
-/// **Check 4 and the shared-rim routing spell no wedge reading of their
-/// own.** Both read an edge's wedge through `geom_brep::edge_wedge_over`
-/// once, over a walk built by its one door: the validator's
-/// `WedgeWalk::along_edge` (inside `edge_wedge_walk`), the rim's
+/// **Check 4, the shared-rim routing and the edge's own door spell no
+/// wedge reading of their own.** Each reads an edge's wedge through
+/// `geom_brep::edge_wedge_over` once, over a walk built by its one door:
+/// an edge's `WedgeWalk::along_edge` (inside `edge_wedge_walk`, which
+/// check 4 and `crate::edge_wedge` share), the rim's
 /// `WedgeWalk::around_circle`. The walk, its hook, the edge's interior
 /// stations and the pairing of a corner are out of their reach by type
 /// (crate-private, or asked only of a tangency token), so what this row
-/// pins is the rest: a class read (`classify_dihedral`, `dihedral_class`),
+/// pins is the rest: a class read (`classify_dihedral`),
 /// a sign or a pairing (`.convexity(`, `"dihedral_sign"`, `.pairing(`,
-/// `pairing_as(`, `classify_material_pairing_as(`), a station minted by
+/// `gradient_alignment(`, `normals_alignment(`), a station minted by
 /// hand, a `"tangent_second_order"` decide or a material read inlined
 /// back into either file's production code reds here. The link's
 /// reading one order down (`link/second_order.rs`) reads another picture
@@ -2404,12 +2407,11 @@ fn check_4_and_the_rim_read_the_wedge_through_the_one_fold() {
         "tangent_second_order(",
         "tangent_jet(",
         "classify_dihedral(",
-        "dihedral_class(",
         ".convexity(",
         "\"dihedral_sign\"",
         ".pairing(",
-        "pairing_as(",
-        "classify_material_pairing_as(",
+        "gradient_alignment(",
+        "normals_alignment(",
         "Station::on(",
         "material_kappa_rel(",
     ];
@@ -2420,6 +2422,15 @@ fn check_4_and_the_rim_read_the_wedge_through_the_one_fold() {
     ];
     scan(
         "src/validate.rs",
+        &[
+            ("edge_wedge_over(", 0),
+            ("WedgeWalk::along_edge(", 0),
+            ("WedgeWalk::around_circle(", 0),
+        ],
+        &reads,
+    );
+    scan(
+        "src/edge_wedge.rs",
         &[
             ("edge_wedge_over(", 1),
             ("WedgeWalk::along_edge(", 1),
@@ -2457,7 +2468,7 @@ fn check_4_and_the_rim_read_the_wedge_through_the_one_fold() {
 /// moves both halves of a row together.
 #[test]
 fn the_must_carry_rule_and_tier_3_answer_one_family_through_one_walk() {
-    use geom_brep::{MustCarryEscalation, MustCarryVerdict, must_carry_over_edge};
+    use geom_brep::{MustCarryRung, MustCarryVerdict, must_carry_over_edge};
     let tol = Tol::witness();
     let eps = tol.get().eps;
     let band = geom_core::Band::linear(tol).expect("the witness band");
@@ -2516,10 +2527,8 @@ fn the_must_carry_rule_and_tier_3_answer_one_family_through_one_walk() {
     assert!(
         matches!(
             rule(r2),
-            MustCarryVerdict::InBand(MustCarryEscalation::SecondOrder(Indeterminate {
-                predicate: Some("tangent_second_order"),
-                ..
-            }))
+            MustCarryVerdict::InBand(e) if e.rung() == MustCarryRung::Bend
+                && e.diag().predicate == Some("tangent_second_order")
         ),
         "in band: the rule escalates second-order: {:?}",
         rule(r2)
@@ -2677,7 +2686,9 @@ fn kissing_cylinder_pillow(
         body.set_edge_curve(e, spec, tol).unwrap();
     }
     crate::pcurves::mint_pcurves(&mut body, tol).unwrap();
-    let flipped = body.flipped_face_sense_for_tests(split.face).unwrap();
+    let flipped = body
+        .flipped_face_sense_for_tests(split.face, geom_core::Tol::witness())
+        .unwrap();
     (
         validate_geometric(&flipped, tol).unwrap_err(),
         [seg.edge, split.edge],
@@ -2713,12 +2724,14 @@ fn wedge_reading_table() {
         (
             V::Seam {
                 bend: Bend::Determinate,
+                margin: None,
             },
             M::Tangent,
         ),
         (
             V::Seam {
                 bend: Bend::UnderDetermined,
+                margin: None,
             },
             M::SmoothUnderdetermined,
         ),
@@ -4239,9 +4252,7 @@ fn the_wedge_door_signs_an_l_prisms_corners() {
     let band = geom_core::Band::linear(tol).unwrap();
     let mut concave = Vec::new();
     for (edge, e) in body.edges() {
-        let walk = crate::validate::edge_wedge_walk(&body, edge).expect("a live edge");
-        let reach = crate::edge_wedge_reach(&body, edge).expect("a certified curve");
-        let verdict = geom_brep::edge_wedge_over(&walk, reach, band);
+        let verdict = crate::edge_wedge(&body, edge, band).expect("a live edge");
         let geom_brep::WedgeVerdict::Crease(sign) = verdict else {
             panic!("every edge of a prism is a crease: {verdict:?}");
         };

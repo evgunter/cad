@@ -1,16 +1,19 @@
-//! **The plane × NURBS edge lane** (M7-8): the declare-and-check
+//! **The residual × NURBS edge lane**: the declare-and-check
 //! certification of an `Intersection` edge whose two adjacent surfaces
-//! are one PLANE and one described NURBS patch.
+//! are one described NURBS patch and one analytic partner the rung-3
+//! door reads by its residual in metres: a PLANE ([`plane_nurbs_limbs`]),
+//! or a sphere, cylinder or ring torus ([`curved_nurbs_limbs`]). A cone
+//! beside a spline has no lane here. The NURBS × NURBS lane
+//! ([`nurbs_pair_limbs`]) shares its vocabulary.
 //!
 //! # Declare and check
 //!
-//! An imported file STATES a carrier for such an edge; nothing in the
-//! kernel constructed it, and no closed form exists on the NURBS side
-//! to compare it against. So the carrier is **evidence**: adopted as
-//! stated, then certified against both surfaces, and refused typed
-//! with the measured bound when it does not hold up. That is the
-//! ratified shape (Ev, PR #264) and it is what this module
-//! implements — never a fit, never a widened gate.
+//! An imported file STATES a carrier for such an edge, or a trace fitted
+//! one; no closed form exists on the NURBS side to compare it against.
+//! So the carrier is **evidence**: adopted as stated, then certified
+//! against both surfaces, and refused typed with the measured bound when
+//! it does not hold up. That is the ratified shape (Ev, PR #264) and it
+//! is what this module implements — never a fit, never a widened gate.
 //!
 //! # What the lane proves
 //!
@@ -22,7 +25,7 @@
 //! ingredient a declared carrier is missing — the chart image — and
 //! delegates:
 //!
-//! * **on-PLANE residual**: closed form, the analytic operand's
+//! * **on-partner residual**: closed form, the analytic operand's
 //!   linearized implicit residual at the fixed schedule plus its
 //!   certified composite hull sup over the whole span.
 //! * **on-NURBS residual**: `|C(t) − S(u*, v*)|` at a **certified foot
@@ -31,21 +34,33 @@
 //!   Bernstein composite `sup_t |S(P(t)) − C(t)|` — a whole-curve
 //!   bound, not a sampled max.
 //! * **transversality**: the per-sample sine of the angle between the
-//!   plane's exact normal and the wall's normal from `ders`, reported
-//!   for the caller to meter at the edge's honest lever arm, plus the
-//!   uniqueness tube's own certified margin over the box chain.
+//!   partner's normal at the wall's foot (a plane's exact normal, a
+//!   curved partner's gradient there) and the wall's normal from `ders`,
+//!   reported for the caller to meter at the edge's honest lever arm,
+//!   plus the uniqueness tube's own certified margin over the box chain.
 //!
 //! # The chart image is derived, and therefore checked
 //!
-//! The pcurve `P(t)` is not in the file. This lane derives it — foot
-//! points at the fixed schedule, interpolated on the carrier's own
-//! parameter (the OQ4 identity: `P(t)` and `C(t)` are the same `t` by
-//! construction) — which is a **structure** selection in C6's `f64`
-//! lane, lifted to the caller's scalar. A derived structure certifies
-//! nothing by itself; what makes it sound is that limb 2 bounds
-//! `sup_t |S(P(t)) − C(t)|` over the whole span, so a chart image that
-//! wanders off the true foot path enlarges the bound it must pass.
-//! A wrong `P` cannot launder a wrong carrier: it can only refuse.
+//! The pcurve `P(t)` is not in the file. This lane derives it from foot
+//! points at the fixed schedule, on the carrier's own parameter (the OQ4
+//! identity: `P(t)` and `C(t)` are the same `t` by construction):
+//! beside a plane their degree-1 interpolant (`chart_image`); beside a
+//! curved partner, whose arc bends in the chart, the image the pcurve
+//! mint climbs to for the same carrier (`general_chart_image`), whose
+//! nodes depend on the band. Either is a **structure** selection in
+//! C6's `f64` lane, lifted to the caller's scalar, and certifies nothing
+//! by itself. Limb 2 bounds `sup_t |S(P(t)) − C(t)|` over the whole
+//! span, so an image that wanders off the true foot path inside the
+//! wall's knot rectangle enlarges the bound it must pass. Limb 2 alone
+//! does not hold an image to that rectangle: past the wall's rim it
+//! reads the boundary cell's polynomial extension
+//! (`geom_core::spline::compose::tensor`'s domain posture), and an
+//! image that leaves between two nodes passes limbs 1 and 2 with the
+//! carrier off the wall. Limb 3 is what refuses that carrier: its tube
+//! is cut to the knot rectangle, where the arc that leaves and comes
+//! back is not one arc ([`SsiError::TubeNotOneArc`]). It is the three
+//! limbs together, not limb 2, that keep a wrong `P` from laundering a
+//! wrong carrier.
 //!
 //! # Which scalars may derive this certificate
 //!
@@ -777,7 +792,7 @@ impl core::fmt::Display for PlaneNurbsRefusal {
             ),
             Self::ReportedTransversalityPoisoned(cause) => write!(
                 f,
-                "every interior sample decided the plane and the NURBS wall cross, yet \
+                "every interior sample decided the two surfaces cross, yet \
                  their reported minimum crossing angle is unreadable: {}",
                 cause.payload()
             ),
@@ -812,8 +827,10 @@ impl core::fmt::Display for PlaneNurbsRefusal {
 }
 
 /// **The certified plane × NURBS derivation** — the whole of what a
-/// scalar with certification rights can prove about this edge class,
-/// and the function the doors inject ([`crate::certify::NurbsLane`]).
+/// scalar with certification rights can prove about this edge class.
+/// The doors inject it through the residual lanes' one door
+/// ([`crate::certify::NurbsLane`]), which a curved partner shares
+/// ([`curved_nurbs_limbs`]).
 ///
 /// The operand ORDER is load-bearing exactly as it is in the fitted
 /// pcurve lane: the NURBS wall is operand **b**, because
@@ -896,7 +913,199 @@ pub fn plane_nurbs_limbs<T: Decide + Bounds + geom_core::CertifiedEnclosure>(
     extent: geom_core::Lever<T>,
     band: Band,
 ) -> Result<PlaneNurbsLimbs<T>, PlaneNurbsRefusal> {
-    let normal = plane_lane_door(plane, wall)?;
+    plane_partner(plane)?;
+    residual_nurbs_limbs(carrier, params, plane, wall, extent, band)
+}
+
+/// The analytic operand of a residual × NURBS edge lane, and where the
+/// lanes differ by it: which surfaces are partners, what an interior
+/// sample reads of one, and the stream each decision is recorded under.
+/// The image the wall's limbs are read on is the one difference read in
+/// the door itself ([`residual_nurbs_limbs`]).
+#[derive(Clone, Copy)]
+enum Partner<'a, T: Real> {
+    /// A plane, by its normal: flat, so the wall's curvature alone sets
+    /// a sample's arm.
+    Plane(Vec3<T>),
+    /// A sphere, cylinder or torus, read at the wall's foot.
+    Curved(&'a Surface<T>),
+}
+
+impl<'a, T: Real> Partner<'a, T> {
+    /// `s` as a lane's partner: a plane, or a sphere, cylinder or ring
+    /// torus, whose implicit residual the rung-3 door reads in metres.
+    /// A cone's has no metres conversion there, a spindle has no arm,
+    /// and a spline is a wall.
+    fn of(s: &'a Surface<T>) -> Option<Self> {
+        match s {
+            Surface::Plane { normal, .. } => Some(Self::Plane(*normal)),
+            Surface::Sphere { .. } | Surface::Cylinder { .. } | Surface::Torus { .. } => {
+                Some(Self::Curved(s))
+            }
+            Surface::Cone { .. }
+            | Surface::Spindle { .. }
+            | Surface::Nurbs(_)
+            | Surface::Approx(_) => None,
+        }
+    }
+
+    /// The pair's two normals at the wall's foot `jet.point`, the
+    /// partner's first, and the larger principal curvature of either
+    /// surface there ([`crate::ssi::point_arm`]'s `κ`): a curved
+    /// partner's as the 1×2 trace reads the same pair.
+    fn at_foot(self, jet: &geom::SurfaceJet<T>) -> ((Vec3<T>, Vec3<T>), T) {
+        match self {
+            Self::Plane(normal) => (
+                (normal, jet.du.cross(jet.dv)),
+                crate::shape_operator::max_principal_curvature(jet),
+            ),
+            Self::Curved(s) => (
+                crate::ssi::system::implicit_chart_normals(s, jet),
+                crate::ssi::system::implicit_chart_curvature(s, jet),
+            ),
+        }
+    }
+
+    /// The least sine over the interior samples as the lane reports it,
+    /// refused where poisoned.
+    fn reported(self, min_sin: T, band: Band) -> Result<T, Indeterminate> {
+        match self {
+            Self::Plane(_) => geom_core::k_stats::gate_measured(
+                "plane_nurbs_transversality_reported",
+                min_sin,
+                band,
+            ),
+            Self::Curved(_) => geom_core::k_stats::gate_measured(
+                "curved_nurbs_transversality_reported",
+                min_sin,
+                band,
+            ),
+        }
+    }
+}
+
+impl<T: Decide> Partner<'_, T> {
+    /// An interior sample's transversality, each lane's samples its own
+    /// stream.
+    fn decide_sample(
+        self,
+        margin: geom_core::Margin<T>,
+        band: Band,
+    ) -> Result<Decided, Indeterminate> {
+        match self {
+            Self::Plane(_) => {
+                crate::dihedral::decide_reported("plane_nurbs_transversality", margin, band)
+            }
+            Self::Curved(_) => {
+                crate::dihedral::decide_reported("curved_nurbs_transversality", margin, band)
+            }
+        }
+    }
+}
+
+/// Whether `s` is a partner the residual × NURBS lanes read
+/// ([`plane_nurbs_limbs`], [`curved_nurbs_limbs`]).
+pub(crate) fn is_residual_partner<T: Real>(s: &Surface<T>) -> bool {
+    Partner::of(s).is_some()
+}
+
+/// **The certified curved-partner × NURBS derivation**:
+/// [`plane_nurbs_limbs`] for an `Intersection` edge between a sphere,
+/// cylinder or ring torus and a described NURBS wall. The same rung-3
+/// door: limbs 1 and 2 read the partner's implicit residual in metres
+/// and the wall's chart, and limb 3 is the chart tube read against the
+/// partner's form, the theorem the residual × NURBS search certifies its
+/// branch by. The wall's image of the carrier is not the plane lane's
+/// degree-1 interpolant, which misses an arc that bends in the chart by
+/// its chords' sag: it is the image the pcurve mint climbs to for the
+/// same carrier (`general_chart_image`), through the same schedule's
+/// feet. An interior sample's angle is between the partner's gradient at
+/// the wall's foot and the wall's normal, its arm the shorter of the
+/// extent and either surface's curvature radius there.
+///
+/// # Errors
+///
+/// [`PlaneNurbsRefusal`], whose vocabulary this lane shares:
+/// [`PlaneNurbsRefusal::WrongLane`] for any other partner (a cone's
+/// residual has no metres conversion at the rung-3 door, and a plane has
+/// its own lane), and otherwise as [`plane_nurbs_limbs`].
+///
+/// The bound is [`plane_nurbs_limbs`]'s, and a dual fails it the same
+/// way:
+///
+/// ```compile_fail,E0277
+/// use geom_core::{Band, Dual64};
+/// use geom::{Curve3, NurbsSurface, Surface};
+/// fn certified(
+///     carrier: &Curve3<Dual64>,
+///     params: (Dual64, Dual64),
+///     partner: &Surface<Dual64>,
+///     wall: &NurbsSurface<Dual64>,
+///     extent: geom_core::Lever<Dual64>,
+///     band: Band,
+/// ) {
+///     let _ = geom_brep::curved_nurbs_limbs(carrier, params, partner, wall, extent, band);
+/// }
+/// ```
+///
+/// It fails on the bound and not on a path or a spelling: the row below
+/// differs in the scalar alone.
+///
+/// ```
+/// use geom_core::Band;
+/// use geom::{Curve3, NurbsSurface, Surface};
+/// fn certified(
+///     carrier: &Curve3<f64>,
+///     params: (f64, f64),
+///     partner: &Surface<f64>,
+///     wall: &NurbsSurface<f64>,
+///     extent: geom_core::Lever<f64>,
+///     band: Band,
+/// ) {
+///     let _ = geom_brep::curved_nurbs_limbs(carrier, params, partner, wall, extent, band);
+/// }
+/// ```
+pub fn curved_nurbs_limbs<T: Decide + Bounds + geom_core::CertifiedEnclosure>(
+    carrier: &Curve3<T>,
+    params: (T, T),
+    partner: &Surface<T>,
+    wall: &NurbsSurface<T>,
+    extent: geom_core::Lever<T>,
+    band: Band,
+) -> Result<PlaneNurbsLimbs<T>, PlaneNurbsRefusal> {
+    if !matches!(Partner::of(partner), Some(Partner::Curved(_))) {
+        return Err(PlaneNurbsRefusal::WrongLane {
+            expected: "a sphere, cylinder or torus as the analytic operand",
+        });
+    }
+    residual_nurbs_limbs(carrier, params, partner, wall, extent, band)
+}
+
+/// **The residual × NURBS lanes' one door**, the function the edge
+/// certificate injects ([`crate::certify::NurbsLane`]): `partner`'s
+/// residual and `wall`'s chart, for a plane ([`plane_nurbs_limbs`]) or a
+/// sphere, cylinder or torus ([`curved_nurbs_limbs`]). [`Partner`] is
+/// where the two differ.
+///
+/// # Errors
+///
+/// [`PlaneNurbsRefusal::WrongLane`] for any other partner,
+/// [`PlaneNurbsRefusal::PlaceholderWall`] for a wall that is not
+/// described, and otherwise as its two doors.
+pub(crate) fn residual_nurbs_limbs<T: Decide + Bounds + geom_core::CertifiedEnclosure>(
+    carrier: &Curve3<T>,
+    params: (T, T),
+    partner: &Surface<T>,
+    wall: &NurbsSurface<T>,
+    extent: geom_core::Lever<T>,
+    band: Band,
+) -> Result<PlaneNurbsLimbs<T>, PlaneNurbsRefusal> {
+    let Some(read) = Partner::of(partner) else {
+        return Err(PlaneNurbsRefusal::WrongLane {
+            expected: "a plane, sphere, cylinder or torus as the analytic operand",
+        });
+    };
+    described(wall)?;
     // The wall the tube localizes on, with its chart speeds minted at the
     // door: a wall constant along an axis, or with no finite speed bound
     // along one, has no chart a length in metres can cross into, and the
@@ -910,16 +1119,16 @@ pub fn plane_nurbs_limbs<T: Decide + Bounds + geom_core::CertifiedEnclosure>(
     .map_err(refusal)?;
 
     // ---- The fixed schedule: foot points, and the normal angle. ----
-    // The feet and the image are `chart_image`'s, which is also the
-    // pcurve mint's first rung (`general_chart_image`): where the mint
-    // stops there, it stores the bits this lane certifies.
+    // The feet are `chart_image`'s, which is also the pcurve mint's
+    // first rung (`general_chart_image`), so either image below walks
+    // them once and in the same order.
     // The transversality sweep rides the same walk as a per-sample
     // hook, so the ORDER in which the two refusals can fire is exactly
     // what it was when the two loops were one.
     let mut min_sin = T::from_f64(f64::MAX);
     let eval = |t| carrier.eval(t);
     let (domain, ends) = crate::carrier_net::carrier_span(carrier, params);
-    let pcurve = chart_image(Schedule::new(&eval, domain, ends), wall, |i, foot| {
+    let per_sample = |i: u32, foot: Point2<f64>| {
         // Transversality at the INTERIOR samples only: an endpoint is
         // shared with the neighbouring edges, where a vanishing angle
         // is a vertex fact rather than this edge's — the analytic
@@ -929,12 +1138,11 @@ pub fn plane_nurbs_limbs<T: Decide + Bounds + geom_core::CertifiedEnclosure>(
         }
         let (u, v) = measured_foot(foot);
         let jet = wall.ders(u, v);
-        let sin_theta = normal_angle_sine(normal, jet.du.cross(jet.dv));
-        // The point arm, the plane's curvature being zero.
-        let kappa = crate::shape_operator::max_principal_curvature(&jet);
+        let ((partner_normal, wall_normal), kappa) = read.at_foot(&jet);
+        let sin_theta = normal_angle_sine(partner_normal, wall_normal);
         let (arm, reach) = crate::ssi::point_arm(kappa, extent);
         let margin = geom_core::Margin::levered(sin_theta, arm);
-        match crate::dihedral::decide_reported("plane_nurbs_transversality", margin, band) {
+        match read.decide_sample(margin, band) {
             Ok(decided) => {
                 if let Some(verdict) = Refused::of(decided, band) {
                     return Err(PlaneNurbsRefusal::NotTransverse {
@@ -953,7 +1161,18 @@ pub fn plane_nurbs_limbs<T: Decide + Bounds + geom_core::CertifiedEnclosure>(
         // be dropped out of this fold — it reaches the guard below.
         min_sin = min_sin.min(sin_theta);
         Ok(())
-    })?;
+    };
+    // Beside a plane the image is the degree-1 interpolant of the
+    // schedule's feet. A curved partner's arc bends in the chart
+    // wherever the partner does, which that interpolant misses by its
+    // chords' sag, so its image is the one the pcurve mint climbs to for
+    // the same carrier, whose nodes depend on `band`. Read here and not
+    // on `Partner`, whose methods carry no certification bound.
+    let schedule = Schedule::new(&eval, domain, ends);
+    let pcurve = match read {
+        Partner::Plane(_) => chart_image(schedule, wall, per_sample),
+        Partner::Curved(_) => general_chart_image(schedule, wall, band, per_sample),
+    }?;
     // FAIL LOUD on a poisoned aggregate. A NaN sine cannot reach here
     // today — the per-sample `decide` above escalates on its levered
     // margin first — but the reported transversality must not depend on
@@ -961,16 +1180,16 @@ pub fn plane_nurbs_limbs<T: Decide + Bounds + geom_core::CertifiedEnclosure>(
     // that ever survives the fold refuses TYPED, carrying the
     // `Invalid` diagnostic, instead of riding out as a reported number
     // no caller can tell from a measurement.
-    let min_sin =
-        geom_core::k_stats::gate_measured("plane_nurbs_transversality_reported", min_sin, band)
-            .map_err(PlaneNurbsRefusal::ReportedTransversalityPoisoned)?;
+    let min_sin = read
+        .reported(min_sin, band)
+        .map_err(PlaneNurbsRefusal::ReportedTransversalityPoisoned)?;
 
     // ---- The rung-3 door: all three limbs, both operands. ----
     let cert = crate::ssi::certify::certify_branch(
         carrier,
         params,
         crate::ssi::certify::Lane::AtRest {
-            a: &SsiOperand::Analytic(plane),
+            a: &SsiOperand::Analytic(partner),
             b: &wall_op,
             pcurve_a: None,
             pcurve_b: Some(&pcurve),
@@ -991,22 +1210,22 @@ pub fn plane_nurbs_limbs<T: Decide + Bounds + geom_core::CertifiedEnclosure>(
     })
 }
 
-/// The plane × NURBS lanes' door: the analytic operand a plane, whose
-/// normal it returns, and the wall a described surface.
-fn plane_lane_door<T: Real>(
-    plane: &Surface<T>,
-    wall: &NurbsSurface<T>,
-) -> Result<Vec3<T>, PlaneNurbsRefusal> {
-    let Surface::Plane { normal, .. } = *plane else {
-        return Err(PlaneNurbsRefusal::WrongLane {
-            expected: "a plane as the analytic operand; another kind needs its own chart \
-                       uniqueness form",
-        });
-    };
+/// The plane × NURBS lanes' partner: a plane.
+fn plane_partner<T: Real>(plane: &Surface<T>) -> Result<(), PlaneNurbsRefusal> {
+    match plane {
+        Surface::Plane { .. } => Ok(()),
+        _ => Err(PlaneNurbsRefusal::WrongLane {
+            expected: "a plane as the analytic operand",
+        }),
+    }
+}
+
+/// A wall the lanes read: a described surface, never the placeholder.
+fn described<T: Real>(wall: &NurbsSurface<T>) -> Result<(), PlaneNurbsRefusal> {
     if wall.is_placeholder() {
         return Err(PlaneNurbsRefusal::PlaceholderWall);
     }
-    Ok(normal)
+    Ok(())
 }
 
 /// What [`plane_nurbs_incidence`] certified: limbs 1 and 2 over both
@@ -1399,7 +1618,8 @@ pub fn plane_nurbs_incidence<T: Decide + Bounds + geom_core::CertifiedEnclosure>
             expected: "a spline chart as the wall",
         });
     };
-    plane_lane_door(plane, chart)?;
+    plane_partner(plane)?;
+    described(chart)?;
     let exact = match carrier {
         Curve3::Circle(..) => Some(exact_arc_rim(carrier, params, wall, stated, band)),
         _ => None,
@@ -1549,9 +1769,8 @@ pub fn nurbs_pair_limbs<T: Decide + Bounds + geom_core::CertifiedEnclosure>(
     extent: geom_core::Lever<T>,
     band: Band,
 ) -> Result<PlaneNurbsLimbs<T>, PlaneNurbsRefusal> {
-    if a.is_placeholder() || b.is_placeholder() {
-        return Err(PlaneNurbsRefusal::PlaceholderWall);
-    }
+    described(a)?;
+    described(b)?;
     // Each chart localized on its own cell grid, as the plane lane's wall.
     let (grid_a, grid_b) = (wall_grid(a), wall_grid(b));
     let op_a = match &grid_a {
@@ -3020,15 +3239,19 @@ where
 /// degree-1 one at the first), and the certificate's refusal of that
 /// image ends the lane's gap, "not yet", where the foot's own refusal
 /// would have ended unsettled, also "not yet".
-pub(crate) fn general_chart_image<T>(
+///
+/// `per_sample` is [`chart_image`]'s hook, run at the first rung's feet.
+pub(crate) fn general_chart_image<T, F>(
     schedule: Schedule<'_, T>,
     wall: &NurbsSurface<T>,
     band: Band,
+    per_sample: F,
 ) -> Result<NurbsCurve2<T>, PlaneNurbsRefusal>
 where
     T: Decide + Bounds + geom_core::CertifiedEnclosure,
+    F: FnMut(u32, Point2<f64>) -> Result<(), PlaneNurbsRefusal>,
 {
-    let straight = chart_image(schedule, wall, |_, _| Ok(()))?;
+    let straight = chart_image(schedule, wall, per_sample)?;
     let (t0, t1) = schedule.domain;
     let mid = |x: T| geom::mid_param(x.lo(), x.hi());
     // An image's gap at a fraction: its chart point mapped through the

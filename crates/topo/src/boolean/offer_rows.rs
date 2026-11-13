@@ -956,7 +956,7 @@ fn the_in_band_wedge_is_in_band_at_the_glue_door() {
         )
     };
     let glue_margin = match read(2e-9, design_band()) {
-        Ok(Err(crate::CarrierEqError::Escalated { diag, .. })) => {
+        Ok(Err(geom_brep::CarrierEqError::Escalated { diag, .. })) => {
             geom_core::test_support::upper(diag.margin)
         }
         other => panic!("in band at 2e-9: {other:?}"),
@@ -964,7 +964,7 @@ fn the_in_band_wedge_is_in_band_at_the_glue_door() {
     assert!(
         matches!(
             read(D, design_band()),
-            Ok(Ok(crate::CarrierRelation::Distinct))
+            Ok(Ok(geom_brep::CarrierRelation::Distinct))
         ),
         "apart at D: {:?}",
         read(D, design_band())
@@ -974,7 +974,7 @@ fn the_in_band_wedge_is_in_band_at_the_glue_door() {
     assert!(
         matches!(
             read(2e-9, tighter),
-            Ok(Ok(crate::CarrierRelation::Distinct))
+            Ok(Ok(geom_brep::CarrierRelation::Distinct))
         ),
         "apart below the glue door's offer {below:e}: {:?}",
         read(2e-9, tighter)
@@ -1429,8 +1429,8 @@ fn seam_bend(sagitta: f64) -> Result<(), BooleanError> {
     )
     .map(|_| ())
     .map_err(|refusal| match refusal {
-        super::super::ops::SeamRefusal::Undecided(reading, diag) => {
-            super::super::ops::seam_refusal(reading, diag)
+        super::super::ops::SeamRefusal::Undecided(escalation) => {
+            super::super::ops::seam_refusal(escalation)
         }
         mixed @ super::super::ops::SeamRefusal::Mixed(_) => {
             panic!("a resting cylinder reads smooth at every station, got {mixed:?}")
@@ -2174,7 +2174,8 @@ fn quoting(kind: BooleanErrorKind, diag: Indeterminate) -> Vec<BooleanError> {
         | BooleanErrorKind::VertexReadTwice
         | BooleanErrorKind::PartnerAlongFace
         | BooleanErrorKind::TouchesItself
-        | BooleanErrorKind::ToolSeatCrossed
+        | BooleanErrorKind::ToolSeatUnread
+        | BooleanErrorKind::ToolFuseRefused
         | BooleanErrorKind::ClassificationInvariant
         | BooleanErrorKind::CurvedPairUnsupported
         | BooleanErrorKind::NurbsExtentUnsupported
@@ -2482,6 +2483,12 @@ const SITES: &[(&str, &str, &str, usize)] = &[
         1,
     ),
     (
+        "carrier_ladder_rows.rs",
+        "a_torus_off_its_ring_ends_in_its_halfs_lever_at_the_boolean",
+        "BooleanDecision::Torus",
+        1,
+    ),
+    (
         "carrier_touch.rs",
         "ball_off_face",
         "BooleanDecision::Containment",
@@ -2658,6 +2665,7 @@ const SITES: &[(&str, &str, &str, usize)] = &[
         1,
     ),
     ("mod.rs", "verify_tangency", "Coincide::Contact", 1),
+    ("mod.rs", "verify_tangency", "LeverArm::TangentLocus", 1),
     ("mod.rs", "verify_tangency", "Coincide::Rim", 1),
     ("mod.rs", "verify_tangency", "Coincide::TangentLocus", 1),
     ("ops.rs", "apply_cut_ins", "BooleanDecision::Sphere", 1),

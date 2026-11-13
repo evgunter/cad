@@ -1161,9 +1161,23 @@ impl<T: Decide> Body<T> {
         sense: bool,
     ) -> Result<(), EulerOpError> {
         let f = self
-            .get_face_mut(face)
+            .get_face(face)
             .ok_or_else(|| Arg("face").miss(EntityId::Face(face)))?;
-        f.sense = sense;
+        // A joint on the chart's singular set stores the turn on the
+        // face's side, and which joints those are is a band's decision:
+        // a flipped face's rows are about the other side, and go as rows
+        // about another chart go ([`Body::drop_rows`]).
+        if !self.sides_agree(f.surface, f.sense, sense) {
+            let halves: Vec<_> = self
+                .proven_face(face)
+                .cycles()
+                .flat_map(|(_, cycle)| cycle)
+                .collect();
+            self.drop_rows(halves);
+        }
+        if let Some(f) = self.get_face_mut(face) {
+            f.sense = sense;
+        }
         Ok(())
     }
 

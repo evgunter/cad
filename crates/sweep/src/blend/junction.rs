@@ -458,14 +458,18 @@ pub(super) const JUNCTION_FEET_CROSS: &str = "a straight link between a junction
      other end is shorter than its two ends' feet need: they cross or coincide on its trimline";
 
 /// **A straight link's feet in order, on each support, where one of its
-/// ends is a junction** (`fillet3_cut_off_feet`, decided by
-/// [`feet_in_order`], as two cut-offs' feet on a shared rim are). The
-/// trimline chord the carve `mef`s runs from the foot at one station to
-/// the foot at the other; the junction's foot sits square to the
-/// junction, and the other end's (a cut-off's on an oblique end face, a
-/// turn's, a corner's) may sit further along the edge, so on a short
-/// link the two would cross. A torus link's chords run between two
-/// junctions' feet, its own trim's window ends, so it is not read here.
+/// ends is a junction or a mixed corner** (`fillet3_cut_off_feet`,
+/// decided by [`feet_in_order`], as two cut-offs' feet on a shared rim
+/// are). The trimline chord the carve `mef`s runs from the foot at one
+/// station to the foot at the other; the junction's foot sits square to
+/// the junction, and the other end's (a cut-off's on an oblique end
+/// face, a turn's, a corner's) may sit further along the edge, so on a
+/// short link the two would cross. A mixed corner's feet stand off its
+/// vertex too: a fillet's `r·cot(φ/2)` along a pair edge at the plan
+/// angle `φ` its pair makes in `E`, and `r` up the odd edge; a chamfer's
+/// host feet `(2 − √2)s` along a square corner's pair edges. So they are
+/// read the same way. A torus link's chords run between two junctions'
+/// feet, its own trim's window ends, so it is not read here.
 ///
 /// **It is what refuses a link too short for its ends.** Feet that
 /// cross put the far end's foot behind the junction's, so the end face's
@@ -495,7 +499,10 @@ pub(super) fn feet_clear<T: Decide + Bounds>(
             st.vertex == v
                 && matches!(
                     st.kind,
-                    StationKind::JunctionHost | StationKind::JunctionMate
+                    StationKind::JunctionHost
+                        | StationKind::JunctionMate
+                        | StationKind::MixedFoot
+                        | StationKind::MixedHost
                 )
         })
     };
@@ -723,7 +730,7 @@ mod tests {
 
     use super::super::BlendError;
     use super::super::admit::{
-        AdmittedOpen, OpenBand, PlannedStation, RequestedBoundary, StationKind,
+        AdmittedOpen, Foot, OpenBand, PlannedStation, RequestedBoundary, StationKind,
     };
     use super::super::battery::{BlendRequest, run_battery};
     use super::super::open::planar::{cut_off_plan, junction_plan};
@@ -797,8 +804,8 @@ mod tests {
                 PlannedStation {
                     vertex: *v,
                     on: vec![
-                        (l.face_a, c.end.foot_a, StationKind::CutOff),
-                        (l.face_b, c.end.foot_b, StationKind::CutOff),
+                        (l.face_a, Foot::At(c.end.foot_a), StationKind::CutOff),
+                        (l.face_b, Foot::At(c.end.foot_b), StationKind::CutOff),
                     ],
                 }
             })
@@ -817,10 +824,10 @@ mod tests {
                         foot = foot - Vec3::new(shift, 0.0, 0.0);
                     }
                     let j = p.junction;
-                    let mut on = vec![(j.host(), foot, StationKind::JunctionHost)];
+                    let mut on = vec![(j.host(), Foot::At(foot), StationKind::JunctionHost)];
                     on.extend(
                         j.mates()
-                            .map(|f| (f, p.reading.mate_foot, StationKind::JunctionMate)),
+                            .map(|f| (f, Foot::At(p.reading.mate_foot), StationKind::JunctionMate)),
                     );
                     PlannedStation {
                         vertex: j.vertex(),

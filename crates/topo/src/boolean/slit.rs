@@ -2312,14 +2312,13 @@ fn part<T: Decide + crate::props::AtRestPolicy>(
                     if lp != outer {
                         return Err(refused(EdgeInFaceGap::Pocket));
                     }
-                    let sense = body.get_face(face).ok_or_else(desync)?.sense;
+                    body.get_face(face).ok_or_else(desync)?;
                     let ring = body
                         .kemr_minting(made_w.he_plus, made_w.he_minus, tol)?
                         .ring;
-                    let piece = body.mfkrh_minting(ring, FaceSurface::Inherit, tol)?.face;
                     // The piece is the face's own region on its own chart,
                     // not a hole of it promoted: it keeps the face's side.
-                    body.set_face_sense(piece, sense)?;
+                    let piece = body.mfkrh_piece_minting(ring, tol)?.face;
                     divided = Some(piece);
                 } else {
                     let (ring, he) = if lp == outer {

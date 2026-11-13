@@ -307,7 +307,7 @@ fn review_tilted() {
     }
     // On main too (at θ = ±1e-3; main refuses the larger θ): turned by
     // −0.05 about `y`, the boss's top holds the slab's short edge, and
-    // the union and `B ∖ A` are no legal operand (`bool_plane_parallel`
+    // the union and `B ∖ A` are no legal operand (`plane_eq_parallel`
     // in band, margin 1.7e-9, against a far brick though each operand
     // alone unites with it), and `A ∖ B` at θ = −1e-3 fails tier 3′.
     report(bad, |b| {

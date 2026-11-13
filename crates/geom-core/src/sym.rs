@@ -961,7 +961,7 @@
 //! **NOT A PREDICATE — 8.** Seven are `pncad-py` TAG strings for error
 //! and enum variants; `carrier_kind` is a diagnostic name on an
 //! `Indeterminate` carrying `MarginKind::Invalid`
-//! (`topo/src/boolean/carrier_eq.rs`) — a structure contradiction, with
+//! (`geom-brep/src/carrier_eq.rs`) — a structure contradiction, with
 //! no margin ever classified.
 //!
 //! **EXPLICIT — 93.** Closed forms in the parameters over analytic

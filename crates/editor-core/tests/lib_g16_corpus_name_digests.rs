@@ -93,9 +93,9 @@ fn digest(ev: &editor_core::Evaluation<f64>) -> u64 {
 /// that moves a row says which documents moved and why.
 const PINNED: &[(&str, u64)] = &[
     ("die", 0x842c07a9245e3188),
-    ("corner_table", 0x9f694f6348a96dd6),
+    ("corner_table", 0x1b3f3584159afc9a),
     ("heat_sink", 0x7956_4324_d870_c32d),
-    ("crossing_slots", 0xe8dc66f2cb5166ab),
+    ("crossing_slots", 0x6ae26afc91b75dab),
     ("nested_islands_105", 0x15d51d7c25dfe6df),
     ("nested_islands_106_depth1", 0x4677e01cb07a25ee),
     ("nested_islands_106_depth2", 0x664fe6e3cc64f8a7),
@@ -111,7 +111,7 @@ const PINNED: &[(&str, u64)] = &[
     ("die_tool", 0xe198_b7d8_af7e_a0f0),
     ("face_sketch", 0xd0c00189b535698d),
     ("part_select", 0xc004_f04b_3c3b_bbd7),
-    ("symmetric_plate", 0xab53c12868591a5e),
+    ("symmetric_plate", 0xd13dfc5ab68da8be),
     ("loft_prism", 0xd2a7e1ce30bd51c2),
     ("die_composed", 0x790583813e1af47c),
     ("die_composed_tour", 0xebe1a3b276f44b4b),
@@ -123,8 +123,8 @@ const PINNED: &[(&str, u64)] = &[
     ("hollow_tube_ring", 0xaffef3b5e782e58d),
     ("reshaped_rod", 0x408e1fae110b5bc4),
     ("pin_in_bore", 0x4efadfbeeee4da76),
-    ("axis_projection", 0xc9886636e6ced645),
-    ("blocks_on_one_floor", 0x47c47127b70fd891),
+    ("axis_projection", 0xc1485fd94283cd2d),
+    ("blocks_on_one_floor", 0x88efe927d05f16eb),
     ("revolves_on_one_axis", 0x4072475117d1226a),
 ];
 

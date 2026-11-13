@@ -898,15 +898,16 @@ pub enum SplitFinishError {
     /// The run's tolerance could not produce a classification band
     /// (absurd ε) — the section-boundary description pass classifies.
     Band(geom_core::BandError),
-    /// Describing a section-boundary edge escalated on the angle
-    /// between its two faces — the dihedral at its witness or at a
-    /// station of the must-carry rule: indeterminate geometry at the
+    /// Describing a section-boundary edge escalated on the wedge between
+    /// its two faces — the dihedral at its witness, or a decision of the
+    /// whole-edge fold at a station ([`crate::edge_wedge()`]), each tagged
+    /// with the rung that raised it: indeterminate geometry at the
     /// section boundary refuses typed, never guesses a description.
-    DescribeEscalated {
+    WedgeEscalated {
         /// The section-boundary edge.
         edge: EdgeKey,
-        /// The deciding reading's diagnostic.
-        diag: geom_core::Indeterminate,
+        /// The deciding reading's escalation.
+        escalation: geom_brep::WedgeEscalation,
     },
     /// A section-boundary edge's dihedral has no reading at a spline face
     /// it bounds: the face has no image of the edge in its chart, or no
@@ -942,25 +943,6 @@ pub enum SplitFinishError {
     ConeCornerUnread {
         /// The corner's vertex.
         vertex: VertexKey,
-    },
-    /// A curved wall smooth against the section at an edge refused its
-    /// material pairing ([`geom_brep::MATERIAL_PAIRING`]): in band, or
-    /// decided zero over an arm too short to read a side.
-    DescribeSideEscalated {
-        /// The section-boundary edge.
-        edge: EdgeKey,
-        /// The pairing's diagnostic, with the margin it decided.
-        diag: geom_core::Indeterminate,
-    },
-    /// A smooth section-boundary edge's second order escalated at a
-    /// station of the must-carry rule: whether its two faces curve
-    /// apart there or share their curvature is in band, so neither the
-    /// intrinsic nor the conventional description is honest.
-    DescribeBendEscalated {
-        /// The section-boundary edge.
-        edge: EdgeKey,
-        /// The sagitta's diagnostic (`"tangent_second_order"`).
-        diag: geom_core::Indeterminate,
     },
     /// The plane did not cut the operand, every vertex reads on it, and
     /// which side its material lies on escalated: no curved edge's
@@ -1204,12 +1186,48 @@ impl SplitFinishError {
             }
             Self::Euler(e) => write!(f, "an Euler operation refused: {}", read_at(e, at)),
             Self::Band(e) => write!(f, "{e}"),
-            Self::DescribeEscalated { diag, .. } => diag
-                .undecided(
-                    "the angle between two faces along the cut",
+            Self::WedgeEscalated { escalation, .. } => {
+                let diag = escalation.diag();
+                let question = match escalation.rung() {
+                    geom_brep::WedgeRung::Arm | geom_brep::WedgeRung::Wedge => {
+                        "the angle between two faces along the cut"
+                    }
+                    geom_brep::WedgeRung::Sign => {
+                        "whether two faces along the cut meet at a convex or a concave corner"
+                    }
+                    geom_brep::WedgeRung::Pairing => {
+                        return write!(
+                            f,
+                            "{}",
+                            geom_brep::recourse::undecided_at(
+                                &diag,
+                                geom_brep::MATERIAL_PAIRING_CLAUSE,
+                                at.map(|at| {
+                                    geom_brep::MATERIAL_PAIRING.recourse(
+                                        geom_brep::recourse::RefusedArm::Undecided(&diag),
+                                        at,
+                                    )
+                                }),
+                            )
+                        );
+                    }
+                    geom_brep::WedgeRung::Bend => {
+                        "whether two faces touching along the cut curve apart there or share \
+                         their curvature"
+                    }
+                    geom_brep::WedgeRung::End => {
+                        "whether two faces touching along the cut close a cusp or a slit"
+                    }
+                };
+                let at_station = escalation
+                    .station()
+                    .map_or_else(String::new, |i| format!(" at sample {i}"));
+                diag.undecided(
+                    format_args!("{question}{at_station}"),
                     diag.lever_ending(super::SPLIT_COINCIDENCE_RECOURSE),
                 )
-                .fmt(f),
+                .fmt(f)
+            }
             Self::Undescribed { failure, .. } => write!(
                 f,
                 "an edge of the cut cannot be described against the two faces it lies \
@@ -1231,25 +1249,6 @@ impl SplitFinishError {
                  cannot be decided. {}",
                 geom_core::KERNEL_OR_FILE_DEFECT_ENDING
             ),
-            Self::DescribeSideEscalated { diag, .. } => write!(
-                f,
-                "{}",
-                geom_brep::recourse::undecided_at(
-                    diag,
-                    geom_brep::MATERIAL_PAIRING_CLAUSE,
-                    at.map(|at| {
-                        geom_brep::MATERIAL_PAIRING
-                            .recourse(geom_brep::recourse::RefusedArm::Undecided(diag), at)
-                    }),
-                )
-            ),
-            Self::DescribeBendEscalated { diag, .. } => diag
-                .undecided(
-                    "whether two faces touching along the cut curve apart there or share their \
-                     curvature",
-                    diag.lever_ending(super::SPLIT_COINCIDENCE_RECOURSE),
-                )
-                .fmt(f),
             Self::WholeBodySideEscalated { diag, .. } => diag
                 .undecided(
                     "which side of the plane a solid the plane does not cut lies on",
@@ -1472,7 +1471,7 @@ pub(super) fn split_finish<T: Decide + crate::props::AtRestPolicy>(
         // a component of its own that neither side keeps, and the slit's,
         // nested below as a ring of the section face containing it.
         if let SectionKind::Slit { strut } = section.kind {
-            let promoted = body.mfkrh(ring, FaceSurface::Inherit)?;
+            let promoted = body.mfkrh_minting(ring, FaceSurface::Inherit, tol)?;
             let (trace, slit) = if ring == strut {
                 (promoted.face, section.face)
             } else {
@@ -1516,7 +1515,7 @@ pub(super) fn split_finish<T: Decide + crate::props::AtRestPolicy>(
         // would be listed from both and refuse typed
         // (`DuplicateRedescription`), or, naming neither's chart,
         // `RechartUndescribed`.
-        let promoted = body.mfkrh(ring, FaceSurface::Inherit)?;
+        let promoted = body.mfkrh_minting(ring, FaceSurface::Inherit, tol)?;
         let charts = vec![
             Rechart::new(plane_for(ring_side), promoted.face, ring_sense),
             Rechart::new(plane_for(other_side), section.face, outer_sense),
@@ -1933,8 +1932,8 @@ pub(crate) fn section_plane_restatements<T: Decide>(
 /// surfaces (read through [`geom_brep::IntersectionDraft`]: witness ON
 /// the edge, at its carrier's mid-parameter), through the certified
 /// [`crate::Body::describe_intersection`] lane. A smooth neighbor stores
-/// what the must-carry rule over the edge demands
-/// ([`geom_brep::must_carry_over_edge`]): the intrinsic
+/// what its whole wedge, the fold tier 3 reads, demands
+/// ([`crate::edge_wedge()`]): the intrinsic
 /// `TangentIntersection` where the two surfaces determine the locus (a
 /// curved wall at a π seam), else a conventional description (D2's
 /// split — flush ON-faces, whose parallel planes under-determine it).
@@ -1956,15 +1955,13 @@ pub(crate) fn section_plane_restatements<T: Decide>(
 /// with its transverse partner reassigned to the OTHER product, so the
 /// `Intersection` it honestly carried now names a surface that is not
 /// adjacent (and not even present) on this side. A curved wall smooth
-/// against the section is first judged by its material pairing:
-/// opposed is a wedge end nothing declared and refuses
-/// ([`SplitFinishError::KnifeEdge`]). The rule's refusals are this
-/// op's: a station in band first-order
-/// ([`SplitFinishError::DescribeEscalated`], as the witness's dihedral
-/// escalates; [`SplitFinishError::DescribeSideEscalated`], as the
-/// pairing refuses) or second-order
-/// ([`SplitFinishError::DescribeBendEscalated`]), and a station that
-/// reads the edge a corner ([`SplitFinishError::SmoothJoinRefuted`]).
+/// against the section is judged by its material pairing at every
+/// station, as tier 3 judges it: opposed, a wedge end or the lamina, is
+/// one nothing declared and refuses ([`SplitFinishError::KnifeEdge`]).
+/// The fold's refusals are this op's: a station in band at any rung
+/// ([`SplitFinishError::WedgeEscalated`], as the witness's dihedral
+/// escalates), and a station that reads the edge a corner
+/// ([`SplitFinishError::SmoothJoinRefuted`]).
 ///
 /// The body is mid-operation, past the carve; each edge is read after
 /// the writes to the edges before it. Its curve is a link
@@ -2030,49 +2027,10 @@ pub(crate) fn describe_section_boundary<T: Decide + crate::props::AtRestPolicy>(
             }
             // A curved wall smooth against the section plane is
             // either a π seam or a wedge end, and only the material
-            // pairing tells them apart — tier 3's own reading
-            // (D1). The wedge end is a knife edge no input
-            // declared: this op's refusal.
+            // pairing tells them apart — tier 3's own reading (D1), its
+            // fold over the edge's stations. The wedge end is a knife
+            // edge no input declared: this op's refusal.
             Ok(geom_brep::DihedralClass::Smooth) => {
-                if !matches!(surf_other, Surface::Plane { .. }) {
-                    let sense_of = |f| proven(&body.faces, f, EntityId::Face).sense;
-                    // The pairing reads the faces' implicit normals off the
-                    // dihedral's own token: on two analytic faces the seam
-                    // reading above is this reading bit for bit, so it reads
-                    // the tangency again; a spline face's implicit form is
-                    // poison, and escalates.
-                    let tangency = match geom_brep::classify_dihedral(
-                        surf_self, surf_other, witness, reach, band,
-                    ) {
-                        Ok(geom_brep::Dihedral::Tangent(tangency)) => tangency,
-                        Ok(geom_brep::Dihedral::Corner(_)) => unreachable!(
-                            "{edge:?}: classify_seam reads two analytic faces as \
-                                 classify_dihedral does, and a spline face's implicit form \
-                                 escalates rather than read a corner"
-                        ),
-                        Err(e) => {
-                            return Err(SplitFinishError::DescribeSideEscalated {
-                                edge,
-                                diag: e.diag(),
-                            });
-                        }
-                    };
-                    let pairing = tangency
-                        .pairing([sense_of(face), sense_of(other_face)], band)
-                        .map_err(|e| SplitFinishError::DescribeSideEscalated {
-                            edge,
-                            diag: e.diag(),
-                        })?;
-                    if pairing == geom_brep::MaterialPairing::Opposed {
-                        return Err(SplitFinishError::KnifeEdge(KnifeEdge {
-                            wall: other_face,
-                            at: KnifeEdgeSite::Edge(edge),
-                        }));
-                    }
-                }
-                // Carrier and interval travel verbatim (restated,
-                // never rebuilt), as does a conventional image's
-                // declared authority (an intrinsic locus is derived).
                 let curve = existing.as_ref().unwrap_or_else(|| {
                     unreachable!(
                         "{edge:?} read smooth at its witness has a certified carrier: \
@@ -2080,22 +2038,40 @@ pub(crate) fn describe_section_boundary<T: Decide + crate::props::AtRestPolicy>(
                              chord fails the dihedral's arm gate before this arm"
                     )
                 });
-                let spec = curve.restated_spec();
-                // What the join stores is the must-carry rule's
-                // over the edge, and each refusal is this op's own.
-                let demanded = geom_brep::must_carry_description(
-                    geom_brep::SmoothJoin {
-                        surfaces: [(s_self, surf_self), (s_other, surf_other)],
-                        carrier: &spec.carrier,
-                        interval: (spec.param_start, spec.param_end),
-                        reach,
-                        witness,
-                    },
-                    band,
-                    |_, diag| SplitFinishError::DescribeEscalated { edge, diag },
-                    |_, diag| SplitFinishError::DescribeBendEscalated { edge, diag },
-                    |mixed| SplitFinishError::SmoothJoinRefuted { edge, mixed },
-                )?;
+                let (verdict, demanded) = crate::edge_wedge::edge_wedge_read(body, edge, band)
+                    .unwrap_or_else(|| {
+                        unreachable!("{edge:?} has a certified carrier and two live faces")
+                    });
+                match verdict {
+                    geom_brep::WedgeVerdict::InBand(escalation) => {
+                        return Err(SplitFinishError::WedgeEscalated { edge, escalation });
+                    }
+                    geom_brep::WedgeVerdict::Mixed(stations) => {
+                        return Err(SplitFinishError::SmoothJoinRefuted {
+                            edge,
+                            mixed: Some(stations),
+                        });
+                    }
+                    geom_brep::WedgeVerdict::Crease(_) => {
+                        return Err(SplitFinishError::SmoothJoinRefuted { edge, mixed: None });
+                    }
+                    geom_brep::WedgeVerdict::End(_) | geom_brep::WedgeVerdict::Lamina
+                        if !matches!(surf_other, Surface::Plane { .. }) =>
+                    {
+                        return Err(SplitFinishError::KnifeEdge(KnifeEdge {
+                            wall: other_face,
+                            at: KnifeEdgeSite::Edge(edge),
+                        }));
+                    }
+                    geom_brep::WedgeVerdict::Seam { .. }
+                    | geom_brep::WedgeVerdict::End(_)
+                    | geom_brep::WedgeVerdict::Lamina => {}
+                }
+                // What the join stores is what its wedge demands, and
+                // a settled tangency demands a description.
+                let Ok(demanded) = demanded else {
+                    unreachable!("{edge:?}'s settled tangency demands a description")
+                };
                 // A description of the demanded kind that names
                 // the edge's current faces stays verbatim (a stated
                 // image travels exactly); anything else — a
@@ -2130,7 +2106,7 @@ pub(crate) fn describe_section_boundary<T: Decide + crate::props::AtRestPolicy>(
                     // operand it is metered like any description
                     // (D4 ¶3).
                     let description = demanded.restated(curve, rest);
-                    let carrier = spec.carrier.kind();
+                    let carrier = curve.carrier().kind();
                     body.restate_edge(
                         crate::policy_lane::KernelSite::SectionSmooth,
                         edge,
@@ -2141,9 +2117,9 @@ pub(crate) fn describe_section_boundary<T: Decide + crate::props::AtRestPolicy>(
                 }
             }
             Err(crate::pcurves::SeamUnread::Lever(escalation)) => {
-                return Err(SplitFinishError::DescribeEscalated {
+                return Err(SplitFinishError::WedgeEscalated {
                     edge,
-                    diag: escalation.diag(),
+                    escalation: escalation.into(),
                 });
             }
             Err(crate::pcurves::SeamUnread::Crease(_)) => {
@@ -2465,7 +2441,7 @@ mod torn_hop_rows {
 mod smooth_arm_rows {
     use geom_core::{Band, Point3, Tol, Vec3};
 
-    use super::SplitFinishError;
+    use super::{KnifeEdge, KnifeEdgeSite, SplitFinishError};
     use crate::body::Body;
     use crate::entity::{EdgeKey, FaceKey, LoopBoundary};
     use geom::Surface;
@@ -2552,21 +2528,97 @@ mod smooth_arm_rows {
     /// through `mid − z`, so it touches the plane at `mid` and curves
     /// to `+z` there.
     fn cylinder_under(mid: Point3<f64>, axis: Vec3<f64>) -> Surface<f64> {
+        cylinder_of_radius_under(mid, axis, 1.0)
+    }
+
+    /// [`cylinder_under`] of radius `r`.
+    fn cylinder_of_radius_under(mid: Point3<f64>, axis: Vec3<f64>, r: f64) -> Surface<f64> {
         Surface::Cylinder {
-            origin: mid - Vec3::unit_z(),
+            origin: mid - Vec3::unit_z() * r,
             axis,
-            radius: 1.0,
+            radius: r,
             u_ref: Vec3::unit_z(),
         }
     }
 
-    /// **A corner at a station refutes the smooth premise, typed.** The
-    /// neighbour's cylinder runs ACROSS the edge, tangent to the
-    /// section plane at the midpoint only: the witness reads smooth,
-    /// the stations either side read a corner, and the split refuses
-    /// the mixed edge, naming the first two stations that disagree.
+    /// The section edge with its neighbour a cylinder of radius `r` along
+    /// the edge under the plane, its material turned to face the
+    /// section's: the two faces' outward normals opposed at the contact.
+    fn opposed_wall(r: f64) -> (SectionEdge, FaceKey) {
+        let mut edge = section_edge();
+        edge.body.surfaces[edge.s_other] = cylinder_of_radius_under(edge.mid, edge.along, r);
+        let wall = edge
+            .body
+            .faces()
+            .find(|(k, f)| f.surface == edge.s_other && *k != edge.face)
+            .map(|(k, _)| k)
+            .unwrap();
+        let sense = edge.body.get_face(wall).unwrap().sense;
+        edge.body.get_face_mut(wall).unwrap().sense = !sense;
+        (edge, wall)
+    }
+
+    /// **An opposed curved wall is a knife edge, refused at every
+    /// station.** A unit cylinder along the edge whose material faces the
+    /// section's: the stations read the tangency with its outward normal
+    /// opposed and its bend determinate, a wedge end nothing declared.
     #[test]
-    fn a_corner_at_a_station_refuses_as_a_refuted_smooth_join() {
+    fn an_opposed_curved_wall_refuses_as_a_knife_edge() {
+        let (mut fx, wall) = opposed_wall(1.0);
+        let band = Band::linear(tol()).unwrap();
+        match super::describe_section_boundary(&mut fx.body, fx.face, band, tol()) {
+            Err(SplitFinishError::KnifeEdge(KnifeEdge {
+                wall: refused,
+                at: KnifeEdgeSite::Edge(at),
+            })) => {
+                assert_eq!((refused, at), (wall, fx.edge), "the wall and its edge");
+            }
+            other => panic!("an opposed unit cylinder is a knife edge, got {other:?}"),
+        }
+    }
+
+    /// **An opposed curved wall whose bend is in band refuses at the
+    /// bend.** Against the plane a cylinder of radius `R` along the edge
+    /// bends away at `κ_rel = 1/R`, and the bend is metered as the
+    /// sagitta `κ_rel·L²/2` over the folded arm `L`, which for so flat a
+    /// wall is the faces' extent (`crate::edge_wedge_reach`). Taking
+    /// `R = L²/(2·m)`, `m = √(zero·escalate)` the band's geometric mean,
+    /// puts the sagitta at `m`, strictly inside `(zero, escalate)` at
+    /// every ε. The fold meters a tangency's bend before it reads which
+    /// end the faces make, as tier 3 does: the edge refuses
+    /// `WedgeEscalated` at the bend rung, not as a knife edge.
+    #[test]
+    fn an_opposed_wall_whose_bend_is_in_band_refuses_at_the_bend() {
+        let band = Band::linear(tol()).unwrap();
+        let reach = {
+            let fx = section_edge();
+            crate::edge_wedge_reach(&fx.body, fx.edge).unwrap().length()
+        };
+        let mean = (band.zero() * band.escalate()).sqrt();
+        let (mut fx, _) = opposed_wall(reach * reach / (2.0 * mean));
+        match super::describe_section_boundary(&mut fx.body, fx.face, band, tol()) {
+            Err(SplitFinishError::WedgeEscalated { edge, escalation }) => {
+                assert_eq!(edge, fx.edge, "the refusal names the edge");
+                assert_eq!(
+                    escalation.rung(),
+                    geom_brep::WedgeRung::Bend,
+                    "the bend is metered first: {escalation:?}"
+                );
+            }
+            other => panic!("an in-band bend refuses at the bend, got {other:?}"),
+        }
+    }
+
+    /// **A corner at a station off the faces' crossing refuses at its
+    /// sign, as tier 3 does.** The neighbour's cylinder runs ACROSS the
+    /// edge, tangent to the section plane at the midpoint only: the
+    /// witness reads smooth and the stations either side a corner, whose
+    /// crease runs along the cylinder's axis, square to the edge. The
+    /// edge's own direction reads that corner's sign a definite zero, so
+    /// the whole-edge fold escalates at the sign before it compares the
+    /// stations, and the split refuses with that rung.
+    #[test]
+    fn a_corner_at_a_station_off_the_crease_refuses_at_its_sign() {
         let SectionEdge {
             mut body,
             face,
@@ -2579,21 +2631,18 @@ mod smooth_arm_rows {
         body.surfaces[s_other] = cylinder_under(mid, Vec3::unit_z().cross(along));
         let band = Band::linear(tol()).unwrap();
         match super::describe_section_boundary(&mut body, face, band, tol()) {
-            Err(SplitFinishError::SmoothJoinRefuted {
+            Err(SplitFinishError::WedgeEscalated {
                 edge: refused,
-                mixed: Some(stations),
+                escalation,
             }) => {
-                assert_eq!(refused, edge, "the refusal names the mixed edge");
+                assert_eq!(refused, edge, "the refusal names the edge");
                 assert_eq!(
-                    stations,
-                    geom_brep::MixedStations::Class {
-                        transverse: 3,
-                        smooth: 4
-                    },
-                    "the stations bracketing the tangency at the midpoint"
+                    (escalation.rung(), escalation.diag().predicate),
+                    (geom_brep::WedgeRung::Sign, Some("dihedral_sign")),
+                    "the corner's sign, read along an edge square to its crease"
                 );
             }
-            other => panic!("a smooth-at-the-witness corner refuses typed, got {other:?}"),
+            other => panic!("a corner off the crease refuses at its sign, got {other:?}"),
         }
     }
 
@@ -2666,7 +2715,10 @@ mod smooth_arm_rows {
                 "{label}: offers {quoted:e}, wants {offered:e}"
             );
             match refusal {
-                SplitFinishError::DescribeSideEscalated { edge: refused, .. } => {
+                SplitFinishError::WedgeEscalated {
+                    edge: refused,
+                    escalation,
+                } if escalation.rung() == geom_brep::WedgeRung::Pairing => {
                     assert_eq!(refused, edge, "{label}: the refusal names the edge");
                 }
                 other => panic!("{label}: expected the pairing's refusal, got {other:?}"),
@@ -2789,13 +2841,13 @@ mod escalation_endings {
         let tail = ". Recourse: move the split plane or the geometry";
         for diag in [read, straddle] {
             for refusal in [
-                SplitFinishError::DescribeEscalated {
+                SplitFinishError::WedgeEscalated {
                     edge: EdgeKey::default(),
-                    diag,
+                    escalation: geom_brep::WedgeEscalation::at(geom_brep::WedgeRung::Wedge, diag),
                 },
-                SplitFinishError::DescribeBendEscalated {
+                SplitFinishError::WedgeEscalated {
                     edge: EdgeKey::default(),
-                    diag,
+                    escalation: geom_brep::WedgeEscalation::at(geom_brep::WedgeRung::Bend, diag),
                 },
                 SplitFinishError::WholeBodySideEscalated {
                     edge: EdgeKey::default(),
@@ -2813,9 +2865,9 @@ mod escalation_endings {
                 );
             }
         }
-        let text = SplitFinishError::DescribeEscalated {
+        let text = SplitFinishError::WedgeEscalated {
             edge: EdgeKey::default(),
-            diag: poisoned,
+            escalation: geom_brep::WedgeEscalation::at(geom_brep::WedgeRung::Wedge, poisoned),
         }
         .render(geom_brep::recourse::Reading::Build);
         assert!(

@@ -46,7 +46,7 @@ use geom_core::{Band, BandError, Decided, Indeterminate, Tol};
 use slotmap::SecondaryMap;
 
 use crate::body::Body;
-use crate::boolean::{Cell, PlaneDesc, PlaneEqError, PlaneRelation, PlaneRung, oriented_plane_eq};
+use crate::boolean::Cell;
 use crate::entity::{EdgeKey, EntityId, FaceKey, LoopKey, VertexKey};
 use crate::euler::EulerOpError;
 use crate::face_normal::plane_outward_normal;
@@ -54,6 +54,7 @@ use crate::geometry::SurfaceKey;
 use crate::live::{BoundaryMember, linked, proven};
 use crate::loop_winding::{LoopWinding, WINDING_PREDICATE};
 use crate::validate::{ValidationError, validate_closed};
+use geom_brep::{CarrierEqError, CarrierRelation, PlaneDesc, PlaneRung, oriented_plane_eq};
 
 /// One merged run: the surviving face and what was consumed into it.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -587,10 +588,8 @@ pub enum MergeCoplanarError {
         face: FaceKey,
         /// Its boundary edge.
         edge: EdgeKey,
-        /// The reading that could not decide.
-        reading: DihedralReading,
-        /// Its diagnostics.
-        diag: Indeterminate,
+        /// The must-carry rule's escalation, whole.
+        escalation: geom_brep::MustCarryEscalation,
     },
 }
 
@@ -654,8 +653,6 @@ impl EdgeDescribeFailure {
     }
 }
 
-pub use geom_brep::DihedralReading;
-
 /// Why the edge describer refused one edge, before a door words it:
 /// the merge door as [`MergeCoplanarError::KeptBoundaryUndescribed`] /
 /// [`MergeCoplanarError::KeptBoundaryUndecided`], the boolean in its
@@ -673,8 +670,7 @@ pub(crate) enum DescribeRefusal {
     /// A reading of its two faces could not decide.
     Undecided {
         edge: EdgeKey,
-        reading: DihedralReading,
-        diag: Indeterminate,
+        escalation: geom_brep::MustCarryEscalation,
     },
     /// Its line chord reads within the band of one of its two faces'
     /// surfaces, and not clearly on it ([`edge_on_faces_reading`]).
@@ -849,14 +845,9 @@ impl DescribeRefusal {
 
     pub(crate) const fn undecided(
         edge: EdgeKey,
-        reading: DihedralReading,
-        diag: Indeterminate,
+        escalation: geom_brep::MustCarryEscalation,
     ) -> Self {
-        Self::Undecided {
-            edge,
-            reading,
-            diag,
-        }
+        Self::Undecided { edge, escalation }
     }
 
     const fn edge(&self) -> EdgeKey {
@@ -901,15 +892,10 @@ impl MergeCoplanarError {
                 cause,
                 fitted,
             },
-            DescribeRefusal::Undecided {
-                edge,
-                reading,
-                diag,
-            } => Self::KeptBoundaryUndecided {
+            DescribeRefusal::Undecided { edge, escalation } => Self::KeptBoundaryUndecided {
                 face,
                 edge,
-                reading,
-                diag,
+                escalation,
             },
             DescribeRefusal::OffFace { edge, diag } => {
                 Self::KeptBoundaryOffFace { face, edge, diag }
@@ -939,11 +925,8 @@ impl MergeCoplanarError {
                 fitted: *fitted,
             }),
             Self::KeptBoundaryUndecided {
-                edge,
-                reading,
-                diag,
-                ..
-            } => Some(DescribeRefusal::undecided(*edge, *reading, *diag)),
+                edge, escalation, ..
+            } => Some(DescribeRefusal::undecided(*edge, *escalation)),
             Self::KeptBoundaryOffFace { edge, diag, .. } => {
                 Some(DescribeRefusal::off_face(*edge, *diag))
             }
@@ -961,24 +944,26 @@ impl MergeCoplanarError {
 /// the same way, leaves two carriers and a slit (one carrier, opposed)
 /// as they are, and refuses a reading the band does not decide.
 fn unglued_pair_verdict(
-    verdict: Result<PlaneRelation, PlaneEqError>,
+    verdict: Result<CarrierRelation, CarrierEqError>,
     faces: [FaceKey; 2],
 ) -> Result<bool, MergeCoplanarError> {
     match verdict {
-        Ok(PlaneRelation::SameOriented) => Ok(true),
-        Ok(PlaneRelation::SameOpposite | PlaneRelation::Distinct) => Ok(false),
-        Err(PlaneEqError::Undecided { coincidence, .. }) => Err(MergeCoplanarError::Escalated {
+        Ok(CarrierRelation::SameOriented) => Ok(true),
+        Ok(CarrierRelation::SameOpposite | CarrierRelation::Distinct) => Ok(false),
+        Err(CarrierEqError::Undecided { coincidence, .. }) => Err(MergeCoplanarError::Escalated {
             decision: MergeDecision::NeighbourCoincidence,
             diag: coincidence.reported(),
         }),
-        Err(PlaneEqError::Escalated { rung, diag }) => Err(MergeCoplanarError::Escalated {
+        Err(CarrierEqError::Escalated { rung, diag }) => Err(MergeCoplanarError::Escalated {
             decision: MergeDecision::Neighbours(rung),
             diag,
         }),
-        Err(PlaneEqError::OffRing { torus, refusal }) => Err(MergeCoplanarError::DegenerateTorus {
-            face: torus.of(faces),
-            refusal,
-        }),
+        Err(CarrierEqError::OffRing { torus, refusal }) => {
+            Err(MergeCoplanarError::DegenerateTorus {
+                face: torus.of(faces),
+                refusal,
+            })
+        }
     }
 }
 
@@ -1242,21 +1227,21 @@ impl MergeCoplanarError {
             Self::KeptBoundaryUndecided {
                 face,
                 edge,
-                reading,
-                diag,
+                escalation,
             } => {
-                let (question, ending) = match reading {
-                    DihedralReading::Lever(geom_brep::LeverRung::Arm) => (
+                let diag = &escalation.diag();
+                let (question, ending) = match escalation.rung() {
+                    geom_brep::MustCarryRung::Arm => (
                         concat!("whether the edge is ", geom_brep::dihedral_arm_clause!()),
                         at.map(|at| {
                             geom_brep::DIHEDRAL_ARM.recourse(RefusedArm::Undecided(diag), at)
                         }),
                     ),
-                    DihedralReading::Lever(geom_brep::LeverRung::Reading) => (
+                    geom_brep::MustCarryRung::Wedge => (
                         "whether the faces at it cross or meet smoothly",
                         Some(CROSS_OR_SMOOTH.to_owned()),
                     ),
-                    DihedralReading::Bend => (
+                    geom_brep::MustCarryRung::Bend => (
                         "whether the faces at it bend apart",
                         Some(CROSS_OR_SMOOTH.to_owned()),
                     ),
@@ -2625,7 +2610,7 @@ impl<T: crate::props::AtRestPolicy> Body<T> {
         f1: FaceKey,
         f2: FaceKey,
         band: Band,
-    ) -> Result<crate::boolean::ConsumedExtent<T>, MergeCoplanarError> {
+    ) -> Result<geom_brep::ConsumedExtent<T>, MergeCoplanarError> {
         crate::boolean::carrier_pair::pair_extent(self, f1, self, f2, band)
             .map(|extent| extent.consumed())
             .map_err(|side| MergeCoplanarError::PairExtentUnread {
