@@ -149,10 +149,7 @@ fn a_glued_sector_with_an_in_band_tilt_at_its_arm_lumps_as_glued() {
         face_carrier(&lower, glued.a).unwrap(),
         face_carrier(&upper, glued.b).unwrap(),
     ) {
-        (
-            CarrierDesc::Plane { normal: na, .. },
-            CarrierDesc::Plane { normal: nb, .. },
-        ) => (na, nb),
+        (CarrierDesc::Plane { normal: na, .. }, CarrierDesc::Plane { normal: nb, .. }) => (na, nb),
         other => panic!("two planes: {other:?}"),
     };
     assert!(
