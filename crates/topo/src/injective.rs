@@ -2527,7 +2527,7 @@ fn curved_walls<'a>(
             Some(w) => present_wall(piece, *e, w, None, near_edges, near_vertices, band),
             None => present_curved(piece, *e, None, near_edges, near_vertices, band),
         },
-        _ => corner_of(b, walls, near_edges)
+        _ => corner_of(b, walls, near_edges, &piece.local.vertices)
             .and_then(|c| present_corner(piece, c, near_edges, near_vertices, band))
             .unwrap_or_else(|| Err(beside_curve(piece, walls, first, near_edges, near_vertices))),
     })
@@ -2565,7 +2565,7 @@ fn beside_curve(
             .collect();
         on_shared(v)
             && curved.iter().any(|&c| at_v.contains(&c) && at_v.len() > 1)
-            && corner_of(b, &at_v, near_edges).is_none_or(|c| reading(piece, c).is_none())
+            && corner_of(b, &at_v, near_edges, &[*v]).is_none_or(|c| reading(piece, c).is_none())
     });
     if unread_corner {
         return Unpresented::Structural;
@@ -3177,14 +3177,22 @@ struct Through {
     span: (f64, f64),
 }
 
-/// **The corner a cell's two walls make**: two open edges with exactly
-/// one end in common, one of them on the shared cell. `None` for
-/// anything else — two edges meeting at both ends among them. Neither
-/// restriction is needed for soundness: a lens's other end in reach is a
-/// vertex its reading refuses, and a shared `other` would only be left
-/// off the zero, which costs a certificate, never a wrong one. They keep
-/// such cells to the readings they had.
-fn corner_of(b: &Boundary, walls: &[usize], near_edges: &[usize]) -> Option<Corner> {
+/// **The corner a cell's two walls make**: two open edges with one end
+/// in common, one of them on the shared cell. Two edges meeting at both
+/// ends, a lens, make a corner at the one of its ends among `at` (the
+/// cell's local vertices), where exactly one is; `None` for anything
+/// else. A lens is read at one end like any corner: its other end lies
+/// outside `R`, which the curve reading's run passes on both column
+/// ends of, and which the line readings admit no other vertex into.
+/// Keeping a shared `other` off is not needed for soundness — it would
+/// only be left off the zero, which costs a certificate, never a wrong
+/// one — and keeps such cells to the readings they had.
+fn corner_of(
+    b: &Boundary,
+    walls: &[usize],
+    near_edges: &[usize],
+    at: &[VertexKey],
+) -> Option<Corner> {
     let &[e, f] = walls else {
         return None;
     };
@@ -3198,8 +3206,14 @@ fn corner_of(b: &Boundary, walls: &[usize], near_edges: &[usize]) -> Option<Corn
         .copied()
         .filter(|v| rf.ends.contains(v))
         .collect();
-    let &[vertex] = common.as_slice() else {
-        return None;
+    let vertex = match common.as_slice() {
+        &[v] => v,
+        &[v, w] => match (at.contains(&v), at.contains(&w)) {
+            (true, false) => v,
+            (false, true) => w,
+            _ => return None,
+        },
+        _ => return None,
     };
     match (near_edges.contains(&e), near_edges.contains(&f)) {
         (true, false) => Some(Corner {
