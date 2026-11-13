@@ -5618,7 +5618,7 @@ impl OneRecordTokens {
                                 == crate::transform::OrientationClass::Plane
                         });
                     let charts_agree = crate::one_record::charts_agree(
-                        relation == super::CarrierRelation::SameOriented,
+                        relation == geom_brep::CarrierRelation::SameOriented,
                         [fa.sense, fb.sense != turned],
                     );
                     let side = census.moving();

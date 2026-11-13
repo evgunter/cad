@@ -53,6 +53,7 @@
 //! deterministic by fixed schedule (D9). Instantiates at `f64`,
 //! `Dual<f64>`, `Interval`, and `Dual<Interval>`.
 
+pub mod carrier_eq;
 mod carrier_net;
 pub mod carrier_pose;
 pub mod carrier_resolution;
@@ -103,6 +104,7 @@ pub mod pair_section;
 pub mod patch_bound;
 pub mod pcurve;
 pub mod pcurve_cache;
+pub mod plane_eq;
 pub mod props;
 pub mod quartic;
 pub mod recourse;
@@ -116,6 +118,10 @@ pub mod tangent;
 pub mod torus_convention;
 pub mod variety;
 
+pub use carrier_eq::{
+    CarrierDesc, CarrierEqError, CarrierRelation, CarrierVerdict, CoincidenceMeasure,
+    ConsumedExtent, carrier_eq,
+};
 pub use carrier_net::CarrierEnclosureRefusal;
 pub use carrier_pose::{
     CarrierPose, CarrierPoseRefusal, Directions, Nest, POSE_AXES_PARALLEL, POSE_AXIS_ALONG_PLANE,
@@ -248,6 +254,7 @@ pub use pcurve_cache::{
     iso_arc_skew, iso_arc_spans, minted_refusal, read_edge_incidence, read_incidence,
     read_point_incidence, ruling_miss,
 };
+pub use plane_eq::{PlaneDesc, PlaneRung, oriented_plane_eq};
 pub use props::{
     FaceContribution, LoopEdge, PropsError, curved_face, planar_face, require_iso_rectangle,
     require_one_chart_branch,

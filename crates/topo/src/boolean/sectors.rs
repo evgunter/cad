@@ -941,8 +941,8 @@ pub(super) fn tangent_lump<T: Decide>(
                 Margin::levered(sector_outward.vec().dot(n_ref), arm),
                 band,
             ) {
-                Ok(Sign::Positive) => super::plane_eq::PlaneRelation::SameOriented,
-                Ok(Sign::Negative) => super::plane_eq::PlaneRelation::SameOpposite,
+                Ok(Sign::Positive) => geom_brep::CarrierRelation::SameOriented,
+                Ok(Sign::Negative) => geom_brep::CarrierRelation::SameOpposite,
                 Ok(Sign::Zero) => {
                     return Err(BooleanError::ClassificationInvariant {
                         what: "a tangent sector pair's outward normals are perpendicular",
@@ -2497,7 +2497,7 @@ pub(super) fn pair_search<T: Decide>(
     (bodies, vertices): PairSites<'_, T>,
     sectors: [&[BoolSector<T>]; 2],
     contacts: &super::ReductionContacts,
-    glued: impl Fn(FaceKey, FaceKey) -> Option<super::PlaneRelation>,
+    glued: impl Fn(FaceKey, FaceKey) -> Option<geom_brep::CarrierRelation>,
     band: Band,
 ) -> Result<Vec<PairRecord>, BooleanError> {
     let mut records = Vec::new();
@@ -2803,7 +2803,7 @@ mod tests {
             ([&body, &body], [vertex, vertex]),
             [a, b],
             &contacts,
-            |_, _| Some(super::super::PlaneRelation::SameOpposite),
+            |_, _| Some(geom_brep::CarrierRelation::SameOpposite),
             band,
         )
     }
@@ -4560,12 +4560,12 @@ mod tests {
         let aligned = super::super::tables::eq15_3_lump(
             super::super::BooleanOp::Union,
             Operand::A,
-            super::super::plane_eq::PlaneRelation::SameOriented,
+            geom_brep::CarrierRelation::SameOriented,
         );
         let opposed = super::super::tables::eq15_3_lump(
             super::super::BooleanOp::Union,
             Operand::A,
-            super::super::plane_eq::PlaneRelation::SameOpposite,
+            geom_brep::CarrierRelation::SameOpposite,
         );
         assert_ne!(
             aligned, opposed,

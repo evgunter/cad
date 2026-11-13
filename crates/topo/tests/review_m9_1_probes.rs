@@ -9,19 +9,14 @@
 use crate::common;
 
 use common::{brick, finished};
+use geom_brep::{CarrierDesc, CarrierRelation, carrier_eq};
 use geom_core::Tol;
 use geom_core::{Band, Point3, Vec3};
 use topo::boolean::contact_verify::tangent_locus_relation;
-use topo::{CarrierDesc, CarrierRelation, ValidationError, carrier_eq, validate_pseudomanifold};
+use topo::{ValidationError, validate_pseudomanifold};
 
 fn band() -> Band {
     Band::linear(Tol::witness()).unwrap()
-}
-
-/// A ball of radius `arm` about the origin: the extent a bare arm
-/// names.
-fn at(arm: f64) -> topo::ConsumedExtent<f64> {
-    topo::ConsumedExtent::new(geom_brep::ExtentBall::of_sphere(Point3::origin(), arm))
 }
 
 fn sphere(c: [f64; 3], r: f64, outward: bool) -> CarrierDesc<f64> {
@@ -62,7 +57,7 @@ fn probe_sphere_length_margins_ignore_the_arm() {
     let off = sphere([1e-3, 0.0, 0.0], 2.0, false);
     for arm in [1e-3, 1.0, 1e3] {
         assert_eq!(
-            carrier_eq(&a, &off, &at(arm), band()).unwrap(),
+            carrier_eq(&a, &off, &geom_brep::ConsumedExtent::arm(arm), band()).unwrap(),
             CarrierRelation::Distinct,
             "definite center offset must be Distinct at arm {arm}"
         );
@@ -71,7 +66,7 @@ fn probe_sphere_length_margins_ignore_the_arm() {
     let near = sphere([1e-13, 0.0, 0.0], 2.0, false);
     for arm in [1e-3, 1e3] {
         assert_eq!(
-            carrier_eq(&a, &near, &at(arm), band()).unwrap(),
+            carrier_eq(&a, &near, &geom_brep::ConsumedExtent::arm(arm), band()).unwrap(),
             CarrierRelation::SameOpposite,
             "a zero-band center offset is one carrier at arm {arm}"
         );
@@ -95,12 +90,12 @@ fn probe_cylinder_angular_margin_is_levered_at_the_arm() {
     };
     // Unit arm: the tilt decides zero.
     assert_eq!(
-        carrier_eq(&a, &b, &at(1.0), band()).unwrap(),
+        carrier_eq(&a, &b, &geom_brep::ConsumedExtent::arm(1.0), band()).unwrap(),
         CarrierRelation::SameOpposite
     );
     // Large arm: the same tilt is a definite misalignment there.
     assert_eq!(
-        carrier_eq(&a, &b, &at(1e6), band()).unwrap(),
+        carrier_eq(&a, &b, &geom_brep::ConsumedExtent::arm(1e6), band()).unwrap(),
         CarrierRelation::Distinct
     );
 }
@@ -118,7 +113,7 @@ fn probe_mm_vs_metre_twin_and_margin_naming() {
     let k2 = cyl([0.0, 0.0, 0.0], [0.0, 0.0, 1.0], 3001.0, false);
     for (a, b) in [(&m1, &m2), (&k1, &k2)] {
         assert_eq!(
-            carrier_eq(a, b, &at(1.0), band()).unwrap(),
+            carrier_eq(a, b, &geom_brep::ConsumedExtent::arm(1.0), band()).unwrap(),
             CarrierRelation::Distinct
         );
     }
@@ -126,7 +121,7 @@ fn probe_mm_vs_metre_twin_and_margin_naming() {
     // — the ladder walks PAST the offset to the radius.
     let near = cyl([1e-13, 0.0, 0.0], [0.0, 0.0, 1.0], 3.001, false);
     assert_eq!(
-        carrier_eq(&m1, &near, &at(1.0), band()).unwrap(),
+        carrier_eq(&m1, &near, &geom_brep::ConsumedExtent::arm(1.0), band()).unwrap(),
         CarrierRelation::Distinct
     );
 }
@@ -290,12 +285,12 @@ fn probe_equal_carriers_are_one_and_a_definite_difference_two() {
     let a = sphere([0.0, 0.0, 0.0], 2.0, true);
     let b = sphere([0.0, 0.0, 0.0], 2.0, false);
     assert_eq!(
-        carrier_eq(&a, &b, &at(1.0), band()).unwrap(),
+        carrier_eq(&a, &b, &geom_brep::ConsumedExtent::arm(1.0), band()).unwrap(),
         CarrierRelation::SameOpposite
     );
     let off = sphere([0.0, 0.0, 0.0], 2.5, false);
     assert_eq!(
-        carrier_eq(&a, &off, &at(1.0), band()).unwrap(),
+        carrier_eq(&a, &off, &geom_brep::ConsumedExtent::arm(1.0), band()).unwrap(),
         CarrierRelation::Distinct
     );
 }

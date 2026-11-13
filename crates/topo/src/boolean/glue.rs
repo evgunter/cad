@@ -30,12 +30,13 @@ use geom_core::{Band, Bounds, Decide};
 
 use super::section_table::SectionTable;
 use super::{
-    BooleanError, CarrierRelation, CarrierVerdict, DeclarationRead, Glue, GluedPair, Operand,
-    PairUnread, TangencyFailure, carrier_pair_decided, glued_tangency,
+    BooleanError, DeclarationRead, Glue, GluedPair, Operand, PairUnread, TangencyFailure,
+    carrier_pair_decided, glued_tangency,
 };
 use crate::body::Body;
 use crate::boxes;
 use crate::entity::FaceKey;
+use geom_brep::{CarrierRelation, CarrierVerdict};
 
 /// **The first-written operand**, A: an n-ary operation folds its
 /// members in list order, each step's accumulation its operand A. Where
