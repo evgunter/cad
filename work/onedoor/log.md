@@ -466,3 +466,9 @@ Ev, in chat: "go ahead in whatever order you see fit (including parallelizing th
   - **wedge stage 3** (M, dual): the blend's `classify_edge_wedge`, `EdgeWedge`, `PositiveArm` and the second `Convexity` move onto the fold.
   
   The two P1s #6890 absorbed are closed.
+- **15:51 — three lanes dispatched,** all cloud sessions:
+  - S173: byte 102, Opus, `session_018u3gVG971wwZ4y1XNPEqL2` on `onedoor/s173-face-carrier`;
+  - the P0 name-digest red: byte 185, Fable, `session_018u3gVGeEUcGWxoTaGrjm8E` on `onedoor/crossing-slots-red`;
+  - wedge stage 3: byte 176, Opus, `session_018u3gVK745WZBDpJyJKF6Sc` on `onedoor/wedge-fold-3`.
+  
+  Every brief carries the new rules: class by failure text, and gate each step on its own exit.
