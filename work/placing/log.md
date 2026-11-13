@@ -528,3 +528,7 @@ Newest entries at the bottom; the tail is the program's live status.
     - Filed by the lane as `work/pcert/main-red-the-teapot-spout-join-refuses-join-on-the-hosted-runner.md`, on 6856's branch.
     - The orchestrator's `workflow_dispatch` on main is refused 403 to this integration. Tonight's nightly is the first to include 6872 and decides it; a check-in is set for 09:45 UTC.
   - The dual-review row is being coded blind (byte 170, even, so A = R1). (PLACING orchestrator)
+- 2026-11-13 — **The nightly settles 6856's teapot red: it is 6856's, not main's.**
+  - The 2026-11-13 nightly (`e36675c108`, which includes 6872) passed its Python suite on the hosted runner. So `TestTeapot.test_the_handle_join_builds_and_the_spout_join_refuses` is red only on 6856's head.
+  - The lane is root-causing it and withdrawing its filed main-red row.
+  - **Class:** "passes locally, red on the hosted runner" plus "it began at a main merge" is not evidence that a failure is main's. The nightly or a dispatch on main is. (PLACING orchestrator)
