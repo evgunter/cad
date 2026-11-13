@@ -150,11 +150,10 @@ fn a_spline_wall_path_arriving_on_a_side_reads_its_starts_side() {
     assert_eq!(decided, 5);
 }
 
-/// **A wall whose weights no iso curve shares is not read**, nor is a
-/// plane; and a point off the wall has no path: its foot is not the
-/// point.
+/// **A wall whose weights vary along both parameters is not read**; and
+/// a point off the wall has no path: its foot is not the point.
 #[test]
-fn a_wall_with_no_shared_iso_weights_and_a_point_off_the_wall_are_not_read() {
+fn a_wall_whose_weights_vary_along_both_parameters_and_a_point_off_the_wall_are_not_read() {
     let chart = wall();
     let mut weights = vec![1.0; 9];
     weights[4] = 0.5;

@@ -58,8 +58,13 @@ and not by the brick.
 The planar face's case is not built: three readings of a planar run
 with spline arcs are viable
 (`a-ring-on-a-planar-face-closed-by-carried-chords-has-no-winding`).
-Two walls stay unread, each typed: one whose weights factor along
-neither parameter
-(`a-spline-wall-with-no-shared-iso-weights-has-no-ring-winding`), and
+Two walls stay unread, each typed: one whose weights are constant
+along neither parameter
+(`a-spline-wall-whose-weights-vary-along-both-parameters-has-no-ring-winding`), and
 any wall at a scalar wider than a point
 (`a-spline-walls-ring-is-not-wound-at-an-enclosure-scalar`).
+Re-homing refuses where the face a chord walls off holds one of the
+wall's rim edges
+(`re-homing-a-ring-on-a-spline-wall-refuses-where-the-new-face-holds-a-rim-edge`),
+and a point just below a closed wall's seam has no path
+(`a-closed-spline-walls-projection-stops-at-its-seam`).
