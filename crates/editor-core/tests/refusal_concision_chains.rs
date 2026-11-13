@@ -1881,7 +1881,7 @@ fn own_arms() -> Vec<(String, NodeErrorKind)> {
         row(
             "MeasureEscalated",
             NodeErrorKind::MeasureEscalated {
-                source: named("bool_plane_parallel"),
+                source: named("plane_eq_parallel"),
             },
         ),
         row(

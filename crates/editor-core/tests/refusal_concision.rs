@@ -518,7 +518,7 @@ fn rendered_boolean_refusals() -> Vec<(&'static str, String)> {
         (
             "Escalated (Neighbours(Parallel), in-band enclosure)",
             BooleanError::Escalated {
-                decision: topo::BooleanDecision::Neighbours(topo::PlaneRung::Parallel),
+                decision: topo::BooleanDecision::Neighbours(geom_brep::PlaneRung::Parallel),
                 diag: enclosed,
             },
         ),
@@ -590,7 +590,7 @@ fn rendered_boolean_refusals() -> Vec<(&'static str, String)> {
         (
             "Escalated (Neighbours(Parallel), in band)",
             BooleanError::Escalated {
-                decision: topo::BooleanDecision::Neighbours(topo::PlaneRung::Parallel),
+                decision: topo::BooleanDecision::Neighbours(geom_brep::PlaneRung::Parallel),
                 diag: in_band,
             },
         ),

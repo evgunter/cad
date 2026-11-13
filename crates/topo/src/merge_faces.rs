@@ -46,7 +46,7 @@ use geom_core::{Band, BandError, Decided, Indeterminate, Tol};
 use slotmap::SecondaryMap;
 
 use crate::body::Body;
-use crate::boolean::{Cell, PlaneDesc, PlaneEqError, PlaneRelation, PlaneRung, oriented_plane_eq};
+use crate::boolean::Cell;
 use crate::entity::{EdgeKey, EntityId, FaceKey, LoopKey, VertexKey};
 use crate::euler::EulerOpError;
 use crate::face_normal::plane_outward_normal;
@@ -54,6 +54,7 @@ use crate::geometry::SurfaceKey;
 use crate::live::{BoundaryMember, linked, proven};
 use crate::loop_winding::{LoopWinding, WINDING_PREDICATE};
 use crate::validate::{ValidationError, validate_closed};
+use geom_brep::{CarrierEqError, CarrierRelation, PlaneDesc, PlaneRung, oriented_plane_eq};
 
 /// One merged run: the surviving face and what was consumed into it.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -943,24 +944,26 @@ impl MergeCoplanarError {
 /// the same way, leaves two carriers and a slit (one carrier, opposed)
 /// as they are, and refuses a reading the band does not decide.
 fn unglued_pair_verdict(
-    verdict: Result<PlaneRelation, PlaneEqError>,
+    verdict: Result<CarrierRelation, CarrierEqError>,
     faces: [FaceKey; 2],
 ) -> Result<bool, MergeCoplanarError> {
     match verdict {
-        Ok(PlaneRelation::SameOriented) => Ok(true),
-        Ok(PlaneRelation::SameOpposite | PlaneRelation::Distinct) => Ok(false),
-        Err(PlaneEqError::Undecided { coincidence, .. }) => Err(MergeCoplanarError::Escalated {
+        Ok(CarrierRelation::SameOriented) => Ok(true),
+        Ok(CarrierRelation::SameOpposite | CarrierRelation::Distinct) => Ok(false),
+        Err(CarrierEqError::Undecided { coincidence, .. }) => Err(MergeCoplanarError::Escalated {
             decision: MergeDecision::NeighbourCoincidence,
             diag: coincidence.reported(),
         }),
-        Err(PlaneEqError::Escalated { rung, diag }) => Err(MergeCoplanarError::Escalated {
+        Err(CarrierEqError::Escalated { rung, diag }) => Err(MergeCoplanarError::Escalated {
             decision: MergeDecision::Neighbours(rung),
             diag,
         }),
-        Err(PlaneEqError::OffRing { torus, refusal }) => Err(MergeCoplanarError::DegenerateTorus {
-            face: torus.of(faces),
-            refusal,
-        }),
+        Err(CarrierEqError::OffRing { torus, refusal }) => {
+            Err(MergeCoplanarError::DegenerateTorus {
+                face: torus.of(faces),
+                refusal,
+            })
+        }
     }
 }
 
@@ -2607,7 +2610,7 @@ impl<T: crate::props::AtRestPolicy> Body<T> {
         f1: FaceKey,
         f2: FaceKey,
         band: Band,
-    ) -> Result<crate::boolean::ConsumedExtent<T>, MergeCoplanarError> {
+    ) -> Result<geom_brep::ConsumedExtent<T>, MergeCoplanarError> {
         crate::boolean::carrier_pair::pair_extent(self, f1, self, f2, band)
             .map(|extent| extent.consumed())
             .map_err(|side| MergeCoplanarError::PairExtentUnread {

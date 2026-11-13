@@ -41,9 +41,9 @@ use crate::splitting::Escalation;
 
 use crate::contact::GlueClass;
 
-pub use super::plane_eq::PlaneRung;
 pub use super::solid_contain::WallRung;
 use crate::face_normal::NormalDecision;
+use geom_brep::PlaneRung;
 use geom_brep::curve_face::plane_crossing::ConicRootFault;
 pub use geom_brep::edge_crossing::CrossingDecision;
 pub use geom_brep::sector_shape::SectorRung;
@@ -1020,10 +1020,10 @@ pub enum SelfCheck {
     /// margin at another arm than the transition reading that sent it,
     /// so its in-band arm is the corners' overlap undecided.)
     GermLine,
-    /// Whether two faces' normals at a corner can be read
-    /// (`bool_faces_parallel`, `plane_eq`'s parallelism rung): a norm
-    /// read definitely negative is poisoned input, and no declaration
-    /// or move of the parts reads it.
+    /// Whether two planes are parallel over an extent whose lever arm
+    /// reads negative (`geom_brep::PlaneRung::Norm`): the parallelism
+    /// margin decided a sign a norm cannot take. No caller's extent
+    /// reads negative, so no declaration or move of the parts reads it.
     Normals,
     /// Which way a germ turns about the conic section it lies on
     /// (`bool_join_arc_facing`): a zero sense is a radial germ,
@@ -1047,7 +1047,9 @@ impl SelfCheck {
     pub const fn subject(self) -> &'static str {
         match self {
             Self::GermLine => "whether two faces meeting at a corner cross along a line",
-            Self::Normals => "whether the normals of two faces can be read",
+            Self::Normals => {
+                "whether two planes are parallel over an extent whose lever arm reads negative"
+            }
             Self::ArcFacing => "which way a germ turns about the section it lies on",
             Self::RingWinding => "which way a ring run of the section winds",
             Self::SeamSense => "which way a seam that closes at one vertex runs",
@@ -2340,7 +2342,7 @@ pub(in crate::boolean) mod tests {
                 Ending::Defect,
             ),
             BooleanDecision::SelfCheck(SelfCheck::Normals) => (
-                "whether the normals of two faces can be read",
+                "whether two planes are parallel over an extent whose lever arm reads negative",
                 Ending::Defect,
             ),
             BooleanDecision::SelfCheck(SelfCheck::ArcFacing) => (
@@ -2975,13 +2977,8 @@ pub(in crate::boolean) mod tests {
 
     /// Two planes through `z = 1`, the second facing `sign` times the
     /// first's normal.
-    fn planes(
-        sign: f64,
-    ) -> (
-        crate::boolean::PlaneDesc<f64>,
-        crate::boolean::PlaneDesc<f64>,
-    ) {
-        let plane = |n: f64| crate::boolean::PlaneDesc {
+    fn planes(sign: f64) -> (geom_brep::PlaneDesc<f64>, geom_brep::PlaneDesc<f64>) {
+        let plane = |n: f64| geom_brep::PlaneDesc {
             origin: Point3::new(0.0, 0.0, 1.0),
             normal: Vec3::new(0.0, 0.0, n),
         };
@@ -3013,7 +3010,7 @@ pub(in crate::boolean) mod tests {
         let BooleanError::PoisonedCarrierDatum { pair, diag } = err else {
             panic!("the gate refuses the poisoned datum: {err:?}");
         };
-        assert_eq!(diag.predicate, Some("bool_plane_offset"), "{diag:?}");
+        assert_eq!(diag.predicate, Some("plane_eq_offset"), "{diag:?}");
         assert!(
             pair.iter().all(|&(operand, _)| operand == Operand::A),
             "both neighbours are the operand's: {pair:?}"
@@ -3358,11 +3355,14 @@ pub(in crate::boolean) mod tests {
         }
     }
 
-    /// **An unreadable norm, and the maximal-faces gate's rungs, each
-    /// end where their own door can reach** (D4 ¶1 (i)). A norm the
-    /// parallelism rung could not read (`plane_eq::unreadable_norm`, the
-    /// rung's own raise) ends as a defect at every Boolean door, with no
-    /// declaration. The
+    /// **A parallelism read over a negative arm, and the maximal-faces
+    /// gate's rungs, each end where their own door can reach** (D4 ¶1
+    /// (i)). Two perpendicular planes over an extent whose radius reads
+    /// negative take the plane ladder's `Norm` rung (the norm gate's
+    /// rejection of a negative parallelism margin): no caller's extent
+    /// reads negative, so it ends as a defect at every Boolean door, with
+    /// no declaration, and its sentence asks the question that stays
+    /// open. The
     /// maximal-faces gate compares two faces of one operand, which no
     /// declaration names: a real in-band parallelism raise there (two
     /// neighbours bent by an in-band angle over a unit extent) and a
@@ -3371,35 +3371,39 @@ pub(in crate::boolean) mod tests {
     /// its margin gives and the latter with none, since either
     /// orientation leaves the faces coplanar.
     #[test]
-    fn an_unreadable_norm_and_the_neighbour_gate_end_where_their_door_reaches() {
-        use crate::boolean::plane_eq::unreadable_norm;
-        use crate::boolean::{PlaneDesc, PlaneEqError, PlaneRung, oriented_plane_eq};
+    fn a_negative_arm_and_the_neighbour_gate_end_where_their_door_reaches() {
+        use geom_brep::{CarrierEqError, ConsumedExtent, PlaneDesc, PlaneRung, oriented_plane_eq};
         let b = band();
         let (z, e) = (b.zero(), b.escalate());
-        let PlaneEqError::Escalated {
+        let (flat, _) = planes(1.0);
+        let wall = PlaneDesc {
+            origin: Point3::new(0.0, 0.0, 1.0),
+            normal: Vec3::new(1.0, 0.0, 0.0),
+        };
+        let Err(CarrierEqError::Escalated {
             rung: PlaneRung::Norm,
             diag,
-        } = unreadable_norm(b)
+        }) = oriented_plane_eq(&flat, &wall, &ConsumedExtent::arm(-1.0), b)
         else {
-            panic!("the unreadable norm is its own rung");
+            panic!("a negative arm takes the norm's own rung");
         };
-        // No move of the parts reads poison: the refusal is the kernel's.
         let text = BooleanError::plane_identity(PlaneRung::Norm, diag)
             .render(geom_brep::recourse::Reading::Build);
         let problems = short_of_the_guard(&text, &[]);
         assert!(problems.is_empty(), "{problems:?}: {text}");
         assert_eq!(
-            text.strip_prefix("whether the normals of two faces can be read is undecided: ")
-                .and_then(|t| t.split_once(". "))
-                .map(|(_, ending)| ending),
-            Some(KERNEL_DEFECT_ENDING),
-            "an unreadable norm is a defect: {text}"
+            text,
+            format!(
+                "whether two planes are parallel over an extent whose lever arm reads negative \
+                 is undecided: margin -1e0 lies past the ambiguity band ({z:e}, {e:e}) — a \
+                 decided sign this decision cannot use. {KERNEL_DEFECT_ENDING}"
+            ),
+            "a negative arm is a defect, asked as the question it leaves open"
         );
         const GATE: &str = "Recourse: merge the two faces into one (merge_coplanar_faces), \
                             or tilt one to meet at a clear angle along an edge spanning \
                             clearly more than the tolerance";
         let theta = (z + e) / 2.0;
-        let (flat, _) = planes(1.0);
         let bent = PlaneDesc {
             origin: Point3::new(0.0, 0.0, 1.0),
             normal: Vec3::new(theta.sin(), 0.0, theta.cos()),
@@ -3408,10 +3412,9 @@ pub(in crate::boolean) mod tests {
             (bent, 1.0, PlaneRung::Parallel),
             (flat, (z + e) / 2.0, PlaneRung::Orientation),
         ] {
-            let err =
-                oriented_plane_eq(&flat, &p2, &crate::boolean::ConsumedExtent::arm(extent), b)
-                    .expect_err("the gate's rung refuses");
-            let PlaneEqError::Escalated { rung: got, diag } = err else {
+            let err = oriented_plane_eq(&flat, &p2, &geom_brep::ConsumedExtent::arm(extent), b)
+                .expect_err("the gate's rung refuses");
+            let CarrierEqError::Escalated { rung: got, diag } = err else {
                 panic!("{rung:?}: an escalation: {err:?}");
             };
             assert_eq!(got, rung);

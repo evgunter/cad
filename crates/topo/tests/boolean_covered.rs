@@ -23,9 +23,10 @@ use std::collections::BTreeSet;
 use crate::common;
 
 use common::{brick, finished};
+use geom_brep::CarrierDesc;
 use geom_core::Tol;
 use topo::{
-    AtRestBody, Body, BooleanBody, BooleanResult, BooleanResultKind, CarrierDesc, FaceKey, Operand,
+    AtRestBody, Body, BooleanBody, BooleanResult, BooleanResultKind, FaceKey, Operand,
     face_carrier, intersect, mass_properties, subtract, union,
 };
 

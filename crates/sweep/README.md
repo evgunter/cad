@@ -616,7 +616,15 @@ at the scalar refuses `UnsupportedGeometry` at its link. Each link's
 strip is read within its own window, the slab between a straight
 link's end normals or an arc's wedges (the union of its pieces', each
 under a half turn), by the support-boundary meter and
-by the reach; and two links of one chain, closed or open, joined along it by
+by the reach. The meter clips a line or circle piece to each window's
+half-planes, a circle's to the arcs `φ ± acos(−k/A)`, and reads the
+level over the parts inside, each connected, so a piece that only
+passes the window's edges (a disc's wide arc, a hole's trim circle
+beside a corner) clears, and one whose part inside meets the strip
+refuses at that part's depth. A piece that may only graze a window's
+edge within the band is a touch, and escalates `RingClearance` only
+where it decides the read: where every definite reading on the face
+clears and the touch does not. Two links of one chain, closed or open, joined along it by
 links turning less than a half turn are not a clearance pair of the
 battery's support screen, their windows lying on either side of that
 run (which holds while every arc's radius exceeds twice the ball's, the
@@ -631,10 +639,8 @@ one adds, the section `r²(1 − π/4)` along the path its centroid takes
 shrinks, each metered against its link's strip (a cross-drilled wall
 keeps its bore), and a ladder rim on the shared face (a round hole
 through the plate) carves in the same call, in either carve order
-(`band_mixed_rim_shared_supports`). A ladder ring the meter cannot
-read clear of a mixed link's windowed strip refuses `UnsupportedChain`
-with the sequential recourse rather than a margin
-(`work/band/a-mixed-ring-inside-a-few-wide-arcs-refuses-at-the-support-meter.md`). An annulus rim sharing a support
+(`band_mixed_rim_shared_supports`), a hole beside a corner arc
+included. An annulus rim sharing a support
 with a mixed rim refuses `UnsupportedChain` with the sequential
 recourse
 (`work/band/an-annulus-rim-around-a-mixed-rim-refuses-in-one-call.md`).

@@ -2,7 +2,8 @@
 id: carrier-eq-and-plane-eq-take-no-body
 kind: unit
 title: "[topo.homes] arm 1: boolean/carrier_eq and boolean/plane_eq take no Body and stay in topo"
-status: review
+status: closed
+closed: 2026-11-13
 branch: onedoor/carrier-eq-home
 opened: 2026-11-03
 priority: P1

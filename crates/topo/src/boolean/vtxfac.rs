@@ -22,7 +22,7 @@
 //!    algebra, which needs an origin — it refuses typed on a curved
 //!    pierced face rather than inventing one.
 //! 2. **On-sectors reclassify per Eq. 15.3** (op-dependent), behind
-//!    [`super::oriented_plane_eq`] — a coplanar sector must be
+//!    [`geom_brep::oriented_plane_eq`] — a coplanar sector must be
 //!    *declaredly* coplanar with the pierced face or the op refuses.
 //! 3. **The ring insertion** (the unprinted Euler sequence, designed):
 //!    in the pierced body (and, for a pierce point inside a face of the
@@ -1046,7 +1046,7 @@ pub(super) fn read_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
                 Operand::A => (s.face, contact.face),
                 Operand::B => (contact.face, s.face),
             });
-            let aligned = matches!(rel, super::PlaneRelation::SameOriented);
+            let aligned = matches!(rel, geom_brep::CarrierRelation::SameOriented);
             if keeper == piercing {
                 for (edge, _) in super::sectors::bound_edges(orbit_body, s) {
                     fates.edges.push(super::fate::FateEdge {
@@ -2260,8 +2260,7 @@ fn held_reads<T: Decide + crate::props::AtRestPolicy>(
     // Unsourced lever: the ball about the pierce out to its runs'
     // shortest arm, a neighbourhood the arm names rather than a region
     // the extent home reads off the runs' geometry.
-    let extent =
-        super::carrier_eq::ConsumedExtent::new(geom_brep::ExtentBall::unsourced(p, arm.length()));
+    let extent = geom_brep::ConsumedExtent::new(geom_brep::ExtentBall::unsourced(p, arm.length()));
     let read_face = |face| -> Result<Option<HeldRead<T>>, BooleanError> {
         // The face's outward normal at the point, its bend there (`None`
         // on a plane), and the reading that puts the point on it.
@@ -2568,7 +2567,7 @@ fn mint_held<T: Decide + crate::props::AtRestPolicy>(
 }
 
 /// Whether faces `a` and `b` of `body` lie on one carrier, decided: by
-/// the carrier ladder ([`super::carrier_eq`](mod@super::carrier_eq)) over `extent` where it has
+/// the carrier ladder ([`geom_brep::carrier_eq`](mod@geom_brep::carrier_eq)) over `extent` where it has
 /// an arm for both, else datum by datum on their stored descriptions,
 /// each within the band (`bool_held_carrier_datum`). Anything undecided
 /// is `false`, which reads the face rather than passing it over.
@@ -2576,10 +2575,10 @@ fn one_carrier<T: Decide>(
     body: &Body<T>,
     a: crate::entity::FaceKey,
     b: crate::entity::FaceKey,
-    extent: &super::carrier_eq::ConsumedExtent<T>,
+    extent: &geom_brep::ConsumedExtent<T>,
     band: Band,
 ) -> bool {
-    use super::carrier_eq::{CarrierRelation, carrier_eq};
+    use geom_brep::{CarrierRelation, carrier_eq};
     if let (Some(x), Some(y)) = (
         super::carrier_pair::face_carrier(body, a),
         super::carrier_pair::face_carrier(body, b),
