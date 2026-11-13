@@ -4699,6 +4699,7 @@ pub(crate) enum WalkFail<E> {
 /// — hand it their own derivation through `item`. The pass keeps no
 /// joint; the site mint keeps the element of every joint its door
 /// leaves as found, between two images that stand.
+#[allow(clippy::too_many_arguments)]
 fn walk_cycle<T: Decide, I: WalkImage<T>, E>(
     chart: DescribedChart<'_, T>,
     sense: bool,
