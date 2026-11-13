@@ -52,27 +52,30 @@ gone for spline nodes, and the nearly-osculating row is in.
 
 ## Where it stands (`sectarms/spline-node-carry`)
 
-The trace half is built: every arc of a spline × implicit node is
-carried to the node's point (`ssi::ends::Ends::enter`, then graded from
-`NODE_GRADE_FIRST`), limb 3's chart tube is graded per box and ends in
-the node's own box, read by `ssi::node::holds_node`
-(`ssi::certify::chart_tube`, `node_ends`), the ray is the sector holding
-the chain's last box checked against the end tangent
-(`spline_implicit::ray_at`; `ray_of` is gone), and the pad is read box by
-box (`CarriedComponent::boxes`), a site in a node's box escalating.
+The trace half is built:
+- **Carry to the node.** Every arc of a spline × implicit node is carried
+  to the node's point (`ssi::ends::Ends::enter`). It is graded toward the
+  node, finer within a few last chords of it (`NODE_GRADE_FINE`).
+- **The node's box.** Limb 3's chart tube is graded per box and ends in
+  the node's own box. That box is bound to the carrier's end by the
+  node's reading, and to the node's settle reach
+  (`ssi::node::node_box`).
+- **The ray** is the sector holding the chain's last box, checked
+  against the end tangent (`spline_implicit::ray_at`; `ray_of` is gone).
+- **The pad** is read box by box (`CarriedComponent::boxes`), and a site
+  in a node's box escalates.
 
 Two parts of "Done when" wait:
 
-- **At rest**: a chord to the node misses its at-rest chart image, which
-  the fixed foot schedule cannot fit to a carrier graded toward the node
-  (`a-node-arcs-chord-misses-its-at-rest-chart-image`, a change to C2's
-  "the same foot schedule").
-- **The nearly osculating row**: a 1 m sphere on
-  `z = 0.505x² + 0.495y²` never reaches the node listing. The
-  classification's sweep declines `Budget` at its survivor cap first
-  (257 survivors at a floor of `5e-9`), the in-band disc about a node
-  whose Hessian is a hundredth of either surface's being far wider than
-  the cap (`the-sweeps-survivor-cap-declines-a-unit-scale-saddles-node`).
-  The row lands with that fix; whether limb 3 then needs `∇φ` read
-  through `φ`'s Hessian is measured there.
-
+- **At rest.** A chord of a node arc does not certify at rest. The fixed
+  foot schedule's spans are too coarse at the node for limb 3, and
+  certifying it needs C2's "the same foot schedule" changed
+  (`a-node-arcs-chord-misses-its-at-rest-chart-image`, `design: true`).
+- **The nearly osculating row.** A 1 m sphere on `z = 0.505x² + 0.495y²`
+  never reaches the node listing. The classification's sweep declines
+  `Budget` at its survivor cap first (257 survivors at a floor of
+  `5e-9`). The in-band disc about a node whose Hessian is a hundredth of
+  either surface's is far wider than the cap
+  (`the-sweeps-survivor-cap-declines-a-unit-scale-saddles-node`). The row
+  lands with that fix, and whether limb 3 then needs `∇φ` read through
+  `φ`'s Hessian is measured there.

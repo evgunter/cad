@@ -252,14 +252,18 @@ spans the carrier (chart edges walked in runs of one sign or monotone,
 rung whose chain is a graph but not one arc gives way to a narrower one. A
 chain may end at a node of the section (C5). Its radius is then read
 box by box, narrowing in proportion to the box's distance from the
-node, and the pad a site reads is the radius of the box it lies in. Its
+node, and the pad a site reads is the widest of the boxes it lies in,
+each the farthest that box's image stands from the carrier. Its
 last box holds the node, and the claim over that box is the node's own
-reading: `∇φ`'s one zero there by the Krawczyk operator, its Hessian
-indefinite and its value decided Zero, re-read about the edge's end
-vertex at rest and stored nowhere. The chain stops where a box no
-longer holds one arc, about `√(εR)` from the node, `R` the surfaces'
-relative curvature radius: a site there and not at the node is
-assigned to no arc and escalates. The ray the arc's end names (C5) is
+reading: `∇φ`'s one zero there by the Krawczyk operator, within the
+band of the carrier's end, its Hessian indefinite and its value decided
+Zero, re-read about the edge's end vertex at rest and stored nowhere.
+The chain stops about `√(εR)` from the node, `R` the surfaces' relative
+curvature radius, by a fixed rule: the arc's samples settle toward the
+node until `|∇φ|` times their distance from it falls to a fixed multiple
+of the band (about `8√(εR)`), and the last box is twice the end span's
+reach, which may be no more than a fixed multiple of that settle reach:
+a site in it and not at the node is assigned to no arc and escalates. The ray the arc's end names (C5) is
 the null ray of the node's Hessian whose sector holds the chain's last
 boxes, and it is the carrier's end tangent; a mismatch refuses.
 With none certified, the narrowest rung probed speaks: its band verdict

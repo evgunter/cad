@@ -1560,8 +1560,12 @@ pub(crate) const NODE_PAD_SHARE_NEAR: f64 = 1.0 / 8.0;
 /// How many of its box's half-widths from a node the pad narrows at
 /// [`NODE_PAD_SHARE_NEAR`] (D9); past it, at [`NODE_PAD_SHARE`], so the
 /// tube the accounting banks outside the node's own region stays as
-/// wide as the transverse enclosure allows.
-pub(crate) const NODE_PAD_REACH: f64 = 4.0;
+/// wide as the transverse enclosure allows. One half-width reaches the
+/// window before the node's box, whose hull runs into the box: none at
+/// all leaves the 78° node's last box across two sectors, and sixteen
+/// narrow a lemniscate a hundredth of a unit across past its
+/// accounting's cells.
+pub(crate) const NODE_PAD_REACH: f64 = 1.0;
 
 /// How many times the settled samples' reach from a node its box is,
 /// half-width (D9; [`super::node::node_box`]): a march's last settled

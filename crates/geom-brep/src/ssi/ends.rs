@@ -639,6 +639,9 @@ impl<const M: usize, const N: usize, S: SectionSystem<M, N>> Ends<'_, S, M, N> {
             let Some(y) = super::march::newton_refine(self.sys, aim, self.ctx.tol) else {
                 break;
             };
+            // A sample Newton carries off its halving, to the node or
+            // back out, is no settle of this arc's: the march stops. No
+            // fixture's Newton leaves the window, so no row pins it.
             let dy = chart(&y);
             if !(dy > 0.25 * d && dy < 0.75 * d) {
                 break;

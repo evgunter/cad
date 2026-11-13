@@ -1018,9 +1018,9 @@ fn a_node_is_listed_and_carried_to_at_every_scale() {
 
 /// **A lemniscate a hundredth of a unit across is listed and carried**:
 /// its node's two loops each carried to it at both ends. Red against the
-/// node's fine pad reaching past [`crate::ssi::certify::NODE_PAD_REACH`]
-/// of four node-box halves (sixteen): its tube narrows across most of
-/// the wall, and the reading's accounting runs out of cells.
+/// node's fine pad reaching past `ssi::certify::NODE_PAD_REACH` of one
+/// node-box half (sixteen): its tube narrows across most of the wall,
+/// and the reading's accounting runs out of cells.
 #[test]
 fn a_lemniscate_a_hundredth_across_is_listed_and_carried() {
     test_utils::pinned_red::row(
@@ -1074,11 +1074,14 @@ fn a_node_box_is_its_settle_reach() {
 /// centre it reads a node; with the plane a micron off the node's level
 /// the saddle point's value is past the band, and with it half the band
 /// off, within it, the reading a node; over the bowl's top a touch; and
-/// over a box a micron from the node holding no critical point, nothing.
+/// over a box a micron from the node holding no critical point, or one
+/// whose edge holds the node, where the operator never proves the zero
+/// alone, nothing.
 ///
 /// Red against: the Hessian's determinant's sign dropped (the bowl reads
 /// a node), the value's decision dropped (the plane a micron off reads a
-/// node), and the Krawczyk proof dropped (the empty box reads a node).
+/// node), and the Krawczyk proof dropped (the box with the node on its
+/// edge reads a node).
 #[test]
 fn the_node_reading_decides_a_node_and_nothing_else() {
     use crate::ssi::exhaust::UvRect;
@@ -1095,7 +1098,7 @@ fn the_node_reading_decides_a_node_and_nothing_else() {
         (0.0, 1.0),
     );
     let off = (0.500_02, 0.499_97);
-    let cases: [(&str, Surface<f64>, f64, UvRect, Option<Kind>); 5] = [
+    let cases: [(&str, Surface<f64>, f64, UvRect, Option<Kind>); 6] = [
         ("the node", cross(), 0.0, about(off, 1e-4), Some(Kind::Node)),
         (
             "a micron off its level",
@@ -1123,6 +1126,16 @@ fn the_node_reading_decides_a_node_and_nothing_else() {
             cross(),
             0.0,
             about((0.5 + 1e-6, 0.5), 2e-7),
+            None,
+        ),
+        (
+            "the node on the box's edge, never proved alone",
+            cross(),
+            0.0,
+            UvRect {
+                u: (0.5, 0.5002),
+                v: (0.4999, 0.5001),
+            },
             None,
         ),
     ];
@@ -1319,4 +1332,108 @@ fn a_witness_is_read_in_an_arcs_own_window() {
         },
     );
     assert!(got.is_none(), "no witness in the node's box: {got:?}");
+}
+
+/// **Two arcs of one node are held apart outside its box** (`apart`):
+/// two arcs leaving a node at the origin along `+x` and nearly along it,
+/// each read box by box. Where their boxes meet only inside the node's
+/// box, both carry; where they meet again 0.9 from the node, both refuse
+/// `PadsMeet`, as two arcs sharing no node do.
+///
+/// Red against: every pair of arcs sharing a node skipped whole (the
+/// far meeting carried, where a site there reads on both and escalates
+/// as if at the node).
+#[test]
+fn two_arcs_of_one_node_are_held_apart_outside_its_box() {
+    use crate::pair_section::{
+        CarriedComponent, CarryError, CarryRefusal, ClassCarrier, ComponentEnds, NodeEnd, NodeEnds,
+        PadBox, SectionComponent,
+    };
+    let node_box = PadBox {
+        lo: [-1e-3; 3],
+        hi: [1e-3; 3],
+        pad: 1e-3,
+        node: Some(0),
+    };
+    let arc = |line, far: f64| {
+        let ends = ComponentEnds {
+            nodes: NodeEnds {
+                start: Some(NodeEnd {
+                    node: 0,
+                    line,
+                    sense: RaySense::Along,
+                }),
+                end: None,
+            },
+            ..ComponentEnds::default()
+        };
+        let shape = ComponentShape::Open { ends };
+        let boxes = vec![
+            node_box,
+            PadBox {
+                lo: [5e-4, -2e-4, -1e-4],
+                hi: [0.5, far, 1e-4],
+                pad: 1e-4,
+                node: None,
+            },
+            PadBox {
+                lo: [0.5, -1e-4, -1e-4],
+                hi: [1.0, 1e-4, 1e-4],
+                pad: 1e-4,
+                node: None,
+            },
+        ];
+        SectionComponent {
+            shape,
+            winds: [false, false],
+            witness: None,
+            pad: 0.0,
+            carrier: ClassCarrier::Fitted(Box::new(Ok(CarriedComponent {
+                carrier: geom::Curve3::line(pt(0.0, 0.0, 0.0), Vec3::unit_x()),
+                span: (0.0, 1.0),
+                shape,
+                certificate: None,
+                winds: [false, false],
+                pad: 1e-4,
+                reach: 0.0,
+                witness: pt(0.5, 0.0, 0.0),
+                boxes,
+            }))),
+            cut_ends: None,
+        }
+    };
+    let carried =
+        |c: &SectionComponent<f64>| matches!(&c.carrier, ClassCarrier::Fitted(f) if f.is_ok());
+    // The second arc's boxes beside the first's: they meet at the node's
+    // box, and again along the far box, 0.9 from the node.
+    let mut meeting = vec![arc(NodeLine::First, 2e-4), arc(NodeLine::Second, 2e-4)];
+    super::apart(&mut meeting, band());
+    assert!(
+        meeting.iter().all(|c| matches!(
+            &c.carrier,
+            ClassCarrier::Fitted(f) if matches!(f.as_ref(), Err(CarryError::Refused(CarryRefusal::PadsMeet { .. })))
+        )),
+        "arcs whose boxes meet far from their node refuse: {:?}",
+        meeting.iter().map(|c| carried(c)).collect::<Vec<_>>()
+    );
+    // Moved off along `y` past the far box's reach, they meet only in
+    // the node's box (each first box reaching into it).
+    let mut apart_but_at_node = vec![arc(NodeLine::First, 2e-4), {
+        let mut c = arc(NodeLine::Second, 2e-4);
+        if let ClassCarrier::Fitted(f) = &mut c.carrier
+            && let Ok(a) = f.as_mut()
+        {
+            for b in a.boxes.iter_mut().filter(|b| b.node.is_none()) {
+                b.lo[1] += 0.01;
+                b.hi[1] += 0.01;
+            }
+            a.boxes[1].lo = [5e-4, 5e-4, -1e-4];
+        }
+        c
+    }];
+    super::apart(&mut apart_but_at_node, band());
+    assert!(
+        apart_but_at_node.iter().all(carried),
+        "arcs meeting only at their node's box carry"
+    );
 }

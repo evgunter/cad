@@ -43,19 +43,27 @@ that precedes it.
 ## A spline node (2026-11-13)
 
 With spline × implicit arcs carried to their nodes
-(`sectarms/spline-node-carry`), the second arm is still not reached by a
-row. A site within the node's box and off the node reads on every arc
-whose box holds it, and escalates, but the escalation that a site in a
-node's box owes on its own (`CarriedSection::site`'s box arm, row
+(`sectarms/spline-node-carry`), the second arm is still not reached by
+a row that a mutant could fail. A site in a node's box and off the node
+reads on every arc whose boxes hold it. Those arcs share the node, so
+it escalates by this arm. m9 still survives there, because the
+escalation that a site in a node's box owes on its own
+(`CarriedSection::site`'s box arm, row
 `pair_section::wiring::a_site_in_a_nodes_box_on_one_arc_escalates`)
-answers the same refusal, so m9 still survives there. Outside the box
-each arc's pad near the node is an eighth of its distance from it
-(`ssi::certify::NODE_PAD_SHARE_NEAR`), so two arcs' boxes meet only
-where the node's lines are within some 20° of each other (an estimate
-from the pad share, not measured), and those nodes refuse at the
-listing (no sector holds the
-chain's last box, `spline_node_ray`). The first arm waits on a node
-boolean that reaches the germ: the saddle row now stops at the at-rest
-certificate of its first chord to the node
-(`a-node-arcs-chord-misses-its-at-rest-chart-image`).
+answers it the same way.
 
+Outside the node's box, the carry holds two arcs of one node apart by
+their boxes (`spline_implicit::apart`), each widened by the band, and
+refuses `PadsMeet` where two of them meet. So a site outside the box
+reads on two such arcs only where the carry has already refused them.
+A box's pad there is the farthest its window's image stands from the
+carrier, which on the cross and the lemniscate is up to 4 and 9 times
+the window's distance from the node (both reviewers of PR 6897
+measured it); it is not a share of that distance.
+
+The first arm waits on a node boolean that reaches the germ. The saddle
+row stops before the join reads any site, at the plane's chord along the
+block's side wall
+(`a-planes-carried-arc-across-a-flared-spline-wall-misses-its-own-image-at-rest`),
+and a node arc's chord does not certify at rest
+(`a-node-arcs-chord-misses-its-at-rest-chart-image`).
