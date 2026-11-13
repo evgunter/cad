@@ -2123,7 +2123,6 @@ where
                 } else {
                     unreachable!("a touching pair meets or is near")
                 };
-                crate::injective::scratch_count(&format!("touch:{}:{}", if meet {"meet"} else {"near"}, match &outcome { Outcome::Certified{..} => "cert".to_string(), Outcome::Split{arm, ..} => format!("split-{}", arm.name()), Outcome::Refuse(r) => format!("refuse-{}", r.name()), Outcome::Cusp{..} => "cusp".to_string() }));
                 let outcome = match outcome {
                     Outcome::Cusp { shared } if pair.depth >= CUSP_DEPTH => {
                         Outcome::Refuse(EngineRefusal::Uncertified {
@@ -2271,7 +2270,6 @@ where
         // decides in part only is refused `BoxDependent` here rather than
         // split, because a split narrows the cells and never the box.
         // That is what keeps it an exhibit rather than a sample.
-        crate::injective::scratch_count(&format!("dist:{}:same{}:d{}", match &r.below { Some(Reading::Undecided(_)) => "undecided", Some(Reading::Clear) => "clear", _ => "other" }, x.face == y.face, pair.depth.min(12)));
         let probe_here = pair.fresh || pair.depth >= walk.budgets.max_cell_depth;
         let mut split = Open {
             below: false,

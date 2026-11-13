@@ -700,18 +700,10 @@ fn interval_sign_as(x: Interval, row: &'static str, band: Band) -> Option<Sign> 
 }
 
 fn is_zero(x: Interval, band: Band) -> bool {
-    let r = decide(SELF_INTERSECTION_ON_SHARED, Margin::of(x), band);
-    scratch_count(match &r { Ok(Sign::Zero) => "is_zero:zero", Ok(_) => "is_zero:nonzero", Err(_) => "is_zero:undecided" });
-    matches!(r, Ok(Sign::Zero))
-}
-
-static SCRATCH: std::sync::Mutex<BTreeMap<String, usize>> = std::sync::Mutex::new(BTreeMap::new());
-pub(crate) fn scratch_count(k: &str) {
-    *SCRATCH.lock().unwrap().entry(k.to_string()).or_default() += 1;
-}
-/// scratch
-pub fn scratch_zero_counts() -> BTreeMap<String, usize> {
-    std::mem::take(&mut *SCRATCH.lock().unwrap())
+    matches!(
+        decide(SELF_INTERSECTION_ON_SHARED, Margin::of(x), band),
+        Ok(Sign::Zero)
+    )
 }
 
 fn flip(s: Sign) -> Sign {
@@ -1679,10 +1671,10 @@ fn present_chart<'a>(
             let Some(&p) = b.vertices.get(&v) else {
                 continue;
             };
-            let r = decide(SELF_INTERSECTION_APEX, Margin::of((p - *apex).norm()), band);
-            scratch_count(match &r { Ok(Sign::Zero) => "apex:zero", Ok(_) => "apex:nonzero", Err(_) => "apex:undecided" });
-            let forced = std::env::var("SCRATCH_FORCE").is_ok() && r.is_err();
-            if !matches!(r, Ok(Sign::Zero)) && !forced {
+            if !matches!(
+                decide(SELF_INTERSECTION_APEX, Margin::of((p - *apex).norm()), band),
+                Ok(Sign::Zero)
+            ) {
                 continue;
             }
             let Some(lo) = nappe(b, *apex, *axis, band) else {
@@ -1987,7 +1979,6 @@ fn present_plane<'a>(
     match edges.as_slice() {
         [e] => {
             if !piece.local.vertices.is_empty() {
-                scratch_count("plane:one-edge-with-vertex");
                 return Err(Unpresented::Local);
             }
             let (p, q) = segment(*e)?;
@@ -2010,7 +2001,6 @@ fn present_plane<'a>(
             let len = len2.sqrt();
             let inside = (x * len).min((at(1.0) - x) * len);
             if interval_sign_as(inside, SELF_INTERSECTION_SPAN, band) != Some(Sign::Positive) {
-                scratch_count("plane:one-edge-span");
                 return Err(Unpresented::Local);
             }
             let zero = if near_edges.contains(e) {
@@ -2040,7 +2030,6 @@ fn present_plane<'a>(
                 return Err(Unpresented::Local);
             };
             if piece.local.vertices.iter().any(|&w| w != vtx) {
-                scratch_count("plane:corner-other-vertex");
                 return Err(Unpresented::Local);
             }
             let (p1, q1) = segment(*e1)?;
@@ -2073,7 +2062,6 @@ fn present_plane<'a>(
                 || interval_sign_as(lean(n2, a), SELF_INTERSECTION_CORNER, band)
                     != Some(Sign::Positive)
             {
-                scratch_count("plane:corner-lean");
                 return Err(Unpresented::Local);
             }
             let det = a[0] * bv[1] - a[1] * bv[0];
@@ -2090,7 +2078,6 @@ fn present_plane<'a>(
                 || interval_sign_as((at(1.0) - y) * lb, SELF_INTERSECTION_SPAN, band)
                     != Some(Sign::Positive)
             {
-                scratch_count("plane:corner-span");
                 return Err(Unpresented::Local);
             }
             let z1 = near_edges.contains(e1);
@@ -2116,7 +2103,7 @@ fn present_plane<'a>(
                 cache: Cache::default(),
             })))
         }
-        _ => { scratch_count("plane:many-edges"); Err(Unpresented::Local) }
+        _ => Err(Unpresented::Local),
     }
 }
 
@@ -4510,14 +4497,9 @@ fn sign_on(
             Axis::V => (p.x, (b, b)),
         }
     };
-    let kind = match psi { Psi::Linear{..} => "linear", Psi::Carrier(_) => "carrier", Psi::Graph{..} => "graph" };
-    let zk = match &p.zero { Zero::None => "none", Zero::Side(_) => "side", Zero::Past(_) => "past", Zero::Corner(..) => "corner", Zero::Point(..) => "point", Zero::Curve(..) => "curve" };
     let zero_on = |s: Side| {
         let (x, y) = side_of(s);
-        let force = std::env::var("SCRATCH_FORCE").is_ok() && zk != "past";
-        let r = !checked || force || on_side(psi, p, x, y).is_some_and(|v| is_zero(v, band));
-        scratch_count(&format!("zero_on:{kind}:{zk}:{r}"));
-        r
+        !checked || on_side(psi, p, x, y).is_some_and(|v| is_zero(v, band))
     };
     let (fx, fy, fxy) = p.jet();
     let image = p.whole();
@@ -4664,9 +4646,6 @@ fn departure(x: &Piece<'_>, y: &Piece<'_>, near: &Near, band: Band, two: bool) -
     }
     let px = present(x, &ex, &near.vertices, band);
     let py = present(y, &ey, &near.vertices, band);
-    for p in [&px, &py] {
-        scratch_count(&format!("present:{}", match p { Ok(Presentation::Vacuous) => "vacuous".to_string(), Ok(Presentation::Of(q)) => format!("of-{:?}", std::mem::discriminant(&q.zero)), Err(e) => format!("err-{e:?}") }));
-    }
     for (p, face, side) in [(&px, x.face, Which::First), (&py, y.face, Which::Second)] {
         if let Err(Unpresented::Collapsed(v)) = p {
             return Outcome::Refuse(EngineRefusal::CollapsedChart {
@@ -4961,9 +4940,10 @@ fn cusp(
     let nx = px.shared_normal(x.boundary.sense)?;
     let ny = py.shared_normal(y_sense)?;
     let gap = lift(nx + ny).norm() * x.ball.reach();
-    let r = decide(SELF_INTERSECTION_CUSP, Margin::of(gap), band);
-    scratch_count(match &r { Ok(Sign::Zero) => "cusp:zero", Ok(_) => "cusp:nonzero", Err(_) => "cusp:undecided" });
-    if !matches!(r, Ok(Sign::Zero)) {
+    if !matches!(
+        decide(SELF_INTERSECTION_CUSP, Margin::of(gap), band),
+        Ok(Sign::Zero)
+    ) {
         return None;
     }
     Some(SharedCell::Edge(x.boundary.edges.get(*i)?.key))

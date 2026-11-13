@@ -162,7 +162,6 @@ pub(crate) mod fixtures;
 pub(crate) mod fuse;
 pub mod geometry;
 pub(crate) mod injective;
-pub use injective::scratch_zero_counts;
 #[cfg(test)]
 pub(crate) mod source_walk;
 

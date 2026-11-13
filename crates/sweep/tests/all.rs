@@ -843,8 +843,6 @@ mod s393_start_frame_door;
 mod s49_census_jurisdiction;
 #[path = "seam_vertex_sites.rs"]
 mod seam_vertex_sites;
-#[path = "clear_zero_scratch.rs"]
-mod clear_zero_scratch;
 #[path = "shell_cavity_embedded.rs"]
 mod shell_cavity_embedded;
 #[path = "shell_general_door.rs"]
