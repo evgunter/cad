@@ -1452,7 +1452,8 @@ pub fn line_meet<T: Real>(a: geom::Line<T>, b: geom::Line<T>, n: Vec3<T>) -> Poi
 /// shared face's normal and the odd strip's. Folding it in as a
 /// positive multiple — `normalize(g·(g·outward))` — keeps the
 /// derivation branch-free and total; a patch plane orthogonal to
-/// `outward` poisons rather than picking a side. The face therefore mints with sense `true`, like the strips,
+/// `outward` poisons rather than picking a side. The face therefore
+/// mints with sense `true`, like the strips,
 /// and this module has no convexity parameter to leave half-derived.
 #[must_use]
 pub fn chamfer_corner_patch<T: Real>(feet: [Point3<T>; 3], outward: Vec3<T>) -> Surface<T> {
