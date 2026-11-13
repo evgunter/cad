@@ -436,3 +436,7 @@ Ev, in chat: "go ahead in whatever order you see fit (including parallelizing th
   - B says APPROVE-WITH-FIXES and classed that red as main's by the row being red at base, which is a false negative.
   - Adjudicated: the MAJOR stands. The fix stays inside the ratified rule ("the angle between the two edges' tangents"), so the tangents are read off the carriers, not the images. Not an `[ev]` question.
   - The fix pass (18 items) went to the implementer session at about 06:06. Coding is in `onedoor-facepair-scratch/coding-6900.md`.
+- **10:08 — carrier-eq move reported** (head `9e051199`). Both modules are at geom-brep's root with every signature kept. `PlaneRelation`/`PlaneEqError` are retired, with no re-export in topo. The K names took their new modules' prefixes (`plane_eq_*`, `carrier_plane_reach*`). 17 reds are main's by failure text and 1 is the branch's.
+  - **Its stop:** geom-brep's `kstats_escalation_channel` census forbids hand-built `Indeterminate`s, and `plane_eq::unreadable_norm` builds one off the log. Topo never had the rule, so the move exposed a second minting door that topo let stand.
+  - **Ruled by the orchestrator** (it applies geom-brep's existing rule): mint through `k_stats`, keep `CarrierEqError`'s shape, and disclose the payload change.
+  - Sent back at 10:28, with a census count of topo's other hand-built `Indeterminate`s as a question.
