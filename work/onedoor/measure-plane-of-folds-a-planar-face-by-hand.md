@@ -22,14 +22,13 @@ because `angle` reads the chart normal on purpose
 (`work/coincide/a-face-read-as-a-plane-has-no-stated-sense.md`). So the
 fold cannot simply be replaced by `face_outward_normal`. Which plane a
 face read as a plane hands out is that row's open question, and this
-row waits on its answer. `face_plane` is `pub(crate)`, so
-`face_normal::face_carrier_desc`'s plane arm is the public door that
-answers the origin and outward normal today.
+row waits on its answer. The door an outside caller reads for the
+origin and outward normal is `topo::face_normal::face_plane`.
 
 The sibling in `sweep`, `blend/build.rs` `fn outward_of`, is already
 `work/census/S57.md`'s.
 
-Found by S173's sweep for hand-built planar folds (`from_chart(` or
-`chart_outward_normal(` in a file that also destructures
-`Surface::Plane { .. normal .. }`, over `topo/src`, `sweep/src` and
-`editor-core/src`).
+Found by S173's sweep for hand-built planar folds: a call to
+`from_chart(`, `chart_outward_normal(` or `plane_outward_normal(` in a
+file that also destructures `Surface::Plane { .. normal .. }`, over every
+crate's `src/`.

@@ -49,7 +49,7 @@ use crate::body::Body;
 use crate::boolean::Cell;
 use crate::entity::{EdgeKey, EntityId, FaceKey, LoopKey, VertexKey};
 use crate::euler::EulerOpError;
-use crate::face_normal::{face_plane, plane_outward_normal};
+use crate::face_normal::{face_outward_normal, face_plane};
 use crate::geometry::SurfaceKey;
 use crate::live::{BoundaryMember, linked, proven};
 use crate::loop_winding::{LoopWinding, WINDING_PREDICATE};
@@ -213,13 +213,13 @@ struct KindCensus<'a> {
     kinds: SecondaryMap<FaceKey, MergeKind>,
     /// Each live face's record, which the adjacency test reads its
     /// surface key and sense off.
-    described: Described<'a>,
+    records: FaceRecords<'a>,
     /// The faces on a placeholder, in face-arena order.
     placeholders: Vec<FaceKey>,
 }
 
-/// [`KindCensus::described`]'s map.
-type Described<'a> = SecondaryMap<FaceKey, &'a crate::entity::Face>;
+/// [`KindCensus::records`]'s map.
+type FaceRecords<'a> = SecondaryMap<FaceKey, &'a crate::entity::Face>;
 
 /// What becomes of one group's INVENTORY refusal — the door's two
 /// failure regimes, named so the boundary between them is a value
@@ -1949,7 +1949,7 @@ impl<T: crate::props::AtRestPolicy> Body<T> {
         // net refuses before any group forms.
         let KindCensus {
             kinds,
-            described,
+            records,
             placeholders,
         } = self.kind_census()?;
         let mut outcome = MergeCoplanarOutcome {
@@ -1962,7 +1962,7 @@ impl<T: crate::props::AtRestPolicy> Body<T> {
         for (edge_key, edge) in self.edges() {
             let (hp, hm) = self.edge_halves(edge_key, edge);
             let (fp, fm) = (hp.face, hm.face);
-            if fp != fm && self.faces_continue(hp, hm, &described, &ctx)? {
+            if fp != fm && self.faces_continue(hp, hm, &records, &ctx)? {
                 neighbors.entry(fp).or_default().push(fm);
                 neighbors.entry(fm).or_default().push(fp);
                 any = true;
@@ -2212,7 +2212,7 @@ impl<T: crate::props::AtRestPolicy> Body<T> {
     fn kind_census(&self) -> Result<KindCensus<'_>, MergeCoplanarError> {
         let mut census = KindCensus {
             kinds: SecondaryMap::new(),
-            described: SecondaryMap::new(),
+            records: SecondaryMap::new(),
             placeholders: Vec::new(),
         };
         for face in self.face_views() {
@@ -2222,7 +2222,7 @@ impl<T: crate::props::AtRestPolicy> Body<T> {
                 census.placeholders.push(face_key);
             }
             census.kinds.insert(face_key, kind);
-            census.described.insert(face_key, record);
+            census.records.insert(face_key, record);
         }
         Ok(census)
     }
@@ -2528,7 +2528,7 @@ impl<T: crate::props::AtRestPolicy> Body<T> {
     /// adjacency scan resolved them: their faces are the pair, and
     /// their start vertices are the edge's two ends.
     ///
-    /// `described` is the kind census's record of every live face.
+    /// `records` is the kind census's record of every live face.
     ///
     /// # Errors
     ///
@@ -2544,12 +2544,12 @@ impl<T: crate::props::AtRestPolicy> Body<T> {
         &self,
         plus: HalfEdgeFacts,
         minus: HalfEdgeFacts,
-        described: &Described<'_>,
+        records: &FaceRecords<'_>,
         ctx: &MergeCtx,
     ) -> Result<bool, MergeCoplanarError> {
         let (f1, f2) = (plus.face, minus.face);
         let resolved = |f: FaceKey| {
-            let Some(&entry) = described.get(f) else {
+            let Some(&entry) = records.get(f) else {
                 unreachable!(
                     "{f:?}, read off a loop's face link, is not in the kind census: the census \
                      holds every live face of the body the scan reads"
@@ -2985,15 +2985,14 @@ impl<T: crate::props::AtRestPolicy> Body<T> {
     ) -> Result<Option<usize>, MergeCoplanarError> {
         let band = Band::linear(tol).map_err(|error| MergeCoplanarError::Band { error })?;
         let survivor = self.proven_face(face);
-        let described = survivor.surface();
         // The face's OUTWARD normal (S10): "positively wound" means
         // CCW seen from OUTSIDE the material, so on a reversed face
         // the chart normal names the opposite convention and every
         // role assignment below would come out inverted.
-        let Surface::Plane { normal, .. } = described else {
+        let Some(normal) = face_outward_normal(self, face) else {
             return Ok(None);
         };
-        let normal = plane_outward_normal(survivor.record(), *normal).vec();
+        let normal = normal.vec();
         // Every loop's verdict, outline slot first (`None`). A negative
         // winding and an empty loop are not positive and name nothing.
         let mut positive: Vec<(Option<usize>, LoopKey)> = Vec::new();
@@ -3494,7 +3493,7 @@ mod tests {
             let panicked = crate::surgery::tests::caught(std::panic::AssertUnwindSafe(|| {
                 got = Some(
                     body.kind_census()
-                        .and_then(|census| body.faces_continue(hp, hm, &census.described, &ctx)),
+                        .and_then(|census| body.faces_continue(hp, hm, &census.records, &ctx)),
                 );
             }));
             match (want, panicked) {

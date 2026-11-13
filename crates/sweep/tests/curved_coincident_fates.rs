@@ -316,10 +316,10 @@ fn a_rod_at_a_box_edge_borders_alike_in_either_order() {
     let union = op_fates("∪", &boxed, &at_edge);
     let wall = rounded(&format!(
         "{:?}",
-        geom_brep::CarrierDesc::Plane {
+        geom_brep::CarrierDesc::Plane(geom_brep::PlaneDesc {
             origin: geom_core::Point3::new(2.0, 0.0, 0.5),
             normal: geom_core::Vec3::new(1.0, 0.0, 0.0),
-        }
+        })
     ));
     let edges = [
         "(2,-0.5,0) (2,-0.5,1)",

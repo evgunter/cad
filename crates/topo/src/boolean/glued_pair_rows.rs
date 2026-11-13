@@ -149,7 +149,10 @@ fn a_glued_sector_with_an_in_band_tilt_at_its_arm_lumps_as_glued() {
         face_carrier_desc(&lower, glued.a).unwrap(),
         face_carrier_desc(&upper, glued.b).unwrap(),
     ) {
-        (CarrierDesc::Plane { normal: na, .. }, CarrierDesc::Plane { normal: nb, .. }) => (na, nb),
+        (
+            CarrierDesc::Plane(geom_brep::PlaneDesc { normal: na, .. }),
+            CarrierDesc::Plane(geom_brep::PlaneDesc { normal: nb, .. }),
+        ) => (na, nb),
         other => panic!("two planes: {other:?}"),
     };
     assert!(
@@ -359,7 +362,7 @@ fn a_fold_step_glues_a_pair_its_door_reads_in_band_today() {
             .filter(|&k| {
                 matches!(
                     face_carrier_desc(body, k),
-                    Some(CarrierDesc::Plane { normal, .. }) if normal.z > 0.5
+                    Some(CarrierDesc::Plane(geom_brep::PlaneDesc { normal, .. })) if normal.z > 0.5
                 )
             })
             .collect::<Vec<_>>()

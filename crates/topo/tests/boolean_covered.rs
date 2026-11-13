@@ -42,7 +42,8 @@ type Ends = [[i64; 3]; 2];
 
 /// The outward normal of `body`'s face `f`, rounded to a unit axis.
 fn normal(body: &Body<f64>, f: FaceKey) -> Axis {
-    let Some(CarrierDesc::Plane { normal, .. }) = face_carrier_desc(body, f) else {
+    let Some(CarrierDesc::Plane(geom_brep::PlaneDesc { normal, .. })) = face_carrier_desc(body, f)
+    else {
         panic!("face {f:?} is not a plane of its operand");
     };
     [normal.x, normal.y, normal.z].map(|c| c.round() as i8)
@@ -51,7 +52,9 @@ fn normal(body: &Body<f64>, f: FaceKey) -> Axis {
 /// The plane offset of `body`'s face `f` along its rounded normal, in
 /// thousandths.
 fn level(body: &Body<f64>, f: FaceKey) -> i64 {
-    let Some(CarrierDesc::Plane { origin, normal }) = face_carrier_desc(body, f) else {
+    let Some(CarrierDesc::Plane(geom_brep::PlaneDesc { origin, normal })) =
+        face_carrier_desc(body, f)
+    else {
         panic!("face {f:?} is not a plane of its operand");
     };
     let n = [normal.x, normal.y, normal.z].map(f64::round);

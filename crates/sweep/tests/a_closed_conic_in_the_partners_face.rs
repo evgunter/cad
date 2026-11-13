@@ -401,7 +401,9 @@ fn the_fallback_cuts_a_closed_rim_beside_a_ring() {
         // The rows by the plane of the B face they name: the top at z 0,
         // the lid's bottom at z 1.
         let level = |f: topo::FaceKey| match topo::face_normal::face_carrier_desc(&other, root(f)) {
-            Some(geom_brep::CarrierDesc::Plane { origin, .. }) => (origin.z * 2.0).round() as i8,
+            Some(geom_brep::CarrierDesc::Plane(geom_brep::PlaneDesc { origin, .. })) => {
+                (origin.z * 2.0).round() as i8
+            }
             c => panic!("{label}: a plane face, {c:?}"),
         };
         let held: Vec<i8> = n.substituted.iter().map(|s| level(s.face)).collect();

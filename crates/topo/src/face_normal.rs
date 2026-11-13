@@ -157,33 +157,47 @@ pub fn face_outward_normal<T: Decide>(body: &Body<T>, face: FaceKey) -> Option<O
 ///
 /// Where `face` resolves and its surface does not (D2 row 4): a torn
 /// surface is not a non-planar one.
-pub(crate) fn face_plane<T: Decide>(body: &Body<T>, face: FaceKey) -> Option<PlaneDesc<T>> {
+pub fn face_plane<T: Decide>(body: &Body<T>, face: FaceKey) -> Option<PlaneDesc<T>> {
     let f = body.face(face)?;
     match f.surface() {
-        geom::Surface::Plane { origin, normal, .. } => Some(PlaneDesc {
-            origin: *origin,
-            normal: plane_outward_normal(f.record(), *normal).vec(),
-        }),
+        geom::Surface::Plane { origin, normal, .. } => {
+            Some(plane_desc_of(f.record(), *origin, *normal))
+        }
         _ => None,
     }
 }
 
-/// The face's **oriented carrier description** — the curved
-/// generalization of [`face_plane`], folding the face's sense into
-/// the material side exactly as that door does (S10).
+/// [`face_plane`] by value: a planar face's plane from its plane's
+/// stored origin and chart normal, with the face's `sense` folded in
+/// through [`plane_outward_normal`]. For a caller that has already
+/// matched the face's surface as a plane and holds the [`Face`], so
+/// that it neither resolves the face again nor answers a `None` that
+/// cannot happen.
+pub(crate) fn plane_desc_of<T: Real>(
+    face: &Face,
+    origin: Point3<T>,
+    chart_normal: Vec3<T>,
+) -> PlaneDesc<T> {
+    PlaneDesc {
+        origin,
+        normal: plane_outward_normal(face, chart_normal).vec(),
+    }
+}
+
+/// The face's **oriented carrier description**: [`face_plane`]
+/// generalized to the closed curved carriers. A plane arm is that
+/// door's fold; a curved arm keeps the stored carrier and hands the
+/// face's `sense` onward as `outward`, so the description states the
+/// material side whatever the kind.
 ///
-/// `None` for a surface kind outside the `Rest` ladder's
-/// [`geom_brep::carrier_eq::INVENTORY`]: the C4 table names the kinds
-/// [`mod@geom_brep::carrier_eq`] carries a rung for, and a kind it cannot
-/// compare refuses typed at the caller rather than being approximated
-/// by one it can. `None` too where `face`, the caller's key, does not
-/// resolve.
+/// `None` for a carrier with no closed description here (a spindle, a
+/// NURBS patch, a fitted stand-in), and for a `face` key that does not
+/// resolve: a public door hands this its own caller's key.
 ///
 /// # Panics
 ///
-/// Where the face's surface does not resolve: a link, which every
-/// public door keeps live, and which the reduction's operators keep
-/// live mid-operation ([`crate::live::OPERATORS_KEEP_LINKS`]).
+/// Where `face` resolves and its surface does not (D2 row 4): a torn
+/// surface is not a carrier outside the inventory.
 pub fn face_carrier_desc<T: Decide>(body: &Body<T>, face: FaceKey) -> Option<CarrierDesc<T>> {
     let f = body.face(face)?;
     // `sense` is the material-side bit: true means the face's outward
@@ -193,8 +207,11 @@ pub fn face_carrier_desc<T: Decide>(body: &Body<T>, face: FaceKey) -> Option<Car
     // signs (S10's exact-bit discipline).
     let outward = f.sense();
     match f.surface() {
-        geom::Surface::Plane { .. } => face_plane(body, face)
-            .map(|PlaneDesc { origin, normal }| CarrierDesc::Plane { origin, normal }),
+        geom::Surface::Plane { origin, normal, .. } => Some(CarrierDesc::Plane(plane_desc_of(
+            f.record(),
+            *origin,
+            *normal,
+        ))),
         geom::Surface::Sphere { center, radius, .. } => Some(CarrierDesc::Sphere {
             center: *center,
             radius: *radius,

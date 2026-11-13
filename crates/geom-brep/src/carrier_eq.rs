@@ -249,13 +249,9 @@ impl CoincidenceMeasure {
 /// normal would make the Same± verdict a statement about nothing.
 #[derive(Clone, Copy, Debug)]
 pub enum CarrierDesc<T: geom_core::Real> {
-    /// A plane, by a point on it and its unit outward normal.
-    Plane {
-        /// A point on the plane.
-        origin: Point3<T>,
-        /// The unit outward normal (of the face, not of the chart).
-        normal: Vec3<T>,
-    },
+    /// A plane, by a point on it and its unit outward normal: the
+    /// plane ladder's own description.
+    Plane(PlaneDesc<T>),
     /// A sphere, by centre and radius.
     Sphere {
         /// The centre.
@@ -480,27 +476,7 @@ fn ladder_reading<T: Decide>(
 ) -> Result<PairDoorReading, CarrierEqError> {
     let (c1, c2, arm) = at_consumed_extent(c1, c2, extent.reach);
     let verdict = match (&c1, &c2) {
-        (
-            CarrierDesc::Plane {
-                origin: o1,
-                normal: n1,
-            },
-            CarrierDesc::Plane {
-                origin: o2,
-                normal: n2,
-            },
-        ) => plane_ladder(
-            &PlaneDesc {
-                origin: *o1,
-                normal: *n1,
-            },
-            &PlaneDesc {
-                origin: *o2,
-                normal: *n2,
-            },
-            extent,
-            band,
-        ),
+        (CarrierDesc::Plane(p1), CarrierDesc::Plane(p2)) => plane_ladder(p1, p2, extent, band),
         (
             CarrierDesc::Sphere {
                 center: p1,
@@ -867,14 +843,14 @@ fn reading<T: Decide>(
 ) -> Option<((&'static str, &'static str), T)> {
     Some(match (*c1, *c2) {
         (
-            CarrierDesc::Plane {
+            CarrierDesc::Plane(PlaneDesc {
                 origin: o1,
                 normal: n1,
-            },
-            CarrierDesc::Plane {
+            }),
+            CarrierDesc::Plane(PlaneDesc {
                 origin: o2,
                 normal: n2,
-            },
+            }),
         ) => {
             let centre = reach.center();
             let offset = n1.dot(o1 - centre) - sigma * n2.dot(o2 - centre);
@@ -1646,10 +1622,10 @@ mod tests {
     /// Kinds do not compare: a plane is not a cylinder at any radius.
     #[test]
     fn kind_mismatch_is_distinct() {
-        let p = CarrierDesc::Plane {
+        let p = CarrierDesc::Plane(PlaneDesc {
             origin: Point3::origin(),
             normal: Vec3::new(0.0, 0.0, 1.0),
-        };
+        });
         let c = cyl([0.0, 0.0, 0.0], [0.0, 0.0, 1.0], 3.0, true);
         assert_eq!(
             carrier_eq(&p, &c, &ConsumedExtent::arm(1.0), band()).unwrap(),
@@ -1671,14 +1647,8 @@ mod tests {
             normal: Vec3::new(0.0, 0.0, -1.0),
         };
         let via_carrier = carrier_eq(
-            &CarrierDesc::Plane {
-                origin: p1.origin,
-                normal: p1.normal,
-            },
-            &CarrierDesc::Plane {
-                origin: p2.origin,
-                normal: p2.normal,
-            },
+            &CarrierDesc::Plane(p1),
+            &CarrierDesc::Plane(p2),
             &ConsumedExtent::arm(1.0),
             band(),
         )

@@ -7921,7 +7921,7 @@ fn decided_site<T: Decide>(
     let plane = |body: &Body<T>, f| {
         matches!(
             crate::face_normal::face_carrier_desc(body, f),
-            Some(CarrierDesc::Plane { .. })
+            Some(CarrierDesc::Plane(_))
         )
     };
     if plane(a, fa) && plane(b, fb) {
@@ -9680,7 +9680,7 @@ mod tests {
             let hits: Vec<FaceKey> = crate::query::all_faces(body)
                 .into_iter()
                 .filter(|&f| {
-                    matches!(crate::face_normal::face_carrier_desc(body, f), Some(CarrierDesc::Plane { origin, normal })
+                    matches!(crate::face_normal::face_carrier_desc(body, f), Some(CarrierDesc::Plane(geom_brep::PlaneDesc { origin, normal }))
                         if (origin.z - 1.0).abs() < 1e-12 && normal.z * sign > 0.5)
                 })
                 .collect();

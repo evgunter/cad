@@ -72,7 +72,7 @@ fn face_with_normal(body: &Body<f64>, n: [f64; 3]) -> FaceKey {
         .faces()
         .map(|(k, _)| k)
         .filter(|&k| {
-            matches!(face_carrier_desc(body, k), Some(CarrierDesc::Plane { normal, .. })
+            matches!(face_carrier_desc(body, k), Some(CarrierDesc::Plane(geom_brep::PlaneDesc { normal, .. }))
                 if normal.dot(n) > 1.0 - 1e-3)
         })
         .collect();
