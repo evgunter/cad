@@ -607,11 +607,20 @@ fn a_boolean_document_round_trips_byte_identical() {
 /// edge and point), each document's dump is main's line for line — the
 /// same surfaces, senses, points, curves and descriptions — and only the
 /// keys the arenas hand out moved, which the digest feeds.
+///
+/// RE-BLESSED, `crossing_slots` only, for a vertex pair whose null edges
+/// pair from the side the op keeps (PR 6832), two crossings included,
+/// where two crossings ran in the records' order: a subtract
+/// builds its null edges in another order, so its faces take other
+/// arena keys, which the digest feeds. Read by its geometry (a face by
+/// its sense, carrier and corner points, an edge by its ends and curve,
+/// a vertex by its point), every name of every node denotes what it
+/// denoted and every body holds the same cells.
 #[test]
 fn the_boolean_documents_evaluate_to_their_committed_digests() {
     let mut moved: Vec<String> = Vec::new();
     for (name, want) in [
-        ("crossing_slots", 0xd2ff_8e75_2da6_a0fb_u64),
+        ("crossing_slots", 0xd17d_36af_80b3_4d6b_u64),
         ("heat_sink", 0x4010_8826_71c7_f1f3),
         ("kiss_carry", 0xc72b_0f2e_7ec6_8bd7),
     ] {
