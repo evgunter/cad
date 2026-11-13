@@ -1499,7 +1499,7 @@ fn corner_reach<T: Decide + Bounds>(
                 feet.push(line_meet(*a, *b, n));
             }
             let feet = [feet[0], feet[1], feet[2]];
-            let patch = chamfer_corner_patch(feet, normals);
+            let patch = chamfer_corner_patch(feet, normals[0] + normals[1] + normals[2]);
             let Surface::Plane { origin, normal, .. } = patch else {
                 return Ok(None);
             };
