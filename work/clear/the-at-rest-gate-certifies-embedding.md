@@ -407,6 +407,67 @@ Change 2, at the three sites of section 4. Rows touched: this one.
 - **Seams:** TOPO's `validate.rs`, for the hand-over of marks and
   singular vertices.
 
+**Measured by lane B (clear-zero, 2026-11-13), main at `b95a5e1eb2`.**
+Lane B stopped before building: the facts do not reach the sweep in
+the shape the spec assumes. The harness was a scratch test with
+counters at each Zero site, run unoptimised. It was not committed. The
+question is `embedded` over every face, at depth 40 and 65,536 pairs.
+"Forced" means each non-`Past` zero side read as zero, and an apex
+decision the band leaves open read as the apex. That is what lane B
+would read in their place.
+
+| body | tier 3 | certificate | forced | carrier sides read zero / open | linear sides read zero / open |
+|---|---|---|---|---:|---:|
+| box, depth `1 ± 1e-2`, `Sym<Interval>` | passes | Holds, 120 pairs | Holds, 74 | 36 / 98 | 0 / 32 |
+| box, depth `1 ± 3e-2` | refuses | Holds, 156 | Holds, 108 | 36 / 120 | 0 / 52 |
+| box, depth `1 ± 0.1` | refuses | `Budget(Pairs)`, 9.0 s | `Budget(Pairs)`, 9.0 s | 276 / 5,462 | none read |
+| revolved cone, `h = 1` exact, `Sym<Interval>` | passes | Holds, 182 splits | Holds, 182 splits | 2 / 206 | 206 / 0 |
+
+- **The box at `w = 0.1` is not a Zero-site pin.** Forced, it still runs
+  out of pairs. 221,115 of its 227,632 presentations refuse `Local`.
+  190,033 of those are `present_plane`'s catch-all, a cell whose local
+  boundary holds three or more of the plane face's edges. Every cell's
+  ball carries the family's 0.2 m in depth, so no split narrows it.
+  The obstruction is the family's width (change 3, lane C), in a
+  function the curved-corner lane owns. Tier 3 also refuses at this
+  width, so the body cannot be the spec's pin.
+- **No family was found where tier 3 passes and a Zero site refuses.**
+  On the box the carrier arm's side reading is open on most cells at
+  every width. The graph separator, exempt by construction, certifies
+  those pairs instead. Reading the fact saves 38–46 pairs, and no
+  verdict moves.
+- **The cone has no box to vary.** `revolve` at `Sym<Interval>` refuses
+  the triangle `(0,0) (1,0) (0,1 ± w)` for any `w > 0`
+  (`NoGeneralLane { chart: Cone, carrier: Line }`). `cone_cap` is an
+  `f64` fixture whose apex is not a vertex, which check 6 refuses. So
+  the spec's "cone apex over a box" pin has no door to build its body.
+- **Where the facts are today.** `structural_via` (`validate.rs`) runs
+  `tier3_local_checks_marked` and drops the marks. Check 6's
+  chart-singularity arm places each apex on a vertex (`Lies::AtVertex`)
+  and keeps nothing. `AtRestBody` holds the body and its `KeptSign`
+  alone. The engine is entered through
+  `Side { body: &Body<T>, faces }`, and no current caller holds a
+  tier-3 verdict:
+  - `shell::cavity_embedded` asks the moved clone before it is
+    finished;
+  - editor-core's clearance takes `Held::Leaf`, which at the box
+    scalars is tier 2 alone;
+  - the sweep tests ask `into_body()` or construction-state lofts.
+
+  The marks (`cusp`) and the apex vertices (`present_chart`) are
+  per-edge and per-vertex data, so the engine can read them only if a
+  caller hands them in. That is a new public shape on `Side`, or on
+  `embedded` and `Sweep::run`, which every caller above has to fill.
+  The spec does not name it, or what a caller without a verdict hands.
+- **"By construction" holds only member by member where `n` is built
+  from the edge.** `plane_through` rounds its normal to a point
+  (`lift(unit(vmid(..)))`). Over a family whose shared line edge
+  changes direction, a fixed `n` is not normal to every member's
+  edge, so `ψ` does not vanish on the shared edge. Reading it as zero
+  by construction would then be unsound. The construction is true if
+  `n` and `q` are computed in `Interval` from the edge's own carrier.
+  The same holds for a conic's plane: use the stored axis and centre.
+
 ### Lane C — the gate asks the certificate (H)
 
 **Note from lane A's review (PR 6885).** Until change 3 lands here, a
