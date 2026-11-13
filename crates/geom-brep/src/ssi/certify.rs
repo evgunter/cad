@@ -1550,6 +1550,19 @@ pub(crate) fn chart_tube_windows<T: geom_core::CertifiedBounds>(
 /// share of the value at every scale (C2's node end).
 pub(crate) const NODE_PAD_SHARE: f64 = 1.0 / 4.0;
 
+/// The share of its distance from a node a window's pad is, at most,
+/// within [`NODE_PAD_REACH`] of the node box's half-widths (D9): there
+/// the window before the node's box must see the node across an angle
+/// inside one sector between its rays (C5), which half the share past
+/// it does not leave room for.
+pub(crate) const NODE_PAD_SHARE_NEAR: f64 = 1.0 / 8.0;
+
+/// How many of its box's half-widths from a node the pad narrows at
+/// [`NODE_PAD_SHARE_NEAR`] (D9); past it, at [`NODE_PAD_SHARE`], so the
+/// tube the accounting banks outside the node's own region stays as
+/// wide as the transverse enclosure allows.
+pub(crate) const NODE_PAD_REACH: f64 = 16.0;
+
 /// How many times its last span's reach from the node a node's box is,
 /// half-width (D9): the span's hull lies strictly inside it, so the
 /// window before it overlaps it about their shared knot.
@@ -1564,9 +1577,10 @@ pub(crate) const NODE_BOX_REACH: f64 = 2.0;
 ///   half-widths about the pcurve's end, the node's ([`ChartWindow::node`]);
 /// - every other window's pad along each axis is at most
 ///   [`NODE_PAD_SHARE`] of its span hull's distance from the nearest
-///   node, read in metres through the pads' own ratio (each pad is the
-///   rung over that axis's chart speed), so the tube's radius narrows
-///   box by box toward the node.
+///   node ([`NODE_PAD_SHARE_NEAR`] within [`NODE_PAD_REACH`] of the
+///   node box's half-widths), read in metres through the pads' own
+///   ratio (each pad is the rung over that axis's chart speed), so the
+///   tube's radius narrows box by box toward the node.
 ///
 /// `None` where [`chart_tube_windows`] refuses, where the pcurve's end at
 /// a node does not read, or where a node end leaves no window beside its
@@ -1611,17 +1625,26 @@ pub(crate) fn chart_tube<T: geom_core::CertifiedBounds>(
             });
             continue;
         }
-        // The hull's distance from the nearest node, in rungs: each
-        // axis's gap over that axis's pad.
-        let rungs = centres
+        // The hull's distance from the nearest node, in rungs (each
+        // axis's gap over that axis's pad), times the share of it the pad
+        // may be there: [`NODE_PAD_SHARE_NEAR`] within [`NODE_PAD_REACH`]
+        // of the node box's half-widths, [`NODE_PAD_SHARE`] past it.
+        let gap = |(lo, hi): (f64, f64), c: f64| (lo - c).max(c - hi).max(0.0);
+        let share = centres
             .iter()
-            .flatten()
-            .map(|&(cu, cv)| {
-                let gap = |(lo, hi): (f64, f64), c: f64| (lo - c).max(c - hi).max(0.0);
-                (gap(hull.u, cu) / pad.0).hypot(gap(hull.v, cv) / pad.1)
+            .zip(nodes)
+            .filter_map(|(c, h)| c.zip(h))
+            .map(|((cu, cv), (hu, hv))| {
+                let (gu, gv) = (gap(hull.u, cu), gap(hull.v, cv));
+                let near = (gu / hu).hypot(gv / hv) < NODE_PAD_REACH;
+                let k = if near {
+                    NODE_PAD_SHARE_NEAR
+                } else {
+                    NODE_PAD_SHARE
+                };
+                k * (gu / pad.0).hypot(gv / pad.1)
             })
-            .fold(f64::INFINITY, f64::min);
-        let share = (NODE_PAD_SHARE * rungs).min(1.0);
+            .fold(1.0_f64, f64::min);
         let (pu, pv) = (pad.0 * share, pad.1 * share);
         out.push(ChartWindow {
             rect: UvRect {
