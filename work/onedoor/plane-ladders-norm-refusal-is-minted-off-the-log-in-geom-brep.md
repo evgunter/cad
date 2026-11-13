@@ -2,8 +2,9 @@
 id: plane-ladders-norm-refusal-is-minted-off-the-log-in-geom-brep
 kind: issue
 title: The plane ladder's Norm refusal mints an Indeterminate off the frame's log, which geom-brep's escalation census refuses
-status: open
+status: closed
 opened: 2026-11-13
+closed: 2026-11-13
 ---
 
 Found by `carrier-eq-and-plane-eq-take-no-body` (branch `onedoor/carrier-eq-home`), which stopped here rather than decide it.

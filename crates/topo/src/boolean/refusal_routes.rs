@@ -3374,7 +3374,13 @@ pub(in crate::boolean) mod tests {
         let CarrierEqError::Escalated {
             rung: PlaneRung::Norm,
             diag,
-        } = unreadable_norm(b)
+        } = unreadable_norm(
+            geom_core::Decided {
+                sign: geom_core::Sign::Negative,
+                margin: geom_core::MarginDiag::value(-1.0),
+            },
+            b,
+        )
         else {
             panic!("the unreadable norm is its own rung");
         };

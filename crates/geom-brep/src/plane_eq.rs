@@ -29,7 +29,7 @@
 use crate::carrier_eq::{
     CarrierEqError, CarrierRelation, CarrierVerdict, CoincidenceMeasure, ConsumedExtent,
 };
-use geom_core::{Band, Decide, Decided, Indeterminate, Margin, MarginDiag, Point3, Sign, Vec3};
+use geom_core::{Band, Decide, Decided, Margin, Point3, Sign, Vec3};
 
 use geom_core::NonzeroSign;
 use geom_core::k_stats::{decide_nonzero, decide_reported};
@@ -134,13 +134,12 @@ pub(crate) fn plane_ladder<T: Decide>(
             sign: Sign::Zero,
             margin,
         }) => margin,
-        Ok(Decided {
-            sign: Sign::Negative,
-            ..
-        }) => {
-            // A norm cannot be definitely negative — poisoned input.
-            return Err(unreadable_norm(band));
-        }
+        Ok(
+            norm @ Decided {
+                sign: Sign::Negative,
+                ..
+            },
+        ) => return Err(unreadable_norm(norm, band)),
         Err(diag) => {
             return Err(CarrierEqError::Escalated {
                 rung: PlaneRung::Parallel,
@@ -192,17 +191,26 @@ pub(crate) fn plane_ladder<T: Decide>(
     }
 }
 
-/// The parallelism rung's refusal of a norm that read definitely
-/// negative: poisoned input, with no margin to report.
-pub fn unreadable_norm(band: Band) -> CarrierEqError {
+/// The parallelism rung's refusal of a norm decided definitely
+/// negative (`norm`, the rung's own reading): poisoned input. A norm
+/// passes on a zero or positive sign, so the refusal is the gate's
+/// rejection of that sign, minted and logged by the funnel's door
+/// ([`geom_core::k_stats::gate_rejection`]): the decided margin, tagged
+/// with the rejected sign.
+///
+/// # Panics
+///
+/// Where `norm` is no definite negative verdict on its margin against
+/// `band` (the door's own precondition).
+pub fn unreadable_norm(norm: Decided, band: Band) -> CarrierEqError {
     CarrierEqError::Escalated {
         rung: PlaneRung::Norm,
-        diag: Indeterminate {
-            margin: MarginDiag::INVALID,
+        diag: geom_core::k_stats::gate_rejection(
+            "plane_eq_parallel",
+            norm,
             band,
-            predicate: Some("plane_eq_parallel"),
-            terminal_sliver: false,
-        },
+            geom_core::SizedPass::NonNegative,
+        ),
     }
 }
 
@@ -211,6 +219,7 @@ pub fn unreadable_norm(band: Band) -> CarrierEqError {
 mod tests {
     use super::*;
     use geom_core::Band;
+    use geom_core::MarginDiag;
     use geom_core::Tol;
 
     fn band() -> Band {
@@ -394,6 +403,46 @@ mod tests {
                     "{what}: the rejection is the one escalation on the log"
                 );
             }
+        }
+    }
+
+    /// **A norm decided negative is the gate's rejection, on the log.**
+    /// A norm passes on a zero or positive sign; the parallelism rung's
+    /// refusal of a definitely negative one carries the decided margin
+    /// tagged Negative, under the rung's own name, and is the one
+    /// escalation on the frame's log.
+    #[test]
+    fn a_norm_decided_negative_is_the_gates_rejection_on_the_log() {
+        use geom_core::k_stats::Bracket;
+        let band = band();
+        for value in [-1.0, -2.0 * band.escalate()] {
+            let bracket = Bracket::open();
+            let got = unreadable_norm(
+                Decided {
+                    sign: Sign::Negative,
+                    margin: MarginDiag::value(value),
+                },
+                band,
+            );
+            let log = bracket.finish();
+            let CarrierEqError::Escalated {
+                rung: PlaneRung::Norm,
+                diag,
+            } = got
+            else {
+                panic!("{value:e}: the norm's own rung: {got:?}");
+            };
+            assert_eq!(diag.predicate, Some("plane_eq_parallel"), "{value:e}");
+            assert_eq!(
+                diag.margin.rejected_sign(),
+                Some(Sign::Negative),
+                "{value:e}"
+            );
+            assert_eq!(
+                log.escalations.iter().map(|e| e.source).collect::<Vec<_>>(),
+                vec![diag],
+                "{value:e}: the rejection is the one escalation on the log"
+            );
         }
     }
 }
