@@ -1185,9 +1185,11 @@ fn the_spine_recourse_has_no_witness_in_this_suite_the_clearance_screen_answers_
 /// blends — a chain door admitting a non-rim G1 run is exactly where
 /// the witness would come from, and this row goes red there.
 ///
-/// The L prism is that body: its reflex edge makes one vertex
-/// mixed-convexity, and the whole-body request meets
-/// `UnsupportedCorner`, never `ConvexitySignFlip`. The adversarial
+/// The L prism is that body: its reflex edge makes its two ends
+/// mixed-convexity vertices, and a request naming the reflex edge with
+/// one other edge of its corner meets `UnsupportedCorner`, never
+/// `ConvexitySignFlip` (the whole body builds, through the mixed
+/// corner). The adversarial
 /// corpus agrees — `review_d2_adv_probes::d2_reached_variants` reaches
 /// ten refusal classes over hundreds of requests and this is not one
 /// of them.
@@ -1205,11 +1207,12 @@ fn the_convexity_recourse_has_no_witness_in_this_suite() {
         1.0,
         tol(),
     );
+    let odd_and_one = sweep::test_support::reflex_edge_and_floor_leg(&l, (1.0, 1.0));
     let err = refusal(
         &l,
-        &query::all_edges(&l),
+        &odd_and_one,
         0.1,
-        "every edge of an L prism",
+        "an L prism's reflex edge and one floor edge of its corner",
         false,
     );
     assert!(

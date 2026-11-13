@@ -229,4 +229,8 @@ pub(super) enum RoleSeg {
         at: Vec<(crate::VarId, u32)>,
         of: NameRef,
     },
+    HostFoot {
+        vertex: NameRef,
+        edge: NameRef,
+    },
 }
