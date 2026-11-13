@@ -266,6 +266,7 @@ impl<T: Decide> Quadric<T> {
                 Ok(vec![Path {
                     pieces: vec![Piece::Arc(arc)],
                     arrival: axis.cross(b),
+                    reach: None,
                 }])
             }
             Self::Cone { axis, .. } => {
@@ -358,6 +359,7 @@ impl<T: Decide> Quadric<T> {
                 paths.push(Path {
                     pieces: vec![lead.clone(), Piece::Meridian(meridian), Piece::Arc(round)],
                     arrival: round.tangent(round.span.1),
+                    reach: None,
                 });
                 // Round the start's parallel to `to`'s meridian, then round.
                 let turned = centre + axis * hs + et * rs;
@@ -382,6 +384,7 @@ impl<T: Decide> Quadric<T> {
                 paths.push(Path {
                     pieces: vec![lead, Piece::Arc(round), Piece::Meridian(meridian)],
                     arrival: meridian.tangent(meridian.span.1),
+                    reach: None,
                 });
                 Ok(paths)
             }
@@ -478,6 +481,7 @@ impl<T: Decide> Quadric<T> {
             paths.push(Path {
                 pieces: vec![piece(from, turned, from), Piece::Arc(round_at_to)],
                 arrival: round_at_to.tangent(round_at_to.span.1),
+                reach: None,
             });
         }
         if rise != Sign::Zero {
@@ -497,6 +501,7 @@ impl<T: Decide> Quadric<T> {
                 } else {
                     -ruling_at_to
                 },
+                reach: None,
             });
         }
         Ok(paths)
@@ -585,11 +590,14 @@ enum Piece<T: Real> {
     },
 }
 
-/// A path on a [`Carrier`] between two points, and its unit direction
-/// of travel where it arrives.
+/// A path on a [`Carrier`] between two points, its unit direction of
+/// travel where it arrives, and, on a spline wall, the arm that
+/// arrival's lean is levered at ([`spline_wall::IsoPiece::reach`]): a
+/// quadric's is its own at the point arrived at ([`Quadric::lever`]).
 pub(crate) struct Path<T: Real> {
     pieces: Vec<Piece<T>>,
     pub(crate) arrival: Vec3<T>,
+    pub(crate) reach: Option<Lever<T>>,
 }
 
 /// The surface a path runs on: a [`Quadric`], or a spline wall.
@@ -621,15 +629,15 @@ impl<T: Decide> Carrier<T> {
         }
     }
 
-    /// The length the lean of `path`'s arrival at `q` is levered by: a
-    /// quadric's own at `q` ([`Quadric::lever`]); on a spline wall the
-    /// chord of the piece the path arrives along, which the arrival
-    /// stands off the closing chord's tangent across.
-    pub(crate) fn lean_lever(&self, q: Point3<T>, path: &Path<T>) -> Lever<T> {
-        match (self, path.pieces.last()) {
-            (Self::Quadric(quadric), _) => quadric.lever(q),
-            (Self::Wall(_), Some(Piece::Iso(piece))) => piece.travel().0,
-            (Self::Wall(_), _) => unreachable!("a spline wall's path arrives along an iso curve"),
+    /// The length the lean of `path`'s arrival at `q` is levered by: the
+    /// arm the path states ([`Path::reach`], a spline wall's), else a
+    /// quadric's own at `q` ([`Quadric::lever`]). `None` for a path on a
+    /// spline wall that states none, which says nothing.
+    pub(crate) fn lean_lever(&self, q: Point3<T>, path: &Path<T>) -> Option<Lever<T>> {
+        match (path.reach, self) {
+            (Some(reach), _) => Some(reach),
+            (None, Self::Quadric(quadric)) => Some(quadric.lever(q)),
+            (None, Self::Wall(_)) => None,
         }
     }
 }
@@ -750,8 +758,8 @@ pub(crate) enum LoopArc<T: Real> {
 /// Both are read on a cylinder, a sphere, a torus or a spline face: the
 /// faces a carried chord bounds, which the ring lane's rows read
 /// (`ring_path::tests`, `ring_path::spline_wall_rows`). A spline wall's
-/// pieces are its own iso curves, which lie on it. Every piece of a torus path past its lead lies
-/// on the tube through its end, within the band of the face's own, so the
+/// pieces are its own iso curves, which lie on it. Every piece of a
+/// torus path past its lead lies on the tube through its end, within the band of the face's own, so the
 /// argument is the cylinder's: a crossing on the surface is a meeting in
 /// space. The lead, which moves the start onto that tube along its own
 /// tube radius, is off the surface but no longer than the two ends'
@@ -1582,13 +1590,15 @@ pub(crate) fn path_parity<T: Decide>(
                 }
                 // A crest is a torus's, whose paths hold no cylinder ruling.
                 (Piece::Ruling { .. }, LoopArc::Crest { .. }) => return Ok(None),
+                // An iso piece is read against a spline arc alone: of any
+                // other arc the path says nothing.
                 (
                     Piece::Iso(_),
                     LoopArc::Conic(_)
                     | LoopArc::Oval(_)
                     | LoopArc::Line { .. }
                     | LoopArc::Crest { .. },
-                ) => unreachable!("a spline wall's loops are read as spline arcs alone"),
+                ) => return Ok(None),
                 // A spline arc meets a piece where the curve-pair table
                 // says ([`spline_crossings`]).
                 (piece, LoopArc::Spline(arc)) => {
@@ -3124,6 +3134,7 @@ mod tests {
         let path = Path {
             pieces: vec![Piece::Arc(piece)],
             arrival: Vec3::new(0.0, 1.0, 0.0),
+            reach: None,
         };
         let span = (-0.01, 0.01);
         let conic = ConicArc::of_frame(
@@ -3266,6 +3277,7 @@ mod tests {
                 let path = Path {
                     pieces: vec![piece],
                     arrival: f.z,
+                    reach: None,
                 };
                 assert_eq!(
                     path_parity(&path, &crest, None, band()).unwrap(),
@@ -3306,6 +3318,7 @@ mod tests {
                     lever: geom_brep::ExtentBall::point(from).lever(),
                 }],
                 arrival: f.z,
+                reach: None,
             };
             assert_eq!(
                 path_parity(&path, &crest, None, band()),

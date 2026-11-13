@@ -238,7 +238,7 @@ fn stops_at_containment(refusal: &BooleanError) -> bool {
 /// run refused `CurvedBooleanUnsupported` naming the wall. Which way
 /// round the island winds is not read here, since the stop comes before
 /// any reader of the wall's two faces: topo's
-/// `a_spline_wall_island_winds_as_its_corners_turn_and_places_its_bystanders`
+/// `a_spline_wall_island_winds_as_its_corners_turn_about_the_outward_normal`
 /// holds it.
 #[test]
 fn a_brick_inside_a_lofted_walls_face_closes_a_ring_on_the_wall() {
@@ -309,4 +309,60 @@ fn a_fork_inside_a_lofted_walls_face_closes_two_rings_on_the_wall() {
         "both islands close on the wall and the join completes, the inside/outside test \
          refusing the wall: {refusal:?}"
     );
+}
+
+/// **A fork with one prong inside the flat wall's face and one across
+/// its bottom rim refuses by name**: the rim prong's chords run from the
+/// wall's rim back to it, so the face one of them walls off is bounded
+/// by the wall's own rim edges beside the chords, and re-homing the
+/// inside prong's rings against that face reads a rim edge, which is no
+/// certified section of the wall. `RingIslandUnread` naming a spline
+/// face, in `prism ∪ fork` and `prism ∖ fork`
+/// (`work/sectarms/re-homing-a-ring-on-a-spline-wall-refuses-where-the-new-face-holds-a-rim-edge.md`).
+#[test]
+fn a_fork_inside_and_across_the_rim_of_a_lofted_wall_refuses_its_re_homing_by_name() {
+    let t = Tol::witness();
+    let prism = finished("the loft prism", loft_prism(t), t);
+    let brick = |x, y, z| {
+        finished(
+            "a brick",
+            topo::test_support::brick_with_fresh_keys::<f64>(x, y, z, t),
+            t,
+        )
+    };
+    let joined = |a: &topo::AtRestBody<f64>, b: &topo::AtRestBody<f64>| {
+        topo::union(a, b, t)
+            .expect("two bricks sharing a face unite")
+            .body()
+            .expect("a union is never empty")
+            .body
+            .clone()
+    };
+    let z = (0.75, 1.25);
+    let fork = joined(
+        &joined(
+            &brick((-0.6, -0.3), (0.75, 1.5), z),
+            &brick((-0.6, 0.6), (1.5, 1.8), z),
+        ),
+        &brick((0.3, 0.6), (0.75, 1.5), (-0.25, 1.25)),
+    );
+    for (what, run) in [
+        ("prism ∪ fork", topo::union(&prism, &fork, t)),
+        ("prism ∖ fork", topo::subtract(&prism, &fork, t)),
+    ] {
+        let refusal = run.expect_err("the re-homing reads no rim edge");
+        let BooleanError::Join(join) = &refusal else {
+            panic!("{what}: the join refuses the re-homing: {refusal:?}");
+        };
+        assert!(
+            matches!(
+                join.error(),
+                JoinError::RingIslandUnread {
+                    kind: geom::SurfaceKind::Nurbs,
+                    ..
+                }
+            ),
+            "{what}: the re-homing names the wall: {refusal:?}"
+        );
+    }
 }

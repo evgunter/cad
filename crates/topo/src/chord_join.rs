@@ -528,8 +528,10 @@ pub enum JoinError {
     /// it winds an island, and re-homes a ring, on a cylinder wall's
     /// chart and on a sphere, a cone, a torus or a spline wall by a
     /// path's parity (a spline wall's island where its chord's midpoint
-    /// has a foot on the wall and its edges are the wall's certified
-    /// sections, on a net whose iso curves share weights); on a
+    /// and an outer-loop point have feet on the wall and its edges are
+    /// the wall's certified sections, and a ring re-homed on one where
+    /// the new face's every edge is, on a net whose weights are constant
+    /// along one parameter); on a
     /// plane, a run on spiric ovals at a scalar that does not certify
     /// (`crate::loop_winding::Unwound::Uncertified`). Valid input
     /// whose lane is not yet built (D2 addendum row 2), refused typed.
@@ -4048,8 +4050,9 @@ fn loop_points<T: Decide>(body: &Body<T>, l: LoopKey) -> Result<Vec<Point3<T>>, 
 /// every path, so the first decided one is the reading. The first
 /// escalation escalates only where no path decides. A run
 /// bounded by an edge the face's loops do not carry, a chord through
-/// a cone's apex, or a chord whose midpoint has no foot on its spline
-/// wall, is a ring the lane does not read
+/// a cone's apex, or a spline wall no path is offered on (the chord's
+/// midpoint, or every outer-loop point, has no foot there), is a ring
+/// the lane does not read
 /// ([`JoinError::RingIslandUnread`]); an outer loop no point of
 /// which a path decides refuses typed.
 pub(crate) fn path_island_winding<T: Decide>(
@@ -4076,9 +4079,23 @@ pub(crate) fn path_island_winding_closed_by<T: Decide>(
         Ok(island) => island,
         Err(diag) => return Ok(Err(diag)),
     };
-    match island.winding(body, face, band)? {
+    // Whether any reference was offered a path: on a spline wall none
+    // is where no end has a foot the wall's point is decided at, which
+    // is a ring the lane does not read, not a reading that failed.
+    let mut offered = false;
+    let wound = island.read_paths(body, face, band, |path| {
+        offered = true;
+        island.read(path, band)
+    })?;
+    match wound {
         Ok(Some(sign)) => Ok(Ok(sign)),
         Err(diag) => Ok(Err(diag)),
+        Ok(None) if !offered && matches!(island.carrier, Carrier::Wall(_)) => {
+            Err(JoinError::RingIslandUnread {
+                face,
+                kind: geom::SurfaceKind::Nurbs,
+            })
+        }
         Ok(None) => Err(JoinError::SectionInvariant {
             face,
             what: "no outer-loop point of a cylinder, sphere, cone, torus or spline face reads \
@@ -4248,12 +4265,12 @@ impl<T: Decide> IslandReading<T> {
     /// (**`split_ring_path_lean`**) and its parity across the closed
     /// curve; `None` where either is in the zero band.
     pub(crate) fn read(&self, path: Path<T>, band: Band) -> Result<Option<Sign>, Indeterminate> {
+        let Some(lever) = self.carrier.lean_lever(self.q, &path) else {
+            return Ok(None);
+        };
         let lean = decide(
             "split_ring_path_lean",
-            Margin::levered(
-                -path.arrival.dot(self.left) / self.left.norm(),
-                self.carrier.lean_lever(self.q, &path),
-            ),
+            Margin::levered(-path.arrival.dot(self.left) / self.left.norm(), lever),
             band,
         )?;
         if lean == Sign::Zero {

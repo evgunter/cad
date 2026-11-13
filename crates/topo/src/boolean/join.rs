@@ -4709,13 +4709,15 @@ fn choose_roles<T: crate::props::AtRestPolicy>(
             Some(crate::ring_path::Quadric::Cylinder { .. }) | None => RingFace::Wall(section),
             Some(_) => RingFace::Quadric,
         },
-        RingClosure::Chord => match crate::ring_path::Quadric::of(surface()) {
+        RingClosure::Chord => match crate::ring_path::Carrier::of(surface()) {
             Some(
-                crate::ring_path::Quadric::Cylinder { .. }
-                | crate::ring_path::Quadric::Sphere { .. }
-                | crate::ring_path::Quadric::Torus { .. },
+                crate::ring_path::Carrier::Quadric(
+                    crate::ring_path::Quadric::Cylinder { .. }
+                    | crate::ring_path::Quadric::Sphere { .. }
+                    | crate::ring_path::Quadric::Torus { .. },
+                )
+                | crate::ring_path::Carrier::Wall(_),
             ) => RingFace::Carried,
-            None if crate::ring_path::SplineWall::of(surface()).is_some() => RingFace::Carried,
             _ => {
                 return Err(BooleanError::CurvedBooleanUnsupported {
                     operand,

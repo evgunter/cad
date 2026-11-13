@@ -18,28 +18,57 @@ use super::*;
 use crate::euler::{FaceSurface, MefSite, MevSite};
 use geom_core::spline::KnotVector;
 
-/// The island's corners on the flat sheet `(u, v, 0)`, counterclockwise
-/// about `+z`, the sheet's chart normal.
+/// The island's corners on the flat sheet, counterclockwise about `+z`.
 const CORNERS: [(f64, f64); 4] = [(0.3, 0.3), (0.7, 0.3), (0.7, 0.7), (0.3, 0.7)];
 
 fn on((u, v): (f64, f64)) -> Point3<f64> {
     Point3::new(u, v, 0.0)
 }
 
-/// The flat spline sheet `(u, v, 0)` over the chart's square
-/// `[0.05, 0.95]²`, one bilinear span, each side a straight edge stated
-/// by the iso line it lies on. The body and the sheet's face.
-fn sheet() -> (Body<f64>, FaceKey) {
+/// How the sheet's chart and face are laid on the plane `z = 0`: the
+/// chart `(x, y)`, whose normal is `+z`, or `(y, x)`, whose normal is
+/// `−z`; and the face's sense, its outward normal the chart's or its
+/// opposite.
+#[derive(Clone, Copy)]
+struct Cfg {
+    transposed: bool,
+    sense: bool,
+}
+
+impl Cfg {
+    /// The chart point of the sheet's point `(x, y, 0)`.
+    fn chart(self, (x, y): (f64, f64)) -> geom_core::Point2<f64> {
+        if self.transposed {
+            geom_core::Point2::new(y, x)
+        } else {
+            geom_core::Point2::new(x, y)
+        }
+    }
+}
+
+/// The flat spline sheet over the square `[0.05, 0.95]²` of `z = 0`,
+/// one bilinear span, each side a straight edge stated by the iso line
+/// it lies on. The body and the sheet's face.
+fn sheet(cfg: Cfg) -> (Body<f64>, FaceKey) {
     let kv = || KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
     let chart = geom::NurbsSurface::new(
         kv(),
         kv(),
-        vec![
-            on((0.0, 0.0)),
-            on((0.0, 1.0)),
-            on((1.0, 0.0)),
-            on((1.0, 1.0)),
-        ],
+        if cfg.transposed {
+            vec![
+                on((0.0, 0.0)),
+                on((1.0, 0.0)),
+                on((0.0, 1.0)),
+                on((1.0, 1.0)),
+            ]
+        } else {
+            vec![
+                on((0.0, 0.0)),
+                on((0.0, 1.0)),
+                on((1.0, 0.0)),
+                on((1.0, 1.0)),
+            ]
+        },
         vec![1.0; 4],
     )
     .unwrap();
@@ -51,7 +80,7 @@ fn sheet() -> (Body<f64>, FaceKey) {
             seed.face,
             FaceSurface::New {
                 surface: geom::Surface::Nurbs(std::sync::Arc::new(chart)),
-                sense: true,
+                sense: cfg.sense,
             },
         )
         .unwrap();
@@ -62,8 +91,8 @@ fn sheet() -> (Body<f64>, FaceKey) {
             description: geom_brep::EdgeDescriptionSpec::chart_image(
                 key,
                 geom_brep::Pcurve::IsoLine {
-                    p0: geom_core::Point2::new(a.0, a.1),
-                    pl: geom_core::Vec2::new((b.0 - a.0) / len, (b.1 - a.1) / len),
+                    p0: cfg.chart(a),
+                    pl: (cfg.chart(b) - cfg.chart(a)) / len,
                 },
             ),
             ..line
@@ -101,7 +130,10 @@ fn sheet() -> (Body<f64>, FaceKey) {
                 he2: after,
             },
             edge(uv[0], uv[3]),
-            FaceSurface::Shared { key, sense: true },
+            FaceSurface::Shared {
+                key,
+                sense: cfg.sense,
+            },
             tol(),
         )
         .unwrap()
@@ -151,6 +183,7 @@ fn side(
 /// outer loop's first vertex, straight on the flat chart and stated by
 /// its image there, then killed.
 fn ring_at(
+    cfg: Cfg,
     body: &mut Body<f64>,
     face: FaceKey,
     wall: crate::geometry::SurfaceKey,
@@ -165,10 +198,7 @@ fn ring_at(
     let len = line.param_end;
     let image = geom::NurbsCurve2::new(
         KnotVector::clamped(vec![0.0, 0.0, len, len], 1).unwrap(),
-        vec![
-            geom_core::Point2::new(from.x, from.y),
-            geom_core::Point2::new(p.0, p.1),
-        ],
+        vec![cfg.chart((from.x, from.y)), cfg.chart(p)],
         vec![1.0; 2],
     )
     .unwrap();
@@ -197,10 +227,11 @@ fn ring_at(
 /// the island's winding as the ring lane reads it, then, after the
 /// chord's `mef`, whether each bystander moved to the island.
 fn island(
+    cfg: Cfg,
     corners: [(f64, f64); 4],
     points: &[(f64, f64)],
 ) -> (Result<Sign, Indeterminate>, Vec<bool>) {
-    let (mut body, face) = sheet();
+    let (mut body, face) = sheet(cfg);
     let wall = body.get_face(face).unwrap().surface;
     // A null edge holds the sheet open, as a boolean's wall is held
     // while its chords are joined: a complete spline face takes no new
@@ -219,9 +250,9 @@ fn island(
     .unwrap();
     let rings: Vec<LoopKey> = points
         .iter()
-        .map(|&p| ring_at(&mut body, face, wall, p))
+        .map(|&p| ring_at(cfg, &mut body, face, wall, p))
         .collect();
-    let ring = ring_at(&mut body, face, wall, corners[0]);
+    let ring = ring_at(cfg, &mut body, face, wall, corners[0]);
     let mut tip: Option<crate::construction::MevCreated> = None;
     let mut first = None;
     for k in 0..3 {
@@ -266,7 +297,7 @@ fn island(
             chord,
             FaceSurface::Shared {
                 key: wall,
-                sense: true,
+                sense: cfg.sense,
             },
             tol(),
         )
@@ -283,18 +314,56 @@ fn island(
 }
 
 /// **An island on a spline wall winds as its corners turn about the
-/// wall's outward normal, and its bystanders are placed by the square
-/// they stand in or out of**: the run through the corners
-/// counterclockwise about the normal winds positive, the same corners
-/// taken the other way round negative, and of four bystanders the two
-/// inside the island's square move to its face.
+/// wall's outward normal**, whichever way the chart is laid and
+/// whichever sense the face takes: corners counterclockwise about `+z`
+/// wind positive where the outward normal is `+z` (the chart `(x, y)`
+/// at sense `true`, the chart `(y, x)` at sense `false`) and negative
+/// where it is `−z`, and the same corners taken the other way round
+/// wind the opposite.
 #[test]
-fn a_spline_wall_island_winds_as_its_corners_turn_and_places_its_bystanders() {
-    let points = [(0.5, 0.5), (0.35, 0.65), (0.1, 0.5), (0.85, 0.2)];
-    let (wound, moved) = island(CORNERS, &points);
-    assert_eq!(wound, Ok(Sign::Positive), "counterclockwise corners");
-    assert_eq!(moved, [true, true, false, false], "each bystander's face");
+fn a_spline_wall_island_winds_as_its_corners_turn_about_the_outward_normal() {
     let [a, b, c, d] = CORNERS;
-    let (wound, _) = island([a, d, c, b], &[]);
-    assert_eq!(wound, Ok(Sign::Negative), "clockwise corners");
+    for (transposed, sense, want) in [
+        (false, true, Sign::Positive),
+        (true, true, Sign::Negative),
+        (false, false, Sign::Negative),
+        (true, false, Sign::Positive),
+    ] {
+        let cfg = Cfg { transposed, sense };
+        let (wound, _) = island(cfg, CORNERS, &[]);
+        assert_eq!(
+            wound,
+            Ok(want),
+            "transposed {transposed}, sense {sense}: counterclockwise about +z"
+        );
+        let (wound, _) = island(cfg, [a, d, c, b], &[]);
+        assert_eq!(
+            wound,
+            Ok(want.flip()),
+            "transposed {transposed}, sense {sense}: clockwise about +z"
+        );
+    }
+}
+
+/// **An island's bystanders are placed by the square they stand in or
+/// out of**, on the chart as laid and on the transposed chart of a
+/// reversed face: after the chord's `mef`, the bystanders inside the
+/// island's square move to its face, those a hair inside its chord
+/// included, and those outside stay.
+#[test]
+fn a_spline_wall_island_places_its_bystanders() {
+    // The chord is the side `x = 0.3`.
+    let points = [
+        (0.5, 0.5),
+        (0.35, 0.65),
+        (0.30001, 0.5),
+        (0.29999, 0.5),
+        (0.1, 0.5),
+        (0.85, 0.2),
+    ];
+    let want = [true, true, true, false, false, false];
+    for (transposed, sense) in [(false, true), (true, false)] {
+        let (_, moved) = island(Cfg { transposed, sense }, CORNERS, &points);
+        assert_eq!(moved, want, "transposed {transposed}, sense {sense}");
+    }
 }

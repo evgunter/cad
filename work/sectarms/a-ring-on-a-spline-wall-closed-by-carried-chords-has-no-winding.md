@@ -52,7 +52,7 @@ with two prongs in the wall, whose second prong's rings are bystanders
 of the first island, is pinned there too. That stop comes before any
 reader of the wall's two faces, so which way round the island winds is
 held by topo's
-`a_spline_wall_island_winds_as_its_corners_turn_and_places_its_bystanders`
+`a_spline_wall_island_winds_as_its_corners_turn_about_the_outward_normal`
 and not by the brick.
 
 The planar face's case is not built: three readings of a planar run
