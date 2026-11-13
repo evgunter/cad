@@ -1110,6 +1110,9 @@ pub(super) fn read_crossing(
         .collect();
     let claimed: Vec<UvRect> = decided.iter().map(|c| c.region).collect();
     reading.with_criticals(&nodes, &claimed).all().map_err(|e| {
+        if std::env::var("SNC_DBG").is_ok() {
+            eprintln!("SNCDBG whole reading refused: {e:?}");
+        }
         match super::whole_reading_refused(e) {
             // The surfaces meet within the band at a decided point beside
             // the components the reading could not account for: the

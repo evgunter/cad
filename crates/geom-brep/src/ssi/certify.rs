@@ -1563,9 +1563,11 @@ pub(crate) const NODE_PAD_SHARE_NEAR: f64 = 1.0 / 8.0;
 /// wide as the transverse enclosure allows.
 pub(crate) const NODE_PAD_REACH: f64 = 16.0;
 
-/// How many times its last span's reach from the node a node's box is,
-/// half-width (D9): the span's hull lies strictly inside it, so the
-/// window before it overlaps it about their shared knot.
+/// How many times the settled samples' reach from a node its box is,
+/// half-width (D9; [`super::node::node_box`]): a march's last settled
+/// sample stands within that reach, so the arc's last span, and the
+/// hull of its control points, lie in the box with room, and the window
+/// before it overlaps the box about their shared knot.
 pub(crate) const NODE_BOX_REACH: f64 = 2.0;
 
 /// **The chart tube's windows, graded toward its node ends** (C2): one
@@ -1592,7 +1594,7 @@ pub(crate) fn chart_tube<T: geom_core::CertifiedBounds>(
     nodes: NodeHalves,
 ) -> Option<Vec<ChartWindow>> {
     let hulls = span_hulls(pcurve)?;
-    let at = |end: usize| pcurve_end(pcurve, end);
+    let at = |end: usize| pcurve_end(pcurve, &hulls, end);
     let mut centres = [None, None];
     for (e, slot) in centres.iter_mut().enumerate() {
         if nodes[e].is_some() {
@@ -1706,12 +1708,13 @@ fn span_hulls<T: geom_core::CertifiedBounds>(pcurve: &NurbsCurve2<T>) -> Option<
 }
 
 /// The pcurve's chart point at its start (`end` 0) or its end (`end`
-/// 1), its enclosure's middle; `None` where it does not read.
-pub(crate) fn pcurve_end<T: geom_core::CertifiedBounds>(
+/// 1), its enclosure's middle, its spans read once ([`span_hulls`]);
+/// `None` where it does not read.
+fn pcurve_end<T: geom_core::CertifiedBounds>(
     pcurve: &NurbsCurve2<T>,
+    spans: &[SpanHull],
     end: usize,
 ) -> Option<(f64, f64)> {
-    let spans = span_hulls(pcurve)?;
     let t = if end == 0 {
         spans.first()?.ends.0
     } else {
@@ -1723,33 +1726,6 @@ pub(crate) fn pcurve_end<T: geom_core::CertifiedBounds>(
         geom::mid_param(Bounds::lo(p.y), Bounds::hi(p.y)),
     );
     (u.is_finite() && v.is_finite()).then_some((u, v))
-}
-
-/// **The node box at an end of the pcurve** (C2's node end): the
-/// half-widths along `u` and `v` of the box about the pcurve's end
-/// `end` that holds its end span's hull, [`NODE_BOX_REACH`] times that
-/// hull's reach from the end, the reach read in metres through `unit`,
-/// each axis's chart units per metre. `None` where the hull or the end
-/// does not read.
-pub(crate) fn node_box_half<T: geom_core::CertifiedBounds>(
-    pcurve: &NurbsCurve2<T>,
-    unit: (f64, f64),
-    end: usize,
-) -> Option<(f64, f64)> {
-    let hulls = span_hulls(pcurve)?;
-    let SpanHull { hull, .. } = if end == 0 {
-        *hulls.first()?
-    } else {
-        *hulls.last()?
-    };
-    let (cu, cv) = pcurve_end(pcurve, end)?;
-    let reach = |(lo, hi): (f64, f64), c: f64| (c - lo).abs().max((hi - c).abs());
-    let metres = (reach(hull.u, cu) / unit.0).max(reach(hull.v, cv) / unit.1);
-    let half = (
-        NODE_BOX_REACH * metres * unit.0,
-        NODE_BOX_REACH * metres * unit.1,
-    );
-    (half.0 > 0.0 && half.1 > 0.0 && half.0.is_finite() && half.1.is_finite()).then_some(half)
 }
 
 /// Limb 3's enclosure probe for the **plane × NURBS** arm: the same
@@ -1827,6 +1803,9 @@ fn probe_tube_chart<'p, T: Decide + Bounds + CertifiedEnclosure>(
         };
         if margin.is_nan() {
             return Ok(Some(Rung::unmeasured(tube)));
+        }
+        if std::env::var("SNC_DBG").is_ok() && !(margin > 0.0) {
+            eprintln!("SNCDBG straddle rung {rung:e} nodes {nodes:?} window {:?} k {} of {}", w.rect, probed.len(), 0);
         }
         if margin < worst {
             worst = margin;
@@ -2699,36 +2678,29 @@ pub(crate) fn certify_branch<T: Decide + Bounds + CertifiedEnclosure>(
 }
 
 /// **Which ends of a chart chain are nodes** (C2's node end), with
-/// each one's box ([`SsiTube::Chart`]'s `nodes`): an end is a node
-/// where the box about it ([`node_box_half`], the chart speeds' units)
-/// lies strictly inside the wall's knot rectangle and the node's own
-/// reading holds over it ([`super::node::holds_node`]). A trace reads
-/// it so, and the edge certificate at rest reads it again about the
-/// edge's end vertex: the box is the pcurve's, so it is stored nowhere.
-/// Every other end is read as an arc's, which a node there refuses.
+/// each one's box ([`SsiTube::Chart`]'s `nodes`): an end is a node where
+/// the node's own reading places the node within the band of it and
+/// gives the node's box ([`super::node::node_box`], in the chart
+/// speeds' units), and that box holds the end span's hull strictly, so
+/// the chain's last window, the box, covers the carrier's last span. A
+/// trace reads it so, and the edge certificate at rest reads it again
+/// about the edge's end vertex: nothing of it is stored but the
+/// half-widths. Every other end is read as an arc's, which a node near
+/// it refuses: limb 3's transverse enclosure straddles there.
 fn node_ends<T: CertifiedBounds>(
     pcurve: &NurbsCurve2<T>,
     wall: &super::ChartedNurbs<'_, T>,
     form: &super::residual::ImplicitForm,
     band: Band,
 ) -> NodeHalves {
+    let Some(spans) = span_hulls(pcurve) else {
+        return [None, None];
+    };
     let domain = wall.boxes().domain();
     let unit = wall.speeds().pad(1.0);
     let mut jets: Option<Option<super::node::Jets>> = None;
     core::array::from_fn(|end| {
-        let half = node_box_half(pcurve, unit, end)?;
-        let (cu, cv) = pcurve_end(pcurve, end)?;
-        let rect = UvRect {
-            u: (cu - half.0, cu + half.0),
-            v: (cv - half.1, cv + half.1),
-        };
-        let inside = domain.u.0 < rect.u.0
-            && rect.u.1 < domain.u.1
-            && domain.v.0 < rect.v.0
-            && rect.v.1 < domain.v.1;
-        if !inside {
-            return None;
-        }
+        let at = pcurve_end(pcurve, &spans, end)?;
         let jets = jets
             .get_or_insert_with(|| {
                 let inexact = core::cell::Cell::new(false);
@@ -2743,7 +2715,18 @@ fn node_ends<T: CertifiedBounds>(
                     .flatten()
             })
             .as_ref()?;
-        super::node::holds_node(jets, form, rect, band).then_some(half)
+        let SpanHull { hull, .. } = if end == 0 {
+            *spans.first()?
+        } else {
+            *spans.last()?
+        };
+        // The end span's reach from the end, in metres through each
+        // axis's chart units per metre.
+        let far = |(lo, hi): (f64, f64), c: f64| (c - lo).abs().max((hi - c).abs());
+        let reach = (far(hull.u, at.0) / unit.0).max(far(hull.v, at.1) / unit.1);
+        let half = super::node::node_box(jets, form, (at, unit, domain, reach), band)?;
+        let holds = |(lo, hi): (f64, f64), c: f64, h: f64| c - h < lo && hi < c + h;
+        (holds(hull.u, at.0, half.0) && holds(hull.v, at.1, half.1)).then_some(half)
     })
 }
 

@@ -38,23 +38,15 @@
 //! box is not strictly inside its piece of the rectangle.
 
 use geom_core::interval::certification::Certification;
-use geom_core::k_stats::{Magnitude, decide_magnitude_reported};
-use geom_core::{Band, Bounds, Interval, Margin, MarginDiag, Vec3};
+use geom_core::{Band, Bounds, Interval, MarginDiag, Vec3};
 
 use super::Phi;
 use crate::ssi::exhaust::UvRect;
 pub(super) use crate::ssi::node::Jets;
-use crate::ssi::node::{KRAWCZYK_ROUNDS, krawczyk, mid, range, read};
+use crate::ssi::node::{krawczyk, mid, range};
 use crate::ssi::section::sign;
 
-/// What a critical point decided Zero is.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(in crate::pair_section) enum Kind {
-    /// A definite Hessian: the surfaces touch at one point.
-    Touch,
-    /// An indefinite Hessian: the section's arcs cross at the point.
-    Node,
-}
+pub(in crate::pair_section) use crate::ssi::node::Kind;
 
 /// **A critical point of `φ` decided Zero**: its chart point (the last
 /// box's middle), the box that holds it, what it is, and the margin of
@@ -179,57 +171,24 @@ pub(super) fn decide(
     (x, piece): (UvRect, UvRect),
     band: Band,
 ) -> Option<Critical> {
-    let mut b = [range(x.u)?, range(x.v)?];
-    let mut region: Option<[Interval; 2]> = None;
-    for _ in 0..KRAWCZYK_ROUNDS {
-        let (next, inside) = krawczyk(jets, phi, b)?;
-        let narrower = next[0].hi() - next[0].lo() < b[0].hi() - b[0].lo()
-            || next[1].hi() - next[1].lo() < b[1].hi() - b[1].lo();
-        if inside && region.is_none() {
-            region = Some(b);
-        }
-        b = next;
-        if !narrower {
-            break;
-        }
-    }
-    let region = region?;
-    let at = read(jets, phi, b[0], b[1]);
-    let det = at.hessian[0][0] * at.hessian[1][1] - at.hessian[0][1] * at.hessian[1][0];
-    if !det.is_certified() {
-        return None;
-    }
-    let kind = if det.lo() > 0.0 {
-        Kind::Touch
-    } else if det.hi() < 0.0 {
-        Kind::Node
-    } else {
-        return None;
-    };
-    if !at.value.is_certified() {
-        return None;
-    }
+    let d = crate::ssi::node::decide(jets, phi, x, band)?;
+    let b = d.last;
     let rect = |b: [Interval; 2]| UvRect {
         u: (b[0].lo(), b[0].hi()),
         v: (b[1].lo(), b[1].hi()),
     };
-    match decide_magnitude_reported("spline_critical_value", Margin::of(at.ceiling), band) {
-        Ok((Magnitude::Zero, margin)) => {
-            let node = match kind {
-                Kind::Touch => None,
-                Kind::Node => Some(node_frame(jets, phi, b, at.hessian)?),
-            };
-            Some(Critical {
-                at: (mid(b[0]), mid(b[1])),
-                cell: rect(b),
-                region: rect(grown(jets, phi, region, piece)),
-                kind,
-                margin,
-                node,
-            })
-        }
-        Ok((Magnitude::Positive, _)) | Err(_) => None,
-    }
+    let node = match d.kind {
+        Kind::Touch => None,
+        Kind::Node => Some(node_frame(jets, phi, b, d.hessian)?),
+    };
+    Some(Critical {
+        at: (mid(b[0]), mid(b[1])),
+        cell: rect(b),
+        region: rect(grown(jets, phi, d.first, piece)),
+        kind: d.kind,
+        margin: d.margin,
+        node,
+    })
 }
 
 /// The most times a proved box is doubled about its middle (D9, a fixed
