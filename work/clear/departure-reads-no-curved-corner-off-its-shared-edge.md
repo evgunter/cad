@@ -4,7 +4,7 @@ kind: issue
 title: The injectivity check reads a curved corner only through a shared edge of a curved chart or a plane's arc, so a pair touching at the corner's vertex alone, or across a plane's line edge that meets an arc, refuses; the tee refuses so
 status: open
 opened: 2026-10-29
-priority: P2
+priority: P0
 cost: M
 ---
 
@@ -53,5 +53,53 @@ still splits, because the wall presents. Today it refuses at depth 40
 has the cells). There the binding obstacle is the wall's zero-side
 residual, so this row's corner reading alone would not certify those
 pairs.
+
+## Further evidence: eight finished tour bodies (CLEAR, lane clear-gate, 2026-11-12)
+
+Measured for `the-at-rest-gate-certifies-embedding` (its Measured
+section), at main `348ec09727`, f64, the body-level question at the
+default depth and 65,536 pairs. These tour bodies pass tier 3 and
+refuse `Uncertified { arm: Departure }` at depth 40. Their pairs have
+this row's shapes (not traced to the cell):
+- **Plane × plane across a `Line`**: `chute` (faces 1 and 6, edge
+  `20v1`, 0.06 s) and the lily's three buds (faces 1 and 6, edge
+  `12v1`, 0.18–0.31 s). This is the third bullet's shape, a plane's
+  line edge meeting an arc.
+- **Plane × sphere at a vertex alone**: `diefillet` (1.5 s) and
+  `heatsink5`, `7` and `9` (1.8–2.2 s, about 29,000 pairs each). This
+  is the first bullet's shape.
+
+Re-banded P0: the at-rest gate (P0) refuses these bodies at their
+doors until this row lands, and a blocker inherits the band of what
+waits on it.
+
+## Further evidence: a plane cap's two semicircles (CLEAR, lane clear-planecap, 2026-11-12)
+
+The tour's seven plane-cap bodies (`the-certificate-refuses-a-plane-cap-on-a-torus-or-cone-wall-at-their-circle`)
+have this row's second bullet on the cap. Each cap is a disc on two
+arcs of one circle, meeting where the walls' seams land, and a cap
+cell at that vertex is `beside_curve`'s `Structural`. Their refusal
+was not this row's, though. The carrier arm decides such a pair with
+no presentation of the cap, and it lacked only a tight reading of the
+cap's plane along the wall's side. That reading has landed, and the
+seven certify with the cap still unpresented at its vertices.
+
+A reading for a corner of two arcs of one closed conic would still
+pay where no carrier arm applies, as on a curved face whose two
+arcs meet on a non-planar partner. In that reading, the corner's
+other edge is the read edge's own continuation, so `continued` holds
+both.
+
+## Further evidence: the plane × sphere bodies certify (CLEAR, lane clear-pairs, 2026-11-12)
+
+`diefillet` and `heatsink5`, `7` and `9`, the "plane × sphere at a
+vertex alone" bodies above, hold once `present_chart` reads a
+sphere's pole as a collapsed side of its chart
+(`the-certificate-runs-out-of-pairs-on-eight-finished-tour-bodies`,
+its Fix): 4,133 and about 16,100–16,800 pairs, against 20,885 and
+about 29,000 refused before. The vertex those pairs share was the
+sphere patch's pole, which the presentation read as a loose vertex.
+So this row's first bullet no longer has tour evidence; `chute` and
+the lily's three buds (the third bullet) still refuse.
 
 - 2026-11-02 — moved from CLEARTAIL to CLEAR when CLEARTAIL merged back into CLEAR (the budget rule now counts P0/P1 only); id and body unchanged.

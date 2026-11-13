@@ -110,8 +110,9 @@ pub(crate) const SELF_INTERSECTION_SPAN: &str = "self_intersection_span";
 /// The funnel site of a planar corner's convexity: how far the second
 /// edge's far end stands on the first edge's face side, metres.
 pub(crate) const SELF_INTERSECTION_CORNER: &str = "self_intersection_corner";
-/// The funnel site of a vertex at a cone's apex: its distance from the
-/// apex, metres. `Zero` is the apex.
+/// The funnel site of a vertex at a collapse of its face's chart, a
+/// cone's apex or a sphere's pole: its distance from that point, metres.
+/// `Zero` is the collapse.
 pub(crate) const SELF_INTERSECTION_APEX: &str = "self_intersection_apex";
 /// The funnel site of a cone face's nappe: a vertex's signed height
 /// along the axis from the apex, metres. Its sign is the nappe.
@@ -1701,6 +1702,54 @@ fn present_chart<'a>(
                     edges: Vec::new(),
                     collapsed: Some(v),
                 }),
+            }
+        }
+    }
+    // A sphere's pole is a collapsed side of its chart: the latitude
+    // line `v = ±π/2` is the one point `center ± axis·radius`, where a
+    // rectangle reaching the pole's latitude stops.
+    if let Surface::Sphere {
+        center,
+        radius,
+        axis,
+        ..
+    } = piece.surface
+    {
+        let half = core::f64::consts::FRAC_PI_2;
+        for &v in &piece.local.vertices {
+            let Some(&p) = b.vertices.get(&v) else {
+                continue;
+            };
+            for north in [false, true] {
+                let pole = if north {
+                    *center + *axis * *radius
+                } else {
+                    *center - *axis * *radius
+                };
+                let reaches = if north { y.1 >= half } else { y.0 <= -half };
+                if !reaches
+                    || !matches!(
+                        decide(SELF_INTERSECTION_APEX, Margin::of((p - pole).norm()), band),
+                        Ok(Sign::Zero)
+                    )
+                {
+                    continue;
+                }
+                let (side, bound) = if north {
+                    (Side::YHi, y.1)
+                } else {
+                    (Side::YLo, y.0)
+                };
+                match merged.iter_mut().find(|m| m.side == side) {
+                    Some(m) if m.at.lo() <= bound && bound <= m.at.hi() => m.collapsed = Some(v),
+                    Some(_) => return Err(Unpresented::Local),
+                    None => merged.push(Clip {
+                        side,
+                        at: at(bound),
+                        edges: Vec::new(),
+                        collapsed: Some(v),
+                    }),
+                }
             }
         }
     }
@@ -4305,14 +4354,29 @@ fn centred(psi: &Psi, p: &Presented<'_>, x: (f64, f64), y: (f64, f64)) -> Option
     Some(middle + grad.dot(fx) * iv((x.0 - xm, x.1 - xm)) + grad.dot(fy) * iv((y.0 - ym, y.1 - ym)))
 }
 
-/// `ψ∘Φ` over a side `x × y` of the presentation. A linear `ψ` on a
-/// spline chart is the hull of its values at the side's restricted
-/// control points ([`geom::NurbsSurface::rect_net`]): `ψ` is affine and
-/// the side's points are convex combinations of those, so the hull
-/// encloses it, and an iso lying in `ψ`'s zero set reads zero at any
-/// width. Anywhere else, and where the net door refuses (a restricted
-/// weight not certified positive), the centred form.
+/// `ψ∘Φ` over a side `x × y` of the presentation. On an analytic chart
+/// whose coordinate line there is a circle ([`iso_circle`]), `ψ` along
+/// that circle's closed form ([`Trig::psi`]): a side lying in `ψ`'s zero
+/// set reads rounding at any width, where the centred form's error
+/// grows with the side's length squared. A linear `ψ` on a spline chart
+/// is the hull of its values at the side's restricted control points
+/// ([`geom::NurbsSurface::rect_net`]): `ψ` is affine and the side's
+/// points are convex combinations of those, so the hull encloses it,
+/// and an iso lying in `ψ`'s zero set reads zero at any width. Anywhere
+/// else, and where neither form reads it (the net door refusing a
+/// restricted weight not certified positive, or a cone's lever not
+/// certified positive), the centred form.
 fn on_side(psi: &Psi, p: &Presented<'_>, x: (f64, f64), y: (f64, f64)) -> Option<Interval> {
+    if let Map::Chart = p.map {
+        let circle = match (x.0 == x.1, y.0 == y.1) {
+            (true, false) => iso_circle(p.surface, Axis::U, x.0).map(|c| (c, y)),
+            (false, true) => iso_circle(p.surface, Axis::V, y.0).map(|c| (c, x)),
+            _ => None,
+        };
+        if let Some(value) = circle.and_then(|(c, t)| c.psi(psi, iv(t))) {
+            return Some(value);
+        }
+    }
     let net = match (&p.map, p.surface) {
         (Map::Chart, Surface::Nurbs(net)) if psi.linear().is_some() => net.rect_net(x, y),
         _ => None,
@@ -4323,6 +4387,117 @@ fn on_side(psi: &Psi, p: &Presented<'_>, x: (f64, f64), y: (f64, f64)) -> Option
             values.collect::<Option<Vec<_>>>()?.into_iter().reduce(hull)
         }
         None => centred(psi, p, x, y),
+    }
+}
+
+/// **The image of an analytic chart's coordinate line `held = b`, where
+/// it is a circle**, in the moving coordinate: a torus's meridians and
+/// parallels, a sphere's, and a cylinder's or a cone's parallels. `None`
+/// for a ruling, which is a line, and for every other carrier.
+fn iso_circle(surface: &Surface<Interval>, held: Axis, b: f64) -> Option<Trig> {
+    let b = at(b);
+    let ring = |frame: geom::Frame<Interval>, c: Point3<Interval>, r: Interval| Trig {
+        c,
+        a: frame.u_ref * r,
+        b: frame.v_ref() * r,
+    };
+    match (surface, held) {
+        (
+            &Surface::Torus {
+                center,
+                axis,
+                major_radius,
+                minor_radius,
+                u_ref,
+            },
+            Axis::U,
+        ) => {
+            let radial = geom::Frame::new(center, axis, u_ref).radial(b);
+            Some(Trig {
+                c: center + radial * major_radius,
+                a: radial * minor_radius,
+                b: axis * minor_radius,
+            })
+        }
+        (
+            &Surface::Torus {
+                center,
+                axis,
+                major_radius,
+                minor_radius,
+                u_ref,
+            },
+            Axis::V,
+        ) => {
+            let (s, c) = b.sin_cos();
+            Some(ring(
+                geom::Frame::new(center, axis, u_ref),
+                center + axis * (minor_radius * s),
+                major_radius + minor_radius * c,
+            ))
+        }
+        (
+            &Surface::Sphere {
+                center,
+                radius,
+                axis,
+                u_ref,
+            },
+            Axis::U,
+        ) => {
+            let radial = geom::Frame::new(center, axis, u_ref).radial(b);
+            Some(Trig {
+                c: center,
+                a: radial * radius,
+                b: axis * radius,
+            })
+        }
+        (
+            &Surface::Sphere {
+                center,
+                radius,
+                axis,
+                u_ref,
+            },
+            Axis::V,
+        ) => {
+            let (s, c) = b.sin_cos();
+            Some(ring(
+                geom::Frame::new(center, axis, u_ref),
+                center + axis * (radius * s),
+                radius * c,
+            ))
+        }
+        (
+            &Surface::Cylinder {
+                origin,
+                axis,
+                radius,
+                u_ref,
+            },
+            Axis::V,
+        ) => Some(ring(
+            geom::Frame::new(origin, axis, u_ref),
+            origin + axis * b,
+            radius,
+        )),
+        (
+            &Surface::Cone {
+                apex,
+                axis,
+                half_angle,
+                u_ref,
+            },
+            Axis::V,
+        ) => {
+            let (s, c) = half_angle.sin_cos();
+            Some(ring(
+                geom::Frame::new(apex, axis, u_ref),
+                apex + axis * (b * c),
+                b * s,
+            ))
+        }
+        _ => None,
     }
 }
 
@@ -4612,11 +4787,12 @@ fn heading(p: &Presented<'_>, q: Point3<f64>) -> Option<Vec3<f64>> {
     unit(pmid(p.image((x, x), (y, y))) - q)
 }
 
-/// **A plane through the shared cell**: one conic shared edge's own
-/// plane; or, where the shared edges are straight, through one line
-/// edge, bisecting the faces' headings about it, through two line edges
-/// at a shared vertex, or, at a shared vertex alone, across the faces'
-/// two headings.
+/// **A plane through the shared cell**: where every shared edge is a
+/// planar conic, the first one's own plane (a sphere's two seam
+/// meridians are arcs of one great circle); or, where the shared edges
+/// are straight, through one line edge, bisecting the faces' headings
+/// about it, through two line edges at a shared vertex, or, at a shared
+/// vertex alone, across the faces' two headings.
 fn plane_through(
     x: &Piece<'_>,
     near: &Near,
@@ -4626,33 +4802,31 @@ fn plane_through(
     let q = anchor(x, near)?;
     let q0 = pmid(q);
     let (hx, hy) = (heading(px, q0)?, heading(py, q0)?);
-    if let [(i, _)] = near.edges.as_slice()
-        && let Some((
+    let conic = |i: usize| match x.boundary.edges.get(i)?.arc.as_ref()? {
+        (
             Curve3::Circle(geom::Circle {
-                frame:
-                    geom::Frame {
-                        origin: center,
-                        axis,
-                        ..
-                    },
+                frame: geom::Frame { origin, axis, .. },
                 ..
             })
             | Curve3::Ellipse(geom::Ellipse {
-                frame:
-                    geom::Frame {
-                        origin: center,
-                        axis,
-                        ..
-                    },
+                frame: geom::Frame { origin, axis, .. },
                 ..
             }),
             _,
-        )) = x.boundary.edges.get(*i).and_then(|e| e.arc.as_ref())
+        ) => Some((*origin, *axis)),
+        _ => None,
+    };
+    if let Some(planes) = near
+        .edges
+        .iter()
+        .map(|&(i, _)| conic(i))
+        .collect::<Option<Vec<_>>>()
+        && let Some(&(center, axis)) = planes.first()
     {
-        // A planar conic: its own plane.
+        // Planar conics: the first one's own plane.
         return Some(Psi::Linear {
-            n: lift(unit(vmid(*axis))?),
-            q: *center,
+            n: lift(unit(vmid(axis))?),
+            q: center,
         });
     }
     let lines: Vec<Vec3<f64>> = near
@@ -7909,6 +8083,52 @@ mod presentation_rows {
         assert!(
             matches!(got, Outcome::Split { .. }),
             "across the fold: {got:?}"
+        );
+    }
+
+    /// **A side on a torus's meridian reads a plane through it as zero
+    /// off the circle's closed form** ([`on_side`], [`iso_circle`]): the
+    /// meridian `u = 0.7` of [`ring`]`(2)` lies in the plane through the
+    /// axis there, and a quarter-turn side of it reads rounding, where the
+    /// centred form's error, the length squared, reads it nonzero. The
+    /// face below the side departs that plane to its negative side.
+    #[test]
+    fn a_side_on_a_meridian_reads_a_plane_through_it_off_its_closed_form() {
+        let (u0, sv) = (0.7, (0.0, 0.25));
+        let torus = ring(2.0);
+        let meridian = Psi::Carrier(Implicit::Plane {
+            o: origin(),
+            n: Vec3::new(iv0(-u0.sin()), iv0(u0.cos()), iv0(0.0)),
+        });
+        let p = Presented {
+            surface: &torus,
+            map: Map::Chart,
+            x: (u0 - 0.1, u0),
+            y: sv,
+            zero: Zero::Side(Side::XHi),
+            corner: false,
+            cache: Cache::default(),
+        };
+        let along = on_side(&meridian, &p, (u0, u0), sv).unwrap();
+        assert!(is_zero(along, band()), "the meridian reads zero: {along:?}");
+        let first_order = centred(&meridian, &p, (u0, u0), sv).unwrap();
+        assert!(
+            !is_zero(first_order, band()),
+            "the centred form does not read the side zero: {first_order:?}"
+        );
+        assert_eq!(
+            sign_on(&meridian, &p, None, band()),
+            Some(Sign::Negative),
+            "the face at u < 0.7 lies on the plane's negative side"
+        );
+        let tilted = Psi::Carrier(Implicit::Plane {
+            o: origin(),
+            n: Vec3::new(iv0(-(u0 + 1e-3).sin()), iv0((u0 + 1e-3).cos()), iv0(0.0)),
+        });
+        let off = on_side(&tilted, &p, (u0, u0), sv).unwrap();
+        assert!(
+            !is_zero(off, band()),
+            "a plane a milliradian off the meridian does not: {off:?}"
         );
     }
 

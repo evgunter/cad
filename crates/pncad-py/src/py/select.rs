@@ -863,10 +863,14 @@ pub(crate) fn select_refusal(
             "the comparand of a distance must be a length".to_string()
         }
         R::BadValue(inner) => format!("the stated value did not evaluate: {inner}"),
-        R::NoMember { member, .. } => format!(
-            "the read holds no member at {member:?}: read a member the family has, one value \
-             per index"
-        ),
+        R::NoMember { member, .. } => {
+            let member: Vec<String> = member.iter().map(u32::to_string).collect();
+            format!(
+                "the read holds no member at [{}]: read a member the family has, one value \
+                 per index",
+                member.join(", ")
+            )
+        }
         R::Family { .. } => "a selection reads one body, and this read is a family read \
                               whole: select from one member of it, `xs[i]`"
             .to_string(),

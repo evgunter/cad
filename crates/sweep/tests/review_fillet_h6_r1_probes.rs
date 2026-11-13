@@ -136,8 +136,8 @@ fn revolve_refuses_an_in_band_second_order_at_the_door() {
         dir: geom_core::Vec2::new(0.0, 1.0),
     };
     match revolve(&profile, axis, Revolution::Full, tol) {
-        Err(sweep::RevolveError::SliverJoin { source, .. }) => assert_eq!(
-            source.predicate,
+        Err(sweep::RevolveError::SliverJoin { escalation, .. }) => assert_eq!(
+            escalation.diag().predicate,
             Some("tangent_second_order"),
             "the refusal must name the must-carry rule's metered predicate",
         ),

@@ -19,15 +19,17 @@
 //!   or an over joining the bolt and the plate leaves them lying on each
 //!   other over the rest of the seat inside one shell, `TouchesItself`
 //!   naming the record.
-//! - **A cut across its tool's seat** refuses `ToolSeatCrossed` naming
-//!   the record: the cut would leave a sliver of the cut part between the
-//!   seat's two sections
-//!   (`work/seal/a-cut-across-its-tools-seat-leaves-a-sliver-between-the-seats-two-sections.md`).
-//!   A tool touching the seat from one piece is cut away whole.
+//! - **A cut by the seat reads it as material**: the bolt and the plate
+//!   fused on the seat's record, then an ordinary cut
+//!   (`crates/topo/README.md`, `[topo.cut-material]`), so every
+//!   block cut by the seat is the block less both pieces, the cut by
+//!   each piece in turn, and a block inside their material is cut away
+//!   whole.
 //! - **Still read twice**: with no record, a vertex piercing both faces
 //!   refuses `VertexReadTwice` in every op; so, with the record, does a
-//!   vertex that only touches the seat (but in a cut by it), pairs on
-//!   it, crosses it with an edge in it, or holds a face on it.
+//!   vertex that only touches the seat, pairs on it, crosses it with an
+//!   edge in it, or holds a face on it, wherever the seat's pieces are
+//!   kept.
 //! - **Refused at the carry**: a collar round the bolt's foot united with
 //!   or cut from the seat, and a seat met with a tool that carries
 //!   records of its own, refuse `CarryRefused`
@@ -573,57 +575,219 @@ fn a_union_bridging_a_seat_touches_itself_and_one_on_a_piece_builds() {
     }
 }
 
-/// **A cut across its tool's seat refuses typed**: a post, a pin, a
-/// bead, a slab, a cap, an over or a collar cut by the seat, its
-/// material across the seat, refuses `ToolSeatCrossed` naming the seat's
-/// record and faces, never a sliver of the cut part between the seat's
-/// two sections: on main, `VertexReadTwice` where a vertex crosses, and
-/// a silently wrong body where a face alone does (`cap − seat`, one
-/// solid of 11 faces, its floor the seat held apart by the record). Red
-/// where the cut builds or refuses anything else.
+/// **A cut reads its tool as material**: each block cut by the seat is
+/// the block less the bolt and the plate, the tool's two solids fused on
+/// the seat's record before the cut
+/// (`crates/topo/README.md`, `[topo.cut-material]`). The post, held
+/// inside the bolt's foot and the plate, is the typed empty result; the
+/// pin leaves its stub below the plate, the bead its piece outside both,
+/// and the slab, the cap, the over, the collar and the corner what lies
+/// above the plate and outside the bolt, the slab and the cap crossing
+/// the bolt's foot by a face alone. Each at tier 3 and 3′, one solid, no
+/// record of the seat left, at rest and turned. Red where the plain cut
+/// runs (the vertex pass reads the seat as a wall and refuses), where the
+/// fuse glues the seat under the wrong class, or where it drops the
+/// record and the union is handed nothing to glue (`Escalated`).
 #[test]
-fn a_cut_across_its_tools_seat_refuses_typed() {
+fn a_cut_by_its_tools_seat_reads_the_tool_as_material() {
     for pose in two_poses() {
         let seat = Seat::at(pose);
         let b = Blocks::of(&seat);
         let s = Shape::Seat;
-        for cut in [
-            Shape::Block("post", &b.post),
-            Shape::Block("pin", &b.pin),
-            Shape::Block("bead", &b.bead),
-            Shape::Block("slab", &b.slab),
-            Shape::Block("cap", &b.cap),
-            Shape::Block("over", &b.over),
-            Shape::Block("collar", &b.collar),
-        ] {
+        let what = seat.label(BooleanOp::Subtract, [&Shape::Block("post", &b.post), &s]);
+        match seat.run(
+            BooleanOp::Subtract,
+            [&Shape::Block("post", &b.post), &s],
+            true,
+        ) {
+            Ok(BooleanResult::Empty) => {}
+            other => panic!("{what}: the empty result, got {:?}", other.map(|_| ())),
+        }
+        // The block, its faces and volume, a point the cut keeps and one
+        // the tool's material takes, in the seat's frame.
+        type Row<'a> = (Shape<'a>, usize, f64, [[f64; 3]; 2]);
+        let rows: [Row<'_>; 7] = [
+            (
+                Shape::Block("pin", &b.pin),
+                6,
+                0.020,
+                [[0.0, 0.0, -0.25], [0.0, 0.0, 0.1]],
+            ),
+            (
+                Shape::Block("bead", &b.bead),
+                6,
+                0.006,
+                [[0.3, 0.0, 0.3], [0.17, 0.0, 0.3]],
+            ),
+            (
+                Shape::Block("slab", &b.slab),
+                14,
+                2.276,
+                [[1.5, 0.0, 0.3], [0.0, 0.0, 0.3]],
+            ),
+            (
+                Shape::Block("cap", &b.cap),
+                10,
+                0.168,
+                [[0.4, 0.0, 0.3], [0.0, 0.0, 0.3]],
+            ),
+            (
+                Shape::Block("over", &b.over),
+                8,
+                0.030,
+                [[0.4, 0.4, 0.3], [0.15, 0.15, 0.3]],
+            ),
+            (
+                Shape::Block("collar", &b.collar),
+                10,
+                0.096,
+                [[0.3, 0.0, 0.3], [0.17, 0.0, 0.3]],
+            ),
+            (
+                Shape::Block("corner", &b.corner),
+                6,
+                0.018,
+                [[0.35, 0.35, 0.3], [0.35, 0.35, 0.15]],
+            ),
+        ];
+        for (cut, faces, volume, points) in rows {
             let what = seat.label(BooleanOp::Subtract, [&cut, &s]);
-            match seat.run(BooleanOp::Subtract, [&cut, &s], true) {
-                Err(BooleanError::ToolSeatCrossed { record, faces }) => {
-                    assert_eq!(record, 0, "{what}: the seat's record");
-                    assert_eq!(faces, seat.faces(), "{what}: the seat's faces");
-                }
-                other => panic!(
-                    "{what}: refuses ToolSeatCrossed, got {:?}",
-                    other.map(|_| ())
-                ),
-            }
+            let r = built(&what, seat.run(BooleanOp::Subtract, [&cut, &s], true));
+            sound(&what, &seat, &r, (1, faces, volume), false, points);
         }
     }
 }
 
-/// **A tool touching its seat from one piece is cut away whole**: a ridge
-/// inside the bolt, or inside the plate, its apex edge lying in the seat,
-/// cut by the seat is the typed empty result. Its vertices on the seat
-/// touch both faces from one side, writing nothing, and the seat's
-/// material lies on both sides of them, so the cut keeps nothing there.
-/// A block with a face on the seat, from above or below, refuses
-/// `VertexReadTwice`: its face lies in the wall, which the coplanar
-/// sector reader reads one face at a time
-/// (`work/seal/a-declared-wall-is-read-only-by-a-vertex-crossing-it.md`).
-/// Red where a tool that does not cross the seat refuses
-/// `ToolSeatCrossed`.
+/// **A cut by the seat is the cut by each piece in turn**: `(x − bolt) −
+/// plate`, the pieces as bodies of their own, builds the same body as
+/// `x − (bolt ⊔ plate)`, its solids, faces and volume, at rest and
+/// turned, and is empty where it is. Red where the cut by the material
+/// reads the tool's seat into the result.
 #[test]
-fn a_tool_touching_its_seat_from_one_piece_is_cut_away() {
+fn a_cut_by_the_seat_is_the_cut_by_each_piece_in_turn() {
+    for pose in two_poses() {
+        let seat = Seat::at(pose);
+        let b = Blocks::of(&seat);
+        let s = Shape::Seat;
+        let bolt = seat.block((-0.2, 0.2), (-0.2, 0.2), (0.2, 1.2));
+        let plate = seat.block((-1.0, 1.0), (-1.0, 1.0), (0.0, 0.2));
+        let measures = |r: Result<BooleanResult<f64>, BooleanError>| match r {
+            Ok(BooleanResult::Body(r)) => Some((
+                r.body.solids().count(),
+                r.body.faces().count(),
+                (volume(&r.body) * 1e9).round(),
+            )),
+            Ok(BooleanResult::Empty) => None,
+            Err(e) => panic!("refuses {e:?}"),
+        };
+        for (name, x) in [
+            ("post", &b.post),
+            ("pin", &b.pin),
+            ("bead", &b.bead),
+            ("slab", &b.slab),
+            ("cap", &b.cap),
+            ("over", &b.over),
+        ] {
+            let what = seat.label(BooleanOp::Subtract, [&Shape::Block(name, x), &s]);
+            let whole = measures(seat.run(BooleanOp::Subtract, [&Shape::Block(name, x), &s], true));
+            let fold = match topo::subtract(x, &bolt, t()) {
+                Ok(BooleanResult::Body(r)) => measures(topo::subtract(&r.body, &plate, t())),
+                other => measures(other),
+            };
+            assert_eq!(whole, fold, "{what}: the cut by each piece in turn");
+        }
+    }
+}
+
+/// **A tool of three stacked solids is read as one material**: the bolt
+/// on the plate on a base `[−1, 1]² × [−0.3, 0]` flush with it, one body
+/// of three solids, both seats recorded. The fold unites them in two
+/// steps, the plate's and the base's sides merged, and the pin cut by
+/// it leaves its stub below the base, `[−0.1, 0.1]² × [−0.5, −0.3]`,
+/// while a block through the stack's side keeps what lies outside it,
+/// its notch walled by the merged sides. Red where a step after the
+/// first is handed no verdict through the fold's lineage, or where a
+/// merged face of the material reads back to no face of the tool.
+#[test]
+fn a_tool_of_three_stacked_solids_is_one_material() {
+    for pose in two_poses() {
+        let seat = Seat::at(pose);
+        let stack = posed_boxes(
+            "a bolt on a plate on a base",
+            &[
+                [(-0.2, 0.2), (-0.2, 0.2), (0.2, 1.2)],
+                [(-1.0, 1.0), (-1.0, 1.0), (0.0, 0.2)],
+                [(-1.0, 1.0), (-1.0, 1.0), (-0.3, 0.0)],
+            ],
+            &seat.pose,
+            t(),
+        );
+        let records = Seat::recorded(&stack);
+        assert_eq!(
+            records.face_face().count(),
+            2,
+            "the premise, {}: two seats: {records:?}",
+            seat.pose.label
+        );
+        let pin = seat.block((-0.1, 0.1), (-0.1, 0.1), (-0.5, 0.5));
+        let side = seat.block((0.5, 2.0), (-0.5, 0.5), (-0.5, 0.4));
+        for (name, x, faces, want, [held, not]) in [
+            ("pin", &pin, 6, 0.008, [[0.0, 0.0, -0.4], [0.0, 0.0, -0.1]]),
+            ("side", &side, 10, 1.1, [[1.5, 0.0, 0.0], [0.7, 0.0, 0.0]]),
+        ] {
+            let what = format!("{name} − stack, {}", seat.pose.label);
+            let r = built(
+                &what,
+                topo::boolean_op_with(
+                    BooleanOp::Subtract,
+                    x,
+                    &stack,
+                    &BooleanInputs {
+                        records_a: Default::default(),
+                        records_b: records.carried(),
+                    },
+                    topo::SweepStrategy::Realized,
+                    t(),
+                ),
+            );
+            assert_eq!(r.body.solids().count(), 1, "{what}: one solid");
+            assert_eq!(r.body.faces().count(), faces, "{what}: its faces");
+            assert_eq!(
+                topo::validate_geometric(&r.body, t()),
+                Ok(()),
+                "{what}: tier 3"
+            );
+            assert_eq!(
+                topo::validate_pseudomanifold(&r.body, &r.contacts, t()),
+                Ok(()),
+                "{what}: tier 3′"
+            );
+            let v = volume(&r.body);
+            assert!((v - want).abs() < 1e-9, "{what}: volume {v}, want {want}");
+            assert_eq!(
+                inside(&r.body, seat.pose.at(held)),
+                Some(true),
+                "{what}: holds {held:?}"
+            );
+            assert_eq!(
+                inside(&r.body, seat.pose.at(not)),
+                Some(false),
+                "{what}: not {not:?}"
+            );
+        }
+    }
+}
+
+/// **A block inside the seat's material is cut away whole**: a ridge
+/// inside the bolt or the plate, its apex edge lying in the seat, a block
+/// with a face on the seat from above or below, and a blade whose edge
+/// lies in the seat with material on both sides of it, each cut by the
+/// seat, is the typed empty result: the tool is read as its material, in
+/// which the seat is no face. Red where a block inside it is cut along
+/// the seat, which refused `VertexReadTwice` for the blocks on the seat
+/// and the blade.
+#[test]
+fn a_block_inside_the_seats_material_is_cut_away() {
     for pose in two_poses() {
         let seat = Seat::at(pose);
         let b = Blocks::of(&seat);
@@ -631,28 +795,14 @@ fn a_tool_touching_its_seat_from_one_piece_is_cut_away() {
         for cut in [
             Shape::Block("ridge", &b.ridge),
             Shape::Block("down", &b.down),
+            Shape::Block("above", &b.above),
+            Shape::Block("below", &b.below),
+            Shape::Block("blade", &b.blade),
         ] {
             let what = seat.label(BooleanOp::Subtract, [&cut, &s]);
             match seat.run(BooleanOp::Subtract, [&cut, &s], true) {
                 Ok(BooleanResult::Empty) => {}
                 other => panic!("{what}: the empty result, got {:?}", other.map(|_| ())),
-            }
-        }
-        for cut in [
-            Shape::Block("above", &b.above),
-            Shape::Block("below", &b.below),
-        ] {
-            let what = seat.label(BooleanOp::Subtract, [&cut, &s]);
-            match seat.run(BooleanOp::Subtract, [&cut, &s], true) {
-                Err(BooleanError::VertexReadTwice {
-                    operand: Operand::A,
-                    reads: [SectorRead::Pierce(_), SectorRead::Pierce(_)],
-                    ..
-                }) => {}
-                other => panic!(
-                    "{what}: refuses VertexReadTwice, got {:?}",
-                    other.map(|_| ())
-                ),
             }
         }
     }
@@ -695,11 +845,13 @@ fn a_vertex_through_two_faces_no_record_declares_reads_twice() {
 }
 
 /// **A vertex on the seat that is no wall's crossing is still read
-/// twice**, the seat's record carried in, in both operand orders:
+/// twice**, the seat's record carried in, wherever the seat's pieces
+/// are kept (a cut by the seat reads it as material,
+/// [`a_block_inside_the_seats_material_is_cut_away`]):
 /// - a ridge whose apex edge lies in the seat touches both faces at its
 ///   ends, and its edge lies in the wall, which no line reader reads as
-///   one (but in a cut by the seat, which keeps nothing there); admitted,
-///   `seat − ridge` built a body whose records tier 3′ refuses;
+///   one; admitted, `seat − ridge` built a body whose records tier 3′
+///   refuses;
 /// - a blade's vertices cross the seat with an edge lying in it, On both
 ///   faces, so the second face's runs are not the first's mirror;
 ///   admitted, the mint is an Euler refusal;
@@ -720,7 +872,7 @@ fn a_vertex_on_a_seat_that_is_no_crossing_of_it_reads_twice() {
         for op in [BooleanOp::Union, BooleanOp::Subtract, BooleanOp::Intersect] {
             for (operands, cut_by_seat) in [([&s, x], false), ([x, &s], op == BooleanOp::Subtract)]
             {
-                if cut_by_seat && std::ptr::eq(x, &ridge) {
+                if cut_by_seat {
                     continue;
                 }
                 let what = seat.label(op, operands);
@@ -747,8 +899,9 @@ fn a_vertex_on_a_seat_that_is_no_crossing_of_it_reads_twice() {
 /// faces a collar's ring divides it into, and a meet or union of the
 /// seat with a tool carrying a seat of its own, refuse `CarryRefused`
 /// reading the seat's record (`Unread`: the census reads no lane for one
-/// pair of its images). The split post cut by the seat crosses the
-/// seat (`ToolSeatCrossed`). The carry onto a seat divided along the
+/// pair of its images), but for a cut: the seat cut by the split post is
+/// cut by its material, the post, and the split post cut by the seat is
+/// the typed empty result. The carry onto a seat divided along the
 /// wall is `work/seal/a-declared-wall-is-read-only-by-a-vertex-crossing-it.md`'s.
 /// Red where one of these builds or refuses otherwise, either way a
 /// change the row should hear of.
@@ -787,22 +940,351 @@ fn a_seat_divided_along_a_ring_or_met_with_a_seat_refuses_at_the_carry() {
                 t(),
             )
         };
+    // The split post as a cut's tool is its material, the post: the
+    // seat cut by it is the seat cut by the post, the seat's record
+    // carried.
+    let what = "seat − split post";
+    let r = built(
+        what,
+        both(
+            BooleanOp::Subtract,
+            &seat.body,
+            &b.split,
+            &seat.records,
+            &split_records,
+        ),
+    );
+    sound(
+        what,
+        &seat,
+        &r,
+        (2, 22, 0.948),
+        true,
+        [[0.5, 0.5, 0.1], [0.0, 0.0, 0.15]],
+    );
     for op in [BooleanOp::Union, BooleanOp::Subtract, BooleanOp::Intersect] {
-        let what = format!("seat {op:?} split post");
-        unread(
-            &what,
-            both(op, &seat.body, &b.split, &seat.records, &split_records),
-        );
+        if op != BooleanOp::Subtract {
+            let what = format!("seat {op:?} split post");
+            unread(
+                &what,
+                both(op, &seat.body, &b.split, &seat.records, &split_records),
+            );
+        }
         let what = format!("split post {op:?} seat");
         let r = both(op, &b.split, &seat.body, &split_records, &seat.records);
         if op == BooleanOp::Subtract {
             assert!(
-                matches!(r, Err(BooleanError::ToolSeatCrossed { record: 0, .. })),
-                "{what}: refuses ToolSeatCrossed, got {:?}",
+                matches!(r, Ok(BooleanResult::Empty)),
+                "{what}: the split post inside the seat's material is cut away, got {:?}",
                 r.map(|_| ())
             );
         } else {
             unread(&what, r);
         }
+    }
+}
+
+/// `x` cut by the `⊔` of `boxes`, its solids recorded as a `⊔`'s census
+/// records them, `extra` added to its records.
+fn cut_by_boxes(
+    seat: &Seat,
+    boxes: &[[(f64, f64); 3]],
+    x: [(f64, f64); 3],
+    extra: impl FnOnce(&AtRestBody<f64>, &mut topo::OperandRecords),
+) -> Result<BooleanResult<f64>, BooleanError> {
+    let tool = posed_boxes("a tool", boxes, &seat.pose, t());
+    let mut records = Seat::recorded(&tool).carried();
+    extra(&tool, &mut records);
+    topo::boolean_op_with(
+        BooleanOp::Subtract,
+        &posed_boxes("a block", &[x], &seat.pose, t()),
+        &tool,
+        &BooleanInputs {
+            records_a: Default::default(),
+            records_b: records,
+        },
+        topo::SweepStrategy::Realized,
+        t(),
+    )
+}
+
+/// One solid of `faces` faces and volume `want`, tier 3 and 3′, carrying
+/// `records` records.
+fn one_solid(
+    what: &str,
+    r: Result<BooleanResult<f64>, BooleanError>,
+    faces: usize,
+    want: f64,
+    records: usize,
+) {
+    let r = built(what, r);
+    assert_eq!(r.body.solids().count(), 1, "{what}: one solid");
+    assert_eq!(r.body.faces().count(), faces, "{what}: its faces");
+    assert_eq!(
+        topo::validate_geometric(&r.body, t()),
+        Ok(()),
+        "{what}: tier 3"
+    );
+    assert_eq!(
+        topo::validate_pseudomanifold(&r.body, &r.contacts, t()),
+        Ok(()),
+        "{what}: tier 3′"
+    );
+    let v = volume(&r.body);
+    assert!((v - want).abs() < 1e-9, "{what}: volume {v}, want {want}");
+    assert_eq!(
+        r.contacts.len(),
+        records,
+        "{what}: its records {:?}",
+        r.contacts
+    );
+}
+
+const BOLT: [(f64, f64); 3] = [(-0.2, 0.2), (-0.2, 0.2), (0.2, 1.2)];
+const PLATE: [(f64, f64); 3] = [(-1.0, 1.0), (-1.0, 1.0), (0.0, 0.2)];
+
+/// **A piece touching the seat's plate along an edge or at a point
+/// rides as a record of the material**: the bolt on the plate, and a
+/// block standing beside the plate's top edge (`x = 1`) or on its corner
+/// `(1, 1)`, recorded edge–edge or vertex–vertex with the plate. The
+/// fuse joins the bolt and the plate and leaves the block standing, its
+/// record with the plate carried into the cut as on main. Each cut main
+/// built builds the same body: off the seat, flush with the plate's side,
+/// round its corner, under the whole plate, at rest and turned, and the
+/// block round the corner keeps its vertex record. A pin through the seat
+/// and a block over half the stack build the cut by each piece in turn,
+/// where main refused `ToolSeatCrossed` or kept the seat's crack. A block
+/// over the edge the plate and the beside block share refuses
+/// `LineWedges`, as on main. Red where a lower-cell record between solids
+/// the fuse keeps apart refuses or is dropped.
+#[test]
+fn a_piece_touching_the_seats_plate_at_a_line_or_point_rides_its_record() {
+    for pose in two_poses() {
+        let seat = Seat::at(pose);
+        let l = seat.pose.label;
+        let edge = [BOLT, PLATE, [(1.0, 1.4), (-0.3, 0.3), (0.2, 0.6)]];
+        let vertex = [BOLT, PLATE, [(1.0, 1.4), (1.0, 1.4), (0.2, 0.6)]];
+        let pin = [(-0.1, 0.1), (-0.1, 0.1), (-0.5, 0.5)];
+        let off = [(0.5, 0.9), (0.5, 0.9), (-0.1, 0.1)];
+        let flush = [(0.9, 1.1), (-0.5, 0.5), (0.0, 0.2)];
+        let corner = [(0.8, 1.2), (0.8, 1.2), (0.1, 0.3)];
+        let under = [(-2.0, 2.0), (-2.0, 2.0), (-0.1, 0.1)];
+        let half = [(-0.5, 0.5), (-1.0, 1.5), (-1.0, 2.0)];
+        for (tool, boxes, corner_faces, corner_volume, corner_records) in [
+            ("edge", &edge, 9, 0.028, 0),
+            ("vertex", &vertex, 12, 0.024, 1),
+        ] {
+            for (name, x, faces, want, records) in [
+                ("pin", pin, 6, 0.020, 0),
+                ("off", off, 6, 0.016, 0),
+                ("flush", flush, 6, 0.020, 0),
+                (
+                    "corner",
+                    corner,
+                    corner_faces,
+                    corner_volume,
+                    corner_records,
+                ),
+                ("under", under, 11, 2.8, 0),
+                ("half", half, 15, 6.94, 0),
+            ] {
+                let what = format!("{name} − {tool}, {l}");
+                one_solid(
+                    &what,
+                    cut_by_boxes(&seat, boxes, x, |_, _| ()),
+                    faces,
+                    want,
+                    records,
+                );
+            }
+        }
+        let what = format!("over − edge, {l}");
+        match cut_by_boxes(
+            &seat,
+            &edge,
+            [(0.8, 1.2), (-0.2, 0.2), (0.1, 0.3)],
+            |_, _| (),
+        ) {
+            Err(BooleanError::LineWedges { .. }) => {}
+            other => panic!("{what}: refuses LineWedges, got {:?}", other.map(|_| ())),
+        }
+    }
+}
+
+/// **A seat whose two outlines cross builds**: the block `[−1, 0] ×
+/// [−0.5, 0.5] × [0, 0.5]` beside `[0, 1] × [−0.2, 0.8] × [0.1, 0.7]`,
+/// their sides at `x = 0` overlapping in part, so the union mints an edge
+/// and a vertex where the outlines cross, which are no cells of the tool.
+/// A row on such a vertex is stated as the meeting of the two edges that
+/// cross there, and one on such a seam as the meeting of the two faces it
+/// lies between. Every cut builds the cut by each piece in turn, at rest
+/// and turned: a pin through the seat, blocks beside it, flush with it
+/// and round its corner, one under it, a slab through it (two solids) and
+/// a block through half of it. Red where a cell the union minted refuses
+/// the read-back.
+#[test]
+fn a_seat_whose_outlines_cross_builds() {
+    for pose in two_poses() {
+        let seat = Seat::at(pose);
+        let l = seat.pose.label;
+        let cross = [
+            [(-1.0, 0.0), (-0.5, 0.5), (0.0, 0.5)],
+            [(0.0, 1.0), (-0.2, 0.8), (0.1, 0.7)],
+        ];
+        for (name, x, faces, want) in [
+            ("pin", [(-0.1, 0.1), (-0.1, 0.1), (-0.5, 0.5)], 8, 0.022),
+            ("beside", [(0.8, 1.2), (-0.2, 0.2), (0.1, 0.3)], 6, 0.016),
+            ("off", [(0.5, 0.9), (0.5, 0.9), (-0.1, 0.1)], 6, 0.032),
+            ("flush", [(0.9, 1.1), (-0.5, 0.5), (0.0, 0.2)], 9, 0.033),
+            ("corner", [(0.8, 1.2), (0.8, 1.2), (0.1, 0.3)], 6, 0.032),
+            ("under", [(-2.0, 2.0), (-2.0, 2.0), (-0.1, 0.1)], 11, 3.1),
+            ("half", [(-0.5, 0.5), (-1.0, 1.5), (-1.0, 2.0)], 16, 6.95),
+        ] {
+            let what = format!("{name} − cross, {l}");
+            one_solid(
+                &what,
+                cut_by_boxes(&seat, &cross, x, |_, _| ()),
+                faces,
+                want,
+                0,
+            );
+        }
+        let what = format!("slab − cross, {l}");
+        let r = built(
+            &what,
+            cut_by_boxes(
+                &seat,
+                &cross,
+                [(-0.5, 0.5), (-1.0, 1.5), (0.2, 0.3)],
+                |_, _| (),
+            ),
+        );
+        assert_eq!(r.body.solids().count(), 2, "{what}: two solids");
+        assert_eq!(r.body.faces().count(), 16, "{what}: its faces");
+        assert_eq!(
+            topo::validate_geometric(&r.body, t()),
+            Ok(()),
+            "{what}: tier 3"
+        );
+        let v = volume(&r.body);
+        assert!((v - 0.15).abs() < 1e-9, "{what}: volume {v}");
+    }
+}
+
+/// **A lower-cell record inside what the fuse joins refuses**: a block
+/// `[1, 1.4] × [−0.2, 0.2] × [0.2, 0.6]` resting on the side of a bolt
+/// `[0.6, 1] × [−0.2, 0.2] × [0.2, 1.2]` that stands on the plate, the
+/// block's bottom edge lying along the plate's top edge. The census
+/// records the block and the plate edge–edge as well as the two seats,
+/// so the fuse would join the three into one solid with that edge inside
+/// it, a meeting no verdict states: it refuses `ToolSeatUnread` naming
+/// the first such record, never deciding the edge again. (A union that
+/// decides it itself builds one solid of 14 faces, and the block cut by
+/// it builds.) Red where the record is dropped or the union decides it.
+#[test]
+fn a_lower_record_inside_what_the_fuse_joins_refuses() {
+    for pose in two_poses() {
+        let seat = Seat::at(pose);
+        let boxes = [
+            [(0.6, 1.0), (-0.2, 0.2), (0.2, 1.2)],
+            PLATE,
+            [(1.0, 1.4), (-0.2, 0.2), (0.2, 0.6)],
+        ];
+        let what = format!("block − bracket, {}", seat.pose.label);
+        match cut_by_boxes(
+            &seat,
+            &boxes,
+            [(0.7, 1.3), (-0.1, 0.1), (-0.5, 0.5)],
+            |_, _| (),
+        ) {
+            Err(BooleanError::ToolSeatUnread {
+                cells:
+                    [
+                        topo::Cell::Vertex(_) | topo::Cell::Edge(_),
+                        topo::Cell::Edge(_),
+                    ],
+                ..
+            }) => {}
+            other => panic!(
+                "{what}: refuses ToolSeatUnread, got {:?}",
+                other.map(|_| ())
+            ),
+        }
+    }
+}
+
+/// **A forged record of the seat refuses loudly**: the cut reads a
+/// face–face record between two of its tool's solids as a `Rest` glue,
+/// so a caller's record is taken at its word, and one that is no touch
+/// fails where the union certifies the glue. A record naming a face key
+/// the tool does not hold refuses `InvalidInput` at the door, as the
+/// plain cut does; one of two planar faces of one solid (the seat's face
+/// and another of its solid) is a solid touching itself over an area,
+/// `TouchesItself`; one of two planar faces of the two solids that are
+/// not the seat's refuses inside the fuse, its union's
+/// `OneRecordUncertified`. Red where a forged record builds.
+#[test]
+fn a_forged_record_of_the_seat_refuses_loudly() {
+    let seat = Seat::at(Pose::rest());
+    let pin = [(-0.1, 0.1), (-0.1, 0.1), (-0.5, 0.5)];
+    // The seat's two faces, and a face of each solid that is neither.
+    let faces = |tool: &AtRestBody<f64>, r: &topo::OperandRecords| {
+        let seat = r.ff[0].contact;
+        let other = |f: FaceKey| {
+            tool.faces()
+                .map(|(g, _)| g)
+                .find(|&g| g != f && tool.solid_of_face(g) == tool.solid_of_face(f))
+                .unwrap()
+        };
+        (seat.a, seat.b, other(seat.a), other(seat.b))
+    };
+    let forged = |a: FaceKey, b: FaceKey| topo::CarriedRecord {
+        contact: topo::FfContact { a, b },
+        record: 9,
+    };
+    let dangling = cut_by_boxes(&seat, &[BOLT, PLATE], pin, |tool, r| {
+        let (x, ..) = faces(tool, r);
+        r.ff.push(forged(x, FaceKey::default()));
+    });
+    assert!(
+        matches!(
+            dangling,
+            Err(BooleanError::InvalidInput {
+                operand: Operand::B,
+                what: "carried f-f face key does not resolve"
+            })
+        ),
+        "a dangling key: {:?}",
+        dangling.map(|_| ())
+    );
+    let one_solid = cut_by_boxes(&seat, &[BOLT, PLATE], pin, |tool, r| {
+        let (x, _, x2, _) = faces(tool, r);
+        r.ff.push(forged(x2, x));
+    });
+    assert!(
+        matches!(
+            one_solid,
+            Err(BooleanError::TouchesItself {
+                operand: Operand::B,
+                record: 9,
+                ..
+            })
+        ),
+        "a record inside one solid: {:?}",
+        one_solid.map(|_| ())
+    );
+    let apart = cut_by_boxes(&seat, &[BOLT, PLATE], pin, |tool, r| {
+        let (_, _, x2, y2) = faces(tool, r);
+        r.ff.push(forged(x2, y2));
+    });
+    match apart {
+        Err(BooleanError::ToolFuseRefused { why }) => assert!(
+            matches!(
+                *why,
+                topo::ToolFuseRefusal::Step(BooleanError::OneRecordUncertified { .. })
+            ),
+            "a record of faces apart: {why:?}"
+        ),
+        other => panic!("a record of faces apart: {:?}", other.map(|_| ())),
     }
 }

@@ -654,7 +654,18 @@ from: the plan meters it against those links' strips in closed form,
 each within its own window (arms (d) and (e) of the ring carry-through
 pass). A convex rim removes, and a concave
 one adds, the section `r²(1 − π/4)` along the path its centroid takes
-(`band_closed_mixed_chain`). A run of two links on one support pair
+(`band_closed_mixed_chain`). A mate's rings stay on the mate the trim
+shrinks, each metered against its link's strip (a cross-drilled wall
+keeps its bore), and a ladder rim on the shared face (a round hole
+through the plate) carves in the same call, in either carve order
+(`band_mixed_rim_shared_supports`). A ladder ring the meter cannot
+read clear of a mixed link's windowed strip refuses `UnsupportedChain`
+with the sequential recourse rather than a margin
+(`work/band/a-mixed-ring-inside-a-few-wide-arcs-refuses-at-the-support-meter.md`). An annulus rim sharing a support
+with a mixed rim refuses `UnsupportedChain` with the sequential
+recourse
+(`work/band/an-annulus-rim-around-a-mixed-rim-refuses-in-one-call.md`).
+A run of two links on one support pair
 inside such a chain and a chain sharing no one face refuse
 `UnsupportedChain`; a chamfer has no arm over an arc, so its rounded
 outlines refuse at the arc. The section is named `BandSection { vertex }`,

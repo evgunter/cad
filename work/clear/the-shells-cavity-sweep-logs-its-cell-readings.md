@@ -2,8 +2,11 @@
 id: the-shells-cavity-sweep-logs-its-cell-readings
 kind: issue
 title: The shell's cavity check runs the clearance sweep outside the unlogged scope the clearance wire keeps, so a shell node at Interval logs cell readings as the drive's
-status: open
+status: closed
 opened: 2026-11-11
+closed: 2026-11-12
+branch: clear/verdict-door
+pr: 6885
 priority: P2
 cost: E
 refs: [clearance-cell-enclosures-are-typed-as-the-interval-scalar]
@@ -20,3 +23,15 @@ Found by both designers on fork `clear-enclosure` (2026-11-11), reading the code
 - if it does, the cavity sweep runs in the same scope, with a pin that fails when the scope is dropped.
 
 The fork's answer may move where that scope lives, into the engine's door or into a type, so build this after the fork is decided if the decision lands soon.
+
+## Closed (2026-11-12, #6885)
+
+Measured: a shell at `Interval` did log the sweep's cell rows. With
+the scope dropped, the tube's shell logs 1,027 of them and the vessel's
+588. The fork settled where the scope lives (decision 3, Ev on PR
+6821). `Sweep::run` and `min_separation` now run under
+`k_stats::unlogged("F41")` themselves, so the cavity gate keeps no
+scope of its own. The pin is `shell_cavity_embedded`'s `holds`, for
+the tube and the vessel at `Interval`. It asserts that the build's log
+holds none of the engine's cell readings, and it reds when the scope
+is dropped.

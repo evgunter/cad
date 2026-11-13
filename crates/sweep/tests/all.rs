@@ -72,6 +72,8 @@ mod a_curve_off_its_face_at_a_build_is_the_kernels;
 mod a_curved_keel_in_the_plane;
 #[path = "a_curved_keel_on_the_floor_refuses_its_slit_form.rs"]
 mod a_curved_keel_on_the_floor_refuses_its_slit_form;
+#[path = "a_cut_by_a_curved_seat_refuses_its_material.rs"]
+mod a_cut_by_a_curved_seat_refuses_its_material;
 #[path = "a_cylinder_split_just_off_its_rim_vertex.rs"]
 mod a_cylinder_split_just_off_its_rim_vertex;
 #[path = "a_face_across_a_wavy_corner.rs"]
@@ -214,6 +216,8 @@ mod band_closed_mixed_chain;
 mod band_closed_mixed_chain_shapes;
 #[path = "band_mixed_corner.rs"]
 mod band_mixed_corner;
+#[path = "band_mixed_rim_shared_supports.rs"]
+mod band_mixed_rim_shared_supports;
 #[path = "band_subdivided_side_walls.rs"]
 mod band_subdivided_side_walls;
 #[path = "bisector_lane_stubs.rs"]
@@ -1431,5 +1435,7 @@ mod the_football_revolves;
 
 #[path = "a_ball_with_no_room_at_its_rim_refuses_typed.rs"]
 mod a_ball_with_no_room_at_its_rim_refuses_typed;
+#[path = "a_partner_across_a_lofted_wall_is_joined_on_its_section_value.rs"]
+mod a_partner_across_a_lofted_wall_is_joined_on_its_section_value;
 #[path = "a_peg_in_a_two_segment_bore_moves_only_its_wall.rs"]
 mod a_peg_in_a_two_segment_bore_moves_only_its_wall;

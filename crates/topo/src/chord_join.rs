@@ -550,7 +550,7 @@ pub enum JoinError {
     /// Whether a split plane is tangent to a curved face along the
     /// ruling it cuts the face on is in band, at a station of the
     /// must-carry rule over the ruling
-    /// ([`geom_brep::MustCarryEscalation::FirstOrder`]).
+    /// (a first-order [`geom_brep::WedgeRung`]).
     ///
     /// No shipped pose reaches it: a cut turned off tangent by an
     /// angle the rule's first order would leave in band refuses at the
@@ -565,7 +565,7 @@ pub enum JoinError {
     /// Whether a curved face curves away from a split plane tangent to
     /// it along a ruling, or shares its curvature there, is in band
     /// (`"tangent_second_order"`,
-    /// [`geom_brep::MustCarryEscalation::SecondOrder`]): the ruling is
+    /// [`geom_brep::WedgeRung::Bend`]): the ruling is
     /// certifiable as neither the intrinsic tangency nor a conventional
     /// image (D4 ¶3).
     TangentChordBendEscalated {
@@ -2498,11 +2498,11 @@ fn chord_spec<T: Decide>(
                 leave,
             ),
             JoinLane::Planar | JoinLane::Split(_) => Ok(None),
-            JoinLane::Carried(_) => Err(JoinError::SectionInvariant {
-                face,
-                what: "a carried chord asked of a planar face (a carried section's faces are a \
-                       cylinder's and a sphere's)",
-            }),
+            // A plane against a spline wall: its chord is an arc of the
+            // carried component, as the wall's is.
+            JoinLane::Carried(ctx) => {
+                carried_chord_spec(body, band, face, ctx, (u1, u2), leave).map(Some)
+            }
             JoinLane::AlongEdge => Err(JoinError::SectionInvariant {
                 face,
                 what: "a chord along an edge asked for a section: it copies the edge",
@@ -2610,8 +2610,17 @@ fn chord_spec<T: Decide>(
                     witness,
                 },
                 band,
-                |_, diag| JoinError::TangentChordEscalated { face, diag },
-                |_, diag| JoinError::TangentChordBendEscalated { face, diag },
+                |escalation: geom_brep::MustCarryEscalation| {
+                    let diag = escalation.diag();
+                    match escalation.rung() {
+                        geom_brep::MustCarryRung::Bend => {
+                            JoinError::TangentChordBendEscalated { face, diag }
+                        }
+                        geom_brep::MustCarryRung::Arm | geom_brep::MustCarryRung::Wedge => {
+                            JoinError::TangentChordEscalated { face, diag }
+                        }
+                    }
+                },
                 |mixed| JoinError::TangentChordRefuted { face, mixed },
             )?
             .spec(rest);

@@ -552,8 +552,12 @@ BOUNDS_ALLOWLIST=(
   # The third is `nary_boolean_apart`, `nary_boolean` with the member
   # pairs a placement's separation certificate certifies apart: it
   # forwards to `run_members` with those pairs and reads no bracket of
-  # its own. 2 + 1 = 3.
-  'crates/topo/src/boolean/nary.rs 3 2026-07-29 (M5 PR 8), the driver amendment'
+  # its own. The fourth is `cut_by_material`, a cut whose tool's solids
+  # rest on each other (`crates/topo/README.md`, `[topo.cut-material]`):
+  # it runs the tool's fold through `run_members` and the cut through the
+  # boolean door (`boolean_op_given`), and reads no bracket of its own
+  # (without `Bounds` neither call compiles). 3 + 1 = 4.
+  'crates/topo/src/boolean/nary.rs 4 2026-07-29 (M5 PR 8), the driver amendment'
   # `separation.rs` is FIVE. The ledger entry enumerates three seams
   # (`Separation::of`, the pair certificate, `image`), and the pair
   # certificate is `Separation::apart`, every pair of placed copies the
@@ -742,8 +746,14 @@ BOUNDS_ALLOWLIST=(
   # walk does. Its `Question` impl (`Bracket`) asks the same two doors,
   # `RegionMemo::ask` and `station`, through `Bracket::outside` and
   # `Bracket::witness`, which the root pass shares; no new bracket read.
+  # 16 -> 18 (CLEAR's verdict door): `embedded`, the yes/no door bounded
+  # on certification rights, which asks `Side::windows` and `Sweep::run`
+  # through `ClearanceLane::certified` and reads its witness off the
+  # candidate's already-crossed carriers, and its table helper
+  # (`the_verdict_door_on_a_cube`), as the wiring helper is. Neither
+  # reads a bracket of `T`: the same plumbing at the same door.
   'crates/topo/src/cell_region.rs 4 M5 PR 11, the certified-quadrature plumbing'
-  'crates/topo/src/clearance.rs 16 M5 PR 11, the certified-quadrature plumbing'
+  'crates/topo/src/clearance.rs 18 M5 PR 11, the certified-quadrature plumbing'
   # M5 PR 12 (orchestrator ruling 2026-08-03), the edge-blend battery.
   # 15 -> 17: `chain_turns` is predicate 4's loop moved out of
   # `run_battery_for` whole (its junction-end pick the one bracket read,
@@ -977,7 +987,7 @@ BOUNDS_ALLOWLIST=(
   # it is public so the at-rest rows can run the limb directly.
   # C2 as ratified on PR 5652 adds `analytic_edge_limbs`, the analytic
   # pair's limbs for a carrier of every kind, at `analytic_rung3`'s bound.
-  'crates/geom-brep/src/edge_nurbs.rs 16 M7-8, the declare-and-check edge lane; the rung-3 tube body at M6-2; its NURBS x NURBS twin (nurbs_pair_limbs) at the same bound; its incidence alone for OnPair (plane_nurbs_incidence) at the same bound; C2 2026-10-24 (PR 5652), the analytic limbs for every carrier kind at the same bound; the pcurve mint'"'"'s image of every carrier on a spline chart (general_chart_image) at chart_image'"'"'s bound, PR 6532 under the M7-8 / C2 precedent, retroactive Ev review; necessity in geom-core real.rs'
+  'crates/geom-brep/src/edge_nurbs.rs 20 M7-8, the declare-and-check edge lane; the rung-3 tube body at M6-2; its NURBS x NURBS twin (nurbs_pair_limbs) at the same bound; its incidence alone for OnPair (plane_nurbs_incidence) at the same bound; C2 2026-10-24 (PR 5652), the analytic limbs for every carrier kind at the same bound; the pcurve mint'"'"'s image of every carrier on a spline chart (general_chart_image) at chart_image'"'"'s bound, PR 6532 under the M7-8 / C2 precedent, retroactive Ev review; the lane'"'"'s curved-partner twin (curved_nurbs_limbs) and the body the two share (residual_nurbs_limbs) at plane_nurbs_limbs'"'"'s bound, 2026-11-12 under the M7-8 / C2 precedent, retroactive Ev review; necessity in geom-core real.rs'
   # M7-8's 2026-09-02 amendment, the lane's split as a BOUND: the one
   # DOOR that names the certified body `plane_nurbs_limbs`, the lane's
   # door value `NurbsLane::certified`'s block (`Decide +
@@ -1046,7 +1056,12 @@ BOUNDS_ALLOWLIST=(
   # shell.rs 2 -> 1 (ONEHOME, finished-body doors): `shell` takes the
   # scalar's finished body (`F: FinishedBody`), so its compound bound is
   # spelled on `F::Scalar` in a `where` clause; the seam is unchanged.
-  'crates/topo/src/shell.rs 1 2026-09-02, the certified at-rest validator'
+  # 1 -> 2 (CLEAR's verdict door): `cavity_embedded`, which asks the
+  # clearance engine's verdict door (`topo::clearance::embedded`) of the
+  # moved clone and maps its answer to the shell's refusals. It reads no
+  # bracket; the bound is the door's own, at the door that already
+  # carries it (`shell_open_at`).
+  'crates/topo/src/shell.rs 2 2026-09-02, the certified at-rest validator'
   # SEAT-4, in the `Bounds` trait's own doc rather than the
   # `bounds_allowlist` ledger: the verb dispatch site, which decides
   # nothing and reads no bracket. 2 -> 1: SEAT-9 was the shell

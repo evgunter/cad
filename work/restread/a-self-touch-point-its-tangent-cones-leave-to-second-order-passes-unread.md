@@ -2,10 +2,11 @@
 id: a-self-touch-point-its-tangent-cones-leave-to-second-order-passes-unread
 kind: issue
 title: A self-touch point whose curved faces' tangent cones leave it to second order passes unread
-status: open
+status: closed
 opened: 2026-11-02
 priority: P1
 cost: H
+closed: 2026-11-12
 refs: [tier-3-prime-reads-no-side-where-a-solid-touches-itself-at-a-point-on-a-curved-face]
 ---
 
@@ -381,3 +382,73 @@ Also skipped, and reached by no measured body:
   read but skipped, as `thorns` skips it.
 
 Whether the remainder refuses is still Ev's call.
+
+## The remainder refuses (branch `restread/self-touch-refuses`)
+
+Ev ruled on PR 6847 (2026-11-12): a self-touch point the reading
+cannot decide refuses `BoundaryCrossesItselfUndecided`, with its cause,
+and is not skipped. The spline faces that will now refuse are a
+separate question.
+
+The unit has four parts:
+- Remove the skip and `SelfTouch`. `self_touch_verdict` returns a plain
+  verdict.
+- A sign one order down that lands in band reports `InBand`, not
+  `Unreadable`.
+- An overlap the reading has decided (an apex axis on the wrong side,
+  a thorn) reports a crossing where its argument certifies one, and
+  refuses otherwise.
+- File the pose-dependent lune (`corner_fan`'s quarter-turn split).
+
+**Spec (before the draws):**
+- **Letter: M.** It removes a state and reroutes reasons. The one new
+  argument is the decided overlap.
+- **Tier: dual.** It is a soundness change in the self-touch reading:
+  every undecided point now refuses, and a decided overlap becomes a
+  new crossing verdict.
+- **Arm:** under `docs/MODEL-COMPARE-PROTOCOL.md` rule 2, a dual M unit
+  runs sequentially. A drawn model reviews first, and the other model
+  reviews second only if the first raises a MAJOR.
+
+**Results (PR 6854).** `SelfTouch` is gone. Every point the reading
+does not decide now refuses `BoundaryCrossesItselfUndecided` with its
+cause. In-band signs report `InBand` (`cusp`, `thorns`, `kind`, `parts`,
+`whole_nappe`). A thorn read inside its sectors' material, or a nappe
+whose axis is on the wrong side of the rest's, is a crossing. The
+argument is in `crates/topo/README.md`, beside the others.
+
+Measured with the same instrument (topo, both binaries, plus the nine
+families, default ε, slow set included), head `0951e6260c` against
+merge base `172d5bb04d`:
+
+- 478 triples at the base, 485 at head. The 7 new triples are this
+  PR's own census rows.
+- The 2 skipped triples (the NURBS pair) now refuse with their causes.
+- No other triple changes verdict.
+
+The whole workspace at default ε, slow set included (the default
+profile), was run at `20366d0744`:
+
+- 23 rows are red. 21 of them are red at the merge base too, with the
+  same panics.
+- 2 rows were red only here. Both had asserted that a valid body
+  passes tier 3′. Each is now pinned to the typed refusal it gives,
+  citing its issue, as the two NURBS triples are:
+  - `sweep::all a_cone_apex_meets_a_vertex::two_cones_through_one_apex_build_across_the_pose_families`:
+    the near-coaxial 20/50 `b ∖ a` and 45/30 `a ∖ b` refuse at the apex
+    with `NoTangentPlane`
+    (`two-cones-apex-lobes-on-two-carriers-refuse-a-valid-body.md`).
+  - The "arc wall tangent to the floor" ridge, split out of
+    `a_ridge_on_a_cylinders_ruling_resting_on_its_floor_passes_tier_3_prime`
+    into `a_ridge_on_an_arc_wall_tangent_to_its_floor_refuses_at_its_ends`:
+    it refuses at the ridge's two ends with `Unreadable`
+    (`a-ridge-end-on-an-arc-wall-tangent-to-its-floor-refuses-unreadable.md`).
+- Both rows are in the slow set. The nine-family measurement that put
+  the cost at zero did not reach them.
+
+The pose-dependent lune is filed as
+`the-lune-reading-depends-on-the-corner-fans-quarter-turn-split.md`.
+
+## Closed
+
+PR 6854 (`restread/self-touch-refuses`) closes it: no self-touch point passes unread. A point the reading reaches and cannot decide refuses `BoundaryCrossesItselfUndecided` with its cause (Ev, PR 6847), and the skip (`census::SelfTouch`) is gone. The classes still refusing, and the two valid bodies pinned as refusals, are filed under `work/restread/` (the two P1 valid-body rows, the pose-dependent lune, the wrong-kind lens, the wrong-cause labels, and the cause arms no row reaches).
