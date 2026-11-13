@@ -159,6 +159,11 @@ The traced readings have landed in `topo::injective`:
   (`present_chart`), as a cone's apex already was. The vertex is placed
   at the pole by `geom_brep::chart_singularity::vertex_at_singular_point`,
   the one reading of that incidence, so this adds no site of its own.
+  PR 6892 (`clear-pairs`, below) landed a pole reading of its own in the
+  same place, deciding the distance at `self_intersection_apex`. On the
+  merge, this one is the only pole reading: it decides the incidence
+  where tier 3's check 6 places the singularity, and it clips the
+  rectangle to the pole's latitude.
 
 Measured with the gate harness at `eb63c45bbf` plus this change (f64,
 release, one core, 65,536 pairs, depth 40). Every one of the eight tour
@@ -201,5 +206,16 @@ body that held has moved.
   shell at f64 on this branch with the gate asking. The row counted
   them refused on PR 6885's branch, which predates PR 6886's plane-cap
   reading, so this run does not say which change moved them.
+## Further evidence: the plane × sphere bodies certify (CLEAR, lane clear-pairs, 2026-11-12)
+
+`diefillet` and `heatsink5`, `7` and `9`, the "plane × sphere at a
+vertex alone" bodies above, hold once `present_chart` reads a
+sphere's pole as a collapsed side of its chart
+(`the-certificate-runs-out-of-pairs-on-eight-finished-tour-bodies`,
+its Fix): 4,133 and about 16,100–16,800 pairs, against 20,885 and
+about 29,000 refused before. The vertex those pairs share was the
+sphere patch's pole, which the presentation read as a loose vertex.
+So this row's first bullet no longer has tour evidence; `chute` and
+the lily's three buds (the third bullet) still refuse.
 
 - 2026-11-02 — moved from CLEARTAIL to CLEAR when CLEARTAIL merged back into CLEAR (the budget rule now counts P0/P1 only); id and body unchanged.
