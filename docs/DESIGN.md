@@ -840,7 +840,9 @@ tiers".
   along its own edges and its recorded contacts), certified by the
   clearance engine's body-level injectivity question at every scalar
   with certification rights (`f64`, `Probe`, `Interval` and `Sym`;
-  a scalar without them, such as a dual, cannot reach the gate). At every
+  a scalar without them, such as a dual, cannot reach the gate). The
+  question is asked inside the gate once tier 3 has passed, and reads
+  tier 3's facts from its verdict, never re-deciding one over a cell. At every
   scalar the question decides with the band every verdict decides
   with, K·ε ([tolerance.recourse]). Pieces of the boundary that do not
   meet in the body (no shared edge, vertex or recorded contact) are
@@ -864,7 +866,10 @@ tiers".
   evaluator keeps it with the value, so no consumer gates an operand.
   At a scalar without certification rights the finished type is a
   replay's: tier 2 alone, carrying no verdict, and nothing that reads
-  a verdict accepts it. The validity class rides the result wrapper
+  a verdict accepts it. The finished type bundles the body with its
+  verdict, the gate its one constructor; the verdict keeps tier 3's
+  per-entity facts beside its certificate, and a reading of such a
+  fact takes the bundle, never the bare body. The validity class rides the result wrapper
   (`BooleanBody`, body and contacts), never a mutable `Body` field.
 - **The census reads one number per cell pair.** `[topology.census]`
   A census finding decides one number per pair of cells (two edges,

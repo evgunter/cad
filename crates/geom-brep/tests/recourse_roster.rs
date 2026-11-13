@@ -287,6 +287,7 @@ const INDIRECT: &[(&str, &str)] = &[
     ("edge_nurbs.rs: limb2_enclosure_as: predicate", FORWARDS),
     ("edge_nurbs.rs: measured_ends: end", NOT_A_NAME),
     ("edge_nurbs.rs: probe_pick: what", CARRIER_CALL),
+    ("edge_nurbs.rs: residual_nurbs_limbs: margin", NOT_A_NAME),
     (
         "enters.rs: enters_material_order2: Margin::sagitta(deriv2.dot(reference_normal.vec()) / speed_sq, arm)",
         NOT_A_NAME,
