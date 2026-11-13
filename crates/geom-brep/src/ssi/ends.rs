@@ -626,7 +626,7 @@ impl<const M: usize, const N: usize, S: SectionSystem<M, N>> Ends<'_, S, M, N> {
                 break;
             }
             let aim =
-                core::array::from_fn::<f64, N, _>(|k| centre[k] + 0.5 * (prev[k] - centre[k]));
+                core::array::from_fn::<f64, N, _>(|k| geom_core::bracket_mid((centre[k], prev[k])));
             let Some(y) = super::march::newton_refine(self.sys, aim, self.ctx.tol) else {
                 break;
             };

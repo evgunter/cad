@@ -1688,8 +1688,12 @@ pub(crate) fn pcurve_end<T: geom_core::CertifiedBounds>(
     pcurve: &NurbsCurve2<T>,
     end: usize,
 ) -> Option<(f64, f64)> {
-    let (t0, t1) = pcurve.knots_f64_interim().domain();
-    let t = if end == 0 { t0 } else { t1 };
+    let spans = span_hulls(pcurve)?;
+    let t = if end == 0 {
+        spans.first()?.ends.0
+    } else {
+        spans.last()?.ends.1
+    };
     let p = pcurve.span_at(t)?.eval_in_span(T::from_computed(t));
     let (u, v): (f64, f64) = (
         geom::mid_param(Bounds::lo(p.x), Bounds::hi(p.x)),
@@ -1755,7 +1759,6 @@ fn probe_tube_chart<'p, T: Decide + Bounds + CertifiedEnclosure>(
     #[cfg(test)]
     tests::CHART_PROBES.with(|n| n.set(n.get() + 1));
     let phi = phi.into();
-    let surface = boxes.surface();
     let Some(windows) = chart_tube(pcurve, pad, nodes) else {
         return Ok(None);
     };
@@ -1811,10 +1814,7 @@ fn probe_tube_chart<'p, T: Decide + Bounds + CertifiedEnclosure>(
         return Ok(None);
     }
     let one = (worst > 0.0).then(|| {
-        let domain = UvRect {
-            u: surface.knots_u_f64_interim().domain(),
-            v: surface.knots_v_f64_interim().domain(),
-        };
+        let domain = boxes.domain();
         // An `Undecided` here stays unnamed: past the side arm it may come
         // from that arm's own in-band readings, which are indeterminate.
         one_arc(boxes, phi, (domain, band), pcurve, &probed, ends)
@@ -2683,17 +2683,13 @@ pub(crate) fn certify_branch<T: Decide + Bounds + CertifiedEnclosure>(
 /// it so, and the edge certificate at rest reads it again about the
 /// edge's end vertex: the box is the pcurve's, so it is stored nowhere.
 /// Every other end is read as an arc's, which a node there refuses.
-fn node_ends<T: Decide + Bounds + CertifiedEnclosure>(
+fn node_ends<T: CertifiedBounds>(
     pcurve: &NurbsCurve2<T>,
     wall: &super::ChartedNurbs<'_, T>,
     form: &super::residual::ImplicitForm,
     band: Band,
 ) -> NodeHalves {
-    let surface = wall.surface();
-    let domain = UvRect {
-        u: surface.knots_u_f64_interim().domain(),
-        v: surface.knots_v_f64_interim().domain(),
-    };
+    let domain = wall.boxes().domain();
     let unit = wall.speeds().pad(1.0);
     let mut jets: Option<Option<super::node::Jets>> = None;
     core::array::from_fn(|end| {
@@ -2711,7 +2707,18 @@ fn node_ends<T: Decide + Bounds + CertifiedEnclosure>(
             return None;
         }
         let jets = jets
-            .get_or_insert_with(|| super::node::Jets::of_exact(surface))
+            .get_or_insert_with(|| {
+                let inexact = core::cell::Cell::new(false);
+                let at_f64 = wall.surface().map_scalar(|x| {
+                    exact_certified(x).unwrap_or_else(|| {
+                        inexact.set(true);
+                        f64::NAN
+                    })
+                });
+                (!inexact.get())
+                    .then(|| super::node::Jets::of(&at_f64))
+                    .flatten()
+            })
             .as_ref()?;
         super::node::holds_node(jets, form, rect, band).then_some(half)
     })

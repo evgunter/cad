@@ -16,7 +16,7 @@
 use geom::NurbsSurface;
 use geom_core::interval::certification::Certification;
 use geom_core::k_stats::{Magnitude, decide_magnitude_reported};
-use geom_core::{Band, Bounds, Interval, Margin, Real, Vec3};
+use geom_core::{Band, Bounds, Interval, Margin, Vec3};
 
 use super::exhaust::UvRect;
 use super::residual::ImplicitForm;
@@ -161,27 +161,6 @@ pub(crate) fn krawczyk(
         range((x[1].lo().max(k[1].lo()), x[1].hi().min(k[1].hi())))?,
     ];
     Some((meet, inside))
-}
-
-impl Jets {
-    /// The wall's net at a certifying scalar, each of its scalars its
-    /// exact `f64` ([`super::certify::exact_certified`]); `None` where
-    /// one is not exact or the net does not lift.
-    pub(crate) fn of_exact<T: Real + geom_core::CertifiedEnclosure>(
-        net: &NurbsSurface<T>,
-    ) -> Option<Self> {
-        let inexact = core::cell::Cell::new(false);
-        let at_f64 = net.map_scalar(|x| {
-            super::certify::exact_certified(x).unwrap_or_else(|| {
-                inexact.set(true);
-                f64::NAN
-            })
-        });
-        if inexact.get() {
-            return None;
-        }
-        Self::of(&at_f64)
-    }
 }
 
 /// **The node's own reading over a box at a chain's end** (C2's node
