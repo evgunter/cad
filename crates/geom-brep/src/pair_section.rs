@@ -617,6 +617,18 @@ pub enum ComponentShape {
     },
 }
 
+impl ComponentShape {
+    /// The nodes an open component's ends stand at, start first; none for
+    /// a loop or a point.
+    #[must_use]
+    pub fn nodes(self) -> [Option<usize>; 2] {
+        match self {
+            Self::Open { ends } => ends.nodes.nodes(),
+            Self::Loop | Self::Point => [None, None],
+        }
+    }
+}
+
 /// **Where an open component ends**: the sides of each surface's
 /// parameter rectangle it reaches (rim ends, in the order the section was
 /// asked of), whether it reaches the operation's region (a cut end), and
@@ -2969,12 +2981,22 @@ pub struct PadBox {
 
 impl PadBox {
     /// Whether `p` lies in the box widened by `by` along each axis.
-    fn holds<T: Decide>(&self, p: Point3<T>, by: f64) -> bool {
+    ///
+    /// # Errors
+    ///
+    /// [`SiteRefusal::Desync`] where a coordinate of `p` is not a point
+    /// the scalar holds: the boxes are read at `f64`, where a site read
+    /// box by box stands.
+    fn holds<T: Decide>(&self, p: Point3<T>, by: f64) -> Result<bool, SiteRefusal> {
         let c = [p.x, p.y, p.z];
-        (0..3).all(|k| {
-            let x = c[k].point_value().unwrap_or(f64::NAN);
-            self.lo[k] - by <= x && x <= self.hi[k] + by
-        })
+        let mut inside = true;
+        for k in 0..3 {
+            let x = c[k].point_value().ok_or(SiteRefusal::Desync(
+                "a site read box by box is not a point the scalar holds",
+            ))?;
+            inside &= self.lo[k] - by <= x && x <= self.hi[k] + by;
+        }
+        Ok(inside)
     }
 }
 
@@ -3003,14 +3025,12 @@ impl<T: Decide> CarriedComponent<T> {
         let pad = if self.boxes.is_empty() {
             self.pad
         } else {
-            let held = self
-                .boxes
-                .iter()
-                .filter(|b| b.holds(p, band.escalate()))
-                .map(|b| b.pad)
-                .fold(None, |acc: Option<f64>, x| {
-                    Some(acc.map_or(x, |a| a.max(x)))
-                });
+            let mut held: Option<f64> = None;
+            for b in &self.boxes {
+                if b.holds(p, band.escalate())? {
+                    held = Some(held.map_or(b.pad, |a| a.max(b.pad)));
+                }
+            }
             match held {
                 Some(pad) => pad,
                 None => return Ok(None),
@@ -3365,10 +3385,12 @@ impl<T: Decide> CarriedSection<T> {
             };
             if let Some(first) = found {
                 // The nearest node the two arcs share.
-                let shared = node_of_ends(&self.components[first.component])
+                let shared = self.components[first.component]
+                    .shape
+                    .nodes()
                     .into_iter()
                     .flatten()
-                    .filter(|n| node_of_ends(c).contains(&Some(*n)))
+                    .filter(|n| c.shape.nodes().contains(&Some(*n)))
                     .min_by(|&m, &n| {
                         let d = |k: usize| {
                             (p - self.nodes[k].point)
@@ -3400,14 +3422,18 @@ impl<T: Decide> CarriedSection<T> {
         let found = found.ok_or(SiteRefusal::Desync(
             "a site lies on no component of its section",
         ))?;
-        // A site in a node's own box and not at the node: within about
-        // `√(εR)` of it, where no reading at the band tells its arcs
-        // apart (C2's node end), though it read on one arc alone.
-        let in_box = self
-            .components
-            .iter()
-            .flat_map(|c| &c.boxes)
-            .find_map(|b| b.node.filter(|_| b.holds(p, band.escalate())));
+        // A site in a node's own box and not at the node: within the
+        // node's settle reach of it, where no reading at the band tells
+        // its arcs apart (C2's node end), though it read on one arc alone.
+        let mut in_box = None;
+        for b in self.components.iter().flat_map(|c| &c.boxes) {
+            if let Some(n) = b.node
+                && b.holds(p, band.escalate())?
+            {
+                in_box = Some(n);
+                break;
+            }
+        }
         if let Some(n) = in_box {
             let at = apart.get(n).copied().ok_or(SiteRefusal::Desync(
                 "a node's box names a node not in its section",
@@ -3455,14 +3481,6 @@ impl<T: Decide> CarriedSection<T> {
         let dots = [0, 1, 2, 3].map(|i| dir.dot(rays[i]).point_value());
         let dots = [dots[0]?, dots[1]?, dots[2]?, dots[3]?];
         Some(SectionNode::<T>::RAYS[SectionNode::<T>::nearest_ray(dots)])
-    }
-}
-
-/// The nodes an open component's ends stand at, start first.
-fn node_of_ends<T: Real>(c: &CarriedComponent<T>) -> [Option<usize>; 2] {
-    match c.shape {
-        ComponentShape::Open { ends } => ends.nodes.nodes(),
-        ComponentShape::Loop | ComponentShape::Point => [None, None],
     }
 }
 

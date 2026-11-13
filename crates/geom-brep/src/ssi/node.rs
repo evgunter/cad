@@ -10,7 +10,7 @@
 //!
 //! The regularity sweep decides its critical points by it
 //! (`pair_section::spline_implicit::sweep::critical`), and limb 3 reads a
-//! chain's end box by it ([`holds_node`]): a chain ending at a node ends
+//! chain's end box by it ([`node_box`]): a chain ending at a node ends
 //! in a box over which the claim is the node's own reading.
 
 use geom::NurbsSurface;

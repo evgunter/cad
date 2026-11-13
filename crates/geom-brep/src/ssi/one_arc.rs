@@ -375,8 +375,12 @@ enum Piece {
     Side(ChartSide),
     /// A node's box at an end of the chain (C2's node end), whose claim
     /// is the node's own reading, read before the chain is
-    /// ([`super::node::holds_node`]): the arc runs in it to the node, the
-    /// carrier's end.
+    /// ([`super::node::node_box`]): `∇φ`'s one zero in the box is a node
+    /// within the band of the carrier's end, and the box is at most
+    /// [`super::certify::NODE_BOX_REACH`]² of the node's settle reach
+    /// across. What it waives there is bounded by that box: the
+    /// transverse enclosure and the count of the piece in it are not
+    /// read, the node's four arcs meeting in it.
     Node,
 }
 

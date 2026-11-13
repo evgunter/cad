@@ -1037,7 +1037,6 @@ impl<'a, T: CertifiedBounds> NurbsBoxes<'a, T> {
         }
     }
 
-    /// The window clamped to the knot domains.
     /// The wall's knot rectangle.
     pub(crate) fn domain(&self) -> super::exhaust::UvRect {
         super::exhaust::UvRect {
@@ -1046,6 +1045,7 @@ impl<'a, T: CertifiedBounds> NurbsBoxes<'a, T> {
         }
     }
 
+    /// The window clamped to the knot domains.
     fn clamped(&self, w: UvWindow) -> UvWindow {
         UvWindow {
             u: w.u
