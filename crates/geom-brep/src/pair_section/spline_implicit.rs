@@ -1369,11 +1369,7 @@ fn listed(
     let mut at_node: Vec<Vec<(usize, bool, usize)>> = vec![Vec::new(); nodes.len()];
     // Each branch with its shape and the nodes its ends stand at, its
     // carrier minted once the listing has named its rays.
-    let mut read: Vec<(
-        SsiBranch,
-        ComponentShape,
-        Result<[Option<usize>; 2], super::NoCarrier>,
-    )> = Vec::with_capacity(out.branches.len());
+    let mut read: Vec<(SsiBranch, ComponentShape, Minted)> = Vec::with_capacity(out.branches.len());
     let extent = pose.ball().certified_diameter();
     for b in out.branches {
         let (shape, minted) = match b.end {
@@ -1487,6 +1483,10 @@ fn listed(
     let node_sets = node_joined(&components, nodes.len(), [false, false]);
     Ok(pose.section_listing(Components::Counted(components), verdicts, nodes, node_sets))
 }
+
+/// A listed branch's carrier to mint: the nodes its ends stand at, or
+/// why it has none ([`listed`]).
+type Minted = Result<[Option<usize>; 2], super::NoCarrier>;
 
 /// **The ray an arc end leaves its node along** (C5), by index in
 /// [`SectionNode::RAYS`]: the ray whose sector holds the last box of the

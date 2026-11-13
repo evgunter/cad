@@ -2988,13 +2988,12 @@ impl PadBox {
     /// the scalar holds: the boxes are read at `f64`, where a site read
     /// box by box stands.
     fn holds<T: Decide>(&self, p: Point3<T>, by: f64) -> Result<bool, SiteRefusal> {
-        let c = [p.x, p.y, p.z];
         let mut inside = true;
-        for k in 0..3 {
-            let x = c[k].point_value().ok_or(SiteRefusal::Desync(
+        for ((c, lo), hi) in [p.x, p.y, p.z].into_iter().zip(self.lo).zip(self.hi) {
+            let x = c.point_value().ok_or(SiteRefusal::Desync(
                 "a site read box by box is not a point the scalar holds",
             ))?;
-            inside &= self.lo[k] - by <= x && x <= self.hi[k] + by;
+            inside &= lo - by <= x && x <= hi + by;
         }
         Ok(inside)
     }

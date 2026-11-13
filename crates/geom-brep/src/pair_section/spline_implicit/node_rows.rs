@@ -944,7 +944,7 @@ fn scaled_lemniscate(s: f64) -> Surface<f64> {
         &[0.0, 0.0, -1.0 / s, 0.0, 1.0 / (s * s * s)],
         (-1.2 * s, 2.4 * s),
         &[0.0, 0.0, 1.0 / s],
-        (-1.0 * s, 2.0 * s),
+        (-s, 2.0 * s),
     )
 }
 
@@ -1098,7 +1098,8 @@ fn the_node_reading_decides_a_node_and_nothing_else() {
         (0.0, 1.0),
     );
     let off = (0.500_02, 0.499_97);
-    let cases: [(&str, Surface<f64>, f64, UvRect, Option<Kind>); 6] = [
+    type Case = (&'static str, Surface<f64>, f64, UvRect, Option<Kind>);
+    let cases: [Case; 6] = [
         ("the node", cross(), 0.0, about(off, 1e-4), Some(Kind::Node)),
         (
             "a micron off its level",
@@ -1414,7 +1415,7 @@ fn two_arcs_of_one_node_are_held_apart_outside_its_box() {
             ClassCarrier::Fitted(f) if matches!(f.as_ref(), Err(CarryError::Refused(CarryRefusal::PadsMeet { .. })))
         )),
         "arcs whose boxes meet far from their node refuse: {:?}",
-        meeting.iter().map(|c| carried(c)).collect::<Vec<_>>()
+        meeting.iter().map(carried).collect::<Vec<_>>()
     );
     // Moved off along `y` past the far box's reach, they meet only in
     // the node's box (each first box reaching into it).
