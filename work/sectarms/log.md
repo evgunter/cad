@@ -811,3 +811,8 @@ Both reds were found by PCERT's nightly lane and trace to SECTARMS merges.
     The fix pass went to the implementer's own agent (Opus arm), continued; its brief is `fix-6897.md`.
   - **The node-arc at-rest fork is held** until the fix pass reports the real cause.
   - **Blind coding:** byte 202 → A = R1, B = R2. Dispatched to an Opus coder.
+- 2026-11-13 — **PR 6897 blind coding** (A = R1 Fable, B = R2 Opus): 10 bilateral findings. Two severity divergences: on the scale regression and on the false fork mechanism, A says MINOR and B says MAJOR.
+  - **One tally candidate:** A's M1, an edge through a node certifying at rest. It is UNILATERAL, MAJOR, code-class, deduplicated and DEMONSTRATED.
+  - The coder flags it as borderline: B's `holds_node` NOTE states the enabling fact ("does not check the zero is the end point") as behaviour, not as a defect, and B's rim-chain NOTE asserts the opposite of one of M1's consequences.
+  - **I concur that it is UNILATERAL.** B never identified the defect, and its NOTE sits on a function A shows behaving. The row will record the borderline.
+  - The coding is saved as `coding-6897.txt`.
