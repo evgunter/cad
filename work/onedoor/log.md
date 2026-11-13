@@ -458,3 +458,4 @@ Ev, in chat: "go ahead in whatever order you see fit (including parallelizing th
   - Model-compare row `docs/model-compare-log/rows/PR-6909.md`.
   - (ONEDOOR orchestrator)
   - `S173` is opened (P1): its only blocker closed here. The fired entry is pruned from `engine-leaves-by-visibility`'s `blocked_on`.
+- **14:17 — #6909 merged** (`5ca9d1ca89`). Kernel was red only on main's three by failure text, and every other job was green. The carrier-eq unit is closed, S173 is open, and the implementer session is archived.
