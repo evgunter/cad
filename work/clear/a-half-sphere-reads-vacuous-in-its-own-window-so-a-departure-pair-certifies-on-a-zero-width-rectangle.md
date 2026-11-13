@@ -4,7 +4,7 @@ kind: issue
 title: A revolved ball's half-band is presented in its own whole window as the zero-width rectangle u = π and read vacuous, so the departure arm certifies the two half-bands at the root without reading either
 status: open
 opened: 2026-11-13
-priority: P1
+priority: P0
 cost: M
 ---
 
@@ -45,3 +45,10 @@ check that a presentation's rectangle that collapses to zero width
 from a face's own clips is a contradiction (refuse `Local`), not a
 sliver. Pin: the ball's pair certifies through a presented rectangle,
 or splits, but never reads `1v1` vacuous in its own window.
+
+## Re-banded P0 (CLEAR orchestrator, 2026-11-13)
+
+A face read vacuous certifies any pair it is in, so a wrong vacuous
+reading can certify a body that is not embedded. The at-rest gate
+(P0) rests on the certificate's soundness, and a hole in it inherits
+the gate's band. No wrong verdict is known yet.
