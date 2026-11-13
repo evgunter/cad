@@ -3125,7 +3125,7 @@ pub(crate) fn split_cache<T: AtRestPolicy>(
                 leaving.carrier.eval(leaving.entry),
                 periods,
                 band,
-                JointSides::between(sense, arrived, leaving, rest),
+                JointSides::of_halves(sense, arrived, leaving, rest),
             )
         };
         let missed = |miss: PinMiss| SplitRowError {
@@ -4642,7 +4642,7 @@ pub(crate) struct EdgeEnd<'a, T: Real> {
     pub(crate) far: T,
 }
 
-/// One half-edge either side of a joint, as [`JointSides::between`]
+/// One half-edge either side of a joint, as [`JointSides::of_halves`]
 /// reads it: its edge's carrier, the carrier parameters the loop enters
 /// and leaves it at, whether the loop traverses it forward, which edge
 /// it is a half of, and its edge's reach ([`edge_reach`]).
@@ -4660,7 +4660,7 @@ pub(crate) struct JointHalf<'a, T: Real> {
 
 /// **The face's side of a joint**: what [`decide_joint`] reads of a
 /// joint beyond its two images, where the vertex is on the chart's
-/// singular set ([`singular_turn`]). Built by [`JointSides::between`]
+/// singular set ([`singular_turn`]). Built by [`JointSides::of_halves`]
 /// alone, so what the two halves are to each other is read one way.
 #[derive(Clone, Copy)]
 pub(crate) struct JointSides<'a, T: Real> {
@@ -4686,7 +4686,7 @@ impl<'a, T: Real> JointSides<'a, T> {
     /// The joint from `arrived` into `leaving`, two consecutive halves
     /// of a loop of a face of sense `sense`, with the rest of that loop
     /// where it is known (`rest`).
-    pub(crate) fn between(
+    pub(crate) fn of_halves(
         sense: bool,
         arrived: JointHalf<'a, T>,
         leaving: JointHalf<'a, T>,
@@ -4929,7 +4929,7 @@ fn walk_cycle<T: Decide, I: WalkImage<T>, E>(
             this.vertex,
             periods,
             band,
-            JointSides::between(
+            JointSides::of_halves(
                 sense,
                 JointHalf {
                     carrier: arrived.carrier(),
@@ -5657,7 +5657,7 @@ fn decide_plain_joint<T: Decide>(
         vertex,
         periods,
         band,
-        JointSides::between(
+        JointSides::of_halves(
             true,
             JointHalf {
                 carrier: &arrived,
@@ -5754,7 +5754,7 @@ pub(crate) fn turn_element<T: Decide>(
         // no loop's joint: there is no rest of a loop to read a
         // coincidence by, and one edge leaving a point along the
         // direction it arrived by is a cusp.
-        JointSides::between(half_edge_face(body, half_edge).sense(), own, own, None),
+        JointSides::of_halves(half_edge_face(body, half_edge).sense(), own, own, None),
     ) {
         Ok(element) => Ok(Some(element)),
         Err(PinMiss::Escalated(cause) | PinMiss::NetStretchUndecided(cause)) => Err(Some(cause)),
@@ -6531,7 +6531,7 @@ pub(crate) fn pcurve_pass<T: AtRestPolicy>(body: &Body<T>, band: Band) -> Pcurve
                     entry_vertex(body, he),
                     periods,
                     band,
-                    JointSides::between(
+                    JointSides::of_halves(
                         sense,
                         JointHalf {
                             carrier: &arrived,
