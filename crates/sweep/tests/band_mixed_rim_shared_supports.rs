@@ -521,6 +521,69 @@ fn a_hole_beside_a_corner_reaching_a_links_strip_refuses_at_its_depth() {
     }
 }
 
+/// The rounded plate with the rectangular hole `[x0, x1] × [y0, y1]`
+/// through it, at any scalar.
+fn slotted_plate<T: Decide + topo::AtRestPolicy>(
+    (x0, x1): (f64, f64),
+    (y0, y1): (f64, f64),
+) -> Body<T> {
+    let at = |x: f64, y: f64, b: f64| (Point2::new(T::from_f64(x), T::from_f64(y)), T::from_f64(b));
+    let outer = outline()
+        .chain
+        .iter()
+        .map(|&(q, b)| at(q.0, q.1, b))
+        .collect();
+    let hole = vec![
+        at(x0, y0, 0.0),
+        at(x0, y1, 0.0),
+        at(x1, y1, 0.0),
+        at(x1, y0, 0.0),
+    ];
+    extruded(
+        SketchPlane::xy(),
+        vec![bulge_loop(outer), bulge_loop(hole)],
+        T::from_f64(0.5),
+        tol(),
+    )
+}
+
+/// **A rectangular hole whose side ends on a corner arc's window line,
+/// or within the band short of it, leaves the outline's rims building
+/// at Pappus**, at each scalar. A side ending in band short of the line
+/// grazes the wedge there, a touch; the touch does not decide, since
+/// the side lies outside the wedge's other half-plane, or its part in
+/// the wedge clears the corner's strip. A side ending exactly on the
+/// line reads its end point.
+#[test]
+fn rectangular_holes_ending_at_a_corners_window_build_at_pappus() {
+    fn row<T: Decide + Bounds + CertifiedBounds + topo::AtRestPolicy>(
+        x: (f64, f64),
+        y: (f64, f64),
+        scalar: &str,
+    ) {
+        let what = format!("hole {x:?} × {y:?} at {scalar}");
+        let body = slotted_plate::<T>(x, y);
+        let rims: Vec<EdgeKey> = outer_rim(&body, 0.0)
+            .into_iter()
+            .chain(outer_rim(&body, 0.5))
+            .collect();
+        carve(&what, &body, &rims, 2.0 * outline().pappus(R, true), Z);
+    }
+    let short = 0.7 - 1e-10;
+    for (x, y) in [
+        ((0.5, short), (0.03, 0.2)),
+        ((-short, -0.5), (-0.2, -0.03)),
+        ((0.5, short), (-0.03, 0.2)),
+        ((0.5, 0.7 - 1e-12), (-0.03, 0.2)),
+        ((0.5, 0.7), (0.35, 0.5)),
+        ((0.6, 0.7), (0.2, 0.3)),
+        ((-0.2, 0.2), (0.0, 0.3)),
+    ] {
+        row::<f64>(x, y, "f64");
+        row::<Interval>(x, y, "Interval");
+    }
+}
+
 /// A disc of radius `1.5` authored as `arcs` arcs, `0.5` thick, with
 /// the rounded outline through it.
 fn disc<T: Decide + Bounds + topo::AtRestPolicy>(arcs: u32) -> Body<T> {

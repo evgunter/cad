@@ -37,7 +37,7 @@ The hole's trim circle passes an arc link's wedge, or a straight link's slab end
 
 **Priority P1.** A two-semicircle loop is how this repo authors a circle. For such a disc, even the gate's own sequential recourse is false: the outline alone refuses at −0.30.
 
-**The exact read.** Clip the piece to the window's half-planes first: a circle against a half-plane is an arc, φ ± acos(k/A). Then read the level over the clipped arcs, each exact by `piece_distance` / `piece_along`. A clipped arc is connected, so its level range overlapping the strip's means it meets the strip; the read is then exact both ways. Escalation is at the clip angles' acos near ±1.
+**The exact read.** Clip the piece to the window's half-planes first: a circle against a half-plane is an arc, φ ± acos(−k/A). Then read the level over the clipped arcs, each exact by `piece_distance` / `piece_along`. A clipped arc is connected, so its level range overlapping the strip's means it meets the strip; the read is then exact both ways. Escalation is at the clip angles' acos near ±1.
 
 ## Resolution
 

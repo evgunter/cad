@@ -621,8 +621,10 @@ half-planes, a circle's to the arcs `φ ± acos(−k/A)`, and reads the
 level over the parts inside, each connected, so a piece that only
 passes the window's edges (a disc's wide arc, a hole's trim circle
 beside a corner) clears, and one whose part inside meets the strip
-refuses at that part's depth; a clip angle read in band escalates
-`RingClearance` where its part does not read clear. Two links of one chain, closed or open, joined along it by
+refuses at that part's depth. A piece that may only graze a window's
+edge within the band is a touch, and escalates `RingClearance` only
+where it decides the read: where every definite reading on the face
+clears and the touch does not. Two links of one chain, closed or open, joined along it by
 links turning less than a half turn are not a clearance pair of the
 battery's support screen, their windows lying on either side of that
 run (which holds while every arc's radius exceeds twice the ball's, the

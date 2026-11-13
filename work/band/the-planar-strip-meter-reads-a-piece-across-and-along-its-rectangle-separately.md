@@ -33,6 +33,12 @@ and then clips a line or circle to the window. What stops a drop-in
 swap: the site decides `FaceClearance` (`face_clearance_margin`, with a
 `gap`), while the clip's touch escalates `RingClearance`, and the
 rectangle is itself a bound on the strip's quadrilateral, so the
-clipped read is tighter but not exact. No witness is measured yet:
-build one (a round hole beside a straight link's cut-off end, its trim
-past the end's normal) before the fix.
+clipped read is tighter but not exact. No witness is known. A round
+hole does not reach this arm: it meters only the outer cycle and the
+rings that carry a requested edge, and arm (a) takes every other ring
+against the unbounded trimline. A witness needs an edge of one of
+those cycles, not touching the requested edge's stations, passing the
+rectangle's end: an arc of the outline (a notch, or a rounded tab)
+beside a straight link's cut-off end, its range across through the
+strip and its range along through the rectangle. Build one before the
+fix.
