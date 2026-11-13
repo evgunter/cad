@@ -6,7 +6,6 @@ status: open
 opened: 2026-11-12
 priority: P1
 cost: M
-design: true
 ---
 
 
@@ -35,44 +34,44 @@ chords, which `run_spline_edge` refuses today
 (`EdgeCarrierUnsupported`, site `RingRun`) before the sum answers
 `Unwound::Spline`.
 
-## The fork
+## Decided (Ev, PR 6896, 2026-11-13; fork-log row 265)
 
-Three readings of a planar run that holds spline arcs are viable, and
-the text does not choose between them.
+A planar loop's winding stays one reading, the shared sum in
+`loop_winding`, and that sum gains a spline edge term, the same way it
+already has line, conic and spiric terms:
 
-1. **The shared sum reads a non-rational spline.** `loop_winding`'s
-   module docs name it as the remainder that home has not built:
-   `geom_brep::props::loop_vector_area` integrates a non-rational
-   B-spline's vector area exactly per knot span, so a spline edge's
-   bulge over its chord is one more per-edge term, and its perimeter
-   term an upper bound from the curve's speed. The same docs say the
-   merge's role assigner, tier 3's check 6 and the join's ring lane
-   answer on one carrier set, so this moves all of them: check 6 starts
-   falsifying planar loops with non-rational spline edges, the merge
-   door starts assigning roles on them, and the row that pins the
-   present answer
-   (`merge_faces::…::a_nurbs_carrying_cycle_stays_undecidable`, "no
-   closed form exists for the region a fitted carrier bounds") flips. A
-   rational spline, and a degree past the Gauss table's five nodes,
-   stay unwound.
-2. **The ring lane alone reads the spline term**, on an open run
-   closed by a carried chord. Nothing else moves, and the three sites
-   stop answering on one carrier set, which the module docs give as
-   the reason the sum has one home.
-3. **Paths on the plane**, the reading the curved faces take
-   (`chord_join::path_island_winding_closed_by`): a straight segment
-   from an outer-loop point to the closing chord's middle, its
-   crossings of the run read by the curve-pair table. It reads a
-   rational spline too and needs no area, but it is a second reading
-   of a planar island beside the sum, and `path_parity`'s line and
-   conic arms are stated for pieces on a quadric, so a planar run's
-   lines and conics would need arms of their own or the table's.
-
-A fitted carried chord lies in the plane only within its pad, which
-each reading has to hold: the sum projects on the plane's normal, and
-a path's meetings are read in space within the band.
+- **The term comes from `geom_brep::props`**, beside
+  `loop_vector_area`, rather than from a second integrator in `topo`:
+  twice the edge's vector area about its own start point. It is exact
+  for a non-rational spline (Gauss per knot span). For a rational one it
+  is a certified enclosure (`props::rational_rim`), refined by piece
+  count until the sign is decided, as `spiric_winding` does for the
+  spiric. The perimeter lever is an upper bound from the carrier's
+  speed.
+- **`Unwound::Spline` retires.** `Uncertified` stays, for an
+  enclosure-only carrier at a scalar with no certified lane.
+- **The face's surface picks the reading, not the germ lane.** A plane
+  is wound by the sum, closed by the segment's curve, whichever lane
+  minted it. `choose_roles` routes a plane's `RingClosure::Chord` to the
+  planar ring lane, and `run_spline_edge`'s pre-refusal and
+  `ring_run_ccw`'s "no lane mints a spline on a plane" invariant go.
+- **Every reader of the sum answers alike**: the merge's role
+  assigner, tier 3's check 6 planar arm, the join's ring lane, the
+  splitter's `section_loops::loop_sense` and `chord_join`'s plane
+  re-homing.
+- **A fitted chord's pad is not charged.** `n · A⃗` reads the stored
+  arcs' projection on the plane, so their height off it drops out
+  exactly.
 
 ## Done when
 
-The slab row above passes `choose_roles` in both orders and is pinned
-where it stops next.
+- The slab row above passes `choose_roles` in both orders and is
+  pinned where it stops next.
+- Check 6's planar arm checks role and sense on a planar loop with a
+  spline edge, where today it skips it (`validate.rs:8211`, `let
+  Some(winding) = … else { continue }`).
+- `a_nurbs_carrying_cycle_stays_undecidable` is re-pinned to a decided
+  winding.
+- A rational spline edge is decided at a certifying scalar.
+- `loop_winding`'s module docs and `ring_run_ccw`'s doc describe the
+  new carrier set.
