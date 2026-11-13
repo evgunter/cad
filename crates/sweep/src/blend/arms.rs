@@ -304,8 +304,8 @@ impl BlendArm {
     }
 
     /// Whether this arm's blend is the TORUS about a circular spine —
-    /// the shape a CLOSED rim's band is built from, whatever kinds its
-    /// two supports are. Every coaxial-revolution pair mints one; the
+    /// the shape a CLOSED rim's fillet band is built from, whatever kinds
+    /// its two supports are. Every coaxial-revolution pair mints one; the
     /// ruled pairs mint a cylinder and meet along an open edge instead.
     #[must_use]
     pub fn is_coaxial_torus(self) -> bool {

@@ -68,7 +68,7 @@ fn the_chamfered_cube() {
     assert_eq!(
         out.band_faces.len(),
         0,
-        "a chamfer has no closed-chain band"
+        "a cube has no closed rim, so no closed-rim band"
     );
 
     let counts = euler_counts(&out_body);

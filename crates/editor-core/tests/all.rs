@@ -179,6 +179,8 @@ mod e6_drive_over_a_loft_at_interval;
 mod edit_blend_canonical;
 #[path = "edit_blend_one_box_of_two.rs"]
 mod edit_blend_one_box_of_two;
+#[path = "edit_bore_chamfer.rs"]
+mod edit_bore_chamfer;
 #[path = "edit_bore_two_rims.rs"]
 mod edit_bore_two_rims;
 #[path = "edit_concave_bar.rs"]

@@ -14,8 +14,8 @@ one verb-neutral refusal vocabulary. Nothing is sampled or approximated.
 The fillet design proper (the battery's six predicates in binding
 order, the arm table, the corner-configuration scope) is in
 `crates/geom-brep/README.md` under CURVED-DESIGN C8. What is not yet
-built (mid-curve run-outs, the canal-surface blend, curved-support
-chamfers) is registered in `docs/KERNEL-VERBS.md`; the canal blend is
+built (mid-curve run-outs, the canal-surface blend, chamfers over
+other curved supports) is registered in `docs/KERNEL-VERBS.md`; the canal blend is
 `docs/DESIGN.md` frontier (f).
 
 ## Where in the code
@@ -30,7 +30,7 @@ chamfers) is registered in `docs/KERNEL-VERBS.md`; the canal blend is
 | The two blend doors, one per verb; each attaches its `BlendKind` once | `crates/sweep/src/fillet.rs`, `crates/sweep/src/chamfer.rs` |
 | Shared blend vocabulary: `BlendKind`, `BlendRefusal`, `BlendError`, `CornerConfig`, `RunOutPolicy`, recourse sentences | `crates/sweep/src/blend/mod.rs` |
 | Validity battery, per-verb predicate gating, arm dispatch (`coaxial_arm`), `is_seam_vertex` | `crates/sweep/src/blend/battery.rs` |
-| Analytic arms: sheet derivation, `BlendArm`, chamfer strip, corner ball | `crates/sweep/src/blend/arms.rs` |
+| Analytic arms: sheet derivation, `BlendArm`, chamfer strip and frustum, corner ball | `crates/sweep/src/blend/arms.rs` |
 | Admission tokens (holding the value is the fact) | `crates/sweep/src/blend/admit.rs` |
 | Assembly front doors, `Blended` result type, octant charts | `crates/sweep/src/blend/build.rs` |
 | In-place composition surgery: the door, the plans, the ring check, the description pass, the one `kef` door; the closed-rim walks (ladder rims, annulus rims across seams, mixed rims) | `crates/sweep/src/blend/surgery.rs` |
@@ -347,7 +347,8 @@ never name a verb; `BlendRefusal`'s `Display` prefixes `"fillet: "` or
 shared sentence is true under both verbs; a door one verb lacks is
 conditioned in the sentence (the closed-chain clauses of
 `FILLET3_ASSEMBLY_RECOURSE` and `FILLET3_SEAM_VERTEX_RECOURSE` say a
-chamfer has no band). Ball-only arms keep ball language because no
+chamfer carves only the rim a cylinder meets a plane square to its
+axis in). Ball-only arms keep ball language because no
 chamfer run reaches them: `RadiusHeadroom` and `SpineIrregular` are
 metered only when `run_battery_for` sees `BlendKind::Fillet`, and
 `SpineUnsupported` sits behind the chamfer's early return
@@ -370,6 +371,38 @@ not an admissible way to discriminate the verbs.
 
 Settled choices: "edge blend" is the neutral generic noun; `Blended<T>`
 is the one result type of both doors, `Filleted<T>` and `Chamfered<T>` its call-site aliases.
+
+**The chamfer's arm table.** Two rows, each the fillet's carve with
+the chamfer's band in the ball's place:
+
+| support pair | band | trimlines | carved by |
+|---|---|---|---|
+| plane–plane | plane strip (`arms::chamfer_strip`) | two lines | the open chain's corners, mitres and cut-offs |
+| cylinder–plane, square to the axis, meeting in a circle | cone frustum (`arms::chamfer_frustum`) | two circles | the closed-rim walks: ladder, seam-split and one-edge annulus |
+
+Every other pair refuses `ChamferArmUnsupported`, and so does a
+frustum's arc in a chain that also holds links on other supports (a
+rounded outline's arc between its lines), where a strip and a frustum
+would meet at a junction no carve builds; the battery refuses it at
+the arc as soon as the chains are walked. The frustum's feet are the
+strip's, read in the meridian sheet: the plane's one setback off the
+rim radially, the cylinder's one setback along the axis. Its
+generator is the segment between them, its half-angle a quarter
+turn's half at equal setbacks, and the plane–cylinder pair is decided
+coaxial under `fillet3_support_coaxiality` as the fillet's curved
+rows are. The band crosses its supports at a definite angle, so its
+trims are described as plain intersections, as the strip's are; its
+slit is the generator through the closure crossing, described as the
+cone's seam; and its sense bit is derived, the cone's chart normal
+being radially outward whichever side the material is
+(`arms::frustum_sense`: the rim lies on the chart normal's side of the
+generator exactly when the chart normal is outward on a convex rim).
+The walks, the ring meters, the reach (the triangle of the rim and its
+feet revolved) and the birth records are the torus band's, so a
+bore's mouth and its far rim, a boss's top and foot and a
+counterbore's step carve as the fillet's rims do, at
+`ΔV = ∓π·s²·(R ± s/3)` (`band_chamfer_frustum`), and a ring and an
+outer rim on one host ask for sequential calls as the fillet's do.
 
 ## Fillet arms and the seam vertex (ARMS3-DESIGN A3-1…A3-3)
 
@@ -426,9 +459,10 @@ tangent cylinders has it while `r < R_big − R_small` — and a radius
 past it refuses `BlendError::KnifeEdge { refusal: KnifeRefusal::NoRoom }`.
 A ball that exists but whose band leaves its supports is the face
 clearance, ring and reach meters' to refuse, as on any other edge. The
-chamfer reaches no knife refusal of its own: its one arm is
-plane–plane, a knife's supports are never two planes on a valid body,
-and a knife meets `ChamferArmUnsupported` as any curved pair does.
+chamfer reaches no knife refusal of its own: its arms are plane–plane
+and a cylinder meeting a plane in a circle, a knife's supports are
+never either on a valid body, and a knife meets
+`ChamferArmUnsupported` as any other curved pair does.
 
 **A rim's ball is decided to exist before any arm reads it.** At a
 rim the ball's centre is the crossing of the supports' `r`-offsets that
@@ -646,8 +680,9 @@ recourse
 (`work/band/an-annulus-rim-around-a-mixed-rim-refuses-in-one-call.md`).
 A run of two links on one support pair
 inside such a chain and a chain sharing no one face refuse
-`UnsupportedChain`; a chamfer has no arm over an arc, so its rounded
-outlines refuse at the arc. The section is named `BandSection { vertex }`,
+`UnsupportedChain`; a chamfer's frustum is built over a whole rim
+alone, so its rounded outlines refuse `ChamferArmUnsupported` at the
+arc. The section is named `BandSection { vertex }`,
 after the junction vertex it replaces.
 
 **An open chain of mixed links** — a run of an outline's lines and arcs

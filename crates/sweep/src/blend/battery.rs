@@ -1294,11 +1294,13 @@ pub(crate) fn resolve_link<T: Decide + Bounds>(
         match wedge_at(outward_a, outward_b, tau, wedge_arm, edge, band)? {
             (LinkWedge::Blend(convexity), margin) => (convexity, margin, Branch::Rim),
             (LinkWedge::Smooth, margin) => return Ok(Resolved::Smooth(edge, margin)),
-            // The chamfer's one arm is plane–plane, and a knife's
-            // supports are not two planes on any valid body (two planes
-            // tangent along a line are coplanar, a lamina tier 3
-            // refuses), so a knife reaches the chamfer's one refusal for
-            // a pair its arm does not cover, as any curved pair does.
+            // The chamfer's arms are plane–plane and a cylinder meeting
+            // a plane square to its axis, and a knife's supports are
+            // neither on any valid body (two planes tangent along a line
+            // are coplanar, a lamina tier 3 refuses; a plane tangent to a
+            // cylinder touches it along a ruling, not a circle), so a
+            // knife reaches the chamfer's refusal for a pair its arms do
+            // not cover, as any other curved pair does.
             (LinkWedge::Knife, _) if matches!(kind, BlendKind::Chamfer) => {
                 return Err(BlendError::ChamferArmUnsupported {
                     edge,
@@ -1456,10 +1458,12 @@ fn support_coaxiality<T: Decide + Bounds>(
 /// is chosen by the RIM CARRIER's own stored shape — a coaxial pair
 /// meets in a circle, a ruled pair in a line.
 ///
-/// The chamfer's table is one row wide and refuses everything else,
-/// with the same shape and the same honesty: a curved support is a
-/// real chamfer whose arm is not built (VERBS-ARMS' machinery), not a
-/// geometry this kernel will approximate.
+/// The chamfer's table is two rows wide — the strip over two planes,
+/// the frustum over a cylinder and a plane square to its axis, decided
+/// coaxial as the fillet's curved rows are — and refuses everything
+/// else, with the same shape and the same honesty: another curved
+/// support is a real chamfer whose arm is not built, not a geometry this
+/// kernel will approximate.
 ///
 /// A curved row also returns the margin its coaxiality was decided on
 /// ([`support_coaxiality`]); the planar rows decide none.

@@ -601,8 +601,7 @@ pub(super) fn blend_surgery<T: Decide + Bounds + topo::AtRestPolicy>(
                         if !same_supports(source, chain.first(), link)? {
                             return Err(unbuilt_chain(
                                 link.edge,
-                                "a closed chamfer chain on more than one support pair has no \
-                                 band; a rim on one cylinder and one plane is implemented",
+                                "a closed chamfer chain spans several support pairs",
                             ));
                         }
                     }
