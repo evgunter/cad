@@ -93,7 +93,7 @@ use geom_core::ladder::{Answering, Differing, Evidence, Rung, climb_differing, c
 use geom_core::{Band, Decide, Margin, Point3, Sign, Vec3};
 
 use super::contain::FaceContainment;
-use super::reduce::plane_desc;
+use crate::face_normal::face_plane;
 use std::collections::{BTreeMap, BTreeSet};
 
 use super::sectors::{
@@ -2264,7 +2264,7 @@ fn held_reads<T: Decide + crate::props::AtRestPolicy>(
     let read_face = |face| -> Result<Option<HeldRead<T>>, BooleanError> {
         // The face's outward normal at the point, its bend there (`None`
         // on a plane), and the reading that puts the point on it.
-        let (held_normal, held_lever, on) = match plane_desc(piercing_body, face) {
+        let (held_normal, held_lever, on) = match face_plane(piercing_body, face) {
             None => {
                 // A curved face is read only where its box can hold the
                 // point, as a plane is only where the point is on it.
@@ -2580,8 +2580,8 @@ fn one_carrier<T: Decide>(
 ) -> bool {
     use geom_brep::{CarrierRelation, carrier_eq};
     if let (Some(x), Some(y)) = (
-        super::carrier_pair::face_carrier(body, a),
-        super::carrier_pair::face_carrier(body, b),
+        crate::face_normal::face_carrier_desc(body, a),
+        crate::face_normal::face_carrier_desc(body, b),
     ) {
         return matches!(
             carrier_eq(&x, &y, extent, band),
@@ -4606,7 +4606,7 @@ mod tests {
             .faces()
             .map(|(k, _)| k)
             .find(|&f| {
-                plane_desc(&cube, f).is_some_and(|p| {
+                face_plane(&cube, f).is_some_and(|p| {
                     p.normal.x * m[0] + p.normal.y * m[1] + p.normal.z * m[2] < -0.99
                 })
             })

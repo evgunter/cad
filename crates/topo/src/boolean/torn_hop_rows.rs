@@ -159,7 +159,9 @@ fn describe_edges_panics_on_a_torn_curve() {
 fn point_in_face_panics_on_a_torn_outer_loop() {
     let mut body = cube();
     let face = first_face(&body);
-    let (_, normal) = crate::face_normal::face_plane(&body, face).expect("a cube face is planar");
+    let normal = crate::face_normal::face_plane(&body, face)
+        .expect("a cube face is planar")
+        .normal;
     let members = outer_members(&body, face);
     let corner = |he| {
         let v = body.get_half_edge(he).unwrap().start;
@@ -433,7 +435,7 @@ fn the_vertex_on_face_classification_panics_on_a_torn_pierced_surface() {
         .map(|(k, _)| k)
         .find(|&f| {
             crate::face_normal::face_plane(&pierced, f)
-                .is_some_and(|(o, n)| n.z > 0.5 && (o.z - 1.0).abs() < 1e-12)
+                .is_some_and(|p| p.normal.z > 0.5 && (p.origin.z - 1.0).abs() < 1e-12)
         })
         .unwrap();
     let contact = VfContact { vertex, face };

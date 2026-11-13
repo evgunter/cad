@@ -214,7 +214,7 @@ use geom_core::{Band, Decide, Indeterminate, Lever, Margin, Point3, Sign, Vec3};
 use crate::body::Body;
 use crate::chart_groups::ChartGroups;
 use crate::entity::{EntityId, FaceKey, LoopBoundary, SolidKey};
-use crate::face_normal::plane_outward_normal;
+use crate::face_normal::plane_desc_of;
 use crate::live::{linked, proven};
 use crate::ray_walk::{self, Crossings, RayFault};
 use crate::side_reader::{SideUnread, side_at_infinity};
@@ -223,6 +223,7 @@ use crate::splitting::containment::{
     point_in_loop_projected,
 };
 use crate::validate::decide;
+use geom_brep::PlaneDesc;
 use geom_brep::quartic::{QuarticRoots, QuarticRows, depressed_quartic_roots, quadratic_roots};
 use geom_brep::roots::{Found, RootRefusal, Roots, Unsettled};
 
@@ -741,7 +742,7 @@ impl std::error::Error for PointInSolidError {}
 /// and a region reads the sense itself.
 pub(crate) enum FaceGeo<T: geom_core::Real> {
     /// A planar face: a point on it and its OUTWARD normal.
-    Plane(Point3<T>, Vec3<T>),
+    Plane(PlaneDesc<T>),
     /// A cylinder wall face: the ray/wall quadratic's roots, each tested
     /// against the face's own region, read from its boundary edges
     /// ([`super::ruled_region`]). Per face, like [`FaceGeo::SpherePatch`].
@@ -945,10 +946,9 @@ fn face_geo_arms<T: Decide>(
 ) -> Result<FaceGeo<T>, PointInSolidError> {
     let f = body.proven_face(face);
     match f.surface() {
-        Surface::Plane { origin, normal, .. } => Ok(FaceGeo::Plane(
-            *origin,
-            plane_outward_normal(f.record(), *normal).vec(),
-        )),
+        Surface::Plane { origin, normal, .. } => {
+            Ok(FaceGeo::Plane(plane_desc_of(f.record(), *origin, *normal)))
+        }
         &Surface::Cylinder {
             origin,
             axis,
@@ -2126,7 +2126,7 @@ fn face_holds<T: Decide + crate::props::AtRestPolicy>(
 ) -> Result<bool, PointInSolidError> {
     let escalate = |diag| PointInSolidError::Escalated { face, diag };
     match *geo {
-        FaceGeo::Plane(origin, normal) => {
+        FaceGeo::Plane(PlaneDesc { origin, normal }) => {
             // Orientation-free: a residual compared against Zero
             // answers the same whichever way the normal points,
             // and `point_in_face` below is ray parity (ditto).
@@ -4319,7 +4319,7 @@ pub(crate) fn ray_crossings<T: Decide>(
     // ---- Each planar face's plane, crossed once. ----
     let mut planes: Vec<PlaneCross<T>> = Vec::new();
     for &(face, ref geo) in geos {
-        let FaceGeo::Plane(origin, normal) = *geo else {
+        let FaceGeo::Plane(PlaneDesc { origin, normal }) = *geo else {
             continue;
         };
         let escalate = |diag| RayFault::InBand(PointInSolidError::Escalated { face, diag });

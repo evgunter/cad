@@ -5,7 +5,7 @@
 //! operand is A; and a hemisphere's base, a disc bounded by one closed
 //! circle, is cut where a brick's coincident bottom holds it.
 //!
-//! Faces are named by their carrier (`topo::face_carrier`), rounded to
+//! Faces are named by their carrier (`topo::face_normal::face_carrier_desc`), rounded to
 //! thousandths; a border by the live edge it settles on, by its two ends.
 //! A stretch that settles on no live edge merged away with the faces
 //! beside it and says nothing, so it is left out.
@@ -52,7 +52,7 @@ fn rounded(s: &str) -> String {
 fn seat(body: &topo::Body<f64>, f: FaceKey) -> String {
     rounded(&format!(
         "{:?}",
-        topo::face_carrier(body, f).expect("a carrier")
+        topo::face_normal::face_carrier_desc(body, f).expect("a carrier")
     ))
 }
 
@@ -316,10 +316,10 @@ fn a_rod_at_a_box_edge_borders_alike_in_either_order() {
     let union = op_fates("∪", &boxed, &at_edge);
     let wall = rounded(&format!(
         "{:?}",
-        geom_brep::CarrierDesc::Plane {
+        geom_brep::CarrierDesc::Plane(geom_brep::PlaneDesc {
             origin: geom_core::Point3::new(2.0, 0.0, 0.5),
             normal: geom_core::Vec3::new(1.0, 0.0, 0.0),
-        }
+        })
     ));
     let edges = [
         "(2,-0.5,0) (2,-0.5,1)",
