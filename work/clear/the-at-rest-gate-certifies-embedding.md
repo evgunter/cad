@@ -286,13 +286,64 @@ first: a family where tier 3 passes and a Zero site refuses.
 
 ## Spec
 
-**Order:** A, then B with the engine rows below, then C, then D and E
-in parallel. The engine rows (the 23 refusals of table 1) must land
+**Order:** A, then B's separators with the engine rows below, then C
+(with B's tier-3 input), then D and E in parallel. The engine rows (the 23 refusals of table 1) must land
 before C. Otherwise C's gate refuses 23 tour bodies at their doors,
 among them the lily, the teapot's handle, the heatsinks and the
 snowman.
 
-### Lane A — the verdict door, one crossing, the engine's own scope (M)
+### Lane A — the verdict door, one crossing, the engine's own scope (M) — done
+
+**Landed (PR 6885, 2026-11-12).**
+- The verdict door is `topo::clearance::embedded`, bounded on
+  `Decide + CertifiedBounds`. It asks the strict question of a `Side`
+  and answers `Embedding::{Embedded, Crosses(Crossing), Refused}` with
+  its receipt. The verifier lives in the door. Lane C's gate calls the
+  same door, so it gets the witness verifier with it.
+- The shell's `cavity_embedded` maps the door's answer onto
+  `CavityCrosses` / `CavityUncertified`. Its `lift` parameter is gone.
+- **The f64 switch moved out** to
+  `the-f64-cavity-gate-refuses-thirty-two-valid-shells` (P0). Asked at
+  f64, the gate refused 32 valid shell rows the engine cannot certify
+  yet: 22 out of pairs, 8 on the departure arm, 2 at a window. The
+  orchestrator ruled that the spec's ordering covers it, so it waits on
+  the engine rows. The shell asks through `CavityGate`, only where the
+  measure door answers (`Interval`, `Sym<Interval>`). The coaxial and
+  dumbbell f64 pins, and the mutant that skips the shell's gate at f64,
+  went with it.
+- The verifier reads `Candidate::enclosure`: the window carriers the
+  engine already crossed. So neither the door nor the shell lifts a
+  chart, and no caller spells `Interval::from_certified`.
+- `Sweep::run` and `min_separation` run their whole walk under
+  `k_stats::unlogged("F41")`. F28, F29 and F30 are gone. F29's
+  dimension disposition moved into F17. The one logged reading, the
+  box-dependent cue in `wire_clearance`, is F41's stated exception.
+- One deviation in change 1. The engine's own crossings (`window_of`,
+  `boundary_of`, `cell_region`) still call `Interval::from_certified`
+  in place. They do not go through a function the lane value holds,
+  because the internals are generic over `T` and are never handed the
+  lane. The rule "no caller crosses" holds; "one function on the lane"
+  holds as the lane's bound and doc.
+- Measured: the f64 "curved window" row was never a crossing. Its
+  dumbbell carried its bulges on the blob walls, not the neck
+  (evidence added to
+  `shell/offset-corner-on-surface-escalates-at-interval-on-an-arc-necked-extrude`).
+  The fixture now bows the neck. Its Interval row still refuses in the
+  offset door, and at f64 it would refuse `CavityCrosses` (the moved
+  row's pin).
+- Pins:
+  - `the_measure_door_answers_at_the_enclosure_scalars_and_nowhere_else`
+    and `the_verdict_door_answers_at_every_certifying_scalar` (a cube at
+    f64, Interval, `Sym<f64>`, `Sym<Interval>`, and Probe under the
+    feature), plus `embedded`'s `compile_fail` doctest at `Dual64`;
+  - `holds` (the tube and the vessel at `Interval`), which asserts the
+    shell logs none of the engine's cell readings.
+- Mutants, both run:
+  - the door answering `Embedded` at f64 with nothing read reds the
+    verdict table;
+  - `Sweep::run` without its scope reds the tube (1,027 rows logged),
+    the vessel (588) and editor-core's notch node (2,140 verdicts and
+    297 escalations).
 
 Items 1 and 7, and changes 1 and 4. Rows touched: this one, and
 `the-shells-cavity-sweep-logs-its-cell-readings` (closes).
@@ -335,28 +386,179 @@ Items 1 and 7, and changes 1 and 4. Rows touched: this one, and
 
 ### Lane B — no second reading (M)
 
-Change 2, at the three sites of section 4. Rows touched: this one.
-- **Sites:** `is_zero` / `sign_on`, `present_chart`'s apex arm and
-  `cusp` (`injective.rs`). The facts come from
-  `validate_geometric_certificate`, `contact_marks` and check 6
-  (`validate.rs`), through `AtRestBody::validate`.
-- **Pins:**
-  - a body whose family passes tier 3 while a Zero site refuses. None
-    was found here (table 3), so the lane builds one first. The box at
-    `w = 0.1` is the place to start: today it runs out of pairs after
-    1.5 s, and after the lane it reads `Holds` or refuses naming the
-    family's width (change 3);
-  - a cone apex over a box (`topo::test_support` `cone_cap`);
-  - the declared wedge-0 kiss in `self_intersection_proves_injectivity.rs`
-    keeps its typed refusal, now read off the mark.
-- **Mutants:** every edge read as `Tangent` (the cone and pyramid
-  `Holds` rows refuse as a cusp); an empty apex map (the cone row
-  refuses `CollapsedChart`); `is_zero` always true (the carvetail fold
-  and the folded cut stop reading `Violated`).
-- **Seams:** TOPO's `validate.rs`, for the hand-over of marks and
-  singular vertices.
+Change 2. The injectivity question takes tier 3's verdict as its
+input. The engine never re-decides a fact that tier 3, or its own
+construction, already holds (`[topology.tiers]`).
+
+- **The input.** The strict question over one body is the walk
+  `Sweep::run` takes when `same_body` holds and the bound is strict.
+  It takes a value that only tier 3's local battery constructs:
+  - the body;
+  - each edge's wedge class (`WedgeVerdict`: a crease, π, or an end);
+  - each face's singular vertex, where check 6 placed it
+    (`geom_brep::chart_singularity::Lies::AtVertex`; today it is
+    dropped after `place_on_boundary`).
+
+  `topo::clearance::embedded` takes this value in place of `Side`, so
+  asking injectivity of an unchecked body does not compile.
+  `Side { body, faces }` stays for the metric questions (two bodies,
+  or a bound that is not strict); those reach no Zero site.
+  `AtRestBody` keeps the two per-entity facts beside its `KeptSign`,
+  and `moved_by` carries them. They are keyed by entity, so an
+  isometry keeps them.
+- **The three sites.**
+  - *On the shared cell* (`is_zero` / `sign_on`). Each separator
+    carries the cells it vanishes on, and `sign_on` asks membership;
+    no value is read.
+    - A face's carrier vanishes on that face's edges and vertices, by
+      check 2.
+    - A plane the engine builds (`plane_through`) vanishes on the edges
+      and the vertex it was built through. Its `n` and `q` are computed
+      at the lane scalar from the edge's own carrier (a line's stored
+      direction, a conic's stored axis and centre), never rounded to a
+      midpoint.
+    - The graph separator vanishes on its one edge, as now.
+    - A plane does not vanish at a shared vertex off the line it was
+      built through. There it answers nothing.
+  - *Past the shared cell* (`Zero::Past`; `Zero::Curve` and
+    `Zero::Corner` alike). The side is zero where its chart line is the
+    shared edge's own line or circle, since a separator built from the
+    edge contains it whole. Otherwise it answers nothing. No band
+    reading is left.
+  - *Apex* (`present_chart`). The face's singular vertex, read from the
+    verdict. At `Sym`, this is where tier 3's identity proofs reach
+    the engine.
+  - *Cusp* (`cusp`). The edge's wedge class is an end. The cusp is not
+    read off `ContactMark::Tangent`: `wedge_reading` also maps a
+    determinate wedge-π seam (a smooth G1 join) to `Tangent`, so a
+    blend edge would read as a cusp and refuse `SecondOrder` past
+    depth 10. The contact mark is derived from the wedge class.
+
+  The funnel sites `self_intersection_on_shared`,
+  `self_intersection_apex` and `self_intersection_cusp` retire, with
+  their audit rows.
+- **The callers.**
+  - The gate (lane C) holds the verdict in the function that asks.
+  - The shell's cavity check retires into the gate (item 7).
+    `the-f64-cavity-gate-refuses-thirty-two-valid-shells` then closes
+    into C: its 32 rows join C's engine rows, and its pins move to C's
+    mapping of a cavity crossing.
+  - editor-core's strict door (`self_intersection`, whose only callers
+    are tests) reads the finished leaf (`Held::finished`,
+    `topo::take`).
+  - `wire_clearance` asks no strict bound, so it is not a caller.
+  - Tests ask finished bodies. Construction-state lofts at `Interval`
+    wait on `check-7s-quadrature-refuses-interval-nurbs-walls…`.
+- **Order.**
+  - **Lane B (now): the engine's own separators.** These need no
+    tier 3:
+    - `plane_through` is exact per member;
+    - each separator carries its cells;
+    - the reading goes for planes and graphs.
+
+    This is sound for every caller today.
+    - Pins:
+      - a family whose shared line edge turns with the parameter (a
+        drafted or sheared extrude at `Interval`);
+      - a pair sharing a line edge and a separate vertex, where the
+        plane answers nothing at the vertex;
+      - the box at `1 ± 1e-2`, `Sym<Interval>`.
+    - Mutant: every cell in the separator's list.
+    - Before any reading goes, run the forced harness on the carvetail
+      fold and the folded cut. These are the rows that `is_zero` always
+      true turns off `Violated`. Record which `Zero` arm and which
+      `Psi` each kill comes through. If one comes through a carrier
+      side on a shared edge, then check 2 does not give what section 4
+      says: stop and report.
+  - **With lane C:** the input type; the facts kept in tier 3 and on
+    `AtRestBody`; the carrier, apex and cusp sites; and the callers.
+    - Pins:
+      - `embedded`'s `compile_fail` doctest at `&Body`;
+      - the revolved cone at `Sym<Interval>`, holding with its apex
+        read from the verdict. It needs a cone whose apex is a vertex
+        there, which waits on `revolve`'s
+        `NoGeneralLane { chart: Cone, carrier: Line }`; `cone_cap`
+        fails check 6;
+      - the declared wedge-0 kiss, refusing `SecondOrder` read off
+        `End`;
+      - a blend edge marked `Tangent`, not read as a cusp.
+    - Mutants:
+      - an empty apex map (the cone refuses `CollapsedChart`);
+      - the cusp read off `Tangent` (the blend row refuses).
+  - The spec's first pin, a family where tier 3 passes while a Zero
+    site refuses, is not needed. The change is owed by
+    `[one-way.readings]` (one reading per fact), not by a verdict that
+    moves (measured below).
+- **Seams:** TOPO's `validate.rs`, for the facts tier 3 keeps;
+  editor-core's strict door.
+
+**Measured by lane B (clear-zero, 2026-11-13), main at `b95a5e1eb2`.**
+Lane B stopped before building: the facts do not reach the sweep in
+the shape the spec assumes. The harness was a scratch test with
+counters at each Zero site, run unoptimised. It was not committed. The
+question is `embedded` over every face, at depth 40 and 65,536 pairs.
+"Forced" means each non-`Past` zero side read as zero, and an apex
+decision the band leaves open read as the apex. That is what lane B
+would read in their place.
+
+| body | tier 3 | certificate | forced | carrier sides read zero / open | linear sides read zero / open |
+|---|---|---|---|---:|---:|
+| box, depth `1 ± 1e-2`, `Sym<Interval>` | passes | Holds, 120 pairs | Holds, 74 | 36 / 98 | 0 / 32 |
+| box, depth `1 ± 3e-2` | refuses | Holds, 156 | Holds, 108 | 36 / 120 | 0 / 52 |
+| box, depth `1 ± 0.1` | refuses | `Budget(Pairs)`, 9.0 s | `Budget(Pairs)`, 9.0 s | 276 / 5,462 | none read |
+| revolved cone, `h = 1` exact, `Sym<Interval>` | passes | Holds, 182 splits | Holds, 182 splits | 2 / 206 | 206 / 0 |
+
+- **The box at `w = 0.1` is not a Zero-site pin.** Forced, it still runs
+  out of pairs. 221,115 of its 227,632 presentations refuse `Local`.
+  190,033 of those are `present_plane`'s catch-all, a cell whose local
+  boundary holds three or more of the plane face's edges. Every cell's
+  ball carries the family's 0.2 m in depth, so no split narrows it.
+  The obstruction is the family's width (change 3, lane C), in a
+  function the curved-corner lane owns. Tier 3 also refuses at this
+  width, so the body cannot be the spec's pin.
+- **No family was found where tier 3 passes and a Zero site refuses.**
+  On the box the carrier arm's side reading is open on most cells at
+  every width. The graph separator, exempt by construction, certifies
+  those pairs instead. Reading the fact saves 38–46 pairs, and no
+  verdict moves.
+- **The cone has no box to vary.** `revolve` at `Sym<Interval>` refuses
+  the triangle `(0,0) (1,0) (0,1 ± w)` for any `w > 0`
+  (`NoGeneralLane { chart: Cone, carrier: Line }`). `cone_cap` is an
+  `f64` fixture whose apex is not a vertex, which check 6 refuses. So
+  the spec's "cone apex over a box" pin has no door to build its body.
+- **Where the facts are today.** `structural_via` (`validate.rs`) runs
+  `tier3_local_checks_marked` and drops the marks. Check 6's
+  chart-singularity arm places each apex on a vertex (`Lies::AtVertex`)
+  and keeps nothing. `AtRestBody` holds the body and its `KeptSign`
+  alone. The engine is entered through
+  `Side { body: &Body<T>, faces }`, and no current caller holds a
+  tier-3 verdict:
+  - `shell::cavity_embedded` asks the moved clone before it is
+    finished;
+  - editor-core's clearance takes `Held::Leaf`, which at the box
+    scalars is tier 2 alone;
+  - the sweep tests ask `into_body()` or construction-state lofts.
+
+  The marks (`cusp`) and the apex vertices (`present_chart`) are
+  per-edge and per-vertex data, so the engine can read them only if a
+  caller hands them in. That is a new public shape on `Side`, or on
+  `embedded` and `Sweep::run`, which every caller above has to fill.
+  The spec does not name it, or what a caller without a verdict hands.
+- **"By construction" holds only member by member where `n` is built
+  from the edge.** `plane_through` rounds its normal to a point
+  (`lift(unit(vmid(..)))`). Over a family whose shared line edge
+  changes direction, a fixed `n` is not normal to every member's
+  edge, so `ψ` does not vanish on the shared edge. Reading it as zero
+  by construction would then be unsound. The construction is true if
+  `n` and `q` are computed in `Interval` from the edge's own carrier.
+  The same holds for a conic's plane: use the stored axis and centre.
 
 ### Lane C — the gate asks the certificate (H)
+
+**Note from lane A's review (PR 6885).** Until change 3 lands here, a
+shell at `Interval` that refuses `CavityCrosses` or `CavityUncertified`
+carries no logged reading: the witness confirmation runs inside F41's
+scope. Change 3 is what puts that one row in the log.
 
 Items 2 and 3, and change 3. It needs lane A, and the engine rows
 filed below. Rows touched: this one, and
