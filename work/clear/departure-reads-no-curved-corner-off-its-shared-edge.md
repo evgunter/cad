@@ -182,7 +182,11 @@ bodies holds:
 
 Over the whole walk, 74 of 85 hold, up from 66. The other 11 are the
 eight out-of-pairs bodies and the three assemblies, as before, and no
-body that held has moved.
+body that held has moved. Re-measured on the merge with PR 6892 (main
+`adc5cd2a3e`), 80 hold, up from 6892's 76. The four new ones are
+`chute` and the three buds, with the same pairs as above. The other
+five are `diecomposed` and `klein_bulb`, which run out of pairs, and
+the three assemblies.
 
 **What remains** is this row's first two bullets:
 - **The tee** (`crossing_equal_rods`) now refuses 8 root pairs, not 9.
