@@ -12,7 +12,7 @@ the name↔entity table and re-resolution is a lookup, never a match.
 
 | Decisions | Module |
 |---|---|
-| N1 `StableName`, `RolePath`, `RoleSeg`, `EntityKind`; N2 `Qualifier`; N1's pass-through set as the recipe walks read it (`verbatim_edge`: the mate member walk, the coincidence door's walk to a construction and the takeover door's walk to the nodes carrying a copy's names) | `role.rs`; `RecipeNodeId` in `crates/editor-core/src/node.rs` |
+| N1 `StableName`, `RolePath`, `RoleSeg`, `EntityKind`; N2 `Qualifier`; N1's pass-through set as the recipe walks read it (`verbatim_edge`: the mate member walk, the coincidence door's walk to a construction and the takeover door's walk to the nodes carrying a copy's names, each reading a placement's source down to the body it reads, `Doc::through_sources`) | `role.rs`; `RecipeNodeId` in `crates/editor-core/src/node.rs` |
 | N4 `NameTable`, `Entry::{Unique,Tied}`, `EntityRef` | `table.rs` |
 | N4 emission, `NamingError` | `emit.rs` (helpers, totality check), `emit_sweep.rs` (extrude/revolve/loft), `emit_topo.rs` (boolean, split, N3 merge), `emit_union.rs` (the n-ary union: member-keying in, collapse out), `emit_blend.rs` behind `emit_fillet.rs`/`emit_chamfer.rs` (an edge its closing join made over several trims, rim trims or survivors `Merged`), `emit_shell.rs` (the shell: survivors `From` the target's read, cavity twins `Inner`, a chart's rim `Rim` of its first designated face, a hole's promoted annulus `HoleRim`, an edge its closing join made over several input edges `Merged`) |
 | N1's node and profile step ids: the mint chain and mint log (`Mint`) | `crates/editor-core/src/mint.rs`; `RecipeNodeId` and `StepId` in `crates/editor-core/src/node.rs` |
@@ -117,7 +117,10 @@ was minted with, never by its position (below). Names contain no floats and no a
 split-intact entity, a read of a split's half, a `Part`'s projection of one instance, a mirror's
 image) adds no segment, so `node` stays the original minter, and so does
 a copy (a placement's of its source, an instance's of its part's
-product), which carries its source's names verbatim. Copies are told
+product), which carries its source's names verbatim. So does a source
+(VARIABLES VR4, `bracket = B`): a variable reading a body, whose table
+is the body's, so a mate's `on` side selecting the source
+(`bracket.top`) holds `B`'s names. Copies are told
 apart by the variable that holds each (N1), and under a `⊔` by the
 `From { read, of }` that keys each member by its read. Names are
 document-local; assembly's are `ASSEMBLY.md`'s.

@@ -649,13 +649,6 @@ pub(super) fn certified<T: geom_core::Real>(
         })
 }
 
-/// [`crate::face_normal::face_plane`] as the plane ladder's
-/// description: the same point and OUTWARD normal, `None` where that
-/// door answers `None`.
-pub(super) fn plane_desc<T: Decide>(body: &Body<T>, face: FaceKey) -> Option<PlaneDesc<T>> {
-    crate::face_normal::face_plane(body, face).map(|(origin, normal)| PlaneDesc { origin, normal })
-}
-
 /// A vertex of the swept solid `x`, whose slit tips at rest are `tips`,
 /// against the planar `face` of the other, `y`, at its offset from the
 /// face's plane through `origin` along the stored `normal` the door
@@ -772,7 +765,10 @@ pub(super) fn gate_maximal_faces<T: Decide>(
             }
             continue;
         }
-        let (Some(p1), Some(p2)) = (plane_desc(body, f1), plane_desc(body, f2)) else {
+        let (Some(p1), Some(p2)) = (
+            crate::face_normal::face_plane(body, f1),
+            crate::face_normal::face_plane(body, f2),
+        ) else {
             continue;
         };
         let at = body.resolve_vertex_point(
@@ -986,7 +982,7 @@ pub(super) fn sweep_direction<T: Decide + Bounds + crate::props::AtRestPolicy>(
             // the M3 lane below (bit-identically for line edges, plus
             // the conic ROOT lane); curved faces get the clearance /
             // typed-frontier arm.
-            let Some(plane) = plane_desc(y, face) else {
+            let Some(plane) = crate::face_normal::face_plane(y, face) else {
                 // The tree's overlap is a world-axis one: a curved face
                 // the edge, or either face the edge lies on, is apart
                 // from along a direction that turns with the operands
@@ -1752,9 +1748,11 @@ fn settle_in_plane<T: Decide>(
         // and panics on a stale one; the plane's `None` is then a face
         // that is not planar.
         let bounding = face_vertices(y, lie.face);
-        let plane = plane_desc(y, lie.face).ok_or(BooleanError::ClassificationInvariant {
-            what: "a face an edge lies in lost its plane",
-        })?;
+        let plane = crate::face_normal::face_plane(y, lie.face).ok_or(
+            BooleanError::ClassificationInvariant {
+                what: "a face an edge lies in lost its plane",
+            },
+        )?;
         let pieces = contacts
             .splits
             .pieces_since(lie.x_is, lie.fragment, lie.mark)
@@ -6595,9 +6593,11 @@ fn read_lying_in<T: Decide + crate::props::AtRestPolicy>(
     for &lies in lying_in {
         match lies {
             LyingIn::Plane(face) => {
-                let plane = plane_desc(y, face).ok_or(BooleanError::ClassificationInvariant {
-                    what: "a face an edge lies in lost its plane",
-                })?;
+                let plane = crate::face_normal::face_plane(y, face).ok_or(
+                    BooleanError::ClassificationInvariant {
+                        what: "a face an edge lies in lost its plane",
+                    },
+                )?;
                 let read = |which| edge_face_read(x, x_is, edge, face, declared, which);
                 read_on_plane(
                     (x, x_is, tips),

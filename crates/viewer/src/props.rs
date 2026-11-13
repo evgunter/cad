@@ -1362,6 +1362,38 @@ pub struct DefinedRow {
     pub value: Result<Reading, SlotFault>,
 }
 
+/// **One named source**, as the variables pane lists it (VARIABLES VR4):
+/// `bracket = B`, the body it reads, and how many placements read it.
+#[derive(Clone, Debug, PartialEq)]
+pub struct SourceRow {
+    /// The source.
+    pub var: VarId,
+    /// Its name.
+    pub label: SpokenVar,
+    /// The body it reads, as the document speaks it.
+    pub body: SpokenVar,
+    /// The placements reading it.
+    pub copies: usize,
+}
+
+/// Every NAMED source, declaration order: an anonymous one is its
+/// placement's own, edited from that placement's "copy of" row.
+pub fn source_rows(doc: &Doc<ProfileProgram>) -> Vec<SourceRow> {
+    doc.var_ids()
+        .iter()
+        .filter_map(|&var| {
+            doc.var_name(var)?;
+            let body = doc.source(var)?;
+            Some(SourceRow {
+                var,
+                label: doc.spoken_var(var),
+                body: doc.spoken_var(body.read),
+                copies: crate::world::placements_of_var(doc, var).len(),
+            })
+        })
+        .collect()
+}
+
 /// Every NAMED defined variable, declaration order: an anonymous one
 /// shows at the slot that reads it.
 pub fn defined_rows(doc: &Doc<ProfileProgram>) -> Vec<DefinedRow> {

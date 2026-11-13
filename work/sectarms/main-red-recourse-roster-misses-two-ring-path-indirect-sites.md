@@ -25,3 +25,4 @@ an indirect site not listed: ring_path/spline_wall.rs: paths:
 
 Register the two sites in the roster's `INDIRECT` list with what each forwards, or give the names they decide a carrier the census reads. Then run the row.
 
+On main at `5e5fec6d0a` a third site joins them: `an indirect site not listed: ring_path/spline_wall.rs: reach:`.

@@ -129,7 +129,7 @@ names-boolean              20  one_region.rs
 names-boolean               2  pieces.rs
 names-boolean              19  props.rs
 names-boolean              10  replace_face.rs
-names-boolean              31  review_d18.rs
+names-boolean              29  review_d18.rs
 names-boolean               1  ring_path.rs
 names-boolean               1  ring_path/cone_islands.rs
 names-boolean               1  sector_shape.rs
@@ -138,7 +138,6 @@ names-boolean              39  shell.rs
 names-boolean              76  side_reader.rs
 names-boolean              21  stands.rs
 names-boolean               2  surgery.rs
-names-boolean               1  test_support_fixtures.rs
 names-boolean              28  test_support_holdings.rs
 names-boolean              30  test_support_samples.rs
 names-boolean              26  test_support_volume.rs
@@ -213,7 +212,6 @@ ambiguous Touch                          # census/point.rs
 ambiguous boundary                       # link/cleared_rows.rs
 ambiguous certify                        # policy_lane.rs
 ambiguous classify                       # offset_axial.rs
-ambiguous face_carrier                   # readback.rs
 ambiguous face_rows                      # null.rs
 ambiguous fans                           # link/oracle_rows.rs
 ambiguous holds                          # census/depth_gap.rs
