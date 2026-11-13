@@ -3997,7 +3997,7 @@ fn present_plane_vertex<'a>(
         map: affine,
         x: (0.0, x.1),
         y: (0.0, y.1),
-        zero: Zero::Point(Side::XLo, Side::YLo),
+        zero: Zero::Point(Side::XLo, Side::YLo, v),
         corner: true,
         cache: Cache::default(),
     })))
@@ -6942,7 +6942,7 @@ mod presentation_rows {
         ] {
             let got = at_vertex_alone(&convex, u, v);
             assert!(
-                matches!(got, Ok(Zero::Point(Side::XLo, Side::YLo))),
+                matches!(got, Ok(Zero::Point(Side::XLo, Side::YLo, v)) if v == vertex(1)),
                 "{what}: the quadrant's corner is the zero: {got:?}"
             );
         }
