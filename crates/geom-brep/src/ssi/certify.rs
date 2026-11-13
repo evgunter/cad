@@ -1755,13 +1755,6 @@ fn probe_tube_chart<'p, T: Decide + Bounds + CertifiedEnclosure>(
         pad_v: pad.1,
         nodes,
     };
-    // A chain ending at a node also reads `∇φ` through `φ`'s Hessian
-    // (`node::transverse`): near the node the surfaces may nearly
-    // osculate, where the direct reading spreads by each surface's own
-    // curvature across the window.
-    let jets = (nodes != [None, None])
-        .then(|| super::node::Jets::of_exact(surface))
-        .flatten();
     let mut worst = f64::INFINITY;
     let mut probed = Vec::with_capacity(windows.len());
     for w in windows {
@@ -1793,18 +1786,7 @@ fn probe_tube_chart<'p, T: Decide + Bounds + CertifiedEnclosure>(
             probed.push((w, (-ty / tn, tx / tn)));
             continue;
         }
-        let also = jets.as_ref().map(|j| {
-            let (du, dv) = (
-                surface.knots_u_f64_interim().domain(),
-                surface.knots_v_f64_interim().domain(),
-            );
-            let clipped = UvRect {
-                u: (u0.max(du.0), u1.min(du.1)),
-                v: (v0.max(dv.0), v1.min(dv.1)),
-            };
-            super::node::transverse(j, phi.0, clipped, (-ty / tn, tx / tn))
-        });
-        let Some(margin) = chart_transverse_margin(boxes, phi, rect, ((tx, ty, tn), also))? else {
+        let Some(margin) = chart_transverse_margin(boxes, phi, rect, (tx, ty, tn))? else {
             return Ok(None);
         };
         if margin.is_nan() {

@@ -645,8 +645,7 @@ impl ChartPhi<'_> {
 /// `rect`: `∇φ = (∇f·S_u, ∇f·S_v)` read along the chart direction
 /// transverse to the pcurve's tangent, divided by the chart's stretch
 /// along that direction and by an upper bound on `‖∇f‖` over the window
-/// ([`ChartPhi`]), met with `also`, a second enclosure of the same
-/// derivative where the caller reads one. `tangent` is `(t.x, t.y, ‖t‖)`,
+/// ([`ChartPhi`]). `tangent` is `(t.x, t.y, ‖t‖)`,
 /// the tangent's bracket tops and a positive finite norm, which select
 /// the direction (structure, not a bound). Both readings come from the
 /// derivative numerators' vector terms ([`CellNet::transverse_readings`],
@@ -664,7 +663,7 @@ pub(super) fn chart_transverse_margin<T: CertifiedBounds>(
     boxes: &NurbsBoxes<'_, T>,
     phi: ChartPhi<'_>,
     rect: UvWindow,
-    (tangent, also): ((f64, f64, f64), Option<Interval>),
+    tangent: (f64, f64, f64),
 ) -> Result<Option<f64>, SsiError> {
     let (tx, ty, tn) = tangent;
     // e⊥ = (−t.y, t.x)/‖t‖; the transverse derivative of φ.
@@ -686,12 +685,6 @@ pub(super) fn chart_transverse_margin<T: CertifiedBounds>(
         return Ok(None);
     }
     let (phi, stretch) = boxes.transverse_readings(rect, n, ex, ey);
-    // A second enclosure of the same derivative, where the caller reads
-    // one: the two meet, each sound.
-    let phi = match also.map(|i| phi.meet(i)) {
-        Some(met) if met.is_certified() => met,
-        _ => phi,
-    };
     // An admitted `+∞` stretch divides the margin to an exact `0`,
     // which the caller's fold then records as the certificate's worst
     // transversality — a number manufactured from an overflow, not a
@@ -2107,7 +2100,7 @@ pub(super) mod tests {
         let margins = MARGIN_WINDOWS
             .into_iter()
             .map(|rect| {
-                chart_transverse_margin(&boxes, ChartPhi(&plane), win(rect), (tangent, None))
+                chart_transverse_margin(&boxes, ChartPhi(&plane), win(rect), tangent)
                     .expect("no window is degenerate")
                     .expect("every stretch is finite")
             })
@@ -2775,7 +2768,7 @@ pub(super) mod tests {
                 &boxes,
                 ChartPhi(&form),
                 win((0.499, 0.501, 0.499, 0.501)),
-                ((tx, ty, 1.0), None),
+                (tx, ty, 1.0),
             )
             .expect("the window is not degenerate")
             .expect("the stretch is finite")
@@ -2826,7 +2819,7 @@ pub(super) mod tests {
             &boxes,
             ChartPhi(&form),
             win((0.0, 1.0, 0.0, 1.0)),
-            ((0.0, 1.0, 1.0), None),
+            (0.0, 1.0, 1.0),
         )
         .expect("the window is not degenerate")
         .expect("the stretch is finite");

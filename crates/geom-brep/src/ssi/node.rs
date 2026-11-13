@@ -227,27 +227,3 @@ pub(crate) fn holds_node(jets: &Jets, phi: Phi<'_>, x: UvRect, band: Band) -> bo
         Ok((Magnitude::Zero, _))
     )
 }
-
-/// **`∇φ·e` over the box `x`, read through `φ`'s Hessian** (the mean-value
-/// form): `∇φ(m)·e + eᵀ∇²φ(x)·(x − m)`, `m` the box's middle, an
-/// enclosure of the transverse derivative limb 3's chart tube reads
-/// (C2). Near a node, where the surfaces nearly osculate, `∇φ` is the
-/// small difference of two nearly equal terms, and the direct reading
-/// `∇f(S(x))·S_d(x)` spreads by either term's own variation over the box
-/// while this one spreads by `φ`'s Hessian's alone. Refused where a
-/// reading does not certify.
-pub(crate) fn transverse(jets: &Jets, phi: Phi<'_>, x: UvRect, e: (f64, f64)) -> Interval {
-    let (Some(u), Some(v)) = (range(x.u), range(x.v)) else {
-        return Interval::refused();
-    };
-    let m = [mid(u), mid(v)];
-    let at = read(jets, phi, Interval::point(m[0]), Interval::point(m[1]));
-    let over = read(jets, phi, u, v);
-    let e = [Interval::point(e.0), Interval::point(e.1)];
-    let d = [u - Interval::point(m[0]), v - Interval::point(m[1])];
-    let mut acc = at.gradient[0] * e[0] + at.gradient[1] * e[1];
-    for (b, db) in d.iter().enumerate() {
-        acc = acc + (e[0] * over.hessian[0][b] + e[1] * over.hessian[1][b]) * *db;
-    }
-    acc
-}
