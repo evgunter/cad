@@ -795,6 +795,91 @@ fn a_windowed_tubes_caps_hold_against_its_walls_at_both_scalars() {
     holds_at_both("the windowed tube", tube(), tube());
 }
 
+/// **A stepped ring's floor holds against its end caps**: an L section
+/// revolved three quarters of a turn about `y`. The step's floor is an
+/// annulus, and its line edge on each end cap meets the floor's two rim
+/// arcs. At the step's wall the cap is a reflex corner of two lines,
+/// which no presentation reads, so the floor is presented through its
+/// line–arc corner and the cap's plane separates it.
+#[test]
+fn a_stepped_rings_floor_holds_against_its_end_caps() {
+    fn ring<T: Scalar>() -> Body<T> {
+        let profile = validated::<T>(&[ProfileLoop::polygon(
+            [
+                (1.0, 0.0),
+                (2.0, 0.0),
+                (2.0, 1.0),
+                (1.5, 1.0),
+                (1.5, 0.5),
+                (1.0, 0.5),
+            ]
+            .map(|(x, y)| Point2::new(x, y)),
+        )]);
+        let turn = Revolution::Partial(T::from_f64(1.5 * core::f64::consts::PI));
+        revolve(&profile, axis_y(), turn, tol())
+            .unwrap()
+            .body
+            .into_body()
+    }
+    holds_at_both("the stepped ring", ring(), ring());
+}
+
+/// **A filleted cube corner's ball holds against the faces it touches
+/// at its pole**: the unit cube with the three edges at `(1, 1, 1)`
+/// filleted. The corner's sphere is charted with a pole at the vertex
+/// it shares with one face alone, tangent to it there, so neither
+/// carrier separates the pair; a plane through the vertex does, the
+/// sphere read across the pole as a collapsed side of its chart.
+#[test]
+fn a_filleted_corners_ball_holds_against_a_face_at_its_pole() {
+    fn corner<T: Scalar>() -> Body<T> {
+        let cube = sweep::test_support::cube::<T>(1.0, tol());
+        let at_corner: Vec<topo::EdgeKey> = cube
+            .edges()
+            .map(|(k, _)| k)
+            .filter(|&e| {
+                let (s, t) = cube.edge_vertices(e).unwrap();
+                [s, t].into_iter().any(|v| {
+                    let p = *cube.get_point(cube.get_vertex(v).unwrap().point).unwrap();
+                    [p.x, p.y, p.z]
+                        .into_iter()
+                        .all(|c| (mid(c) - 1.0).abs() < 1e-9)
+                })
+            })
+            .collect();
+        assert_eq!(at_corner.len(), 3, "three edges meet at the corner");
+        sweep::blend::fillet_edges(
+            &sweep::test_support::at_rest(&cube, tol()),
+            &at_corner,
+            T::from_f64(0.25),
+            tol(),
+        )
+        .map_err(|e| e.error)
+        .expect("the corner fillets")
+        .body
+        .into_body()
+    }
+    holds_at_both("the filleted corner", corner(), corner());
+    let body: &Body<f64> = &corner::<f64>();
+    let ball = body
+        .faces()
+        .map(|(k, _)| k)
+        .find(|&k| kind(body, k) == "sphere")
+        .expect("the corner's ball");
+    let alone: Vec<FaceKey> = body
+        .faces()
+        .map(|(k, _)| k)
+        .filter(|&k| {
+            kind(body, k) == "plane" && touching_pairs(body).contains(&(k.min(ball), k.max(ball)))
+        })
+        .collect();
+    assert_eq!(
+        alone.len(),
+        3,
+        "the ball touches the three faces at its corners"
+    );
+}
+
 /// **A long helical sweep certifies within the default budget**: a
 /// square tube two turns round a helix of pitch 0.4, its four walls
 /// sharing helical seams. Each wall's enclosure extremes lie in one
@@ -1353,6 +1438,7 @@ fn kind<T: Real>(body: &Body<T>, f: FaceKey) -> &'static str {
         Surface::Plane { .. } => "plane",
         Surface::Cylinder { .. } => "cylinder",
         Surface::Torus { .. } => "torus",
+        Surface::Sphere { .. } => "sphere",
         _ => "other",
     }
 }
@@ -1739,10 +1825,18 @@ fn a_cylinder_cylinder_tee_refuses_typed_at_a_vertex_its_junction_shares_alone()
         report.receipt
     );
     assert_eq!(
-        report.receipt.refused, 9,
-        "nine root pairs refuse: six at a vertex alone, one across the mitre's line, two across \
-         the mitre's ellipse ({:?})",
+        report.receipt.refused, 8,
+        "eight root pairs refuse: six at a vertex alone, two across the mitre's ellipse; the \
+         mitre's line on B's cap is read through its corners with the cap's arcs ({:?})",
         report.receipt
+    );
+    assert!(
+        report
+            .across
+            .iter()
+            .any(|(&(a, b), &n)| kind(tee, a) == "plane" && kind(tee, b) == "plane" && n > 0),
+        "the mitre against B's cap is certified across their line: {:?}",
+        report.across
     );
 }
 
