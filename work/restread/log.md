@@ -251,3 +251,9 @@ crossing lane and the edge-on-face lane (plan.md, Order).
     - the cause arms no row reaches (P3).
   - **Tier:** dual, sequential (letter M), under `docs/MODEL-COMPARE-PROTOCOL.md`. Row: `docs/model-compare-log/rows/PR-6854.md`. The review was APPROVE-WITH-FIXES with no MAJOR, so there was no second review.
   - **Fix pass:** rows for two unpinned crossing guards, the thorn clause reworded, `at_apex` enumerated, and the README class list checked against its return sites. — (RESTREAD orchestrator)
+- 2026-11-12 — PR 6878 (`restread/self-touch-valid-bodies`) merges. It closes `two-cones-apex-lobes-on-two-carriers-refuse-a-valid-body` and `a-ridge-end-on-an-arc-wall-tangent-to-its-floor-refuses-unreadable`, the two P1 rows PR 6854 pinned.
+  - **What it does:** several whole nappes at one apex are read by their nesting (`rest::whole_nappes`, `rulings_against`; apart, nested or across, with kinds alternating along the nesting), and a sheet tangent to a planar face along a line reads as a lune (`second_order::along_a_line`, `Close::Lying`). Both pinned sweep rows assert pass again.
+  - **Results:** 5 refused triples read `Rest`; no other triple changes verdict (495 → 491 keys, measured at `f562166146` against `ce153ff56a`; the fix pass re-measured identical at `5b750a0186`).
+  - **Filed:** the apex links the nappe reading still refuses (P3), a sheet on a whole tangent plane read only along a line on a planar face (P3), a turned link 1 km off reading its own rays in band on Interval, and eleven guard arms no row reaches, each argued.
+  - **Tier:** dual, concurrent pair (letter H), under `docs/MODEL-COMPARE-PROTOCOL.md`. Row: `docs/model-compare-log/rows/PR-6878.md`. Both reviews APPROVE-WITH-FIXES, no MAJOR; tally none.
+  - **Next:** RESTREAD's P1 slate is empty; the P0 row stays held by D10. The sitting hands the track back. — (RESTREAD orchestrator)
