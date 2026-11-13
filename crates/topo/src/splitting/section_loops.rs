@@ -442,6 +442,30 @@ fn conics_clear<T: Decide>(e: &dyn Conic<T>, h: &dyn Conic<T>, band: geom_core::
 /// outline reading's own read of the same link is never reached.
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod spline_loop_row {
+    use geom_core::{Band, Tol, Vec3};
+
+    /// **A loop with a spline edge has a role**: the triangle with a
+    /// rational quarter circle for one edge is an outline about the
+    /// normal it winds counter-clockwise around and a hole about the
+    /// other.
+    #[test]
+    fn a_loop_with_a_spline_edge_reads_its_role() {
+        let tol = Tol::witness();
+        let band = Band::linear(tol).unwrap();
+        let (body, l) = crate::merge_faces::winding_arm_tests::spline_tri(tol);
+        for (normal, outline) in [(Vec3::unit_z(), true), (-Vec3::unit_z(), false)] {
+            let read = super::loop_sense(&body, l, normal, band);
+            assert!(
+                matches!(read, Ok(role) if role == outline),
+                "about {normal:?}: {read:?}"
+            );
+        }
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod torn_hop_rows {
     use geom_core::{Band, Tol, Vec3};
 

@@ -532,7 +532,8 @@ pub enum JoinError {
     /// the wall's certified sections, and a ring re-homed on one where
     /// the new face's every edge is, on a net whose weights are constant
     /// along one parameter); on a
-    /// plane, a run on spiric ovals at a scalar that does not certify
+    /// plane, a run with a spiric or rational spline edge at a scalar
+    /// that does not certify
     /// (`crate::loop_winding::Unwound::Uncertified`). Valid input
     /// whose lane is not yet built (D2 addendum row 2), refused typed.
     RingIslandUnread {
@@ -5841,6 +5842,26 @@ pub(crate) fn ring_representative<T: Decide>(
 /// in-band one read before it — `ladder::Evidence`'s order, where the
 /// hand-rolled search these ladders replace kept the first escalation,
 /// whichever it was.
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod spline_loop_row {
+    use geom_core::{Band, Tol};
+
+    /// **A loop with a spline edge winds for the rim side's reading**:
+    /// asked whether a face holds its own outer loop, the triangle with a
+    /// rational quarter circle for one edge answers that the two
+    /// windings agree, where a loop with no winding refuses.
+    #[test]
+    fn a_loop_with_a_spline_edge_reads_its_side() {
+        let tol = Tol::witness();
+        let (body, l) = crate::merge_faces::winding_arm_tests::spline_tri(tol);
+        let face = body.get_loop(l).unwrap().face;
+        let held =
+            super::RimSide::Plane.holds_outer(&body, face, l, face, Band::linear(tol).unwrap());
+        assert!(matches!(held, Ok(false)), "{held:?}");
+    }
+}
+
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod side_ladder_rows {

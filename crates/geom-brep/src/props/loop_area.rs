@@ -2,6 +2,7 @@
 //! per-carrier closed forms (module docs of [`super`]).
 
 use geom::{Curve3, NurbsCurve3};
+use geom_core::interval::Interval;
 use geom_core::spline::SpanLocate;
 use geom_core::{Point3, Real, Vec3};
 
@@ -168,9 +169,21 @@ fn gauss_rule(n: usize) -> Option<(&'static [f64], &'static [f64])> {
 pub fn vector_area_reads<T: SpanLocate>(carrier: &Curve3<T>) -> bool {
     match carrier {
         Curve3::Line(_) | Curve3::Circle(..) | Curve3::Ellipse(..) => true,
-        Curve3::Nurbs(c) => !is_rational(c) && gauss_rule(c.degree().max(1)).is_some(),
+        Curve3::Nurbs(c) => spline_gauss_rule(c).is_some(),
         Curve3::Spiric { .. } => false,
     }
+}
+
+/// The fixed rule that integrates a spline carrier's vector area exactly
+/// ([`nurbs_vector_area`]): `None` for a rational carrier, and for a
+/// degree past the inventory.
+fn spline_gauss_rule<T: SpanLocate>(
+    curve: &NurbsCurve3<T>,
+) -> Option<(&'static [f64], &'static [f64])> {
+    if is_rational(curve) {
+        return None;
+    }
+    gauss_rule(curve.degree().max(1))
 }
 
 /// Is this carrier rational: are its weights not all one plain constant
@@ -203,8 +216,7 @@ fn nurbs_vector_area<T: SpanLocate>(
     if is_rational(curve) {
         return Err(PropsError::Unimplemented);
     }
-    let degree = curve.degree().max(1);
-    let Some((nodes, weights)) = gauss_rule(degree) else {
+    let Some((nodes, weights)) = spline_gauss_rule(curve) else {
         return Err(PropsError::QuadratureUnsupported {
             what: "a non-rational B-spline boundary carrier of degree > 5 — the exact \
                    Gauss inventory covers the exportable degrees; extend the table \
@@ -240,6 +252,174 @@ fn nurbs_vector_area<T: SpanLocate>(
         }
     }
     Ok(acc * half)
+}
+
+/// A curved edge's term in a planar loop's winding sum: its **bulge**,
+/// twice the vector area between the edge as traversed and its chord
+/// (the vector area about the edge's own start point, which no chord
+/// through that point changes), and an upper bound on its length.
+pub type SegmentTerm<S> = (Vec3<S>, S);
+
+/// **How a planar winding sum reads an edge of each carrier** — the one
+/// table of it ([`segment_kind`]).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SegmentKind {
+    /// A line: the edge is its chord and has no bulge.
+    Chord,
+    /// A closed form at the caller's scalar ([`closed_segment_term`]): a
+    /// circle, an ellipse, and a spline [`loop_vector_area`] integrates
+    /// exactly ([`vector_area_reads`]).
+    Closed,
+    /// A certified enclosure alone ([`SegmentQ`]): a spiric, a rational
+    /// spline, and a non-rational one past the exact rule's degrees.
+    Enclosed,
+}
+
+/// The reading a planar winding sum takes of `carrier`.
+#[must_use]
+pub fn segment_kind<T: SpanLocate>(carrier: &Curve3<T>) -> SegmentKind {
+    match carrier {
+        Curve3::Line(_) => SegmentKind::Chord,
+        Curve3::Circle(..) | Curve3::Ellipse(..) => SegmentKind::Closed,
+        Curve3::Nurbs(c) if spline_gauss_rule(c).is_some() => SegmentKind::Closed,
+        Curve3::Nurbs(_) | Curve3::Spiric { .. } => SegmentKind::Enclosed,
+    }
+}
+
+/// **The closed-form term of one traversed edge**, `(t0, t1)` the carrier
+/// interval it spans and `forward` whether the traversal runs with the
+/// carrier's parameter. `None` for a carrier that is not
+/// [`SegmentKind::Closed`].
+///
+/// - A conic: `(axis · a·b · (Δ − sin Δ), |Δ|·max(a, b))`
+///   ([`arc_segment_term`]), odd in the signed span `Δ`; the length is
+///   exact for a circle and an upper bound for an ellipse
+///   ([`Conic::speed_hi`](geom::Conic::speed_hi)).
+/// - A non-rational spline: `∫ (P − P(t0)) × P′ dt` over the interval,
+///   exact per knot span ([`loop_vector_area`]'s rule), negated for a
+///   reversed traversal; the length is the carrier's speed sup
+///   ([`NurbsCurve3::speed_upper_bound`]) times the span.
+pub fn closed_segment_term<T: SpanLocate>(
+    (carrier, (t0, t1)): (&Curve3<T>, (T, T)),
+    forward: bool,
+) -> Option<SegmentTerm<T>> {
+    if let Some(conic) = carrier.conic() {
+        let (a, b) = conic.semi_axes();
+        let span = if forward { t1 - t0 } else { t0 - t1 };
+        return Some((
+            arc_segment_term(conic.frame().axis, a * b, span),
+            span.abs() * conic.speed_hi(),
+        ));
+    }
+    let Curve3::Nurbs(curve) = carrier else {
+        return None;
+    };
+    let half = nurbs_vector_area(curve, t0, t1, curve.eval(t0)).ok()?;
+    let bulge = half + half;
+    Some((
+        if forward { bulge } else { -bulge },
+        curve.speed_upper_bound().to_meters((t1 - t0).abs()),
+    ))
+}
+
+/// A [`SegmentQ`] has no term at a piece count: a piece whose enclosure
+/// does not certify there.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct NoTermAt;
+
+/// **One traversed edge as the certified winding sum reads it**, at the
+/// interval scalar: built once per edge ([`SegmentQ::of`]) and read at
+/// each piece count a refinement asks for ([`SegmentQ::term`]).
+#[derive(Debug, Clone)]
+pub enum SegmentQ {
+    /// A line (`None`, its chord) or a conic's closed form, which no
+    /// piece count moves.
+    Closed(Option<SegmentTerm<Interval>>),
+    /// A spiric arc: [`super::spiric`]'s enclosure of its vector area
+    /// about its start point, and its piecewise length bound.
+    Spiric(super::spiric::SpiricEdgeQ),
+    /// A spline arc, rational or not: [`super::rational_rim`]'s
+    /// enclosure of its vector area about its start point, and its
+    /// certified length bound.
+    Spline(super::rational_rim::RationalEdgeQ, Interval),
+}
+
+impl SegmentQ {
+    /// The edge on `carrier` over `(t0, t1)`, traversed `forward` or
+    /// against the parameter. `None` for a spline whose enclosure does
+    /// not build: its interval's ends or its knots are not exact
+    /// parameters, its decomposition refuses, or its speed sup is not
+    /// certified.
+    #[must_use]
+    pub fn of(
+        (carrier, (t0, t1)): (&Curve3<Interval>, (Interval, Interval)),
+        forward: bool,
+    ) -> Option<Self> {
+        Some(match carrier {
+            Curve3::Line(_) | Curve3::Circle(..) | Curve3::Ellipse(..) => {
+                Self::Closed(closed_segment_term((carrier, (t0, t1)), forward))
+            }
+            Curve3::Spiric {
+                center,
+                axis,
+                u_ref,
+                major_radius,
+                minor_radius,
+                offset,
+            } => {
+                let rv = |v: Vec3<Interval>| [v.x, v.y, v.z];
+                Self::Spiric(super::spiric::SpiricEdgeQ {
+                    centre: rv(*center - carrier.eval(t0)),
+                    axis: rv(*axis),
+                    normal: rv(*u_ref),
+                    major: *major_radius,
+                    minor: *minor_radius,
+                    offset: *offset,
+                    t0,
+                    t1,
+                    forward,
+                })
+            }
+            Curve3::Nurbs(curve) => {
+                let length = curve.speed_upper_bound().to_meters((t1 - t0).abs());
+                if !length.is_certified() {
+                    return None;
+                }
+                let edge =
+                    super::rational_rim::rational_edge_q(curve, t0, t1, forward, curve.eval(t0))
+                        .ok()?;
+                Self::Spline(edge, length)
+            }
+        })
+    }
+
+    /// The edge's term at `pieces` (per Bézier span on a spline):
+    /// `Ok(None)` for a line.
+    ///
+    /// # Errors
+    ///
+    /// [`NoTermAt`] for a spiric with a piece whose `f` is not certified
+    /// positive at `pieces`.
+    pub fn term(&self, pieces: usize) -> Result<Option<SegmentTerm<Interval>>, NoTermAt> {
+        let twice = |[x, y, z]: super::quad::RVec3| {
+            let half = Vec3::new(x, y, z);
+            half + half
+        };
+        match self {
+            Self::Closed(term) => Ok(*term),
+            Self::Spiric(edge) => {
+                let length = super::spiric::spiric_length_bound(edge, pieces).ok_or(NoTermAt)?;
+                Ok(Some((
+                    twice(super::spiric::spiric_vector_area(edge, pieces)),
+                    Interval::from_certified(length),
+                )))
+            }
+            Self::Spline(edge, length) => Ok(Some((
+                twice(super::rational_rim::rational_vector_area_split(edge, pieces).0),
+                *length,
+            ))),
+        }
+    }
 }
 
 #[cfg(test)]

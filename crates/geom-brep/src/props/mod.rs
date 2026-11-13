@@ -150,7 +150,8 @@ pub use curved::{
 };
 pub(crate) use curved::{PoleLeft, sphere_pole_left};
 pub use loop_area::{
-    arc_segment_term, chord_bulge, is_rational, loop_vector_area, vector_area_reads,
+    NoTermAt, SegmentKind, SegmentQ, SegmentTerm, arc_segment_term, chord_bulge,
+    closed_segment_term, is_rational, loop_vector_area, segment_kind, vector_area_reads,
 };
 
 /// One traversed boundary edge of a face loop: a key-free view of

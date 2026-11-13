@@ -1285,8 +1285,8 @@ impl SplitFinishError {
                 f,
                 "which side of a cut face is material cannot be read: its outline \
                  encloses no area, or has an edge whose winding the kernel does not \
-                 read (a NURBS edge, or spiric edges pinched near a torus's inner \
-                 equator). Recourse: {}",
+                 read (spiric edges pinched near a torus's inner equator, or a spline \
+                 edge whose area it cannot enclose). Recourse: {}",
                 super::SPLIT_COINCIDENCE_RECOURSE
             ),
             Self::NestingContradiction { hole } => {

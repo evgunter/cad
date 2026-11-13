@@ -437,8 +437,10 @@ enum RingClosure<T: geom_core::Real> {
     /// plane, on the face's chart; a sphere's, a cone's or a torus's by
     /// the segment's curve.
     Wall((Point3<T>, UnitVec3<T>)),
-    /// A cylinder, sphere, torus or spline face, closed by the segment's
-    /// curve, a carried chord ([`GermLane::Carried`]).
+    /// A carried chord ([`GermLane::Carried`]), the segment's curve: it
+    /// closes a planar face's island on the face's own plane, as
+    /// [`Self::Planar`] does, and a cylinder's, a sphere's, a torus's or
+    /// a spline face's by a path on the face.
     Chord,
     /// A segment along an edge of this solid (the named operand), of
     /// both solids or of this one alone, reads no section on this side:
@@ -4692,7 +4694,8 @@ fn choose_roles<T: crate::props::AtRestPolicy>(
     // Ring lane: decided by the run's winding. A planar, sphere, cone or
     // torus face's run is closed by the segment's curve, so it waits on
     // that curve ([`RoleLane::resolve`]), and so does a carried chord's
-    // cylinder, sphere, torus or spline face; a cylinder face's on a planar section
+    // face, a plane by its own plane's winding whichever lane minted the
+    // chord; a cylinder face's on a planar section
     // closes along its section plane on its chart, decided here, before
     // the curve is computed in the order it decides. An along-edge
     // segment reads no section: a curved face there refuses typed,
@@ -4709,14 +4712,21 @@ fn choose_roles<T: crate::props::AtRestPolicy>(
             Some(crate::ring_path::Quadric::Cylinder { .. }) | None => RingFace::Wall(section),
             Some(_) => RingFace::Quadric,
         },
-        RingClosure::Chord => match crate::ring_path::Carrier::of(surface()) {
-            Some(
-                crate::ring_path::Carrier::Quadric(
-                    crate::ring_path::Quadric::Cylinder { .. }
-                    | crate::ring_path::Quadric::Sphere { .. }
-                    | crate::ring_path::Quadric::Torus { .. },
-                )
-                | crate::ring_path::Carrier::Wall(_),
+        RingClosure::Chord => match (
+            face_outward_normal(body, face),
+            crate::ring_path::Carrier::of(surface()),
+        ) {
+            (Some(normal), _) => RingFace::Plane(normal.vec()),
+            (
+                None,
+                Some(
+                    crate::ring_path::Carrier::Quadric(
+                        crate::ring_path::Quadric::Cylinder { .. }
+                        | crate::ring_path::Quadric::Sphere { .. }
+                        | crate::ring_path::Quadric::Torus { .. },
+                    )
+                    | crate::ring_path::Carrier::Wall(_),
+                ),
             ) => RingFace::Carried,
             _ => {
                 return Err(BooleanError::CurvedBooleanUnsupported {
@@ -4893,16 +4903,21 @@ fn ring_order<T: Decide>(
 /// a degenerate area-free run and a loud desync (the ring lane only
 /// closes full island cycles — slit-growing joins are mekr-lane
 /// merges), unless an end of the run faces a tied germ, where it winds
-/// as `tie` reads it ([`tie_winding`]). A spline run edge refuses first
+/// as `tie` reads it ([`tie_winding`]).
+///
+/// The sum reads every carrier a run edge or the closing curve holds
+/// (`crate::loop_winding`'s module docs: a spline by its own term, as a
+/// line, a conic and a spiric by theirs), so a planar face's run is
+/// wound whichever lane minted its chords. One the sum does not wind
+/// refuses typed ([`JoinError::RingIslandUnread`]): an edge read by its
+/// enclosure alone, a spiric or a rational spline, at a scalar that does
+/// not certify ([`crate::loop_winding::Unwound`]).
+///
+/// A spline run edge refuses first
 /// ([`BooleanError::EdgeCarrierUnsupported`], naming `operand`'s edge
-/// and `face`) on every closing but a carried chord's, whose path reads
-/// one where it is certified on the face
-/// ([`crate::ring_path::SplineArc`]). A run the sum does not wind otherwise
-/// refuses by the reason it names ([`crate::loop_winding::Unwound`]): a
-/// spline closing curve on a plane, which no section lane mints there,
-/// loudly; a spiric
-/// at a scalar that does not certify, typed
-/// ([`JoinError::RingIslandUnread`]).
+/// and `face`) on a wall's or a quadric's closing, whose windings do not
+/// read one; a carried chord's path reads one where it is certified on
+/// the face ([`crate::ring_path::SplineArc`]).
 ///
 /// A wall face ([`IslandClosing::Wall`]) asks the same question on its
 /// own chart, [`crate::chord_join::chart_island_winding`], with the run
@@ -4919,7 +4934,7 @@ fn ring_run_ccw<T: crate::props::AtRestPolicy>(
     band: Band,
 ) -> Result<bool, BooleanError> {
     let desync = |what| BooleanError::JoinDesync { what };
-    if !matches!(closing, IslandClosing::Carried(_))
+    if matches!(closing, IslandClosing::Wall(_) | IslandClosing::Quadric(_))
         && let Some(edge) = run_spline_edge(body, (h1, h2))?
     {
         return Err(BooleanError::EdgeCarrierUnsupported {
@@ -4964,25 +4979,17 @@ fn ring_run_ccw<T: crate::props::AtRestPolicy>(
     let wound = body
         .planar_run_winding_decided((h1, h2), RunClosing::of(closing.as_ref()), normal, band)
         .map_err(|RunMissesEnd| desync("ring-run arc did not close"))?
-        .map_err(|why| {
-            BooleanError::from(match why {
-                // The run holds none (above), so the spline is the
-                // closing curve, and no section lane mints one on a plane.
-                Unwound::Spline => JoinError::SectionInvariant {
-                    face,
-                    what: "the ring lane's closing section curve is a spline",
-                },
-                Unwound::Uncertified => JoinError::RingIslandUnread {
-                    face,
-                    kind: geom::SurfaceKind::Plane,
-                },
+        .map_err(|Unwound::Uncertified| {
+            BooleanError::from(JoinError::RingIslandUnread {
+                face,
+                kind: geom::SurfaceKind::Plane,
             })
         })?;
     ring_winding_order(wound.map(|decided| decided.sign), tie)
 }
 
 /// The split root of the first spline (NURBS) edge on the run `h1 → h2`
-/// of a loop: no closing but a carried chord's winds one
+/// of a loop: a wall's closing and a quadric's wind none
 /// ([`ring_run_ccw`]). A spiric run edge is read by the
 /// windings themselves, on the carriers that bear one.
 fn run_spline_edge<T: Decide>(
@@ -6482,6 +6489,89 @@ mod self_check_rows {
         )
         .expect_err("an in-band winding escalates");
         assert_defect(&err, SelfCheck::RingWinding, "bool_ring_run_winding");
+    }
+
+    /// **A planar ring run closed by a spline winds by the spline's own
+    /// area.** On a prism's top face the run `(0,0) → (1,½) → (2,0)` is
+    /// closed from `(2,0)` back to `(0,0)` by a parabola. One whose apex
+    /// stands at `y = 1`, past the run's corner, walls off a region to
+    /// the run's left, counter-clockwise about the outward normal; one
+    /// whose apex stands at `y = ¼`, short of the corner, a region to
+    /// its right. The straight chord between the same ends answers
+    /// clockwise for both, so the bulge is what is read.
+    #[test]
+    fn a_planar_ring_run_closed_by_a_spline_winds_by_the_splines_area() {
+        let tol = Tol::witness();
+        let b = band();
+        let prism = crate::test_support_fixtures::prism_z::<f64>(
+            &[(0.0, 0.0), (1.0, 0.5), (2.0, 0.0), (2.0, 1.0), (0.0, 1.0)],
+            0.0,
+            1.0,
+            tol,
+        );
+        let body = &prism.body;
+        let start = |he| body.get_half_edge(he).unwrap().start;
+        let face = body.get_face(prism.top_face).unwrap();
+        let crate::LoopBoundary::Cycle { first } = body.get_loop(face.outer).unwrap().boundary
+        else {
+            panic!("the top face's outer loop is a cycle");
+        };
+        let h1 = *body
+            .loop_cycle(first)
+            .unwrap()
+            .iter()
+            .find(|&&he| {
+                start(he) == prism.top[0]
+                    && start(body.get_half_edge(he).unwrap().next) == prism.top[1]
+            })
+            .expect("the top loop runs (0,0) → (1,½)");
+        let h2 = body.get_half_edge(h1).unwrap().next;
+        let closing = |apex: f64| {
+            let carrier = geom::Curve3::Nurbs(std::sync::Arc::new(
+                geom::NurbsCurve3::new(
+                    geom_core::spline::Knots::from(
+                        geom_core::spline::KnotVector::clamped(
+                            vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0],
+                            2,
+                        )
+                        .unwrap(),
+                    ),
+                    vec![
+                        Point3::new(2.0, 0.0, 1.0),
+                        Point3::new(1.0, 2.0 * apex, 1.0),
+                        Point3::new(0.0, 0.0, 1.0),
+                    ],
+                    vec![1.0; 3],
+                )
+                .unwrap(),
+            ));
+            crate::chord_join::SegmentCurve::of(
+                (h2, h1),
+                Some(geom_brep::EdgeCurveSpec {
+                    description: geom_brep::EdgeDescriptionSpec::chart(face.surface),
+                    carrier,
+                    param_start: 0.0,
+                    param_end: 1.0,
+                }),
+            )
+        };
+        let ccw = |curve: &crate::chord_join::SegmentCurve<f64>| {
+            super::ring_run_ccw(
+                (body, super::super::Operand::A),
+                prism.top_face,
+                ((h1, h2), None),
+                super::IslandClosing::Planar(Vec3::new(0.0, 0.0, 1.0), curve),
+                b,
+            )
+            .map_err(|e| format!("{e:?}"))
+        };
+        assert_eq!(ccw(&closing(1.0)), Ok(true), "the apex past the corner");
+        assert_eq!(ccw(&closing(0.25)), Ok(false), "the apex short of it");
+        assert_eq!(
+            ccw(&crate::chord_join::SegmentCurve::of((h2, h1), None)),
+            Ok(false),
+            "the straight chord"
+        );
     }
 }
 

@@ -1324,7 +1324,7 @@ fn the_frame_lever_is_the_kinds_radius() {
 }
 
 /// **An elliptic arc's perimeter lever is `|Δ|` times its larger
-/// semi-axis** (`loop_winding::conic_segment_term`, read by the merge's
+/// semi-axis** (`geom_brep::props::closed_segment_term`, read by the merge's
 /// role assigner, check 6 and the boolean join's `ring_run_ccw`), on an
 /// ellipse the mint certifies with a stored order the lever must not
 /// trust, `minor > major`. A lever of `|Δ|·major` reads it too short, a
@@ -1347,7 +1347,7 @@ fn the_elliptic_lever_is_the_larger_semi_axis() {
         .and_then(crate::null::CurveGeom::certified)
         .unwrap();
     let (_, lever) =
-        crate::loop_winding::conic_segment_term((curve.carrier(), curve.params()), true).unwrap();
+        geom_brep::props::closed_segment_term((curve.carrier(), curve.params()), true).unwrap();
     assert_eq!(
         lever,
         pi * 0.7,

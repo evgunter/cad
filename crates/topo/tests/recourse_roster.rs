@@ -198,7 +198,7 @@ const EXCEPTIONS: &[(&str, &Door)] = &[
     ("each_branch_row", &PCURVES),
     ("first_within_row", &PCURVES),
     ("loop_windings_joint_room", &PCURVES),
-    ("planar_winding_spiric_refine", &PCURVES),
+    ("planar_winding_enclosure_refine", &PCURVES),
     ("undecided_mark_row", &PCURVES),
     ("arm", &UNIT_TEST),
     ("datum", &UNIT_TEST),

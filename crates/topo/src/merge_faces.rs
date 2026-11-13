@@ -981,10 +981,10 @@ pub enum OutlineVerdict {
         /// The positively-wound loops, outline slot first.
         loops: Vec<LoopKey>,
     },
-    /// No loop winds positively or zero, and this one rides a carrier
-    /// the kernel does not wind (a NURBS or spiric edge): it may be the
-    /// outline, and which loop is cannot be read until that winding is
-    /// built.
+    /// No loop winds positively or zero, and this one has no winding
+    /// (`crate::loop_winding`'s `Unwound`: a spiric or spline edge whose
+    /// area has no certified enclosure): it may be the outline, and
+    /// which loop is cannot be read.
     UnsupportedWinding {
         /// The first such loop, outline slot first.
         r#loop: LoopKey,
@@ -1158,8 +1158,9 @@ impl MergeCoplanarError {
                 OutlineVerdict::UnsupportedWinding { r#loop } => write!(
                     f,
                     "no loop of the merged face {face:?} winds counterclockwise about its \
-                     outward normal, and the kernel does not read loop {loop:?}'s winding (a \
-                     NURBS edge, or spiric edges pinched near a torus's inner equator), so \
+                     outward normal, and the kernel does not read loop {loop:?}'s winding \
+                     (spiric edges pinched near a torus's inner equator, or a spline edge \
+                     whose area it cannot enclose), so \
                      which loop is the outline is not known. Recourse: bound the merged faces \
                      with line, circle, ellipse or spiric edges, whose winding the kernel reads"
                 ),
@@ -4777,11 +4778,10 @@ mod tests {
 /// carry, not about how the face was minted.
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
-mod winding_arm_tests {
+pub(crate) mod winding_arm_tests {
     use super::*;
     use crate::euler::{FaceSurface, MefSite, MevSite};
     use crate::loop_winding::RunClosing::{self, Straight};
-    use crate::loop_winding::Unwound;
     use geom_brep::{EdgeCurveSpec, EdgeDescriptionSpec, SurfacePair};
     use geom_core::{Point3, Sign, Vec3};
 
@@ -5270,8 +5270,7 @@ mod winding_arm_tests {
     }
 
     /// Retypes [`tri`]'s `a → b` edge, for `a = (2,0)` and `b = (0,2)`,
-    /// as the rational quadratic quarter circle between them: a NURBS
-    /// carrier, whose winding the kernel does not read.
+    /// as the rational quadratic quarter circle between them.
     fn fit_a_nurbs_quarter(t: &mut Tri, tol: Tol) {
         // The rational quadratic quarter circle `a → b`, described as
         // the plane chart's own image of itself: the chart is
@@ -5320,46 +5319,94 @@ mod winding_arm_tests {
             .unwrap();
     }
 
-    /// **The honest remainder**: a cycle carrying a NURBS edge is not
-    /// answered. No closed form exists for the region a fitted carrier
-    /// bounds, and the chord winding is not that region's — so the
-    /// question comes back `None` and the caller refuses rather than
-    /// guesses. The chord polygon here winds positively, so `None` is
-    /// a REFUSAL to read the chords, not an absence of chords to read.
-    #[test]
-    fn a_nurbs_carrying_cycle_stays_undecidable() {
-        let tol = Tol::witness();
+    /// [`tri`]'s triangle `(2,0) → (0,2) → (−1,−1)` with its first edge
+    /// the rational quarter circle ([`fit_a_nurbs_quarter`]): the body
+    /// and its front face's loop, counter-clockwise about `+z`.
+    pub(crate) fn spline_tri(tol: Tol) -> (Body<f64>, LoopKey) {
         let mut t = tri(
             Point3::new(2.0, 0.0, 0.0),
             Point3::new(0.0, 2.0, 0.0),
             Point3::new(-1.0, -1.0, 0.0),
             tol,
         );
-        assert_eq!(
-            signed(t.body.loop_winding(t.r#loop, Vec3::unit_z(), band(tol))),
-            Ok(LoopWinding::Wound(Sign::Positive)),
-            "as a chord triangle it is decidable and positive"
-        );
         fit_a_nurbs_quarter(&mut t, tol);
-        assert_eq!(
-            signed(t.body.loop_winding(t.r#loop, Vec3::unit_z(), band(tol))),
-            Ok(LoopWinding::Unsupported(Unwound::Spline)),
-            "one fitted carrier and the whole cycle stops being answerable"
+        (t.body, t.r#loop)
+    }
+
+    /// **A cycle carrying a spline edge winds by its own area, and every
+    /// reader of the sum says so.** The triangle `a → b → d` with `a → b`
+    /// retyped as the rational quarter circle of radius 2 encloses the
+    /// triangle's 4 and the circular segment's `π − 2`. The chord
+    /// triangle winds positively too, so the margin is what tells them
+    /// apart: `2A/P` with the segment in `A` and the arc's length bound in
+    /// `P`.
+    ///
+    /// The readers: the merge's assigner keeps the loop as the outline;
+    /// the join's ring lane winds the run `a → b → d` closed straight;
+    /// and tier 3's check 6 passes the front face and refuses the back
+    /// one, whose stored sense has its loop clockwise about its outward
+    /// normal. The splitter's `loop_sense` and the chord joiner's
+    /// `holds_outer` read [`spline_tri`] in rows beside them.
+    #[test]
+    fn a_spline_carrying_cycle_winds_alike_for_every_reader() {
+        let tol = Tol::witness();
+        let b = band(tol);
+        let n = Vec3::unit_z();
+        let mut t = tri(
+            Point3::new(2.0, 0.0, 0.0),
+            Point3::new(0.0, 2.0, 0.0),
+            Point3::new(-1.0, -1.0, 0.0),
+            tol,
         );
-        // ...and as a merged face's only loop it is named, not taken
-        // for a hole: it may be the outline, and nothing built reads it.
-        let face = t.body.get_loop(t.r#loop).unwrap().face;
-        let err = t
-            .body
-            .merged_outline_ring(face, tol)
-            .expect_err("an outline whose winding is not built is not assigned");
-        assert_one_story(&err.render(geom_brep::recourse::Reading::Build));
+        let chords = match t.body.planar_loop_winding_decided(t.r#loop, n, b) {
+            LoopWinding::Wound(Ok(d)) => d,
+            other => panic!("the chord triangle winds: {other:?}"),
+        };
+        assert_eq!(chords.sign, Sign::Positive);
+        let he_ab = t.body.get_edge(t.ab).unwrap().he_plus;
+        let run = (he_ab, t.body.get_half_edge(he_ab).unwrap().next);
+        fit_a_nurbs_quarter(&mut t, tol);
+        let fitted = match t.body.loop_winding(t.r#loop, n, b) {
+            Ok(LoopWinding::Wound(d)) => d,
+            other => panic!("the fitted cycle winds: {other:?}"),
+        };
+        assert_eq!(fitted.sign, Sign::Positive, "the assigner's reading");
         assert_eq!(
-            err,
-            MergeCoplanarError::MergedFaceRoleAmbiguous {
-                face,
-                verdict: OutlineVerdict::UnsupportedWinding { r#loop: t.r#loop },
-            }
+            (chords.margin.kind(), fitted.margin.kind()),
+            (
+                geom_core::MarginKind::Value,
+                geom_core::MarginKind::Enclosure
+            ),
+            "a rational edge is read by its enclosure, at the interval scalar"
+        );
+
+        let face = t.body.get_loop(t.r#loop).unwrap().face;
+        assert_eq!(
+            t.body.merged_outline_ring(face, tol),
+            Ok(None),
+            "the merge keeps the loop as the outline"
+        );
+        assert_eq!(
+            t.body
+                .planar_run_winding_decided(run, Straight, n, b)
+                .map(|w| w.map(|d| d.map(|d| d.sign))),
+            Ok(Ok(Ok(Sign::Positive))),
+            "the join's ring lane winds a run holding the spline"
+        );
+        let back = t.body.faces().map(|(k, _)| k).find(|&k| k != face).unwrap();
+        let inverted: Vec<_> = crate::validate::validate_geometric(&t.body, tol)
+            .err()
+            .unwrap_or_default()
+            .into_iter()
+            .filter_map(|e| match e {
+                crate::ValidationError::LoopRoleInverted { face, .. } => Some(face),
+                _ => None,
+            })
+            .collect();
+        assert_eq!(
+            inverted,
+            vec![back],
+            "check 6 reads both faces and refuses the one wound against its sense"
         );
     }
 
@@ -5564,39 +5611,6 @@ mod winding_arm_tests {
             .contains("lies within the zero band")
     }
 
-    /// **With no loop positive, a zero winding is named before a loop
-    /// the kernel does not wind.** Such a loop already counts as not
-    /// positive (beside one positive loop the merge takes it for a
-    /// hole and proceeds), so the answer here turns on the zero
-    /// winding, which a tighter tolerance decides; the refusal offers
-    /// that tolerance rather than the carriers. The outline rides a
-    /// NURBS edge and the ring is the zero triangle. (Adopted from the
-    /// review's `probe_winding.rs`.)
-    #[test]
-    fn a_zero_winding_is_named_before_a_loop_the_kernel_does_not_wind() {
-        let tol = Tol::witness();
-        let mut t = tri(
-            Point3::new(2.0, 0.0, 0.0),
-            Point3::new(0.0, 2.0, 0.0),
-            Point3::new(-1.0, -1.0, 0.0),
-            tol,
-        );
-        fit_a_nurbs_quarter(&mut t, tol);
-        let thin = thin_into(&mut t.body, 10.0, tol);
-        let face = t.body.get_loop(t.r#loop).unwrap().face;
-        t.body.faces.get_mut(face).unwrap().rings = vec![thin];
-        let err = t
-            .body
-            .merged_outline_ring(face, tol)
-            .expect_err("no loop is positive");
-        assert_one_story(&err.render(geom_brep::recourse::Reading::Build));
-        assert!(
-            is_the_zero_story(&err),
-            "{err:?}: {err_at}",
-            err_at = err.render(geom_brep::recourse::Reading::Build)
-        );
-    }
-
     /// **An empty loop bounds no area, so it is not positive and names
     /// nothing**: beside a zero outline the zero winding tells its
     /// story, and beside a clockwise outline every loop reads as a
@@ -5769,9 +5783,9 @@ mod winding_arm_tests {
     /// lane): the open run `a → b → d` closed by the chord `d → a` is
     /// the triangle, and is decided on the loop's margin bit for bit;
     /// a null-edge strut on the run winds as its zero-length chord, on
-    /// the loop and the run alike; and the run reads the loop's carrier
-    /// set and claim, so a NURBS edge on it is not wound and a half its
-    /// edge does not claim is refused rather than read as a minus half.
+    /// the loop and the run alike; and the run reads the loop's claim,
+    /// so a half its edge does not claim is refused rather than read as
+    /// a minus half.
     #[test]
     fn a_run_is_the_loop_sum_with_its_closing_chord() {
         let tol = Tol::witness();
@@ -5824,15 +5838,6 @@ mod winding_arm_tests {
             run_margin(&t, (first, t.body.get_half_edge(h1).unwrap().next)),
             whole,
             "a run opening on the strut is the same region"
-        );
-
-        let mut t = fresh();
-        let run = run_of(&t);
-        fit_a_nurbs_quarter(&mut t, tol);
-        assert_eq!(
-            t.body.planar_run_winding_decided(run, Straight, n, b),
-            Ok(Err(Unwound::Spline)),
-            "a NURBS edge on the run is not wound by its chord"
         );
 
         let mut t = fresh();

@@ -1,9 +1,19 @@
-//! **A spiric arc's term in the winding sum** ([`super::spiric_segment_term`]):
+//! **A spiric arc's term in the winding sum** ([`SegmentQ`]):
 //! its bulge over its chord against the area a dense polygon of the arc
 //! cuts off, and the winding of loops on whole ovals.
 
 use super::*;
 use core::f64::consts::{PI, TAU};
+use geom_core::interval::Interval;
+
+/// A spiric arc's term at `pieces`, `None` where it has none there.
+fn spiric_segment_term(
+    curve: (&Curve3<Interval>, (Interval, Interval)),
+    forward: bool,
+    pieces: usize,
+) -> Option<SegmentTerm<Interval>> {
+    SegmentQ::of(curve, forward)?.term(pieces).ok().flatten()
+}
 
 /// The oval of the torus `(R, r)` about `axis` through `c`, cut by the
 /// plane `offset` along `u_ref`.
@@ -228,8 +238,8 @@ fn a_loop_on_an_oval_winds_one_way_round_and_the_other() {
 /// **A spiric arc the enclosure does not read is never wound as its
 /// chord**: the open run along the donut's oval from `0.2` to `0.9` and
 /// back by its chord winds, but the same arc stored with its span
-/// descending (no certified enclosure, [`super::spiric_segment_term`]'s
-/// `None`) has no winding ([`Unwound::Uncertified`]) rather than the
+/// descending (no certified enclosure, `SegmentQ::term`'s
+/// refusal) has no winding ([`Unwound::Uncertified`]) rather than the
 /// chord's.
 #[test]
 fn a_spiric_arc_with_no_enclosure_has_no_winding() {
@@ -243,7 +253,7 @@ fn a_spiric_arc_with_no_enclosure_has_no_winding() {
     );
     let (a, b) = (carrier.eval(0.2), carrier.eval(0.9));
     let wound = |span: (f64, f64), forward: bool| {
-        Body::<f64>::spiric_winding(
+        Body::<f64>::enclosed_winding(
             &[(a, Some(((&carrier, span), forward)))],
             b,
             None,
@@ -327,7 +337,7 @@ fn a_small_loop_near_the_pinch_winds_decided() {
             d,
         );
         let (ta, tb) = if forward { (t0, t1) } else { (t1, t0) };
-        let wound = Body::<f64>::spiric_winding(
+        let wound = Body::<f64>::enclosed_winding(
             &[(carrier.eval(ta), Some(((&carrier, (t0, t1)), forward)))],
             carrier.eval(tb),
             None,
@@ -370,11 +380,11 @@ fn a_spiric_with_no_term_at_the_first_count_winds_at_a_finer_one() {
     );
     let (lifted_carrier, span) = lifted(&carrier, (t0, t1));
     assert!(
-        spiric_segment_term((&lifted_carrier, span), true, SPIRIC_PIECES[0]).is_none()
-            && spiric_segment_term((&lifted_carrier, span), true, SPIRIC_PIECES[1]).is_some(),
+        spiric_segment_term((&lifted_carrier, span), true, ENCLOSURE_PIECES[0]).is_none()
+            && spiric_segment_term((&lifted_carrier, span), true, ENCLOSURE_PIECES[1]).is_some(),
         "the fixture's premise: no term at the first count, one at the next"
     );
-    let wound = Body::<f64>::spiric_winding(
+    let wound = Body::<f64>::enclosed_winding(
         &[(carrier.eval(t0), Some(((&carrier, (t0, t1)), true)))],
         carrier.eval(t1),
         None,
