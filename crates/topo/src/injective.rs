@@ -911,12 +911,7 @@ impl Along {
                 | Surface::Torus { .. }
         );
         let rims: Vec<&Rim> = edges.iter().filter_map(|&i| b.edges.get(i)).collect();
-        let own = |r: &&Rim| {
-            matches!(
-                r.arc,
-                Some((Curve3::Line(_) | Curve3::Circle(_), _))
-            )
-        };
+        let own = |r: &&Rim| matches!(r.arc, Some((Curve3::Line(_) | Curve3::Circle(_), _)));
         Self {
             edges: rims.iter().map(|r| r.key).collect(),
             vertex: None,
@@ -3664,7 +3659,10 @@ fn present_line_corner<'a>(
         map: Map::Chart,
         x,
         y,
-        zero: Zero::Side(Side::of(held, sigma > 0.0), Along::of(surface, b, &[c.read])),
+        zero: Zero::Side(
+            Side::of(held, sigma > 0.0),
+            Along::of(surface, b, &[c.read]),
+        ),
         corner: true,
         cache: Cache::default(),
     })))
@@ -4780,7 +4778,8 @@ fn sign_on(
         };
         on_side(psi, p, x, y).is_some_and(|v| is_zero(v, band))
     };
-    let zero_on = |s: Side, a: &Along, whole: bool| on.map_or_else(|| read(s), |on| on.holds(a, whole));
+    let zero_on =
+        |s: Side, a: &Along, whole: bool| on.map_or_else(|| read(s), |on| on.holds(a, whole));
     let (fx, fy, fxy) = p.jet();
     let image = p.whole();
     let grad = psi.gradient(image);
@@ -4821,7 +4820,8 @@ fn sign_on(
             if !(zero(*s, a) && zero(*t, b)) {
                 return None;
             }
-            let g = n.dot(fxy) * at(p.span(Axis::U) * p.span(Axis::V) * Side::into(*s) * Side::into(*t));
+            let g = n.dot(fxy)
+                * at(p.span(Axis::U) * p.span(Axis::V) * Side::into(*s) * Side::into(*t));
             interval_sign_as(g, SELF_INTERSECTION_DEPARTURE, band)
         }
         Zero::Curve(s, c) => {
@@ -5069,7 +5069,13 @@ fn planes_through(
                 ..
             }),
             _,
-        ) => Some((Psi::Linear { n: *axis, q: *origin }, through(&[r]))),
+        ) => Some((
+            Psi::Linear {
+                n: *axis,
+                q: *origin,
+            },
+            through(&[r]),
+        )),
         _ => None,
     };
     if !rims.is_empty()
@@ -5080,10 +5086,9 @@ fn planes_through(
     let lines: Option<Vec<(Point3<Interval>, Vec3<Interval>)>> = rims
         .iter()
         .map(|r| match r.arc.as_ref()? {
-            (line @ Curve3::Line(geom::Line { dir, .. }), (t0, t1)) => Some((
-                line.eval(at(geom::mid_param(t0.lo(), t1.hi()))),
-                *dir,
-            )),
+            (line @ Curve3::Line(geom::Line { dir, .. }), (t0, t1)) => {
+                Some((line.eval(at(geom::mid_param(t0.lo(), t1.hi()))), *dir))
+            }
             _ => None,
         })
         .collect();
@@ -5100,7 +5105,13 @@ fn planes_through(
                     whole: true,
                 };
                 let q = *b.vertices.get(&v)?;
-                Some((Psi::Linear { n: lift(unit(hx - hy)?), q }, on))
+                Some((
+                    Psi::Linear {
+                        n: lift(unit(hx - hy)?),
+                        q,
+                    },
+                    on,
+                ))
             }
             ([(q, d)], [r]) => {
                 let m = lift(bisector(hx, hy, unit(vmid(*d))?)?);
@@ -5110,7 +5121,13 @@ fn planes_through(
             ([(q, d), (_, e)], [r, s])
                 if !near.vertices.is_empty() && r.ends.iter().any(|v| s.ends.contains(v)) =>
             {
-                Some((Psi::Linear { n: d.cross(*e), q: *q }, through(&[*r, *s])))
+                Some((
+                    Psi::Linear {
+                        n: d.cross(*e),
+                        q: *q,
+                    },
+                    through(&[*r, *s]),
+                ))
             }
             _ => None,
         }
@@ -5225,9 +5242,7 @@ fn graph_of(
     let piece = [px, py]
         .into_iter()
         .filter_map(|p| match &p.zero {
-            Zero::Curve(_, c) if c.along.whole && c.along.edges == [e.key] => {
-                c.nearest(reached)
-            }
+            Zero::Curve(_, c) if c.along.whole && c.along.edges == [e.key] => c.nearest(reached),
             _ => None,
         })
         .fold(reached, |(a, b), (c, d)| (a.min(c), b.max(d)));
@@ -7776,11 +7791,24 @@ mod presentation_rows {
         };
         let one = on(vec![rim], false);
         assert!(
-            sign_on(&graph((c.t.0 - 0.1, c.t.1 + 0.1)), Some(&one), &q, None, band()).is_some(),
+            sign_on(
+                &graph((c.t.0 - 0.1, c.t.1 + 0.1)),
+                Some(&one),
+                &q,
+                None,
+                band()
+            )
+            .is_some(),
             "within the graph's piece"
         );
         assert_eq!(
-            sign_on(&graph((c.t.0 + 1e-3, c.t.1 + 0.1)), Some(&one), &q, None, band()),
+            sign_on(
+                &graph((c.t.0 + 1e-3, c.t.1 + 0.1)),
+                Some(&one),
+                &q,
+                None,
+                band()
+            ),
             None,
             "past the graph's piece"
         );
@@ -7839,7 +7867,13 @@ mod presentation_rows {
             "the carrier arm"
         );
         assert_eq!(
-            sign_on(&graph, Some(&through(vec![edge(1)], false)), &p, Some(&exact), band()),
+            sign_on(
+                &graph,
+                Some(&through(vec![edge(1)], false)),
+                &p,
+                Some(&exact),
+                band()
+            ),
             None,
             "the graph separator"
         );
@@ -7849,7 +7883,13 @@ mod presentation_rows {
             "against a past side"
         );
         assert_eq!(
-            sign_on(&plane, Some(&through(vec![edge(2)], true)), &p, Some(&exact), band()),
+            sign_on(
+                &plane,
+                Some(&through(vec![edge(2)], true)),
+                &p,
+                Some(&exact),
+                band()
+            ),
             None,
             "a plane not built through the side's edge"
         );
