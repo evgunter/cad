@@ -503,8 +503,14 @@ fn a_path_escalating_by_a_corner_hands_the_winding_to_the_next() {
         let spec = edge_spec(&mut body, key, &closing);
         let cycle = body.loop_cycle(run.0).unwrap();
         let end = cycle.iter().position(|&he| he == run.1).unwrap();
-        let mut arcs =
-            run_loop_arcs(&body, face, (&surface, &quadric), &cycle[..=end], band()).unwrap();
+        let mut arcs = run_loop_arcs(
+            &body,
+            face,
+            (&surface, &crate::ring_path::Carrier::Quadric(quadric)),
+            &cycle[..=end],
+            band(),
+        )
+        .unwrap();
         arcs.push(LoopArc::of(&spec.carrier, (spec.param_start, spec.param_end)).unwrap());
         let q = spec.carrier.mid_point(spec.param_start, spec.param_end);
         let w = outer_references(&body, face, &[]).unwrap()[0];
@@ -584,7 +590,14 @@ fn a_path_escalating_by_a_corner_hands_re_homing_to_the_next() {
         let (run, closing) = run_from(&mut body, (face, key), (island, hair), 0);
         let (newf, remainder) = wall_off(&mut body, key, run, closing);
         let cycle = outer_cycle(&body, newf).unwrap().unwrap();
-        let arcs = run_loop_arcs(&body, newf, (&surface, &quadric), &cycle, band()).unwrap();
+        let arcs = run_loop_arcs(
+            &body,
+            newf,
+            (&surface, &crate::ring_path::Carrier::Quadric(quadric)),
+            &cycle,
+            band(),
+        )
+        .unwrap();
         let skip: Vec<_> = cycle
             .iter()
             .map(|&he| body.get_half_edge(he).unwrap().edge)
@@ -593,7 +606,13 @@ fn a_path_escalating_by_a_corner_hands_re_homing_to_the_next() {
         let first = quadric.paths((p, w), band()).unwrap().remove(0);
         // The ring's side is read at every offset, not only where the
         // first path errs (PR 6675's review).
-        match path_ring_side(&body, (&surface, &quadric), (face, newf), ring, band()) {
+        match path_ring_side(
+            &body,
+            (&surface, &crate::ring_path::Carrier::Quadric(quadric)),
+            (face, newf),
+            ring,
+            band(),
+        ) {
             Ok(RingSide::In) => sides[0] += 1,
             Ok(RingSide::Out) => sides[1] += 1,
             got => panic!("{label}: the ring's side reads {got:?}"),
@@ -677,8 +696,14 @@ fn the_arrival_arc_reads_its_second_meeting_with_the_closing_chord() {
         let quadric = Quadric::of(&surface).unwrap();
         let cycle = body.loop_cycle(run.0).unwrap();
         let end = cycle.iter().position(|&he| he == run.1).unwrap();
-        let mut arcs =
-            run_loop_arcs(&body, face, (&surface, &quadric), &cycle[..=end], band()).unwrap();
+        let mut arcs = run_loop_arcs(
+            &body,
+            face,
+            (&surface, &crate::ring_path::Carrier::Quadric(quadric)),
+            &cycle[..=end],
+            band(),
+        )
+        .unwrap();
         arcs.push(LoopArc::of(&spec.carrier, (spec.param_start, spec.param_end)).unwrap());
         let q = spec.carrier.mid_point(spec.param_start, spec.param_end);
         let w = outer_references(&body, face, &[]).unwrap()[0];
