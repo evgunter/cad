@@ -126,3 +126,27 @@ whose lift resets? The options are below; the rows do not settle it.
 3. **Hull or its complement, chosen by the iso lines' face sides**,
    and `None` where neither agrees, or where any row on a reset loop
    is not an iso line.
+4. **The stored rows carry the sheet.** Across a reset the hull is
+   right only if each chain's stored image already sits on the face's
+   sheet. That makes it an invariant of the stored rows (the revolve
+   door's, and every door's that writes rows), checked where the lift
+   is read.
+
+**Measured (debug, `self_intersection_proves_injectivity`, 44 rows).**
+- **The guard alone:** 44 of 44 pass. The ball still certifies, at
+  depth 1, through `Sheets::Missed`, so the guard cannot be pinned red
+  on this ball by itself.
+- **Option 1** (sheet `Unknown` on `u` for any face with a vertex at a
+  pole or an apex, a hack): 3 rows go red, each refusing `Uncertified`
+  departure.
+  - `a_revolved_cone_holds`;
+  - `a_two_ball_union_holds_with_its_poles_read`;
+  - `a_filleted_corners_ball_holds_against_a_face_at_its_pole`.
+- In all of the cone's and the snowman's faces, each face's own
+  meridians agree with its extent: the cone's are `[0, π]` and
+  `[π, 2π]`, the snowman's `[0, π]` twice, `[π, 2π]` and `[−π, 0]`.
+  Their stored rows sit on the face's sheet, so neither holds through
+  a wrong `Vacuous`. Option 1 refuses them anyway, which is the cost
+  of refusing every reset loop. Only the freshly revolved ball's `1v1`
+  carries a row off its sheet: its `u = 0` seam meridian, where the
+  sheet needs `u = 2π`.
