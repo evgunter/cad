@@ -6,41 +6,15 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use geom_brep::carrier_eq::fixtures::{OrientationPose, band, orientation_in_zero_band, torus};
 use geom_brep::{
-    CarrierDesc, CarrierEqError, CarrierRelation, CarrierVerdict, ConsumedExtent, ExtentBall,
-    PlaneDesc, PlaneRung, carrier_eq, oriented_plane_eq,
+    CarrierEqError, CarrierRelation, CarrierVerdict, ConsumedExtent, PlaneRung, carrier_eq,
+    oriented_plane_eq,
 };
-use geom_core::{Band, Indeterminate, MarginDiag, Point3, Tol, Vec3};
+use geom_core::{Indeterminate, MarginDiag, Point3, Tol, Vec3};
 
 use super::carrier_pair::{carrier_pair_decided, carrier_pair_relation};
 use super::{BooleanDecision, BooleanError, Operand, off_ring_torus};
-
-fn band() -> Band {
-    Band::linear(Tol::witness()).unwrap()
-}
-
-/// A ball of radius `arm` about the origin.
-fn at(arm: f64) -> ConsumedExtent<f64> {
-    ConsumedExtent::new(ExtentBall::of_sphere(Point3::origin(), arm))
-}
-
-fn torus(c: [f64; 3], a: [f64; 3], major: f64, minor: f64, outward: bool) -> CarrierDesc<f64> {
-    CarrierDesc::Torus {
-        center: Point3::from_array(c),
-        axis: Vec3::from_array(a),
-        major_radius: major,
-        minor_radius: minor,
-        outward,
-    }
-}
-
-/// The plane through the origin with outward normal `n`.
-fn plane(n: [f64; 3]) -> PlaneDesc<f64> {
-    PlaneDesc {
-        origin: Point3::origin(),
-        normal: Vec3::from_array(n),
-    }
-}
 
 /// **Two torus faces are one carrier exactly where their pair's pose
 /// decides them one surface** ([`geom_brep::tori_coincide`]), whatever
@@ -169,7 +143,8 @@ fn a_torus_off_its_ring_ends_in_its_halfs_lever_at_the_boolean() {
             ),
         ] {
             let what = format!("{what}, {side:?}");
-            let Err(CarrierEqError::OffRing { torus, refusal }) = carrier_eq(&x, &y, &at(1.0), b)
+            let Err(CarrierEqError::OffRing { torus, refusal }) =
+                carrier_eq(&x, &y, &ConsumedExtent::arm(1.0), b)
             else {
                 panic!("{what}: the ladder refuses the convention");
             };
@@ -247,37 +222,37 @@ fn the_curved_ladder_reads_a_reverted_face_as_opposed() {
 }
 
 /// **An orientation decided zero ends as its untagged margin does.**
-/// The plane ladder's orientation over an arm inside the zero band
-/// is the nonzero gate's rejection, tagged Zero
-/// (`geom_brep::plane_eq`'s own row); the tag is the gate's alone,
-/// so the Boolean's ending renders the same as on the untagged
+/// Over the zero-band poses `geom_brep::plane_eq`'s own row pins (the
+/// gate's rejection, tagged Zero, on the log), the tag is the gate's
+/// alone: the Boolean's ending renders the same as on the untagged
 /// margin.
 #[test]
 fn an_orientation_decided_zero_ends_as_its_untagged_margin() {
     let band = band();
-    let up = plane([0.0, 0.0, 1.0]);
-    let down = plane([0.0, 0.0, -1.0]);
-    for frac in [0.1, 0.5, 1.0] {
-        let arm = frac * band.zero();
-        for (other, cos) in [(up, 1.0), (down, -1.0)] {
-            let what = format!("arm {arm:e}, cos {cos}");
-            let Err(CarrierEqError::Escalated {
-                rung: PlaneRung::Orientation,
-                diag,
-            }) = oriented_plane_eq(&up, &other, &at(arm), band)
-            else {
-                panic!("{what}: the orientation reads zero");
-            };
-            let untagged = Indeterminate {
-                margin: MarginDiag::value(cos * arm),
-                ..diag
-            };
-            let text = |d| BooleanError::plane_identity(PlaneRung::Orientation, d);
-            assert_eq!(
-                text(diag).render(geom_brep::recourse::Reading::Build),
-                text(untagged).render(geom_brep::recourse::Reading::Build),
-                "{what}: the ending reads the margin, not the gate's tag"
-            );
-        }
+    for OrientationPose {
+        what,
+        up,
+        other,
+        extent,
+        cos_arm,
+    } in orientation_in_zero_band(band)
+    {
+        let Err(CarrierEqError::Escalated {
+            rung: PlaneRung::Orientation,
+            diag,
+        }) = oriented_plane_eq(&up, &other, &extent, band)
+        else {
+            panic!("{what}: the orientation reads zero");
+        };
+        let untagged = Indeterminate {
+            margin: MarginDiag::value(cos_arm),
+            ..diag
+        };
+        let text = |d| BooleanError::plane_identity(PlaneRung::Orientation, d);
+        assert_eq!(
+            text(diag).render(geom_brep::recourse::Reading::Build),
+            text(untagged).render(geom_brep::recourse::Reading::Build),
+            "{what}: the ending reads the margin, not the gate's tag"
+        );
     }
 }

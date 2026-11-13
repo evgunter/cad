@@ -365,7 +365,7 @@ fn a_declared_plane_tilt_is_read_across_the_faces() {
         face_carrier(&block, top).unwrap(),
         face_carrier(&wedge, bottom).unwrap(),
     );
-    let metre = geom_brep::carrier_eq(&ca, &cb, &metre_ball(1.0), band);
+    let metre = geom_brep::carrier_eq(&ca, &cb, &geom_brep::ConsumedExtent::arm(1.0), band);
     assert!(
         matches!(
             metre,
@@ -654,10 +654,4 @@ fn the_splitting_twin_reads_the_dipping_edge_at_its_far_vertex() {
             sliver(e)
         );
     }
-}
-
-/// A ball of radius `arm` about the origin: the extent a bare arm
-/// names.
-fn metre_ball(arm: f64) -> geom_brep::ConsumedExtent<f64> {
-    geom_brep::ConsumedExtent::new(geom_brep::ExtentBall::of_sphere(Point3::origin(), arm))
 }

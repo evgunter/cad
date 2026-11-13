@@ -28,8 +28,8 @@
 //! its coincidence reads the whole ring, its tilt levered at the larger
 //! major radius, so a datum past the band moves the ring by that much
 //! somewhere, not necessarily on the faces. Its `Apart` is the ring's;
-//! the face-pair door asks the faces for a witness of it (`topo`'s
-//! `carrier_pair_decided`).
+//! the face-pair door, which holds the faces, asks them for a witness
+//! of it ([`PairDoorReading::RingApart`]).
 //!
 //! **At the face-pair door a coincidence is read as one
 //! displacement**, not datum by datum: each datum just inside the band
@@ -50,14 +50,14 @@
 //! peg's convex wall against a bore's concave wall is the curved
 //! spelling of two boxes' opposed faces. Aligned coincidence is
 //! CONTAINMENT, not contact (the C1 lemma); the carrier ladder
-//! reports it honestly as `SameOriented` and the CONTACT doors
-//! (`topo`'s `rest_pair_verdict`) are what refuse it.
+//! reports it honestly as `SameOriented`, and it is the caller's
+//! contact door that refuses it.
 //!
 //! **A margin decided Zero glues** (D10, Booleans). Two independently
 //! authored spheres with equal radii and centres are one carrier
 //! exactly as two equal planes are, and the decided margin rides out
-//! with the verdict ([`CarrierVerdict`]) for the caller to record
-//! (`topo`'s `coincidence`). Whether they are one CONSTRUCTION is the
+//! with the verdict ([`CarrierVerdict`]) for the caller to record.
+//! Whether they are one CONSTRUCTION is the
 //! document's coincidence door's question, never the kernel's. A datum
 //! in band is a sliver and refuses ([`CarrierEqError::Undecided`]).
 
@@ -352,9 +352,11 @@ impl<T: geom_core::Real> ConsumedExtent<T> {
     }
 
     /// The ball of radius `arm` about the origin: the extent a bare arm
-    /// names, for the rows that meter at one.
-    #[cfg(test)]
-    pub(crate) fn arm(arm: T) -> Self {
+    /// names, for the rows that meter at one (test builds, and `topo`'s
+    /// through `test-support`).
+    #[cfg(any(test, feature = "test-support"))]
+    #[doc(hidden)]
+    pub fn arm(arm: T) -> Self {
         Self::new(crate::ExtentBall::of_sphere(Point3::origin(), arm))
     }
 }
@@ -423,8 +425,8 @@ pub fn carrier_eq<T: Decide>(
     carrier_eq_reading(c1, c2, extent, band).map(CarrierVerdict::relation)
 }
 
-/// [`carrier_eq`] with the reading that decided it, which a
-/// coincidence's row records (`topo`'s `coincidence`): each datum read
+/// [`carrier_eq`] with the reading that decided it, which the caller
+/// records as the coincidence's row: each datum read
 /// on its own, the angular ones levered at the extent
 /// ([`at_consumed_extent`]).
 pub(crate) fn carrier_eq_reading<T: Decide>(
@@ -444,8 +446,8 @@ pub enum PairDoorReading {
     /// The ladder's verdict.
     Verdict(CarrierVerdict),
     /// Two tori whose ring a datum reads apart
-    /// ([`crate::TorusCoincidence::Apart`]): the door asks the faces
-    /// for a witness of it (`topo`'s `carrier_pair_decided`).
+    /// ([`crate::TorusCoincidence::Apart`]): the caller's face-pair
+    /// door, which holds the faces, asks them for a witness of it.
     RingApart {
         /// The orientation the two tori's senses make.
         relation: CarrierRelation,
@@ -460,7 +462,7 @@ impl PairDoorReading {
     /// The reading as the ladder's verdict: the ring apart is two
     /// carriers, on its datum's reading.
     #[must_use]
-    pub const fn verdict(self) -> CarrierVerdict {
+    pub(crate) const fn verdict(self) -> CarrierVerdict {
         match self {
             Self::Verdict(verdict) => verdict,
             Self::RingApart { by, .. } => CarrierVerdict::Apart(by),
@@ -969,17 +971,36 @@ fn data_rungs<T: Decide>(
     }
 }
 
-#[cfg(test)]
-#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
-mod tests {
-    use super::*;
-    use geom_core::Tol;
+/// **The carrier ladder's test fixtures**, one spelling of each for
+/// this crate's rows and `topo`'s (through `test-support`): the run's
+/// band, each kind's description from plain arrays, and the
+/// orientation rung's zero-band poses.
+#[cfg(any(test, feature = "test-support"))]
+#[doc(hidden)]
+#[allow(clippy::unwrap_used, clippy::missing_panics_doc)]
+pub mod fixtures {
+    use super::{CarrierDesc, ConsumedExtent};
+    use crate::plane_eq::PlaneDesc;
+    use geom_core::{Band, Point3, Tol, Vec3};
 
-    fn band() -> Band {
+    /// The band the rows read at: the witness tolerance's.
+    #[must_use]
+    pub fn band() -> Band {
         Band::linear(Tol::witness()).unwrap()
     }
 
-    fn sphere(c: [f64; 3], r: f64, outward: bool) -> CarrierDesc<f64> {
+    /// A plane through `o` with outward normal `n`.
+    #[must_use]
+    pub fn plane(o: [f64; 3], n: [f64; 3]) -> PlaneDesc<f64> {
+        PlaneDesc {
+            origin: Point3::from_array(o),
+            normal: Vec3::from_array(n),
+        }
+    }
+
+    /// A sphere about `c` of radius `r`.
+    #[must_use]
+    pub fn sphere(c: [f64; 3], r: f64, outward: bool) -> CarrierDesc<f64> {
         CarrierDesc::Sphere {
             center: Point3::from_array(c),
             radius: r,
@@ -987,7 +1008,9 @@ mod tests {
         }
     }
 
-    fn cyl(o: [f64; 3], a: [f64; 3], r: f64, outward: bool) -> CarrierDesc<f64> {
+    /// A cylinder through `o` along `a` of radius `r`.
+    #[must_use]
+    pub fn cyl(o: [f64; 3], a: [f64; 3], r: f64, outward: bool) -> CarrierDesc<f64> {
         CarrierDesc::Cylinder {
             origin: Point3::from_array(o),
             axis: Vec3::from_array(a),
@@ -996,7 +1019,15 @@ mod tests {
         }
     }
 
-    fn torus(c: [f64; 3], a: [f64; 3], major: f64, minor: f64, outward: bool) -> CarrierDesc<f64> {
+    /// A torus about `c` on axis `a`.
+    #[must_use]
+    pub fn torus(
+        c: [f64; 3],
+        a: [f64; 3],
+        major: f64,
+        minor: f64,
+        outward: bool,
+    ) -> CarrierDesc<f64> {
         CarrierDesc::Torus {
             center: Point3::from_array(c),
             axis: Vec3::from_array(a),
@@ -1006,7 +1037,9 @@ mod tests {
         }
     }
 
-    fn cone(apex: [f64; 3], a: [f64; 3], half_angle: f64, outward: bool) -> CarrierDesc<f64> {
+    /// A cone from `apex` along `a`.
+    #[must_use]
+    pub fn cone(apex: [f64; 3], a: [f64; 3], half_angle: f64, outward: bool) -> CarrierDesc<f64> {
         CarrierDesc::Cone {
             apex: Point3::from_array(apex),
             axis: Vec3::from_array(a),
@@ -1014,6 +1047,52 @@ mod tests {
             outward,
         }
     }
+
+    /// One pose of [`orientation_in_zero_band`].
+    pub struct OrientationPose {
+        /// The pose, as a row's message names it.
+        pub what: String,
+        /// The plane `z = 0`, facing up.
+        pub up: PlaneDesc<f64>,
+        /// `up` itself, or its flip.
+        pub other: PlaneDesc<f64>,
+        /// A ball about the origin whose arm lies inside the zero band.
+        pub extent: ConsumedExtent<f64>,
+        /// The orientation's margin there: the normals' cosine times
+        /// the arm.
+        pub cos_arm: f64,
+    }
+
+    /// **The orientation rung's zero-band poses**: the plane `z = 0`
+    /// facing up against its flip and against itself, each over an arm
+    /// inside the zero band. Parallelism reads zero at that arm, and
+    /// the orientation's margin `cos · arm` lies within the zero band
+    /// too, so the rung refuses.
+    #[must_use]
+    pub fn orientation_in_zero_band(band: Band) -> Vec<OrientationPose> {
+        let up = plane([0.0; 3], [0.0, 0.0, 1.0]);
+        let down = plane([0.0; 3], [0.0, 0.0, -1.0]);
+        [0.1, 0.5, 1.0]
+            .into_iter()
+            .flat_map(|frac| {
+                let arm = frac * band.zero();
+                [(down, -1.0), (up, 1.0)].map(|(other, cos)| OrientationPose {
+                    what: format!("arm {arm:e}, cos {cos}"),
+                    up,
+                    other,
+                    extent: ConsumedExtent::arm(arm),
+                    cos_arm: cos * arm,
+                })
+            })
+            .collect()
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod tests {
+    use super::fixtures::{band, cone, cyl, sphere, torus};
+    use super::*;
 
     /// **Two cone descriptions are one carrier when they describe one
     /// double cone**: its axis reversed is the same carrier, since a
@@ -1055,7 +1134,8 @@ mod tests {
         let arm = 2.0;
         let one = cone([0.0, 1.0, 0.0], [0.0, 1.0, 0.0], 0.5, true);
         let read = |other: &CarrierDesc<f64>| {
-            pair_door_reading(&one, other, &at(arm), b).map(PairDoorReading::verdict)
+            pair_door_reading(&one, other, &ConsumedExtent::arm(arm), b)
+                .map(PairDoorReading::verdict)
         };
         for (what, other) in [
             ("itself", one),
@@ -1107,11 +1187,6 @@ mod tests {
         );
     }
 
-    /// A ball of radius `arm` about the origin.
-    fn at(arm: f64) -> ConsumedExtent<f64> {
-        ConsumedExtent::arm(arm)
-    }
-
     /// **The summed bound reads at the face-pair door only.** Two
     /// spheres whose centres stand `0.6·ε` apart and whose radii differ
     /// by `0.6·ε`: each datum decides zero, their sum (`1.2·ε`) does not.
@@ -1124,7 +1199,7 @@ mod tests {
         let e = band().zero();
         let a = sphere([0.0, 0.0, 0.0], 2.0, true);
         let b = sphere([0.6 * e, 0.0, 0.0], 2.0 + 0.6 * e, true);
-        match carrier_eq_reading(&a, &b, &at(1.0), band()) {
+        match carrier_eq_reading(&a, &b, &ConsumedExtent::arm(1.0), band()) {
             Ok(CarrierVerdict::One {
                 relation: CarrierRelation::SameOriented,
                 margin,
@@ -1136,7 +1211,7 @@ mod tests {
             }
             other => panic!("the corner sites' ladder: {other:?}"),
         }
-        match pair_door_reading(&a, &b, &at(1.0), band()) {
+        match pair_door_reading(&a, &b, &ConsumedExtent::arm(1.0), band()) {
             Err(CarrierEqError::Undecided {
                 coincidence: CoincidenceMeasure::Undecided(diag),
                 ..
@@ -1199,7 +1274,7 @@ mod tests {
         let a = sphere([0.0, 0.0, 0.0], 2.0, true);
         for radius in [f64::NAN, f64::INFINITY] {
             let poisoned = sphere([apart, 0.0, 0.0], radius, true);
-            match carrier_eq(&a, &poisoned, &at(1.0), b) {
+            match carrier_eq(&a, &poisoned, &ConsumedExtent::arm(1.0), b) {
                 Err(CarrierEqError::Undecided {
                     coincidence: CoincidenceMeasure::Unreadable(diag),
                     ..
@@ -1240,7 +1315,7 @@ mod tests {
         let a = sphere([0.0, 0.0, 0.0], 2.0, true);
         let b = sphere([0.0, 0.0, 0.0], 2.0, false);
         assert_eq!(
-            carrier_eq(&a, &b, &at(1.0), band()).unwrap(),
+            carrier_eq(&a, &b, &ConsumedExtent::arm(1.0), band()).unwrap(),
             CarrierRelation::SameOpposite
         );
     }
@@ -1253,7 +1328,7 @@ mod tests {
         let a = sphere([1.0, 0.0, 0.0], 2.0, true);
         let b = sphere([1.0, 0.0, 0.0], 2.0, true);
         assert_eq!(
-            carrier_eq(&a, &b, &at(1.0), band()).unwrap(),
+            carrier_eq(&a, &b, &ConsumedExtent::arm(1.0), band()).unwrap(),
             CarrierRelation::SameOriented
         );
     }
@@ -1272,14 +1347,14 @@ mod tests {
         );
         assert!(
             matches!(
-                carrier_eq(&a, &in_band, &at(1.0), band()),
+                carrier_eq(&a, &in_band, &ConsumedExtent::arm(1.0), band()),
                 Err(CarrierEqError::Undecided { .. })
             ),
             "in band: undecided"
         );
         let definite = sphere([0.0, 0.0, 0.0], 2.001, false);
         assert_eq!(
-            carrier_eq(&a, &definite, &at(1.0), band()).unwrap(),
+            carrier_eq(&a, &definite, &ConsumedExtent::arm(1.0), band()).unwrap(),
             CarrierRelation::Distinct,
             "definite: two carriers"
         );
@@ -1293,7 +1368,7 @@ mod tests {
         let a = cyl([0.0, 0.0, 0.0], [0.0, 0.0, 1.0], 3.0, true);
         let b = cyl([0.0, 0.0, 5.0], [0.0, 0.0, -1.0], 3.0, false);
         assert_eq!(
-            carrier_eq(&a, &b, &at(1.0), band()).unwrap(),
+            carrier_eq(&a, &b, &ConsumedExtent::arm(1.0), band()).unwrap(),
             CarrierRelation::SameOpposite
         );
     }
@@ -1304,7 +1379,7 @@ mod tests {
         let a = cyl([0.0, 0.0, 0.0], [0.0, 0.0, 1.0], 3.0, true);
         let b = cyl([0.5, 0.0, 0.0], [0.0, 0.0, 1.0], 3.0, false);
         assert_eq!(
-            carrier_eq(&a, &b, &at(1.0), band()).unwrap(),
+            carrier_eq(&a, &b, &ConsumedExtent::arm(1.0), band()).unwrap(),
             CarrierRelation::Distinct
         );
     }
@@ -1327,7 +1402,7 @@ mod tests {
         );
         assert!(
             matches!(
-                carrier_eq(&a, &in_band, &at(1.0), band()),
+                carrier_eq(&a, &in_band, &ConsumedExtent::arm(1.0), band()),
                 Err(CarrierEqError::Undecided { .. })
             ),
             "in band: undecided"
@@ -1339,7 +1414,7 @@ mod tests {
             false,
         );
         assert_eq!(
-            carrier_eq(&a, &definite, &at(1.0), band()).unwrap(),
+            carrier_eq(&a, &definite, &ConsumedExtent::arm(1.0), band()).unwrap(),
             CarrierRelation::Distinct,
             "definite: two carriers"
         );
@@ -1359,12 +1434,12 @@ mod tests {
         let tilt = b.zero() * 0.1;
         let tilted = cyl([0.0, 0.0, 0.0], [tilt, 0.0, 1.0], 3.0, false);
         assert_eq!(
-            carrier_eq(&a, &tilted, &at(1.0), band()).unwrap(),
+            carrier_eq(&a, &tilted, &ConsumedExtent::arm(1.0), band()).unwrap(),
             CarrierRelation::SameOpposite,
             "at a 1 m arm the tilt is below the band: one carrier"
         );
         assert_eq!(
-            carrier_eq(&a, &tilted, &at(1e6), band()).unwrap(),
+            carrier_eq(&a, &tilted, &ConsumedExtent::arm(1e6), band()).unwrap(),
             CarrierRelation::Distinct,
             "at a 1000 km arm the tilt is definite: two carriers"
         );
@@ -1378,7 +1453,7 @@ mod tests {
         let a = torus([0.0, 0.0, 0.0], [0.0, 0.0, 1.0], 5.0, 0.06, true);
         let b = torus([0.0, 0.0, 0.0], [0.0, 0.0, 1.0], 5.0, 0.06, false);
         assert_eq!(
-            carrier_eq(&a, &b, &at(1.0), band()).unwrap(),
+            carrier_eq(&a, &b, &ConsumedExtent::arm(1.0), band()).unwrap(),
             CarrierRelation::SameOpposite
         );
     }
@@ -1391,7 +1466,7 @@ mod tests {
         let a = torus([1.0, 2.0, 3.0], [0.0, 0.0, 1.0], 5.0, 0.06, true);
         let b = torus([1.0, 2.0, 3.0], [0.0, 0.0, -1.0], 5.0, 0.06, false);
         assert_eq!(
-            carrier_eq(&a, &b, &at(1.0), band()).unwrap(),
+            carrier_eq(&a, &b, &ConsumedExtent::arm(1.0), band()).unwrap(),
             CarrierRelation::SameOpposite
         );
     }
@@ -1405,7 +1480,7 @@ mod tests {
         let a = torus([0.0, 0.0, 0.0], [0.0, 0.0, 1.0], 5.0, 0.06, true);
         let b = torus([0.0, 0.0, 0.5], [0.0, 0.0, 1.0], 5.0, 0.06, false);
         assert_eq!(
-            carrier_eq(&a, &b, &at(1.0), band()).unwrap(),
+            carrier_eq(&a, &b, &ConsumedExtent::arm(1.0), band()).unwrap(),
             CarrierRelation::Distinct
         );
     }
@@ -1427,7 +1502,7 @@ mod tests {
             ),
         ] {
             assert_eq!(
-                carrier_eq(&a, &b, &at(1.0), band()).unwrap(),
+                carrier_eq(&a, &b, &ConsumedExtent::arm(1.0), band()).unwrap(),
                 CarrierRelation::Distinct,
                 "{which}"
             );
@@ -1450,7 +1525,7 @@ mod tests {
         );
         assert!(
             matches!(
-                carrier_eq(&a, &in_band, &at(1.0), band()),
+                carrier_eq(&a, &in_band, &ConsumedExtent::arm(1.0), band()),
                 Err(CarrierEqError::Undecided { .. })
             ),
             "in band: undecided"
@@ -1463,7 +1538,7 @@ mod tests {
             false,
         );
         assert_eq!(
-            carrier_eq(&a, &definite, &at(1.0), band()).unwrap(),
+            carrier_eq(&a, &definite, &ConsumedExtent::arm(1.0), band()).unwrap(),
             CarrierRelation::Distinct,
             "definite: two carriers"
         );
@@ -1481,7 +1556,7 @@ mod tests {
         let tilt = b.escalate() * 0.3;
         let tilted = torus([0.0, 0.0, 0.0], [tilt, 0.0, 1.0], 5.0, 0.06, false);
         assert_eq!(
-            carrier_eq(&a, &tilted, &at(1.0), band()).unwrap(),
+            carrier_eq(&a, &tilted, &ConsumedExtent::arm(1.0), band()).unwrap(),
             CarrierRelation::Distinct,
             "the swing at the ring is definite"
         );
@@ -1526,7 +1601,7 @@ mod tests {
             (ring, spindle, crate::PairSide::Second),
             (spindle, ring, crate::PairSide::First),
         ] {
-            match carrier_eq(&x, &y, &at(1.0), band()) {
+            match carrier_eq(&x, &y, &ConsumedExtent::arm(1.0), band()) {
                 Err(CarrierEqError::OffRing {
                     torus,
                     refusal:
@@ -1548,7 +1623,7 @@ mod tests {
         let a = torus([0.0, 0.0, 0.0], [0.0, 0.0, 1.0], 5.0, 0.06, true);
         let b = torus([0.0, 0.0, 0.0], [0.0, 0.0, 1.0], 5.0, 0.06, true);
         assert_eq!(
-            carrier_eq(&a, &b, &at(1.0), band()).unwrap(),
+            carrier_eq(&a, &b, &ConsumedExtent::arm(1.0), band()).unwrap(),
             CarrierRelation::SameOriented
         );
     }
@@ -1560,11 +1635,11 @@ mod tests {
         let t = torus([0.0, 0.0, 0.0], [0.0, 0.0, 1.0], 5.0, 0.06, true);
         let c = cyl([0.0, 0.0, 0.0], [0.0, 0.0, 1.0], 5.0, false);
         assert_eq!(
-            carrier_eq_reading(&t, &c, &at(1.0), band()),
+            carrier_eq_reading(&t, &c, &ConsumedExtent::arm(1.0), band()),
             Ok(CarrierVerdict::TwoKinds)
         );
         assert_eq!(
-            carrier_eq_reading(&c, &t, &at(1.0), band()),
+            carrier_eq_reading(&c, &t, &ConsumedExtent::arm(1.0), band()),
             Ok(CarrierVerdict::TwoKinds)
         );
     }
@@ -1578,7 +1653,7 @@ mod tests {
         };
         let c = cyl([0.0, 0.0, 0.0], [0.0, 0.0, 1.0], 3.0, true);
         assert_eq!(
-            carrier_eq(&p, &c, &at(1.0), band()).unwrap(),
+            carrier_eq(&p, &c, &ConsumedExtent::arm(1.0), band()).unwrap(),
             CarrierRelation::Distinct
         );
     }
@@ -1605,11 +1680,13 @@ mod tests {
                 origin: p2.origin,
                 normal: p2.normal,
             },
-            &at(1.0),
+            &ConsumedExtent::arm(1.0),
             band(),
         )
         .unwrap();
-        let direct = crate::plane_eq::oriented_plane_eq(&p1, &p2, &at(1.0), band()).unwrap();
+        let direct =
+            crate::plane_eq::oriented_plane_eq(&p1, &p2, &ConsumedExtent::arm(1.0), band())
+                .unwrap();
         assert_eq!(via_carrier, direct);
         assert_eq!(direct, CarrierRelation::SameOpposite);
     }

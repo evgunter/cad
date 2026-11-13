@@ -489,12 +489,12 @@ fn plane_eq_nan_and_negzero() {
     let nan2 = f64::from_bits(0x7ff8_0000_0000_0002);
     let p1 = mk(Vec3::new(0.0, 0.0, nan1), Point3::new(0.0, 0.0, 0.0));
     let p2 = mk(Vec3::new(0.0, 0.0, nan2), Point3::new(0.0, 0.0, 0.0));
-    let r = oriented_plane_eq(&p1, &p2, &metre_ball(1.0), band);
+    let r = oriented_plane_eq(&p1, &p2, &geom_brep::ConsumedExtent::arm(1.0), band);
     assert!(r.is_err(), "bit-different NaN planes decided {r:?}");
     let q1 = mk(Vec3::new(0.0, 0.0, 1.0), Point3::new(0.0, 0.0, 5.0));
     let q2 = mk(Vec3::new(-0.0, -0.0, -1.0), Point3::new(0.0, 0.0, 5.0));
     assert_eq!(
-        oriented_plane_eq(&q1, &q2, &metre_ball(1.0), band).unwrap(),
+        oriented_plane_eq(&q1, &q2, &geom_brep::ConsumedExtent::arm(1.0), band).unwrap(),
         CarrierRelation::SameOpposite
     );
 }
@@ -845,13 +845,4 @@ fn corrected_subtract_cells_geometric() {
     // ∪ = B with A's coincident floor patch surviving: seams needed.
     let red = reduce_ok(BooleanOp::Union, &a, &b);
     assert_eq!(red.pierce_rings.len(), 4);
-}
-
-/// A ball of radius `arm` about the origin: the extent a bare arm
-/// names.
-fn metre_ball(arm: f64) -> geom_brep::ConsumedExtent<f64> {
-    geom_brep::ConsumedExtent::new(geom_brep::ExtentBall::of_sphere(
-        geom_core::Point3::origin(),
-        arm,
-    ))
 }
