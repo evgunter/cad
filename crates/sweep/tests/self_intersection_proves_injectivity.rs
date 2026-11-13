@@ -1184,7 +1184,11 @@ fn a_conical_and_a_toroidal_wall_hold_within_the_default_budget() {
         )
     }
     holds_at_both("the conical wall", conical::<f64>(), conical::<Interval>());
-    holds_at_both("the toroidal wall", toroidal::<f64>(), toroidal::<Interval>());
+    holds_at_both(
+        "the toroidal wall",
+        toroidal::<f64>(),
+        toroidal::<Interval>(),
+    );
 }
 
 // ------------------------------------------- a face across its seam
