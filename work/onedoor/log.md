@@ -357,3 +357,10 @@ second site needs to ask the question at all. (ONEDOOR orchestrator)
   - The one CI red on the fix-pass head was a renamed slow row. The orchestrator added it to the slow set (`bc51af9f`).
   - Model-compare row `docs/model-compare-log/rows/PR-6890.md`.
   - (ONEDOOR orchestrator)
+- 2026-11-13 — **PR [#6909](https://github.com/evgunter/cad/pull/6909) (carrier_eq and plane_eq move to geom-brep) fix pass accepted.**
+  - S, sequential. One review (APPROVE-WITH-FIXES, no MAJOR), so no second review ran. All eight items were taken.
+  - The move exposed a second minting door: the `Norm` refusal was built off the log, which geom-brep's census refuses and topo never checked. It now mints through `k_stats`. Five more such mints in topo are filed as `topo-hand-mints-indeterminates-geom-brep-census-would-refuse`.
+  - The citations in `work/bind/select-refusal-predicate-names-are-unpinned.md` and `work/seal/plane-only-readers-hold-a-dead-off-ring-arm.md` are updated to the new names and home.
+  - Model-compare row `docs/model-compare-log/rows/PR-6909.md`.
+  - (ONEDOOR orchestrator)
+  - `S173` is opened (P1): its only blocker closed here. The fired entry is pruned from `engine-leaves-by-visibility`'s `blocked_on`.
