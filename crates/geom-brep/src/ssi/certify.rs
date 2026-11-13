@@ -1805,7 +1805,12 @@ fn probe_tube_chart<'p, T: Decide + Bounds + CertifiedEnclosure>(
             return Ok(Some(Rung::unmeasured(tube)));
         }
         if std::env::var("SNC_DBG").is_ok() && !(margin > 0.0) {
-            eprintln!("SNCDBG straddle rung {rung:e} nodes {nodes:?} window {:?} k {} of {}", w.rect, probed.len(), 0);
+            eprintln!(
+                "SNCDBG straddle rung {rung:e} nodes {nodes:?} window {:?} k {} of {}",
+                w.rect,
+                probed.len(),
+                0
+            );
         }
         if margin < worst {
             worst = margin;
@@ -4518,6 +4523,153 @@ mod tests {
                     "break {j}: floor {floor:e} over the residual {m:e}; {ctx}"
                 );
             }
+        }
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod node_end_rows {
+    use geom::{NurbsCurve2, NurbsCurve3, NurbsSurface, Surface};
+    use geom_core::spline::KnotVector;
+    use geom_core::{Band, Point2, Point3, Tol, Vec3};
+
+    use super::{Lane, Limbs, SsiTube, certify_located};
+    use crate::ssi::{ChartedNurbs, SsiError};
+
+    /// The saddle `S(u, v) = (u, v, (u − ½)(v − ½))`: against `z = 0` it
+    /// crosses at the node `(½, ½)` along `u = ½` and `v = ½`.
+    fn saddle() -> NurbsSurface<f64> {
+        let k1 = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
+        NurbsSurface::new(
+            k1.clone(),
+            k1,
+            vec![
+                Point3::new(0.0, 0.0, 0.25),
+                Point3::new(0.0, 1.0, -0.25),
+                Point3::new(1.0, 0.0, -0.25),
+                Point3::new(1.0, 1.0, 0.25),
+            ],
+            vec![1.0; 4],
+        )
+        .unwrap()
+    }
+
+    fn level() -> Surface<f64> {
+        Surface::Plane {
+            origin: Point3::origin(),
+            normal: Vec3::unit_z(),
+            u_ref: Vec3::unit_x(),
+        }
+    }
+
+    fn band() -> Band {
+        Band::linear(Tol::witness()).expect("the run's tolerance forms a band")
+    }
+
+    /// The degree-1 chain through the chart points `pts` (its carrier
+    /// their images on the plane), on their chord-length parameters, at
+    /// the certificate door.
+    fn certified(pts: &[(f64, f64)]) -> Result<SsiTube<f64>, SsiError> {
+        let mut t = vec![0.0];
+        for w in pts.windows(2) {
+            let last = *t.last().unwrap();
+            t.push(last + (w[1].0 - w[0].0).hypot(w[1].1 - w[0].1));
+        }
+        let total = *t.last().unwrap();
+        let mut knots = vec![0.0];
+        knots.extend(t.iter().map(|x| x / total));
+        knots.push(1.0);
+        let kv = KnotVector::clamped(knots, 1).unwrap();
+        let pcurve = NurbsCurve2::new(
+            kv.clone(),
+            pts.iter().map(|&(u, v)| Point2::new(u, v)).collect(),
+            vec![1.0; pts.len()],
+        )
+        .unwrap();
+        let carrier = NurbsCurve3::new(
+            kv,
+            pts.iter().map(|&(u, v)| Point3::new(u, v, 0.0)).collect(),
+            vec![1.0; pts.len()],
+        )
+        .unwrap();
+        let (wall, plane) = (saddle(), level());
+        let lane = Lane::Chart {
+            partner: &plane,
+            wall: ChartedNurbs::mint(&wall).unwrap(),
+            pcurve: &pcurve,
+        };
+        certify_located(&carrier, lane, 1.0, band(), Limbs::All)
+            .map(|c| c.tube)
+            .map_err(|e| e.error)
+    }
+
+    /// Chart points along `v = ½` from the rim halving toward `u = ½`,
+    /// `steps` of them, the last `0.5·2^−steps` short of the node.
+    fn halving(steps: i32) -> Vec<(f64, f64)> {
+        (0..=steps)
+            .map(|k| (0.5 - 0.5 * 0.5f64.powi(k), 0.5))
+            .collect()
+    }
+
+    /// **A chain is read as ending at a node only where its end is at
+    /// the node** (C2's node end): the node's own reading places the node
+    /// within the band of the end, and its box is the node's settle reach,
+    /// not the end span's. A chain along `v = ½` halving toward the node
+    /// and ending on it certifies, its end the node's. The same chain
+    /// carried on past the node by a micron or a centimetre, turning onto
+    /// `u = ½` within its last span, or ending on the node with one span
+    /// of a twentieth of the wall's width, refuses: limb 3's transverse
+    /// enclosure straddles at the node, which no node box waives. Ending
+    /// short of it by a centimetre, it is an arc's end and no node's.
+    ///
+    /// Red against: the node box read over the end span's reach with no
+    /// bound by the node, and the end left unbound to the node.
+    #[test]
+    fn a_chain_ends_at_a_node_only_where_its_end_is_at_the_node() {
+        let mut at = halving(14);
+        at.push((0.5, 0.5));
+        let tube = certified(&at).expect("a chain halving onto the node certifies");
+        let SsiTube::Chart { nodes, .. } = tube else {
+            panic!("a chart tube: {tube:?}");
+        };
+        assert!(
+            nodes[0].is_none() && nodes[1].is_some(),
+            "its end is the node's: {nodes:?}"
+        );
+        let past = |by: f64| {
+            let mut p = halving(14);
+            p.push((0.5 + by, 0.5));
+            p
+        };
+        let mut turn = halving(14);
+        turn.extend([(0.5, 0.5), (0.5, 0.5 + 5e-5)]);
+        let refusals = [
+            ("past by a micron", past(1e-6)),
+            ("past by a centimetre", past(1e-2)),
+            ("turning onto the other line", turn),
+            (
+                "one coarse span onto the node",
+                vec![(0.0, 0.5), (0.45, 0.5), (0.5, 0.5)],
+            ),
+        ];
+        let short = certified(&halving(5));
+        assert!(
+            matches!(
+                short,
+                Ok(SsiTube::Chart {
+                    nodes: [None, None],
+                    ..
+                })
+            ),
+            "short by a centimetre: an arc's end, not a node's: {short:?}"
+        );
+        for (what, pts) in refusals {
+            let got = certified(&pts);
+            assert!(
+                matches!(got, Err(SsiError::TubeStraddles { .. })),
+                "{what}: refuses at the node, not {got:?}"
+            );
         }
     }
 }

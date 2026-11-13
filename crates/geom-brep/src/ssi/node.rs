@@ -361,7 +361,8 @@ pub(crate) fn node_box(
     let half = (metres * unit.0, metres * unit.1);
     let held = about(half);
     (inside(held)
-        && decide_split(jets, phi, held, NODE_BOX_SPLITS, band).is_some_and(|d| d.kind == Kind::Node))
+        && decide_split(jets, phi, held, NODE_BOX_SPLITS, band)
+            .is_some_and(|d| d.kind == Kind::Node))
     .then_some(half)
 }
 

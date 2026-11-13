@@ -831,11 +831,101 @@ fn an_arc_carried_to_its_node_reads_its_sites_box_by_box() {
     ));
 }
 
+/// **An edge through or short of a node is no node's at rest** (C2's
+/// node end, re-read about the edge's end vertex): straight edges along
+/// the cross's line `y = ½` from its rim, at the edge certificate's
+/// door, each ending a centimetre, a millimetre or a micron past the
+/// node, refuse: none is read as ending at the node, whose box would
+/// waive the transverse enclosure over the stretch where it straddles.
+/// One ending a millimetre short of it certifies, an arc's end and no
+/// node's.
+///
+/// Red against: the node's box read over the end span's reach, and the
+/// end left unbound to the node.
+#[test]
+fn an_edge_through_or_short_of_a_node_is_no_nodes_at_rest() {
+    use crate::certify::{EdgeCurve, EdgeCurveSpec, NurbsLane};
+    use crate::description::{CurveSelector, EdgeDescriptionSpec, SurfacePair};
+    use geom::{Curve3, NurbsCurve3};
+    let (partner, wall) = (level(0.0), cross());
+    let k1 = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
+    for (what, x_end) in [
+        ("past by a centimetre", 0.51),
+        ("past by a millimetre", 0.501),
+        ("past by a micron", 0.500_001),
+    ] {
+        let carrier = Curve3::Nurbs(std::sync::Arc::new(
+            NurbsCurve3::new(
+                k1.clone(),
+                vec![pt(0.0, 0.5, 0.0), pt(x_end, 0.5, 0.0)],
+                vec![1.0; 2],
+            )
+            .unwrap(),
+        ));
+        let mut arena = slotmap::SlotMap::<crate::keys::SurfaceKey, Surface<f64>>::with_key();
+        let (k_a, k_b) = (arena.insert(partner.clone()), arena.insert(wall.clone()));
+        let edge = EdgeCurve::certify(
+            EdgeCurveSpec {
+                description: EdgeDescriptionSpec::Intersection {
+                    pair: SurfacePair::new(k_a, k_b),
+                    selector: CurveSelector::Witness(carrier.mid_point(0.0, 1.0)),
+                },
+                carrier: carrier.clone(),
+                param_start: 0.0,
+                param_end: 1.0,
+            },
+            carrier.eval(0.0),
+            carrier.eval(1.0),
+            move |k| arena.get(k).cloned(),
+            geom_core::test_support::fixture_lever(1.0),
+            band(),
+            NurbsLane::certified(),
+        );
+        assert!(edge.is_err(), "{what}: refuses at rest");
+    }
+    let short = Curve3::Nurbs(std::sync::Arc::new(
+        NurbsCurve3::new(
+            k1,
+            vec![pt(0.0, 0.5, 0.0), pt(0.499, 0.5, 0.0)],
+            vec![1.0; 2],
+        )
+        .unwrap(),
+    ));
+    let mut arena = slotmap::SlotMap::<crate::keys::SurfaceKey, Surface<f64>>::with_key();
+    let (k_a, k_b) = (arena.insert(partner), arena.insert(wall));
+    let edge = EdgeCurve::certify(
+        EdgeCurveSpec {
+            description: EdgeDescriptionSpec::Intersection {
+                pair: SurfacePair::new(k_a, k_b),
+                selector: CurveSelector::Witness(short.mid_point(0.0, 1.0)),
+            },
+            carrier: short.clone(),
+            param_start: 0.0,
+            param_end: 1.0,
+        },
+        short.eval(0.0),
+        short.eval(1.0),
+        move |k| arena.get(k).cloned(),
+        geom_core::test_support::fixture_lever(1.0),
+        band(),
+        NurbsLane::certified(),
+    );
+    assert!(
+        edge.is_ok(),
+        "short by a millimetre: an arc's end certifies: {edge:?}"
+    );
+}
+
 // SNCPROBE (throwaway)
 mod snc_probe {
     use super::*;
     pub(super) fn lemni(s: f64) -> Surface<f64> {
-        separable(&[0.0, 0.0, -1.0 / s, 0.0, 1.0 / (s * s * s)], (-1.2 * s, 2.4 * s), &[0.0, 0.0, 1.0 / s], (-1.0 * s, 2.0 * s))
+        separable(
+            &[0.0, 0.0, -1.0 / s, 0.0, 1.0 / (s * s * s)],
+            (-1.2 * s, 2.4 * s),
+            &[0.0, 0.0, 1.0 / s],
+            (-1.0 * s, 2.0 * s),
+        )
     }
     fn go(s: f64, which: &str) {
         let mut fx = vec![];
@@ -843,37 +933,91 @@ mod snc_probe {
             fx.push((format!("lemniscate s={s}"), lemni(s)));
         }
         if which == "cross" {
-            fx.push((format!("cross s={s}"), biquad(two_lines(4.0 * s, [(1.0, 0.0), (0.0, 1.0)], 0.0), |u, v| (s * u, s * v))));
+            fx.push((
+                format!("cross s={s}"),
+                biquad(two_lines(4.0 * s, [(1.0, 0.0), (0.0, 1.0)], 0.0), |u, v| {
+                    (s * u, s * v)
+                }),
+            ));
         }
         if which == "gen" {
-            fx.push((format!("generic78 s={s}"), biquad(two_lines(2.0 * s, [(-1.5, 1.0), (0.4, 1.0)], 0.0), |u, v| (s * u, s * v))));
+            fx.push((
+                format!("generic78 s={s}"),
+                biquad(
+                    two_lines(2.0 * s, [(-1.5, 1.0), (0.4, 1.0)], 0.0),
+                    |u, v| (s * u, s * v),
+                ),
+            ));
         }
         for (name, wall) in fx {
             let t = std::time::Instant::now();
             match built(&level(0.0), &wall) {
                 Ok(b) => {
-                    let n = match b.components() { Components::Counted(c) => c.len(), _ => 999 };
-                    eprintln!("SNCP [{name}] BUILT nodes {} comps {n} carry {:?} ({:?})", b.nodes().len(), b.carry(Some(SsiLane::marched()), band()).map(|c| c.components().len()), t.elapsed());
+                    let n = match b.components() {
+                        Components::Counted(c) => c.len(),
+                        _ => 999,
+                    };
+                    eprintln!(
+                        "SNCP [{name}] BUILT nodes {} comps {n} carry {:?} ({:?})",
+                        b.nodes().len(),
+                        b.carry(Some(SsiLane::marched()), band())
+                            .map(|c| c.components().len()),
+                        t.elapsed()
+                    );
                 }
                 Err(e) => eprintln!("SNCP [{name}] build refused {e:?} ({:?})", t.elapsed()),
             }
         }
     }
-    #[test] fn snc_cross() { let s: f64 = std::env::var("SNC_S").map_or(1.0, |v| v.parse().unwrap()); go(s, "cross") }
-    #[test] fn snc_gen() { let s: f64 = std::env::var("SNC_S").map_or(1.0, |v| v.parse().unwrap()); go(s, "gen") }
-    #[test] fn snc_lem() { let s: f64 = std::env::var("SNC_S").map_or(1.0, |v| v.parse().unwrap()); go(s, "lem") }
+    #[test]
+    fn snc_cross() {
+        let s: f64 = std::env::var("SNC_S").map_or(1.0, |v| v.parse().unwrap());
+        go(s, "cross")
+    }
+    #[test]
+    fn snc_gen() {
+        let s: f64 = std::env::var("SNC_S").map_or(1.0, |v| v.parse().unwrap());
+        go(s, "gen")
+    }
+    #[test]
+    fn snc_lem() {
+        let s: f64 = std::env::var("SNC_S").map_or(1.0, |v| v.parse().unwrap());
+        go(s, "lem")
+    }
 }
 #[test]
 fn snc_decide_probe() {
     let s = 0.01;
-    let wall = biquad(two_lines(4.0 * s, [(1.0, 0.0), (0.0, 1.0)], 0.0), |u, v| (s * u, s * v));
+    let wall = biquad(two_lines(4.0 * s, [(1.0, 0.0), (0.0, 1.0)], 0.0), |u, v| {
+        (s * u, s * v)
+    });
     let Surface::Nurbs(net) = &wall else { panic!() };
     let jets = crate::ssi::node::Jets::of(net).unwrap();
     let form = crate::ssi::residual::ImplicitForm::of(&level(0.0)).unwrap();
     for h in [1e-3, 1e-2, 3e-2, 5e-2, 1e-1] {
-        let x = crate::ssi::exhaust::UvRect { u: (0.5 - h, 0.5 + h), v: (0.5 - h, 0.5 + h) };
-        let r = crate::ssi::node::read(&jets, &form, geom_core::Interval::from_bounds(x.u.0, x.u.1), geom_core::Interval::from_bounds(x.v.0, x.v.1));
-        let k = crate::ssi::node::krawczyk(&jets, &form, [geom_core::Interval::from_bounds(x.u.0, x.u.1), geom_core::Interval::from_bounds(x.v.0, x.v.1)]);
-        eprintln!("SNCP h {h}: hess {:?} k {:?} decide {:?}", r.hessian, k.map(|k| k.1), crate::ssi::node::decide(&jets, &form, x, band()).map(|d| d.kind));
+        let x = crate::ssi::exhaust::UvRect {
+            u: (0.5 - h, 0.5 + h),
+            v: (0.5 - h, 0.5 + h),
+        };
+        let r = crate::ssi::node::read(
+            &jets,
+            &form,
+            geom_core::Interval::from_bounds(x.u.0, x.u.1),
+            geom_core::Interval::from_bounds(x.v.0, x.v.1),
+        );
+        let k = crate::ssi::node::krawczyk(
+            &jets,
+            &form,
+            [
+                geom_core::Interval::from_bounds(x.u.0, x.u.1),
+                geom_core::Interval::from_bounds(x.v.0, x.v.1),
+            ],
+        );
+        eprintln!(
+            "SNCP h {h}: hess {:?} k {:?} decide {:?}",
+            r.hessian,
+            k.map(|k| k.1),
+            crate::ssi::node::decide(&jets, &form, x, band()).map(|d| d.kind)
+        );
     }
 }
