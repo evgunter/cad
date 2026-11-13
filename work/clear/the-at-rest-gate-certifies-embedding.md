@@ -286,8 +286,8 @@ first: a family where tier 3 passes and a Zero site refuses.
 
 ## Spec
 
-**Order:** A, then B with the engine rows below, then C, then D and E
-in parallel. The engine rows (the 23 refusals of table 1) must land
+**Order:** A, then B's separators with the engine rows below, then C
+(with B's tier-3 input), then D and E in parallel. The engine rows (the 23 refusals of table 1) must land
 before C. Otherwise C's gate refuses 23 tour bodies at their doors,
 among them the lily, the teapot's handle, the heatsinks and the
 snowman.
@@ -386,26 +386,111 @@ Items 1 and 7, and changes 1 and 4. Rows touched: this one, and
 
 ### Lane B — no second reading (M)
 
-Change 2, at the three sites of section 4. Rows touched: this one.
-- **Sites:** `is_zero` / `sign_on`, `present_chart`'s apex arm and
-  `cusp` (`injective.rs`). The facts come from
-  `validate_geometric_certificate`, `contact_marks` and check 6
-  (`validate.rs`), through `AtRestBody::validate`.
-- **Pins:**
-  - a body whose family passes tier 3 while a Zero site refuses. None
-    was found here (table 3), so the lane builds one first. The box at
-    `w = 0.1` is the place to start: today it runs out of pairs after
-    1.5 s, and after the lane it reads `Holds` or refuses naming the
-    family's width (change 3);
-  - a cone apex over a box (`topo::test_support` `cone_cap`);
-  - the declared wedge-0 kiss in `self_intersection_proves_injectivity.rs`
-    keeps its typed refusal, now read off the mark.
-- **Mutants:** every edge read as `Tangent` (the cone and pyramid
-  `Holds` rows refuse as a cusp); an empty apex map (the cone row
-  refuses `CollapsedChart`); `is_zero` always true (the carvetail fold
-  and the folded cut stop reading `Violated`).
-- **Seams:** TOPO's `validate.rs`, for the hand-over of marks and
-  singular vertices.
+Change 2. The injectivity question takes tier 3's verdict as its
+input. The engine never re-decides a fact that tier 3, or its own
+construction, already holds (`[topology.tiers]`).
+
+- **The input.** The strict question over one body is the walk
+  `Sweep::run` takes when `same_body` holds and the bound is strict.
+  It takes a value that only tier 3's local battery constructs:
+  - the body;
+  - each edge's wedge class (`WedgeVerdict`: a crease, π, or an end);
+  - each face's singular vertex, where check 6 placed it
+    (`geom_brep::chart_singularity::Lies::AtVertex`; today it is
+    dropped after `place_on_boundary`).
+
+  `topo::clearance::embedded` takes this value in place of `Side`, so
+  asking injectivity of an unchecked body does not compile.
+  `Side { body, faces }` stays for the metric questions (two bodies,
+  or a bound that is not strict); those reach no Zero site.
+  `AtRestBody` keeps the two per-entity facts beside its `KeptSign`,
+  and `moved_by` carries them. They are keyed by entity, so an
+  isometry keeps them.
+- **The three sites.**
+  - *On the shared cell* (`is_zero` / `sign_on`). Each separator
+    carries the cells it vanishes on, and `sign_on` asks membership;
+    no value is read.
+    - A face's carrier vanishes on that face's edges and vertices, by
+      check 2.
+    - A plane the engine builds (`plane_through`) vanishes on the edges
+      and the vertex it was built through. Its `n` and `q` are computed
+      at the lane scalar from the edge's own carrier (a line's stored
+      direction, a conic's stored axis and centre), never rounded to a
+      midpoint.
+    - The graph separator vanishes on its one edge, as now.
+    - A plane does not vanish at a shared vertex off the line it was
+      built through. There it answers nothing.
+  - *Past the shared cell* (`Zero::Past`; `Zero::Curve` and
+    `Zero::Corner` alike). The side is zero where its chart line is the
+    shared edge's own line or circle, since a separator built from the
+    edge contains it whole. Otherwise it answers nothing. No band
+    reading is left.
+  - *Apex* (`present_chart`). The face's singular vertex, read from the
+    verdict. At `Sym`, this is where tier 3's identity proofs reach
+    the engine.
+  - *Cusp* (`cusp`). The edge's wedge class is an end. The cusp is not
+    read off `ContactMark::Tangent`: `wedge_reading` also maps a
+    determinate wedge-π seam (a smooth G1 join) to `Tangent`, so a
+    blend edge would read as a cusp and refuse `SecondOrder` past
+    depth 10. The contact mark is derived from the wedge class.
+
+  The funnel sites `self_intersection_on_shared`,
+  `self_intersection_apex` and `self_intersection_cusp` retire, with
+  their audit rows.
+- **The callers.**
+  - The gate (lane C) holds the verdict in the function that asks.
+  - The shell's cavity check retires into the gate (item 7).
+    `the-f64-cavity-gate-refuses-thirty-two-valid-shells` then closes
+    into C: its 32 rows join C's engine rows, and its pins move to C's
+    mapping of a cavity crossing.
+  - editor-core's strict door (`self_intersection`, whose only callers
+    are tests) reads the finished leaf (`Held::finished`,
+    `topo::take`).
+  - `wire_clearance` asks no strict bound, so it is not a caller.
+  - Tests ask finished bodies. Construction-state lofts at `Interval`
+    wait on `check-7s-quadrature-refuses-interval-nurbs-walls…`.
+- **Order.**
+  - **Lane B (now): the engine's own separators.** These need no
+    tier 3:
+    - `plane_through` is exact per member;
+    - each separator carries its cells;
+    - the reading goes for planes and graphs.
+
+    This is sound for every caller today.
+    - Pins:
+      - a family whose shared line edge turns with the parameter (a
+        drafted or sheared extrude at `Interval`);
+      - a pair sharing a line edge and a separate vertex, where the
+        plane answers nothing at the vertex;
+      - the box at `1 ± 1e-2`, `Sym<Interval>`.
+    - Mutant: every cell in the separator's list.
+    - Before any reading goes, run the forced harness on the carvetail
+      fold and the folded cut. These are the rows that `is_zero` always
+      true turns off `Violated`. Record which `Zero` arm and which
+      `Psi` each kill comes through. If one comes through a carrier
+      side on a shared edge, then check 2 does not give what section 4
+      says: stop and report.
+  - **With lane C:** the input type; the facts kept in tier 3 and on
+    `AtRestBody`; the carrier, apex and cusp sites; and the callers.
+    - Pins:
+      - `embedded`'s `compile_fail` doctest at `&Body`;
+      - the revolved cone at `Sym<Interval>`, holding with its apex
+        read from the verdict. It needs a cone whose apex is a vertex
+        there, which waits on `revolve`'s
+        `NoGeneralLane { chart: Cone, carrier: Line }`; `cone_cap`
+        fails check 6;
+      - the declared wedge-0 kiss, refusing `SecondOrder` read off
+        `End`;
+      - a blend edge marked `Tangent`, not read as a cusp.
+    - Mutants:
+      - an empty apex map (the cone refuses `CollapsedChart`);
+      - the cusp read off `Tangent` (the blend row refuses).
+  - The spec's first pin, a family where tier 3 passes while a Zero
+    site refuses, is not needed. The change is owed by
+    `[one-way.readings]` (one reading per fact), not by a verdict that
+    moves (measured below).
+- **Seams:** TOPO's `validate.rs`, for the facts tier 3 keeps;
+  editor-core's strict door.
 
 **Measured by lane B (clear-zero, 2026-11-13), main at `b95a5e1eb2`.**
 Lane B stopped before building: the facts do not reach the sweep in

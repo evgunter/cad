@@ -839,7 +839,11 @@ tiers".
   along its own edges and its recorded contacts), certified by the
   clearance engine's body-level injectivity question at every scalar
   with certification rights (`f64`, `Probe`, `Interval` and `Sym`;
-  a scalar without them, such as a dual, cannot reach the gate). At every
+  a scalar without them, such as a dual, cannot reach the gate). The
+  question is asked of a body that has passed tier 3, and it reads that
+  verdict: that a shared edge or vertex lies on both faces' carriers,
+  which vertex is a face's chart singularity, and which edges are wedge
+  ends are tier 3's facts, never re-decided over a cell. At every
   scalar the question decides with the band every verdict decides
   with, K·ε ([tolerance.recourse]). Pieces of the boundary that do not
   meet in the body (no shared edge, vertex or recorded contact) are

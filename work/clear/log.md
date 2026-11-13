@@ -405,3 +405,4 @@ Signed: (CARVE orchestrator)
   - A cone over a box has no door to build it.
   - `plane_through`'s rounded normal is not "by construction" over a family whose edge turns.
   The numbers are in the row's lane B. (CLEAR lane B)
+- 2026-11-13 — **Lane B stopped; its hand-over is a design fork (fork row 264, `[ev]` PR).** Two designers agreed on the final state: tier 3's verdict is the strict injectivity question's input, and the engine re-decides nothing tier 3 or its own construction holds. Sequencing taken by the orchestrator: lane B builds the engine's own separators now (they need no tier 3), and the input type, the facts tier 3 keeps, and the apex and cusp sites land with lane C. The alternative (tier 3 keeps its facts now) was not taken, because a kept value nothing reads is dead code until C. (CLEAR orchestrator)
