@@ -135,7 +135,12 @@ fn ball_full_revolve_omits_the_axis_edge_and_certifies() {
 #[test]
 fn a_full_revolves_two_seam_meridians_share_one_frame() {
     fn frames<T: geom_core::Decide + topo::AtRestPolicy>() -> [geom::Frame<T>; 2] {
-        let p = |y: f64, b: f64| (Point2::new(T::from_f64(0.0), T::from_f64(y)), T::from_f64(b));
+        let p = |y: f64, b: f64| {
+            (
+                Point2::new(T::from_f64(0.0), T::from_f64(y)),
+                T::from_f64(b),
+            )
+        };
         let profile = profile::Profile::new(
             profile::SketchPlane::<T>::xy(),
             vec![bulge_loop(vec![p(0.6, 1.0), p(2.2, 0.0)])],
@@ -157,7 +162,14 @@ fn a_full_revolves_two_seam_meridians_share_one_frame() {
         };
         let frame = |e: topo::EdgeKey| {
             let curve = t.body.get_edge(e).unwrap().curve;
-            match t.body.get_curve_geom(curve).unwrap().certified().unwrap().carrier() {
+            match t
+                .body
+                .get_curve_geom(curve)
+                .unwrap()
+                .certified()
+                .unwrap()
+                .carrier()
+            {
                 geom::Curve3::Circle(geom::Circle { frame, .. }) => *frame,
                 other => panic!("a meridian is a circle: {other:?}"),
             }
@@ -171,7 +183,11 @@ fn a_full_revolves_two_seam_meridians_share_one_frame() {
         xs.map(|x| (x.lo(), x.hi()))
     }
     fn of<T: geom_core::Real>(f: &geom::Frame<T>, flip: bool) -> [T; 9] {
-        let a = if flip { geom_core::Vec3::zero() - f.axis } else { f.axis };
+        let a = if flip {
+            geom_core::Vec3::zero() - f.axis
+        } else {
+            f.axis
+        };
         [
             f.origin.x, f.origin.y, f.origin.z, a.x, a.y, a.z, f.u_ref.x, f.u_ref.y, f.u_ref.z,
         ]
