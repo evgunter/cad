@@ -1575,7 +1575,7 @@ pub(crate) const NODE_BOX_REACH: f64 = 2.0;
 pub(crate) fn chart_tube<T: geom_core::CertifiedBounds>(
     pcurve: &NurbsCurve2<T>,
     pad: (f64, f64),
-    nodes: [Option<(f64, f64)>; 2],
+    nodes: NodeHalves,
 ) -> Option<Vec<ChartWindow>> {
     let hulls = span_hulls(pcurve)?;
     let at = |end: usize| pcurve_end(pcurve, end);
@@ -1591,7 +1591,7 @@ pub(crate) fn chart_tube<T: geom_core::CertifiedBounds>(
     }
     let n = hulls.len();
     let mut out = Vec::with_capacity(n);
-    for (k, (hull, mid, ends)) in hulls.into_iter().enumerate() {
+    for (k, SpanHull { hull, mid, ends }) in hulls.into_iter().enumerate() {
         let end = match k {
             0 => Some(0),
             _ if k == n - 1 => Some(1),
@@ -1636,12 +1636,22 @@ pub(crate) fn chart_tube<T: geom_core::CertifiedBounds>(
     Some(out)
 }
 
-/// Each nonempty span of the pcurve: its hull, its parameter midpoint
-/// and its parameter ends. `None` when any span's hull is refused
-/// ([`chart_tube_windows`]).
-fn span_hulls<T: geom_core::CertifiedBounds>(
-    pcurve: &NurbsCurve2<T>,
-) -> Option<Vec<(UvRect, f64, (f64, f64))>> {
+/// One nonempty span of a pcurve: its hull, its parameter midpoint and
+/// its parameter ends ([`span_hulls`]).
+#[derive(Clone, Copy, Debug)]
+struct SpanHull {
+    hull: UvRect,
+    mid: f64,
+    ends: (f64, f64),
+}
+
+/// The half-widths of the node box at each end of a chart chain, start
+/// first, `None` at an end that is not a node ([`SsiTube::Chart`]).
+pub(crate) type NodeHalves = [Option<(f64, f64)>; 2];
+
+/// Each nonempty span of the pcurve ([`SpanHull`]). `None` when any
+/// span's hull is refused ([`chart_tube_windows`]).
+fn span_hulls<T: geom_core::CertifiedBounds>(pcurve: &NurbsCurve2<T>) -> Option<Vec<SpanHull>> {
     let kv = pcurve.knots_f64_interim();
     let coords = pcurve.certified_coords();
     // One pair per chart channel, minted once: the coordinates and the
@@ -1660,14 +1670,14 @@ fn span_hulls<T: geom_core::CertifiedBounds>(
             return None;
         }
         let (a, b) = (kv.knots()[index], kv.knots()[index + 1]);
-        out.push((
-            UvRect {
+        out.push(SpanHull {
+            hull: UvRect {
                 u: (hu.lo(), hu.hi()),
                 v: (hv.lo(), hv.hi()),
             },
-            geom::mid_param(a, b),
-            (a, b),
-        ));
+            mid: geom::mid_param(a, b),
+            ends: (a, b),
+        });
     }
     Some(out)
 }
@@ -1700,7 +1710,7 @@ pub(crate) fn node_box_half<T: geom_core::CertifiedBounds>(
     end: usize,
 ) -> Option<(f64, f64)> {
     let hulls = span_hulls(pcurve)?;
-    let (hull, _, _) = if end == 0 {
+    let SpanHull { hull, .. } = if end == 0 {
         *hulls.first()?
     } else {
         *hulls.last()?
@@ -1739,7 +1749,7 @@ fn probe_tube_chart<'p, T: Decide + Bounds + CertifiedEnclosure>(
     pcurve: &NurbsCurve2<T>,
     boxes: &NurbsBoxes<'_, T>,
     phi: impl Into<ChartPhi<'p>>,
-    (rung, pad, nodes): (f64, (f64, f64), [Option<(f64, f64)>; 2]),
+    (rung, pad, nodes): (f64, (f64, f64), NodeHalves),
     (ends, band): ([Box3; 2], Band),
 ) -> Result<Option<Rung>, SsiError> {
     #[cfg(test)]
@@ -2678,7 +2688,7 @@ fn node_ends<T: Decide + Bounds + CertifiedEnclosure>(
     wall: &super::ChartedNurbs<'_, T>,
     form: &super::residual::ImplicitForm,
     band: Band,
-) -> [Option<(f64, f64)>; 2] {
+) -> NodeHalves {
     let surface = wall.surface();
     let domain = UvRect {
         u: surface.knots_u_f64_interim().domain(),

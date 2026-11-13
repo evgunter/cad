@@ -613,17 +613,16 @@ impl<const M: usize, const N: usize, S: SectionSystem<M, N>> Ends<'_, S, M, N> {
         let mut prev = last;
         for _ in 0..NODE_SETTLES {
             let d = chart(&prev);
-            let reach = {
-                let g = self.sys.jacobian(&prev);
-                let mut sq = 0.0;
-                for row in &g {
-                    for k in i..=j {
-                        sq += row[k] * row[k];
-                    }
-                }
-                sq.sqrt() * d
-            };
-            if !(reach > NODE_SETTLE_FLOOR * self.ctx.tol.meters()) {
+            let sq: f64 = self
+                .sys
+                .jacobian(&prev)
+                .iter()
+                .map(|row| row[i] * row[i] + row[j] * row[j])
+                .sum();
+            let reach = sq.sqrt() * d;
+            if reach.partial_cmp(&(NODE_SETTLE_FLOOR * self.ctx.tol.meters()))
+                != Some(core::cmp::Ordering::Greater)
+            {
                 break;
             }
             let aim =
