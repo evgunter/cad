@@ -1234,11 +1234,10 @@ pub const FILLET3_CORNER_RECOURSE: &str = "end the blend at a flat-faced corner,
 /// partner's band having to stop where its edge runs smoothly into the
 /// cut-off arc, and the chamfer's (a flat one) until its rule is built.
 /// It names neither verb, being the shared arm both doors render.
-pub const FILLET3_MIXED_CORNER_RECOURSE: &str = "blend one of this corner's edges, the two \
-     that round alike, or all three where its faces are flat and the face the two share is square \
-     to the third; with one other, the edge that rounds the other way never takes a rounded band, \
-     its partner's having to stop where it runs smoothly into the cut-off, and takes no flat one \
-     yet";
+pub const FILLET3_MIXED_CORNER_RECOURSE: &str = "blend one edge, the two that round alike, or \
+     all three where the faces are flat and the face the two share is square to the third; the \
+     edge that rounds the other way, with one other, cannot round (a band would stop mid-run) nor \
+     yet bevel";
 /// The lever of a turn's two readings (`fillet3_turn_feet_gap`,
 /// `fillet3_turn_overrun_chord`, and their straddle
 /// `fillet3_turn_feet`): in band, the two bands' feet on the third

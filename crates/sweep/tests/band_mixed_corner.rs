@@ -754,8 +754,8 @@ fn a_bore_behind_a_pair_edges_line_is_read_against_the_other_pair_strip() {
 /// meter** (`surgery::ring_clearance_pass`, arm (a)): a bore in the
 /// `+y` arm `0.01` behind the `+x` edge's line, well clear of the other
 /// pair edge's strip, builds at the corner's closed form. One grazing
-/// that line within the band, from either side, is not certainly
-/// behind it, and refuses `RingClearance` on the definite reading of its
+/// that line within the band (half-way into it, from either side, at
+/// every ε) is not certainly behind it, and refuses `RingClearance` on the definite reading of its
 /// lowest reach past the trimline.
 #[test]
 fn a_bore_wholly_behind_a_pair_edges_line_clears_its_ring_meter() {
@@ -777,7 +777,9 @@ fn a_bore_wholly_behind_a_pair_edges_line_clears_its_ring_meter() {
         (chamfer, 1),
         "a bore behind the line",
     );
-    for graze in [5e-9, -5e-9] {
+    let band = geom_core::Band::linear(tol()).expect("the witness band");
+    let mid = 0.5 * (band.zero() + band.escalate());
+    for graze in [mid, -mid] {
         let (body, edges) = bored(-0.5, 0.05 + graze, 0.05);
         for verb in [Verb::Fillet, Verb::Chamfer] {
             let got = verb.run(&body, &edges, R);

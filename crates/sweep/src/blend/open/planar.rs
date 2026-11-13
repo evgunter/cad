@@ -272,14 +272,14 @@ fn mixed_corner_plan<'a, T: Real>(
     kind: BlendKind,
 ) -> Result<Corner<'a, T>, BlendError> {
     let vertex = links.vertex();
-    let unlike = |what: &'static str| disagrees(EntityId::Vertex(vertex), what);
     let (seed, others) = links.sorted();
     let (odd, pair): (Vec<&Link<T>>, Vec<&Link<T>>) = core::iter::once(&seed)
         .chain(&others)
         .map(AdmittedOpen::link)
         .partition(|l| l.edge == mixed.odd);
     let ([odd], [p1, p2]) = (&odd[..], &pair[..]) else {
-        return Err(unlike(
+        return Err(disagrees(
+            EntityId::Vertex(vertex),
             "a mixed corner's links are not its odd edge's and two others",
         ));
     };
@@ -290,7 +290,12 @@ fn mixed_corner_plan<'a, T: Real>(
             .as_slice()
             .iter()
             .position(|g| *g == f)
-            .ok_or_else(|| unlike("a mixed corner's link stands on a face the corner lacks"))
+            .ok_or_else(|| {
+                disagrees(
+                    EntityId::Vertex(vertex),
+                    "a mixed corner's link stands on a face the corner lacks",
+                )
+            })
     };
     let other = |l: &Link<T>| if l.face_a == host { l.face_b } else { l.face_a };
     let n_e = normals[slot(host)?];
@@ -299,7 +304,8 @@ fn mixed_corner_plan<'a, T: Real>(
         BlendKind::Fillet => {
             let axis_of = |l: &Link<T>| match l.blend.surface {
                 Surface::Cylinder { origin, axis, .. } => Ok((origin, axis.normalize())),
-                _ => Err(unlike(
+                _ => Err(disagrees(
+                    EntityId::Vertex(vertex),
                     "a mixed corner's plane–plane fillet band is not a cylinder",
                 )),
             };
@@ -347,9 +353,12 @@ fn mixed_corner_plan<'a, T: Real>(
         }
         BlendKind::Chamfer => {
             let trim = |l: &Link<T>, f: FaceKey| {
-                l.trim_on(f)
-                    .and_then(|(c, _)| c.as_line())
-                    .ok_or_else(|| unlike("a mixed corner's chamfer trimline is not a line"))
+                l.trim_on(f).and_then(|(c, _)| c.as_line()).ok_or_else(|| {
+                    disagrees(
+                        EntityId::Vertex(vertex),
+                        "a mixed corner's chamfer trimline is not a line",
+                    )
+                })
             };
             let mut walls = [p; 2];
             for (wall, l) in walls.iter_mut().zip([p1, p2]) {
@@ -380,7 +389,10 @@ fn mixed_corner_plan<'a, T: Real>(
             let host_feet = [on_chord(p1)?, on_chord(p2)?];
             feet[slot(host)?] = Foot::PerEdge(host_feet);
             let Surface::Plane { normal: n_s, .. } = odd.blend.surface else {
-                return Err(unlike("a mixed corner's odd chamfer strip is not a plane"));
+                return Err(disagrees(
+                    EntityId::Vertex(vertex),
+                    "a mixed corner's odd chamfer strip is not a plane",
+                ));
             };
             // The patch closes the corner on the side `E` and the odd
             // strip face out to.
