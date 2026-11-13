@@ -440,3 +440,6 @@ Ev, in chat: "go ahead in whatever order you see fit (including parallelizing th
   - **Its stop:** geom-brep's `kstats_escalation_channel` census forbids hand-built `Indeterminate`s, and `plane_eq::unreadable_norm` builds one off the log. Topo never had the rule, so the move exposed a second minting door that topo let stand.
   - **Ruled by the orchestrator** (it applies geom-brep's existing rule): mint through `k_stats`, keep `CarrierEqError`'s shape, and disclose the payload change.
   - Sent back at 10:28, with a census count of topo's other hand-built `Indeterminate`s as a question.
+- **10:55 — carrier-eq's second report** (head `7d7d933e`). The `Norm` refusal is minted through `k_stats::gate_rejection` (`NonNegative`), on the log, and `CarrierEqError`'s shape is kept. The topo census found 5 shipped hand-mints, filed as `topo-hand-mints-indeterminates-geom-brep-census-would-refuse`.
+- **PR [#6909](https://github.com/evgunter/cad/pull/6909)** is opened with its head **frozen at `7d7d933ec381`**. First-reviewer byte 150 (Opus): `session_018u3gVKYyo2EHRt2dAeEUnH`, dispatched at 11:17 (S, sequential).
+- **#6900:** the fix pass reported at 10:55 (head `f515519b`). The MAJOR is fixed (carrier directions, the twin bit across sheets), and the arguments on items 5, 10 and 18 are accepted. CI at 11:16: everything green but `test (kernel)`, still running.
