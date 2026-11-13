@@ -64,7 +64,7 @@ use topo::clearance::{
 };
 use topo::{Body, FaceKey, LoopBoundary, VertexKey};
 
-use crate::common::{arc_spine_places, normal_start_place, quad};
+use crate::common::{arc_spine_places, bulge, normal_start_place, quad};
 use crate::revolve_common::donut_profile;
 
 /// The default whole-query budget the document door runs at
@@ -1250,6 +1250,83 @@ fn a_big_thin_walled_cylinder_shell_certifies_within_the_default_budget() {
         )
     }
     holds_at_both("the thin shell", shell::<f64>(), shell::<Interval>());
+}
+
+/// **A conical wall and a toroidal wall `0.05` thick**, each revolved a
+/// full turn: the meridian band between two lines `30°` off the axis
+/// and `0.05` apart, capped by two annuli, as the klein bulb's flare;
+/// and the band between two arcs about a centre off the axis, radii
+/// `0.8 ∓ 0.025`, closed by two radial lines, as its rim. Each wall's
+/// two faces share nothing, so only the distance test decides them.
+/// Both hold at both scalars, each splitting under a quarter of the
+/// default budget (about 3,100 and 6,600 splits). Red where the support
+/// test reads an analytic cell by its box: two slanted patches' boxes
+/// overlap until the cells are about as small as the gap, which costs
+/// about 39,000 and 32,000 splits.
+#[test]
+fn a_conical_and_a_toroidal_wall_hold_within_the_default_budget() {
+    fn conical<T: Scalar>() -> Body<T> {
+        let (s, c) = (30f64.to_radians().sin(), 30f64.to_radians().cos());
+        let (slant, across) = (1.6, 0.05 / c);
+        let p = |x: f64, y: f64| (Point2::new(T::from_f64(x), T::from_f64(y)), T::zero());
+        revolved_about_y_at(
+            vec![
+                p(0.4, 2.0),
+                p(0.4 + slant * s, 2.0 - slant * c),
+                p(0.4 + across + slant * s, 2.0 - slant * c),
+                p(0.4 + across, 2.0),
+            ],
+            Revolution::Full,
+            tol(),
+        )
+    }
+    fn toroidal<T: Scalar>() -> Body<T> {
+        let centre = Point2::new(1.6, 1.0);
+        let at = |r: f64, a: f64| {
+            let a = a.to_radians();
+            Point2::new(centre.x + r * a.cos(), centre.y + r * a.sin())
+        };
+        let (outer, inner) = (0.825, 0.775);
+        let (o0, o1, i1, i0) = (
+            at(outer, 120.0),
+            at(outer, 240.0),
+            at(inner, 240.0),
+            at(inner, 120.0),
+        );
+        let p = |q: Point2<f64>, b: f64| (q.map(T::from_f64), T::from_f64(b));
+        revolved_about_y_at(
+            vec![
+                p(o0, bulge(o0, o1, centre)),
+                p(o1, 0.0),
+                p(i1, bulge(i1, i0, centre)),
+                p(i0, 0.0),
+            ],
+            Revolution::Full,
+            tol(),
+        )
+    }
+    for (what, reports) in [
+        (
+            "the conical wall",
+            holds_at_both("the conical wall", conical::<f64>(), conical::<Interval>()),
+        ),
+        (
+            "the toroidal wall",
+            holds_at_both(
+                "the toroidal wall",
+                toroidal::<f64>(),
+                toroidal::<Interval>(),
+            ),
+        ),
+    ] {
+        for report in &reports {
+            assert!(
+                report.receipt.splits < BUDGET / 4,
+                "{what} splits under a quarter of the default budget: {:?}",
+                report.receipt
+            );
+        }
+    }
 }
 
 // ------------------------------------------- a face across its seam

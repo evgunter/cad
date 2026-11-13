@@ -57,6 +57,10 @@ macro_rules! proximity_lever {
     };
 }
 
+/// [`LeverArm::TangentLocus`]'s lever.
+const LOCUS_LENGTH_LEVER: &str =
+    "make the faces touch along a clearly longer line, or move the parts clearly apart";
+
 /// [`BooleanDecision::CylinderAxes`]'s subject, the sentence the carrier
 /// ladder's own axis rung (`carrier_cyl_axis_parallel`) reads in too.
 pub(crate) const CYLINDER_AXES_PARALLEL: &str = "whether two cylinders' axes are parallel";
@@ -1079,12 +1083,22 @@ pub enum LeverArm {
     /// of the edge's extent and its faces' radii of curvature, quoted at
     /// the wedge it meters over that fold (`geom_brep`'s `at_wedge`).
     Seam,
+    /// `gradient_alignment_lever` at a tangency's witness: the extent of
+    /// the line two faces touch along, the lever their outward normals'
+    /// alignment is metered over, which reads every pair square where the
+    /// line has no length.
+    TangentLocus,
 }
 
 impl LeverArm {
     /// Every gate, for the readers that pair each with its reading (the
     /// executed-offer harness's one-decision pairs, `test_support`).
-    pub const ALL: [Self; 3] = [Self::SectorSide, Self::SectorCurving, Self::Seam];
+    pub const ALL: [Self; 4] = [
+        Self::SectorSide,
+        Self::SectorCurving,
+        Self::Seam,
+        Self::TangentLocus,
+    ];
 
     /// The decision the gate meters, with what its door read of the
     /// declaration: the reading whose question a smaller tolerance that
@@ -1096,6 +1110,7 @@ impl LeverArm {
             Self::SectorSide => BooleanDecision::Coincidence(Coincide::SectorSide, read),
             Self::SectorCurving => BooleanDecision::Coincidence(Coincide::TangentSide, read),
             Self::Seam => BooleanDecision::SeamWedge,
+            Self::TangentLocus => BooleanDecision::Coincidence(Coincide::Contact, read),
         }
     }
 
@@ -1112,6 +1127,10 @@ impl LeverArm {
                 "whether a corner's edges are long enough to read which way a face curves there"
             }
             Self::Seam => concat!("whether a seam edge is ", geom_brep::dihedral_arm_clause!()),
+            Self::TangentLocus => {
+                "whether two faces of the two solids touch along a line long enough to read their \
+                 sides"
+            }
         }
     }
 
@@ -1122,6 +1141,9 @@ impl LeverArm {
             Self::SectorCurving => sized(CORNER_EDGES, "edge length", SizedPass::Positive),
             // The dihedral's own arm, as every door that reads it ends it.
             Self::Seam => Ending::Sized(geom_brep::DIHEDRAL_ARM),
+            // A line of no length reads every pair square whatever the
+            // tolerance, so none is offered.
+            Self::TangentLocus => Ending::Lever(LOCUS_LENGTH_LEVER),
         }
     }
 }
@@ -2116,6 +2138,14 @@ pub(in crate::boolean) mod tests {
                 "whether a corner's edges are long enough to read which way a face curves there",
                 Ending::Sized(LONGER, SizedPass::Positive),
             ),
+            BooleanDecision::LeverArm(LeverArm::TangentLocus) => (
+                "whether two faces of the two solids touch along a line long enough to read their \
+                 sides",
+                Ending::Lever(
+                    "Recourse: make the faces touch along a clearly longer line, or move the parts \
+                     clearly apart",
+                ),
+            ),
             BooleanDecision::LeverArm(LeverArm::Seam) => (
                 "whether a seam edge is between faces wide enough, for how they curve, to measure \
                  their angle",
@@ -2459,6 +2489,7 @@ pub(in crate::boolean) mod tests {
         assert!(same("LeverArm(SectorSide)", "Coincidence(SectorSide)"));
         assert!(same("Coincidence(TangentSide)", "LeverArm(SectorCurving)"));
         assert!(same("LeverArm(Seam)", "SeamWedge"));
+        assert!(same("LeverArm(TangentLocus)", "Coincidence(Contact)"));
         assert!(!same("LeverArm(Seam)", "Coincidence(SectorSide)"));
     }
 

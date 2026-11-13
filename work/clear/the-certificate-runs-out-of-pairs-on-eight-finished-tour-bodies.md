@@ -2,7 +2,8 @@
 id: the-certificate-runs-out-of-pairs-on-eight-finished-tour-bodies
 kind: issue
 title: The injectivity check runs out of its 65,536 cell pairs on eight finished tour bodies (the die family, the Klein bulb, the snowman) in 2.5-6.3 s, so the at-rest gate would refuse them
-status: open
+status: closed
+closed: 2026-11-13
 opened: 2026-11-12
 priority: P0
 cost: M
@@ -154,3 +155,13 @@ are the six above and four that refused `Uncertified { Departure }`
 at the depth floor, a plane against a sphere patch at its pole:
 `diefillet` (4,133 pairs) and `heatsink5`, `7` and `9` (16,093–16,839
 pairs). No other body's verdict or pair count changed.
+
+## Closed (CLEAR orchestrator, 2026-11-13)
+
+Seven of the eight bodies certify:
+- the four snowman bodies, `diepips` and `diechamfer`: PR 6892, through the sphere pole read as a collapsed side;
+- `klein_bulb`: PR 6902, through the support test reading an analytic cell by its mean-value form.
+
+The eighth, `diecomposed`, is its own P0 row:
+`the-certificate-has-no-separator-across-a-plane-tangent-to-a-torus-band-so-the-composed-die-runs-out-of-pairs`.
+Nothing else is left on this row.
