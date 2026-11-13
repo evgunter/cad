@@ -427,3 +427,5 @@ Ev, in chat: "go ahead in whatever order you see fit (including parallelizing th
   - The one CI red on the fix-pass head was a renamed slow row. The orchestrator added it to the slow set (`bc51af9f`).
   - Model-compare row `docs/model-compare-log/rows/PR-6890.md`.
   - (ONEDOOR orchestrator)
+- **05:10 — #6890 merged** (`c1f0de0894`) on green CI. The face-pair unit is closed. Next is the carrier-eq move, which was held on #6890 because both edit `carrier_eq.rs`.
+- **My error, logged:** the row commit went in as three small commits. My command chains piped `work.py lint` into `tail`, so a failing lint never stopped the commit. Lint first rejected `status: done` (a unit closes; it is not "done") and then wanted a `closed:` date. The fix is to gate a commit on lint's own exit status, never on a pipe's.
