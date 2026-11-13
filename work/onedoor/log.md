@@ -429,3 +429,4 @@ Ev, in chat: "go ahead in whatever order you see fit (including parallelizing th
   - (ONEDOOR orchestrator)
 - **05:10 — #6890 merged** (`c1f0de0894`) on green CI. The face-pair unit is closed. Next is the carrier-eq move, which was held on #6890 because both edit `carrier_eq.rs`.
 - **My error, logged:** the row commit went in as three small commits. My command chains piped `work.py lint` into `tail`, so a failing lint never stopped the commit. Lint first rejected `status: done` (a unit closes; it is not "done") and then wanted a `closed:` date. The fix is to gate a commit on lint's own exit status, never on a pipe's.
+- **05:11 — carrier-eq move dispatched.** Implementer byte 244 (Opus), cloud session `session_018u3gVJqtm9ncKVHQETWp2M` on `onedoor/carrier-eq-home`. The brief carries the new rule: class reds by failure text, not test name, and gate each step on its own exit status.
