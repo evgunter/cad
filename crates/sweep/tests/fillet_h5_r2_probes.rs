@@ -323,9 +323,10 @@ fn a_finished_pinched_host_refuses_at_the_hostless_gate() {
         assert!(
             matches!(
                 &chamfer,
-                Err(r) if matches!(r.error, BlendError::ChamferArmUnsupported { .. })
+                Err(r) if matches!(&r.error, BlendError::UnsupportedChain { detail, .. }
+                    if detail.contains("host face carries edges outside the requested chain"))
             ),
-            "the chamfer refuses its arm: {chamfer:?}"
+            "the hostless host gate fires on the chamfer's frustum too: {chamfer:?}"
         );
     }
 }

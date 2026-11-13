@@ -335,8 +335,9 @@ fn a_notchs_rounded_floor_run_fillets_whole_adding_pappuss_volume() {
     }
 }
 
-/// **The chamfer does not reach an open mixed chain**: its one arm is
-/// plane–plane, so the arc refuses before any chain is carved.
+/// **The chamfer does not reach an open mixed chain**: its frustum covers
+/// a whole plane–cylinder rim alone, so the arc between the run's lines
+/// refuses before any chain is carved.
 #[test]
 fn an_open_mixed_chain_chamfered_refuses_at_its_arc() {
     let body = l_plate::<f64>();
@@ -344,7 +345,7 @@ fn an_open_mixed_chain_chamfered_refuses_at_its_arc() {
     let got = chamfer_edges(&at_rest(&body, tol()), &run, 0.05, tol()).map_err(|r| r.error);
     assert!(
         matches!(got, Err(BlendError::ChamferArmUnsupported { .. })),
-        "a chamfer has no band over a plane and a cylinder, got {got:?}"
+        "a chamfer has no junction between a strip and a frustum, got {got:?}"
     );
 }
 

@@ -661,11 +661,11 @@ fn the_spine_kind_recourse_names_a_family_for_every_arm() {
             }
         }
 
-        // The strip is the CHAMFER's arm, refused by its own early
-        // return ([`BlendError::ChamferArmUnsupported`]) before any
-        // analytic-arm classification, so no caller reads THIS sentence
-        // about it.
-        if arm == BlendArm::PlanePlaneStrip {
+        // The strip and the frustum are the CHAMFER's arms, refused by
+        // its own early return ([`BlendError::ChamferArmUnsupported`])
+        // before any analytic-arm classification, so no caller reads
+        // THIS sentence about them.
+        if arm.is_chamfer() {
             continue;
         }
 

@@ -196,10 +196,10 @@ fn golden() -> (ProfileDoc, Vec<DocEdit<ProfileProgram>>) {
     //
     // It gets its OWN square prism rather than reusing the bulged
     // block, and the reason is the door rather than tidiness: that
-    // profile carries an ARC, so its barrel is a cylinder; the
-    // chamfer's v1 door is plane-plane, and every closed edge chain on
-    // that body runs into the curved lateral and refuses
-    // `ChamferArmUnsupported`. A four-sided prism with all twelve edges
+    // profile carries an ARC, so its barrel is a cylinder, and its
+    // outline's arc between lines is a chain the chamfer refuses
+    // (`ChamferArmUnsupported`: a strip and a frustum meeting at a
+    // junction is not built). A four-sided prism with all twelve edges
     // requested is accepted by the door, and a golden that froze a
     // refusing node would be the sick-bytes failure #117/#120 named.
     let square = desc(vec![vec![(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)]]);

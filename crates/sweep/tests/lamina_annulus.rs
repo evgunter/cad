@@ -436,17 +436,28 @@ fn a_two_annuli_laminas_outer_and_ring_hosted_rims_carve() {
     }
 }
 
+/// The washer's inner bottom rim is a cylinder meeting a plane square
+/// to its axis, so the chamfer cuts it with a frustum: the triangle
+/// `s²/2` carried round at `1 + s/3`.
 #[test]
-fn a_washer_rim_chamfer_refuses_typed() {
+fn a_washer_rim_chamfers_at_its_frustum_ring() {
     let b = washer();
     let e = rim_arcs_at(&b, 1.0, 0.0);
-    let err = chamfer_edges(&sweep::test_support::at_rest(&b, tol()), &e, 0.2, tol())
-        .expect_err("plane × cylinder")
-        .error;
-    assert!(
-        matches!(err, BlendError::ChamferArmUnsupported { .. }),
-        "{err:?}"
-    );
+    let s = 0.2;
+    let out = chamfer_edges(&sweep::test_support::at_rest(&b, tol()), &e, s, tol())
+        .unwrap_or_else(|r| panic!("plane × cylinder chamfers, got {r:?}"));
+    validate_geometric(&out.body, tol()).expect("tier-3 valid");
+    let v = |x: &Body<f64>| {
+        topo::test_support::pinned_volume(
+            "v",
+            &topo::test_support::finished("v", topo::Body::clone(x), tol()),
+            tol(),
+        )
+        .volume
+    };
+    let want = -PI * s * s * (1.0 + s / 3.0);
+    let got = v(&out.body) - v(&b);
+    assert!((got - want).abs() < 1e-12, "ΔV {got} against {want}");
 }
 
 #[test]

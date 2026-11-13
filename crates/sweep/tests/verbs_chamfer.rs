@@ -68,7 +68,7 @@ fn the_chamfered_cube() {
     assert_eq!(
         out.band_faces.len(),
         0,
-        "a chamfer has no closed-chain band"
+        "a cube has no closed rim, so no closed-rim band"
     );
 
     let counts = euler_counts(&out_body);
@@ -249,21 +249,69 @@ fn one_edge_of_a_cube_is_cut_off_at_its_end_faces() {
     );
 }
 
+/// **A circular prism's two rims chamfer as frustums**: each rim is a
+/// cylinder meeting a cap square to its axis, so its band is the cone
+/// through the two trim circles, and each removes the triangle `D²/2`
+/// carried round at `r − D/3`.
+#[test]
+fn a_circular_prisms_rims_chamfer_as_frustums() {
+    let (r, h) = (0.5, 1.0);
+    let cyl = cylinder(r, h);
+    let rims: Vec<EdgeKey> = query::all_edges(&cyl)
+        .into_iter()
+        .filter(|&e| {
+            let (a, b) = topo::readback::edge_sides(&cyl, e).unwrap().surfaces();
+            a != b
+        })
+        .collect();
+    let out = chamfer_edges(
+        &sweep::test_support::at_rest(&cyl, Tol::witness()),
+        &rims,
+        D,
+        Tol::witness(),
+    )
+    .unwrap_or_else(|e| panic!("the prism's rims chamfer, got {e:?}"));
+    assert_eq!(out.band_faces.len(), 2, "a frustum per rim");
+    for f in &out.band_faces {
+        assert!(
+            matches!(out.body.face_surface(*f), Some(Surface::Cone { .. })),
+            "a frustum band is a cone"
+        );
+    }
+    assert_eq!(
+        topo::validate_geometric(&out.body, Tol::witness()),
+        Ok(()),
+        "tier 3"
+    );
+    let v = |b: &topo::Body<f64>| {
+        topo::test_support::pinned_volume(
+            "v",
+            &topo::test_support::finished("v", topo::Body::clone(b), Tol::witness()),
+            Tol::witness(),
+        )
+        .volume
+    };
+    let want = -2.0 * core::f64::consts::PI * D * D * (r - D / 3.0);
+    let got = v(&out.body) - v(&cyl);
+    assert!((got - want).abs() < 1e-12, "ΔV {got} against {want}");
+}
+
 /// **A curved support refuses through the chamfer's OWN arm table**,
-/// with its own recourse: the missing door is the chamfer over a
+/// with its own recourse: the missing door is the chamfer over that
 /// curved support, not the fillet's canal surface, and the
-/// plane–sphere pair the fillet offers is no alternative here.
+/// plane–sphere pair the fillet offers is no alternative here. The
+/// dome's equator is plane–sphere.
 #[test]
 fn a_curved_support_refuses_with_the_chamfers_own_sentence() {
-    let cyl = cylinder(0.5, 1.0);
-    let edges = query::all_edges(&cyl);
+    let dome = sweep::test_support::dome(1.0, Tol::witness());
+    let edges = query::all_edges(&dome);
     let err = chamfer_edges(
-        &sweep::test_support::at_rest(&cyl, Tol::witness()),
+        &sweep::test_support::at_rest(&dome, Tol::witness()),
         &edges,
         D,
         Tol::witness(),
     )
-    .expect_err("a plane–cylinder rim has no ruled strip");
+    .expect_err("a plane–sphere rim has no chamfer band");
     assert!(
         matches!(err.error, BlendError::ChamferArmUnsupported { .. }),
         "the arm table is what refused: {err:?}"

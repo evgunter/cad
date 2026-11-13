@@ -1,6 +1,8 @@
-//! **Plane–plane chamfers** — the fillet's ruled sibling: replace each
-//! requested edge's neighbourhood with a flat strip at equal setback
-//! along both supports, and truncate each corner with a flat patch.
+//! **Chamfers** — the fillet's ruled sibling: replace each requested
+//! edge's neighbourhood with a band at equal setback along both
+//! supports — a flat strip over two planes, a cone frustum over a
+//! circle where a cylinder meets a plane square to its axis — and
+//! truncate each corner with a flat patch.
 //!
 //! # What is new here, and what is not
 //!
@@ -13,8 +15,10 @@
 //!
 //! 1. **The arm table** ([`crate::blend::battery::run_battery_for`]):
 //!    plane–plane resolves to [`crate::blend::arms::chamfer_strip`]
-//!    instead of the rolling-ball cylinder, and every other support
-//!    pair refuses [`crate::blend::BlendError::ChamferArmUnsupported`].
+//!    instead of the rolling-ball cylinder, a cylinder meeting a plane
+//!    in a circle about its axis to [`crate::blend::arms::chamfer_frustum`]
+//!    instead of the rolling-ball torus, and every other support pair
+//!    refuses [`crate::blend::BlendError::ChamferArmUnsupported`].
 //! 2. **Which predicates are questions.** C8's six are the fillet's;
 //!    two of them (radius-vs-curvature headroom, spine regularity) are
 //!    facts about a rolling BALL, and a ruled strip has neither
@@ -31,12 +35,16 @@
 //!
 //! # Scope, and what refuses
 //!
-//! **Plane–plane support pairs only**, and open chains terminating at
+//! **Plane–plane support pairs**, in open chains terminating at
 //! trivalent corners whose three edges are all requested (the corner
 //! patch), two of whose edges are, the bands' feet on the third meeting
 //! at equal or supplementary face angles beside it (the mitre), or that the chain's edge alone reaches (the cut-off, at
 //! any plane end face) — the same door the fillet's blank phase
-//! carves, since it is the same carve.
+//! carves, since it is the same carve. **A whole rim where a cylinder
+//! meets a plane square to its axis** — a bore's mouth, a boss's top or
+//! foot, a counterbore's step — carved by the fillet's closed-rim walks
+//! (the ladder, the seam-split and the one-edge annulus), the frustum in
+//! the torus's place.
 //!
 //! **Either side of the material.** A chain of concave edges ending at
 //! all-concave trihedra carves exactly as a convex one does, because
@@ -48,14 +56,15 @@
 //! with another of its edges, which is the mixed corner's own rule
 //! rather than the convexity one.
 //!
-//! Everything else refuses typed and names itself: a curved support
-//! ([`crate::blend::BlendError::ChamferArmUnsupported`] — the chamfer over curved
-//! supports is VERBS-ARMS' machinery), a corner whose CONFIGURATION is
-//! out of scope ([`crate::blend::BlendError::UnsupportedCorner`] with the
-//! OQ6 corner tags), a request that does not cover a supported
-//! corner's other edges ([`crate::blend::BlendError::UnsupportedRunOut`]), and a
-//! CLOSED chain, which has no ruled ring
-//! ([`crate::blend::BlendError::UnsupportedChain`]).
+//! Everything else refuses typed and names itself: another curved
+//! support, or a frustum's arc inside a chain over other supports, whose
+//! strip and frustum would meet at a junction
+//! ([`crate::blend::BlendError::ChamferArmUnsupported`]), a corner whose
+//! CONFIGURATION is out of scope
+//! ([`crate::blend::BlendError::UnsupportedCorner`] with the OQ6 corner
+//! tags), a request that does not cover a supported corner's other edges
+//! ([`crate::blend::BlendError::UnsupportedRunOut`]), and a closed chain
+//! on several support pairs ([`crate::blend::BlendError::UnsupportedChain`]).
 //!
 //! The symmetric setback is the whole parameter surface at v1. A
 //! distance–distance or distance–angle chamfer is a widening of this
@@ -64,13 +73,16 @@
 //!
 //! # Convexity, deliberately absent from the geometry
 //!
-//! The chamfer's strip and corner patch carry **no convexity
+//! The chamfer's strip, frustum and corner patch carry **no convexity
 //! parameter at all**. A trimline's in-plane direction is read off the
 //! half-edge traversal (the interior-left convention), and both bands'
 //! chart normals are minted as explicit positive combinations of the
 //! supports' stored OUTWARD normals — so both are outward on a concave
 //! edge exactly as on a convex one, and both faces mint with sense
-//! `true` as a derivation rather than an assumption. Convexity enters
+//! `true` as a derivation rather than an assumption. The frustum is the
+//! cone's own chart, radially outward, and its sense bit is derived from
+//! that same positive combination
+//! ([`crate::blend::arms::frustum_sense`]). Convexity enters
 //! the chamfer only where it is a question about the REQUEST: the
 //! battery's sign-constancy predicate, which asks that a chain not
 //! change sides partway.

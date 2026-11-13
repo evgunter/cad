@@ -843,9 +843,10 @@ fn two_discs_kissing_externally_touch_at_every_op() {
 
 /// **The chamfer refuses the cusp strut typed, and the fillet builds
 /// it** — on the lune's cusp (wedge 0) and on a lune-shaped hole's slit
-/// (wedge 2π) alike. The supports meet tangentially: the chamfer's one
-/// arm is plane–plane, so the kiss meets its refusal for a pair that
-/// arm does not cover (`ChamferArmUnsupported`), and the fillet's ball
+/// (wedge 2π) alike. The supports meet tangentially: the chamfer's arms
+/// are plane–plane and a cylinder meeting a plane in a circle, so the
+/// kiss meets its refusal for a pair its arms do not cover
+/// (`ChamferArmUnsupported`), and the fillet's ball
 /// rests in the
 /// crescent away from the edge, which builds tier-3 valid
 /// (`a_knife_edge_fillet_builds_where_its_ball_is_defined` checks its

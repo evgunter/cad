@@ -1239,28 +1239,48 @@ fn circular_reach<T: Decide + Bounds>(
     chain: usize,
     band: Band,
 ) -> Result<Vec<Stretch<T>>, BlendError> {
-    let Surface::Torus {
-        center,
-        axis,
-        major_radius,
-        minor_radius,
-        ..
-    } = link.blend.surface
-    else {
-        return Err(disagrees(
-            EntityId::Edge(link.edge),
-            "a circular spine's band is not a torus",
-        ));
+    // The band's axis, the circle its cross-section revolves about (the
+    // spine, or a frustum's rim), and how far the cross-section reaches
+    // from that circle.
+    let (center, axis, big, reach) = match link.blend.surface {
+        Surface::Torus {
+            center,
+            axis,
+            major_radius,
+            ..
+        } => {
+            let (c, _) = st.c.ok_or_else(|| {
+                disagrees(EntityId::Edge(link.edge), "a torus band's spine point")
+            })?;
+            (center, axis, major_radius, (st.p - c).norm())
+        }
+        Surface::Cone { apex, axis, .. } => {
+            let level = geom::Line {
+                origin: apex,
+                dir: axis,
+            }
+            .foot(st.p);
+            (
+                level,
+                axis,
+                (st.p - level).norm(),
+                (st.fa - st.p).norm().max((st.fb - st.p).norm()),
+            )
+        }
+        _ => {
+            return Err(disagrees(
+                EntityId::Edge(link.edge),
+                "a circular link's band is neither a torus nor a cone",
+            ));
+        }
     };
     let meridian @ geom::Line { dir: a, .. } = canonical_axis(geom::Line {
         origin: center,
         dir: axis,
     });
-    let (c, _) =
-        st.c.ok_or_else(|| disagrees(EntityId::Edge(link.edge), "a torus band's spine point"))?;
-    let reach = (st.p - c).norm();
-    // A torus about its own axis: `big + reach` across, `reach` along.
-    let ext = |p: T, q: T| major_radius * (p.powi(2) + q.powi(2)).sqrt() + reach;
+    // A band of revolution about its own axis: `big + reach` across,
+    // `reach` along.
+    let ext = |p: T, q: T| big * (p.powi(2) + q.powi(2)).sqrt() + reach;
     let e = Vec3::new(ext(a.y, a.z), ext(a.z, a.x), ext(a.x, a.y));
     let (lo, hi) = (center - e, center + e);
     let sheet = |x: Point3<T>| sheet_of(meridian, x);
@@ -1283,36 +1303,62 @@ fn circular_reach<T: Decide + Bounds>(
             sides.push(surface_key(body, f)?);
         }
     }
-    // The sector, on P's side.
-    let (pc, ps) = (sheet(c), sheet(st.p));
-    for f in [st.fa, st.fb] {
-        let pf = sheet(f);
-        let u = (pf.0 - pc.0, pf.1 - pc.1);
-        let v = (ps.0 - pc.0, ps.1 - pc.1);
-        let k = (v.0 * u.0 + v.1 * u.1) / (u.0.powi(2) + u.1.powi(2));
-        let w = (v.0 - u.0 * k, v.1 - u.1 * k);
-        let len = (w.0.powi(2) + w.1.powi(2)).sqrt();
-        let (alpha, beta) = (-w.0 / len, -w.1 / len);
-        let line = SheetFn::Line {
-            alpha,
-            beta,
-            gamma: -(alpha * pc.0 + beta * pc.1),
-        };
-        bounds.push((Role::Other, in_sheet(line, T::zero())));
-    }
-    // Outside the ball, inside the disk through P.
-    let zc = sheet(center).1;
-    for (role, r, sigma) in [
-        (Role::Band, minor_radius, -T::one()),
-        (Role::Disk, reach, T::one()),
-    ] {
-        let circle = SheetFn::Circle {
-            p: major_radius,
-            q: zc,
-            r,
-            sigma,
-        };
-        bounds.push((role, in_sheet(circle, T::zero())));
+    let ps = sheet(st.p);
+    match (link.blend.surface.clone(), st.c) {
+        (
+            Surface::Torus {
+                major_radius,
+                minor_radius,
+                ..
+            },
+            Some((c, _)),
+        ) => {
+            // The sector, on P's side.
+            let pc = sheet(c);
+            for f in [st.fa, st.fb] {
+                let pf = sheet(f);
+                let u = (pf.0 - pc.0, pf.1 - pc.1);
+                let v = (ps.0 - pc.0, ps.1 - pc.1);
+                let k = (v.0 * u.0 + v.1 * u.1) / (u.0.powi(2) + u.1.powi(2));
+                let w = (v.0 - u.0 * k, v.1 - u.1 * k);
+                let len = (w.0.powi(2) + w.1.powi(2)).sqrt();
+                let (alpha, beta) = (-w.0 / len, -w.1 / len);
+                let line = SheetFn::Line {
+                    alpha,
+                    beta,
+                    gamma: -(alpha * pc.0 + beta * pc.1),
+                };
+                bounds.push((Role::Other, in_sheet(line, T::zero())));
+            }
+            // Outside the ball, inside the disk through P.
+            let zc = sheet(center).1;
+            for (role, r, sigma) in [
+                (Role::Band, minor_radius, -T::one()),
+                (Role::Disk, reach, T::one()),
+            ] {
+                let circle = SheetFn::Circle {
+                    p: major_radius,
+                    q: zc,
+                    r,
+                    sigma,
+                };
+                bounds.push((role, in_sheet(circle, T::zero())));
+            }
+        }
+        // A frustum's cross-section is the triangle of the rim and its two
+        // feet: the supports above, and the generator's line on P's side.
+        _ => {
+            let (pa, pb) = (sheet(st.fa), sheet(st.fb));
+            let (dr, dz) = (pb.0 - pa.0, pb.1 - pa.1);
+            let len = (dr.powi(2) + dz.powi(2)).sqrt();
+            let line = SheetFn::Line {
+                alpha: -dz / len,
+                beta: dr / len,
+                gamma: (dz * pa.0 - dr * pa.1) / len,
+            };
+            let at = line.at(ps.0, ps.1);
+            bounds.push((Role::Band, in_sheet(line.scaled(-sign(at)), T::zero())));
+        }
     }
     // An arc running between two sections of a mixed chain is taken over
     // its own window: one wedge per piece of it, each the half-spaces
@@ -2437,7 +2483,7 @@ pub(crate) fn band_reach<T: Decide + Bounds>(
     }
     for (ci, link) in &all {
         let st = station(body, link)?;
-        let pieces = if link.arm.is_coaxial_torus() {
+        let pieces = if link.arm.is_coaxial() {
             circular_reach(body, link, &st, (&ends_all, &sections), *ci, band)?
         } else {
             vec![straight_reach(

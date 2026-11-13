@@ -1294,8 +1294,7 @@ pub const FILLET3_CORNER_INDEPENDENCE_RECOURSE: &str = "tilt the faces meeting a
 /// and concave, so neither half can drift alone.
 pub const FILLET3_SEAM_VERTEX_RECOURSE: &str = "request the rim whole, every arc the seam split it into (the rim query, `rim_of`, \
      lists them from any one arc), rather than stopping at the seam, a chart artifact; a \
-     fillet carves it as one band on either material side (a chamfer has no closed-chain \
-     band)";
+     fillet or a plane\u{2013}cylinder chamfer carves it as one band on either material side";
 /// The recourse for a CHAIN whose shape is outside the front door of
 /// the in-place composition surgery. True of exactly the chain-shape
 /// refusals: what remains outside is junction carry-through (save
@@ -1320,11 +1319,11 @@ pub const FILLET3_SEAM_VERTEX_RECOURSE: &str = "request the rim whole, every arc
 /// `work/blend/blend-recourses-under-describe-their-doors.md` closed
 /// on, swept across all three sentences that carried it.
 ///
-/// ONE clause is conditioned by verb, because it names a door one
-/// verb has and the other does not: the closed chain is the fillet's
-/// alone (a chamfer has no closed-chain band, so telling a chamfer
-/// caller to request a plane\u{2013}sphere rim would name a door that
-/// cannot serve them). NEITHER clause conditions on side: both bands,
+/// ONE clause is conditioned by verb, because it names a door whose
+/// extent differs between the verbs: a fillet carves the whole latitude
+/// rim of any coaxial revolution pair, a chamfer only a plane's with a
+/// cylinder (telling a chamfer caller to request a plane\u{2013}sphere
+/// rim would name a door that cannot serve them). NEITHER clause conditions on side: both bands,
 /// both corner patches and the closed-rim band all fold the chain's
 /// stored convexity verdict, and a concave rim's band adds material
 /// through the same carve that removes a convex rim's.
@@ -1351,7 +1350,7 @@ pub const FILLET3_SEAM_VERTEX_RECOURSE: &str = "request the rim whole, every arc
 /// `blend_recourse_followability` follows the clause to a carve.
 pub const FILLET3_ASSEMBLY_RECOURSE: &str = "blend chains whose links share both faces, ending at trivalent \
      plane\u{2013}plane vertices of one convexity, or single cylinder-ruling links at TRANSVERSE \
-     CAPS. For a fillet, a whole latitude rim of coaxial surfaces of revolution carves, its rings \
+     CAPS. For a fillet or a plane\u{2013}cylinder chamfer, a whole latitude rim carves, its rings \
      clear of the band's setback; junction carry-through and the other run-outs are not \
      implemented";
 /// The recourse for a stored geometry the surgery's closed forms do
@@ -1451,13 +1450,15 @@ pub const FILLET3_INSIDE_RECOURSE: &str = "delete the feature, which the band's 
 pub const FILLET3_SPINE_KIND_RECOURSE: &str = "use plane, sphere, cylinder or cone supports; they must be coaxial surfaces of \
      revolution sharing a rim, or planes or cylinders sharing a ruling; other pairs \
      need the canal-surface approximating blend (not implemented)";
-/// The recourse for a CHAMFER over a support pair its one arm does not
-/// cover. Its own sentence rather than the fillet's: the chamfer's
-/// missing door is the curved-support strip, not the canal surface,
-/// and the plane–sphere pair the fillet offers is not an alternative
-/// here.
-pub const CHAMFER_ARM_RECOURSE: &str = "chamfer edges whose two supports are both planes; the chamfer over a curved \
-     support is not implemented";
+/// The recourse for a CHAMFER over a support pair its arms do not
+/// cover, or over an arc its frustum arm covers inside a chain of other
+/// links. Its own sentence rather than the fillet's: the chamfer's
+/// missing door is its band over other curved supports and its junction
+/// between a strip and a frustum, not the canal surface, and the
+/// plane–sphere pair the fillet offers is not an alternative here.
+pub const CHAMFER_ARM_RECOURSE: &str = "chamfer edges whose two supports are both planes, or a whole rim where a \
+     cylinder meets a plane square to its axis; the chamfer over other curved supports, or \
+     over an arc in a chain of lines and arcs, is not implemented";
 
 /// **How the body failed to hold together** where a
 /// [`BlendError::BodyNotIntact`] read it, rendered by kind so the
@@ -1614,9 +1615,10 @@ pub enum BlendError {
     /// two touching tubes, centre at `R + r` from both axes). It refuses
     /// only where that crossing does not exist ([`KnifeRefusal::NoRoom`]),
     /// or where the faces never open at all ([`KnifeRefusal::NeverOpens`]).
-    /// The chamfer does not reach this refusal: its one arm is
-    /// plane–plane, so a knife meets [`BlendError::ChamferArmUnsupported`]
-    /// as every curved pair does.
+    /// The chamfer does not reach this refusal: its arms are plane–plane
+    /// and a cylinder meeting a plane in a circle, neither a knife's pair,
+    /// so a knife meets [`BlendError::ChamferArmUnsupported`] as every
+    /// other curved pair does.
     /// (Zero with the normals aligned is the smooth seam, which the verb
     /// leaves as it is.) Distinct from [`BlendError::ConvexitySignFlip`]:
     /// a knife does not disagree with the chain's convexity — its side
@@ -1750,9 +1752,11 @@ pub enum BlendError {
         /// The support pair, as text (the honest blocker).
         supports: &'static str,
     },
-    /// **The CHAMFER's arm table**: the link's support pair is not
-    /// plane–plane, which is the one pair the ruled strip is built
-    /// over. Its own variant rather than
+    /// **The CHAMFER's arm table**: the link's support pair is neither
+    /// plane–plane, the strip's pair, nor a cylinder meeting a plane in
+    /// a circle about its axis, the frustum's — or it is the frustum's,
+    /// on an arc inside a chain of links over other supports, where the
+    /// two bands would meet at a junction that is not built. Its own variant rather than
     /// [`BlendError::SpineUnsupported`] because the two name
     /// different missing doors — a chamfer over a curved support is
     /// VERBS-ARMS' machinery, not the canal-surface approximating
@@ -2247,7 +2251,7 @@ impl BlendError {
             ),
             Self::ChamferArmUnsupported { supports, .. } => write!(
                 f,
-                "an edge's support pair has no chamfer strip ({supports}). Recourse: \
+                "an edge's support pair has no chamfer band ({supports}). Recourse: \
                  {CHAMFER_ARM_RECOURSE}"
             ),
             // The payload view, without the shared coincidence tail: no

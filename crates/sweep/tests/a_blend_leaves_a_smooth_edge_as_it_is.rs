@@ -52,8 +52,8 @@ fn all_edges(body: &Body<f64>) -> Vec<EdgeKey> {
 /// bore's two struts (straight cut edges between its two half-cylinder
 /// faces, a wedge of exactly π) are left as they are, silently, and the
 /// rest — the block's twelve convex edges and the two bore rims — is
-/// filleted. The chamfer leaves the struts too, and refuses at a rim,
-/// whose cylinder support it has no strip for.
+/// filleted. The chamfer leaves the struts too, and chamfers the rest
+/// the same way: twelve strips and a frustum on each rim.
 #[test]
 fn a_two_arc_bore_with_every_edge_requested_rounds_and_leaves_its_struts() {
     let body = bored_block_of_arcs(2, 0.06, 0.005, 0.003, tol());
@@ -78,13 +78,19 @@ fn a_two_arc_bore_with_every_edge_requested_rounds_and_leaves_its_struts() {
     assert_eq!(out.band_faces.len(), 2, "and both bore rims");
     topo::validate_geometric(&out.body, tol())
         .unwrap_or_else(|e| panic!("the fillet carves tier-3 valid, got {e:?}"));
-    match chamfer_edges(&operand, &all, 0.001, tol()).map_err(|r| r.error) {
-        Err(BlendError::ChamferArmUnsupported { edge, .. }) => assert!(
-            !struts.contains(&edge),
-            "the chamfer refuses at a rim, never at a strut it leaves"
-        ),
-        other => panic!("the chamfer refuses its curved rims, got {other:?}"),
-    }
+    let chamfered = chamfer_edges(&operand, &all, 0.001, tol()).unwrap_or_else(|e| {
+        panic!(
+            "the chamfer of every edge refused: {e_at}",
+            e_at = e.render(geom_brep::recourse::Reading::Build)
+        )
+    });
+    assert_eq!(
+        (chamfered.blend_faces.len(), chamfered.band_faces.len()),
+        (12, 2),
+        "the chamfer strips the block's twelve edges and both bore rims"
+    );
+    topo::validate_geometric(&chamfered.body, tol())
+        .unwrap_or_else(|e| panic!("the chamfer carves tier-3 valid, got {e:?}"));
 }
 
 /// **A body every edge of which is smooth comes back as it is**: a ball
