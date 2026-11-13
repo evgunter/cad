@@ -75,7 +75,7 @@ use geom_brep::LeverBounds;
 #[cfg(test)]
 use geom_brep::enters_material;
 use geom_brep::ladder::{Answering, Climb, Rung, climb, climb_agreeing};
-use geom_brep::{EntersMaterial, OutwardNormal};
+use geom_brep::{EntersMaterial, OutwardNormal, PlaneDesc};
 use geom_core::NonzeroSign;
 use geom_core::{Band, Decide, Decided, Lever, Margin, Point3, Sign, Vec3};
 
@@ -1780,7 +1780,7 @@ fn on_planar_face<T: Decide>(
     p: Point3<T>,
     band: Band,
 ) -> Result<PlaneRead, BooleanError> {
-    let Some((origin, normal)) = crate::face_normal::face_plane(body, face) else {
+    let Some(PlaneDesc { origin, normal }) = crate::face_normal::face_plane(body, face) else {
         return Ok(PlaneRead::NotPlane);
     };
     let height = Margin::of(geom::plane_offset(origin, normal, p));
@@ -1803,7 +1803,7 @@ fn in_trim<T: Decide>(
     band: Band,
 ) -> Result<Option<PlaneRead>, BooleanError> {
     match crate::face_normal::face_plane(body, face) {
-        Some((_, normal)) => trim_read(body, face, normal, p, band).map(Some),
+        Some(plane) => trim_read(body, face, plane.normal, p, band).map(Some),
         None => Ok(None),
     }
 }

@@ -1094,8 +1094,9 @@ fn stands_on<T: Decide>(
     // A ∖ B reads B's complement, whose faces face the other way.
     let flips = red.op == super::BooleanOp::Subtract;
     let desync = |what| BooleanError::JoinDesync { what };
-    let plane =
-        |body: &Body<T>, face: FaceKey| crate::face_normal::face_plane(body, face).map(|(_, n)| n);
+    let plane = |body: &Body<T>, face: FaceKey| {
+        crate::face_normal::face_plane(body, face).map(|p| p.normal)
+    };
     let Some(n_f) = plane(y, f) else {
         return Ok(false);
     };

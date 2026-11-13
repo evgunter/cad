@@ -281,7 +281,7 @@ fn aim_at<T: Decide>(
     geo: &FaceGeo<T>,
     band: Band,
 ) -> Result<Option<Aim<T>>, PointInSolidError> {
-    if let Some((_, normal)) = crate::face_normal::face_plane(body, face) {
+    if let Some(geom_brep::PlaneDesc { normal, .. }) = crate::face_normal::face_plane(body, face) {
         if let Some(aim) = loop_aim(body, face, normal) {
             return Ok(Some((aim, normal)));
         }
