@@ -916,11 +916,12 @@ pub enum CornerConfig {
     /// `convex` saying how it was read.
     ///
     /// The ODD edge is the one whose convexity differs from the other
-    /// two. One requested edge there is cut off and the other two alone
-    /// meet in the mitre, so this tag is minted where the odd edge is
-    /// requested together with another edge of the corner, all three
-    /// included: that wants the mixed corner's own rule, the odd band
-    /// cut off and the other two carried through, which is not built.
+    /// two. One requested edge there is cut off, the other two alone
+    /// meet in the mitre, and all three build the mixed corner between
+    /// plane faces where the face the two share is square to the odd
+    /// edge; this tag is minted where the odd edge is requested with one
+    /// other edge of the corner, or all three are where a link is curved
+    /// or the chamfer's shared face leans.
     /// Only `1` and `2` are minted. `0` and `3` are the UNIFORM
     /// trihedra, which both verbs carve (`3` is
     /// [`Self::ThreeConvexEdges`]; the all-concave corner has no tag,
@@ -1224,14 +1225,19 @@ pub const FILLET3_CORNER_RECOURSE: &str = "end the blend at a flat-faced corner,
      blending all three edges where they round alike, two that round alike meeting on the third \
      or clearly apart, or one ending at a flat face, requesting its whole smooth run, in one \
      operation";
-/// The recourse at a mixed-convexity corner whose odd edge is requested
-/// with another of its edges ([`CornerConfig::MixedConvexity`]). It
-/// names the two requests there that build, one edge alone (the
-/// cut-off) and the two edges that round alike (the mitre), and says
-/// the rule the refused request wants is not built.
-pub const FILLET3_MIXED_CORNER_RECOURSE: &str = "blend one of this corner's edges, or the two \
-     that round alike; the edge that rounds the other way, blended with another, wants the mixed \
-     corner's own rule (its band cut off, the other two carried through), not built yet";
+/// The recourse at a mixed-convexity corner requested in a way that does
+/// not build ([`CornerConfig::MixedConvexity`]). It names the three
+/// requests there that build, one edge alone (the cut-off), the two
+/// edges that round alike (the mitre) and all three between flat faces
+/// square at the corner (the mixed corner), and says why the odd edge
+/// with one other refuses: the fillet's (a rounded band) for good, its
+/// partner's band having to stop where its edge runs smoothly into the
+/// cut-off arc, and the chamfer's (a flat one) until its rule is built.
+/// It names neither verb, being the shared arm both doors render.
+pub const FILLET3_MIXED_CORNER_RECOURSE: &str = "blend one edge, the two that round alike, or \
+     all three where the faces are flat and the face the two share is square to the third; the \
+     edge that rounds the other way, with one other, cannot round (a band would stop mid-run) nor \
+     yet bevel";
 /// The lever of a turn's two readings (`fillet3_turn_feet_gap`,
 /// `fillet3_turn_overrun_chord`, and their straddle
 /// `fillet3_turn_feet`): in band, the two bands' feet on the third

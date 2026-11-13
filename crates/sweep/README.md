@@ -589,6 +589,43 @@ and the other two alone end as below.
   which it removes past a convex pair and fills past a concave one
   (`band_mixed_vertex`).
 
+**A mixed corner with all three edges requested** — the odd edge the
+one whose convexity differs, the pair the other two, `E` the face the
+odd edge does not lie in — cuts the odd band off in `E` and runs the
+pair on through a link resting on `E` and on the odd band: a fillet's
+torus about the odd band's axis, centred `r` off `E`, major radius
+`2r`; a chamfer's strip mitred onto the pair's strips. The rule fixes
+that geometry, not a carve order, so it is carved as a corner station
+in the one pass: the link is the corner's patch, on each face the odd
+edge lies in its foot is where that face's two trimlines cross, and on
+`E` each pair band's trimline ends at its own foot, the link's arc on
+`E` running between the two, so `E` takes two struts and that arc and
+the fusion four struts. The patch meets each band along that band's
+section, a row of both charts. It builds where every link is
+plane–plane and `E` is square to the odd edge (`cap_transverse`'s
+circle); an oblique `E` refuses, the fillet `SpineUnsupported` (its
+link would be a canal surface) and the chamfer
+`UnsupportedCorner { MixedConvexity }`
+(`work/band/an-all-three-mixed-corner-chamfer-at-an-oblique-shared-face-refuses.md`),
+as does a curved link at the corner. Each link's feet at the corner are
+metered in order against its other end's along its trimlines, as a
+junction's are (`junction::feet_clear`): a pair edge too short for the
+corner's feet and a turn's at its far end refuses there. An odd edge
+shorter than the size is refused before that by the support screen
+(`FaceClearanceUncertified`), the pair's trimlines standing `r` up the
+faces it lies in. The reach meters the corner as a uniform corner's
+(`reach::corner_reach`), so a short edge or a face near the corner
+refuses `FaceClearance` where the corner would clear: a chamfer of `0.1`
+with its odd edge `0.25` long, the bracket's fillet from `r = 0.149`
+(`work/band/the-reach-meters-a-mixed-corner-as-a-uniform-one-and-refuses-short-edges.md`).
+The bracket of the row, a plate with a boss flush with one side,
+fillets all round, and without its bore chamfers all round, each at its
+closed form (`band_mixed_corner`). Naming: the patch is `CornerFace { vertex }`,
+the three sections `EndArc { vertex, edge }`, the feet on the odd
+edge's faces `FootVertex`, the arc on `E` `TrimEdge` of the odd edge on
+`E`, and the two feet on `E` `HostFoot { vertex, edge }`, keyed by the
+pair edge whose band ends there.
+
 Chain G1 (predicate 4) is a classifier at a junction of two plane–plane
 links: Zero, one band through a joint; definite, two chain ends at a
 turn; sliver, escalated. Tangency is what lets one band run through a
@@ -750,9 +787,10 @@ face (a short near edge at an obtuse shared-face angle, which refuses
 where the overrun itself fits); an end vertex of valence other than
 three. A vertex whose three edges do not round
 one way refuses `UnsupportedCorner { MixedConvexity }` where the request
-names its odd edge together with another of its edges, all three
-included: that wants the mixed corner's own rule, the odd band cut off
-and the other two carried through, which is not built.
+names its odd edge together with one other of its edges. The fillet
+refuses there for good: the other edge's band would have to stop where
+that edge runs smoothly into the odd band's cut-off arc. The chamfer,
+the other strip cut off in the odd strip's plane, is not built.
 
 Naming: the cut-off curve is `EndArc { vertex, edge }` and the feet
 `FootVertex { vertex, support }`, as the ruled cut-off names them; the
