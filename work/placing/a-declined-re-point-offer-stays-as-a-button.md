@@ -2,11 +2,12 @@
 id: a-declined-re-point-offer-stays-as-a-button
 kind: issue
 title: The re-point offer is derived from the document, so a declined offer stays as a button for as long as the body's placements read the body
-status: open
+status: spec
 opened: 2026-11-08
 priority: P2
 cost: M
 design: true
+branch: placing/declined-offer
 ---
 
 
