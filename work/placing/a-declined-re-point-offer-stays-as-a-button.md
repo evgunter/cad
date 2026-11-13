@@ -8,6 +8,7 @@ priority: P2
 cost: M
 design: true
 branch: placing/declined-offer
+pr: 6915
 ---
 
 
