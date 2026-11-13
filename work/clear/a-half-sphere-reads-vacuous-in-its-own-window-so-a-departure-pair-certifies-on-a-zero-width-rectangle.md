@@ -6,6 +6,7 @@ status: open
 opened: 2026-11-13
 priority: P0
 cost: M
+blocked_on: [three-walks-of-a-loops-chart-images-each-claim-to-be-the-one]
 ---
 
 
@@ -150,3 +151,45 @@ whose lift resets? The options are below; the rows do not settle it.
   of refusing every reset loop. Only the freshly revolved ball's `1v1`
   carries a row off its sheet: its `u = 0` seam meridian, where the
   sheet needs `u = 2π`.
+
+## Already ruled (Ev, PR 6851): the lift has no reset (CLEAR orchestrator, 2026-11-13)
+
+The question the trace stopped on, how the extent reads a loop whose
+lift resets at a pole or an apex, is settled. Ev approved fork row 262
+on PR 6851: a loop's position is its lift, `decide_joint` is the one
+decision, and "i don't want to keep reset". At a pole, the joint
+stores the pole rule's decided face-side element, and
+`JointElement::Reset` retires. So a loop's lift is the face's own
+boundary, and `extent_of`'s hull of the lifted rows is on the face's
+sheet. That is the trace's option 2. No new fork is needed.
+
+ONEDOOR implements it: `work/onedoor/three-walks-of-a-loops-chart-images-each-claim-to-be-the-one.md`,
+PR 6900 ("loop lift: one decision for a loop's chart lift, with no
+reset"). This row waits on it.
+
+**Once it lands:**
+1. Re-run the trace on the ball. `1v1`'s extent should read
+   `[π, 2π]`.
+2. Build the row's guard. A face's own clips leaving an axis no width
+   is a contradiction, and refuses `Local`.
+3. Re-check each `Vacuous` path the sweep marked a hit or suspect:
+   - `Sheets::Missed`;
+   - `vacuous()`;
+   - the two slivers;
+   - `present_plane_corner`'s sliver.
+4. Pin and mutant as the row says.
+
+If the extent is still off its sheet after the lift lands, that is a
+finding against the lift unit, and goes on its row.
+
+**Interim:** no wrong verdict is known. The only measured off-sheet
+row is the freshly revolved ball's seam meridian, and that body is
+embedded. A sound stopgap exists (the trace's option 1: `u` unknown
+for a face with a vertex at a pole or apex), but it refuses three
+holding pins, among them PR 6892's and PR 6894's. It is not taken,
+because the lift fix is in flight.
+
+**The sliver and the band clause.** The sliver reads a strip inside
+the band as holding nothing, while DESIGN's finished-body clause says
+a reading inside the band refuses as ambiguous. Filed separately
+(`the-sliver-concession-reads-inside-the-band-against-the-finished-body-clause`).
