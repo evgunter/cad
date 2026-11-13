@@ -16,3 +16,7 @@ Found by the face-pair unit's sweep (`face-pair-contact-pairing-has-four-spellin
 - `sectors.rs` `tangent_lump`, its exact-zero osculating residue (`tangent_lump_senses`): a tangent sector's outward normal against a reference normal, read to pick the `PlaneRelation`.
 
 Wanted: for each, find the reading that already decided the pair parallel or one carrier, and read the facing off it, as the face-pair unit did. Where none exists, read through `geom_brep::gradient_alignment`, which returns `Perpendicular` only past a lever decided positive. Not executed; the four were found by reading.
+
+Found by the fix pass's wider sweep, outside the boolean (same question, its own spelling):
+
+- `topo/src/shell.rs` (the walls-facing scan before `moved_walls_cross`): `shell_walls_antiparallel_cosine` decides `−(n_a·n_b) − 1` zero, a cosine against the length band with no lever, beside `shell_walls_antiparallel`, which levers the chord `|n_a + n_b|` by the pair's extent. Whether two parallel planes face each other is the face-pair door's question (`geom_brep::carrier_pose`'s `PlanePair::facing`, its parallelism `directions_parallel`), there decided over the faces' arm.

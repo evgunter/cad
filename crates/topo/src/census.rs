@@ -2210,7 +2210,7 @@ enum PairContact<T: Real> {
     Line(Vec3<T>),
 }
 
-/// What a declared pair's carriers are, read once for the pair
+/// What a declared pair's carriers are, read over both faces
 /// ([`crate::boolean::carrier_pair_relation`], over both faces).
 enum OneCarrier {
     /// One carrier, the two faces' materials on one side of it where
@@ -5426,7 +5426,7 @@ enum CrossingBacking {
 ///    opposite sides of it: the pair's carrier relation
 ///    ([`crate::boolean::carrier_pair_relation`]) reads
 ///    `SameOpposite`, the reading the confirm pass reads the same pair
-///    by ([`pair_contact`]), decided once over both faces. `SameOriented`
+///    by ([`pair_contact`]), read over both faces. `SameOriented`
 ///    is [`CrossingSideVerdict::SameSide`], and two distinct planes
 ///    answer for nothing; and
 /// 3. the pair itself is CONFIRMED ([`Declared::confirmed`]): a record
@@ -5498,8 +5498,8 @@ fn ee_cross_backed<T: Decide>(
         {
             continue; // the pair's carrier does not hold the crossing
         }
-        // The pair's own carrier relation, decided once for the pair over
-        // both faces, as the confirm pass reads it ([`pair_contact`]):
+        // The pair's own carrier relation, read over both faces, as the
+        // confirm pass reads it ([`pair_contact`]):
         // the edge screen reads points against each plane, and this the
         // planes against each other. Two edges can run within the zero
         // band of two transverse planes where both hug the planes' common

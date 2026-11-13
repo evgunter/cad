@@ -321,9 +321,9 @@ fn tilted_press(
 /// the identity, and the quieting rule decides its axes through the
 /// funnel.** Turned and moved, the bore's and the pin's axes agree only
 /// to rounding, so whether they are parallel is a decision at the band
-/// (`carrier_cyl_axis_parallel`, the gap's pose), not an exact
+/// (`carrier_pose_axes_parallel`, the gap's pose), not an exact
 /// comparison, and so is whether the pin lies inside the bore
-/// (`gap_round_side`). The bore and the pin are opposed, so the gap reads
+/// (`carrier_pose_round_side`). The bore and the pin are opposed, so the gap reads
 /// −0.005 in either role order, and `Gap ≤ −0.001` holds and quiets it at
 /// both poses, the bore first or the pin.
 ///
@@ -366,8 +366,8 @@ fn a_tilted_press_fit_is_quiet_and_its_axes_are_decided_in_band() {
             );
             if quiets {
                 for (site, sign) in [
-                    ("carrier_cyl_axis_parallel", geom_core::Sign::Zero),
-                    ("gap_round_side", geom_core::Sign::Negative),
+                    ("carrier_pose_axes_parallel", geom_core::Sign::Zero),
+                    ("carrier_pose_round_side", geom_core::Sign::Negative),
                 ] {
                     assert!(
                         recorded

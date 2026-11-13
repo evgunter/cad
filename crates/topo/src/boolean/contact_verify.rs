@@ -454,7 +454,7 @@ fn tangent_pass<T: Decide>(
             geom_brep::implicit_residual(s1, p),
             geom_brep::implicit_residual(s2, p),
         );
-        // (1) Which way the two normals point, metered over the extent
+        // (1) Which way the two outward normals point, metered over the extent
         // as the edge certifier reads it (`tangent_gap_orientation`,
         // through the same door): a surface curving on a scale near ε
         // still has an orientation, and its refusal is the second-order
@@ -463,12 +463,23 @@ fn tangent_pass<T: Decide>(
         // whether the faces' materials agree or oppose is read against
         // the claim once the sample reads tangent (3).
         let arm = geom_brep::folded_lever_arm(s1, s2, p, extent);
-        let (alignment, senses) =
-            geom_brep::gradient_alignment("contact_tangent_opposed", s1, s2, p, extent, band)
-                .map_err(Unsettled::InBand)?;
-        let agree = match alignment.turned([sense1, sense2]) {
-            Some(pairing) => pairing == geom_brep::MaterialPairing::Aligned,
-            None => return Err(ruled(TangentRow::Independent, senses)),
+        let reading = geom_brep::gradient_alignment(
+            "contact_tangent_opposed",
+            s1,
+            s2,
+            p,
+            [sense1, sense2],
+            extent,
+            band,
+        )
+        .map_err(Unsettled::InBand)?;
+        let senses = reading.decided();
+        let agree = match reading.alignment() {
+            geom_brep::GradientAlignment::Same => true,
+            geom_brep::GradientAlignment::Reversed => false,
+            geom_brep::GradientAlignment::Perpendicular => {
+                return Err(ruled(TangentRow::Independent, senses));
+            }
         };
         // (2) The touch, before the witness: the pair's separation
         // along the shared normal ([`touching`]), its orientation σ the

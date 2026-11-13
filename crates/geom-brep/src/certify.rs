@@ -3873,26 +3873,24 @@ fn gap_orientation<T: Decide>(
     sample: u32,
     band: Band,
 ) -> Result<T, CertifyError> {
-    use crate::dihedral::GradientAlignment;
     const TANGENT_GAP_ORIENTATION: &str = "tangent_gap_orientation";
+    // The carriers' own gradients, so the pairing's two sides are σ's:
+    // one way `+1`, opposite ways `−1`, and no side refused.
     let (oriented, orientation) = geom_core::k_stats::detached(|| {
-        match crate::dihedral::gradient_alignment(
+        crate::dihedral::gradient_alignment(
             TANGENT_GAP_ORIENTATION,
             surf1,
             surf2,
             p,
+            [true, true],
             extent,
             band,
-        )? {
-            (GradientAlignment::Same, _) => Ok(geom_core::NonzeroSign::Positive),
-            (GradientAlignment::Reversed, _) => Ok(geom_core::NonzeroSign::Negative),
-            (GradientAlignment::Perpendicular, decided) => Err(geom_core::k_stats::gate_rejection(
-                TANGENT_GAP_ORIENTATION,
-                decided,
-                band,
-                geom_core::SizedPass::NonZero,
-            )),
-        }
+        )?
+        .pairing()
+        .map(|pairing| match pairing {
+            crate::MaterialPairing::Aligned => geom_core::NonzeroSign::Positive,
+            crate::MaterialPairing::Opposed => geom_core::NonzeroSign::Negative,
+        })
     });
     let cause = match oriented {
         Ok(sign) => {

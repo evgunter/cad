@@ -45,7 +45,6 @@ const CARRIERS: &[NameCarrier] = &[
     NameCarrier::Const("ASSERT_BOUND"),
     NameCarrier::Const("AT_REST_QUIET_BOUND"),
     NameCarrier::Const("AT_REST_QUIET_CONTACT_BOUND"),
-    NameCarrier::Const("AXES_PARALLEL"),
     NameCarrier::Const("CHORD_ON_RIM"),
     NameCarrier::Const("EVAL_DIRECTION_NORM"),
     NameCarrier::Const("MATE_READ_SLIDE_WITHIN"),
@@ -57,7 +56,6 @@ const CARRIERS: &[NameCarrier] = &[
     NameCarrier::Const("TRACED_FRAME_SQUARE"),
     NameCarrier::Const("TRACE_REACHES"),
     // The funnels that hand on their callers' names.
-    NameCarrier::Call("parallel_as"),
     NameCarrier::Call("zero_as"),
     // The topological naming's carrier reads and at_rest's measure signs,
     // each handing on its caller's name.
@@ -97,7 +95,6 @@ const INDIRECT: &[(&str, &str)] = &[
     ),
     ("checks/at_rest.rs: measure_sign_as: site", FORWARDS),
     ("coincide/replay.rs: one_cylinder: name", CLOSURE_FORWARDS),
-    ("eval/measure.rs: parallel_as: predicate", FORWARDS),
     ("eval/wire.rs: turns_off: decision.name()", CLOSED_TYPE),
     ("eval/wire.rs: wire_assertion: value", NOT_A_NAME),
     (
