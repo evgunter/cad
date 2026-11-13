@@ -63,9 +63,9 @@
 //! too, and at an enclosure scalar a section over a box gives walls
 //! that enclose the box's family. The sines and cosines are `Real`'s,
 //! the pure-Rust `libm` D9 prescribes. A path sweep's path is `f64`
-//! data: it enters the sections' scalar as the constants it is, its
-//! stations' parameters (`v = i/(n − 1)`) are chosen in `f64`, and its
-//! points, tangents and carried rotations are computed in the sections'
+//! data, a constant of the model: its stations' parameters
+//! (`v = i/(n − 1)`) and their rolls are selected in `f64`, and its
+//! points, tangents and station frames are minted in the sections'
 //! scalar from the path read there (`PathCarry`).
 //!
 //! A carrier's weights and knots are points at every scalar for now, so
@@ -80,10 +80,11 @@
 //! that makes sections compatible runs homogeneous at an enclosure
 //! scalar ([`make_compatible`], C6 S4), and its result enters through
 //! the same door. No topology decision is made here. A path sweep's
-//! three decisions read their margins against the band through
-//! `k_stats`, under `sweep_path_tangent`, `sweep_path_chord` and
-//! `sweep_path_turn` ([`sweep_places`]); the raw `f64` comparisons
-//! below are structure selection under C6.
+//! decisions read their margins against the band through `k_stats`,
+//! under `sweep_path_tangent`, `sweep_path_chord` and `sweep_path_turn`
+//! for the carry, and `sweep_station_roll` and `sweep_station_still`
+//! for each station minted ([`sweep_places`]); the raw `f64`
+//! comparisons below are structure selection under C6.
 
 use core::num::NonZeroUsize;
 use std::sync::Arc;
@@ -97,7 +98,7 @@ use geom_core::spline::{Built, KnotAlgebraError, Knots, SpanLocate, SplineError}
 use geom_core::{
     Affine3, Arc2, Band, BandError, Decide, Indeterminate, KERNEL_DEFECT_ENDING,
     KERNEL_LIMIT_RECOURSE, MOVE_RECOURSE, MarginDiag, Point2, Point3, RANGE_ENDING, Real,
-    RigidMotion, TurnError, Turns, UnitVec3, UnitVec3Error,
+    RigidMotion, Sign, TurnError, Turns, UnitVec3, UnitVec3Error, Vec3,
 };
 use profile::{
     CanonicalStructure, ConstructedLoop, ConstructedProfile, Profile, ProfileError, ProfileLoop,
@@ -162,6 +163,8 @@ pub enum PathDecision {
     /// Whether the path folds back across the chord between the station
     /// and the one before it.
     FoldBack,
+    /// Whether the station's roll reference stands off its tangent.
+    Roll,
 }
 
 impl core::fmt::Display for PathDecision {
@@ -170,6 +173,7 @@ impl core::fmt::Display for PathDecision {
             Self::Tangent => "whether the path's tangent vanishes at station",
             Self::Chord => "whether the path's stations coincide at station",
             Self::FoldBack => "whether the path folds back across its chord into station",
+            Self::Roll => "whether the path's roll stands off its tangent at station",
         })
     }
 }
@@ -303,6 +307,14 @@ pub enum SkinError {
     /// a hairpin is.
     PathFoldsBack {
         /// The later station of the pair.
+        station: usize,
+    },
+    /// A station's roll reference, selected by the carry at `f64`, lies
+    /// along the station's tangent read at the lane scalar: the
+    /// residual that rolls the station's frame is decided zero, so the
+    /// station has no frame ([`sweep_places`]).
+    PathRollAlongTangent {
+        /// The station whose frame has no roll.
         station: usize,
     },
     /// One of the path sweep's decisions at a station could not be
@@ -487,6 +499,11 @@ impl core::fmt::Display for SkinError {
                  no rotation-minimizing step carries the frame across it. Recourse: \
                  {FOLD_BACK_RECOURSE}",
                 station.saturating_sub(1),
+            ),
+            Self::PathRollAlongTangent { station } => write!(
+                f,
+                "the path's roll at station {station} lies along its tangent, so the station \
+                 has no frame. {KERNEL_DEFECT_ENDING}"
             ),
             Self::PathUndecided {
                 station,
@@ -1830,32 +1847,77 @@ pub(crate) const SWEEP_PATH_CHORD: &str = "sweep_path_chord";
 /// ([`RigidMotion::turned_between`]).
 pub(crate) const SWEEP_PATH_TURN: &str = "sweep_path_turn";
 
+/// The K funnel name of a station's roll: the residual of the station's
+/// reference across its tangent read at the lane scalar, decided into
+/// a direction witness ([`RigidMotion::from_aim_and_reference`]).
+pub(crate) const SWEEP_STATION_ROLL: &str = "sweep_station_roll";
+
+/// The K funnel name of a still station's check at the lane scalar:
+/// each component of its tangent less its predecessor's, decided zero.
+pub(crate) const SWEEP_STATION_STILL: &str = "sweep_station_still";
+
 /// **The path's carry**: for each station, where the path is and the
 /// rotation carrying the start frame there — `crates/sweep/README.md`
 /// `[sweep.frame]`, the rotation-minimizing frame by double reflection.
-/// It is a function of the path and the station count alone, and each
-/// scalar lane mints it at its own scalar from the path's data held
-/// there ([`Self::place`]): a frame exists at a scalar only by being
-/// minted there.
+///
+/// The path is a constant of the model, so the carry runs once at
+/// `f64` ([`Self::of`]) and selects each station's roll as one
+/// reference vector. Each scalar lane then mints every station's frame
+/// alone, from the path's tangent read at that scalar and that
+/// reference ([`Self::place`]): a frame exists at a scalar only by
+/// being minted there, and no station's frame is built from another's.
 pub(crate) struct PathCarry {
-    /// The path, its control net, knots and weights entering each lane
-    /// as the model constants they are.
+    /// The path, its data entering each lane as the constants it is.
     path: NurbsCurve3<f64>,
-    /// Each station's parameter on the path.
-    at: Vec<f64>,
-    /// Whether the step into station `i` has two tangents equal bit for
-    /// bit at `f64` (index 0 unused): the identity with no rounding, as
-    /// the exact law makes it.
-    still: Vec<bool>,
+    /// Each station's selection.
+    stations: Vec<Selected>,
     band: Band,
-    #[cfg(feature = "test-support")]
-    tol: Tol,
+}
+
+/// What the `f64` carry selects at one station.
+struct Selected {
+    /// The station's parameter on the path.
+    at: f64,
+    /// The station's tangent at `f64`, the value a still step's reused
+    /// tangent must enclose.
+    tangent: Vec3<f64>,
+    /// The start reference carried to the station: the station's roll.
+    reference: Vec3<f64>,
+    /// Whether the station shares one span, straight by its data, with
+    /// the one before it, so that its step may be still.
+    straight: bool,
 }
 
 impl PathCarry {
     /// The carry of `path` sampled at `stations` uniform shares of its
-    /// parameter. Its decisions are taken where it is minted
-    /// ([`Self::place`]).
+    /// parameter, selected at `f64`.
+    ///
+    /// Each step from station `i` to `i + 1` is Wang, Jüttler, Zheng and
+    /// Liu's double reflection (ACM TOG 2008): the reflection in the
+    /// plane normal to the chord `c`, then the reflection carrying the
+    /// mirrored tangent onto `tᵢ₊₁`. Their product is evaluated as the
+    /// product of the half turns about `tᵢ` and about `ĉ` (the two
+    /// reflections' product with `H_tᵢ` inserted), followed by the
+    /// minimal rotation carrying `m = H_c·H_tᵢ·tᵢ` onto `tᵢ₊₁`
+    /// ([`RigidMotion::turned_between`]), whose one decision is the
+    /// second reflection's margin. A step whose two tangents are equal
+    /// bit for bit is the identity with no rounding, as the exact law
+    /// makes it (the second reflection is then the first). The carried
+    /// rotation `Cᵢ` takes the start reference `r₀`, a unit vector
+    /// across the start tangent, to the station's reference `rᵢ`.
+    ///
+    /// Three decisions, each under the band:
+    ///
+    /// - **the tangent** at each station (`sweep_path_tangent`): a
+    ///   vanishing, overflowed or poisoned derivative has no direction;
+    /// - **the chord** into each station after the first
+    ///   (`sweep_path_chord`): coincident stations have no chord to
+    ///   reflect in;
+    /// - **the fold-back** (`sweep_path_turn`): `1 + m·tᵢ₊₁ > 0`.
+    ///   Where `tᵢ₊₁` is `tᵢ` mirrored in the plane normal to the
+    ///   chord (the path leaves along the chord and comes back against
+    ///   it), `m` is opposed to `tᵢ₊₁` and the second reflection has no
+    ///   plane.
     pub(crate) fn of(
         path: &NurbsCurve3<f64>,
         stations: usize,
@@ -1873,76 +1935,11 @@ impl PathCarry {
             .iter()
             .map(|s| (hi - lo).mul_add(*s, lo))
             .collect();
-        let direction = |t: f64| {
-            path.ders1(t)
-                .1
-                .checked_direction_and_length()
-                .ok()
-                .map(|(d, _)| [d.x, d.y, d.z].map(f64::to_bits))
-        };
-        let directions: Vec<_> = at.iter().map(|t| direction(*t)).collect();
-        let still = core::iter::once(false)
-            .chain(
-                directions
-                    .windows(2)
-                    .map(|pair| pair[0].is_some() && pair[0] == pair[1]),
-            )
-            .collect();
-        Ok(Self {
-            path: path.clone(),
-            at,
-            still,
-            band,
-            #[cfg(feature = "test-support")]
-            tol,
-        })
-    }
-
-    /// Each station's normalised path parameter, `i / (stations − 1)`:
-    /// the v its section sits at.
-    pub(crate) fn params(&self) -> Vec<f64> {
-        station_shares(self.at.len())
-    }
-
-    /// **The carry minted at `T`**: each station's point on the path
-    /// and the rotation carrying the start frame there, about the
-    /// coordinate origin, `None` where that rotation is the identity
-    /// with no rounding; all of it computed in `T` from the path read
-    /// at `T`.
-    ///
-    /// Each step from station `i` to `i + 1` is Wang, Jüttler, Zheng and
-    /// Liu's double reflection (ACM TOG 2008): the reflection in the
-    /// plane normal to the chord `c`, then the reflection carrying the
-    /// mirrored tangent onto `tᵢ₊₁`. Their product is evaluated as the
-    /// product of the half turns about `tᵢ` and about `ĉ` (the two
-    /// reflections' product with `H_tᵢ` inserted), followed by the
-    /// minimal rotation carrying `m = H_c·H_tᵢ·tᵢ` onto `tᵢ₊₁`
-    /// ([`RigidMotion::turned_between`]), whose one decision is the
-    /// second reflection's margin. A step whose two tangents are equal
-    /// bit for bit at `f64` is the identity with no rounding, as the
-    /// exact law makes it (the second reflection is then the first).
-    ///
-    /// Three decisions, each under the band, at `T`:
-    ///
-    /// - **the tangent** at each station (`sweep_path_tangent`): a
-    ///   vanishing, overflowed or poisoned derivative has no direction;
-    /// - **the chord** into each station after the first
-    ///   (`sweep_path_chord`): coincident stations have no chord to
-    ///   reflect in;
-    /// - **the fold-back** (`sweep_path_turn`): `1 + m·tᵢ₊₁ > 0`.
-    ///   Where `tᵢ₊₁` is `tᵢ` mirrored in the plane normal to the
-    ///   chord (the path leaves along the chord and comes back against
-    ///   it), `m` is opposed to `tᵢ₊₁` and the second reflection has no
-    ///   plane.
-    fn stations<T: Decide>(&self) -> Result<Vec<Station<T>>, SkinError> {
-        let band = self.band;
-        let path = self.path.map_scalar(T::from_f64);
-        let samples = self
-            .at
+        let samples = at
             .iter()
             .enumerate()
-            .map(|(station, s)| {
-                let (p, d) = path.ders1(T::from_f64(*s));
+            .map(|(station, t)| {
+                let (p, d) = path.ders1(*t);
                 UnitVec3::new(d, SWEEP_PATH_TANGENT, band)
                     .map(|t| (p, t))
                     .map_err(|e| direction_refusal(e, station, PathDirection::Tangent))
@@ -1951,16 +1948,30 @@ impl PathCarry {
         let not_finite = |station| move |_| SkinError::StationNotFinite { station };
         let half = Turns::new(1, 2).unwrap_or_else(|| unreachable!("a nonzero denominator"));
         let o = Point3::origin();
-        let mut turn: Option<RigidMotion<T>> = None;
-        let mut carried = vec![(samples[0].0, None)];
-        #[cfg(feature = "test-support")]
-        let mut steps: Vec<Option<RigidMotion<T>>> = vec![None];
+        let start = samples[0].1.orthonormal_basis().0;
+        let span = |t: f64| {
+            path.knot_values()
+                .structure_f64_interim()
+                .span_at(t)
+                .map(|s| s.first_control())
+        };
+        let mut turn: Option<RigidMotion<f64>> = None;
+        let mut selected = vec![Selected {
+            at: at[0],
+            tangent: samples[0].1.get(),
+            reference: start,
+            straight: false,
+        }];
         for (i, pair) in samples.windows(2).enumerate() {
             let station = i + 1;
             let ((p, t), (q, next)) = (pair[0], pair[1]);
             let chord = UnitVec3::new(q - p, SWEEP_PATH_CHORD, band)
                 .map_err(|e| direction_refusal(e, station, PathDirection::Chord))?;
-            if !self.still[station] {
+            let (a, b) = (t.get(), next.get());
+            let same = [(a.x, b.x), (a.y, b.y), (a.z, b.z)]
+                .iter()
+                .all(|(x, y)| x.to_bits() == y.to_bits());
+            if !same {
                 let mirror = RigidMotion::turned(o, chord, half)
                     .compose(RigidMotion::turned(o, t, half))
                     .map_err(not_finite(station))?;
@@ -1977,25 +1988,87 @@ impl PathCarry {
                         })?
                         .compose(mirror)
                         .map_err(not_finite(station))?;
-                #[cfg(feature = "test-support")]
-                steps.push(Some(step));
                 turn = Some(match turn {
                     None => step,
                     Some(c) => step.compose(c).map_err(not_finite(station))?,
                 });
             }
-            #[cfg(feature = "test-support")]
-            if steps.len() < station + 1 {
-                steps.push(None);
-            }
-            carried.push((q, turn));
-        }
-        #[cfg(feature = "test-support")]
-        {
-            probe::floor(&path, &self.at, &samples, band);
-            probe::STEPS.with(|c| {
-                *c.borrow_mut() = Some(Box::new(steps) as Box<dyn core::any::Any>);
+            let first = span(at[station]);
+            selected.push(Selected {
+                at: at[station],
+                tangent: b,
+                reference: turn.map_or(start, |c| c.linear() * start),
+                straight: first.is_some()
+                    && first == span(at[i])
+                    && first.is_some_and(|f| straight_by_data(path, f)),
             });
+        }
+        Ok(Self {
+            path: path.clone(),
+            stations: selected,
+            band,
+        })
+    }
+
+    /// Each station's normalised path parameter, `i / (stations − 1)`:
+    /// the v its section sits at.
+    pub(crate) fn params(&self) -> Vec<f64> {
+        station_shares(self.stations.len())
+    }
+
+    /// **Each station's rotation, minted at `T`**: its point on the path
+    /// and the rotation carrying the start frame there, about the
+    /// coordinate origin, `None` for the identity.
+    ///
+    /// Station `i`'s frame is `Fᵢ`, aimed along the tangent `tᵢ` read at
+    /// `T` with its roll from the station's reference
+    /// ([`RigidMotion::from_aim_and_reference`], under
+    /// `sweep_station_roll`), and its rotation is `Cᵢ = Fᵢ∘F₀⁻¹`. A
+    /// station the `f64` carry selected on one straight span with its
+    /// predecessor is still where its tangent is its predecessor's at
+    /// `T`: each component of the difference decides zero under
+    /// `sweep_station_still`, and the predecessor's tangent encloses the
+    /// `f64` one. A still station reuses its predecessor's rotation, one
+    /// expression; any other is minted.
+    fn minted<T: Decide>(&self) -> Result<Vec<Station<T>>, SkinError> {
+        let band = self.band;
+        let path = self.path.map_scalar(T::from_f64);
+        let o = Point3::origin();
+        let read = |station: usize, s: f64| {
+            let (p, d) = path.ders1(T::from_f64(s));
+            UnitVec3::new(d, SWEEP_PATH_TANGENT, band)
+                .map(|t| (p, t))
+                .map_err(|e| direction_refusal(e, station, PathDirection::Tangent))
+        };
+        let frame = |station: usize, t: UnitVec3<T>, r: Vec3<f64>| {
+            RigidMotion::from_aim_and_reference(
+                o,
+                t,
+                r.map(T::from_computed),
+                SWEEP_STATION_ROLL,
+                band,
+            )
+            .map_err(|e| direction_refusal(e.error, station, PathDirection::Roll))
+        };
+        let not_finite = |station| move |_| SkinError::StationNotFinite { station };
+        let first = &self.stations[0];
+        let (p0, t0) = read(0, first.at)?;
+        let unturn = frame(0, t0, first.reference)?
+            .inverse()
+            .map_err(not_finite(0))?;
+        let mut carried = vec![(p0, None)];
+        let (mut tangent, mut turn) = (t0, None);
+        for (station, selected) in self.stations.iter().enumerate().skip(1) {
+            let (p, t) = read(station, selected.at)?;
+            if !(selected.straight && still(tangent, t, selected.tangent, band)?) {
+                turn = Some(
+                    frame(station, t, selected.reference)?
+                        .compose(unturn)
+                        .map_err(not_finite(station))?,
+                );
+                tangent = t;
+            }
+            carried.push((p, turn));
         }
         Ok(carried)
     }
@@ -2008,22 +2081,7 @@ impl PathCarry {
         &self,
         plane: SketchPlane<T>,
     ) -> Result<Vec<SketchPlane<T>>, SkinError> {
-        let stations = self.stations::<T>()?;
-        #[cfg(feature = "test-support")]
-        if T::NAME != "f64" && std::env::var_os("SKIN_LOHNER").is_some() {
-            let steps: Vec<Option<RigidMotion<T>>> = probe::STEPS
-                .with(|c| c.borrow_mut().take())
-                .and_then(|b| b.downcast::<Vec<Option<RigidMotion<T>>>>().ok())
-                .map(|b| *b)
-                .unwrap_or_else(|| unreachable!("probe: the steps were recorded"));
-            let _ = self.stations::<f64>()?;
-            let steps_f: Vec<Option<RigidMotion<f64>>> = probe::STEPS
-                .with(|c| c.borrow_mut().take())
-                .and_then(|b| b.downcast::<Vec<Option<RigidMotion<f64>>>>().ok())
-                .map(|b| *b)
-                .unwrap_or_else(|| unreachable!("probe: the f64 steps were recorded"));
-            return Ok(probe::lohner(plane, &stations, &steps, &steps_f, self.tol));
-        }
+        let stations = self.minted::<T>()?;
         let start = plane.frame();
         let p0 = stations[0].0;
         let back = Point3::origin() - p0;
@@ -2047,130 +2105,48 @@ impl PathCarry {
     }
 }
 
-/// PROBE (not for landing): the station-frame fork's instruments, behind
-/// `SKIN_PROBE_PRINT` (print) and `SKIN_LOHNER` (the wrap-free carry).
-#[cfg(feature = "test-support")]
-#[allow(clippy::print_stderr, missing_docs, unreachable_pub, clippy::many_single_char_names)]
-mod probe {
-    use super::*;
-    use core::cell::RefCell;
-    use geom_core::{Mat3, Vec3};
+/// A station of a path's carry at `T`: its point on the path and the
+/// rotation carrying the start frame there, `None` for the identity.
+type Station<T> = (Point3<T>, Option<RigidMotion<T>>);
 
-    thread_local! {
-        pub(super) static STEPS: RefCell<Option<Box<dyn core::any::Any>>> = const { RefCell::new(None) };
-    }
-
-    fn w<T: Decide>(x: T) -> f64 {
-        x.structure_bracket().map_or(f64::INFINITY, |(lo, hi)| hi - lo)
-    }
-    fn wv<T: Decide>(v: Vec3<T>) -> f64 {
-        w(v.x).max(w(v.y)).max(w(v.z))
-    }
-    fn wm<T: Decide>(m: Mat3<T>) -> f64 {
-        wv(m.c0).max(wv(m.c1)).max(wv(m.c2))
-    }
-    fn on() -> bool {
-        std::env::var_os("SKIN_PROBE_PRINT").is_some()
-    }
-
-    /// (3): each station's one-off widths, minted alone.
-    pub(super) fn floor<T: Decide>(
-        path: &NurbsCurve3<T>,
-        at: &[f64],
-        samples: &[(Point3<T>, UnitVec3<T>)],
-        band: Band,
-    ) {
-        if !on() || T::NAME == "f64" {
-            return;
-        }
-        let n = samples.len();
-        for (i, (p, t)) in samples.iter().enumerate() {
-            let (_, d) = path.ders1(T::from_f64(at[i]));
-            let reference = Vec3::new(T::from_f64(0.3), T::from_f64(-0.5), T::from_f64(0.8));
-            let alone = RigidMotion::from_aim_and_reference(*p, *t, reference, "probe_alone", band)
-                .ok()
-                .map_or(f64::NAN, |f| {
-                    wv(f.u().get()).max(wv(f.v().get())).max(wv(f.w().get()))
-                });
-            eprintln!(
-                "PROBE3 {} station={i}/{n} point_w={:e} deriv_w={:e} tangent_w={:e} alone_frame_axes_w={:e}",
-                T::NAME,
-                wv(*p - Point3::origin()),
-                wv(d),
-                wv(t.get()),
-                alone
-            );
-        }
-    }
-
-    fn add<T: Real>(a: Mat3<T>, b: Mat3<T>) -> Mat3<T> {
-        Mat3::from_cols(a.c0 + b.c0, a.c1 + b.c1, a.c2 + b.c2)
-    }
-    fn sub<T: Real>(a: Mat3<T>, b: Mat3<T>) -> Mat3<T> {
-        Mat3::from_cols(a.c0 - b.c0, a.c1 - b.c1, a.c2 - b.c2)
-    }
-
-    /// (2): each station's rotation held as an `f64` midpoint `Mᵢ` and an
-    /// error enclosure `Eᵢ` in moving coordinates, `Cᵢ ∈ Mᵢ(I + Eᵢ)`:
-    /// `Eᵢ = Mᵢᵀ·Sᵢ·Mᵢ₋₁·(I + Eᵢ₋₁) − I` (prototype: `Mᵢᵀ` stands in for
-    /// `Mᵢ⁻¹`, off by `Mᵢᵀ Mᵢ − I`, a few ulps).
-    pub(super) fn lohner<T: Decide>(
-        plane: SketchPlane<T>,
-        stations: &[Station<T>],
-        steps: &[Option<RigidMotion<T>>],
-        steps_f: &[Option<RigidMotion<f64>>],
-        tol: Tol,
-    ) -> Vec<SketchPlane<T>> {
-        let lift = |m: Mat3<f64>| m.map(T::from_f64);
-        let id = Mat3::<T>::identity();
-        let mut m = Mat3::<f64>::identity();
-        let mut e = sub(id, id);
-        let start = plane.frame();
-        let p0 = stations[0].0;
-        let n = stations.len();
-        let mut out = vec![plane];
-        let mut sum_steps = 0.0;
-        for i in 1..n {
-            if let (Some(s), Some(sf)) = (steps[i], steps_f[i]) {
-                let next = sf.linear() * m;
-                let k = lift(next.transpose()) * s.linear() * lift(m);
-                e = sub(k * add(id, e), id);
-                m = next;
-                sum_steps += wm(s.linear());
-            }
-            let g = lift(m);
-            let ie = add(id, e);
-            let carry = |v: Vec3<T>| g * (ie * v);
-            let (u, v, a) = (
-                carry(start.u().get()),
-                carry(start.v().get()),
-                carry(start.w().get()),
-            );
-            let origin = stations[i].0 + carry(start.origin() - p0);
-            if on() {
-                let chained = stations[i].1.map_or(0.0, |c| wm(c.linear()));
-                eprintln!(
-                    "PROBE2 {} station={i}/{n} lohner_axes_w={:e} lohner_origin_w={:e} E_w={:e} chained_C_w={:e} step_w={:e} sum_step_w={:e}",
-                    T::NAME,
-                    wv(u).max(wv(v)).max(wv(a)),
-                    wv(origin - Point3::origin()),
-                    wm(e),
-                    chained,
-                    steps[i].map_or(0.0, |s| wm(s.linear())),
-                    sum_steps
-                );
-            }
-            let _ = tol;
-            out.push(SketchPlane::from_frame(RigidMotion::probe_enclosed(origin, u, v, a)));
-        }
-        out
-    }
+/// Whether the span whose first control point is `first` is straight
+/// by its data: every control point of the span on the line through
+/// its first two distinct ones, exactly.
+fn straight_by_data(path: &NurbsCurve3<f64>, first: usize) -> bool {
+    let window = &path.control()[first..=first + path.degree()];
+    let zero = |v: Vec3<f64>| v.x == 0.0 && v.y == 0.0 && v.z == 0.0;
+    let base = window[0];
+    let Some(along) = window.iter().map(|p| *p - base).find(|d| !zero(*d)) else {
+        return true;
+    };
+    window.iter().all(|p| zero((*p - base).cross(along)))
 }
 
-/// A station of a path's carry at `T`: its point on the path and the
-/// rotation carrying the start frame there, `None` for the identity
-/// with no rounding.
-type Station<T> = (Point3<T>, Option<RigidMotion<T>>);
+/// Whether a station's tangent `t`, read at `T`, is its predecessor's
+/// `kept`: each component of `t − kept` decides zero (ledger row F22:
+/// a dimensionless defect of a pair of directions against the metre
+/// band), and `kept` encloses the `f64` selection.
+fn still<T: Decide>(
+    kept: UnitVec3<T>,
+    t: UnitVec3<T>,
+    selected: Vec3<f64>,
+    band: Band,
+) -> Result<bool, SkinError> {
+    let (k, d) = (kept.get(), t.get() - kept.get());
+    let encloses = [(k.x, selected.x), (k.y, selected.y), (k.z, selected.z)]
+        .into_iter()
+        .all(|(x, s)| x.structure_bracket().is_some_and(|(lo, hi)| lo <= s && s <= hi));
+    if !encloses {
+        return Ok(false);
+    }
+    for c in [d.x, d.y, d.z] {
+        match geom_core::k_stats::decide_flagged(SWEEP_STATION_STILL, c, band, "F22") {
+            Ok(Sign::Zero) => {}
+            Ok(_) | Err(_) => return Ok(false),
+        }
+    }
+    Ok(true)
+}
 
 /// `i / (stations − 1)` for each of `stations ≥ 2` stations: `0` and
 /// `1` exactly at the ends.
@@ -2187,6 +2163,7 @@ fn station_shares(stations: usize) -> Vec<f64> {
 enum PathDirection {
     Tangent,
     Chord,
+    Roll,
 }
 
 /// A path direction's refusal at `station`: a vector with no direction
@@ -2198,10 +2175,12 @@ fn direction_refusal(e: UnitVec3Error, station: usize, which: PathDirection) -> 
             which: match which {
                 PathDirection::Tangent => PathDecision::Tangent,
                 PathDirection::Chord => PathDecision::Chord,
+                PathDirection::Roll => PathDecision::Roll,
             },
             source,
         },
         (_, PathDirection::Chord) => SkinError::PathStationsCoincide { station },
+        (_, PathDirection::Roll) => SkinError::PathRollAlongTangent { station },
         (_, PathDirection::Tangent) => SkinError::PathTangentVanishes { station },
     }
 }

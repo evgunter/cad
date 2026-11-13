@@ -282,15 +282,16 @@ and a fixed reference direction would read the world axes.
   helix of the tour coil's proportions (radius 0.14, pitch 0.08) the
   end roll after six turns is 9.2e-7 rad off the exact frame at 16
   stations a turn, 5.7e-8 at 32 and 3.5e-9 at 64.
-- **The carry is a function of the `f64` path and the station count,
-  minted at each scalar.** Every scalar lane reads the path, its data
-  entering as the constants it is, at the stations' parameters, takes
-  the carry's decisions there and composes the rotations it mints onto
-  its own start plane: a frame exists at a scalar only by being minted
-  there (`geom_core::RigidMotion`, "Crossing scalars"). Station 0 is
-  the start plane itself, and a step whose two tangents are equal bit
-  for bit at `f64` is the identity with no rounding (the exact law's
-  answer: its second reflection is its first).
+- **The roll is selected at `f64`, because the path is a constant of
+  the model.** The carry runs once at `f64` and selects each station's
+  roll as a reference vector; every scalar lane mints each station's
+  frame from the path's tangent read at that scalar and that vector,
+  one station at a time, and composes it onto its own start plane.
+  Station 0 is the start plane itself, and a step that a straight span
+  makes still (its two tangents one expression) reuses its
+  predecessor's reference. A path held at a lane scalar has a roll
+  that depends on the variables, and the selection no longer stands
+  (`work/onehome/a-path-held-at-a-lane-scalar-owes-a-roll-that-follows-it.md`).
 - **The pivot is the path's start point `p₀`.** Station `i` is the
   start frame turned about `p₀` by the carried rotation `Cᵢ`, then
   moved onto the path: its origin is `pᵢ + Cᵢ·(o − p₀)` for `o` the
@@ -306,7 +307,10 @@ and a fixed reference direction would read the world axes.
   sweeps with more stations; a kink that doubles back on itself (a
   hairpin corner) refuses at every station count, and only smoothing
   it cures it. Each is decided under the band, with its in-band twin
-  `SkinError::PathUndecided`. A path whose end tangent is its start
+  `SkinError::PathUndecided`. A station whose frame has no roll at the
+  lane scalar (its reference along its tangent read there) refuses as
+  `SkinError::PathRollAlongTangent`, its in-band twin
+  `SkinError::PathUndecided` naming the roll. A path whose end tangent is its start
   tangent reversed is not one of these: a planar U-turn sweeps, its
   end frame the start frame turned a half turn about the plane's
   normal, and so does a semicircle between two stations.

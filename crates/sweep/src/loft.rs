@@ -879,10 +879,11 @@ impl<T: Decide, L: SectionLoop<T>> SectionsAtT<'_, T, L> {
         }
     }
 
-    /// Whether every input to the skin is a point: each placement
-    /// (`channel_places`, its point value, which [`sweep_body`] carries
-    /// in `f64`, present only where every placement has one) and each
-    /// section value.
+    /// Whether the skin's inputs have one `f64` value each: the
+    /// placements' channel (`channel_places`, present only where every
+    /// placement's start has a point value; [`sweep_body`] mints the
+    /// path's stations at `f64` there, and the lane's own placements,
+    /// minted at `T`, enclose them) and each section value, a point.
     fn all_points(&self, channel_places: Option<&[SketchPlane<f64>]>) -> bool {
         let point = |v: T| v.point_value().is_some();
         channel_places.is_some()
@@ -1014,12 +1015,13 @@ impl<T: Decide + topo::AtRestPolicy, L: SectionLoop<T>> ProjectiveSplit<T> for L
     /// **At an enclosure scalar** the body encloses the family its
     /// sections stand for.
     ///
-    /// - Sections and placements that are points are a family of one,
-    ///   and the body encloses its `f64` loft. The skin is the `f64`
-    ///   one, the walls are lifted ([`lift_loop_walls`]), and the caps
-    ///   and the stacking door read the `f64` canonical form lifted onto the
-    ///   lane's own placements ([`ValidatedProfile::lift_onto`]), whose
-    ///   point values are the planes the skin was selected on.
+    /// - Sections that are points, over placements with an `f64`
+    ///   channel, are a family of one, and the body encloses its `f64`
+    ///   loft. The skin is the `f64` one, the walls are lifted
+    ///   ([`lift_loop_walls`]), and the caps and the stacking door read
+    ///   the `f64` canonical form lifted onto the lane's own placements
+    ///   ([`ValidatedProfile::lift_onto`]), which enclose the planes the
+    ///   skin was selected on.
     /// - Otherwise the loft is built in `T` ([`Self::in_t`]), each
     ///   section of loops validated at `T` with its decisions certified
     ///   there. The skin's structure is what every value of the family
@@ -1048,12 +1050,13 @@ impl<T: Decide + topo::AtRestPolicy, L: SectionLoop<T>> ProjectiveSplit<T> for L
         let lifted: Vec<ValidatedProfile<T>> = canonical
             .iter()
             .zip(places)
-            .map(|(c, place)| {
-                c.clone().lift_onto(*place).unwrap_or_else(|e| {
-                    unreachable!("{e}: these placements are points, by `all_points`")
-                })
+            .enumerate()
+            .map(|(section, (c, place))| {
+                c.clone()
+                    .lift_onto(*place)
+                    .map_err(|_| LoftError::PlacementNotFinite { section })
             })
-            .collect();
+            .collect::<Result<_, _>>()?;
         let strips = compatible_strips(&canonical, channel_places)
             .map_err(LoftError::Skin)?
             .iter()

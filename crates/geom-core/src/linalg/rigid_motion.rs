@@ -151,11 +151,17 @@
 //!
 //! A frame exists at a scalar only by being minted there: by an exact
 //! mint or a decided mint over inputs held at that scalar, or at `f64`
-//! by the `f64` door. No door carries a frame up from `f64`. Every
-//! frame that would cross is the product of a decision, so at `Sym` it
-//! would enter either as literals, a theorem about its rounding (E12),
-//! or as unknowns, over which nothing is proved; minted at the scalar,
-//! it carries its inputs' dependence on the variables instead (Ev on
+//! by the `f64` door. No door carries a frame up from `f64`. A value
+//! that claims no invariant and depends on none of the document's
+//! variables may cross as a mint's input: a skin's carry, over a path
+//! that is a constant of the model, selects each station's roll at
+//! `f64` as one reference vector, and the station's frame is minted at
+//! the scalar from the path's tangent read there and that vector. A
+//! frame or a unit witness never crosses. Every frame that
+//! would cross is the product of a decision, so at `Sym` it would
+//! enter either as literals, a theorem about its rounding (E12), or as
+//! unknowns, over which nothing is proved; minted at the scalar, it
+//! carries its inputs' dependence on the variables instead (Ev on
 //! #5068, 2026-10-14).
 //!
 //! The one crossing is downward, closure-free: an arbitrary map of the
@@ -1203,22 +1209,6 @@ impl<T: Decide> RigidMotion<T> {
             v: UnitVec3::new(self.v.get(), site, band)?,
             w: UnitVec3::new(self.w.get(), site, band)?,
         })
-    }
-}
-
-impl<T: Real> RigidMotion<T> {
-    /// PROBE (not for landing): axes enclosing one rigid motion per point,
-    /// taken as given.
-    #[cfg(feature = "test-support")]
-    #[doc(hidden)]
-    #[must_use]
-    pub fn probe_enclosed(origin: Point3<T>, u: Vec3<T>, v: Vec3<T>, w: Vec3<T>) -> Self {
-        Self {
-            origin,
-            u: UnitVec3::by_construction(u),
-            v: UnitVec3::by_construction(v),
-            w: UnitVec3::by_construction(w),
-        }
     }
 }
 
