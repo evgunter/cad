@@ -317,6 +317,9 @@ pub fn decision_words(predicate: &str) -> Option<&'static str> {
     if let Some(words) = geom_brep::sector_shape::rung_words(predicate) {
         return Some(words);
     }
+    if let Some(words) = geom_brep::carrier_pose::decision_words(predicate) {
+        return Some(words);
+    }
     if let Some(reading) = refusal_routes::PARALLELISMS
         .iter()
         .find(|reading| reading.predicate == predicate)
@@ -8313,6 +8316,19 @@ fn verify_tangency<T: Decide>(
         // locus it was read along is one too.
         TangentVerdict::Touch(touch) => touch.jointly(located),
         TangentVerdict::Ruled(_) => return Err(NotTangent),
+        // A witness of no length reads every pair's normals square: the
+        // alignment's lever gate refused it, which is the line's length
+        // and not the contact.
+        TangentVerdict::InBand(diag)
+            if diag.predicate == Some(geom_brep::GRADIENT_ALIGNMENT_LEVER) =>
+        {
+            return Err(Refused(BooleanError::of_lever_rung(
+                refusal_routes::LeverArm::TangentLocus,
+                read,
+                geom_brep::LeverRung::Arm,
+                diag,
+            )));
+        }
         TangentVerdict::InBand(diag) => {
             return Err(Refused(BooleanError::coincidence(
                 Coincide::Contact,

@@ -2,10 +2,11 @@
 id: the-support-test-reads-an-analytic-cell-by-its-box-so-the-klein-bulbs-walls-run-out-of-pairs
 kind: issue
 title: The support test reads a cone, torus, cylinder or sphere cell by its axis-aligned box, so the Klein bulb's inner and outer walls, 0.05 apart, split until the injectivity check runs out of its 65,536 pairs
-status: open
+status: closed
 opened: 2026-11-12
 priority: P0
 cost: M
+closed: 2026-11-13
 ---
 
 
@@ -50,3 +51,24 @@ holds within the default budget.
 
 Seam: `Hull` is beside lane A's `Sweep::run` and `min_separation`
 (`clear/verdict-door`).
+
+## Closed (2026-11-13)
+
+- **Diagnosis confirmed.** On main the bulb refused `Budget(Pairs)`
+  at depth 24, after 65,493 splits. With the fix, the cone pair
+  `6v1`–`12v1` holds in 3,847 splits (was 43,159), and the torus pair
+  `7v1`–`11v1` holds in 11,575 (was 21,779).
+- **The fix.** `Hull::of` reads every carrier without a spline chart
+  by its mean-value form about the cell's centre: the point there,
+  plus each partial enclosed over the whole cell (`Surface::jet` at
+  the cell's intervals) times the cell's offset from the centre. A
+  plane is the form's affine case, so its own arm is gone. The
+  enclosure proof is in `Hull::support`'s doc.
+- **The bulb holds** in 23,531 splits (36% of the budget), 1.0 s.
+- **The tour walk** holds 77 of 85 (76 before). No body that held
+  moved. The certificates total 69.7 s (90.8 s before), and splits
+  total 493k (639k before).
+- **Pins.**
+  - `support_rows::an_analytic_cells_support_holds_its_points_and_is_narrower_than_its_box`.
+  - `self_intersection_proves_injectivity::a_conical_and_a_toroidal_wall_hold_within_the_default_budget`.
+  - Both go red when an analytic cell is read by its box.

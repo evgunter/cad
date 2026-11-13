@@ -54,6 +54,7 @@
 //! `Dual<f64>`, `Interval`, and `Dual<Interval>`.
 
 mod carrier_net;
+pub mod carrier_pose;
 pub mod carrier_resolution;
 pub mod certify;
 pub mod chart_image;
@@ -116,6 +117,11 @@ pub mod torus_convention;
 pub mod variety;
 
 pub use carrier_net::CarrierEnclosureRefusal;
+pub use carrier_pose::{
+    CarrierPose, CarrierPoseRefusal, Directions, Nest, POSE_AXES_PARALLEL, POSE_AXIS_ALONG_PLANE,
+    POSE_PLANES_FACING, POSE_PLANES_PARALLEL, POSE_ROUND_LARGER, POSE_ROUND_SIDE, PlanePair,
+    PlaneRound, Posed, RoundPair, carrier_pose, directions_parallel,
+};
 pub use certify::{
     CERT_SAMPLES, CertCheck, Certificate, CertifiedTurn, CertifyError, DraftedIntersection,
     EdgeCurve, EdgeCurveSpec, ForwardReading, IntersectionDraft, MintedEdge, NurbsLane, RowRefusal,
@@ -128,15 +134,16 @@ pub use description::{
     Structural, authority_of,
 };
 pub use dihedral::{
-    Convexity, Corner, DIHEDRAL_ARM, DIHEDRAL_ARM_CLAUSE, DIHEDRAL_ARM_NOUN, DIHEDRAL_SIGN,
-    Dihedral, DihedralClass, EdgeWedge, EdgeWedgeEscalation, MATERIAL_PAIRING,
-    MATERIAL_PAIRING_CLAUSE, MaterialPairing, MixedStations, MustCarryDescription,
-    MustCarryEscalation, MustCarryRefusal, MustCarryRung, MustCarryVerdict, PairRefusal,
-    PositiveArm, RestLocus, SeamEscalation, SeamFace, SecondOrder, SmoothJoin, Station, Tangency,
-    WedgeEnd, WedgeEscalation, WedgeRung, classify_dihedral, classify_dihedral_reported,
-    classify_edge_wedge, classify_material_pairing_as, classify_seam, folded_lever_arm,
-    material_kappa_rel, must_carry_description, must_carry_over_edge, reask_chart, reask_pair,
-    rest_locus, tangent_second_order,
+    AlignmentReading, Convexity, Corner, DIHEDRAL_ARM, DIHEDRAL_ARM_CLAUSE, DIHEDRAL_ARM_NOUN,
+    DIHEDRAL_SIGN, Dihedral, DihedralClass, EdgeWedge, EdgeWedgeEscalation,
+    GRADIENT_ALIGNMENT_LEVER, GradientAlignment, MATERIAL_PAIRING, MATERIAL_PAIRING_CLAUSE,
+    MaterialPairing, MixedStations, MustCarryDescription, MustCarryEscalation, MustCarryRefusal,
+    MustCarryRung, MustCarryVerdict, PairRefusal, PositiveArm, RestLocus, SeamEscalation, SeamFace,
+    SecondOrder, SmoothJoin, Station, Tangency, WedgeEnd, WedgeEscalation, WedgeRung,
+    classify_dihedral, classify_dihedral_reported, classify_edge_wedge, classify_seam,
+    folded_lever_arm, gradient_alignment, material_kappa_rel, must_carry_description,
+    must_carry_over_edge, normals_alignment, reask_chart, reask_pair, rest_locus,
+    tangent_second_order,
 };
 pub use dihedral_side::{
     ChartPointRefusal, CreaseReading, EdgeHalf, EdgeWalk, FaceSide, SideEscalation, SideFace,

@@ -174,6 +174,20 @@ pub enum CarrierEqError {
     },
 }
 
+impl CarrierEqError {
+    /// The margin the refusal quotes: the escalated rung's, or the
+    /// undecided coincidence's measure; `None` for a torus off its ring
+    /// convention, whose refusal is the convention's and not a margin.
+    #[must_use]
+    pub const fn reported(&self) -> Option<Indeterminate> {
+        match *self {
+            Self::Escalated { diag, .. } => Some(diag),
+            Self::Undecided { coincidence, .. } => Some(coincidence.reported()),
+            Self::OffRing { .. } => None,
+        }
+    }
+}
+
 /// What an undecided coincidence's measure read
 /// ([`CarrierEqError::Undecided`]).
 #[derive(Clone, Copy, Debug, PartialEq)]

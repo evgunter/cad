@@ -2980,13 +2980,29 @@ mod tests {
             u_ref: x,
         });
         let (cb, fcb) = face_on(crate::test_support_fixtures::plane(&[o, o + x, o + z], tol));
+        // Two skeletal faces span no locus: the glue door's tangency
+        // reading refuses the line's length, the lever the faces' normals
+        // are read over, and names that, never a recorded contact.
+        let collapsed =
+            crate::boolean::glue::decided_glue(&ca, &cb, &crate::boolean::Glue::none(), band)
+                .expect_err("a witness of no length refuses");
+        let BooleanError::Escalated { decision, diag } = &collapsed else {
+            panic!("the glue door escalates: {collapsed:?}");
+        };
+        assert_eq!(
+            (*decision, diag.predicate),
+            (
+                BooleanDecision::LeverArm(crate::boolean::LeverArm::TangentLocus),
+                Some(geom_brep::GRADIENT_ALIGNMENT_LEVER)
+            ),
+            "the glue door refuses the collapsed line's length"
+        );
+        let words = collapsed.render(geom_brep::recourse::Reading::Build);
         assert!(
-            !crate::boolean::glue::decided_glue(&ca, &cb, &crate::boolean::Glue::none(), band)
-                .expect("the door reads every pair")
-                .pairs
-                .iter()
-                .any(|p| (p.a, p.b) == (fca, fcb) && p.class() == GlueClass::Tangent),
-            "the glue door glues the curved flanks under no Tangent"
+            words.contains("whether two faces of the two solids touch along a line long enough")
+                && words.contains("make the faces touch along a clearly longer line")
+                && !words.contains("recorded contact"),
+            "the refusal names the line, not a contact: {words}"
         );
         for (arm, label) in arms {
             let err = run((&ca, fca), (&cb, fcb), arm, None).expect_err("the tie refuses");

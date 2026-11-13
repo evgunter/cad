@@ -2350,7 +2350,7 @@ fn the_second_order_band_has_three_outcomes_and_they_are_three_answers() {
 /// (crate-private, or asked only of a tangency token), so what this row
 /// pins is the rest: a class read (`classify_dihedral`),
 /// a sign or a pairing (`.convexity(`, `"dihedral_sign"`, `.pairing(`,
-/// `pairing_as(`, `classify_material_pairing_as(`), a station minted by
+/// `gradient_alignment(`, `normals_alignment(`), a station minted by
 /// hand, a `"tangent_second_order"` decide or a material read inlined
 /// back into either file's production code reds here. The link's
 /// reading one order down (`link/second_order.rs`) reads another picture
@@ -2410,8 +2410,8 @@ fn check_4_and_the_rim_read_the_wedge_through_the_one_fold() {
         ".convexity(",
         "\"dihedral_sign\"",
         ".pairing(",
-        "pairing_as(",
-        "classify_material_pairing_as(",
+        "gradient_alignment(",
+        "normals_alignment(",
         "Station::on(",
         "material_kappa_rel(",
     ];

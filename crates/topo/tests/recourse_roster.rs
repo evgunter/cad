@@ -329,6 +329,7 @@ const CARRIERS: &[NameCarrier] = &[
     NameCarrier::Const("LINK_PIECE_REACH"),
     NameCarrier::Const("LINK_ARC"),
     NameCarrier::Const("LINK_ARC_REACH"),
+    NameCarrier::Const("LINK_NORMAL"),
     NameCarrier::Const("LINK_PLANE"),
     NameCarrier::Const("LINK_ROUND"),
     NameCarrier::Const("LINK_SECOND_ORDER"),
