@@ -1561,7 +1561,7 @@ pub(crate) const NODE_PAD_SHARE_NEAR: f64 = 1.0 / 8.0;
 /// [`NODE_PAD_SHARE_NEAR`] (D9); past it, at [`NODE_PAD_SHARE`], so the
 /// tube the accounting banks outside the node's own region stays as
 /// wide as the transverse enclosure allows.
-pub(crate) const NODE_PAD_REACH: f64 = 16.0;
+pub(crate) const NODE_PAD_REACH: f64 = 4.0;
 
 /// How many times the settled samples' reach from a node its box is,
 /// half-width (D9; [`super::node::node_box`]): a march's last settled

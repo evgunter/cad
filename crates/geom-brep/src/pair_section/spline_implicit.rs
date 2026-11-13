@@ -1098,7 +1098,9 @@ pub(super) fn crosses(decided: &[sweep::Critical], reach: ChartReach) -> bool {
 ///
 /// # Errors
 ///
-/// The whole reading's refusal, mapped ([`super::whole_reading_refused`]).
+/// [`SectionError::Pinched`] ([`CRITICAL_UNREAD`]) where the reading's
+/// accounting does not close; any other refusal of the reading mapped,
+/// its cause carried ([`super::whole_reading_refused`]).
 pub(super) fn read_crossing(
     reading: crate::ImplicitSection<'_>,
     decided: &[sweep::Critical],
@@ -1109,25 +1111,24 @@ pub(super) fn read_crossing(
         .map(|c| (c.region, c.at))
         .collect();
     let claimed: Vec<UvRect> = decided.iter().map(|c| c.region).collect();
-    reading.with_criticals(&nodes, &claimed).all().map_err(|e| {
-        if std::env::var("SNC_DBG").is_ok() {
-            eprintln!("SNCDBG whole reading refused: {e:?}");
-        }
-        match super::whole_reading_refused(e) {
+    reading
+        .with_criticals(&nodes, &claimed)
+        .all()
+        .map_err(|e| match e {
             // The surfaces meet within the band at a decided point beside
-            // the components the reading could not account for: the
+            // components the reading's accounting could not close on: the
             // pair is near tangent there, and reads so, as the
             // classification's pinch did before the points were listed.
-            SectionError::Unaccounted { .. } => SectionError::Pinched {
+            crate::ssi::SsiError::CellBudget { .. }
+            | crate::ssi::SsiError::ExhaustivenessInconclusive(_) => SectionError::Pinched {
                 predicate: CRITICAL_UNREAD,
             },
-            other => other,
-        }
-    })
+            other => super::whole_reading_refused(other),
+        })
 }
 
-/// **The pinch a crossing section refuses as where its whole reading
-/// does not account for it** ([`read_crossing`]): the surfaces meet
+/// **The pinch a crossing section refuses as where its whole reading's
+/// accounting does not close** ([`read_crossing`]): the surfaces meet
 /// within the band at a decided node or touch, and the components beside
 /// it were not all read (`work/sectarms/a-spline-node-the-reading-cannot-account-for-reads-as-a-tangency.md`).
 pub(super) const CRITICAL_UNREAD: &str = "spline_critical_unread";

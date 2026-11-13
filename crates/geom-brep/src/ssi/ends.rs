@@ -70,12 +70,21 @@ pub(crate) const NODE_SETTLES: usize = 48;
 /// apart.
 pub(crate) const NODE_SETTLE_FLOOR: f64 = 64.0;
 
-/// The grade [`Ends::finish`] first reads a node end at (D9): a span
-/// about a tenth of its distance from the node, so the window before the
-/// node's box, its hull reaching a span or two past its own toward the
-/// node, sees the node across an angle well inside a sector between the
-/// node's rays, which is the ray the arc's end names (C5).
-pub(crate) const NODE_GRADE_FIRST: u32 = 2;
+/// How many grades finer [`Ends::graded`] grades a node end within
+/// [`NODE_FINE_CHORDS`] of its last chord of the node than past it (D9):
+/// there a span is about a tenth of its distance from the node, so the
+/// window before the node's box, its hull reaching a span or two past
+/// its own toward the node, sees the node across an angle well inside a
+/// sector between the node's rays, which is the ray the arc's end names
+/// (C5).
+pub(crate) const NODE_GRADE_FINE: u32 = 2;
+
+/// How many of an arc's last chords to its node, the reach of its node
+/// box's neighbourhood ([`crate::ssi::certify::NODE_PAD_REACH`] node-box
+/// half-widths, each [`crate::ssi::certify::NODE_BOX_REACH`] last
+/// chords), [`Ends::graded`] grades finer within (D9).
+pub(crate) const NODE_FINE_CHORDS: f64 =
+    crate::ssi::certify::NODE_PAD_REACH * crate::ssi::certify::NODE_BOX_REACH;
 
 /// The grades [`Ends::finish`] climbs at a node end while limb 3's tube
 /// straddles (D9): at the last, a span is about a fiftieth of its
@@ -722,7 +731,7 @@ impl<const M: usize, const N: usize, S: SectionSystem<M, N>> Ends<'_, S, M, N> {
                 let fitted = fit_states(self.sys, states)?;
                 // A node end's grading climbs while the tube straddles
                 // (Self::graded); every other refusal stands at once.
-                let mut level = NODE_GRADE_FIRST;
+                let mut level = 0;
                 loop {
                     let (carrier, pa, pb) = self.graded((end, level), states, fitted.clone())?;
                     let lane = self.operands.lane(pa.as_ref(), pb.as_ref())?;
@@ -754,9 +763,10 @@ impl<const M: usize, const N: usize, S: SectionSystem<M, N>> Ends<'_, S, M, N> {
     /// knots inserted into the carrier and both pcurves alike
     /// (evaluation-invariant in ℝ, so the spans stay one list), at
     /// `t_n ± L·rᵏ` from each node end `t_n`, `L` the domain's length and
-    /// `r = 1 − 1/(3·2^level)`, until the span at the end is no longer
-    /// against the domain than the states' last chord to the node is
-    /// against the arc's chart length.
+    /// `r = 1 − 1/(3·2^level)`, and [`NODE_GRADE_FINE`] grades finer
+    /// within [`NODE_FINE_CHORDS`] of the states' last chord of the node,
+    /// until the span at the end is no longer against the domain than
+    /// that chord is against the arc's chart length.
     ///
     /// Limb 3 encloses the transverse gradient over each span's window.
     /// Near a node that is about the Hessian times the window's distance
@@ -789,7 +799,8 @@ impl<const M: usize, const N: usize, S: SectionSystem<M, N>> Ends<'_, S, M, N> {
         let (t0, t1) = carrier.domain();
         let chord = |a: &[f64; N], b: &[f64; N]| (b[0] - a[0]).hypot(b[1] - a[1]);
         let length: f64 = states.windows(2).map(|w| chord(&w[0], &w[1])).sum();
-        let ratio = 1.0 - 1.0 / (3.0 * f64::from(1_u32 << level.min(16)));
+        let ratio_at = |level: u32| 1.0 - 1.0 / (3.0 * f64::from(1_u32 << level.min(16)));
+        let (coarse, fine) = (ratio_at(level), ratio_at(level + NODE_GRADE_FINE));
         let mut add: Vec<f64> = Vec::new();
         for (tip, t_end, sense, last) in [
             (from, t0, 1.0, chord(&a0, &a1)),
@@ -802,13 +813,14 @@ impl<const M: usize, const N: usize, S: SectionSystem<M, N>> Ends<'_, S, M, N> {
             // the domain is the last chord's, from the sample nearest the
             // node to the node, of the arc's.
             let floor = last / length;
-            let mut share = ratio;
+            let near = NODE_FINE_CHORDS * floor;
+            let mut share = coarse;
             for _ in 0..NODE_GRADES {
                 if share <= floor {
                     break;
                 }
                 add.push(t_end + sense * (t1 - t0) * share);
-                share *= ratio;
+                share *= if share > near { coarse } else { fine };
             }
         }
         if add.is_empty() {
