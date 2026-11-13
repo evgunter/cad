@@ -772,3 +772,13 @@ Both reds were found by PCERT's nightly lane and trace to SECTARMS merges.
 - 2026-11-13 — **The planar-fork designers agreed on their first reports:** complete `loop_winding`'s sum with a spline term from `geom_brep::props`, let the face's surface pick the reading, and leave the pad uncharged. No reconciliation was needed. **`[ev]` PR 6896** is open, with fork-log row 264 and the A/B/C sections verbatim; I'm subscribed to it. The item file lands with PR 6891, so the decision text goes into it after 6891 merges.
   - Two designers name the five readers of the sum, and point out that tier 3's check 6 skips spline-bearing planar loops (`validate.rs:8211`; the skip is documented, not silent). The fork's implementation closes that gap, so it gets no separate item. It goes in the unit's done-when.
   - Filed P3 `a-quadric-or-wall-ring-closing-refuses-a-spline-run-edge-it-may-read`, from the off-question residue two designers raised.
+- 2026-11-13 — **PR 6891 review: APPROVE-WITH-FIXES** (single FULL review, Opus, no MAJOR). About 15,000 path readings gave no wrong winding and no wrong parity, at all three ε. The census held exactly. Adjudicated, all accepted:
+  - a sense-dropping mutant survives every row → a `{transposed, sense}` winding row;
+  - the weight wording is false for product nets;
+  - the parity oracle only had iso-aligned islands → diagonal, rational and seam rows;
+  - re-homing refuses when a chord runs rim to rim (typed; it was unfiled) → a row plus an item, or a fix;
+  - a closed wall's seam foot → a P3 item;
+  - the lean lever was argued only in the PR body;
+  - `unreachable!` arms → typed refusals;
+  - message and doc fixes.
+  The fix pass went to the implementer's own agent (Fable arm), continued. The report is saved as `rep6891-review.txt`.
