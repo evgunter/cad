@@ -9,9 +9,9 @@
 //! two differ: the corner geometry (`corner_plan` grafts the
 //! fillet's sphere octant or the chamfer's flat patch through the
 //! three trimline feet), the band's contact carrier (a fillet's
-//! trimline arc, a chamfer's straight chord), and the closed-chain
-//! door (the rim phases below are the fillet's — a chamfer has no
-//! closed-chain band and refuses there). Everything else in this
+//! trimline arc, a chamfer's straight chord), and the closed-rim
+//! band's sense (the torus folds the chain's convexity, the chamfer's
+//! frustum derives it, `rim_sense`). Everything else in this
 //! module — the splits, the excisions, the ring carry-through, the
 //! naming rows — is one shared walk. Prose below that speaks of the
 //! ball or the octant is describing the fillet's arm of a shared

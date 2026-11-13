@@ -23,7 +23,7 @@ use sweep::ExtrudeSide;
 use sweep::blend::build::fillet_edges;
 use sweep::blend::{BlendError, BlendRefusal};
 use sweep::chamfer::chamfer_edges;
-use sweep::test_support::{cube, disc_of_arcs};
+use sweep::test_support::{cube, dome};
 use sweep::{Extrusion, extrude};
 use topo::query;
 use topo::{Body, EdgeKey};
@@ -32,13 +32,6 @@ use topo::{Body, EdgeKey};
 const L: f64 = 1.0;
 /// The blend size (radius or setback), meters.
 const D: f64 = 0.1;
-
-/// A circular prism: two half-arc profile segments extruded, so every
-/// rim edge has a plane and a CYLINDER for supports — the homed
-/// `disc_of_arcs` at two arcs.
-fn cylinder(r: f64, h: f64) -> Body<f64> {
-    disc_of_arcs(2, r, h, Tol::witness())
-}
 
 /// **The chamfer-purity claim, in one place**: a chamfer refusal's
 /// text opens with the chamfer's verb and never says "fillet" —
@@ -162,15 +155,15 @@ fn a_fillet_caller_reads_the_fillet_verb_once_over_the_same_shared_arm() {
 /// wrapper now, with the verb rendered exactly once.
 #[test]
 fn the_chamfers_own_arm_speaks_as_the_chamfer_once() {
-    let cyl = cylinder(0.5, 1.0);
-    let edges = query::all_edges(&cyl);
+    let dome = dome(1.0, Tol::witness());
+    let edges = query::all_edges(&dome);
     let err = chamfer_edges(
-        &sweep::test_support::at_rest(&cyl, Tol::witness()),
+        &sweep::test_support::at_rest(&dome, Tol::witness()),
         &edges,
         D,
         Tol::witness(),
     )
-    .expect_err("a curved support has no ruled strip");
+    .expect_err("a sphere support has no chamfer band");
     assert!(
         matches!(err.error, BlendError::ChamferArmUnsupported { .. }),
         "the chamfer's own arm table is what refused: {err:?}"
@@ -281,8 +274,8 @@ fn a_chamfer_recourse_followed_as_a_chamfer_reaches_its_promised_outcome() {
 /// before the arm table, so a co-surface seam meridian (one sphere on
 /// both sides, sine exactly zero) is a smooth seam `chamfer_edges`
 /// leaves as it is, and a declared cusp's kiss reads as a knife there
-/// and then meets the chamfer's one refusal for a pair its plane–plane
-/// arm does not cover, `ChamferArmUnsupported` — the chamfer's own arm,
+/// and then meets the chamfer's one refusal for a pair its arms do not
+/// cover, `ChamferArmUnsupported` — the chamfer's own arm table,
 /// speaking as the chamfer.
 #[test]
 fn a_chamfer_leaves_a_co_surface_seam_and_refuses_a_cusp_as_the_chamfer() {

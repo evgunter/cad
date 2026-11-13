@@ -424,9 +424,9 @@ fn an_acute_round_dimple_with_its_seams_through_the_kept_disk_crosses() {
 }
 
 /// **A strip dimple whose mouth is requested with the band's edge
-/// refuses**: the two bands would overlap, so the fillet's screen reads
-/// the ring (`FaceClearanceUncertified`) and the chamfer's arm refuses
-/// the mouth's circle (`ChamferArmUnsupported`).
+/// refuses**: the two bands would overlap, so the screen reads the ring
+/// (`FaceClearanceUncertified`) under both verbs — the chamfer's band
+/// over the mouth's circle being its frustum.
 #[test]
 fn a_requested_mouth_on_the_strip_refuses() {
     let (u, a, h) = (0.04, 0.01, 0.03);
@@ -464,7 +464,7 @@ fn a_requested_mouth_on_the_strip_refuses() {
         &body,
         &edges,
         0.1,
-        |e| matches!(e, BlendError::ChamferArmUnsupported { .. }),
+        |e| matches!(e, BlendError::FaceClearanceUncertified { .. }),
         what,
     );
 }

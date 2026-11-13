@@ -21,7 +21,7 @@
 //! its support (the clearance screen), the lune slit from `r = 2/3`
 //! (the cap-sliver screen reading an exact zero,
 //! `work/band/the-cap-sliver-screen-reads-an-exact-zero-where-a-lune-slits-wall-ends-at-its-arcs-centre.md`),
-//! and the chamfer, whose one arm is plane–plane
+//! and the chamfer, whose arms are not a knife's pair
 //! (`ChamferArmUnsupported`). The mirrored and rotated crescents guard
 //! the side selector: the closed form the ball's centre was picked by
 //! before read an exact zero at a knife and chose by the sign of
