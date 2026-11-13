@@ -532,11 +532,11 @@ pub enum CertifyError {
     ///
     /// THREE `Intersection` rungs certify, and this variant is what is
     /// left over. The analytic rung: both operands analytic (M5 PR 9,
-    /// C12.3 — the class the curved-boolean zip mints). The **plane ×
-    /// NURBS** rung (M7-8): exactly one PLANE and one described NURBS
-    /// wall, declare-and-check, through the [`NurbsLane`].
-    /// The **NURBS × NURBS** rung: two spline charts, through the same
-    /// lane. A spline beside a curved analytic surface has none.
+    /// C12.3 — the class the curved-boolean zip mints). The **residual ×
+    /// NURBS** rung: exactly one plane, sphere, cylinder or torus and one
+    /// described NURBS wall, declare-and-check, through the
+    /// [`NurbsLane`]. The **NURBS × NURBS** rung: two spline charts,
+    /// through the same lane. A spline beside a cone has none.
     Unimplemented,
     /// A two-surface description (`Intersection`, `TangentIntersection`,
     /// `OnPair`) names one surface twice — a locus on one surface is an
@@ -978,9 +978,9 @@ impl core::fmt::Display for CertifyError {
                 "a Nurbs described surface, or a Nurbs carrier under a \
                  conventional description, cannot be certified in this build — rung-3 \
                  carriers certify as the Intersection of two analytic surfaces, or of \
-                 one plane and one described NURBS wall, or of two spline charts, through \
-                 the declare-and-check lane; a spline beside a curved analytic surface has \
-                 no certificate"
+                 one plane, sphere, cylinder or torus and one described NURBS wall, or of \
+                 two spline charts, through the declare-and-check lane; a spline beside a \
+                 cone has no certificate"
             ),
             Self::IntersectionSameSurface { key } => write!(
                 f,
@@ -2416,8 +2416,9 @@ impl<T: Decide + geom_core::CertifiedBounds> EdgeCurve<T> {
     /// meters against `band`):
     ///
     /// 1. Implementedness: described surfaces resolve and are not
-    ///    `Nurbs`, except the described NURBS wall of a plane × NURBS
-    ///    `Intersection` (M7-8, through the [`NurbsLane`]) and
+    ///    `Nurbs`, except the described NURBS wall of an `Intersection`
+    ///    with a plane, sphere, cylinder or torus, the two charts of a
+    ///    NURBS × NURBS one (each through the [`NurbsLane`]) and
     ///    the chart of an image the construction states; a `Nurbs`
     ///    carrier certifies only under an
     ///    `Intersection` description (the rung-3 class, M5 PR 9 —
@@ -2630,7 +2631,7 @@ pub struct StatedImage<T: Real> {
 /// the statement that the scalar it is parameterised by may certify,
 /// and the limbs a door records are the ones the lane's functions
 /// derived and decided: [`crate::plane_nurbs_limbs`],
-/// [`crate::nurbs_pair_limbs`] and [`crate::plane_nurbs_incidence`]
+/// [`crate::curved_nurbs_limbs`], [`crate::nurbs_pair_limbs`] and [`crate::plane_nurbs_incidence`]
 /// (an `OnPair`'s incidence alone), with [`crate::analytic_edge_limbs`]'s
 /// verdict. Its fields are private and no other constructor exists. A
 /// scalar that may not certify cannot write the value:
@@ -2708,7 +2709,10 @@ pub struct StatedImage<T: Real> {
 #[derive(Clone, Copy)]
 #[allow(clippy::type_complexity)]
 pub struct NurbsLane<T: Real> {
-    /// [`crate::plane_nurbs_limbs`] at `T`.
+    /// The residual × NURBS lanes' one door at `T`
+    /// (`edge_nurbs::residual_nurbs_limbs`): [`crate::plane_nurbs_limbs`]
+    /// for a plane, [`crate::curved_nurbs_limbs`] for a sphere, cylinder
+    /// or torus.
     limbs:
         fn(
             &Curve3<T>,
@@ -2784,7 +2788,7 @@ impl<T: Decide + geom_core::CertifiedBounds> NurbsLane<T> {
     #[must_use]
     pub const fn certified() -> Self {
         Self {
-            limbs: crate::edge_nurbs::plane_nurbs_limbs::<T>,
+            limbs: crate::edge_nurbs::residual_nurbs_limbs::<T>,
             pair_limbs: crate::edge_nurbs::nurbs_pair_limbs::<T>,
             analytic_limbs: crate::edge_nurbs::analytic_edge_limbs::<T>,
             incidence: crate::edge_nurbs::plane_nurbs_incidence::<T>,
@@ -2927,18 +2931,19 @@ impl<T: Real> NurbsLane<T> {
         (self.chart_arm)(chart, p, reach)
     }
 
-    /// The lane's limbs for a declared carrier of any kind on a plane ×
-    /// NURBS pair, over the edge's interval `params`.
+    /// The lane's limbs for a declared carrier of any kind between a
+    /// residual partner (a plane, sphere, cylinder or torus) and a NURBS
+    /// wall, over the edge's interval `params`.
     fn limbs(
         self,
         carrier: &Curve3<T>,
         params: (T, T),
-        plane: &Surface<T>,
+        partner: &Surface<T>,
         wall: &geom::NurbsSurface<T>,
         extent: geom_core::Lever<T>,
         band: Band,
     ) -> Result<crate::edge_nurbs::PlaneNurbsLimbs<T>, crate::edge_nurbs::PlaneNurbsRefusal> {
-        (self.limbs)(carrier, params, plane, wall, extent, band)
+        (self.limbs)(carrier, params, partner, wall, extent, band)
     }
 
     /// The lane's incidence alone for a carrier of any kind on a plane ×
@@ -3845,8 +3850,9 @@ fn check_residual<T: Decide>(
 }
 
 /// **σ, the orientation of the shared normal** at a tangent sample: the
-/// sign of the two unit implicit gradients' alignment, which must be
-/// definite (`decide_nonzero`). At a tangency the normals are parallel,
+/// two implicit gradients' alignment ([`crate::gradient_alignment`]),
+/// which must be `Same` or `Reversed`; a perpendicular pair is refused as
+/// the nonzero gate refuses a zero. At a tangency the normals are parallel,
 /// so the cosine is `±1`, as far from zero as it can be; it is metered
 /// over the edge's extent, the ordinary angular door, so a surface
 /// curving on a scale near ε (whose folded arm puts every angle in
@@ -3867,17 +3873,24 @@ fn gap_orientation<T: Decide>(
     sample: u32,
     band: Band,
 ) -> Result<T, CertifyError> {
-    let (g1, g2) = (
-        crate::implicit::implicit_gradient(surf1, p),
-        crate::implicit::implicit_gradient(surf2, p),
-    );
-    let (n1, n2) = (g1.normalize(), g2.normalize());
+    const TANGENT_GAP_ORIENTATION: &str = "tangent_gap_orientation";
+    // The carriers' own gradients, so the pairing's two sides are σ's:
+    // one way `+1`, opposite ways `−1`, and no side refused.
     let (oriented, orientation) = geom_core::k_stats::detached(|| {
-        geom_core::k_stats::decide_nonzero(
-            "tangent_gap_orientation",
-            Margin::levered(n1.dot(n2), extent),
+        crate::dihedral::gradient_alignment(
+            TANGENT_GAP_ORIENTATION,
+            surf1,
+            surf2,
+            p,
+            [true, true],
+            extent,
             band,
-        )
+        )?
+        .pairing()
+        .map(|pairing| match pairing {
+            crate::MaterialPairing::Aligned => geom_core::NonzeroSign::Positive,
+            crate::MaterialPairing::Opposed => geom_core::NonzeroSign::Negative,
+        })
     });
     let cause = match oriented {
         Ok(sign) => {
@@ -3886,6 +3899,10 @@ fn gap_orientation<T: Decide>(
         }
         Err(cause) => cause,
     };
+    let (g1, g2) = (
+        crate::implicit::implicit_gradient(surf1, p),
+        crate::implicit::implicit_gradient(surf2, p),
+    );
     let arm = crate::folded_lever_arm(surf1, surf2, p, extent);
     if let Some(margin) = named_by_parallelism(crate::tangent::normal_sine(g1, g2), arm, band) {
         geom_core::k_stats::splice_superseded(orientation);
@@ -4081,15 +4098,16 @@ fn resolve_spec<T: Decide>(
             if k1 == k2 {
                 return Err(CertifyError::IntersectionSameSurface { key: k1 });
             }
-            // The plane × NURBS lane (M7-8) is tried FIRST, because it
-            // is one of the two readings under which a described `Nurbs`
-            // or a fitted `Approx` operand certifies at all: `resolve`
-            // below refuses one typed. The other is two such charts, the
-            // same lane's NURBS × NURBS limbs.
-            if let Some((plane_key, plane, _, wall)) = plane_nurbs_pair(pair, surfaces) {
-                Resolved::PlaneNurbs {
-                    plane_key,
-                    plane,
+            // The spline lanes are tried FIRST, because they are the
+            // readings under which a described `Nurbs` or a fitted
+            // `Approx` operand certifies at all: `resolve` below refuses
+            // one typed. A plane, or a sphere, cylinder or torus, beside
+            // one such chart is the residual × NURBS lane; two such
+            // charts, the same lane's NURBS × NURBS limbs.
+            if let Some((partner_key, partner, _, wall)) = residual_nurbs_pair(pair, surfaces) {
+                Resolved::ResidualNurbs {
+                    partner_key,
+                    partner,
                     wall,
                     witness,
                 }
@@ -4402,7 +4420,7 @@ fn canonical_of<T: Decide>(
     // the kernel has not yet accepted.
     Ok(match resolved {
         Resolved::Intersection { witness, .. }
-        | Resolved::PlaneNurbs { witness, .. }
+        | Resolved::ResidualNurbs { witness, .. }
         | Resolved::PairNurbs { witness, .. } => {
             let EdgeDescriptionSpec::Intersection { pair, .. } = spec.description else {
                 // Unreachable: exactly one spec arm resolves either
@@ -5240,11 +5258,11 @@ fn run_checks<T: Decide + geom_core::CertifiedBounds>(
                 let p = spec.carrier.eval(t);
                 mapped_source(declared.as_ref(), i, p, band, &mut max_residual)?;
             }
-            // The plane × NURBS lane owns its OWN schedule (denser
+            // The spline lanes own their OWN schedule (denser
             // than this one, and shared with the certificate's foot
-            // points), so it runs once after the loop rather than
+            // points), so each runs once after the loop rather than
             // per-sample here — see the block below check 4.
-            Resolved::PlaneNurbs { .. } | Resolved::PairNurbs { .. } => {}
+            Resolved::ResidualNurbs { .. } | Resolved::PairNurbs { .. } => {}
             // Each wall's row certificate owns its own schedule, read
             // once after the loop.
             Resolved::SharedRow { .. } => {}
@@ -5292,17 +5310,18 @@ fn run_checks<T: Decide + geom_core::CertifiedBounds>(
     // uniqueness tube at the edge's own extent, beside the analytic
     // arms' faces' `reach`.
     let extent = crate::edge_extent_inf(&spec.carrier, t0, t1, (start, end));
-    // ---- Intersection, plane × NURBS only (M7-8), over a carrier of
+    // ---- Intersection, a residual × NURBS pair (a plane, sphere,
+    // cylinder or torus beside a spline chart), over a carrier of
     // any kind: the whole declare-and-check certificate (C2's three
     // limbs, limbs 1–2 reading the carrier through the
-    // carrier-enclosure door) — the closed-form plane residual,
+    // carrier-enclosure door) — the partner's closed-form residual,
     // the certified foot residual on the wall, the between-samples
     // sup bound, the per-sample transversality and the uniqueness
     // tube. The lane refuses typed WITH its measured bound; a
     // transversality failure lands in this module's existing
     // vocabulary, exactly as the analytic arm's does. ----
-    if let Resolved::PlaneNurbs { plane, wall, .. } = &resolved {
-        // `plane_nurbs_pair` admits only a wall with a chart.
+    if let Resolved::ResidualNurbs { partner, wall, .. } = &resolved {
+        // `residual_nurbs_pair` admits only a wall with a chart.
         let Some(wall) = wall.spline_chart() else {
             return Err(CertifyError::Unimplemented);
         };
@@ -5310,7 +5329,7 @@ fn run_checks<T: Decide + geom_core::CertifiedBounds>(
         // `band`; they enter the certificate's worst residual and are
         // not decided again.
         let limbs = lane
-            .limbs(&spec.carrier, (t0, t1), plane, wall, extent, band)
+            .limbs(&spec.carrier, (t0, t1), partner, wall, extent, band)
             .map_err(from_plane_nurbs)?;
         max_residual = max_residual
             .max(limbs.on_locus_max.abs())
@@ -5500,7 +5519,7 @@ fn run_checks<T: Decide + geom_core::CertifiedBounds>(
         )?;
     }
 
-    // The plane × NURBS witness (M7-8): the plane side is the same
+    // The residual × NURBS witness: the partner's side is the same
     // closed-form residual the analytic arm checks; the wall side is
     // discharged by the lane's own schedule, which contains the
     // mid-parameter exactly (`PXN_FIT_SAMPLES` is odd). The
@@ -5520,9 +5539,9 @@ fn run_checks<T: Decide + geom_core::CertifiedBounds>(
         )?;
     }
 
-    if let Resolved::PlaneNurbs {
-        plane_key,
-        plane,
+    if let Resolved::ResidualNurbs {
+        partner_key,
+        partner,
         witness,
         ..
     } = &resolved
@@ -5530,10 +5549,10 @@ fn run_checks<T: Decide + geom_core::CertifiedBounds>(
         check_residual(
             "witness_on_surface_1",
             CertCheck::WitnessSurfaceResidual {
-                surface: *plane_key,
+                surface: *partner_key,
             },
             NOT_A_SAMPLE,
-            Margin::of(implicit_residual(plane, *witness)),
+            Margin::of(implicit_residual(partner, *witness)),
             band,
             &mut max_residual,
         )?;
@@ -5623,12 +5642,13 @@ enum Resolved<T: Real> {
         /// now lives — not a new predicate.
         declared: Option<crate::mapped::MappedCurve<T>>,
     },
-    /// `Intersection` of a PLANE and a described NURBS wall or a
-    /// fitted one (M7-8): the declare-and-check lane's shape, with
-    /// the lane that derives its limbs. `wall` has a spline chart.
-    PlaneNurbs {
-        plane_key: SurfaceKey,
-        plane: Surface<T>,
+    /// `Intersection` of a residual partner (a plane, sphere, cylinder
+    /// or torus) and a described NURBS wall or a fitted one: the
+    /// declare-and-check lane's shape, with the lane that derives its
+    /// limbs. `wall` has a spline chart.
+    ResidualNurbs {
+        partner_key: SurfaceKey,
+        partner: Surface<T>,
         wall: Surface<T>,
         witness: Point3<T>,
     },
@@ -5676,15 +5696,37 @@ fn plane_nurbs_pair<T: Real>(
     pair: SurfacePair,
     surfaces: &impl Fn(SurfaceKey) -> Option<Surface<T>>,
 ) -> Option<(SurfaceKey, Surface<T>, SurfaceKey, Surface<T>)> {
+    partner_nurbs_pair(pair, surfaces, |s| matches!(s, Surface::Plane { .. }))
+}
+
+/// The residual × NURBS pairing of an `Intersection`: [`plane_nurbs_pair`]
+/// with the partner any the lane's door reads
+/// (`edge_nurbs::is_residual_partner`: a plane, sphere, cylinder or
+/// torus). A cone beside a spline chart is no such pair and refuses on
+/// the analytic path.
+fn residual_nurbs_pair<T: Real>(
+    pair: SurfacePair,
+    surfaces: &impl Fn(SurfaceKey) -> Option<Surface<T>>,
+) -> Option<(SurfaceKey, Surface<T>, SurfaceKey, Surface<T>)> {
+    partner_nurbs_pair(pair, surfaces, crate::edge_nurbs::is_residual_partner)
+}
+
+/// Exactly one surface of `pair` a `partner` (returned with its key) and
+/// the other a wall with a spline chart.
+fn partner_nurbs_pair<T: Real>(
+    pair: SurfacePair,
+    surfaces: &impl Fn(SurfaceKey) -> Option<Surface<T>>,
+    partner: impl Fn(&Surface<T>) -> bool,
+) -> Option<(SurfaceKey, Surface<T>, SurfaceKey, Surface<T>)> {
     let wall = |s: &Surface<T>| match s {
         Surface::Nurbs(n) => !n.is_placeholder(),
         _ => s.spline_chart().is_some(),
     };
     pair.keys().into_iter().find_map(|k| {
-        let plane = surfaces(k).filter(|s| matches!(s, Surface::Plane { .. }))?;
+        let analytic = surfaces(k).filter(|s| partner(s))?;
         let other_key = pair.other(k)?;
         let other = surfaces(other_key).filter(|s| wall(s))?;
-        Some((k, plane, other_key, other))
+        Some((k, analytic, other_key, other))
     })
 }
 
@@ -5745,7 +5787,7 @@ mod foot_rows {
 #[cfg(test)]
 mod wiring_rows {
     use super::{NurbsLane, SplineFoot};
-    use crate::edge_nurbs::plane_nurbs_limbs;
+    use crate::edge_nurbs::residual_nurbs_limbs;
 
     /// `Ok(())` when the fields hold the lane's certified functions;
     /// otherwise the first wrong field's name.
@@ -5754,9 +5796,9 @@ mod wiring_rows {
         let lane = NurbsLane::<T>::certified();
         if !std::ptr::fn_addr_eq(
             lane.limbs,
-            plane_nurbs_limbs::<T> as fn(_, _, _, _, _, _) -> _,
+            residual_nurbs_limbs::<T> as fn(_, _, _, _, _, _) -> _,
         ) {
-            return Err("limbs is not `edge_nurbs::plane_nurbs_limbs`");
+            return Err("limbs is not `edge_nurbs::residual_nurbs_limbs`");
         }
         if !std::ptr::fn_addr_eq(
             lane.spline_face,
@@ -5808,7 +5850,7 @@ mod wiring_rows {
         assert_eq!(
             holds_the_certified_nurbs_lane::<f64>(),
             Ok(()),
-            "`NurbsLane::<f64>::certified()` holds something other than `plane_nurbs_limbs`, `nurbs_pair_limbs`, `plane_nurbs_incidence`, `analytic_edge_limbs` and `composite_crossings`"
+            "`NurbsLane::<f64>::certified()` holds something other than `residual_nurbs_limbs`, `nurbs_pair_limbs`, `plane_nurbs_incidence`, `analytic_edge_limbs` and `composite_crossings`"
         );
     }
 

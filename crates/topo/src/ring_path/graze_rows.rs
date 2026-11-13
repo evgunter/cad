@@ -38,6 +38,7 @@ fn case(
     let path = Path {
         pieces: vec![Piece::Arc(piece)],
         arrival: piece.tangent(1.4),
+        reach: None,
     };
     let c = r * phi.cos() + g;
     let a = (r * r - c * c).sqrt();
@@ -194,6 +195,7 @@ fn a_graze_within_the_gaps_band_escalates_and_the_next_path_decides() {
     let detour = Path {
         pieces: out.pieces.into_iter().chain(back.pieces).collect(),
         arrival: back.arrival,
+        reach: None,
     };
     assert_eq!(path_parity(&detour, &arcs, None, band), Ok(Some(false)));
 }
@@ -461,6 +463,7 @@ fn segment_section(
                         lever: geom_core::test_support::fixture_lever(slant * 0.7),
                     }],
                     arrival: e,
+                    reach: None,
                 };
                 cell.read(path_parity(&path, &arcs, None, band), || {
                     format!("vertex {} from the farthest, nudge {nudge:e}", tv - far)
@@ -545,6 +548,7 @@ fn parallel_ruling(
             let path = Path {
                 pieces: vec![Piece::Arc(piece)],
                 arrival: piece.tangent(0.6),
+                reach: None,
             };
             cell.read(path_parity(&path, &arcs, None, band), || {
                 format!("nudge {nudge:e}")
@@ -574,6 +578,7 @@ fn a_crossing_decided_out_of_span_is_passed_over_though_another_reading_escalate
     let path = Path {
         pieces: vec![Piece::Arc(piece)],
         arrival: piece.tangent(end),
+        reach: None,
     };
     // Past the end by the band's geometric middle: zero < δ < escalate.
     let delta = (band.zero() * band.escalate()).sqrt();
@@ -618,6 +623,7 @@ fn a_pair_that_says_nothing_answers_past_a_pair_in_band() {
     let path = Path {
         pieces: vec![Piece::Arc(piece)],
         arrival: piece.tangent(1.0),
+        reach: None,
     };
     let ruling = |origin: Point3<f64>, dir: Vec3<f64>| LoopArc::Line {
         line: geom::Line { origin, dir },

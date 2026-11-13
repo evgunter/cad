@@ -72,6 +72,8 @@ mod a_curve_off_its_face_at_a_build_is_the_kernels;
 mod a_curved_keel_in_the_plane;
 #[path = "a_curved_keel_on_the_floor_refuses_its_slit_form.rs"]
 mod a_curved_keel_on_the_floor_refuses_its_slit_form;
+#[path = "a_cut_by_a_curved_seat_refuses_its_material.rs"]
+mod a_cut_by_a_curved_seat_refuses_its_material;
 #[path = "a_cylinder_split_just_off_its_rim_vertex.rs"]
 mod a_cylinder_split_just_off_its_rim_vertex;
 #[path = "a_face_across_a_wavy_corner.rs"]
@@ -212,6 +214,8 @@ mod band_apart_partners_on_a_steep_ellipse;
 mod band_closed_mixed_chain;
 #[path = "band_closed_mixed_chain_shapes.rs"]
 mod band_closed_mixed_chain_shapes;
+#[path = "band_mixed_rim_shared_supports.rs"]
+mod band_mixed_rim_shared_supports;
 #[path = "band_subdivided_side_walls.rs"]
 mod band_subdivided_side_walls;
 #[path = "bisector_lane_stubs.rs"]

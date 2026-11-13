@@ -415,3 +415,15 @@ Ev, in chat: "go ahead in whatever order you see fit (including parallelizing th
   - The new guard test is over the 0.5 s new-test limit.
   - Both go into the fix pass after the reviews; the head stays frozen. Commented on the PR.
   - **Class finding:** a red is main's only if it fails on main *the same way* (same assertion and message). The test name is not enough when main is already red on that test. The briefs say "class every red at origin/main", but not "by its failure text"; worth saying in the next brief.
+- 2026-11-13 — **PR [#6890](https://github.com/evgunter/cad/pull/6890) (face pair) fix pass accepted.**
+  - A concurrent Opus/Fable pair reviewed the frozen head `aef77d609971`, and both returned APPROVE-WITH-FIXES. One question went to Ev: what "opposed" means in `[assertions.quiet]`. Ev ruled (a), at the `Gap`'s pose, which is C5's own meaning, so `Nest::Apart` is gone and two shafts quiet under a holding `Gap`.
+  - All 15 adjudicated items were taken:
+    - one door from two normals (`normals_alignment`) with one zero policy;
+    - one type (`MaterialPairing`) and one parallelism reading;
+    - a pose that carries its own data under its own K names;
+    - the link's facing as a named metric constructor;
+    - a true glue refusal;
+    - pinned rows, and rows of its own for `carrier_pose`.
+  - The one CI red on the fix-pass head was a renamed slow row. The orchestrator added it to the slow set (`bc51af9f`).
+  - Model-compare row `docs/model-compare-log/rows/PR-6890.md`.
+  - (ONEDOOR orchestrator)

@@ -169,6 +169,7 @@ pub(crate) use ops::{boundary_edges, describe_edges};
 pub(crate) use ops::{
     no_crossings_certificates, no_crossings_section_report, no_event_section_report,
 };
+mod material;
 #[cfg(test)]
 mod node_probe_rows;
 pub mod plane_eq;
@@ -314,6 +315,9 @@ pub use voids::{
 #[must_use]
 pub fn decision_words(predicate: &str) -> Option<&'static str> {
     if let Some(words) = geom_brep::sector_shape::rung_words(predicate) {
+        return Some(words);
+    }
+    if let Some(words) = geom_brep::carrier_pose::decision_words(predicate) {
         return Some(words);
     }
     if let Some(reading) = refusal_routes::PARALLELISMS
@@ -1146,27 +1150,20 @@ impl<T: Real> GlueVerdict<T> {
         self.class.relation()
     }
 
-    /// **This verdict, given to a fold step**: the pair of `at`, an
-    /// accumulation face whose lineage holds the judged `held` face, and
-    /// the judged face of the other operand, under the judged class
-    /// (every class is symmetric in its two faces), carrying the
-    /// decision: its margin, and a tangency's line. The n-ary door
-    /// ([`nary`]) passes each such accumulation face, read
-    /// through the lineage it advances itself.
-    pub(crate) fn given_at(&self, held: Operand, at: FaceKey) -> GluedPair<T> {
-        let other = match held {
-            Operand::A => self.b,
-            Operand::B => self.a,
-        };
-        GluedPair::given_as(
-            at,
-            other,
-            self.class,
-            GivenDecision {
+    /// **This verdict as the decision a fold step is given**: a
+    /// one-carrier verdict's class, a tangency's margin and line. The
+    /// n-ary door ([`nary`]) gives it on each accumulation face whose
+    /// lineage holds the judged face, read through the lineage it
+    /// advances itself.
+    pub(crate) fn decision(&self) -> GivenDecision<T> {
+        match self.class {
+            GlueClass::Rest => GivenDecision::Rest,
+            GlueClass::Continuation => GivenDecision::Continuation,
+            GlueClass::Tangent => GivenDecision::Tangent {
                 margin: self.margin,
                 line: self.line,
             },
-        )
+        }
     }
 
     /// The verdicts `rows` record: each row relating an A-operand face
@@ -1195,14 +1192,36 @@ impl<T: Real> GlueVerdict<T> {
     }
 }
 
-/// **The decision a given pair carries** ([`GlueVerdict::given_at`]):
-/// the margin the deciding operation read, and a tangency's line as it
-/// derived and placed it, which a fold step places against its pieces'
-/// faces, deciding nothing of the carriers.
+/// **The decision a given pair carries** ([`GlueVerdict::decision`],
+/// or a face–face record's meaning, [`nary`]): a one-carrier pair's is
+/// its class alone, since a step that glues one carrier reads nothing
+/// of the carriers; a tangency's is the margin the deciding operation
+/// read and its line as it derived and placed it, which a fold step
+/// places against its pieces' faces, deciding nothing of the carriers.
 #[derive(Clone, Copy, Debug)]
-pub(crate) struct GivenDecision<T: Real> {
-    pub(crate) margin: MarginDiag,
-    pub(crate) line: Option<geom::Line<T>>,
+pub(crate) enum GivenDecision<T: Real> {
+    /// One carrier, senses opposed.
+    Rest,
+    /// One carrier, senses aligned.
+    Continuation,
+    /// Distinct carriers tangent along a locus.
+    Tangent {
+        /// The margin the deciding operation read.
+        margin: MarginDiag,
+        /// The locus as it derived and placed it, or none for a rim.
+        line: Option<geom::Line<T>>,
+    },
+}
+
+impl<T: Real> GivenDecision<T> {
+    /// The class the decision glues under.
+    pub(crate) fn class(&self) -> GlueClass {
+        match self {
+            Self::Rest => GlueClass::Rest,
+            Self::Continuation => GlueClass::Continuation,
+            Self::Tangent { .. } => GlueClass::Tangent,
+        }
+    }
 }
 
 /// **The pairs one boolean glues**, and the records it carries: the
@@ -1333,11 +1352,8 @@ enum Glued<T: Real> {
 enum Origin<T: Real> {
     /// The glue door decided it.
     Decided(Glued<T>),
-    /// A fold step was given it, under `class`.
-    Given {
-        class: GlueClass,
-        decision: GivenDecision<T>,
-    },
+    /// A fold step was given it.
+    Given(GivenDecision<T>),
     /// A test row's pair, under `class`, with no decision: an index row
     /// the declaration door never reads.
     #[cfg(test)]
@@ -1346,7 +1362,7 @@ enum Origin<T: Real> {
 
 /// **One glued cross-operand face pair and its decision**: a pair an
 /// operation decided, or one an n-ary union's fold step was given
-/// ([`GlueVerdict::given_at`]). Its class is its decision's
+/// ([`GlueVerdict::decision`]). Its class is its decision's
 /// ([`Self::class`]).
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct GluedPair<T: Real = f64> {
@@ -1381,7 +1397,7 @@ impl<T: Real> GluedPair<T> {
                 }
             },
             Origin::Decided(Glued::Tangent(_)) => GlueClass::Tangent,
-            Origin::Given { class, .. } => class,
+            Origin::Given(decision) => decision.class(),
             #[cfg(test)]
             Origin::Bare(class) => class,
         }
@@ -1391,7 +1407,7 @@ impl<T: Real> GluedPair<T> {
     /// decided.
     pub(crate) fn given(&self) -> Option<GivenDecision<T>> {
         match self.origin {
-            Origin::Given { decision, .. } => Some(decision),
+            Origin::Given(decision) => Some(decision),
             _ => None,
         }
     }
@@ -1416,17 +1432,12 @@ impl<T: Real> GluedPair<T> {
         }
     }
 
-    /// A pair a fold step was given under `class`.
-    pub(crate) fn given_as(
-        a: FaceKey,
-        b: FaceKey,
-        class: GlueClass,
-        decision: GivenDecision<T>,
-    ) -> Self {
+    /// A pair a fold step was given on `decision`.
+    pub(crate) fn given_as(a: FaceKey, b: FaceKey, decision: GivenDecision<T>) -> Self {
         Self {
             a,
             b,
-            origin: Origin::Given { class, decision },
+            origin: Origin::Given(decision),
         }
     }
 
@@ -1504,11 +1515,10 @@ impl<T: Real> GluedPair<T> {
     /// records it for a face–face record to cite: its two faces, its
     /// class's relation, its margin.
     pub(crate) fn restated_by(&self, row: &crate::Coincidence) -> bool {
-        self.given().is_some_and(|given| {
-            row.face_pair() == Some((self.a, self.b))
-                && row.relation.glued_class() == Some(self.class())
-                && row.margin == given.margin
-        })
+        matches!(self.given(), Some(GivenDecision::Tangent { margin, .. })
+            if row.face_pair() == Some((self.a, self.b))
+                && row.relation.glued_class() == Some(GlueClass::Tangent)
+                && row.margin == margin)
     }
 }
 
@@ -3766,23 +3776,35 @@ pub enum BooleanError {
         /// The record's two faces, keys of that operand.
         faces: [FaceKey; 2],
     },
-    /// **A cut reaches across a seat inside its tool**: `B` holds pieces
-    /// resting on each other, two faces a face–face record of `B`'s
-    /// declares one wall, and `A`'s material crosses that wall. Each
-    /// face holds `B`'s material on its own side, so `A − B` keeps
-    /// nothing at the wall; but the operation cuts `A` along each face
-    /// apart, and the sliver of `A` between the two cuts, with both
-    /// faces about it, is what the finish keeps
-    /// (`work/seal/a-cut-across-its-tools-seat-leaves-a-sliver-between-the-seats-two-sections.md`).
-    /// Raised where a vertex of `A` pierces both faces, before any pass
-    /// writes, and where a shell of the result holds both.
+    /// **A cut's tool holds a meeting between two of its solids that
+    /// its record does not say is an area**: the cut reads its tool as
+    /// material, its solids fused on the face–face records between them
+    /// (`crates/topo/README.md`, `[topo.cut-material]`), and a
+    /// record of two planar faces is an area, one plane with the
+    /// materials on its two sides. A record of curved faces may be an
+    /// area or a tangency along a line, which the record does not tell
+    /// apart, and a record of lower cells is no area; neither is taken
+    /// as a glue the record never stated, and neither is decided again.
+    /// Raised at the cut's door, before any pass writes.
     ///
-    /// A limit: a cut across a seat inside its tool, not built (row 2).
-    ToolSeatCrossed {
+    /// A limit: a cut by a tool whose pieces meet other than over a
+    /// planar area, not built (row 2).
+    ToolSeatUnread {
         /// The record's index in `B`'s records.
         record: u32,
-        /// The record's two faces, keys of `B`.
-        faces: [FaceKey; 2],
+        /// The record's two cells, keys of `B`.
+        cells: [Cell; 2],
+    },
+    /// **A cut's tool's fuse refused**: the cut reads `B`, its solids
+    /// resting on each other, as their material, and the union of those
+    /// solids on their records refused, or what a face of that union
+    /// holds of `B`'s faces could not be read (`crates/topo/README.md`,
+    /// `[topo.cut-material]`).
+    ///
+    /// Classed as the union's refusal is; a holding unread is a limit.
+    ToolFuseRefused {
+        /// Why.
+        why: Box<ToolFuseRefusal>,
     },
     /// The result would hold a non-manifold vertex: both operands hold
     /// several vertices at one point, and A's crosses into two of B's
@@ -4728,8 +4750,10 @@ pub enum BooleanErrorKind {
     PartnerAlongFace,
     /// [`BooleanError::TouchesItself`].
     TouchesItself,
-    /// [`BooleanError::ToolSeatCrossed`].
-    ToolSeatCrossed,
+    /// [`BooleanError::ToolSeatUnread`].
+    ToolSeatUnread,
+    /// [`BooleanError::ToolFuseRefused`].
+    ToolFuseRefused,
     /// [`BooleanError::NonManifoldResult`].
     NonManifoldResult,
     /// [`BooleanError::ClassificationInvariant`].
@@ -5059,7 +5083,8 @@ impl BooleanError {
             Self::VertexReadTwice { .. } => BooleanErrorKind::VertexReadTwice,
             Self::PartnerAlongFace { .. } => BooleanErrorKind::PartnerAlongFace,
             Self::TouchesItself { .. } => BooleanErrorKind::TouchesItself,
-            Self::ToolSeatCrossed { .. } => BooleanErrorKind::ToolSeatCrossed,
+            Self::ToolSeatUnread { .. } => BooleanErrorKind::ToolSeatUnread,
+            Self::ToolFuseRefused { .. } => BooleanErrorKind::ToolFuseRefused,
             Self::NonManifoldResult { .. } => BooleanErrorKind::NonManifoldResult,
             Self::ClassificationInvariant { .. } => BooleanErrorKind::ClassificationInvariant,
             Self::CrossingInsertion { .. } => BooleanErrorKind::CrossingInsertion,
@@ -5150,6 +5175,10 @@ impl BooleanError {
             Self::Containment(e) => e.refusal(),
             Self::ApexSection { reading, .. } => reading.refusal(),
             Self::Join(j) => j.error().refusal(),
+            Self::ToolFuseRefused { why } => match why.as_ref() {
+                ToolFuseRefusal::Step(error) => error.refusal(),
+                ToolFuseRefusal::Holding { .. } => Ok(Refusal::Limit),
+            },
             Self::ShellWitnessExhausted { first_in_band, .. } => first_in_band
                 .as_ref()
                 .map_or(Ok(Refusal::InBand), PointInSolidError::refusal),
@@ -5231,7 +5260,7 @@ impl BooleanError {
             | Self::SlitFaceClosesMidSlit { .. }
             | Self::LineWedges { .. }
             | Self::TouchesItself { .. }
-            | Self::ToolSeatCrossed { .. } => Ok(Refusal::Limit),
+            | Self::ToolSeatUnread { .. } => Ok(Refusal::Limit),
             Self::Band(_)
             | Self::NonManifoldResult { .. }
             | Self::UnrepresentableResult
@@ -5955,13 +5984,36 @@ impl BooleanError {
                  of them",
                 operand_word(*operand),
             ),
-            Self::ToolSeatCrossed { record, .. } => write!(
+            Self::ToolSeatUnread {
+                record,
+                cells: [Cell::Face(_), Cell::Face(_)],
+            } => write!(
                 f,
-                "the cut's tool is pieces resting on each other (its contact record \
-                 {record}) and the cut crosses their seat, where the Boolean cannot yet drop \
-                 the sliver it would leave between the seat's two faces. Recourse: cut by \
-                 each piece of the tool in turn",
+                "the cut's tool is pieces lying on each other along curved faces (its contact \
+                 record {record}), which may meet over an area or along a line, and the \
+                 record does not say which, so the Boolean cannot yet cut by the pieces' \
+                 material. Recourse: unite the pieces first, or cut by each piece in turn",
             ),
+            Self::ToolSeatUnread { record, .. } => write!(
+                f,
+                "the cut's tool is pieces resting on each other over an area that also meet \
+                 elsewhere, at a point or along a line (its contact record {record}), and \
+                 the Boolean cannot yet cut by the material of pieces that meet both ways. \
+                 Recourse: unite the pieces first, or cut by each piece in turn",
+            ),
+            Self::ToolFuseRefused { why } => match why.as_ref() {
+                ToolFuseRefusal::Step(error) => write!(
+                    f,
+                    "fusing the cut's resting tool pieces into one material refused: {error}",
+                ),
+                ToolFuseRefusal::Holding { .. } => write!(
+                    f,
+                    "the cut's tool is pieces resting on each other, which the Boolean fuses \
+                     into one material before it cuts, and which of the pieces' faces one fused \
+                     face holds could not be read, so the cut cannot name the tool's faces it \
+                     would cut along",
+                ),
+            },
             Self::NonManifoldResult { .. } => write!(
                 f,
                 "the result would meet itself in a fan of faces around one point, where \
@@ -6683,15 +6735,6 @@ pub type SegmentSites = (usize, Vec<[Point3<f64>; 2]>);
 const UNREAD_FIRST_FACE: BooleanError = BooleanError::ClassificationInvariant {
     what: "a wall's second face is read before its first",
 };
-
-/// **Whether an area record's two faces lying in one result, or a
-/// vertex crossing them, is a cut crossing its tool's seat**
-/// ([`BooleanError::ToolSeatCrossed`]): a cut whose tool, `B`, holds the
-/// record. Every other operation that holds the faces in one shell
-/// touches itself ([`BooleanError::TouchesItself`]).
-pub(in crate::boolean) fn seat_crossed(op: BooleanOp, holder: Operand) -> bool {
-    op == BooleanOp::Subtract && holder == Operand::B
-}
 
 /// [`boolean_reduce`] with an explicit [`SweepStrategy`] —
 /// the idealized/realized door (PERF-PLAN §4.4): production always
@@ -7792,16 +7835,16 @@ fn given_verdicts<T: Decide>(
     let mut verified = VerifiedGlue::default();
     for pair in &decls.pairs {
         let (fa, fb) = (pair.a, pair.b);
-        match pair.class() {
-            GlueClass::Tangent => {
+        match pair
+            .given()
+            .ok_or(invariant("a given pair carries no decision"))?
+        {
+            GivenDecision::Tangent { margin, line } => {
                 let kinds = (kind(a, fa), kind(b, fb));
-                let given = pair
-                    .given()
-                    .ok_or(invariant("a given pair carries no decision"))?;
                 // The step's own faces' extents along the given line, and a
                 // row only beside the touch: the line is the deciding
                 // operation's, and the step decides nothing of the carriers.
-                if let Some(line) = given.line {
+                if let Some(line) = line {
                     let (_, overlap) = witness_span(a, fa, b, fb, &line, band, pad)?;
                     let touch = (line, overlap);
                     if record_touch(
@@ -7809,12 +7852,10 @@ fn given_verdicts<T: Decide>(
                         [(a, fa), (b, fb)],
                         kinds,
                         touch,
-                        given.margin,
+                        margin,
                         band,
                     )? {
-                        verified
-                            .coincidences
-                            .push(tangent_row(fa, fb, given.margin));
+                        verified.coincidences.push(tangent_row(fa, fb, margin));
                         verified.lines.insert((fa, fb), line);
                     }
                 }
@@ -7822,11 +7863,11 @@ fn given_verdicts<T: Decide>(
                     (fa, fb),
                     TangentCert {
                         kinds,
-                        line: given.line.is_some(),
+                        line: line.is_some(),
                     },
                 );
             }
-            GlueClass::Rest | GlueClass::Continuation => {
+            GivenDecision::Rest | GivenDecision::Continuation => {
                 verified.one_carrier.insert((fa, fb));
             }
         }
@@ -8275,6 +8316,19 @@ fn verify_tangency<T: Decide>(
         // locus it was read along is one too.
         TangentVerdict::Touch(touch) => touch.jointly(located),
         TangentVerdict::Ruled(_) => return Err(NotTangent),
+        // A witness of no length reads every pair's normals square: the
+        // alignment's lever gate refused it, which is the line's length
+        // and not the contact.
+        TangentVerdict::InBand(diag)
+            if diag.predicate == Some(geom_brep::GRADIENT_ALIGNMENT_LEVER) =>
+        {
+            return Err(Refused(BooleanError::of_lever_rung(
+                refusal_routes::LeverArm::TangentLocus,
+                read,
+                geom_brep::LeverRung::Arm,
+                diag,
+            )));
+        }
         TangentVerdict::InBand(diag) => {
             return Err(Refused(BooleanError::coincidence(
                 Coincide::Contact,
@@ -8920,79 +8974,110 @@ fn validate_declarations<T: Decide>(
         inventory_face(a, fa, Operand::A)?;
         inventory_face(b, fb, Operand::B)?;
     }
+    validate_carried(a, &decls.records_a, Operand::A)?;
+    validate_carried(b, &decls.records_b, Operand::B)
+}
+
+/// **Every key an operand's carried records name resolves in `body`**,
+/// and each record names two cells neither of which bounds the other:
+/// `BooleanInputs`' contract, a dangling key refused typed.
+///
+/// # Errors
+///
+/// [`BooleanError::InvalidInput`] naming the first record kind that
+/// fails.
+pub(in crate::boolean) fn validate_carried<T: Real>(
+    body: &Body<T>,
+    c: &OperandRecords,
+    operand: Operand,
+) -> Result<(), BooleanError> {
+    let bad = |operand, what| BooleanError::InvalidInput { operand, what };
     // A record's two cells' interiors meet, so neither bounds the other.
     let bounds = |body: &Body<T>, x, y| {
         matches!(Contact::new(body, x, y), Err(ContactPairError::Incident(_)))
     };
-    let carried = |body: &Body<T>, c: &OperandRecords, operand| -> Result<(), BooleanError> {
-        for carried in &c.vv {
-            let pair = carried.contact;
-            if body.get_vertex(pair.a).is_none() || body.get_vertex(pair.b).is_none() {
-                return Err(bad(operand, "carried v-v vertex key does not resolve"));
-            }
-            if pair.a == pair.b {
-                return Err(bad(operand, "carried v-v pair names one vertex twice"));
+    for carried in &c.vv {
+        let pair = carried.contact;
+        if body.get_vertex(pair.a).is_none() || body.get_vertex(pair.b).is_none() {
+            return Err(bad(operand, "carried v-v vertex key does not resolve"));
+        }
+        if pair.a == pair.b {
+            return Err(bad(operand, "carried v-v pair names one vertex twice"));
+        }
+    }
+    for carried in &c.vf {
+        let rest = carried.contact;
+        if body.get_vertex(rest.vertex).is_none() {
+            return Err(bad(operand, "carried v-on-f vertex key does not resolve"));
+        }
+        if body.get_face(rest.face).is_none() {
+            return Err(bad(operand, "carried v-on-f face key does not resolve"));
+        }
+        if bounds(body, Cell::Vertex(rest.vertex), Cell::Face(rest.face)) {
+            return Err(bad(operand, "carried v-on-f vertex bounds its face"));
+        }
+    }
+    for CarriedRecord { contact: rest, .. } in &c.ve {
+        if body.get_vertex(rest.vertex).is_none() {
+            return Err(bad(operand, "carried v-on-e vertex key does not resolve"));
+        }
+        if body.get_edge(rest.edge).is_none() {
+            return Err(bad(operand, "carried v-on-e edge key does not resolve"));
+        }
+        if bounds(body, Cell::Vertex(rest.vertex), Cell::Edge(rest.edge)) {
+            return Err(bad(operand, "carried v-on-e vertex bounds its edge"));
+        }
+    }
+    for CarriedRecord { contact: touch, .. } in &c.ee {
+        if touch.a == touch.b {
+            return Err(bad(operand, "carried e-e pair names one edge twice"));
+        }
+        for e in [touch.a, touch.b] {
+            if body.get_edge(e).is_none() {
+                return Err(bad(operand, "carried e-e edge key does not resolve"));
             }
         }
-        for carried in &c.vf {
-            let rest = carried.contact;
-            if body.get_vertex(rest.vertex).is_none() {
-                return Err(bad(operand, "carried v-on-f vertex key does not resolve"));
-            }
-            if body.get_face(rest.face).is_none() {
-                return Err(bad(operand, "carried v-on-f face key does not resolve"));
-            }
-            if bounds(body, Cell::Vertex(rest.vertex), Cell::Face(rest.face)) {
-                return Err(bad(operand, "carried v-on-f vertex bounds its face"));
+    }
+    for CarriedRecord { contact: touch, .. } in &c.ef {
+        if body.get_edge(touch.edge).is_none() {
+            return Err(bad(operand, "carried e-f edge key does not resolve"));
+        }
+        if body.get_face(touch.face).is_none() {
+            return Err(bad(operand, "carried e-f face key does not resolve"));
+        }
+        if bounds(body, Cell::Edge(touch.edge), Cell::Face(touch.face)) {
+            return Err(bad(operand, "carried e-f edge bounds its face"));
+        }
+    }
+    for CarriedRecord { contact: touch, .. } in &c.ff {
+        if touch.a == touch.b {
+            return Err(bad(operand, "carried f-f pair names one face twice"));
+        }
+        for f in [touch.a, touch.b] {
+            if body.get_face(f).is_none() {
+                return Err(bad(operand, "carried f-f face key does not resolve"));
             }
         }
-        for CarriedRecord { contact: rest, .. } in &c.ve {
-            if body.get_vertex(rest.vertex).is_none() {
-                return Err(bad(operand, "carried v-on-e vertex key does not resolve"));
-            }
-            if body.get_edge(rest.edge).is_none() {
-                return Err(bad(operand, "carried v-on-e edge key does not resolve"));
-            }
-            if bounds(body, Cell::Vertex(rest.vertex), Cell::Edge(rest.edge)) {
-                return Err(bad(operand, "carried v-on-e vertex bounds its edge"));
-            }
-        }
-        for CarriedRecord { contact: touch, .. } in &c.ee {
-            if touch.a == touch.b {
-                return Err(bad(operand, "carried e-e pair names one edge twice"));
-            }
-            for e in [touch.a, touch.b] {
-                if body.get_edge(e).is_none() {
-                    return Err(bad(operand, "carried e-e edge key does not resolve"));
-                }
-            }
-        }
-        for CarriedRecord { contact: touch, .. } in &c.ef {
-            if body.get_edge(touch.edge).is_none() {
-                return Err(bad(operand, "carried e-f edge key does not resolve"));
-            }
-            if body.get_face(touch.face).is_none() {
-                return Err(bad(operand, "carried e-f face key does not resolve"));
-            }
-            if bounds(body, Cell::Edge(touch.edge), Cell::Face(touch.face)) {
-                return Err(bad(operand, "carried e-f edge bounds its face"));
-            }
-        }
-        for CarriedRecord { contact: touch, .. } in &c.ff {
-            if touch.a == touch.b {
-                return Err(bad(operand, "carried f-f pair names one face twice"));
-            }
-            for f in [touch.a, touch.b] {
-                if body.get_face(f).is_none() {
-                    return Err(bad(operand, "carried f-f face key does not resolve"));
-                }
-            }
-        }
-        Ok(())
-    };
-    carried(a, &decls.records_a, Operand::A)?;
-    carried(b, &decls.records_b, Operand::B)?;
+    }
     Ok(())
+}
+
+/// **Why a cut's tool's fuse refused** ([`BooleanError::ToolFuseRefused`]).
+#[derive(Debug)]
+pub enum ToolFuseRefusal {
+    /// The union's own refusal at a fold step, its operands the fold's
+    /// accumulation and the solid it joins, each in the keys of `B`'s
+    /// solids carved out of it: a seat the union has no glue arm for
+    /// refuses here, naming the carrier pair.
+    Step(BooleanError),
+    /// What `face`, a face of the union, holds of `B`'s faces could not
+    /// be read, so the cut cannot name the tool's faces it cuts along.
+    Holding {
+        /// The union's face, in its keys.
+        face: FaceKey,
+        /// Why.
+        refusal: HeldRefusal,
+    },
 }
 
 pub use join_lift::BooleanJoin;
@@ -9928,9 +10013,9 @@ mod tests {
                 record: 0,
                 faces: [face; 2],
             },
-            BooleanError::ToolSeatCrossed {
+            BooleanError::ToolSeatUnread {
                 record: 0,
-                faces: [face; 2],
+                cells: [Cell::Face(face); 2],
             },
             BooleanError::NonManifoldResult {
                 a_vertex: VertexKey::default(),
@@ -10167,7 +10252,8 @@ mod tests {
                 BooleanErrorKind::VertexReadTwice => "VertexReadTwice",
                 BooleanErrorKind::PartnerAlongFace => "PartnerAlongFace",
                 BooleanErrorKind::TouchesItself => "TouchesItself",
-                BooleanErrorKind::ToolSeatCrossed => "ToolSeatCrossed",
+                BooleanErrorKind::ToolSeatUnread => "ToolSeatUnread",
+                BooleanErrorKind::ToolFuseRefused => "ToolFuseRefused",
                 BooleanErrorKind::NonManifoldResult => "NonManifoldResult",
                 BooleanErrorKind::ClassificationInvariant => "ClassificationInvariant",
                 BooleanErrorKind::CrossingInsertion => "CrossingInsertion",

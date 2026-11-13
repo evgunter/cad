@@ -24,7 +24,7 @@ const NAME: Option<&str> = option_env!("PCERT_RADIAL_PAIR_MUTANT");
 
 /// Every site this crate's hooks name. topo's `chord_join` declares its
 /// own one (`topo-v-var`) under the same variable.
-pub(super) const SITES: [&str; 57] = [
+pub(super) const SITES: [&str; 58] = [
     "class-circle",
     "zero-winding",
     "torus-parallel",
@@ -82,6 +82,7 @@ pub(super) const SITES: [&str; 57] = [
     "first-reading-dropped",
     "first-reading-sym-discarded-on-pass",
     "across-once",
+    "sphere-meridian-unprojected",
 ];
 
 fn on(site: &str) -> bool {
@@ -309,6 +310,14 @@ pub(super) fn sampled_line_incidence() -> bool {
 /// with no ruling reading (its rows are `ruling_reading_rows`).
 pub(super) fn cone_ruling_gate() -> bool {
     on("cone-ruling-gate")
+}
+
+/// The sphere meridian's azimuth direction read off its radial part as
+/// it is, its error across the carrier's plane kept, at the derivation
+/// and in the incidence lemma alike (its rows are `closed_image_rows`'
+/// pole-start meridians and the far-shown azimuths' sphere).
+pub(super) fn sphere_meridian_unprojected() -> bool {
+    on("sphere-meridian-unprojected")
 }
 
 /// A line's chart form read at the segment's two ends only, dropping
