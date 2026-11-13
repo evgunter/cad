@@ -1353,7 +1353,6 @@ pub(crate) fn sphere_chart_trim<T: Decide>(
     if !f.record().rings.is_empty() {
         return Ok(None);
     }
-    let surf = f.surface().clone();
     let LoopBoundary::Cycle { first } = f.outer().1.boundary else {
         return Ok(None);
     };
@@ -1497,29 +1496,27 @@ pub(crate) fn sphere_chart_trim<T: Decide>(
             levels.push((w.dot(axis), r_c));
         }
     }
-    // A window the loop walk cannot derive is a face this chart cannot
-    // express, NOT a broken body: the walk needs a closed-form chart
-    // image for every boundary edge and a branch it can pin across each
-    // junction, and a face that denies it either is out of the class.
-    // Only the in-band arm is an escalation.
-    let raw = match crate::chart_window::face_azimuth_window(body, &surf, face, band) {
-        Ok(Some(w)) => w,
-        Ok(None) => return Ok(None),
-        Err(crate::chord_join::JoinError::Escalated { diag, .. })
-        | Err(crate::chord_join::JoinError::OrderEscalated { diag, .. }) => {
-            return Err(escalate(diag));
+    // The window is the lift's: the face's boundary in the chart,
+    // decided here at the band, since containment reads bodies
+    // mid-operation too. A face whose outer loop has an image with no
+    // closed-form box, a joint that names no branch, or a turn on the
+    // chart's singular set that nothing decides, is out of the class,
+    // NOT a broken body: only the in-band arm is an escalation. A key
+    // that does not resolve, or a boundary that does not close in its
+    // chart, is not a class statement, and keeps the arena claim's own
+    // door.
+    let raw = {
+        use crate::chart_window::ChartWindowError;
+        match crate::chart_window::face_azimuth_window(body, face, band) {
+            Ok(Some(w)) => w,
+            Ok(None) | Err(ChartWindowError::Unread | ChartWindowError::Singular(_)) => {
+                return Ok(None);
+            }
+            Err(ChartWindowError::Escalated(diag)) => return Err(escalate(diag)),
+            Err(ChartWindowError::Stale(_) | ChartWindowError::NotClosed(_)) => {
+                return Err(PointInSolidError::CorruptFace { face });
+            }
         }
-        // A CORRUPTION-shaped refusal is not a class statement and must
-        // not wear one: a key the walk could not resolve, or a boundary
-        // that does not close, keeps the arena claim's own door — the
-        // same distinction `bool_planar_chord_spec` draws between a key
-        // that does not resolve and a key of the wrong kind.
-        Err(crate::chord_join::JoinError::Corrupt(_))
-        | Err(crate::chord_join::JoinError::UnpairedLooseEnds { .. }) => {
-            return Err(PointInSolidError::CorruptFace { face });
-        }
-        // The honest remainder: a walk this chart cannot express.
-        Err(_) => return Ok(None),
     };
     // A face that ALONE wraps the azimuth ([`wrap_rims`], asked first)
     // attains every azimuth of its latitude range, so its azimuth window

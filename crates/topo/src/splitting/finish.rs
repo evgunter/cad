@@ -1471,7 +1471,7 @@ pub(super) fn split_finish<T: Decide + crate::props::AtRestPolicy>(
         // a component of its own that neither side keeps, and the slit's,
         // nested below as a ring of the section face containing it.
         if let SectionKind::Slit { strut } = section.kind {
-            let promoted = body.mfkrh(ring, FaceSurface::Inherit)?;
+            let promoted = body.mfkrh_minting(ring, FaceSurface::Inherit, tol)?;
             let (trace, slit) = if ring == strut {
                 (promoted.face, section.face)
             } else {
@@ -1515,7 +1515,7 @@ pub(super) fn split_finish<T: Decide + crate::props::AtRestPolicy>(
         // would be listed from both and refuse typed
         // (`DuplicateRedescription`), or, naming neither's chart,
         // `RechartUndescribed`.
-        let promoted = body.mfkrh(ring, FaceSurface::Inherit)?;
+        let promoted = body.mfkrh_minting(ring, FaceSurface::Inherit, tol)?;
         let charts = vec![
             Rechart::new(plane_for(ring_side), promoted.face, ring_sense),
             Rechart::new(plane_for(other_side), section.face, outer_sense),

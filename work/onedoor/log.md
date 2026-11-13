@@ -451,6 +451,12 @@ Ev, in chat: "go ahead in whatever order you see fit (including parallelizing th
   - the `Norm` row cannot reach the real ladder.
   
   Style: test fixtures copied across crates, and a wrong "poisoned input" doc. The fix pass (8 items) went to the implementer at about 12:00. The orchestrator updates the `bind` and `seal` issues' rotted citations in the row commit. Main reds on #6909 were classed by failure text and commented.
+- 2026-11-13 — **PR [#6900](https://github.com/evgunter/cad/pull/6900) (loop lift, one decision with no reset) fix pass accepted.**
+  - A concurrent Fable/Opus pair reviewed the frozen head `dcc07bbb`. R1 returned NOT-MERGEABLE: a near-pole split regressed at 1e-6, because the turn read an image azimuth on the twin sheet. R2 returned APPROVE-WITH-FIXES and classed that red as main's by test name.
+  - The 18-item fix pass reads the singular turn's directions off the carriers and joins the sheets through the twin bit. The slit rule moved into the one decision, `JointSides` got one constructor, and there is one flip policy.
+  - The kernel CI run on the fix head hung in its build step for 5 h+. A probe showed no branch slowdown, and the row commit started a fresh run.
+  - Model-compare row `docs/model-compare-log/rows/PR-6900.md`. The unit is closed, and so is `the-chart-window-walk-refuses-in-the-chord-joins-error`.
+  - (ONEDOOR orchestrator)
 - 2026-11-13 — **PR [#6909](https://github.com/evgunter/cad/pull/6909) (carrier_eq and plane_eq move to geom-brep) fix pass accepted.**
   - S, sequential. One review (APPROVE-WITH-FIXES, no MAJOR), so no second review ran. All eight items were taken.
   - The move exposed a second minting door: the `Norm` refusal was built off the log, which geom-brep's census refuses and topo never checked. It now mints through `k_stats`. Five more such mints in topo are filed as `topo-hand-mints-indeterminates-geom-brep-census-would-refuse`.

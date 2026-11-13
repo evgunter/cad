@@ -202,6 +202,18 @@ pub(super) fn name_blend<T: geom_core::Real>(
             tied,
         )?;
     }
+    for (foot, v, e) in &rec.host_feet {
+        let (v, e) = (up_v(*v)?, up_e(*e)?);
+        let tied = v.tied || e.tied;
+        put(
+            EntityKey::Vertex(*foot),
+            RoleSeg::HostFoot {
+                vertex: v.name,
+                edge: e.name,
+            },
+            tied,
+        )?;
+    }
     for (m, v) in &rec.mitres {
         let v = up_v(*v)?;
         put(

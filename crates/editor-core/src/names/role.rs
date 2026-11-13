@@ -1563,6 +1563,21 @@ pub enum RoleSeg {
         /// The member's own name of the entity.
         of: NameRef,
     },
+
+    // ---- Blend (appended: a variant's index feeds a name's hash) ----
+    /// **A mixed corner's host foot**: where a pair band's trimline on
+    /// the face the pair shares meets the arc of the link resting on that
+    /// face and on the odd band, at a source vertex whose three edges mix
+    /// convexity and are all blended. Both keys are needed: the corner
+    /// has two such feet, both on the one shared face, so the vertex
+    /// alone names two entities and a [`RoleSeg::FootVertex`]'s face does
+    /// not tell them apart; the pair edge whose band ends there does.
+    HostFoot {
+        /// The source mixed corner vertex.
+        vertex: NameRef,
+        /// The source pair edge whose band ends at the foot.
+        edge: NameRef,
+    },
 }
 
 /// **Where a member stands in its family** ([`RoleSeg::Member`]): each
@@ -1701,6 +1716,7 @@ pub(crate) fn read_edge(seg: &RoleSeg) -> Option<VarId> {
         | RoleSeg::TrimEdge { .. }
         | RoleSeg::FootVertex { .. }
         | RoleSeg::EndArc { .. }
+        | RoleSeg::HostFoot { .. }
         | RoleSeg::Mitre { .. }
         | RoleSeg::TurnFoot { .. }
         | RoleSeg::BandSection { .. }
@@ -2338,6 +2354,10 @@ impl RoleSeg {
             R::BandSection { vertex } => R::BandSection {
                 vertex: rewrite_ref(vertex, w)?,
             },
+            R::HostFoot { vertex, edge } => R::HostFoot {
+                vertex: rewrite_ref(vertex, w)?,
+                edge: rewrite_ref(edge, w)?,
+            },
             R::BandFace(v) => R::BandFace(rewrite_set(v, w)?),
             R::BandTrim { edge, support } => R::BandTrim {
                 edge: rewrite_ref(edge, w)?,
@@ -2604,6 +2624,7 @@ macro_rules! never_in_a_boolean_table {
             | $crate::names::RoleSeg::TrimEdge { .. }
             | $crate::names::RoleSeg::FootVertex { .. }
             | $crate::names::RoleSeg::EndArc { .. }
+            | $crate::names::RoleSeg::HostFoot { .. }
             | $crate::names::RoleSeg::Mitre { .. }
             | $crate::names::RoleSeg::TurnFoot { .. }
             | $crate::names::RoleSeg::BandSection { .. }

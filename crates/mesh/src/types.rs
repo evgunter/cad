@@ -548,9 +548,7 @@ pub enum TessellateError {
     /// the chart runs counter-clockwise exactly when `sense` is true,
     /// and one that does not bounds the face's complement. Meshing it
     /// would ship the complement, or the face wound inward, as a closed
-    /// manifold mesh, so it refuses. A valid body does not reach it (the
-    /// sphere arm's pole placement, `trimmed::choose_pole_azimuths`,
-    /// refuses its own scope limits as [`Self::SphereTrimShape`]); a
+    /// manifold mesh, so it refuses. A valid body does not reach it; a
     /// face whose `sense` disagrees with its loops does.
     TrimLoopOrientation {
         /// The face whose trim polygon was refused.
@@ -621,13 +619,6 @@ pub enum SphereTrimCause {
     /// closed-form azimuth speed bound `|p′|/ρ` is unbounded on it: no
     /// chord schedule is sized, because none is bounded.
     ThroughPole,
-    /// The loop passes its chart poles at more junctions than the arm
-    /// searches the runs between them for (`trimmed::MAX_POLE_JUNCTIONS`).
-    PoleJunctions,
-    /// No placement of the loop's runs between its poles a whole turn
-    /// either way bounds a region of the face's orientation with an
-    /// area inside the sphere's, or two placements tie.
-    PoleAzimuth,
     /// The sphere's tightening asks one edge for more chords than the
     /// arm's per-edge budget (`trimmed::MAX_SPHERE_EDGE_CHORDS`): a
     /// tilted circle passing near a chart pole, whose uniform schedule is
@@ -643,8 +634,6 @@ impl SphereTrimCause {
             Self::PoleInside => "pole_inside",
             Self::SeamTwice => "seam_twice",
             Self::ThroughPole => "through_pole",
-            Self::PoleJunctions => "pole_junctions",
-            Self::PoleAzimuth => "pole_azimuth",
             Self::ChordBudget => "chord_budget",
         }
     }
@@ -882,14 +871,6 @@ impl TessellateError {
                     SphereTrimCause::ThroughPole => {
                         "a tilted circle of its boundary passes so near a chart pole \
                          that its image's azimuth speed has no bound to size chords by"
-                    }
-                    SphereTrimCause::PoleJunctions => {
-                        "its loop passes the chart's poles at more junctions than the \
-                         arm searches"
-                    }
-                    SphereTrimCause::PoleAzimuth => {
-                        "no placement of its loop's runs between the chart's poles \
-                         bounds a region of the face's orientation and area"
                     }
                     SphereTrimCause::ChordBudget => {
                         "a tilted circle of its boundary passes so near a chart pole \

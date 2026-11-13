@@ -2,7 +2,8 @@
 id: three-walks-of-a-loops-chart-images-each-claim-to-be-the-one
 kind: unit
 title: Three walks of a loop's chart images each claim to be the one: chart_window, pcurves::loop_lift, boxes::torus_chart_window
-status: review
+status: closed
+closed: 2026-11-13
 branch: onedoor/three-walks
 priority: P1
 cost: M

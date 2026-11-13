@@ -69,7 +69,8 @@ fn a_flipped_dimple_is_refused_by_the_side_reader() {
         .collect();
     assert_eq!(dimple.len(), 2, "the dimple is two half-faces on one seam");
     let flipped = dimple.iter().fold(topo::Body::clone(&body), |b, &k| {
-        b.flipped_face_sense_for_tests(k).expect("the face")
+        b.flipped_face_sense_for_tests(k, geom_core::Tol::witness())
+            .expect("the face")
     });
     // Each flipped half claims its complement, which holds the other, so
     // the cover census refuses their region as claimed twice, named by

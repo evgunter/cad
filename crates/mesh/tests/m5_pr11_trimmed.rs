@@ -245,7 +245,7 @@ fn a_wall_wound_against_its_sense_refuses_typed() {
         .map(|(k, _)| k)
         .expect("the trimmed wall");
     let flipped = above
-        .flipped_face_sense_for_tests(wall)
+        .flipped_face_sense_for_tests(wall, geom_core::Tol::witness())
         .expect("a live face");
     match mesh::tessellate(&flipped, 0.01, Tol::witness()) {
         Err(mesh::TessellateError::TrimLoopOrientation { face }) => assert_eq!(face, wall),

@@ -3485,14 +3485,14 @@ fn window_of<'b, T: Decide + CertifiedBounds>(
 }
 
 /// **Whether a face's boundary winds nowhere**: the elements of all its
-/// joints, over every loop together, compose to the identity with no
-/// reset. A missing joint, or an outer loop with no edges, reads as
+/// joints, over every loop together, compose to the identity. A
+/// missing joint, or an outer loop with no edges, reads as
 /// winding; every hop of the walk is a link
 /// ([`crate::live::FaceView::boundary_by_loop`]).
 ///
-/// On a cone a reset is written at a joint on the apex
-/// ([`crate::joint`]); absent one, the composed `u` of the whole
-/// boundary is its winding about the axis. What a total of zero tells
+/// On a cone a joint on the apex stores the face's turn there
+/// ([`crate::joint`]), so the composed `u` of the whole boundary is its
+/// winding about the axis, a loop through the apex included. What a total of zero tells
 /// [`window_of`] is argued there.
 fn winds_nowhere<T: Decide>(body: &Body<T>, f: FaceView<'_, T>) -> bool {
     let mut elements = Vec::new();
@@ -3569,7 +3569,7 @@ const APPROXIMATED: &str = "an approximated face";
 /// face's boundary IS that domain's boundary, traversed once.
 ///
 /// The test reads the face's one loop through its lift
-/// ([`crate::pcurves::loop_lift`]): each half-edge's stored chart image,
+/// ([`crate::pcurves::Lift::read`]): each half-edge's stored chart image,
 /// moved by the joint elements summed along the loop, so the two halves
 /// of a seam sit on the two columns they bound. It admits when
 ///
@@ -3616,7 +3616,7 @@ fn iso_bounded_domain<T: Decide + CertifiedBounds>(
     ) else {
         return Err("a free-form face whose knot domain is not exact structure");
     };
-    let rows = crate::pcurves::loop_lift(body, f.outer)
+    let rows = crate::pcurves::Lift::read(body, f.outer)
         .map_err(|_| "a free-form face whose boundary stores no chart image to lift")?;
     let on_side = |(x, y): (Interval, Interval)| {
         let (x, y) = (exact(x), exact(y));
@@ -3627,15 +3627,12 @@ fn iso_bounded_domain<T: Decide + CertifiedBounds>(
             y == Some(v.1),
         ]
     };
-    let mut path: Vec<[(Interval, Interval); 2]> = Vec::with_capacity(rows.len());
+    let mut path: Vec<[(Interval, Interval); 2]> = Vec::with_capacity(rows.rows().len());
     for row in &rows {
-        if !matches!(
-            row.row.pcurve(),
-            Pcurve::IsoLine { .. } | Pcurve::IsoArc { .. }
-        ) {
+        if !matches!(&row.pcurve, Pcurve::IsoLine { .. } | Pcurve::IsoArc { .. }) {
             return Err(NOT_ISO);
         }
-        let (t0, t1) = row.row.params();
+        let (t0, t1) = row.params;
         let point = |t: T| {
             let p = row.pcurve.eval(t);
             (Interval::from_certified(p.x), Interval::from_certified(p.y))
@@ -3743,7 +3740,7 @@ fn narrows(whole: &Aabb, half: &Aabb) -> bool {
 /// The lifted boundary carries each edge's carrier and span, its two
 /// end vertices, and each of the face's half-edges on it with that
 /// half-edge's chart image off the loop's lift
-/// ([`crate::pcurves::loop_lift`]): its two end points and, where the
+/// ([`crate::pcurves::Lift::read`]): its two end points and, where the
 /// image is a coordinate line by variant, which coordinate it holds. A
 /// loop with no lift carries no images, which leaves the face
 /// unpresented rather than misread.
@@ -3772,7 +3769,7 @@ fn boundary_of<T: Decide + CertifiedBounds>(
                     cycle = true;
                 }
             }
-            if cycle && let Ok(rows) = crate::pcurves::loop_lift(body, lk) {
+            if cycle && let Ok(rows) = crate::pcurves::Lift::read(body, lk) {
                 if role.is_outer() {
                     let surface = f.surface();
                     let periodic =
@@ -3780,7 +3777,7 @@ fn boundary_of<T: Decide + CertifiedBounds>(
                     out.extent = extent_of(
                         periodic,
                         rows.iter().map(|row| {
-                            let (t0, t1) = row.row.params();
+                            let (t0, t1) = row.params;
                             let end = |t: T| {
                                 let q = row.pcurve.eval(t);
                                 [lift.of(q.x), lift.of(q.y)]
@@ -3795,7 +3792,7 @@ fn boundary_of<T: Decide + CertifiedBounds>(
                     );
                 }
                 for row in rows {
-                    let (t0, t1) = row.row.params();
+                    let (t0, t1) = row.params;
                     let end = |t: T| {
                         let q = row.pcurve.eval(t);
                         Point2::new(lift.of(q.x), lift.of(q.y))
@@ -5226,7 +5223,7 @@ mod cone_window {
             .collect();
         let winding = crate::joint::Winding::of(joints.expect("the cap's joints are stored"));
         assert!(
-            !winding.reset && winding.deck.u.abs() == 1,
+            winding.deck.u.abs() == 1,
             "the cap's circle winds once about the axis: {winding:?}"
         );
         let w = window_of(&body, face, Which::First).unwrap();
