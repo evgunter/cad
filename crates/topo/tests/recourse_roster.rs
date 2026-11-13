@@ -192,8 +192,6 @@ const EXCEPTIONS: &[(&str, &Door)] = &[
     ("keep_turn_row", &REPLACE_FACE),
     ("positive_volume", &VALIDATION),
     ("positive_volume_enclosure", &VALIDATION),
-    ("cone_row_apex", &CHART_REGION),
-    ("nearest_branch_row", &CHART_REGION),
     ("period_fold_row", &CHART_REGION),
     ("each_branch_row", &PCURVES),
     ("first_within_row", &PCURVES),
@@ -747,7 +745,7 @@ const INDIRECT: &[(&str, &str)] = &[
         NOT_A_NAME,
     ),
     (
-        "pcurves.rs: a_spline_gate_that_is_not_off_writes_a_reset: chart(&s)",
+        "pcurves.rs: a_spline_gate_that_is_undecided_refuses_and_writes_nothing: chart(&s)",
         NOT_A_NAME,
     ),
     (
@@ -771,7 +769,15 @@ const INDIRECT: &[(&str, &str)] = &[
         "pcurves.rs: only_a_net_closed_in_v_decides_a_v_element: super::DescribedChart::of(s).unwrap()",
         NOT_A_NAME,
     ),
+    ("pcurves.rs: decide_plain_joint: chart", NOT_A_NAME),
     ("pcurves.rs: pcurve_pass: chart", NOT_A_NAME),
+    // The pass's closure over one joint of a cycle, by its index.
+    ("pcurves.rs: pcurve_pass: i", NOT_A_NAME),
+    ("pcurves.rs: pcurve_pass: slit", NOT_A_NAME),
+    // The split's boxed joint decisions, asked with the rest of the
+    // loop or without it.
+    ("pcurves.rs: split_cache: None", NOT_A_NAME),
+    ("pcurves.rs: split_cache: Some(rest)", NOT_A_NAME),
     ("pcurves.rs: split_cache: chart", NOT_A_NAME),
     ("pcurves.rs: turn_element: chart", NOT_A_NAME),
     (

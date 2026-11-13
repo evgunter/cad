@@ -43,8 +43,8 @@ use sweep::Revolution;
 use sweep::test_support::{finished, revolved_about_y_at};
 use topo::construction::Construct;
 use topo::{
-    Body, BooleanError, BooleanOp, BooleanResult, JoinError, SolidContainment, SweepStrategy,
-    ValidationError, face_azimuth_window_traces, point_in_solid, validate, validate_closed,
+    Body, BooleanError, BooleanOp, BooleanResult, SolidContainment, SweepStrategy, ValidationError,
+    face_azimuth_window_traces, point_in_solid, validate, validate_closed,
 };
 
 fn f<T: Real>(x: f64) -> T {
@@ -148,7 +148,7 @@ fn a_slit_dome_answers_containment_at_interval() {
 
 /// The slit face's azimuth window walk: the one sphere face the slit
 /// leaves.
-fn window<T: Decide>(slit: &Body<T>) -> Result<Option<(T, T)>, JoinError> {
+fn window<T: Decide>(slit: &Body<T>) -> Result<Option<(T, T)>, topo::ChartWindowError> {
     let band = Band::linear(Tol::witness()).expect("the witness band");
     let mut spheres = slit
         .faces()
