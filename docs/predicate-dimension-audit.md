@@ -1247,8 +1247,9 @@ Flagged, NOT fixed here (dispositions):
   and the distance test. Its comparand is `L − c`: `L` is the gap
   between the two cells' supports along one direction `n`, over `|n|`,
   each support the hull of `⟨P, n⟩` over the cell's restricted,
-  dehomogenized control points (`NurbsSurface::rect_net`), a plane's
-  own affine form, or the cell's box. `L` bounds the cells' separation
+  dehomogenized control points (`NurbsSurface::rect_net`), an analytic
+  carrier's mean-value form about the cell's centre (its partials
+  enclosed over the whole cell), or the cell's box. `L` bounds the cells' separation
   from below, so the comparand is honest METRES against the linear band
   and **the site is not flagged**. Only `Sign::Positive` is read, and it
   discharges the pair under either bound: `L` bounds the separation from
