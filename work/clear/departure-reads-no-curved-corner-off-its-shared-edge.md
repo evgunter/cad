@@ -90,4 +90,16 @@ arcs meet on a non-planar partner. In that reading, the corner's
 other edge is the read edge's own continuation, so `continued` holds
 both.
 
+## Further evidence: the plane × sphere bodies certify (CLEAR, lane clear-pairs, 2026-11-12)
+
+`diefillet` and `heatsink5`, `7` and `9`, the "plane × sphere at a
+vertex alone" bodies above, hold once `present_chart` reads a
+sphere's pole as a collapsed side of its chart
+(`the-certificate-runs-out-of-pairs-on-eight-finished-tour-bodies`,
+its Fix): 4,133 and about 16,100–16,800 pairs, against 20,885 and
+about 29,000 refused before. The vertex those pairs share was the
+sphere patch's pole, which the presentation read as a loose vertex.
+So this row's first bullet no longer has tour evidence; `chute` and
+the lily's three buds (the third bullet) still refuse.
+
 - 2026-11-02 — moved from CLEARTAIL to CLEAR when CLEARTAIL merged back into CLEAR (the budget rule now counts P0/P1 only); id and body unchanged.
