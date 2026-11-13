@@ -1804,14 +1804,6 @@ fn probe_tube_chart<'p, T: Decide + Bounds + CertifiedEnclosure>(
         if margin.is_nan() {
             return Ok(Some(Rung::unmeasured(tube)));
         }
-        if std::env::var("SNC_DBG").is_ok() && !(margin > 0.0) {
-            eprintln!(
-                "SNCDBG straddle rung {rung:e} nodes {nodes:?} window {:?} k {} of {}",
-                w.rect,
-                probed.len(),
-                0
-            );
-        }
         if margin < worst {
             worst = margin;
         }

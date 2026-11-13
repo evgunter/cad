@@ -3708,6 +3708,53 @@ mod wiring {
         );
     }
 
+    /// **A site read box by box reads the widest pad of the boxes it lies
+    /// in, each widened by the band's escalation**
+    /// ([`super::CarriedComponent::reads`]): an arc along `+x` read over
+    /// two boxes about `x = ½`, of pads `10⁻³` and `5·10⁻³`. A site
+    /// `3·10⁻³` off the carrier inside both reads on the arc, by the wider
+    /// pad; a site past the box's end by half the band's escalation reads
+    /// on it, the box widened; one past the box by a millimetre reads on
+    /// nothing.
+    ///
+    /// Red against: the narrowest pad read, and the boxes read unwidened.
+    #[test]
+    fn a_site_reads_the_widest_pad_of_its_widened_boxes() {
+        use geom_core::{Point3, Vec3};
+        let pad_box = |lo: f64, hi: f64, pad: f64| super::PadBox {
+            lo: [lo, -1e-2, -1e-2],
+            hi: [hi, 1e-2, 1e-2],
+            pad,
+            node: None,
+        };
+        let component = super::CarriedComponent {
+            witness: Point3::new(0.5, 0.0, 0.0),
+            boxes: vec![pad_box(0.4, 0.6, 1e-3), pad_box(0.45, 0.55, 5e-3)],
+            carrier: geom::Curve3::line(Point3::origin(), Vec3::unit_x()),
+            span: (0.0, 1.0),
+            shape: super::ComponentShape::Open {
+                ends: super::ComponentEnds::default(),
+            },
+            certificate: None,
+            winds: [false, false],
+            pad: 5e-3,
+            reach: 0.0,
+        };
+        let at = |x: f64, y: f64| component.reads(Point3::new(x, y, 0.0), band());
+        assert!(
+            matches!(at(0.5, 3e-3), Ok(Some(_))),
+            "within the wider pad: {:?}",
+            at(0.5, 3e-3)
+        );
+        let past = 0.6 + 0.5 * band().escalate();
+        assert!(
+            matches!(at(past, 0.0), Ok(Some(_))),
+            "past the box within the widening: {:?}",
+            at(past, 0.0)
+        );
+        assert_eq!(at(0.601, 0.0), Ok(None), "past the box by a millimetre");
+    }
+
     /// **An undecided nearness to the start refuses**: a seat one band
     /// from the loop's start, between the band's zero and its escalation
     /// edges, escalates rather than read as the start; one well inside

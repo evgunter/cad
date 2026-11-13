@@ -916,148 +916,407 @@ fn an_edge_through_or_short_of_a_node_is_no_nodes_at_rest() {
     );
 }
 
-// SNCPROBE (throwaway)
-mod snc_probe {
-    use super::*;
-    pub(super) fn lemni(s: f64) -> Surface<f64> {
-        separable(
-            &[0.0, 0.0, -1.0 / s, 0.0, 1.0 / (s * s * s)],
-            (-1.2 * s, 2.4 * s),
-            &[0.0, 0.0, 1.0 / s],
-            (-1.0 * s, 2.0 * s),
-        )
-    }
-    fn go(s: f64, which: &str) {
-        let mut fx = vec![];
-        if which == "lem" {
-            fx.push((format!("lemniscate s={s}"), lemni(s)));
-        }
-        if which == "cross" {
-            fx.push((
-                format!("cross s={s}"),
-                biquad(two_lines(4.0 * s, [(1.0, 0.0), (0.0, 1.0)], 0.0), |u, v| {
-                    (s * u, s * v)
-                }),
-            ));
-        }
-        if which == "gen" {
-            fx.push((
-                format!("generic78 s={s}"),
-                biquad(
-                    two_lines(2.0 * s, [(-1.5, 1.0), (0.4, 1.0)], 0.0),
-                    |u, v| (s * u, s * v),
-                ),
-            ));
-        }
-        for (name, wall) in fx {
-            let t = std::time::Instant::now();
-            match built(&level(0.0), &wall) {
-                Ok(b) => {
-                    let n = match b.components() {
-                        Components::Counted(c) => c.len(),
-                        _ => 999,
-                    };
-                    eprintln!(
-                        "SNCP [{name}] BUILT nodes {} comps {n} carry {:?} ({:?})",
-                        b.nodes().len(),
-                        b.carry(Some(SsiLane::marched()), band())
-                            .map(|c| c.components().len()),
-                        t.elapsed()
-                    );
-                }
-                Err(e) => eprintln!("SNCP [{name}] build refused {e:?} ({:?})", t.elapsed()),
-            }
-        }
-    }
-    #[test]
-    fn snc_cross() {
-        let s: f64 = std::env::var("SNC_S").map_or(1.0, |v| v.parse().unwrap());
-        go(s, "cross")
-    }
-    #[test]
-    fn snc_gen() {
-        let s: f64 = std::env::var("SNC_S").map_or(1.0, |v| v.parse().unwrap());
-        go(s, "gen")
-    }
-    #[test]
-    fn snc_lem() {
-        let s: f64 = std::env::var("SNC_S").map_or(1.0, |v| v.parse().unwrap());
-        go(s, "lem")
-    }
+/// The cross saddle `k·XY` and the 78° node `k·(Y − 1.5X)(Y + 0.4X)`
+/// over a chart scaled by `s`, and the lemniscate scaled by `s`, the
+/// three node fixtures the scale rows read.
+fn scaled(s: f64) -> [(&'static str, Surface<f64>); 2] {
+    [
+        (
+            "the cross",
+            biquad(two_lines(4.0 * s, [(1.0, 0.0), (0.0, 1.0)], 0.0), |u, v| {
+                (s * u, s * v)
+            }),
+        ),
+        (
+            "the 78° node",
+            biquad(
+                two_lines(2.0 * s, [(-1.5, 1.0), (0.4, 1.0)], 0.0),
+                |u, v| (s * u, s * v),
+            ),
+        ),
+    ]
 }
-#[test]
-fn snc_decide_probe() {
-    let s = 0.01;
-    let wall = biquad(two_lines(4.0 * s, [(1.0, 0.0), (0.0, 1.0)], 0.0), |u, v| {
-        (s * u, s * v)
-    });
-    let Surface::Nurbs(net) = &wall else { panic!() };
-    let jets = crate::ssi::node::Jets::of(net).unwrap();
-    let form = crate::ssi::residual::ImplicitForm::of(&level(0.0)).unwrap();
-    for h in [1e-3, 1e-2, 3e-2, 5e-2, 1e-1] {
-        let x = crate::ssi::exhaust::UvRect {
-            u: (0.5 - h, 0.5 + h),
-            v: (0.5 - h, 0.5 + h),
+
+/// The lemniscate of [`a_loop_through_a_node_names_both_its_ends`],
+/// scaled by `s`.
+fn scaled_lemniscate(s: f64) -> Surface<f64> {
+    separable(
+        &[0.0, 0.0, -1.0 / s, 0.0, 1.0 / (s * s * s)],
+        (-1.2 * s, 2.4 * s),
+        &[0.0, 0.0, 1.0 / s],
+        (-1.0 * s, 2.0 * s),
+    )
+}
+
+/// Every arc of the carried section `c` ends at `node` (within `tol`),
+/// its node box its last box.
+fn carried_to(
+    what: &str,
+    c: &crate::pair_section::CarriedSection<f64>,
+    node: Point3<f64>,
+    tol: f64,
+) {
+    for (k, arc) in c.components().iter().enumerate() {
+        let [start, end] = arc.shape.nodes();
+        let t = match (start, end) {
+            (Some(_), _) => arc.span.0,
+            (None, Some(_)) => arc.span.1,
+            (None, None) => panic!("{what}: arc {k} ends at the node"),
         };
-        let r = crate::ssi::node::read(
-            &jets,
-            &form,
-            geom_core::Interval::from_bounds(x.u.0, x.u.1),
-            geom_core::Interval::from_bounds(x.v.0, x.v.1),
+        assert!(
+            arc.carrier.eval(t).distance(node) <= tol,
+            "{what}: arc {k} is carried to the node: {:?}",
+            arc.carrier.eval(t)
         );
-        let k = crate::ssi::node::krawczyk(
-            &jets,
-            &form,
-            [
-                geom_core::Interval::from_bounds(x.u.0, x.u.1),
-                geom_core::Interval::from_bounds(x.v.0, x.v.1),
-            ],
-        );
-        eprintln!(
-            "SNCP h {h}: hess {:?} k {:?} decide {:?}",
-            r.hessian,
-            k.map(|k| k.1),
-            crate::ssi::node::decide(&jets, &form, x, band()).map(|d| d.kind)
+        assert!(
+            arc.boxes.iter().any(|b| b.node.is_some()),
+            "{what}: arc {k}'s last box is the node's"
         );
     }
 }
+
+/// **A node is listed and carried to at every scale** (C2's node end,
+/// C5): the cross and the 78° node over walls a hundredth, one and a
+/// hundred units across each list one node and carry their four arcs to
+/// it, at the run's ε (but the 78° node a hundred units across at
+/// 1e-12, whose chain straddles before it reaches the node, as on
+/// main). At a hundredth of a unit and ε 1e-6 the node's
+/// settle reach is a quarter of the wall, and its box reaches past the
+/// box the march entered, where one reading of the wall's jet over it
+/// no longer contracts.
+///
+/// Red against: the node box read with one reading of the Hessian over
+/// it (`node::NODE_BOX_SPLITS` 1): at a hundredth of a unit the node is
+/// not read at the chain's end, whose tube straddles.
 #[test]
-fn snc_rest_probe() {
-    use crate::certify::{EdgeCurve, EdgeCurveSpec, NurbsLane};
-    use crate::description::{CurveSelector, EdgeDescriptionSpec, SurfacePair};
-    let plain = |u: f64, v: f64| (u, v);
-    for (what, wall) in [("cross", cross())] {
-        let s = built(&level(0.0), &wall).unwrap();
-        let carried = s.carry(Some(SsiLane::marched()), band()).unwrap();
-        for (k, c) in carried.components().iter().enumerate() {
-            if k > 0 { continue; }
-            eprintln!("SNCP arc span {:?} ends {:?} {:?}", c.span, c.carrier.eval(c.span.0), c.carrier.eval(c.span.1));
-            for (lo, hi) in [(0.0, 0.5)] {
-                eprintln!("SNCP ---- start");
-                let (a, b) = c.span;
-                let (p0, p1) = (a + (b - a) * lo, a + (b - a) * hi);
-                let mut arena = slotmap::SlotMap::<crate::keys::SurfaceKey, Surface<f64>>::with_key();
-                let (k_a, k_b) = (arena.insert(level(0.0)), arena.insert(wall.clone()));
-                let edge = EdgeCurve::certify(
-                    EdgeCurveSpec {
-                        description: EdgeDescriptionSpec::Intersection {
-                            pair: SurfacePair::new(k_a, k_b),
-                            selector: CurveSelector::Witness(c.carrier.mid_point(p0, p1)),
-                        },
-                        carrier: c.carrier.clone(),
-                        param_start: p0,
-                        param_end: p1,
-                    },
-                    c.carrier.eval(p0),
-                    c.carrier.eval(p1),
-                    move |k| arena.get(k).cloned(),
-                    geom_core::test_support::fixture_lever(1.0),
-                    band(),
-                    NurbsLane::certified(),
+fn a_node_is_listed_and_carried_to_at_every_scale() {
+    for s in [0.01, 1.0, 100.0] {
+        for (what, wall) in scaled(s) {
+            let what = format!("{what} at {s}");
+            // At 1e-12 a hundred units across, the 78° node's chain to
+            // the box its march enters straddles, as it does on main.
+            if what == "the 78° node at 100" && Tol::witness().eps() <= 1e-12 {
+                let refused = built(&level(0.0), &wall);
+                assert!(
+                    matches!(refused, Err(SectionError::Unaccounted { .. })),
+                    "{what}: refuses its chain at 1e-12: {refused:?}"
                 );
-                let short: String = match &edge { Ok(_) => "CERTIFIED".into(), Err(e) => format!("{e:?}").chars().take(160).collect() };
-                eprintln!("SNCP rest {what} arc {k} [{lo},{hi}]: {short}");
+                continue;
             }
+            let built = built(&level(0.0), &wall).unwrap_or_else(|e| panic!("{what}: {e:?}"));
+            let [node] = built.nodes() else {
+                panic!("{what}: one node: {:?}", built.nodes());
+            };
+            let carried = built
+                .carry(Some(SsiLane::marched()), band())
+                .unwrap_or_else(|e| panic!("{what}: carries: {e:?}"));
+            assert_eq!(carried.components().len(), 4, "{what}: four arcs");
+            carried_to(&what, &carried, node.point, 1e-9 * s.max(1.0));
         }
     }
+}
+
+/// **A lemniscate a hundredth of a unit across is listed and carried**:
+/// its node's two loops each carried to it at both ends. Red against the
+/// node's fine pad reaching past [`crate::ssi::certify::NODE_PAD_REACH`]
+/// of four node-box halves (sixteen): its tube narrows across most of
+/// the wall, and the reading's accounting runs out of cells.
+#[test]
+fn a_lemniscate_a_hundredth_across_is_listed_and_carried() {
+    test_utils::pinned_red::row(
+        Tol::witness().eps(),
+        &[1e-12],
+        "the lemniscate's node",
+        &["Pinched { predicate: \"spline_critical_unread\" }"],
+        || {
+            let s = 0.01;
+            let built = built(&level(0.0), &scaled_lemniscate(s)).unwrap();
+            let carried = built.carry(Some(SsiLane::marched()), band()).unwrap();
+            assert_eq!(carried.components().len(), 2, "two loops");
+            carried_to("the lemniscate", &carried, pt(0.0, 0.0, 0.0), 1e-11);
+        },
+    );
+}
+
+/// **A node's box is its settle reach** (C2's node end): on the cross
+/// saddle `z = 4XY` (`φ`'s Hessian of norm 4 in metres per metre²) each
+/// arc's node box reaches between 6 and 12 times `√ε` (the band's zero)
+/// from the node, at every ε the suite runs: the march's settled
+/// samples stop where `|∇φ|·d` falls to `ssi::ends::NODE_SETTLE_FLOOR`
+/// tolerances, `d ≤ 4√ε`, and the box is `ssi::certify::NODE_BOX_REACH`
+/// of the last one's reach.
+///
+/// Red against: the settle floor at 4 (the box at about 2√ε) or 4096
+/// (the end span past the node's reach, no node read), the settles at 4
+/// (the box at the march's entry, about 60√ε), and the box's reach
+/// halved or doubled.
+#[test]
+fn a_node_box_is_its_settle_reach() {
+    let s = built(&level(0.0), &cross()).unwrap();
+    let carried = s.carry(Some(SsiLane::marched()), band()).unwrap();
+    for (k, c) in carried.components().iter().enumerate() {
+        let b = c
+            .boxes
+            .iter()
+            .find(|b| b.node.is_some())
+            .expect("a node box");
+        let half = 0.5 * (b.hi[0] - b.lo[0]).max(b.hi[1] - b.lo[1]);
+        let ratio = half / band().zero().sqrt();
+        assert!(
+            (6.0..=12.0).contains(&ratio),
+            "arc {k}'s node box reaches {ratio}√ε"
+        );
+    }
+}
+
+/// **The node reading decides a node and nothing else** (C5, C2's node
+/// end; [`crate::ssi::node::decide`]): over a box about the cross's
+/// centre it reads a node; with the plane a micron off the node's level
+/// the saddle point's value is past the band, and with it half the band
+/// off, within it, the reading a node; over the bowl's top a touch; and
+/// over a box a micron from the node holding no critical point, nothing.
+///
+/// Red against: the Hessian's determinant's sign dropped (the bowl reads
+/// a node), the value's decision dropped (the plane a micron off reads a
+/// node), and the Krawczyk proof dropped (the empty box reads a node).
+#[test]
+fn the_node_reading_decides_a_node_and_nothing_else() {
+    use crate::ssi::exhaust::UvRect;
+    use crate::ssi::node::{Jets, Kind, decide};
+    use crate::ssi::residual::ImplicitForm;
+    let about = |c: (f64, f64), h: f64| UvRect {
+        u: (c.0 - h, c.0 + h),
+        v: (c.1 - h, c.1 + h),
+    };
+    let bowl = separable(
+        &[-0.5, 2.0, -2.0],
+        (0.0, 1.0),
+        &[-0.5, 2.0, -2.0],
+        (0.0, 1.0),
+    );
+    let off = (0.500_02, 0.499_97);
+    let cases: [(&str, Surface<f64>, f64, UvRect, Option<Kind>); 5] = [
+        ("the node", cross(), 0.0, about(off, 1e-4), Some(Kind::Node)),
+        (
+            "a micron off its level",
+            cross(),
+            1e-6,
+            about(off, 1e-4),
+            None,
+        ),
+        (
+            "within the band of its level",
+            cross(),
+            0.5 * band().zero(),
+            about(off, 1e-4),
+            Some(Kind::Node),
+        ),
+        (
+            "the bowl's top",
+            bowl,
+            0.0,
+            about(off, 1e-4),
+            Some(Kind::Touch),
+        ),
+        (
+            "no critical point",
+            cross(),
+            0.0,
+            about((0.5 + 1e-6, 0.5), 2e-7),
+            None,
+        ),
+    ];
+    for (what, wall, h, rect, want) in cases {
+        let Surface::Nurbs(net) = &wall else {
+            panic!("a spline wall")
+        };
+        let jets = Jets::of(net).expect("the wall lifts");
+        let form = ImplicitForm::of(&level(h)).expect("a plane");
+        let got = decide(&jets, &form, rect, band()).map(|d| d.kind);
+        assert_eq!(got, want, "{what}");
+    }
+}
+
+/// A hand-built branch over the flat wall `S(u, v) = (u, v, 0)`: its
+/// chart chain along `v = ½` through `pts` (degree 1, on `knots`'s
+/// interior), the carrier `carrier`, and the node box `node` at its end.
+fn hand_built(
+    pts: &[(f64, f64)],
+    inner: &[f64],
+    carrier: geom::NurbsCurve3<f64>,
+    node: [Option<(f64, f64)>; 2],
+) -> crate::ssi::SsiBranch {
+    use crate::ssi::certify::SsiCertificate;
+    use crate::ssi::{BranchEnd, SsiTube};
+    use geom::{Curve3, NurbsCurve2};
+    use geom_core::Point2;
+    let mut k = vec![0.0, 0.0];
+    k.extend_from_slice(inner);
+    k.extend([1.0, 1.0]);
+    let pcurve = NurbsCurve2::new(
+        KnotVector::clamped(k, 1).unwrap(),
+        pts.iter().map(|&(u, v)| Point2::new(u, v)).collect(),
+        vec![1.0; pts.len()],
+    )
+    .unwrap();
+    crate::ssi::SsiBranch {
+        carrier: Curve3::Nurbs(std::sync::Arc::new(carrier)),
+        params: (0.0, 1.0),
+        end: BranchEnd::Closed,
+        certificate: SsiCertificate {
+            samples: 0,
+            on_locus_max: 0.0,
+            hull_sup: 0.0,
+            tube: SsiTube::Chart {
+                rung: 0.01,
+                pad_u: 0.01,
+                pad_v: 0.01,
+                nodes: node,
+            },
+            tube_transversality: 1.0,
+            tube_boxes: 3,
+        },
+        witness: pt(0.7, 0.5, 0.0),
+        pcurve_a: None,
+        pcurve_b: Some(pcurve),
+        march_tol: 1e-9,
+    }
+}
+
+/// The flat wall `S(u, v) = (u, v, 0)` and the node at its centre on
+/// the chart's axes.
+fn flat() -> (NurbsSurface<f64>, SectionNode<f64>) {
+    let k = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
+    let net = NurbsSurface::new(
+        k.clone(),
+        k,
+        vec![
+            pt(0.0, 0.0, 0.0),
+            pt(0.0, 1.0, 0.0),
+            pt(1.0, 0.0, 0.0),
+            pt(1.0, 1.0, 0.0),
+        ],
+        vec![1.0; 4],
+    )
+    .unwrap();
+    let node = SectionNode {
+        point: pt(0.5, 0.5, 0.0),
+        normal: Vec3::unit_z(),
+        lines: [Vec3::unit_x(), Vec3::unit_y()],
+        above: PairSide::First,
+    };
+    (net, node)
+}
+
+/// **An end's ray is its last box's sector, and its tangent must agree**
+/// (C5; `ray_at`): a chain along `v = ½` from `u = 0.9` into the node's
+/// box, its last box before it in the `+x` ray's sector. A carrier
+/// coming in along `+x` names that ray; one whose end tangent leaves the
+/// node along `+y` though its tube lies along `+x` refuses
+/// `spline_node_ray`; and a chain of two windows, both node boxes, holds
+/// no box of its own to read a sector from, and refuses as unread.
+///
+/// Red against: the end tangent's check dropped (the hooked carrier
+/// names `+x`), and the window before the node's box read though it is
+/// itself a node's (a two-box chain reads a sector off a node's box and
+/// refuses as a ray, `spline_node_ray`).
+#[test]
+fn an_ends_ray_is_its_last_boxs_sector_and_its_tangent_agrees() {
+    use geom::NurbsCurve3;
+    let (net, node) = flat();
+    let extent = geom_core::test_support::fixture_lever(geom_core::Interval::from_certified(1.0));
+    let k = |p: usize| {
+        let mut v = vec![0.0; p + 1];
+        v.extend(vec![1.0; p + 1]);
+        KnotVector::clamped(v, p).unwrap()
+    };
+    let chain = [(0.9, 0.5), (0.6, 0.5), (0.52, 0.5), (0.5, 0.5)];
+    let inner = [1.0 / 3.0, 2.0 / 3.0];
+    let straight = NurbsCurve3::new(
+        k(1),
+        vec![pt(0.9, 0.5, 0.0), pt(0.5, 0.5, 0.0)],
+        vec![1.0; 2],
+    )
+    .unwrap();
+    let hooked = NurbsCurve3::new(
+        k(2),
+        vec![pt(0.9, 0.5, 0.0), pt(0.5, 0.6, 0.0), pt(0.5, 0.5, 0.0)],
+        vec![1.0; 3],
+    )
+    .unwrap();
+    let box_at_end = [None, Some((0.04, 0.04))];
+    let agree = super::ray_at(
+        &hand_built(&chain, &inner, straight.clone(), box_at_end),
+        &net,
+        (1, &node),
+        extent,
+        band(),
+    );
+    assert_eq!(agree, Ok(0), "a carrier along +x names +x");
+    let differ = super::ray_at(
+        &hand_built(&chain, &inner, hooked, box_at_end),
+        &net,
+        (1, &node),
+        extent,
+        band(),
+    );
+    assert_eq!(
+        differ,
+        Err(SectionError::Pinched {
+            predicate: super::NODE_RAY
+        }),
+        "a tangent leaving along +y with its tube along +x"
+    );
+    let both = super::ray_at(
+        &hand_built(
+            &[(0.5, 0.5), (0.52, 0.5), (0.5, 0.5)],
+            &[0.5],
+            straight,
+            [Some((0.04, 0.04)), Some((0.04, 0.04))],
+        ),
+        &net,
+        (1, &node),
+        extent,
+        band(),
+    );
+    assert!(
+        matches!(both, Err(SectionError::Unaccounted { .. })),
+        "two node boxes and no box between: {both:?}"
+    );
+}
+
+/// **A witness is read in an arc's own window, never the node's box**
+/// (`witness`): on the cross saddle, a chain along `v = ½` into the
+/// node's box whose middle parameter falls in that box has no witness; the node's box holds the
+/// node's four arcs, where a bracket could land on another.
+///
+/// Red against: the node's box read as the witness's window.
+#[test]
+fn a_witness_is_read_in_an_arcs_own_window() {
+    use geom::NurbsCurve3;
+    let wall = cross();
+    let Surface::Nurbs(net) = &wall else {
+        panic!("a spline wall")
+    };
+    let k1 = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
+    let carrier =
+        NurbsCurve3::new(k1, vec![pt(0.9, 0.5, 0.0), pt(0.5, 0.5, 0.0)], vec![1.0; 2]).unwrap();
+    // The node's span holds the middle parameter.
+    let b = hand_built(
+        &[(0.9, 0.5), (0.6, 0.5), (0.5, 0.5)],
+        &[0.25],
+        carrier,
+        [None, Some((0.2, 0.2))],
+    );
+    let plane = level(0.0);
+    let form = crate::ssi::residual::ImplicitForm::of(&plane).unwrap();
+    let got = super::witness(
+        &b,
+        net,
+        super::Bracketed {
+            surface: &plane,
+            form: &form,
+        },
+    );
+    assert!(got.is_none(), "no witness in the node's box: {got:?}");
 }
