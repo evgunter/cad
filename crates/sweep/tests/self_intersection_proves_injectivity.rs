@@ -64,7 +64,7 @@ use topo::clearance::{
 };
 use topo::{Body, FaceKey, LoopBoundary, VertexKey};
 
-use crate::common::{arc_spine_places, normal_start_place, quad};
+use crate::common::{arc_spine_places, bulge, normal_start_place, quad};
 use crate::revolve_common::donut_profile;
 
 /// The default whole-query budget the document door runs at
@@ -795,6 +795,91 @@ fn a_windowed_tubes_caps_hold_against_its_walls_at_both_scalars() {
     holds_at_both("the windowed tube", tube(), tube());
 }
 
+/// **A stepped ring's floor holds against its end caps**: an L section
+/// revolved three quarters of a turn about `y`. The step's floor is an
+/// annulus, and its line edge on each end cap meets the floor's two rim
+/// arcs. At the step's wall the cap is a reflex corner of two lines,
+/// which no presentation reads, so the floor is presented through its
+/// line–arc corner and the cap's plane separates it.
+#[test]
+fn a_stepped_rings_floor_holds_against_its_end_caps() {
+    fn ring<T: Scalar>() -> Body<T> {
+        let profile = validated::<T>(&[ProfileLoop::polygon(
+            [
+                (1.0, 0.0),
+                (2.0, 0.0),
+                (2.0, 1.0),
+                (1.5, 1.0),
+                (1.5, 0.5),
+                (1.0, 0.5),
+            ]
+            .map(|(x, y)| Point2::new(x, y)),
+        )]);
+        let turn = Revolution::Partial(T::from_f64(1.5 * core::f64::consts::PI));
+        revolve(&profile, axis_y(), turn, tol())
+            .unwrap()
+            .body
+            .into_body()
+    }
+    holds_at_both("the stepped ring", ring(), ring());
+}
+
+/// **A filleted cube corner's ball holds against the faces it touches
+/// at its pole**: the unit cube with the three edges at `(1, 1, 1)`
+/// filleted. The corner's sphere is charted with a pole at the vertex
+/// it shares with one face alone, tangent to it there, so neither
+/// carrier separates the pair; a plane through the vertex does, the
+/// sphere read across the pole as a collapsed side of its chart.
+#[test]
+fn a_filleted_corners_ball_holds_against_a_face_at_its_pole() {
+    fn corner<T: Scalar>() -> Body<T> {
+        let cube = sweep::test_support::cube::<T>(1.0, tol());
+        let at_corner: Vec<topo::EdgeKey> = cube
+            .edges()
+            .map(|(k, _)| k)
+            .filter(|&e| {
+                let (s, t) = cube.edge_vertices(e).unwrap();
+                [s, t].into_iter().any(|v| {
+                    let p = *cube.get_point(cube.get_vertex(v).unwrap().point).unwrap();
+                    [p.x, p.y, p.z]
+                        .into_iter()
+                        .all(|c| (mid(c) - 1.0).abs() < 1e-9)
+                })
+            })
+            .collect();
+        assert_eq!(at_corner.len(), 3, "three edges meet at the corner");
+        sweep::blend::fillet_edges(
+            &sweep::test_support::at_rest(&cube, tol()),
+            &at_corner,
+            T::from_f64(0.25),
+            tol(),
+        )
+        .map_err(|e| e.error)
+        .expect("the corner fillets")
+        .body
+        .into_body()
+    }
+    holds_at_both("the filleted corner", corner(), corner());
+    let body: &Body<f64> = &corner::<f64>();
+    let ball = body
+        .faces()
+        .map(|(k, _)| k)
+        .find(|&k| kind(body, k) == "sphere")
+        .expect("the corner's ball");
+    let alone: Vec<FaceKey> = body
+        .faces()
+        .map(|(k, _)| k)
+        .filter(|&k| {
+            kind(body, k) == "plane" && touching_pairs(body).contains(&(k.min(ball), k.max(ball)))
+        })
+        .collect();
+    assert_eq!(
+        alone.len(),
+        3,
+        "the ball touches the three faces at its corners"
+    );
+}
+
 /// **A long helical sweep certifies within the default budget**: a
 /// square tube two turns round a helix of pitch 0.4, its four walls
 /// sharing helical seams. Each wall's enclosure extremes lie in one
@@ -1131,6 +1216,83 @@ fn a_big_thin_walled_cylinder_shell_certifies_within_the_default_budget() {
     holds_at_both("the thin shell", shell::<f64>(), shell::<Interval>());
 }
 
+/// **A conical wall and a toroidal wall `0.05` thick**, each revolved a
+/// full turn: the meridian band between two lines `30°` off the axis
+/// and `0.05` apart, capped by two annuli, as the klein bulb's flare;
+/// and the band between two arcs about a centre off the axis, radii
+/// `0.8 ∓ 0.025`, closed by two radial lines, as its rim. Each wall's
+/// two faces share nothing, so only the distance test decides them.
+/// Both hold at both scalars, each splitting under a quarter of the
+/// default budget (about 3,100 and 6,600 splits). Red where the support
+/// test reads an analytic cell by its box: two slanted patches' boxes
+/// overlap until the cells are about as small as the gap, which costs
+/// about 39,000 and 32,000 splits.
+#[test]
+fn a_conical_and_a_toroidal_wall_hold_within_the_default_budget() {
+    fn conical<T: Scalar>() -> Body<T> {
+        let (s, c) = (30f64.to_radians().sin(), 30f64.to_radians().cos());
+        let (slant, across) = (1.6, 0.05 / c);
+        let p = |x: f64, y: f64| (Point2::new(T::from_f64(x), T::from_f64(y)), T::zero());
+        revolved_about_y_at(
+            vec![
+                p(0.4, 2.0),
+                p(0.4 + slant * s, 2.0 - slant * c),
+                p(0.4 + across + slant * s, 2.0 - slant * c),
+                p(0.4 + across, 2.0),
+            ],
+            Revolution::Full,
+            tol(),
+        )
+    }
+    fn toroidal<T: Scalar>() -> Body<T> {
+        let centre = Point2::new(1.6, 1.0);
+        let at = |r: f64, a: f64| {
+            let a = a.to_radians();
+            Point2::new(centre.x + r * a.cos(), centre.y + r * a.sin())
+        };
+        let (outer, inner) = (0.825, 0.775);
+        let (o0, o1, i1, i0) = (
+            at(outer, 120.0),
+            at(outer, 240.0),
+            at(inner, 240.0),
+            at(inner, 120.0),
+        );
+        let p = |q: Point2<f64>, b: f64| (q.map(T::from_f64), T::from_f64(b));
+        revolved_about_y_at(
+            vec![
+                p(o0, bulge(o0, o1, centre)),
+                p(o1, 0.0),
+                p(i1, bulge(i1, i0, centre)),
+                p(i0, 0.0),
+            ],
+            Revolution::Full,
+            tol(),
+        )
+    }
+    for (what, reports) in [
+        (
+            "the conical wall",
+            holds_at_both("the conical wall", conical::<f64>(), conical::<Interval>()),
+        ),
+        (
+            "the toroidal wall",
+            holds_at_both(
+                "the toroidal wall",
+                toroidal::<f64>(),
+                toroidal::<Interval>(),
+            ),
+        ),
+    ] {
+        for report in &reports {
+            assert!(
+                report.receipt.splits < BUDGET / 4,
+                "{what} splits under a quarter of the default budget: {:?}",
+                report.receipt
+            );
+        }
+    }
+}
+
 // ------------------------------------------- a face across its seam
 
 /// **A cylinder face across its chart's seam, pierced by a planar face
@@ -1276,6 +1438,7 @@ fn kind<T: Real>(body: &Body<T>, f: FaceKey) -> &'static str {
         Surface::Plane { .. } => "plane",
         Surface::Cylinder { .. } => "cylinder",
         Surface::Torus { .. } => "torus",
+        Surface::Sphere { .. } => "sphere",
         _ => "other",
     }
 }
@@ -1662,10 +1825,18 @@ fn a_cylinder_cylinder_tee_refuses_typed_at_a_vertex_its_junction_shares_alone()
         report.receipt
     );
     assert_eq!(
-        report.receipt.refused, 9,
-        "nine root pairs refuse: six at a vertex alone, one across the mitre's line, two across \
-         the mitre's ellipse ({:?})",
+        report.receipt.refused, 8,
+        "eight root pairs refuse: six at a vertex alone, two across the mitre's ellipse; the \
+         mitre's line on B's cap is read through its corners with the cap's arcs ({:?})",
         report.receipt
+    );
+    assert!(
+        report
+            .across
+            .iter()
+            .any(|(&(a, b), &n)| kind(tee, a) == "plane" && kind(tee, b) == "plane" && n > 0),
+        "the mitre against B's cap is certified across their line: {:?}",
+        report.across
     );
 }
 

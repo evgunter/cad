@@ -57,8 +57,8 @@
 //! of a corner's other edge:
 //!
 //! - **the sliver** ([`SELF_INTERSECTION_SLIVER`], [`present_chart`],
-//!   [`present_line_corner`]): a rectangle within the band of a shared
-//!   line reads as holding nothing off it;
+//!   [`present_line_corner`], [`present_plane_corner`]): a rectangle
+//!   within the band of a shared line reads as holding nothing off it;
 //! - **the sheet's overlap** ([`sheets`]): a cell overlapping a copy of
 //!   the face's extent by no more than [`few_ulps`] meets none of it,
 //!   and an extent within [`few_ulps`] of a turn reads as wrapping;
@@ -1705,47 +1705,55 @@ fn present_chart<'a>(
             }
         }
     }
-    // A sphere's pole is a collapsed side of its chart: the latitude
-    // line `v = ±π/2` is the one point `center ± axis·radius`, where a
-    // rectangle reaching the pole's latitude stops.
-    if let Surface::Sphere {
+    // A sphere's pole is a collapsed side of its chart, `v = ±π/2`, a
+    // bound of its canonical domain. A vertex is at it by the one reading
+    // of that incidence.
+    if let &Surface::Sphere {
         center,
         radius,
         axis,
         ..
     } = piece.surface
     {
-        let half = core::f64::consts::FRAC_PI_2;
+        use geom_brep::chart_singularity::{Singularity, sphere_poles, vertex_at_singular_point};
+        let half = Interval::pi() * at(0.5);
+        let poles = sphere_poles(
+            geom::Line {
+                origin: center,
+                dir: axis,
+            },
+            radius,
+        );
         for &v in &piece.local.vertices {
             let Some(&p) = b.vertices.get(&v) else {
                 continue;
             };
-            for north in [false, true] {
-                let pole = if north {
-                    *center + *axis * *radius
-                } else {
-                    *center - *axis * *radius
-                };
-                let reaches = if north { y.1 >= half } else { y.0 <= -half };
-                if !reaches
-                    || !matches!(
-                        decide(SELF_INTERSECTION_APEX, Margin::of((p - pole).norm()), band),
-                        Ok(Sign::Zero)
-                    )
-                {
+            for (pole, point) in poles {
+                if !matches!(vertex_at_singular_point(p, point, band), Ok(true)) {
                     continue;
                 }
-                let (side, bound) = if north {
-                    (Side::YHi, y.1)
+                let north = pole == Singularity::North;
+                let line = if north { half } else { -half };
+                if (north && y.1 < line.lo()) || (!north && y.0 > line.hi()) {
+                    continue;
+                }
+                if (north && y.0 > line.hi()) || (!north && y.1 < line.lo()) {
+                    return Err(Unpresented::Local);
+                }
+                if north {
+                    y.1 = line.hi();
                 } else {
-                    (Side::YLo, y.0)
-                };
+                    y.0 = line.lo();
+                }
+                let side = Side::of(Axis::V, !north);
                 match merged.iter_mut().find(|m| m.side == side) {
-                    Some(m) if m.at.lo() <= bound && bound <= m.at.hi() => m.collapsed = Some(v),
+                    Some(m) if m.at.lo() <= line.hi() && line.lo() <= m.at.hi() => {
+                        m.collapsed = Some(v);
+                    }
                     Some(_) => return Err(Unpresented::Local),
                     None => merged.push(Clip {
                         side,
-                        at: at(bound),
+                        at: line,
                         edges: Vec::new(),
                         collapsed: Some(v),
                     }),
@@ -3211,7 +3219,8 @@ fn corner_of(b: &Boundary, walls: &[usize], near_edges: &[usize]) -> Option<Corn
 /// **Present a cell at a corner** ([`corner_of`]) by its shared edge
 /// alone, read through the vertex: a curve by its closed form continued
 /// ([`present_curved`]), a coordinate line of a chart by the line
-/// ([`present_line_corner`]). `None` where neither reads it.
+/// ([`present_line_corner`]), a plane's line edge by its line
+/// ([`present_plane_corner`]). `None` where none reads it.
 ///
 /// **Why the face's part of the cell lies on the read edge's face
 /// side**, for `R` the presentation's rectangle, which holds the vertex
@@ -3249,6 +3258,7 @@ fn present_corner<'a>(
             present_wall(piece, c.read, w, Some(c), near_edges, near_vertices, band)
         }
         Reading::Line(o) => present_line_corner(piece, c, o, band),
+        Reading::PlaneLine(o) => present_plane_corner(piece, c, o, band),
     })
 }
 
@@ -3264,6 +3274,9 @@ enum Reading {
     /// other edge a harmonic chart curve; or a parallel of a torus's,
     /// the other edge a wall image.
     Line(ChartCurve),
+    /// The shared edge is a plane's line edge, the other edge a conic,
+    /// its chart curve this.
+    PlaneLine(Harmonic),
 }
 
 /// **Which reading a corner has, if any**: one fixed by the two edges'
@@ -3278,6 +3291,14 @@ fn reading(piece: &Piece<'_>, c: Corner) -> Option<Reading> {
             return (straight && parallel(o)).then_some(Reading::Wall(w));
         }
         (reads_curve(s, e) && straight).then_some(Reading::Curve)
+    } else if let Surface::Plane { .. } = s {
+        let [u] = o.uses.as_slice() else {
+            return None;
+        };
+        if !curved(o) || piece.whole {
+            return None;
+        }
+        chart_curve(s, o, u).map(Reading::PlaneLine)
     } else {
         // The argument is made on a chart that never collapses: a
         // cylinder's, or a ring torus's. A sphere's images are its
@@ -3591,6 +3612,133 @@ fn present_line_corner<'a>(
         x,
         y,
         zero: Zero::Side(Side::of(held, sigma > 0.0)),
+        corner: true,
+        cache: Cache::default(),
+    })))
+}
+
+/// **Present a cell at a corner by a plane's line edge**
+/// ([`present_corner`]), in [`present_plane`]'s affine chart: the line
+/// `y = 0`, the face's side `y > 0`. `R` is the cell's affine hull
+/// widened to hold the vertex and the line; nothing in reach of it may
+/// bound the face but the two edges, every vertex in reach is the
+/// corner's, and the other edge's chart curve `h` leaves the vertex into
+/// `y > 0` and stays there within `R` ([`leaves_line`]). So `R`'s part
+/// below the line and the line's continuation past the vertex hold no
+/// boundary, and, meeting the vertex's outside, lie outside the face:
+/// the face's part of the cell is in `R` at `y ≥ 0`, and its points on
+/// the line are the line's edge. The far end needs no span check: it is
+/// out of reach.
+fn present_plane_corner<'a>(
+    piece: &Piece<'a>,
+    c: Corner,
+    h: Harmonic,
+    band: Band,
+) -> Result<Presentation<'a>, Unpresented> {
+    let b = piece.boundary;
+    let surface = piece.surface;
+    let &Surface::Plane {
+        origin,
+        normal,
+        u_ref,
+    } = surface
+    else {
+        return Err(Unpresented::Local);
+    };
+    let (Some(e), Some(o)) = (b.edges.get(c.read), b.edges.get(c.other)) else {
+        return Err(Unpresented::Local);
+    };
+    let ([ue], Some((_, span))) = (e.uses.as_slice(), o.arc.as_ref()) else {
+        return Err(Unpresented::Local);
+    };
+    let Some((line, (t0, t1))) = e.arc.as_ref().filter(|(k, _)| !k.is_curved()) else {
+        return Err(Unpresented::Local);
+    };
+    let v_ref = normal.cross(u_ref);
+    let chart = |w: Vec3<Interval>| [w.dot(u_ref), w.dot(v_ref)];
+    let (p, q) = (
+        chart(line.eval(*t0) - origin),
+        chart(line.eval(*t1) - origin),
+    );
+    let ((p, q), vertex_first) = if ue.plus {
+        ((p, q), e.ends[0] == c.vertex)
+    } else {
+        ((q, p), e.ends[1] == c.vertex)
+    };
+    let s = at(if b.sense { 1.0 } else { -1.0 });
+    let a = [q[0] - p[0], q[1] - p[1]];
+    let bv = [-a[1] * s, a[0] * s];
+    let len2 = a[0].powi(2) + a[1].powi(2);
+    let lin = |w: [Interval; 2]| {
+        [
+            (w[0] * a[0] + w[1] * a[1]) / len2,
+            (w[0] * bv[0] + w[1] * bv[1]) / len2,
+        ]
+    };
+    let cell = lin([iv(piece.u) - p[0], iv(piece.v) - p[1]]);
+    if !(cell[0].is_certified() && cell[1].is_certified()) {
+        return Err(Unpresented::Local);
+    }
+    let vx = if vertex_first { 0.0 } else { 1.0 };
+    let x = (cell[0].lo().min(vx), cell[0].hi().max(vx));
+    let y = (cell[1].lo().min(0.0), cell[1].hi().max(0.0));
+    let affine = Map::Affine { o: p, a, b: bv };
+    let reach = Presented {
+        surface,
+        map: affine,
+        x,
+        y,
+        zero: Zero::None,
+        corner: true,
+        cache: Cache::default(),
+    };
+    let m = |(l, h): (f64, f64)| geom::mid_param(l, h);
+    let ball = Ball::holding(reach.image((m(x), m(x)), (m(y), m(y))), reach.whole());
+    if !only(
+        piece,
+        &Local::of(b, ball, band),
+        &[c.read, c.other],
+        &[c.vertex],
+    ) {
+        return Err(Unpresented::Local);
+    }
+    let zero = at(0.0);
+    let base = lin([h.p0[0] - p[0], h.p0[1] - p[1]]);
+    let curve = Harmonic {
+        p0: base,
+        pa: lin(h.pa),
+        pb: lin(h.pb),
+        pl: [zero, zero],
+    };
+    let speed = |w: [Interval; 2]| (u_ref * w[0] + v_ref * w[1]).norm().hi();
+    leaves_line(
+        surface,
+        &ChartCurve::Harmonic(curve),
+        (span.0.lo(), span.1.hi()),
+        o.ends[0] == c.vertex,
+        (Axis::V, 1.0),
+        [at(vx), zero],
+        (x, y),
+        [speed(a), speed(bv)],
+        band,
+    )?;
+    // [`present_line_corner`]'s sliver, read once the reading above has
+    // proven `R` holds the face's part of the cell. The points it drops
+    // lie within the band of the line or, by the vertex concession, of
+    // the other edge.
+    let width = at(y.1) * at(speed(bv));
+    if matches!(
+        decide(SELF_INTERSECTION_SLIVER, Margin::of(width), band),
+        Ok(Sign::Zero)
+    ) {
+        return Ok(Presentation::Vacuous);
+    }
+    Ok(Presentation::Of(Box::new(Presented {
+        surface,
+        map: affine,
+        x,
+        y: (0.0, y.1),
+        zero: Zero::Side(Side::YLo),
         corner: true,
         cache: Cache::default(),
     })))
@@ -6275,6 +6423,143 @@ mod presentation_rows {
             on_floor(&b, vec![0, 1], vec![vertex(1)], (0.98, 1.02), (-0.02, 0.02)),
             Read::Local,
             "the tangent join at (1, 0)"
+        );
+    }
+
+    /// [`present_plane`] of a [`quarter`] in the cell `u × v`, its
+    /// local edges the arc and the line (edges 0 and 1) and its local
+    /// vertex `(1, 0)`, the line shared.
+    fn on_floor_by_line(b: &Boundary, u: (f64, f64), v: (f64, f64)) -> Read {
+        let s = floor();
+        let local = Local {
+            edges: vec![0, 1],
+            vertices: vec![vertex(1)],
+        };
+        let piece = Piece {
+            face: FaceKey::default(),
+            surface: &s,
+            whole: false,
+            boundary: b,
+            u,
+            v,
+            local: &local,
+            ball: Ball::holding(origin(), origin()),
+        };
+        read(present_plane(&piece, &[1], &[vertex(1)], band()))
+    }
+
+    /// **A plane's line edge is read through its corner with an arc**
+    /// ([`present_plane_corner`]): the line from the origin reaches
+    /// `(1, 0)`, where the arc leaves into its face side, so a cell
+    /// holding the vertex is presented by the line's face side, whether
+    /// it reaches past the vertex or stops short of it. Where the line
+    /// leaves the vertex the other way the corner is reflex, which no
+    /// presentation reads; where it runs along the arc's tangent, the
+    /// arc's departure is second order, which is not read.
+    #[test]
+    fn a_planes_line_edge_is_read_through_its_corner_with_an_arc() {
+        let b = quarter(segment(20, [3, 1], (0.0, 0.0), (1.0, 0.0)), Vec::new());
+        for (u, v, what) in [
+            ((0.98, 1.02), (-0.02, 0.02), "about the vertex"),
+            (
+                (0.97, 0.995),
+                (0.0, 0.02),
+                "short of it, on the face's side",
+            ),
+        ] {
+            assert!(
+                matches!(on_floor_by_line(&b, u, v), Read::Of(_, (0.0, _))),
+                "{what}: the line's face side is presented: {:?}",
+                on_floor_by_line(&b, u, v)
+            );
+        }
+        let reflex = quarter(segment(20, [3, 1], (2.0, 0.0), (1.0, 0.0)), Vec::new());
+        assert_eq!(
+            on_floor_by_line(&reflex, (0.98, 1.02), (-0.02, 0.02)),
+            Read::Structural,
+            "the reflex corner at (1, 0)"
+        );
+        let tangent = quarter(segment(20, [3, 1], (1.0, -1.0), (1.0, 0.0)), Vec::new());
+        assert_eq!(
+            on_floor_by_line(&tangent, (0.98, 1.02), (-0.02, 0.02)),
+            Read::Local,
+            "the tangent join at (1, 0)"
+        );
+    }
+
+    /// **The unit sphere's octant about its north pole**: the equator
+    /// from `u = 0` to `π/2`, the meridian `u = π/2` up to the pole
+    /// (vertex 3), and the meridian `u = 0` back down; edges 0, 1, 2.
+    fn octant() -> (Surface<Interval>, Boundary) {
+        let z = Vec3::new(iv0(0.0), iv0(0.0), iv0(1.0));
+        let x = Vec3::new(iv0(1.0), iv0(0.0), iv0(0.0));
+        let s = Surface::Sphere {
+            center: origin(),
+            radius: iv0(1.0),
+            axis: z,
+            u_ref: x,
+        };
+        let q = core::f64::consts::FRAC_PI_2;
+        let p = |x: f64, y: f64, z: f64| Point3::new(iv0(x), iv0(y), iv0(z));
+        let b = Boundary {
+            sense: true,
+            edges: vec![
+                rim(1, [1, 2], Axis::V, 0.0, (0.0, 0.0), (q, 0.0)),
+                rim(2, [2, 3], Axis::U, q, (q, 0.0), (q, q)),
+                rim(3, [3, 1], Axis::U, 0.0, (0.0, q), (0.0, 0.0)),
+            ],
+            vertices: BTreeMap::from([
+                (vertex(1), p(1.0, 0.0, 0.0)),
+                (vertex(2), p(0.0, 1.0, 0.0)),
+                (vertex(3), p(0.0, 0.0, 1.0)),
+            ]),
+            extent: Some([(0.0, q), (0.0, q)]),
+        };
+        (s, b)
+    }
+
+    /// **A sphere's pole is a collapsed side of its chart**
+    /// ([`present_chart`]): a cell of the octant reaching `v = π/2`, the
+    /// pole a vertex the pair shares alone, is presented with the side
+    /// `v = π/2` its zero, whether it holds both meridians or neither.
+    /// A cell short of the pole holds no zero and is not presented.
+    #[test]
+    fn a_spheres_pole_is_a_collapsed_side_of_its_chart() {
+        let (s, b) = octant();
+        let top = Interval::pi().hi() * 0.5;
+        let at_pole = |u: (f64, f64), v: (f64, f64)| {
+            let local = Local {
+                edges: vec![1, 2],
+                vertices: vec![vertex(3)],
+            };
+            let piece = Piece {
+                face: FaceKey::default(),
+                surface: &s,
+                whole: false,
+                boundary: &b,
+                u,
+                v,
+                local: &local,
+                ball: Ball::holding(origin(), origin()),
+            };
+            match present_chart(&piece, &[], &[vertex(3)], band()) {
+                Ok(Presentation::Of(q)) => Some((q.zero, q.y)),
+                _ => None,
+            }
+        };
+        for (u, what) in [
+            ((0.7, 0.8), "between the meridians"),
+            ((0.0, core::f64::consts::FRAC_PI_2), "across both"),
+        ] {
+            let got = at_pole(u, (1.5, top));
+            assert!(
+                matches!(got, Some((Zero::Side(Side::YHi), (1.5, hi))) if hi >= top),
+                "{what}: the pole's side is the zero: {got:?}"
+            );
+        }
+        assert!(
+            at_pole((0.7, 0.8), (1.4, 1.5)).is_none(),
+            "a cell short of the pole"
         );
     }
 
