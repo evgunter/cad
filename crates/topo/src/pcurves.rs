@@ -5211,10 +5211,10 @@ impl AzimuthRule {
 /// angle about the chart's axis from the arriving edge's tangent at the
 /// point to the leaving edge's, swept on the face's side.
 ///
-/// **The tangents are the carriers'.** Each edge's tangent is its
-/// certified curve's derivative at the vertex, turned away from the
-/// point. An image's first coordinate at the point is that tangent's
-/// azimuth or half a turn off it ([`half_turn_off`]): half a turn off
+/// **The directions are the carriers'.** Each edge's direction is read
+/// off its certified curve where it leaves the vertex. An image's first
+/// coordinate at the point is that direction's azimuth or half a turn
+/// off it ([`half_turn_off`]): half a turn off
 /// on a sheet whose points lie against their azimuth (a cone's negative
 /// nappe), and on a sphere where the image runs on the chart's twin
 /// sheet, past the pole. Two edges that differ in it are joined through
@@ -5317,11 +5317,18 @@ fn singular_turn<T: Decide>(
 }
 
 /// **Whether an image's first coordinate at a singular point is half a
-/// turn off its edge's tangent there**: `u`, the image's azimuth at the
-/// point, against the direction `edge`'s carrier leaves the point along,
-/// read about the chart's axis (`pcurve_singular_sheet`). The two agree
-/// or oppose, so the reading is the side of a half turn, levered as the
-/// turn is.
+/// turn off its edge's direction there**: `u`, the image's azimuth at
+/// the point, against the direction `edge`'s carrier leaves the point
+/// along, read about the chart's axis (`pcurve_singular_sheet`). The two
+/// agree or oppose, so the reading is the side of a half turn, levered
+/// as the turn is.
+///
+/// The direction is the carrier's chord from the point to an eighth of
+/// the edge's span along. On a line it is the tangent; on a circle it
+/// is within a sixteenth of the turn the edge sweeps of it, far inside
+/// the quarter turn either side that the reading has; and it stands at
+/// a cusp, where the tangent itself lies along the axis and has no
+/// direction about it (a spindle's horn).
 fn half_turn_off<T: Decide>(
     chart: DescribedChart<'_, T>,
     edge: EdgeEnd<'_, T>,
@@ -5333,11 +5340,11 @@ fn half_turn_off<T: Decide>(
         unreachable!("a chart with a singular set has an azimuth frame")
     };
     let frame = inverse.frame();
-    // The tangent, turned away from the point, less its part along the
-    // axis.
-    let away = (edge.far - edge.at).select_le_zero(T::zero() - T::one(), T::one());
-    let tangent = edge.carrier.deriv(edge.at) * away;
-    let across = tangent - frame.axis * tangent.dot(frame.axis);
+    // The chord from the point to the carrier an eighth of the span
+    // along, less its part along the axis.
+    let near = edge.at + (edge.far - edge.at) * T::from_f64(0.125);
+    let chord = edge.carrier.eval(near) - edge.carrier.eval(edge.at);
+    let across = chord - frame.axis * chord.dot(frame.axis);
     let (sin, cos) = u.sin_cos();
     let along = frame.u_ref * cos + frame.v_ref() * sin;
     match decide(
