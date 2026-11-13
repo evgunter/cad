@@ -969,7 +969,7 @@ fn wrap_strip(
 /// The entry of `poles` the vertex `vertex` lies on, read by the kernel's
 /// one incidence reading
 /// (`geom_brep::chart_singularity::vertex_at_singular_point`, at `band`),
-/// the reading the reset joint and tier 3's tip rule take. A distance the
+/// the reading the joint decision and tier 3's tip rule take. A distance the
 /// band cannot decide is not read as on: the loop is then not the strip,
 /// and is walked and refused as any other rimless loop.
 ///

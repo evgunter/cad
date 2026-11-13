@@ -910,7 +910,7 @@ pub enum JoinRefusal {
 }
 
 /// A refusal kind as its variant's name.
-fn kind_word(kind: super::BooleanErrorKind) -> String {
+fn error_kind_word(kind: super::BooleanErrorKind) -> String {
     format!("{kind:?}")
 }
 
@@ -944,7 +944,7 @@ impl JoinRefusal {
         f: &mut core::fmt::Formatter<'_>,
         at: Option<geom_brep::recourse::ReadAt>,
     ) -> core::fmt::Result {
-        use geom_brep::recourse::{defect_ending, unreadable_margin_note};
+        use geom_brep::recourse::unreadable_margin_note;
         const IMAGE: &str = "two edges meeting at a vertex on one surface read their family off a chart image \
              that did not derive";
         match self {
@@ -993,14 +993,13 @@ impl JoinRefusal {
                 write!(
                     f,
                     "the join of two edges meeting at a vertex on one curve refused ({})",
-                    kind_word(*kind)
+                    error_kind_word(*kind)
                 )?;
                 match at {
-                    None => Ok(()),
                     Some(at) if at.is_build() => {
                         write!(f, ". {}", geom_core::KERNEL_LIMIT_RECOURSE)
                     }
-                    Some(at) => write!(f, ". {}", defect_ending(at)),
+                    at => geom_brep::recourse::defect_ended(f, at),
                 }
             }
         }
@@ -1242,10 +1241,7 @@ fn joined_spec<T: Decide>(
     // The join's refusal of a pair or an image the rule refuses over
     // the joined span.
     let refused = |refusal| match refusal {
-        geom_brep::PairRefusal::InBand(escalation) => {
-            let (reading, diag) = geom_brep::DihedralReading::of_must_carry(escalation);
-            super::ops::seam_refusal(reading, diag)
-        }
+        geom_brep::PairRefusal::InBand(escalation) => super::ops::seam_refusal(escalation),
         geom_brep::PairRefusal::Mixed(stations) => BooleanError::MixedSeam {
             edge: join.kept,
             stations: Some(stations),

@@ -53,7 +53,7 @@ use sweep::test_support::{ball_poled_z, brick, revolved_about_y};
 use sweep::{ExtrudeSide, Extrusion, Revolution, extrude};
 use topo::{
     AtRestBody, AtRestPolicy, Body, BooleanError, BooleanResult, CensusContact, ContactKind,
-    SplitJoinError, ValidationError,
+    JoinError, ValidationError,
 };
 
 use crate::common::differential::{
@@ -401,7 +401,7 @@ fn the_fallback_cuts_a_closed_rim_beside_a_ring() {
         // The rows by the plane of the B face they name: the top at z 0,
         // the lid's bottom at z 1.
         let level = |f: topo::FaceKey| match topo::face_carrier(&other, root(f)) {
-            Some(topo::CarrierDesc::Plane { origin, .. }) => (origin.z * 2.0).round() as i8,
+            Some(geom_brep::CarrierDesc::Plane { origin, .. }) => (origin.z * 2.0).round() as i8,
             c => panic!("{label}: a plane face, {c:?}"),
         };
         let held: Vec<i8> = n.substituted.iter().map(|s| level(s.face)).collect();
@@ -490,8 +490,8 @@ type Cells = [Reads; 2];
 fn reads_as(row: &str, r: Result<BooleanResult<f64>, BooleanError>, want: f64, reads: Reads) {
     let refused = |r: &Result<BooleanResult<f64>, BooleanError>| match r {
         Err(BooleanError::Join(j)) => match j.error() {
-            SplitJoinError::SectionLoopUndecided { .. } => Some(Reads::LoopsUndecided),
-            SplitJoinError::UnpairedLooseEnds { count } => Some(Reads::Loose(*count)),
+            JoinError::SectionLoopUndecided { .. } => Some(Reads::LoopsUndecided),
+            JoinError::UnpairedLooseEnds { count } => Some(Reads::Loose(*count)),
             _ => None,
         },
         _ => None,
@@ -1103,7 +1103,7 @@ fn a_rim_flush_in_its_partners_top_tangent_inside_builds_or_meets_a_pinned_limit
                 if a_az == 0.0 && matches!(op, "A ∪ B" | "B ∩ A") {
                     assert!(
                         matches!(&r, Err(BooleanError::Join(j))
-                            if matches!(j.error(), SplitJoinError::SingleSiteSectionLoop { count: 1 })),
+                            if matches!(j.error(), JoinError::SingleSiteSectionLoop { count: 1 })),
                         "{row}: {:?}",
                         r.map(|_| ())
                     );

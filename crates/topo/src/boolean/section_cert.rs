@@ -844,14 +844,34 @@ fn spline_implicit<T: Decide>(
     lane: Option<geom_brep::SsiLane<T>>,
     band: Band,
 ) -> Section<T> {
-    let listed = move |s: &geom_brep::PairSection<T>| {
-        of_pair_section(&s.read_whole(lane, band), band, |_| Section::Unmarched)
-    };
+    let whole = |s: &geom_brep::PairSection<T>| Some(s.read_whole(lane, band));
     match geom_brep::pair_section(f, g, None, lane, band) {
-        Ok(geom_brep::SectionRead::Built(section)) => of_pair_section(&Ok(section), band, listed),
+        Ok(geom_brep::SectionRead::Built(section)) => of_listed(&Ok(section), band, whole),
         Ok(geom_brep::SectionRead::Elsewhere(_)) => Section::Intractable,
-        Err(e) => of_pair_section(&Err(e), band, listed),
+        Err(e) => of_listed(&Err(e), band, whole),
     }
+}
+
+/// **A spline × implicit section read off its listing**: its
+/// classification, and where that is the march's to list (a reaching
+/// verdict whose sides do not all bound their faces), its whole reading
+/// `whole` lists, each read by [`of_pair_section`]. The one reading of
+/// such a pair, by the certificate's own door ([`spline_implicit`]) and
+/// by the guard on a pair the section table holds
+/// (`ops::pair_verdict`), whose whole reading is the table's: never its
+/// carry, which reads every component's ends as unbounded.
+pub(super) fn of_listed<
+    T: Decide,
+    W: core::borrow::Borrow<Result<geom_brep::PairSection<T>, geom_brep::SectionError>>,
+>(
+    read: &Result<geom_brep::PairSection<T>, geom_brep::SectionError>,
+    band: Band,
+    whole: impl FnOnce(&geom_brep::PairSection<T>) -> Option<W>,
+) -> Section<T> {
+    of_pair_section(read, band, |s| match whole(s) {
+        Some(listed) => of_pair_section(listed.borrow(), band, |_| Section::Unmarched),
+        None => Section::Unmarched,
+    })
 }
 
 /// The torus arms the section value does not build: `t` is a torus, `p`
@@ -1961,6 +1981,7 @@ pub(super) fn of_carried<T: Decide>(
             | CarryError::Refused(CarryRefusal::Winds(_))
             | CarryError::Refused(CarryRefusal::PadShort { .. })
             | CarryError::Refused(CarryRefusal::TubeUnread(_))
+            | CarryError::Refused(CarryRefusal::PadsMeet { .. })
             | CarryError::Escalated(_)
             | CarryError::Desync(_)
             | CarryError::Refused(CarryRefusal::Seat(_))

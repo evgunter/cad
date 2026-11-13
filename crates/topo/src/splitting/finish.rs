@@ -87,15 +87,16 @@ use geom_core::{Decide, Real, UnitVec3, Vec3};
 use slotmap::SecondaryMap;
 
 use super::containment::{LoopContainment, point_in_loop};
-use super::join::{CompletedSection, SectionKind, loop_points_of};
+use super::join::{CompletedSection, LoopStartsFault, SectionKind, loop_points_of};
 use super::{KnifeEdge, KnifeEdgeSite, PlaneSide, SplitReduction, section_loops};
 use crate::attach::{Named, Rechart};
 use crate::body::Body;
 use crate::boolean::{CarryRefusal, Cell};
-use crate::chord_join::SplitJoinError;
-use crate::entity::{EdgeKey, EntityId, FaceKey, LoopBoundary, ShellKey, SolidKey, VertexKey};
+use crate::carve::{CarveError, NotOneSolid, carve, single_solid};
+use crate::entity::{EdgeKey, EntityId, FaceKey, ShellKey, SolidKey, VertexKey};
 use crate::euler::{EulerOpError, FaceSurface};
 use crate::live::{BoundaryMember, proven};
+use crate::unresolved::Unresolved;
 use geom::Surface;
 use geom_core::Tol;
 
@@ -648,7 +649,7 @@ impl SplitNaming {
 ///
 /// [`SplitFinishError::EdgeJoin`] where the merge's join refuses, and
 /// [`SplitFinishError::Merge`] for every other refusal of the merge or
-/// of the skipped faces' re-description. [`SplitFinishError::Corrupt`]
+/// of the skipped faces' re-description. [`SplitFinishError::Desync`]
 /// where the merge names a placeholder face: a side carved from a
 /// finished operand has none.
 pub(super) fn end_maximal<T: Decide + crate::props::AtRestPolicy>(
@@ -669,7 +670,9 @@ pub(super) fn end_maximal<T: Decide + crate::props::AtRestPolicy>(
             error => SplitFinishError::Merge { side, error },
         })?;
     if !merged.placeholders.is_empty() {
-        return Err(SplitFinishError::Corrupt);
+        return Err(SplitFinishError::Desync(FinishDesync::MergePlaceholders {
+            side,
+        }));
     }
     let skipped_faces = merged.skipped.iter().flat_map(|s| s.faces.iter().copied());
     let boundary = crate::boolean::boundary_edges(body, skipped_faces);
@@ -706,7 +709,7 @@ pub(super) fn end_maximal<T: Decide + crate::props::AtRestPolicy>(
 /// # Errors
 ///
 /// [`SplitFinishError::NestingContradiction`] where two rings each read
-/// as enclosing the other around an island; [`SplitFinishError::Corrupt`]
+/// as enclosing the other around an island; [`SplitFinishError::Desync`]
 /// where a loop does not walk.
 fn record_islands<T: Decide>(
     body: &Body<T>,
@@ -719,7 +722,7 @@ fn record_islands<T: Decide>(
     let mut rings = Vec::new();
     let mut outlines = Vec::with_capacity(pieces.len());
     for &f in &pieces {
-        let face = body.get_face(f).ok_or(SplitFinishError::Corrupt)?;
+        let face = body.get_face(f).ok_or(unresolved(EntityId::Face(f)))?;
         rings.extend(face.rings.iter().map(|&r| (r, r)));
         outlines.push((f, face.outer));
     }
@@ -730,7 +733,9 @@ fn record_islands<T: Decide>(
     let side_normal = section_loops::section_normal(normal, side);
     let nesting = section_loops::nest(body, rings, outlines, side_normal, band).map_err(
         |fault| match fault {
-            section_loops::NestFault::Torn => SplitFinishError::Corrupt,
+            section_loops::NestFault::Torn(key) => {
+                SplitFinishError::Desync(FinishDesync::Unresolved(key))
+            }
             section_loops::NestFault::Contradiction(island) => {
                 SplitFinishError::NestingContradiction { hole: island }
             }
@@ -766,49 +771,143 @@ impl Default for SplitNaming {
     }
 }
 
+/// What [`SplitFinishError::Desync`] found: the scratch body, or the
+/// finish's records of it, in a state the steps before it do not leave.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum FinishDesync {
+    /// A key the finish was reading does not resolve.
+    Unresolved(Unresolved),
+    /// The coplanar merge a side ends with left placeholder faces.
+    MergePlaceholders {
+        /// The side whose merge left them.
+        side: PlaneSide,
+    },
+    /// A null edge's record names no copy of the vertex it stands at.
+    NullEdgeUncopied {
+        /// The vertex.
+        vertex: VertexKey,
+    },
+    /// A completed section's face is bounded by neither of the section's
+    /// two loops.
+    SectionLoops {
+        /// The section's null face.
+        face: FaceKey,
+    },
+    /// A completed section's below loop holds a lone vertex, not a cycle.
+    LoopNotACycle {
+        /// The section's null face.
+        face: FaceKey,
+    },
+    /// A cut body with a completed section leaves no shell on one side.
+    SideEmpty {
+        /// The side with no shell.
+        side: PlaneSide,
+    },
+    /// An uncut body's solid holds no shell.
+    NoShell {
+        /// The solid.
+        solid: SolidKey,
+    },
+    /// The scratch body holds more than one solid: [`super::split`]
+    /// files every shell under one before the finish runs.
+    SolidsUnmerged {
+        /// How many it holds.
+        solids: usize,
+    },
+}
+
+impl core::fmt::Display for FinishDesync {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            Self::Unresolved(unresolved) => write!(f, "in the body being split, {unresolved}"),
+            Self::MergePlaceholders { side } => write!(
+                f,
+                "the merge of the piece on the {} side of the plane left placeholder faces",
+                side.word()
+            ),
+            Self::NullEdgeUncopied { vertex } => write!(
+                f,
+                "a null edge's record names no copy of vertex {vertex:?}, where it stands"
+            ),
+            Self::SectionLoops { face } => write!(
+                f,
+                "cut face {face:?} is bounded by neither of its section's loops"
+            ),
+            Self::LoopNotACycle { face } => write!(
+                f,
+                "the loop under cut face {face:?} holds a lone vertex where the cut's \
+                 outline runs"
+            ),
+            Self::SideEmpty { side } => write!(
+                f,
+                "the cut leaves no shell on the {} side of the plane",
+                side.word()
+            ),
+            Self::NoShell { solid } => write!(f, "solid {solid:?} holds no shell"),
+            Self::SolidsUnmerged { solids } => write!(
+                f,
+                "the body being cut holds {solids} solids where its shells were filed \
+                 under one"
+            ),
+        }
+    }
+}
+
 /// Typed failure of the finish step.
 #[derive(Debug)]
 pub enum SplitFinishError {
+    /// The body to split holds no solid, so there is nothing to cut. A
+    /// caller reaches it by handing [`super::split`] an empty body.
+    EmptyOperand,
     /// A component consists only of section faces, so it bounds no
-    /// volume (kernel bug, loudly: the join's area certificate refuses
-    /// every zero-area section that is no slit trace before the finish
-    /// runs). No degenerate
-    /// body is ever emitted.
+    /// volume (a kernel bug: the join's area certificate refuses every
+    /// zero-area section that is no slit trace before the finish runs).
+    /// No degenerate body is ever emitted.
     DegenerateSide {
         /// The offending shell (in the discarded scratch body).
         shell: ShellKey,
         /// Which side it claimed.
         side: PlaneSide,
     },
-    /// One shell carries both above- and below-section faces (kernel
-    /// bug, loudly).
+    /// One shell carries both above- and below-section faces (a kernel
+    /// bug).
     TornComponent {
         /// The offending shell.
         shell: ShellKey,
     },
     /// A component has no section face and no off-plane vertex or
-    /// curved edge to classify by ([`shell_side`]; kernel bug or
-    /// fully-coplanar garbage).
+    /// curved edge to classify by ([`shell_side`]), cut or uncut: a shell
+    /// lying wholly in the plane, which bounds no volume, so no finished
+    /// operand holds one (a kernel bug).
     UnclassifiableComponent {
         /// The offending shell.
         shell: ShellKey,
     },
-    /// A traversal failed (corrupt mid-surgery body).
-    Corrupt,
+    /// The scratch body, or the finish's own records of it, is not what
+    /// the finish left there (a kernel bug).
+    Desync(FinishDesync),
+    /// Carving a side out of the cut body refused ([`crate::carve::carve`];
+    /// a kernel bug).
+    Carve(CarveError),
+    /// A lineage list refused a row the finish appended (a kernel bug).
+    /// Each stage of the split carries the list's one refusal in its own
+    /// error, as the reduction and the join do.
+    LineageRow(crate::lineage::RowRefusal),
     /// An underlying Euler/structural operation refused.
     Euler(EulerOpError),
     /// The run's tolerance could not produce a classification band
     /// (absurd ε) — the section-boundary description pass classifies.
     Band(geom_core::BandError),
-    /// Describing a section-boundary edge escalated on the angle
-    /// between its two faces — the dihedral at its witness or at a
-    /// station of the must-carry rule: indeterminate geometry at the
+    /// Describing a section-boundary edge escalated on the wedge between
+    /// its two faces — the dihedral at its witness, or a decision of the
+    /// whole-edge fold at a station ([`crate::edge_wedge()`]), each tagged
+    /// with the rung that raised it: indeterminate geometry at the
     /// section boundary refuses typed, never guesses a description.
-    DescribeEscalated {
+    WedgeEscalated {
         /// The section-boundary edge.
         edge: EdgeKey,
-        /// The deciding reading's diagnostic.
-        diag: geom_core::Indeterminate,
+        /// The deciding reading's escalation.
+        escalation: geom_brep::WedgeEscalation,
     },
     /// A section-boundary edge's dihedral has no reading at a spline face
     /// it bounds: the face has no image of the edge in its chart, or no
@@ -844,31 +943,6 @@ pub enum SplitFinishError {
     ConeCornerUnread {
         /// The corner's vertex.
         vertex: VertexKey,
-    },
-    /// The zero-length joint that fuses a pinch's cones on a side
-    /// ([`crate::fuse::fuse`]) lost a half-edge it made (a kernel bug).
-    ConeFusionDesync {
-        /// What no longer resolved.
-        what: &'static str,
-    },
-    /// A curved wall smooth against the section at an edge refused its
-    /// material pairing ([`geom_brep::MATERIAL_PAIRING`]): in band, or
-    /// decided zero over an arm too short to read a side.
-    DescribeSideEscalated {
-        /// The section-boundary edge.
-        edge: EdgeKey,
-        /// The pairing's diagnostic, with the margin it decided.
-        diag: geom_core::Indeterminate,
-    },
-    /// A smooth section-boundary edge's second order escalated at a
-    /// station of the must-carry rule: whether its two faces curve
-    /// apart there or share their curvature is in band, so neither the
-    /// intrinsic nor the conventional description is honest.
-    DescribeBendEscalated {
-        /// The section-boundary edge.
-        edge: EdgeKey,
-        /// The sagitta's diagnostic (`"tangent_second_order"`).
-        diag: geom_core::Indeterminate,
     },
     /// The plane did not cut the operand, every vertex reads on it, and
     /// which side its material lies on escalated: no curved edge's
@@ -995,6 +1069,12 @@ pub enum SplitFinishError {
     },
 }
 
+impl From<CarveError> for SplitFinishError {
+    fn from(e: CarveError) -> Self {
+        Self::Carve(e)
+    }
+}
+
 impl From<EulerOpError> for SplitFinishError {
     fn from(e: EulerOpError) -> Self {
         Self::Euler(e.from_driver())
@@ -1061,32 +1141,93 @@ impl SplitFinishError {
         at: Option<geom_brep::recourse::ReadAt>,
     ) -> core::fmt::Result {
         use core::fmt::Display as _;
-        use geom_brep::recourse::read_at;
+        use geom_brep::recourse::{defect_ended, read_at};
         match self {
-            Self::DegenerateSide { side, .. } => write!(
+            Self::EmptyOperand => write!(
                 f,
-                "the piece on the {} side of the plane bounds no volume: it holds only \
-                 section faces (kernel bug)",
-                side.word()
+                "the body to split holds no solid, so there is nothing to cut. Recourse: \
+                 split a body that holds a solid"
             ),
-            Self::TornComponent { shell } => write!(
-                f,
-                "component {shell:?} carries section faces of both sides (kernel bug)"
-            ),
-            Self::UnclassifiableComponent { shell } => write!(
-                f,
-                "component {shell:?} has no section face and no off-plane vertex to \
-                 classify it by"
-            ),
-            Self::Corrupt => write!(f, "the finish traversal failed (corrupt body)"),
+            Self::DegenerateSide { side, .. } => {
+                write!(
+                    f,
+                    "the piece on the {} side of the plane bounds no volume: it holds only \
+                     section faces",
+                    side.word()
+                )?;
+                defect_ended(f, at)
+            }
+            Self::TornComponent { shell } => {
+                write!(f, "component {shell:?} carries section faces of both sides")?;
+                defect_ended(f, at)
+            }
+            Self::UnclassifiableComponent { shell } => {
+                write!(
+                    f,
+                    "component {shell:?} lies wholly in the plane, so it bounds no volume \
+                     and has no side"
+                )?;
+                defect_ended(f, at)
+            }
+            Self::Desync(what) => {
+                write!(f, "{what}")?;
+                defect_ended(f, at)
+            }
+            Self::Carve(e) => {
+                write!(
+                    f,
+                    "a side could not be carved out of the cut body, where {e}"
+                )?;
+                defect_ended(f, at)
+            }
+            Self::LineageRow(row) => {
+                write!(f, "{}", row.refused_by("split"))?;
+                defect_ended(f, at)
+            }
             Self::Euler(e) => write!(f, "an Euler operation refused: {}", read_at(e, at)),
             Self::Band(e) => write!(f, "{e}"),
-            Self::DescribeEscalated { diag, .. } => diag
-                .undecided(
-                    "the angle between two faces along the cut",
+            Self::WedgeEscalated { escalation, .. } => {
+                let diag = escalation.diag();
+                let question = match escalation.rung() {
+                    geom_brep::WedgeRung::Arm | geom_brep::WedgeRung::Wedge => {
+                        "the angle between two faces along the cut"
+                    }
+                    geom_brep::WedgeRung::Sign => {
+                        "whether two faces along the cut meet at a convex or a concave corner"
+                    }
+                    geom_brep::WedgeRung::Pairing => {
+                        return write!(
+                            f,
+                            "{}",
+                            geom_brep::recourse::undecided_at(
+                                &diag,
+                                geom_brep::MATERIAL_PAIRING_CLAUSE,
+                                at.map(|at| {
+                                    geom_brep::MATERIAL_PAIRING.recourse(
+                                        geom_brep::recourse::RefusedArm::Undecided(&diag),
+                                        at,
+                                    )
+                                }),
+                            )
+                        );
+                    }
+                    geom_brep::WedgeRung::Bend => {
+                        "whether two faces touching along the cut curve apart there or share \
+                         their curvature"
+                    }
+                    geom_brep::WedgeRung::End => {
+                        "whether two faces touching along the cut close a cusp or a slit"
+                    }
+                };
+                let at_station = escalation
+                    .station()
+                    .map_or_else(String::new, |i| format!(" at sample {i}"));
+                diag.undecided(
+                    format_args!("{question}{at_station}"),
                     diag.lever_ending(super::SPLIT_COINCIDENCE_RECOURSE),
                 )
-                .fmt(f),
+                .fmt(f)
+            }
             Self::Undescribed { failure, .. } => write!(
                 f,
                 "an edge of the cut cannot be described against the two faces it lies \
@@ -1108,31 +1249,6 @@ impl SplitFinishError {
                  cannot be decided. {}",
                 geom_core::KERNEL_OR_FILE_DEFECT_ENDING
             ),
-            Self::ConeFusionDesync { what } => write!(
-                f,
-                "the joint between two pieces of the solid at a corner of the cut lost its \
-                 half-edge ({what}). {}",
-                geom_core::KERNEL_DEFECT_ENDING
-            ),
-            Self::DescribeSideEscalated { diag, .. } => write!(
-                f,
-                "{}",
-                geom_brep::recourse::undecided_at(
-                    diag,
-                    geom_brep::MATERIAL_PAIRING_CLAUSE,
-                    at.map(|at| {
-                        geom_brep::MATERIAL_PAIRING
-                            .recourse(geom_brep::recourse::RefusedArm::Undecided(diag), at)
-                    }),
-                )
-            ),
-            Self::DescribeBendEscalated { diag, .. } => diag
-                .undecided(
-                    "whether two faces touching along the cut curve apart there or share their \
-                     curvature",
-                    diag.lever_ending(super::SPLIT_COINCIDENCE_RECOURSE),
-                )
-                .fmt(f),
             Self::WholeBodySideEscalated { diag, .. } => diag
                 .undecided(
                     "which side of the plane a solid the plane does not cut lies on",
@@ -1173,30 +1289,36 @@ impl SplitFinishError {
                  equator). Recourse: {}",
                 super::SPLIT_COINCIDENCE_RECOURSE
             ),
-            Self::NestingContradiction { hole } => write!(
-                f,
-                "two cut faces each read as enclosing the other around hole {hole:?}. {}",
-                geom_core::KERNEL_DEFECT_ENDING
-            ),
+            Self::NestingContradiction { hole } => {
+                write!(
+                    f,
+                    "two cut faces each read as enclosing the other around hole {hole:?}"
+                )?;
+                defect_ended(f, at)
+            }
             Self::SlitUnplaced {
                 slit,
                 in_hole: false,
-            } => write!(
-                f,
-                "edges lying in the cut, wrapped round at every end by the material \
-                 across them, leave a slit {slit:?} that no cut face encloses. {}",
-                geom_core::KERNEL_DEFECT_ENDING
-            ),
+            } => {
+                write!(
+                    f,
+                    "edges lying in the cut, wrapped round at every end by the material \
+                     across them, leave a slit {slit:?} that no cut face encloses"
+                )?;
+                defect_ended(f, at)
+            }
             Self::SlitUnplaced {
                 slit,
                 in_hole: true,
-            } => write!(
-                f,
-                "edges lying in the cut, wrapped round at every end by the material \
-                 across them, leave a slit {slit:?} inside or against a hole of the cut \
-                 face around it. {}",
-                geom_core::KERNEL_DEFECT_ENDING
-            ),
+            } => {
+                write!(
+                    f,
+                    "edges lying in the cut, wrapped round at every end by the material \
+                     across them, leave a slit {slit:?} inside or against a hole of the \
+                     cut face around it"
+                )?;
+                defect_ended(f, at)
+            }
             Self::SlitHoming { error, .. } => error.render_as(
                 f,
                 "placing a slit an edge in the cut leaves",
@@ -1284,7 +1406,7 @@ pub(super) fn split_finish<T: Decide + crate::props::AtRestPolicy>(
     let rows = red.coincidences;
     let mut reassembled = red.body;
     let mut body = reassembled.begin_surgery();
-    let solid = single_solid(&body)?;
+    let solid = operand_solid(&body)?;
 
     // No section polygons: the plane did not cut, so each shell lies on
     // one side (an ON-touching contact mints no null faces).
@@ -1311,7 +1433,9 @@ pub(super) fn split_finish<T: Decide + crate::props::AtRestPolicy>(
             .map(|r| {
                 let copy = r.attr.copy_at(r.at_vertex);
                 copy.map(|c| (c, r.at_vertex))
-                    .ok_or(SplitFinishError::Corrupt)
+                    .ok_or(SplitFinishError::Desync(FinishDesync::NullEdgeUncopied {
+                        vertex: r.at_vertex,
+                    }))
             })
             .collect::<Result<_, _>>()?,
         edge_joins: Vec::new(),
@@ -1332,20 +1456,22 @@ pub(super) fn split_finish<T: Decide + crate::props::AtRestPolicy>(
     for section in completed {
         let face = body
             .get_face(section.face)
-            .ok_or(SplitFinishError::Corrupt)?;
+            .ok_or(unresolved(EntityId::Face(section.face)))?;
         let outer = face.outer;
         let ring = if outer == section.above_loop {
             section.below_loop
         } else if outer == section.below_loop {
             section.above_loop
         } else {
-            return Err(SplitFinishError::Corrupt);
+            return Err(SplitFinishError::Desync(FinishDesync::SectionLoops {
+                face: section.face,
+            }));
         };
         // A slit trace's two loops part into two faces: the strut loop's,
         // a component of its own that neither side keeps, and the slit's,
         // nested below as a ring of the section face containing it.
         if let SectionKind::Slit { strut } = section.kind {
-            let promoted = body.mfkrh(ring, FaceSurface::Inherit)?;
+            let promoted = body.mfkrh_minting(ring, FaceSurface::Inherit, tol)?;
             let (trace, slit) = if ring == strut {
                 (promoted.face, section.face)
             } else {
@@ -1389,7 +1515,7 @@ pub(super) fn split_finish<T: Decide + crate::props::AtRestPolicy>(
         // would be listed from both and refuse typed
         // (`DuplicateRedescription`), or, naming neither's chart,
         // `RechartUndescribed`.
-        let promoted = body.mfkrh(ring, FaceSurface::Inherit)?;
+        let promoted = body.mfkrh_minting(ring, FaceSurface::Inherit, tol)?;
         let charts = vec![
             Rechart::new(plane_for(ring_side), promoted.face, ring_sense),
             Rechart::new(plane_for(other_side), section.face, outer_sense),
@@ -1447,7 +1573,7 @@ pub(super) fn split_finish<T: Decide + crate::props::AtRestPolicy>(
     // ---- Distribution: movefac every shell of the solid. ----
     let shells: Vec<ShellKey> = body
         .shells_of_solid(solid)
-        .ok_or(SplitFinishError::Corrupt)?
+        .ok_or(unresolved(EntityId::Solid(solid)))?
         .to_vec();
     let mut all_shells = Vec::new();
     for shell in shells {
@@ -1459,7 +1585,7 @@ pub(super) fn split_finish<T: Decide + crate::props::AtRestPolicy>(
     for shell in all_shells {
         let faces = &body
             .get_shell(shell)
-            .ok_or(SplitFinishError::Corrupt)?
+            .ok_or(unresolved(EntityId::Shell(shell)))?
             .faces;
         if faces.iter().any(|f| traces.contains(f)) {
             // The tree's vertices hold no other edge: the other side wraps
@@ -1487,7 +1613,13 @@ pub(super) fn split_finish<T: Decide + crate::props::AtRestPolicy>(
     } = binned;
     if above_shells.is_empty() || below_shells.is_empty() {
         // With ≥1 completed section both sides must hold material.
-        return Err(SplitFinishError::Corrupt);
+        return Err(SplitFinishError::Desync(FinishDesync::SideEmpty {
+            side: if above_shells.is_empty() {
+                PlaneSide::Above
+            } else {
+                PlaneSide::Below
+            },
+        }));
     }
 
     // ---- Carve the two independent result bodies. ----
@@ -1529,7 +1661,7 @@ pub(super) fn split_finish<T: Decide + crate::props::AtRestPolicy>(
 /// # Errors
 ///
 /// [`SplitFinishError::NestingContradiction`]; [`SplitFinishError::Euler`]
-/// and [`SplitFinishError::Corrupt`] from the surgery.
+/// and [`SplitFinishError::Desync`] from the surgery.
 fn nest_hole_sections<T: Decide + crate::props::AtRestPolicy>(
     body: &mut Body<T>,
     section_side: &mut SecondaryMap<FaceKey, PlaneSide>,
@@ -1538,13 +1670,14 @@ fn nest_hole_sections<T: Decide + crate::props::AtRestPolicy>(
     band: geom_core::Band,
     tol: Tol,
 ) -> Result<(), SplitFinishError> {
-    let corrupt = || SplitFinishError::Corrupt;
     let mut parent_of: SecondaryMap<FaceKey, FaceKey> = SecondaryMap::new();
     for side in [PlaneSide::Above, PlaneSide::Below] {
         let mut outlines = Vec::new();
         let mut holes = Vec::new();
         for face in side_sections(naming, side) {
-            let data = body.get_face(face).ok_or_else(corrupt)?;
+            let data = body
+                .get_face(face)
+                .ok_or(unresolved(EntityId::Face(face)))?;
             if data.sense {
                 outlines.push((face, data.outer));
             } else {
@@ -1555,7 +1688,9 @@ fn nest_hole_sections<T: Decide + crate::props::AtRestPolicy>(
         let nesting =
             section_loops::nest(body, outlines, holes, side_normal, band).map_err(|fault| {
                 match fault {
-                    section_loops::NestFault::Torn => corrupt(),
+                    section_loops::NestFault::Torn(key) => {
+                        SplitFinishError::Desync(FinishDesync::Unresolved(key))
+                    }
                     section_loops::NestFault::Contradiction((hole, _)) => {
                         SplitFinishError::NestingContradiction { hole }
                     }
@@ -1568,7 +1703,9 @@ fn nest_hole_sections<T: Decide + crate::props::AtRestPolicy>(
                 for &r in &rings {
                     clear = clear
                         && section_loops::outlines_disjoint(body, r, hole_loop, side_normal, band)
-                            .map_err(|_| corrupt())?;
+                            .map_err(|section_loops::Torn(key)| {
+                                SplitFinishError::Desync(FinishDesync::Unresolved(key))
+                            })?;
                 }
                 if clear {
                     rings.push(hole_loop);
@@ -1606,7 +1743,7 @@ fn side_sections(naming: &SplitNaming, side: PlaneSide) -> impl Iterator<Item = 
 ///
 /// # Errors
 ///
-/// [`SplitFinishError::Euler`] and [`SplitFinishError::Corrupt`] from
+/// [`SplitFinishError::Euler`] and [`SplitFinishError::Desync`] from
 /// the surgery; the re-chart's ([`rechart_section`]).
 fn ring_into<T: Decide + crate::props::AtRestPolicy>(
     body: &mut Body<T>,
@@ -1616,7 +1753,7 @@ fn ring_into<T: Decide + crate::props::AtRestPolicy>(
 ) -> Result<(), SplitFinishError> {
     let chart = body
         .get_face(parent)
-        .ok_or(SplitFinishError::Corrupt)?
+        .ok_or(unresolved(EntityId::Face(parent)))?
         .surface;
     let charts = vec![Rechart::shared(chart, face, false)];
     let stranded = body.stranded_by(&charts)?;
@@ -1651,7 +1788,7 @@ fn ring_into<T: Decide + crate::props::AtRestPolicy>(
 ///   and the vertex lies in no region, or on a loop;
 ///   [`SplitFinishError::NestingContradiction`] where no one holding
 ///   outline lies inside the others;
-/// - [`SplitFinishError::Euler`] and [`SplitFinishError::Corrupt`] from
+/// - [`SplitFinishError::Euler`] and [`SplitFinishError::Desync`] from
 ///   the surgery.
 fn nest_slit<T: Decide + crate::props::AtRestPolicy>(
     body: &mut Body<T>,
@@ -1662,9 +1799,14 @@ fn nest_slit<T: Decide + crate::props::AtRestPolicy>(
     band: geom_core::Band,
     tol: Tol,
 ) -> Result<(), SplitFinishError> {
-    let corrupt = || SplitFinishError::Corrupt;
-    let slit_loop = body.get_face(slit).ok_or_else(corrupt)?.outer;
-    let at = |l| crate::chord_join::ring_representative(body, l).map_err(|_| corrupt());
+    let slit_loop = body
+        .get_face(slit)
+        .ok_or(unresolved(EntityId::Face(slit)))?
+        .outer;
+    let at = |l| {
+        crate::chord_join::ring_representative(body, l)
+            .map_err(|key| SplitFinishError::Desync(FinishDesync::Unresolved(key)))
+    };
     let q = at(slit_loop)?;
     let side_normal = section_loops::section_normal(normal, side);
     let read = |l, p| {
@@ -1676,7 +1818,9 @@ fn nest_slit<T: Decide + crate::props::AtRestPolicy>(
     // holes on faces of their own that hold it.
     let (mut outlines, mut holes, mut in_hole) = (Vec::new(), Vec::new(), false);
     for face in side_sections(naming, side) {
-        let data = body.get_face(face).ok_or_else(corrupt)?;
+        let data = body
+            .get_face(face)
+            .ok_or(unresolved(EntityId::Face(face)))?;
         match read(data.outer, q)? {
             LoopContainment::Out => continue,
             LoopContainment::OnBoundary => return unplaced(!data.sense),
@@ -1788,8 +1932,8 @@ pub(crate) fn section_plane_restatements<T: Decide>(
 /// surfaces (read through [`geom_brep::IntersectionDraft`]: witness ON
 /// the edge, at its carrier's mid-parameter), through the certified
 /// [`crate::Body::describe_intersection`] lane. A smooth neighbor stores
-/// what the must-carry rule over the edge demands
-/// ([`geom_brep::must_carry_over_edge`]): the intrinsic
+/// what its whole wedge, the fold tier 3 reads, demands
+/// ([`crate::edge_wedge()`]): the intrinsic
 /// `TangentIntersection` where the two surfaces determine the locus (a
 /// curved wall at a π seam), else a conventional description (D2's
 /// split — flush ON-faces, whose parallel planes under-determine it).
@@ -1811,15 +1955,13 @@ pub(crate) fn section_plane_restatements<T: Decide>(
 /// with its transverse partner reassigned to the OTHER product, so the
 /// `Intersection` it honestly carried now names a surface that is not
 /// adjacent (and not even present) on this side. A curved wall smooth
-/// against the section is first judged by its material pairing:
-/// opposed is a wedge end nothing declared and refuses
-/// ([`SplitFinishError::KnifeEdge`]). The rule's refusals are this
-/// op's: a station in band first-order
-/// ([`SplitFinishError::DescribeEscalated`], as the witness's dihedral
-/// escalates; [`SplitFinishError::DescribeSideEscalated`], as the
-/// pairing refuses) or second-order
-/// ([`SplitFinishError::DescribeBendEscalated`]), and a station that
-/// reads the edge a corner ([`SplitFinishError::SmoothJoinRefuted`]).
+/// against the section is judged by its material pairing at every
+/// station, as tier 3 judges it: opposed, a wedge end or the lamina, is
+/// one nothing declared and refuses ([`SplitFinishError::KnifeEdge`]).
+/// The fold's refusals are this op's: a station in band at any rung
+/// ([`SplitFinishError::WedgeEscalated`], as the witness's dihedral
+/// escalates), and a station that reads the edge a corner
+/// ([`SplitFinishError::SmoothJoinRefuted`]).
 ///
 /// The body is mid-operation, past the carve; each edge is read after
 /// the writes to the edges before it. Its curve is a link
@@ -1885,49 +2027,10 @@ pub(crate) fn describe_section_boundary<T: Decide + crate::props::AtRestPolicy>(
             }
             // A curved wall smooth against the section plane is
             // either a π seam or a wedge end, and only the material
-            // pairing tells them apart — tier 3's own reading
-            // (D1). The wedge end is a knife edge no input
-            // declared: this op's refusal.
+            // pairing tells them apart — tier 3's own reading (D1), its
+            // fold over the edge's stations. The wedge end is a knife
+            // edge no input declared: this op's refusal.
             Ok(geom_brep::DihedralClass::Smooth) => {
-                if !matches!(surf_other, Surface::Plane { .. }) {
-                    let sense_of = |f| proven(&body.faces, f, EntityId::Face).sense;
-                    // The pairing reads the faces' implicit normals off the
-                    // dihedral's own token: on two analytic faces the seam
-                    // reading above is this reading bit for bit, so it reads
-                    // the tangency again; a spline face's implicit form is
-                    // poison, and escalates.
-                    let tangency = match geom_brep::classify_dihedral(
-                        surf_self, surf_other, witness, reach, band,
-                    ) {
-                        Ok(geom_brep::Dihedral::Tangent(tangency)) => tangency,
-                        Ok(geom_brep::Dihedral::Corner(_)) => unreachable!(
-                            "{edge:?}: classify_seam reads two analytic faces as \
-                                 classify_dihedral does, and a spline face's implicit form \
-                                 escalates rather than read a corner"
-                        ),
-                        Err(e) => {
-                            return Err(SplitFinishError::DescribeSideEscalated {
-                                edge,
-                                diag: e.diag(),
-                            });
-                        }
-                    };
-                    let pairing = tangency
-                        .pairing([sense_of(face), sense_of(other_face)], band)
-                        .map_err(|e| SplitFinishError::DescribeSideEscalated {
-                            edge,
-                            diag: e.diag(),
-                        })?;
-                    if pairing == geom_brep::MaterialPairing::Opposed {
-                        return Err(SplitFinishError::KnifeEdge(KnifeEdge {
-                            wall: other_face,
-                            at: KnifeEdgeSite::Edge(edge),
-                        }));
-                    }
-                }
-                // Carrier and interval travel verbatim (restated,
-                // never rebuilt), as does a conventional image's
-                // declared authority (an intrinsic locus is derived).
                 let curve = existing.as_ref().unwrap_or_else(|| {
                     unreachable!(
                         "{edge:?} read smooth at its witness has a certified carrier: \
@@ -1935,22 +2038,40 @@ pub(crate) fn describe_section_boundary<T: Decide + crate::props::AtRestPolicy>(
                              chord fails the dihedral's arm gate before this arm"
                     )
                 });
-                let spec = curve.restated_spec();
-                // What the join stores is the must-carry rule's
-                // over the edge, and each refusal is this op's own.
-                let demanded = geom_brep::must_carry_description(
-                    geom_brep::SmoothJoin {
-                        surfaces: [(s_self, surf_self), (s_other, surf_other)],
-                        carrier: &spec.carrier,
-                        interval: (spec.param_start, spec.param_end),
-                        reach,
-                        witness,
-                    },
-                    band,
-                    |_, diag| SplitFinishError::DescribeEscalated { edge, diag },
-                    |_, diag| SplitFinishError::DescribeBendEscalated { edge, diag },
-                    |mixed| SplitFinishError::SmoothJoinRefuted { edge, mixed },
-                )?;
+                let (verdict, demanded) = crate::edge_wedge::edge_wedge_read(body, edge, band)
+                    .unwrap_or_else(|| {
+                        unreachable!("{edge:?} has a certified carrier and two live faces")
+                    });
+                match verdict {
+                    geom_brep::WedgeVerdict::InBand(escalation) => {
+                        return Err(SplitFinishError::WedgeEscalated { edge, escalation });
+                    }
+                    geom_brep::WedgeVerdict::Mixed(stations) => {
+                        return Err(SplitFinishError::SmoothJoinRefuted {
+                            edge,
+                            mixed: Some(stations),
+                        });
+                    }
+                    geom_brep::WedgeVerdict::Crease(_) => {
+                        return Err(SplitFinishError::SmoothJoinRefuted { edge, mixed: None });
+                    }
+                    geom_brep::WedgeVerdict::End(_) | geom_brep::WedgeVerdict::Lamina
+                        if !matches!(surf_other, Surface::Plane { .. }) =>
+                    {
+                        return Err(SplitFinishError::KnifeEdge(KnifeEdge {
+                            wall: other_face,
+                            at: KnifeEdgeSite::Edge(edge),
+                        }));
+                    }
+                    geom_brep::WedgeVerdict::Seam { .. }
+                    | geom_brep::WedgeVerdict::End(_)
+                    | geom_brep::WedgeVerdict::Lamina => {}
+                }
+                // What the join stores is what its wedge demands, and
+                // a settled tangency demands a description.
+                let Ok(demanded) = demanded else {
+                    unreachable!("{edge:?}'s settled tangency demands a description")
+                };
                 // A description of the demanded kind that names
                 // the edge's current faces stays verbatim (a stated
                 // image travels exactly); anything else — a
@@ -1985,7 +2106,7 @@ pub(crate) fn describe_section_boundary<T: Decide + crate::props::AtRestPolicy>(
                     // operand it is metered like any description
                     // (D4 ¶3).
                     let description = demanded.restated(curve, rest);
-                    let carrier = spec.carrier.kind();
+                    let carrier = curve.carrier().kind();
                     body.restate_edge(
                         crate::policy_lane::KernelSite::SectionSmooth,
                         edge,
@@ -1996,9 +2117,9 @@ pub(crate) fn describe_section_boundary<T: Decide + crate::props::AtRestPolicy>(
                 }
             }
             Err(crate::pcurves::SeamUnread::Lever(escalation)) => {
-                return Err(SplitFinishError::DescribeEscalated {
+                return Err(SplitFinishError::WedgeEscalated {
                     edge,
-                    diag: escalation.diag(),
+                    escalation: escalation.into(),
                 });
             }
             Err(crate::pcurves::SeamUnread::Crease(_)) => {
@@ -2009,15 +2130,21 @@ pub(crate) fn describe_section_boundary<T: Decide + crate::props::AtRestPolicy>(
     Ok(())
 }
 
-/// The operand's single solid. The pipelines read every operand as one
-/// solid (`split` and the boolean hand them over through
-/// [`Body::merge_all_solids`]), so any other count is a desync.
-pub(crate) fn single_solid<T: Decide>(body: &Body<T>) -> Result<SolidKey, SplitFinishError> {
-    let mut it = body.solids();
-    match (it.next(), it.next()) {
-        (Some((k, _)), None) => Ok(k),
-        _ => Err(SplitFinishError::Corrupt),
-    }
+/// The record refusal for a key of the scratch body that does not
+/// resolve.
+fn unresolved(entity: EntityId) -> SplitFinishError {
+    SplitFinishError::Desync(FinishDesync::Unresolved(Unresolved::Record(entity)))
+}
+
+/// The one solid the finish reads its scratch body as
+/// ([`single_solid`]). [`super::split`] files every shell under one
+/// solid first, so a body with none is the caller's empty operand, and
+/// one with several is a desync.
+fn operand_solid<T: Decide>(body: &Body<T>) -> Result<SolidKey, SplitFinishError> {
+    single_solid(body).map_err(|NotOneSolid { solids }| match solids {
+        0 => SplitFinishError::EmptyOperand,
+        solids => SplitFinishError::Desync(FinishDesync::SolidsUnmerged { solids }),
+    })
 }
 
 /// The un-cut case's two sides, above then below: no section, so each
@@ -2032,24 +2159,23 @@ fn whole_body_side<T: Decide>(
     tol: Tol,
 ) -> Result<(RawPart<T>, RawPart<T>), SplitFinishError> {
     let band = geom_core::Band::linear(tol).map_err(SplitFinishError::Band)?;
-    let solid = single_solid(&body)?;
+    let solid = operand_solid(&body)?;
     let mut binned = ShellSides::default();
     for &shell in body
         .shells_of_solid(solid)
-        .ok_or(SplitFinishError::Corrupt)?
+        .ok_or(unresolved(EntityId::Solid(solid)))?
     {
         match shell_side(&body, shell, sides, plane, band)? {
             Some(side) => binned.bin(shell, side),
             // Every vertex and every curved edge ON: a zero-volume
-            // shell, which no closed solid holds; the operand is never
-            // validated, so this refuses here.
-            None => return Err(SplitFinishError::Corrupt),
+            // shell, which no finished operand holds.
+            None => return Err(SplitFinishError::UnclassifiableComponent { shell }),
         }
     }
     let ShellSides { above, below } = binned;
     Ok(match (above.is_empty(), below.is_empty()) {
         // A solid with no shell holds no material to place.
-        (true, true) => return Err(SplitFinishError::Corrupt),
+        (true, true) => return Err(SplitFinishError::Desync(FinishDesync::NoShell { solid })),
         (false, true) => (RawPart::Body(body), RawPart::Empty),
         (true, false) => (RawPart::Empty, RawPart::Body(body)),
         (false, false) => (
@@ -2101,7 +2227,9 @@ fn shell_side<T: Decide>(
         Vertex(VertexKey),
         Edge(EdgeKey, geom::Curve3<T>, (T, T)),
     }
-    let shell_data = body.get_shell(shell).ok_or(SplitFinishError::Corrupt)?;
+    let shell_data = body
+        .get_shell(shell)
+        .ok_or(unresolved(EntityId::Shell(shell)))?;
     let (mut vertices, mut edges) = (Vec::new(), Vec::new());
     let (mut seen_v, mut seen_e) = (SecondaryMap::new(), SecondaryMap::new());
     for &face in &shell_data.faces {
@@ -2169,9 +2297,11 @@ fn below_chord_u_ref<T: Decide>(
     section: &CompletedSection,
     normal: UnitVec3<T>,
 ) -> Result<Vec3<T>, SplitFinishError> {
-    let points = loop_points_of(body, section.below_loop).map_err(|e| match e {
-        SplitJoinError::Euler(err) => SplitFinishError::Euler(err),
-        _ => SplitFinishError::Corrupt,
+    let points = loop_points_of(body, section.below_loop).map_err(|fault| {
+        SplitFinishError::Desync(match fault {
+            LoopStartsFault::Unresolved(key) => FinishDesync::Unresolved(key),
+            LoopStartsFault::LoneVertex { face } => FinishDesync::LoopNotACycle { face },
+        })
     })?;
     Ok(section_loops::chord_u_ref(
         body,
@@ -2186,8 +2316,7 @@ fn below_chord_u_ref<T: Decide>(
 ///
 /// # Errors
 ///
-/// [`SplitFinishError::SectionWindingUndecided`];
-/// [`SplitFinishError::Corrupt`] on a torn loop.
+/// [`SplitFinishError::SectionWindingUndecided`].
 fn section_sense<T: crate::props::AtRestPolicy>(
     body: &Body<T>,
     face: FaceKey,
@@ -2213,7 +2342,9 @@ fn classify_shell<T: Decide>(
     plane: &super::SplitPlane<T>,
     band: geom_core::Band,
 ) -> Result<(PlaneSide, bool), SplitFinishError> {
-    let shell_data = body.get_shell(shell).ok_or(SplitFinishError::Corrupt)?;
+    let shell_data = body
+        .get_shell(shell)
+        .ok_or(unresolved(EntityId::Shell(shell)))?;
     let mut side: Option<PlaneSide> = None;
     let mut has_real_face = false;
     for &face in &shell_data.faces {
@@ -2236,165 +2367,6 @@ fn classify_shell<T: Decide>(
         Some(s) => Ok((s, has_real_face)),
         None => Err(SplitFinishError::UnclassifiableComponent { shell }),
     }
-}
-
-/// Carves the sub-body spanned by `keep` shells out of `src`: a clone
-/// with every other shell's entities removed and orphaned geometry
-/// swept. Kept entities keep their keys (lineage-scoped identity —
-/// deterministic, replay-stable).
-///
-/// **Every surviving link resolves.** The removal is arena surgery, not
-/// an Euler operator, so it keeps the links by removing only records
-/// no kept record names: no kept half-edge starts at a dropped vertex
-/// or shares an edge with a dropped half-edge, and no kept lone-vertex
-/// loop holds a dropped vertex. That is tier-1 pass 6's "no split
-/// orbits" on a body at rest; `src` may be mid-operation, so the carve
-/// checks it and answers [`SplitFinishError::Corrupt`] where it fails.
-pub(crate) fn carve<T: Decide>(
-    src: &Body<T>,
-    solid: SolidKey,
-    keep: &[ShellKey],
-) -> Result<Body<T>, SplitFinishError> {
-    let mut body = src.clone();
-    let corrupt = || SplitFinishError::Corrupt;
-
-    let all: Vec<ShellKey> = body.shells_of_solid(solid).ok_or_else(corrupt)?.to_vec();
-    let drop: Vec<ShellKey> = all.iter().copied().filter(|s| !keep.contains(s)).collect();
-
-    // Collect the dropped entity sets (deterministic list walks).
-    let mut faces = Vec::new();
-    let mut loops = Vec::new();
-    let mut hes = Vec::new();
-    let mut edges: Vec<crate::entity::EdgeKey> = Vec::new();
-    let mut vertices: SecondaryMap<VertexKey, ()> = SecondaryMap::new();
-    for &shell in &drop {
-        let shell_data = body.get_shell(shell).ok_or_else(corrupt)?;
-        for &face in &shell_data.faces {
-            faces.push(face);
-            let holder = EntityId::Shell(shell);
-            let view = body.linked_face(face, holder, "faces");
-            for (l, members, _) in view.boundary_by_loop() {
-                loops.push(l);
-                for member in members {
-                    vertices.insert(member.vertex(), ());
-                    if let BoundaryMember::Edge { he, ek, edge, .. } = member {
-                        hes.push(he);
-                        // Each edge is claimed by its he_plus only (one
-                        // removal per edge).
-                        if edge.he_plus == he {
-                            edges.push(ek);
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    let dropped_hes: SecondaryMap<crate::entity::HalfEdgeKey, ()> =
-        hes.iter().map(|&he| (he, ())).collect();
-    let dropped_loops: SecondaryMap<crate::entity::LoopKey, ()> =
-        loops.iter().map(|&l| (l, ())).collect();
-    for (he, he_data) in &body.half_edges {
-        if dropped_hes.contains_key(he) {
-            continue;
-        }
-        let edge = body.get_edge(he_data.edge).ok_or_else(corrupt)?;
-        if vertices.contains_key(he_data.start)
-            || dropped_hes.contains_key(edge.he_plus)
-            || dropped_hes.contains_key(edge.he_minus)
-        {
-            return Err(corrupt());
-        }
-    }
-    for (l, loop_data) in &body.loops {
-        if let LoopBoundary::Empty { vertex } = loop_data.boundary
-            && !dropped_loops.contains_key(l)
-            && vertices.contains_key(vertex)
-        {
-            return Err(corrupt());
-        }
-    }
-
-    // ---- Removal (crate-internal arena surgery; deterministic). ----
-    let Some(solid_data) = body.solids.get_mut(solid) else {
-        unreachable!("carve: `solid` resolved above and nothing has been removed yet")
-    };
-    solid_data.shells.retain(|s| keep.contains(s));
-    for &shell in &drop {
-        body.shells.remove(shell);
-        body.shell_provenance.remove(shell);
-    }
-    for &face in &faces {
-        body.faces.remove(face);
-        body.face_provenance.remove(face);
-        body.null_faces.remove(face);
-    }
-    for &l in &loops {
-        body.loops.remove(l);
-        body.loop_provenance.remove(l);
-    }
-    for &he in &hes {
-        body.half_edges.remove(he);
-        body.half_edge_provenance.remove(he);
-    }
-    for &edge in &edges {
-        body.edges.remove(edge);
-        body.edge_provenance.remove(edge);
-    }
-    let vertex_keys: Vec<VertexKey> = vertices.keys().collect();
-    for &v in &vertex_keys {
-        body.vertices.remove(v);
-        body.vertex_provenance.remove(v);
-    }
-
-    // ---- Orphan geometry sweep (tier-1 pass 8 hygiene): keep only
-    // points/curves/surfaces still referenced by survivors. ----
-    let mut live_points: SecondaryMap<crate::geometry::PointKey, ()> = SecondaryMap::new();
-    for (_, v) in body.vertices() {
-        live_points.insert(v.point, ());
-    }
-    let orphan_points: Vec<_> = body
-        .points
-        .keys()
-        .filter(|k| !live_points.contains_key(*k))
-        .collect();
-    for k in orphan_points {
-        body.points.remove(k);
-    }
-    let mut live_curves: SecondaryMap<crate::geometry::CurveKey, ()> = SecondaryMap::new();
-    for (_, e) in body.edges() {
-        live_curves.insert(e.curve, ());
-    }
-    let orphan_curves: Vec<_> = body
-        .curves
-        .keys()
-        .filter(|k| !live_curves.contains_key(*k))
-        .collect();
-    for k in orphan_curves {
-        body.curves.remove(k);
-    }
-    let mut live_surfaces: SecondaryMap<crate::geometry::SurfaceKey, ()> = SecondaryMap::new();
-    for (_, face) in body.faces() {
-        live_surfaces.insert(face.surface, ());
-    }
-    // Description references keep surfaces alive exactly like faces do
-    // (the `remove_surface_if_orphaned` rule): an `Intersection`/`Seam`
-    // description on a surviving edge must never dangle (extrude-built
-    // operands carry them — M3 PR 5).
-    for (_, curve) in body.curves() {
-        for s in Named::of(curve).keys() {
-            live_surfaces.insert(s, ());
-        }
-    }
-    let orphan_surfaces: Vec<_> = body
-        .surfaces
-        .keys()
-        .filter(|k| !live_surfaces.contains_key(*k))
-        .collect();
-    for k in orphan_surfaces {
-        body.surfaces.remove(k);
-    }
-    Ok(body)
 }
 
 /// **A torn section curve panics before the description writes**: on a
@@ -2473,7 +2445,7 @@ mod torn_hop_rows {
 mod smooth_arm_rows {
     use geom_core::{Band, Point3, Tol, Vec3};
 
-    use super::SplitFinishError;
+    use super::{KnifeEdge, KnifeEdgeSite, SplitFinishError};
     use crate::body::Body;
     use crate::entity::{EdgeKey, FaceKey, LoopBoundary};
     use geom::Surface;
@@ -2560,21 +2532,97 @@ mod smooth_arm_rows {
     /// through `mid − z`, so it touches the plane at `mid` and curves
     /// to `+z` there.
     fn cylinder_under(mid: Point3<f64>, axis: Vec3<f64>) -> Surface<f64> {
+        cylinder_of_radius_under(mid, axis, 1.0)
+    }
+
+    /// [`cylinder_under`] of radius `r`.
+    fn cylinder_of_radius_under(mid: Point3<f64>, axis: Vec3<f64>, r: f64) -> Surface<f64> {
         Surface::Cylinder {
-            origin: mid - Vec3::unit_z(),
+            origin: mid - Vec3::unit_z() * r,
             axis,
-            radius: 1.0,
+            radius: r,
             u_ref: Vec3::unit_z(),
         }
     }
 
-    /// **A corner at a station refutes the smooth premise, typed.** The
-    /// neighbour's cylinder runs ACROSS the edge, tangent to the
-    /// section plane at the midpoint only: the witness reads smooth,
-    /// the stations either side read a corner, and the split refuses
-    /// the mixed edge, naming the first two stations that disagree.
+    /// The section edge with its neighbour a cylinder of radius `r` along
+    /// the edge under the plane, its material turned to face the
+    /// section's: the two faces' outward normals opposed at the contact.
+    fn opposed_wall(r: f64) -> (SectionEdge, FaceKey) {
+        let mut edge = section_edge();
+        edge.body.surfaces[edge.s_other] = cylinder_of_radius_under(edge.mid, edge.along, r);
+        let wall = edge
+            .body
+            .faces()
+            .find(|(k, f)| f.surface == edge.s_other && *k != edge.face)
+            .map(|(k, _)| k)
+            .unwrap();
+        let sense = edge.body.get_face(wall).unwrap().sense;
+        edge.body.get_face_mut(wall).unwrap().sense = !sense;
+        (edge, wall)
+    }
+
+    /// **An opposed curved wall is a knife edge, refused at every
+    /// station.** A unit cylinder along the edge whose material faces the
+    /// section's: the stations read the tangency with its outward normal
+    /// opposed and its bend determinate, a wedge end nothing declared.
     #[test]
-    fn a_corner_at_a_station_refuses_as_a_refuted_smooth_join() {
+    fn an_opposed_curved_wall_refuses_as_a_knife_edge() {
+        let (mut fx, wall) = opposed_wall(1.0);
+        let band = Band::linear(tol()).unwrap();
+        match super::describe_section_boundary(&mut fx.body, fx.face, band, tol()) {
+            Err(SplitFinishError::KnifeEdge(KnifeEdge {
+                wall: refused,
+                at: KnifeEdgeSite::Edge(at),
+            })) => {
+                assert_eq!((refused, at), (wall, fx.edge), "the wall and its edge");
+            }
+            other => panic!("an opposed unit cylinder is a knife edge, got {other:?}"),
+        }
+    }
+
+    /// **An opposed curved wall whose bend is in band refuses at the
+    /// bend.** Against the plane a cylinder of radius `R` along the edge
+    /// bends away at `κ_rel = 1/R`, and the bend is metered as the
+    /// sagitta `κ_rel·L²/2` over the folded arm `L`, which for so flat a
+    /// wall is the faces' extent (`crate::edge_wedge_reach`). Taking
+    /// `R = L²/(2·m)`, `m = √(zero·escalate)` the band's geometric mean,
+    /// puts the sagitta at `m`, strictly inside `(zero, escalate)` at
+    /// every ε. The fold meters a tangency's bend before it reads which
+    /// end the faces make, as tier 3 does: the edge refuses
+    /// `WedgeEscalated` at the bend rung, not as a knife edge.
+    #[test]
+    fn an_opposed_wall_whose_bend_is_in_band_refuses_at_the_bend() {
+        let band = Band::linear(tol()).unwrap();
+        let reach = {
+            let fx = section_edge();
+            crate::edge_wedge_reach(&fx.body, fx.edge).unwrap().length()
+        };
+        let mean = (band.zero() * band.escalate()).sqrt();
+        let (mut fx, _) = opposed_wall(reach * reach / (2.0 * mean));
+        match super::describe_section_boundary(&mut fx.body, fx.face, band, tol()) {
+            Err(SplitFinishError::WedgeEscalated { edge, escalation }) => {
+                assert_eq!(edge, fx.edge, "the refusal names the edge");
+                assert_eq!(
+                    escalation.rung(),
+                    geom_brep::WedgeRung::Bend,
+                    "the bend is metered first: {escalation:?}"
+                );
+            }
+            other => panic!("an in-band bend refuses at the bend, got {other:?}"),
+        }
+    }
+
+    /// **A corner at a station off the faces' crossing refuses at its
+    /// sign, as tier 3 does.** The neighbour's cylinder runs ACROSS the
+    /// edge, tangent to the section plane at the midpoint only: the
+    /// witness reads smooth and the stations either side a corner, whose
+    /// crease runs along the cylinder's axis, square to the edge. The
+    /// edge's own direction reads that corner's sign a definite zero, so
+    /// the whole-edge fold escalates at the sign before it compares the
+    /// stations, and the split refuses with that rung.
+    #[test]
+    fn a_corner_at_a_station_off_the_crease_refuses_at_its_sign() {
         let SectionEdge {
             mut body,
             face,
@@ -2587,21 +2635,18 @@ mod smooth_arm_rows {
         body.surfaces[s_other] = cylinder_under(mid, Vec3::unit_z().cross(along));
         let band = Band::linear(tol()).unwrap();
         match super::describe_section_boundary(&mut body, face, band, tol()) {
-            Err(SplitFinishError::SmoothJoinRefuted {
+            Err(SplitFinishError::WedgeEscalated {
                 edge: refused,
-                mixed: Some(stations),
+                escalation,
             }) => {
-                assert_eq!(refused, edge, "the refusal names the mixed edge");
+                assert_eq!(refused, edge, "the refusal names the edge");
                 assert_eq!(
-                    stations,
-                    geom_brep::MixedStations::Class {
-                        transverse: 3,
-                        smooth: 4
-                    },
-                    "the stations bracketing the tangency at the midpoint"
+                    (escalation.rung(), escalation.diag().predicate),
+                    (geom_brep::WedgeRung::Sign, Some("dihedral_sign")),
+                    "the corner's sign, read along an edge square to its crease"
                 );
             }
-            other => panic!("a smooth-at-the-witness corner refuses typed, got {other:?}"),
+            other => panic!("a corner off the crease refuses at its sign, got {other:?}"),
         }
     }
 
@@ -2674,7 +2719,10 @@ mod smooth_arm_rows {
                 "{label}: offers {quoted:e}, wants {offered:e}"
             );
             match refusal {
-                SplitFinishError::DescribeSideEscalated { edge: refused, .. } => {
+                SplitFinishError::WedgeEscalated {
+                    edge: refused,
+                    escalation,
+                } if escalation.rung() == geom_brep::WedgeRung::Pairing => {
                     assert_eq!(refused, edge, "{label}: the refusal names the edge");
                 }
                 other => panic!("{label}: expected the pairing's refusal, got {other:?}"),
@@ -2797,13 +2845,13 @@ mod escalation_endings {
         let tail = ". Recourse: move the split plane or the geometry";
         for diag in [read, straddle] {
             for refusal in [
-                SplitFinishError::DescribeEscalated {
+                SplitFinishError::WedgeEscalated {
                     edge: EdgeKey::default(),
-                    diag,
+                    escalation: geom_brep::WedgeEscalation::at(geom_brep::WedgeRung::Wedge, diag),
                 },
-                SplitFinishError::DescribeBendEscalated {
+                SplitFinishError::WedgeEscalated {
                     edge: EdgeKey::default(),
-                    diag,
+                    escalation: geom_brep::WedgeEscalation::at(geom_brep::WedgeRung::Bend, diag),
                 },
                 SplitFinishError::WholeBodySideEscalated {
                     edge: EdgeKey::default(),
@@ -2821,9 +2869,9 @@ mod escalation_endings {
                 );
             }
         }
-        let text = SplitFinishError::DescribeEscalated {
+        let text = SplitFinishError::WedgeEscalated {
             edge: EdgeKey::default(),
-            diag: poisoned,
+            escalation: geom_brep::WedgeEscalation::at(geom_brep::WedgeRung::Wedge, poisoned),
         }
         .render(geom_brep::recourse::Reading::Build);
         assert!(
@@ -3031,10 +3079,8 @@ mod whole_body_side_rows {
         split_plane(Point3::new(0.0, 1.0, 0.0) - n * offset, n, tol)
     }
 
-    /// Every arc read in band: the side escalated, typed, where main
-    /// read every in-band edge as passed over and refused `Corrupt`.
-    /// One arc decided off the plane answers past the other's in-band
-    /// reading.
+    /// Every arc read in band: the side escalates, typed. One arc
+    /// decided off the plane answers past the other's in-band reading.
     #[test]
     fn an_in_band_edge_refuses_typed_only_where_no_edge_decides() {
         let tol = Tol::witness();
@@ -3058,8 +3104,7 @@ mod whole_body_side_rows {
 
     /// **A lone vertex is a vertex of its shell**: a bare seed, whose one
     /// vertex sits in its face's empty outer loop off the plane, lies on
-    /// that vertex's side, where a reading of edge members alone read it
-    /// ON everywhere and refused `Corrupt`.
+    /// that vertex's side.
     #[test]
     fn a_shell_whose_one_vertex_is_lone_reads_that_vertexs_side() {
         let tol = Tol::witness();
@@ -3117,6 +3162,222 @@ mod whole_body_side_rows {
         assert!(
             matches!(got, Ok((PlaneSide::Above, true))),
             "the arcs place the component Above: {got:?}"
+        );
+    }
+}
+
+/// The finish's desync and operand arms, each from the state that makes
+/// it where a body can be built in it, and each read at a door.
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod desync_rows {
+    use geom_brep::recourse::{Reading, defect_ending};
+    use geom_core::{Band, Point3, Tol, UnitVec3, Vec3};
+    use slotmap::SecondaryMap;
+
+    use super::{
+        CompletedSection, FinishDesync, PlaneSide, SectionKind, SplitFinishError,
+        below_chord_u_ref, classify_shell, whole_body_side,
+    };
+    use crate::body::Body;
+    use crate::entity::{EntityId, FaceKey, LoopKey, ShellKey, SolidKey, VertexKey};
+    use crate::test_support_fixtures::{brick, split_plane};
+    use crate::unresolved::Unresolved;
+
+    fn z_plane(tol: Tol) -> crate::SplitPlane<f64> {
+        split_plane(Point3::new(0.0, 0.0, 0.5), Vec3::unit_z(), tol)
+    }
+
+    fn uncut(body: Body<f64>, sides: &SecondaryMap<VertexKey, PlaneSide>) -> SplitFinishError {
+        let tol = Tol::witness();
+        match whole_body_side(body, sides, &z_plane(tol), tol) {
+            Err(e) => e,
+            Ok(_) => panic!("the body has no side to land on"),
+        }
+    }
+
+    /// **The operand's solid count is three states**: none is the
+    /// caller's empty body, several is a body the split did not flatten,
+    /// and one with no shell holds nothing to place.
+    #[test]
+    fn an_operand_that_is_not_one_solid_refuses_by_its_count() {
+        let tol = Tol::witness();
+        let none = SecondaryMap::new();
+        assert!(
+            matches!(uncut(Body::new(), &none), SplitFinishError::EmptyOperand),
+            "no solid"
+        );
+        let mut two = brick::<f64>((0.0, 1.0), (0.0, 1.0), (0.0, 0.25), tol);
+        crate::test_support_fixtures::cube_into(
+            &mut two,
+            |x, y, z| Point3::new(x + 3.0, y, z),
+            tol,
+        );
+        assert!(
+            matches!(
+                uncut(two, &none),
+                SplitFinishError::Desync(FinishDesync::SolidsUnmerged { solids: 2 })
+            ),
+            "two solids"
+        );
+        let mut hollow = Body::<f64>::new();
+        let seed = hollow.mvfs(Point3::new(0.0, 0.0, 1.0), true).unwrap();
+        hollow.solids[seed.solid].shells.clear();
+        assert!(
+            matches!(
+                uncut(hollow, &none),
+                SplitFinishError::Desync(FinishDesync::NoShell { solid }) if solid == seed.solid
+            ),
+            "a solid with no shell"
+        );
+    }
+
+    /// **A shell wholly in the plane is one arm on both paths**: the
+    /// uncut body's read and the cut body's classification refuse it
+    /// alike.
+    #[test]
+    fn a_shell_in_the_plane_is_unclassifiable_cut_or_uncut() {
+        let tol = Tol::witness();
+        let band = Band::linear(tol).unwrap();
+        let mut body = Body::<f64>::new();
+        let seed = body.mvfs(Point3::new(0.0, 0.0, 0.5), true).unwrap();
+        let mut sides = SecondaryMap::new();
+        sides.insert(seed.vertex, PlaneSide::On);
+        let cut = classify_shell(
+            &body,
+            seed.shell,
+            &SecondaryMap::new(),
+            &sides,
+            &z_plane(tol),
+            band,
+        );
+        assert!(
+            matches!(
+                cut,
+                Err(SplitFinishError::UnclassifiableComponent { shell }) if shell == seed.shell
+            ),
+            "cut: {cut:?}"
+        );
+        assert!(
+            matches!(
+                uncut(body, &sides),
+                SplitFinishError::UnclassifiableComponent { shell } if shell == seed.shell
+            ),
+            "uncut"
+        );
+    }
+
+    /// **A key that does not resolve is named**, and a section loop that
+    /// holds a lone vertex is a different state from a torn one.
+    #[test]
+    fn a_dangling_key_and_a_lone_loop_are_told_apart() {
+        let tol = Tol::witness();
+        let band = Band::linear(tol).unwrap();
+        let mut body = Body::<f64>::new();
+        let seed = body.mvfs(Point3::new(0.0, 0.0, 0.5), true).unwrap();
+        let stale = classify_shell(
+            &body,
+            ShellKey::default(),
+            &SecondaryMap::new(),
+            &SecondaryMap::new(),
+            &z_plane(tol),
+            band,
+        );
+        assert!(
+            matches!(
+                stale,
+                Err(SplitFinishError::Desync(FinishDesync::Unresolved(
+                    Unresolved::Record(EntityId::Shell(_))
+                )))
+            ),
+            "a stale shell: {stale:?}"
+        );
+        let normal = UnitVec3::new(Vec3::unit_z(), "desync_rows_normal", band).unwrap();
+        let section = |below_loop| CompletedSection {
+            face: seed.face,
+            above_loop: seed.r#loop,
+            below_loop,
+            kind: SectionKind::Area { slit: Vec::new() },
+        };
+        let lone = below_chord_u_ref(&body, &section(seed.r#loop), normal);
+        assert!(
+            matches!(
+                lone,
+                Err(SplitFinishError::Desync(FinishDesync::LoopNotACycle { face }))
+                    if face == seed.face
+            ),
+            "a lone-vertex loop: {lone:?}"
+        );
+        let torn = below_chord_u_ref(&body, &section(LoopKey::default()), normal);
+        assert!(
+            matches!(
+                torn,
+                Err(SplitFinishError::Desync(FinishDesync::Unresolved(
+                    Unresolved::Record(EntityId::Loop(_))
+                )))
+            ),
+            "a stale loop: {torn:?}"
+        );
+    }
+
+    /// **Every desync arm says what it found and ends in the defect
+    /// ending at a door, and in nothing as a payload.** The arms no body
+    /// here can be built into (the merge's placeholders, a null edge's
+    /// missing copy, a section face off its loops, a side with no shell)
+    /// are read as rendered.
+    #[test]
+    fn every_desync_arm_names_its_state_and_ends_as_a_defect() {
+        let (face, vertex) = (FaceKey::default(), VertexKey::default());
+        let arms = [
+            (
+                FinishDesync::Unresolved(Unresolved::Geometry(EntityId::Vertex(vertex))),
+                "the geometry of vertex",
+            ),
+            (
+                FinishDesync::MergePlaceholders {
+                    side: PlaneSide::Above,
+                },
+                "placeholder faces",
+            ),
+            (
+                FinishDesync::NullEdgeUncopied { vertex },
+                "no copy of vertex",
+            ),
+            (
+                FinishDesync::SectionLoops { face },
+                "neither of its section's loops",
+            ),
+            (FinishDesync::LoopNotACycle { face }, "a lone vertex"),
+            (
+                FinishDesync::SideEmpty {
+                    side: PlaneSide::Below,
+                },
+                "no shell on the below side",
+            ),
+            (
+                FinishDesync::NoShell {
+                    solid: SolidKey::default(),
+                },
+                "holds no shell",
+            ),
+            (FinishDesync::SolidsUnmerged { solids: 3 }, "holds 3 solids"),
+        ];
+        for (arm, says) in arms {
+            let error = SplitFinishError::Desync(arm);
+            let payload = error.to_string();
+            assert!(payload.contains(says), "{arm:?}: {payload}");
+            assert_eq!(payload, arm.to_string(), "{arm:?} is its own sentence");
+            let ended = error.render(Reading::Build);
+            assert_eq!(
+                ended,
+                format!("{payload}. {}", defect_ending(Reading::Build)),
+                "{arm:?}"
+            );
+        }
+        let empty = SplitFinishError::EmptyOperand.render(Reading::Build);
+        assert!(
+            empty.contains("Recourse:") && !empty.contains(defect_ending(Reading::Build)),
+            "an empty operand is the caller's: {empty}"
         );
     }
 }

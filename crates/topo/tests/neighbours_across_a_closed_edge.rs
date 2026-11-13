@@ -19,10 +19,9 @@
 use crate::common;
 use topo::construction::Construct;
 
+use geom_brep::PlaneRung;
 use geom_core::{Point3, Tol};
-use topo::{
-    Body, BooleanDecision, BooleanError, LoopBoundary, MergeCoplanarError, Operand, PlaneRung,
-};
+use topo::{Body, BooleanDecision, BooleanError, LoopBoundary, MergeCoplanarError, Operand};
 
 /// The brick `[0, 4s]² × [0, s]`, its top face and the first half-edge
 /// of that face's outer loop.

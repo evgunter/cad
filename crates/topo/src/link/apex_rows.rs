@@ -1,6 +1,7 @@
-//! **A cone's apex read as its nappe, and two arcs of one circle kept**
+//! **A cone's apex read as its nappes, and two arcs of one circle kept**
 //! ([`rest::one_material`]): a cone face's corner at its apex
-//! ([`ApexLobe`]) against whole planes and half-planes through it, and a
+//! ([`ApexLobe`]) against whole planes and half-planes through it and
+//! against a second nappe, and a
 //! boss resting on its own plate's hole, the two rims one circle through
 //! the point. Each row near the origin and a kilometre off it, in `f64`
 //! and in `Interval`, its directions in the frames [`v`] and [`w`] name.
@@ -180,15 +181,18 @@ fn read<T: Decide>(p: Point3<T>, pieces: Vec<TangentPiece<T>>) -> TouchVerdict {
 /// cone under the plane's material above (a thorn, `c ∪ h`), rest, as
 /// they do with the plane tilted while it holds the nappe off, and with
 /// the nappe as two faces' halves on one carrier. A solid cone inside
-/// the material, or a void one outside it, is no one material and is not
-/// read; nor is a nappe not held whole (one half alone, two halves on two
-/// carriers or of two senses, or two whole turns). Red where the region
+/// the material, or a void one outside it, winds a third value beside the
+/// plane's two: a crossing. A thorn alone rests; a needle alone, with
+/// no material round it to read, is not read, nor is a nappe not held
+/// whole (one half alone, two halves on two carriers or of two senses, or
+/// two whole turns). Red where the region
 /// round the nappe is not read, its material is read the other way
-/// round, or a nappe not held whole is read.
-fn a_nappe_off_every_plane_is_the_thorn_or_needle_it_bounds<T: Decide>() {
+/// round, a nappe on the wrong side of the material passes, or a nappe
+/// not held whole is read.
+fn a_nappe_off_every_plane_is_the_thorn_or_needle_it_bounds<T: Decide>(interval: bool) {
     let unread = TouchVerdict::Unread(TouchUnread::Curved(CurvedUnread::NoTangentPlane));
     let up = v::<T>(0.0, 1.0, 0.0);
-    for p in apexes::<T>() {
+    for (i, p) in apexes::<T>().into_iter().enumerate() {
         let rests = |what: &str, pieces: Vec<TangentPiece<T>>| {
             let got = read(p, pieces);
             assert!(
@@ -219,13 +223,19 @@ fn a_nappe_off_every_plane_is_the_thorn_or_needle_it_bounds<T: Decide>() {
         rests("a needle in two halves", two);
         assert_eq!(
             read(p, vec![spur(p, true), whole(p, up)]),
-            unread,
+            TouchVerdict::Crossing,
             "a thorn inside the material at {p:?}"
         );
         assert_eq!(
             read(p, vec![spur(p, false), whole(p, -up)]),
-            unread,
+            TouchVerdict::Crossing,
             "a needle outside the material at {p:?}"
+        );
+        rests("a thorn alone", vec![spur(p, true)]);
+        assert_eq!(
+            read(p, vec![spur(p, false)]),
+            unread,
+            "a needle alone, no material round it, at {p:?}"
         );
         let [a, _] = halves(p, core::f64::consts::PI, [k[0], k[0]], [false; 2]);
         assert_eq!(
@@ -265,7 +275,19 @@ fn a_nappe_off_every_plane_is_the_thorn_or_needle_it_bounds<T: Decide>() {
             .into_iter()
             .collect::<Vec<_>>();
         twice.push(whole(p, up));
-        assert_eq!(read(p, twice), unread, "two whole turns at {p:?}");
+        // Two rulings on one ray read apart Zero; a kilometre off on
+        // `Interval` at the finest band that reading is in band.
+        let fine = interval && i == 1 && Tol::witness().eps() <= 1e-12;
+        let got = read(p, twice);
+        assert_eq!(
+            got,
+            if fine {
+                TouchVerdict::Unread(TouchUnread::InBand)
+            } else {
+                TouchVerdict::Unread(TouchUnread::Curved(CurvedUnread::NoTangentPlane))
+            },
+            "two whole turns at {p:?}"
+        );
     }
 }
 
@@ -419,8 +441,8 @@ fn boss_on_hole<T: Decide>(p: Point3<T>, hole: f64, circle: bool) -> Vec<Tangent
 /// plate's hole, the two rims one circle through the point (the boss's
 /// vertex inside the shared arc), touches along the rim with its
 /// material and the plate's in opposite quarters: a rest. The same rims
-/// held as arcs of no circle, or the hole's rim bending in band of the
-/// boss's, are not read, nor is the hole's rim bending tighter, which
+/// held as arcs of no circle are not read, the hole's rim bending in band
+/// of the boss's refuses in band, and the hole's rim bending tighter, which
 /// puts the boss's floor on the plate's top over a crescent. Red where
 /// two arcs are kept by their bends alone, or two bends that differ are
 /// kept.
@@ -443,7 +465,7 @@ fn two_arcs_of_one_circle_are_kept_as_one<T: Decide>() {
         let off = 2.0 * 0.5 * e / 0.04;
         assert_eq!(
             read(p, boss_on_hole(p, boss - off, true)),
-            unread,
+            TouchVerdict::Unread(TouchUnread::InBand),
             "the hole's rim bending in band of the boss's at {p:?}"
         );
         assert_eq!(
@@ -498,7 +520,9 @@ fn needle<T: Decide>(p: Point3<T>, keys: [EdgeKey; 3]) -> Vec<TangentPiece<T>> {
 }
 
 /// **A nappe is read only beside a rest of one material and no horn.**
-/// Two whole planes crossing, each holding the nappe off, cross. A needle
+/// Two whole planes crossing, each holding the nappe off, cross; a thorn
+/// in the material of a plane and a ball's tangent plane on it refuses as
+/// that rest does, though its axis reads inside it. A needle
 /// of void along one of the nappe's rulings, in the plane's material with
 /// the nappe, rests without the nappe and is not read beside it: its
 /// sheets straddle the nappe one order down. Red where the rest of the
@@ -516,6 +540,31 @@ fn a_nappe_is_read_only_beside_a_rest_and_no_horn<T: Decide>() {
             read(p, crossed),
             TouchVerdict::Crossing,
             "two planes crossing at {p:?}"
+        );
+        // A thorn under a plane and a ball's tangent plane on it, their
+        // material below with it: the axis reads inside, but the rest
+        // refuses (two whole tangent planes on one plane), and so does
+        // the link.
+        let ball = geom::Surface::Sphere {
+            center: p - v::<T>(0.0, 2.0, 0.0),
+            radius: T::from_f64(2.0),
+            axis: v(0.0, 1.0, 0.0),
+            u_ref: v(1.0, 0.0, 0.0),
+        };
+        let fan = TangentFan::Inside {
+            reach: T::from_f64(2.0),
+            frame: [v(1.0, 0.0, 0.0), v(0.0, 1.0, 0.0), v(0.0, 0.0, 1.0)],
+        };
+        let kissing = vec![
+            spur(p, true),
+            whole(p, v(0.0, 1.0, 0.0)),
+            FaceSector::tangent(ball, true, v(0.0, 1.0, 0.0), p, fan, band())
+                .expect("a ball's tangent plane"),
+        ];
+        assert_eq!(
+            read(p, kissing),
+            TouchVerdict::Unread(TouchUnread::Curved(CurvedUnread::Unreadable)),
+            "a thorn under a plane and a ball kissing it at {p:?}"
         );
         let e = edges(4);
         let plane = || whole(p, v::<T>(-0.5, 1.0, 0.0).normalize());
@@ -780,14 +829,320 @@ fn a_nappe_near_flat_refuses_in_band<T: Decide>() {
     }
 }
 
+/// A whole nappe at `p` as one spur corner: half-angle `alpha`, its axis
+/// turned `gamma` off `−y` toward `+x`, of `Face::sense` `sense` (a thorn
+/// where set), its ruling toward `+z` scaled to `reach`, its carrier's
+/// apex `off` from `p`; its carrier and its edge the `key`th keys, so
+/// two nappes of one link are two carriers, as two cones' are.
+fn nappe_by<T: Real>(
+    p: Point3<T>,
+    key: usize,
+    (alpha, gamma): (f64, f64),
+    sense: bool,
+    reach: f64,
+    off: Vec3<T>,
+) -> TangentPiece<T> {
+    let (e, k) = (edges(key + 1)[key], carriers(key + 1)[key]);
+    let (s, c) = alpha.sin_cos();
+    let along = v::<T>(c * gamma.sin(), -c * gamma.cos(), s) * T::from_f64(reach);
+    TangentPiece::Apex(ApexLobe {
+        cone: crate::sector_face::ConeApex {
+            apex: p + off,
+            // The carrier's axis points off the nappe, as a tipped cone's does.
+            axis: v(-gamma.sin(), gamma.cos(), 0.0),
+            half_angle: T::from_f64(alpha),
+            u_ref: v(0.0, 0.0, 1.0),
+            sense,
+        },
+        carrier: k,
+        vertex: p,
+        ends: [(along, e), (along, e)],
+        spur: true,
+    })
+}
+
+/// [`nappe_by`] a unit out, its apex at `p`; `alpha` and `gamma` in degrees.
+fn nappe<T: Real>(
+    p: Point3<T>,
+    key: usize,
+    alpha: f64,
+    gamma: f64,
+    sense: bool,
+) -> TangentPiece<T> {
+    nappe_by(
+        p,
+        key,
+        (alpha.to_radians(), gamma.to_radians()),
+        sense,
+        1.0,
+        Vec3::zero(),
+    )
+}
+
+/// **Nappes apart or nested rest where their kinds alternate.** The wider
+/// cone less the narrower, near-coaxial (a needle of void in a thorn, the
+/// near-coaxial `b ∖ a` of two cones through one apex), rests alone, with
+/// the thorn in two halves, and under a plane's material; so do a thorn
+/// in a needle in the plane's material, a thorn in a needle in a thorn,
+/// two thorns apart, and the two nappes of one carrier apex to apex. A
+/// nappe nested in one of its own kind, at any depth, or an outer one on
+/// the wrong side of the rest's material, winds a third value: a
+/// crossing. Two nappes with rulings of one on both sides of the other
+/// cross, read by the far ruling outside or, for each of two nappes
+/// 20° and 60° wide and 75° apart, behind the other's axis plane. A
+/// needle inside no nappe with no rest round it is not read. Red
+/// where a second nappe is not read, the nesting is read the wrong way
+/// round or by the wrong nappe, a nappe inside another is read against
+/// the rest, or two nappes that cross pass.
+fn nappes_apart_or_nested_rest_where_their_kinds_alternate<T: Decide>() {
+    let unread = TouchVerdict::Unread(TouchUnread::Curved(CurvedUnread::NoTangentPlane));
+    let up = v::<T>(0.0, 1.0, 0.0);
+    let (thorn, needle) = (true, false);
+    for p in apexes::<T>() {
+        // Each nappe on its own carrier and edge, past the halves' two.
+        let keys = core::cell::Cell::new(2);
+        let n = |alpha: f64, gamma: f64, sense: bool| {
+            keys.set(keys.get() + 1);
+            nappe(p, keys.get(), alpha, gamma, sense)
+        };
+        let k = carriers(1)[0];
+        let halved: Vec<_> = halves(p, core::f64::consts::PI, [k, k], [thorn; 2])
+            .into_iter()
+            .chain([n(10.0, 1.0, needle)])
+            .collect();
+        for (what, pieces) in [
+            (
+                "a needle in a thorn",
+                vec![n(50.0, 0.0, thorn), n(20.0, 1.0, needle)],
+            ),
+            (
+                "a needle in a thorn, the needle first",
+                vec![n(20.0, 1.0, needle), n(50.0, 0.0, thorn)],
+            ),
+            ("a needle in a thorn in two halves", halved),
+            (
+                "a needle in a thorn under the plane's material",
+                vec![n(50.0, 0.0, thorn), n(20.0, 1.0, needle), whole(p, -up)],
+            ),
+            (
+                "a thorn in a needle in the plane's material",
+                vec![n(50.0, 0.0, needle), n(20.0, 1.0, thorn), whole(p, up)],
+            ),
+            (
+                "a thorn in a needle in a thorn",
+                vec![
+                    n(10.0, 2.0, thorn),
+                    n(50.0, 0.0, thorn),
+                    n(30.0, 1.0, needle),
+                ],
+            ),
+            (
+                "two thorns apart",
+                vec![n(30.0, 0.0, thorn), n(20.0, 90.0, thorn)],
+            ),
+            (
+                "two thorns apex to apex",
+                vec![n(30.0, 0.0, thorn), n(30.0, 180.0, thorn)],
+            ),
+            (
+                "two needles apart in the plane's material",
+                vec![n(30.0, -40.0, needle), n(20.0, 40.0, needle), whole(p, up)],
+            ),
+        ] {
+            let got = read(p, pieces);
+            assert!(
+                matches!(got, TouchVerdict::Rest(_)),
+                "{what} at {p:?}: {got:?}"
+            );
+        }
+        for (what, pieces) in [
+            (
+                "a thorn in a thorn",
+                vec![n(50.0, 0.0, thorn), n(20.0, 1.0, thorn)],
+            ),
+            (
+                "a needle in a needle in the plane's material",
+                vec![n(50.0, 0.0, needle), n(20.0, 1.0, needle), whole(p, up)],
+            ),
+            (
+                "a needle in a needle in a thorn",
+                vec![
+                    n(10.0, 2.0, needle),
+                    n(50.0, 0.0, thorn),
+                    n(30.0, 1.0, needle),
+                ],
+            ),
+            (
+                "a needle in a thorn inside the plane's material",
+                vec![n(50.0, 0.0, thorn), n(20.0, 1.0, needle), whole(p, up)],
+            ),
+            (
+                "a thorn apart from a needle in the plane's material, itself inside it",
+                vec![n(30.0, -40.0, needle), n(20.0, 40.0, thorn), whole(p, up)],
+            ),
+            (
+                "two nappes across each other",
+                vec![n(30.0, 0.0, thorn), n(30.0, 30.0, needle)],
+            ),
+            (
+                "two nappes across each other, the other first",
+                vec![n(30.0, 30.0, needle), n(30.0, 0.0, thorn)],
+            ),
+            (
+                "a wide nappe across a narrow one, its far ruling behind the narrow one's axis plane",
+                vec![n(20.0, 0.0, thorn), n(60.0, 75.0, thorn)],
+            ),
+        ] {
+            assert_eq!(read(p, pieces), TouchVerdict::Crossing, "{what} at {p:?}");
+        }
+        assert_eq!(
+            read(p, vec![n(30.0, 0.0, thorn), n(20.0, 90.0, needle)]),
+            unread,
+            "a needle apart from a thorn, no rest round it, at {p:?}"
+        );
+        assert_eq!(
+            read(p, vec![n(50.0, 0.0, needle), n(20.0, 1.0, thorn)]),
+            unread,
+            "a thorn in a needle, no rest round the needle, at {p:?}"
+        );
+    }
+}
+
+/// **Two nappes in band of each other refuse in band**, and every nappe
+/// is read against every plane. A needle nested in a thorn with its far
+/// ruling half the escalation inside the thorn's nappe at the arm, or two
+/// thorns with their near rulings half the escalation apart, refuses in
+/// band, as do two nappes tangent along a ruling, inside or outside, and
+/// one cone's nappe twice; twice the escalation rests. The arm is the
+/// lobes' least reach: a nested pair twice the escalation inside a unit
+/// out refuses in band where one ruling reaches `0.01`; and a needle
+/// whose carrier's apex stands off the point by `0.9` of the band's zero,
+/// just past the escalation inside, is read over that tie and refuses in
+/// band. A plane tangent to the second of two nappes refuses in band,
+/// and one through its axis crosses. Red where the far or near ruling is
+/// not the one read, the arm is not the least reach, a tie is not
+/// charged, or only the first nappe is read against the planes.
+fn two_nappes_in_band_of_each_other_refuse_in_band<T: Decide>() {
+    let (e, zero) = (band().escalate(), band().zero());
+    let in_band = TouchVerdict::Unread(TouchUnread::InBand);
+    let (thorn, needle) = (true, false);
+    let up = v::<T>(0.0, 1.0, 0.0);
+    for p in apexes::<T>() {
+        // Each nappe on its own carrier and edge, past the halves' two.
+        let keys = core::cell::Cell::new(2);
+        let n = |alpha: f64, gamma: f64, sense: bool| {
+            keys.set(keys.get() + 1);
+            nappe(p, keys.get(), alpha, gamma, sense)
+        };
+        for (frac, rests) in [(0.5, false), (2.0, true)] {
+            let slip = (frac * e).asin().to_degrees();
+            for (what, pieces) in [
+                (
+                    "a needle's far ruling inside a thorn",
+                    vec![n(50.0, 0.0, thorn), n(20.0, 30.0 - slip, needle)],
+                ),
+                (
+                    "two thorns' near rulings apart",
+                    vec![n(30.0, 0.0, thorn), n(20.0, 50.0 + slip, thorn)],
+                ),
+            ] {
+                let got = read(p, pieces);
+                if rests {
+                    assert!(
+                        matches!(got, TouchVerdict::Rest(_)),
+                        "{what} by {frac} of the escalation at {p:?}: {got:?}"
+                    );
+                } else {
+                    assert_eq!(got, in_band, "{what} by {frac} of the escalation at {p:?}");
+                }
+            }
+        }
+        for (what, pieces) in [
+            (
+                "tangent inside along a ruling",
+                vec![n(50.0, 0.0, thorn), n(20.0, 30.0, needle)],
+            ),
+            (
+                "tangent outside along a ruling",
+                vec![n(30.0, 0.0, thorn), n(20.0, 50.0, thorn)],
+            ),
+            (
+                "one nappe twice",
+                vec![n(30.0, 0.0, thorn), n(30.0, 0.0, needle)],
+            ),
+            (
+                "a plane tangent to the second nappe",
+                vec![n(20.0, -60.0, needle), n(30.0, 60.0, needle), whole(p, up)],
+            ),
+        ] {
+            assert_eq!(read(p, pieces), in_band, "{what} at {p:?}");
+        }
+        assert_eq!(
+            read(
+                p,
+                vec![
+                    n(20.0, -40.0, needle),
+                    n(30.0, 0.0, needle),
+                    whole(p, v(1.0, 0.0, 0.0))
+                ]
+            ),
+            TouchVerdict::Crossing,
+            "a plane through the second nappe's axis at {p:?}"
+        );
+        let by = |frac: f64, reach: f64, off: Vec3<T>| {
+            let gamma = 30f64.to_radians() - (frac * e).asin();
+            vec![
+                n(50.0, 0.0, thorn),
+                nappe_by(p, 1, (20f64.to_radians(), gamma), needle, reach, off),
+            ]
+        };
+        assert_eq!(
+            read(p, by(2.0, 0.01, Vec3::zero())),
+            in_band,
+            "a nested ruling reaching 0.01 at {p:?}"
+        );
+        let past = (e + zero) / e;
+        let got = read(p, by(past, 1.0, Vec3::zero()));
+        assert!(
+            matches!(got, TouchVerdict::Rest(_)),
+            "just past the escalation at {p:?}: {got:?}"
+        );
+        assert_eq!(
+            read(p, by(past, 1.0, v(0.0, 0.0, 0.9 * zero))),
+            in_band,
+            "the needle's apex off by its tie at {p:?}"
+        );
+    }
+}
+
+#[test]
+fn nappes_apart_or_nested_rest_where_their_kinds_alternate_f64() {
+    nappes_apart_or_nested_rest_where_their_kinds_alternate::<f64>();
+}
+
+#[test]
+fn nappes_apart_or_nested_rest_where_their_kinds_alternate_interval() {
+    nappes_apart_or_nested_rest_where_their_kinds_alternate::<Interval>();
+}
+
+#[test]
+fn two_nappes_in_band_of_each_other_refuse_in_band_f64() {
+    two_nappes_in_band_of_each_other_refuse_in_band::<f64>();
+}
+
+#[test]
+fn two_nappes_in_band_of_each_other_refuse_in_band_interval() {
+    two_nappes_in_band_of_each_other_refuse_in_band::<Interval>();
+}
+
 #[test]
 fn a_nappe_off_every_plane_is_the_thorn_or_needle_it_bounds_f64() {
-    a_nappe_off_every_plane_is_the_thorn_or_needle_it_bounds::<f64>();
+    a_nappe_off_every_plane_is_the_thorn_or_needle_it_bounds::<f64>(false);
 }
 
 #[test]
 fn a_nappe_off_every_plane_is_the_thorn_or_needle_it_bounds_interval() {
-    a_nappe_off_every_plane_is_the_thorn_or_needle_it_bounds::<Interval>();
+    a_nappe_off_every_plane_is_the_thorn_or_needle_it_bounds::<Interval>(true);
 }
 
 #[test]

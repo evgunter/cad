@@ -426,7 +426,11 @@ pub(crate) const ALLOWED: &[(&str, &str)] = &[
         "opens a debug-only surgery scope (`crate::surgery`). The depth is not an arena \
          and tier 1 does not see it; what asserts is the close, in the door that opened it",
     ),
-    ("set_face_sense", "writes one `bool`; sense is tier 3's"),
+    (
+        "set_face_sense",
+        "writes one `bool`, and drops the face's pcurve rows where the flip changes the side \
+         they state; sense and row coherence are tier 3's",
+    ),
     ("attach_pcurve", "pcurve cache; coherence is tier 3's"),
     ("detach_pcurve", "pcurve cache; coherence is tier 3's"),
     (

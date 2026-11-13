@@ -1829,7 +1829,7 @@ pub enum ValidationError {
     /// chart singularity** — a meridian walked out and back that stops
     /// short of the pole. Read
     /// at the joint between the edge's two halves by the incidence the
-    /// loop walk resets that joint by (`crate::pcurves::pcurve_pass`,
+    /// loop walk decides that joint's turn by (`crate::pcurves::pcurve_pass`,
     /// `geom_brep::chart_singularity::vertex_at_singular_point`), never by
     /// a distance of its own.
     WrapTipOffChartSingularity {
@@ -4147,6 +4147,10 @@ fn classify_pcurve(e: &crate::pcurves::PcurveMintError) -> (&'static str, Cow<'s
         }
         // Never produced at rest: only the loop windings raise it.
         M::JointWithoutRoom { .. } => (CLOSE, NOT_YET_ENDING),
+        M::SingularTurn { .. } => (
+            "a corner of the face on its surface's pole or apex names no one side of the point",
+            crate::pcurves::SINGULAR_TURN_RECOURSE,
+        ),
         M::Band(b) => (classify_band(b), TOLERANCE),
         // A null edge at rest is tier 2's finding, and a row stored on
         // one of its halves is the producer's.
@@ -4386,7 +4390,7 @@ pub(crate) fn classify_point_in_solid(
         S::KindUnsupported { kind, .. } => (
             format!(
                 "a face the check read is a {} surface, which it has no way yet to cross",
-                crate::boolean::kind_word(*kind)
+                kind.word()
             )
             .into(),
             NOT_YET_ENDING.into(),
@@ -6147,7 +6151,7 @@ pub(crate) fn closed_by_tier<T: Real>(
 ///    with no singular point refuses as such
 ///    ([`ValidationError::WrapTipWithoutChartSingularity`]), and one in
 ///    band refuses as undecided ([`ValidationError::WrapTipUndecided`]). The
-///    incidence is the one the joint resets by
+///    incidence is the one the joint's turn is decided by
 ///    (`geom_brep::chart_singularity::vertex_at_singular_point`, which
 ///    check 6's at-vertex placement reads too), and a joint check 8
 ///    itself refuses or leaves unread reports nothing more.
@@ -7154,62 +7158,6 @@ fn plus_v_errors<T: Decide>(
     errors
 }
 
-/// **An edge's wedge walk** ([`geom_brep::WedgeWalk::along_edge`]): the
-/// face of its `he_plus` as the plus face and of its `he_minus` as the
-/// minus face, each with its `Face::sense` bit, and the interior stations
-/// of its certified curve, whose increasing parameter is the way
-/// `he_plus` walks it (`crate::entity`'s orientation section). The one
-/// door from an edge to its wedge's faces and walk, so no reader pairs a
-/// face order with a direction by hand (`geom_brep::Convexity`'s
-/// convention). `None` where a record on the way does not resolve, which
-/// tier 1 rules out.
-pub(crate) fn edge_wedge_walk<T: geom_core::Decide>(
-    body: &Body<T>,
-    edge: EdgeKey,
-) -> Option<geom_brep::WedgeWalk<'_, T>> {
-    let e = body.get_edge(edge)?;
-    let curve = body.curves.get(e.curve).and_then(CurveGeom::certified)?;
-    let sides = crate::readback::edge_sides(body, edge).ok()?;
-    let side = |side: crate::readback::EdgeSide| {
-        Some(geom_brep::SideFace {
-            surface: body.surfaces.get(side.surface)?,
-            sense: body.get_face(side.face)?.sense,
-        })
-    };
-    let (t0, t1) = curve.params();
-    Some(geom_brep::WedgeWalk::along_edge(
-        side(sides.plus)?,
-        side(sides.minus)?,
-        curve.carrier(),
-        t0,
-        t1,
-    ))
-}
-
-/// **A seam read by identity** (check 4): an edge whose two sides lie
-/// on ONE surface record with one sense is interior to that surface,
-/// which is smooth and shares its own curvature there, so its wedge is
-/// the seam with an under-determined bend — what the whole-edge fold
-/// reads at `f64`, where the sagitta of a surface against itself is an
-/// exact zero — and no margin is read for it. Keyed on the record, not
-/// on a value, so it answers alike at every scalar: over a box the two
-/// evaluations of one surface do not cancel, and the fold would read
-/// the zero as an enclosure `[0, w]` in band (ONEHOME fork 259: a
-/// cylinder leaf taken alone at `Sym`). `None` where the sides are two
-/// records or two senses: the fold reads them.
-pub(crate) fn one_surface_seam<T: geom_core::Real>(
-    body: &Body<T>,
-    (f_plus, s_plus): (FaceKey, crate::SurfaceKey),
-    (f_minus, s_minus): (FaceKey, crate::SurfaceKey),
-) -> Option<geom_brep::WedgeVerdict> {
-    let sense = |face| body.get_face(face).map(|f| f.sense);
-    (s_plus == s_minus && sense(f_plus)? == sense(f_minus)?).then_some(
-        geom_brep::WedgeVerdict::Seam {
-            bend: geom_brep::Bend::UnderDetermined,
-        },
-    )
-}
-
 /// **Check 4's reading of an edge's wedge**: the contact mark the
 /// whole-edge fold's verdict earns ([`geom_brep::edge_wedge_over`]), and
 /// the finding it raises, if any. `wrap` is a chart seam's edge, marked
@@ -7239,10 +7187,12 @@ pub(crate) fn wedge_reading(
         V::Crease(_) => ContactMark::Transverse,
         V::Seam {
             bend: Bend::Determinate,
+            ..
         }
         | V::End(_) => ContactMark::Tangent,
         V::Seam {
             bend: Bend::UnderDetermined,
+            ..
         }
         | V::Lamina => ContactMark::SmoothUnderdetermined,
     };
@@ -8116,14 +8066,9 @@ pub(crate) fn tier3_local_checks_marked<
         let mark = if nurbs_adjacent {
             ContactMark::Unmarked
         } else {
-            let verdict = match one_surface_seam(body, (f_plus, fs_plus), (f_minus, fs_minus)) {
-                Some(seam) => seam,
-                None => {
-                    let Some(walk) = edge_wedge_walk(body, edge_key) else {
-                        continue; // unreachable on tier-1 input
-                    };
-                    geom_brep::edge_wedge_over(&walk, reach, band)
-                }
+            let Some(verdict) = crate::edge_wedge::edge_wedge_at(body, edge_key, reach, band)
+            else {
+                continue; // unreachable on tier-1 input
             };
             let wrap = curve.description().is_wrap();
             let (mark, finding) = wedge_reading(verdict, edge_key, wrap, conventional);
@@ -8711,8 +8656,8 @@ pub(crate) fn tier3_local_checks_marked<
     //
     // The same joints read tier 3's wrap-tip rule (`[topology.tiers]`,
     // chart singularities as vertices): every wrap edge's tip lies on its
-    // face's chart singularity, read by the incidence the joint resets
-    // its first channel by (`crate::pcurves::pcurve_pass`).
+    // face's chart singularity, read by the incidence the joint's turn
+    // is decided by (`crate::pcurves::pcurve_pass`).
     let pass = crate::pcurves::pcurve_pass(body, band);
     for finding in pass.findings {
         errors.push(ValidationError::Pcurve { finding });
@@ -13811,8 +13756,7 @@ mod tests {
         let merge = crate::merge_faces::MergeCoplanarError::KeptBoundaryUndecided {
             face: FaceKey::default(),
             edge: EdgeKey::default(),
-            reading: crate::merge_faces::DihedralReading::Lever(geom_brep::LeverRung::Arm),
-            diag: in_band,
+            escalation: geom_brep::MustCarryEscalation::at(geom_brep::MustCarryRung::Arm, in_band),
         };
         let tellings = [
             (
@@ -17478,7 +17422,9 @@ mod tests {
 
         let (face, f) = cube.faces.iter().next().unwrap();
         let outer = f.outer;
-        let flipped = cube.flipped_face_sense_for_tests(face).unwrap();
+        let flipped = cube
+            .flipped_face_sense_for_tests(face, geom_core::Tol::witness())
+            .unwrap();
         let errors = validate_geometric(&flipped, Tol::witness()).unwrap_err();
         assert!(
             errors.contains(&ValidationError::LoopRoleInverted {
@@ -17941,7 +17887,7 @@ mod tests {
         // that emits it.
         let contact = says(CensusUnsupportedCause::ContactLane(
             ContactRefusal::NotCertifiable {
-                what: crate::boolean::carrier_eq::OUTSIDE_REST_INVENTORY,
+                what: geom_brep::carrier_eq::OUTSIDE_REST_INVENTORY,
             },
         ));
         // `NotCertifiable` carries NO recourse on purpose
@@ -17982,7 +17928,7 @@ mod tests {
     /// no way through yet, as the refusal standard asks of a dead end.
     #[test]
     fn no_census_decline_renders_without_a_repair_to_make() {
-        let what = crate::boolean::carrier_eq::OUTSIDE_REST_INVENTORY;
+        let what = geom_brep::carrier_eq::OUTSIDE_REST_INVENTORY;
         // The chart lane's own row proves all thirteen of its arms
         // (`chart_region::tests::every_chart_region_arm_names_a_recourse`);
         // what this one adds is that the census's wrapper does not

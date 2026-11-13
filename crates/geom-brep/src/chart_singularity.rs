@@ -22,7 +22,7 @@
 //! **On the boundary.** A point is at a vertex of the face where its
 //! distance to the vertex's stored point decides zero
 //! ([`vertex_at_singular_point`], the one reading of that incidence,
-//! which the loop walk's reset joint reads too), and inside an edge where
+//! which the loop walk's joint decision reads too), and inside an edge where
 //! its distance to the edge's nearest interior point does
 //! ([`on_boundary`]), both at the caller's band and each decided once; a
 //! distance the
@@ -407,11 +407,11 @@ pub fn on_boundary<T: Decide>(d: T, band: Band) -> Result<bool, Indeterminate> {
 /// singular point `point`** of its chart, at the caller's `band`
 /// (`chart_singularity_at_vertex`, [`ON_BOUNDARY`]): their 3-D distance
 /// decided zero. The one reading of that incidence. [`locate`] places a
-/// singular point at a face's vertex by it, and the loop walk resets a
-/// joint's first channel at a vertex it reads on (`topo::pcurves`,
-/// `singular_at`), which is also where tier 3 reads a wrap edge's tip.
-/// So a reset joint and a point [`Lies::AtVertex`] cannot disagree on one
-/// vertex at one band.
+/// singular point at a face's vertex by it, and the loop walk decides a
+/// joint at a vertex it reads on as the face's turn there
+/// (`topo::pcurves`, `singular_at`), which is also where tier 3 reads a
+/// wrap edge's tip. So a joint stored as a turn and a point
+/// [`Lies::AtVertex`] cannot disagree on one vertex at one band.
 ///
 /// # Errors
 ///

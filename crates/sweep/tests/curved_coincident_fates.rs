@@ -316,7 +316,7 @@ fn a_rod_at_a_box_edge_borders_alike_in_either_order() {
     let union = op_fates("∪", &boxed, &at_edge);
     let wall = rounded(&format!(
         "{:?}",
-        topo::CarrierDesc::Plane {
+        geom_brep::CarrierDesc::Plane {
             origin: geom_core::Point3::new(2.0, 0.0, 0.5),
             normal: geom_core::Vec3::new(1.0, 0.0, 0.0),
         }

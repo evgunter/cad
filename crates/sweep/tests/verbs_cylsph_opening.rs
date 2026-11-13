@@ -270,7 +270,9 @@ fn a_flipped_chorded_sphere_face_is_refused_as_a_lamina() {
         .collect();
     assert!(!spheres.is_empty(), "the union holds a sphere face");
     for k in spheres {
-        let flipped = body.flipped_face_sense_for_tests(k).unwrap();
+        let flipped = body
+            .flipped_face_sense_for_tests(k, geom_core::Tol::witness())
+            .unwrap();
         let errs = topo::finish::<f64>(flipped, tol)
             .err()
             .unwrap_or_else(|| panic!("{k:?} flipped finishes"));
@@ -495,7 +497,7 @@ fn a_torus_operand_passes_the_pair_gate_and_refuses_at_the_crossing_layer() {
 /// `join::pair_section_frame`, a different dispatch answering a
 /// different question: it names a section frame (a centre and an axis
 /// for the rotational facing test), never a seam lane. The wired pairs
-/// are stated once, in `topo`'s `meeting_recourse`, and every refusal
+/// are stated once, in `topo`'s `meeting::meeting_recourse`, and every refusal
 /// that names them renders that one sentence, so there is no second
 /// Display left to disagree with.
 ///

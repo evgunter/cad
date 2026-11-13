@@ -32,7 +32,7 @@
 
 use geom_core::{Affine3, Point2, Point3, Tol, Vec3};
 use topo::splitting::{SplitError, SplitFinishError, split};
-use topo::{AtRestBody, Body, BooleanError, SplitJoinError, ValidationError};
+use topo::{AtRestBody, Body, BooleanError, JoinError, ValidationError};
 
 /// The row that owns the at-rest frame refusals these tables name.
 const FRAME_RESIDUE: &str = "work/restfront/tier-3s-frame-check-reads-a-section-ellipses-rounding-amplified-by-its-semi-axis.md";
@@ -108,7 +108,7 @@ fn outcome(r: Result<topo::SplitResult<f64>, SplitError>, tol: Tol) -> String {
                 sides.join(", ")
             }
         }
-        Err(SplitError::Join(SplitJoinError::Euler(e))) => format!("chord {e:?}"),
+        Err(SplitError::Join(JoinError::Euler(e))) => format!("chord {e:?}"),
         Err(SplitError::Finish(SplitFinishError::ResultNotAtRest {
             side,
             findings: errors,

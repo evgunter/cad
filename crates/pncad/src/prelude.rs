@@ -406,7 +406,7 @@ pub use sweep::{
 // the error itself — the one-dependency contract's closure over
 // error payloads (crate docs, contract clause 1).
 pub use geom::SurfaceKind;
-// `PlaneRelation` rides here because it is the verdict a
+// `CarrierRelation` rides here because it is the verdict a
 // `FlushFinding`'s evidence carries (SameOpposite = resting contact,
 // SameOriented = flush walls), so code inspecting findings names it.
 //
@@ -496,12 +496,13 @@ pub use geom::SurfaceKind;
 // **`CurveSelector` and `Structural` ARE here**: the discriminant a reader
 // of an at-rest `Intersection` branches on. `SharedRow`'s payload is a
 // `Pcurve`, which stays out on the argument above.
+pub use geom_brep::CarrierRelation;
 pub use topo::{
     AtRestBody, Backing, Body, BooleanBody, BooleanError, BooleanOp, BooleanResult,
     BooleanResultKind, Cited, Cites, ContactRecords, Curve3, CurveSelector, EdgeCarrierSite,
     EdgeDescription, EdgeKey, EntityId, FaceKey, GeomRef, LoopKey, Operand, PairRefusalSite,
-    PlaneRelation, ShellOrientation, Structural, Surface, TransformError, VertexKey, intersect,
-    subtract, transform_rigid, union,
+    ShellOrientation, Structural, Surface, TransformError, VertexKey, intersect, subtract,
+    transform_rigid, union,
 };
 
 // --- 5. The validation ladder ---------------------------------

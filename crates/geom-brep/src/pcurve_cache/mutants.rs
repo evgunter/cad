@@ -24,7 +24,7 @@ const NAME: Option<&str> = option_env!("PCERT_RADIAL_PAIR_MUTANT");
 
 /// Every site this crate's hooks name. topo's `chord_join` declares its
 /// own one (`topo-v-var`) under the same variable.
-pub(super) const SITES: [&str; 52] = [
+pub(super) const SITES: [&str; 58] = [
     "class-circle",
     "zero-winding",
     "torus-parallel",
@@ -77,6 +77,12 @@ pub(super) const SITES: [&str; 52] = [
     "net-bound-sampled",
     "general-image-class-gate",
     "analytic-image-sampled",
+    "by-turn-sampled",
+    "first-reading-spliced",
+    "first-reading-dropped",
+    "first-reading-sym-discarded-on-pass",
+    "across-once",
+    "sphere-meridian-unprojected",
 ];
 
 fn on(site: &str) -> bool {
@@ -306,6 +312,14 @@ pub(super) fn cone_ruling_gate() -> bool {
     on("cone-ruling-gate")
 }
 
+/// The sphere meridian's azimuth direction read off its radial part as
+/// it is, its error across the carrier's plane kept, at the derivation
+/// and in the incidence lemma alike (its rows are `closed_image_rows`'
+/// pole-start meridians and the far-shown azimuths' sphere).
+pub(super) fn sphere_meridian_unprojected() -> bool {
+    on("sphere-meridian-unprojected")
+}
+
 /// A line's chart form read at the segment's two ends only, dropping
 /// the middle Bernstein coefficient: the sup misses a chord that dips
 /// toward the axis (its rows are `cylinder_line_rows` and
@@ -392,6 +406,12 @@ pub(super) fn spiric_copy_divisor_high() -> bool {
     on("spiric-copy-divisor-high")
 }
 
+/// The rows' frames squared once, not twice
+/// (`closed_image_rows::a_frame_drawn_near_its_axis_is_square_to_rounding`).
+pub(super) fn across_once() -> bool {
+    on("across-once")
+}
+
 /// A closed form's coefficient bound read over half its span
 /// (`closed_image_rows::a_closed_forms_bound_holds_its_dense_miss`).
 pub(super) fn closed_sup_half_span() -> bool {
@@ -466,4 +486,35 @@ pub(super) fn arc_rim_tangent_under() -> bool {
 pub(crate) fn general_image_class_gate<T: Real>(carrier: &geom::Curve3<T>) -> Option<bool> {
     on("general-image-class-gate")
         .then(|| carrier.is_curved() && !matches!(carrier, geom::Curve3::Nurbs(_)))
+}
+
+/// A part read in the parts its turn needs (`Parts::ByTurn`) bounds
+/// `|f|` by its values at its two ends alone, a sampled read: check 4's
+/// first reading and limb 2's then under-read a part whose distance from
+/// the chart peaks inside it.
+pub(super) fn by_turn_sampled(
+    parts: super::Parts,
+    (a, b): (geom_core::Interval, geom_core::Interval),
+) -> Option<f64> {
+    use geom_core::Bounds;
+    (on("by-turn-sampled") && parts == super::Parts::ByTurn).then(|| a.abs().hi().max(b.abs().hi()))
+}
+
+/// Whether check 4 keeps its first reading's recording: `first-reading-spliced`
+/// keeps a dropped reading's, and `first-reading-dropped` drops a passing
+/// reading's (`projected::run_projected_checks`).
+pub(super) fn first_reading_kept(kept: bool) -> Option<bool> {
+    if on("first-reading-spliced") && !kept {
+        Some(true)
+    } else if on("first-reading-dropped") && kept {
+        Some(false)
+    } else {
+        None
+    }
+}
+
+/// Whether check 4 discards a passing first reading's `Sym` decision logs
+/// (`first-reading-sym-discarded-on-pass`) where it keeps them.
+pub(super) fn first_reading_sym_discarded_on_pass() -> bool {
+    on("first-reading-sym-discarded-on-pass")
 }

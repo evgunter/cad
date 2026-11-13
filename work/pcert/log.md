@@ -1299,6 +1299,74 @@ E1c waits on the answer.
     - P1 `a-derived-sphere-image-misses-its-circle-by-1e-11-near-five-half-pi-at-eps-1e-12`: a real derivation miss; the mint refuses in band.
     - Two P3 station rows, for the other computed-station lanes and check 4.
 
+- 2026-11-12 — **PR 6872 merged: the closed-form bound's ε 1e-12 seeds are real misses, not excess.** It closes the P1 `a-closed-form-image-at-a-fuzz-seed-reads-its-coefficient-bound-in-band-at-eps-1e-12`. Review tier: the orchestrator's read, since the change is test-only.
+  - Every refusal measured is a real miss of the stated image. The bound reads it to about 0.1%, 7% at worst, against a 20k-point dense meter, and seed 1 was also checked exactly in rational arithmetic. So `closed_bound.rs` and `trig.rs` are unchanged, and the soundness rows and mutants of 6845 and 6857 are untouched.
+  - Seed `0x4661d077090b3597` was a fixture defect. The rows' frame squared `u_ref` once, so with `b` near the axis the chart left a line drawn square to the normal by 1.02e-12. `across()` now squares twice, the seed is pinned (`fuzz::pinned_sweep`), and a frame-witness row is added. The mutant `across-once` turns both red.
+  - Seed `0x8ffe04db921f5cff` is a near-pole sphere meridian's azimuth: the same class as the derived-sphere P1, landing in band. The every-spelling row stays red by seed at ε 1e-12 until that P1 lands.
+  - Over 2000 seeds at ε 1e-12, refusals went from 9 to 4, all near-pole sphere meridians. At ε 1e-9 there were none before or after.
 - 2026-11-12 — **Dispatched the two P1s PR 6857 filed**, both main reds by fuzz seed at ε 1e-12, both from `e61f2dc848`. Each gets a single FULL review, soundness-led.
   - `a-closed-form-image-at-a-fuzz-seed-reads-its-coefficient-bound-in-band-at-eps-1e-12`, on branch `pcert/closed-bound-fine-band`. The lane root-causes the bound's excess and keeps every 6845/6857 mutant red.
   - `a-derived-sphere-image-misses-its-circle-by-1e-11-near-five-half-pi-at-eps-1e-12`, on branch `pcert/derived-sphere-image-accuracy`. The defect is in `chart_pcurve_over`'s accuracy near t ≡ π/2. The lane also sweeps the other charts' derivations.
+
+- 2026-11-12 — **PR 6864 merged: check 4's projected door reads a chord's spans in the parts their turn needs.** It closes the P1 `check-4s-projected-door-reads-every-span-of-a-chord-in-eight-parts`, which spiricarm had re-banded under the blocker rule.
+  - **The change.**
+    - Check 4 first reads a curved chart's net at `Parts::ByTurn`, inside `k_stats::detached` and the new `geom_core::sym::aside`.
+    - If that read passes, it is the verdict, and its recording is spliced in.
+    - Anything else gets main's eight-part re-read, with main's trail. So every refusal and escalation, and the sliver, are main's.
+  - **Cost** on `cylinder_pair_cost_probe`: 4.7–7.3 s per boolean, down from 6.1–8.7 s. Check 4 itself takes 0.36–0.46 s, down from 1.75–2.15 s. Volumes are bit-identical.
+  - **The trade.** A first reading that passes states a wider envelope: median 1.6×, max 2.1×. The volume pads on `cylinder_sphere_frame` grow 1.5–1.9×.
+    - `MEASURED_PAD` is re-baselined for this PR's share. The 4× guard was never designed to catch a widening under 2×.
+    - Main's earlier drift, up to 3.66×, is filed on spiricarm as P3 `the-cylinder-sphere-frame-pad-table-drifted-past-its-guard-on-main`.
+  - **Review.** Single FULL, then the VV fixes, a delta review, and the WW fixes (the orchestrator read the WW diff). APPROVE.
+    - Enclosure at any parts held: 622 adversarial ByTurn reads, and no false Ok in 300 tries.
+    - The decision trail matches main rung for rung at Interval and Sym.
+    - The splice, drop and Sym-keep rules each have a row and a named mutant.
+  - **Filed:**
+    - P4 `check-4s-first-reading-states-an-envelope-up-to-twice-the-eight-parts`, which includes the two-parts-a-span floor that was not taken;
+    - P4 `limb-2s-set-aside-first-reading-leaves-its-decisions-on-the-trail`;
+    - spiricarm P3 for the pad drift.
+
+- 2026-11-12 — **PR 6870 merged: a derived sphere image stays on its circle at ε 1e-12.** It closes the P1 `a-derived-sphere-image-misses-its-circle-by-1e-11-near-five-half-pi-at-eps-1e-12`, a main red by seed.
+  - **Root cause:** the sphere meridian arm normalized a_r, which cancels near a pole. The seed's image missed by 1.05e-11; it now misses by under 1e-15.
+  - **Fix:** `sphere_meridian_direction` is the one reader for both the derivation and check 4's incidence lemma. Without that, the mint door gave a false definite `ResidualExceeded` on fixed images (M1).
+  - **Review:** single FULL, then fix list XX, then a delta review: APPROVE.
+  - **Reverted with evidence, then filed:** the lane reverted the planar projection on the cone ruling and on the torus/spindle arm. On the cone it falsely classed an in-band tilt as `ImageMismatch`, and on the torus it gave a winding-mismatch refusal at ε 1e-6. The spindle's mint refusal at R = 1e-7·r is a true verdict on an image that really misses.
+  - **Sweep:** across 2000 seeds × 3 fuzzes at ε 1e-12, the fix leaves 0 refusals of a correct closed-form image.
+  - **Stored bits:** 135 of 1080 sphere azimuth phases move, by at most 4.4e-16. m10 is unchanged.
+  - **Filed:**
+    - P2 `a-cone-ruling-anchored-near-its-apex-reads-its-azimuth-off-a-short-radial-part`;
+    - P3s for the spindle, the interval mint door at pole starts, the unsigned reach, and Villarceau.
+    - Both arm rows now note that a fix needs one shared reader.
+- 2026-11-12 — **`main-red-a-cone-stated-image-fuzz-seed-fails-at-1e-12` closed. PR 6857 had already fixed it.** sectarms' lane filed it at 08:44, before 6857 merged. The orchestrator ran the seed on 6857's parent, where it is red (sample 5, the computed station's width, [0, 6.8e-12]), and on main, where it is green. The seed is now pinned as a row beside 6857's cone row, and it goes red under 6857's mutant.
+
+- 2026-11-12 — **Sitting handed back: status `ready`.** No P0 or P1 is left on PCERT's slate; the top row is P2.
+  - **Landed this sitting:**
+    - 6528, 6531, 6803, 6800, 6801, 6809, 6524, 6813;
+    - 6532, the curved General image. Its body has a "For Ev (retroactive)" section on the `edge_nurbs` bounds-allowlist widening, 14 → 16;
+    - 6815, 6822, 6819, 6827, 6826, 6831, 6833;
+    - 6836, analytic stated images bounded over the span;
+    - 6845, closed forms bounded over the span;
+    - 6857, held stations on the stated route;
+    - 6864, check 4 reads by turn; spiricarm's cylinder boolean was parked on it;
+    - 6872, the closed-bound seeds' root cause;
+    - 6870, derived sphere images on their circle;
+    - 6874, the cone seed pinned;
+    - main-red mends and filings: 6839, 6841, 6842, 6853, 6863, 6876.
+  - **The tail, by priority:**
+    - P2 `a-cone-ruling-anchored-near-its-apex-reads-its-azimuth-off-a-short-radial-part`, PR 6870's reverted arm. It has a direction and a one-reader note.
+    - cost-E P3 `a-stated-spline-image-is-certified-twice-by-the-edge-certificate-and-the-mint`. Its fix moves the sheath pin back to 62.
+    - P4s from 6845 and 6864.
+  - **Main reds met this sitting that are not PCERT's**, all filed on their owners:
+    - sectarms 6811 `critical.rs` census (theirs);
+    - editor-core `assemble_one_local_battery`;
+    - tesswalk `face_normal`;
+    - spiricarm's endpoint census (PR 6808);
+    - sectarms' endpoint census (PR 6862);
+    - band, gauge and lathe sweep reds.
+  - **Roster-skip class:** recurred three times; the evidence is on green's row.
+- 2026-11-12 — **Main red filed on sectarms** (orchestrator; PR 6870's lane met it). geom-core's `certified_endpoint_census` moved in `pair_section/spline_implicit.rs` from (2, 0) to (6, 4). Bisected to 81b50a0631, which reached main in PR 6862. Filed P1 as `sectarms/main-red-the-endpoint-census-moved-in-spline-implicit-rs-since-6862`. It is not PCERT's, so PCERT PRs merge over it.
+
+- 2026-11-12 — **Filed from outside, P0: `a-general-image-that-leaves-the-knot-rectangle-between-two-nodes-certifies-its-row-off-the-wall`.** The fix pass of sectarms' PR 6879 probed a review finding against `PcurveCache::certify_general` and it reproduces.
+  - **What.** The fitted-grade door reads limbs 1 and 2 and nothing holds the image to the wall's knot rectangle, so where the image leaves it between two nodes the composite reads the wall's polynomial extension and the row certifies. Measured at the default ε: a circle dipping up to 1e-5 m past a flat wall's rim certifies its row; the incidence read ends it at 1e-4 m.
+  - **What holds today.** A witness-selected `Intersection` edge is still refused, by limb 3's tube (a row in PR 6879 pins that). The row's other readers have no limb 3.
+  - **Not probed.** Whether a body can be built that stores such a row, and whether tier 3 or the mint's walk refuses it by another check. The item says so.

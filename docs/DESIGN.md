@@ -274,6 +274,7 @@ of them is a defect.
 | Which description a glued pair keeps | decided once, at the glue | [coincidence.booleans] |
 | An edge's geometry | one intensional description; every representation a certified cache | [edges] |
 | A locus one chart defines | `Chart`, one (surface, `Pcurve`) form | [edges] |
+| A loop's position in its face's chart | its lift (`topo::pcurves::Lift`): one joint decision (`decide_joint`), read from the stored rows or decided at a band, as the caller names; every window, hull and winding a method on it | [edges] |
 | Re-describing an existing edge after a door changes its faces, span or surfaces | one door: the form read off its sides by key, the old description's data carried to the new span, the selector certified at the one write gate; no door states a description for an existing edge, only a mint does | [edges] |
 | Dependency | reading a variable | [operations] |
 | Location | a placement | [placement] |
@@ -816,7 +817,7 @@ tiers".
      reader in the chart's own coordinates (measurement in a lifted
      coordinate, a loop's windings, the mesher's domain) reads the
      loops as stored, seams and wrap edges as the chart's cuts and a
-     wrap edge's tip through the lift's reset at its singular
+     wrap edge's tip through the lift's whole turn at its singular
      vertex. A chart-free reader (Gauss–Bonnet, 3-D flux) reads the
      surface boundary, keeping each wrap tip's singular vertex as the
      datum of the face's side; an empty one on a closed surface is
@@ -839,7 +840,9 @@ tiers".
   along its own edges and its recorded contacts), certified by the
   clearance engine's body-level injectivity question at every scalar
   with certification rights (`f64`, `Probe`, `Interval` and `Sym`;
-  a scalar without them, such as a dual, cannot reach the gate). At every
+  a scalar without them, such as a dual, cannot reach the gate). The
+  question is asked inside the gate once tier 3 has passed, and reads
+  tier 3's facts from its verdict, never re-deciding one over a cell. At every
   scalar the question decides with the band every verdict decides
   with, K·ε ([tolerance.recourse]). Pieces of the boundary that do not
   meet in the body (no shared edge, vertex or recorded contact) are
@@ -863,7 +866,10 @@ tiers".
   evaluator keeps it with the value, so no consumer gates an operand.
   At a scalar without certification rights the finished type is a
   replay's: tier 2 alone, carrying no verdict, and nothing that reads
-  a verdict accepts it. The validity class rides the result wrapper
+  a verdict accepts it. The finished type bundles the body with its
+  verdict, the gate its one constructor; the verdict keeps tier 3's
+  per-entity facts beside its certificate, and a reading of such a
+  fact takes the bundle, never the bare body. The validity class rides the result wrapper
   (`BooleanBody`, body and contacts), never a mutable `Body` field.
 - **The census reads one number per cell pair.** `[topology.census]`
   A census finding decides one number per pair of cells (two edges,

@@ -693,8 +693,8 @@ fn a_join_of_the_seams_pieces_keeps_the_tangency() {
 /// must-carry rule's first order would meter the turn over the ruling;
 /// at every turn the rule could leave in band or read a corner, the
 /// reduction refuses first, so neither
-/// [`topo::SplitJoinError::TangentChordEscalated`] nor
-/// [`topo::SplitJoinError::TangentChordRefuted`] is reached, and a cut
+/// [`topo::JoinError::TangentChordEscalated`] nor
+/// [`topo::JoinError::TangentChordRefuted`] is reached, and a cut
 /// that answers is tier-3 valid.
 #[test]
 fn a_cut_turned_about_the_ruling_refuses_before_the_chord() {
@@ -720,8 +720,8 @@ fn a_cut_turned_about_the_ruling_refuses_before_the_chord() {
                     }
                 }
                 Err(topo::SplitError::Join(
-                    e @ (topo::SplitJoinError::TangentChordEscalated { .. }
-                    | topo::SplitJoinError::TangentChordRefuted { .. }),
+                    e @ (topo::JoinError::TangentChordEscalated { .. }
+                    | topo::JoinError::TangentChordRefuted { .. }),
                 )) => panic!("{label}: the chord's first-order arm is reached: {e:?}"),
                 Err(_) => {}
             }

@@ -6,9 +6,10 @@
 use geom_core::{Decide, Tol};
 
 use crate::body::Body;
-use crate::entity::{FaceKey, HalfEdgeKey, VertexKey};
+use crate::entity::{EntityId, FaceKey, HalfEdgeKey, VertexKey};
 use crate::euler::{EulerOpError, FaceSurface, MefSite};
 use crate::euler_ring::MekrSite;
+use crate::unresolved::Unresolved;
 use geom_brep::EdgeCurveSpec;
 
 /// Where a zero-length joint runs between two vertices of one face.
@@ -75,13 +76,13 @@ pub(crate) struct Fused {
 ///
 /// # Errors
 ///
-/// The `mef`, `mekr` or `kev`'s refusal; `desync` of what failed where
-/// a half-edge the joint made no longer resolves.
+/// The `mef`, `mekr` or `kev`'s refusal; `desync` of the key where a
+/// half-edge the joint made, or its end, no longer resolves.
 pub(crate) fn fuse<T: Decide + crate::props::AtRestPolicy, E: From<EulerOpError>>(
     body: &mut Body<T>,
     joint: Joint,
     (p, keep): (geom_core::Point3<T>, VertexKey),
-    desync: fn(&'static str) -> E,
+    desync: impl Fn(Unresolved) -> E,
     tol: Tol,
 ) -> Result<Fused, E> {
     let carrier = EdgeCurveSpec::self_loop_circle_at(p);
@@ -103,12 +104,12 @@ pub(crate) fn fuse<T: Decide + crate::props::AtRestPolicy, E: From<EulerOpError>
     let start = |he: HalfEdgeKey| {
         body.get_half_edge(he)
             .map(|h| h.start)
-            .ok_or_else(|| desync("a joint half-edge no longer resolves"))
+            .ok_or_else(|| desync(Unresolved::Record(EntityId::HalfEdge(he))))
     };
     let he = if start(plus)? == keep { plus } else { minus };
     let dead = body
         .half_edge_end(he)
-        .ok_or_else(|| desync("a joint half-edge has no end"))?;
+        .ok_or_else(|| desync(Unresolved::Walk(EntityId::HalfEdge(he))))?;
     body.kev_describing(he, &[], tol)?;
     Ok(Fused {
         dead,
