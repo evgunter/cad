@@ -793,3 +793,21 @@ Both reds were found by PCERT's nightly lane and trace to SECTARMS merges.
 - **Main red from my PR 6879:** geom-brep `recourse_roster` does not list `edge_nurbs.rs: residual_nurbs_limbs: margin`. Push CI does not run that test (`work/green/a-src-change-that-moves-a-decide-site-skips-its-crates-recourse-roster.md`). I dispatched a small fix lane (branch `sectarms/recourse-roster-6879`) and told it to classify the site truthfully.
 - Deleted the lost earlier lane's target dir (`/home/user/sectarms-node-target`). Disk is at 59%.
 - 2026-11-13 — **PR 6899 merged (`40da188168`):** the roster main red is fixed. `residual_nurbs_limbs: margin` is listed as `NOT_A_NAME`. I checked the class against the code: `Partner::decide_sample` passes literal names of its own. No other entry was missing.
+- 2026-11-13 — **PR 6897 dual review: both NOT-MERGEABLE-AS-IS.**
+  - **R1 (Fable), MAJOR, soundness:** an edge through a node certifies at rest. `node_ends` binds no carrier end to the node, and the box is 2× the last span's reach (4–10 cm).
+  - **R2 (Opus), MAJOR:** a scale regression. At s = 0.01, three node poses that main lists now refuse `spline_critical_unread`. R1 has it as MINOR.
+  - **Both, falsified diagnosis:** the at-rest fork's diagnosis is false. Speed is constant (chord-length fit). R1 finds generic nodes stop at limb 3 with 32 windows, not `ImageMiss`.
+  - **Both, test gap:** 9–16 mutants survive in each review.
+  - **Adjudicated union:**
+    - the M1 fix, binding the end to the node and bounding the box;
+    - the scale fix, possibly by two-rate grading;
+    - the real at-rest cause found before any designers;
+    - rows killing the survivors;
+    - the `apart` scope;
+    - the sweep row restored to typed assertions;
+    - doc honesty (the pad share, the box ≈ 8√(εs));
+    - one node reading.
+
+    The fix pass went to the implementer's own agent (Opus arm), continued; its brief is `fix-6897.md`.
+  - **The node-arc at-rest fork is held** until the fix pass reports the real cause.
+  - **Blind coding:** byte 202 → A = R1, B = R2. Dispatched to an Opus coder.
