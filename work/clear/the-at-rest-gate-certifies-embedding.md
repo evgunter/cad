@@ -592,7 +592,7 @@ would read in their place.
     parameters past the seam. Without that, the filleted drum refused:
     the curve runs an ulp past the seam through its join.
 - **Corner sides kept one band reading; it is gone (seam lane, PR
-  SEAMPR).** Removing it moved 6892's two-ball union from `Holds` to
+  6908).** Removing it moved 6892's two-ball union from `Holds` to
   `Uncertified` (Departure, at a meridian, depth 40). At the pole, one
   face's corner is on one meridian and the other's on the other, and
   the two meridians' stored planes differed by `1.2e-16` rad (the
