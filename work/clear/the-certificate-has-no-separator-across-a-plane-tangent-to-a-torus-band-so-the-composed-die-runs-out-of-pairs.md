@@ -2,7 +2,8 @@
 id: the-certificate-has-no-separator-across-a-plane-tangent-to-a-torus-band-so-the-composed-die-runs-out-of-pairs
 kind: issue
 title: The departure arm has no separator across a plane face tangent to a torus band along their circle, so the composed die's 21 pip rims split until the injectivity check runs out of its 65,536 pairs
-status: open
+status: closed
+closed: 2026-11-13
 opened: 2026-11-12
 priority: P0
 cost: M
@@ -47,3 +48,26 @@ reads, built from the circle instead of a face. The plane face's
 presentation is a `Zero::Curve`, so `Curved::psi` must read it too.
 Pin: one pip with a torus rim on a plane (a smaller fixture of the
 composed die) holds within the default budget.
+
+## Measured by lane B (clear-sep, PR 6905), 2026-11-13
+
+On PR 6905's branch the composed die holds, at 46,337 of 65,536 pairs
+(70.7%), with nothing refused; on main it ran out at 65,536, with 3,826
+refused. In that PR the graph separator reads a curved side by
+membership: it is zero where the side's parameters lie in the graph's
+piece. On a closed conic edge that piece now also holds the side's
+parameters past the seam. Before, the plane face's `Zero::Curve` under
+the graph was a band reading of the side's distance and overhang, and
+it answered `None` where the curve ran past the piece through its
+join. That is the `graph = (None, Negative)` above. The pip-rim
+fixture this row's pin names is not built. Whether the row closes,
+or keeps the cylinder separator for the budget's margin, is the
+orchestrator's call.
+
+## Closed (CLEAR orchestrator, 2026-11-13)
+
+`diecomposed` holds, at 46,337 pairs (70.7% of the budget), in the tour
+walk of PR 6905. The certificate has its separator: the graph
+separator, read by membership in place of a value. No cylinder
+separator is needed. Lane C's gate asks this body at its door, and that
+is its pin.

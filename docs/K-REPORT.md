@@ -878,6 +878,25 @@ it. The rule (2) spelling it checks a rostered mint's `target_len`
 against, `QUAD_TARGET_LEN_FACTOR * eps`, stays the spelling the next
 ε-coupled family is held to.
 
+**Roster change (ONEDOOR face pair): a pairing is read only behind the
+reading that decided the faces parallel.** `geom_brep::classify_material_pairing_as`
+retires. Each of its readers reads the fact its own question is about,
+so the rows it carried change meaning:
+
+| name | carrier | what moved |
+|---|---|---|
+| `link_normal` | a named `const` (`LINK_NORMAL`), decided through the link's door | was the two faces' carriers' outward normals at the point, levered by the folded arm; now one sector's outward normal carried the links' reach off the point against the coplanar sector's plane, in metres. Does not pool with its earlier samples |
+| `at_rest_quiet_opposed`, `at_rest_quiet_axes_parallel`, `at_rest_quiet_centred` | retired | the quieting rule reads the facing of the pose the `Gap` is read in (`geom_brep::carrier_pose`); their samples end |
+| `carrier_pose_planes_parallel`, `carrier_pose_axes_parallel` | `geom_brep::Directions::name` (`POSE_PLANES_PARALLEL`, `POSE_AXES_PARALLEL`) | new: the pose's parallelism of two planes' normals or two axes, the sine levered at the faces' arm. The measure's gap and distance read it, and the quieting rule through the gap; `editor_core`'s `bool_plane_parallel` and `carrier_cyl_axis_parallel` samples end there (the names stay with `topo`'s carrier ladder, a different reading) |
+| `carrier_pose_round_side`, `carrier_pose_round_larger`, `carrier_pose_axis_along_plane` | named `const`s in `geom_brep::carrier_pose` | renamed from `gap_round_side`, `gap_round_larger`, `gap_axis_parallel_to_plane`, same margins; they pool with them |
+| `carrier_pose_planes_facing` | a named `const` (`POSE_PLANES_FACING`), through `geom_brep::normals_alignment` | new: two parallel planes' outward normals' cosine over the gap's arm, read only where a facing is asked |
+| `contact_tangent_opposed`, `tangent_gap_orientation`, `material_wedge_side` | the caller's name, handed to `geom_brep::normals_alignment` | the outward normals' cosine, as before; each name's samples pool. A decided zero now also decides the lever (`gradient_alignment_lever`) |
+| `gradient_alignment_lever` | a named `const` (`GRADIENT_ALIGNMENT_LEVER`) | new: the lever a perpendicular verdict stands behind, decided positive only where a cosine read zero |
+
+`census::ee_cross_backed` reads the pair's carrier relation, so the
+`dihedral_arm`, `dihedral_wedge` and `material_wedge_side` readings it
+took at each edge crossing end there.
+
 **Roster addition (TRIM-3): the chart-boundary outside test.** Six
 names, in the crate scan's blind spot #4 — four of them are a
 `ray_walk::ParityRows` value, the carrier this document already

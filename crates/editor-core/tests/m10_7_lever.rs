@@ -281,7 +281,7 @@ fn a_large_tilt_still_refuses_typed() {
     let e = measures(10.0e-3, std::f64::consts::FRAC_PI_4)
         .expect_err("two planes at 45 degrees are not parallel");
     assert!(
-        e.contains("bool_plane_parallel"),
+        e.contains("carrier_pose_planes_parallel"),
         "the refusal names the predicate that decided it: {e}"
     );
 }
@@ -330,7 +330,7 @@ fn a_tilt_only_the_extent_can_decide_is_decided() {
         ),
     };
     assert!(
-        e.contains("bool_plane_parallel"),
+        e.contains("carrier_pose_planes_parallel"),
         "the refusal names the predicate that decided it: {e}"
     );
 }
@@ -349,7 +349,7 @@ fn an_undecided_parallelism_keeps_the_measure_doors_sentence() {
     let editor_core::NodeErrorKind::MeasureEscalated { source } = kind else {
         panic!("a tilt inside the band escalates at the measure door: {kind:?}");
     };
-    assert_eq!(source.predicate, Some("bool_plane_parallel"));
+    assert_eq!(source.predicate, Some("carrier_pose_planes_parallel"));
     let shown = kind.to_string();
     assert_eq!(
         shown,
