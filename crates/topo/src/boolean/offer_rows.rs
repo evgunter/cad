@@ -2660,6 +2660,7 @@ const SITES: &[(&str, &str, &str, usize)] = &[
         1,
     ),
     ("mod.rs", "verify_tangency", "Coincide::Contact", 1),
+    ("mod.rs", "verify_tangency", "LeverArm::TangentLocus", 1),
     ("mod.rs", "verify_tangency", "Coincide::Rim", 1),
     ("mod.rs", "verify_tangency", "Coincide::TangentLocus", 1),
     ("ops.rs", "apply_cut_ins", "BooleanDecision::Sphere", 1),

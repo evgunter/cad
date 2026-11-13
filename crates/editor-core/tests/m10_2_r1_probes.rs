@@ -803,7 +803,7 @@ fn r1_skew_cylinder_axes_refuse_typed() {
         let NodeErrorKind::MeasureNotParallel { predicate, .. } = err else {
             panic!("skew axes must refuse NotParallel, got {err:?}");
         };
-        assert_eq!(*predicate, "carrier_cyl_axis_parallel");
+        assert_eq!(*predicate, "carrier_pose_axes_parallel");
         let rendered = ev.node_error(id).map(|e| e.to_string()).unwrap_or_default();
         assert!(
             rendered.contains("parallel"),

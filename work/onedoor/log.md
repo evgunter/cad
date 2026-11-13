@@ -345,3 +345,15 @@ second site needs to ask the question at all. (ONEDOOR orchestrator)
   - **Class finding:** a row that pins a value "in band" must derive it from the active tolerance. A literal tuned at one ε is a one-row suite. This is the standing every-eps-row rule, already in `docs/prompts/implementer-discipline.md`, so no new row.
   - The unit row stays `spec`: stage 3, the blend's `classify_edge_wedge`, is still owed.
   - (ONEDOOR orchestrator)
+- 2026-11-13 — **PR [#6890](https://github.com/evgunter/cad/pull/6890) (face pair) fix pass accepted.**
+  - A concurrent Opus/Fable pair reviewed the frozen head `aef77d609971`, and both returned APPROVE-WITH-FIXES. One question went to Ev: what "opposed" means in `[assertions.quiet]`. Ev ruled (a), at the `Gap`'s pose, which is C5's own meaning, so `Nest::Apart` is gone and two shafts quiet under a holding `Gap`.
+  - All 15 adjudicated items were taken:
+    - one door from two normals (`normals_alignment`) with one zero policy;
+    - one type (`MaterialPairing`) and one parallelism reading;
+    - a pose that carries its own data under its own K names;
+    - the link's facing as a named metric constructor;
+    - a true glue refusal;
+    - pinned rows, and rows of its own for `carrier_pose`.
+  - The one CI red on the fix-pass head was a renamed slow row. The orchestrator added it to the slow set (`bc51af9f`).
+  - Model-compare row `docs/model-compare-log/rows/PR-6890.md`.
+  - (ONEDOOR orchestrator)

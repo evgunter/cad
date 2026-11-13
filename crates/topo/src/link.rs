@@ -143,24 +143,29 @@ const LINK_TANGENT_FRAME: &str = "link_tangent_frame";
 /// another sheet's plane or line along the ray, in metres at the arm —
 /// its bend's Taylor term (`κ·l²/2`), the first-order residue charged.
 const LINK_SECOND_ORDER: &str = "link_second_order";
-/// K name: two coplanar faces' outward normals, one of each link,
-/// aligned or opposed ([`geom_brep::classify_material_pairing_as`]).
+/// K name: one sector's outward normal carried the links' reach off the
+/// point, against a coplanar sector's plane of the other link, in metres:
+/// the two sectors aligned or opposed ([`pairing`]).
 const LINK_NORMAL: &str = "link_normal";
 
 /// **The one door every verdict sign of the touch analysis comes
 /// through**, and the bound-side reading's ([`crate::bound_side`]). A
-/// [`Distance`] has a private field and six constructors, from a point
+/// [`Distance`] has a private field and seven constructors, from a point
 /// and a plane, from a point and a segment (its clearance), from two
 /// points (their distance apart), from a bound's departure off a plane at
-/// its reach, and from a point or a segment and a sphere's or a
-/// cylinder's carrier, so
+/// its reach, from two coplanar sectors' facing (a point at the reach
+/// along one's normal against the other's plane), and from a point or a
+/// segment and a sphere's or a cylinder's carrier, so
 /// a quantity none of them builds cannot be decided here as a verdict.
 /// Two of them are not a point's exact distance: a round carrier's is its
 /// lowest point's along the segment, and a bound's departure one order
 /// down is the leading Taylor term of its point's distance from the
 /// face (`κ·l²/2`, [`Departure::Parted`](metric::Departure::Parted)),
-/// in metres and read as that distance to the order read. The door
-/// admits those, and no lever or product of other quantities.
+/// in metres and read as that distance to the order read. A departure's
+/// first order and a facing are a point at a reach against a plane: a
+/// reach times the cosine of two unit vectors, each named for what it
+/// reads. The door admits those, and no other lever or product of other
+/// quantities.
 ///
 /// What the type cannot hold: that `n` is a unit normal. Every caller
 /// passes a normalized direction or a face's outward normal, and a
@@ -252,6 +257,22 @@ pub(crate) mod metric {
                     crate::bound_side::sagitta_charge(slope, lever, arm.length())
                 }
             })
+        }
+
+        /// **Two coplanar sectors' facing**, one link's against the
+        /// other's at the touch point: the point `reach` along one
+        /// sector's outward unit normal `along` off the point, its signed
+        /// distance from the other sector's plane through the point, of
+        /// outward unit normal `n` (`(along·n)·reach`,
+        /// [`geom_brep::rise`]). Positive where the two face one way,
+        /// negative where they face each other. It is a departure's first
+        /// order ([`Distance::departure`]) read of a sector's normal rather
+        /// than a bound's direction: a point at the reach and a plane, in
+        /// metres, so its zero is the band's like every other reading
+        /// here, and it is the one alignment of two normals the door
+        /// admits.
+        pub(crate) fn facing(along: Vec3<T>, n: Vec3<T>, reach: geom_core::Lever<T>) -> Self {
+            Self(geom_brep::rise(along, n, reach).value())
         }
     }
 
@@ -797,8 +818,7 @@ pub(crate) struct FaceSector<T: Real> {
 #[derive(Clone)]
 pub(crate) struct LinkFace<T: Real> {
     surface: geom::Surface<T>,
-    /// `Face::sense`, the bit [`geom_brep::classify_material_pairing_as`]
-    /// takes.
+    /// `Face::sense`.
     sense: bool,
     /// Where the wedges run past the face (a cleared disc): the radius
     /// about `p` inside which they are the face's own. For a ruled face's
@@ -1135,26 +1155,35 @@ enum Against<T> {
     Bound,
 }
 
-/// Two outward normals against each other, aligned or opposed, through
-/// the one classifier of that question under the K row `name`: two
-/// coplanar faces', one of each link ([`LINK_NORMAL`]). It is asked only
-/// where a piece of one face lies on the other's plane end to end and a
-/// point of it reads on that face alone ([`rest::judge`]), so the faces
-/// lie on one plane there, the magnitude is about 1, and only its sign is
-/// read.
+/// **Which way two coplanar sectors face each other**: sector `s`'s
+/// outward normal carried `reach` off the point, read against sector
+/// `t`'s plane ([`metric::Distance::facing`]) through the link's door
+/// under the K row [`LINK_NORMAL`],
+/// on the reading `rd` that charges both links' ties. Aligned where it
+/// lands on `t`'s outward side, opposed behind it. It is asked only where
+/// a piece of `s` lies on `t`'s plane end to end and a point of it reads
+/// on that face alone ([`rest::judge`]), so the two sectors lie on one
+/// plane there and the reading is `±reach`: the sectors' own normals,
+/// the objects that coplanarity was read of, and no carrier re-read at
+/// the point.
 /// `None` is every refusal — in band, decided zero, or poisoned — and
 /// each reads as in band, ending as the touch's one in-band refusal
 /// (`TouchInBand`), which carries no margin.
 fn pairing<T: Decide>(
-    name: &'static str,
-    s: (&geom::Surface<T>, bool),
-    t: (&geom::Surface<T>, bool),
-    p: Point3<T>,
+    s: &Sector<T>,
+    t: &Sector<T>,
     reach: geom_core::Lever<T>,
-    band: Band,
+    rd: Reading<T>,
 ) -> Option<geom_brep::MaterialPairing> {
-    let arm = geom_brep::folded_lever_arm(s.0, t.0, p, reach);
-    geom_brep::classify_material_pairing_as(name, s.0, s.1, t.0, t.1, p, arm, band).ok()
+    match metric::settle_as(
+        LINK_NORMAL,
+        Distance::facing(s.outward, t.outward, reach),
+        rd,
+    ) {
+        Ok(Sign::Positive) => Some(geom_brep::MaterialPairing::Aligned),
+        Ok(Sign::Negative) => Some(geom_brep::MaterialPairing::Opposed),
+        Ok(Sign::Zero) | Err(_) => None,
+    }
 }
 
 /// A chord from the touch point to `q`, as its length: a number, or a
@@ -4175,7 +4204,7 @@ pub(crate) mod rest {
         TouchVerdict,
     };
     use super::{CurvedUnread, Distance, Germ, LINK_PLANE, LINK_ROUND, Round, metric};
-    use super::{LINK_NORMAL, ahead, on_plane, pairing, wedge_side, within};
+    use super::{ahead, on_plane, pairing, wedge_side, within};
     use geom_brep::ladder::Evidence;
 
     /// The certificate of a rest: every piece of both links read, on
@@ -4383,14 +4412,11 @@ pub(crate) mod rest {
                             false
                         }
                         Some(Material::On(j)) => {
-                            let (s, t) = (&own.faces[*k], &other.faces[j]);
                             match pairing(
-                                LINK_NORMAL,
-                                (&s.surface, s.sense),
-                                (&t.surface, t.sense),
-                                own.cone.p,
+                                &own.cone.sectors[*k],
+                                &other.cone.sectors[j],
                                 own.reach.max(other.reach),
-                                rd.band,
+                                rd,
                             ) {
                                 Some(geom_brep::MaterialPairing::Aligned) => true,
                                 Some(geom_brep::MaterialPairing::Opposed) => false,
@@ -6736,9 +6762,10 @@ mod tests {
     /// `boolean::vtxfac::cone_classes`), and holds:
     /// - every `Margin` door and every `decide` call lies inside `mod
     ///   metric` (one `Margin::of`);
-    /// - the classifier of unit normals is called only from `pairing`
-    ///   (`geom_brep::classify_material_pairing_as`), and no tangency
-    ///   token's pairing (`.pairing(`) is asked anywhere it reads;
+    /// - no reading of two normals is called (`gradient_alignment(`,
+    ///   `normals_alignment(`), and no pairing (`.pairing(`) is asked
+    ///   anywhere it reads: two coplanar sectors' pairing is their facing
+    ///   (`Distance::facing`);
     /// - nothing reads a bare sign: no `sign_within`, no
     ///   `definitely_positive(` (`validate`'s unnamed door), no
     ///   `enclosure_probe(` (an instrument nothing may branch on), no
@@ -6746,12 +6773,12 @@ mod tests {
     ///   `select_le_zero`, `partial_cmp` or `total_cmp`, and no
     ///   `classify_dihedral` (a levered classifier of its own). No code
     ///   needs one today, so the list has no exemption;
-    /// - `Distance` is built in exactly six places: its field is
-    ///   private, `mod metric` holds exactly six `Self(`, one inside each
+    /// - `Distance` is built in exactly seven places: its field is
+    ///   private, `mod metric` holds exactly seven `Self(`, one inside each
     ///   of its constructors (the door's doc lists them), and no
     ///   `Distance(`, and those are the module's only functions returning
     ///   a `Distance`. So a product or a lever has no way to become one,
-    ///   not even through a seventh constructor.
+    ///   not even through an eighth constructor.
     ///
     /// - structure (`is_poison(`, `is_bounded(`, `point_value(`,
     ///   `plain_constant(`, `enclosure_hull(`, `structure_nonzero(`) is read
@@ -6854,7 +6881,6 @@ mod tests {
             open..balanced_end(module, open).expect("its closing brace")
         };
         let metric = body("\npub(crate) mod metric");
-        let pairing = body("\nfn pairing");
         let lowest_on = body("\n    pub fn lowest_on(\n");
         let round_lowest = body(
             "\n    pub fn lowest_on(&self, (x0, x1): (Point3<T>, Point3<T>)) -> Result<T, AtTheAxis>",
@@ -6881,7 +6907,8 @@ mod tests {
         for needle in [
             "Margin::",
             "decide(",
-            "classify_material_pairing",
+            "gradient_alignment(",
+            "normals_alignment(",
             ".pairing(",
         ] {
             stray.extend(outside(touch, needle, &[]));
@@ -6890,8 +6917,9 @@ mod tests {
         for needle in ["Margin::", "decide("] {
             stray.extend(outside(module, needle, &[&metric]));
         }
-        stray.extend(outside(module, "classify_material_pairing", &[&pairing]));
-        stray.extend(outside(module, ".pairing(", &[]));
+        for needle in ["gradient_alignment(", "normals_alignment(", ".pairing("] {
+            stray.extend(outside(module, needle, &[]));
+        }
         for needle in [
             "sign_within",
             "definitely_positive(",
@@ -6977,7 +7005,8 @@ mod tests {
         for needle in [
             "Margin::",
             "decide(",
-            "classify_material_pairing",
+            "gradient_alignment(",
+            "normals_alignment(",
             "sign_within",
             "sign_over",
             "metric::",
@@ -7061,14 +7090,15 @@ mod tests {
         let clearance = body("\n        pub(crate) fn clearance(");
         let apart = body("\n        pub(crate) fn apart(");
         let departure = body("\n        pub(crate) fn departure(");
+        let facing = body("\n        pub(crate) fn facing(");
         let off = body("\n        pub(crate) fn off(");
         let at = body("\n        pub(crate) fn at(");
         assert!(
-            [&of, &clearance, &apart, &departure, &off, &at]
+            [&of, &clearance, &apart, &departure, &facing, &off, &at]
                 .iter()
                 .all(|r| metric.contains(&r.start)),
             "`Distance::of`, `Distance::clearance`, `Distance::apart`, `Distance::departure`, \
-             `Distance::off` and `Distance::at` are in `mod metric`"
+             `Distance::facing`, `Distance::off` and `Distance::at` are in `mod metric`"
         );
         let builds: Vec<usize> = module
             .match_indices("Self(")
@@ -7077,16 +7107,18 @@ mod tests {
             .filter(|i| metric.contains(i))
             .collect();
         assert!(
-            builds.len() == 6
+            builds.len() == 7
                 && of.contains(&builds[0])
                 && apart.contains(&builds[1])
                 && clearance.contains(&builds[2])
                 && departure.contains(&builds[3])
-                && off.contains(&builds[4])
-                && at.contains(&builds[5]),
-            "`Distance` is built six times, inside `Distance::of` from a plane, inside \
+                && facing.contains(&builds[4])
+                && off.contains(&builds[5])
+                && at.contains(&builds[6]),
+            "`Distance` is built seven times, inside `Distance::of` from a plane, inside \
              `Distance::apart` from two points, inside `Distance::clearance` from a segment, \
-             inside `Distance::departure` from a bound's departure off a plane, and inside \
+             inside `Distance::departure` from a bound's departure off a plane, inside \
+             `Distance::facing` from two coplanar sectors, and inside \
              `Distance::off` and `Distance::at` from a round carrier: {} builds",
             builds.len()
         );
@@ -7132,6 +7164,11 @@ mod tests {
             );
         }
         assert!(
+            door[facing.start - metric.start..facing.end - metric.start]
+                .contains("Self(geom_brep::rise(along, n, reach).value())"),
+            "`Distance::facing` is a departure's first order of a sector's normal, and nothing else"
+        );
+        assert!(
             door[off.start - metric.start..off.end - metric.start]
                 .contains("match round.lowest_on(seg) {\n                Ok(d) => Some(Self(d)),"),
             "`Distance::off` is the round carrier's closed form, and nothing else"
@@ -7145,10 +7182,10 @@ mod tests {
             door.matches("-> Self").count()
                 + door.matches("-> Option<Self>").count()
                 + door.matches("-> Distance").count(),
-            6,
+            7,
             "`Distance::of`, `Distance::clearance`, `Distance::apart`, `Distance::departure`, \
-             `Distance::off` and `Distance::at` are `mod metric`'s only functions returning a \
-             `Distance`"
+             `Distance::facing`, `Distance::off` and `Distance::at` are `mod metric`'s only \
+             functions returning a `Distance`"
         );
     }
 }
