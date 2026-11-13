@@ -472,3 +472,4 @@ Ev, in chat: "go ahead in whatever order you see fit (including parallelizing th
   - wedge stage 3: byte 176, Opus, `session_018u3gVK745WZBDpJyJKF6Sc` on `onedoor/wedge-fold-3`.
   
   Every brief carries the new rules: class by failure text, and gate each step on its own exit.
+- **16:4x — #6900 had a merge conflict** (`mergeable_state: dirty`, from #6890 and #6909), so pull-request CI never ran on `7a4f3885`. Main was merged in (`d07071ec`); the only conflict was a comment block in `.config/nextest.toml`, and both sides were kept. A workspace `cargo check --all-targets --all-features` was clean, then pushed. **My miss:** I read "no check runs" as a slow CI, not as a conflict. A PR that shows no run after a push gets its mergeable state checked first.
