@@ -2483,6 +2483,12 @@ const SITES: &[(&str, &str, &str, usize)] = &[
         1,
     ),
     (
+        "carrier_ladder_rows.rs",
+        "a_torus_off_its_ring_ends_in_its_halfs_lever_at_the_boolean",
+        "BooleanDecision::Torus",
+        1,
+    ),
+    (
         "carrier_touch.rs",
         "ball_off_face",
         "BooleanDecision::Containment",
