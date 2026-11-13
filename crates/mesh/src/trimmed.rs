@@ -48,10 +48,10 @@
 //! `(u′(t), v′(t))` (`crate::chords::sphere_uv_speeds`), and its
 //! certificate is the ball-convexity one (`cert::cert_sphere`), in 3-D.
 //! A pole the loop passes is a side of the trim polygon
-//! ([`sphere_polygon_shape`]), and each run of the loop between two
-//! poles is placed a whole turn where its equal-area shoelace says the
-//! face is ([`choose_pole_azimuths`]). A face holding a pole inside it,
-//! a loop whose runs between poles cannot be placed, and a tilted circle
+//! ([`sphere_polygon_shape`]): the loop's lift (`topo::Body::loop_lift`)
+//! runs along the pole's latitude through the face's turn there, so
+//! each run of the loop between two poles already sits where the face
+//! is. A face holding a pole inside it and a tilted circle
 //! passing so near a pole that its chord schedule asks one edge for more
 //! than the arm's budget ([`MAX_SPHERE_EDGE_CHORDS`],
 //! `chords::sphere_arm_tighten`), refuse typed
@@ -220,14 +220,6 @@ fn last_attempt() -> usize {
 /// trim chord the lattice did not place
 /// (`work/tesssize/the-trimmed-sphere-arm-has-no-worst-triangle-theorem.md`).
 pub(crate) const UNPROVED_HEADROOM: f64 = 0.5;
-
-/// The most pole junctions a sphere arm loop may pass for
-/// [`choose_pole_azimuths`] to try every `2π` placement of the runs
-/// between them: `3^(J−1)` placements, 27 at four. A half-band remnant
-/// passes two; a loop past four refuses typed rather than search.
-/// **Structural** (it bounds a search, as `sizing::MAX_COUNT` bounds an
-/// allocation).
-const MAX_POLE_JUNCTIONS: usize = 4;
 
 /// **The sphere arm's per-edge chord budget**, `2^16`. **Work**: it
 /// bounds what one face's CDT is asked to hold, as `sizing::MAX_COUNT`
@@ -459,7 +451,7 @@ pub(crate) fn tessellate_trimmed(
     // last point; ids stay the shared 3-D chord ids).
     let nurbs_chart = matches!(lane, Lane::Nurbs { .. });
     let poles = if matches!(lane, Lane::Sphere { .. }) {
-        ChartPoles::Kept { sense: face.sense }
+        ChartPoles::Kept
     } else {
         ChartPoles::None
     };
@@ -2013,9 +2005,6 @@ fn trim_polygon(
         );
         trav_edges.push(he.edge);
     }
-    if let ChartPoles::Kept { sense } = poles {
-        choose_pole_azimuths(&mut travs, &trav_edges, sense, fk)?;
-    }
     flatten_traversals(&travs, &trav_edges, poles != ChartPoles::None)
 }
 
@@ -2034,26 +2023,22 @@ fn flatten_traversals(
             what: "edge chords",
         });
     }
-    Ok(flat_points(travs, keep_poles, |_| 0.0)
+    Ok(flat_points(travs, keep_poles)
         .map(|(k, p)| (p, edges[k]))
         .unzip())
 }
 
-/// [`flatten_traversals`]' points, each with its traversal's index, with
-/// traversal `k`'s azimuths moved by `du(k)`: the one walk both the
-/// polygon and [`choose_pole_azimuths`]' placements read. Every
-/// traversal is non-empty (the caller's check).
-fn flat_points<'a>(
-    travs: &'a [Vec<(f64, f64, u32)>],
+/// [`flatten_traversals`]' points, each with its traversal's index.
+/// Every traversal is non-empty (the caller's check).
+fn flat_points(
+    travs: &[Vec<(f64, f64, u32)>],
     keep_poles: bool,
-    du: impl Fn(usize) -> f64 + Copy + 'a,
-) -> impl Iterator<Item = (usize, (f64, f64, u32))> + 'a {
+) -> impl Iterator<Item = (usize, (f64, f64, u32))> + '_ {
     let m = travs.len();
     (0..m).flat_map(move |k| {
-        let shift = move |q: usize, (u, v, id): (f64, f64, u32)| (u + du(q), v, id);
         let trav = &travs[k];
-        let last = shift(k, trav[trav.len() - 1]);
-        let next = shift((k + 1) % m, travs[(k + 1) % m][0]);
+        let last = trav[trav.len() - 1];
+        let next = travs[(k + 1) % m][0];
         #[allow(clippy::float_cmp)]
         let pole = keep_poles
             && last.2 == next.2
@@ -2061,144 +2046,9 @@ fn flat_points<'a>(
             && (last.0, last.1) != (next.0, next.1);
         trav[..trav.len() - 1]
             .iter()
-            .map(move |&p| (k, shift(k, p)))
+            .map(move |&p| (k, p))
             .chain(pole.then_some((k, last)))
     })
-}
-
-/// **The azimuth of each run of a sphere arm loop between its poles.**
-///
-/// The loop's lift (`topo::Body::loop_lift`) carries each image where
-/// the chain places it, and the chain is continuous in the chart at
-/// every vertex but a pole: every azimuth is the pole, so the run that
-/// leaves it may sit `2πk` from where the region is. A run placed one
-/// turn off makes the polygon bound the face's complement plus the cap
-/// past the pole (a half-band remnant whose far seam meridian lands at
-/// `+π` for `−π`), and nothing in the chart says so locally.
-///
-/// What says so is the AREA. A polygon on the chart bounds the region
-/// whose area is its equal-area shoelace `A = ½ Σ (u_i w_{i+1} −
-/// u_{i+1} w_i)` with `w = sin v` (times `r²`), and a face holding no
-/// pole has an area in `(0, 4π)` with the sign the loop's orientation
-/// gives it — positive exactly when `sense`, the chart's normal being
-/// the sphere's outward one. Moving a run from one pole to the other by
-/// `2π` moves `A` by `±2π·(w_N − w_S) = ±4π`, so exactly one placement
-/// of each such run lands in the window. A run from a pole back to the
-/// same pole moves `A` by nothing; among placements that tie on area the
-/// one with the shortest pole sides is taken (a longer one doubles back
-/// across the pole), and a tie there too refuses typed.
-///
-/// The first run keeps its lift; each other run is tried at `−2π`, `0`
-/// and `+2π`. A loop with fewer than two pole junctions has no run to
-/// place: its one run closes through a vertex the lift is continuous
-/// at. These are SCOPE limits on valid bodies, not defects, and refuse
-/// [`TessellateError::SphereTrimShape`]: more than
-/// [`MAX_POLE_JUNCTIONS`] junctions (`PoleJunctions`), and no placement
-/// fitting the window or two tying (`PoleAzimuth`), each naming the
-/// first traversal of the run that could not be placed.
-fn choose_pole_azimuths(
-    travs: &mut [Vec<(f64, f64, u32)>],
-    edges: &[EdgeKey],
-    sense: bool,
-    fk: FaceKey,
-) -> Result<(), TessellateError> {
-    use core::f64::consts::{PI, TAU};
-    let m = travs.len();
-    if travs.iter().any(Vec::is_empty) {
-        return Err(TessellateError::MissingEntity {
-            what: "edge chords",
-        });
-    }
-    let junctions: Vec<usize> = (0..m)
-        .filter(|&k| {
-            let (last, next) = (travs[k][travs[k].len() - 1], travs[(k + 1) % m][0]);
-            last.2 == next.2 && at_pole(last.1)
-        })
-        .collect();
-    let j = junctions.len();
-    if j < 2 {
-        return Ok(());
-    }
-    let refuse = |k: usize, cause| TessellateError::SphereTrimShape {
-        face: fk,
-        edge: edges[k],
-        cause,
-    };
-    if j > MAX_POLE_JUNCTIONS {
-        return Err(refuse(
-            junctions[MAX_POLE_JUNCTIONS],
-            SphereTrimCause::PoleJunctions,
-        ));
-    }
-    // Run `s` of traversal `k`: the junctions before it, cyclically, so
-    // the traversals after the last junction close onto run 0.
-    let run: Vec<usize> = (0..m)
-        .map(|k| junctions.iter().filter(|&&p| p < k).count() % j)
-        .collect();
-    #[allow(clippy::cast_possible_truncation)]
-    let placements = 3usize.pow((j - 1) as u32);
-    let shift = |placement: usize, s: usize| -> f64 {
-        if s == 0 {
-            return 0.0;
-        }
-        #[allow(clippy::cast_possible_truncation, clippy::cast_precision_loss)]
-        let digit = (placement / 3usize.pow((s - 1) as u32)) % 3;
-        #[allow(clippy::cast_precision_loss)]
-        let turns = digit as f64 - 1.0;
-        turns * TAU
-    };
-    let want = if sense { 1.0 } else { -1.0 };
-    let mut best: Option<(f64, usize)> = None;
-    let mut tied = false;
-    for placement in 0..placements {
-        let run = &run;
-        let mut points =
-            flat_points(travs, true, move |k| shift(placement, run[k])).map(|(_, p)| p);
-        let Some(first) = points.next() else {
-            return Err(TessellateError::MissingEntity {
-                what: "edge chords",
-            });
-        };
-        let (mut area2, mut pole_len, mut a) = (0.0, 0.0, first);
-        for b in points.chain(core::iter::once(first)) {
-            area2 += a.0 * b.1.sin() - b.0 * a.1.sin();
-            if a.2 == b.2 && at_pole(a.1) {
-                pole_len += (b.0 - a.0).abs();
-            }
-            a = b;
-        }
-        let area = want * 0.5 * area2;
-        if !(area > 0.0 && area < 2.0 * TAU) {
-            continue;
-        }
-        // THE TIE TOLERANCE IS HALF A TURN. Two placements that both fit
-        // differ by whole turns on some run, so their pole sides' total
-        // lengths differ by a multiple of `2π` or not at all; rounding
-        // moves them by ulps of `π`. Anything between separates a tie
-        // from a difference, and `π` sits midway.
-        match best {
-            Some((len, _)) if (pole_len - len).abs() < PI => tied = true,
-            Some((len, _)) if pole_len > len => {}
-            _ => {
-                best = Some((pole_len, placement));
-                tied = false;
-            }
-        }
-    }
-    let unplaced = refuse((junctions[0] + 1) % m, SphereTrimCause::PoleAzimuth);
-    let Some((_, placement)) = best else {
-        return Err(unplaced);
-    };
-    if tied {
-        return Err(unplaced);
-    }
-    for (k, trav) in travs.iter_mut().enumerate() {
-        let du = shift(placement, run[k]);
-        for p in trav.iter_mut() {
-            p.0 += du;
-        }
-    }
-    Ok(())
 }
 
 /// A trim polygon: each point's chart `(u, v)` and mesh id, in walk
@@ -2207,11 +2057,10 @@ type TrimPolygon = Vec<(f64, f64, u32)>;
 
 /// Whether [`trim_polygon`] keeps a pole the loop passes as a side of
 /// the polygon: the sphere arm's chart has poles, and no other arm's
-/// does. `sense` is the face's, which places the runs between the
-/// poles ([`choose_pole_azimuths`]).
+/// does.
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum ChartPoles {
-    Kept { sense: bool },
+    Kept,
     None,
 }
 
@@ -3053,11 +2902,11 @@ mod tests {
     /// half-band remnant passes both chart poles at loop vertices
     /// (`y`-poled balls, seam meridians pole to pole), so its polygon
     /// carries two pole sides ([`super::ChartPoles::Kept`]) and the run
-    /// between them is placed by area ([`super::choose_pole_azimuths`]):
-    /// every such face's equal-area shoelace is positive and under `4π`.
-    /// Without the kept pole the polygon cuts the cap off the pole, and
-    /// with the lift's own azimuth the far meridian lands a turn away
-    /// (the whole-face inversion PR 5920's review found).
+    /// between them sits where the loop's lift puts it, through the
+    /// face's turn at each pole: every such face's equal-area shoelace
+    /// is positive and under `4π`. Without the kept pole the polygon
+    /// cuts the cap off the pole, and a run a whole turn off would bound
+    /// the face's complement plus the cap past the pole.
     #[test]
     fn the_tilted_pairs_faces_keep_their_poles_as_sides() {
         use std::collections::HashMap;
@@ -3085,7 +2934,7 @@ mod tests {
                 &chords,
                 false,
                 None,
-                ChartPoles::Kept { sense: face.sense },
+                ChartPoles::Kept,
             )
             .unwrap();
             let n = polygon.len();
@@ -3263,73 +3112,5 @@ mod tests {
             crate::chords::projected_circle_speeds((o, x, tilted), (0.0, core::f64::consts::TAU))
                 .expect("a circle clear of the pole is bounded");
         assert!(su.is_finite() && sv.is_finite() && su >= 1.0 && sv > 0.0);
-    }
-
-    /// **`choose_pole_azimuths` refuses its scope limits by cause.** Runs
-    /// between pole junctions: two traversals each from pole to pole
-    /// place by area; six junctions are past the search; and a loop whose
-    /// every placement's area misses the window refuses `PoleAzimuth`.
-    #[test]
-    fn the_pole_placement_refuses_its_scope_limits_by_cause() {
-        use crate::types::SphereTrimCause;
-        let half_pi = core::f64::consts::FRAC_PI_2;
-        let fk = FaceKey::default();
-        let edges = twelve_edge_keys();
-        // A half band: up the meridian u = 0 from the south pole (id 1)
-        // to the north (id 2), down u = −π, the far run lifted a turn
-        // off at +π. The placement moves it back.
-        let meridian = |u: f64, up: bool| -> Vec<(f64, f64, u32)> {
-            let mut v: Vec<_> = (0..=8)
-                .map(|k| (u, -half_pi + core::f64::consts::PI * f64::from(k) / 8.0, 0))
-                .collect();
-            if !up {
-                v.reverse();
-            }
-            let n = v.len();
-            v[0].2 = if up { 1 } else { 2 };
-            v[n - 1].2 = if up { 2 } else { 1 };
-            for (k, p) in v.iter_mut().enumerate().take(n - 1).skip(1) {
-                #[allow(clippy::cast_possible_truncation)]
-                let id = 10 + k as u32 + if up { 0 } else { 100 };
-                p.2 = id;
-            }
-            v
-        };
-        let mut band = vec![meridian(0.0, true), meridian(core::f64::consts::PI, false)];
-        super::choose_pole_azimuths(&mut band, &edges, false, fk)
-            .expect("the band places, wound clockwise for `sense: false`");
-        assert!(
-            band[1].iter().all(|p| p.0 == core::f64::consts::PI),
-            "already in the window"
-        );
-        let mut lifted = vec![meridian(0.0, true), meridian(core::f64::consts::PI, false)];
-        super::choose_pole_azimuths(&mut lifted, &edges, true, fk)
-            .expect("the band places, wound counter-clockwise for `sense: true`");
-        assert!(
-            lifted[1].iter().all(|p| p.0 == -core::f64::consts::PI),
-            "the far run moves a turn"
-        );
-        let mut many: Vec<_> = (0..6)
-            .map(|k| meridian(f64::from(k) * 0.5, k % 2 == 0))
-            .collect();
-        assert!(matches!(
-            super::choose_pole_azimuths(&mut many, &edges, true, fk),
-            Err(TessellateError::SphereTrimShape {
-                cause: SphereTrimCause::PoleJunctions,
-                ..
-            })
-        ));
-        // Runs four turns apart: every placement's area is past 4π.
-        let mut wide = vec![
-            meridian(0.0, true),
-            meridian(-8.0 * core::f64::consts::PI, false),
-        ];
-        assert!(matches!(
-            super::choose_pole_azimuths(&mut wide, &edges, true, fk),
-            Err(TessellateError::SphereTrimShape {
-                cause: SphereTrimCause::PoleAzimuth,
-                ..
-            })
-        ));
     }
 }

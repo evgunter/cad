@@ -214,6 +214,8 @@ mod band_apart_partners_on_a_steep_ellipse;
 mod band_closed_mixed_chain;
 #[path = "band_closed_mixed_chain_shapes.rs"]
 mod band_closed_mixed_chain_shapes;
+#[path = "band_mixed_corner.rs"]
+mod band_mixed_corner;
 #[path = "band_mixed_rim_shared_supports.rs"]
 mod band_mixed_rim_shared_supports;
 #[path = "band_subdivided_side_walls.rs"]
@@ -1433,6 +1435,8 @@ mod the_football_revolves;
 
 #[path = "a_ball_with_no_room_at_its_rim_refuses_typed.rs"]
 mod a_ball_with_no_room_at_its_rim_refuses_typed;
+#[path = "a_loops_lift_runs_through_its_poles.rs"]
+mod a_loops_lift_runs_through_its_poles;
 #[path = "a_partner_across_a_lofted_wall_is_joined_on_its_section_value.rs"]
 mod a_partner_across_a_lofted_wall_is_joined_on_its_section_value;
 #[path = "a_peg_in_a_two_segment_bore_moves_only_its_wall.rs"]

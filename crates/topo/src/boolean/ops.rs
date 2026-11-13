@@ -1693,6 +1693,7 @@ fn walk_refusal(e: &crate::pcurves::PcurveMintError) -> WalkRefusal {
         | M::RowInterval { .. } => WalkRefusal::Torn,
         M::Escalated { .. }
         | M::NetStretchUndecided { .. }
+        | M::SingularTurn { .. }
         | M::JointWithoutRoom { .. }
         | M::Band(_) => WalkRefusal::Unread,
         M::Unminted { .. } => WalkRefusal::NotRaised,
@@ -8768,7 +8769,9 @@ mod tests {
         use crate::ValidationError as V;
         let tol = Tol::witness();
         let (pillow, split) = crate::tier3_tests::coplanar_pillow(tol);
-        let lamina = pillow.flipped_face_sense_for_tests(split.face).unwrap();
+        let lamina = pillow
+            .flipped_face_sense_for_tests(split.face, geom_core::Tol::witness())
+            .unwrap();
         let inside_out =
             crate::test_support_fixtures::brick::<f64>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), tol)
                 .revert()

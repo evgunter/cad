@@ -129,9 +129,9 @@ fn sans_epsilon(t: &str) -> String {
 /// documents moved and why.
 const PINNED: &[(&str, u64, u64)] = &[
     ("die", 0x874a19bb0c1cb210, 0xfe1f3779173f909d),
-    ("corner_table", 0x1538f5150ad6647a, 0xde5c69b920f6fdea),
+    ("corner_table", 0x0eee7434bd5b27a0, 0xde5c69b920f6fdea),
     ("heat_sink", 0x5a65_8b2b_816b_abfb, 0x83ab_6af2_145b_adc8),
-    ("crossing_slots", 0x531c69e7e9ff59e6, 0xd0f6429faf4510be),
+    ("crossing_slots", 0x25aad866244e205e, 0xd0f6429faf4510be),
     ("nested_islands_105", 0xa3260846d5b40f15, 0xe9af7ac8f708e855),
     (
         "nested_islands_106_depth1",
@@ -159,7 +159,7 @@ const PINNED: &[(&str, u64, u64)] = &[
     ("die_tool", 0x346c_da78_24bf_a878, 0x814d_4779_2822_0e71),
     ("face_sketch", 0x1a32703bef525f6b, 0x3a0976a80e3f9cbf),
     ("part_select", 0xfc2d_3fc5_a314_fab7, 0xe6a1_919f_be71_88de),
-    ("symmetric_plate", 0x4481fd1b6f905ec1, 0xd50cfd94a5cbf8ea),
+    ("symmetric_plate", 0xd8ead0f4e7a1c851, 0xd50cfd94a5cbf8ea),
     ("loft_prism", 0xfecf7b2759f0d55e, 0x7b337846fe484e23),
     ("die_composed", 0xec47aa7753cf019c, 0xc69608fcaa2c548d),
     ("die_composed_tour", 0xfabd8792f7a5faea, 0xa5f5807ff6b4b3c3),
@@ -171,10 +171,10 @@ const PINNED: &[(&str, u64, u64)] = &[
     ("hollow_tube_ring", 0xf0a59d29f0a5ef21, 0x743a5c3e6051831a),
     ("reshaped_rod", 0xd37dd1691945dda0, 0x40e1518b88d07303),
     ("pin_in_bore", 0x70c706ddcfaafe79, 0xfc906cdc112c4e68),
-    ("axis_projection", 0x9a503b2d07b5e7ba, 0x25ace293e80616db),
+    ("axis_projection", 0x7ebd42b1c8202904, 0x25ace293e80616db),
     (
         "blocks_on_one_floor",
-        0xe3698f46a60e0cf7,
+        0x5d55c48ce893d153,
         0x1118cf3b11e89b46,
     ),
     (

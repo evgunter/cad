@@ -438,26 +438,6 @@ pub enum JoinError {
         /// The conic.
         conic: geom_brep::OpenConic,
     },
-    /// A cone face's chart window would be read across its APEX, where
-    /// every azimuth maps to one point and no branch pin carries: the
-    /// walk reached the apex, or the face meets it in a way no single
-    /// chart lift closes (twice, from both nappes, or around a ring). A
-    /// window guessed there reads
-    /// the face's complement without any later check seeing it.
-    ApexUnlifted {
-        /// The cone face whose window was read.
-        face: FaceKey,
-    },
-    /// Two distinct edges of a sphere face meet at its pole at an angle
-    /// that, levered by the shorter one's reach from the axis, is within
-    /// ε of a whole turn: they overlap there, meet in a cusp, or the
-    /// shorter is too short for any angle to separate them by ε. The
-    /// face's azimuth walk has no strict branch to read at the pole
-    /// (`chart_window::pole_branch`).
-    PoleEdgesCoincide {
-        /// The sphere face whose window was read.
-        face: FaceKey,
-    },
     /// A curved-section invariant failed. Two DISTINCT populations
     /// share this arm (M5 PR 9 fix pass — read `what` to tell them
     /// apart, it says which):
@@ -509,6 +489,16 @@ pub enum JoinError {
         face: FaceKey,
         /// Its surface kind.
         kind: geom::SurfaceKind,
+    },
+    /// A run of a divided face turns on a singular point of its chart
+    /// (a sphere's pole, a cone's apex), and nothing decides the turn
+    /// there ([`crate::pcurves::SingularMiss`]): a limit of the face as
+    /// it stands, with the miss's own recourse.
+    SingularTurn {
+        /// The face being divided.
+        face: FaceKey,
+        /// Why the turn is not decided.
+        miss: crate::pcurves::SingularMiss,
     },
     /// A run edge's image refused on its incidence on the divided face's
     /// chart (`geom_brep::IncidenceRead::of`): decided off it, read at a
@@ -659,8 +649,7 @@ impl JoinError {
             Self::SectionUnwalked(why) => Ok(why.refusal()),
             Self::RingHoming(why) => why.refusal(),
             // A tighter band may part each.
-            Self::PoleEdgesCoincide { .. }
-            | Self::SectionDepartureGrazes { .. }
+            Self::SectionDepartureGrazes { .. }
             | Self::SectionCrossings {
                 case: ConicCrossingsCase::Grazing,
                 ..
@@ -669,12 +658,12 @@ impl JoinError {
             Self::SectionUnarmed { .. }
             | Self::RingIslandUnread { .. }
             | Self::RunImageNotYet { .. }
+            | Self::SingularTurn { .. }
             | Self::SectionUnresolved { .. }
             | Self::OpenConicChord { .. }
             | Self::RunEdgeCarrierUnsupported { .. }
             | Self::CurvedSlitTrace { .. }
-            | Self::SingleSiteSectionLoop { .. }
-            | Self::ApexUnlifted { .. } => Ok(Refusal::Limit),
+            | Self::SingleSiteSectionLoop { .. } => Ok(Refusal::Limit),
             // A kernel fault, a corruption, two readings that disagree.
             Self::SectionLoopMixed { .. }
             | Self::CutInvariant { .. }
@@ -957,21 +946,6 @@ impl JoinError {
                  way round",
                 conic.named()
             ),
-            Self::ApexUnlifted { .. } => write!(
-                f,
-                "a cone face's azimuth window would be read across its apex, where the chart \
-                 has no azimuth: the walk reached the apex, or the face meets it in a way no \
-                 single chart lift closes (twice, from both nappes, or around a ring). \
-                 Recourse: divide the cone face so each piece meets its apex at most once, \
-                 from one nappe"
-            ),
-            Self::PoleEdgesCoincide { .. } => write!(
-                f,
-                "two edges of a sphere face meet at its pole within tolerance of one direction \
-                 over the shorter one's reach: they overlap, meet in a cusp, or the shorter is \
-                 too short to tell apart, so the face's azimuth window has no branch there. \
-                 Recourse: merge the overlapping edges, or move one off the other at the pole"
-            ),
             Self::SectionInvariant { face, what } => {
                 write!(f, "curved-section invariant at face {face:?}: {what}")
             }
@@ -1012,6 +986,11 @@ impl JoinError {
                     None => Ok(()),
                 }
             }
+            Self::SingularTurn { miss, .. } => write!(
+                f,
+                "a face's boundary turns on a singular point of its chart, and {miss}. {}",
+                miss.recourse()
+            ),
             Self::RunImageNotYet { kind, .. } => write!(
                 f,
                 "an edge of a {} face sits on the face as none of its own curves, and the \
@@ -3849,8 +3828,11 @@ pub(crate) fn chart_island_winding<T: Decide>(
         .iter()
         .position(|&he| he == h2)
         .ok_or_else(|| corrupt_he(h2))?;
-    let images =
-        crate::chart_window::run_azimuth_images(body, &surface, face, &cycle[..=end], band)?;
+    // The run is no minted loop, so its lift is decided here, at the
+    // join's band, by the mint's own walk.
+    let lift = crate::pcurves::Lift::decided(body, face, &surface, &cycle[..=end], false, band)
+        .map_err(|refusal| run_lift_refusal(face, &surface, refusal))?;
+    let images: Vec<RunImage<'_, T>> = lift.rows().iter().map(RunImage::of).collect();
     let (Some(first), Some(last)) = (images.first(), images.last()) else {
         return Err(JoinError::SectionInvariant {
             face,
@@ -3862,7 +3844,7 @@ pub(crate) fn chart_island_winding<T: Decide>(
     let mut area = T::zero();
     let mut length = T::zero();
     for (i, image) in images.iter().enumerate() {
-        let harmonic = match image.harmonic.as_ref() {
+        let harmonic = match image.harmonic {
             Some(p) => chart_v_du(face, p, image.t, anchor)?,
             None => None,
         };
@@ -3913,6 +3895,111 @@ pub(crate) fn chart_island_winding<T: Decide>(
         band,
     );
     Ok(wound.map(|d| if sense { d.sign } else { d.sign.flip() }))
+}
+
+/// One edge of a ring-lane island's run, as [`chart_island_winding`]
+/// reads it off the run's decided lift.
+struct RunImage<'a, T: geom_core::Real> {
+    /// The azimuth where the run enters the edge.
+    entry: T,
+    /// The azimuth where it leaves.
+    exit: T,
+    /// The chart's second coordinate at the two.
+    v: (T, T),
+    /// The carrier parameter at the two.
+    t: (T, T),
+    /// The lifted image when it is harmonic (a closed form with a
+    /// linear azimuth channel); `None` for any other.
+    harmonic: Option<&'a Pcurve<T>>,
+}
+
+impl<'a, T: Decide> RunImage<'a, T> {
+    fn of(row: &'a crate::pcurves::LiftedRow<T>) -> Self {
+        let t = row.entry_exit();
+        let (from, to) = (row.pcurve.eval(t.0), row.pcurve.eval(t.1));
+        Self {
+            entry: from.x,
+            exit: to.x,
+            v: (from.y, to.y),
+            t,
+            harmonic: matches!(row.pcurve, Pcurve::Harmonic { .. }).then_some(&row.pcurve),
+        }
+    }
+}
+
+/// **How a refusal of the run's lift ends the island's winding**
+/// ([`crate::pcurves::Lift::decided`]): an image's by
+/// [`run_image_refusal`]; a joint's escalation as the join's own; and a
+/// joint that names no branch as an invariant the ring lane's cylinder
+/// runs keep; a run that turns on its chart's singular set where
+/// nothing decides the turn as that limit, with its recourse
+/// ([`JoinError::SingularTurn`]).
+fn run_lift_refusal<T: Decide>(
+    face: FaceKey,
+    surface: &geom::Surface<T>,
+    refusal: crate::pcurves::LiftRefusal,
+) -> JoinError {
+    use crate::pcurves::{LiftRefusal, PinMiss};
+    match refusal {
+        LiftRefusal::Image(error) => run_image_refusal(face, surface.kind(), error),
+        LiftRefusal::Joint(PinMiss::Escalated(diag) | PinMiss::NetStretchUndecided(diag)) => {
+            JoinError::Escalated { face, diag }
+        }
+        LiftRefusal::Joint(PinMiss::Discontinuity) => JoinError::SectionInvariant {
+            face,
+            what: "a run edge's chart entry sits half a period from the previous edge's exit — \
+                   the two images name no common branch",
+        },
+        LiftRefusal::Joint(PinMiss::Singular(miss)) => JoinError::SingularTurn { face, miss },
+        LiftRefusal::Placeholder => JoinError::SectionInvariant {
+            face,
+            what: "a divided face's chart is the placeholder — it has no lever to decide a \
+                   branch by",
+        },
+        LiftRefusal::NotClosed => {
+            unreachable!("an open run checks no closure")
+        }
+    }
+}
+
+/// **How a run edge's chart-image refusal ends the island's winding**
+/// (D3): a class reading or a lane not built "not yet"
+/// ([`JoinError::RunImageNotYet`]); an incidence refusal by its read,
+/// through the one map ([`JoinError::RunImageIncidence`]); another
+/// escalation as the join's; anything else an invariant the shipped
+/// carriers keep.
+fn run_image_refusal(
+    face: FaceKey,
+    kind: geom::SurfaceKind,
+    e: geom_brep::PcurveCertifyError,
+) -> JoinError {
+    match e {
+        // The class reading is a lane choice (D3): in band, and
+        // with no general lane written, it ends "not yet".
+        geom_brep::PcurveCertifyError::Escalated {
+            check: geom_brep::PcurveCheck::ChartClass | geom_brep::PcurveCheck::GeneralLane,
+            ..
+        }
+        | geom_brep::PcurveCertifyError::NoGeneralLane { .. } => {
+            JoinError::RunImageNotYet { face, kind }
+        }
+        // An incidence refusal ends by its read, through the one
+        // map, never as an invariant break or the join's own lever.
+        refusal if geom_brep::IncidenceRead::of(&refusal).is_some() => {
+            JoinError::RunImageIncidence {
+                face,
+                kind,
+                refusal,
+            }
+        }
+        geom_brep::PcurveCertifyError::Escalated { cause, .. } => {
+            JoinError::Escalated { face, diag: cause }
+        }
+        _ => JoinError::SectionInvariant {
+            face,
+            what: "a run edge has no closed-form chart image on the divided face's chart",
+        },
+    }
 }
 
 /// The loop arc of a closed-form edge on `quadric` over `params`; `None`
@@ -5419,9 +5506,8 @@ impl ChordJoiner {
         oldf: FaceKey,
         ring: LoopKey,
     ) -> Result<FaceKey, JoinError> {
-        let sense = body.get_face(oldf).ok_or_else(|| corrupt_face(oldf))?.sense;
-        let promoted = body.mfkrh(ring, FaceSurface::Inherit)?.face;
-        body.set_face_sense(promoted, sense)?;
+        body.get_face(oldf).ok_or_else(|| corrupt_face(oldf))?;
+        let promoted = body.mfkrh_piece(ring)?.face;
         self.slivers.insert(promoted, ());
         self.fragments
             .push((promoted, oldf))

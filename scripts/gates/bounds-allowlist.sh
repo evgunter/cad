@@ -789,7 +789,15 @@ BOUNDS_ALLOWLIST=(
   # a SELECTION that only narrows the screen: a sum not certainly below
   # the half turn leaves the pair screened as before, the conservative
   # reading. `Decide` alone has no bracket to read.
-  'crates/sweep/src/blend/battery.rs 22 M5 PR 12 (orchestrator ruling 2026-08-03), the edge-blend battery'
+  # 24 -> 25: `mixed_corner_square`, the all-three mixed corner's
+  # admission, which asks `cap_transverse` whether `E` is square to the
+  # odd edge: the battery's own end-section decision at this seam, made
+  # through `classify`. It reads no bracket of its own; the bound is
+  # `cap_transverse`'s.
+  # 25 -> 23: the link's wedge is read by the edge's wedge fold
+  # (`topo::edge_wedge`), so `wedge_at` and `knife_end` and their bounds
+  # are gone; no bound was added.
+  'crates/sweep/src/blend/battery.rs 23 M5 PR 12 (orchestrator ruling 2026-08-03), the edge-blend battery'
   # build.rs 5 -> 3 (ONEHOME, finished-body doors): `fillet_edges` and
   # `chamfer_edges` take the scalar's finished body (`F: FinishedBody`),
   # so their `T: Decide + Bounds` is now `F::Scalar: Bounds` in a

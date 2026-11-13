@@ -259,7 +259,7 @@ pub(crate) struct Boundary {
     pub(crate) edges: Vec<Rim>,
     pub(crate) vertices: BTreeMap<VertexKey, Point3<Interval>>,
     /// **The hull of the face's outer loop on each chart axis**, `[u, v]`:
-    /// its lift ([`crate::pcurves::loop_lift`]) is one continuous chain,
+    /// its lift ([`crate::pcurves::Lift::read`]) is one continuous chain,
     /// so on a periodic axis the hull is on ONE sheet, not wrapped. A
     /// row that is a coordinate line whose moving coordinate is monotone
     /// gives its ends, which bound it; a harmonic or spiric wall row its enclosure over

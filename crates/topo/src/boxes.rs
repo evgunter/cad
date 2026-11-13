@@ -2021,6 +2021,8 @@ pub(crate) mod tests {
             u_ref: Vec3::unit_x(),
         };
         relabel(&mut body, face, cone);
+        // The cone arm reads the wall's stored lift.
+        crate::pcurves::mint_pcurves_of(&mut body, &[face], Tol::witness()).unwrap();
         (body, face)
     }
 
@@ -2878,7 +2880,7 @@ pub(crate) mod tests {
                     .expect("every half-edge stores a certified cache and the window reads");
                 let hull = face_window_steps(&body, face)
                     .into_iter()
-                    .flatten()
+                    .flat_map(|lp| lp.steps)
                     .map(|step| {
                         let (cache, image, _) =
                             step.expect("every half-edge stores a certified cache");
@@ -4392,10 +4394,14 @@ pub(crate) mod sphere_rect_rows {
     /// The unit ball cut by the rim `z = h0` into a north cap and a
     /// south remainder, the north cap carrying a strut meridian at
     /// azimuth 0 from the rim up to `z = hc`, each face on `senses`'
-    /// side. `(body, north, south)`.
-    fn strut_cap_ball(h0: f64, hc: f64, senses: (bool, bool)) -> (Body<f64>, FaceKey, FaceKey) {
+    /// side. `(body, north, south)`, or the closing mint's refusal.
+    fn strut_cap_ball(
+        h0: f64,
+        hc: f64,
+        senses: (bool, bool),
+    ) -> Result<(Body<f64>, FaceKey, FaceKey), crate::pcurves::PcurveMintError> {
         let world = (Vec3::unit_x(), Vec3::unit_y(), Vec3::unit_z());
-        strut_cap(
+        let (mut body, north, south) = strut_cap_unminted(
             Point3::origin(),
             1.0,
             world,
@@ -4403,7 +4409,24 @@ pub(crate) mod sphere_rect_rows {
             senses,
             false,
             Tol::witness(),
-        )
+        );
+        crate::pcurves::mint_pcurves(&mut body, Tol::witness())?;
+        Ok((body, north, south))
+    }
+
+    /// [`strut_cap_unminted`], minted.
+    fn strut_cap(
+        c: Point3<f64>,
+        r: f64,
+        frame: (Vec3<f64>, Vec3<f64>, Vec3<f64>),
+        heights: (f64, f64),
+        senses: (bool, bool),
+        zone: bool,
+        tol: Tol,
+    ) -> (Body<f64>, FaceKey, FaceKey) {
+        let (mut body, north, south) = strut_cap_unminted(c, r, frame, heights, senses, zone, tol);
+        crate::pcurves::mint_pcurves(&mut body, tol).unwrap();
+        (body, north, south)
     }
 
     /// [`strut_cap_ball`] on the sphere of radius `r` about `c`, in the
@@ -4415,7 +4438,7 @@ pub(crate) mod sphere_rect_rows {
     /// `zone` closes the strut's tip with a second rim at `hc`: the
     /// seed face is then the zone `[h0, hc]` on its seam, sensed from its
     /// base rim's stored traversal, and a third face caps the tip's rim.
-    fn strut_cap(
+    fn strut_cap_unminted(
         c: Point3<f64>,
         r: f64,
         (x, y, z): (Vec3<f64>, Vec3<f64>, Vec3<f64>),
@@ -4543,7 +4566,6 @@ pub(crate) mod sphere_rect_rows {
             body.set_face_sense(north, base.forward == (hc > h0))
                 .unwrap();
         }
-        crate::pcurves::mint_pcurves(&mut body, tol).unwrap();
         (body, north, south)
     }
 
@@ -4556,12 +4578,32 @@ pub(crate) mod sphere_rect_rows {
     /// A strut's tip is a cusp of the face's loop, which the sphere's
     /// side reader refuses (`props_sphere_loop_cusp`), so no lane reads
     /// a latitude window off this face at all: every box is the ball's.
+    ///
+    /// A strut whose tip is the pole itself turns there on the face's
+    /// side, so the cap's bit has to agree with its winding: stated the
+    /// other way the strut is outside the face, the turn is the
+    /// complement's, and the mint refuses the loop as not closed.
     #[test]
     fn a_caps_strut_does_not_bound_its_latitude_window() {
         let band = Band::linear(Tol::witness()).unwrap();
         for hc in [0.3, 1.0] {
             for senses in [(true, true), (true, false), (false, true), (false, false)] {
-                let (body, north, _) = strut_cap_ball(-0.5, hc, senses);
+                let (body, north, _) = match strut_cap_ball(-0.5, hc, senses) {
+                    Ok(built) => built,
+                    Err(refusal) => {
+                        assert!(
+                            hc == 1.0
+                                && !senses.0
+                                && matches!(
+                                    refusal,
+                                    crate::pcurves::PcurveMintError::LoopNotClosed { .. }
+                                ),
+                            "strut tip z = {hc}, senses {senses:?}: only a pole strut \
+                             outside its cap refuses, as a loop that does not close: {refusal:?}"
+                        );
+                        continue;
+                    }
+                };
                 let (lo, hi) = face_cover(&body, north, band)
                     .unwrap()
                     .box_in(&BoxAxes::World);

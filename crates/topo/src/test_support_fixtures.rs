@@ -1852,7 +1852,7 @@ pub fn arc_chain_over_the_jump(
     let band = Band::linear(tol).unwrap();
     assert_eq!(crate::pcurves::validate_pcurves(&body, band), vec![]);
     let shift = |u| {
-        crate::JointElement::Shift(crate::Deck {
+        crate::JointElement(crate::Deck {
             u,
             v: 0,
             twin: false,
