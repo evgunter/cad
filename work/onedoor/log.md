@@ -491,3 +491,4 @@ Ev, in chat: "go ahead in whatever order you see fit (including parallelizing th
   - `CarrierDesc::Plane(PlaneDesc)`; `plane_desc_of` is the by-value planar door; `readback::face_carrier` is renamed `face_stored_surface`. `FaceGeo`'s curved arms are filed.
   - Model-compare row `docs/model-compare-log/rows/PR-6911.md`.
   - (ONEDOOR orchestrator)
+- **22:29 — #6911 merged** (`d8e1c86d61`) on green CI. S173 is closed and its implementer session is archived.
