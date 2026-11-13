@@ -816,3 +816,7 @@ Both reds were found by PCERT's nightly lane and trace to SECTARMS merges.
   - The coder flags it as borderline: B's `holds_node` NOTE states the enabling fact ("does not check the zero is the end point") as behaviour, not as a defect, and B's rim-chain NOTE asserts the opposite of one of M1's consequences.
   - **I concur that it is UNILATERAL.** B never identified the defect, and its NOTE sits on a function A shows behaving. The row will record the borderline.
   - The coding is saved as `coding-6897.txt`.
+- 2026-11-13 — **PR 6891 merged (`af389cfc0a`)** after the fix pass (head `608df5f8ba`, CI green). Its last commit is docs-only: it writes Ev's planar decision into the item and adds the model-compare row `PR-6891.md`. The fix pass took the whole union except the rim-to-rim re-homing fix, which is filed P2 and pinned. The lean's arm is now capped by the iso curve's curvature radius, because the chord alone was not conservative.
+- **Dispatched** `a-ring-on-a-planar-face-closed-by-carried-chords-has-no-winding` (P1 M) on `sectarms/planar-spline-winding`.
+  - **Tier: single FULL review.** The change is additive (one per-edge term read from `props`, plus routing), but check 6 starting to falsify spline-bearing planar loops can red fixtures, and the review must check that this is right rather than loosened.
+  - **Implementer arm byte 59 (Fable).** Disclosure: I drew the byte a few minutes before this entry was written. The letter and tier were chosen first, in my reasoning, and not changed after the draw.

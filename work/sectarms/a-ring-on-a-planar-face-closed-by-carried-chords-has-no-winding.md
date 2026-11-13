@@ -2,7 +2,8 @@
 id: a-ring-on-a-planar-face-closed-by-carried-chords-has-no-winding
 kind: issue
 title: A ring the join closes on a planar face with carried chords has no winding: choose_roles refuses CurvedBooleanUnsupported naming the plane, and three readings of a spline run are viable
-status: open
+status: dispatched
+branch: sectarms/planar-spline-winding
 opened: 2026-11-12
 priority: P1
 cost: M
