@@ -1748,10 +1748,18 @@ fn a_cylinder_cylinder_tee_refuses_typed_at_a_vertex_its_junction_shares_alone()
         report.receipt
     );
     assert_eq!(
-        report.receipt.refused, 9,
-        "nine root pairs refuse: six at a vertex alone, one across the mitre's line, two across \
-         the mitre's ellipse ({:?})",
+        report.receipt.refused, 8,
+        "eight root pairs refuse: six at a vertex alone, two across the mitre's ellipse; the \
+         mitre's line on B's cap is read through its corners with the cap's arcs ({:?})",
         report.receipt
+    );
+    assert!(
+        report
+            .across
+            .iter()
+            .any(|(&(a, b), &n)| kind(tee, a) == "plane" && kind(tee, b) == "plane" && n > 0),
+        "the mitre against B's cap is certified across their line: {:?}",
+        report.across
     );
 }
 
