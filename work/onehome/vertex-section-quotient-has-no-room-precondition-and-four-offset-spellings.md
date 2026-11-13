@@ -72,7 +72,7 @@ Classified on Ev's ask, via the CLEAVE note on INTENT's log, against main `e92fb
 
 Items 3–4 (offset and side spellings) ride stage 3 of `topo::star` (`run-loops-of-split-and-pierce-are-twins`, "Decided"). This row stays open for them.
 
-## Items 3–4 (PR 6871, `topo::star` stage 3, 2026-11-12)
+## Closed: items 3–4 (PR 6871, `topo::star` stage 3, 2026-11-12)
 
 - **Item 3.** The Boolean's `far` closure (`reduce::vertex_face_side`) reads a far vertex's side through `vertex_section::Offset::of(…).side_as(name, band)`, the one evaluation of an offset both doors decide a vertex by (`geom::plane_offset_rounded`, bit-identical to the plain `plane_offset` it replaced). It reads the face's outward frame on purpose: the section reads the bounds' sides against the outward reference, and a line edge's far side is compared with those, not with the vertex's own chart-normal offset. No verdict moves.
 - **Item 4.** `PlaneSide::of_sign` is the one Sign → side spelling (`splitting/classify.rs`, `splitting/finish.rs`'s edge side, `Offset::side_as`); `neighborhood.rs`'s spelling had already gone with stage 2. `entered_faces` reads one strict-apart test, the star's `star::apart`, for both its edge pair and its dividers; `opposes` goes.

@@ -116,7 +116,7 @@ This applies PR 6359's decision and does not change it. Two designers weighed it
   - a whole-turn apex corner reads four pieces.
 - 2026-11-10: stage 2 landed in PR 6725, the side-free walk and one cut rule, after a full review and one fix pass. The review's MAJOR was fixed with per-fault `VertexRefusal` arms, and the reading consults only what main did. Stage 3 remains: the cut, the germ rule, the germ order and `entered_faces` reading the cuts. The row is open for it. (ONEHOME orchestrator)
 
-## Stage 3 (PR 6871, 2026-11-12)
+## Closed: stage 3 (PR 6871, 2026-11-12)
 
 Stage 3 lands, and with it the row. `topo::star` holds the cut and the germs' order:
 
