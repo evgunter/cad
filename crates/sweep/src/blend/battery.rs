@@ -478,6 +478,11 @@ pub struct BatteryVerdict<T: Real> {
     /// chains end there, sorted by vertex. The planar band's plan reads
     /// each turn off this list rather than re-reading the trihedron.
     pub turns: Vec<Turn<T>>,
+    /// The mixed corners predicate 6 admitted with all three edges
+    /// requested ([`mixed_corner_square`]), each once, sorted by vertex.
+    /// The corner's plan reads which edge is odd and which face is `E`
+    /// off this list rather than re-deriving them.
+    pub(crate) mixed: Vec<MixedVertex>,
     /// The requested edges predicate 5 read as smooth seams
     /// ([`LinkWedge::Smooth`]), each with the decided-Zero margin it
     /// read, in request order: in no chain, and left as they are. The
@@ -511,6 +516,21 @@ enum EndVerdict<T: Real> {
     /// A turn: its two requested links, in key order, and its
     /// unrequested edge, for [`turn_at`] to decide once per vertex.
     Turn(Box<[Link<T>; 2]>, EdgeKey),
+    /// A mixed corner with all three edges requested.
+    Mixed(MixedVertex),
+}
+
+/// **A mixed corner predicate 6 admitted with all three edges
+/// requested** ([`mixed_corner_square`]): the odd edge, whose convexity
+/// differs from the other two, and `E`, the face it does not lie in.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) struct MixedVertex {
+    /// The corner's vertex.
+    pub(crate) vertex: VertexKey,
+    /// The odd edge.
+    pub(crate) odd: EdgeKey,
+    /// The face the pair shares, `E`.
+    pub(crate) host: FaceKey,
 }
 
 /// A face's outward normal at `p`: the implicit gradient folded
@@ -2301,6 +2321,7 @@ pub fn run_battery_for<T: Decide + Bounds>(
     // request, whose count of the vertex's edges decides the end.
     let mut end_faces = Vec::new();
     let mut turns: Vec<Turn<T>> = Vec::new();
+    let mut mixed: Vec<MixedVertex> = Vec::new();
     for chain in &chains {
         if let ChainClosure::Open { head, tail } = chain.closure {
             let last = chain.rest().last().unwrap_or(chain.first());
@@ -2315,7 +2336,8 @@ pub fn run_battery_for<T: Decide + Bounds>(
                         let [l1, l2] = &*links;
                         turns.push(turn_at(body, v, [l1, l2], third, r, band, kind)?);
                     }
-                    Some(EndVerdict::Turn(..)) | None => {}
+                    Some(EndVerdict::Mixed(m)) if !mixed.contains(&m) => mixed.push(m),
+                    Some(EndVerdict::Turn(..) | EndVerdict::Mixed(..)) | None => {}
                 }
             }
         }
@@ -2323,6 +2345,7 @@ pub fn run_battery_for<T: Decide + Bounds>(
     end_faces.sort_by_key(|(v, _)| *v);
     end_faces.dedup_by_key(|(v, _)| *v);
     turns.sort_by_key(|t| t.vertex);
+    mixed.sort_by_key(|m| m.vertex);
 
     Ok(BatteryVerdict {
         chains,
@@ -2331,6 +2354,7 @@ pub fn run_battery_for<T: Decide + Bounds>(
         end_faces,
         joints,
         turns,
+        mixed,
         smooth,
     })
 }
@@ -3251,21 +3275,39 @@ fn corner_at<T: Decide + Bounds>(
     // link's end is judged as at a uniform vertex, where its open-chain
     // door says what it builds. All three named is the mixed corner's
     // own rule, built between planes where `E` is square to the odd edge.
-    if !matches!(convex, 0 | 3) && named == 3 {
-        mixed_corner_square(vertex, &resolved, &faces, normals, radius, kind, band)?;
-        corner_independence(vertex, normals, radius, band)?;
-    } else if matches!(convex, 0 | 3)
-        || (plane_plane && !mixed_end_is_built(&resolved, requested, convex))
-    {
-        corner_config(vertex, valence, convex, normals, radius, band)?;
-    } else {
-        corner_independence(vertex, normals, radius, band)?;
+    let odd_is_convex = convex == 1;
+    let odd = resolved.iter().find(|l| {
+        !matches!(convex, 0 | 3) && matches!(l.convexity, Convexity::Convex) == odd_is_convex
+    });
+    let mut mixed = None;
+    match odd {
+        Some(odd) if named == 3 => {
+            let host = mixed_corner_square(
+                vertex,
+                odd,
+                &resolved,
+                &faces,
+                normals,
+                (radius, kind),
+                band,
+            )?;
+            corner_independence(vertex, normals, radius, band)?;
+            mixed = Some(MixedVertex {
+                vertex,
+                odd: odd.edge,
+                host,
+            });
+        }
+        Some(odd) if !plane_plane || mixed_end_is_built(&resolved, requested, odd.edge) => {
+            corner_independence(vertex, normals, radius, band)?;
+        }
+        _ => corner_config(vertex, valence, convex, normals, radius, band)?,
     }
     if !plane_plane {
         return Ok(None);
     }
     match (named, end_normal) {
-        (3, _) => Ok(None),
+        (3, _) => Ok(mixed.map(EndVerdict::Mixed)),
         (2, _) => {
             let mut requested_links = resolved.into_iter().filter(|l| requested.contains(&l.edge));
             let (Some(l1), Some(l2), None) = (
@@ -3296,23 +3338,24 @@ fn corner_at<T: Decide + Bounds>(
 /// the odd edge does not lie in, and the pair runs on through a link
 /// resting on `E` and on the odd band. Built where every link is
 /// plane–plane and `E` is square to the odd edge
-/// ([`cap_transverse`]'s circle); an oblique `E` refuses, the fillet
-/// [`BlendError::SpineUnsupported`] (its link would be a canal surface)
-/// and the chamfer [`CornerConfig::MixedConvexity`], as does a curved
-/// link at the corner.
+/// ([`cap_transverse`]'s circle), and returns `E`; an oblique `E`
+/// refuses, the fillet [`BlendError::SpineUnsupported`] (its link would
+/// be a canal surface) and the chamfer [`CornerConfig::MixedConvexity`]
+/// (`work/band/an-all-three-mixed-corner-chamfer-at-an-oblique-shared-face-refuses.md`),
+/// as does a curved link at the corner.
 ///
 /// # Errors
 ///
 /// As above; [`BlendError::Escalated`] on an in-band tilt.
 fn mixed_corner_square<T: Decide + Bounds>(
     vertex: VertexKey,
+    odd: &Link<T>,
     links: &[Link<T>],
     faces: &[FaceKey],
     normals: [Vec3<T>; 3],
-    radius: T,
-    kind: BlendKind,
+    (radius, kind): (T, BlendKind),
     band: Band,
-) -> Result<(), BlendError> {
+) -> Result<FaceKey, BlendError> {
     let convex = links
         .iter()
         .filter(|l| matches!(l.convexity, Convexity::Convex))
@@ -3322,13 +3365,6 @@ fn mixed_corner_square<T: Decide + Bounds>(
     if links.len() != 3 || !links.iter().all(|l| l.arm.is_plane_plane()) {
         return Err(unbuilt());
     }
-    let odd_is_convex = convex == 1;
-    let Some(odd) = links
-        .iter()
-        .find(|l| matches!(l.convexity, Convexity::Convex) == odd_is_convex)
-    else {
-        return Err(unbuilt());
-    };
     let Some(slot) = faces
         .iter()
         .position(|f| *f != odd.face_a && *f != odd.face_b)
@@ -3339,7 +3375,7 @@ fn mixed_corner_square<T: Decide + Bounds>(
         return Err(unbuilt());
     };
     match cap_transverse(vertex, normals[slot], spine.dir, radius, odd.arm_len, band)? {
-        EndSection::Circle => Ok(()),
+        EndSection::Circle => Ok(faces[slot]),
         _ => match kind {
             BlendKind::Fillet => Err(BlendError::SpineUnsupported {
                 edge: odd.edge,
@@ -3357,18 +3393,15 @@ fn mixed_corner_square<T: Decide + Bounds>(
 /// requested edge, odd or of the pair, ends in the cut-off; the pair
 /// alone meets in the mitre, which at the reflex sector of their shared
 /// face is a join over the corner's wedge. All three is the mixed
-/// corner ([`mixed_corner_square`]). The odd edge together with one
-/// other edge there wants the mixed corner's own rule for that request,
-/// which is not built. `convex` is the vertex's count of convex edges,
-/// `1` or `2`.
-fn mixed_end_is_built<T: Real>(links: &[Link<T>], requested: &[EdgeKey], convex: usize) -> bool {
-    let odd_is_convex = convex == 1;
+/// corner ([`mixed_corner_square`]). The odd edge with one other refuses
+/// here: the fillet's for good, its partner's band having to stop where
+/// that edge runs smoothly into the cut-off arc, and the chamfer's until
+/// its own rule is built.
+fn mixed_end_is_built<T: Real>(links: &[Link<T>], requested: &[EdgeKey], odd: EdgeKey) -> bool {
     let mut named = links.iter().filter(|l| requested.contains(&l.edge));
     match (named.next(), named.next(), named.next()) {
         (Some(_), None, None) => true,
-        (Some(a), Some(b), None) => [a, b]
-            .iter()
-            .all(|l| matches!(l.convexity, Convexity::Convex) != odd_is_convex),
+        (Some(a), Some(b), None) => a.edge != odd && b.edge != odd,
         _ => false,
     }
 }

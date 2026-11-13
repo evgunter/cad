@@ -602,9 +602,31 @@ pub(super) struct BoundaryStation<T: Real> {
     /// The boundary vertex.
     pub(super) vertex: VertexKey,
     /// The band's foot on this face.
-    pub(super) foot: Point3<T>,
+    pub(super) foot: Foot<T>,
     /// Which planned end or joint the station is.
     pub(super) kind: StationKind,
+}
+
+/// **Where a station's bands stand on one of its faces.**
+#[derive(Clone, Copy, Debug)]
+pub(super) enum Foot<T: Real> {
+    /// At one point, every band the station ends on the face.
+    At(Point3<T>),
+    /// Each of two requested edges' bands at its own point: a mixed
+    /// corner's host, where each pair band's trimline ends at its own
+    /// foot.
+    PerEdge([(EdgeKey, Point3<T>); 2]),
+}
+
+impl<T: Real> Foot<T> {
+    /// Where `edge`'s band stands, or `None` for an edge a per-edge foot
+    /// does not list.
+    pub(super) fn of(&self, edge: EdgeKey) -> Option<Point3<T>> {
+        match *self {
+            Self::At(p) => Some(p),
+            Self::PerEdge(feet) => feet.iter().find(|(e, _)| *e == edge).map(|(_, p)| *p),
+        }
+    }
 }
 
 /// Which of the three planned shapes a station is — one, by admission.
@@ -634,22 +656,28 @@ pub(super) enum StationKind {
     /// edge lies in: the foot is where that face's two trimlines cross.
     MixedFoot,
     /// A mixed corner, on the face the pair shares (`E`): each pair band's
-    /// trimline ends at its own foot, where the resting link's arc on `E`
-    /// starts, so the carve spins two struts and the arc between them.
+    /// trimline ends at its own foot ([`Foot::PerEdge`]), where the
+    /// resting link's arc on `E` starts, so the carve spins two struts
+    /// and the arc between them.
     MixedHost,
 }
 
 impl StationKind {
     /// Whether the carve spins a STRUT out to the foot — at a corner, a
-    /// joint, a turn's shared face or a junction's host, whose foot lies
-    /// inside the face — rather than finding it already on a split edge,
+    /// joint, a turn's shared face, a junction's host or a mixed corner's
+    /// faces, whose feet lie inside the face — rather than finding it already on a split edge,
     /// at a cut-off, a turn's foot or a junction's mate (or at the end of
     /// an overrun's cut-off, which the turn's own carve spins from that
     /// foot).
     pub(super) fn spins_a_strut(self) -> bool {
         match self {
-            Self::Corner | Self::Joint | Self::Mitre | Self::JunctionHost | Self::MixedFoot => true,
-            Self::CutOff | Self::TurnFoot | Self::JunctionMate | Self::MixedHost => false,
+            Self::Corner
+            | Self::Joint
+            | Self::Mitre
+            | Self::JunctionHost
+            | Self::MixedFoot
+            | Self::MixedHost => true,
+            Self::CutOff | Self::TurnFoot | Self::JunctionMate => false,
         }
     }
 }
@@ -675,13 +703,9 @@ pub(super) struct BoundaryChord<T: Real> {
 /// and on each face it counts among its supports the band's foot there
 /// and which station it is there. The plan states one per corner, joint,
 /// cut-off, turn and junction (`open::planar::planned_stations`).
-/// `edge_feet` overrides the foot for one requested edge on one face,
-/// where a station's edges end at different feet there (a mixed
-/// corner's host).
 pub(super) struct PlannedStation<T: Real> {
     pub(super) vertex: VertexKey,
-    pub(super) on: Vec<(FaceKey, Point3<T>, StationKind)>,
-    pub(super) edge_feet: Vec<(FaceKey, EdgeKey, Point3<T>)>,
+    pub(super) on: Vec<(FaceKey, Foot<T>, StationKind)>,
 }
 
 /// The refusal for a torus link's curved mate that carries a ring: the
@@ -771,7 +795,7 @@ impl<T: Decide> RequestedBoundary<T> {
         let footed = |stations: &mut Vec<BoundaryStation<T>>,
                       he: HalfEdgeKey,
                       v: VertexKey|
-         -> Result<Point3<T>, BlendError> {
+         -> Result<Foot<T>, BlendError> {
             if let Some(s) = stations.iter().find(|s| s.vertex == v) {
                 return Ok(s.foot);
             }
@@ -806,21 +830,20 @@ impl<T: Decide> RequestedBoundary<T> {
                 if !opens.iter().any(|o| o.edge() == h.edge) {
                     continue;
                 }
-                let edge_foot = |v: VertexKey| {
-                    planned
-                        .iter()
-                        .filter(|p| p.vertex == v)
-                        .flat_map(|p| &p.edge_feet)
-                        .find(|(f, e, _)| *f == face && *e == h.edge)
-                        .map(|(_, _, p)| *p)
+                let of = |foot: Foot<T>, v: VertexKey| {
+                    foot.of(h.edge).ok_or_else(|| {
+                        disagrees(
+                            EntityId::Vertex(v),
+                            "a mixed corner's host lists no foot for a requested edge ending there",
+                        )
+                    })
                 };
-                let (at_from, at_to) = (
-                    footed(&mut stations, he, h.start)?,
-                    footed(&mut stations, walk[(i + 1) % n], next.start)?,
-                );
                 let feet = [
-                    edge_foot(h.start).unwrap_or(at_from),
-                    edge_foot(next.start).unwrap_or(at_to),
+                    of(footed(&mut stations, he, h.start)?, h.start)?,
+                    of(
+                        footed(&mut stations, walk[(i + 1) % n], next.start)?,
+                        next.start,
+                    )?,
                 ];
                 chords.push(BoundaryChord {
                     half_edge: he,

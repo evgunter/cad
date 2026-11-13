@@ -731,7 +731,8 @@ pub(super) fn blend_surgery<T: Decide + Bounds + topo::AtRestPolicy>(
                  whose three edges are not all requested",
             ));
         }
-        corners.push(corner_plan(source, links, radius, kind)?);
+        let mixed = verdict.mixed.iter().find(|m| m.vertex == v).copied();
+        corners.push(corner_plan(source, links, mixed, radius, kind)?);
     }
 
     // ---- The support faces, admitted before anything is carved: each
@@ -2884,7 +2885,7 @@ fn ring_clearance_pass<T: Decide + Bounds>(
             // on the same stored carrier — so `origin - mid` is purely
             // transverse by shared construction, never by cancellation.
             let frame = strip_frame(body, l, face)?;
-            let (origin, m, _) = frame;
+            let (origin, m, across) = frame;
             let fd = body
                 .get_face(face)
                 .ok_or_else(|| unresolved(EntityId::Face(face), "a link's support face"))?;
@@ -2929,12 +2930,16 @@ fn ring_clearance_pass<T: Decide + Bounds>(
                 // A support that wraps round the band's end (a plate's
                 // top round a boss flush with its side) can hold a ring
                 // wholly behind the sharp edge's line, which no strip
-                // between that line and the trimline reaches.
-                let (_, across) = (frame.0, frame.2);
+                // between that line and the trimline reaches. Only a
+                // definite reading clears it: one in band falls through
+                // to the ring's low reading, which decides it.
                 if let Some(high) = ranges.iter().map(|(_, h)| *h).reduce(T::max) {
                     let behind = Margin::of(T::zero() - across - high);
                     let decision = BlendDecision::RingClearance;
-                    if classify(BlendSite::Chain, decision, behind, band)? == Sign::Positive {
+                    if matches!(
+                        classify(BlendSite::Chain, decision, behind, band),
+                        Ok(Sign::Positive)
+                    ) {
                         continue;
                     }
                 }

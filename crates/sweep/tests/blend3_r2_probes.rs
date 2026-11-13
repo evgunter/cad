@@ -164,7 +164,7 @@ fn p2_all_twelve_cavity_edges_are_concave_and_the_eight_corners_trivalent() {
 ///   less `2d³/3` at each floor corner and `K·d³` more at each rim corner
 ///   (`K = 5/3 − 7√2/6`, `band_mixed_corner`).
 #[test]
-fn p3_a_pocket_cannot_supply_a_complete_concave_request() {
+fn p3_a_pockets_floor_mitres_alone_and_the_whole_pocket_builds_through_its_rims_mixed_corners() {
     let block = brick(Point3::new(0.0, 0.0, 0.0), Point3::new(4.0, 4.0, 4.0));
     let pocket = brick(Point3::new(1.0, 1.0, 2.0), Point3::new(3.0, 3.0, 5.0));
     let body =

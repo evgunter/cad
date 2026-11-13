@@ -329,45 +329,10 @@ fn r2_the_mixed_corner_refusals_count_is_two_of_three() {
     )
     .expect("the bracket extrudes")
     .body;
-    let on_reflex = |q: Point3<f64>| (q.x - 1.0).abs() < 1e-12 && (q.y - 1.0).abs() < 1e-12;
-    let reflex: Vec<EdgeKey> = bracket
-        .edges()
-        .filter(|(k, _)| {
-            let Some((start, end)) = bracket.edge_vertices(*k) else {
-                return false;
-            };
-            let pt = |vk| {
-                bracket
-                    .get_vertex(vk)
-                    .and_then(|x| bracket.get_point(x.point))
-                    .copied()
-            };
-            let (Some(a), Some(b)) = (pt(start), pt(end)) else {
-                return false;
-            };
-            on_reflex(a) && on_reflex(b)
-        })
-        .map(|(k, _)| k)
-        .collect();
-    assert_eq!(reflex.len(), 1, "the bracket's one reflex vertical edge");
-    let floor_leg: Vec<EdgeKey> = bracket
-        .edges()
-        .filter(|(k, _)| {
-            let (start, end) = bracket.edge_vertices(*k).unwrap();
-            let pt = |vk| {
-                *bracket
-                    .get_point(bracket.get_vertex(vk).unwrap().point)
-                    .unwrap()
-            };
-            let (a, b): (Point3<f64>, Point3<f64>) = (pt(start), pt(end));
-            a.z == 0.0 && b.z == 0.0 && a.y == 1.0 && b.y == 1.0
-        })
-        .map(|(k, _)| k)
-        .collect();
-    assert_eq!(floor_leg.len(), 1, "one floor edge of the reflex corner");
+    let odd_and_one = sweep::test_support::reflex_edge_and_floor_leg(&bracket, (1.0, 1.0));
     let refused = fillet_edges(
         &sweep::test_support::at_rest(&bracket, Tol::witness()),
-        &[reflex[0], floor_leg[0]],
+        &odd_and_one,
         0.1,
         Tol::witness(),
     )

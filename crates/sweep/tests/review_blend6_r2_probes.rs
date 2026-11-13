@@ -376,23 +376,7 @@ fn chamfer_refusals() -> Vec<(&'static str, BlendError)> {
     ));
 
     let bracket = l_bracket();
-    let ends = |e: topo::EdgeKey| {
-        let (a, b) = bracket.edge_vertices(e).unwrap();
-        let p = |v| {
-            *bracket
-                .get_point(bracket.get_vertex(v).unwrap().point)
-                .unwrap()
-        };
-        (p(a), p(b))
-    };
-    let odd_and_one: Vec<topo::EdgeKey> = query::all_edges(&bracket)
-        .into_iter()
-        .filter(|&e| {
-            let (a, b) = ends(e);
-            let at_reflex = |p: geom_core::Point3<f64>| p.x == 0.5 && p.y == 0.5;
-            (at_reflex(a) && at_reflex(b)) || (a.z == 0.0 && b.z == 0.0 && a.y == 0.5 && b.y == 0.5)
-        })
-        .collect();
+    let odd_and_one = sweep::test_support::reflex_edge_and_floor_leg(&bracket, (0.5, 0.5));
     out.push((
         "corner configuration",
         chamfer_edges(

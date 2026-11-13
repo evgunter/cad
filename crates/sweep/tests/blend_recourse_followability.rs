@@ -1207,26 +1207,7 @@ fn the_convexity_recourse_has_no_witness_in_this_suite() {
         1.0,
         tol(),
     );
-    let ends = |e: topo::EdgeKey| {
-        let (a, b) = l.edge_vertices(e).unwrap();
-        let p = |v| *l.get_point(l.get_vertex(v).unwrap().point).unwrap();
-        (p(a), p(b))
-    };
-    let odd_and_one: Vec<topo::EdgeKey> = query::all_edges(&l)
-        .into_iter()
-        .filter(|&e| {
-            let (a, b) = ends(e);
-            let at_reflex = |p: geom_core::Point3<f64>| p.x == 1.0 && p.y == 1.0;
-            let vertical = at_reflex(a) && at_reflex(b);
-            let floor_leg = a.z == 0.0 && b.z == 0.0 && a.y == 1.0 && b.y == 1.0;
-            vertical || floor_leg
-        })
-        .collect();
-    assert_eq!(
-        odd_and_one.len(),
-        2,
-        "the reflex edge and one floor edge of its corner"
-    );
+    let odd_and_one = sweep::test_support::reflex_edge_and_floor_leg(&l, (1.0, 1.0));
     let err = refusal(
         &l,
         &odd_and_one,

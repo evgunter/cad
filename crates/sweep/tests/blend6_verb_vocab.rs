@@ -224,24 +224,7 @@ fn every_reachable_chamfer_refusal_speaks_as_the_chamfer() {
     // rule does not build — the corner CONFIGURATION case (distinct from
     // the run-out row above, which is about the REQUEST's coverage).
     let bracket = l_bracket();
-    let ends = |e: topo::EdgeKey| {
-        let (a, b) = bracket.edge_vertices(e).unwrap();
-        let p = |v| {
-            *bracket
-                .get_point(bracket.get_vertex(v).unwrap().point)
-                .unwrap()
-        };
-        (p(a), p(b))
-    };
-    let odd_and_one: Vec<topo::EdgeKey> = query::all_edges(&bracket)
-        .into_iter()
-        .filter(|&e| {
-            let (a, b) = ends(e);
-            let at_reflex = |p: geom_core::Point3<f64>| p.x == 0.5 && p.y == 0.5;
-            (at_reflex(a) && at_reflex(b)) || (a.z == 0.0 && b.z == 0.0 && a.y == 0.5 && b.y == 0.5)
-        })
-        .collect();
-    assert_eq!(odd_and_one.len(), 2, "the reflex edge and one floor edge");
+    let odd_and_one = sweep::test_support::reflex_edge_and_floor_leg(&bracket, (0.5, 0.5));
     let corner = chamfer_edges(
         &sweep::test_support::at_rest(&bracket, t),
         &odd_and_one,

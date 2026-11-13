@@ -1444,18 +1444,19 @@ pub fn line_meet<T: Real>(a: geom::Line<T>, b: geom::Line<T>, n: Vec3<T>) -> Poi
 ///
 /// **The chart normal is outward, derived.** The patch plane's normal
 /// is `g = (f₁ − f₀) × (f₂ − f₀)` up to sign, and the sign is fixed by
-/// folding `g` against the supports' outward normal SUM: the patch is
-/// the face that truncates (convex) or fills (concave) the corner, and
-/// in both cases its outward normal lies on the positive side of
-/// `n₀ + n₁ + n₂`. Folding it in as a positive multiple —
-/// `normalize(g·(g·Σn))` — keeps the derivation branch-free and total;
-/// a patch plane orthogonal to `Σn` poisons rather than picking a
-/// side. The face therefore mints with sense `true`, like the strips,
+/// folding `g` against `outward`, a direction on the patch's outward
+/// side: at a uniform corner the supports' outward normal SUM
+/// `n₀ + n₁ + n₂`, since the patch is the face that truncates (convex)
+/// or fills (concave) the corner and in both cases its outward normal
+/// lies on that sum's positive side; at a mixed corner the sum of the
+/// shared face's normal and the odd strip's. Folding it in as a
+/// positive multiple — `normalize(g·(g·outward))` — keeps the
+/// derivation branch-free and total; a patch plane orthogonal to
+/// `outward` poisons rather than picking a side. The face therefore mints with sense `true`, like the strips,
 /// and this module has no convexity parameter to leave half-derived.
 #[must_use]
-pub fn chamfer_corner_patch<T: Real>(feet: [Point3<T>; 3], normals: [Vec3<T>; 3]) -> Surface<T> {
+pub fn chamfer_corner_patch<T: Real>(feet: [Point3<T>; 3], outward: Vec3<T>) -> Surface<T> {
     let g = (feet[1] - feet[0]).cross(feet[2] - feet[0]);
-    let outward = normals[0] + normals[1] + normals[2];
     let normal = (g * g.dot(outward)).normalize();
     Surface::Plane {
         origin: feet[0],
