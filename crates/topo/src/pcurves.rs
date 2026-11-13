@@ -387,7 +387,7 @@ use geom_brep::{first_within, probe_pick};
 use geom_core::Tol;
 use geom_core::k_stats::decide;
 use geom_core::predicate::{Band, BandError};
-use geom_core::{Decide, Indeterminate, InfSpeed, Margin, Point2, Real, Sign, SupSpeed};
+use geom_core::{Decide, Indeterminate, Margin, Point2, Real, Sign, SupSpeed};
 
 use crate::body::Body;
 use crate::entity::{EdgeKey, EntityId, FaceKey, HalfEdge, HalfEdgeKey, LoopKey};
@@ -2762,12 +2762,23 @@ impl<T: Decide> Lift<T> {
                 stored_edge(body, *he),
             ))
         };
-        let walked = walk_cycle(chart, sense, charted.len(), item, |_| None, band, closes)
-            .map_err(|fail| match fail {
-                WalkFail::Item(refusal) => refusal,
-                WalkFail::Miss { miss, .. } => LiftRefusal::Joint(miss),
-                WalkFail::NotClosed => LiftRefusal::NotClosed,
-            })?;
+        let wedges = crate::wedge_reach::WedgeReach::new(body);
+        let reach = |a: usize, b: usize| turn_lever(&wedges, body, charted[a].0, charted[b].0);
+        let walked = walk_cycle(
+            chart,
+            sense,
+            charted.len(),
+            item,
+            |_| None,
+            &reach,
+            band,
+            closes,
+        )
+        .map_err(|fail| match fail {
+            WalkFail::Item(refusal) => refusal,
+            WalkFail::Miss { miss, .. } => LiftRefusal::Joint(miss),
+            WalkFail::NotClosed => LiftRefusal::NotClosed,
+        })?;
         let periods = ChartPeriods::of(surface, band);
         let mut lift = Deck::IDENTITY;
         let mut elements = Vec::with_capacity(walked.len());
@@ -3096,11 +3107,13 @@ pub(crate) fn split_cache<T: AtRestPolicy>(
         let sense = half_edge_face(body, half_edge).sense();
         // The joint of `image`'s entry at `at` onto `onto`, the exit of
         // the image before it, each on its edge: `arrived` and `leaving`.
+        let wedges = crate::wedge_reach::WedgeReach::new(body);
         let pin = |image: &Pcurve<T>,
                    at: T,
                    onto: geom_core::Point2<T>,
                    arrived: EdgeEnd<'_, T>,
-                   leaving: EdgeEnd<'_, T>| {
+                   leaving: EdgeEnd<'_, T>,
+                   other: HalfEdgeKey| {
             decide_joint(
                 chart,
                 image,
@@ -3114,6 +3127,7 @@ pub(crate) fn split_cache<T: AtRestPolicy>(
                     mates: false,
                     arrived,
                     leaving,
+                    lever: &|| turn_lever(&wedges, body, half_edge, other),
                 },
             )
             .map_err(|miss| SplitRowError {
@@ -3154,9 +3168,9 @@ pub(crate) fn split_cache<T: AtRestPolicy>(
         // one, the two children being placed apart where their spans
         // straddle the window's cut.
         let joint = if is_plus(body, half_edge) {
-            pin(&second, t, first.eval(t), own(t, t0), own(t, t1))?
+            pin(&second, t, first.eval(t), own(t, t0), own(t, t1), half_edge)?
         } else {
-            pin(&first, t, second.eval(t), own(t, t1), own(t, t0))?
+            pin(&first, t, second.eval(t), own(t, t1), own(t, t0), half_edge)?
         };
         // A child placed again over its own span may sit whole turns from
         // the parent's image, so the joints the parent's ends made are
@@ -3187,7 +3201,14 @@ pub(crate) fn split_cache<T: AtRestPolicy>(
             // a minus half it lands on the new half alone, and `hm`'s old
             // `next` is `hm`, whose element is the children's own joint.
             if record.next == half_edge {
-                let closing = pin(fed, entry, out.eval(exit), own(exit, t), own(entry, t))?;
+                let closing = pin(
+                    fed,
+                    entry,
+                    out.eval(exit),
+                    own(exit, t),
+                    own(entry, t),
+                    half_edge,
+                )?;
                 rows[slot] = Some(CarriedRows {
                     parent_half: certify(t0, t, first)?,
                     new_half: certify(t, t1, second)?,
@@ -3208,6 +3229,7 @@ pub(crate) fn split_cache<T: AtRestPolicy>(
                         far: before_entry,
                     },
                     own(entry, t),
+                    record.prev,
                 )?),
                 None => None,
             };
@@ -3222,6 +3244,7 @@ pub(crate) fn split_cache<T: AtRestPolicy>(
                         at: after_entry,
                         far: after_exit,
                     },
+                    record.next,
                 )?),
                 None => None,
             };
@@ -4153,6 +4176,7 @@ pub(crate) fn site_rows<T: Decide>(
             None
         }
     };
+    let wedges = crate::wedge_reach::WedgeReach::new(body);
     let mut derived: Vec<Walked<T, SiteHalf>> = Vec::new();
     let mut joints: Vec<(SiteHalf, JointElement)> = Vec::new();
     for halves in walks {
@@ -4222,7 +4246,18 @@ pub(crate) fn site_rows<T: Decide>(
         };
         // The closed-form derivation refusing, a branch meeting no
         // neighbour, or a loop that does not close: the face is cleared.
-        let Ok(pinned) = walk_cycle(chart, face.sense, n, item, |i| keep[i], band, true) else {
+        // A half the body holds reads its edge's wedge; a half the door
+        // mints or describes, the face it is made on.
+        let site_reach = |at: SiteHalf| match at {
+            SiteHalf::Existing(he) => wedges.edge(half_edge_record(body, he).edge),
+            SiteHalf::NewPlus | SiteHalf::NewMinus | SiteHalf::Described(_) => {
+                let (carrier, t0, t1, ..) = traversal(at);
+                Some(wedges.reach([face.rows_from; 2], &carrier, (t0, t1)))
+            }
+        };
+        let reach = |a: usize, b: usize| Some(site_reach(halves[a])?.min(site_reach(halves[b])?));
+        let Ok(pinned) = walk_cycle(chart, face.sense, n, item, |i| keep[i], &reach, band, true)
+        else {
             return Ok(SiteRows::Clear(every_half()));
         };
         for (i, (image, .., element)) in pinned.into_iter().enumerate() {
@@ -4346,14 +4381,23 @@ pub(crate) fn walk_halves<T: AtRestPolicy>(
             stored_edge(body, he),
         ))
     };
-    let walked =
-        walk_cycle(chart, sense, halves.len(), item, |_| None, band, closes).map_err(|fail| {
-            match fail {
-                WalkFail::Item(e) => e,
-                WalkFail::Miss { index, miss } => joint_refusal(halves[index], miss),
-                WalkFail::NotClosed => PcurveMintError::LoopNotClosed { face },
-            }
-        })?;
+    let wedges = crate::wedge_reach::WedgeReach::new(body);
+    let reach = |a: usize, b: usize| turn_lever(&wedges, body, halves[a], halves[b]);
+    let walked = walk_cycle(
+        chart,
+        sense,
+        halves.len(),
+        item,
+        |_| None,
+        &reach,
+        band,
+        closes,
+    )
+    .map_err(|fail| match fail {
+        WalkFail::Item(e) => e,
+        WalkFail::Miss { index, miss } => joint_refusal(halves[index], miss),
+        WalkFail::NotClosed => PcurveMintError::LoopNotClosed { face },
+    })?;
     out.extend(
         halves
             .iter()
@@ -4434,7 +4478,18 @@ fn walk_runs<T: AtRestPolicy>(
                 .take()
                 .unwrap_or_else(|| unreachable!("walk_cycle reads each item of a run once")))
         };
-        match walk_cycle(chart, sense, keys.len(), item, |_| None, band, false) {
+        let wedges = crate::wedge_reach::WedgeReach::new(body);
+        let reach = |a: usize, b: usize| turn_lever(&wedges, body, keys[a], keys[b]);
+        match walk_cycle(
+            chart,
+            sense,
+            keys.len(),
+            item,
+            |_| None,
+            &reach,
+            band,
+            false,
+        ) {
             Ok(pinned) => out.extend(
                 keys.iter()
                     .zip(pinned)
@@ -4529,6 +4584,24 @@ pub(crate) struct JointSides<'a, T: Real> {
     pub(crate) arrived: EdgeEnd<'a, T>,
     /// The edge the walk leaves on.
     pub(crate) leaving: EdgeEnd<'a, T>,
+    /// **The lever of the turn between the two edges**: the extent of
+    /// the faces they bound, the shorter of the two edges' wedge reaches
+    /// ([`crate::wedge_reach`]), as the door that makes the joint reads
+    /// it off the body. Asked only at a joint on the singular set;
+    /// `None` where an edge has no certified curve to read it by.
+    pub(crate) lever: &'a dyn Fn() -> Option<geom_core::Lever<T>>,
+}
+
+/// The lever of the turn between the edges of the half-edges `a` and
+/// `b` ([`JointSides::lever`]): the shorter of their wedge reaches.
+fn turn_lever<T: Decide>(
+    reach: &crate::wedge_reach::WedgeReach<'_, T>,
+    body: &Body<T>,
+    a: HalfEdgeKey,
+    b: HalfEdgeKey,
+) -> Option<geom_core::Lever<T>> {
+    let of = |he: HalfEdgeKey| reach.edge(half_edge_record(body, he).edge);
+    Some(of(a)?.min(of(b)?))
 }
 
 /// Why the singular-set rule decided no turn ([`singular_turn`]).
@@ -4631,6 +4704,7 @@ fn walk_cycle<T: Decide, I: WalkImage<T>, E>(
     len: usize,
     mut item: impl FnMut(usize) -> Result<WalkItem<T, I>, E>,
     kept: impl Fn(usize) -> Option<JointElement>,
+    reach: &dyn Fn(usize, usize) -> Option<geom_core::Lever<T>>,
     band: Band,
     closes: bool,
 ) -> Result<Vec<Pinned<T, I>>, WalkFail<E>> {
@@ -4650,32 +4724,34 @@ fn walk_cycle<T: Decide, I: WalkImage<T>, E>(
     let periods = ChartPeriods::of(chart.surface(), band);
     // The joint from the placed item `before` into `image`, traversed
     // as `this`.
-    let joint = |before: (&I, &Traversed<T>), image: &I, this: &Traversed<T>| {
-        let (arrived, prev) = before;
-        decide_joint(
-            chart,
-            image.pcurve(),
-            this.entry,
-            arrived.pcurve().eval(prev.exit),
-            this.vertex,
-            periods,
-            band,
-            JointSides {
-                sense,
-                mates: prev.edge == this.edge && prev.plus != this.plus,
-                arrived: EdgeEnd {
-                    carrier: arrived.carrier(),
-                    at: prev.exit,
-                    far: prev.entry,
+    let joint =
+        |before: (&I, &Traversed<T>, usize), image: &I, this: &Traversed<T>, index: usize| {
+            let (arrived, prev, arrived_index) = before;
+            decide_joint(
+                chart,
+                image.pcurve(),
+                this.entry,
+                arrived.pcurve().eval(prev.exit),
+                this.vertex,
+                periods,
+                band,
+                JointSides {
+                    sense,
+                    mates: prev.edge == this.edge && prev.plus != this.plus,
+                    arrived: EdgeEnd {
+                        carrier: arrived.carrier(),
+                        at: prev.exit,
+                        far: prev.entry,
+                    },
+                    leaving: EdgeEnd {
+                        carrier: image.carrier(),
+                        at: this.entry,
+                        far: this.exit,
+                    },
+                    lever: &|| reach(arrived_index, index),
                 },
-                leaving: EdgeEnd {
-                    carrier: image.carrier(),
-                    at: this.entry,
-                    far: this.exit,
-                },
-            },
-        )
-    };
+            )
+        };
     let mut ends: Vec<Traversed<T>> = Vec::with_capacity(len);
     let mut out: Vec<Pinned<T, I>> = Vec::with_capacity(len);
     // The one joint of a closed loop where two distinct edges leave a
@@ -4701,14 +4777,18 @@ fn walk_cycle<T: Decide, I: WalkImage<T>, E>(
         let element = match (out.last().zip(ends.last()), kept(index)) {
             (None, _) => None,
             (Some(_), Some(element)) => Some(element),
-            (Some((placed, prev)), None) => match joint((&placed.0, prev), &image, &this) {
-                Ok(element) => Some(element),
-                Err(PinMiss::Singular(SingularMiss::EdgesCoincide)) if closes && slit.is_none() => {
-                    slit = Some(index);
-                    None
+            (Some((placed, prev)), None) => {
+                match joint((&placed.0, prev, index - 1), &image, &this, index) {
+                    Ok(element) => Some(element),
+                    Err(PinMiss::Singular(SingularMiss::EdgesCoincide))
+                        if closes && slit.is_none() =>
+                    {
+                        slit = Some(index);
+                        None
+                    }
+                    Err(miss) => return Err(WalkFail::Miss { index, miss }),
                 }
-                Err(miss) => return Err(WalkFail::Miss { index, miss }),
-            },
+            }
         };
         ends.push(this);
         out.push((image, t0, t1, element));
@@ -4718,7 +4798,7 @@ fn walk_cycle<T: Decide, I: WalkImage<T>, E>(
         // last image's exit, decided exactly as every other joint.
         let closure = match kept(0) {
             Some(element) => Some(element),
-            None => match joint((&placed.0, prev), &out[0].0, &ends[0]) {
+            None => match joint((&placed.0, prev, len - 1), &out[0].0, &ends[0], 0) {
                 Ok(element) => Some(element),
                 Err(PinMiss::Singular(SingularMiss::EdgesCoincide)) if slit.is_none() => {
                     slit = Some(0);
@@ -4931,7 +5011,7 @@ impl AzimuthRule {
 ///   face wraps the point: one whole turn, a literal at every scalar;
 /// - two distinct edges: [`geom_brep::Period::decide`] of `gap ± τ/2`,
 ///   its marks at whole periods, metered at the shorter of the two
-///   edges' levers ([`singular_lever`]). A mark decided Zero is two
+///   edges' wedge reaches ([`JointSides::lever`]). A mark decided Zero is two
 ///   distinct edges leaving along one direction, an overlap or a cusp
 ///   ([`SingularMiss::EdgesCoincide`]); one in band escalates.
 ///
@@ -4974,31 +5054,21 @@ fn singular_turn<T: Decide>(
     {
         return Ok(0);
     }
-    let (Some(a), Some(b)) = (
-        singular_lever(chart, sides.arrived),
-        singular_lever(chart, sides.leaving),
-    ) else {
+    let Some(lever) = (sides.lever)() else {
         return Err(PinMiss::Singular(SingularMiss::NoLever));
     };
-    let lever = a.min(b);
     let half = T::tau() * T::from_f64(0.5);
     let shifted = if advancing { gap + half } else { gap - half };
-    // **What the lever is.** Not a rate either edge has throughout: a
-    // point's azimuth rate is its distance from the axis, zero at the
-    // singular point and at most the edge's reach, so over either edge
-    // the lever is that rate's sup, and its inf is zero. What the marks
-    // decide is the two edges' largest separation, which on the
-    // meridians that reach here is the chord `2ρ·sin(g/2)` at the reach
-    // `ρ` both share: `g·lever` overstates it by a relative `g²/24` at
-    // most, and where `g·ρ` is within a few bands of a mark that is a
-    // few bands squared over `ρ²`, beneath any band's resolution. So the
-    // lever is the decision's inf to that order, and the decision is the
-    // side of the mark the pair's separation lies on.
+    // **What the lever is.** The turn is an angle between two edges on
+    // a face, and an angle is levered at the extent of the faces whose
+    // meeting gives each edge its direction, not at how long the edge
+    // is: a short edge between wide faces leaves the point along a
+    // direction as certain as the faces are wide.
     geom_brep::Period::angle()
         .decide(
             "pcurve_singular_turn",
             shifted,
-            |g| Margin::metered(g, InfSpeed::new(lever)),
+            |g| Margin::levered(g, lever),
             band,
         )
         .map_err(|stop| match stop.miss {
@@ -5033,15 +5103,6 @@ fn chart_axis<T: Real>(chart: DescribedChart<'_, T>) -> Option<geom::Line<T>> {
         .map(|inverse| inverse.frame().axis_line())
 }
 
-/// A lower bound on `edge`'s reach from `axis`: the distance of its far
-/// end or of the middle of its span, whichever is farther. Either is a
-/// point of the edge.
-fn edge_reach<T: Decide>(axis: geom::Line<T>, edge: EdgeEnd<'_, T>) -> T {
-    let far = axis.distance(edge.carrier.eval(edge.far));
-    let mid = axis.distance(edge.carrier.mid_point(edge.at, edge.far));
-    far.max(mid)
-}
-
 /// **Which nappe of a cone an edge leaves its apex on**: `true` for
 /// the positive one (`v > 0`, along the axis), read as the side of the
 /// apex's normal plane the edge lies on (`pcurve_singular_nappe`), at
@@ -5066,65 +5127,6 @@ fn apex_nappe<T: Decide>(
         Ok(Sign::Zero) => Err(PinMiss::Singular(SingularMiss::EdgesCoincide)),
         Err(cause) => Err(PinMiss::Escalated(cause)),
     }
-}
-
-/// **The length over which an angle at a singular point displaces an
-/// edge**: the edge's reach from the chart's axis, capped at its
-/// curvature radius where it bends against the surface.
-///
-/// - **A line** (a cone's ruling) and **a circle on a cone or a spindle
-///   sheet** (a meridian: no other circle of those surfaces passes
-///   through an apex) lie in a plane through the axis, so two of them an
-///   azimuth `θ` apart separate by `2ρ·sin(θ/2)` at distance `ρ` from
-///   the axis: the lever is the edge's reach ([`edge_reach`]).
-/// - **A circle on a sphere** is read by [`pole_lever`], which caps a
-///   small circle's reach at its geodesic curvature radius.
-///
-/// `None` for any other carrier.
-fn singular_lever<T: Decide>(chart: DescribedChart<'_, T>, edge: EdgeEnd<'_, T>) -> Option<T> {
-    let axis = chart_axis(chart)?;
-    match (chart.surface(), edge.carrier) {
-        (Surface::Sphere { radius, .. }, geom::Curve3::Circle(_)) => {
-            pole_lever(edge, axis, *radius)
-        }
-        (_, geom::Curve3::Line(_) | geom::Curve3::Circle(_)) => Some(edge_reach(axis, edge)),
-        _ => None,
-    }
-}
-
-/// **The length over which an angle at a sphere pole displaces an
-/// edge**: the edge's furthest distance from the axis, capped at its
-/// curvature radius — the edge's own `1/κ_g`, its geodesic curvature
-/// against the sphere, which a meridian lacks.
-///
-/// The pole is where the edge's circle peaks in axial height, so the
-/// height falls monotonically for half the circle from it. The arc's
-/// furthest point from the axis is therefore where it has swept half its
-/// circle from the pole, `at ± π`, or its far end if that comes first;
-/// and it is the sphere's radius where that point lies across the
-/// equator. An edge whose far end is back at the pole (a closed circle,
-/// a near-full sweep) reads its antipode, not its end.
-///
-/// **What it bounds.** Two meridians `θ` apart separate by at most
-/// `2ρ·sin(θ/2) ≤ θ·ρ` at reach `ρ`, so for them the meter `θ·lever`
-/// is exact to first order. Against a curved edge bending back toward
-/// its partner (the lens between a meridian and a small circle) it
-/// overstates the pair's largest separation about four times
-/// (`work/pcert/the-pole-lever-overstates-a-lens-about-four-times.md`),
-/// which a band with `K` under 4 would decide apart.
-///
-/// `None` for a carrier other than a circle, the only one a sphere
-/// section draws through a pole.
-fn pole_lever<T: Decide>(edge: EdgeEnd<'_, T>, axis: geom::Line<T>, radius: T) -> Option<T> {
-    let geom::Curve3::Circle(geom::Circle { radius: r, .. }) = *edge.carrier else {
-        return None;
-    };
-    let pole_height = axis.height(edge.carrier.eval(edge.at));
-    let swept = (edge.far - edge.at).max(T::zero() - T::pi()).min(T::pi());
-    let (height, far) = axis.height_and_distance(edge.carrier.eval(edge.at + swept));
-    let reach = (height * pole_height).select_le_zero(radius, far);
-    let bend = (radius.powi(2) - r.powi(2)).max(T::zero()).sqrt();
-    Some((reach * bend - r * radius).select_le_zero(reach, r * radius / bend))
 }
 
 /// **The ONE decision of one joint**: the element ([`JointElement`])
@@ -5391,6 +5393,7 @@ fn decide_plain_joint<T: Decide>(
             mates: false,
             arrived,
             leaving: edge,
+            lever: &|| Some(geom_core::Lever::curvature_radius(T::one())),
         },
     )
 }
@@ -5416,6 +5419,7 @@ pub(crate) fn restate_joints<T: Decide>(body: &mut Body<T>, face: FaceKey, band:
     let sense = view.sense();
     let periods = ChartPeriods::of(&surface, band);
     let cycles: Vec<Vec<HalfEdgeKey>> = view.cycles().map(|(_, cycle)| cycle).collect();
+    let wedges = crate::wedge_reach::WedgeReach::new(body);
     let mut decided: Vec<(HalfEdgeKey, JointElement)> = Vec::new();
     for cycle in &cycles {
         let n = cycle.len();
@@ -5457,6 +5461,7 @@ pub(crate) fn restate_joints<T: Decide>(body: &mut Body<T>, face: FaceKey, band:
                         at: entry_t,
                         far: leaving_far,
                     },
+                    lever: &|| turn_lever(&wedges, body, arrived_on, he),
                 },
             );
             if let Ok(element) = element {
@@ -5538,6 +5543,9 @@ pub(crate) fn turn_element<T: Decide>(
                 carrier: &carrier,
                 at: exit_t,
                 far: entry_t,
+            },
+            lever: &|| {
+                crate::wedge_reach::edge_wedge_reach(body, half_edge_record(body, half_edge).edge)
             },
         },
     ) {
@@ -6261,6 +6269,7 @@ pub(crate) fn pcurve_pass<T: AtRestPolicy>(body: &Body<T>, band: Band) -> Pcurve
         // ([`Winding::closes`]), so no verdict hangs on which half-edge
         // is `first`.
         let periods = ChartPeriods::of(surface, band);
+        let wedges = crate::wedge_reach::WedgeReach::new(body);
         let has_singular_points = has_singular_set(surface);
         let sense = face.sense();
         let image_of = |he: HalfEdgeKey| -> Option<(Pcurve<T>, T, T)> {
@@ -6326,6 +6335,7 @@ pub(crate) fn pcurve_pass<T: AtRestPolicy>(body: &Body<T>, band: Band) -> Pcurve
                             at: *entry_t,
                             far: *leaving_far,
                         },
+                        lever: &|| turn_lever(&wedges, body, arrived_on, he),
                     },
                 );
                 // A stored element is read only between two stored

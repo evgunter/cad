@@ -98,47 +98,34 @@ fn ruling_at<T: Real + AtRestPolicy + Bounds>(body: &Body<T>, slant: f64) -> (to
     (key, t0 + (t1 - t0) * T::from_f64(slant / SL))
 }
 
-/// **A split near a narrow apex leaves a stub the apex's turn cannot
-/// be read across.** On a cone of half-angle 0.1 the ruling's point at
-/// slant `1.5·K·ε` is off the apex by more than the band (`singular_at`
-/// reads `Off`), so the children's own joint is an ordinary identity.
-/// But the child between the apex and that point is a stub whose reach
-/// from the axis is `1.5·K·ε·sin 0.1`, and the split decides the apex
-/// joint again against the other ruling, a quarter turn away: the turn
-/// there on the face's side is metered at the shorter edge's reach, a
-/// displacement of `(π/2)·1.5·K·ε·sin 0.1 ≈ 0.235·K·ε`. That lies
-/// between `ε` and `K·ε` whenever `K > 4.3`, at every ε: the stub lies
-/// within the band of the other ruling over its whole length, so the
-/// side of the apex the face is on is not decided across it, and the
-/// split refuses typed, naming the decision, and leaves the body as it
-/// was. Well clear of the apex the split decides the identity and the
-/// body reads clean.
+/// **A split near a narrow apex decides its own image at the joint.**
+/// On a cone of half-angle 0.1 the ruling's point at slant `1.5·K·ε`
+/// is off the apex by more than the band (`singular_at` reads `Off`),
+/// but its distance from the axis is `0.15·K·ε`, so the half-period
+/// marks of the joint's zero gap sit at `π·0.15·K·ε`, inside the band,
+/// and the marks escalate. The zero gap meets the image's own orbit
+/// point at that lever (the near-pole read, `lever_periods`), so the
+/// joint decides the identity; it no longer refuses as
+/// `SplitJointUndecided`. The child row's windings are structure it
+/// stores and certification compares exactly, never decided at the
+/// child's band-sized lever (`[ev]` PR 5113's first decision, closing
+/// `work/pcert/chart-winding-escalates-on-the-first-candidate-at-a-band-sized-lever`),
+/// so the child certifies and the split body reads clean. Well clear of
+/// the apex the split decides the identity and the body reads clean.
 fn split_near_the_apex<T: Real + AtRestPolicy + Bounds>(lane: &str) {
     let tol = Tol::witness();
     let near = 1.5 * tol.k() * tol.eps();
-    let displaced = core::f64::consts::FRAC_PI_2 * near * 0.1_f64.sin();
-    assert!(
-        tol.eps() < displaced && displaced < tol.k() * tol.eps(),
-        "the premise: the stub's reach puts the quarter turn in the band ({displaced:e})"
-    );
     let mut body = sector::<T>(0.1).unwrap_or_else(|e| panic!("{lane}: {e}"));
     let edges = body.edges().count();
     let band = geom_core::Band::linear(tol).unwrap();
     let (edge, t) = ruling_at(&body, near);
-    let refused = body.split_edge(edge, t, tol).unwrap_err();
-    assert!(
-        matches!(
-            &refused,
-            topo::EulerOpError::SplitJointUndecided { diag: Some(diag), .. }
-                if diag.predicate == Some("pcurve_singular_turn")
-        ),
-        "{lane}: the split near the apex refuses at the apex's turn: {refused:?}"
-    );
-    assert_eq!(body.edges().count(), edges, "{lane}: the body is untouched");
+    body.split_edge(edge, t, tol)
+        .unwrap_or_else(|e| panic!("{lane}: the split near the apex: {e:?}"));
+    assert_eq!(body.edges().count(), edges + 1, "{lane}: one more edge");
     assert_eq!(
         topo::pcurves::validate_pcurves(&body, band),
         vec![],
-        "{lane}: the refused split leaves the sector clean"
+        "{lane}: the split near the apex reads clean"
     );
     let mut body = sector::<T>(0.1).unwrap_or_else(|e| panic!("{lane}: {e}"));
     let (edge, t) = ruling_at(&body, 0.5);
@@ -158,7 +145,7 @@ fn split_near_the_apex<T: Real + AtRestPolicy + Bounds>(lane: &str) {
 }
 
 #[test]
-fn a_split_near_a_narrow_apex_refuses_at_the_apexs_turn() {
+fn a_split_near_a_narrow_apex_passes_its_joint() {
     split_near_the_apex::<f64>("f64");
     split_near_the_apex::<geom_core::Interval>("Interval");
 }
