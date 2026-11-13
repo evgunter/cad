@@ -902,13 +902,10 @@ pub(crate) fn face_window_steps<T: Decide>(
             // ([`TorusChartWindow::step`]), so the lift read is the stored
             // one: a lift decided at the band, as the cone arm's
             // ([`cone_may_hold_apex`]), has no certificate to widen by. A
-            // loop with a gap in its rows has no lift, and says so in its
-            // steps: every one is `None`, which abandons the window for
-            // the whole tube.
-            let lift = match crate::pcurves::Lift::read(body, lk) {
-                Ok(lift) => Some(lift),
-                Err(crate::pcurves::LiftGap { .. }) => None,
-            };
+            // loop with a gap in its rows has no lift (`LiftGap`, the
+            // read's one refusal), and says so in its steps: every one is
+            // `None`, which abandons the window for the whole tube.
+            let lift = crate::pcurves::Lift::read(body, lk).ok();
             let closes = lift
                 .as_ref()
                 .is_some_and(crate::pcurves::Lift::closes_in_chart);

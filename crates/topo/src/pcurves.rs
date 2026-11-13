@@ -8580,7 +8580,6 @@ pub(crate) mod pole_slit_tests {
             cap_loop,
             "both rim arcs run forward around the cap"
         );
-        let cap = body.get_loop(cap_loop).unwrap().face;
         // The slit: up the meridian `u = π`, a great circle in the plane
         // `y = 0`, from the rim to the north pole.
         let meridian_plane = body.add_surface(Surface::Plane {
