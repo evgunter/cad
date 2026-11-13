@@ -1021,3 +1021,43 @@ fn snc_decide_probe() {
         );
     }
 }
+#[test]
+fn snc_rest_probe() {
+    use crate::certify::{EdgeCurve, EdgeCurveSpec, NurbsLane};
+    use crate::description::{CurveSelector, EdgeDescriptionSpec, SurfacePair};
+    let plain = |u: f64, v: f64| (u, v);
+    for (what, wall) in [("cross", cross())] {
+        let s = built(&level(0.0), &wall).unwrap();
+        let carried = s.carry(Some(SsiLane::marched()), band()).unwrap();
+        for (k, c) in carried.components().iter().enumerate() {
+            if k > 0 { continue; }
+            eprintln!("SNCP arc span {:?} ends {:?} {:?}", c.span, c.carrier.eval(c.span.0), c.carrier.eval(c.span.1));
+            for (lo, hi) in [(0.0, 0.5)] {
+                eprintln!("SNCP ---- start");
+                let (a, b) = c.span;
+                let (p0, p1) = (a + (b - a) * lo, a + (b - a) * hi);
+                let mut arena = slotmap::SlotMap::<crate::keys::SurfaceKey, Surface<f64>>::with_key();
+                let (k_a, k_b) = (arena.insert(level(0.0)), arena.insert(wall.clone()));
+                let edge = EdgeCurve::certify(
+                    EdgeCurveSpec {
+                        description: EdgeDescriptionSpec::Intersection {
+                            pair: SurfacePair::new(k_a, k_b),
+                            selector: CurveSelector::Witness(c.carrier.mid_point(p0, p1)),
+                        },
+                        carrier: c.carrier.clone(),
+                        param_start: p0,
+                        param_end: p1,
+                    },
+                    c.carrier.eval(p0),
+                    c.carrier.eval(p1),
+                    move |k| arena.get(k).cloned(),
+                    geom_core::test_support::fixture_lever(1.0),
+                    band(),
+                    NurbsLane::certified(),
+                );
+                let short: String = match &edge { Ok(_) => "CERTIFIED".into(), Err(e) => format!("{e:?}").chars().take(160).collect() };
+                eprintln!("SNCP rest {what} arc {k} [{lo},{hi}]: {short}");
+            }
+        }
+    }
+}

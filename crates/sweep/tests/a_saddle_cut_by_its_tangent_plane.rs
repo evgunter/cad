@@ -1,4 +1,4 @@
-//! **A saddle cut by its tangent plane refuses at its node arc's chord.** The
+//! **A saddle cut by its tangent plane refuses at its side wall's chord.** The
 //! block `x, z ∈ [−1, 1]`, `−2 ≤ y ≤ x·z`, lofted along `z`, has the
 //! hyperbolic paraboloid `y = x·z` for its top wall; the half-space
 //! `y ≥ 0` is tangent to it at the origin and cuts it along the lines
@@ -6,10 +6,13 @@
 //! point. Two smooth carriers meet in two crossing lines only at a
 //! tangency, so the pair is a spline × plane section with a node at the
 //! origin. The join carries its four arcs to the node, and each op
-//! refuses typed at the at-rest certificate of the first chord to the
-//! node, whose chart image on the fixed foot schedule misses a carrier
-//! graded toward the node
-//! (`work/sectarms/a-node-arcs-chord-misses-its-at-rest-chart-image.md`). Its closed
+//! refuses typed at the at-rest certificate of the plane's chord across
+//! the block's side wall `x = −1`: a lofted wall whose chart is not
+//! affine along the section `y = 0` (its `u` reads `y` across a side
+//! whose far end moves with `z`), which the plane × spline lane's
+//! degree-1 image misses between its feet
+//! (`work/sectarms/a-planes-carried-arc-across-a-flared-spline-wall-misses-its-own-image-at-rest.md`).
+//! No chord to the node is reached. Its closed
 //! forms (the block `8`, its part above the plane `1/2`) are the row
 //! `work/splice/a-saddle-cut-by-its-tangent-plane-builds-at-its-closed-form.md`
 //! asks for.
@@ -54,19 +57,33 @@ fn above() -> AtRestBody<f64> {
     )
 }
 
-/// **Every op, either way round, refuses at its node arc's chord at
+/// **Every op, either way round, refuses at the side wall's chord at
 /// rest**: the join carries the saddle's four arcs to the node, and the
-/// edge certificate of the first chord to the node refuses its chart
-/// image, limb 2 reading the image miss past the band.
+/// edge certificate of the plane's chord along `x = −1` refuses its
+/// chart image, limb 2 reading the image's miss of the carrier past the
+/// band at a break of its composite (`SsiLimb::ImageMiss`). The
+/// refusal names no face.
 /// Its held pierce reads first: the block's corner edges pierce the
 /// plane at `(±1, 0, ±1)`, a unit off the wall, which reads them off
 /// its carrier.
 #[test]
 fn a_saddle_cut_by_its_tangent_plane_refuses_at_its_node_arcs_under_every_op() {
     let (s, h) = (saddle_block(), above());
-    // The join's refusal at the chord's at-rest certificate, its limb named.
     let frame = |r: &Result<topo::BooleanResult<f64>, BooleanError>| {
-        matches!(r, Err(BooleanError::Join(_))) && format!("{r:?}").contains("limb: ImageMiss")
+        let Err(BooleanError::Join(join)) = r else {
+            return false;
+        };
+        matches!(
+            join.error(),
+            topo::JoinError::Euler(topo::EulerOpError::Certification {
+                error: geom_brep::CertifyError::PlaneNurbs(
+                    geom_brep::PlaneNurbsRefusal::Limb {
+                        limb: geom_brep::SsiLimb::ImageMiss,
+                        ..
+                    }
+                ),
+            })
+        )
     };
     for (op, r) in [
         ("s ∩ h", intersect(&s, &h, tol())),
@@ -78,7 +95,7 @@ fn a_saddle_cut_by_its_tangent_plane_refuses_at_its_node_arcs_under_every_op() {
     ] {
         assert!(
             frame(&r),
-            "{op}: refuses at its node arc's chord at rest, not {r:?}"
+            "{op}: refuses at the side wall's chord at rest, not {r:?}"
         );
     }
 }
