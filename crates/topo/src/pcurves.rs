@@ -4614,8 +4614,9 @@ pub enum SingularMiss {
     /// The two edges leave a cone's apex on different nappes: the face
     /// crosses the apex, and no one side of it is the face's.
     TwoNappes,
-    /// An edge's carrier is neither a line nor a circle, so the angle at
-    /// the point has no lever to be metered by.
+    /// An edge of the joint has no certified curve, so the faces' extent
+    /// along it, the lever the angle at the point is metered at, is not
+    /// read.
     NoLever,
 }
 
@@ -4627,8 +4628,8 @@ impl core::fmt::Display for SingularMiss {
             }
             Self::TwoNappes => "its two edges leave a cone's apex on different nappes",
             Self::NoLever => {
-                "one of its edges is neither a line nor a circle, and its angle at the point \
-                 has no lever"
+                "one of its edges has no certified curve, and its angle at the point has no \
+                 lever"
             }
         })
     }
