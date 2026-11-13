@@ -1137,10 +1137,11 @@ fn a_big_thin_walled_cylinder_shell_certifies_within_the_default_budget() {
 /// and the band between two arcs about a centre off the axis, radii
 /// `0.8 ∓ 0.025`, closed by two radial lines, as its rim. Each wall's
 /// two faces share nothing, so only the distance test decides them.
-/// Both hold within the default budget at both scalars. Red where the
-/// support test reads an analytic cell by its box: two slanted patches'
-/// boxes overlap until the cells are about as small as the gap, and the
-/// walk runs out of pairs.
+/// Both hold at both scalars, each splitting under a quarter of the
+/// default budget (about 3,100 and 6,600 splits). Red where the support
+/// test reads an analytic cell by its box: two slanted patches' boxes
+/// overlap until the cells are about as small as the gap, which costs
+/// about 39,000 and 32,000 splits.
 #[test]
 fn a_conical_and_a_toroidal_wall_hold_within_the_default_budget() {
     fn conical<T: Scalar>() -> Body<T> {
@@ -1183,12 +1184,28 @@ fn a_conical_and_a_toroidal_wall_hold_within_the_default_budget() {
             tol(),
         )
     }
-    holds_at_both("the conical wall", conical::<f64>(), conical::<Interval>());
-    holds_at_both(
-        "the toroidal wall",
-        toroidal::<f64>(),
-        toroidal::<Interval>(),
-    );
+    for (what, reports) in [
+        (
+            "the conical wall",
+            holds_at_both("the conical wall", conical::<f64>(), conical::<Interval>()),
+        ),
+        (
+            "the toroidal wall",
+            holds_at_both(
+                "the toroidal wall",
+                toroidal::<f64>(),
+                toroidal::<Interval>(),
+            ),
+        ),
+    ] {
+        for report in &reports {
+            assert!(
+                report.receipt.splits < BUDGET / 4,
+                "{what} splits under a quarter of the default budget: {:?}",
+                report.receipt
+            );
+        }
+    }
 }
 
 // ------------------------------------------- a face across its seam
