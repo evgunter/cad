@@ -931,10 +931,14 @@ impl<T: Real> Body<T> {
     /// chart normal?". Tier-3 validation is *expected to refuse* such a
     /// body; that refusal is one of the acceptance rows.
     ///
-    /// The flipped face's stored joint elements are decided again at
-    /// `tol`'s band: a joint on its chart's singular set stores the turn
-    /// on the face's side ([`crate::joint`]), so the rows follow the bit
-    /// and the bit against the winding is the body's one incoherence.
+    /// The bit goes through the production door
+    /// ([`Construct::set_face_sense`](crate::construction::Construct::set_face_sense)),
+    /// which drops the face's rows where they are about the other side
+    /// of a chart with a singular set, and a face that stored rows is
+    /// minted again at `tol`, as a band door after it would: the rows
+    /// follow the bit, and the bit against the winding is the body's
+    /// one incoherence. A mint that refuses leaves the face without
+    /// rows.
     ///
     /// Returns `None` if `face` is stale;
     /// [a foreign key is not caught](self#key-validity-stale-vs-foreign).
@@ -942,13 +946,24 @@ impl<T: Real> Body<T> {
     #[must_use]
     pub fn flipped_face_sense_for_tests(&self, face: FaceKey, tol: geom_core::Tol) -> Option<Self>
     where
-        T: geom_core::Decide,
+        T: crate::props::AtRestPolicy,
     {
         let mut out = self.clone();
-        let f = out.faces.get_mut(face)?;
-        f.sense = !f.sense;
-        if let Ok(band) = geom_core::Band::linear(tol) {
-            crate::pcurves::restate_joints(&mut out, face, band);
+        let sense = out.faces.get(face)?.sense;
+        let stored = out
+            .proven_face(face)
+            .half_edges()
+            .into_iter()
+            .any(|he| out.pcurve(he).is_some());
+        out.set_face_sense(face, !sense).ok()?;
+        let dropped = out
+            .proven_face(face)
+            .half_edges()
+            .into_iter()
+            .all(|he| out.pcurve(he).is_none());
+        if stored && dropped {
+            // A refusal leaves the rows dropped, as the door left them.
+            let _ = crate::pcurves::mint_pcurves_of(&mut out, &[face], tol);
         }
         Some(out)
     }
