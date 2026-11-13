@@ -3681,12 +3681,16 @@ impl<T: Decide + Bounds> StripLevel<T> {
     ///   safe: a strip's end edge is its neighbouring link's strip's
     ///   start edge, so a piece grazing it lies inside that link's wedge,
     ///   whose read meters it exactly.
-    /// - The DISTANCE: the piece's part within the strip's width `τ` of
-    ///   the wedge, read for its level margin `m`. The rest of the piece
-    ///   lies further than `τ` outside one of the half-spaces, so the
-    ///   piece lies at least `min(τ, m)` from the strip in the wedge, the
-    ///   level being 1-Lipschitz: a Euclidean bound, which does not
-    ///   vanish at the wedge's apex as the miss does.
+    /// - The DISTANCE, a Euclidean bound that does not vanish at the
+    ///   wedge's apex as the miss does. A point further than `τ` outside
+    ///   one half-space lies further than `τ` from the strip in the wedge,
+    ///   and one with level margin `m` at least `m` from it, the level
+    ///   being 1-Lipschitz. So, with `τ₀` the strip's width, halved
+    ///   [`MISSED_LAYERS`] times, and `mₖ` the level margin of the
+    ///   piece's part within `τₖ` of every half-space, the piece lies
+    ///   from it at least the least of `τ₀`, each `max(τₖ₊₁, mₖ)`, and
+    ///   the last layer's `mₖ`. A layer with no part, or one reading
+    ///   clear by its own width, ends the walk.
     fn missed(
         &self,
         clipped: Clippable<'_, T>,
@@ -3706,13 +3710,29 @@ impl<T: Decide + Bounds> StripLevel<T> {
                 }
             }
         }
-        let tau = (self.rim_at - self.at_trim).abs();
-        let widened: Vec<_> = wedge.iter().map(|&(o, u)| (o - u * tau, u)).collect();
-        let near = Self::within(clipped, piece, &widened, band)
-            .into_iter()
-            .filter_map(|part| self.level_margin(carrier, part.window))
-            .fold(None, |a, (m, _)| least(a, m));
-        let distance = near.map_or(tau, |m| m.min(tau));
+        let mut width = (self.rim_at - self.at_trim).abs();
+        let mut distance = width;
+        for layer in 1..=MISSED_LAYERS {
+            let widened: Vec<_> = wedge.iter().map(|&(o, u)| (o - u * width, u)).collect();
+            let Some(near) = Self::within(clipped, piece, &widened, band)
+                .into_iter()
+                .filter_map(|part| self.level_margin(carrier, part.window))
+                .fold(None, |a, (m, _)| least(a, m))
+            else {
+                break;
+            };
+            let half = width / (T::one() + T::one());
+            if layer == MISSED_LAYERS {
+                distance = distance.min(near);
+            } else {
+                distance = distance.min(near.max(half));
+            }
+            // A narrower layer is a subset, its level no lower.
+            if (near - width).lo() >= 0.0 {
+                break;
+            }
+            width = half;
+        }
         miss.map_or(distance, |m| m.max(distance))
     }
 
@@ -3935,6 +3955,11 @@ impl<'a, T: Real> Clippable<'a, T> {
         }
     }
 }
+
+/// How many layers about a wedge [`StripLevel::missed`] reads, each
+/// half the width of the last: the last is `2⁻⁷` of the strip's width,
+/// so a piece passing the wedge closer than that reads its level there.
+const MISSED_LAYERS: u32 = 8;
 
 /// The lesser of `a`, where there is one, and `m`.
 fn least<T: Real>(a: Option<T>, m: T) -> Option<T> {
@@ -6734,7 +6759,9 @@ mod tests {
     /// - One passing beside the edge `x = 0` clears it by its distance,
     ///   `0.01`. One passing the apex, outside both half-planes, clears
     ///   by the strip's width, `0.05`, where read whole it overlaps the
-    ///   annulus; a line passing within the band of the apex does too.
+    ///   annulus; a line passing within the band of the apex does too,
+    ///   and one along the edge, `0.05` off the strip's end, by half of
+    ///   it.
     /// - A touch of the edge within the band, in the annulus, is a
     ///   [`Reading::Touch`] at its clearance, and escalates; inside the
     ///   annulus it reads clear at its level.
@@ -6821,6 +6848,20 @@ mod tests {
                 ),
                 0.05,
                 "a line passing within the band of the apex, at the strip's width",
+            );
+            // Along the edge `x = 0`, 0.05 off the strip's end there: the
+            // half of the strip's width, the layer it clears by.
+            let along = Curve3::line(p(-3e-9, -4e-9), v(-0.2, 1.0).normalize());
+            close(
+                margin(
+                    &one,
+                    &along,
+                    (T::from_f64(-0.3), T::from_f64(0.45)),
+                    band,
+                    "along",
+                ),
+                0.025,
+                "a line along the edge past the apex, at half the strip's width",
             );
             let touch = one
                 .clearance(&circle(-0.1 - 5e-9, 0.275), turn, band)
