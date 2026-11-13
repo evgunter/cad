@@ -443,3 +443,11 @@ Ev, in chat: "go ahead in whatever order you see fit (including parallelizing th
 - **10:55 — carrier-eq's second report** (head `7d7d933e`). The `Norm` refusal is minted through `k_stats::gate_rejection` (`NonNegative`), on the log, and `CarrierEqError`'s shape is kept. The topo census found 5 shipped hand-mints, filed as `topo-hand-mints-indeterminates-geom-brep-census-would-refuse`.
 - **PR [#6909](https://github.com/evgunter/cad/pull/6909)** is opened with its head **frozen at `7d7d933ec381`**. First-reviewer byte 150 (Opus): `session_018u3gVKYyo2EHRt2dAeEUnH`, dispatched at 11:17 (S, sequential).
 - **#6900:** the fix pass reported at 10:55 (head `f515519b`). The MAJOR is fixed (carrier directions, the twin bit across sheets), and the arguments on items 5, 10 and 18 are accepted. CI at 11:16: everything green but `test (kernel)`, still running.
+- **11:39 — #6909 R1 (Opus) reported:** APPROVE-WITH-FIXES, no MAJOR, so no second review (S, sequential). MINORs:
+  - visibility wider than needed (`PairDoorReading::verdict`, and a panicking `pub` `unreadable_norm` that exists for a test);
+  - an undisclosed change to the `Norm` message;
+  - the rename changes Python-visible `SelectRefusal.predicate` strings, undisclosed;
+  - a stale path in `sym.rs`;
+  - the `Norm` row cannot reach the real ladder.
+  
+  Style: test fixtures copied across crates, and a wrong "poisoned input" doc. The fix pass (8 items) went to the implementer at about 12:00. The orchestrator updates the `bind` and `seal` issues' rotted citations in the row commit. Main reds on #6909 were classed by failure text and commented.
