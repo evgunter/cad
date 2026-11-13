@@ -1365,3 +1365,8 @@ E1c waits on the answer.
     - band, gauge and lathe sweep reds.
   - **Roster-skip class:** recurred three times; the evidence is on green's row.
 - 2026-11-12 — **Main red filed on sectarms** (orchestrator; PR 6870's lane met it). geom-core's `certified_endpoint_census` moved in `pair_section/spline_implicit.rs` from (2, 0) to (6, 4). Bisected to 81b50a0631, which reached main in PR 6862. Filed P1 as `sectarms/main-red-the-endpoint-census-moved-in-spline-implicit-rs-since-6862`. It is not PCERT's, so PCERT PRs merge over it.
+
+- 2026-11-12 — **Filed from outside, P0: `a-general-image-that-leaves-the-knot-rectangle-between-two-nodes-certifies-its-row-off-the-wall`.** The fix pass of sectarms' PR 6879 probed a review finding against `PcurveCache::certify_general` and it reproduces.
+  - **What.** The fitted-grade door reads limbs 1 and 2 and nothing holds the image to the wall's knot rectangle, so where the image leaves it between two nodes the composite reads the wall's polynomial extension and the row certifies. Measured at the default ε: a circle dipping up to 1e-5 m past a flat wall's rim certifies its row; the incidence read ends it at 1e-4 m.
+  - **What holds today.** A witness-selected `Intersection` edge is still refused, by limb 3's tube (a row in PR 6879 pins that). The row's other readers have no limb 3.
+  - **Not probed.** Whether a body can be built that stores such a row, and whether tier 3 or the mint's walk refuses it by another check. The item says so.

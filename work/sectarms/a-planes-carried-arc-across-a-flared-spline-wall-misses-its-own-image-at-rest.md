@@ -33,3 +33,17 @@ of a trace carrier, or the two lanes' limb-2 tolerances differ.
 
 Witness: `a_brick_across_a_lofted_wall_is_joined_on_its_carried_arcs`
 (same file as above) pins `CertifyError::PlaneNurbs(_)` for it.
+
+## The cause, measured beside the curved lane (2026-11-12, `sectarms/spline-curved-at-rest`)
+
+The rest lane's image is the coarser object, not its tolerance: it is
+the degree-1 interpolant of 33 feet (`edge_nurbs::chart_image`), which
+misses any foot path that bends in the chart by its chords' sag. The
+curved-partner lane (`curved_nurbs_limbs`) shares this lane's body and
+reads the pcurve mint's climbed image instead
+(`general_chart_image_sampled`); with the degree-1 image a ball's arc
+across the flat wall refuses the same way, `ImageMiss` at 4.6e-4 m. The
+plane's lane was left on its degree-1 image here. What rest's image of
+a fitted arc should be, for both lanes, is the choice
+`a-curved-partners-arc-is-imaged-at-rest-no-finer-than-the-mints-finest-rung`
+records.

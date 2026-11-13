@@ -287,20 +287,37 @@ impl SectionSystem<1, 2> for ImplicitChartR2<'_> {
 
 impl TransversalityData<2> for ImplicitChartR2<'_> {
     fn normals(&self, x: &[f64; 2]) -> super::march::NormalPair {
-        let j = self.wall.ders3(x[0], x[1]);
-        (
-            crate::implicit::implicit_gradient(self.partner, j.jet.point),
-            j.jet.du.cross(j.jet.dv),
-        )
+        implicit_chart_normals(self.partner, &self.wall.ders3(x[0], x[1]).jet)
     }
 
     fn max_curvature(&self, x: &[f64; 2]) -> f64 {
-        let j = self.wall.ders3(x[0], x[1]);
-        Real::max(
-            crate::implicit::implicit_max_normal_curvature(self.partner, j.jet.point),
-            crate::shape_operator::max_principal_curvature(&j.jet),
-        )
+        implicit_chart_curvature(self.partner, &self.wall.ders3(x[0], x[1]).jet)
     }
+}
+
+/// The two normals of an implicit partner and a chart at the wall's foot
+/// `jet.point`: `partner`'s gradient there and the wall's `S_u × S_v`.
+/// The trace's states and the at-rest samples of the same pair read them
+/// here, and [`implicit_chart_curvature`] beside them.
+pub(crate) fn implicit_chart_normals<T: Real>(
+    partner: &geom::Surface<T>,
+    jet: &geom::SurfaceJet<T>,
+) -> (Vec3<T>, Vec3<T>) {
+    (
+        crate::implicit::implicit_gradient(partner, jet.point),
+        jet.du.cross(jet.dv),
+    )
+}
+
+/// The larger principal curvature of either surface at a wall's foot:
+/// `partner`'s largest normal curvature at `jet.point` and the wall's own
+/// there.
+pub(crate) fn implicit_chart_curvature<T: Real>(
+    partner: &geom::Surface<T>,
+    jet: &geom::SurfaceJet<T>,
+) -> T {
+    crate::implicit::implicit_max_normal_curvature(partner, jet.point)
+        .max(crate::shape_operator::max_principal_curvature(jet))
 }
 
 // ---------------------------------------------------------------------
