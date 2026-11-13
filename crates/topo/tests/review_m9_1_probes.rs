@@ -9,10 +9,11 @@
 use crate::common;
 
 use common::{brick, finished};
+use geom_brep::{CarrierDesc, CarrierRelation, carrier_eq};
 use geom_core::Tol;
 use geom_core::{Band, Point3, Vec3};
 use topo::boolean::contact_verify::tangent_locus_relation;
-use topo::{CarrierDesc, CarrierRelation, ValidationError, carrier_eq, validate_pseudomanifold};
+use topo::{ValidationError, validate_pseudomanifold};
 
 fn band() -> Band {
     Band::linear(Tol::witness()).unwrap()
@@ -20,8 +21,8 @@ fn band() -> Band {
 
 /// A ball of radius `arm` about the origin: the extent a bare arm
 /// names.
-fn at(arm: f64) -> topo::ConsumedExtent<f64> {
-    topo::ConsumedExtent::new(geom_brep::ExtentBall::of_sphere(Point3::origin(), arm))
+fn at(arm: f64) -> geom_brep::ConsumedExtent<f64> {
+    geom_brep::ConsumedExtent::new(geom_brep::ExtentBall::of_sphere(Point3::origin(), arm))
 }
 
 fn sphere(c: [f64; 3], r: f64, outward: bool) -> CarrierDesc<f64> {

@@ -41,9 +41,9 @@ use crate::splitting::Escalation;
 
 use crate::contact::GlueClass;
 
-pub use super::plane_eq::PlaneRung;
 pub use super::solid_contain::WallRung;
 use crate::face_normal::NormalDecision;
+use geom_brep::PlaneRung;
 use geom_brep::curve_face::plane_crossing::ConicRootFault;
 pub use geom_brep::edge_crossing::CrossingDecision;
 pub use geom_brep::sector_shape::SectorRung;
@@ -2975,13 +2975,8 @@ pub(in crate::boolean) mod tests {
 
     /// Two planes through `z = 1`, the second facing `sign` times the
     /// first's normal.
-    fn planes(
-        sign: f64,
-    ) -> (
-        crate::boolean::PlaneDesc<f64>,
-        crate::boolean::PlaneDesc<f64>,
-    ) {
-        let plane = |n: f64| crate::boolean::PlaneDesc {
+    fn planes(sign: f64) -> (geom_brep::PlaneDesc<f64>, geom_brep::PlaneDesc<f64>) {
+        let plane = |n: f64| geom_brep::PlaneDesc {
             origin: Point3::new(0.0, 0.0, 1.0),
             normal: Vec3::new(0.0, 0.0, n),
         };
@@ -3013,7 +3008,7 @@ pub(in crate::boolean) mod tests {
         let BooleanError::PoisonedCarrierDatum { pair, diag } = err else {
             panic!("the gate refuses the poisoned datum: {err:?}");
         };
-        assert_eq!(diag.predicate, Some("bool_plane_offset"), "{diag:?}");
+        assert_eq!(diag.predicate, Some("plane_eq_offset"), "{diag:?}");
         assert!(
             pair.iter().all(|&(operand, _)| operand == Operand::A),
             "both neighbours are the operand's: {pair:?}"
@@ -3372,11 +3367,11 @@ pub(in crate::boolean) mod tests {
     /// orientation leaves the faces coplanar.
     #[test]
     fn an_unreadable_norm_and_the_neighbour_gate_end_where_their_door_reaches() {
-        use crate::boolean::plane_eq::unreadable_norm;
-        use crate::boolean::{PlaneDesc, PlaneEqError, PlaneRung, oriented_plane_eq};
+        use geom_brep::plane_eq::unreadable_norm;
+        use geom_brep::{CarrierEqError, PlaneDesc, PlaneRung, oriented_plane_eq};
         let b = band();
         let (z, e) = (b.zero(), b.escalate());
-        let PlaneEqError::Escalated {
+        let CarrierEqError::Escalated {
             rung: PlaneRung::Norm,
             diag,
         } = unreadable_norm(b)
@@ -3408,10 +3403,17 @@ pub(in crate::boolean) mod tests {
             (bent, 1.0, PlaneRung::Parallel),
             (flat, (z + e) / 2.0, PlaneRung::Orientation),
         ] {
-            let err =
-                oriented_plane_eq(&flat, &p2, &crate::boolean::ConsumedExtent::arm(extent), b)
-                    .expect_err("the gate's rung refuses");
-            let PlaneEqError::Escalated { rung: got, diag } = err else {
+            let err = oriented_plane_eq(
+                &flat,
+                &p2,
+                &geom_brep::ConsumedExtent::new(geom_brep::ExtentBall::of_sphere(
+                    Point3::origin(),
+                    extent,
+                )),
+                b,
+            )
+            .expect_err("the gate's rung refuses");
+            let CarrierEqError::Escalated { rung: got, diag } = err else {
                 panic!("{rung:?}: an escalation: {err:?}");
             };
             assert_eq!(got, rung);

@@ -956,7 +956,7 @@ fn the_in_band_wedge_is_in_band_at_the_glue_door() {
         )
     };
     let glue_margin = match read(2e-9, design_band()) {
-        Ok(Err(crate::CarrierEqError::Escalated { diag, .. })) => {
+        Ok(Err(geom_brep::CarrierEqError::Escalated { diag, .. })) => {
             geom_core::test_support::upper(diag.margin)
         }
         other => panic!("in band at 2e-9: {other:?}"),
@@ -964,7 +964,7 @@ fn the_in_band_wedge_is_in_band_at_the_glue_door() {
     assert!(
         matches!(
             read(D, design_band()),
-            Ok(Ok(crate::CarrierRelation::Distinct))
+            Ok(Ok(geom_brep::CarrierRelation::Distinct))
         ),
         "apart at D: {:?}",
         read(D, design_band())
@@ -974,7 +974,7 @@ fn the_in_band_wedge_is_in_band_at_the_glue_door() {
     assert!(
         matches!(
             read(2e-9, tighter),
-            Ok(Ok(crate::CarrierRelation::Distinct))
+            Ok(Ok(geom_brep::CarrierRelation::Distinct))
         ),
         "apart below the glue door's offer {below:e}: {:?}",
         read(2e-9, tighter)

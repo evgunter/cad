@@ -14,7 +14,7 @@
 //! contradicted by one (`ValidationError::ContactContradicted`).
 //!
 //! `Rest` goes down the carrier ladder ([`rest_pair_verdict`],
-//! [`mod@super::carrier_eq`]), `Tangent` down the jet schedule
+//! [`mod@geom_brep::carrier_eq`]), `Tangent` down the jet schedule
 //! ([`tangent_pair_relation`]).
 //!
 //! **One `Tangent` table, two readings** (`tangent_table`): a contact
@@ -67,7 +67,7 @@ use crate::contact::{
 };
 use crate::entity::FaceKey;
 
-use super::carrier_eq::{CarrierEqError, CarrierRelation, CarrierVerdict};
+use geom_brep::carrier_eq::{CarrierEqError, CarrierRelation, CarrierVerdict};
 
 /// **The `Rest` contact door**: do these two faces rest on one
 /// carrier, opposed? The table (C4): one carrier through the face-pair
@@ -100,7 +100,7 @@ pub fn rest_pair_verdict<T: Decide>(
             ContactRefusal::NotCertifiable {
                 what: match unread {
                     super::carrier_pair::PairUnread::OutsideInventory => {
-                        super::carrier_eq::OUTSIDE_REST_INVENTORY
+                        geom_brep::carrier_eq::OUTSIDE_REST_INVENTORY
                     }
                     super::carrier_pair::PairUnread::Extent(_) => {
                         "a recorded face's consumed extent cannot be read (its box has no claim to \

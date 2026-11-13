@@ -7,9 +7,9 @@
 use crate::common;
 
 use common::{brick, finished};
+use geom_brep::carrier_eq::{CarrierDesc, CarrierRelation, carrier_eq};
 use geom_core::Tol;
 use geom_core::{Band, Point3, Vec3};
-use topo::boolean::carrier_eq::{CarrierDesc, CarrierRelation, carrier_eq};
 use topo::boolean::contact_verify::tangent_locus_relation;
 use topo::contact::{TangentRuling, TangentVerdict};
 use topo::{BooleanResult, Surface, ValidationError, union};
@@ -20,8 +20,8 @@ fn band() -> Band {
 
 /// A ball of radius `arm` about the origin: the extent a bare arm
 /// names.
-fn at(arm: f64) -> topo::ConsumedExtent<f64> {
-    topo::ConsumedExtent::new(geom_brep::ExtentBall::of_sphere(Point3::origin(), arm))
+fn at(arm: f64) -> geom_brep::ConsumedExtent<f64> {
+    geom_brep::ConsumedExtent::new(geom_brep::ExtentBall::of_sphere(Point3::origin(), arm))
 }
 
 fn plane(o: [f64; 3], n: [f64; 3]) -> Surface<f64> {

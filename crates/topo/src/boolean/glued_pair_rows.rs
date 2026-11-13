@@ -5,7 +5,6 @@
 //! given one.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use super::carrier_eq;
 use super::carrier_pair::face_carrier;
 use super::{Glue, GluedPairs, glue, verify_glued_contacts};
 use crate::AtRestBody;
@@ -14,6 +13,7 @@ use crate::test_support::finished;
 use crate::test_support_fixtures::{
     FaceGeometry, brick, describe_as_intersections, prism_ops, prism_z,
 };
+use geom_brep::carrier_eq;
 use geom_core::{Band, Margin, Point3, Tol, Vec3};
 
 fn tol() -> Tol {
@@ -67,7 +67,7 @@ fn a_glued_pairs_row_carries_the_doors_margin() {
         let rows = &out.body().expect("the union builds").coincidences;
         let mut read = 0;
         for pair in decls.pairs.iter().filter(|p| p.class().is_one_carrier()) {
-            let Ok(Ok(super::CarrierVerdict::One { margin, .. })) =
+            let Ok(Ok(geom_brep::CarrierVerdict::One { margin, .. })) =
                 super::carrier_pair::carrier_pair_decided(&a, pair.a, &b, pair.b, band())
             else {
                 panic!("{what}: the door glued {pair:?} on a margin");
@@ -234,7 +234,7 @@ fn a_fold_step_given_two_zeros_whose_ends_stand_in_band_refuses_at_a_vertex() {
     let ball = 0.5 * 10f64.sqrt();
     assert!(
         crate::validate::decide(
-            "bool_plane_reach",
+            "carrier_plane_reach",
             Margin::of(
                 0.5 * s.abs()
                     + Margin::levered(

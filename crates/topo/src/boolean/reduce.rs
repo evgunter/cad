@@ -64,7 +64,6 @@
 use geom_core::{Band, Bounds, Decide, Margin, MarginDiag, Point3, Sign, Vec3};
 
 use super::contain::{ContainError, CurvedPlacement, FaceContainment, contfp_decided};
-use super::plane_eq::PlaneDesc;
 use super::{BooleanDecision, Coincide, CrossingDecision, DeclarationRead};
 use super::{BooleanError, EfContact, Operand, ReductionContacts, VfContact, VvContact};
 use crate::body::Body;
@@ -79,6 +78,7 @@ use crate::splitting::PlaneSide as SplitSide;
 use crate::sweep_trace::SweepPairs;
 use crate::validate::decide;
 use crate::vertex_section::{Offset, SectionPlane, VertexRefusal};
+use geom_brep::PlaneDesc;
 use geom_brep::curve_face::circle_roots::{CircleRoots, door_refusal};
 use geom_brep::curve_face::plane_crossing::{ConicPlaneMeet, PlaneCrossingLane};
 use geom_brep::roots::{Roots, Unsettled};
@@ -501,7 +501,7 @@ pub(super) struct UnsupportedPair {
 /// The rung is kind-generic and it is not kind-blind: what a
 /// declaration may name is bounded by the certified carrier inventory
 /// (`validate_declarations`' `inventory_face`, which is
-/// [`mod@super::carrier_eq`]'s rung list). A kind with no rung cannot
+/// [`mod@geom_brep::carrier_eq`]'s rung list). A kind with no rung cannot
 /// survive into a declaration, so it can never be covered here — one
 /// list decides both, and widening this gate is exactly and only
 /// widening that ladder.
@@ -747,7 +747,7 @@ fn vertex_refusal(
 
 /// F7: the maximal-faces precondition through the coincidence ladder —
 /// same surface key, or Same±-oriented planes its margins decide one
-/// ([`super::oriented_plane_eq`]), across any edge ⇒
+/// ([`geom_brep::oriented_plane_eq`]), across any edge ⇒
 /// [`BooleanError::NonMaximalFaces`]; a near-coplanar dihedral surfaces
 /// as the predicate's own typed escalation instead. The ladder reads a
 /// ball about the shared edge's start that holds the edge, so the offset
@@ -807,21 +807,21 @@ pub(super) fn gate_maximal_faces<T: Decide>(
                 None
             }
         };
-        let extent = super::carrier_eq::ConsumedExtent::new(geom_brep::ExtentBall::of_cover_from(
+        let extent = geom_brep::ConsumedExtent::new(geom_brep::ExtentBall::of_cover_from(
             cover.as_ref(),
             at,
         ));
         // One plane, decided by its margin: a pair the producing op
         // should have merged (the merge glues what this decides).
-        match super::oriented_plane_eq(&p1, &p2, &extent, band) {
-            Ok(super::PlaneRelation::Distinct) => {}
+        match geom_brep::oriented_plane_eq(&p1, &p2, &extent, band) {
+            Ok(geom_brep::CarrierRelation::Distinct) => {}
             Ok(_) => {
                 return Err(BooleanError::NonMaximalFaces {
                     operand,
                     edge: edge_key,
                 });
             }
-            Err(super::PlaneEqError::Undecided { coincidence, .. }) => {
+            Err(geom_brep::CarrierEqError::Undecided { coincidence, .. }) => {
                 let pair = [(operand, f1), (operand, f2)];
                 return Err(BooleanError::CoplanarNeighbours {
                     operand,
@@ -829,10 +829,10 @@ pub(super) fn gate_maximal_faces<T: Decide>(
                     offset: super::readable_coincidence(coincidence, pair)?,
                 });
             }
-            Err(super::PlaneEqError::Escalated { rung, diag }) => {
+            Err(geom_brep::CarrierEqError::Escalated { rung, diag }) => {
                 return Err(BooleanError::plane_identity(rung, diag));
             }
-            Err(super::PlaneEqError::OffRing { torus, refusal }) => {
+            Err(geom_brep::CarrierEqError::OffRing { torus, refusal }) => {
                 return Err(super::off_ring_torus(
                     torus,
                     refusal,
@@ -4307,7 +4307,7 @@ fn parents_distinct_from<T: Decide>(
     .all(|pf| {
         pf.is_some_and(|pf| {
             match super::carrier_pair::carrier_pair_relation(x, pf, y, face, band) {
-                Ok(Ok(super::carrier_eq::CarrierRelation::Distinct)) => true,
+                Ok(Ok(geom_brep::CarrierRelation::Distinct)) => true,
                 Err(super::carrier_pair::PairUnread::OutsideInventory) => {
                     match x.proven_face(pf).surface() {
                         geom::Surface::Nurbs(sheet) => {
@@ -8404,9 +8404,10 @@ mod clearance_rows {
 #[allow(clippy::expect_used, clippy::panic)]
 mod neighbour_extent_rows {
     use super::gate_maximal_faces;
-    use crate::boolean::{BooleanDecision, BooleanError, Operand, PlaneRung};
+    use crate::boolean::{BooleanDecision, BooleanError, Operand};
     use crate::entity::{EntityId, GeomRef};
     use crate::test_support_fixtures::{plant_disc_face, plant_ring_face, prism_z};
+    use geom_brep::PlaneRung;
     use geom_core::{Band, Point3, Tol};
 
     fn band() -> Band {

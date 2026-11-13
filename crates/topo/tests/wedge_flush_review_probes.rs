@@ -11,10 +11,11 @@
 
 #![allow(clippy::expect_used, clippy::panic, clippy::print_stderr)]
 
+use geom_brep::CarrierDesc;
 use geom_core::test_support::upper;
 use geom_core::{Band, Point3, Tol, Vec3};
 use topo::test_support::{brick, face_facing, finished, mapped_cube};
-use topo::{Body, CarrierDesc, face_carrier};
+use topo::{Body, face_carrier};
 
 struct Pose {
     block_x: (f64, f64),
@@ -111,7 +112,7 @@ fn row(label: &str, pose: &Pose, theta: f64) {
     let (block_off, tool_off) = standoffs(pose, theta, &block, fb, &tool, ft);
     let glue = match topo::flush_pair_relation(&block, fb, &tool, ft, band) {
         Ok(Ok(rel)) => format!("{rel:?}"),
-        Ok(Err(topo::PlaneEqError::Escalated { rung, diag })) => {
+        Ok(Err(geom_brep::CarrierEqError::Escalated { rung, diag })) => {
             format!("Esc({rung:?} {:.2}ε)", upper(diag.margin) / eps)
         }
         other => format!("{other:?}"),

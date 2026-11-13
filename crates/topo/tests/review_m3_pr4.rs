@@ -478,10 +478,10 @@ fn notch_fill_dense_ties() {
 /// negation, a signed zero apart) decides SameOpposite on its margins.
 #[test]
 fn plane_eq_nan_and_negzero() {
+    use geom_brep::{CarrierRelation, oriented_plane_eq};
     use geom_core::{Band, Point3, Vec3};
-    use topo::{PlaneRelation, oriented_plane_eq};
     let band = Band::linear(Tol::witness()).unwrap();
-    let mk = |n: Vec3<f64>, o: Point3<f64>| topo::boolean::plane_eq::PlaneDesc {
+    let mk = |n: Vec3<f64>, o: Point3<f64>| geom_brep::PlaneDesc {
         origin: o,
         normal: n,
     };
@@ -495,7 +495,7 @@ fn plane_eq_nan_and_negzero() {
     let q2 = mk(Vec3::new(-0.0, -0.0, -1.0), Point3::new(0.0, 0.0, 5.0));
     assert_eq!(
         oriented_plane_eq(&q1, &q2, &metre_ball(1.0), band).unwrap(),
-        PlaneRelation::SameOpposite
+        CarrierRelation::SameOpposite
     );
 }
 
@@ -849,8 +849,8 @@ fn corrected_subtract_cells_geometric() {
 
 /// A ball of radius `arm` about the origin: the extent a bare arm
 /// names.
-fn metre_ball(arm: f64) -> topo::ConsumedExtent<f64> {
-    topo::ConsumedExtent::new(geom_brep::ExtentBall::of_sphere(
+fn metre_ball(arm: f64) -> geom_brep::ConsumedExtent<f64> {
+    geom_brep::ConsumedExtent::new(geom_brep::ExtentBall::of_sphere(
         geom_core::Point3::origin(),
         arm,
     ))
