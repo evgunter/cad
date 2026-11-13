@@ -56,11 +56,26 @@ const CARRIERS: &[NameCarrier] = &[
     NameCarrier::Const("POSE_ROUND_SIDE"),
     NameCarrier::Const("TANGENT_GAP_ORIENTATION"),
     NameCarrier::Const("GRADIENT_ALIGNMENT_LEVER"),
+    // The carrier ladder's data names, and each kind's reach row with
+    // its straddle row (`carrier_eq.rs`).
+    NameCarrier::Const("CARRIER_CONE_APEX"),
+    NameCarrier::Const("CARRIER_CONE_AXIS_PARALLEL"),
+    NameCarrier::Const("CARRIER_CONE_HALF_ANGLE"),
+    NameCarrier::Const("CARRIER_CYL_AXIS_OFFSET"),
+    NameCarrier::Const("CARRIER_CYL_AXIS_PARALLEL"),
+    NameCarrier::Const("CARRIER_CYL_RADIUS"),
+    NameCarrier::Const("CARRIER_SPHERE_CENTER"),
+    NameCarrier::Const("CARRIER_SPHERE_RADIUS"),
+    NameCarrier::Const("CONE_REACH"),
+    NameCarrier::Const("CYL_REACH"),
+    NameCarrier::Const("PLANE_REACH"),
+    NameCarrier::Const("SPHERE_REACH"),
     // The forwarders a `FORWARDS` line names, declared so their callers'
     // names are read (`roster_violations` holds each line to one).
     NameCarrier::Call("apart_in_order_as"),
     NameCarrier::Call("bound_as"),
     NameCarrier::Call("classify_len_as"),
+    NameCarrier::Call("coincident_over_extent_as"),
     NameCarrier::Call("cone_cylinder_section"),
     NameCarrier::Call("constant_as"),
     NameCarrier::Call("definitely_as"),
@@ -182,6 +197,8 @@ const ROW_FIELD: &str = "a field of a row struct, whose names are read at the st
 const ACCESSOR_LIKE_A_DOOR: &str = "a row bundle's accessor sharing a door's name (`.turn()`, \
      `.straddle()`), read as that door's call with no first argument";
 const IDENTITY: &str = "a `read_identity` call over data whose names are read where it is built";
+const IDENTITY_DATA: &str = "a `read_identity` call over `sphere_data`, `cylinder_data` and \
+                             `cone_data`, whose names are declared consts";
 const PAIRED: &str = "a row and its floor handed on as an array: its literals are read, the rest \
                       forwards its caller's name";
 const CLOSED_TYPE: &str = "a closed type's `name()` or `predicate()`, whose names are spelled in \
@@ -208,6 +225,16 @@ const CLOSURE_FORWARDS: &str = "a closure bound in this `fn` hands on its caller
 /// The indirect sites whose expression is not a declared `const`, as
 /// `<file>: <expr>`, with what carries the name there.
 const INDIRECT: &[(&str, &str)] = &[
+    ("carrier_eq.rs: coincident_over_extent_as: row", FORWARDS),
+    (
+        "carrier_eq.rs: coincident_over_extent_as: straddle",
+        FORWARDS,
+    ),
+    ("carrier_eq.rs: pair_door_reading: c1", CARRIER_CALL),
+    (
+        "carrier_eq.rs: read_identity#1(margins.iter().copied())",
+        IDENTITY_DATA,
+    ),
     (
         "carrier_resolution.rs: the_resolution_bounds_each_section_tables_carrier: &cut",
         CARRIER_CALL,

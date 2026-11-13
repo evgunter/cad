@@ -437,7 +437,7 @@ fn refusals(
     let band = || geom_core::Indeterminate {
         margin: geom_core::MarginDiag::value(3e-11),
         band: geom_core::Band::new(1e-12, 1e-9).expect("zero < escalate"),
-        predicate: Some("bool_plane_offset"),
+        predicate: Some("plane_eq_offset"),
         terminal_sliver: false,
     };
     let hit = |name: &StableName| PickHit {
