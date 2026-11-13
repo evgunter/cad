@@ -824,6 +824,24 @@ fn a_stepped_rings_floor_holds_against_its_end_caps() {
     holds_at_both("the stepped ring", ring(), ring());
 }
 
+/// **A quarter ball holds with its caps read at each pole**: a half
+/// disc revolved a quarter turn about its diameter. Each cap is a lens,
+/// the diameter and the semicircle meeting at both poles, so a cell
+/// holding the whole cap is not presented, and one holding a single pole
+/// is read through its corner there.
+#[test]
+fn a_quarter_balls_lens_caps_hold_read_at_each_pole() {
+    fn lune<T: Scalar>() -> Body<T> {
+        let p = |y: f64, b: f64| (Point2::new(0.0, y).map(T::from_f64), T::from_f64(b));
+        revolved_about_y_at(
+            vec![p(-0.3, 0.0), p(0.3, -1.0)],
+            Revolution::Partial(T::from_f64(core::f64::consts::FRAC_PI_2)),
+            tol(),
+        )
+    }
+    holds_at_both("the quarter ball", lune(), lune());
+}
+
 /// **A filleted cube corner's ball holds against the faces it touches
 /// at its pole**: the unit cube with the three edges at `(1, 1, 1)`
 /// filleted. The corner's sphere is charted with a pole at the vertex
@@ -1718,17 +1736,22 @@ fn shell_4s_vessel_holds() {
     }
 }
 
-/// **A cylinder–cylinder tee refuses typed where its junction meets a
-/// cap at a vertex alone.** Two radius-1 rods on crossing axes, one
-/// mitred by their bisector plane (`crossing_equal_rods`' pair at spins
-/// `(0, 0)`, `B` from `x = 0.2`), united. Rod `B` starts at `x = 0.2`,
-/// so the junction never reaches the node plane `x = 0`: it ends where
-/// `B`'s cap circle meets the mitre plane, at `(0.2, ±0.98, 0.2)`, a
-/// vertex `B`'s wall and `A`'s mitre share with no edge. Each face's
-/// corner there has a curved side and neither side on the shared
-/// cell, which no presentation reads, so the pair refuses
-/// `Uncertified { Departure }` naming the vertex — never certified,
-/// never measured by distance, and without splitting to the floor.
+/// **A cylinder–cylinder tee refuses typed at the vertices its walls
+/// share alone.** Two radius-1 rods on crossing axes, one mitred by
+/// their bisector plane (`crossing_equal_rods`' pair at spins `(0, 0)`,
+/// `B` from `x = 0.2`), united. Rod `B` starts at `x = 0.2`, so the
+/// junction never reaches the node plane `x = 0`: it ends where `B`'s
+/// cap circle meets the mitre plane, at `(0.2, ±0.98, 0.2)`, and `A`'s
+/// seam line meets it at `(1, 0, 1)`. The junction's ellipse runs on
+/// through each of those vertices as the next face's edge, so a face
+/// and the face across the vertex from it lean on one line there, which
+/// no plane through the vertex separates them across. A plane's corner
+/// of a line and an arc at such a vertex is read as its quadrant, and a
+/// wall's is not, so those four pairs split to the floor and refuse
+/// there; the walls against each other at `(1, 0, 1)`, and `A`'s wall
+/// halves against the mitre across its ellipse, refuse at the root. The
+/// verdict is `Uncertified { Departure }` naming a vertex — never
+/// certified, never measured by distance.
 #[test]
 fn a_cylinder_cylinder_tee_refuses_typed_at_a_vertex_its_junction_shares_alone() {
     fn tee_at<T: Scalar>() -> Result<topo::BooleanResult<T>, topo::BooleanError> {
@@ -1808,26 +1831,25 @@ fn a_cylinder_cylinder_tee_refuses_typed_at_a_vertex_its_junction_shares_alone()
         }) => {
             let mut kinds = [kind(tee, a), kind(tee, b)];
             kinds.sort_unstable();
-            assert_eq!(kinds, ["cylinder", "plane"], "a wall and the mitre");
+            assert_eq!(kinds, ["cylinder", "cylinder"], "the two walls");
             let p = *tee.get_point(tee.get_vertex(v).unwrap().point).unwrap();
             assert!(
-                (p.x - 0.2).abs() < 1e-9
-                    && (p.z - 0.2).abs() < 1e-9
-                    && (p.y.abs() - 0.96f64.sqrt()).abs() < 1e-9,
-                "where B's cap circle meets the mitre plane: {p:?}"
+                (p.x - 1.0).abs() < 1e-9 && p.y.abs() < 1e-9 && (p.z - 1.0).abs() < 1e-9,
+                "where A's seam line meets the junction: {p:?}"
             );
         }
         other => panic!("the tee refuses at the vertex: {other:?}"),
     }
     assert!(
         report.receipt.splits < 1024,
-        "the vertex refuses where it is met, not at the floor: {:?}",
+        "the floor refusals are the vertices' own cells, a few per level: {:?}",
         report.receipt
     );
     assert_eq!(
-        report.receipt.refused, 8,
-        "eight root pairs refuse: six at a vertex alone, two across the mitre's ellipse; the \
-         mitre's line on B's cap is read through its corners with the cap's arcs ({:?})",
+        report.receipt.refused, 12,
+        "four root pairs refuse: the walls against each other at a vertex alone, and two across \
+         the mitre's ellipse; four plane–wall pairs at a vertex alone, the plane read and the \
+         wall not, refuse eight cells at the floor ({:?})",
         report.receipt
     );
     assert!(
