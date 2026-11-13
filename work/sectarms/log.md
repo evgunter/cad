@@ -762,3 +762,10 @@ Both reds were found by PCERT's nightly lane and trace to SECTARMS merges.
 ## 2026-11-12 — PR 6889 merged (endpoint census main red)
 
 - Orchestrator's read: the roster entry for `spline_implicit.rs` re-pinned (2, 0) → (6, 4). The four new reads are `box_gap`'s, gated on `is_certified()` with NaN otherwise, and a NaN gap is never apart (`PadsMeet`). The two older reads are re-argued at their sites; the old note named functions that no longer exist and called the `at` lift quotient-free, which it is not. CI green. Main-red item closed.
+- 2026-11-13 — **Ring-winding lane handed back: PR 6891** (head `7cab26f286`, CI green). The spline wall's ring is wound by path parity along the wall's iso curves (`ring_path::SplineWall`), and bystanders are re-homed. The brick and fork witnesses pass the join and stop at INSIDE's containment item. Because of that stop, which way round the island winds is held by a topo row, not by the brick. The census moved 6 of 366 runs, all later. Filed:
+  - the planar face's case, P1 M, `design: true`;
+  - a wall without shared iso weights, P3;
+  - feet sought on the value channel, P4.
+  The restart interrupted the lane; its saved start `83bf9e59f2` was reverted, because it answered from an environment variable. The row records the interruption.
+- **PR 6891 review dispatched:** single FULL review. Reviewer arm byte 230 (Opus), recorded on `analysis/model-compare/sectarms-2026-11-13` with the two implementer draws.
+- **Planar ring-winding fork sent to designers** (`a-ring-on-a-planar-face-closed-by-carried-chords-has-no-winding`). Draws on `analysis/design-fork/sectarms-planar-ring-winding`: arm byte 58 (three designers), label byte 75. The brief states the problem only and keeps the designers off the item file and PR 6891's body, which both list candidates. Protocol `ddd201f411`.
