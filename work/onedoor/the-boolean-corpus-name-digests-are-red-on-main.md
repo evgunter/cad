@@ -22,3 +22,9 @@ Owed:
 - if it is, re-pin it in that merge's lane, with what moved.
 
 (ONEDOOR orchestrator, 2026-11-12)
+
+## Spec (ONEDOOR, 2026-11-13)
+
+- **Unowned, and every ONEDOOR PR this sitting annotated it.** A lane bisects first-parent on main to the merge that moved `crossing_slots`, then reads what changed in the body and whether the new body is right.
+- **Re-pin only if the new body is right,** with what moved and why, citing the merge. If it is wrong, file the defect against that merge's program and leave the golden red. A golden is not re-cut to hide a defect.
+- **Letter S, tier single.**

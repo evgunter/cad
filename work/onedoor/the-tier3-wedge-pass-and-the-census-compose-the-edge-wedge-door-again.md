@@ -1,12 +1,12 @@
 ---
 id: the-tier3-wedge-pass-and-the-census-compose-the-edge-wedge-door-again
-kind: issue
+kind: unit
 title: Tier 3's wedge pass and the census each compose the dihedral class with the material pairing, the question geom_brep::classify_edge_wedge now answers in one door
-status: dispatched
+status: spec
 opened: 2026-11-02
 priority: P1
 cost: H
-branch: onedoor/wedge-fold-2
+branch: onedoor/wedge-fold-3
 ---
 
 Filed by the REFS lane (`work/refs/select-all-edges-picks-edges-a-fillet-refuses.md`), from its sweep for readers of an edge's dihedral.
@@ -106,3 +106,10 @@ What retires: `dihedral_class`, `dihedral_decided`, `DihedralReading`, `MustCarr
 Still owed:
 - `rules::edge_wedge`'s sign stays on `enters_material`. It decides which body the split builds, and `dihedral_sign` is on the resolver's pass-over list (`work/doctail/verdict-log-tells-no-validation-reading-from-a-building-decision.md`). The cone-apex point split stands.
 - `edge_join`'s vertex read: `work/onedoor/edge-join-reads-a-joined-vertex-with-one-incident-edges-tangent.md`.
+
+## Stage 3 spec (ONEDOOR, 2026-11-13)
+
+- **What moves.** The blend's `classify_edge_wedge`, `EdgeWedge`, `PositiveArm` and the second `sweep::blend::Convexity` move onto the fold. The blend reads an edge's wedge through `topo::edge_wedge` / `edge_wedge_description` (or `geom_brep::edge_wedge_over` over a `WedgeWalk` where it holds no body), levered at the faces' extent, as every stage-2 reader does.
+- **What retires.** The blend's own class-and-sign composition, and the second `Convexity`, which folds into the one the fold reads. After this stage, no edge reader composes class and pairing outside the fold. The stage's sweep must show it, and a census row or source guard must keep it so.
+- **Behaviour.** A blend request on an edge the fold reads in band or mixed refuses typed, carrying the fold's escalation whole, as the split finish does. Every input a blend built before must still build, unless the PR body names it. A refusal on a valid input is a STOP, to report.
+- **Letter M, tier dual.** Stage 1 set the design and stage 3 repoints, as stage 2 did. It is dual because it moves the blend's wedge reading, which sweep, editor-core and `pncad` reach. Under the protocol, M means sequential reviews.

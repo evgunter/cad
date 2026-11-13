@@ -460,3 +460,9 @@ Ev, in chat: "go ahead in whatever order you see fit (including parallelizing th
   - `S173` is opened (P1): its only blocker closed here. The fired entry is pruned from `engine-leaves-by-visibility`'s `blocked_on`.
 - **14:17 — #6909 merged** (`5ca9d1ca89`). Kernel was red only on main's three by failure text, and every other job was green. The carrier-eq unit is closed, S173 is open, and the implementer session is archived.
 - **S173 specified** (letter S, tier single), before any draw. Weighing it found a second public `face_carrier` (`readback.rs:361`, the raw surface plus the sense bit) under the door's name, so the spec gives each fact one name. It is held behind #6900.
+- **14:5x — parallelized** (Ev asked what more can run alongside). Specified before any draw:
+  - **S173** (S, single): dispatched now, not after #6900, because #6900's code is final and the overlap is only a later merge of main;
+  - **the P0 `the-boolean-corpus-name-digests-are-red-on-main`** (S, single): unowned, and annotated as a main red on every PR this sitting; bisect, judge, then re-pin or file;
+  - **wedge stage 3** (M, dual): the blend's `classify_edge_wedge`, `EdgeWedge`, `PositiveArm` and the second `Convexity` move onto the fold.
+  
+  The two P1s #6890 absorbed are closed.
