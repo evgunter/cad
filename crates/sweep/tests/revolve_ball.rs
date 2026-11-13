@@ -158,7 +158,7 @@ fn a_full_revolves_two_seam_meridians_share_one_frame() {
         let frame = |e: topo::EdgeKey| {
             let curve = t.body.get_edge(e).unwrap().curve;
             match t.body.get_curve_geom(curve).unwrap().certified().unwrap().carrier() {
-                geom::Curve3::Circle(geom::Circle { frame, .. }) => frame,
+                geom::Curve3::Circle(geom::Circle { frame, .. }) => *frame,
                 other => panic!("a meridian is a circle: {other:?}"),
             }
         };

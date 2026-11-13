@@ -3002,6 +3002,16 @@ fn the_walk_reads_its_charts_and_edges_through_their_memos() {
 /// meridians' plane; read as a loose vertex, every polar strip of one
 /// half-band against every one of the other split until the walk ran
 /// out of its 65,536 pairs, at depth 32.
+///
+/// At a pole one half-band's corner is on one meridian and the other's
+/// on the other, and the corner is zero under the plane only where the
+/// plane lists both. The revolve stores the two in one plane, so at
+/// `f64` the plane built from either does. At `Interval` the small
+/// ball's centre is a bracket (its profile arc's centre rounds), and
+/// two meridians stored in one bracket need not lie in one plane for
+/// every member, so its plane lists its own meridian alone and its pole
+/// refuses `Departure` there. Red at `f64` if the meridians are stored
+/// in two planes, or if the corner is read as zero off the list.
 #[test]
 fn a_two_ball_union_holds_with_its_poles_read() {
     fn snowman<T: Scalar>() -> Body<T> {
@@ -3026,11 +3036,34 @@ fn a_two_ball_union_holds_with_its_poles_read() {
             topo::boolean::union(&ball(1.0, 0.0), &ball(0.8, 1.4), tol()).expect("the balls unite");
         Body::clone(&union.body().expect("a body").body)
     }
-    for report in holds_at_both("the snowman", snowman::<f64>(), snowman::<Interval>()) {
-        assert!(
-            report.receipt.discharged + report.receipt.refused < BUDGET / 16,
-            "the poles cost a few hundred pairs, not the budget: {:?}",
-            report.receipt
-        );
-    }
+    let float = snowman::<f64>();
+    let report = injective(&float, None, BUDGET);
+    assert_holds("the snowman", &report, &float);
+    assert!(
+        report.receipt.discharged + report.receipt.refused < BUDGET / 16,
+        "the poles cost a few hundred pairs, not the budget: {:?}",
+        report.receipt
+    );
+    let twin = snowman::<Interval>();
+    let verdict = injective(&twin, None, BUDGET).verdict;
+    let BoundVerdict::Refused(EngineRefusal::Uncertified {
+        shared: SharedCell::Edge(edge),
+        arm: CertificateArm::Departure,
+        ..
+    }) = verdict
+    else {
+        panic!("the snowman at Interval refuses Departure on a meridian: {verdict:?}");
+    };
+    let curve = twin.get_edge(edge).expect("a live edge").curve;
+    let carrier = twin
+        .get_curve_geom(curve)
+        .and_then(|g| g.certified())
+        .map(|c| c.carrier().clone());
+    let Some(geom::Curve3::Circle(geom::Circle { frame, radius })) = carrier else {
+        panic!("the refusing edge is a meridian circle: {carrier:?}");
+    };
+    assert!(
+        (mid(radius) - 0.8).abs() < 1e-9 && frame.origin.y.lo() < frame.origin.y.hi(),
+        "on the small ball, whose centre is a bracket: {radius:?} {frame:?}"
+    );
 }
