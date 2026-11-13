@@ -157,7 +157,9 @@ fn props_flux_flips_with_the_rimless_band_sense() {
         honest.enclosure.volume
     );
 
-    let flipped = b.flipped_face_sense_for_tests(first_face(&b)).unwrap();
+    let flipped = b
+        .flipped_face_sense_for_tests(first_face(&b), geom_core::Tol::witness())
+        .unwrap();
     refused_at_the_door(&flipped);
     let (volume, area) = per_face(&flipped);
     assert!(
@@ -205,7 +207,9 @@ fn offcentre_flipped_ball_still_cancels() {
         honest.enclosure.volume
     );
 
-    let flipped = b.flipped_face_sense_for_tests(first_face(&b)).unwrap();
+    let flipped = b
+        .flipped_face_sense_for_tests(first_face(&b), geom_core::Tol::witness())
+        .unwrap();
     refused_at_the_door(&flipped);
     let (volume, _) = per_face(&flipped);
     assert!(
@@ -269,7 +273,9 @@ fn assembly_flip_is_wrong_but_nonzero() {
         .find(|(fk, _)| matches!(body.face_surface(*fk), Some(Surface::Sphere { .. })))
         .map(|(k, _)| k)
         .expect("the assembly keeps the ball's sphere bands");
-    let flipped = body.flipped_face_sense_for_tests(band_face).unwrap();
+    let flipped = body
+        .flipped_face_sense_for_tests(band_face, geom_core::Tol::witness())
+        .unwrap();
     refused_at_the_door(&flipped);
     let (volume, _) = per_face(&flipped);
     assert!(
@@ -314,7 +320,9 @@ fn tier_three_refusal_is_surgical() {
         Ok(())
     );
     for (face, _) in body.faces() {
-        let flipped = body.flipped_face_sense_for_tests(face).unwrap();
+        let flipped = body
+            .flipped_face_sense_for_tests(face, geom_core::Tol::witness())
+            .unwrap();
         let errs = topo::validate::validate_geometric(&flipped, Tol::witness()).unwrap_err();
         assert!(!errs.is_empty(), "face {face:?}: the flip must be refused");
         assert!(

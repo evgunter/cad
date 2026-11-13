@@ -782,7 +782,7 @@ once around, read off the invariants a change of starting half-edge
 leaves alone: off the twin, at most one period on each periodic
 channel; through the twin, an odd number of half turns of azimuth, at
 most three, and no bound on the second channel, whose periods are not
-such an invariant there; and no azimuth winding counted across a reset.
+such an invariant there.
 A closed chart polygon is built only where the winding is zero and
 every joint's integer was decided with room past the joint bound. A
 vertex on the chart's singular set (a sphere's pole, a cone's apex) is

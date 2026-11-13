@@ -972,6 +972,15 @@ fn pcurve_mint_errors() -> Vec<PcurveMintError> {
             cause: diag(),
         },
     ];
+    v.extend(
+        [
+            crate::pcurves::SingularMiss::EdgesCoincide,
+            crate::pcurves::SingularMiss::TwoNappes,
+            crate::pcurves::SingularMiss::NoLever,
+        ]
+        .into_iter()
+        .map(|miss| PcurveMintError::SingularTurn { half_edge, miss }),
+    );
     v.extend(band_errors().into_iter().map(PcurveMintError::Band));
     v.extend(
         pcurve_certify_errors()

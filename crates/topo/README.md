@@ -53,7 +53,8 @@ that what you need belongs at the root or below.
 | Contact verification (Door 1) | `src/boolean/contact_verify.rs` (`rest_pair_verdict`), `src/boolean/carrier_pair.rs` (the face-pair door); the carrier ladder it reads is `geom_brep::carrier_eq` (kind-generalized) and `geom_brep::plane_eq` (its planar arm) |
 | Chart-region overlap (Door 2) | `src/chart_region.rs` (`chart_region_overlap`, `glued_pair_overlap`, `world_carrier`, `cylinder_pair_overlap`, `interior_witness`), `src/chart.rs`, `src/chart_iso.rs`, `src/pcurves.rs` |
 | The region a face or an edge can occupy | `src/cover.rs` (`face_cover`, `face_cover_toward`, `edge_cover`, `face_nearest`, `meet_within`): a face's carrier cover met with the trim constraints its one arm per kind proves, an edge's carrier cover over its span hulled with its ends, the ball where two covers meet within the band |
-| A face's azimuth window on its chart | `src/chart_window.rs` (`face_azimuth_images`, `face_azimuth_window`, `face_loop_azimuth_travels`): the hull of a face's boundary images on its chart and each loop's net azimuth travel, each edge's branch pinned to the previous exit, by the face's orientation at a sphere pole, refused at a cone apex |
+| A loop's position in its face's chart | `src/pcurves.rs` (`Lift`): the chain of the loop's chart images, each moved by the joint elements summed along it (`src/joint.rs`), and the face's boundary in the chart, through a pole or an apex along the face's turn there. `Lift::read` takes the rows a finished body stores, with no band, and a missing row is loud; `Lift::decided` runs the mint's own walk at the caller's band over a loop or an open run, mid-operation, and stores nothing. The caller names which, and neither falls back to the other. Every window, hull and winding is a method on it, and `decide_joint` is the one decision of a joint's branch |
+| A face's azimuth window on its chart | `src/chart_window.rs` (`face_azimuth_window`): the first-channel hull of the outer loop's lift, decided at the reader's band since its readers run mid-operation too, refusing in its own `ChartWindowError` |
 | Chart cells against a face's region | `src/cell_region.rs` (`cell_region`, `station_region`, `CellRegion`): a cell of a face's stored chart decided `Inside`, `Outside` or `Undecided` off the face's edges on their carriers and its point-in-face door; `src/pcurves.rs` (`loop_windings`) |
 | The clearance engine's body-level half | `src/clearance.rs` (`Side`, `Sweep`, `Candidate`, `Enclosure`, `EngineRefusal`, `min_separation`): carrier windows and the cell subdivision between two sets of faces, one fused sweep reading a pair against a lower bound, an upper bound or both (a band) with a caller's pair verifier, and the certified minimum-separation bracket the sweep suites read beside it |
 | Plane splitting | `src/splitting/` (`classify`, `neighborhood`, `rules`, `insert`, `order`, `join`, `finish`, `section`, `containment`), `src/chord_join.rs`, `src/ring_path.rs`, `src/null.rs` |
@@ -720,13 +721,13 @@ reparents only within one shell (`EulerOpError::CrossShell`).
    is in band, or whose side the door reads in band, is
    `ChartSingularityUndecided`; and every wrap
    edge's tip lies on its face's chart singularity, read at the joint
-   between the edge's two halves by the incidence the loop walk resets
-   that joint by, `WrapTipOffChartSingularity`,
+   between the edge's two halves by the incidence the loop walk takes
+   the face's turn at that joint by, `WrapTipOffChartSingularity`,
    `WrapTipWithoutChartSingularity` on a surface with no singular point,
    or `WrapTipUndecided`, whose ending passes zero alone;
    a vertex's incidence on a singular point is one reading,
    `geom_brep::chart_singularity::vertex_at_singular_point`, which the
-   at-vertex placement, the reset and the tip rule all read),
+   at-vertex placement, the joint decision and the tip rule all read),
    **one region per face** off the plane (each surface cycle on the
    face's side of every other, read by the point-in-face doors cut to
    one cycle, a torus's essential cycles as one pair:
