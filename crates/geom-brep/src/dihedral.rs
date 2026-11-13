@@ -2301,7 +2301,7 @@ pub fn gradient_alignment<T: Decide>(
 /// two faces at a point is read here: a tangency's
 /// ([`Tangency::pairing`]), an edge's crease that reads smooth
 /// ([`classify_edge_wedge`]), two parallel planes'
-/// ([`crate::carrier_pose`]), and a contact's or a certificate's
+/// ([`crate::carrier_pose()`]), and a contact's or a certificate's
 /// orientation before tangency ([`gradient_alignment`]). The normals are
 /// [`OutwardNormal`]s, so the faces' senses were folded in where they
 /// were minted.
