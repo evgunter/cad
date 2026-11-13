@@ -782,3 +782,5 @@ Both reds were found by PCERT's nightly lane and trace to SECTARMS merges.
   - `unreachable!` arms → typed refusals;
   - message and doc fixes.
   The fix pass went to the implementer's own agent (Fable arm), continued. The report is saved as `rep6891-review.txt`.
+- 2026-11-13 — **PR 6896 merged (`e296d9123c`): Ev approved the planar fork** after asking for a visualization (private artifact linked on the PR). Ev's words: "am i correct in my understanding that the proposal is 'add a spline case in exactly the same way that we already have special cases for a few other kinds of curve'? if so, this can merge". I confirmed, naming the two differences: the spline term is read from `props`, and a plane with a carried chord is routed to the existing planar winding. Fork-log row 264 is filled.
+  - **Next:** once PR 6891 merges, the item `a-ring-on-a-planar-face-closed-by-carried-chords-has-no-winding` gets the decision written in, drops `design: true`, and is dispatched. Its done-when gains check 6's spline-bearing planar loops (`validate.rs:8211`).
