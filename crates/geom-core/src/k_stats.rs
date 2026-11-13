@@ -2157,12 +2157,12 @@ mod tests {
             decide("scope_before", Margin::of(1.0f64), b),
             Ok(Sign::Positive)
         );
-        let inside = unlogged("F28", || {
+        let inside = unlogged("F41", || {
             assert_eq!(open_frames(), 2, "the scope runs under a frame of its own");
             (
                 decide("scope_verdict", Margin::of(-1.0f64), b),
                 decide("scope_escalation", Margin::of(mid), b).is_err(),
-                check_unlogged("scope_check", -1.0f64, b, "F28"),
+                check_unlogged("scope_check", -1.0f64, b, "F41"),
             )
         });
         assert_eq!(
@@ -2189,9 +2189,9 @@ mod tests {
         let b = band();
         let mid = f64::midpoint(b.zero(), b.escalate());
         start_recording();
-        unlogged("F28", || {
+        unlogged("F41", || {
             let _ = decide("scope_sample_a", Margin::of(Probe(1.0)), b);
-            let _ = check_unlogged("scope_sample_b", Probe(mid), b, "F28");
+            let _ = check_unlogged("scope_sample_b", Probe(mid), b, "F41");
         });
         let got: Vec<_> = take_samples()
             .iter()

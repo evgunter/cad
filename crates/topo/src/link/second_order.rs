@@ -4,8 +4,9 @@
 //! where every sheet is a horn, the thorn they bound ([`thorns`]); and a
 //! ray where sheets' bounds or planes meet without an edge they share,
 //! whether the sheets part across it ([`parts`]); and two sheets on one
-//! wedge, pinched at its ends by edges both faces hold, capped by a horn
-//! or open where one runs on, which side of the other each bends to
+//! wedge, pinched at its ends by edges both faces hold, capped by a
+//! horn, open where one runs on, or along a line edge of one lying in
+//! the other's whole plane, which side of the other each bends to
 //! ([`lenses`]: lenses and lunes).
 //!
 //! The picture these read, the cut square to the tied ray scaled by
@@ -557,10 +558,12 @@ pub(super) enum Lens {
 
 /// **The link's lenses and lunes, one order down**: pairs of sectors on
 /// one wedge `W`, `W` the whole of one of them, `j`, and the first or
-/// last wedge of the other, `i`, taken the other way round, each end of
-/// `W` closing ([`Close`]), and not both planes (two planes on each other
-/// are a slit, [`super::rest::one_material`]'s to refuse). Both ends
-/// pinches is a **lens**; a cap or a mouth at either end, a **lune**.
+/// last wedge of the other, `i`, taken the other way round (or anywhere
+/// on `i` where it is a planar face's whole plane, [`along_a_line`]),
+/// each end of `W` closing ([`Close`]), and not both planes (two planes
+/// on each other are a slit, [`super::rest::one_material`]'s to refuse).
+/// Both ends pinches is a **lens**; a cap or a mouth at either end, a
+/// **lune**.
 /// Each pair's kind is read by [`kind`]. A candidate pair that does not
 /// read refuses as [`kind`] says; a sector in two pairs is
 /// [`crate::CurvedUnread::Unreadable`]; a pair whose ends do not close is
@@ -620,6 +623,10 @@ enum Close {
     Cap(usize),
     /// `i` runs on past the end, which is a ray of its fan.
     Mouth,
+    /// `j` is bounded there by a line edge lying in the planar face `i`'s
+    /// plane, `i` running on past it ([`along_a_line`]): both faces hold
+    /// the line, as at a pinch of two lines.
+    Lying,
 }
 
 /// **The pair `(i, j)` on one wedge** ([`lenses`]): `None` where it is no
@@ -637,13 +644,15 @@ fn pair<T: Decide>(
     let (Some(ti), Some(tj)) = (link.faces[i].tangent, link.faces[j].tangent) else {
         return None;
     };
-    let (Some([i0, i1]), Some([j0, j1]), &[(c, d)]) = (ti.bounds, tj.bounds, t.wedges.as_slice())
-    else {
+    let (Some([j0, j1]), &[(c, d)]) = (tj.bounds, t.wedges.as_slice()) else {
         return None;
     };
     if super::rest::planar(link, i) && super::rest::planar(link, j) {
         return None;
     }
+    let Some([i0, i1]) = ti.bounds else {
+        return along_a_line(link, [i, j], ti, (c, d), [j0, j1], rd);
+    };
     // `j`'s two rays on two of `i`'s, on `i`'s plane, the other way round:
     // the two sectors lie on one plane, turned over, so their outward
     // normals are opposed.
@@ -689,37 +698,136 @@ fn pair<T: Decide>(
             } else {
                 (s.wedges[..n - 1].to_vec(), [i0, j1])
             };
-            FaceSector {
-                sector: Sector {
-                    outward: s.outward,
-                    apex: s.apex,
-                    wedges,
-                    closed: false,
-                },
-                face: LinkFace {
-                    tangent: Some(Tangent {
-                        bounds: Some(bounds),
-                        ..ti
-                    }),
-                    ..link.faces[i].clone()
-                },
-            }
+            less_wedge(link, i, ti, wedges, bounds)
         });
+    Some(one_wedge(link, [i, j], (c, d), ends, rest, rd))
+}
+
+/// **Sector `i` less a pair's wedge**, as the remainder holds it
+/// ([`OneWedge::rest`]): `i`'s plane and face, the `wedges` left of its
+/// fan, bounded by `bounds`.
+fn less_wedge<T: Decide>(
+    link: &Link<T>,
+    i: usize,
+    ti: Tangent<T>,
+    wedges: Vec<Segment<T>>,
+    bounds: [Bound<T>; 2],
+) -> FaceSector<T> {
+    let s = &link.cone.sectors[i];
+    FaceSector {
+        sector: Sector {
+            outward: s.outward,
+            apex: s.apex,
+            wedges,
+            closed: false,
+        },
+        face: LinkFace {
+            tangent: Some(Tangent {
+                bounds: Some(bounds),
+                ..ti
+            }),
+            ..link.faces[i].clone()
+        },
+    }
+}
+
+/// **A candidate pair read** ([`pair`], [`along_a_line`]): its kind
+/// ([`kind`]) over the wedge `(c, d)` closing as `ends` say, the horns
+/// that cap it, and `rest`, `i` less the wedge where `i` runs on.
+fn one_wedge<T: Decide>(
+    link: &Link<T>,
+    [i, j]: [usize; 2],
+    wedge: Segment<T>,
+    ends: [(Point3<T>, Close); 2],
+    rest: Option<FaceSector<T>>,
+    rd: Reading<T>,
+) -> Result<OneWedge<T>, TouchUnread> {
     let caps = ends
         .iter()
         .filter_map(|&(r, e)| match e {
             Close::Cap(h) => Some((h, r)),
-            Close::Pinch { .. } | Close::Mouth => None,
+            Close::Pinch { .. } | Close::Mouth | Close::Lying => None,
         })
         .collect();
-    Some(kind(link, [i, j], ends, rd).map(|kind| OneWedge {
+    kind(link, [i, j], ends, rd).map(|kind| OneWedge {
         pair: [i, j],
-        wedge: (c, d),
+        wedge,
         own: j,
         kind,
         caps,
         rest,
-    }))
+    })
+}
+
+/// **The pair `(i, j)`, `j` a sheet on the planar face `i`'s whole plane,
+/// bounded by a line in it** ([`pair`], which has read `i` with no bound,
+/// `j` the one wedge `(c, d)` bounded by `j0` and `j1`, and the two not
+/// both planes): `i` a planar face (`ti`), the wedge on its plane the
+/// other way round, one end of it a line edge of `j` ([`Close::Lying`])
+/// and the other a mouth. `None` where it is no such pair. No other
+/// sector may hold the line's ray inside it: cut along the line, `i`
+/// would no longer be read crossing it there
+/// ([`crate::CurvedUnread::Unreadable`]; a reading in band,
+/// [`TouchUnread::InBand`]). The remainder's sector is `i` less the
+/// wedge, the rest of its turn, bounded by `j`'s edges. The argument:
+/// `crates/topo/README.md`, beside the lune's.
+fn along_a_line<T: Decide>(
+    link: &Link<T>,
+    [i, j]: [usize; 2],
+    ti: Tangent<T>,
+    (c, d): Segment<T>,
+    [j0, j1]: [Bound<T>; 2],
+    rd: Reading<T>,
+) -> Option<Result<OneWedge<T>, TouchUnread>> {
+    let unread = TouchUnread::Curved(CurvedUnread::Unreadable);
+    let p = link.cone.p;
+    let s = &link.cone.sectors[i];
+    if !ti.plane_exact {
+        return None;
+    }
+    // The wedge runs from `c` round to `d` about `j`'s outward normal,
+    // and the other way about `i`'s: the normals are opposed.
+    if !(super::rest::in_plane_of(link, j, i, rd)
+        && wedge_side(p, s.outward, d, c, rd) == Some(Sign::Positive))
+    {
+        return None;
+    }
+    let (ends, line) = match (j0.line, j1.line) {
+        (true, false) => ([(c, Close::Lying), (d, Close::Mouth)], c),
+        (false, true) => ([(c, Close::Mouth), (d, Close::Lying)], d),
+        _ => return None,
+    };
+    for (k, other) in link.cone.sectors.iter().enumerate() {
+        if k == i || k == j {
+            continue;
+        }
+        match link.cone.side(other, line, rd) {
+            Some(Sign::Positive | Sign::Negative) => continue,
+            Some(Sign::Zero) => {}
+            None => return Some(Err(TouchUnread::InBand)),
+        }
+        match other.place(p, line, rd) {
+            Ok(Place::Outside | Place::Bound) => {}
+            Ok(Place::Inside) => return Some(Err(unread)),
+            Err(_) => return Some(Err(TouchUnread::InBand)),
+        }
+    }
+    // `i` less the wedge: from `c` counterclockwise about its normal to `d`.
+    let turn = super::corner_fan(
+        s.apex,
+        s.outward,
+        (c - s.apex, d - s.apex),
+        [j0.bend, j1.bend],
+        false,
+        rd.band,
+    );
+    let wedges = match turn {
+        Ok(super::CornerTurn::Fan(wedges)) => wedges,
+        Ok(super::CornerTurn::Horn) => return Some(Err(unread)),
+        Err(why) => return Some(Err(why)),
+    };
+    let rest = less_wedge(link, i, ti, wedges, [j0, j1]);
+    Some(one_wedge(link, [i, j], (c, d), ends, Some(rest), rd))
 }
 
 /// Whether sector `k`'s face is developable: a plane, a cylinder or a
@@ -735,17 +843,18 @@ fn developable<T: Decide>(link: &Link<T>, k: usize) -> bool {
 /// sheet past the first along the first's outward `m` is the quadratic
 /// form `q((1 − t)u₀ + t·u₁) = b₀(1 − t)² + 2b₁t(1 − t) + b₂t²`, `b₀ = q(u₀)`,
 /// `b₂ = q(u₁)`, `b₁` its polar value
-/// ([`crate::bound_side::FaceBend::section`], polarised). A pinch reads
-/// its `b` Zero; a cap or a mouth reads its `b` decided, one sign `σ` for
-/// all of them; `b₁`, as the gap it makes along the unit middle, reads
-/// `σ`, or Zero where every pinch is two lines on
-/// developable faces ([`developable`]); where no end is open, `b₁` alone
-/// decides `σ` (a lens). Each sign is read at the arm with the two planes'
-/// parting along its ray charged. `σ` positive is a void, each sheet on
-/// the other's outward side, and a cap's horn must face into `W` for a
-/// void and out of it for a sliver. A sign the band leaves undecided is
-/// [`TouchUnread::InBand`]; any other reading that does not hold, or a
-/// face with no certified bend, is [`crate::CurvedUnread::Unreadable`].
+/// ([`crate::bound_side::FaceBend::section`], polarised). A pinch or a
+/// line in the other's plane reads its `b` Zero; a cap or a mouth reads
+/// its `b` decided, one sign `σ` for all of them; `b₁`, as the gap it
+/// makes along the unit middle, reads `σ`, or Zero where every pinch is a
+/// line on developable faces ([`developable`]); where no end is open,
+/// `b₁` alone decides `σ` (a lens). Each sign is read at the arm with the
+/// two planes' parting along its ray charged. `σ` positive is a void,
+/// each sheet on the other's outward side, and a cap's horn must face
+/// into `W` for a void and out of it for a sliver. A sign the band leaves
+/// undecided is [`TouchUnread::InBand`]; any other reading that does not
+/// hold, or a face with no certified bend, is
+/// [`crate::CurvedUnread::Unreadable`].
 /// The argument: `crates/topo/README.md`, beside the first-order one.
 fn kind<T: Decide>(
     link: &Link<T>,
@@ -787,9 +896,9 @@ fn kind<T: Decide>(
     for (u, close) in [(u0, ends[0].1), (u1, ends[1].1)] {
         let b = gap(rise(u)?);
         match close {
-            Close::Pinch { straight: line } => {
+            Close::Pinch { .. } | Close::Lying => {
                 pinched = true;
-                straight &= line;
+                straight &= matches!(close, Close::Lying | Close::Pinch { straight: true });
                 match metric::sign_as(LINK_SECOND_ORDER, b, rd.band) {
                     Some(Sign::Zero) => {}
                     Some(Sign::Positive | Sign::Negative) => return Err(unread),

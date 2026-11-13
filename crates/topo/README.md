@@ -1272,7 +1272,7 @@ point tied inside a curved edge read as its faces' tangent cones
 down where it ties at a cusp corner or along a ray
 (`link::second_order`), two sheets on one wedge read as the lens or
 lune their bends make, two planar faces on each other refused as the planar link
-refuses them, a cone's apex read as the nappe of its rulings, and refused
+refuses them, a cone's apex read as the nappes of its rulings, and refused
 undecided where none of these decides (`BoundaryCrossesItselfUndecided`,
 its cause the reading's; no such point is passed). Every other use of a
 face's normal in the coincidence sweeps is sense-invariant.
@@ -1286,12 +1286,15 @@ names (`TouchUnread`):
 - **no tangent plane** (`CurvedUnread::NoTangentPlane`): a vertex in the
   band of a cone's axis; a face held inside in band of its axis, centre
   or apex (`census::vertex_normal`, `census::foot_normal`); a cone's
-  apex its nappe does not decide (`rest::whole_nappe`, `rest::at_apex`):
+  apex its nappes do not decide (`rest::whole_nappes`, `rest::at_apex`):
   a nappe not held whole (one half alone, halves on two carriers, of two
-  senses or with rulings read together, a second apex), a ruling
-  decidedly on the other nappe, a horn beside it, a half-plane cutting
-  it, a needle alone (no rest round it to read its void against), or
-  the axis read on a sector of the rest rather than in a region;
+  senses or with rulings read together), a ruling decidedly on the other
+  nappe, a horn beside a nappe, a half-plane cutting one, a needle
+  inside no other nappe with no rest round it to read its void against,
+  an axis read on a sector of the rest rather than in a region, or
+  nappes round one that make no chain (`rest::nesting`; no decided
+  geometry reaches it, since two nappes holding a third are nested or
+  across each other, and the arm refuses rather than guesses);
 - **no sector arm** or **not placed** (`CurvedUnread::NoSectorArm`,
   `CurvedUnread::Unplaced`): a corner face `sector_face::resolve`
   refuses, a surface with no sector arm or a spline edge with no chart
@@ -1313,7 +1316,10 @@ names (`TouchUnread`):
   (`second_order::parts`); two whole tangent planes on one plane (two
   kissing balls at any pose included, `rest::first_order`); two sectors
   lying on each other where one is no plane and no lens or lune reads
-  them (`rest::one_material`); a lens or lune whose bends do not decide
+  them (`rest::one_material`: a sheet on a whole tangent plane among
+  them, but one on a planar face along a line, below); a sheet on a
+  planar face along a line whose ray another sector holds inside it
+  (`second_order::along_a_line`); a lens or lune whose bends do not decide
   it (a pinch read off Zero, ends or middle read decided but disagreeing,
   a polar value Zero beside a curved pinch, a cap facing the wrong way,
   a face with no certified bend: `second_order::kind`), a sector in two
@@ -1531,6 +1537,43 @@ from its edge out (`link::corner_fan`), so with that sector's edge
 turned off a quarter from the other's the mouth falls inside a wedge,
 and the pair is refused undecided, in that pose only.
 
+The sector that runs on may also be a planar face's whole plane, the
+point inside the face, with a curved sheet's one wedge `W` on it the
+other way round, bounded at one end by a line edge: **a sheet on a
+planar face along a line** (`second_order::along_a_line`). The ridge of a
+cylinder wall tangent to its floor along its tip ends so. `W`'s two ends
+close as follows.
+
+- A **line**: the sheet is bounded there by a line edge. The line lies
+  in the plane as the faces keep it (first order's line edge in a planar
+  face's plane), so both faces hold it and `q` reads Zero along it
+  (Meusnier), as at a pinch of two lines. The plane runs on past it.
+- A **mouth** at the other end: the plane runs on past the sheet's edge
+  there, and `b` reads decided, `σ`.
+
+`b₁` then reads as beside a pinch: `σ`, or Zero where the sheet is
+developable. A cylinder or a cone holds the line as a ruling, its
+tangent plane one along it and at `p` the planar face's, so the two
+faces are tangent along the whole line and the sheet's form is
+`κ(u·g)²`, `g` square to the ruling: one sign over all of `W`, zero
+along the line alone. So the sheets part over `W` as a lune's do. The
+remainder holds the plane less `W`, the rest of its turn from one end
+round to the other, bounded at each by the sheet's edge there. Cutting
+the plane along the line would hide a sheet that crosses it there, so no
+other sector may hold the line's ray inside it: such a link refuses. A
+sector bounded along the line leaves the plane at an angle `δ > 0` (in
+the plane it is a slit, a second pair or a sheet on a sheet, each
+refused). Leaving on the sheet's side, it stands `t·tan δ` over a point
+`t` from the line where the lune is of order `t²` thick, so it stays
+out of the lune. Leaving through the plane, into the planar face's
+material, it crosses the face along the line, and that is not what the
+angle rules out: it is refused by the lune's kind against its region
+(`rest::lensed`). The remainder then closes the plane's rest against
+that sector below the plane, so the wedge's middle reads outside the
+remainder's material, and a void lune needs material round it. Not read, and
+refused as sheets lying on each other: a sheet on a curved face's whole
+tangent plane, and one neither of whose ends, or both, is a line.
+
 Two planar sectors on one plane holding a common area, a slit or a
 sheet doubled, are the faces' own geometry and no tie: two planes are
 their faces' own, and each face fills its tangent sector near the point
@@ -1604,6 +1647,52 @@ holds), and a sector whose plane cuts the nappe and whose wedges may
 pass it by. A plane whose side the charge leaves in band, a plane
 tangent to the cone along a ruling among them, or rulings in band of
 each other, refuses in band.
+
+A link may hold several nappes: two cones' apexes at the point, or both
+nappes of one carrier (`rest::whole_nappes`). The lobes are grouped into
+nappes, each held whole as above about its own axis, all read at one arm
+`l`, the lobes' least reach, and each against every sector's plane as
+one nappe is. Two nappes `Cᵢ` and `Cⱼ`, of unit axes `aᵢ`, `aⱼ` an angle
+`θ` apart and half-angles `αᵢ`, `αⱼ`, are read by where `Cⱼ`'s rulings
+stand against `Cᵢ` (`rest::rulings_against`). A point at the arm an
+angle `ψ` off `aᵢ` stands `l·sin(αᵢ − ψ)` inside `Cᵢ`: positive exactly
+inside it, and no larger in size than the point's distance from the
+nappe. `Cᵢ` is a surface of revolution, so that height is read with the
+point turned about `aᵢ` into the meridian plane of `Cᵢ`'s first ruling:
+the distance of `p + l(cos ψ·aᵢ + sin ψ·e)`, `e` the unit toward that
+ruling square to `aᵢ`, from the cone's tangent plane along the ruling
+(inward unit normal `aᵢ·sin αᵢ − e·cos αᵢ`). Over `Cⱼ`'s rulings `ψ` runs
+from `|θ − αⱼ|`, the near ruling, to `θ + αⱼ`, the far one (while that
+is under half a turn), and `sin(αᵢ − ψ)` falls as `ψ` grows to
+`αᵢ + π/2`. So:
+
+- the near ruling read decidedly outside `Cᵢ` puts every ruling of `Cⱼ`
+  outside it, past the band;
+- the far ruling read decidedly ahead of the plane through `p` square
+  to `aᵢ` (so `θ + αⱼ` is under a quarter turn, and the ruling read is
+  the farthest) and decidedly inside `Cᵢ` puts every ruling of `Cⱼ`
+  inside it, past the band: `Cⱼ` lies in `Cᵢ` and meets its nappe only
+  at `p`;
+- the near ruling decidedly inside with the far one decidedly outside,
+  or decidedly behind that plane (some ruling of `Cⱼ` stands so, and all
+  of `Cᵢ` is ahead of it), has rulings of `Cⱼ` on both sides of `Cᵢ`'s
+  nappe. Both nappes are whole and are the faces themselves, so the two
+  faces cross along a ruling between: a crossing.
+
+Each two nappes must read apart (each one's rulings outside the other)
+or nested (one's inside the other); any other reading refuses in band,
+two nappes tangent along a ruling among them. A nappe is its own
+blow-up, so nothing is charged but the ties' slack. Each nappe then
+bounds a convex cone that meets no sheet of the link but at `p`, and the
+cones are disjoint or nested, so the windings are read off the nesting:
+crossing a thorn's nappe inward raises the winding by one, a needle's
+lowers it. A nappe inside no other must read its axis as one nappe
+does, outside the rest's material for a thorn and inside it for a
+needle; a nappe whose least nappe round it is a thorn must be a needle,
+and the other way round. Any other is a crossing: its cone less the
+nappes nested in it, which are strictly smaller, is a solid angle that
+winds a third value. With no other sector, nappes inside no other that
+are all thorns rest, and a needle among them refuses.
 
 The chord reading is the cross-section's (`FaceSector::chord`). A
 cylinder or cone face along a line edge of it, the edge lying in a

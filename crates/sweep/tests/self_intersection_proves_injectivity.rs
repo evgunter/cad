@@ -19,6 +19,8 @@
 //!   on the shared cell, and their minimum separation is `[0, 0]`;
 //! - large curved bodies certify within the default budget, their
 //!   cell-pair counts printed;
+//! - a windowed tube holds across its caps' circles, where each cap's
+//!   two semicircles meet on the walls' seams;
 //! - lofts whose walls reach every extreme in one half of an axis are
 //!   admitted and decided: the arc spine past a full turn, the closed
 //!   spine and the carvetail loft read `Violated`, and the arc spine
@@ -756,6 +758,41 @@ fn a_full_torus_certifies_by_kind() {
             report.receipt
         );
     }
+}
+
+/// **A windowed tube holds across its caps' circles at both scalars**
+/// (the tour's `tube_along_arc` wedge: `R = 2`, `r = 1/2`, the spine
+/// from `1/4` to `7/4` rad). Each cap is a disc on two semicircles,
+/// which meet where the two half-tube walls' seams land. A cap cell at
+/// such a vertex has no presentation, so the pair is decided by the
+/// cap's carrier against the wall alone, whose side on the shared
+/// meridian is read off the meridian's closed form: the centred form's
+/// error there shrinks only with the cell's length squared, and the
+/// pair ran to the depth floor.
+#[test]
+fn a_windowed_tubes_caps_hold_against_its_walls_at_both_scalars() {
+    fn tube<T: Scalar>() -> Body<T> {
+        let at = T::from_f64;
+        sweep::tube_along_arc(
+            sweep::test_support::tube_frame(
+                Point3::new(at(0.0), at(0.0), at(0.0)),
+                geom_core::Vec3::new(at(0.0), at(1.0), at(0.0)),
+                geom_core::Vec3::new(at(1.0), at(0.0), at(0.0)),
+                tol(),
+            ),
+            at(2.0),
+            sweep::TubeWindow::Arc {
+                t0: at(0.25),
+                t1: at(1.75),
+            },
+            at(0.5),
+            tol(),
+        )
+        .expect("the wedge builds")
+        .body
+        .into_body()
+    }
+    holds_at_both("the windowed tube", tube(), tube());
 }
 
 /// **A long helical sweep certifies within the default budget**: a
@@ -2744,4 +2781,49 @@ fn the_walk_reads_its_charts_and_edges_through_their_memos() {
         filled(&charts) > 0 && filled(&edges) > 0,
         "the walk read through the memos: charts {charts:?}, edges {edges:?}"
     );
+}
+
+// ------------------------------------------------ a sphere's pole
+
+/// **Two coaxial balls' union holds, its poles read**: the snowman of
+/// `snowman.rs`, radii 1 and 0.8 on centres 1.4 apart. Each ball is two
+/// half-bands of one sphere meeting along a meridian circle and at the
+/// two poles, and the union keeps one pole of each. A cell holding a
+/// pole is near both meridians and the pole, and the pole is the whole
+/// latitude line `v = ±π/2` of the chart, so no split moves a cell off
+/// it. Read as a collapsed side, the polar cells certify against the
+/// meridians' plane; read as a loose vertex, every polar strip of one
+/// half-band against every one of the other split until the walk ran
+/// out of its 65,536 pairs, at depth 32.
+#[test]
+fn a_two_ball_union_holds_with_its_poles_read() {
+    fn snowman<T: Scalar>() -> Body<T> {
+        let ball = |r: f64, y: f64| {
+            let p = |y: f64, bulge: f64| {
+                (
+                    Point2::new(T::from_f64(0.0), T::from_f64(y)),
+                    T::from_f64(bulge),
+                )
+            };
+            sweep::test_support::finished(
+                "the ball",
+                revolved_about_y_at::<T>(
+                    vec![p(y - r, 1.0), p(y + r, 0.0)],
+                    Revolution::Full,
+                    tol(),
+                ),
+                tol(),
+            )
+        };
+        let union =
+            topo::boolean::union(&ball(1.0, 0.0), &ball(0.8, 1.4), tol()).expect("the balls unite");
+        Body::clone(&union.body().expect("a body").body)
+    }
+    for report in holds_at_both("the snowman", snowman::<f64>(), snowman::<Interval>()) {
+        assert!(
+            report.receipt.discharged + report.receipt.refused < BUDGET / 16,
+            "the poles cost a few hundred pairs, not the budget: {:?}",
+            report.receipt
+        );
+    }
 }
