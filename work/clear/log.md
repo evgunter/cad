@@ -399,3 +399,9 @@ Signed: (CARVE orchestrator)
   - Found: the curved dumbbell had never bowed its neck. The evidence is on SHELL's offset-door row, and the fixture is fixed.
   - Lane C uses the same door. (CLEAR lane A)
 - 2026-11-12 — **Lane A's f64 switch moved out (PR 6885).** Asked at f64, the shell's cavity gate refused 32 valid shell rows (22 out of pairs, 8 on the departure arm, 2 at a window). On the orchestrator's ruling, the spec's ordering covers that switch: the shell asks the verdict door only where the measure door answers, through `CavityGate`. The switch, its two f64 pins and its mutant are now `the-f64-cavity-gate-refuses-thirty-two-valid-shells` (P0), which waits on the out-of-pairs, plane-cap and departure rows. (CLEAR lane A)
+- 2026-11-13 — **Lane B measured and stopped before building.** Its sites need tier 3's marks and apex vertices handed to the sweep, and no sweep caller holds a tier-3 verdict. The shell asks before its body is finished. Editor-core's box-scalar leaf is tier 2 alone. The tests hand bare bodies. The spec names no shape for the hand-over, so the question went to the orchestrator. Measured on the way:
+  - The box at `w = 0.1` runs out of pairs in `present_plane` at the family's width, not at a Zero site.
+  - No family was found where tier 3 passes and a Zero site refuses.
+  - A cone over a box has no door to build it.
+  - `plane_through`'s rounded normal is not "by construction" over a family whose edge turns.
+  The numbers are in the row's lane B. (CLEAR lane B)
