@@ -22,7 +22,7 @@
 //!    each operand is a finished body, so no gate re-reads its tier 2;
 //!    **maximal faces (F7)** via the
 //!    coincidence ladder — adjacent faces sharing a surface key or with
-//!    bit-equal oriented planes ([`plane_eq`]) refuse as
+//!    bit-equal oriented planes ([`geom_brep::plane_eq`]) refuse as
 //!    [`BooleanError::NonMaximalFaces`]; *numeric* coplanarity never
 //!    triggers the precondition (it is not coincidence; if it bites, it
 //!    bites later as a typed escalation — the ladder's honest shape).
@@ -1228,7 +1228,7 @@ impl<T: Real> GivenDecision<T> {
 pub(crate) struct Glue<T: Real> {
     /// Cross-operand glued face pairs, each with its class:
     /// classification treats a `Rest` or continuation pair's carriers as
-    /// the same carrier ([`mod@carrier_eq`] rung 2), and the result's
+    /// the same carrier ([`mod@geom_brep::carrier_eq`] rung 2), and the result's
     /// merge stage glues the pair's surviving coplanar-adjacent
     /// material (N3 `Merged`).
     pub(crate) pairs: Vec<GluedPair<T>>,
