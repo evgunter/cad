@@ -7,7 +7,7 @@
 use crate::common;
 
 use common::{brick, finished};
-use geom_brep::carrier_eq::{CarrierDesc, CarrierRelation, carrier_eq};
+use geom_brep::{CarrierDesc, CarrierRelation, carrier_eq};
 use geom_core::Tol;
 use geom_core::{Band, Point3, Vec3};
 use topo::boolean::contact_verify::tangent_locus_relation;

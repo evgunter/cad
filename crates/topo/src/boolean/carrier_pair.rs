@@ -660,7 +660,8 @@ mod lever_rows {
     /// does not use) reads a different margin here.
     #[test]
     fn the_pair_arm_is_the_arm_the_cylinder_tilt_is_levered_at() {
-        use geom_brep::carrier_eq::{CARRIER_CYL_AXIS_PARALLEL, CoincidenceMeasure};
+        use geom_brep::CoincidenceMeasure;
+        use geom_brep::carrier_eq::CARRIER_CYL_AXIS_PARALLEL;
         let tol = Tol::witness();
         let (u, v) = ((0.2, 1.6), (0.0, 2.0));
         let mut a = Body::<f64>::new();

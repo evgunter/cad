@@ -67,7 +67,7 @@ use crate::contact::{
 };
 use crate::entity::FaceKey;
 
-use geom_brep::carrier_eq::{CarrierEqError, CarrierRelation, CarrierVerdict};
+use geom_brep::{CarrierEqError, CarrierRelation, CarrierVerdict};
 
 /// **The `Rest` contact door**: do these two faces rest on one
 /// carrier, opposed? The table (C4): one carrier through the face-pair

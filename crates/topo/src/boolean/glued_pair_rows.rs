@@ -13,7 +13,7 @@ use crate::test_support::finished;
 use crate::test_support_fixtures::{
     FaceGeometry, brick, describe_as_intersections, prism_ops, prism_z,
 };
-use geom_brep::carrier_eq;
+use geom_brep::CarrierDesc;
 use geom_core::{Band, Margin, Point3, Tol, Vec3};
 
 fn tol() -> Tol {
@@ -150,8 +150,8 @@ fn a_glued_sector_with_an_in_band_tilt_at_its_arm_lumps_as_glued() {
         face_carrier(&upper, glued.b).unwrap(),
     ) {
         (
-            carrier_eq::CarrierDesc::Plane { normal: na, .. },
-            carrier_eq::CarrierDesc::Plane { normal: nb, .. },
+            CarrierDesc::Plane { normal: na, .. },
+            CarrierDesc::Plane { normal: nb, .. },
         ) => (na, nb),
         other => panic!("two planes: {other:?}"),
     };
@@ -362,7 +362,7 @@ fn a_fold_step_glues_a_pair_its_door_reads_in_band_today() {
             .filter(|&k| {
                 matches!(
                     face_carrier(body, k),
-                    Some(carrier_eq::CarrierDesc::Plane { normal, .. }) if normal.z > 0.5
+                    Some(CarrierDesc::Plane { normal, .. }) if normal.z > 0.5
                 )
             })
             .collect::<Vec<_>>()

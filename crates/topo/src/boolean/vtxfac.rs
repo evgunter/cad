@@ -2578,7 +2578,7 @@ fn one_carrier<T: Decide>(
     extent: &geom_brep::ConsumedExtent<T>,
     band: Band,
 ) -> bool {
-    use geom_brep::carrier_eq::{CarrierRelation, carrier_eq};
+    use geom_brep::{CarrierRelation, carrier_eq};
     if let (Some(x), Some(y)) = (
         super::carrier_pair::face_carrier(body, a),
         super::carrier_pair::face_carrier(body, b),

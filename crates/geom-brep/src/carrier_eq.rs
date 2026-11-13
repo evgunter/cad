@@ -605,9 +605,9 @@ fn ladder_reading<T: Decide>(
     verdict.map(PairDoorReading::Verdict)
 }
 
-/// `carrier_eq_reading` at the FACE-PAIR door: a coincidence glues
+/// [`carrier_eq_reading`] at the FACE-PAIR door: a coincidence glues
 /// the pair only where the displacement's upper bound over the pair's
-/// extent decides Zero too (`coincident_over_extent_as`). A torus pair's
+/// extent decides Zero too ([`coincident_over_extent_as`]). A torus pair's
 /// coincidence already stands on that bound
 /// ([`crate::tori_coincide`]), and a torus pair the ring reads apart
 /// comes back as such, for the door to ask the faces for a witness
@@ -722,7 +722,7 @@ fn perpendicular<T: geom_core::Real>(v: Vec3<T>, axis: Vec3<T>) -> Vec3<T> {
 use crate::line_tilt;
 
 /// **The arm the ladder levers a pair's angular data at** over
-/// `reach` (`at_consumed_extent`'s third part): the reach from the
+/// `reach` ([`at_consumed_extent`]'s third part): the reach from the
 /// pivot each kind's position datum is read at.
 pub fn consumed_arm<T: geom_core::Real>(
     c1: &CarrierDesc<T>,
@@ -739,7 +739,7 @@ pub fn consumed_arm<T: geom_core::Real>(
 /// pivot ([`crate::ExtentBall`]'s module docs). Each datum is
 /// decided on its own: a definite one says the carriers differ, and the
 /// face-pair door then reads the data as one sum
-/// (`coincident_over_extent_as`).
+/// ([`coincident_over_extent_as`]).
 ///
 /// - plane — the plane ladder reads the extent itself (offsets at its
 ///   centre, the arm its radius) and the pair passes through;
@@ -855,7 +855,7 @@ const CONE_REACH: (&str, &str) = ("carrier_cone_reach", "carrier_cone_reach_stra
 
 /// The displacement's upper bound between a same-kind, non-torus pair
 /// over `reach`, with its predicate's name and its straddle row's
-/// (`coincident_over_extent_as`), the planes' orientation sign `sigma`
+/// ([`coincident_over_extent_as`]), the planes' orientation sign `sigma`
 /// decided; `None` for a kind mismatch or two tori.
 fn reading<T: Decide>(
     c1: &CarrierDesc<T>,
