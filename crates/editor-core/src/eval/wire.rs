@@ -2634,24 +2634,20 @@ where
         band: b,
         budgets: crate::clearance::ClearanceConfig::default().budgets,
     };
-    // The sweep's decisions are its report's, not the node's log
-    // (audit row F30).
-    let report = geom_core::k_stats::unlogged("F30", || {
-        lane.sweep(&sweep, &wa, &wb, sa.same_body(&sb), |candidate| {
-            let (faces, ask, over) = (candidate.faces(), candidate.ask(), candidate.enclosure());
-            let [bx, by] = rebuilt.as_ref().map_err(Clone::clone)?;
-            crate::clearance::closest_pair(
-                (&**bx, &**by),
-                faces,
-                lane.on_face_stations(candidate),
-                (ask, b),
-                &over,
-            )
-        })
+    let report = lane.sweep(&sweep, &wa, &wb, sa.same_body(&sb), |candidate| {
+        let (faces, ask, over) = (candidate.faces(), candidate.ask(), candidate.enclosure());
+        let [bx, by] = rebuilt.as_ref().map_err(Clone::clone)?;
+        crate::clearance::closest_pair(
+            (&**bx, &**by),
+            faces,
+            lane.on_face_stations(candidate),
+            (ask, b),
+            &over,
+        )
     });
     let param =
         || witness.map_or_else(crate::clearance::ParamWitness::nominal, |w| w.param.clone());
-    // **The drive's cue** (audit row F30's one exception): an upper
+    // **The drive's cue** (audit row F41's one exception): an upper
     // bound whose proving pair held at one point of the box only is no
     // verdict over the box, and a narrower box can decide it. The
     // sweep's own readings stay out of the node's log; this one reading

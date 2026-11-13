@@ -22,7 +22,7 @@
 //!    algebra, which needs an origin — it refuses typed on a curved
 //!    pierced face rather than inventing one.
 //! 2. **On-sectors reclassify per Eq. 15.3** (op-dependent), behind
-//!    [`super::oriented_plane_eq`] — a coplanar sector must be
+//!    [`geom_brep::oriented_plane_eq`] — a coplanar sector must be
 //!    *declaredly* coplanar with the pierced face or the op refuses.
 //! 3. **The ring insertion** (the unprinted Euler sequence, designed):
 //!    in the pierced body (and, for a pierce point inside a face of the
@@ -139,7 +139,7 @@ pub(super) fn pierced_and_paired<T: Decide>(
     ] {
         let theirs = usize::from(operand == Operand::A);
         let declared = |x: FaceKey, y: FaceKey| {
-            records[theirs].ff.iter().find(|r| {
+            records[theirs].ff.iter().any(|r| {
                 ([r.contact.a, r.contact.b] == [x, y] || [r.contact.a, r.contact.b] == [y, x])
                     && crate::contact::area_record(bodies[theirs], x, y)
             })
@@ -151,13 +151,11 @@ pub(super) fn pierced_and_paired<T: Decide>(
                 continue;
             };
             let twice = BooleanError::pierced_twice(operand, c.vertex, [face, c.face]);
-            let Some(record) = declared(face, c.face) else {
+            if !declared(face, c.face) {
                 return Err(twice);
-            };
+            }
             let wall = Wall {
                 faces: [face, c.face],
-                record: record.record,
-                seat: [record.contact.a, record.contact.b],
             };
             if walls.insert((operand, c.vertex), wall).is_some() {
                 return Err(twice);
@@ -194,8 +192,7 @@ pub(super) fn pierced_and_paired<T: Decide>(
 /// mints as any pierce's, the second face reads the orbit as no pierce
 /// wrote it and mints its runs on the other side ([`WallRead`]), and an
 /// edge of the vertex is In where either face reads it In
-/// ([`gathered`]). Where the two reads do not mirror each other, or the
-/// vertex crosses its tool's seat in a cut ([`super::seat_crossed`]), it
+/// ([`gathered`]). Where the two reads do not mirror each other it
 /// refuses when the second face is read, before any pierce writes; where
 /// the second face's runs would mint a strut, an invariant, it refuses
 /// at that face's mint ([`mint_pierce`]).
@@ -203,10 +200,6 @@ pub(super) fn pierced_and_paired<T: Decide>(
 pub(super) struct Wall {
     /// The pierced faces, in pierce order.
     pub faces: [FaceKey; 2],
-    /// The record's index in the pierced operand's records.
-    pub record: u32,
-    /// The record's two faces, in its own order.
-    pub seat: [FaceKey; 2],
 }
 
 /// Each vertex that pierces a declared wall ([`Wall`]).
@@ -1053,7 +1046,7 @@ pub(super) fn read_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
                 Operand::A => (s.face, contact.face),
                 Operand::B => (contact.face, s.face),
             });
-            let aligned = matches!(rel, super::PlaneRelation::SameOriented);
+            let aligned = matches!(rel, geom_brep::CarrierRelation::SameOriented);
             if keeper == piercing {
                 for (edge, _) in super::sectors::bound_edges(orbit_body, s) {
                     fates.edges.push(super::fate::FateEdge {
@@ -1159,28 +1152,17 @@ pub(super) fn read_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
         // edge, runs that are not the first face's), the second face's
         // runs are not the first's copy, and the vertex is read twice.
         let runs_of = |m: &[Vec<HalfEdgeKey>]| m.iter().cloned().collect::<BTreeSet<_>>();
-        let touches = moved.is_empty() && w.first.moved.is_empty();
-        let cut_by_the_seat = super::seat_crossed(op, pierced_op);
         // A vertex touching the wall writes nothing on either face, but
         // its edges may lie in the wall, which no line reader reads as
         // one, and an operation keeping them keeps that line: it is read
-        // twice. A cut by the seat keeps nothing of the cut part at the
-        // wall, whose material lies on both sides there, so it reads the
-        // touch on both faces.
+        // twice.
+        let touches = moved.is_empty() && w.first.moved.is_empty();
         if flush
             || moved.iter().any(Vec::is_empty)
             || runs_of(&moved) != runs_of(&w.first.moved)
-            || (touches && !cut_by_the_seat)
+            || touches
         {
             return Err(BooleanError::pierced_twice(piercing, vertex, w.wall.faces));
-        }
-        // A cut crossing its tool's seat leaves the sliver of the cut part
-        // between the two faces' sections, which the finish keeps.
-        if cut_by_the_seat && !touches {
-            return Err(BooleanError::ToolSeatCrossed {
-                record: w.wall.record,
-                faces: w.wall.seat,
-            });
         }
     }
     let mut read_pierce = PierceRead {
@@ -2278,8 +2260,7 @@ fn held_reads<T: Decide + crate::props::AtRestPolicy>(
     // Unsourced lever: the ball about the pierce out to its runs'
     // shortest arm, a neighbourhood the arm names rather than a region
     // the extent home reads off the runs' geometry.
-    let extent =
-        super::carrier_eq::ConsumedExtent::new(geom_brep::ExtentBall::unsourced(p, arm.length()));
+    let extent = geom_brep::ConsumedExtent::new(geom_brep::ExtentBall::unsourced(p, arm.length()));
     let read_face = |face| -> Result<Option<HeldRead<T>>, BooleanError> {
         // The face's outward normal at the point, its bend there (`None`
         // on a plane), and the reading that puts the point on it.
@@ -2586,7 +2567,7 @@ fn mint_held<T: Decide + crate::props::AtRestPolicy>(
 }
 
 /// Whether faces `a` and `b` of `body` lie on one carrier, decided: by
-/// the carrier ladder ([`super::carrier_eq`](mod@super::carrier_eq)) over `extent` where it has
+/// the carrier ladder ([`geom_brep::carrier_eq`](mod@geom_brep::carrier_eq)) over `extent` where it has
 /// an arm for both, else datum by datum on their stored descriptions,
 /// each within the band (`bool_held_carrier_datum`). Anything undecided
 /// is `false`, which reads the face rather than passing it over.
@@ -2594,10 +2575,10 @@ fn one_carrier<T: Decide>(
     body: &Body<T>,
     a: crate::entity::FaceKey,
     b: crate::entity::FaceKey,
-    extent: &super::carrier_eq::ConsumedExtent<T>,
+    extent: &geom_brep::ConsumedExtent<T>,
     band: Band,
 ) -> bool {
-    use super::carrier_eq::{CarrierRelation, carrier_eq};
+    use geom_brep::{CarrierRelation, carrier_eq};
     if let (Some(x), Some(y)) = (
         super::carrier_pair::face_carrier(body, a),
         super::carrier_pair::face_carrier(body, b),

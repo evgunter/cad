@@ -41,21 +41,12 @@ use test_utils::source::{FORWARDS, NameCarrier, crate_dir, predicate_census, ros
 /// The carriers that hand a name to a funnel from somewhere other than
 /// the call.
 const CARRIERS: &[NameCarrier] = &[
-    // geom-brep's public pairing classifier, handed this crate's rows.
-    NameCarrier::Call("classify_material_pairing_as"),
     // A name spelled in a `const` and handed to a funnel by it.
     NameCarrier::Const("ASSERT_BOUND"),
-    NameCarrier::Const("AT_REST_QUIET_AXES_PARALLEL"),
     NameCarrier::Const("AT_REST_QUIET_BOUND"),
-    NameCarrier::Const("AT_REST_QUIET_CENTRED"),
-    NameCarrier::Const("AT_REST_QUIET_OPPOSED"),
     NameCarrier::Const("AT_REST_QUIET_CONTACT_BOUND"),
-    NameCarrier::Const("AXES_PARALLEL"),
     NameCarrier::Const("CHORD_ON_RIM"),
     NameCarrier::Const("EVAL_DIRECTION_NORM"),
-    NameCarrier::Const("GAP_AXIS_PARALLEL_TO_PLANE"),
-    NameCarrier::Const("GAP_ROUND_LARGER"),
-    NameCarrier::Const("GAP_ROUND_SIDE"),
     NameCarrier::Const("MATE_READ_SLIDE_WITHIN"),
     NameCarrier::Const("MATE_SLIDES_INDEPENDENT"),
     NameCarrier::Const("ONE_CYLINDER"),
@@ -65,7 +56,6 @@ const CARRIERS: &[NameCarrier] = &[
     NameCarrier::Const("TRACED_FRAME_SQUARE"),
     NameCarrier::Const("TRACE_REACHES"),
     // The funnels that hand on their callers' names.
-    NameCarrier::Call("parallel_as"),
     NameCarrier::Call("zero_as"),
     // The topological naming's carrier reads and at_rest's measure signs,
     // each handing on its caller's name.
@@ -100,16 +90,11 @@ const CLOSURE_FORWARDS: &str = "a closure bound in this `fn` hands on its caller
 /// The indirect sites, as `<file>: <expr>`, with what carries the name.
 const INDIRECT: &[(&str, &str)] = &[
     (
-        "checks/at_rest.rs: constant_pairing: name",
-        CLOSURE_FORWARDS,
-    ),
-    (
         "checks/at_rest.rs: gap_sign_as: crate::measure::MeasureVerb::Gap",
         NOT_FIRST,
     ),
     ("checks/at_rest.rs: measure_sign_as: site", FORWARDS),
     ("coincide/replay.rs: one_cylinder: name", CLOSURE_FORWARDS),
-    ("eval/measure.rs: parallel_as: predicate", FORWARDS),
     ("eval/wire.rs: turns_off: decision.name()", CLOSED_TYPE),
     ("eval/wire.rs: wire_assertion: value", NOT_A_NAME),
     (

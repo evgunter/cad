@@ -337,3 +337,37 @@ second site needs to ask the question at all. (ONEDOOR orchestrator)
   - Unit 2, `plane_crossing_lane`, was already in geom-brep with `plane_crossing_*` K names.
   - **`S5` re-parked** on `engine-leaves-by-visibility` and re-banded P1 → P2. Its residue is the engine-to-engine edges, which the P2 `[topo.homes]` move rows carry, and a P1 parked on P2 work waits at the wrong band.
   - (ONEDOOR orchestrator)
+- 2026-11-12 — **PR [#6869](https://github.com/evgunter/cad/pull/6869) (wedge fold, stage 2) fix pass accepted.**
+  - All 13 adjudicated items were taken: one door, so check 4 reads `topo::edge_wedge` with the one-surface seam inside it; one `Settled` map; one station numbering; a typed `MustCarryRung` over the fold's whole escalation; escalations carried whole; the `SmoothAcross` margin taken from the fold; the witness derived in the door; the rule levered at the faces' extent; and refusals that name their station.
+  - Item 2 ended as a filed row, `edge-join-reads-a-joined-vertex-with-one-incident-edges-tangent`: the fold reads interior stations, never an end.
+  - **Beyond the brief, accepted:** the rule's sign arm moved to the faces' extent with its class lever, which keeps the "same wedge over the same arm" argument true.
+  - **One red was the branch's.** The new in-band bend row pinned `R = 1e8`, which is in band at ε 1e-9 only, and it was red at 1e-6 and 1e-12. Fixed in `fcbdd08d` by deriving `R` from the band.
+  - **Class finding:** a row that pins a value "in band" must derive it from the active tolerance. A literal tuned at one ε is a one-row suite. This is the standing every-eps-row rule, already in `docs/prompts/implementer-discipline.md`, so no new row.
+  - The unit row stays `spec`: stage 3, the blend's `classify_edge_wedge`, is still owed.
+  - (ONEDOOR orchestrator)
+- 2026-11-13 — **PR [#6890](https://github.com/evgunter/cad/pull/6890) (face pair) fix pass accepted.**
+  - A concurrent Opus/Fable pair reviewed the frozen head `aef77d609971`, and both returned APPROVE-WITH-FIXES. One question went to Ev: what "opposed" means in `[assertions.quiet]`. Ev ruled (a), at the `Gap`'s pose, which is C5's own meaning, so `Nest::Apart` is gone and two shafts quiet under a holding `Gap`.
+  - All 15 adjudicated items were taken:
+    - one door from two normals (`normals_alignment`) with one zero policy;
+    - one type (`MaterialPairing`) and one parallelism reading;
+    - a pose that carries its own data under its own K names;
+    - the link's facing as a named metric constructor;
+    - a true glue refusal;
+    - pinned rows, and rows of its own for `carrier_pose`.
+  - The one CI red on the fix-pass head was a renamed slow row. The orchestrator added it to the slow set (`bc51af9f`).
+  - Model-compare row `docs/model-compare-log/rows/PR-6890.md`.
+  - (ONEDOOR orchestrator)
+- 2026-11-13 — **PR [#6900](https://github.com/evgunter/cad/pull/6900) (loop lift, one decision with no reset) fix pass accepted.**
+  - A concurrent Fable/Opus pair reviewed the frozen head `dcc07bbb`. R1 returned NOT-MERGEABLE: a near-pole split regressed at 1e-6, because the turn read an image azimuth on the twin sheet. R2 returned APPROVE-WITH-FIXES and classed that red as main's by test name.
+  - The 18-item fix pass reads the singular turn's directions off the carriers and joins the sheets through the twin bit. The slit rule moved into the one decision, `JointSides` got one constructor, and there is one flip policy.
+  - The kernel CI run on the fix head hung in its build step for 5 h+. A probe showed no branch slowdown, and the row commit started a fresh run.
+  - Model-compare row `docs/model-compare-log/rows/PR-6900.md`. The unit is closed, and so is `the-chart-window-walk-refuses-in-the-chord-joins-error`.
+  - (ONEDOOR orchestrator)
+- 2026-11-13 — **PR [#6909](https://github.com/evgunter/cad/pull/6909) (carrier_eq and plane_eq move to geom-brep) fix pass accepted.**
+  - S, sequential. One review (APPROVE-WITH-FIXES, no MAJOR), so no second review ran. All eight items were taken.
+  - The move exposed a second minting door: the `Norm` refusal was built off the log, which geom-brep's census refuses and topo never checked. It now mints through `k_stats`. Five more such mints in topo are filed as `topo-hand-mints-indeterminates-geom-brep-census-would-refuse`.
+  - The citations in `work/bind/select-refusal-predicate-names-are-unpinned.md` and `work/seal/plane-only-readers-hold-a-dead-off-ring-arm.md` are updated to the new names and home.
+  - Model-compare row `docs/model-compare-log/rows/PR-6909.md`.
+  - (ONEDOOR orchestrator)
+  - `S173` is opened (P1): its only blocker closed here. The fired entry is pruned from `engine-leaves-by-visibility`'s `blocked_on`.
+- 2026-11-13 — **PR [#6910](https://github.com/evgunter/cad/pull/6910) (the P0 name-digest re-pin) accepted.** One reviewer: APPROVE-WITH-FIXES, text only. The orchestrator made the text fixes in the row commit. The class finding is filed as `name-digests-cannot-tell-a-renamed-cell-from-a-renumbered-arena`: pin a key-free word beside the keyed one, so a key-only move no longer needs a hand dump. Model-compare row `docs/model-compare-log/rows/PR-6910.md`. (ONEDOOR orchestrator)

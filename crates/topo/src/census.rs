@@ -2210,6 +2210,49 @@ enum PairContact<T: Real> {
     Line(Vec3<T>),
 }
 
+/// What a declared pair's carriers are, read over both faces
+/// ([`crate::boolean::carrier_pair_relation`], over both faces).
+enum OneCarrier {
+    /// One carrier, the two faces' materials on one side of it where
+    /// `aligned`, on its two sides otherwise. A coincidence the ladder
+    /// left undecided reads here by the orientation it decided first.
+    Same {
+        /// The two faces face the same way.
+        aligned: bool,
+    },
+    /// Definitely two carriers.
+    Distinct,
+    /// No reading: the ladder's escalation where there is one, or a pair
+    /// the ladder has no description or extent for, or a torus off its
+    /// ring convention (`None`), which tier 3 refuses first
+    /// (`ValidationError::DegenerateTorus`).
+    Unread(Option<Indeterminate>),
+}
+
+/// [`OneCarrier`] of `fx` and `fy`.
+fn one_carrier<T: Decide>(body: &Body<T>, fx: FaceKey, fy: FaceKey, band: Band) -> OneCarrier {
+    use geom_brep::{CarrierEqError, CarrierRelation};
+    match crate::boolean::carrier_pair_relation(body, fx, body, fy, band) {
+        Ok(
+            Ok(CarrierRelation::SameOpposite)
+            | Err(CarrierEqError::Undecided {
+                relation: CarrierRelation::SameOpposite,
+                ..
+            }),
+        ) => OneCarrier::Same { aligned: false },
+        Ok(
+            Ok(CarrierRelation::SameOriented)
+            | Err(CarrierEqError::Undecided {
+                relation: CarrierRelation::SameOriented,
+                ..
+            }),
+        ) => OneCarrier::Same { aligned: true },
+        Ok(Ok(CarrierRelation::Distinct)) => OneCarrier::Distinct,
+        Ok(Err(refusal)) => OneCarrier::Unread(refusal.reported()),
+        Err(_) => OneCarrier::Unread(None),
+    }
+}
+
 /// The contact a confirmed pair's carriers make, read as the confirm
 /// pass reads it ([`confirm_face_pair`]); `None` where it reads none.
 fn pair_contact<T: Decide>(
@@ -2219,31 +2262,13 @@ fn pair_contact<T: Decide>(
     fy: FaceKey,
     band: Band,
 ) -> Option<PairContact<T>> {
-    use crate::boolean::{CarrierEqError, CarrierRelation};
     // One carrier, with the senses opposed (a rest) or aligned (the
     // face-pair arm's overlap); two planes are one carrier or none.
     let planes = planar_face(geo, fx).is_some() && planar_face(geo, fy).is_some();
-    match crate::boolean::carrier_pair_relation(body, fx, body, fy, band) {
-        Ok(
-            Ok(CarrierRelation::SameOpposite)
-            | Err(CarrierEqError::Undecided {
-                relation: CarrierRelation::SameOpposite,
-                ..
-            }),
-        ) => return Some(PairContact::Area { aligned: false }),
-        Ok(
-            Ok(CarrierRelation::SameOriented)
-            | Err(CarrierEqError::Undecided {
-                relation: CarrierRelation::SameOriented,
-                ..
-            }),
-        ) => return Some(PairContact::Area { aligned: true }),
-        Ok(Ok(CarrierRelation::Distinct)) if !planes => {}
-        // A torus off its ring convention (`CarrierEqError::OffRing`)
-        // lands here too: tier 3 refuses such a face first
-        // (`ValidationError::DegenerateTorus`), so no validated body
-        // reaches it.
-        _ => return None,
+    match one_carrier(body, fx, fy, band) {
+        OneCarrier::Same { aligned } => return Some(PairContact::Area { aligned }),
+        OneCarrier::Distinct if !planes => {}
+        OneCarrier::Distinct | OneCarrier::Unread(_) => return None,
     }
     // A point touch on the point lane's own carriers ([`point::face_face`]):
     // a sphere and a plane, or two spheres. A sphere against any other
@@ -5396,18 +5421,14 @@ enum CrossingBacking {
 ///    boundary edges" read as a decided screen: an edge DIVING
 ///    through the carrier crosses in-plane edges at plane level, and
 ///    such a transverse crossing is interpenetration however the seat
-///    is declared), and the carriers not definitely transverse at the
-///    crossing ([`geom_brep::classify_dihedral`], the same all-smooth
-///    gate the tier-3 wedge pass and the rim-wedge screen run);
-/// 2. the side question is validly posed and answers
-///    [`CrossingSideVerdict::OppositeSides`] — the Smooth-site
-///    precondition is ESTABLISHED by type: the pairing is asked of
-///    the tangency token the dihedral of 1 returns
-///    ([`geom_brep::Tangency::pairing`]), decided by that one sense
-///    algebra (which mints both outward normals itself from the
-///    faces' `Face::sense` bits, levered by
-///    [`geom_brep::folded_lever_arm`] over the shorter edge — the
-///    same arm the parallel gate meters). No new numerics; and
+///    is declared);
+/// 2. the pair's two planes are one carrier, and its materials lie on
+///    opposite sides of it: the pair's carrier relation
+///    ([`crate::boolean::carrier_pair_relation`]) reads
+///    `SameOpposite`, the reading the confirm pass reads the same pair
+///    by ([`pair_contact`]), read over both faces. `SameOriented`
+///    is [`CrossingSideVerdict::SameSide`], and two distinct planes
+///    answer for nothing; and
 /// 3. the pair itself is CONFIRMED ([`Declared::confirmed`]): a record
 ///    that confirms ([`Declared::confirm`]), or a pair the planar
 ///    face-pair arm found, and the crossing lies in the closure of its
@@ -5477,33 +5498,22 @@ fn ee_cross_backed<T: Decide>(
         {
             continue; // the pair's carrier does not hold the crossing
         }
-        // Both faces are in the snapshot, read off the live arena.
-        let (da, db) = (body.proven_face(fa), body.proven_face(fb));
-        let (sa, sb) = (da.surface(), db.surface());
-        let chord = |e: &EdgeGeo<T>| geom_brep::ExtentBall::point(e.p0).lever_from(e.p1);
-        let arm_extent = chord(ea).min(chord(eb));
-        // The last carrier screen, and the Smooth-site precondition the
-        // pairing below states. The edge screen reads points against
-        // each plane; this reads the planes against each other, at the
-        // crossing. Two edges can run within the zero band of two
-        // transverse planes where both hug the planes' common line, so a
-        // definitely transverse pair passes the edge screen and still
-        // does not hold the crossing: it answers for nothing.
-        let tangency = match geom_brep::classify_dihedral(sa, sb, q, arm_extent, band) {
-            Ok(geom_brep::Dihedral::Tangent(tangency)) => tangency,
-            Ok(geom_brep::Dihedral::Corner(_)) => continue,
-            Err(escalation) => {
-                undecided.push(escalation.diag());
+        // The pair's own carrier relation, read over both faces, as the
+        // confirm pass reads it ([`pair_contact`]):
+        // the edge screen reads points against each plane, and this the
+        // planes against each other. Two edges can run within the zero
+        // band of two transverse planes where both hug the planes' common
+        // line, so a pair whose planes are distinct passes the edge
+        // screen and still does not hold the crossing: it answers for
+        // nothing.
+        let side = match one_carrier(body, fa, fb, band) {
+            OneCarrier::Same { aligned: false } => CrossingSideVerdict::OppositeSides,
+            OneCarrier::Same { aligned: true } => CrossingSideVerdict::SameSide,
+            OneCarrier::Unread(Some(diag)) => {
+                undecided.push(diag);
                 continue;
             }
-        };
-        let side = match tangency.pairing([da.sense(), db.sense()], band) {
-            Ok(geom_brep::MaterialPairing::Opposed) => CrossingSideVerdict::OppositeSides,
-            Ok(geom_brep::MaterialPairing::Aligned) => CrossingSideVerdict::SameSide,
-            Err(escalation) => {
-                undecided.push(escalation.diag());
-                continue;
-            }
+            OneCarrier::Distinct | OneCarrier::Unread(None) => continue,
         };
         if side == CrossingSideVerdict::OppositeSides {
             // An opposite-sides pair that is not confirmed answers for
@@ -6508,7 +6518,7 @@ fn planar_face_pairs<T: Decide>(
                     _ => continue,
                 };
             match relation {
-                crate::boolean::CarrierRelation::SameOpposite => {
+                geom_brep::CarrierRelation::SameOpposite => {
                     let area = |x, y| {
                         matches!(
                             lane.declared_overlap(
@@ -6530,7 +6540,7 @@ fn planar_face_pairs<T: Decide>(
                         });
                     }
                 }
-                crate::boolean::CarrierRelation::SameOriented => {
+                geom_brep::CarrierRelation::SameOriented => {
                     if let Ok(true) = same_side_overlap(
                         body,
                         geo,
@@ -6596,7 +6606,7 @@ fn curved_same_side_pairs<T: Decide>(
     let surface = |f: FaceKey| body.surfaces.get(body.get_face(f)?.surface);
     let kind = |f: FaceKey| {
         surface(f)
-            .filter(|s| crate::boolean::carrier_eq::exact_curved(s))
+            .filter(|s| geom_brep::carrier_eq::exact_curved(s))
             .map(geom::Surface::kind)
     };
     // A face's span along an axis: its boundary's, which on a cylinder
@@ -6646,7 +6656,7 @@ fn curved_same_side_pairs<T: Decide>(
                 Some(Ok(_)) => true,
                 Some(Err(_)) => continue,
             };
-            let Ok(Ok(Some((crate::boolean::CarrierRelation::SameOriented, margin)))) =
+            let Ok(Ok(Some((geom_brep::CarrierRelation::SameOriented, margin)))) =
                 crate::boolean::carrier_pair_decided(body, fa, body, fb, band)
                     .map(|reading| reading.map(|verdict| verdict.one()))
             else {
@@ -6697,10 +6707,10 @@ fn in_band_reading<T: Decide>(
     geo: &Geo<T>,
     lane: RegionLane<T>,
     (fa, fb): (&FaceGeo<T>, &FaceGeo<T>),
-    door_one: crate::boolean::CarrierEqError,
+    door_one: geom_brep::CarrierEqError,
     band: Band,
 ) -> InBand {
-    use crate::boolean::{CarrierEqError, CarrierRelation, CoincidenceMeasure};
+    use geom_brep::{CarrierEqError, CarrierRelation, CoincidenceMeasure};
     // A torus off its ring convention read no coincidence at all, in band
     // or decided, so the pair is unread whatever its convention's margin.
     let CarrierEqError::Undecided {
@@ -11084,21 +11094,21 @@ fn confirm_face_pair<T: Decide>(
     // A carrier the ladder calls one, or one within the band, is a
     // patch, which the patch door reads (and refuses in band).
     match crate::boolean::carrier_pair_relation(body, a, body, b, band) {
-        Ok(Ok(crate::boolean::CarrierRelation::Distinct))
+        Ok(Ok(geom_brep::CarrierRelation::Distinct))
         | Err(crate::boolean::PairUnread::OutsideInventory) => {}
         // A torus off its ring convention is tier 3's finding; the
         // patch door reads the pair as it reads one in band.
         Ok(
             Ok(_)
             | Err(
-                crate::boolean::CarrierEqError::Undecided { .. }
-                | crate::boolean::CarrierEqError::OffRing { .. },
+                geom_brep::CarrierEqError::Undecided { .. }
+                | geom_brep::CarrierEqError::OffRing { .. },
             ),
         ) => {
             confirm_patch(body, a, b, band, region, errors);
             return;
         }
-        Ok(Err(crate::boolean::CarrierEqError::Escalated { diag, .. })) => {
+        Ok(Err(geom_brep::CarrierEqError::Escalated { diag, .. })) => {
             errors.push(ValidationError::CensusEscalated { cause: diag });
             return;
         }
@@ -11927,7 +11937,7 @@ fn flush_pairs<T: Decide>(
             let margin = match crate::boolean::carrier_pair_decided(body, fa, body, fb, band)
                 .map(|reading| reading.map(|verdict| verdict.one()))
             {
-                Ok(Ok(Some((crate::boolean::CarrierRelation::SameOriented, margin)))) => margin,
+                Ok(Ok(Some((geom_brep::CarrierRelation::SameOriented, margin)))) => margin,
                 _ => continue,
             };
             let planar = planar_face(geo, fa).zip(planar_face(geo, fb));
@@ -12014,11 +12024,11 @@ fn flush_pairs<T: Decide>(
 }
 
 /// Whether `f` lies on a cylinder or a sphere, the curved kinds Door 1
-/// decides exactly ([`crate::boolean::carrier_eq::exact_curved`]).
+/// decides exactly ([`geom_brep::carrier_eq::exact_curved`]).
 fn exact_curved_face<T: Real>(body: &Body<T>, f: FaceKey) -> bool {
     body.face(f)
         .map(|f| f.surface())
-        .is_some_and(crate::boolean::carrier_eq::exact_curved)
+        .is_some_and(geom_brep::carrier_eq::exact_curved)
 }
 
 /// **Whether two faces' boundaries share a run**: an edge of each whose

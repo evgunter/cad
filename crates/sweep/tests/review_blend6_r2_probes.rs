@@ -376,15 +376,16 @@ fn chamfer_refusals() -> Vec<(&'static str, BlendError)> {
     ));
 
     let bracket = l_bracket();
+    let odd_and_one = sweep::test_support::reflex_edge_and_floor_leg(&bracket, (0.5, 0.5));
     out.push((
         "corner configuration",
         chamfer_edges(
             &sweep::test_support::at_rest(&bracket, t),
-            &query::all_edges(&bracket),
+            &odd_and_one,
             D,
             t,
         )
-        .expect_err("a mixed-convexity corner requested whole has no patch")
+        .expect_err("a mixed-convexity corner's odd edge with one other has no rule built")
         .error,
     ));
 

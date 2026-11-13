@@ -224,7 +224,7 @@ pub(crate) fn wall_beside_a_leaning_neighbour(tol: Tol) -> (Body<f64>, FaceKey, 
             body.get_surface(s1).unwrap().clone(),
             body.get_surface(s2).unwrap().clone(),
         );
-        if let Ok(geom_brep::DihedralClass::Transverse) = geom_brep::dihedral_class(
+        if let Ok(geom_brep::Dihedral::Corner(_)) = geom_brep::classify_dihedral(
             &surfaces.0,
             &surfaces.1,
             witness,
@@ -262,7 +262,7 @@ fn an_in_band_lean_between_neighbours_refuses_at_the_scan() {
             refusal,
             crate::merge_faces::MergeCoplanarError::Escalated {
                 decision: crate::merge_faces::MergeDecision::Neighbours(
-                    crate::boolean::PlaneRung::Parallel
+                    geom_brep::PlaneRung::Parallel
                 ),
                 ..
             }

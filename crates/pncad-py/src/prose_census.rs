@@ -1948,26 +1948,6 @@ const UNDECIDED: &[(&str, &str, &str, usize, &str)] = &[
         "the binding is a closure parameter — `errors.iter().map(|e| ..)` — not a \
          match binding, and this census types patterns and fields",
     ),
-    // Pinned red, not yet a reason: the glue record's surface pair
-    // (`work/contacthold/main-red-prose-census-cannot-decide-the-glue-record-broken-surfaces.md`).
-    (
-        "crates/topo/src/merge_faces.rs",
-        "MergeCoplanarError",
-        "a",
-        1,
-        "the binding is introduced by a tuple pattern NESTED inside the field \
-         pattern this census reads — `surfaces: (a, b)` — so no declared type \
-         reaches it",
-    ),
-    (
-        "crates/topo/src/merge_faces.rs",
-        "MergeCoplanarError",
-        "b",
-        1,
-        "the binding is introduced by a tuple pattern NESTED inside the field \
-         pattern this census reads — `surfaces: (a, b)` — so no declared type \
-         reaches it",
-    ),
     (
         "crates/topo/src/offset_derive.rs",
         "CornerVerdict",

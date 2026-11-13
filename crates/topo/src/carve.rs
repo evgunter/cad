@@ -293,6 +293,26 @@ pub(crate) fn carve<T: Decide>(
     Ok(body)
 }
 
+/// **`src`'s solids `keep` alone**: a clone with every other solid and
+/// everything under it removed ([`carve`]), every kept entity keeping its
+/// key. With none kept it holds no solid.
+///
+/// # Errors
+///
+/// As [`carve`].
+pub(crate) fn solids_alone<T: Decide>(
+    src: &Body<T>,
+    keep: &[SolidKey],
+) -> Result<Body<T>, CarveError> {
+    let mut body = src.clone();
+    for other in src.solids().map(|(s, _)| s).filter(|s| !keep.contains(s)) {
+        body = carve(&body, other, &[])?;
+        body.solids.remove(other);
+        body.solid_provenance.remove(other);
+    }
+    Ok(body)
+}
+
 #[cfg(test)]
 #[allow(clippy::unwrap_used)]
 mod tests {

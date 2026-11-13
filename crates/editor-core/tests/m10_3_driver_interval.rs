@@ -783,13 +783,16 @@ fn evidence_two_param_plate_whole_certifying_half_width() {
 ///
 /// Pinned red at every ε row: since the cylinder rim's axial decision
 /// every leaf refuses (`work/pcert/the-cylinder-rim-axial-decision-refuses-every-leaf-of-the-two-parameter-drive.md`).
+/// The leaves are those the drive splits down to: the extrude reads each
+/// edge it writes by its whole wedge, and a corner's sign or wedge at a
+/// station escalates over the wider boxes, so they split to 18.
 #[test]
 fn the_two_parameter_drive_certifies_after_bisection_and_accounts_for_all_of_it() {
     test_utils::pinned_red::row(
         eps(),
         &test_utils::pinned_red::EVERY_ROW,
         "the two-parameter drive",
-        &["the box should certify SOMETHING: Receipt { certified: 0, refused: 4, splits: 3 }"],
+        &["the box should certify SOMETHING: Receipt { certified: 0, refused: 18, splits: 17 }"],
         the_two_parameter_drive_rows,
     );
 }
@@ -1266,7 +1269,7 @@ fn a_band_parameter_certifies_normally_and_prices_nothing() {
         "the banded two-parameter drive",
         &[
             "a band must not stop certification",
-            "Receipt { certified: 0, refused: 4, splits: 3 }",
+            "Receipt { certified: 0, refused: 18, splits: 17 }",
         ],
         a_band_parameter_rows,
     );

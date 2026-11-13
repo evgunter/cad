@@ -209,6 +209,12 @@ pub struct BlendNaming {
     /// edge's surviving piece is a [`BlendNaming::meridian_remnants`]
     /// row.
     pub turn_feet: Vec<(VertexKey, VertexKey)>,
+    /// Host foot vertex ← (the source mixed corner vertex, the pair edge
+    /// whose band ends there): at a mixed corner whose three edges are
+    /// all requested, where a pair band's trimline on the face the pair
+    /// shares meets the arc of the link resting on that face. Two per
+    /// corner, one face, so the pair edge tells them apart.
+    pub host_feet: Vec<(VertexKey, VertexKey, EdgeKey)>,
 
     // ---- The rim phase (closed chains). ----
     /// Torus band face ← the band's identity: its closed chain's

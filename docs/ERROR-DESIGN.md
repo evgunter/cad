@@ -216,7 +216,7 @@ content-key cached like everything.
     is a later selection spelling, not a different form.
 - **Parallelism verdicts a measure consumes are levered by the
   operands' EXTENT, with no floor.** `distance`/`gap` over plane or
-  axis pairs consume `bool_plane_parallel` /
+  axis pairs consume `plane_eq_parallel` /
   `carrier_cyl_axis_parallel` at margin `sin θ · L`. M10-2 shipped
   `L = max(separation, 1 m)`, an ad-hoc absolute constant of exactly
   the class the rejected lever-arm unification names: for every

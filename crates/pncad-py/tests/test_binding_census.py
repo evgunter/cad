@@ -617,7 +617,7 @@ BOUND_AS = {
     "RowOrigin": "Coincidence.origin",
     # The verify door's two-plane verdict crosses as the row's word:
     # `same_oriented` / `same_opposite` on `Coincidence.relation`.
-    "PlaneRelation": "Coincidence.relation",
+    "CarrierRelation": "Coincidence.relation",
     "Unreplayed": "Coincidence.residual",
     # A finding's subject crosses as its three attributes, each `None`
     # for the arm it is not: `placement` and `output_ix`, or `node`.

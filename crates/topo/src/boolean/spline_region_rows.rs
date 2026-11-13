@@ -787,7 +787,7 @@ fn a_meetings_chart_point_is_placed_on_its_own_sheet() {
 /// a closed certified edge, whose halves start on one point.
 #[test]
 fn a_spline_trim_reads_past_a_placeholder_and_no_other_rowless_half() {
-    use crate::pcurves::{LiftGap, loop_lift_past_placeholders};
+    use crate::pcurves::{Lift, LiftGap};
     let c = 0.6;
     let chart = twisted(c);
     let uv = rect((0.25, 0.75), (0.25, 0.75));
@@ -814,10 +814,10 @@ fn a_spline_trim_reads_past_a_placeholder_and_no_other_rowless_half() {
     let null_halves = halves_of(&nulled, null);
 
     let lifted = |body: &Body<f64>, face| -> Vec<_> {
-        loop_lift_past_placeholders(body, outer(body, face))
+        Lift::read_past_placeholders(body, outer(body, face))
             .unwrap()
             .into_iter()
-            .map(|r| (r.half_edge, r.lift, r.pcurve.eval(r.row.params().0)))
+            .map(|r| (r.half_edge, r.lift, r.pcurve.eval(r.params.0)))
             .collect()
     };
     let (skipped, bare) = (lifted(&nulled, face), lifted(&plain, plain_face));
@@ -861,7 +861,7 @@ fn a_spline_trim_reads_past_a_placeholder_and_no_other_rowless_half() {
             ("strict", body.loop_lift(lk).map(|_| ())),
             (
                 "past placeholders",
-                loop_lift_past_placeholders(body, lk).map(|_| ()),
+                Lift::read_past_placeholders(body, lk).map(|_| ()),
             ),
         ] {
             let Err(LiftGap { half_edge }) = got else {
@@ -984,10 +984,10 @@ fn a_placeholder_at_each_joint_across_a_closed_charts_seam_reads_as_the_bare_fac
             .map(|&(u, v)| place(&bare, face, chart.eval(u, v)))
             .collect();
         let rows = |b: &Body<f64>, lk| -> Vec<_> {
-            crate::pcurves::loop_lift_past_placeholders(b, lk)
+            crate::pcurves::Lift::read_past_placeholders(b, lk)
                 .unwrap()
                 .into_iter()
-                .map(|r| (r.half_edge, r.lift, r.pcurve.eval(r.row.params().0)))
+                .map(|r| (r.half_edge, r.lift, r.pcurve.eval(r.params.0)))
                 .collect()
         };
         for &lk in &loops {

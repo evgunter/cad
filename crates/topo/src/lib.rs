@@ -1378,6 +1378,7 @@ pub mod test_support {
         crate::boolean::solid_contain::point_in_face(body, face, normal, p, band)
     }
 }
+mod edge_wedge;
 #[cfg(test)]
 mod r2_probes;
 #[cfg(test)]
@@ -1387,6 +1388,7 @@ pub mod transform;
 mod turn_rows;
 pub(crate) mod unresolved;
 pub mod validate;
+pub use edge_wedge::{edge_wedge, edge_wedge_description, edge_wedge_walk};
 mod wedge_reach;
 pub use wedge_reach::{WedgeReach, edge_faces, edge_wedge_reach, wedge_reach};
 pub(crate) mod vertex_section;
@@ -1395,26 +1397,24 @@ pub use body::Body;
 pub use boolean::{
     AimedPair, AlongFace, Apart, ArcEndGaps, BoolNullEdgeRecord, BooleanBody, BooleanDecision,
     BooleanError, BooleanErrorKind, BooleanInputs, BooleanJoin, BooleanMerge, BooleanNaming,
-    BooleanOp, BooleanReduction, BooleanResult, BooleanResultKind, CarriedRecord, CarrierDesc,
-    CarrierEqError, CarrierRelation, CarrierVerdict, CarryRefusal, Cell, Coincide,
-    CoincidenceMeasure, CompletedPolygonPair, ConsumedExtent, Contact, ContactKind,
-    ContactPairError, ContactRecords, ContainDecision, ContainError, DeclarationRead, DiscardRow,
-    EdgeCarrierSite, EdgeInBand, EdgeInFaceGap, EdgeJoin, EdgePieceClass, EeContact, EfContact,
-    FaceContainment, FaceDescent, FfContact, Fusions, GlueVerdict, Held, HeldRefusal, Holdings,
-    JOIN_LEVER, JOIN_SUBJECT, JoinReading, JoinRefusal, JoinUndecided, JudgedRow, LeverArm,
-    LineUnread, LineWedgeFault, MemberFace, MemberInputs, NaryEnd, NaryJudgement, NaryMember,
-    NaryOp, NaryRefusal, NaryRun, NaryStep, NodeWhy, NullEdgePairRecord, Operand, OperandKeys,
-    OperandRecords, OverlapRefusal, PairRefusalSite, PairSite, PairUnread, PierceRingRecord,
-    PlaneDesc, PlaneEqError, PlaneRelation, PlaneRung, PointInSolidError, ReductionContacts,
+    BooleanOp, BooleanReduction, BooleanResult, BooleanResultKind, CarriedRecord, CarryRefusal,
+    Cell, Coincide, CompletedPolygonPair, Contact, ContactKind, ContactPairError, ContactRecords,
+    ContainDecision, ContainError, DeclarationRead, DiscardRow, EdgeCarrierSite, EdgeInBand,
+    EdgeInFaceGap, EdgeJoin, EdgePieceClass, EeContact, EfContact, FaceContainment, FaceDescent,
+    FfContact, Fusions, GlueVerdict, Held, HeldRefusal, Holdings, JOIN_LEVER, JOIN_SUBJECT,
+    JoinReading, JoinRefusal, JoinUndecided, JudgedRow, LeverArm, LineUnread, LineWedgeFault,
+    MemberFace, MemberInputs, NaryEnd, NaryJudgement, NaryMember, NaryOp, NaryRefusal, NaryRun,
+    NaryStep, NodeWhy, NullEdgePairRecord, Operand, OperandKeys, OperandRecords, OverlapRefusal,
+    PairRefusalSite, PairSite, PairUnread, PierceRingRecord, PointInSolidError, ReductionContacts,
     RefusedRow, SectionUnbuilt, SectorRead, SectorRung, SelfCheck, SettleError, Settler, Settling,
     SharedStarts, ShellOrientation, SideCode, SlitFaceGap, SlitLineGap, SolidContainment,
-    SolidFaces, SphereQuestion, SpiricLoops, SubstitutedFace, SweepStrategy, TorusConvention,
-    UncutFace, UnreadPartner, VeContact, VfContact, VoidContainment, VoidEvidence, VoidInsertError,
-    VoidInserted, VvContact, WallRung, boolean_op_with, boolean_reduce, carrier_eq, contfp,
+    SolidFaces, SphereQuestion, SpiricLoops, SubstitutedFace, SweepStrategy, ToolFuseRefusal,
+    TorusConvention, UncutFace, UnreadPartner, VeContact, VfContact, VoidContainment, VoidEvidence,
+    VoidInsertError, VoidInserted, VvContact, WallRung, boolean_op_with, boolean_reduce, contfp,
     curved_face_containment, decision_words, face_carrier, flush_pair_relation, insert_void,
     insert_voids, intersect, is_conventional_vertex, join_covers, joinable_vertices, joined_cell,
-    joined_edge, nary_boolean, nary_boolean_apart, oriented_plane_eq, overlap, point_in_solid,
-    point_in_solid_faces, point_in_solid_of, subtract, tangent_pair_relation, union,
+    joined_edge, nary_boolean, nary_boolean_apart, overlap, point_in_solid, point_in_solid_faces,
+    point_in_solid_of, subtract, tangent_pair_relation, union,
 };
 pub use cover::{
     BoundaryUnknown, EdgeUncovered, FaceCovered, FaceUncovered, edge_cover, face_cover,
@@ -1435,6 +1435,7 @@ pub use boolean::{
     swap_split_roles, sweep_records, sweep_split, sweep_traces, sweep_traces_with_pad,
     take_output_stage_points, take_shared_points,
 };
+pub use chart_window::ChartWindowError;
 #[cfg(feature = "sweep-testing")]
 pub use chart_window::face_azimuth_window_traces;
 // The census's idealized/realized pair (its `Candidates`): the
@@ -1487,8 +1488,8 @@ pub use instance::{
     GraftKeys, graft_disjoint, graft_disjoint_all, graft_disjoint_all_keyed, per_part_gate_owed,
 };
 pub use merge_faces::{
-    DihedralReading, EdgeDescribeFailure, MergeCoplanarError, MergeCoplanarOutcome, MergeDecision,
-    MergeKind, MergedGroup, OutlineVerdict, SkippedMerge,
+    EdgeDescribeFailure, MergeCoplanarError, MergeCoplanarOutcome, MergeDecision, MergeKind,
+    MergedGroup, OutlineVerdict, SkippedMerge,
 };
 pub use null::CurveGeom;
 pub use offset_axial::{is_axial, offset_charts_together};

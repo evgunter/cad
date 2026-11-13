@@ -26,10 +26,11 @@
 
 #![allow(clippy::expect_used, clippy::panic)]
 
+use geom_brep::{CarrierEqError, PlaneRung};
 use geom_core::test_support::upper;
 use geom_core::{Band, SizedPass, Tol};
 use topo::test_support::{face_facing, finished, wedge_on_a_block_top};
-use topo::{BooleanDecision, BooleanError, Coincide, DeclarationRead, PlaneEqError, PlaneRung};
+use topo::{BooleanDecision, BooleanError, Coincide, DeclarationRead};
 
 #[test]
 fn a_wedge_tilted_in_band_over_a_block_top_refuses_every_op_on_its_bounds_margin() {
@@ -64,7 +65,7 @@ fn a_wedge_tilted_in_band_over_a_block_top_refuses_every_op_on_its_bounds_margin
         assert!(
             matches!(
                 glue,
-                Ok(Err(PlaneEqError::Escalated {
+                Ok(Err(CarrierEqError::Escalated {
                     rung: PlaneRung::Parallel,
                     ..
                 }))
