@@ -5607,9 +5607,10 @@ fn decide_joint<T: Decide>(
     }))
 }
 
-/// [`decide_joint`] for a row that reads a joint off the chart's
-/// singular set, where the face's side is not read: the two edges are
-/// stated as two lines through the vertex.
+/// [`decide_joint`] for a row that states a joint by its two images
+/// alone, at sense `true`: the two edges are two lines through the
+/// vertex, each leaving it along its image's azimuth there (the
+/// principal sheet), or along `x` on a chart with no azimuth frame.
 #[cfg(test)]
 fn decide_plain_joint<T: Decide>(
     chart: DescribedChart<'_, T>,
@@ -5620,16 +5621,17 @@ fn decide_plain_joint<T: Decide>(
     periods: ChartPeriods<T>,
     band: Band,
 ) -> Result<JointElement, PinMiss> {
-    let line = geom::Curve3::line(vertex, geom_core::Vec3::unit_x());
-    let reach = || Some(geom_core::Lever::curvature_radius(T::one()));
-    let half = |entry: T, exit: T| JointHalf {
-        carrier: &line,
-        entry,
-        exit,
-        plus: true,
-        edge: WalkEdge::New,
-        reach: &reach,
+    let along = |u: T| match geom::ChartInverse::of(chart.surface()) {
+        Ok(inverse) => {
+            let frame = inverse.frame();
+            let (sin, cos) = u.sin_cos();
+            frame.u_ref * cos + frame.v_ref() * sin
+        }
+        Err(_) => geom_core::Vec3::unit_x(),
     };
+    let arrived = geom::Curve3::line(vertex, along(prev.x));
+    let leaving = geom::Curve3::line(vertex, along(image.eval(entry_t).x));
+    let reach = || Some(geom_core::Lever::curvature_radius(T::one()));
     decide_joint(
         chart,
         image,
@@ -5640,8 +5642,22 @@ fn decide_plain_joint<T: Decide>(
         band,
         JointSides::between(
             true,
-            half(T::zero() - T::one(), T::zero()),
-            half(T::zero(), T::one()),
+            JointHalf {
+                carrier: &arrived,
+                entry: T::one(),
+                exit: T::zero(),
+                plus: true,
+                edge: WalkEdge::New,
+                reach: &reach,
+            },
+            JointHalf {
+                carrier: &leaving,
+                entry: T::zero(),
+                exit: T::one(),
+                plus: true,
+                edge: WalkEdge::New,
+                reach: &reach,
+            },
             None,
         ),
     )

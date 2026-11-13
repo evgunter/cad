@@ -1420,6 +1420,10 @@ mod tests {
             // A face's side of an iso edge's line, as the sign of the held
             // chart coordinate.
             ("crates/topo/src/injective.rs", "side"),
+            // The whole turn a face takes round a singular point of its
+            // chart, in periods: the side the azimuth advances on, as an
+            // integer (`pcurves::singular_turn`), a chart count, no normal.
+            ("crates/topo/src/pcurves.rs", "1"),
             ("crates/topo/src/shell.rs", "thickness"),
             // The loop rule's start: a test sheet's loop is walked from
             // the mirrored chart coordinate at sense `false`
@@ -1434,7 +1438,6 @@ mod tests {
         // here too and strikes them
         // (`work/tess/main-red-trimmed-rs-folds-the-face-sense-by-hand.md`).
         let pinned = [
-            ("crates/mesh/src/trimmed.rs", "1.0"),
             ("crates/mesh/src/trimmed.rs", "area"),
             ("crates/mesh/src/trimmed.rs", "radial"),
         ];
