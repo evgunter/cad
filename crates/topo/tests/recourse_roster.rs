@@ -795,7 +795,13 @@ const INDIRECT: &[(&str, &str)] = &[
     ),
     ("pcurves.rs: decide_plain_joint: chart", NOT_A_NAME),
     ("pcurves.rs: pcurve_pass: chart", NOT_A_NAME),
-    ("pcurves.rs: restate_joints: chart", NOT_A_NAME),
+    // The pass's closure over one joint of a cycle, by its index.
+    ("pcurves.rs: pcurve_pass: i", NOT_A_NAME),
+    ("pcurves.rs: pcurve_pass: slit", NOT_A_NAME),
+    // The split's boxed joint decisions, asked with the rest of the
+    // loop or without it.
+    ("pcurves.rs: split_cache: None", NOT_A_NAME),
+    ("pcurves.rs: split_cache: Some(rest)", NOT_A_NAME),
     ("pcurves.rs: split_cache: chart", NOT_A_NAME),
     ("pcurves.rs: turn_element: chart", NOT_A_NAME),
     (
