@@ -6549,7 +6549,7 @@ mod presentation_rows {
         };
         for (u, what) in [
             ((0.7, 0.8), "between the meridians"),
-            ((0.0, 1.5707963267948966), "across both"),
+            ((0.0, core::f64::consts::FRAC_PI_2), "across both"),
         ] {
             let got = at_pole(u, (1.5, top));
             assert!(
