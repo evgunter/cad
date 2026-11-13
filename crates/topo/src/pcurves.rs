@@ -4586,7 +4586,7 @@ pub(crate) struct JointSides<'a, T: Real> {
     pub(crate) leaving: EdgeEnd<'a, T>,
     /// **The lever of the turn between the two edges**: the extent of
     /// the faces they bound, the shorter of the two edges' wedge reaches
-    /// ([`crate::wedge_reach`]), as the door that makes the joint reads
+    /// ([`mod@crate::wedge_reach`]), as the door that makes the joint reads
     /// it off the body. Asked only at a joint on the singular set;
     /// `None` where an edge has no certified curve to read it by.
     pub(crate) lever: &'a dyn Fn() -> Option<geom_core::Lever<T>>,
