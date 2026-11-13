@@ -7,9 +7,11 @@
 //! and the shared [`crate::sector_face`] walk names the constructor
 //! itself for its curved arms.
 //!
-//! Eight doors, one flip. By key: [`face_outward_normal`] answers for
+//! Nine doors, one flip. By key: [`face_outward_normal`] answers for
 //! a PLANE, where the normal does not depend on where you stand
-//! ([`face_plane`] answers it with the plane's origin beside it),
+//! ([`face_plane`] answers it with the plane's origin beside it, and
+//! [`face_carrier_desc`] with every carrier the `Rest` ladder compares,
+//! a curved one carrying the bit onward),
 //! [`face_outward_normal_at`] answers at a POINT, which is what a
 //! curved carrier requires and what the plane arm returns unchanged,
 //! [`face_outward_normal_at_foot`] answers at the FOOT of a point on
@@ -67,7 +69,7 @@
 //! Its home follows `[topo.homes]` (`crates/topo/README.md`).
 
 use geom_brep::recourse::Refused;
-use geom_brep::{OutwardNormal, TorusConvention};
+use geom_brep::{CarrierDesc, OutwardNormal, PlaneDesc, TorusConvention};
 use geom_core::{Band, Decide, Decided, Indeterminate, Margin, Point3, Real, Sign, Vec3};
 
 use crate::body::Body;
@@ -155,13 +157,85 @@ pub fn face_outward_normal<T: Decide>(body: &Body<T>, face: FaceKey) -> Option<O
 ///
 /// Where `face` resolves and its surface does not (D2 row 4): a torn
 /// surface is not a non-planar one.
-pub(crate) fn face_plane<T: Decide>(body: &Body<T>, face: FaceKey) -> Option<(Point3<T>, Vec3<T>)> {
+pub(crate) fn face_plane<T: Decide>(body: &Body<T>, face: FaceKey) -> Option<PlaneDesc<T>> {
     let f = body.face(face)?;
     match f.surface() {
-        geom::Surface::Plane { origin, normal, .. } => {
-            Some((*origin, plane_outward_normal(f.record(), *normal).vec()))
-        }
+        geom::Surface::Plane { origin, normal, .. } => Some(PlaneDesc {
+            origin: *origin,
+            normal: plane_outward_normal(f.record(), *normal).vec(),
+        }),
         _ => None,
+    }
+}
+
+/// The face's **oriented carrier description** — the curved
+/// generalization of [`face_plane`], folding the face's sense into
+/// the material side exactly as that door does (S10).
+///
+/// `None` for a surface kind outside the `Rest` ladder's
+/// [`geom_brep::carrier_eq::INVENTORY`]: the C4 table names the kinds
+/// [`mod@geom_brep::carrier_eq`] carries a rung for, and a kind it cannot
+/// compare refuses typed at the caller rather than being approximated
+/// by one it can. `None` too where `face`, the caller's key, does not
+/// resolve.
+///
+/// # Panics
+///
+/// Where the face's surface does not resolve: a link, which every
+/// public door keeps live, and which the reduction's operators keep
+/// live mid-operation ([`crate::live::OPERATORS_KEEP_LINKS`]).
+pub fn face_carrier_desc<T: Decide>(body: &Body<T>, face: FaceKey) -> Option<CarrierDesc<T>> {
+    let f = body.face(face)?;
+    // `sense` is the material-side bit: true means the face's outward
+    // normal IS the chart normal, which for a sphere/cylinder chart
+    // points away from the centre/axis. Read as a BIT, never as a
+    // comparison on `T` — the scalar backends order intervals, not
+    // signs (S10's exact-bit discipline).
+    let outward = f.sense();
+    match f.surface() {
+        geom::Surface::Plane { .. } => face_plane(body, face)
+            .map(|PlaneDesc { origin, normal }| CarrierDesc::Plane { origin, normal }),
+        geom::Surface::Sphere { center, radius, .. } => Some(CarrierDesc::Sphere {
+            center: *center,
+            radius: *radius,
+            outward,
+        }),
+        geom::Surface::Cylinder {
+            origin,
+            axis,
+            radius,
+            ..
+        } => Some(CarrierDesc::Cylinder {
+            origin: *origin,
+            axis: *axis,
+            radius: *radius,
+            outward,
+        }),
+        geom::Surface::Torus {
+            center,
+            axis,
+            major_radius,
+            minor_radius,
+            ..
+        } => Some(CarrierDesc::Torus {
+            center: *center,
+            axis: *axis,
+            major_radius: *major_radius,
+            minor_radius: *minor_radius,
+            outward,
+        }),
+        geom::Surface::Cone {
+            apex,
+            axis,
+            half_angle,
+            ..
+        } => Some(CarrierDesc::Cone {
+            apex: *apex,
+            axis: *axis,
+            half_angle: *half_angle,
+            outward,
+        }),
+        geom::Surface::Spindle { .. } | geom::Surface::Nurbs(_) | geom::Surface::Approx(_) => None,
     }
 }
 
@@ -419,7 +493,7 @@ fn ring_half(
 /// of a cylinder/sphere is a `(u, v)` derivative cross product this
 /// layer has no business re-deriving. `sense: true` means the outward
 /// normal IS that chart normal, pointing away from the axis/centre
-/// (the convention `boolean::carrier_pair::face_carrier` states).
+/// (the convention [`face_carrier_desc`] states).
 ///
 /// **The gate is on the kind and on the point, in that order.**
 /// `Nurbs`/`Approx` have no implicit form at all, so those kinds get

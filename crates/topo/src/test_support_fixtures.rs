@@ -961,7 +961,7 @@ pub fn face_facing(body: &Body<f64>, facing: f64) -> crate::entity::FaceKey {
         .faces()
         .map(|(k, _)| k)
         .filter(|&k| {
-            matches!(crate::face_carrier(body, k),
+            matches!(crate::face_normal::face_carrier_desc(body, k),
                 Some(geom_brep::CarrierDesc::Plane { normal, .. }) if normal.z * facing > 0.99)
         })
         .collect();

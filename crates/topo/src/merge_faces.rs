@@ -49,12 +49,12 @@ use crate::body::Body;
 use crate::boolean::Cell;
 use crate::entity::{EdgeKey, EntityId, FaceKey, LoopKey, VertexKey};
 use crate::euler::EulerOpError;
-use crate::face_normal::plane_outward_normal;
+use crate::face_normal::{face_plane, plane_outward_normal};
 use crate::geometry::SurfaceKey;
 use crate::live::{BoundaryMember, linked, proven};
 use crate::loop_winding::{LoopWinding, WINDING_PREDICATE};
 use crate::validate::{ValidationError, validate_closed};
-use geom_brep::{CarrierEqError, CarrierRelation, PlaneDesc, PlaneRung, oriented_plane_eq};
+use geom_brep::{CarrierEqError, CarrierRelation, PlaneRung, oriented_plane_eq};
 
 /// One merged run: the surviving face and what was consumed into it.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -208,18 +208,18 @@ struct HalfEdgeFacts {
 
 /// The door's one kind question, asked of every live face
 /// ([`Body::kind_census`]).
-struct KindCensus<'a, T: geom_core::Real> {
+struct KindCensus<'a> {
     /// Each live face's kind.
     kinds: SecondaryMap<FaceKey, MergeKind>,
-    /// Each live face's record and the surface it resolved to, which
-    /// the adjacency test reads rather than looking the surface up.
-    described: Described<'a, T>,
+    /// Each live face's record, which the adjacency test reads its
+    /// surface key and sense off.
+    described: Described<'a>,
     /// The faces on a placeholder, in face-arena order.
     placeholders: Vec<FaceKey>,
 }
 
 /// [`KindCensus::described`]'s map.
-type Described<'a, T> = SecondaryMap<FaceKey, (&'a crate::entity::Face, &'a Surface<T>)>;
+type Described<'a> = SecondaryMap<FaceKey, &'a crate::entity::Face>;
 
 /// What becomes of one group's INVENTORY refusal — the door's two
 /// failure regimes, named so the boundary between them is a value
@@ -2187,32 +2187,29 @@ impl<T: crate::props::AtRestPolicy> Body<T> {
     /// [`MergeCoplanarError::PoisonedSurfaceDescription`] for a net
     /// that has no kind here.
     fn merge_kind(&self, face: FaceKey) -> Result<MergeKind, MergeCoplanarError> {
-        Ok(self.described_kind(self.proven_face(face))?.1)
+        self.described_kind(self.proven_face(face))
     }
 
-    /// `face`'s surface and the surface's [`MergeKind`]:
+    /// The [`MergeKind`] of `face`'s surface:
     /// [`Body::merge_kind`]'s errors past the face lookup.
-    fn described_kind<'a>(
+    fn described_kind(
         &self,
-        face: crate::live::FaceView<'a, T>,
-    ) -> Result<(&'a Surface<T>, MergeKind), MergeCoplanarError> {
-        let described = face.surface();
-        let kind = MergeKind::of(described).map_err(|PoisonedNet| {
+        face: crate::live::FaceView<'_, T>,
+    ) -> Result<MergeKind, MergeCoplanarError> {
+        MergeKind::of(face.surface()).map_err(|PoisonedNet| {
             MergeCoplanarError::PoisonedSurfaceDescription { face: face.key() }
-        })?;
-        Ok((described, kind))
+        })
     }
 
     /// Every live face's [`MergeKind`], in one pass — the one place
-    /// the door asks the kind question of the arena — with the
-    /// surface each face resolved to and the placeholder faces that
-    /// pass met, in face-arena order.
+    /// the door asks the kind question of the arena — with each
+    /// face's record and the placeholder faces that pass met, in face-arena order.
     ///
     /// # Errors
     ///
     /// [`Body::merge_kind`]'s, for the first face (arena order) that
     /// raises one.
-    fn kind_census(&self) -> Result<KindCensus<'_, T>, MergeCoplanarError> {
+    fn kind_census(&self) -> Result<KindCensus<'_>, MergeCoplanarError> {
         let mut census = KindCensus {
             kinds: SecondaryMap::new(),
             described: SecondaryMap::new(),
@@ -2220,12 +2217,12 @@ impl<T: crate::props::AtRestPolicy> Body<T> {
         };
         for face in self.face_views() {
             let (face_key, record) = (face.key(), face.record());
-            let (described, kind) = self.described_kind(face)?;
+            let kind = self.described_kind(face)?;
             if kind == MergeKind::Placeholder {
                 census.placeholders.push(face_key);
             }
             census.kinds.insert(face_key, kind);
-            census.described.insert(face_key, (record, described));
+            census.described.insert(face_key, record);
         }
         Ok(census)
     }
@@ -2531,8 +2528,7 @@ impl<T: crate::props::AtRestPolicy> Body<T> {
     /// adjacency scan resolved them: their faces are the pair, and
     /// their start vertices are the edge's two ends.
     ///
-    /// `described` is the kind census's record of every live face and
-    /// its surface.
+    /// `described` is the kind census's record of every live face.
     ///
     /// # Errors
     ///
@@ -2548,7 +2544,7 @@ impl<T: crate::props::AtRestPolicy> Body<T> {
         &self,
         plus: HalfEdgeFacts,
         minus: HalfEdgeFacts,
-        described: &Described<'_, T>,
+        described: &Described<'_>,
         ctx: &MergeCtx,
     ) -> Result<bool, MergeCoplanarError> {
         let (f1, f2) = (plus.face, minus.face);
@@ -2561,7 +2557,7 @@ impl<T: crate::props::AtRestPolicy> Body<T> {
             };
             entry
         };
-        let ((face1, s1), (face2, s2)) = (resolved(f1), resolved(f2));
+        let (face1, face2) = (resolved(f1), resolved(f2));
         let (k1, k2) = (face1.surface, face2.surface);
         // The one-key rung, kind-agnostic: one surface continues where
         // its two faces share a sense, and is a slit where they do not.
@@ -2569,32 +2565,12 @@ impl<T: crate::props::AtRestPolicy> Body<T> {
             return Ok(face1.sense == face2.sense);
         }
         let band = ctx.band;
-        let (
-            Surface::Plane {
-                origin: o1,
-                normal: n1,
-                ..
-            },
-            Surface::Plane {
-                origin: o2,
-                normal: n2,
-                ..
-            },
-        ) = (s1.clone(), s2.clone())
-        else {
-            return self.carriers_continue(f1, f2, band);
-        };
         // Outward normals, not chart normals (S10): `PlaneDesc`'s
         // contract, and the reason the SameOpposite verdict stands as
         // the shared-sense refusal — an opposite-sense pair on one
         // plane lands there by construction.
-        let p1 = PlaneDesc {
-            origin: o1,
-            normal: plane_outward_normal(face1, n1).vec(),
-        };
-        let p2 = PlaneDesc {
-            origin: o2,
-            normal: plane_outward_normal(face2, n2).vec(),
+        let (Some(p1), Some(p2)) = (face_plane(self, f1), face_plane(self, f2)) else {
+            return self.carriers_continue(f1, f2, band);
         };
         // The pair is read over a ball enclosing both faces: the glue
         // holds at every point of both. A face whose extent does not

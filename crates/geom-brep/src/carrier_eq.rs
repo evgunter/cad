@@ -1110,7 +1110,7 @@ mod tests {
         // kinds without one are the spline and the fitted surface, which
         // `geom` holds as a net rather than as data a rung can compare
         // (`geom::Surface::nurbs`), and the spindle sheet, whose rung is
-        // not written yet (`face_carrier` answers it `None`). A new
+        // not written yet (`face_carrier_desc` answers it `None`). A new
         // analytic kind turns this red until the ladder carries it or
         // is named here.
         for kind in geom::SurfaceKind::ALL {

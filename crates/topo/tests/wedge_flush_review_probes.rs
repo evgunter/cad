@@ -14,8 +14,9 @@
 use geom_brep::CarrierDesc;
 use geom_core::test_support::upper;
 use geom_core::{Band, Point3, Tol, Vec3};
+use topo::Body;
+use topo::face_normal::face_carrier_desc;
 use topo::test_support::{brick, face_facing, finished, mapped_cube};
-use topo::{Body, face_carrier};
 
 struct Pose {
     block_x: (f64, f64),
@@ -76,7 +77,7 @@ fn standoffs(
     tool: &Body<f64>,
     ft: topo::FaceKey,
 ) -> (f64, f64) {
-    let plane = |b: &Body<f64>, f| match face_carrier(b, f) {
+    let plane = |b: &Body<f64>, f| match face_carrier_desc(b, f) {
         Some(CarrierDesc::Plane { origin, normal }) => (origin, normal.normalize()),
         _ => panic!("plane"),
     };

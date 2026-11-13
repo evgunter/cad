@@ -214,7 +214,7 @@ use geom_core::{Band, Decide, Indeterminate, Lever, Margin, Point3, Sign, Vec3};
 use crate::body::Body;
 use crate::chart_groups::ChartGroups;
 use crate::entity::{EntityId, FaceKey, LoopBoundary, SolidKey};
-use crate::face_normal::plane_outward_normal;
+use crate::face_normal::face_plane;
 use crate::live::{linked, proven};
 use crate::ray_walk::{self, Crossings, RayFault};
 use crate::side_reader::{SideUnread, side_at_infinity};
@@ -223,6 +223,7 @@ use crate::splitting::containment::{
     point_in_loop_projected,
 };
 use crate::validate::decide;
+use geom_brep::PlaneDesc;
 use geom_brep::quartic::{QuarticRoots, QuarticRows, depressed_quartic_roots, quadratic_roots};
 use geom_brep::roots::{Found, RootRefusal, Roots, Unsettled};
 
@@ -945,10 +946,12 @@ fn face_geo_arms<T: Decide>(
 ) -> Result<FaceGeo<T>, PointInSolidError> {
     let f = body.proven_face(face);
     match f.surface() {
-        Surface::Plane { origin, normal, .. } => Ok(FaceGeo::Plane(
-            *origin,
-            plane_outward_normal(f.record(), *normal).vec(),
-        )),
+        Surface::Plane { .. } => {
+            let Some(PlaneDesc { origin, normal }) = face_plane(body, face) else {
+                unreachable!("{face:?}, proven live on a plane, reads that plane")
+            };
+            Ok(FaceGeo::Plane(origin, normal))
+        }
         &Surface::Cylinder {
             origin,
             axis,

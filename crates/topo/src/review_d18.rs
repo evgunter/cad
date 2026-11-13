@@ -3442,7 +3442,7 @@ fn an_empty_loop_write_panics_at_a_broken_cycle_before_a_collision() {
 /// had to panic (D2 row 4).
 #[cfg(not(debug_assertions))]
 const READ_DOORS: [&str; 20] = [
-    "face_carrier",
+    "face_carrier_desc",
     "carrier_pair_relation",
     "carrier_pair_decided",
     "flush_pair_relation",
@@ -3475,7 +3475,7 @@ const PREMISE_DOORS: [&str; 8] = [
     "split_reduce",
     "contfp",
     "classify_neighborhood",
-    "face_carrier",
+    "face_carrier_desc",
     "carrier_pair_decided",
     "flush_pair_relation",
     "face_azimuth_window_traces",
@@ -3621,9 +3621,9 @@ fn read_every_key(body: &Body<f64>, capture: &PanicCapture) -> Exposure {
     let sound_face = sound.faces().next().map(|(k, _)| k).unwrap();
     for (face, data) in body.faces() {
         use crate::boolean::{
-            PairUnread, carrier_pair_decided, carrier_pair_relation, face_carrier,
-            flush_pair_relation,
+            PairUnread, carrier_pair_decided, carrier_pair_relation, flush_pair_relation,
         };
+        use crate::face_normal::face_carrier_desc;
         let outside = || match body.get_surface(data.surface) {
             Some(_) => Ok(false),
             None => Err(format!(
@@ -3639,8 +3639,8 @@ fn read_every_key(body: &Body<f64>, capture: &PanicCapture) -> Exposure {
         judge_read(
             capture,
             &mut census,
-            "face_carrier",
-            || match face_carrier(body, face) {
+            "face_carrier_desc",
+            || match face_carrier_desc(body, face) {
                 Some(_) => Ok(true),
                 None => outside(),
             },

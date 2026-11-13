@@ -1368,7 +1368,8 @@ pub mod test_support {
         p: geom_core::Point3<T>,
         band: geom_core::Band,
     ) -> Result<Option<bool>, crate::PointInSolidError> {
-        let Some((_, normal)) = crate::face_normal::face_plane(body, face) else {
+        let Some(geom_brep::PlaneDesc { normal, .. }) = crate::face_normal::face_plane(body, face)
+        else {
             let f = body.proven_face(face);
             return Err(crate::PointInSolidError::KindUnsupported {
                 face,
@@ -1411,9 +1412,9 @@ pub use boolean::{
     SolidFaces, SphereQuestion, SpiricLoops, SubstitutedFace, SweepStrategy, ToolFuseRefusal,
     TorusConvention, UncutFace, UnreadPartner, VeContact, VfContact, VoidContainment, VoidEvidence,
     VoidInsertError, VoidInserted, VvContact, WallRung, boolean_op_with, boolean_reduce, contfp,
-    curved_face_containment, decision_words, face_carrier, flush_pair_relation, insert_void,
-    insert_voids, intersect, is_conventional_vertex, join_covers, joinable_vertices, joined_cell,
-    joined_edge, nary_boolean, nary_boolean_apart, overlap, point_in_solid, point_in_solid_faces,
+    curved_face_containment, decision_words, flush_pair_relation, insert_void, insert_voids,
+    intersect, is_conventional_vertex, join_covers, joinable_vertices, joined_cell, joined_edge,
+    nary_boolean, nary_boolean_apart, overlap, point_in_solid, point_in_solid_faces,
     point_in_solid_of, subtract, tangent_pair_relation, union,
 };
 pub use cover::{

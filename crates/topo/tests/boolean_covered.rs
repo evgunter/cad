@@ -25,9 +25,10 @@ use crate::common;
 use common::{brick, finished};
 use geom_brep::CarrierDesc;
 use geom_core::Tol;
+use topo::face_normal::face_carrier_desc;
 use topo::{
-    AtRestBody, Body, BooleanBody, BooleanResult, BooleanResultKind, FaceKey, Operand,
-    face_carrier, intersect, mass_properties, subtract, union,
+    AtRestBody, Body, BooleanBody, BooleanResult, BooleanResultKind, FaceKey, Operand, intersect,
+    mass_properties, subtract, union,
 };
 
 /// A face's outward normal, rounded to a unit axis.
@@ -41,7 +42,7 @@ type Ends = [[i64; 3]; 2];
 
 /// The outward normal of `body`'s face `f`, rounded to a unit axis.
 fn normal(body: &Body<f64>, f: FaceKey) -> Axis {
-    let Some(CarrierDesc::Plane { normal, .. }) = face_carrier(body, f) else {
+    let Some(CarrierDesc::Plane { normal, .. }) = face_carrier_desc(body, f) else {
         panic!("face {f:?} is not a plane of its operand");
     };
     [normal.x, normal.y, normal.z].map(|c| c.round() as i8)
@@ -50,7 +51,7 @@ fn normal(body: &Body<f64>, f: FaceKey) -> Axis {
 /// The plane offset of `body`'s face `f` along its rounded normal, in
 /// thousandths.
 fn level(body: &Body<f64>, f: FaceKey) -> i64 {
-    let Some(CarrierDesc::Plane { origin, normal }) = face_carrier(body, f) else {
+    let Some(CarrierDesc::Plane { origin, normal }) = face_carrier_desc(body, f) else {
         panic!("face {f:?} is not a plane of its operand");
     };
     let n = [normal.x, normal.y, normal.z].map(f64::round);

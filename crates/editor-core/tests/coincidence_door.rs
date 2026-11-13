@@ -250,7 +250,7 @@ fn face_of(
         .iter()
         .find_map(|(name, entry)| match entry {
             Entry::Unique(r) if r.body == index => match r.key {
-                EntityKey::Face(f) => match topo::face_carrier(body, f)? {
+                EntityKey::Face(f) => match topo::face_normal::face_carrier_desc(body, f)? {
                     geom_brep::CarrierDesc::Plane { origin, normal } => {
                         let facing =
                             (normal - geom_core::Vec3::new(n[0], n[1], n[2])).norm() < 1e-12;
