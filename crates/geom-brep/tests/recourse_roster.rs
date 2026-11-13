@@ -397,7 +397,15 @@ const INDIRECT: &[(&str, &str)] = &[
     ),
     ("pair_section/ruling.rs: ruled: a", NOT_A_NAME),
     (
+        "pair_section/spline_implicit/node_rows.rs: the_node_reading_decides_a_node_and_nothing_else: &jets",
+        NOT_A_NAME,
+    ),
+    (
         "pair_section/spline_implicit/sweep.rs: sweep: jets",
+        NOT_A_NAME,
+    ),
+    (
+        "pair_section/spline_implicit/sweep/critical.rs: decide: jets",
         NOT_A_NAME,
     ),
     (
@@ -629,6 +637,7 @@ const INDIRECT: &[(&str, &str)] = &[
     ("ssi.rs: cylinder_torus_ssi: a", NOT_A_NAME),
     ("ssi.rs: sphere_torus_ssi: a", NOT_A_NAME),
     ("ssi.rs: torus_torus_ssi: a", NOT_A_NAME),
+    ("ssi/node.rs: decide: jets", NOT_A_NAME),
     ("ssi/boundary.rs: graze: root", NOT_A_NAME),
     ("ssi/boundary.rs: run: *root", NOT_A_NAME),
     (
