@@ -972,22 +972,16 @@ fn data_rungs<T: Decide>(
 }
 
 /// **The carrier ladder's test fixtures**, one spelling of each for
-/// this crate's rows and `topo`'s (through `test-support`): the run's
-/// band, each kind's description from plain arrays, and the
-/// orientation rung's zero-band poses.
+/// this crate's rows and `topo`'s (through `test-support`): each kind's
+/// description from plain arrays, and the orientation rung's zero-band
+/// poses. The band is each row's own: minting the witness is a test's
+/// act, never library code's (`scripts/gates/witness-not-ambient.sh`).
 #[cfg(any(test, feature = "test-support"))]
 #[doc(hidden)]
-#[allow(clippy::unwrap_used, clippy::missing_panics_doc)]
 pub mod fixtures {
     use super::{CarrierDesc, ConsumedExtent};
     use crate::plane_eq::PlaneDesc;
-    use geom_core::{Band, Point3, Tol, Vec3};
-
-    /// The band the rows read at: the witness tolerance's.
-    #[must_use]
-    pub fn band() -> Band {
-        Band::linear(Tol::witness()).unwrap()
-    }
+    use geom_core::{Band, Point3, Vec3};
 
     /// A plane through `o` with outward normal `n`.
     #[must_use]
@@ -1091,8 +1085,13 @@ pub mod fixtures {
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
-    use super::fixtures::{band, cone, cyl, sphere, torus};
+    use super::fixtures::{cone, cyl, sphere, torus};
     use super::*;
+    use geom_core::Tol;
+
+    fn band() -> Band {
+        Band::linear(Tol::witness()).unwrap()
+    }
 
     /// **Two cone descriptions are one carrier when they describe one
     /// double cone**: its axis reversed is the same carrier, since a

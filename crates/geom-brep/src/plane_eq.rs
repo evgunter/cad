@@ -225,7 +225,12 @@ pub(crate) fn unreadable_norm(norm: Decided, band: Band) -> CarrierEqError {
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
     use super::*;
-    use crate::carrier_eq::fixtures::{OrientationPose, band, orientation_in_zero_band, plane};
+    use crate::carrier_eq::fixtures::{OrientationPose, orientation_in_zero_band, plane};
+    use geom_core::Tol;
+
+    fn band() -> Band {
+        Band::linear(Tol::witness()).unwrap()
+    }
     use geom_core::MarginDiag;
 
     /// **A coincidence of planes is a theorem only when parallelism is

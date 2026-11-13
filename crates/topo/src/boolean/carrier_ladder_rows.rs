@@ -6,7 +6,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use geom_brep::carrier_eq::fixtures::{OrientationPose, band, orientation_in_zero_band, torus};
+use geom_brep::carrier_eq::fixtures::{OrientationPose, orientation_in_zero_band, torus};
 use geom_brep::{
     CarrierEqError, CarrierRelation, CarrierVerdict, ConsumedExtent, PlaneRung, carrier_eq,
     oriented_plane_eq,
@@ -15,6 +15,10 @@ use geom_core::{Indeterminate, MarginDiag, Point3, Tol, Vec3};
 
 use super::carrier_pair::{carrier_pair_decided, carrier_pair_relation};
 use super::{BooleanDecision, BooleanError, Operand, off_ring_torus};
+
+fn band() -> geom_core::Band {
+    geom_core::Band::linear(Tol::witness()).unwrap()
+}
 
 /// **Two torus faces are one carrier exactly where their pair's pose
 /// decides them one surface** ([`geom_brep::tori_coincide`]), whatever
