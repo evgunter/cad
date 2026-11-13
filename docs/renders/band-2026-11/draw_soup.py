@@ -20,7 +20,8 @@ def load(path):
 def camera(elev, azim):
     e, a = np.radians(elev), np.radians(azim)
     d = np.array([np.cos(e) * np.cos(a), np.cos(e) * np.sin(a), np.sin(e)])  # toward viewer
-    right = np.cross([0, 0, 1], d); right /= np.linalg.norm(right)
+    right = np.cross([0, 0, 1], d)
+    right /= np.linalg.norm(right)
     up = np.cross(d, right)
     return d, right, up
 
@@ -32,11 +33,14 @@ def raster(v, fs, elev, azim, size, window):
     P = np.stack([(v - c) @ right, (v - c) @ up, (v - c) @ d], axis=1)
     px = (P[:, 0] / span * 0.5 + 0.5) * size
     py = (0.5 - P[:, 1] / span * 0.5) * size
-    img = np.ones((size, size, 3)); zb = np.full((size, size), -np.inf)
-    light = 0.6 * d + 0.5 * up + 0.3 * right; light /= np.linalg.norm(light)
+    img = np.ones((size, size, 3))
+    zb = np.full((size, size), -np.inf)
+    light = 0.6 * d + 0.5 * up + 0.3 * right
+    light /= np.linalg.norm(light)
     for a, b, cc, k in fs:
         tri = v[[a, b, cc]]
-        n = np.cross(tri[1] - tri[0], tri[2] - tri[0]); nn = np.linalg.norm(n)
+        n = np.cross(tri[1] - tri[0], tri[2] - tri[0])
+        nn = np.linalg.norm(n)
         if nn == 0:
             continue
         n /= nn
@@ -68,10 +72,13 @@ def render(path, out, title, views, window=None, size=900):
     v, fs = load(path)
     window = window or (v.min(0), v.max(0))
     fig, axes = plt.subplots(1, len(views), figsize=(6 * len(views), 6.8), dpi=110)
-    for ax, (elev, azim) in zip(np.atleast_1d(axes), views):
-        ax.imshow(raster(v, fs, elev, azim, size, window)); ax.set_axis_off()
+    for ax, (elev, azim) in zip(np.atleast_1d(axes), views, strict=True):
+        ax.imshow(raster(v, fs, elev, azim, size, window))
+        ax.set_axis_off()
         ax.set_title(f"{title}\nelev {elev}°, azim {azim}°", fontsize=9)
-    fig.tight_layout(rect=(0, 0, 1, 0.97)); fig.savefig(out); plt.close(fig)
+    fig.tight_layout(rect=(0, 0, 1, 0.97))
+    fig.savefig(out)
+    plt.close(fig)
 
 if __name__ == "__main__":
     d = sys.argv[1]
