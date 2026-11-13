@@ -348,16 +348,18 @@ fn a_spline_wall_island_winds_as_its_corners_turn_about_the_outward_normal() {
 /// **An island's bystanders are placed by the square they stand in or
 /// out of**, on the chart as laid and on the transposed chart of a
 /// reversed face: after the chord's `mef`, the bystanders inside the
-/// island's square move to its face, those a hair inside its chord
-/// included, and those outside stay.
+/// island's square move to its face, one a thousand ε inside its chord
+/// included, and those outside stay, one a thousand ε outside it
+/// included.
 #[test]
 fn a_spline_wall_island_places_its_bystanders() {
     // The chord is the side `x = 0.3`.
+    let hair = 1e3 * tol().eps();
     let points = [
         (0.5, 0.5),
         (0.35, 0.65),
-        (0.30001, 0.5),
-        (0.29999, 0.5),
+        (0.3 + hair, 0.5),
+        (0.3 - hair, 0.5),
         (0.1, 0.5),
         (0.85, 0.2),
     ];
