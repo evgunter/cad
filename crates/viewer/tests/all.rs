@@ -165,6 +165,8 @@ mod placement_target;
 mod prefs;
 #[path = "probe_6356.rs"]
 mod probe_6356;
+#[path = "probe_offer_depth.rs"]
+mod probe_offer_depth;
 #[path = "product_door.rs"]
 mod product_door;
 #[path = "profile_draw.rs"]
