@@ -2,7 +2,7 @@
 //! ([`Reach::lever_from`]) against the span's ([`Reach::span_reach_from`])
 //! where a face's measure reads it, on faces bounded by rim arcs.
 //!
-//! Each face is measured as `topo`'s `splitting::rules::face_reach_from`
+//! Each face is measured as `topo`'s `face_reach::face_reach_from`
 //! and `face_axial_range` measure it: its corners, one [`Reach::Span`]
 //! per boundary edge. Two families:
 //!

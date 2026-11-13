@@ -3320,10 +3320,18 @@ class VarDecl:
         count of another dimension or a `within` that is no index
         (`index`); a reader of two indices neither within the other
         refuses `indices_unrelated`."""
+    @staticmethod
+    def source(body: _BodyArg) -> VarDecl:
+        """A SOURCE `bracket = B` (VARIABLES VR4): a body variable defined
+        as a read of `body` (a node, a port, a member `op[i]`, a pick or
+        another source), which placements read their body through.
+        Declared under a name, several placements share it
+        (`Doc.place(bracket, …)`); redefining it re-points every placement
+        reading it."""
     @property
     def expr(self) -> Formula | None:
-        """The defining expression, or None for a free variable or an
-        index."""
+        """The defining expression, or None for a free variable, an
+        index or a source."""
     @property
     def value(self) -> FreeVar | None:
         """The free value, or None for a defined variable or an index."""
@@ -4565,11 +4573,13 @@ class SegTag:
     BandFoot: Final[SegTag]
     BandCross: Final[SegTag]
     BandCut: Final[SegTag]
+    BandSection: Final[SegTag]
     BandSlit: Final[SegTag]
     Inner: Final[SegTag]
     Rim: Final[SegTag]
     HoleRim: Final[SegTag]
     Member: Final[SegTag]
+    HostFoot: Final[SegTag]
 
 class OpGroup:
     """The op group a role segment belongs to (`SegPat.group`).

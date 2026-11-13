@@ -75,7 +75,7 @@ use geom_brep::LeverBounds;
 #[cfg(test)]
 use geom_brep::enters_material;
 use geom_brep::ladder::{Answering, Climb, Rung, climb, climb_agreeing};
-use geom_brep::{EntersMaterial, OutwardNormal};
+use geom_brep::{EntersMaterial, OutwardNormal, PlaneDesc};
 use geom_core::NonzeroSign;
 use geom_core::{Band, Decide, Decided, Lever, Margin, Point3, Sign, Vec3};
 
@@ -941,8 +941,8 @@ pub(super) fn tangent_lump<T: Decide>(
                 Margin::levered(sector_outward.vec().dot(n_ref), arm),
                 band,
             ) {
-                Ok(Sign::Positive) => super::plane_eq::PlaneRelation::SameOriented,
-                Ok(Sign::Negative) => super::plane_eq::PlaneRelation::SameOpposite,
+                Ok(Sign::Positive) => geom_brep::CarrierRelation::SameOriented,
+                Ok(Sign::Negative) => geom_brep::CarrierRelation::SameOpposite,
                 Ok(Sign::Zero) => {
                     return Err(BooleanError::ClassificationInvariant {
                         what: "a tangent sector pair's outward normals are perpendicular",
@@ -1780,7 +1780,7 @@ fn on_planar_face<T: Decide>(
     p: Point3<T>,
     band: Band,
 ) -> Result<PlaneRead, BooleanError> {
-    let Some((origin, normal)) = crate::face_normal::face_plane(body, face) else {
+    let Some(PlaneDesc { origin, normal }) = crate::face_normal::face_plane(body, face) else {
         return Ok(PlaneRead::NotPlane);
     };
     let height = Margin::of(geom::plane_offset(origin, normal, p));
@@ -1803,7 +1803,7 @@ fn in_trim<T: Decide>(
     band: Band,
 ) -> Result<Option<PlaneRead>, BooleanError> {
     match crate::face_normal::face_plane(body, face) {
-        Some((_, normal)) => trim_read(body, face, normal, p, band).map(Some),
+        Some(plane) => trim_read(body, face, plane.normal, p, band).map(Some),
         None => Ok(None),
     }
 }
@@ -2497,7 +2497,7 @@ pub(super) fn pair_search<T: Decide>(
     (bodies, vertices): PairSites<'_, T>,
     sectors: [&[BoolSector<T>]; 2],
     contacts: &super::ReductionContacts,
-    glued: impl Fn(FaceKey, FaceKey) -> Option<super::PlaneRelation>,
+    glued: impl Fn(FaceKey, FaceKey) -> Option<geom_brep::CarrierRelation>,
     band: Band,
 ) -> Result<Vec<PairRecord>, BooleanError> {
     let mut records = Vec::new();
@@ -2803,7 +2803,7 @@ mod tests {
             ([&body, &body], [vertex, vertex]),
             [a, b],
             &contacts,
-            |_, _| Some(super::super::PlaneRelation::SameOpposite),
+            |_, _| Some(geom_brep::CarrierRelation::SameOpposite),
             band,
         )
     }
@@ -4560,12 +4560,12 @@ mod tests {
         let aligned = super::super::tables::eq15_3_lump(
             super::super::BooleanOp::Union,
             Operand::A,
-            super::super::plane_eq::PlaneRelation::SameOriented,
+            geom_brep::CarrierRelation::SameOriented,
         );
         let opposed = super::super::tables::eq15_3_lump(
             super::super::BooleanOp::Union,
             Operand::A,
-            super::super::plane_eq::PlaneRelation::SameOpposite,
+            geom_brep::CarrierRelation::SameOpposite,
         );
         assert_ne!(
             aligned, opposed,

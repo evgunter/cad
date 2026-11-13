@@ -169,7 +169,7 @@ enum Rung {
 /// source escalates (`carrier_matches_mapped_source`, an enclosure a
 /// few parts per million over the band's zero). At ε/16 the split
 /// certifies and the union of its halves does not: the glue door reads
-/// the cut faces' plane offset in band (`bool_plane_offset`, an
+/// the cut faces' plane offset in band (`plane_eq_offset`, an
 /// enclosure across zero), so the pair is not glued, and the corner that
 /// reads it one carrier refuses with that reading, and so at ε/32. The
 /// offset is read at the pair's extent's centre, which the faces'
@@ -197,14 +197,14 @@ fn a7_the_width_ladder_of_the_split_of_a_widened_box() {
             16,
             Rung::Escalates {
                 node: union,
-                predicate: "bool_plane_offset",
+                predicate: "plane_eq_offset",
             },
         ),
         (
             32,
             Rung::Escalates {
                 node: union,
-                predicate: "bool_plane_offset",
+                predicate: "plane_eq_offset",
             },
         ),
         (64, Rung::Green),

@@ -2,19 +2,18 @@
 //! verdict, on every kind the `Rest` table names ([`carrier_pair_relation`],
 //! [`carrier_pair_decided`]), its planar restriction
 //! ([`flush_pair_relation`]), the oriented descriptions they compare
-//! ([`face_carrier`]) and the extent a verdict is consumed over
+//! ([`face_carrier_desc`]) and the extent a verdict is consumed over
 //! ([`pair_extent`]).
 
-use geom_brep::{ExtentBall, PairSide};
+use geom_brep::carrier_eq::PairDoorReading;
+use geom_brep::{
+    CarrierDesc, CarrierEqError, CarrierRelation, CarrierVerdict, ExtentBall, PairSide,
+};
 use geom_core::{Band, Decide, Point3};
 
-use super::carrier_eq::{
-    CarrierDesc, CarrierEqError, CarrierRelation, CarrierVerdict, PairDoorReading,
-};
-use super::plane_eq::{PlaneEqError, PlaneRelation};
 use crate::body::Body;
 use crate::entity::{EntityId, FaceKey};
-use crate::face_normal::{face_plane, plane_outward_normal};
+use crate::face_normal::{face_carrier_desc, face_plane};
 use crate::live::BoundaryMember;
 
 /// **The one flush-pair door**: the carrier ladder for a single
@@ -50,7 +49,7 @@ pub fn flush_pair_relation<T: Decide>(
     b: &Body<T>,
     fb: FaceKey,
     band: Band,
-) -> Result<Result<PlaneRelation, PlaneEqError>, PairUnread> {
+) -> Result<Result<CarrierRelation, CarrierEqError>, PairUnread> {
     face_plane(a, fa).ok_or(PairUnread::OutsideInventory)?;
     face_plane(b, fb).ok_or(PairUnread::OutsideInventory)?;
     carrier_pair_relation(a, fa, b, fb, band)
@@ -61,7 +60,7 @@ pub fn flush_pair_relation<T: Decide>(
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum PairUnread {
     /// A face's surface kind is outside the ladder's
-    /// [`super::carrier_eq::INVENTORY`], or its key does not resolve:
+    /// [`geom_brep::carrier_eq::INVENTORY`], or its key does not resolve:
     /// there is no description to compare.
     OutsideInventory,
     /// The face's consumed extent cannot be read ([`pair_extent`]): its
@@ -118,7 +117,7 @@ pub(crate) fn face_witnesses<T: Decide>(body: &Body<T>, face: FaceKey) -> Option
 
 /// **A face pair's consumed extent**, as the carrier doors read it:
 /// one ball enclosing both faces ([`face_ball`]), since the verdict is
-/// consumed on each ([`super::carrier_eq::ConsumedExtent`]).
+/// consumed on each ([`geom_brep::ConsumedExtent`]).
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct PairExtent<T: geom_core::Real> {
     /// The ball enclosing both faces.
@@ -127,8 +126,8 @@ pub(crate) struct PairExtent<T: geom_core::Real> {
 
 impl<T: geom_core::Real> PairExtent<T> {
     /// The extent as the ladder reads it.
-    pub(crate) fn consumed(&self) -> super::carrier_eq::ConsumedExtent<T> {
-        super::carrier_eq::ConsumedExtent::new(self.reach)
+    pub(crate) fn consumed(&self) -> geom_brep::ConsumedExtent<T> {
+        geom_brep::ConsumedExtent::new(self.reach)
     }
 }
 
@@ -158,86 +157,13 @@ pub(crate) fn pair_extent<T: Decide>(
     Ok(PairExtent { reach })
 }
 
-/// The face's **oriented carrier description** — the curved
-/// generalization of [`face_plane`], folding the face's sense into
-/// the material side exactly as that door does (S10).
-///
-/// `None` for a surface kind outside the `Rest` ladder's
-/// [`super::carrier_eq::INVENTORY`]: the C4 table names the kinds
-/// [`mod@super::carrier_eq`] carries a rung for, and a kind it cannot
-/// compare refuses typed at the caller rather than being approximated
-/// by one it can. `None` too where `face`, the caller's key, does not
-/// resolve.
-///
-/// # Panics
-///
-/// Where the face's surface does not resolve: a link, which every
-/// public door keeps live, and which the reduction's operators keep
-/// live mid-operation ([`crate::live::OPERATORS_KEEP_LINKS`]).
-pub fn face_carrier<T: Decide>(body: &Body<T>, face: FaceKey) -> Option<CarrierDesc<T>> {
-    let f = body.face(face)?;
-    // `sense` is the material-side bit: true means the face's outward
-    // normal IS the chart normal, which for a sphere/cylinder chart
-    // points away from the centre/axis. Read as a BIT, never as a
-    // comparison on `T` — the scalar backends order intervals, not
-    // signs (S10's exact-bit discipline).
-    let outward = f.sense();
-    match f.surface() {
-        geom::Surface::Plane { origin, normal, .. } => Some(CarrierDesc::Plane {
-            origin: *origin,
-            normal: plane_outward_normal(f.record(), *normal).vec(),
-        }),
-        geom::Surface::Sphere { center, radius, .. } => Some(CarrierDesc::Sphere {
-            center: *center,
-            radius: *radius,
-            outward,
-        }),
-        geom::Surface::Cylinder {
-            origin,
-            axis,
-            radius,
-            ..
-        } => Some(CarrierDesc::Cylinder {
-            origin: *origin,
-            axis: *axis,
-            radius: *radius,
-            outward,
-        }),
-        geom::Surface::Torus {
-            center,
-            axis,
-            major_radius,
-            minor_radius,
-            ..
-        } => Some(CarrierDesc::Torus {
-            center: *center,
-            axis: *axis,
-            major_radius: *major_radius,
-            minor_radius: *minor_radius,
-            outward,
-        }),
-        geom::Surface::Cone {
-            apex,
-            axis,
-            half_angle,
-            ..
-        } => Some(CarrierDesc::Cone {
-            apex: *apex,
-            axis: *axis,
-            half_angle: *half_angle,
-            outward,
-        }),
-        geom::Surface::Spindle { .. } | geom::Surface::Nurbs(_) | geom::Surface::Approx(_) => None,
-    }
-}
-
 /// **The one carrier-pair door**: [`flush_pair_relation`] for every
 /// carrier kind the `Rest` table names.
 ///
-/// Descriptions through [`face_carrier`] and the pair's consumed
+/// Descriptions through [`face_carrier_desc`] and the pair's consumed
 /// extent through [`pair_extent`]: a coincidence is one whose
 /// displacement's bound decides Zero at every point of both faces
-/// ([`super::carrier_eq::pair_door_reading`]). The operation's glue
+/// ([`geom_brep::carrier_eq::pair_door_reading`]). The operation's glue
 /// door reads its pairs here, and so do the census and the merge.
 ///
 /// # Errors
@@ -249,7 +175,7 @@ pub fn face_carrier<T: Decide>(body: &Body<T>, face: FaceKey) -> Option<CarrierD
 /// # Panics
 ///
 /// Where a link of either face does not resolve: its surface
-/// ([`face_carrier`]), its loops, their walks, or a boundary vertex's
+/// ([`face_carrier_desc`]), its loops, their walks, or a boundary vertex's
 /// point.
 pub fn carrier_pair_relation<T: Decide>(
     a: &Body<T>,
@@ -343,7 +269,7 @@ pub(super) fn glue_extent<T: Decide>(
     Ok(PairExtent { reach })
 }
 
-/// The two faces' carrier descriptions ([`face_carrier`]), read before
+/// The two faces' carrier descriptions ([`face_carrier_desc`]), read before
 /// their extent: a kind outside the inventory has no extent to read.
 fn carriers_of<T: Decide>(
     a: &Body<T>,
@@ -352,8 +278,8 @@ fn carriers_of<T: Decide>(
     fb: FaceKey,
 ) -> Result<(CarrierDesc<T>, CarrierDesc<T>), PairUnread> {
     Ok((
-        face_carrier(a, fa).ok_or(PairUnread::OutsideInventory)?,
-        face_carrier(b, fb).ok_or(PairUnread::OutsideInventory)?,
+        face_carrier_desc(a, fa).ok_or(PairUnread::OutsideInventory)?,
+        face_carrier_desc(b, fb).ok_or(PairUnread::OutsideInventory)?,
     ))
 }
 
@@ -365,7 +291,7 @@ fn decided_over<T: Decide>(
     extent: &PairExtent<T>,
     band: Band,
 ) -> Result<CarrierVerdict, CarrierEqError> {
-    match super::carrier_eq::pair_door_reading(&ca, &cb, &extent.consumed(), band) {
+    match geom_brep::carrier_eq::pair_door_reading(&ca, &cb, &extent.consumed(), band) {
         Ok(PairDoorReading::RingApart {
             relation, upper, ..
         }) => torus_pair_witnessed((a, fa, &ca), (b, fb, &cb), (relation, upper), band),
@@ -391,10 +317,10 @@ pub fn carrier_pair_arm<T: Decide>(
     fb: FaceKey,
     band: Band,
 ) -> Result<geom_core::Lever<T>, PairUnread> {
-    let ca = face_carrier(a, fa).ok_or(PairUnread::OutsideInventory)?;
-    let cb = face_carrier(b, fb).ok_or(PairUnread::OutsideInventory)?;
+    let ca = face_carrier_desc(a, fa).ok_or(PairUnread::OutsideInventory)?;
+    let cb = face_carrier_desc(b, fb).ok_or(PairUnread::OutsideInventory)?;
     let extent = pair_extent(a, fa, b, fb, band).map_err(PairUnread::Extent)?;
-    Ok(super::carrier_eq::consumed_arm(&ca, &cb, extent.reach))
+    Ok(geom_brep::carrier_eq::consumed_arm(&ca, &cb, extent.reach))
 }
 
 /// The row a torus face's witness of two carriers is decided on
@@ -432,7 +358,7 @@ fn torus_pair_witnessed<T: Decide>(
     (relation, upper): (CarrierRelation, geom_core::Decided),
     band: Band,
 ) -> Result<CarrierVerdict, CarrierEqError> {
-    use super::carrier_eq::CoincidenceMeasure;
+    use geom_brep::CoincidenceMeasure;
     use geom_core::{Margin, Sign};
     let on = |body: &Body<T>, f: FaceKey| {
         face_witnesses(body, f)
@@ -494,7 +420,7 @@ mod tests {
     /// **The carrier reads answer a caller's stale face `None` and panic
     /// on a torn link past it.** A face the body once held, freed so the
     /// body around it is sound, reads no carrier, ball or witnesses; a
-    /// live face whose surface was dropped panics in `face_carrier` and
+    /// live face whose surface was dropped panics in `face_carrier_desc` and
     /// `face_ball` naming the surface, and one whose boundary vertex lost
     /// its point panics in `face_witnesses` naming the point. A read that
     /// took either tear for an absent record would answer instead.
@@ -508,12 +434,15 @@ mod tests {
         let stale = body.faces.insert(data.clone());
         body.faces.remove(stale);
         assert!(
-            face_carrier(&body, face).is_some()
+            face_carrier_desc(&body, face).is_some()
                 && face_ball(&body, face, band).is_some()
                 && face_witnesses(&body, face).is_some(),
             "the live face reads"
         );
-        assert!(face_carrier(&body, stale).is_none(), "face_carrier, stale");
+        assert!(
+            face_carrier_desc(&body, stale).is_none(),
+            "face_carrier_desc, stale"
+        );
         assert!(face_ball(&body, stale, band).is_none(), "face_ball, stale");
         assert!(
             face_witnesses(&body, stale).is_none(),
@@ -522,8 +451,8 @@ mod tests {
 
         body.surfaces.remove(data.surface);
         let surface = format!("{}'s surface names", EntityId::Face(face));
-        assert_torn_op_panics("face_carrier", &mut body, &[&surface, ROW_FOUR], |b| {
-            face_carrier(b, face)
+        assert_torn_op_panics("face_carrier_desc", &mut body, &[&surface, ROW_FOUR], |b| {
+            face_carrier_desc(b, face)
         });
         assert_torn_op_panics("face_ball", &mut body, &[&surface, ROW_FOUR], |b| {
             face_ball(b, face, band)
@@ -661,7 +590,8 @@ mod lever_rows {
     /// does not use) reads a different margin here.
     #[test]
     fn the_pair_arm_is_the_arm_the_cylinder_tilt_is_levered_at() {
-        use super::super::carrier_eq::{CARRIER_CYL_AXIS_PARALLEL, CoincidenceMeasure};
+        use geom_brep::CoincidenceMeasure;
+        use geom_brep::carrier_eq::CARRIER_CYL_AXIS_PARALLEL;
         let tol = Tol::witness();
         let (u, v) = ((0.2, 1.6), (0.0, 2.0));
         let mut a = Body::<f64>::new();
@@ -681,7 +611,7 @@ mod lever_rows {
         let (
             Some(CarrierDesc::Cylinder { axis: a1, .. }),
             Some(CarrierDesc::Cylinder { axis: a2, .. }),
-        ) = (face_carrier(&a, fa), face_carrier(&b, fb))
+        ) = (face_carrier_desc(&a, fa), face_carrier_desc(&b, fb))
         else {
             panic!("two cylinder walls read as cylinders")
         };
@@ -802,7 +732,7 @@ mod lever_rows {
     ) -> (geom_core::Indeterminate, geom_core::Indeterminate) {
         let at_door = match carrier_pair_decided(a, fa, b, fb, band) {
             Ok(Err(CarrierEqError::Undecided {
-                coincidence: super::super::carrier_eq::CoincidenceMeasure::Undecided(diag),
+                coincidence: geom_brep::CoincidenceMeasure::Undecided(diag),
                 relation: CarrierRelation::SameOpposite,
             })) => diag,
             other => panic!("the face-pair door: {other:?}"),

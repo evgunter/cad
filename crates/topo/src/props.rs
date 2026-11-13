@@ -2252,6 +2252,35 @@ pub(crate) struct KeptSign<T: Decide> {
 }
 
 impl<T: Decide> KeptSign<T> {
+    /// **This certificate over the body's image under an isometry**
+    /// `map`: every run's reference point moved with the body, and every
+    /// flux, area and carry kept. Each face's flux `∫(p − c)·n` about a
+    /// reference `c` that moves with the body is the image's, and so is
+    /// the volume; a reflection negates it and the mirror's reversal
+    /// restores it, so a mirrored body's runs are kept too.
+    pub(crate) fn moved(&self, map: &geom_core::Affine3<T>) -> Self {
+        let move_about = |about: ReadAbout<T>| match about {
+            ReadAbout::Shell(point) => ReadAbout::Shell(map.transform_point(point)),
+            ReadAbout::Region { point, carry } => ReadAbout::Region {
+                point: map.transform_point(point),
+                carry,
+            },
+        };
+        Self {
+            band: self.band,
+            tol: self.tol,
+            quad: self.quad,
+            runs: self
+                .runs
+                .iter()
+                .map(|run| FaceRun {
+                    about: move_about(run.about),
+                    ..run.clone()
+                })
+                .collect(),
+        }
+    }
+
     /// **This certificate over `body`**, the one body it was derived
     /// over, its rounds as the gate left them.
     pub(crate) fn of<'b>(&self, body: &'b Body<T>) -> SignCertificate<'b, T> {
@@ -6890,18 +6919,20 @@ pub trait AtRestPolicy: Decide {
     /// scalar. `None` leaves a face–face pair unread.
     fn region_lane() -> Option<crate::RegionLane<Self>>;
 
-    /// **This scalar's clearance engine, or `None` where it does not
+    /// **This scalar's clearance measure, or `None` where it does not
     /// answer** — the ONE seam the `Some` comes from, read by a
-    /// clearance assertion's evaluation, the engine's dials door and the
-    /// shell's cavity gate.
+    /// clearance assertion's evaluation and the engine's dials door.
+    /// The yes/no embedding verdict is the other door, bounded on
+    /// certification rights rather than answered per scalar
+    /// ([`crate::clearance::embedded`]).
     ///
-    /// The engine's answer is a verdict over a box, decided from
-    /// enclosures, so the door answers at the enclosure scalars and
-    /// wherever the symbolic tier wraps one. `None` at a dual is
-    /// certification rights (DL1), as [`AtRestPolicy::shell_door`]'s
-    /// is. `None` at `f64` and at the recording scalar is not a right
-    /// but a shape: a point build evaluates one parameter point, where a
-    /// search finds a near pair, not a verdict, and a clearance there
+    /// A clearance is a verdict over a box, decided from enclosures, so
+    /// the door answers at the enclosure scalars and wherever the
+    /// symbolic tier wraps one. `None` at a dual is certification rights
+    /// (DL1), as [`AtRestPolicy::shell_door`]'s is. `None` at `f64`, at
+    /// the recording scalar and at `Sym<f64>` is not a right but a shape:
+    /// a point build evaluates one parameter point, where a search finds
+    /// a near pair, not a verdict over the box, and a clearance there
     /// reads its third state naming the certifying lane.
     fn clearance_lane() -> Option<crate::ClearanceLane<Self>>;
 
@@ -6912,9 +6943,10 @@ pub trait AtRestPolicy: Decide {
     /// no verdict (DUAL-DESIGN DL3).
     type Finished: crate::FinishedBody<Scalar = Self>;
 
-    /// **The one constructor of a finished body**: tier 3, whose first
-    /// act is tiers 1 and 2, with the verdict kept beside the body, at a
-    /// certifying scalar; tier 2 alone at a dual.
+    /// **The one place a body's verdict is derived**: tier 3, whose
+    /// first act is tiers 1 and 2, with the verdict kept beside the body,
+    /// at a certifying scalar; tier 2 alone at a dual. A finished body
+    /// moved by an isometry stays finished ([`crate::FinishedBody::moved`]).
     ///
     /// # Errors
     ///
@@ -6928,6 +6960,16 @@ pub trait AtRestPolicy: Decide {
     /// (`Interval`, `Sym`). See [`AtRestPolicy::leaf`].
     type Leaf: crate::LeafBody<Scalar = Self>;
 
+    /// **Whether [`AtRestPolicy::take`] runs tier 3 on a leaf**, and so
+    /// logs the session box where it takes one: `true` at the box scalars
+    /// (`Interval`, `Sym`), whose leaf is tier 2 alone; `false` at `f64`
+    /// and `Probe`, whose taker relogs the leaf's held finish, and at a
+    /// dual, whose taker runs nothing. A move's session-box ask
+    /// ([`crate::Replay::moved_by`]) is held off the moving node's verdict
+    /// log only where the taker logs the box of the same image, so both
+    /// lanes log it once; elsewhere the move logs it itself.
+    const TAKE_FINISHES: bool;
+
     /// **THE SWITCH: a sweep door's own finish** (Ev on PR 6371,
     /// 2026-11-02: "keep aiming for this final state, but … keep it
     /// selectively disabled for now so it doesn't break everything").
@@ -6935,9 +6977,13 @@ pub trait AtRestPolicy: Decide {
     /// The final state is every door finishing its own result
     /// ([`AtRestPolicy::finish`]). The doors behind the switch end in
     /// this leaf instead: the sweep doors (extrude, revolve, loft, sweep,
-    /// the tube) and, in the evaluator, the computing frame's twist, the
-    /// mirror and the `⊔` graft, so at the box scalars a twisted or
-    /// mirrored Boolean result is a [`crate::Replay`] too. At the box
+    /// the tube) and, in the evaluator, the `⊔` graft. A move of a leaf
+    /// is a leaf of the same kind ([`crate::LeafBody::moved`]): at `f64`
+    /// and `Probe` the image is finished again, held off the log, so its
+    /// record is what the box lane's taker decides of the same body, and
+    /// that re-finish goes with this switch. A twisted or mirrored
+    /// Boolean result is a finished value and stays finished, with no
+    /// finish. At the box
     /// scalars the leaf is tier 2 alone ([`crate::Replay`]): it does not
     /// run tier 3, and the consumer that takes a finished body runs it
     /// there, at the one taker door ([`crate::take`]): a Boolean's, a
@@ -7114,6 +7160,7 @@ impl AtRestPolicy for f64 {
         crate::AtRestBody::validate(body, tol).map_err(crate::NotFinished::new)
     }
     type Leaf = crate::AtRestBody<Self>;
+    const TAKE_FINISHES: bool = false;
 
     /// The finish, its decisions held off this node's verdict log and
     /// kept on the body for the taker to relog
@@ -7274,6 +7321,7 @@ impl AtRestPolicy for geom_core::Probe {
         crate::AtRestBody::validate(body, tol).map_err(crate::NotFinished::new)
     }
     type Leaf = crate::AtRestBody<Self>;
+    const TAKE_FINISHES: bool = false;
 
     /// The finish, its decisions held off this node's verdict log and
     /// kept on the body for the taker to relog
@@ -7430,6 +7478,7 @@ impl AtRestPolicy for geom_core::interval::Interval {
     }
     /// The switch's box-scalar arm ([`AtRestPolicy::leaf`]).
     type Leaf = crate::Replay<Self>;
+    const TAKE_FINISHES: bool = true;
 
     fn leaf(body: Body<Self>, _tol: Tol) -> Result<Self::Leaf, crate::NotFinished> {
         crate::Replay::of(body)
@@ -7588,6 +7637,7 @@ where
     }
     /// The switch's box-scalar arm ([`AtRestPolicy::leaf`]).
     type Leaf = crate::Replay<Self>;
+    const TAKE_FINISHES: bool = true;
 
     fn leaf(body: Body<Self>, _tol: Tol) -> Result<Self::Leaf, crate::NotFinished> {
         crate::Replay::of(body)
@@ -7759,6 +7809,7 @@ where
     }
 
     type Leaf = crate::Replay<Self>;
+    const TAKE_FINISHES: bool = false;
 
     fn leaf(body: Body<Self>, tol: Tol) -> Result<Self::Leaf, crate::NotFinished> {
         Self::finish(body, tol)
@@ -9095,7 +9146,6 @@ mod shell_reference_rows {
         let body = crate::transform_rigid(
             &body,
             &geom_core::RigidMotion::translation(geom_core::Vec3::new(5.0, -3.0, 2.0)).unwrap(),
-            tol,
         )
         .unwrap();
         let faces = crate::query::all_faces(&body);

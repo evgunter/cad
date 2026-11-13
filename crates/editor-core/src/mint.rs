@@ -295,6 +295,8 @@ pub(crate) enum Held {
     Pose(crate::pose::PoseDef),
     /// A pick: the copy read and the path.
     Pick(crate::var::Pick),
+    /// A source: the body read.
+    Source(crate::BodyRead<crate::var::VarId>),
     /// An index: its count and what it is within.
     Index(crate::var::Index),
 }
@@ -315,6 +317,7 @@ impl Held {
             },
             WrittenDef::Pose(_, def) => Self::Pose(def.clone()),
             WrittenDef::Pick(pick) => Self::Pick(pick.clone()),
+            WrittenDef::Source(read) => Self::Source(read.clone()),
             WrittenDef::Index(index) => Self::Index(index.clone()),
         }
     }

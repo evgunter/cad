@@ -1516,12 +1516,9 @@ fn in_id_order<V>(mut found: Vec<(RecipeNodeId, V)>) -> Vec<(RecipeNodeId, V)> {
 /// group resized). The mirror of the `name_frag_*` rung, which puts a
 /// family first.
 ///
-/// It passes over a corner's sign ([`geom_brep::DIHEDRAL_SIGN`]) on the
-/// same terms: tier 3 and the shared-rim routing read it off a body
-/// already built, and its population moves across signs whenever an edit
-/// trades convex corners for concave ones, with no corner turning, so a
-/// flip there changes whether a body is accepted, never which body a
-/// name was read off.
+/// It passes over a corner's sign on the same terms: a flip there changes
+/// whether a body is accepted, never which body a name was read off
+/// ([`geom_brep::DIHEDRAL_SIGN`] states why, for every reader of it).
 fn first_cause(found: Vec<(RecipeNodeId, VerdictFlip)>) -> Option<(RecipeNodeId, VerdictFlip)> {
     in_id_order(found).into_iter().find(|(_, f)| {
         !f.predicate.starts_with(topo::SIDE_READER_FAMILY)
@@ -2854,6 +2851,7 @@ fn embedded<'a>(name: &'a StableName, partners: Partners, f: &mut Vec<(&'a Stabl
             | RoleSeg::CornerFace(n)
             | RoleSeg::Mitre { vertex: n }
             | RoleSeg::TurnFoot { vertex: n }
+            | RoleSeg::BandSection { vertex: n }
             | RoleSeg::BandTrim { edge: n, support: _ }
             | RoleSeg::BandFoot(n)
             | RoleSeg::BandCut(n)
@@ -2873,6 +2871,10 @@ fn embedded<'a>(name: &'a StableName, partners: Partners, f: &mut Vec<(&'a Stabl
                 support: b,
             }
             | RoleSeg::EndArc {
+                vertex: a,
+                edge: b,
+            }
+            | RoleSeg::HostFoot {
                 vertex: a,
                 edge: b,
             } => {

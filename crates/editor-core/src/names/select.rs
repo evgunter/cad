@@ -176,6 +176,7 @@ seg_tags! {
     BandFoot,
     BandCross,
     BandCut,
+    BandSection,
     BandSlit,
     // Shell
     Inner,
@@ -183,6 +184,8 @@ seg_tags! {
     HoleRim,
     // Pattern
     Member,
+    // Blend, appended
+    HostFoot,
 }
 
 /// The end/side discriminator a role segment can carry — the closed,
@@ -259,6 +262,8 @@ impl SegTag {
             RoleSeg::EndArc { .. } => Self::EndArc,
             RoleSeg::Mitre { .. } => Self::Mitre,
             RoleSeg::TurnFoot { .. } => Self::TurnFoot,
+            RoleSeg::BandSection { .. } => Self::BandSection,
+            RoleSeg::HostFoot { .. } => Self::HostFoot,
             RoleSeg::BandFace(..) => Self::BandFace,
             RoleSeg::BandTrim { .. } => Self::BandTrim,
             RoleSeg::BandFoot(..) => Self::BandFoot,
@@ -310,6 +315,8 @@ impl SegTag {
             | Self::EndArc
             | Self::Mitre
             | Self::TurnFoot
+            | Self::BandSection
+            | Self::HostFoot
             | Self::BandFace
             | Self::BandTrim
             | Self::BandFoot
@@ -365,8 +372,10 @@ fn side_of(seg: &RoleSeg) -> Option<Side> {
         | RoleSeg::TrimEdge { .. }
         | RoleSeg::FootVertex { .. }
         | RoleSeg::EndArc { .. }
+        | RoleSeg::HostFoot { .. }
         | RoleSeg::Mitre { .. }
         | RoleSeg::TurnFoot { .. }
+        | RoleSeg::BandSection { .. }
         | RoleSeg::BandFace(_)
         | RoleSeg::BandFoot(_)
         | RoleSeg::BandCross { .. }
@@ -431,6 +440,7 @@ fn name_args(seg: &RoleSeg) -> Args<'_> {
         | RoleSeg::CornerFace(n)
         | RoleSeg::Mitre { vertex: n }
         | RoleSeg::TurnFoot { vertex: n }
+        | RoleSeg::BandSection { vertex: n }
         | RoleSeg::BandFoot(n)
         | RoleSeg::BandCut(n)
         | RoleSeg::Inner(n)
@@ -452,7 +462,9 @@ fn name_args(seg: &RoleSeg) -> Args<'_> {
         } => seq(vec![edge, face]),
         RoleSeg::TrimEdge { edge, support } => seq(vec![edge, support]),
         RoleSeg::FootVertex { vertex, support } => seq(vec![vertex, support]),
-        RoleSeg::EndArc { vertex, edge } => seq(vec![vertex, edge]),
+        RoleSeg::EndArc { vertex, edge } | RoleSeg::HostFoot { vertex, edge } => {
+            seq(vec![vertex, edge])
+        }
         RoleSeg::Seam { a, b } => set(vec![a, b]),
         RoleSeg::EdgeCrossing(run) => set(run
             .iter()

@@ -204,13 +204,11 @@ fn the_re_posed_cup_is_the_same_cup() {
             ),
             tol,
         ),
-        tol,
     )
     .expect("a rigid pose is a rigid pose");
     let posed = topo::transform_rigid(
         &turned,
         &geom_core::RigidMotion::translation(Vec3::new(0.31, -0.17, 0.23)).unwrap(),
-        tol,
     )
     .expect("and so is a translation");
     assert_the_cup_as_built("re-posed cup", &posed, tol);

@@ -29,7 +29,6 @@ use geom_core::{
 };
 use sweep::{Revolution, RevolveAxis};
 use topo::splitting::SplitPart;
-use topo::transform::transform_rigid;
 use topo::{Body, BooleanInputs, POSE_UNIT_NORM};
 
 use super::anchor::{self, ProfilePre, ProfileValue};
@@ -654,16 +653,17 @@ fn twisted<T: Decide + topo::AtRestPolicy>(
             .for_node(id)
             .at::<T>(tol)
             .map_err(NodeErrorKind::Motion)?;
-        let turned = transform_rigid(body.body(), &twist, tol).map_err(NodeErrorKind::Transform)?;
-        // The twisted copy is its scalar's leaf (`topo::AtRestPolicy::leaf`):
-        // finished at `f64`, tier 2 at the box scalars, as its source is.
-        let turned =
-            T::leaf(turned, tol).map_err(|findings| NodeErrorKind::NotFinished { findings })?;
+        // The twisted copy is what its source holds, moved: of the same
+        // kind, its verdict carried.
+        let turned = body
+            .holding()
+            .moved(&twist, tol)
+            .map_err(|findings| NodeErrorKind::NotFinished { findings })?;
         let back = super::Frame::Own
             .moved(&twist.inverse().map_err(NodeErrorKind::Motion)?)
             .map_err(NodeErrorKind::Motion)?;
         return Ok(OpOut {
-            payload: ValuePayload::Body(super::Framed::in_frame_leaf(Arc::new(turned), back)),
+            payload: ValuePayload::Body(super::Framed::held(turned, back)),
             ..out
         });
     }
@@ -2235,7 +2235,7 @@ fn select_one<T: topo::AtRestPolicy + Decide>(
     };
     Ok((
         at,
-        resolve_in(name, doc, selection.body.read, &table, refuse)?,
+        resolve_in(name, doc, doc.selected_body(selection).read, &table, refuse)?,
     ))
 }
 
@@ -2347,14 +2347,18 @@ fn resolve_selection<K: names::interrogate::Denoted>(
         .iter()
         .enumerate()
         .map(|(reference, name)| {
-            ladder::resolve_key(name, doc, selection.body.read, table, |error| {
-                NodeErrorKind::SelectResolve {
+            ladder::resolve_key(
+                name,
+                doc,
+                doc.selected_body(selection).read,
+                table,
+                |error| NodeErrorKind::SelectResolve {
                     slot,
                     var,
                     reference,
                     error,
-                }
-            })
+                },
+            )
         })
         .collect::<Result<_, _>>()?;
     Ok(Selected {
@@ -2630,24 +2634,20 @@ where
         band: b,
         budgets: crate::clearance::ClearanceConfig::default().budgets,
     };
-    // The sweep's decisions are its report's, not the node's log
-    // (audit row F30).
-    let report = geom_core::k_stats::unlogged("F30", || {
-        lane.sweep(&sweep, &wa, &wb, sa.same_body(&sb), |candidate| {
-            let (faces, ask, over) = (candidate.faces(), candidate.ask(), candidate.enclosure());
-            let [bx, by] = rebuilt.as_ref().map_err(Clone::clone)?;
-            crate::clearance::closest_pair(
-                (&**bx, &**by),
-                faces,
-                lane.on_face_stations(candidate),
-                (ask, b),
-                &over,
-            )
-        })
+    let report = lane.sweep(&sweep, &wa, &wb, sa.same_body(&sb), |candidate| {
+        let (faces, ask, over) = (candidate.faces(), candidate.ask(), candidate.enclosure());
+        let [bx, by] = rebuilt.as_ref().map_err(Clone::clone)?;
+        crate::clearance::closest_pair(
+            (&**bx, &**by),
+            faces,
+            lane.on_face_stations(candidate),
+            (ask, b),
+            &over,
+        )
     });
     let param =
         || witness.map_or_else(crate::clearance::ParamWitness::nominal, |w| w.param.clone());
-    // **The drive's cue** (audit row F30's one exception): an upper
+    // **The drive's cue** (audit row F41's one exception): an upper
     // bound whose proving pair held at one point of the box only is no
     // verdict over the box, and a narrower box can decide it. The
     // sweep's own readings stay out of the node's log; this one reading
@@ -2696,7 +2696,7 @@ impl Witnessing<'_> {
         &self,
         sides: [(RecipeNodeId, u32); 2],
         tol: Tol,
-    ) -> Result<[super::ReadIn<f64>; 2], String> {
+    ) -> Result<[super::Held<f64>; 2], String> {
         let framed = |(at, index): (RecipeNodeId, u32)| {
             let value = value_of(self.results, at)
                 .map_err(|kind| format!("the f64 rebuild has no value for a seat: {kind}"))?;
@@ -2879,13 +2879,20 @@ fn wire_split<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
 }
 
 /// **A mirror** (D10 `[repetition]`): the body `source` defines,
-/// reflected across `plane` by the kernel's reflection door
-/// (`topo::mirror_body`), a construction, not a copy. The door keeps
+/// reflected across `plane` ([`super::Held::moved`] at a reflection),
+/// a construction, not a copy. The door keeps
 /// every arena key, so the image carries the source's names verbatim,
 /// and carries what the source carries as a copy carries it
 /// ([`super::Carry::copied`]): its records, findings and census, each
 /// meeting inside it the source's. No rigid motion
 /// stands the source's pieces in the image, so it holds none.
+///
+/// A refusal of the reflection's data map reads
+/// [`NodeErrorKind::Mirror`]. No pin reaches that arm: no finished body
+/// known here makes the re-mint refuse. A reflection keeps every
+/// distance, so each re-minted pcurve row reads its source's margins,
+/// which certified, up to the reflected data's rounding, and no fixture
+/// holds a margin within that rounding of its band's edge.
 fn wire_mirror<T: Decide + topo::AtRestPolicy>(
     read: crate::VarId,
     source: RecipeNodeId,
@@ -2904,20 +2911,22 @@ fn wire_mirror<T: Decide + topo::AtRestPolicy>(
     };
     let reflection =
         topo::Reflection::across_unit(PoseValue::plane_foot(*normal, *offset), *normal);
-    let image = topo::mirror_body(body.body(), &reflection, tol).map_err(NodeErrorKind::Mirror)?;
-    // The image is its scalar's leaf (`topo::AtRestPolicy::leaf`), as
-    // its source is.
-    let image = T::leaf(image, tol).map_err(|findings| NodeErrorKind::NotFinished { findings })?;
+    // The image is what its source holds, moved by the reflection: of
+    // the same kind, its verdict carried.
+    let image = body
+        .holding()
+        .moved_by(&topo::Isometry::Improper(reflection), tol)
+        .map_err(|refused| match refused {
+            topo::MoveError::Map(error) => NodeErrorKind::Mirror(error),
+            topo::MoveError::NotFinished(findings) => NodeErrorKind::NotFinished { findings },
+        })?;
     let value = value_of(results, source)?;
     let table = read_table(value)
         .project(0)
         .map_err(|dup| NodeErrorKind::Naming(names::NamingError::from(dup)))?;
     names::check_total(&table, &image, 0).map_err(NodeErrorKind::Naming)?;
     Ok(OpOut::plain(
-        ValuePayload::Body(super::Framed::in_frame_leaf(
-            Arc::new(image),
-            body.frame().clone(),
-        )),
+        ValuePayload::Body(super::Framed::held(image, body.frame().clone())),
         Arc::new(table),
     )
     .carrying(value.carry.copied(
@@ -3000,12 +3009,12 @@ pub(super) fn selection_member<T: Decide>(
     select: &crate::var::Select,
     params: &crate::expr::VarEnv<T>,
 ) -> Result<Option<(RecipeNodeId, Vec<i64>)>, NodeErrorKind> {
-    if !select.body.is_indexed() {
+    let body = doc.selected_body(select);
+    if !body.is_indexed() {
         return Ok(None);
     }
-    let family = super::read_at(doc, slot, select.body.read)?;
-    let at = select
-        .body
+    let family = super::read_at(doc, slot, body.read)?;
+    let at = body
         .at
         .iter()
         .enumerate()
@@ -3017,6 +3026,25 @@ pub(super) fn selection_member<T: Decide>(
         })
         .collect::<Result<Vec<i64>, _>>()?;
     Ok(Some((family, at)))
+}
+
+/// **The index values of a source's member read** (VARIABLES VR4), each
+/// `Count` evaluated under `params`.
+fn source_indices<T: Decide>(
+    seat: crate::OperandSlot,
+    body: &crate::BodyRead<crate::VarId>,
+    params: &crate::expr::VarEnv<T>,
+) -> Result<Vec<i64>, NodeErrorKind> {
+    body.at
+        .iter()
+        .enumerate()
+        .map(|(k, &index)| {
+            crate::expr::eval_var_count(index, params).map_err(|source| NodeErrorKind::Expr {
+                slot: SlotId::Index { seat, k },
+                source,
+            })
+        })
+        .collect()
 }
 
 /// **The place of the member a selection's body read picks** among its
@@ -3122,9 +3150,14 @@ fn reads_projected<T: topo::AtRestPolicy + Decide>(
 ) -> Result<Option<Results<T>>, NodeErrorKind> {
     let mut replaced: Vec<(RecipeNodeId, u32, super::NodeValue<T>)> = Vec::new();
     for &(seat, row) in rows {
-        // A selection is read in the body it states.
+        // A selection is read in the body it states, and a source as the
+        // body it reads: a member read of a source by its own indices.
         let select = doc.selection(row);
-        let var = select.map_or(row, |select| select.body.read);
+        let sourced = match select {
+            Some(select) => doc.selected_body(select),
+            None => doc.through_sources(row),
+        };
+        let var = sourced.read;
         if let Some(pick) = doc.pick(var) {
             let placement = super::read_at(doc, seat, var)?;
             let indexed = node
@@ -3143,6 +3176,10 @@ fn reads_projected<T: topo::AtRestPolicy + Decide>(
         // selection's, by its own indices.
         let member = match select {
             Some(select) => selection_member(doc, seat, select, params)?,
+            None if sourced.is_indexed() => Some((
+                super::read_at(doc, seat, var)?,
+                source_indices(seat, &sourced, params)?,
+            )),
             None => match node.body_read(seat).filter(|read| read.is_indexed()) {
                 Some(read) => Some((
                     super::read_at(doc, seat, var)?,
@@ -3305,7 +3342,7 @@ pub(super) fn project_selection<T: topo::AtRestPolicy + Decide>(
                 &at,
             )?],
         )),
-        None => project_ports(&[select.body.read], doc, results),
+        None => project_ports(&[doc.selected_body(select).read], doc, results),
     }
 }
 
@@ -3456,14 +3493,14 @@ struct Member<T: topo::AtRestPolicy + Decide> {
 
 impl<T: Decide + topo::AtRestPolicy> MemberRead<T> {
     /// **This member read into `computing`'s frame and taken**: what it
-    /// holds where the two are one frame, else its body mapped once at
-    /// the placement's door ([`super::Framed::read_in`]); taken as the
+    /// holds where the two are one frame, else what it holds moved once
+    /// at the placement's door ([`super::Framed::read_in`]); taken as the
     /// Boolean takes it ([`super::Held::finished`]).
     fn taken_in(&self, computing: &super::Framed<T>, tol: Tol) -> Result<Member<T>, NodeErrorKind> {
         let read = computing.read_in(&self.framed, tol)?;
-        let own = read.held().is_some();
+        let own = read.same(self.framed.holding());
         let body = read
-            .taken(tol)
+            .finished(tol)
             .map_err(NodeErrorKind::unfinished(self.node))?;
         let framed = if own {
             self.framed.clone()

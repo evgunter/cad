@@ -53,7 +53,7 @@ use sweep::test_support::{ball_poled_z, brick, revolved_about_y};
 use sweep::{ExtrudeSide, Extrusion, Revolution, extrude};
 use topo::{
     AtRestBody, AtRestPolicy, Body, BooleanError, BooleanResult, CensusContact, ContactKind,
-    SplitJoinError, ValidationError,
+    JoinError, ValidationError,
 };
 
 use crate::common::differential::{
@@ -96,7 +96,7 @@ fn extruded<T: Decide + AtRestPolicy<Finished = topo::AtRestBody<T>>>(
     };
     let body = extrude(&profile, depth, tol()).unwrap().body;
     let up = Affine3::translation(Vec3::new(f(0.0), f(0.0), f(z0)));
-    topo::transform_rigid(&body, &geom_core::test_support::rigid(&up, tol()), tol()).unwrap()
+    topo::transform_rigid(&body, &geom_core::test_support::rigid(&up, tol())).unwrap()
 }
 
 fn fin<T: AtRestPolicy<Finished = topo::AtRestBody<T>>>(
@@ -400,8 +400,10 @@ fn the_fallback_cuts_a_closed_rim_beside_a_ring() {
         let root = |f| n.face_fragments_b.root(f);
         // The rows by the plane of the B face they name: the top at z 0,
         // the lid's bottom at z 1.
-        let level = |f: topo::FaceKey| match topo::face_carrier(&other, root(f)) {
-            Some(topo::CarrierDesc::Plane { origin, .. }) => (origin.z * 2.0).round() as i8,
+        let level = |f: topo::FaceKey| match topo::face_normal::face_carrier_desc(&other, root(f)) {
+            Some(geom_brep::CarrierDesc::Plane(geom_brep::PlaneDesc { origin, .. })) => {
+                (origin.z * 2.0).round() as i8
+            }
             c => panic!("{label}: a plane face, {c:?}"),
         };
         let held: Vec<i8> = n.substituted.iter().map(|s| level(s.face)).collect();
@@ -490,8 +492,8 @@ type Cells = [Reads; 2];
 fn reads_as(row: &str, r: Result<BooleanResult<f64>, BooleanError>, want: f64, reads: Reads) {
     let refused = |r: &Result<BooleanResult<f64>, BooleanError>| match r {
         Err(BooleanError::Join(j)) => match j.error() {
-            SplitJoinError::SectionLoopUndecided { .. } => Some(Reads::LoopsUndecided),
-            SplitJoinError::UnpairedLooseEnds { count } => Some(Reads::Loose(*count)),
+            JoinError::SectionLoopUndecided { .. } => Some(Reads::LoopsUndecided),
+            JoinError::UnpairedLooseEnds { count } => Some(Reads::Loose(*count)),
             _ => None,
         },
         _ => None,
@@ -693,8 +695,7 @@ fn by_pose((pose, hx, hr, hole_az, boss_az, cells): Pose, turn: Option<&Affine3<
         None => fin(what, body),
         Some(turn) => fin(
             what,
-            topo::transform_rigid(&body, &geom_core::test_support::rigid(turn, tol()), tol())
-                .unwrap(),
+            topo::transform_rigid(&body, &geom_core::test_support::rigid(turn, tol())).unwrap(),
         ),
     };
     let vb = 0.09 * PI;
@@ -1026,7 +1027,7 @@ fn a_boss_over_two_holes_tangent_outside_with_no_vertex_at_either_touch() {
                 None => fin(what, body),
                 Some(m) => fin(
                     what,
-                    topo::transform_rigid(&body, &geom_core::test_support::rigid(m, tol()), tol())
+                    topo::transform_rigid(&body, &geom_core::test_support::rigid(m, tol()))
                         .unwrap(),
                 ),
             };
@@ -1087,7 +1088,7 @@ fn a_rim_flush_in_its_partners_top_tangent_inside_builds_or_meets_a_pinned_limit
                 None => fin(what, body),
                 Some(m) => fin(
                     what,
-                    topo::transform_rigid(&body, &geom_core::test_support::rigid(m, tol()), tol())
+                    topo::transform_rigid(&body, &geom_core::test_support::rigid(m, tol()))
                         .unwrap(),
                 ),
             };
@@ -1104,7 +1105,7 @@ fn a_rim_flush_in_its_partners_top_tangent_inside_builds_or_meets_a_pinned_limit
                 if a_az == 0.0 && matches!(op, "A ∪ B" | "B ∩ A") {
                     assert!(
                         matches!(&r, Err(BooleanError::Join(j))
-                            if matches!(j.error(), SplitJoinError::SingleSiteSectionLoop { count: 1 })),
+                            if matches!(j.error(), JoinError::SingleSiteSectionLoop { count: 1 })),
                         "{row}: {:?}",
                         r.map(|_| ())
                     );
@@ -1174,8 +1175,7 @@ fn a_kept_rim_leaving_along_the_dropped_faces_boundary_cuts_where_it_bends() {
             None => fin(what, body),
             Some(m) => fin(
                 what,
-                topo::transform_rigid(&body, &geom_core::test_support::rigid(m, tol()), tol())
-                    .unwrap(),
+                topo::transform_rigid(&body, &geom_core::test_support::rigid(m, tol())).unwrap(),
             ),
         };
         let poses = [
@@ -1295,7 +1295,7 @@ fn ellipse_rims_tangent_inside_build_every_op() {
 fn ellipse_rims(hole_cx: f64, poses: &[(&str, bool, f64, f64)], at_touch: Option<usize>) {
     let tilt = Affine3::rotation_about_axis(Point3::origin(), Vec3::unit_x(), 0.3);
     let tilted = |body: Body<f64>| {
-        topo::transform_rigid(&body, &geom_core::test_support::rigid(&tilt, tol()), tol()).unwrap()
+        topo::transform_rigid(&body, &geom_core::test_support::rigid(&tilt, tol())).unwrap()
     };
     let slab = fin(
         "the slab",
@@ -1365,8 +1365,7 @@ fn ellipse_rims(hole_cx: f64, poses: &[(&str, bool, f64, f64)], at_touch: Option
                 None => b.clone(),
                 Some(m) => fin(
                     what,
-                    topo::transform_rigid(b, &geom_core::test_support::rigid(m, tol()), tol())
-                        .unwrap(),
+                    topo::transform_rigid(b, &geom_core::test_support::rigid(m, tol())).unwrap(),
                 ),
             };
             let moved = |p: Point3<f64>| pose_m.as_ref().map_or(p, |m| m.transform_point(p));
@@ -1928,7 +1927,6 @@ fn a_rim_inside_a_ball_face() {
         let tube = topo::transform_rigid(
             &extruded(vec![circle(0.0, 0.0, 1.0, 0.0)], z0, 2.0),
             &geom_core::test_support::rigid(&place, tol()),
-            tol(),
         )
         .unwrap();
         let tube = fin("the tube", tube);
@@ -1965,7 +1963,7 @@ fn a_puck_and_its_rounding_ring_unite() {
     );
     let turn = Affine3::rotation_about_axis(Point3::origin(), Vec3::unit_x(), FRAC_PI_2);
     let mut ring =
-        topo::transform_rigid(&ring, &geom_core::test_support::rigid(&turn, tol()), tol()).unwrap();
+        topo::transform_rigid(&ring, &geom_core::test_support::rigid(&turn, tol())).unwrap();
     ring.merge_coplanar_faces(tol()).unwrap();
     let ring = fin("the ring", ring);
     let puck = fin("the puck", extruded(vec![circle(0.0, 0.0, a, 0.0)], 0.0, r));

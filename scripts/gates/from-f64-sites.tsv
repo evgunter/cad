@@ -63,6 +63,9 @@ crates/geom-brep/src/pcurve_cache.rs	1	constant	p as f64	the Greville average's 
 crates/geom-brep/src/pcurve_cache.rs	1	constant	span.saturating_sub(degree) as f64	a span index
 crates/geom-brep/src/pcurve_cache.rs	2	constant	k as f64	a chart-hat span index, and an arc rim's sub-arc index
 crates/geom-brep/src/pcurve_cache.rs	4	constant	spans as f64	a span count
+crates/geom-brep/src/pcurve_cache/closed_bound.rs	1	constant	h	centre: the span's half-width about its midpoint, read off its outer ends, f64 structure (C6) rounded outward
+crates/geom-brep/src/pcurve_cache/closed_bound.rs	1	constant	mid	centre: the span's midpoint, a selection: the residual is exact about whichever point it is handed
+crates/geom-brep/src/pcurve_cache/closed_bound.rs	1	constant	t	verdict: a grid point of the span's outer ends where the miss is read to locate it, f64 structure (C6), a selection
 crates/geom-brep/src/pcurve_cache/projected.rs	1	constant	a	a circle image's partition break on its unit piece parameter, a point the partition chose
 crates/geom-brep/src/pcurve_cache/projected.rs	1	constant	b	a circle image's partition break on its unit piece parameter, a point the partition chose
 crates/geom-brep/src/pcurve_cache/projected.rs	1	constant	f64::from(k) / f64::from(cuts)	a cone line's incidence cut on its edge's unit parameter, a dyadic fraction the partition chose

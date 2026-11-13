@@ -528,14 +528,17 @@ fn the_instantiate_node_records_its_own_decisions_whichever_instance_ran_the_par
     // edges × 2 operands: 826 → 850 on the part. Each of its profile's
     // two validations no longer reads a gap on the box's four corner
     // pairs, which share a vertex (`profile::seg`'s `line_line`):
-    // 850 → 834. The copy is validated by no one, so main's matching +24
-    // on the placing op does not arise.
+    // 850 → 834. The extrude reads each of the box's 12 edges by its
+    // whole wedge, the arm, the wedge and a corner's sign at each of 7
+    // stations, where it read the arm and the wedge at one witness:
+    // 12 × 19 more, 834 → 1062. The copy is validated by no one, so
+    // main's matching +24 on the placing op does not arise.
     assert_eq!(
         first.len(),
         0,
         "the instantiate op decides nothing; the part's {direct_total} decisions are its own"
     );
-    assert_eq!(direct_total, 834, "the part's decisions on its own nodes");
+    assert_eq!(direct_total, 1062, "the part's decisions on its own nodes");
 }
 
 // ---- Row 3: instance-qualified naming ----

@@ -1050,7 +1050,11 @@ fn the_carrier_datum_read_names_every_datum_that_describes_no_curve() {
     };
     let band = geom_core::Band::linear(Tol::witness()).unwrap();
     let verdict = |c: &Curve3<f64>| {
-        analytic_datum_verdicts(poisoned_curve_datums(c), c.representability_margins(band))
+        analytic_datum_verdicts(
+            poisoned_curve_datums(c),
+            c.representability_margins(band),
+            band,
+        )
     };
     type Row = (&'static str, Curve3<f64>, Option<V<D>>);
     let cases: Vec<Row> = vec![
@@ -1142,7 +1146,8 @@ fn the_carrier_datum_read_names_every_datum_that_describes_no_curve() {
         assert_eq!(
             analytic_datum_verdicts(
                 poisoned_curve_datums(&lifted),
-                lifted.representability_margins(band)
+                lifted.representability_margins(band),
+                band,
             ),
             expected,
             "{name}, at Interval"
@@ -1251,10 +1256,12 @@ fn the_frame_lever_is_the_kinds_radius() {
             at(crate::validate::analytic_datum_verdicts(
                 crate::validate::poisoned_datums(s),
                 s.representability_margins(band),
+                band,
             )),
             at(crate::validate::analytic_datum_verdicts(
                 crate::validate::poisoned_datums(&lifted),
                 lifted.representability_margins(band),
+                band,
             )),
         )
     };
@@ -1264,10 +1271,12 @@ fn the_frame_lever_is_the_kinds_radius() {
             crate::validate::analytic_datum_verdicts(
                 crate::validate::poisoned_curve_datums(c),
                 c.representability_margins(band),
+                band,
             ),
             crate::validate::analytic_datum_verdicts(
                 crate::validate::poisoned_curve_datums(&lifted),
                 lifted.representability_margins(band),
+                band,
             ),
         )
     };
@@ -1368,16 +1377,12 @@ fn wrong_cache_at_rest_is_rejected_by_tier3() {
     );
 }
 
-/// **A stored arc past a full turn is typed at rest and a kernel bug
-/// where the kernel re-mints it** (`[failure]`): an arc minted at a band
-/// coarser than the run's, whose headroom to a full turn that band read
-/// as zero, planted in a body's arena (a state no door produces). The
-/// tier-3 validator reports it as a defect at rest; a rigid motion's
-/// re-mint of it, at the run's one band, panics as a kernel bug at its
-/// call site, rather than returning a refusal that names the caller's
-/// input.
+/// **A stored arc past a full turn is typed at rest** (`[failure]`): an
+/// arc minted at a band coarser than the run's, whose headroom to a full
+/// turn that band read as zero, planted in a body's arena (a state no
+/// door produces). The tier-3 validator reports it as a defect at rest.
 #[test]
-fn a_planted_arc_past_a_turn_is_typed_at_rest_and_a_kernel_bug_at_a_re_mint() {
+fn a_planted_arc_past_a_turn_is_typed_at_rest() {
     let tol = Tol::witness();
     let (mut body, split) = coplanar_pillow(tol);
     let past = 10.0 * tol.k() * tol.eps();
@@ -1410,10 +1415,6 @@ fn a_planted_arc_past_a_turn_is_typed_at_rest_and_a_kernel_bug_at_a_re_mint() {
         )),
         "at rest, typed: {errs:?}"
     );
-
-    panics_as_a_kernel_bug_at(KernelSite::RigidTransform, || {
-        let _ = crate::transform_rigid(&body, &geom_core::RigidMotion::identity(), tol);
-    });
 }
 
 /// The pillow with its split chord's curve swapped for an arc of the
@@ -2173,7 +2174,9 @@ fn the_seam_is_legal_and_the_same_geometry_flipped_is_a_lamina() {
     let tol = Tol::witness();
     let (body, split) = coplanar_pillow(tol);
     assert_pillow_rests(&body, tol);
-    let flipped = body.flipped_face_sense_for_tests(split.face).unwrap();
+    let flipped = body
+        .flipped_face_sense_for_tests(split.face, geom_core::Tol::witness())
+        .unwrap();
     let errs = validate_geometric(&flipped, tol).unwrap_err();
     assert!(
         errs.iter()
@@ -2337,16 +2340,17 @@ fn the_second_order_band_has_three_outcomes_and_they_are_three_answers() {
     );
 }
 
-/// **Check 4 and the shared-rim routing spell no wedge reading of their
-/// own.** Both read an edge's wedge through `geom_brep::edge_wedge_over`
-/// once, over a walk built by its one door: the validator's
-/// `WedgeWalk::along_edge` (inside `edge_wedge_walk`), the rim's
+/// **Check 4, the shared-rim routing and the edge's own door spell no
+/// wedge reading of their own.** Each reads an edge's wedge through
+/// `geom_brep::edge_wedge_over` once, over a walk built by its one door:
+/// an edge's `WedgeWalk::along_edge` (inside `edge_wedge_walk`, which
+/// check 4 and `crate::edge_wedge` share), the rim's
 /// `WedgeWalk::around_circle`. The walk, its hook, the edge's interior
 /// stations and the pairing of a corner are out of their reach by type
 /// (crate-private, or asked only of a tangency token), so what this row
-/// pins is the rest: a class read (`classify_dihedral`, `dihedral_class`),
+/// pins is the rest: a class read (`classify_dihedral`),
 /// a sign or a pairing (`.convexity(`, `"dihedral_sign"`, `.pairing(`,
-/// `pairing_as(`, `classify_material_pairing_as(`), a station minted by
+/// `gradient_alignment(`, `normals_alignment(`), a station minted by
 /// hand, a `"tangent_second_order"` decide or a material read inlined
 /// back into either file's production code reds here. The link's
 /// reading one order down (`link/second_order.rs`) reads another picture
@@ -2403,12 +2407,11 @@ fn check_4_and_the_rim_read_the_wedge_through_the_one_fold() {
         "tangent_second_order(",
         "tangent_jet(",
         "classify_dihedral(",
-        "dihedral_class(",
         ".convexity(",
         "\"dihedral_sign\"",
         ".pairing(",
-        "pairing_as(",
-        "classify_material_pairing_as(",
+        "gradient_alignment(",
+        "normals_alignment(",
         "Station::on(",
         "material_kappa_rel(",
     ];
@@ -2419,6 +2422,15 @@ fn check_4_and_the_rim_read_the_wedge_through_the_one_fold() {
     ];
     scan(
         "src/validate.rs",
+        &[
+            ("edge_wedge_over(", 0),
+            ("WedgeWalk::along_edge(", 0),
+            ("WedgeWalk::around_circle(", 0),
+        ],
+        &reads,
+    );
+    scan(
+        "src/edge_wedge.rs",
         &[
             ("edge_wedge_over(", 1),
             ("WedgeWalk::along_edge(", 1),
@@ -2456,7 +2468,7 @@ fn check_4_and_the_rim_read_the_wedge_through_the_one_fold() {
 /// moves both halves of a row together.
 #[test]
 fn the_must_carry_rule_and_tier_3_answer_one_family_through_one_walk() {
-    use geom_brep::{MustCarryEscalation, MustCarryVerdict, must_carry_over_edge};
+    use geom_brep::{MustCarryRung, MustCarryVerdict, must_carry_over_edge};
     let tol = Tol::witness();
     let eps = tol.get().eps;
     let band = geom_core::Band::linear(tol).expect("the witness band");
@@ -2515,10 +2527,8 @@ fn the_must_carry_rule_and_tier_3_answer_one_family_through_one_walk() {
     assert!(
         matches!(
             rule(r2),
-            MustCarryVerdict::InBand(MustCarryEscalation::SecondOrder(Indeterminate {
-                predicate: Some("tangent_second_order"),
-                ..
-            }))
+            MustCarryVerdict::InBand(e) if e.rung() == MustCarryRung::Bend
+                && e.diag().predicate == Some("tangent_second_order")
         ),
         "in band: the rule escalates second-order: {:?}",
         rule(r2)
@@ -2676,7 +2686,9 @@ fn kissing_cylinder_pillow(
         body.set_edge_curve(e, spec, tol).unwrap();
     }
     crate::pcurves::mint_pcurves(&mut body, tol).unwrap();
-    let flipped = body.flipped_face_sense_for_tests(split.face).unwrap();
+    let flipped = body
+        .flipped_face_sense_for_tests(split.face, geom_core::Tol::witness())
+        .unwrap();
     (
         validate_geometric(&flipped, tol).unwrap_err(),
         [seg.edge, split.edge],
@@ -2712,12 +2724,14 @@ fn wedge_reading_table() {
         (
             V::Seam {
                 bend: Bend::Determinate,
+                margin: None,
             },
             M::Tangent,
         ),
         (
             V::Seam {
                 bend: Bend::UnderDetermined,
+                margin: None,
             },
             M::SmoothUnderdetermined,
         ),
@@ -3243,9 +3257,8 @@ fn a_solid_with_a_genuine_cavity_certifies() {
 /// a cavity half-edge, the carve refuses rather than leave the link dangling.
 #[test]
 fn the_carve_refuses_to_drop_a_record_a_kept_one_names() {
+    use crate::carve::{CarveError, carve};
     use crate::entity::LoopBoundary;
-    use crate::splitting::SplitFinishError;
-    use crate::splitting::finish::carve;
     let tol = Tol::witness();
     let mut body = Body::<f64>::new();
     cube_solid(&mut body, (0.0, 0.0, 0.0), 1.0, false, tol);
@@ -3276,7 +3289,7 @@ fn the_carve_refuses_to_drop_a_record_a_kept_one_names() {
     assert!(
         matches!(
             carve(&shared_vertex, keeper, &shells[..1]),
-            Err(SplitFinishError::Corrupt)
+            Err(CarveError::KeptStartsAtDropped { .. })
         ),
         "a kept half-edge starting at a dropped vertex"
     );
@@ -3291,7 +3304,7 @@ fn the_carve_refuses_to_drop_a_record_a_kept_one_names() {
     assert!(
         matches!(
             carve(&shared_edge, keeper, &shells[..1]),
-            Err(SplitFinishError::Corrupt)
+            Err(CarveError::KeptSharesEdge { .. })
         ),
         "a kept edge naming a dropped half-edge"
     );
@@ -3303,7 +3316,7 @@ fn the_carve_refuses_to_drop_a_record_a_kept_one_names() {
     assert!(
         matches!(
             carve(&shared_lone, keeper, &shells[..1]),
-            Err(SplitFinishError::Corrupt)
+            Err(CarveError::KeptLoopHoldsDropped { .. })
         ),
         "a kept lone-vertex loop holding a dropped vertex"
     );
@@ -4239,9 +4252,7 @@ fn the_wedge_door_signs_an_l_prisms_corners() {
     let band = geom_core::Band::linear(tol).unwrap();
     let mut concave = Vec::new();
     for (edge, e) in body.edges() {
-        let walk = crate::validate::edge_wedge_walk(&body, edge).expect("a live edge");
-        let reach = crate::edge_wedge_reach(&body, edge).expect("a certified curve");
-        let verdict = geom_brep::edge_wedge_over(&walk, reach, band);
+        let verdict = crate::edge_wedge(&body, edge, band).expect("a live edge");
         let geom_brep::WedgeVerdict::Crease(sign) = verdict else {
             panic!("every edge of a prism is a crease: {verdict:?}");
         };

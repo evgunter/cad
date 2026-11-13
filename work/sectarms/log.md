@@ -653,3 +653,92 @@ Both reds were found by PCERT's nightly lane and trace to SECTARMS merges.
   - The node carry is its own unit, `a-spline-implicit-arc-is-carried-to-its-node` (P1 H). It follows the join, since both touch `CarriedComponent::pad`.
   - The join is unparked. Its blocker's stage 3 and 4 have landed; the arm row stays open only for the torus and cone partners, which are on other programs.
 - **Next:** dispatch the join (P0 H, dual review).
+
+## 2026-11-12 09:20 — the join's stage A is up for dual review (PR 6862)
+
+- **PR 6862**, head `fb97f06037`, green. This is stage A only. The whole reading carries each rim-to-rim arc with its pad in metres, the glue door reads spline × implicit pairs lazily, and a plane × spline germ rides `GermLane::Carried`.
+- **Done-when not met.** The sphere × lofted-wall union now stops at the at-rest certificate of the minted edge, P0 `a-curved-partners-arc-on-a-spline-wall-has-no-at-rest-certificate`. That is where stage B lands. Also filed: two P1 M stops, one P2 and one P3.
+- **Review tier: dual (P0 H).** The join is an architectural lane that later arms will follow. Slot-order byte 202 (even), so R1 = Opus and R2 = Fable, run concurrently on `fb97f06037`.
+- **Protocol deviation.** The implementer was dispatched without an arm draw, on the default model, and with the harness trailer, so its commits name the model. The row records the implementer half as unfair, and the reviewers as exposed to the implementer's model.
+- **Calls on the lane's two questions:**
+  - **The C5 sentence** describes what the code does and decides nothing the ratified text left open. It lands with the change.
+  - **Stage B (the at-rest arm for a curved partner on a spline wall) is not a fork.** C2 has rest re-derive the door's certificate. The trace certifies the branch on C3's residual × NURBS lane, and `edge_nurbs::plane_nurbs_limbs` is the plane's precedent. The arm elaborates that ratified text faithfully. Its brief still tells it to stop if its plan finds text that contradicts the code.
+- **Next:** stage B is dispatched once stage A merges.
+
+## 2026-11-12 — PR 6862's reviews adjudicated; fix pass dispatched
+
+- **Verdicts.** Both reviewers (R1 Opus 5.5, R2 Fable 5.2, on `fb97f06037`) approve with fixes. Both found the pad sound in metres, and nothing uncertified is carried.
+- **Blocking: M1 (R2, MAJOR, demonstrated).** Two close rim arcs of one pair abort as `JoinDesync`, a kernel fault, on an ordinary ball across a 0.4 m flat wall. Main refuses that input typed. R1 met the same cause, the pad's overlap, as escalations at 1e-6 (MINOR).
+  - The class: the pad floors near an eighth of the window's span rather than near the rung, so any two arcs closer than about a quarter of the wall collide. The P3 issue on the loose pad is rewritten and raised to P1.
+- **My call reversed on the C5 sentence.** Both reviewers caught it: its "an arc to a node carry none" half contradicts Ev's ratified node clause (PR 6829) twenty lines above it. That half comes out. The rim-arc half stays.
+- **The other findings, fixed in one pass:**
+  - The guard's listing fallback is reachable, and could clear a seam-crossing section silently. It becomes one shared function.
+  - The loosened re-pins are restored.
+  - The moved band-loft row is now disclosed and pinned.
+  - The body's census, cost and 1e-16 claims are corrected. The reading takes 0.7 s of the brick's 7.6 s, so the cost is filed separately.
+  - Stale docs, contract rows, per-PR coverage, and the `pad_of`/`Tube::of` duplicate are addressed.
+- **Disclosures.**
+  - R1 saw the other lane's process names in `ps`, but no output. It also read the implementer's census logs in the shared scratchpad.
+  - Reviewer scratchpads are shared in this container. Later pairs need their own subdirectories, and a brief that names them.
+
+## 2026-11-12 — PR 6862 (the join's stage A) merges
+
+- **Fix pass at `45df7881c2`, green.** It took the whole adjudicated union.
+- **F1.** Close rim arcs now refuse typed at the carry, `CarryRefusal::PadsMeet`, by a certified hull gap compared against the pads and band.
+- **F2.** The pad is tightened from about 5.7 to about 1.1 rungs.
+- **F3.** The guard and the certificate's door share `section_cert::of_listed`.
+- **Cost accepted:** editor-core `wavy_loft` now stops typed at `PadsMeet`, at the germ mint. This is on the P1 pad item.
+- **Filed:** P2 `the-guards-listing-of-a-held-spline-pair-off-a-seam-or-pole-has-no-row`, and P2 `a-carried-plane-spline-chords-at-rest-certificate-costs-half-a-second`. The second covers the census going from 6.5 to 17.5 min; the at-rest certificates take 6.4 s of the brick's 7.3 s.
+- **Row:** `docs/model-compare-log/rows/PR-6862.md`.
+  - The implementer half is excluded: no draw, the orchestrator's error.
+  - The reviewer pair is kept, flagged as exposed.
+  - Blind coding found no tally candidates. The one MAJOR is bilateral, with a severity divergence.
+- **Process fix for later duals:**
+  - Draw the implementer arm at dispatch, and leave the model-naming trailer out of lane briefs.
+  - Give each reviewer its own scratchpad subdirectory.
+- **Main red seen by the fix pass, not ours:** geom-brep `recourse_roster`. pcert has mended it on main (pcert log, 2026-11-12).
+- **Next:** stage B, `a-curved-partners-arc-on-a-spline-wall-has-no-at-rest-certificate` (P0 H). It is not a fork: C2's re-derived door certificate decides it, and `plane_nurbs_limbs` is the precedent.
+
+## 2026-11-12 — stage B dispatched
+
+- **PR 6862 merged** as 7d83cdff.
+- **Stage B dispatched:** `a-curved-partners-arc-on-a-spline-wall-has-no-at-rest-certificate` (P0 H).
+  - **Review tier:** dual, concurrent. It adds a certificate arm that every curved partner on a spline wall will rest on.
+  - **Implementer arm:** byte 55 (Fable), drawn at dispatch.
+  - **Blinding:** the brief carries no model-naming trailer.
+
+## 2026-11-12 — stage B (PR 6879) is up for dual review
+
+- **PR 6879**, head `79fd8aa9f5`, green. It adds an at-rest arm for an `Intersection` of a spline with a sphere, cylinder or torus (`residual_nurbs_limbs` and `curved_nurbs_limbs`; `Resolved::ResidualNurbs`). The ball row now reaches containment at 1e-9 and 1e-6. At 1e-12 the chord still refuses on its image (`ImageMiss`, about 1.7e-11 m), filed P1.
+- **The done-when is still not met.** The union stops at `Containment(KindUnsupported { Nurbs })`, which is INSIDE's `point-containments-ray-test-has-no-spline-arm` (P3 H). The join unit's done-when now waits on it, so a note goes on INSIDE's log asking them to weigh raising it.
+- **The lane built past a stop.** Its brief said to stop on a choice the text does not decide. It chose instead to image the carrier at rest with the pcurve mint's climbed image (`general_chart_image`), not the plane precedent's degree-1 interpolant, which misses a bent arc by its sag.
+  - **My call: not a fork.** The image is evidence that limb 2 decides, and `general_chart_image` is the mint's own image of any carrier on a spline chart (PR 6532). The choice is one reversible arm.
+  - The reviewers are asked to falsify "the image cannot weaken the certificate". The lane's disregard of the stop instruction is noted.
+- **Bounds allowlist:** `edge_nurbs.rs` 16 → 20, entered under the M7-8 / C2 precedent with retroactive Ev review, the form PR 6532 used. It goes to Ev in the merge summary.
+- **Main red that 6862 caused:** tour teapot wall 3 (`main-red-the-teapots-spout-join-refuses-in-the-join-since-6862`, P1). SEAL's PR 6860 re-pinned the north-star row, and 6879 moves it to containment. The tour re-pin goes into 6879's fix pass, since 6879 moves the target again.
+- **Review tier:** dual, concurrent. Slot byte 31 (odd), so R1 = Fable and R2 = Opus, on `79fd8aa9f5`. Implementer arm: byte 55, drawn at dispatch. Each reviewer has its own scratch subdirectory.
+
+## 2026-11-12 — PR 6879's reviews adjudicated; fix pass dispatched
+
+- **Both reviewers approve with fixes, and neither raises a MAJOR.** Both found the arm sound, with no false pass at any scale, ε or near-tangent pose. They agree on three test gaps (bilateral):
+  - the wall's half of the curvature arm is unpinned, and its mutant survives;
+  - the 1000 ε stand-off rows let a 2–10× band loosening through;
+  - the docs say "the same image" where the image is now the climbed one.
+- **R1 alone (demonstrated): the soundness argument credits the wrong limb.** A degree-5 image can leave the knot rectangle, where limb 2 reads the polynomial extension and passes a carrier up to 10⁴ ε off. Only limb 3's tube refuses. The arm stays sound, but the stated reason is wrong. A row is added and the docs corrected.
+  - **Possible class on main:** `PcurveCache::certify_general` reads limbs 1–2 on the same image with no tube. The fix pass probes it and files on the owning program, at P0 if it reproduces.
+- **Cost, measured by both:** limb 3 takes 80–98%; the climb is about 1%. The P2 item's attribution is corrected.
+- **The image choice stays as built** (R1: likely an open decision for liveness, not for soundness). The P1 image item records that its candidate 2, where the door stores its pcurve, is a design fork for designers before anyone builds it.
+- **The fix pass is on Fable, the implementer's arm.** It also re-pins tour teapot wall 3 (the main red from 6862) and records that the join unit's done-when waits on INSIDE's containment row.
+
+## 2026-11-12 — PR 6879's fix pass is green; blind-coded; merging
+
+- **Fix pass** (Fable, the implementer's arm), head `9b955999f7`, CI green (run 43308503535). Every item was taken:
+  - T1–T4: rows and mutants (the wall-curvature row, the stand-off ladder killing band ×0.5/×1.5/×2/×10, the rim-excursion row, test honesty);
+  - D1–D2: docs; S1–S4: structure (S2 in part: the image `match` stays in the door, since moving it would move the bounds pin again);
+  - the tour teapot wall 3 re-pin, which closes `main-red-the-teapots-spout-join-refuses-in-the-join-since-6862`.
+- **F1 reproduced:** `PcurveCache::certify_general` certifies a general image's row 3e-9 to 1e-5 m off the wall past the rim. Filed P0 on PCERT (`a-general-image-that-leaves-the-knot-rectangle-between-two-nodes-certifies-its-row-off-the-wall`), with a note on its log. The lane did not probe whether a stored body can carry such a row, so the P0 may be high; that is PCERT's to weigh.
+- **F4** filed P3 on SELECT (the residual lane's refusals are named for the plane). **F5:** the join unit stays open with `blocked_on` INSIDE's containment row.
+- **README C2/C3/C5 edits** in the fix pass re-describe the code and decide nothing. My call: they land with the change.
+- **Blind coding** (byte 39, A = R2, B = R1): 15 bilateral, no MAJOR either side, **no tally candidates**. R1's rim-excursion finding is unilateral and refutes R2's NOTE crediting limb 2.
+- **Main red, also from 6862:** geom-core's slow `certified_endpoint_census` (`spline_implicit.rs` 2,0 → 6,4), filed by PCERT on our track. A lane is re-pinning it on `sectarms/endpoint-census`, orchestrator's-read tier (a mechanical re-pin, each new read argued at its site).
+- **Friction:** the python suite job took 37 min on run 43308503535, over the 25 min bar for a geom-brep diff.

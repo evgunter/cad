@@ -5,8 +5,9 @@
 //! shared face's reflex sector is a join over the wedge the two bands'
 //! extensions overlap in — `d³/3` for a chamfer and `(5/3 − π/2)·r³` for
 //! a fillet at right angles, removed past a convex pair and filled past
-//! a concave one. The odd edge requested with any other edge there
-//! refuses `MixedConvexity`.
+//! a concave one. The odd edge requested with one other edge there
+//! refuses `MixedConvexity`; all three build the mixed corner
+//! (`band_mixed_corner`).
 //!
 //! The section a band takes from (or adds to) a right dihedral is
 //! `d²/2` for the chamfer and `r²(1 − π/4)` for the fillet
@@ -329,10 +330,10 @@ fn the_inset_root_rim_fills_the_mirror_wedge_at_each_corner() {
     }
 }
 
-/// **The odd edge with another edge of its corner refuses**, both verbs,
-/// at both fixtures and with all three edges: `MixedConvexity` at the
-/// corner, naming no run-out policy, its recourse the mixed corner's
-/// unbuilt rule. The flush odd edge is the concave root, the inset one
+/// **The odd edge with one other edge of its corner refuses**, both
+/// verbs, at both fixtures: `MixedConvexity` at the corner, naming no
+/// run-out policy, its recourse the mixed corner's unbuilt rule (all
+/// three build, `band_mixed_corner`). The flush odd edge is the concave root, the inset one
 /// the convex vertical.
 #[test]
 fn the_odd_edge_with_another_edge_of_its_corner_refuses() {
@@ -351,32 +352,12 @@ fn the_odd_edge_with_another_edge_of_its_corner_refuses() {
             ],
         ),
         (
-            "flush all three",
-            &flush,
-            [0.0, 0.5, 0.5],
-            vec![
-                f([0.0, 0.5, 0.5], [0.5, 0.5, 0.5]),
-                f([0.0, 0.5, 0.5], [0.0, 0.5, 2.0]),
-                f([0.0, 0.0, 0.5], [0.0, 0.5, 0.5]),
-            ],
-        ),
-        (
             "inset vertical and root",
             &inset,
             [1.0, 0.5, 0.5],
             vec![
                 i([1.0, 0.5, 0.5], [1.0, 0.5, 2.0]),
                 i([1.0, 0.5, 0.5], [1.5, 0.5, 0.5]),
-            ],
-        ),
-        (
-            "inset all three",
-            &inset,
-            [1.0, 0.5, 0.5],
-            vec![
-                i([1.0, 0.5, 0.5], [1.0, 0.5, 2.0]),
-                i([1.0, 0.5, 0.5], [1.5, 0.5, 0.5]),
-                i([1.0, 0.5, 0.5], [1.0, 3.5, 0.5]),
             ],
         ),
     ];

@@ -58,7 +58,7 @@ use geom_core::{
 use profile::SegmentKind;
 use topo::construction::Construct;
 use topo::construction::{FaceSurface, MefSite, MevSite};
-use topo::{Body, DihedralReading, EdgeKey, EulerOpError, FaceKey, HalfEdgeKey, SurfaceKey};
+use topo::{Body, EdgeKey, EulerOpError, FaceKey, HalfEdgeKey, SurfaceKey};
 
 /// Where a copy of the sketch stands: its placement, then for a
 /// revolve's far copy the turn about the revolution axis.
@@ -228,32 +228,42 @@ pub(crate) fn centre_on_material_side(canonical_turn: Sign) -> bool {
     !turn_negates(canonical_turn)
 }
 
-/// A sliver join's or rim's sentence, `what` naming the edge: a
-/// first-order reading could call it neither a corner nor smooth; a
-/// second-order one leaves undecided whether its smooth faces bend apart,
-/// in the coincidence levers its payload's own sentence ends in.
+/// A sliver join's or rim's sentence, `what` naming the edge, by the
+/// rung of its wedge that escalated: the class could call it neither a
+/// corner nor smooth; the rest leave a question of its corner or of its
+/// smooth faces undecided, in the coincidence levers its payload's own
+/// sentence ends in.
 pub(crate) fn sliver_text(
     f: &mut core::fmt::Formatter<'_>,
     what: &str,
-    reading: DihedralReading,
-    source: &Indeterminate,
+    escalation: geom_brep::WedgeEscalation,
 ) -> core::fmt::Result {
-    match reading {
-        DihedralReading::Lever(_) => write!(
-            f,
-            "{what} is neither a definite corner nor definitely smooth: {source}"
-        ),
-        DihedralReading::Bend => write!(
-            f,
-            "{}",
-            source.undecided(
-                format_args!(
-                    "whether the faces at {what} curve apart there or share their curvature"
-                ),
-                source.ending(geom_core::COINCIDENCE_RECOURSE),
-            )
-        ),
-    }
+    use geom_brep::WedgeRung;
+    let source = &escalation.diag();
+    let at = escalation
+        .station()
+        .map_or_else(String::new, |i| format!(" at sample {i}"));
+    let question = match escalation.rung() {
+        WedgeRung::Arm | WedgeRung::Wedge => {
+            return write!(
+                f,
+                "{what} is neither a definite corner nor definitely smooth{at}: {source}"
+            );
+        }
+        WedgeRung::Sign => format!("whether the corner at {what} is convex or concave{at}"),
+        WedgeRung::Pairing => {
+            format!("whether the material of the smooth faces at {what} lies on one side{at}")
+        }
+        WedgeRung::Bend => {
+            format!("whether the faces at {what} curve apart there or share their curvature")
+        }
+        WedgeRung::End => format!("whether the faces at {what} close a cusp or a slit{at}"),
+    };
+    write!(
+        f,
+        "{}",
+        source.undecided(question, source.ending(geom_core::COINCIDENCE_RECOURSE))
+    )
 }
 
 /// A carrier class in SWEPT traversal order: the validated
@@ -1485,22 +1495,13 @@ mod tests {
     }
 
     /// **A must-carry escalation keeps which question escalated**: the
-    /// first-order arm and wedge by rung, the second-order sagitta as the
-    /// bend, each with its own diagnostics.
+    /// first-order arm and wedge each at its rung, read off the rule.
     #[test]
     fn the_must_carry_reading_keeps_which_question_escalated() {
-        use geom_brep::LeverRung;
-        use must_carry_fixtures::{arm, second_order, wedge};
-        for (escalation, want) in [
-            (arm(), DihedralReading::Lever(LeverRung::Arm)),
-            (wedge(), DihedralReading::Lever(LeverRung::Reading)),
-            (second_order(), DihedralReading::Bend),
-        ] {
-            assert_eq!(
-                DihedralReading::of_must_carry(escalation),
-                (want, escalation.diag()),
-                "{escalation:?}"
-            );
+        use geom_brep::MustCarryRung;
+        use must_carry_fixtures::{arm, wedge};
+        for (escalation, want) in [(arm(), MustCarryRung::Arm), (wedge(), MustCarryRung::Wedge)] {
+            assert_eq!(escalation.rung(), want, "{escalation:?}");
         }
     }
 
@@ -1933,7 +1934,7 @@ mod tests {
 #[allow(clippy::expect_used, clippy::panic)]
 pub(crate) mod must_carry_fixtures {
     use geom::{Curve3, Surface};
-    use geom_brep::{MustCarryEscalation, MustCarryVerdict, must_carry_over_edge};
+    use geom_brep::{MustCarryEscalation, MustCarryRung, MustCarryVerdict, must_carry_over_edge};
     use geom_core::{Band, Indeterminate, MarginDiag, Point3, Tol, Vec3};
 
     fn band() -> Band {
@@ -1996,12 +1997,15 @@ pub(crate) mod must_carry_fixtures {
 
     /// The second-order sagitta, in band.
     pub(crate) fn second_order() -> MustCarryEscalation {
-        MustCarryEscalation::SecondOrder(Indeterminate {
-            margin: MarginDiag::value(in_band()),
-            band: band(),
-            predicate: Some("tangent_second_order"),
-            terminal_sliver: false,
-        })
+        MustCarryEscalation::at(
+            MustCarryRung::Bend,
+            Indeterminate {
+                margin: MarginDiag::value(in_band()),
+                band: band(),
+                predicate: Some("tangent_second_order"),
+                terminal_sliver: false,
+            },
+        )
     }
 
     fn z_axis() -> Curve3<f64> {

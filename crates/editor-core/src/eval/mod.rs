@@ -45,7 +45,7 @@ pub use carry::Carry;
 pub use class::NodeErrorClass;
 pub use counters::EvalCounters;
 pub(crate) use framed::Frame;
-pub use framed::{Framed, Held, ReadIn};
+pub use framed::{Framed, Held};
 pub use memo::{ContentBits, ContentKey, KeyHasher, NamingKey};
 pub use wire::DirectionRefusal;
 
@@ -166,6 +166,10 @@ pub struct Evaluation<T: topo::AtRestPolicy + Decide> {
     /// Each output variable of the evaluated document and the port that
     /// defines it: what [`Self::table`] reads a variable through.
     reads: Arc<BTreeMap<crate::VarId, (RecipeNodeId, u8)>>,
+    /// Each source of the evaluated document reading an output whole, and
+    /// that output's port ([`crate::Doc::source_ports`]): a source's table
+    /// is its body's.
+    sourced: Arc<BTreeMap<crate::VarId, (RecipeNodeId, u8)>>,
     /// **Each node's space, as the recipe derives it**
     /// ([`crate::Doc::spaces`]): what [`Self::across_spaces`] reads.
     spaces: Arc<BTreeMap<RecipeNodeId, crate::VarId>>,
@@ -257,7 +261,10 @@ impl<T: topo::AtRestPolicy + Decide> Evaluation<T> {
     /// The output and the port `var` reads, as the evaluated document
     /// defined it.
     pub fn read_port(&self, var: crate::VarId) -> Option<(RecipeNodeId, u8)> {
-        self.reads.get(&var).copied()
+        self.reads
+            .get(&var)
+            .or_else(|| self.sourced.get(&var))
+            .copied()
     }
 
     /// The variable `node`'s port `port` defines, in the evaluated
@@ -1047,6 +1054,7 @@ impl Evaluation<f64> {
             appearance: AppearanceResolution::default(),
             env: crate::expr::VarEnv::default(),
             reads: Arc::new(reads),
+            sourced: Arc::default(),
             spaces: Arc::default(),
             parts: parts::Carried::none(),
             resolver: None,
@@ -1696,20 +1704,20 @@ pub enum NodeErrorKind {
         at: Vec<(crate::VarId, i64)>,
     },
     /// The body this operation produced is not a finished body: an
-    /// operation that maps or assembles a body itself (a placement's
-    /// read into a frame, a mirror, a graft of pieces) finishes it at its
-    /// own end ([`topo::AtRestPolicy::finish`]). Every finding, each read
-    /// through its family.
+    /// operation that assembles a body itself (a graft of pieces)
+    /// finishes it at its own end ([`topo::AtRestPolicy::finish`]), and
+    /// one that moves a finished body (a placement's read into a frame,
+    /// a mirror, the twist) asks the session box again
+    /// ([`topo::FinishedBody::moved`]). Every finding, each read through
+    /// its family.
     NotFinished {
         /// The finish's findings.
         findings: topo::NotFinished,
     },
     /// **An operand that does not finish where this operation takes a
     /// finished body**: a leaf ([`topo::AtRestPolicy::leaf`], the switch:
-    /// tier 2 alone at the box scalars), or a body read into this
-    /// operation's frame through a placement's map, construction state
-    /// ([`super::ReadIn::Mapped`]); the operation that takes it runs
-    /// tier 3 on it ([`super::ReadIn::taken`]).
+    /// tier 2 alone at the box scalars); the operation that takes it
+    /// runs tier 3 on it ([`super::Held::finished`]).
     UnfinishedLeaf {
         /// The operand's node: the node whose value this operation took.
         input: RecipeNodeId,
@@ -2083,7 +2091,7 @@ pub enum NodeErrorKind {
 }
 
 impl NodeErrorKind {
-    /// **A taker's refusal** ([`ReadIn::taken`], [`Held::finished`]):
+    /// **A taker's refusal** ([`Held::finished`]):
     /// `input`'s body does not finish where a node takes it. A node's
     /// own finish of what it produced names [`NodeErrorKind::NotFinished`].
     pub(crate) fn unfinished(input: RecipeNodeId) -> impl FnOnce(topo::NotFinished) -> Self {
@@ -4659,6 +4667,7 @@ where
         appearance: resolved_appearance,
         env,
         reads: Arc::new(doc.output_ports()),
+        sourced: Arc::new(doc.source_ports()),
         spaces: Arc::new(doc.spaces()),
         parts: entry.carried,
         resolver: opts.resolver.clone().map(std::panic::AssertUnwindSafe),
@@ -4895,6 +4904,7 @@ where
         appearance: resolved_appearance,
         env: doc.var_env::<T>(),
         reads: Arc::new(doc.output_ports()),
+        sourced: Arc::new(doc.source_ports()),
         spaces: Arc::new(doc.spaces()),
         parts: parts::Carried::none(),
         resolver: opts.resolver.clone().map(std::panic::AssertUnwindSafe),
@@ -5386,7 +5396,7 @@ where
         node,
         &crate::param_source::definitions_of(doc),
         &|var| doc.selection(var),
-        &|var| doc.pick(var),
+        &|var| doc.pick(doc.through_sources(var).read),
         &slot_values,
         &nominal_values,
         input.payload(),
@@ -5643,12 +5653,15 @@ mod tag {
         /// upstream list carries), `SELECTION` and its names, or
         /// `DEFINITION`, the arm ([`pose_arm`]), each read's role and
         /// tree in field order, then each scalar's value and its
-        /// nominal under [`slot`]'s `NOMINAL`.
+        /// nominal under [`slot`]'s `NOMINAL`; `SOURCE` for a source of a
+        /// member ([`crate::VarDef::Source`]), its number of indices and
+        /// each index's value.
         pose {
             READ = 1,
             OUTPUT = 2,
             SELECTION = 3,
             DEFINITION = 4,
+            SOURCE = 5,
         }
         /// A pose definition's arm ([`crate::pose::PoseDef`]).
         pose_arm retires [4, 8, 9] {
@@ -7326,6 +7339,8 @@ fn seg_content_tag(tag: SegTag) -> u8 {
         S::EndArc => 33,
         S::Mitre => 49,
         S::TurnFoot => 50,
+        S::BandSection => 58,
+        S::HostFoot => 59,
         S::BandFace => 34,
         S::BandTrim => 35,
         S::BandFoot => 36,
@@ -7578,11 +7593,13 @@ fn feed_role_seg<'a>(h: &mut SegFeed<'a>, seg: &'a crate::names::RoleSeg) {
             h.name(vertex);
             h.name(support);
         }
-        RoleSeg::EndArc { vertex, edge } => {
+        RoleSeg::EndArc { vertex, edge } | RoleSeg::HostFoot { vertex, edge } => {
             h.name(vertex);
             h.name(edge);
         }
-        RoleSeg::Mitre { vertex } | RoleSeg::TurnFoot { vertex } => {
+        RoleSeg::Mitre { vertex }
+        | RoleSeg::TurnFoot { vertex }
+        | RoleSeg::BandSection { vertex } => {
             h.name(vertex);
         }
         RoleSeg::BandFace(names) => {

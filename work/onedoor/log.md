@@ -327,3 +327,169 @@ second site needs to ask the question at all. (ONEDOOR orchestrator)
   - The wedge unit was `dispatched` with stage 1 landed (PR 6443). It is now `spec`, with stage 2 as specified on the row.
 - No lane is live. Worktrees and targets are deleted, and disk is at 27 GB.
 - (ONEDOOR orchestrator)
+
+## 2026-11-12 — the P1 slate dispatched in parallel
+
+Ev, in chat: "go ahead in whatever order you see fit (including parallelizing them all)".
+
+- **Design forks: designers dispatched concurrently, read-only.** Briefs: `onedoor-briefs/fork-{facepair,looplift}-brief.md`. Draws on `analysis/design-fork/onedoor-2026-11-12`.
+  - `face-pair-contact-pairing-has-four-spellings`. Two designers (bytes 203, 129).
+  - `three-walks-of-a-loops-chart-images-each-claim-to-be-the-one`. Two designers (bytes 177, 52).
+  - Each problem is stated without candidates. Each issue file names two candidate answers, so the briefs point at the code, not the row.
+- **Wedge fold, stage 2** (`onedoor/wedge-fold-2`, a local lane, brief `onedoor-wedge2-brief.md`).
+  - **Letter M, tier dual.** It moves every remaining reader of the dihedral class onto the fold, across sweep, the merge and the split, and retires three public types. It is lettered M because stage 1 set the design and stage 2 repoints; under the protocol, M means sequential reviews.
+  - The face-pair readers and stage 3 are out of scope.
+- **`topo-shared-cores-hosted-in-one-half`** (`onedoor/shared-cores`, its own cloud session because the disk here holds one build).
+  - **Letter H, tier dual.** It moves shared surgery and the join error both engines and `pncad` read. Under the protocol, H means a concurrent Opus/Fable pair.
+  - Scope: plan item 3, plus `chord_join`'s imports from `splitting/`. Unit 2 (`plane_crossing_lane`) is confirmed done by crossing-doors.
+- **Deviation in the model comparison.** Both implementer draws were taken a few minutes before the letter and tier lines above were written. The draws are on `analysis/model-compare/onedoor-2026-11-12`. The tiers follow the plan's standing rule (the dual tier wherever a unit moves shared code several programs read), which was set before any draw, and the letters were not changed after. Both rows will record this.
+- **Overlap.** Both code lanes touch `splitting/finish.rs`: the wedge lane retires `DescribeEscalated` and the knife check, and shared-cores moves `carve` and `Corrupt`. Each brief names the other lane and tells it to keep its edits to that file narrow and to merge main as it moves. The alternative, running them one after the other, costs a whole lane's wall-clock to avoid one likely conflict.
+- (ONEDOOR orchestrator)
+
+## 2026-11-12 — both design forks converged
+
+- **Loop-lift** (`three-walks-...`): converged in two rounds.
+  - Round 1 agreed on the lift, one decision (`decide_joint`), and a derived lift mid-operation. It split on the pole (recorded or layered) and on whether the element is a cache or a record.
+  - Round 2: B moved to A on the pole, because the mesh's area search is a second pole rule. A moved to B on "record" and on caller-named constructors.
+  - The agreed state changes C4's pole reset, which is Ev-reviewed text, so it went to Ev as `[ev]` PR [#6851](https://github.com/evgunter/cad/pull/6851), fork-log row 262.
+  - The four executed probes both designers asked for run in a cloud session on `onedoor/looplift-probes`. Their results go on #6851 before Ev answers.
+- **Face-pair** (`face-pair-contact-pairing-has-four-spellings`): converged in two rounds, crossing over.
+  - In round 2 A took B's link reading (off its own sector normals), and B took A's census reading (the carrier relation per pair) and at_rest reading (the gap's own facing).
+  - Nothing ratified changes, so it is a unit, not an `[ev]` fork. The design is written on the row. It is parked on wedge stage 2, since both edit `dihedral.rs` and the census. Dual tier.
+  - The two designers' draws stay on the analysis branch. The fork is not a design-fork log row, because rule 1 counts only forks put to Ev.
+- **Filed** from the designers' off-question findings, both P1 and both found by reading:
+  - `contact-verify-rules-perpendicular-on-an-undecided-extent`;
+  - `at-rest-constant-pairing-reads-two-non-parallel-planes-as-opposed`.
+  
+  Both fall to the face-pair unit, and each asks for a probe.
+- **Brief error, mine:** the loop-lift brief put `torus_chart_window` in `boolean/boxes.rs`; it is in `cover.rs`. Both designers caught it.
+- (ONEDOOR orchestrator)
+- 2026-11-12 — **PR [#6858](https://github.com/evgunter/cad/pull/6858) fix pass accepted** (`79f9e088`). All 23 items of the adjudicated union were taken. Two were argued down: `JoinError` as `chart_window`'s refusal type, because three-walks deletes that walk, and the named `RingHoming` exception.
+  - **Two deviations, both accepted.** `ConeCornerUnread` and the empty `ResultInvalid` keep the defect ending spelled inline, because they name a different culprit. `CarveStep` is reachable only as `topo::boolean::CarveStep`, because a root re-export would raise a `names-boolean` pin.
+  - **Not done:** the roughly 100 old `corrupt_*` sites map to `Unresolved::Walk` without a Record-vs-Geometry audit. Recorded in the PR body.
+  - **Class finding:** a refusal arm that both a user's input and a kernel defect can reach is the fail-loud honesty defect. The empty-body split read "report it" until `single_solid`'s count got its own arm. The rule is one state, one arm, one ending. It is already the reviewer brief's claim 2; no new row.
+  - (ONEDOOR orchestrator)
+- 2026-11-12 — **Filed a main red at P0: `the-boolean-corpus-name-digests-are-red-on-main`.** It covers three editor-core slow-set rows that read `crossing_slots`. They are red at pure main `5589777fd` and filed nowhere. This program owns the filing, not the bisect owner. (ONEDOOR orchestrator)
+- 2026-11-12 — **`topo-shared-cores-hosted-in-one-half` closed** with PR 6858.
+  - Unit 2, `plane_crossing_lane`, was already in geom-brep with `plane_crossing_*` K names.
+  - **`S5` re-parked** on `engine-leaves-by-visibility` and re-banded P1 → P2. Its residue is the engine-to-engine edges, which the P2 `[topo.homes]` move rows carry, and a P1 parked on P2 work waits at the wrong band.
+  - (ONEDOOR orchestrator)
+- 2026-11-12 — **PR [#6869](https://github.com/evgunter/cad/pull/6869) (wedge fold, stage 2) fix pass accepted.**
+  - All 13 adjudicated items were taken: one door, so check 4 reads `topo::edge_wedge` with the one-surface seam inside it; one `Settled` map; one station numbering; a typed `MustCarryRung` over the fold's whole escalation; escalations carried whole; the `SmoothAcross` margin taken from the fold; the witness derived in the door; the rule levered at the faces' extent; and refusals that name their station.
+  - Item 2 ended as a filed row, `edge-join-reads-a-joined-vertex-with-one-incident-edges-tangent`: the fold reads interior stations, never an end.
+  - **Beyond the brief, accepted:** the rule's sign arm moved to the faces' extent with its class lever, which keeps the "same wedge over the same arm" argument true.
+  - **One red was the branch's.** The new in-band bend row pinned `R = 1e8`, which is in band at ε 1e-9 only, and it was red at 1e-6 and 1e-12. Fixed in `fcbdd08d` by deriving `R` from the band.
+  - **Class finding:** a row that pins a value "in band" must derive it from the active tolerance. A literal tuned at one ε is a one-row suite. This is the standing every-eps-row rule, already in `docs/prompts/implementer-discipline.md`, so no new row.
+  - The unit row stays `spec`: stage 3, the blend's `classify_edge_wedge`, is still owed.
+  - (ONEDOOR orchestrator)
+- 2026-11-12 — **PR [#6869](https://github.com/evgunter/cad/pull/6869) merged (wedge stage 2, `3b59315d`).** Hosted CI was red only on the three filed main rows (band, pcert, lathe). The main-red annotation is on the PR. Stage 3 stays owed on the unit row. (ONEDOOR orchestrator)
+- 2026-11-12 — **Orchestrator error, caught and stopped: face-pair was re-sent to designers.** At 16:03 I dispatched three designers on `face-pair-contact-pairing-has-four-spellings`. It had already converged today (the section above) and been ruled a unit. Two causes: I read the row at `origin/main`, while the design is on this branch only, and the summary I resumed from after a compaction had dropped the design. All three sessions were interrupted and archived after about 90 s, before any report, for about $2.60 in all. The analysis branch `analysis/design-fork/face-pair` records the draws and the abort. No fork-log row: there is no fork.
+  - **Class finding:** state that lives only on the orchestrator branch is invisible to a read at main. After a compaction, read the program's rows on the orchestrator branch, not at `origin/main`. No standing rule says this. The log line is its durable home. A memory would be Ev's call, so I note it in the sitting's report rather than proposing one here.
+  - (ONEDOOR orchestrator)
+- 2026-11-12 — **`face-pair-contact-pairing-has-four-spellings` unparked and specified** (wedge stage 2 merged).
+  - **Letter H, tier dual.** It writes new readings rather than repointing: the link reads the side off its sectors in the link's own metric, at_rest reads the facing off one geom-brep pose reading, and there is a new unsensed door, `normal_alignment`. It also retires a public door across three crates. The design names three things that must be checked while building, and the two filed P1s it absorbs each ask for a probe. Under the protocol, H means a concurrent Opus/Fable review pair.
+  - The scope is the row's "Designed" section, plus `contact-verify-rules-perpendicular-on-an-undecided-extent` and `at-rest-constant-pairing-reads-two-non-parallel-planes-as-opposed`.
+  - (ONEDOOR orchestrator)
+- 2026-11-12 — **Face-pair dispatched** at 16:20 to a local lane on `onedoor/face-pair`. The implementer was drawn as byte 36 (Opus), on the analysis branch. The brief is `onedoor-briefs/onedoor-facepair-brief.md`. It makes the every-eps-row rule explicit after 6869's fix-pass red. (ONEDOOR orchestrator)
+
+## 2026-11-12 — loop lift ruled; three-walks specified
+
+- **Ev ruled on [#6851](https://github.com/evgunter/cad/pull/6851)**: "i think this plan is good. i don't want to keep reset". C4 now reads: no reset anywhere. The singular set stores the pole rule's element, and an undecidable joint refuses typed. Fork-log row 262 is filled (A = Opus, B = Fable). The PR merges on green.
+- **Three-walks specified** (the row's "Designed" and "Spec" sections): letter H, tier dual, written before the implementer draw. It runs as a cloud session, because the local disk holds the face-pair build.
+- (ONEDOOR orchestrator)
+- **Three-walks dispatched** at 18:19. The implementer is byte 13, Fable, running as cloud session `session_018u3gVKjyLGFvrEKPUvpTZE` on `onedoor/three-walks`, with brief `onedoor-briefs/onedoor-threewalks-brief.md`. The brief owes the apex/spindle census as a row, and makes a refused body that is valid by the user's lights a STOP.
+- **#6851 merged** (`c1243c5539e`) on green CI. C4 now reads: no reset anywhere.
+- **22:23 — three-walks' first report** (head `c79b32fc`, about $41.6, 4 h). The final state is built, but the branch is not green. **STOP items:** a cone with a ruling slit to its apex, and `bool5r2`'s hairline revolve, now refuse at the mint with `SingularTurn { EdgesCoincide }`; two narrow and needle apex splits escalate in band. Census, on a partial corpus: apex 85,933 joints decided in 224 tests, spindle 558 in 11, pole 232,996 in 718, with `EdgesCoincide` in three tests. **Orchestrator's reading:** `EdgesCoincide` is not a design limit. The ruled rule ("the angle between the tangents, on the face's side") decides coincident tangents: no turn or a full turn by the face's side, and a slit has the face on both sides, so the turn is the full turn. So no `[ev]`. The lane was sent back (22:5x) to close it, to account for the needle escalations (wrong lever, or a derived re-pin), to finish the suites it had not run, to class every red, and to add a fifth-walk source guard with pinned exceptions. Its two departures (mid-operation readers call `decided`; a sense flip drops rows and band doors re-decide them) are within the design and stay.
+- **22:2x — container restart** killed the face-pair agent mid-finish. The worktree, target and uncommitted edits all survived. It was resumed with SendMessage and is re-running the 1e-6 and 1e-12 rows against main for `perf12_census_goldens`.
+- **23:2x — face-pair reported** (head `aef77d60`, the agent's 4.7 h after the restart). Every check held, and the shafts case is kept loud by a named exception (`Nest::Apart`). Four more boolean facing readers were filed as P2. The lane ran the eps rows only on a 1,431-test subset, so CI is the record. PR [#6890](https://github.com/evgunter/cad/pull/6890) is opened with its head **frozen at `aef77d609971`**. Slot-order byte 101 (odd): R1 = Fable `session_018u3gVKN1FX1wDA6kYv4uMZ`, R2 = Opus `session_018u3gVGy35Ctvm3JGuq4Apb`. Both were dispatched concurrently at 23:29 on the identical brief `onedoor-briefs/onedoor-fp-review-brief.md`, which has 8 claims to falsify; its claim 3 asks whether `Nest::Apart` is a question for Ev.
+- **`carrier-eq-and-plane-eq-take-no-body` specified** (letter S, tier dual), written before any draw. The move retires the `PlaneRelation`/`PlaneEqError` aliases (one name per type) and leaves no re-export at the old path. It is held behind #6890, which edits `carrier_eq.rs`.
+- **23:51 — three-walks' second report** (head `3a7067ff`). The cone-slit refusal is closed: the slit is two coincident edges, decided from the loop's winding (`slit_turn`), and all four slit tests pass at three ε. Three branch reds remain: `bool5r2`, the `bool5r1` probe, and `a_needle_vertex…`. Most suites were not run after the last fixes. **Orchestrator ruling (applying a settled rule, not a fork):** the singular turn is levered at the faces' extent (`topo::wedge_reach`), as every edge-angle reader is since the wedge fold. `decide_joint` takes that reach as a value from the door that holds the body. The lane was sent back a third time in the same session, which has 688k/1M context and compacts automatically, so the implementer arm stays clean. The suites are to run most-informative first.
+- #6890's CI is green at the frozen head (23:46).
+- **00:12 / 00:35 — both #6890 reviews in.** A = R1 (Fable), B = R2 (Opus); blind byte 188. Both APPROVE-WITH-FIXES; B grades `Nest::Apart` MAJOR. 9 findings bilateral, 10 unilateral to A, 4 unilateral to B (coding in `onedoor-facepair-scratch/coding-6890.md`, for the row). The shafts boundary is a reading of ratified `[assertions.quiet]` ("opposed": at the `Gap`'s pose, or constant over the pair). Main's test reads the constant sense, and the unit's design reads the pose. `git log -S` found no Ev ruling for either, so it is put to Ev as the `[ev]` question at the top of #6890: (a) at the pose, the exception removed (recommended), or (b) constant (plane–round reverts to loud). The fix pass (15 items, the union) went to the implementer's agent at about 01:35. The answer then lands as one arm.
+- **01:57 — Ev on #6890:** "can you remind me why 'opposed' is required?" Answered from CONTACT-DESIGN C5 (the signed gap): only over an opposed pair is g < 0 interference; over an aligned pair the sign says which face stands outside the other. C5 also decides "opposed" per pair at the gap's reading, and lists two cylinders lying apart among the pairs it reads, so reading (a) is C5's own meaning. Asked Ev to confirm (a).
+- **02:07 — Ev on #6890:** "ok, if i'm understanding correctly that this will detect all instances of interference, then sounds good". Confirmed on the PR: detection is unchanged (the census golden is byte-identical at every ε); quieting only marks a detected finding the user's holding assertion speaks for. Stated the `≤` caveat (a deeper clash under `Gap ≤ −δ` stays quiet), which predates this PR. **Ruling: (a)**. `Nest::Apart` goes, and the shafts quiet under a holding `Gap`. Added to the fix pass. `[ev]` comes off the title once it lands.
+- **03:57 — Ev on #6890:** "anything needed from me?" Nothing is. My error: I had left `[ev]` on the title after Ev answered, waiting for the code to land. CLAUDE.md says to take it off once Ev has answered, and leaving it on cost Ev a check. Title fixed at 03:58.
+- **04:11 — three-walks' third report** (head `dcc07bbb`). The lever is the shorter of the two edges' `wedge_reach`, passed as a value. All four of the mid-unit reds pass at three ε, and the needle re-pin is gone. Every red is main's (classed in a main worktree). PR [#6900](https://github.com/evgunter/cad/pull/6900) is opened with its head **frozen at `dcc07bbbc14b`**. Slot byte 231 (odd): R1 = Fable `session_018u3gVGHDS8KdsfLBEuceG2`, R2 = Opus `session_018u3gVHDVyJuEpbgLyWJxsQ`. Both were dispatched concurrently at 04:13 on `onedoor-briefs/onedoor-tw-review-brief.md` (8 claims). The implementer session idles, kept for the fix pass.
+- **04:28 — #6900 CI (frozen head):** `test (kernel)` is red. **The branch's:**
+  - `tilted_sphere_pair` at 1e-6. The near-pole section (δ 1e-5, line 553) refuses `SplitJointUndecided`, where it builds on main. Main's red on the same test is the δ 0 case at line 578 (`gauge/the-in-arc-pairing…`). The lane classed it as "red on main" by test name alone, and that hid a built-to-refuses regression.
+  - The new guard test is over the 0.5 s new-test limit.
+  - Both go into the fix pass after the reviews; the head stays frozen. Commented on the PR.
+  - **Class finding:** a red is main's only if it fails on main *the same way* (same assertion and message). The test name is not enough when main is already red on that test. The briefs say "class every red at origin/main", but not "by its failure text"; worth saying in the next brief.
+- 2026-11-13 — **PR [#6890](https://github.com/evgunter/cad/pull/6890) (face pair) fix pass accepted.**
+  - A concurrent Opus/Fable pair reviewed the frozen head `aef77d609971`, and both returned APPROVE-WITH-FIXES. One question went to Ev: what "opposed" means in `[assertions.quiet]`. Ev ruled (a), at the `Gap`'s pose, which is C5's own meaning, so `Nest::Apart` is gone and two shafts quiet under a holding `Gap`.
+  - All 15 adjudicated items were taken:
+    - one door from two normals (`normals_alignment`) with one zero policy;
+    - one type (`MaterialPairing`) and one parallelism reading;
+    - a pose that carries its own data under its own K names;
+    - the link's facing as a named metric constructor;
+    - a true glue refusal;
+    - pinned rows, and rows of its own for `carrier_pose`.
+  - The one CI red on the fix-pass head was a renamed slow row. The orchestrator added it to the slow set (`bc51af9f`).
+  - Model-compare row `docs/model-compare-log/rows/PR-6890.md`.
+  - (ONEDOOR orchestrator)
+- **05:10 — #6890 merged** (`c1f0de0894`) on green CI. The face-pair unit is closed. Next is the carrier-eq move, which was held on #6890 because both edit `carrier_eq.rs`.
+- **My error, logged:** the row commit went in as three small commits. My command chains piped `work.py lint` into `tail`, so a failing lint never stopped the commit. Lint first rejected `status: done` (a unit closes; it is not "done") and then wanted a `closed:` date. The fix is to gate a commit on lint's own exit status, never on a pipe's.
+- **05:11 — carrier-eq move dispatched.** Implementer byte 244 (Opus), cloud session `session_018u3gVJqtm9ncKVHQETWp2M` on `onedoor/carrier-eq-home`. The brief carries the new rule: class reds by failure text, not test name, and gate each step on its own exit status.
+- **05:17 / 04:43 — both #6900 reviews in.** A = R1 (Fable), B = R2 (Opus); blind byte 8.
+  - A says NOT-MERGEABLE-AS-IS. Its MAJOR, executed at base and head, is the near-pole split at 1e-6 refusing on the branch while all three δ build on main.
+  - Cause: the singular turn reads the image azimuth, and a twin-sheet image is π off its tangent.
+  - B says APPROVE-WITH-FIXES and classed that red as main's by the row being red at base, which is a false negative.
+  - Adjudicated: the MAJOR stands. The fix stays inside the ratified rule ("the angle between the two edges' tangents"), so the tangents are read off the carriers, not the images. Not an `[ev]` question.
+  - The fix pass (18 items) went to the implementer session at about 06:06. Coding is in `onedoor-facepair-scratch/coding-6900.md`.
+- **10:08 — carrier-eq move reported** (head `9e051199`). Both modules are at geom-brep's root with every signature kept. `PlaneRelation`/`PlaneEqError` are retired, with no re-export in topo. The K names took their new modules' prefixes (`plane_eq_*`, `carrier_plane_reach*`). 17 reds are main's by failure text and 1 is the branch's.
+  - **Its stop:** geom-brep's `kstats_escalation_channel` census forbids hand-built `Indeterminate`s, and `plane_eq::unreadable_norm` builds one off the log. Topo never had the rule, so the move exposed a second minting door that topo let stand.
+  - **Ruled by the orchestrator** (it applies geom-brep's existing rule): mint through `k_stats`, keep `CarrierEqError`'s shape, and disclose the payload change.
+  - Sent back at 10:28, with a census count of topo's other hand-built `Indeterminate`s as a question.
+- **10:55 — carrier-eq's second report** (head `7d7d933e`). The `Norm` refusal is minted through `k_stats::gate_rejection` (`NonNegative`), on the log, and `CarrierEqError`'s shape is kept. The topo census found 5 shipped hand-mints, filed as `topo-hand-mints-indeterminates-geom-brep-census-would-refuse`.
+- **PR [#6909](https://github.com/evgunter/cad/pull/6909)** is opened with its head **frozen at `7d7d933ec381`**. First-reviewer byte 150 (Opus): `session_018u3gVKYyo2EHRt2dAeEUnH`, dispatched at 11:17 (S, sequential).
+- **#6900:** the fix pass reported at 10:55 (head `f515519b`). The MAJOR is fixed (carrier directions, the twin bit across sheets), and the arguments on items 5, 10 and 18 are accepted. CI at 11:16: everything green but `test (kernel)`, still running.
+- **11:39 — #6909 R1 (Opus) reported:** APPROVE-WITH-FIXES, no MAJOR, so no second review (S, sequential). MINORs:
+  - visibility wider than needed (`PairDoorReading::verdict`, and a panicking `pub` `unreadable_norm` that exists for a test);
+  - an undisclosed change to the `Norm` message;
+  - the rename changes Python-visible `SelectRefusal.predicate` strings, undisclosed;
+  - a stale path in `sym.rs`;
+  - the `Norm` row cannot reach the real ladder.
+  
+  Style: test fixtures copied across crates, and a wrong "poisoned input" doc. The fix pass (8 items) went to the implementer at about 12:00. The orchestrator updates the `bind` and `seal` issues' rotted citations in the row commit. Main reds on #6909 were classed by failure text and commented.
+- 2026-11-13 — **PR [#6900](https://github.com/evgunter/cad/pull/6900) (loop lift, one decision with no reset) fix pass accepted.**
+  - A concurrent Fable/Opus pair reviewed the frozen head `dcc07bbb`. R1 returned NOT-MERGEABLE: a near-pole split regressed at 1e-6, because the turn read an image azimuth on the twin sheet. R2 returned APPROVE-WITH-FIXES and classed that red as main's by test name.
+  - The 18-item fix pass reads the singular turn's directions off the carriers and joins the sheets through the twin bit. The slit rule moved into the one decision, `JointSides` got one constructor, and there is one flip policy.
+  - The kernel CI run on the fix head hung in its build step for 5 h+. A probe showed no branch slowdown, and the row commit started a fresh run.
+  - Model-compare row `docs/model-compare-log/rows/PR-6900.md`. The unit is closed, and so is `the-chart-window-walk-refuses-in-the-chord-joins-error`.
+  - (ONEDOOR orchestrator)
+- 2026-11-13 — **PR [#6909](https://github.com/evgunter/cad/pull/6909) (carrier_eq and plane_eq move to geom-brep) fix pass accepted.**
+  - S, sequential. One review (APPROVE-WITH-FIXES, no MAJOR), so no second review ran. All eight items were taken.
+  - The move exposed a second minting door: the `Norm` refusal was built off the log, which geom-brep's census refuses and topo never checked. It now mints through `k_stats`. Five more such mints in topo are filed as `topo-hand-mints-indeterminates-geom-brep-census-would-refuse`.
+  - The citations in `work/bind/select-refusal-predicate-names-are-unpinned.md` and `work/seal/plane-only-readers-hold-a-dead-off-ring-arm.md` are updated to the new names and home.
+  - Model-compare row `docs/model-compare-log/rows/PR-6909.md`.
+  - (ONEDOOR orchestrator)
+  - `S173` is opened (P1): its only blocker closed here. The fired entry is pruned from `engine-leaves-by-visibility`'s `blocked_on`.
+- **14:17 — #6909 merged** (`5ca9d1ca89`). Kernel was red only on main's three by failure text, and every other job was green. The carrier-eq unit is closed, S173 is open, and the implementer session is archived.
+- **S173 specified** (letter S, tier single), before any draw. Weighing it found a second public `face_carrier` (`readback.rs:361`, the raw surface plus the sense bit) under the door's name, so the spec gives each fact one name. It is held behind #6900.
+- **14:5x — parallelized** (Ev asked what more can run alongside). Specified before any draw:
+  - **S173** (S, single): dispatched now, not after #6900, because #6900's code is final and the overlap is only a later merge of main;
+  - **the P0 `the-boolean-corpus-name-digests-are-red-on-main`** (S, single): unowned, and annotated as a main red on every PR this sitting; bisect, judge, then re-pin or file;
+  - **wedge stage 3** (M, dual): the blend's `classify_edge_wedge`, `EdgeWedge`, `PositiveArm` and the second `Convexity` move onto the fold.
+  
+  The two P1s #6890 absorbed are closed.
+- **15:51 — three lanes dispatched,** all cloud sessions:
+  - S173: byte 102, Opus, `session_018u3gVG971wwZ4y1XNPEqL2` on `onedoor/s173-face-carrier`;
+  - the P0 name-digest red: byte 185, Fable, `session_018u3gVGeEUcGWxoTaGrjm8E` on `onedoor/crossing-slots-red`;
+  - wedge stage 3: byte 176, Opus, `session_018u3gVK745WZBDpJyJKF6Sc` on `onedoor/wedge-fold-3`.
+  
+  Every brief carries the new rules: class by failure text, and gate each step on its own exit.
+- **16:4x — #6900 had a merge conflict** (`mergeable_state: dirty`, from #6890 and #6909), so pull-request CI never ran on `7a4f3885`. Main was merged in (`d07071ec`); the only conflict was a comment block in `.config/nextest.toml`, and both sides were kept. A workspace `cargo check --all-targets --all-features` was clean, then pushed. **My miss:** I read "no check runs" as a slow CI, not as a conflict. A PR that shows no run after a push gets its mergeable state checked first.
+- **17:15 — #6900 merged** (`22cce0e278`). Every job was green except kernel, which was red only on main's three by failure text. The three-walks unit is closed, `looplift-probes` is deleted, and the implementer session is archived.
+  - Deleting `onedoor/looplift-probes` returned 403 (this session cannot delete that branch). It holds probe test files only, never merged; it is left for Ev or a later session to delete.
+- **17:28 — P0 name-digest lane reported** (head `ce49c99c`, $5.95). The bisect lands on PR #6832 (`gauge/in-arc-pairing`). Key-free geometry dumps of all five documents are identical across the merge, so only arena keys moved. The lane judged that right (names stable, keys lineage-scoped) and re-pinned five `lib_g16`, five `perf2` and seat4 `crossing_slots`. It filed seat7's `corner_table` (same cause; an earlier move is unjudged) and `kitchen_sink` (a later cause) to GREEN without re-pinning. PR [#6910](https://github.com/evgunter/cad/pull/6910) is opened with its head **frozen at `ce49c99c`**. Reviewer byte 147 (Fable): `session_018u3gVF4ShtrjH2JhwkQVWg` (S, single). Claim 3 asks whether these digests should feed on keys at all.
+- 2026-11-13 — **PR [#6910](https://github.com/evgunter/cad/pull/6910) (the P0 name-digest re-pin) accepted.** One reviewer: APPROVE-WITH-FIXES, text only. The orchestrator made the text fixes in the row commit. The class finding is filed as `name-digests-cannot-tell-a-renamed-cell-from-a-renumbered-arena`: pin a key-free word beside the keyed one, so a key-only move no longer needs a hand dump. Model-compare row `docs/model-compare-log/rows/PR-6910.md`. (ONEDOOR orchestrator)
+- **19:03 — #6910 merged** (`bc56fe3d68`) on green CI. The P0 is closed. Main's three corpus digest reds are gone; seat7 is now GREEN's.
+- **19:55 — S173 reported** (head `a2b9b200`, $4.82). The door is renamed `face_carrier_desc` and moved beside `face_plane`, which returns `PlaneDesc`; the two hand folds read it. `readback::face_carrier` keeps its name: it is the stored surface whole, and the door answers `None` for spindle, NURBS and approx. All reds match main by text. Filed `measure-plane-of-folds-a-planar-face-by-hand`. The lane noticed the `face_normal` guard gained a `pcurves.rs` hit at #6900, masked by main's red; filed as P1 `face-normal-guard-gained-a-pcurves-hit-at-6900-behind-mains-red`. PR [#6911](https://github.com/evgunter/cad/pull/6911) is opened with its head **frozen at `a2b9b200`**. Reviewer byte 151 (Fable): `session_018u3gVKg2DSosdNTHYRkk7h` (S, single).
+- **20:53 — my error:** `face-normal-guard-gained-a-pcurves-hit-at-6900-behind-mains-red` is withdrawn. PR 6911's reviewer showed the `pcurves.rs` hit is sanctioned on main; #6900 added nothing. I filed it from S173's lane's reading without checking the guard's sanctioned list. A claimed main red goes on file only after it has been checked.
+- 2026-11-13 — **PR [#6911](https://github.com/evgunter/cad/pull/6911) (S173) fix pass accepted.**
+  - One review: APPROVE-WITH-FIXES. Its Q1 caught the unit re-minting its own class (`PlaneDesc` and `CarrierDesc::Plane` as parallel types, `FaceGeo` as a third description), and the fix pass folded the first.
+  - `CarrierDesc::Plane(PlaneDesc)`; `plane_desc_of` is the by-value planar door; `readback::face_carrier` is renamed `face_stored_surface`. `FaceGeo`'s curved arms are filed.
+  - Model-compare row `docs/model-compare-log/rows/PR-6911.md`.
+  - (ONEDOOR orchestrator)
+- **22:29 — #6911 merged** (`d8e1c86d61`) on green CI. S173 is closed and its implementer session is archived.
+- **22:25 — wedge stage 3 reported** (head `bb433c4d`, $18.23). The blend reads `topo::edge_wedge`, and the blend's own composition plus `classify_edge_wedge`/`EdgeWedge`/`PositiveArm` and the second `Convexity` are retired. **Guard by the compiler:** `Corner::convexity` and `Tangency::pairing` are crate-private to geom-brep, read only inside the fold. Refusals change: `NeverOpens` becomes `Lamina`, and a Mixed edge now refuses. No STOP; all reds are main's by text. PR [#6913](https://github.com/evgunter/cad/pull/6913) is opened with its head **frozen at `bb433c4d`**. First reviewer byte 236 (Opus), dispatched 22:58 (M, sequential).

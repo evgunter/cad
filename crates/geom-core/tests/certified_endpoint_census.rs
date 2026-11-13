@@ -252,6 +252,7 @@ const HOLDERS: &[&str] = &[
     "crates/geom-brep/src/offset_meters.rs",
     "crates/geom-brep/src/pair_section/spline_implicit.rs",
     "crates/geom-brep/src/patch_bound.rs",
+    "crates/geom-brep/src/pcurve_cache/patch.rs",
     "crates/geom-brep/src/props/mod.rs",
     "crates/geom-brep/src/props/quad/",
     "crates/geom-brep/src/ssi.rs",
@@ -342,9 +343,10 @@ const ROSTER: &[(&str, usize, usize, &str)] = &[
     ),
     (
         "crates/geom-brep/src/offset_fit.rs",
-        11,
-        9,
-        "nine reads are in `cell_terms`, which refuses to `None` by name. The remainder is \
+        12,
+        10,
+        "nine reads are in `cell_terms`, which refuses to `None` by name, and one is \
+         `e_floors`' box mignitude, read after it asks `is_certified()`. The remainder is \
          `e_low_witness`'s 2, the `e_low` that `cell_bound` hands `cell_terms`: its only \
          production call is there, after both `e_floors` intervals have asked `is_certified()`",
     ),
@@ -359,15 +361,17 @@ const ROSTER: &[(&str, usize, usize, &str)] = &[
     ("crates/geom-brep/src/pair_section/ruling.rs", 3, 3, ""),
     (
         "crates/geom-brep/src/pair_section/spline_implicit.rs",
-        2,
-        0,
-        "held by name since SECTARMS #6412 removed its one `is_certified()` (the bracket's), \
-         which was all the population key saw. Both reads are the pivot's: `pivot`'s shift, the \
-         upper end of the foot's lift over the stored normal's length (the normal is certified, \
-         and a quotient by a length not proven away from zero has an end that is not finite, \
-         which `band.padded` refuses, `SectionError::Unaccounted`); and `Phi::at`'s `lift`, a \
-         sum of products of certified points, no quotient, which certifies, its upper end a \
-         sound bound on the pivot's stand-off added to a height",
+        6,
+        4,
+        "the 4 that ask are `box_gap`'s per-axis gap, read only where both boxes' coordinates \
+         certify and NaN otherwise, which holds nothing apart (`PadsMeet`). The other 2 read \
+         the pivot's lift, the foot's height over the stored plane divided by the stored \
+         normal's length: `Pivot::shift`'s upper end, which pads the reading's band, and a \
+         quotient by a length not proven away from zero has an end that is not finite, which \
+         `band.padded` refuses (`SectionError::Unaccounted`) before any reading exists; and \
+         `Bracketed::at`'s, the same lift carried on the reading's form, which is only the \
+         bracket's first step, every side it keeps decided by `Bracketed::sign`, which asks \
+         `is_certified()` (`ssi::section::sign`), its pad the reach over the span it kept",
     ),
     (
         "crates/geom-brep/src/pair_section/spline_implicit/curved.rs",
@@ -392,11 +396,13 @@ const ROSTER: &[(&str, usize, usize, &str)] = &[
     ("crates/geom-brep/src/pair_section/winds.rs", 12, 12, ""),
     (
         "crates/geom-brep/src/patch_bound.rs",
-        4,
-        2,
-        "two are the rational arm's quotient readings, each guarded by the `is_certified()` this \
-         counts: `certified_sup` reads `hi` and `certified_inf` reads `lo` only after asking by \
-         name. The remainder is `centre`'s 2, safe because a centre is a translation choice and \
+        8,
+        6,
+        "six ask: the rational arm's two quotient readings, each guarded by the `is_certified()` \
+         this counts (`certified_sup` reads `hi` and `certified_inf` reads `lo` only after asking \
+         by name), and the ball algebra's four (`Ball::dot`'s and `Ball::cross`'s reach, \
+         `Ball::norm_sq`'s two ends), each read after both balls ask `Ball::is_certified`. The \
+         remainder is `centre`'s 2, safe because a centre is a translation choice and \
          no enclosure rests on it: it takes midpoints, contributes `0` for a non-finite one and \
          answers `0` for a non-finite mean, so a refused input still yields a finite centre and \
          the reach about it reports the trouble",
@@ -416,6 +422,17 @@ const ROSTER: &[(&str, usize, usize, &str)] = &[
          which encloses over any breaks, and every span hull of it reads its ends through the \
          two asking reads above; so a refused bracket moves where the net is cut, never what a \
          span certifies, and a NaN reading compares false and grades nothing",
+    ),
+    (
+        "crates/geom-brep/src/pcurve_cache/patch.rs",
+        2,
+        0,
+        "both are the enclosing patch's `mag`, a chart radius's magnitude read only to choose how \
+         many pieces an angle's window is cut into and at what degree. Every control is formed \
+         in interval arithmetic from the chart's own brackets, so a refused one's decoration \
+         rides into the controls and the composite that reads them; a refused bracket moves \
+         where the window is cut, never what a control encloses, and a NaN magnitude \
+         refuses as no size (`PatchRefusal::NoWidth`)",
     ),
     ("crates/geom-brep/src/pcurve_cache/projected.rs", 2, 2, ""),
     ("crates/geom-brep/src/props/bracket.rs", 8, 8, ""),
@@ -610,6 +627,7 @@ const ROSTER: &[(&str, usize, usize, &str)] = &[
     ),
     ("crates/geom-core/src/spline/algebra.rs", 1, 1, ""),
     ("crates/geom-core/src/spline/blossom.rs", 2, 2, ""),
+    ("crates/geom-core/src/spline/compose/patch.rs", 4, 4, ""),
     ("crates/geom-core/src/spline/compose/tensor.rs", 5, 5, ""),
     (
         "crates/geom-core/src/sym/signed.rs",

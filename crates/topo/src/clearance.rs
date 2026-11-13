@@ -30,9 +30,9 @@
 //! a cell against itself in three): the bound question DECIDES each
 //! pair at a funnel site; the minimum question takes minima of
 //! enclosure endpoints. Both drop the cells decided outside their faces.
-//! The minimum question's region readings choose only which pairs feed
-//! its bracket, so they are taken in [`k_stats::unlogged`]'s scope; that
-//! door's own header carries the argument.
+//! Each entry point takes its readings in [`k_stats::unlogged`]'s scope
+//! itself (audit row F41): a cell reading answers the question, never a
+//! caller's log, so a caller keeps no scope of its own.
 //!
 //! **The sweep stops once every bound it asks is ANSWERED**: at the
 //! first VERIFIED violation of a lower bound, or, for an upper bound
@@ -1436,6 +1436,10 @@ impl Sweep {
     /// [`EngineRefusal::WitnessUnverified`] carrying its prose. A
     /// touching pair is never offered: its two cells share a point of M,
     /// and a pair of coincident stations there is no violation.
+    ///
+    /// **Its readings are its report's, not the caller's log** (audit
+    /// row F41): every decision the walk and `verify` take runs in
+    /// [`k_stats::unlogged`]'s scope, so no caller has to keep one.
     pub fn run<T, W, F>(
         &self,
         wa: &Windows<'_, T>,
@@ -1447,212 +1451,214 @@ impl Sweep {
         T: Decide + CertifiedBounds,
         F: FnMut(Candidate<'_, '_, T>) -> Result<W, String>,
     {
-        let (wa, wb) = (&wa.of[..], &wb.of[..]);
-        let injective = same_body && matches!(self.bound, ClearanceBound::StrictlyPositive);
-        // **The prune threshold carries the BAND.** The tree excludes a
-        // pair on a raw `separation_lo > pad`, and the engine decides
-        // through the funnel, which calls anything within `escalate` of
-        // a bound indeterminate. Padding the farthest bound by the band
-        // is what makes the two agree in the only direction that
-        // matters: a pair this drops is separated by more than every
-        // bound PLUS the funnel's own escalation threshold, so it is one
-        // the funnel would have decided clear of each, and a pair inside
-        // the band survives to be classified or refused rather than
-        // silently held.
-        let reach = self.bound.reach() + self.band.escalate();
-        let root_a: Vec<Cell> = wa.iter().map(Cell::of).collect();
-        let root_b: Vec<Cell> = wb.iter().map(Cell::of).collect();
-        let cloud = |c: &Cell| [c.enc];
-        let tree_a = Bvh::build_bounded(root_a.iter().map(cloud), 0.0);
-        let tree_b = Bvh::build_bounded(root_b.iter().map(cloud), 0.0);
-        // The unordered de-duplication is the same-body case's own: two
-        // scopes of one body can carry a pair in both orders.
-        let mut seen: BTreeSet<(FaceKey, FaceKey)> = BTreeSet::new();
-        let candidates: Vec<(usize, usize)> = tree_a
-            .pairs_within(&tree_b, reach)
-            .into_iter()
-            .filter(|&(i, j)| {
-                let (Some(x), Some(y)) = (wa.get(i), wb.get(j)) else {
-                    return false;
-                };
-                !same_body || seen.insert((x.face.min(y.face), x.face.max(y.face)))
-            })
-            .collect();
-        // What each candidate's two faces share, in M.
-        let shared: Vec<Shared> = candidates
-            .iter()
-            .map(|&(i, j)| match (wa.get(i), wb.get(j)) {
-                (Some(x), Some(y)) if same_body => {
-                    Shared::of(&x.boundary, &y.boundary, x.face == y.face)
-                }
-                _ => Shared::default(),
-            })
-            .collect();
+        k_stats::unlogged("F41", move || {
+            let (wa, wb) = (&wa.of[..], &wb.of[..]);
+            let injective = same_body && matches!(self.bound, ClearanceBound::StrictlyPositive);
+            // **The prune threshold carries the BAND.** The tree excludes a
+            // pair on a raw `separation_lo > pad`, and the engine decides
+            // through the funnel, which calls anything within `escalate` of
+            // a bound indeterminate. Padding the farthest bound by the band
+            // is what makes the two agree in the only direction that
+            // matters: a pair this drops is separated by more than every
+            // bound PLUS the funnel's own escalation threshold, so it is one
+            // the funnel would have decided clear of each, and a pair inside
+            // the band survives to be classified or refused rather than
+            // silently held.
+            let reach = self.bound.reach() + self.band.escalate();
+            let root_a: Vec<Cell> = wa.iter().map(Cell::of).collect();
+            let root_b: Vec<Cell> = wb.iter().map(Cell::of).collect();
+            let cloud = |c: &Cell| [c.enc];
+            let tree_a = Bvh::build_bounded(root_a.iter().map(cloud), 0.0);
+            let tree_b = Bvh::build_bounded(root_b.iter().map(cloud), 0.0);
+            // The unordered de-duplication is the same-body case's own: two
+            // scopes of one body can carry a pair in both orders.
+            let mut seen: BTreeSet<(FaceKey, FaceKey)> = BTreeSet::new();
+            let candidates: Vec<(usize, usize)> = tree_a
+                .pairs_within(&tree_b, reach)
+                .into_iter()
+                .filter(|&(i, j)| {
+                    let (Some(x), Some(y)) = (wa.get(i), wb.get(j)) else {
+                        return false;
+                    };
+                    !same_body || seen.insert((x.face.min(y.face), x.face.max(y.face)))
+                })
+                .collect();
+            // What each candidate's two faces share, in M.
+            let shared: Vec<Shared> = candidates
+                .iter()
+                .map(|&(i, j)| match (wa.get(i), wb.get(j)) {
+                    (Some(x), Some(y)) if same_body => {
+                        Shared::of(&x.boundary, &y.boundary, x.face == y.face)
+                    }
+                    _ => Shared::default(),
+                })
+                .collect();
 
-        let mut receipt = CellReceipt {
-            candidates: candidates.len(),
-            ..CellReceipt::default()
-        };
-        let mut q = Bound {
-            sweep: self,
-            injective,
-            shared: &shared,
-            region: RegionMemo::at(self.band),
-            locals: LocalMemo::default(),
-            across: BTreeMap::new(),
-            cornered: 0,
-            widths: DischargeWidths::empty(),
-            lower_refusal: None,
-            upper_refusal: None,
-            violation: None,
-            within: None,
-            box_dependent: core::cell::Cell::new(None),
-            verify,
-        };
-        let open = Open {
-            below: self.bound.lower().is_some(),
-            above: self.bound.upper().is_some(),
-        };
-
-        let mut frontier: Vec<Task> = Vec::with_capacity(candidates.len());
-        for (k, &(i, j)) in candidates.iter().enumerate() {
-            let (Some(x), Some(y), Some(&a), Some(&b), Some(sh)) = (
-                wa.get(i),
-                wb.get(j),
-                root_a.get(i),
-                root_b.get(j),
-                shared.get(k),
-            ) else {
-                // A candidate whose windows are not addressable would
-                // leave the receipt short by one; counted, not lost.
-                receipt.abandoned += 1;
-                continue;
+            let mut receipt = CellReceipt {
+                candidates: candidates.len(),
+                ..CellReceipt::default()
             };
-            let meets = same_body && (x.face == y.face || !sh.is_empty());
-            if meets && !injective {
-                // **Two scopes that meet are at distance 0**, read off
-                // topology rather than approached by subdivision: the
-                // whole pair is one leaf, `0` decided against each bound
-                // at its own site.
-                let cell = if x.face == y.face {
-                    SharedCell::Face(x.face)
-                } else {
-                    sh.cell(&x.boundary).unwrap_or(SharedCell::Face(x.face))
+            let mut q = Bound {
+                sweep: self,
+                injective,
+                shared: &shared,
+                region: RegionMemo::at(self.band),
+                locals: LocalMemo::default(),
+                across: BTreeMap::new(),
+                cornered: 0,
+                widths: DischargeWidths::empty(),
+                lower_refusal: None,
+                upper_refusal: None,
+                violation: None,
+                within: None,
+                box_dependent: core::cell::Cell::new(None),
+                verify,
+            };
+            let open = Open {
+                below: self.bound.lower().is_some(),
+                above: self.bound.upper().is_some(),
+            };
+
+            let mut frontier: Vec<Task> = Vec::with_capacity(candidates.len());
+            for (k, &(i, j)) in candidates.iter().enumerate() {
+                let (Some(x), Some(y), Some(&a), Some(&b), Some(sh)) = (
+                    wa.get(i),
+                    wb.get(j),
+                    root_a.get(i),
+                    root_b.get(j),
+                    shared.get(k),
+                ) else {
+                    // A candidate whose windows are not addressable would
+                    // leave the receipt short by one; counted, not lost.
+                    receipt.abandoned += 1;
+                    continue;
                 };
-                let zero = Interval::from_f64(0.0);
-                let stations = meeting_stations(x, y, sh, cell, self.band);
-                let at = Offer {
-                    x,
-                    ca: a,
-                    ia: i,
-                    y,
-                    cb: b,
-                    ib: j,
-                    meeting: Some((cell, stations.0, stations.1)),
-                };
-                let readings = q.read(open, zero);
-                // An exact margin in the band: no refinement moves a
-                // distance topology fixed at 0.
-                let sliver = |r: &Reading| match r {
-                    Reading::Undecided(source) => Some(EngineRefusal::Sliver {
-                        predicate: source.predicate.unwrap_or(geom_core::UNNAMED_PREDICATE),
-                    }),
-                    _ => None,
-                };
-                if let Some(r) = readings.below.as_ref().and_then(sliver) {
-                    q.lower_refusal.get_or_insert(r);
-                }
-                if let Some(r) = readings.above.as_ref().and_then(sliver) {
-                    q.upper_refusal.get_or_insert(r);
-                }
-                match q.settle(&readings, &at) {
-                    ControlFlow::Break(()) => {
-                        receipt.violated += 1;
+                let meets = same_body && (x.face == y.face || !sh.is_empty());
+                if meets && !injective {
+                    // **Two scopes that meet are at distance 0**, read off
+                    // topology rather than approached by subdivision: the
+                    // whole pair is one leaf, `0` decided against each bound
+                    // at its own site.
+                    let cell = if x.face == y.face {
+                        SharedCell::Face(x.face)
+                    } else {
+                        sh.cell(&x.boundary).unwrap_or(SharedCell::Face(x.face))
+                    };
+                    let zero = Interval::from_f64(0.0);
+                    let stations = meeting_stations(x, y, sh, cell, self.band);
+                    let at = Offer {
+                        x,
+                        ca: a,
+                        ia: i,
+                        y,
+                        cb: b,
+                        ib: j,
+                        meeting: Some((cell, stations.0, stations.1)),
+                    };
+                    let readings = q.read(open, zero);
+                    // An exact margin in the band: no refinement moves a
+                    // distance topology fixed at 0.
+                    let sliver = |r: &Reading| match r {
+                        Reading::Undecided(source) => Some(EngineRefusal::Sliver {
+                            predicate: source.predicate.unwrap_or(geom_core::UNNAMED_PREDICATE),
+                        }),
+                        _ => None,
+                    };
+                    if let Some(r) = readings.below.as_ref().and_then(sliver) {
+                        q.lower_refusal.get_or_insert(r);
+                    }
+                    if let Some(r) = readings.above.as_ref().and_then(sliver) {
+                        q.upper_refusal.get_or_insert(r);
+                    }
+                    match q.settle(&readings, &at) {
+                        ControlFlow::Break(()) => {
+                            receipt.violated += 1;
+                            receipt.abandoned += (candidates.len() - k - 1) + frontier.len();
+                            frontier.clear();
+                            break;
+                        }
+                        ControlFlow::Continue(Bucket::Discharged)
+                            if [&readings.below, &readings.above]
+                                .into_iter()
+                                .any(|r| matches!(r, Some(Reading::Undecided(_)))) =>
+                        {
+                            receipt.refused += 1;
+                        }
+                        ControlFlow::Continue(bucket) => bucket.count(&mut receipt),
+                    }
+                    if q.answered() {
                         receipt.abandoned += (candidates.len() - k - 1) + frontier.len();
                         frontier.clear();
                         break;
                     }
-                    ControlFlow::Continue(Bucket::Discharged)
-                        if [&readings.below, &readings.above]
-                            .into_iter()
-                            .any(|r| matches!(r, Some(Reading::Undecided(_)))) =>
-                    {
-                        receipt.refused += 1;
+                    continue;
+                }
+                if injective && x.face == y.face && x.region == Region::Trimmed {
+                    // **Injective by its carrier's kind**: one leaf, never
+                    // subdivided.
+                    match injective::by_kind(x.face, &x.surface, self.band) {
+                        Ok(()) => {
+                            receipt.discharged += 1;
+                            receipt.by_kind += 1;
+                        }
+                        Err(r) => {
+                            receipt.refused += 1;
+                            q.lower_refusal.get_or_insert(r);
+                        }
                     }
-                    ControlFlow::Continue(bucket) => bucket.count(&mut receipt),
+                    continue;
                 }
-                if q.answered() {
-                    receipt.abandoned += (candidates.len() - k - 1) + frontier.len();
-                    frontier.clear();
-                    break;
-                }
-                continue;
+                frontier.push(Task {
+                    k,
+                    i,
+                    j,
+                    pair: CellPair {
+                        a,
+                        b,
+                        depth: 0,
+                        fresh: true,
+                    },
+                    open,
+                });
             }
-            if injective && x.face == y.face && x.region == Region::Trimmed {
-                // **Injective by its carrier's kind**: one leaf, never
-                // subdivided.
-                match injective::by_kind(x.face, &x.surface, self.band) {
-                    Ok(()) => {
-                        receipt.discharged += 1;
-                        receipt.by_kind += 1;
-                    }
-                    Err(r) => {
-                        receipt.refused += 1;
-                        q.lower_refusal.get_or_insert(r);
-                    }
-                }
-                continue;
-            }
-            frontier.push(Task {
-                k,
-                i,
-                j,
-                pair: CellPair {
-                    a,
-                    b,
-                    depth: 0,
-                    fresh: true,
-                },
-                open,
-            });
-        }
 
-        let (receipt, deepest) = walk(self.budgets, receipt, frontier, wa, wb, &mut q);
-        let Bound {
-            region,
-            across,
-            cornered,
-            mut widths,
-            lower_refusal,
-            upper_refusal,
-            violation,
-            within,
-            ..
-        } = q;
-        widths.deepest = deepest;
-        // One count per window the sweep ran over, both sides: a query
-        // against itself was handed two copies of one list and counts
-        // each face twice, which is what "per window" means here.
-        let decided = region.decided();
+            let (receipt, deepest) = walk(self.budgets, receipt, frontier, wa, wb, &mut q);
+            let Bound {
+                region,
+                across,
+                cornered,
+                mut widths,
+                lower_refusal,
+                upper_refusal,
+                violation,
+                within,
+                ..
+            } = q;
+            widths.deepest = deepest;
+            // One count per window the sweep ran over, both sides: a query
+            // against itself was handed two copies of one list and counts
+            // each face twice, which is what "per window" means here.
+            let decided = region.decided();
 
-        let verdict = match (violation, lower_refusal, self.bound.upper(), within) {
-            (Some(w), ..) => BoundVerdict::Violated(w),
-            (None, Some(refusal), ..) => BoundVerdict::Refused(refusal),
-            (None, None, None, _) => BoundVerdict::Holds,
-            (None, None, Some(_), Some(w)) => BoundVerdict::Within(w),
-            (None, None, Some(_), None) => {
-                upper_refusal.map_or(BoundVerdict::Exceeded, BoundVerdict::Refused)
+            let verdict = match (violation, lower_refusal, self.bound.upper(), within) {
+                (Some(w), ..) => BoundVerdict::Violated(w),
+                (None, Some(refusal), ..) => BoundVerdict::Refused(refusal),
+                (None, None, None, _) => BoundVerdict::Holds,
+                (None, None, Some(_), Some(w)) => BoundVerdict::Within(w),
+                (None, None, Some(_), None) => {
+                    upper_refusal.map_or(BoundVerdict::Exceeded, BoundVerdict::Refused)
+                }
+            };
+            receipt.check_outside_is_a_sub_count();
+            BoundReport {
+                verdict,
+                receipt,
+                widths,
+                across,
+                cornered,
+                decided,
             }
-        };
-        receipt.check_outside_is_a_sub_count();
-        BoundReport {
-            verdict,
-            receipt,
-            widths,
-            across,
-            cornered,
-            decided,
-        }
+        })
     }
 }
 
@@ -2812,9 +2818,9 @@ impl MinSeparation {
 /// `OnVertex` is within the band of it, so either may bound the upper
 /// end; a cell the door cannot decide stays in the lower end, and a
 /// station the door does not place stays out of the upper. They choose
-/// which pairs feed the bracket and decide nothing a census must see, so
-/// they run in [`k_stats::unlogged`]'s scope (audit row F28), and
-/// [`MinSeparation::decided`] counts them.
+/// which pairs feed the bracket and decide nothing a census must see,
+/// and [`MinSeparation::decided`] counts them. Like [`Sweep::run`]'s,
+/// every reading runs in [`k_stats::unlogged`]'s scope (audit row F41).
 ///
 /// # Cost
 ///
@@ -2842,152 +2848,154 @@ pub fn min_separation<T: Decide + CertifiedBounds>(
     band: Band,
     budgets: Budgets,
 ) -> Result<MinSeparation, MinSeparationRefusal> {
-    for (side, which) in [(a, Which::First), (b, Which::Second)] {
-        if side.faces.is_empty() {
-            return Err(MinSeparationRefusal::EmptyScope { side: which });
+    k_stats::unlogged("F41", || {
+        for (side, which) in [(a, Which::First), (b, Which::Second)] {
+            if side.faces.is_empty() {
+                return Err(MinSeparationRefusal::EmptyScope { side: which });
+            }
         }
-    }
-    let narrow = |refusal| match refusal {
-        EngineRefusal::Unsupported {
-            carrier,
-            face,
-            side,
-        } => MinSeparationRefusal::Unsupported {
-            carrier,
-            face,
-            side,
-        },
-        other => unreachable!("`Side::windows` refuses only `Unsupported`, not {other:?}"),
-    };
-    let wa = a.windows(Which::First).map_err(narrow)?.of;
-    let wb = b.windows(Which::Second).map_err(narrow)?.of;
-    if same_body {
-        for x in &wa {
-            for y in &wb {
-                let shared = Shared::of(&x.boundary, &y.boundary, x.face == y.face);
-                let cell = if x.face == y.face {
-                    Some(SharedCell::Face(x.face))
-                } else {
-                    shared.cell(&x.boundary)
-                };
-                if let Some(shared) = cell {
-                    return Ok(MinSeparation {
-                        lo: 0.0,
-                        hi: Some(0.0),
-                        receipt: CellReceipt::default(),
-                        excluded: 0,
-                        decided: 0,
-                        meets: Some(Meets {
-                            a: x.face,
-                            b: y.face,
-                            shared,
-                        }),
-                    });
+        let narrow = |refusal| match refusal {
+            EngineRefusal::Unsupported {
+                carrier,
+                face,
+                side,
+            } => MinSeparationRefusal::Unsupported {
+                carrier,
+                face,
+                side,
+            },
+            other => unreachable!("`Side::windows` refuses only `Unsupported`, not {other:?}"),
+        };
+        let wa = a.windows(Which::First).map_err(narrow)?.of;
+        let wb = b.windows(Which::Second).map_err(narrow)?.of;
+        if same_body {
+            for x in &wa {
+                for y in &wb {
+                    let shared = Shared::of(&x.boundary, &y.boundary, x.face == y.face);
+                    let cell = if x.face == y.face {
+                        Some(SharedCell::Face(x.face))
+                    } else {
+                        shared.cell(&x.boundary)
+                    };
+                    if let Some(shared) = cell {
+                        return Ok(MinSeparation {
+                            lo: 0.0,
+                            hi: Some(0.0),
+                            receipt: CellReceipt::default(),
+                            excluded: 0,
+                            decided: 0,
+                            meets: Some(Meets {
+                                a: x.face,
+                                b: y.face,
+                                shared,
+                            }),
+                        });
+                    }
                 }
             }
         }
-    }
-    let root_a: Vec<Cell> = wa.iter().map(Cell::of).collect();
-    let root_b: Vec<Cell> = wb.iter().map(Cell::of).collect();
-    // **The root pass is quadratic in the admitted faces, and the tree
-    // is not used here.** The bound sweep excludes pairs by
-    // `pairs_within(reach)`, where `reach` is the bound the question
-    // names; this question names none, and the only honest reach is an
-    // upper bound on the answer — which is computed FROM these very
-    // root separations. So the pass that would parameterize the tree is
-    // the pass the tree would save, and running both would be work for
-    // its own sake. What the tree would have excluded is excluded here
-    // by the same inequality, and priced into `lo` by each dropped
-    // pair's own `separation_lo` rather than by a single reach.
-    let roots = root_separations((&wa, &root_a), (&wb, &root_b), same_body)?;
-    // The incumbent: the least upper bound on the FACES' separation the
-    // root pairs witness ([`Bracket::witness`]), which is what makes the
-    // very first bracket true.
-    let mut q = Bracket {
-        hi: None,
-        floor: f64::INFINITY,
-        poison: None,
-        region: RegionMemo::at(band),
-        faces: (
-            wa.iter().map(|w| w.face).collect(),
-            wb.iter().map(|w| w.face).collect(),
-        ),
-    };
-    for (i, j, _) in &roots {
-        if let (Some(x), Some(y), Some(&ca), Some(&cb)) =
-            (wa.get(*i), wb.get(*j), root_a.get(*i), root_b.get(*j))
-        {
-            q.witness((*i, x, ca), (*j, y, cb));
-        }
-    }
-    // Admission: a pair whose separation is entirely above the
-    // incumbent cannot hold the minimum. It is priced into the floor by
-    // its own `separation_lo` and never subdivided.
-    let mut frontier: Vec<Task> = Vec::new();
-    let mut excluded = 0usize;
-    for (i, j, sep) in &roots {
-        if q.above(sep.lo()) {
-            q.floor = q.floor.min(sep.lo());
-            excluded += 1;
-            continue;
-        }
-        let (Some(&a), Some(&b)) = (root_a.get(*i), root_b.get(*j)) else {
-            continue;
+        let root_a: Vec<Cell> = wa.iter().map(Cell::of).collect();
+        let root_b: Vec<Cell> = wb.iter().map(Cell::of).collect();
+        // **The root pass is quadratic in the admitted faces, and the tree
+        // is not used here.** The bound sweep excludes pairs by
+        // `pairs_within(reach)`, where `reach` is the bound the question
+        // names; this question names none, and the only honest reach is an
+        // upper bound on the answer — which is computed FROM these very
+        // root separations. So the pass that would parameterize the tree is
+        // the pass the tree would save, and running both would be work for
+        // its own sake. What the tree would have excluded is excluded here
+        // by the same inequality, and priced into `lo` by each dropped
+        // pair's own `separation_lo` rather than by a single reach.
+        let roots = root_separations((&wa, &root_a), (&wb, &root_b), same_body)?;
+        // The incumbent: the least upper bound on the FACES' separation the
+        // root pairs witness ([`Bracket::witness`]), which is what makes the
+        // very first bracket true.
+        let mut q = Bracket {
+            hi: None,
+            floor: f64::INFINITY,
+            poison: None,
+            region: RegionMemo::at(band),
+            faces: (
+                wa.iter().map(|w| w.face).collect(),
+                wb.iter().map(|w| w.face).collect(),
+            ),
         };
-        frontier.push(Task {
-            k: 0,
-            i: *i,
-            j: *j,
-            pair: CellPair {
-                a,
-                b,
-                depth: 0,
-                fresh: false,
-            },
-            open: Open {
-                below: true,
-                above: false,
-            },
-        });
-    }
-    let receipt = CellReceipt {
-        candidates: frontier.len(),
-        ..CellReceipt::default()
-    };
-    let (receipt, _) = walk(budgets, receipt, frontier, &wa, &wb, &mut q);
-    if let Some(poison) = q.poison {
-        return Err(poison);
-    }
-    let Bracket {
-        hi, floor, region, ..
-    } = q;
+        for (i, j, _) in &roots {
+            if let (Some(x), Some(y), Some(&ca), Some(&cb)) =
+                (wa.get(*i), wb.get(*j), root_a.get(*i), root_b.get(*j))
+            {
+                q.witness((*i, x, ca), (*j, y, cb));
+            }
+        }
+        // Admission: a pair whose separation is entirely above the
+        // incumbent cannot hold the minimum. It is priced into the floor by
+        // its own `separation_lo` and never subdivided.
+        let mut frontier: Vec<Task> = Vec::new();
+        let mut excluded = 0usize;
+        for (i, j, sep) in &roots {
+            if q.above(sep.lo()) {
+                q.floor = q.floor.min(sep.lo());
+                excluded += 1;
+                continue;
+            }
+            let (Some(&a), Some(&b)) = (root_a.get(*i), root_b.get(*j)) else {
+                continue;
+            };
+            frontier.push(Task {
+                k: 0,
+                i: *i,
+                j: *j,
+                pair: CellPair {
+                    a,
+                    b,
+                    depth: 0,
+                    fresh: false,
+                },
+                open: Open {
+                    below: true,
+                    above: false,
+                },
+            });
+        }
+        let receipt = CellReceipt {
+            candidates: frontier.len(),
+            ..CellReceipt::default()
+        };
+        let (receipt, _) = walk(budgets, receipt, frontier, &wa, &wb, &mut q);
+        if let Some(poison) = q.poison {
+            return Err(poison);
+        }
+        let Bracket {
+            hi, floor, region, ..
+        } = q;
 
-    // **The floor is capped at the incumbent**, and that cap is what
-    // makes the branch-and-bound sound rather than merely plausible. A
-    // pair dropped at `separation_lo ≥ hi` has a true minimum at least
-    // `hi`, so it can only hold the answer when the answer IS `hi` —
-    // and then `lo = hi` is the exact bracket rather than one that
-    // walked past the truth. When every pair discharges, that is
-    // precisely what comes out.
-    let lo = hi.map_or(floor, |hi| floor.min(hi));
-    // A face holds a point, and a cell holding a point of its face is
-    // never decided `Outside`. Every root cell holds its whole face, and
-    // the halves of a split cell hold its points between them, so some
-    // pair holding points of both faces is refused, abandoned or pruned
-    // by a witnessed `hi`, and each of those leaves `lo` finite.
-    assert!(
-        lo.is_finite(),
-        "kernel defect: `min_separation` priced no pair into its lower end and witnessed no \
-         upper end, so a region door decided `Outside` a cell holding a point of its face \
-         (receipt {receipt:?})"
-    );
-    Ok(MinSeparation {
-        lo,
-        hi,
-        receipt,
-        excluded,
-        decided: region.decided(),
-        meets: None,
+        // **The floor is capped at the incumbent**, and that cap is what
+        // makes the branch-and-bound sound rather than merely plausible. A
+        // pair dropped at `separation_lo ≥ hi` has a true minimum at least
+        // `hi`, so it can only hold the answer when the answer IS `hi` —
+        // and then `lo = hi` is the exact bracket rather than one that
+        // walked past the truth. When every pair discharges, that is
+        // precisely what comes out.
+        let lo = hi.map_or(floor, |hi| floor.min(hi));
+        // A face holds a point, and a cell holding a point of its face is
+        // never decided `Outside`. Every root cell holds its whole face, and
+        // the halves of a split cell hold its points between them, so some
+        // pair holding points of both faces is refused, abandoned or pruned
+        // by a witnessed `hi`, and each of those leaves `lo` finite.
+        assert!(
+            lo.is_finite(),
+            "kernel defect: `min_separation` priced no pair into its lower end and witnessed no \
+             upper end, so a region door decided `Outside` a cell holding a point of its face \
+             (receipt {receipt:?})"
+        );
+        Ok(MinSeparation {
+            lo,
+            hi,
+            receipt,
+            excluded,
+            decided: region.decided(),
+            meets: None,
+        })
     })
 }
 
@@ -3047,18 +3055,14 @@ impl Bracket {
         self.hi.is_some_and(|hi| lo >= hi)
     }
 
-    /// Whether either cell of a pair is decided outside its face, read
-    /// in the unlogged scope (audit row F28).
+    /// Whether either cell of a pair is decided outside its face.
     fn outside<T: Decide + CertifiedBounds>(
         &mut self,
         (i, x, a): (usize, &Window<'_, T>, Cell),
         (j, y, b): (usize, &Window<'_, T>, Cell),
     ) -> bool {
-        let region = &mut self.region;
-        k_stats::unlogged("F28", || {
-            region.ask(false, i, x, a) == CellRegion::Outside
-                || region.ask(true, j, y, b) == CellRegion::Outside
-        })
+        self.region.ask(false, i, x, a) == CellRegion::Outside
+            || self.region.ask(true, j, y, b) == CellRegion::Outside
     }
 
     /// **What a pair witnesses about the FACES' separation from above**,
@@ -3075,9 +3079,6 @@ impl Bracket {
     /// the band of the faces, enclosed over the whole parameter box, and
     /// it bounds the faces' minimum from above up to the band at every
     /// parameter point.
-    ///
-    /// The readings choose which pairs feed the incumbent and decide
-    /// nothing else, so they run in the unlogged scope (audit row F28).
     fn witness<T: Decide + CertifiedBounds>(
         &mut self,
         (i, x, a): (usize, &Window<'_, T>, Cell),
@@ -3093,17 +3094,14 @@ impl Bracket {
         }
         let stations = stations.hi();
         let region = &mut self.region;
-        let placed = k_stats::unlogged("F28", || {
-            let mut on = |side_b, index, w: &Window<'_, T>, c: Cell, station| match region
-                .ask(side_b, index, w, c)
-            {
-                CellRegion::Inside => true,
-                CellRegion::Outside => false,
-                CellRegion::Undecided => Candidate::placed(region, side_b, index, w, station),
-            };
-            on(false, i, x, a, sa) && on(true, j, y, b, sb)
-        });
-        if placed {
+        let mut on = |side_b, index, w: &Window<'_, T>, c: Cell, station| match region
+            .ask(side_b, index, w, c)
+        {
+            CellRegion::Inside => true,
+            CellRegion::Outside => false,
+            CellRegion::Undecided => Candidate::placed(region, side_b, index, w, station),
+        };
+        if on(false, i, x, a, sa) && on(true, j, y, b, sb) {
             self.hi = Some(stations);
         }
     }
@@ -3487,14 +3485,14 @@ fn window_of<'b, T: Decide + CertifiedBounds>(
 }
 
 /// **Whether a face's boundary winds nowhere**: the elements of all its
-/// joints, over every loop together, compose to the identity with no
-/// reset. A missing joint, or an outer loop with no edges, reads as
+/// joints, over every loop together, compose to the identity. A
+/// missing joint, or an outer loop with no edges, reads as
 /// winding; every hop of the walk is a link
 /// ([`crate::live::FaceView::boundary_by_loop`]).
 ///
-/// On a cone a reset is written at a joint on the apex
-/// ([`crate::joint`]); absent one, the composed `u` of the whole
-/// boundary is its winding about the axis. What a total of zero tells
+/// On a cone a joint on the apex stores the face's turn there
+/// ([`crate::joint`]), so the composed `u` of the whole boundary is its
+/// winding about the axis, a loop through the apex included. What a total of zero tells
 /// [`window_of`] is argued there.
 fn winds_nowhere<T: Decide>(body: &Body<T>, f: FaceView<'_, T>) -> bool {
     let mut elements = Vec::new();
@@ -3571,7 +3569,7 @@ const APPROXIMATED: &str = "an approximated face";
 /// face's boundary IS that domain's boundary, traversed once.
 ///
 /// The test reads the face's one loop through its lift
-/// ([`crate::pcurves::loop_lift`]): each half-edge's stored chart image,
+/// ([`crate::pcurves::Lift::read`]): each half-edge's stored chart image,
 /// moved by the joint elements summed along the loop, so the two halves
 /// of a seam sit on the two columns they bound. It admits when
 ///
@@ -3618,7 +3616,7 @@ fn iso_bounded_domain<T: Decide + CertifiedBounds>(
     ) else {
         return Err("a free-form face whose knot domain is not exact structure");
     };
-    let rows = crate::pcurves::loop_lift(body, f.outer)
+    let rows = crate::pcurves::Lift::read(body, f.outer)
         .map_err(|_| "a free-form face whose boundary stores no chart image to lift")?;
     let on_side = |(x, y): (Interval, Interval)| {
         let (x, y) = (exact(x), exact(y));
@@ -3629,15 +3627,12 @@ fn iso_bounded_domain<T: Decide + CertifiedBounds>(
             y == Some(v.1),
         ]
     };
-    let mut path: Vec<[(Interval, Interval); 2]> = Vec::with_capacity(rows.len());
+    let mut path: Vec<[(Interval, Interval); 2]> = Vec::with_capacity(rows.rows().len());
     for row in &rows {
-        if !matches!(
-            row.row.pcurve(),
-            Pcurve::IsoLine { .. } | Pcurve::IsoArc { .. }
-        ) {
+        if !matches!(&row.pcurve, Pcurve::IsoLine { .. } | Pcurve::IsoArc { .. }) {
             return Err(NOT_ISO);
         }
-        let (t0, t1) = row.row.params();
+        let (t0, t1) = row.params;
         let point = |t: T| {
             let p = row.pcurve.eval(t);
             (Interval::from_certified(p.x), Interval::from_certified(p.y))
@@ -3745,7 +3740,7 @@ fn narrows(whole: &Aabb, half: &Aabb) -> bool {
 /// The lifted boundary carries each edge's carrier and span, its two
 /// end vertices, and each of the face's half-edges on it with that
 /// half-edge's chart image off the loop's lift
-/// ([`crate::pcurves::loop_lift`]): its two end points and, where the
+/// ([`crate::pcurves::Lift::read`]): its two end points and, where the
 /// image is a coordinate line by variant, which coordinate it holds. A
 /// loop with no lift carries no images, which leaves the face
 /// unpresented rather than misread.
@@ -3774,7 +3769,7 @@ fn boundary_of<T: Decide + CertifiedBounds>(
                     cycle = true;
                 }
             }
-            if cycle && let Ok(rows) = crate::pcurves::loop_lift(body, lk) {
+            if cycle && let Ok(rows) = crate::pcurves::Lift::read(body, lk) {
                 if role.is_outer() {
                     let surface = f.surface();
                     let periodic =
@@ -3782,7 +3777,7 @@ fn boundary_of<T: Decide + CertifiedBounds>(
                     out.extent = extent_of(
                         periodic,
                         rows.iter().map(|row| {
-                            let (t0, t1) = row.row.params();
+                            let (t0, t1) = row.params;
                             let end = |t: T| {
                                 let q = row.pcurve.eval(t);
                                 [lift.of(q.x), lift.of(q.y)]
@@ -3797,7 +3792,7 @@ fn boundary_of<T: Decide + CertifiedBounds>(
                     );
                 }
                 for row in rows {
-                    let (t0, t1) = row.row.params();
+                    let (t0, t1) = row.params;
                     let end = |t: T| {
                         let q = row.pcurve.eval(t);
                         Point2::new(lift.of(q.x), lift.of(q.y))
@@ -4183,14 +4178,9 @@ fn separation(a: &Point3<Interval>, b: &Point3<Interval>) -> Interval {
 
 /// **Whether two cells are apart by more than `c` along a direction**:
 /// [`support_separation`] minus `c`, decided [`Sign::Positive`] at
-/// [`CLEARANCE_SUPPORT_GAP`] (audit row F29). Only that sign is read:
+/// [`CLEARANCE_SUPPORT_GAP`] (audit row F17). Only that sign is read:
 /// the support gap bounds the separation from below and from nowhere
 /// above, so no other sign says anything about the pair.
-///
-/// The margin is first read at the same site in the unlogged scope, and
-/// logged only where that reading is `Positive`: an in-band escalation
-/// here would cue a driver to bisect a parameter box that nothing here
-/// refines (F29).
 fn separated_by_support<T: Real>(
     pair: CellPair,
     x: &Window<'_, T>,
@@ -4199,26 +4189,23 @@ fn separated_by_support<T: Real>(
     band: Band,
 ) -> bool {
     support_separation((x, pair.a), (y, pair.b)).is_some_and(|d| {
-        let margin = d - c;
         matches!(
-            k_stats::check_unlogged(CLEARANCE_SUPPORT_GAP, margin, band, "F29"),
-            Ok(Sign::Positive)
-        ) && matches!(
-            decide(CLEARANCE_SUPPORT_GAP, Margin::of(margin), band),
+            decide(CLEARANCE_SUPPORT_GAP, Margin::of(d - c), band),
             Ok(Sign::Positive)
         )
     })
 }
 
 /// **What a cell's support along a direction is read off**: the
-/// control points of its carrier restricted to it, a plane's first-order
-/// expansion, or, for any other carrier and any net
+/// control points of its carrier restricted to it, an analytic
+/// carrier's mean-value form about the cell's centre, or, for any net
 /// [`NurbsSurface::rect_net`] refuses, the cell's box.
 enum Hull {
     Net(Vec<Point3<Interval>>),
-    /// A plane's point and partials at the cell's low corner, and the
-    /// cell's extent from it along each axis.
-    Plane {
+    /// The carrier's point at the cell's centre, its two partials
+    /// enclosed over the whole cell, and the cell's offset from the
+    /// centre along each axis.
+    Jet {
         at: Point3<Interval>,
         du: Vec3<Interval>,
         dv: Vec3<Interval>,
@@ -4230,21 +4217,20 @@ enum Hull {
 
 impl Hull {
     fn of(surface: &Surface<Interval>, c: Cell) -> Self {
-        if let Surface::Plane { .. } = surface {
+        let Some(net) = surface.spline_chart() else {
+            let span = |(lo, hi): (f64, f64)| Interval::from_bounds(lo, hi);
             let point = |x: f64| Interval::from_bounds(x, x);
-            let j = surface.point_jet(c.u.0, c.v.0);
-            return Self::Plane {
-                at: j.point,
+            let (mu, mv) = centre(c.u, c.v);
+            let j = surface.jet(span(c.u), span(c.v));
+            return Self::Jet {
+                at: surface.point_eval(mu, mv),
                 du: j.du,
                 dv: j.dv,
-                u: Interval::from_bounds(c.u.0, c.u.1) - point(c.u.0),
-                v: Interval::from_bounds(c.v.0, c.v.1) - point(c.v.0),
+                u: span(c.u) - point(mu),
+                v: span(c.v) - point(mv),
             };
-        }
-        match surface
-            .spline_chart()
-            .and_then(|net| net.rect_net(c.u, c.v))
-        {
+        };
+        match net.rect_net(c.u, c.v) {
             Some(points) => Self::Net(points),
             None => Self::Box(c.enc),
         }
@@ -4255,12 +4241,19 @@ impl Hull {
     /// With every restricted weight certified positive (which
     /// [`NurbsSurface::rect_net`] requires), each point of the cell is a
     /// convex combination of one knot cell's restricted points, so the
-    /// linear `⟨P, n⟩` lies in the hull of its values at them. A plane is
-    /// its own first-order expansion, so its point over the cell is the
-    /// corner's jet point plus the two partials times the parameter
-    /// offsets ([`Surface::jet`]), and the form is affine in the two
-    /// offset intervals and exact up to rounding. A box holds the cell,
-    /// so its own support does.
+    /// linear `⟨P, n⟩` lies in the hull of its values at them.
+    ///
+    /// An analytic chart is smooth, and the cell is convex, so for each
+    /// `(u, v)` of the cell the mean-value theorem, applied to
+    /// `f = ⟨S, n⟩` along the segment from the centre `m`, gives a point
+    /// `ξ` of the cell with
+    /// `f(u, v) = f(m) + ⟨S_u(ξ), n⟩·(u − m_u) + ⟨S_v(ξ), n⟩·(v − m_v)`.
+    /// [`Surface::jet`] at the cell's two intervals encloses `S_u` and
+    /// `S_v` at every point of the cell, `ξ` among them, and the offsets
+    /// lie in the cell less its centre, so the interval form holds
+    /// `f(u, v)`. Along the cell's own normal both partial terms vanish
+    /// at `m`, which leaves them second order in the cell. A box holds
+    /// the cell, so its own support does.
     fn support(&self, n: Vec3<Interval>) -> Interval {
         let dot = |p: Vec3<Interval>| p.x * n.x + p.y * n.y + p.z * n.z;
         let at = |p: Point3<Interval>| dot(Vec3::new(p.x, p.y, p.z));
@@ -4270,7 +4263,7 @@ impl Hull {
                 .map(|&p| at(p))
                 .reduce(geom_core::SpanLocate::enclosure_hull)
                 .unwrap_or_else(|| unreachable!("`rect_net` answers no empty net")),
-            Self::Plane {
+            Self::Jet {
                 at: p,
                 du,
                 dv,
@@ -4491,13 +4484,18 @@ fn split_self<T: Real>(pair: CellPair, w: &Window<'_, T>) -> Option<[CellPair; 3
 /// **The engine's door, as a value the document layer takes rather
 /// than a trait a scalar implements**: [`crate::QuadLane`]'s shape, for
 /// its reason. The layers above it stay generic over every evaluation
-/// scalar and read the door off [`crate::AtRestPolicy::clearance_lane`],
-/// the per-scalar policy home, refusing typed where it answers `None`.
+/// scalar and read the measure door off
+/// [`crate::AtRestPolicy::clearance_lane`], the per-scalar policy home,
+/// refusing typed where it answers `None`; the verdict door
+/// ([`embedded`]) holds one at every scalar with certification rights.
 ///
 /// Holding one is the statement that the scalar may certify: the one
 /// constructor ([`ClearanceLane::certified`]) is bounded on
-/// [`CertifiedBounds`], since every door it holds lifts what it reads
-/// through [`Interval::from_certified`] (this module's header). A
+/// [`CertifiedBounds`], since the lane holds the one crossing every
+/// stored value enters the engine through, [`Interval::from_certified`]
+/// (this module's header). The doors it holds take that crossing
+/// themselves, and a verifier reads a candidate's carriers already
+/// crossed ([`Candidate::enclosure`]), so no caller spells a lift. A
 /// scalar without that right cannot write the value:
 ///
 /// ```compile_fail,E0599
@@ -4622,6 +4620,125 @@ impl<T: Decide> ClearanceLane<T> {
     }
 }
 
+/// **What the verdict door answers** ([`embedded`]): the yes and the no
+/// of E7's self-intersection question, and the typed refusal that is
+/// neither.
+#[derive(Debug, Clone, PartialEq)]
+pub enum Embedding {
+    /// Every pair of the scope's faces, each face against itself
+    /// included, is certified apart off the cells of M it shares.
+    Embedded,
+    /// Two points of the boundary that are not one point of it, which
+    /// the verifier decided coincide.
+    Crosses(Crossing),
+    /// The engine could not certify the scope embedded: never read as
+    /// [`Self::Embedded`].
+    Refused(EngineRefusal),
+}
+
+/// **A verified self-intersection**: the verdict door's witness.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct Crossing {
+    /// The face holding the first point, then the face holding the
+    /// second: the same face when one face folds through itself.
+    pub faces: (FaceKey, FaceKey),
+    /// The two points, each as a `(u, v)` of its face's stored chart.
+    pub stations: [(f64, f64); 2],
+    /// How far apart the two points are at most, in metres: the upper
+    /// end of the separation decided not strictly positive at
+    /// [`SELF_INTERSECTION_GAP`].
+    pub distance: f64,
+}
+
+/// [`embedded`]'s answer and the cells it rests on.
+#[derive(Debug, Clone, PartialEq)]
+pub struct EmbeddingReport {
+    /// The verdict.
+    pub verdict: Embedding,
+    /// The sweep's counting receipt.
+    pub receipt: CellReceipt,
+}
+
+/// **The verdict door**: whether `side`'s faces, one body's, are
+/// embedded off what they share — E7's self-intersection question, every
+/// face against every face and itself, at the strict bound.
+///
+/// A function bounded on certification rights, not a per-scalar
+/// `Option`: it answers at every scalar that may certify (`f64`,
+/// `Probe`, `Interval`, and `Sym` over each), each through the lane's
+/// one crossing ([`ClearanceLane`]), so `Sym<f64>` answers as `f64`
+/// does, through the crossing `Sym<Interval>` takes. A dual cannot name
+/// it:
+///
+/// ```compile_fail,E0277
+/// use geom_core::Dual64;
+/// let _ = topo::clearance::embedded::<Dual64>;
+/// ```
+///
+/// The minimum-clearance measure is the other door
+/// ([`crate::AtRestPolicy::clearance_lane`]): a point build finds a near
+/// pair there, not a verdict, so it answers `None` at a point scalar.
+/// A yes or no needs no box: a crossing at one point of the family is a
+/// crossing.
+///
+/// **The witness is the verifier's own**: of the stations the engine
+/// places on the two faces, the pair whose separation, read on the
+/// candidate's carriers ([`Candidate::enclosure`]), is least at its
+/// upper end, decided at the strict site, where a separation in the band
+/// is a coincidence.
+pub fn embedded<T: Decide + CertifiedBounds>(
+    side: &Side<'_, T>,
+    band: Band,
+    budgets: Budgets,
+) -> EmbeddingReport {
+    let lane = ClearanceLane::<T>::certified();
+    let windows = match lane.windows(side, Which::First) {
+        Ok(windows) => windows,
+        Err(refusal) => {
+            return EmbeddingReport {
+                verdict: Embedding::Refused(refusal),
+                receipt: CellReceipt::default(),
+            };
+        }
+    };
+    let sweep = Sweep {
+        bound: ClearanceBound::StrictlyPositive,
+        band,
+        budgets,
+    };
+    let report = lane.sweep(&sweep, &windows, &windows, true, |candidate| {
+        let (faces, ask, over) = (candidate.faces(), candidate.ask(), candidate.enclosure());
+        let (la, lb) = lane.on_face_stations(candidate);
+        let mut best: Option<([(f64, f64); 2], Interval)> = None;
+        for &a in &la {
+            for &b in &lb {
+                let d = over.separation(a, b);
+                if best.is_none_or(|(_, w)| d.hi() < w.hi()) {
+                    best = Some(([a, b], d));
+                }
+            }
+        }
+        let (stations, distance) = best.ok_or("no station of either cell is on its face")?;
+        ask.confirms(distance, band).map(|()| Crossing {
+            faces,
+            stations,
+            distance: distance.hi(),
+        })
+    });
+    let verdict = match report.verdict {
+        BoundVerdict::Holds => Embedding::Embedded,
+        BoundVerdict::Violated(crossing) => Embedding::Crosses(crossing),
+        BoundVerdict::Refused(refusal) => Embedding::Refused(refusal),
+        BoundVerdict::Within(_) | BoundVerdict::Exceeded => {
+            unreachable!("the strict question has no upper bound")
+        }
+    };
+    EmbeddingReport {
+        verdict,
+        receipt: report.receipt,
+    }
+}
+
 /// **The door's WIRING**: which function each field of
 /// [`ClearanceLane::certified`] holds. Why a wiring row compares
 /// pointers rather than outputs: `certified_enclosure_impl_census`'s
@@ -4686,10 +4803,10 @@ mod wiring_rows {
         );
     }
 
-    /// Which scalars hold the door, one row for all of them: an answer
-    /// that flips at any scalar reds here by name.
+    /// Which scalars hold the measure door, one row for all of them: an
+    /// answer that flips at any scalar reds here by name.
     #[test]
-    fn the_door_answers_at_the_enclosure_scalars_and_nowhere_else() {
+    fn the_measure_door_answers_at_the_enclosure_scalars_and_nowhere_else() {
         use crate::AtRestPolicy;
         use geom_core::interval::Interval;
         let answers = |name, held: bool| (name, held);
@@ -4724,6 +4841,65 @@ mod wiring_rows {
             expected.push(("Probe", false));
         }
         assert_eq!(table, expected, "(scalar, holds the clearance door)");
+    }
+
+    /// The verdict door asked of a unit cube at `T`: whether it answers
+    /// embedded, and whether that answer rests on cell pairs it read.
+    #[allow(clippy::expect_used)]
+    fn the_verdict_door_on_a_cube<T>() -> (bool, bool)
+    where
+        T: super::Decide + geom_core::CertifiedBounds + crate::AtRestPolicy,
+    {
+        let tol = geom_core::Tol::witness();
+        let cube: crate::Body<T> =
+            crate::test_support_fixtures::brick((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), tol);
+        let side = super::Side {
+            body: &cube,
+            faces: cube.faces().map(|(k, _)| k).collect(),
+        };
+        let report = super::embedded(
+            &side,
+            geom_core::Band::linear(tol).expect("the witness tolerance has a band"),
+            super::Budgets {
+                max_cell_depth: super::DEFAULT_MAX_CELL_DEPTH,
+                max_cell_pairs: 65_536,
+            },
+        );
+        (
+            report.verdict == super::Embedding::Embedded,
+            report.receipt.candidates > 0,
+        )
+    }
+
+    /// Which scalars the verdict door answers at: every one with
+    /// certification rights, each having read the cube's cell pairs. A
+    /// dual cannot name it ([`super::embedded`]'s `compile_fail` row).
+    #[test]
+    fn the_verdict_door_answers_at_every_certifying_scalar() {
+        use geom_core::interval::Interval;
+        #[cfg_attr(not(feature = "probe"), allow(unused_mut))]
+        let mut table = vec![
+            ("f64", the_verdict_door_on_a_cube::<f64>()),
+            ("Interval", the_verdict_door_on_a_cube::<Interval>()),
+            (
+                "Sym<f64>",
+                the_verdict_door_on_a_cube::<geom_core::Sym<f64>>(),
+            ),
+            (
+                "Sym<Interval>",
+                the_verdict_door_on_a_cube::<geom_core::Sym<Interval>>(),
+            ),
+        ];
+        #[cfg(feature = "probe")]
+        table.push(("Probe", the_verdict_door_on_a_cube::<geom_core::Probe>()));
+        let expected: Vec<_> = table
+            .iter()
+            .map(|&(name, _)| (name, (true, true)))
+            .collect();
+        assert_eq!(
+            table, expected,
+            "(scalar, (answers embedded, read the cube's cell pairs))"
+        );
     }
 
     #[test]
@@ -5047,7 +5223,7 @@ mod cone_window {
             .collect();
         let winding = crate::joint::Winding::of(joints.expect("the cap's joints are stored"));
         assert!(
-            !winding.reset && winding.deck.u.abs() == 1,
+            winding.deck.u.abs() == 1,
             "the cap's circle winds once about the axis: {winding:?}"
         );
         let w = window_of(&body, face, Which::First).unwrap();
@@ -5447,12 +5623,8 @@ mod support_rows {
     use geom_core::spline::{KnotVector, Knots};
     use geom_core::{Bounds, Interval, Point3, Real, Vec3};
 
-    use super::{
-        CLEARANCE_SUPPORT_GAP, Cell, CellPair, Hull, Which, poisoned, separated_by_support,
-        window_of,
-    };
+    use super::{Cell, CellPair, Hull, Which, poisoned, separated_by_support, window_of};
     use crate::test_support_fixtures::trv;
-    use geom_core::k_stats::Bracket;
     use geom_core::{Band, Tol};
 
     /// The quarter of the unit cylinder from `x` to `y`, `z ∈ [0, 1]`:
@@ -5534,6 +5706,114 @@ mod support_rows {
         }
     }
 
+    /// **An analytic cell's support holds its points, and along its own
+    /// normal is narrower than its box's.** A cell of a cone, a torus, a
+    /// cylinder and a sphere, each read along its centre normal and two
+    /// other directions, meets the enclosure of `⟨S(u, v), n⟩` at each
+    /// point of an 11 × 11 grid of the cell, which both hold; a cell a
+    /// quarter turn wide is held too. Along the centre normal a small
+    /// cell's support is under a quarter of its box's. Red if the
+    /// mean-value form drops a partial's enclosure over the cell (read
+    /// at the centre only, a wide cell's points fall outside it), or if
+    /// an analytic cell is read by its box.
+    #[test]
+    fn an_analytic_cells_support_holds_its_points_and_is_narrower_than_its_box() {
+        let o = Point3::new(0.1, -0.2, 0.3);
+        let (axis, u_ref) = (Vec3::new(0.0, 0.0, 1.0), Vec3::new(1.0, 0.0, 0.0));
+        let surfaces = [
+            (
+                "cone",
+                Surface::Cone {
+                    apex: o,
+                    axis,
+                    half_angle: 30f64.to_radians(),
+                    u_ref,
+                },
+                (1.0, 1.1),
+            ),
+            (
+                "torus",
+                Surface::Torus {
+                    center: o,
+                    axis,
+                    major_radius: 1.6,
+                    minor_radius: 0.8,
+                    u_ref,
+                },
+                (2.5, 2.6),
+            ),
+            (
+                "cylinder",
+                Surface::Cylinder {
+                    origin: o,
+                    axis,
+                    radius: 0.7,
+                    u_ref,
+                },
+                (0.2, 0.3),
+            ),
+            (
+                "sphere",
+                Surface::Sphere {
+                    center: o,
+                    radius: 0.9,
+                    axis,
+                    u_ref,
+                },
+                (0.4, 0.5),
+            ),
+        ];
+        for (what, s, v) in surfaces {
+            let s = s.map_scalar(Interval::from_f64);
+            for (u, v, small) in [
+                ((0.30, 0.35), v, true),
+                ((0.0, core::f64::consts::FRAC_PI_2), (v.0, v.0 + 0.5), false),
+            ] {
+                let cell = Cell::on(&s, u, v);
+                let hull = Hull::of(&s, cell);
+                assert!(
+                    matches!(hull, Hull::Jet { .. }),
+                    "{what}: an analytic cell is read by its jet"
+                );
+                let (um, vm) = (0.5 * (u.0 + u.1), 0.5 * (v.0 + v.1));
+                let normal = s.normal(Interval::from_f64(um), Interval::from_f64(vm));
+                let mid = |i: Interval| 0.5 * (i.lo() + i.hi());
+                let centre_normal = Vec3::new(mid(normal.x), mid(normal.y), mid(normal.z));
+                for n in [
+                    centre_normal,
+                    Vec3::new(1.0, 0.3, -0.2),
+                    Vec3::new(-0.4, 1.0, 0.7),
+                ] {
+                    let n = n.map(Interval::from_f64);
+                    let support = hull.support(n);
+                    assert!(!poisoned(support), "{what} {u:?} {n:?}: {support:?}");
+                    for i in 0..=10 {
+                        for j in 0..=10 {
+                            let pu = u.0 + (u.1 - u.0) * f64::from(i) / 10.0;
+                            let pv = v.0 + (v.1 - v.0) * f64::from(j) / 10.0;
+                            let p = s.eval(Interval::from_f64(pu), Interval::from_f64(pv));
+                            let at = p.x * n.x + p.y * n.y + p.z * n.z;
+                            assert!(
+                                support.lo() <= at.hi() && at.lo() <= support.hi(),
+                                "{what} {u:?} × {v:?} along {n:?}: the support {support:?} \
+                                 meets the point's enclosure at ({pu}, {pv}), {at:?}"
+                            );
+                        }
+                    }
+                }
+                if small {
+                    let n = centre_normal.map(Interval::from_f64);
+                    let (support, boxed) = (hull.support(n), Hull::Box(cell.enc).support(n));
+                    assert!(
+                        support.hi() - support.lo() < 0.25 * (boxed.hi() - boxed.lo()),
+                        "{what} {u:?} × {v:?}: along the centre normal the jet's support \
+                         {support:?} is under a quarter of the box's {boxed:?}"
+                    );
+                }
+            }
+        }
+    }
+
     /// **A net whose weights do not certify is not read**: the quarter
     /// cylinder with its middle weights carrying a refused decoration
     /// reads the cell's box, whose support does not certify, against
@@ -5562,15 +5842,13 @@ mod support_rows {
         }
     }
 
-    /// **The support compare logs only what discharges.** The unit
+    /// **The support compare discharges only off the band.** The unit
     /// cube's `+x` face and its copy's `-x` face are `1` apart, and
     /// their planes' supports read that exactly. Against a bound `1 − m`
-    /// with `m` inside the band, the margin is in band: nothing is
-    /// separated and nothing is logged at the site. Against `0.5` the
-    /// pair is separated and one `Positive` verdict is logged. Red if
-    /// the unlogged reading that gates the logged decision is dropped.
+    /// with `m` inside the band, the margin is in band and the pair is
+    /// not separated; against `0.5` it is.
     #[test]
-    fn the_support_compare_logs_only_what_discharges() {
+    fn the_support_compare_discharges_only_off_the_band() {
         let brick = |x| {
             crate::test_support_fixtures::brick::<Interval>(
                 x,
@@ -5613,25 +5891,8 @@ mod support_rows {
         let band = Band::linear(Tol::witness()).unwrap();
         let in_band = 0.5 * (band.zero() + band.escalate());
         for (c, separated) in [(1.0 - in_band, false), (0.5, true)] {
-            let bracket = Bracket::open();
             let read = separated_by_support(pair, &wa, &wb, Interval::from_f64(c), band);
-            let recorded = bracket.finish();
             assert_eq!(read, separated, "separated against {c}");
-            let escalations = recorded
-                .escalations
-                .iter()
-                .filter(|e| e.predicate() == CLEARANCE_SUPPORT_GAP)
-                .count();
-            let verdicts = recorded
-                .verdicts
-                .iter()
-                .filter(|v| v.predicate == CLEARANCE_SUPPORT_GAP)
-                .count();
-            assert_eq!(
-                (escalations, verdicts),
-                (0, usize::from(separated)),
-                "against {c}: the site logs only the discharge: {recorded:?}"
-            );
         }
     }
 }

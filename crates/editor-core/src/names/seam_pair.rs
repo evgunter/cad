@@ -57,8 +57,10 @@ fn head(seg: &RoleSeg) -> Head<'_> {
         | RoleSeg::TrimEdge { .. }
         | RoleSeg::FootVertex { .. }
         | RoleSeg::EndArc { .. }
+        | RoleSeg::HostFoot { .. }
         | RoleSeg::Mitre { .. }
         | RoleSeg::TurnFoot { .. }
+        | RoleSeg::BandSection { .. }
         | RoleSeg::BandFace(_)
         | RoleSeg::BandTrim { .. }
         | RoleSeg::BandFoot(_)

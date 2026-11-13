@@ -76,7 +76,7 @@ const SPLIT: Door = Door {
 };
 const SPLIT_JOIN: Door = Door {
     prefixes: &["chord_"],
-    error: std::any::type_name::<topo::SplitJoinError>,
+    error: std::any::type_name::<topo::JoinError>,
 };
 const POINT_IN_LOOP: Door = Door {
     prefixes: &["point_in_"],
@@ -192,8 +192,6 @@ const EXCEPTIONS: &[(&str, &Door)] = &[
     ("keep_turn_row", &REPLACE_FACE),
     ("positive_volume", &VALIDATION),
     ("positive_volume_enclosure", &VALIDATION),
-    ("cone_row_apex", &CHART_REGION),
-    ("nearest_branch_row", &CHART_REGION),
     ("period_fold_row", &CHART_REGION),
     ("each_branch_row", &PCURVES),
     ("first_within_row", &PCURVES),
@@ -201,7 +199,6 @@ const EXCEPTIONS: &[(&str, &Door)] = &[
     ("planar_winding_spiric_refine", &PCURVES),
     ("undecided_mark_row", &PCURVES),
     ("arm", &UNIT_TEST),
-    ("datum", &UNIT_TEST),
     // `splitting::finish`'s `escalation_endings` rows.
     ("finish_straddle", &UNIT_TEST),
     ("probe_oracle", &UNIT_TEST),
@@ -244,7 +241,6 @@ const CARRIERS: &[NameCarrier] = &[
     NameCarrier::Call("clear_of_arc_as"),
     NameCarrier::Call("clear_of_boundary_as"),
     NameCarrier::Call("clears_as"),
-    NameCarrier::Call("coincident_over_extent_as"),
     NameCarrier::Call("escalation_as"),
     NameCarrier::Call("first_count_as"),
     NameCarrier::Call("first_order_as"),
@@ -267,16 +263,8 @@ const CARRIERS: &[NameCarrier] = &[
     NameCarrier::Call("side_at_closest_as"),
     NameCarrier::Call("signed_is_zero_as"),
     NameCarrier::Call("span_clear_as"),
-    // The identity data's names ([`IDENTITY`], [`IDENTITY_DATA`]).
+    // The identity data's names ([`IDENTITY`]).
     NameCarrier::Const("BOOL_WRAP_RIM"),
-    NameCarrier::Const("CARRIER_CONE_APEX"),
-    NameCarrier::Const("CARRIER_CONE_AXIS_PARALLEL"),
-    NameCarrier::Const("CARRIER_CONE_HALF_ANGLE"),
-    NameCarrier::Const("CARRIER_CYL_AXIS_OFFSET"),
-    NameCarrier::Const("CARRIER_CYL_AXIS_PARALLEL"),
-    NameCarrier::Const("CARRIER_CYL_RADIUS"),
-    NameCarrier::Const("CARRIER_SPHERE_CENTER"),
-    NameCarrier::Const("CARRIER_SPHERE_RADIUS"),
     NameCarrier::Const("POINT_IN_LOOP_NORMAL"),
     NameCarrier::Const("POINT_IN_LOOP_PLANE"),
     NameCarrier::Const("POINT_IN_LOOP_QUERY"),
@@ -286,14 +274,10 @@ const CARRIERS: &[NameCarrier] = &[
     NameCarrier::Const("SEAM_LINE_COLLINEAR"),
     // A name, or a row and its straddle row, spelled in a `const` and
     // handed to a funnel by it.
-    NameCarrier::Const("CONE_REACH"),
     NameCarrier::Const("CONTACT_TANGENT_ON_1"),
     NameCarrier::Const("CONTACT_TANGENT_ON_2"),
-    NameCarrier::Const("CYL_REACH"),
-    NameCarrier::Const("PLANE_REACH"),
     // The region doors' order and crossing rows (`Region::SIDE`).
     NameCarrier::Const("SIDE_ROWS"),
-    NameCarrier::Const("SPHERE_REACH"),
     NameCarrier::Const("APERTURE"),
     NameCarrier::Const("APEX"),
     NameCarrier::Const("SELF_INTERSECTION_APEX"),
@@ -331,6 +315,7 @@ const CARRIERS: &[NameCarrier] = &[
     NameCarrier::Const("LINK_PIECE_REACH"),
     NameCarrier::Const("LINK_ARC"),
     NameCarrier::Const("LINK_ARC_REACH"),
+    NameCarrier::Const("LINK_NORMAL"),
     NameCarrier::Const("LINK_PLANE"),
     NameCarrier::Const("LINK_ROUND"),
     NameCarrier::Const("LINK_SECOND_ORDER"),
@@ -451,8 +436,6 @@ const ROW_FIELD: &str = "a field of a row struct, whose names are read at the st
 const ACCESSOR_LIKE_A_DOOR: &str = "a row bundle's accessor sharing a door's name \
      (`names.straddle()`, a `WedgeNames` row; `.turn()`, a `TurnRows` row), read as that door's call with no first argument";
 const IDENTITY: &str = "a `read_identity` call over data named by declared consts";
-const IDENTITY_DATA: &str = "a `read_identity` call over `sphere_data`, `cylinder_data` and \
-                             `cone_data`, whose names are declared consts";
 const CLOSED_TYPE: &str = "a closed type's `predicate()`, whose names are spelled in its own \
                            match, which the census does not read";
 const TUPLE_PAIRS: &str = "a batch of `(name, value)` pairs, which the census does not open yet \
@@ -473,16 +456,7 @@ const CLOSURE_FORWARDS: &str = "a closure bound in this `fn` hands on its caller
 /// `<file>: <expr>`, with what carries the name there.
 const INDIRECT: &[(&str, &str)] = &[
     (
-        "boolean/carrier_eq.rs: coincident_over_extent_as: row",
-        FORWARDS,
-    ),
-    ("boolean/carrier_eq.rs: pair_door_reading: c1", CARRIER_CALL),
-    (
-        "boolean/carrier_eq.rs: read_identity#1(margins.iter().copied())",
-        IDENTITY_DATA,
-    ),
-    (
-        "boolean/carrier_eq.rs: the_ladder_reads_two_tori_as_their_pose_does: &surface(ring)",
+        "boolean/carrier_ladder_rows.rs: the_ladder_reads_two_tori_as_their_pose_does: &surface(ring)",
         NOT_A_NAME,
     ),
     (
@@ -771,7 +745,7 @@ const INDIRECT: &[(&str, &str)] = &[
         NOT_A_NAME,
     ),
     (
-        "pcurves.rs: a_spline_gate_that_is_not_off_writes_a_reset: chart(&s)",
+        "pcurves.rs: a_spline_gate_that_is_undecided_refuses_and_writes_nothing: chart(&s)",
         NOT_A_NAME,
     ),
     (
@@ -795,7 +769,15 @@ const INDIRECT: &[(&str, &str)] = &[
         "pcurves.rs: only_a_net_closed_in_v_decides_a_v_element: super::DescribedChart::of(s).unwrap()",
         NOT_A_NAME,
     ),
+    ("pcurves.rs: decide_plain_joint: chart", NOT_A_NAME),
     ("pcurves.rs: pcurve_pass: chart", NOT_A_NAME),
+    // The pass's closure over one joint of a cycle, by its index.
+    ("pcurves.rs: pcurve_pass: i", NOT_A_NAME),
+    ("pcurves.rs: pcurve_pass: slit", NOT_A_NAME),
+    // The split's boxed joint decisions, asked with the rest of the
+    // loop or without it.
+    ("pcurves.rs: split_cache: None", NOT_A_NAME),
+    ("pcurves.rs: split_cache: Some(rest)", NOT_A_NAME),
     ("pcurves.rs: split_cache: chart", NOT_A_NAME),
     ("pcurves.rs: turn_element: chart", NOT_A_NAME),
     (

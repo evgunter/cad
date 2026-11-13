@@ -1002,7 +1002,7 @@ impl<T: SpanLocate> Reach<T> {
     ///   exact on a segment and a circle; a closed rim, whose two
     ///   endpoints coincide, is exactly the case sampling misses. A face
     ///   measure that levers its boundary edges round their carriers
-    ///   reads this (`splitting::rules::face_reach_round_from` in `topo`).
+    ///   reads this (`face_reach::face_reach_round_from` in `topo`).
     #[must_use]
     pub fn lever_from(&self, pivot: Point3<T>) -> Lever<T> {
         Lever::of_consumed_extent(self.reach_from(pivot))
@@ -1028,7 +1028,7 @@ impl<T: SpanLocate> Reach<T> {
     /// meet with the whole conic's ([`geom::cover::Cover::arc`]), whose
     /// far distance is the lesser of the two. The face
     /// measures read it
-    /// (`splitting::rules::face_reach_from` in `topo`); the section arms'
+    /// (`face_reach::face_reach_from` in `topo`); the section arms'
     /// anchors read [`Self::lever_from`].
     #[must_use]
     pub fn span_reach_from(&self, pivot: Point3<T>) -> Lever<T> {

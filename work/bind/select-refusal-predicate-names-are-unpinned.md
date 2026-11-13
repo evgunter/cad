@@ -33,9 +33,8 @@ Five names reachable, one pinned:
 * `PairInBand` — `source.predicate.unwrap_or("carrier_pair_relation")`
   (`crates/editor-core/src/names/flush.rs:270`). The funnel sites it
   can carry are the C4 ladder's own, per carrier kind:
-  `"bool_plane_parallel"`, `"bool_plane_orient"`,
-  `"bool_plane_offset"`
-  (`crates/topo/src/boolean/plane_eq.rs:203,225,242,274,282,301,311`),
+  `"plane_eq_parallel"`, `"plane_eq_orient"`,
+  `"plane_eq_offset"` (renamed from `bool_plane_*` in PR 6909, which moved the ladder to `crates/geom-brep/src/plane_eq.rs`),
   and, since SEAT-FW pointed the detector at the whole ladder,
   `"carrier_sphere_*"`, `"carrier_cyl_*"` and `"carrier_torus_*"`
   (`crates/topo/src/boolean/carrier_eq.rs:254,289,324` and their
@@ -62,7 +61,7 @@ why it is an issue rather than a rider.
 
 ## Re-homed (2026-09-08, LIB orchestrator)
 
-Moved from `work/lib/` to `work/bool/`: the predicate constants live in `crates/topo/src/boolean/{plane_eq,carrier_eq}.rs` and `crates/editor-core/src/names/{geompred,flush}.rs` — the K name-space job the file names; the pin site in `crates/pncad-py/src/tests.rs` is LIB's and follows the constants. Id, body and header
+Moved from `work/lib/` to `work/bool/`: the predicate constants live in `crates/geom-brep/src/{plane_eq,carrier_eq}.rs` and `crates/editor-core/src/names/{geompred,flush}.rs` — the K name-space job the file names; the pin site in `crates/pncad-py/src/tests.rs` is LIB's and follows the constants. Id, body and header
 are unchanged; the directory is the claim (`work/README.md`). LIB's
 half — the Python/façade rows that move when this closes — is named in
 the body and stays LIB's to execute once the kernel side lands.

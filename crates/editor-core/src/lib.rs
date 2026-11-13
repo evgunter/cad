@@ -137,7 +137,7 @@ pub use drive::{
 pub use edit::{
     Applied, CarryForwardDoor, DEFINITION_NODE_BOUND, DocEdit, EditError, EditRecord, IndexFault,
     LoftFault, Maintenance, MaintenanceNet, MeasureOutcome, Measured, ProductReadFault, Recorded,
-    Recording, SketchOutcome, SketchedOnFace, SlotValue, Took, apply, apply_replayed,
+    Recording, SketchOutcome, SketchedOnFace, SlotValue, SourceFault, Took, apply, apply_replayed,
     cascade_delete_order, measure, sketch_on_face, slot_admits,
 };
 pub use eval::measure::ObservedRefusal;
@@ -146,8 +146,8 @@ pub use eval::{
     ComputingTwist, ContentBits, ContentKey, DEFAULT_MEMBER_BUDGET, DirectionRefusal, Epoch,
     EvalCounters, EvalOptions, EvalOutcome, EvalScalar, Evaluation, Framed, Held, NamingKey,
     NodeError, NodeErrorClass, NodeErrorKind, NodeRefusal, NodeResult, NodeStanding, NodeValue,
-    PartFault, Piece, Pieces, PoseValue, ProfileLane, ProfilePieces, ReadIn, SplitSide, Stop,
-    Stopped, ValuePayload, evaluate, traced_faces,
+    PartFault, Piece, Pieces, PoseValue, ProfileLane, ProfilePieces, SplitSide, Stop, Stopped,
+    ValuePayload, evaluate, traced_faces,
 };
 pub use eval::{BoundToRecord, OwnRecord, RecordMispairing, evaluate_recorded};
 pub use refusal::Refusal;

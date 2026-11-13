@@ -251,7 +251,7 @@ fn a_bridges_far_foot_keeps_its_record() {
     .expect("a rigid motion");
     let bridge = finished(
         "the turned bridge",
-        topo::transform_rigid(&bridge, &motion, tol()).expect("the bridge turns"),
+        topo::transform_rigid(&bridge, &motion).expect("the bridge turns"),
         tol(),
     );
     let far = plane_beyond(&bridge, false, 800.0);

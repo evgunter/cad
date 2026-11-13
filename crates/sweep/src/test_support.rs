@@ -632,6 +632,50 @@ pub fn one_edge_rim_at(body: &Body<f64>, rim_r: f64, rim_y: f64) -> EdgeKey {
     }
 }
 
+/// **An L prism's reflex vertical edge and one floor edge of its
+/// corner**: the edge of `body` standing at plan point `(x, y)` and the
+/// edge in the floor `z = 0` from that corner along `y = const`, each
+/// matched within `1e-9`. The pair is the mixed corner's odd edge with
+/// one other, the request its rule does not build.
+///
+/// # Panics
+///
+/// Where either is not exactly one edge.
+#[must_use]
+pub fn reflex_edge_and_floor_leg(body: &Body<f64>, (x, y): (f64, f64)) -> [EdgeKey; 2] {
+    let near = |a: f64, b: f64| (a - b).abs() < 1e-9;
+    let ends = |e: EdgeKey| {
+        let (a, b) = body.edge_vertices(e).expect("a live edge's ends");
+        let p = |v| {
+            *body
+                .get_point(body.get_vertex(v).expect("a live vertex").point)
+                .expect("a vertex's point")
+        };
+        (p(a), p(b))
+    };
+    let at_corner = |p: Point3<f64>| near(p.x, x) && near(p.y, y);
+    let one = |what: &str, keep: &dyn Fn(Point3<f64>, Point3<f64>) -> bool| {
+        let found: Vec<EdgeKey> = topo::query::all_edges(body)
+            .into_iter()
+            .filter(|&e| {
+                let (a, b) = ends(e);
+                keep(a, b)
+            })
+            .collect();
+        assert_eq!(found.len(), 1, "one {what} at ({x}, {y})");
+        found[0]
+    };
+    let reflex = one("reflex vertical edge", &|a, b| at_corner(a) && at_corner(b));
+    let floor_leg = one("floor edge of the reflex corner", &|a, b| {
+        near(a.z, 0.0)
+            && near(b.z, 0.0)
+            && near(a.y, y)
+            && near(b.y, y)
+            && (at_corner(a) || at_corner(b))
+    });
+    [reflex, floor_leg]
+}
+
 /// **The circle edges at radius `rim_r` and station `rim_y` whose two
 /// supports are different surfaces**, in key order — the raw scan, and
 /// deliberately NOT a rim.
@@ -743,7 +787,6 @@ pub fn ball_poled_y<T: Decide + topo::AtRestPolicy>(r: T, c: Vec3<T>, tol: Tol) 
     topo::transform_rigid(
         &ball_about_origin(r, tol),
         &geom_core::RigidMotion::translation(c).unwrap(),
-        tol,
     )
     .unwrap()
 }
@@ -785,15 +828,9 @@ pub fn ball_poled_z_at<T: Decide + topo::AtRestPolicy>(r: T, c: Vec3<T>, tol: To
             ),
             tol,
         ),
-        tol,
     )
     .unwrap();
-    topo::transform_rigid(
-        &poled,
-        &geom_core::RigidMotion::translation(c).unwrap(),
-        tol,
-    )
-    .unwrap()
+    topo::transform_rigid(&poled, &geom_core::RigidMotion::translation(c).unwrap()).unwrap()
 }
 
 /// A radius-`r` ball centred at `c` with its POLAR AXIS along `pole`.
@@ -824,7 +861,6 @@ pub fn ball_poled(r: f64, c: Vec3<f64>, pole: Vec3<f64>, tol: Tol) -> Body<f64> 
                     ),
                     tol,
                 ),
-                tol,
             )
             .unwrap()
         }
@@ -839,16 +875,10 @@ pub fn ball_poled(r: f64, c: Vec3<f64>, pole: Vec3<f64>, tol: Tol) -> Body<f64> 
                 ),
                 tol,
             ),
-            tol,
         )
         .unwrap()
     };
-    topo::transform_rigid(
-        &placed,
-        &geom_core::RigidMotion::translation(c).unwrap(),
-        tol,
-    )
-    .unwrap()
+    topo::transform_rigid(&placed, &geom_core::RigidMotion::translation(c).unwrap()).unwrap()
 }
 
 /// **The toroidal spool**: an annular meridian whose outer wall is an
@@ -1422,6 +1452,7 @@ pub fn assert_naming_totality<T: topo::AtRestPolicy>(
         .map(|(e, _, _)| *e)
         .chain(rec.meridian_remnants.iter().map(|(e, _)| *e))
         .chain(rec.slits.iter().map(|(e, _, _)| *e))
+        .chain(rec.sections.iter().map(|(e, _, _)| *e))
         .chain(rec.trims.iter().map(|(e, _, _)| *e))
         .chain(rec.arcs.iter().map(|(e, _, _)| *e))
         .chain(rec.mitres.iter().map(|(e, _)| *e))
@@ -1433,6 +1464,7 @@ pub fn assert_naming_totality<T: topo::AtRestPolicy>(
         .chain(rec.meridian_splits.iter().map(|(v, _, _)| *v))
         .chain(rec.feet.iter().map(|(v, _, _)| *v))
         .chain(rec.turn_feet.iter().map(|(v, _)| *v))
+        .chain(rec.host_feet.iter().map(|(v, _, _)| *v))
         .collect();
     // (e) recorded once each.
     fn once<K: Ord + Copy>(v: &mut Vec<K>, what: &str, kind: &str) {
@@ -1457,6 +1489,7 @@ pub fn assert_naming_totality<T: topo::AtRestPolicy>(
         .iter()
         .copied()
         .chain(rec.slits.iter().map(|(e, m, _)| (*e, *m)))
+        .chain(rec.sections.iter().map(|(e, m, _)| (*e, *m)))
         .collect();
     for e in &minted_edges {
         match fragments.iter().find(|(k, _)| k == e) {

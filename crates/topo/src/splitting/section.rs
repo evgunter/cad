@@ -376,7 +376,7 @@ where
     }
     let nesting = section_loops::nest(&red.body, outlines, holes, normal, band).map_err(
         |fault| match fault {
-            NestFault::Torn => SectionError::Corrupt,
+            NestFault::Torn(_) => SectionError::Corrupt,
             NestFault::Contradiction(hole) => SectionError::NestingContradiction {
                 corner: hole.points()[0],
             },
@@ -462,12 +462,12 @@ enum HalfCarrier<T: Real> {
 ///
 /// [`SectionError::Corrupt`] on a dangling key or an unclaimed half;
 /// a lone-vertex loop is a broken section invariant
-/// ([`crate::chord_join::SplitJoinError::SectionInvariant`]).
+/// ([`crate::chord_join::JoinError::SectionInvariant`]).
 fn section_walk<T: Decide>(body: &Body<T>, l: LoopKey) -> Result<Vec<Half<T>>, SectionError<T>> {
     let loop_data = body.get_loop(l).ok_or(SectionError::Corrupt)?;
     let LoopBoundary::Cycle { first } = loop_data.boundary else {
         return Err(
-            SplitError::Join(crate::chord_join::SplitJoinError::SectionInvariant {
+            SplitError::Join(crate::chord_join::JoinError::SectionInvariant {
                 face: loop_data.face,
                 what: "a completed section polygon's below loop holds a lone vertex instead of a \
                    cycle",

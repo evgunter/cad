@@ -219,18 +219,19 @@ fn every_reachable_chamfer_refusal_speaks_as_the_chamfer() {
     ));
     assert_speaks_as_the_chamfer(&clearance, "clearance");
 
-    // The shared corner-configuration vocabulary: the L-bracket's every
-    // edge, which requests each mixed-convexity corner whole — the
-    // corner CONFIGURATION case (distinct from the run-out row above,
-    // which is about the REQUEST's coverage).
+    // The shared corner-configuration vocabulary: the L-bracket's reflex
+    // edge with one floor edge of its corner, which the mixed corner's
+    // rule does not build — the corner CONFIGURATION case (distinct from
+    // the run-out row above, which is about the REQUEST's coverage).
     let bracket = l_bracket();
+    let odd_and_one = sweep::test_support::reflex_edge_and_floor_leg(&bracket, (0.5, 0.5));
     let corner = chamfer_edges(
         &sweep::test_support::at_rest(&bracket, t),
-        &query::all_edges(&bracket),
+        &odd_and_one,
         D,
         t,
     )
-    .expect_err("a mixed-convexity corner requested whole has no corner patch");
+    .expect_err("a mixed-convexity corner's odd edge with one other has no rule built");
     assert!(matches!(corner.error, BlendError::UnsupportedCorner { .. }));
     assert_speaks_as_the_chamfer(&corner, "corner-config");
 }

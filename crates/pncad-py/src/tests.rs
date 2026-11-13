@@ -4412,6 +4412,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "arc_loop_containment_unsupported",
             "band",
             "carry_refused",
+            "carve",
             "classification_invariant",
             "coincident_shell",
             "containment",
@@ -4484,7 +4485,8 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "spline_crossing_unsettled",
             "split_lineage_cycle",
             "tangency_unsupported",
-            "tool_seat_crossed",
+            "tool_fuse_refused",
+            "tool_seat_unread",
             "torn_component",
             "touches_itself",
             "underflowed_sector_chord",
@@ -4736,6 +4738,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "pick_path",
             "pin_unchanged",
             "placement_axis",
+            "placement_reads_no_source",
             "pose_shape",
             "product_read",
             "profile_program_refused",
@@ -4758,10 +4761,14 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "slot_unknown_var_name",
             "slot_unresolved_var",
             "slot_var_kind",
+            "source_read",
+            "source_reader_refused",
             "space_mismatch",
             "step_ids_refused",
             "structural_slot_needs_structural_edit",
+            "take_over_not_a_source",
             "take_over_repeats_copy",
+            "take_over_shared_source",
             "unknown_constraint",
             "unknown_node",
             "unknown_slot",
@@ -4784,7 +4791,16 @@ const TAG_INVENTORY: &[TagEntry] = &[
     },
     TagEntry {
         function: "edit_inner_variant_tag",
-        values: &["count_not_count", "within_no_index"],
+        values: &[
+            "count_not_count",
+            "fresh",
+            "index_not_count",
+            "index_rank",
+            "kind",
+            "unresolved",
+            "within_no_index",
+            "written_in_place",
+        ],
         // `mate_fault_tag` once: the per-mate admission forwards the
         // solve's fault whole.
         delegates: &[
@@ -5869,6 +5885,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "output_signature",
             "payload_var_kind",
             "pick_path",
+            "placement_reads_no_source",
             "pose_shape",
             "product_read",
             "read_cycle",
@@ -5878,6 +5895,8 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "selection_shape",
             "shared_var_needs_name",
             "slot_var_kind",
+            "source_read_kind",
+            "source_read_rank",
             "step_ids",
             "var_kind",
             "var_name_twice",
@@ -6071,16 +6090,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
     },
     TagEntry {
         function: "transform_error_tag",
-        values: &[
-            "approx_lane_unsupported",
-            "approx_recertify",
-            "band",
-            "certify",
-            "corrupt",
-            "null_scaffold",
-            "nurbs_placeholder",
-            "pcurve",
-        ],
+        values: &["corrupt", "null_scaffold", "nurbs_placeholder", "pcurve"],
         delegates: &[],
     },
     TagEntry {
@@ -6150,6 +6160,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "coincident_wedges_overlap_undecided",
             "component_euler_violation",
             "contact_contradicted",
+            "curve_datum_undecided",
             "curved_sense_inverted",
             "cusp_edges_missing",
             "cycle_off_face_side",
@@ -6234,10 +6245,12 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "stale_contact_declaration",
             "stale_null_face_loop",
             "stale_null_face_ownership",
+            "surface_datum_undecided",
             "tangent_not_intrinsic",
             "touch_interference",
             "transverse_not_intrinsic",
             "uncertifiable_surface",
+            "unmovable",
             "unreachable_half_edge",
             "unrecorded_contact",
             "unrepresentable_curve_datum",
@@ -6317,11 +6330,9 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     // One fact (VR7) at the edit and load doors: a variable with no
     // name that nothing reads.
     ("anonymous_var_unread", 2),
-    ("approx_lane_unsupported", 2),
     ("assertion_dimension", 2),
-    ("band", 18),
+    ("band", 17),
     ("cap_plane", 3),
-    ("certify", 2),
     // One fact: a ring meeting its outer loop and a ring meeting
     // another ring name the same shape (`ring_pair_contact_tag`);
     // `ring_pair_words_are_the_outer_contact_words` pins them.
@@ -6396,6 +6407,9 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     // Coincidence, not one fact: an index variable refused as declared
     // at the edit door, and a slot of an indexed read.
     ("index", 2),
+    // One fact (VR4) at a node's member read and a source's: a member
+    // read at other than its family's rank of indices (`member_rank_fault`).
+    ("index_rank", 2),
     // One fact (D10 `[repetition]`) at the edit and evaluate doors: two
     // indices one reader reads, neither within the other.
     ("indices_unrelated", 2),
@@ -6404,9 +6418,10 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     // tags it by its stage (the boolean's, the split's, the import's).
     ("join", 3),
     // A coincidence: a pose read of another kind than its role reads
-    // (`pose_fault_tag`) and a product read of a variable that is no
-    // body (`product_read_fault_tag`).
-    ("kind", 2),
+    // (`pose_fault_tag`), a product read of a variable that is no body
+    // (`product_read_fault_tag`), and a source read of one
+    // (`edit_inner_variant_tag`'s `SourceFault::Kind`).
+    ("kind", 3),
     // One fact at the edit and load doors: a loft written as no loft
     // can be. The edit door publishes its fault on `inner_variant`;
     // the load door says it in the message alone.
@@ -6456,6 +6471,9 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     // (`topo::PieceSortError`) could not read a shell's piece, carried
     // whole by each verb.
     ("pieces", 2),
+    // One fact (VR4) at the edit and load doors: a placement reading its
+    // body directly, not through a source.
+    ("placement_reads_no_source", 2),
     ("plane", 2),
     ("poisoned", 3),
     // One fact at the edit and load doors: a pose definition of a shape
@@ -6537,6 +6555,9 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     ("unminted", 3),
     ("unnamed", 3),
     ("unreadable", 2),
+    // One fact: a read naming no variable the document holds, of a source's
+    // definition or of the product slot.
+    ("unresolved", 2),
     // One fact at the two doors that cross a document seam: a split's
     // part and an inline's host would have to point a reader at a
     // variable its document no longer holds (VR7).
