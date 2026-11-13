@@ -6,7 +6,7 @@ status: open
 opened: 2026-11-12
 priority: P1
 cost: H
-blocked_on: [the-join-reads-a-spline-implicit-section]
+blocked_on: [the-join-reads-a-spline-implicit-section, a-node-arcs-chord-misses-its-at-rest-chart-image, the-sweeps-survivor-cap-declines-a-unit-scale-saddles-node]
 ---
 
 
@@ -49,3 +49,30 @@ with this unit.
 Every arc of a spline × implicit node is carried to the node's point,
 limb 3 certifies it at trace time and at rest, `ray_of`'s chord pick is
 gone for spline nodes, and the nearly-osculating row is in.
+
+## Where it stands (`sectarms/spline-node-carry`)
+
+The trace half is built: every arc of a spline × implicit node is
+carried to the node's point (`ssi::ends::Ends::enter`, then graded from
+`NODE_GRADE_FIRST`), limb 3's chart tube is graded per box and ends in
+the node's own box, read by `ssi::node::holds_node`
+(`ssi::certify::chart_tube`, `node_ends`), the ray is the sector holding
+the chain's last box checked against the end tangent
+(`spline_implicit::ray_at`; `ray_of` is gone), and the pad is read box by
+box (`CarriedComponent::boxes`), a site in a node's box escalating.
+
+Two parts of "Done when" wait:
+
+- **At rest**: a chord to the node misses its at-rest chart image, which
+  the fixed foot schedule cannot fit to a carrier graded toward the node
+  (`a-node-arcs-chord-misses-its-at-rest-chart-image`, a change to C2's
+  "the same foot schedule").
+- **The nearly osculating row**: a 1 m sphere on
+  `z = 0.505x² + 0.495y²` never reaches the node listing. The
+  classification's sweep declines `Budget` at its survivor cap first
+  (257 survivors at a floor of `5e-9`), the in-band disc about a node
+  whose Hessian is a hundredth of either surface's being far wider than
+  the cap (`the-sweeps-survivor-cap-declines-a-unit-scale-saddles-node`).
+  The row lands with that fix; whether limb 3 then needs `∇φ` read
+  through `φ`'s Hessian is measured there.
+

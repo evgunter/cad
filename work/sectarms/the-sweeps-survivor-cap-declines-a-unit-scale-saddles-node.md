@@ -48,3 +48,19 @@ point once, not once per floor cell. For example, a cluster's cells
 could be counted against the cap only after the cluster is decided, or
 the cap could be read per cluster. Add a row with the `k = 1` cross saddle
 listing its node.
+
+## A nearly osculating node waits on it
+
+`a-spline-implicit-arc-is-carried-to-its-node` owes a row for a nearly
+osculating node: a sphere of radius 1 centred `(0, 0, 1)` resting on the
+biquadratic wall `z = 0.505x² + 0.495y²` over `[−0.1, 0.1]²`, its node at
+the origin with `φ`'s Hessian about a hundredth of either surface's.
+Measured on `sectarms/spline-node-carry` at ε 1e-9: the sweep's one
+piece banks 257 survivors at a floor of `4.97e-9` and declines `Budget`;
+the whole reading then marches through the node unlisted and refuses
+`TubeStraddles` (as `Unaccounted`) after about ten minutes in debug. Its
+in-band disc reaches about `band/(|H|·extent)`, `7e-7` m here, so it
+holds of the order of `10⁵` floor cells: counting a cluster once does
+not close it while every one of those cells is still visited. The row
+lands with this item.
+
