@@ -80,8 +80,9 @@ fn run_winding(carrier: &Curve3<f64>, (t0, t1): (f64, f64), forward: bool) -> Wi
 /// rounding**: the parabola `y = 4h·t(1 − t)` over `(t0, t1)` cuts
 /// `(2/3)·h·(t1 − t0)³` off its chord, so its bulge is twice that about
 /// `−z` run forward (the arc is to the left of its chord run backward),
-/// across the knot and inside one span; and its length term is at least
-/// its chord's.
+/// across the knot and inside one span; and its length term is no less
+/// than an inscribed polygon's of 256 chords, which the arc's one chord
+/// is.
 #[test]
 fn a_polynomial_arcs_bulge_is_its_closed_form_area() {
     let h = 0.375;
@@ -97,8 +98,12 @@ fn a_polynomial_arcs_bulge_is_its_closed_form_area() {
                 (bulge.z - want).abs() <= 1e-15 && bulge.x == 0.0 && bulge.y == 0.0,
                 "{t0}..{t1} forward {forward}: {bulge:?} against {want}"
             );
-            let chord = (carrier.eval(t1) - carrier.eval(t0)).norm();
-            assert!(length >= chord, "{t0}..{t1}: length {length} under {chord}");
+            let at = |k: u32| carrier.eval(t0 + dt * f64::from(k) / 256.0);
+            let polygon: f64 = (0..256).map(|k| (at(k + 1) - at(k)).norm()).sum();
+            assert!(
+                length >= polygon,
+                "{t0}..{t1}: the length bound {length} is under an inscribed polygon's {polygon}"
+            );
         }
     }
 }

@@ -6214,9 +6214,9 @@ pub(crate) fn closed_by_tier<T: Real>(
 ///   The **planar** case is now covered between vertices by check 5
 ///   (sample containment against adjacent planar faces), and its
 ///   orientation half by check 6 (loop-role winding against the
-///   outward normal, on loops of line, circle and ellipse carriers — a
-///   planar loop riding a spiric or NURBS carrier is not examined,
-///   so such a face's sense bit is falsified by nothing at rest;
+///   outward normal, on loops of every carrier — a planar loop with a
+///   spiric or rational spline edge is not examined at a scalar that
+///   does not certify, where that edge's area has no enclosure;
 ///   `work/restfront/check-6-planar-arm-skips-ellipse-and-nurbs-loops.md`).
 ///   A planar face's NESTING half — a ring lying inside the outer
 ///   loop of its own face — is check 9's nesting arm, on every planar

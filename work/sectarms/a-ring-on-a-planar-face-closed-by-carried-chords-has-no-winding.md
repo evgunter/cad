@@ -2,10 +2,11 @@
 id: a-ring-on-a-planar-face-closed-by-carried-chords-has-no-winding
 kind: issue
 title: A ring the join closes on a planar face with carried chords has no winding: choose_roles refuses CurvedBooleanUnsupported naming the plane, and three readings of a spline run are viable
-status: open
+status: closed
 opened: 2026-11-12
 priority: P1
 cost: M
+closed: 2026-11-13
 ---
 
 
@@ -75,3 +76,34 @@ already has line, conic and spiric terms:
 - A rational spline edge is decided at a certifying scalar.
 - `loop_winding`'s module docs and `ring_run_ccw`'s doc describe the
   new carrier set.
+
+## Closed (2026-11-13, `sectarms/planar-spline-winding`)
+
+The sum reads every carrier. Which reading an edge takes is
+`geom_brep::props::segment_kind`'s table, beside `loop_vector_area`:
+a line is its chord; a circle, an ellipse and a non-rational spline of
+degree up to 5 have a closed form at the body's scalar
+(`closed_segment_term`); a spiric, a rational spline and a non-rational
+one past degree 5 are read by a certified enclosure built once per edge
+and refined by piece count (`SegmentQ`), at the interval scalar
+(`loop_winding`'s `enclosed_winding`, which `spiric_winding` became).
+`Unwound` keeps `Uncertified` alone.
+
+`choose_roles` hands a plane's `RingClosure::Chord` to the planar ring
+lane, and `run_spline_edge`'s pre-refusal covers a wall's and a
+quadric's closing only (the P3 item
+`a-quadric-or-wall-ring-closing-refuses-a-spline-run-edge-it-may-read`
+holds those).
+
+The slab's five runs pass the join and stop at the inside/outside test
+(`work/inside/point-containments-ray-test-has-no-spline-arm.md`),
+pinned by sweep's
+`a_slab_round_the_prism_closes_a_ring_on_each_of_its_big_faces`. That
+stop comes before any reader of the slab's faces, so which way round a
+planar island winds is held by topo's rows:
+`loop_winding::spline_rows`, the join's
+`a_planar_ring_run_closed_by_a_spline_winds_by_the_splines_area`, and
+`merge_faces`' `a_spline_carrying_cycle_winds_alike_for_every_reader`,
+which also holds check 6 refusing a planar face with a spline edge
+wound against its sense.
+

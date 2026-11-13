@@ -95,3 +95,13 @@ shallow arc of a large conic (a section ellipse of semi-major `1/sin ψ`)
 that lever is large. Unmeasured; a repair that reads the home should
 take the segment through `geom_brep::props::arc_segment_term` and the
 chord at the vertices' own lever.
+
+(sectarms/planar-spline-winding, 2026-11-13) The spellings now differ
+in their carrier set as well as their arithmetic. `crate::loop_winding`
+reads every carrier an edge holds, each by a term from `geom_brep`'s
+`props` (`segment_kind`, `closed_segment_term`, `SegmentQ`: a spline's
+and a spiric's bulge and length bound beside the conic's), while
+`certify_section_area` still spells its own conic term and refuses a
+spline or spiric section edge `RunEdgeCarrierUnsupported`. A repair
+that reads the home takes each edge's term from that table and gains
+the two carriers with it.
