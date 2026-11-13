@@ -1323,3 +1323,13 @@ A new sitting holds the track for its P0 and P1 rows: the bracket's mixed-convex
   - From now on, every band unit draws before dispatch, on `analysis/model-compare/band-2026-11-12`, and implementer briefs carry the no-trailer line.
 - 2026-11-12 — PR 6865's fix pass: m2's false `RingClearance` on clear holes near a corner arc now refuses with the true sequential recourse (`level_clearance` `beside_rim`). The exact circle-against-arc-strip read is filed as P1 in the widened meter row. m1 is pinned (intersect construction, ladder first); m3's numbers are corrected; m4's row is raised to P1. CI timing reds on the main merges are not this PR's (both rows are slow on main, or IO-bound), and those rows are added to the slow set. PR 6873 (cut 1) is up: the bracket fillets all round and the bore-less bracket chamfers all round, both at the closed forms; the renders are checked; the dual review is dispatched. PR 6866 (`[ev]`, UnbuiltEnd payload): Ev asked for context, and a context section has been added.
 - 2026-11-12 — PR 6865 merged (ab54a84d4c). Dispatched `a-mixed-ring-inside-a-few-wide-arcs-refuses-at-the-support-meter`: letter H, tier dual (a certified meter read, soundness-critical). Implementer draw: byte 170 → Opus, on `analysis/model-compare/band-2026-11-12`. Lane `band-meter`, branch `band/meter-exact-circle-read`. Queued, waiting on disk: `a-chamfer-over-a-plane-cylinder-edge-has-no-arm` (P1), `a-cups-fixture-boolean-is-unfinished-at-eps-1e-6` (P1), and bracket cut 2 once 6873's review is in.
+- 2026-11-13 — Ev approved `[ev]` PR 6866 ("this looks good!"), and it merged: the per-tag `UnbuiltEnd` payload is settled, so cut 3 has its vocabulary. PR 6883 merged.
+- **PR 6873** (cut 1): both reviews, Opus and Fable on frozen head 81ea1d1f28, came back APPROVE-WITH-FIXES with no MAJOR. Their probes confirmed every closed form at plan angles 30–150°, at Interval, rotated, and in a membership grid. The adjudicated union is all taken. Its main items:
+  - the chamfer over-refuses at short edges (margin exactly 0, demonstrated by both reviewers);
+  - the fillet over-refuses near r = 0.149 on the bracket;
+  - three guard rows for the ring arm (a) relaxation;
+  - the fillet odd-plus-one recourse wording;
+  - the battery's mixed verdict is read once.
+  
+  The original implementer agent was lost to a container restart, so the fix pass was re-dispatched on the same arm (Opus). The renders are committed to `docs/renders/band-2026-11/` for Ev.
+- **PR 6887** (the exact meter read): CI green, no blinding leak. Dual review: slot draw byte 28 → R1 Opus, R2 Fable, concurrent on frozen head 02a7a84ebf. Witnesses: the four corner holes and the 2- and 4-arc discs now build in one call, and the `beside_rim` fallback is retired.
