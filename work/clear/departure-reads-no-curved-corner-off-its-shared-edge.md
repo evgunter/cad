@@ -1,7 +1,7 @@
 ---
 id: departure-reads-no-curved-corner-off-its-shared-edge
 kind: issue
-title: The injectivity check reads a curved corner only through a shared edge of a curved chart or a plane's arc, so a pair touching at the corner's vertex alone, or across a plane's line edge that meets an arc, refuses; the tee refuses so
+title: The injectivity check reads no curved corner at a vertex the pair shares alone, nor a corner of two curved edges, so such pairs refuse; the tee and five shell rows refuse so
 status: open
 opened: 2026-10-29
 priority: P0
@@ -141,5 +141,65 @@ lacked** is the sphere's pole as a collapsed side of its chart, the
 reading a cone's apex already has. This is not this row's first
 bullet (a curved corner at a vertex alone): the sphere's corner there
 is two meridians, read as the collapsed side once the pole is placed.
+
+## Read: a plane's line edge, and a sphere's pole (CLEAR, lane clear-corner, 2026-11-13)
+
+The traced readings have landed in `topo::injective`:
+- **a plane's line edge through its corner with a conic**
+  (`present_plane_corner`, `Reading::PlaneLine`). It works in
+  `present_plane`'s affine chart, the line at `y = 0` and the face at
+  `y > 0`. The other edge's chart curve must leave the vertex into
+  `y > 0` and stay there within reach (`leaves_line`), and nothing else
+  may be in reach. The far end needs no span check, because it is out
+  of reach. A reflex corner is `Structural`. The sliver concession
+  applies as in `present_line_corner`. Without it, `chute`'s annulus
+  cells, which touch the line from its far side within rounding, stay
+  undecided at depth 40;
+- **a sphere's pole as a collapsed side of its chart**
+  (`present_chart`), as a cone's apex already was. The vertex is placed
+  at the pole by `geom_brep::chart_singularity::vertex_at_singular_point`,
+  the one reading of that incidence, so this adds no site of its own.
+
+Measured with the gate harness at `eb63c45bbf` plus this change (f64,
+release, one core, 65,536 pairs, depth 40). Every one of the eight tour
+bodies holds:
+
+| body | before | after | pairs | deepest |
+|---|---|---:|---:|---:|
+| `chute` | refused, 0.06–0.10 s | 0.07 s | 2,073 | 19 |
+| `lily_bud_a` | refused | 0.10 s | 826 | 20 |
+| `lily_bud_b` | refused | 0.08 s | 711 | 21 |
+| `lily_bud_c` | refused | 0.08 s | 857 | 19 |
+| `diefillet` | refused, 1.5–2.2 s | 0.44 s | 4,133 | 16 |
+| `heatsink5` | refused, 1.8–3.3 s | 1.25 s | 16,093 | 22 |
+| `heatsink7` | refused | 1.25 s | 16,295 | 22 |
+| `heatsink9` | refused | 1.25 s | 16,839 | 22 |
+
+Over the whole walk, 74 of 85 hold, up from 66. The other 11 are the
+eight out-of-pairs bodies and the three assemblies, as before, and no
+body that held has moved.
+
+**What remains** is this row's first two bullets:
+- **The tee** (`crossing_equal_rods`) now refuses 8 root pairs, not 9.
+  The mitre's line on `B`'s cap is read through its two line–arc
+  corners. Six pairs at a vertex alone and two across the mitre's
+  ellipse remain.
+- **Five of the f64 cavity row's eight departure rows**, asked at f64
+  through the verdict door (a local, uncommitted `CavityGate` switch):
+  - `shell9_r1_probes::r1_drum_reverted_cavity_alone` and
+    `shell7_seam_corner::a_collinear_cap_vertex_drum_shells_to_its_closed_form`:
+    the wall against the cap at `5v1` (and `2v1`) alone. The cap's
+    corner there is a line meeting its rim circle, neither edge
+    shared, and reads `Structural` (the first bullet);
+  - the three `torax_axial` sphere-lune rows: the cap and the lune
+    across a rim arc. The plane's arc meets the next arc of its circle,
+    or the line closes a lens. The sphere's arcs meet other circles.
+    Both faces read `Structural` at the root (the second bullet).
+
+  The other three (`shell_curved_mouth`'s sphere window,
+  `spiric_rim`'s sectioned vessel and `verbs_shell`'s dome sectors)
+  shell at f64 on this branch with the gate asking. The row counted
+  them refused on PR 6885's branch, which predates PR 6886's plane-cap
+  reading, so this run does not say which change moved them.
 
 - 2026-11-02 — moved from CLEARTAIL to CLEAR when CLEARTAIL merged back into CLEAR (the budget rule now counts P0/P1 only); id and body unchanged.
