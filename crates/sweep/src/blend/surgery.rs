@@ -242,7 +242,7 @@ use super::open::planar::{
     turn_plan,
 };
 use super::open::ruled::{RuledPlan, ruled_phase};
-use super::reach::{RingOn, TakenRing, Unclear};
+use super::reach::{RingOn, TakenRing, Unclear, sure};
 use super::{BlendDecision, BlendError, BlendKind, BlendSite, Breach, CornerConfig, classify};
 use geom_core::Tol;
 
@@ -1884,10 +1884,11 @@ fn rims_share_support<T: Real>(a: &RimPlan<'_, T>, b: &RimPlan<'_, T>) -> bool {
 ///   refused: an annulus carve consumes structure of the shared face
 ///   beyond its own rim (the seam split, the trimline carve of the
 ///   face's outer cycle), and nothing here proves a ladder plan's ring
-///   walk survives that — nor the converse. Around a mixed rim, the
-///   support-boundary meter reads each of the annulus's trim arcs by its
-///   ranges across and along a link's strip, which straddle the strip
-///   though the arc clears it
+///   walk survives that — nor the converse. That is the reason around a
+///   mixed rim too: the support-boundary meter reads the annulus's trim
+///   circle clipped to each link's window, and the one fixture measured
+///   with this arm lifted builds at the closed form, but no argument yet
+///   covers the two walks on every such pair
 ///   (`work/band/an-annulus-rim-around-a-mixed-rim-refuses-in-one-call.md`).
 ///   Refused in BOTH orders, before
 ///   any mutation, with the sequential recourse (each call plans
@@ -2546,7 +2547,8 @@ pub(super) fn stored_piece<T: Real>(
 /// ellipse).
 ///
 /// On a LINE the distance is convex, so `far` is the larger end and
-/// `near` the distance to `c`'s foot clamped into the segment. On a
+/// `near` the distance to `c`'s foot clamped into the window, read on
+/// the carrier, so a window of one point reads that point. On a
 /// CIRCLE it is [`ArcReads::arc_distance`]. On an ELLIPSE it is a bound,
 /// not the extremes: every point lies within the semi-major axis of
 /// the centre, so within that of the centre's distance to `c`.
@@ -2556,17 +2558,10 @@ pub(super) fn piece_distance<T: Decide + Bounds>(
     c: Point3<T>,
 ) -> Option<(T, T)> {
     match *carrier {
-        Curve3::Line(geom::Line { origin, dir }) => {
-            let (pa, pb) = (origin + dir * ta, origin + dir * tb);
-            let chord = geom::Line {
-                origin: pa,
-                dir: pb - pa,
-            };
-            Some((
-                chord.distance_within(c, (T::zero(), T::one())),
-                (pa - c).norm().max((pb - c).norm()),
-            ))
-        }
+        Curve3::Line(ref line) => Some((
+            line.distance_within(c, (ta.min(tb), ta.max(tb))),
+            (line.at(ta) - c).norm().max((line.at(tb) - c).norm()),
+        )),
         Curve3::Ellipse(ref e) => {
             let (d, major) = ((e.frame.origin - c).norm(), geom::Conic::speed_hi(e));
             Some(((d - major).max(T::zero()), d + major))
@@ -3083,7 +3078,6 @@ fn ring_clearance_pass<T: Decide + Bounds>(
                 (opens, rims),
                 l.convexity,
                 band,
-                false,
             )?;
         }
     }
@@ -3317,7 +3311,7 @@ fn support_boundary_clearance<T: Decide + Bounds>(
             |edge: EdgeKey, outer: bool| arcs.contains(&edge) || outer && drops_into_rim(edge);
         let read = (opens, rims);
         if per_link {
-            level_clearance(body, &level, face, replaced, read, convexity, band, true)?;
+            level_clearance(body, &level, face, replaced, read, convexity, band)?;
         } else {
             let fd = body
                 .get_face(face)
@@ -3362,18 +3356,10 @@ fn outer_pieces<'b, T: Decide>(
 /// a ring's ellipse, spiric or NURBS edge read through its certified
 /// box as the outer cycle's is. `replaced` names the edges the carve
 /// replaces (with whether the cycle is the outer one), which are not
-/// metered. A mixed rim's link and an open torus link are read so.
-///
-/// A ring that another rim of the call carries is read at that rim's
-/// trim, a whole circle for a ladder's ring, whose ranges across and
-/// along a windowed strip straddle it wherever the circle passes the
-/// strip's wedge or slab ends, though the circle clears the strip
-/// (`work/band/a-mixed-ring-inside-a-few-wide-arcs-refuses-at-the-support-meter.md`).
-/// Under `beside_rim` such a ring that does not read clear refuses
-/// with the sequential recourse rather than a margin the read cannot
-/// vouch for: each call then meters the other rim's carved, stored
-/// ring.
-#[allow(clippy::too_many_arguments)]
+/// metered. A mixed rim's link and an open torus link are read so. A
+/// ring that another rim of the call carries is read at that rim's
+/// trim, a whole circle for a ladder's ring, clipped to the window as
+/// any circle piece is ([`StripLevel::wedge_margin`]).
 fn level_clearance<T: Decide + Bounds>(
     body: &Body<T>,
     level: &StripLevel<T>,
@@ -3382,7 +3368,6 @@ fn level_clearance<T: Decide + Bounds>(
     (opens, rims): (&[AdmittedOpen<'_, T>], &[RimPlan<'_, T>]),
     convexity: Convexity,
     band: Band,
-    beside_rim: bool,
 ) -> Result<(), BlendError> {
     let fd = body
         .get_face(face)
@@ -3398,41 +3383,16 @@ fn level_clearance<T: Decide + Bounds>(
         }
         cycles.push((pieces, false));
     }
-    for (cycle, outer) in cycles {
-        let other_rim = (beside_rim && !outer)
-            .then(|| {
-                cycle.iter().map(|(edge, _, _)| *edge).find(|&e| {
-                    !replaced(e, false)
-                        && rims
-                            .iter()
-                            .flat_map(|r| r.chain.links())
-                            .any(|l| l.edge == e)
-                })
-            })
-            .flatten();
-        let read = cycles_clearance(
-            face,
-            level,
-            vec![(cycle, outer)],
-            &replaced,
-            convexity,
-            band,
-        );
-        if let (Err(BlendError::RingClearance { .. }), Some(edge)) = (&read, other_rim) {
-            return Err(unbuilt_chain(
-                edge,
-                "a ladder ring beside a mixed rim reads unclear; blend them in SEQUENTIAL calls",
-            ));
-        }
-        read?;
-    }
-    Ok(())
+    cycles_clearance(face, level, cycles, replaced, convexity, band)
 }
 
 /// Each cycle of `face` against `level`, refusing at its least margin
 /// ([`worse`]); a cycle the carve replaces whole (a hostless annulus's
 /// cycle of rim arcs, outer or ring; a ladder's own ring) has nothing
-/// left to meter.
+/// left to meter. A touch that decides a piece's reading
+/// ([`StripLevel::settle`]) is classified only once every cycle's
+/// definite margin has read clear, so a refusal at depth anywhere on the
+/// face wins over it.
 fn cycles_clearance<T: Decide + Bounds>(
     face: FaceKey,
     level: &StripLevel<T>,
@@ -3441,25 +3401,38 @@ fn cycles_clearance<T: Decide + Bounds>(
     convexity: Convexity,
     band: Band,
 ) -> Result<(), BlendError> {
+    let mut touch = None;
     for (cycle, outer) in cycles {
-        let margins = cycle
-            .into_iter()
-            .filter(|&(edge, _, _)| !replaced(edge, outer))
-            .map(|(edge, carrier, piece)| {
-                level.clearance(&carrier, piece).ok_or_else(|| {
-                    unbuilt_geometry(
-                        EntityId::Edge(edge),
-                        "an outer-boundary edge of a rim's support has no finite certified \
-                         box",
-                    )
-                })
-            })
-            .collect::<Result<Vec<_>, BlendError>>()?;
-        if let Some((margin, bounded)) = margins.into_iter().reduce(worse) {
+        let mut worst = None;
+        for (edge, carrier, piece) in cycle {
+            if replaced(edge, outer) {
+                continue;
+            }
+            let (reading, bounded) = level.clearance(&carrier, piece, band).ok_or_else(|| {
+                unbuilt_geometry(
+                    EntityId::Edge(edge),
+                    "an outer-boundary edge of a rim's support has no finite certified box",
+                )
+            })?;
+            let definite = match reading {
+                Reading::Margin(m) => Some(m),
+                Reading::Touch { clear, touch: t } => {
+                    touch = least(touch, t);
+                    clear
+                }
+            };
+            if let Some(m) = definite {
+                worst = Some(worst.map_or((m, bounded), |w| worse(w, (m, bounded))));
+            }
+        }
+        if let Some((margin, bounded)) = worst {
             ring_clearance(face, convexity, margin, bounded, band)?;
         }
     }
-    Ok(())
+    match touch {
+        Some(t) => ring_clearance(face, convexity, t, false, band),
+        None => Ok(()),
+    }
 }
 
 /// **An arc's window `(t0, t1)` cut into pieces each sweeping certainly
@@ -3593,21 +3566,32 @@ impl<T: Decide + Bounds> StripLevel<T> {
         })
     }
 
-    /// A piece's clearance of the strip, and whether it is a bound: the
-    /// most it lies on the trim's far side, beyond the rim's level, or
-    /// outside one of the window's half-spaces. `None` where the piece
-    /// has no finite reading.
-    fn clearance(&self, carrier: &Curve3<T>, piece: (T, T)) -> Option<(T, bool)> {
+    /// **A piece's reading against the strip, and whether it is a
+    /// bound**: its least against any wedge of the window
+    /// ([`StripLevel::wedge_margin`]), or its level margin where the strip
+    /// is read whole. A wedge whose definite parts do not read clear
+    /// decides the piece, whatever a touch in another reads
+    /// ([`StripLevel::settle`]). `None` where the piece has no finite
+    /// reading.
+    fn clearance(
+        &self,
+        carrier: &Curve3<T>,
+        piece: (T, T),
+        band: Band,
+    ) -> Option<(Reading<T>, bool)> {
         let (base, bounded) = self.level_margin(carrier, piece)?;
-        // Outside every wedge of the window is clear; a piece's margin
-        // against the union is its least against any one wedge.
-        let margin = self
-            .window
-            .iter()
-            .map(|wedge| self.wedge_margin(wedge, carrier, piece, base))
-            .reduce(|a, b| a.min(b))
-            .unwrap_or(base);
-        Some((margin, bounded))
+        let (mut definite, mut touch) = (None, None);
+        for wedge in &self.window {
+            match self.wedge_margin(wedge, carrier, piece, base, band) {
+                Reading::Margin(m) => definite = least(definite, m),
+                Reading::Touch { clear, touch: t } => {
+                    definite = clear.map_or(definite, |c| least(definite, c));
+                    touch = least(touch, t);
+                }
+            }
+        }
+        let reading = Self::settle(definite, touch, band).unwrap_or(Reading::Margin(base));
+        Some((reading, bounded))
     }
 
     /// A piece's clearance of the level band alone — the most it lies on
@@ -3633,20 +3617,30 @@ impl<T: Decide + Bounds> StripLevel<T> {
         Some((trim_side.max(far_side), bounded))
     }
 
-    /// A piece's clearance of the strip within one `wedge`: clear where
-    /// it lies outside one of the wedge's half-spaces, or where its part
-    /// inside the wedge clears the level band. A LINE is clipped to the
-    /// wedge, each half-space's boundary crossing read where its sign is
-    /// decided (an undecided one does not clip), so a line that meets the
-    /// wedge only beside the band reads clear; any other piece is read
-    /// whole, `base` its level margin.
+    /// **A piece's reading against the strip within one `wedge`.**
+    /// `whole` is how far the piece lies outside one of the wedge's
+    /// half-spaces, or clears the level band (`base`), read whole: every
+    /// margin below is at least it, and it is the reading of a carrier
+    /// that is neither a line nor a circle.
+    ///
+    /// A line or circle piece is clipped to the wedge
+    /// ([`StripLevel::within`]). Where parts lie inside, each is
+    /// connected, so one whose level range overlaps the band's meets the
+    /// strip: the margin is the least of the parts' level margins. A part
+    /// kept as a TOUCH decides only where every part that certainly
+    /// exists reads clear and the touch does not
+    /// ([`StripLevel::settle`]).
+    ///
+    /// Where no part lies inside, the reading is positive, the larger of
+    /// two ([`StripLevel::missed`]).
     fn wedge_margin(
         &self,
         wedge: &[(Point3<T>, Vec3<T>)],
         carrier: &Curve3<T>,
         piece: (T, T),
         base: T,
-    ) -> T {
+        band: Band,
+    ) -> Reading<T> {
         let outside = wedge.iter().fold(None::<T>, |m, &(o, u)| {
             match piece_along(carrier, piece, o, u) {
                 Some((_, hi)) => Some(m.map_or(-hi, |m| m.max(-hi))),
@@ -3654,30 +3648,322 @@ impl<T: Decide + Bounds> StripLevel<T> {
             }
         });
         let whole = outside.map_or(base, |w| w.max(base));
-        let Curve3::Line(line) = carrier else {
-            return whole;
+        let Some(clipped) = Clippable::of(carrier) else {
+            return Reading::Margin(whole);
         };
-        let (mut lo, mut hi) = (piece.0.min(piece.1), piece.0.max(piece.1));
-        for &(o, u) in wedge {
-            let a = (line.origin - o).dot(u);
-            let b = line.dir.dot(u);
-            if b.lo() > 0.0 {
-                lo = lo.max(-a / b);
-            } else if b.hi() < 0.0 {
-                hi = hi.min(-a / b);
+        let parts = Self::within(clipped, piece, wedge, band);
+        if parts.is_empty() {
+            return Reading::Margin(whole.max(self.missed(clipped, carrier, piece, wedge, band)));
+        }
+        let (mut definite, mut touch) = (None, None);
+        for part in parts {
+            let Some((m, _)) = self.level_margin(carrier, part.window) else {
+                continue;
+            };
+            let m = whole.max(m);
+            match part.touch {
+                Some(t) if !sure(m, band) => touch = least(touch, m.max(t)),
+                _ => definite = least(definite, m),
             }
         }
-        // An empty clip is a line that never enters the wedge's inside:
-        // where it only touches the boundary, by rounding, the window
-        // between the two crossings is that point; where it misses the
-        // wedge, the piece is clear whatever that window reads, so a
-        // positive reading there is no false clearance.
-        let (lo, hi) = (lo.min(hi), lo.max(hi));
-        match self.level_margin(carrier, (lo, hi)) {
-            Some((clipped, _)) => whole.max(outside.map_or(clipped, |w| w.max(clipped))),
-            None => whole,
+        Self::settle(definite, touch, band).unwrap_or(Reading::Margin(whole))
+    }
+
+    /// **The reading of a line or circle piece no part of which lies
+    /// inside `wedge`** ([`StripLevel::wedge_margin`]): the larger of two
+    /// readings.
+    ///
+    /// - The MISS: the least amount by which the piece's part inside all
+    ///   but one half-space lies outside that one. It is not the
+    ///   Euclidean distance to the strip and can exceed it, where the
+    ///   piece grazes the strip's end edge from outside the wedge or
+    ///   passes outside two half-spaces at once. On a G1 chain that is
+    ///   safe: a strip's end edge is its neighbouring link's strip's
+    ///   start edge, so a piece grazing it lies inside that link's wedge,
+    ///   whose read meters it exactly.
+    /// - The DISTANCE, a Euclidean bound that does not vanish at the
+    ///   wedge's apex as the miss does. A point further than `τ` outside
+    ///   one half-space lies further than `τ` from the strip in the wedge,
+    ///   and one with level margin `m` at least `m` from it, the level
+    ///   being 1-Lipschitz. So, with `τ₀` the strip's width, halved
+    ///   [`MISSED_LAYERS`] times, and `mₖ` the level margin of the
+    ///   piece's part within `τₖ` of every half-space, the piece lies
+    ///   from it at least the least of `τ₀`, each `max(τₖ₊₁, mₖ)`, and
+    ///   the last layer's `mₖ`. A layer with no part, or one reading
+    ///   clear by its own width, ends the walk.
+    fn missed(
+        &self,
+        clipped: Clippable<'_, T>,
+        carrier: &Curve3<T>,
+        piece: (T, T),
+        wedge: &[(Point3<T>, Vec3<T>)],
+        band: Band,
+    ) -> T {
+        let mut miss = None;
+        for (i, &(o, u)) in wedge.iter().enumerate() {
+            let others: Vec<_> = (wedge.iter().enumerate())
+                .filter_map(|(j, &h)| (j != i).then_some(h))
+                .collect();
+            for part in Self::within(clipped, piece, &others, band) {
+                if let Some((_, hi)) = piece_along(carrier, part.window, o, u) {
+                    miss = least(miss, -hi);
+                }
+            }
+        }
+        let mut width = (self.rim_at - self.at_trim).abs();
+        let mut distance = width;
+        for layer in 1..=MISSED_LAYERS {
+            let widened: Vec<_> = wedge.iter().map(|&(o, u)| (o - u * width, u)).collect();
+            let Some(near) = Self::within(clipped, piece, &widened, band)
+                .into_iter()
+                .filter_map(|part| self.level_margin(carrier, part.window))
+                .fold(None, |a, (m, _)| least(a, m))
+            else {
+                break;
+            };
+            let half = width / (T::one() + T::one());
+            if layer == MISSED_LAYERS {
+                distance = distance.min(near);
+            } else {
+                distance = distance.min(near.max(half));
+            }
+            // A narrower layer is a subset, its level no lower.
+            if (near - width).lo() >= 0.0 {
+                break;
+            }
+            width = half;
+        }
+        miss.map_or(distance, |m| m.max(distance))
+    }
+
+    /// **The reading of a piece's least `definite` margin and least
+    /// `touch` clearance**: the definite margin where it does not read
+    /// clear — a refusal at its depth, or its own escalation, wins over
+    /// a touch's — and the touch where it does or there is none. `None`
+    /// where there is neither.
+    fn settle(definite: Option<T>, touch: Option<T>, band: Band) -> Option<Reading<T>> {
+        match (definite, touch) {
+            (Some(d), Some(t)) if sure(d, band) => Some(Reading::Touch {
+                clear: Some(d),
+                touch: t,
+            }),
+            (None, Some(t)) => Some(Reading::Touch {
+                clear: None,
+                touch: t,
+            }),
+            (Some(d), _) => Some(Reading::Margin(d)),
+            (None, None) => None,
         }
     }
+
+    /// **The parts of a line or circle piece inside every half-space
+    /// `(p − o)·u ≥ 0` of `wedge`**, as windows on its carrier, each a
+    /// connected part. A line's crossing clips where its sign along `u`
+    /// is decided; a line along the boundary within its enclosure is read
+    /// at its window's ends. A circle's is [`StripLevel::arc_within`]'s.
+    /// The parts hold every point of the piece inside the wedge, but for
+    /// what an `f64` circle's clip angle can drop there.
+    ///
+    /// A part certainly short of a half-space's edge by more than the
+    /// band — a window empty by more than it, its width times the
+    /// carrier's speed, or a line along the edge reaching no nearer — is
+    /// dropped ([`StripLevel::graze`]). One that may fall short by less
+    /// is a TOUCH: kept, its ends in order, with how far it may fall
+    /// short as its clearance there. These selections are bracket reads;
+    /// [`StripLevel::settle`] decides which reading a touch is.
+    fn within(
+        carrier: Clippable<'_, T>,
+        piece: (T, T),
+        wedge: &[(Point3<T>, Vec3<T>)],
+        band: Band,
+    ) -> Vec<Clip<T>> {
+        let speed = carrier.speed();
+        let mut windows = vec![Clip {
+            window: (piece.0.min(piece.1), piece.0.max(piece.1)),
+            touch: None,
+        }];
+        for &(o, u) in wedge {
+            windows = match carrier {
+                Clippable::Line(line) => {
+                    let (a, b) = ((line.origin - o).dot(u), line.dir.dot(u));
+                    windows
+                        .into_iter()
+                        .filter_map(|clip| {
+                            let (lo, hi) = clip.window;
+                            if b.lo() > 0.0 {
+                                Some(Clip {
+                                    window: (lo.max(-a / b), hi),
+                                    ..clip
+                                })
+                            } else if b.hi() < 0.0 {
+                                Some(Clip {
+                                    window: (lo, hi.min(-a / b)),
+                                    ..clip
+                                })
+                            } else {
+                                Self::graze(clip, (a + b * lo).max(a + b * hi), band)
+                            }
+                        })
+                        .collect()
+                }
+                Clippable::Circle(c) => Self::arc_within(c, windows, (o, u), band),
+            };
+            windows = windows
+                .into_iter()
+                .filter_map(|clip| {
+                    let (lo, hi) = clip.window;
+                    let width = (hi - lo) * speed;
+                    if width.lo() >= 0.0 {
+                        return Some(clip);
+                    }
+                    let ordered = Clip {
+                        window: (lo.min(hi), lo.max(hi)),
+                        ..clip
+                    };
+                    Self::graze(ordered, width, band)
+                })
+                .collect();
+        }
+        windows
+    }
+
+    /// **`clip` where it reaches `into` a half-space** (a window's width,
+    /// or how far a line along the edge reaches past it): kept as it is
+    /// where that is certainly not negative, dropped where it is
+    /// certainly negative by more than the band, and otherwise a TOUCH
+    /// whose clearance is `−into`.
+    fn graze(clip: Clip<T>, into: T, band: Band) -> Option<Clip<T>> {
+        if into.lo() >= 0.0 {
+            Some(clip)
+        } else if sure(-into, band) {
+            None
+        } else {
+            Some(Clip {
+                touch: least(clip.touch, -into),
+                ..clip
+            })
+        }
+    }
+
+    /// **A circle's windows clipped to the half-plane `(p − o)·u ≥ 0`**: on
+    /// the circle `(p − o)·u = k + A·cos(θ − φ)`, `k` the centre's height
+    /// and `A` the radius times `u`'s length in the circle's plane, so the
+    /// inside is the arc `φ ± acos(−k/A)`, intersected with each window at
+    /// every whole turn that may meet it.
+    ///
+    /// A circle that may lie wholly inside (`k ≥ A` not certainly false)
+    /// keeps its windows, as does a piece already clipped away.
+    /// Otherwise `k + A`, how far the circle reaches into the half-plane,
+    /// is read against the band ([`sure`]): certainly short of the edge by
+    /// more than it, every window is dropped. Within it, where `−k/A`
+    /// nears `1` and the clip angle is ill-conditioned, the arc is a
+    /// TOUCH ([`StripLevel::within`]), kept as its enclosure gives it,
+    /// with `−(k + A)` as its clearance. `acos` reads the ratio clamped to
+    /// `[−1, 1]`. At `Interval` its enclosure holds the true angle; at
+    /// `f64` a ratio rounded within an ulp of `±1` moves the angle by up
+    /// to `√(2·ulp)`, so an arc of length about `r·√(2·ulp)` at an end
+    /// can be dropped. The turns tried are read off the brackets'
+    /// midpoints, a selection only: a turn that meets no window is
+    /// dropped as empty by [`StripLevel::within`].
+    fn arc_within(
+        c: &geom::Circle<T>,
+        windows: Vec<Clip<T>>,
+        (o, u): (Point3<T>, Vec3<T>),
+        band: Band,
+    ) -> Vec<Clip<T>> {
+        let plane = u - c.frame.axis * u.dot(c.frame.axis);
+        let reach = c.radius * plane.norm();
+        let k = (c.frame.origin - o).dot(u);
+        if windows.is_empty() || (k - reach).hi() >= 0.0 {
+            return windows;
+        }
+        let into = k + reach;
+        if sure(-into, band) {
+            return Vec::new();
+        }
+        let touch = (!sure(into, band)).then_some(-into);
+        let alpha = (-k / reach).max(-T::one()).min(T::one()).acos();
+        let mid = |x: T| geom_core::mid_param(x.lo(), x.hi());
+        let turns = |x: f64| x / core::f64::consts::TAU;
+        let mut clipped = Vec::with_capacity(2 * windows.len());
+        for clip in windows {
+            let (lo, hi) = clip.window;
+            let phi = c.frame.azimuth(c.frame.origin + plane).near(lo);
+            let (c0, c1) = (phi - alpha, phi + alpha);
+            #[allow(clippy::cast_possible_truncation)]
+            let (first, last) = (
+                turns(mid(lo) - mid(c1)).floor() as i64,
+                turns(mid(hi) - mid(c0)).ceil() as i64,
+            );
+            for n in first..=last {
+                let whole = (0..n.unsigned_abs()).fold(T::zero(), |a, _| a + T::tau());
+                let turn = if n < 0 { -whole } else { whole };
+                clipped.push(Clip {
+                    window: (lo.max(c0 + turn), hi.min(c1 + turn)),
+                    touch: touch.map_or(clip.touch, |t| least(clip.touch, t)),
+                });
+            }
+        }
+        clipped
+    }
+}
+
+/// **A piece's reading against a strip** ([`StripLevel::clearance`]).
+#[derive(Clone, Copy, Debug)]
+enum Reading<T> {
+    /// The margin the parts that certainly exist decide, or the piece
+    /// read whole.
+    Margin(T),
+    /// A TOUCH decides ([`StripLevel::within`]): every part that
+    /// certainly exists reads clear, by `clear` (`None` where there is
+    /// none), and the touch does not. `touch` is its clearance: the
+    /// larger of its level margin and how far it may fall short of the
+    /// edge it grazes, so a trimline-to-feature clearance in band.
+    Touch { clear: Option<T>, touch: T },
+}
+
+/// **A part of a piece inside a wedge** ([`StripLevel::within`]): a
+/// window on its carrier and, for a TOUCH, how far it may fall short of
+/// the half-space edge it grazes.
+#[derive(Clone, Copy)]
+struct Clip<T> {
+    window: (T, T),
+    touch: Option<T>,
+}
+
+/// **A carrier [`StripLevel::within`] clips**: a line or a circle.
+#[derive(Clone, Copy)]
+enum Clippable<'a, T: Real> {
+    Line(&'a geom::Line<T>),
+    Circle(&'a geom::Circle<T>),
+}
+
+impl<'a, T: Real> Clippable<'a, T> {
+    fn of(carrier: &'a Curve3<T>) -> Option<Self> {
+        match carrier {
+            Curve3::Line(line) => Some(Self::Line(line)),
+            Curve3::Circle(c) => Some(Self::Circle(c)),
+            Curve3::Ellipse(..) | Curve3::Spiric { .. } | Curve3::Nurbs(_) => None,
+        }
+    }
+
+    /// Length per unit of parameter.
+    fn speed(self) -> T {
+        match self {
+            Self::Line(line) => line.dir.norm(),
+            Self::Circle(c) => c.radius,
+        }
+    }
+}
+
+/// How many layers about a wedge [`StripLevel::missed`] reads, each
+/// half the width of the last: the last is `2⁻⁷` of the strip's width,
+/// so a piece passing the wedge closer than that reads its level there.
+const MISSED_LAYERS: u32 = 8;
+
+/// The lesser of `a`, where there is one, and `m`.
+fn least<T: Real>(a: Option<T>, m: T) -> Option<T> {
+    Some(a.map_or(m, |a| a.min(m)))
 }
 
 /// A boundary piece built here rather than read off the body: a carrier
@@ -6460,6 +6746,184 @@ mod tests {
             piece_along(&line, (1.0, 2.0), o, Vec3::new(1.0, 0.0, 0.0)).expect("line");
         close(low, 1.0, "a segment's low is an end");
         close(high, 2.0, "and its high the other");
+    }
+
+    /// **The support meter reads a piece clipped to a wedge**
+    /// ([`super::StripLevel::clearance`]): the quadrant `x, y ≥ 0` of the
+    /// annulus `0.25 ≤ ‖p‖ ≤ 0.3`, read against circles of radius `0.1`
+    /// and lines beside it, at each scalar.
+    ///
+    /// - A circle reaching `0.05` into the wedge across the annulus's
+    ///   inner edge refuses at its clipped arc's depth, `0.05 − √0.0075`;
+    ///   read whole, its depth past the edge `x = 0` is `−0.05`.
+    /// - One passing beside the edge `x = 0` clears it by its distance,
+    ///   `0.01`. One passing the apex, outside both half-planes, clears
+    ///   by the strip's width, `0.05`, where read whole it overlaps the
+    ///   annulus; a line passing within the band of the apex does too,
+    ///   and one along the edge, `0.05` off the strip's end, by half of
+    ///   it.
+    /// - A touch of the edge within the band, in the annulus, is a
+    ///   [`Reading::Touch`] at its clearance, and escalates; inside the
+    ///   annulus it reads clear at its level.
+    /// - A segment along `y = −0.27` ending in band short of `x = 0`
+    ///   clears by `0.27`, its distance outside `y ≥ 0`, though it
+    ///   grazes `x ≥ 0`.
+    /// - With a second wedge `x ≤ 0, y ≥ 0` behind the first, the touch
+    ///   of the first does not pre-empt the second's refusal at depth.
+    /// - A segment ending exactly on `x = 0` reads its end point.
+    #[test]
+    fn a_piece_beside_a_wedge_reads_clipped_and_a_deciding_touch_escalates() {
+        use geom::Curve3;
+        use geom_core::{Band, Bounds, Decide, Interval};
+
+        use super::super::BlendDecision;
+        use super::{Reading, StripLevel, ring_clearance};
+
+        fn row<T: Decide + Bounds>(scalar: &str) {
+            let p = |x: f64, y: f64| Point3::new(T::from_f64(x), T::from_f64(y), T::zero());
+            let v = |x: f64, y: f64| Vec3::new(T::from_f64(x), T::from_f64(y), T::zero());
+            let quadrant = vec![(p(0.0, 0.0), v(0.0, 1.0)), (p(0.0, 0.0), v(1.0, 0.0))];
+            let behind = vec![(p(0.0, 0.0), v(0.0, 1.0)), (p(0.0, 0.0), v(-1.0, 0.0))];
+            let level = |window| StripLevel {
+                centre: p(0.0, 0.0),
+                direction: None,
+                at_trim: T::from_f64(0.25),
+                rim_at: T::from_f64(0.3),
+                rim_above: true,
+                window,
+            };
+            let one = level(vec![quadrant.clone()]);
+            let band = Band::new(1e-9, 1e-8).expect("a band");
+            let mid = |m: T| geom_core::mid_param(m.lo(), m.hi());
+            let circle = |x: f64, y: f64| {
+                let z = Vec3::new(T::zero(), T::zero(), T::one());
+                Curve3::circle(p(x, y), z, T::from_f64(0.1), v(1.0, 0.0))
+            };
+            let turn = (T::zero(), T::tau());
+            let margin =
+                |level: &StripLevel<T>, c: &Curve3<T>, w: (T, T), band: Band, what: &str| {
+                    match level.clearance(c, w, band).expect("a line or circle reads") {
+                        (Reading::Margin(m), false) => mid(m),
+                        other => panic!("{scalar} {what}: a margin, got {other:?}"),
+                    }
+                };
+            let close = |got: f64, want: f64, what: &str| {
+                assert!(
+                    (got - want).abs() < 1e-9,
+                    "{scalar}: {what} reads {want}, got {got}"
+                );
+            };
+            close(
+                margin(&one, &circle(-0.05, 0.2), turn, band, "into"),
+                0.05 - 0.0075_f64.sqrt(),
+                "a circle into the annulus, at its clipped arc's depth",
+            );
+            close(
+                margin(&one, &circle(-0.11, 0.275), turn, band, "beside"),
+                0.01,
+                "a circle beside the wedge, at its distance",
+            );
+            let apex = Curve3::circle(
+                p(-0.1, -0.1),
+                Vec3::new(T::zero(), T::zero(), T::one()),
+                T::from_f64(0.13),
+                v(1.0, 0.0),
+            );
+            close(
+                margin(&one, &apex, turn, band, "past the apex"),
+                0.05,
+                "a circle passing the apex, at the strip's width",
+            );
+            // `x + y = −8e-9`: `8e-9` below `x ≥ 0`'s part, in band, and
+            // its window between the edges empty by `1.13e-8`, past it.
+            let s = 0.5_f64.sqrt();
+            let diagonal = Curve3::line(p(0.0, -8e-9), v(s, -s));
+            close(
+                margin(
+                    &one,
+                    &diagonal,
+                    (T::from_f64(-1.0), T::one()),
+                    band,
+                    "apex line",
+                ),
+                0.05,
+                "a line passing within the band of the apex, at the strip's width",
+            );
+            // Along the edge `x = 0`, 0.05 off the strip's end there: the
+            // half of the strip's width, the layer it clears by.
+            let along = Curve3::line(p(-3e-9, -4e-9), v(-0.2, 1.0).normalize());
+            close(
+                margin(
+                    &one,
+                    &along,
+                    (T::from_f64(-0.3), T::from_f64(0.45)),
+                    band,
+                    "along",
+                ),
+                0.025,
+                "a line along the edge past the apex, at half the strip's width",
+            );
+            let touch = one
+                .clearance(&circle(-0.1 - 5e-9, 0.275), turn, band)
+                .expect("a circle reads");
+            let (
+                Reading::Touch {
+                    clear: None,
+                    touch: t,
+                },
+                false,
+            ) = touch
+            else {
+                panic!("{scalar}: a touch in the annulus is the reading, got {touch:?}");
+            };
+            close(mid(t), 5e-9, "the touch, at its clearance");
+            let escalated =
+                ring_clearance(topo::FaceKey::default(), Convexity::Convex, t, false, band);
+            assert!(
+                matches!(
+                    escalated,
+                    Err(BlendError::Escalated {
+                        decision: BlendDecision::RingClearance,
+                        ..
+                    })
+                ),
+                "{scalar}: the touch escalates, got {escalated:?}"
+            );
+            close(
+                margin(&one, &circle(-0.1 - 5e-9, 0.1), turn, band, "inner touch"),
+                0.15,
+                "a touch inside the annulus, at its level",
+            );
+            for (short, band) in [
+                (1e-13, band),
+                (1e-10, band),
+                (1e-7, Band::new(1e-6, 1e-5).expect("the band at ε 1e-6")),
+            ] {
+                let below = Curve3::line(p(-0.2, -0.27), v(1.0, 0.0));
+                let w = (T::zero(), T::from_f64(0.2 - short));
+                close(
+                    margin(&one, &below, w, band, "below"),
+                    0.27,
+                    &format!("a segment ending {short} short of x = 0, outside y ≥ 0"),
+                );
+            }
+            let two = level(vec![quadrant, behind]);
+            let d = (0.1_f64 + 5e-9).hypot(0.275);
+            close(
+                margin(&two, &circle(-0.1 - 5e-9, 0.275), turn, band, "behind"),
+                d - 0.4,
+                "a touch of one wedge beside a refusal in the next, at the refusal's depth",
+            );
+            let to_edge = Curve3::line(p(-0.2, 0.1), v(1.0, 0.0));
+            let w = (T::zero(), T::from_f64(0.2));
+            close(
+                margin(&one, &to_edge, w, band, "to the edge"),
+                0.15,
+                "a segment ending on x = 0, at its end point's level",
+            );
+        }
+        row::<f64>("f64");
+        row::<Interval>("Interval");
     }
 
     /// **The boxed reach holds every point of its piece.** An
