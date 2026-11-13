@@ -4079,23 +4079,9 @@ pub(crate) fn path_island_winding_closed_by<T: Decide>(
         Ok(island) => island,
         Err(diag) => return Ok(Err(diag)),
     };
-    // Whether any reference was offered a path: on a spline wall none
-    // is where no end has a foot the wall's point is decided at, which
-    // is a ring the lane does not read, not a reading that failed.
-    let mut offered = false;
-    let wound = island.read_paths(body, face, band, |path| {
-        offered = true;
-        island.read(path, band)
-    })?;
-    match wound {
+    match island.winding(body, face, band)? {
         Ok(Some(sign)) => Ok(Ok(sign)),
         Err(diag) => Ok(Err(diag)),
-        Ok(None) if !offered && matches!(island.carrier, Carrier::Wall(_)) => {
-            Err(JoinError::RingIslandUnread {
-                face,
-                kind: geom::SurfaceKind::Nurbs,
-            })
-        }
         Ok(None) => Err(JoinError::SectionInvariant {
             face,
             what: "no outer-loop point of a cylinder, sphere, cone, torus or spline face reads \
@@ -4214,13 +4200,31 @@ impl<T: Decide> IslandReading<T> {
     /// The winding read off the paths to `q` from every outer-loop point
     /// of `face` ([`Self::read_paths`]); `Ok(None)` where every path says
     /// nothing.
+    ///
+    /// # Errors
+    ///
+    /// [`JoinError::RingIslandUnread`] on a spline wall where no
+    /// reference is offered a path (no end has a foot the wall's point
+    /// is decided at): a ring the lane does not read, not a reading in
+    /// which every path said nothing.
     pub(crate) fn winding(
         &self,
         body: &Body<T>,
         face: FaceKey,
         band: Band,
     ) -> Result<Result<Option<Sign>, Indeterminate>, JoinError> {
-        self.read_paths(body, face, band, |path| self.read(path, band))
+        let mut offered = false;
+        let wound = self.read_paths(body, face, band, |path| {
+            offered = true;
+            self.read(path, band)
+        })?;
+        if matches!(wound, Ok(None)) && !offered && matches!(self.carrier, Carrier::Wall(_)) {
+            return Err(JoinError::RingIslandUnread {
+                face,
+                kind: geom::SurfaceKind::Nurbs,
+            });
+        }
+        Ok(wound)
     }
 
     /// The paths to `q` from every outer-loop point of `face`
