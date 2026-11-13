@@ -4200,14 +4200,15 @@ fn separated_by_support<T: Real>(
 }
 
 /// **What a cell's support along a direction is read off**: the
-/// control points of its carrier restricted to it, a plane's first-order
-/// expansion, or, for any other carrier and any net
+/// control points of its carrier restricted to it, an analytic
+/// carrier's mean-value form about the cell's centre, or, for any net
 /// [`NurbsSurface::rect_net`] refuses, the cell's box.
 enum Hull {
     Net(Vec<Point3<Interval>>),
-    /// A plane's point and partials at the cell's low corner, and the
-    /// cell's extent from it along each axis.
-    Plane {
+    /// The carrier's point at the cell's centre, its two partials
+    /// enclosed over the whole cell, and the cell's offset from the
+    /// centre along each axis.
+    Jet {
         at: Point3<Interval>,
         du: Vec3<Interval>,
         dv: Vec3<Interval>,
@@ -4219,21 +4220,20 @@ enum Hull {
 
 impl Hull {
     fn of(surface: &Surface<Interval>, c: Cell) -> Self {
-        if let Surface::Plane { .. } = surface {
+        let Some(net) = surface.spline_chart() else {
+            let span = |(lo, hi): (f64, f64)| Interval::from_bounds(lo, hi);
             let point = |x: f64| Interval::from_bounds(x, x);
-            let j = surface.point_jet(c.u.0, c.v.0);
-            return Self::Plane {
-                at: j.point,
+            let (mu, mv) = centre(c.u, c.v);
+            let j = surface.jet(span(c.u), span(c.v));
+            return Self::Jet {
+                at: surface.point_eval(mu, mv),
                 du: j.du,
                 dv: j.dv,
-                u: Interval::from_bounds(c.u.0, c.u.1) - point(c.u.0),
-                v: Interval::from_bounds(c.v.0, c.v.1) - point(c.v.0),
+                u: span(c.u) - point(mu),
+                v: span(c.v) - point(mv),
             };
-        }
-        match surface
-            .spline_chart()
-            .and_then(|net| net.rect_net(c.u, c.v))
-        {
+        };
+        match net.rect_net(c.u, c.v) {
             Some(points) => Self::Net(points),
             None => Self::Box(c.enc),
         }
@@ -4244,12 +4244,19 @@ impl Hull {
     /// With every restricted weight certified positive (which
     /// [`NurbsSurface::rect_net`] requires), each point of the cell is a
     /// convex combination of one knot cell's restricted points, so the
-    /// linear `⟨P, n⟩` lies in the hull of its values at them. A plane is
-    /// its own first-order expansion, so its point over the cell is the
-    /// corner's jet point plus the two partials times the parameter
-    /// offsets ([`Surface::jet`]), and the form is affine in the two
-    /// offset intervals and exact up to rounding. A box holds the cell,
-    /// so its own support does.
+    /// linear `⟨P, n⟩` lies in the hull of its values at them.
+    ///
+    /// An analytic chart is smooth, and the cell is convex, so for each
+    /// `(u, v)` of the cell the mean-value theorem, applied to
+    /// `f = ⟨S, n⟩` along the segment from the centre `m`, gives a point
+    /// `ξ` of the cell with
+    /// `f(u, v) = f(m) + ⟨S_u(ξ), n⟩·(u − m_u) + ⟨S_v(ξ), n⟩·(v − m_v)`.
+    /// [`Surface::jet`] at the cell's two intervals encloses `S_u` and
+    /// `S_v` at every point of the cell, `ξ` among them, and the offsets
+    /// lie in the cell less its centre, so the interval form holds
+    /// `f(u, v)`. Along the cell's own normal both partial terms vanish
+    /// at `m`, which leaves them second order in the cell. A box holds
+    /// the cell, so its own support does.
     fn support(&self, n: Vec3<Interval>) -> Interval {
         let dot = |p: Vec3<Interval>| p.x * n.x + p.y * n.y + p.z * n.z;
         let at = |p: Point3<Interval>| dot(Vec3::new(p.x, p.y, p.z));
@@ -4259,7 +4266,7 @@ impl Hull {
                 .map(|&p| at(p))
                 .reduce(geom_core::SpanLocate::enclosure_hull)
                 .unwrap_or_else(|| unreachable!("`rect_net` answers no empty net")),
-            Self::Plane {
+            Self::Jet {
                 at: p,
                 du,
                 dv,
@@ -5699,6 +5706,114 @@ mod support_rows {
                 "{u:?}: along the centre normal the net's support {support:?} is narrower than \
                  the box's {boxed:?}"
             );
+        }
+    }
+
+    /// **An analytic cell's support holds its points, and along its own
+    /// normal is narrower than its box's.** A cell of a cone, a torus, a
+    /// cylinder and a sphere, each read along its centre normal and two
+    /// other directions, meets the enclosure of `⟨S(u, v), n⟩` at each
+    /// point of an 11 × 11 grid of the cell, which both hold; a cell a
+    /// quarter turn wide is held too. Along the centre normal a small
+    /// cell's support is under a quarter of its box's. Red if the
+    /// mean-value form drops a partial's enclosure over the cell (read
+    /// at the centre only, a wide cell's points fall outside it), or if
+    /// an analytic cell is read by its box.
+    #[test]
+    fn an_analytic_cells_support_holds_its_points_and_is_narrower_than_its_box() {
+        let o = Point3::new(0.1, -0.2, 0.3);
+        let (axis, u_ref) = (Vec3::new(0.0, 0.0, 1.0), Vec3::new(1.0, 0.0, 0.0));
+        let surfaces = [
+            (
+                "cone",
+                Surface::Cone {
+                    apex: o,
+                    axis,
+                    half_angle: 30f64.to_radians(),
+                    u_ref,
+                },
+                (1.0, 1.1),
+            ),
+            (
+                "torus",
+                Surface::Torus {
+                    center: o,
+                    axis,
+                    major_radius: 1.6,
+                    minor_radius: 0.8,
+                    u_ref,
+                },
+                (2.5, 2.6),
+            ),
+            (
+                "cylinder",
+                Surface::Cylinder {
+                    origin: o,
+                    axis,
+                    radius: 0.7,
+                    u_ref,
+                },
+                (0.2, 0.3),
+            ),
+            (
+                "sphere",
+                Surface::Sphere {
+                    center: o,
+                    radius: 0.9,
+                    axis,
+                    u_ref,
+                },
+                (0.4, 0.5),
+            ),
+        ];
+        for (what, s, v) in surfaces {
+            let s = s.map_scalar(Interval::from_f64);
+            for (u, v, small) in [
+                ((0.30, 0.35), v, true),
+                ((0.0, core::f64::consts::FRAC_PI_2), (v.0, v.0 + 0.5), false),
+            ] {
+                let cell = Cell::on(&s, u, v);
+                let hull = Hull::of(&s, cell);
+                assert!(
+                    matches!(hull, Hull::Jet { .. }),
+                    "{what}: an analytic cell is read by its jet"
+                );
+                let (um, vm) = (0.5 * (u.0 + u.1), 0.5 * (v.0 + v.1));
+                let normal = s.normal(Interval::from_f64(um), Interval::from_f64(vm));
+                let mid = |i: Interval| 0.5 * (i.lo() + i.hi());
+                let centre_normal = Vec3::new(mid(normal.x), mid(normal.y), mid(normal.z));
+                for n in [
+                    centre_normal,
+                    Vec3::new(1.0, 0.3, -0.2),
+                    Vec3::new(-0.4, 1.0, 0.7),
+                ] {
+                    let n = n.map(Interval::from_f64);
+                    let support = hull.support(n);
+                    assert!(!poisoned(support), "{what} {u:?} {n:?}: {support:?}");
+                    for i in 0..=10 {
+                        for j in 0..=10 {
+                            let pu = u.0 + (u.1 - u.0) * f64::from(i) / 10.0;
+                            let pv = v.0 + (v.1 - v.0) * f64::from(j) / 10.0;
+                            let p = s.eval(Interval::from_f64(pu), Interval::from_f64(pv));
+                            let at = p.x * n.x + p.y * n.y + p.z * n.z;
+                            assert!(
+                                support.lo() <= at.hi() && at.lo() <= support.hi(),
+                                "{what} {u:?} × {v:?} along {n:?}: the support {support:?} \
+                                 meets the point's enclosure at ({pu}, {pv}), {at:?}"
+                            );
+                        }
+                    }
+                }
+                if small {
+                    let n = centre_normal.map(Interval::from_f64);
+                    let (support, boxed) = (hull.support(n), Hull::Box(cell.enc).support(n));
+                    assert!(
+                        support.hi() - support.lo() < 0.25 * (boxed.hi() - boxed.lo()),
+                        "{what} {u:?} × {v:?}: along the centre normal the jet's support \
+                         {support:?} is under a quarter of the box's {boxed:?}"
+                    );
+                }
+            }
         }
     }
 
