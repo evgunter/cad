@@ -450,7 +450,8 @@ construction, already holds (`[topology.tiers]`).
   - Tests ask finished bodies. Construction-state lofts at `Interval`
     wait on `check-7s-quadrature-refuses-interval-nurbs-walls…`.
 - **Order.**
-  - **Lane B (now): the engine's own separators.** These need no
+  - **Lane B (now): the engine's own separators** — done (PR 6905;
+    what landed is below the measured block). These need no
     tier 3:
     - `plane_through` is exact per member;
     - each separator carries its cells;
@@ -552,6 +553,68 @@ would read in their place.
   by construction would then be unsound. The construction is true if
   `n` and `q` are computed in `Interval` from the edge's own carrier.
   The same holds for a conic's plane: use the stored axis and centre.
+
+**Landed by lane B (clear-sep, PR 6905), main at `39a29dd379`.**
+
+- **The forced harness found no kill.** Every `is_zero` read forced
+  true, at all five `Zero` arms under all three `Psi`: the carvetail
+  fold, the carvetail loft, the folded oblique cut and the folded torus
+  cut stay `Violated`. None of them reaches a `Zero` site on the way to
+  its witness; each is found by distance first. Across sweep's 145
+  clearance, cavity, self-intersection and embedding rows no verdict
+  moves, and no certification goes through a forced read. Only the four
+  topo rows that test the reading itself go red. So the stop condition
+  (a kill through a carrier side) does not arise. The premise that
+  these rows are turned off `Violated` by the mutant does not hold on
+  this main.
+- **The separators** (`topo::injective`):
+  - `planes_through` builds `n` and `q` at the lane scalar from the
+    shared edge's stored carrier. A line's stored direction has the
+    chosen bisector's along-line part taken out, and `q` is a point of
+    the line. Two lines take their stored directions' cross product. A
+    conic takes its stored axis and centre.
+  - Each separator carries the cells it vanishes on (`On`). A plane
+    lists its edges and their ends, and a vertex-only plane lists its
+    vertex. The graph lists its one edge.
+  - Each zero side, point and curve names its cells (`Along`).
+    `sign_on` asks membership and reads no value.
+  - The carrier arm reads as before.
+- **6892's widening became one plane per conic.** A sphere's two seam
+  meridians lie in stored planes a half turn's sine apart, so neither
+  plane lists the other's edge. Each near conic's own plane is tried in
+  turn.
+- **Past and curve sides read membership alone, and no verdict moved.**
+  - A past side is zero where the plane holds its edge's whole line or
+    circle.
+  - A curve is zero under a plane listing its conic, and under the graph
+    where its parameters lie in the graph's piece.
+  - On closed conic edges the graph's piece now also holds the curve's
+    parameters past the seam. Without that, the filleted drum refused:
+    the curve runs an ulp past the seam through its join.
+- **Corner sides keep one band reading.** Removing it moves 6892's two-ball union
+  from `Holds` to `Uncertified` (Departure, at a meridian, depth 40).
+  At the pole, one face's corner is on one meridian and the other's on
+  the other, and the two meridians' stored planes differ by `1.2e-16`
+  rad. No plane built from an edge lists both, so a side at a corner
+  that the plane does not list is still read over the side. That is
+  the one band reading left under a plane.
+- **Pins:**
+  - topo's `a_plane_through_a_turning_line_edge_holds_it_for_every_member`
+    (an `Interval` family whose line edge turns; red on a rounded `n`);
+  - `a_plane_through_a_line_edge_answers_nothing_at_a_vertex_off_it`;
+  - sweep's `a_box_family_holds_at_sym_interval` (Holds, 120 pairs).
+  - The body-level turning family has no door. Oblique extrusion is
+    deferred, and a profile vertex at `Sym<Interval>` escalates in
+    profile validation (`LineSpan` on its adjacent segments).
+- **Mutants:**
+  - every cell in the list reds three topo rows;
+  - the rounded `n` reds the turning-edge row.
+- **The tour walk** (85 bodies, the curved ones included, f64): 81
+  hold, against main's 80. No body that held moved. `diecomposed` now
+  holds, at 46,337 pairs (70.7%; on main it refused on budget). The
+  four that do not hold are main's own: `klein_bulb` (budget) and
+  the three benches (`Violated` at their recorded contacts, which this
+  harness does not exclude).
 
 ### Lane C — the gate asks the certificate (H)
 
