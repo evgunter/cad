@@ -17,12 +17,12 @@ use geom::Surface;
 use geom_brep::SurfaceSide::{self, Inner, Outer};
 use geom_core::{Band, Bounds, Decide, Interval, Point2, Point3, Real, Sign};
 use sweep::blend::BlendError;
-use sweep::blend::battery::{Convexity, radius_headroom};
+use sweep::blend::battery::{BlendSide, Convexity, radius_headroom};
 use sweep::test_support::{corners, revolved_about_y_at};
 use topo::{AtRestPolicy, Body, FaceKey};
 
 /// The convexity verdict that puts the ball on `side` of a face of
-/// stored sense `sense`: the one whose `Convexity::ball_side` answers it.
+/// stored sense `sense`: the one whose `BlendSide::ball_side` answers it.
 fn putting_ball(sense: bool, side: SurfaceSide) -> Convexity {
     [Convexity::Convex, Convexity::Concave]
         .into_iter()

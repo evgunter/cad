@@ -390,10 +390,10 @@ lentil's convex equator loses material to it, a two-sphere snowman's
 waist gains it, through one surgery.
 
 **A requested smooth edge is left as it is.** Predicate 5 reads each
-requested edge's dihedral through the kernel's one edge-wedge door,
-`geom_brep::classify_edge_wedge`: convex, concave, or a sign decided
-Zero read for its material side. Zero with the outward normals aligned
-is a smooth seam, wedge π (a bore's straight cut between its two
+requested edge's wedge whole through the kernel's one edge-wedge door,
+`topo::edge_wedge` (the fold tier 3 accepts a body by): a crease,
+convex or concave, or faces that meet smoothly, read for their material
+side. Smooth with the outward normals aligned is a smooth seam, wedge π (a bore's straight cut between its two
 half-cylinders, a chart seam, a profile fillet's tangent join): a ball
 resting on both faces touches them along the edge itself, so the blend
 of that edge is the edge, and requesting it is a silent no-op. The
@@ -402,12 +402,12 @@ from there on, so the result is the same request's with that edge left
 out; a request every edge of which is smooth returns the operand as it
 is, key for key.
 
-**A knife edge is filleted where its ball is defined.** Zero with the
+**A knife edge is filleted where its ball is defined.** Smooth with the
 normals opposed is a cusp (wedge 0) or slit (wedge 2π), and its side is
-the jet's question, not the dihedral's: `battery::knife_end` reads the
+the jet's question, not the dihedral's: the same fold reads the
 relative transverse curvature signed into the plus face's outward frame
-(`geom_brep::material_kappa_rel`, the reading the tier-3 fold decides
-the end with) under `fillet3_knife_end`. A cusp's ball rests in the
+(`geom_brep::material_kappa_rel`) under `material_cusp_side` at every
+station. A cusp's ball rests in the
 material crescent between the supports, the side a convex edge's takes;
 a slit's rests in the void crescent, as a concave edge's does; and the
 link carries that convexity, so every later predicate reads it as it

@@ -288,7 +288,6 @@ const INDIRECT: &[(&str, &str)] = &[
     ("curve_pair/walk.rs: stops: reach - f", CARRIER_CALL),
     ("curve_pair/walk.rs: stops: row", CLOSURE_FORWARDS),
     ("curve_pair/walk.rs: surely: name", FORWARDS),
-    ("dihedral.rs: classify_edge_wedge: name", CROSS_CRATE),
     ("dihedral.rs: gradient_alignment: name", CROSS_CRATE),
     ("dihedral.rs: normals_alignment: name", FORWARDS),
     (

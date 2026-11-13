@@ -71,7 +71,7 @@ use topo::{Body, EdgeKey, EntityId, FaceKey, HalfEdgeKey, LoopBoundary, ShellKey
 
 use super::admit::{CornerFaces, CornerLinks};
 use super::arms::corner_chart;
-use super::battery::{BlendRequest, Link, run_battery, sided};
+use super::battery::{BlendRequest, BlendSide, Link, run_battery, sided};
 use super::surgery::{CORNER_SUPPORT_NOT_PLANAR, disagrees, unbuilt_geometry};
 use super::{BlendError, BlendKind, BlendRefusal};
 use geom_core::Tol;

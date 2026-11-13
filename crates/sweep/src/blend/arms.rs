@@ -85,7 +85,7 @@ use geom::Surface;
 use geom_brep::SurfaceSide;
 use geom_core::{Circles, Point3, Real, Vec3};
 
-use super::battery::{Convexity, sided};
+use super::battery::{BlendSide, Convexity, sided};
 
 /// A blend surface with its spine and its per-support trimlines —
 /// the complete analytic answer for one link of a chain.

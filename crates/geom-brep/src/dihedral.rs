@@ -534,24 +534,34 @@ impl<T: Decide> Corner<T> {
     /// stations are built together ([`WedgeWalk`](crate::WedgeWalk)) and read only through
     /// the fold.
     ///
+    /// **Read only inside the fold** ([`crate::edge_wedge_over`]), so no
+    /// reader outside it composes a class with a sign: an edge's sign is
+    /// its whole wedge's (`topo::edge_wedge`).
+    ///
+    /// Returns the margin the sign was decided on beside it: the record
+    /// a crease's verdict carries ([`crate::WedgeVerdict::Crease`]).
+    ///
     /// # Errors
     ///
     /// [`WedgeRung::Sign`] in band, decided zero, or poisoned.
-    pub fn convexity(
+    pub(crate) fn convexity(
         &self,
         station: &Station<T>,
         senses: [bool; 2],
         band: Band,
-    ) -> Result<Convexity, WedgeEscalation> {
+    ) -> Result<(Convexity, geom_core::MarginDiag), WedgeEscalation> {
         let [n_plus, n_minus] = self.0.outward(senses);
-        decide_nonzero(
+        decide_nonzero_reported(
             DIHEDRAL_SIGN,
             signed_wedge(n_plus.vec(), n_minus.vec(), station.tau, self.0.arm),
             band,
         )
-        .map(|sign| match sign {
-            NonzeroSign::Positive => Convexity::Convex,
-            NonzeroSign::Negative => Convexity::Concave,
+        .map(|(sign, margin)| {
+            let convexity = match sign {
+                NonzeroSign::Positive => Convexity::Convex,
+                NonzeroSign::Negative => Convexity::Concave,
+            };
+            (convexity, margin)
         })
         .map_err(|diag| WedgeEscalation::at(WedgeRung::Sign, diag))
     }
@@ -574,7 +584,10 @@ impl<T: Decide> Tangency<T> {
     /// tolerance it would offer leaves the class's wedge in band, the
     /// refusal quotes the wedge instead, under `"material_pairing_wedge"`
     /// (`pairing_at_wedge`).
-    pub fn pairing(
+    ///
+    /// **Read only inside the fold** ([`crate::edge_wedge_over`]), as
+    /// [`Corner::convexity`] is: an edge's pairing is its whole wedge's.
+    pub(crate) fn pairing(
         &self,
         senses: [bool; 2],
         band: Band,
@@ -2090,119 +2103,6 @@ pub enum MaterialPairing {
     Opposed,
 }
 
-/// **An edge's material wedge, signed**: what [`classify_edge_wedge`]
-/// decides of the dihedral between an edge's two faces.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum EdgeWedge {
-    /// Material wedge below π.
-    Convex,
-    /// Material wedge above π.
-    Concave,
-    /// The sign decided zero with the outward normals aligned: wedge
-    /// π, the two faces continuing one another (the seam,
-    /// [`crate::WedgeVerdict::Seam`]).
-    Smooth,
-    /// The sign decided zero with the outward normals opposed: wedge 0
-    /// or 2π, a cusp or a knife slit ([`WedgeEnd::Cusp`],
-    /// [`WedgeEnd::Slit`]; which end is the jet's question, not
-    /// this door's).
-    Knife,
-}
-
-/// Which read of [`classify_edge_wedge`] escalated.
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub enum EdgeWedgeEscalation {
-    /// The signed dihedral landed in band or was poisoned.
-    Sign(Indeterminate),
-    /// The sign decided zero and the material pairing
-    /// ([`Tangency::pairing`]) refused.
-    Side(Indeterminate),
-}
-
-/// **A lever arm decided definitely positive**: the only form
-/// [`classify_edge_wedge`] takes its arm in, so the door's "past a
-/// definitely positive arm" is a fact of the type and not of the caller.
-/// Minted by [`PositiveArm::gate`], under the caller's own predicate name
-/// (the blend's `fillet3_chain_arm`), so the gate keeps its population in
-/// the K report.
-#[derive(Clone, Copy, Debug)]
-pub struct PositiveArm<T: Real>(geom_core::Lever<T>);
-
-impl<T: Real> PositiveArm<T> {
-    /// `arm` decided positive as `name`.
-    ///
-    /// # Errors
-    ///
-    /// [`Indeterminate`] under `name`: the arm in band, poisoned, or
-    /// decided zero or negative.
-    pub fn gate(
-        name: &'static str,
-        arm: geom_core::Lever<T>,
-        band: Band,
-    ) -> Result<Self, Indeterminate>
-    where
-        T: Decide,
-    {
-        decide_positive(name, Margin::of(arm.length()), band).map(|()| Self(arm))
-    }
-
-    /// The arm.
-    #[must_use]
-    pub fn get(self) -> geom_core::Lever<T> {
-        self.0
-    }
-}
-
-/// **The one door that classifies an edge's dihedral with its material
-/// side**: [`EdgeWedge`] from the two faces' outward normals at one
-/// on-edge point.
-///
-/// The sign is `((n₊ × n₋)·τ̂)·arm` in meters, decided as `name`: `n₊`,
-/// `n₋` the two faces' outward normals there (an [`OutwardNormal`] is
-/// folded by its face's `Face::sense` bit by construction), `τ̂` the
-/// edge's direction as the plus face's loop walks it, `arm` the folded
-/// lever arm ([`folded_lever_arm`]) gated positive ([`PositiveArm`]).
-/// Swapping the faces also reverses the walk, so the sign is the edge's
-/// and not the order's: positive is convex, negative concave. The caller
-/// computes the normals once and reads them for whatever else it asks of
-/// the point; the door and its pairing read the same two.
-///
-/// Both normals are perpendicular to the edge, so their cross product
-/// lies along `τ̂`, and a sign decided zero says the normals are
-/// parallel to within the band: which way is the material pairing
-/// ([`Tangency::pairing`]'s decision, on these normals at the
-/// same arm), aligned ([`EdgeWedge::Smooth`]) or opposed
-/// ([`EdgeWedge::Knife`]). Returns the signed margin it decided beside
-/// the class.
-///
-/// # Errors
-///
-/// [`EdgeWedgeEscalation::Sign`] in band or on poison;
-/// [`EdgeWedgeEscalation::Side`] where the pairing refuses, which past
-/// a definitely positive arm a decided-zero sign leaves only in band.
-pub fn classify_edge_wedge<T: Decide>(
-    name: &'static str,
-    n_plus: OutwardNormal<T>,
-    n_minus: OutwardNormal<T>,
-    tau: geom_core::Vec3<T>,
-    arm: PositiveArm<T>,
-    band: Band,
-) -> Result<(EdgeWedge, Margin<T>), EdgeWedgeEscalation> {
-    let arm = arm.get();
-    let margin = signed_wedge(n_plus.vec(), n_minus.vec(), tau, arm);
-    let wedge = match decide(name, margin, band).map_err(EdgeWedgeEscalation::Sign)? {
-        Sign::Positive => EdgeWedge::Convex,
-        Sign::Negative => EdgeWedge::Concave,
-        Sign::Zero => {
-            match smooth_pairing(n_plus, n_minus, arm, band).map_err(EdgeWedgeEscalation::Side)? {
-                MaterialPairing::Aligned => EdgeWedge::Smooth,
-                MaterialPairing::Opposed => EdgeWedge::Knife,
-            }
-        }
-    };
-    Ok((wedge, margin))
-}
-
 /// **How two faces' outward normals stand at a point** ([`normals_alignment`]).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum GradientAlignment {
@@ -2299,8 +2199,7 @@ pub fn gradient_alignment<T: Decide>(
 /// **The one reading of two faces' outward normals against each other**:
 /// their cosine levered at `lever`, decided as `name`. Every pairing of
 /// two faces at a point is read here: a tangency's
-/// ([`Tangency::pairing`]), an edge's crease that reads smooth
-/// ([`classify_edge_wedge`]), two parallel planes'
+/// ([`Tangency::pairing`]), two parallel planes'
 /// ([`crate::carrier_pose()`]), and a contact's or a certificate's
 /// orientation before tangency ([`gradient_alignment`]). The normals are
 /// [`OutwardNormal`]s, so the faces' senses were folded in where they

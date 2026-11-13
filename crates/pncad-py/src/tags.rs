@@ -1446,6 +1446,7 @@ pub fn blend_error_tag(err: &BlendError) -> &'static str {
         BlendError::UnsupportedCorner { .. } => "unsupported_corner",
         BlendError::SpineUnsupported { .. } => "spine_unsupported",
         BlendError::ChamferArmUnsupported { .. } => "chamfer_arm_unsupported",
+        BlendError::WedgeUnsettled { .. } => "wedge_unsettled",
         BlendError::Escalated { .. } => "escalated",
         BlendError::RepeatedEdge { .. } => "repeated_edge",
         BlendError::NonpositiveSize { .. } => "nonpositive_size",

@@ -17,7 +17,7 @@ use geom_core::{Point2, Vec3};
 use profile::{Profile, SketchPlane, test_support::bulge_loop};
 use sweep::ExtrudeSide;
 use sweep::blend::arms::BlendArm;
-use sweep::blend::battery::{BlendRequest, ChainClosure, Convexity, run_battery};
+use sweep::blend::battery::{BlendRequest, BlendSide, ChainClosure, Convexity, run_battery};
 use sweep::blend::{BlendError, CornerConfig};
 use sweep::test_support::{ball_poled_y, block, circle_arcs_at_z, disc_of_arcs, realized};
 use sweep::{Extrusion, extrude};
@@ -415,7 +415,7 @@ fn p4_chain_g1_refuses_at_a_cornered_junction() {
 }
 
 // ---------------------------------------------------------------------
-// Predicate 5 — fillet3_convexity_sign.
+// Predicate 5 — the edge's wedge, read whole (`dihedral_sign`).
 // ---------------------------------------------------------------------
 
 /// The notched prism's reflex edge is CONCAVE while its other vertical

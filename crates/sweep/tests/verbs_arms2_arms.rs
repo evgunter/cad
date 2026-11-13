@@ -41,7 +41,7 @@ use geom::{Curve3, Surface};
 use geom_brep::SurfaceSide::{self, Inner, Outer};
 use geom_core::{Point3, Vec3};
 use sweep::blend::arms::{BlendArm, Branch, EdgeBlend, Meridian, Ruling, plane_sphere_blend};
-use sweep::blend::{Convexity, FILLET3_SPINE_KIND_RECOURSE};
+use sweep::blend::{BlendSide, Convexity, FILLET3_SPINE_KIND_RECOURSE};
 
 const EPS: f64 = 1e-12;
 

@@ -228,7 +228,7 @@ use topo::{
 use super::admit::{AdmittedOpen, CornerLinks, OpenBand, RequestedBoundary, StationKind};
 use super::arms::BallSection;
 use super::battery::{
-    BatteryVerdict, Chain, ChainClosure, Convexity, Link, Turn, face_clearance_margin,
+    BatteryVerdict, BlendSide, Chain, ChainClosure, Convexity, Link, Turn, face_clearance_margin,
     same_supports,
 };
 use super::build::{Blended, face_cycle, face_cycle_edges, fan_at, outward_of};

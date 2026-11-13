@@ -33,10 +33,10 @@
 use crate::common::approx::band;
 use geom::{Curve3, Surface};
 use geom_core::{Point3, Tol, Vec3};
-use sweep::blend::Convexity;
 use sweep::blend::arms::plane_sphere_blend;
 use sweep::blend::battery::{BlendRequest, run_battery};
 use sweep::blend::build::fillet_edges;
+use sweep::blend::{BlendSide, Convexity};
 use sweep::test_support::pappus::{pappus_volume, sector, segment, triangle};
 use sweep::test_support::{domed_cavity, rim_arcs_at, waisted};
 use topo::{Body, EdgeKey, validate_geometric};

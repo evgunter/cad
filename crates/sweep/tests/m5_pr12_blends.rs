@@ -19,8 +19,8 @@ use geom::Curve3;
 use geom::Surface;
 use geom_brep::{implicit_residual, tangent_jet};
 use geom_core::{Point3, Vec3};
-use sweep::blend::Convexity;
 use sweep::blend::arms::{corner_ball, plane_plane_blend, plane_sphere_blend};
+use sweep::blend::{BlendSide, Convexity};
 
 /// The box edge at `x = y = 0` of the solid `x, y > 0`: outward
 /// normals `−x̂`, `−ŷ`, edge along `+ẑ`. The blend is the cylinder of

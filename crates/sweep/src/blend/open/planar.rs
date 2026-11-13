@@ -56,7 +56,7 @@ use crate::blend::admit::{
     RequestedBoundary, StationKind,
 };
 use crate::blend::arms::{chamfer_corner_patch, corner_ball, line_meet};
-use crate::blend::battery::{Convexity, EndSection, Link, Overrun, Turn};
+use crate::blend::battery::{BlendSide, Convexity, EndSection, Link, Overrun, Turn};
 use crate::blend::build::{fan_at, octant_chart, outward_of};
 use crate::blend::junction::{self, JunctionReading, MixedTrim, strut_foot};
 use crate::blend::naming::BlendNaming;
@@ -1526,7 +1526,7 @@ mod tests {
     use geom::Surface;
 
     use super::{AdmittedOpen, BlendKind, CornerLinks, OpenBand, corner_plan};
-    use crate::blend::battery::{Chain, ChainClosure, Convexity, Link};
+    use crate::blend::battery::{BlendSide, Chain, ChainClosure, Convexity, Link};
     use crate::test_support::{L, R, all_links, cube};
 
     /// One open chain per link of a cube, so the door has something to

@@ -297,8 +297,8 @@ pub fn lune(tol: Tol) -> ProfileLoop<f64> {
 /// `edges` of `body` at `size` refused as a knife edge (`outcome`), or
 /// some requested edge resolves as a smooth seam, which the verbs leave
 /// silently, or as a knife (a cusp or slit), whose convexity is the
-/// end `fillet3_knife_end` read rather than the dihedral's sign, or
-/// refuses as one. Each is a dihedral that decided Zero, so a row that
+/// end `material_cusp_side` read rather than the dihedral's sign, or
+/// refuses as one. Each is a wedge the fold read tangent, so a row that
 /// guards a transverse corner against a false zero asks this rather
 /// than for one of them.
 #[must_use]
@@ -414,8 +414,10 @@ pub fn assert_blends_as_without(
 /// **The margin a smooth seam was read at**: `edge` requested alone of
 /// the battery at `size`, which must leave it as a smooth seam, and of
 /// the fillet door, which must return `body` as it is, key for key (a
-/// silent no-op). The decided-Zero margin `fillet3_convexity_sign` read
-/// is handed back for the row to pin.
+/// silent no-op). The margin its class was decided smooth on
+/// (`dihedral_wedge`) is handed back for the row to pin: `None` where the
+/// fold read the seam by its faces' identity, as it reads a seam whose
+/// two sides are one surface.
 ///
 /// # Panics
 ///
@@ -427,7 +429,7 @@ pub fn smooth_reading(
     edge: EdgeKey,
     size: f64,
     tol: Tol,
-) -> crate::blend::ClassifiedMargin {
+) -> Option<crate::blend::ClassifiedMargin> {
     let band = Band::linear(tol).expect("the run's band");
     let req = BlendRequest {
         body,
