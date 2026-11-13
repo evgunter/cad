@@ -710,28 +710,28 @@ fn a_generic_node_is_listed() {
     }
 }
 
-/// **A node the reading cannot account for reads as a tangency.** Lines
-/// 45° apart in the chart (`4Y(Y − X)`): the sweep decides the node, but
-/// the accounting about it runs out of cells, so the section refuses as
-/// the pinch topo reads as a tangency (`spline_critical_unread`), never
-/// as an unaccounted pair
+/// **A node the reading cannot certify about reads as a tangency.**
+/// Lines 45° apart in the chart (`4Y(Y − X)`): the sweep decides the
+/// node, but its arcs' tubes straddle near it at every grade, so the
+/// section refuses as a pinch named by the tube's transversality, which
+/// topo reads as a tangency, never as an unaccounted pair
 /// (`work/sectarms/a-spline-node-the-reading-cannot-account-for-reads-as-a-tangency.md`).
-/// Red against an unaccounted reading at a decided node left
-/// unaccounted.
+/// Red against the straddle carried as an unaccounted reading.
 #[test]
 fn a_node_the_reading_cannot_account_for_reads_as_a_tangency() {
     let wall = biquad(two_lines(4.0, [(0.0, 1.0), (-1.0, 1.0)], 0.0), |u, v| {
         (u, v)
     });
+    let got = built(&level(0.0), &wall);
     assert!(
         matches!(
-            built(&level(0.0), &wall),
+            got,
             Err(SectionError::Pinched {
-                predicate: super::CRITICAL_UNREAD
+                predicate: super::CRITICAL_TUBE
             })
         ),
         "{:?}",
-        built(&level(0.0), &wall).map(|s| s.nodes().len())
+        got.map(|s| s.nodes().len())
     );
 }
 

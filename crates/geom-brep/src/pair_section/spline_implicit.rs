@@ -1135,9 +1135,10 @@ pub(super) fn crosses(decided: &[sweep::Critical], reach: ChartReach) -> bool {
 ///
 /// # Errors
 ///
-/// [`SectionError::Pinched`] ([`CRITICAL_UNREAD`]) where the reading's
-/// accounting does not close; any other refusal of the reading mapped,
-/// its cause carried ([`super::whole_reading_refused`]).
+/// [`SectionError::Pinched`]: [`CRITICAL_UNREAD`] where the reading's
+/// accounting does not close, [`CRITICAL_TUBE`] where an arc's tube
+/// straddles; any other refusal of the reading mapped, its cause
+/// carried ([`super::whole_reading_refused`]).
 pub(super) fn read_crossing(
     reading: crate::ImplicitSection<'_>,
     decided: &[sweep::Critical],
@@ -1160,6 +1161,12 @@ pub(super) fn read_crossing(
             | crate::ssi::SsiError::ExhaustivenessInconclusive(_) => SectionError::Pinched {
                 predicate: CRITICAL_UNREAD,
             },
+            // An arc's tube straddles beside a decided point: the surfaces
+            // meet within the band along it there (a node whose lines
+            // nearly meet), named by the tube's own decision.
+            crate::ssi::SsiError::TubeStraddles { .. } => SectionError::Pinched {
+                predicate: CRITICAL_TUBE,
+            },
             other => super::whole_reading_refused(other),
         })
 }
@@ -1169,6 +1176,12 @@ pub(super) fn read_crossing(
 /// within the band at a decided node or touch, and the components beside
 /// it were not all read (`work/sectarms/a-spline-node-the-reading-cannot-account-for-reads-as-a-tangency.md`).
 pub(super) const CRITICAL_UNREAD: &str = "spline_critical_unread";
+
+/// **The pinch a crossing section refuses as where an arc's tube
+/// straddles** ([`read_crossing`]): limb 3's transversality decision
+/// (`ssi_tube_transversality`), in the band along an arc beside a decided
+/// point, so the surfaces meet within the band there.
+pub(super) const CRITICAL_TUBE: &str = "ssi_tube_transversality";
 
 /// The decided points a whole reading was handed, beside its outcome
 /// ([`listed`]): the points in the sweep's order, and each one's witness.
