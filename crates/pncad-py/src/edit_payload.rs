@@ -520,6 +520,40 @@ pub fn edit_payload(err: &EditError) -> EditPayload<'_> {
             param: var.name(),
             ..none
         },
+        EditError::SourceRead { var, fault } => EditPayload {
+            param: var.name(),
+            found: match fault {
+                pncad::document::SourceFault::Kind { found } => Some(var_kind_tag(*found)),
+                pncad::document::SourceFault::IndexNotCount { found, .. } => Some(dim(*found)),
+                pncad::document::SourceFault::Unresolved { .. }
+                | pncad::document::SourceFault::IndexRank { .. }
+                | pncad::document::SourceFault::WrittenInPlace
+                | pncad::document::SourceFault::Fresh => None,
+            },
+            ..none
+        },
+        EditError::TakeOverNotASource { var } => EditPayload {
+            param: var.name(),
+            ..none
+        },
+        EditError::SourceReaderRefused { source, .. } => EditPayload {
+            param: source.name(),
+            ..none
+        },
+        EditError::TakeOverSharedSource {
+            copy,
+            source,
+            other: _,
+        } => EditPayload {
+            node: Some(copy.id()),
+            param: source.name(),
+            ..none
+        },
+        EditError::PlacementReadsNoSource { node, read } => EditPayload {
+            node: Some(node.id()),
+            param: read.name(),
+            ..none
+        },
         EditError::Index { var, fault } => EditPayload {
             param: var.name(),
             found: match fault {

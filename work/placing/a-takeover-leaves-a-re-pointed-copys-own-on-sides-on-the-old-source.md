@@ -2,10 +2,12 @@
 id: a-takeover-leaves-a-re-pointed-copys-own-on-sides-on-the-old-source
 kind: issue
 title: The kernel's takeover re-points a copy's source but leaves the copy's own mates' on sides reading the old source, which the mate door then refuses NotOnTheCopy
-status: open
+status: closed
 opened: 2026-11-08
+closed: 2026-11-12
 priority: P2
 cost: E
+pr: 6856
 ---
 
 
@@ -16,3 +18,7 @@ Found by `placing-copy-reads` (the 6353 build), building the re-point offer.
 **Worked around, not fixed.** The viewer's re-point moves the `on` sides itself after the takeover (`on_sides_follow` in `crates/viewer/src/session.rs`): each `on` selection in the old source is read in the result under the result's successor name. A Python or API caller of `take_over` still gets the stale mates.
 
 **Done when** `take_over` moves a re-pointed copy's own `on` sides with its source (the successor query it already runs answers the names), and the viewer's `on_sides_follow` goes.
+
+## Closed
+
+Closed by PR 6856 (VARIABLES VR4). A placement reads its body through a source, and its mates' `on` sides select the source (`bracket.top`, `matetool::on_read`), so redefining the source moves no side's body. The takeover (`Recording::take_over`) rebinds the names in what selects in a redefined source as it rebinds a copy's (`rebinds_of`, `by_source`), and `on_sides_follow` is gone. An API caller whose `on` side selects the body itself rather than the source still meets `NotOnTheCopy` after a redefinition: `on_reads_the_copy` admits either spelling, and only the source's is followed.

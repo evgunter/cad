@@ -224,8 +224,9 @@ fn a_pick_reads_one_piece_and_two_picks_are_two_variables() {
     let pick = || BodyRead::plain(Operand::pick(Operand::Node(place), vec![bolt_var]));
     let (doc, first) = put(doc, fixture::stood(pick()));
     let (doc, second) = put(doc, fixture::stood(pick()));
+    // Each placement reads its pick through a source of its own.
     let source = |at: RecipeNodeId| match doc.node(at) {
-        Some(Node::Place { source, .. }) => source.read,
+        Some(Node::Place { source, .. }) => doc.through_sources(source.read).read,
         other => panic!("a placement, not {other:?}"),
     };
     let (one, two) = (source(first), source(second));
@@ -1514,5 +1515,72 @@ fn a_pick_into_a_part_naming_no_piece_refuses_at_evaluation() {
         ),
         "a pick naming no piece of the part: {:?}",
         ev.node_error(read)
+    );
+}
+
+/// **A pick of a copy is a reader of the copy's source** (VARIABLES VR4):
+/// a placement reads `pick(place, [bolt])` of the copy of `bolt ⊔ plate`;
+/// redefining that copy's source `T` onto `bolt ∪ plate` would leave the
+/// pick walking through a `∪`, which no pick reads. The definition door
+/// asks the load's own whole-document check, so it refuses with the
+/// load's pick fault (first found by PR 6856's re-check, round 2).
+#[test]
+fn a_pick_of_a_copy_whose_source_is_redefined_onto_a_union() {
+    let doc = doc("r2-pick-redefine");
+    let (doc, bolt) = block(doc, [0.0; 2], 0.2, 1.0);
+    let (doc, plate) = beside(doc, bolt, [2.0, 0.0, 0.0], 0.5, 0.2);
+    let (doc, seat) = put(
+        doc,
+        Node::Assemble {
+            members: spelled(&[bolt, plate]),
+        },
+    );
+    let (doc, place) = put(doc, fixture::stood(seat));
+    let bolt_var = doc.output(bolt, 0).unwrap();
+    let (doc, _first) = put(
+        doc,
+        fixture::stood(BodyRead::plain(Operand::pick(
+            Operand::Node(place),
+            vec![bolt_var],
+        ))),
+    );
+    let (doc, fused) = put(
+        doc,
+        Node::Union {
+            members: spelled(&[bolt, plate]),
+        },
+    );
+    let source = doc.copied_read(place).expect("a source");
+    let doc = doc
+        .apply(
+            &editor_core::DocEdit::RenameVar {
+                var: source.into(),
+                name: Some(editor_core::VarName::from_static("T")),
+            },
+            Tol::witness(),
+        )
+        .unwrap()
+        .doc;
+    let got = doc
+        .apply(
+            &editor_core::DocEdit::DefineVar {
+                var: source.into(),
+                def: editor_core::VarDecl::source(Operand::Node(fused)),
+                fresh: Vec::new(),
+            },
+            Tol::witness(),
+        )
+        .map(|a| a.doc);
+    assert!(
+        matches!(
+            &got,
+            Err(editor_core::EditError::SourceReaderRefused { reader, .. })
+                if matches!(
+                    **reader,
+                    editor_core::PersistError::Snapshot(editor_core::SnapshotError::PickPath { .. })
+                )
+        ),
+        "{:?}",
+        got.map(|_| ())
     );
 }

@@ -100,8 +100,8 @@ pub fn admits_read(doc: &Doc<ProfileProgram>, read: &Operand, wanted: NodeKindWa
         Operand::Output { node, port } => doc.output(*node, *port),
         Operand::Var(var) => Some(*var),
         Operand::Name(name) => doc.var_named(name.as_str()),
-        // A pick reads one piece of a copy: a body.
-        Operand::Pick { .. } => return wanted == NodeKindWanted::Body,
+        // A pick reads one piece of a copy, and a source one body.
+        Operand::Pick { .. } | Operand::Source(_) => return wanted == NodeKindWanted::Body,
         Operand::Select { .. } | Operand::Pose(_) => return false,
     };
     let repeats = |var: pncad::document::VarId| {
@@ -442,6 +442,15 @@ pub enum Refusal {
         /// The copy, as the document held it at the refusal.
         copy: SpokenNode,
     },
+    /// Place was asked of a body several sources read (VARIABLES VR4):
+    /// which of them the new placement shares is the person's to say, so
+    /// each is offered as the body to place.
+    SeveralSources {
+        /// The body, as the document held it at the refusal.
+        body: SpokenVar,
+        /// The sources reading it, in id order.
+        sources: Vec<SpokenVar>,
+    },
     /// A door's change of a copy's target ([`super::SessionOp::AddToProduct`]
     /// moving it into the world, [`super::SessionOp::IntoOwnSpace`]) over
     /// a bundle of its own that reads the space it leaves: the change is
@@ -473,11 +482,12 @@ pub enum Refusal {
         /// The first operand's space.
         into: Box<SpokenSpace>,
     },
-    /// A re-point of a body's placements asked of a body nothing places
-    /// ([`super::SessionOp::RepointPlacements`]).
-    NothingPlaced {
-        /// The body, as the document held it at the refusal.
-        body: SpokenVar,
+    /// A Place given a name for a source that has one
+    /// ([`super::SessionOp::Place`]): the copy shares a named source by
+    /// that name, and a rename is the source's own row.
+    SourceIsNamed {
+        /// The source, as the document held it at the refusal.
+        source: SpokenVar,
     },
     /// **A delete that cannot splice** (DM6,
     /// `editor_core::continuation::SpliceFault`): one member of a family
@@ -548,6 +558,10 @@ impl Refusal {
             Self::ProfileEditStale { node } => Self::ProfileEditStale { node: again(node) },
             Self::BundleStale { node } => Self::BundleStale { node: again(node) },
             Self::PlaceOnACopy { copy } => Self::PlaceOnACopy { copy: again(copy) },
+            Self::SeveralSources { body, sources } => Self::SeveralSources {
+                body: body.respoken(doc),
+                sources: sources.iter().map(|source| source.respoken(doc)).collect(),
+            },
             Self::TargetHeld {
                 copy,
                 placement,
@@ -568,8 +582,8 @@ impl Refusal {
                 space: Box::new(doc.spoken_space(space.id())),
                 into: Box::new(doc.spoken_space(into.id())),
             },
-            Self::NothingPlaced { body } => Self::NothingPlaced {
-                body: body.respoken(doc),
+            Self::SourceIsNamed { source } => Self::SourceIsNamed {
+                source: source.respoken(doc),
             },
             Self::Unspliced { node, fault } => Self::Unspliced {
                 node: again(node),
@@ -660,9 +674,10 @@ impl Refusal {
             | Self::ProfileEditStale { .. }
             | Self::BundleStale { .. }
             | Self::PlaceOnACopy { .. }
+            | Self::SeveralSources { .. }
             | Self::CopyInAnotherSpace { .. }
             | Self::TargetHeld { .. }
-            | Self::NothingPlaced { .. }
+            | Self::SourceIsNamed { .. }
             | Self::Unspliced { .. }
             | Self::ValueNotRemoved { .. }
             | Self::Draft(_)
@@ -712,9 +727,10 @@ impl Refusal {
             | Self::ProfileEditStale { .. }
             | Self::BundleStale { .. }
             | Self::PlaceOnACopy { .. }
+            | Self::SeveralSources { .. }
             | Self::CopyInAnotherSpace { .. }
             | Self::TargetHeld { .. }
-            | Self::NothingPlaced { .. }
+            | Self::SourceIsNamed { .. }
             | Self::Unspliced { .. }
             | Self::ValueNotRemoved { .. }
             | Self::Draft(_)
@@ -1055,6 +1071,16 @@ impl Refusal {
                 "{copy} is a copy; move it by its own placement in the placement editor, not \
                  by a copy of it"
             ),
+            Self::SeveralSources { body, sources } => {
+                write!(f, "{body} is placed through {} sources (", sources.len())?;
+                for (k, source) in sources.iter().enumerate() {
+                    if k > 0 {
+                        f.write_str(", ")?;
+                    }
+                    write!(f, "{source}")?;
+                }
+                f.write_str("); place one of them, and the new copy shares it")
+            }
             Self::TargetHeld {
                 copy,
                 space,
@@ -1100,12 +1126,11 @@ impl Refusal {
                      cannot do; nothing was deleted"
                 ),
             },
-            Self::NothingPlaced { body } => {
-                write!(
-                    f,
-                    "nothing places {body}, so there is no placement to re-point"
-                )
-            }
+            Self::SourceIsNamed { source } => write!(
+                f,
+                "{source} is named already, so the copy shares it by that name; place it \
+                 without a name, and rename it on its own row"
+            ),
             Self::ValueNotRemoved { node } => write!(
                 f,
                 "a value of {node} sets a freedom its mates leave, and a freedom is always set; \
