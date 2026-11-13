@@ -789,7 +789,7 @@ BOUNDS_ALLOWLIST=(
   # a SELECTION that only narrows the screen: a sum not certainly below
   # the half turn leaves the pair screened as before, the conservative
   # reading. `Decide` alone has no bracket to read.
-  'crates/sweep/src/blend/battery.rs 24 M5 PR 12 (orchestrator ruling 2026-08-03), the edge-blend battery'
+  'crates/sweep/src/blend/battery.rs 22 M5 PR 12 (orchestrator ruling 2026-08-03), the edge-blend battery'
   # build.rs 5 -> 3 (ONEHOME, finished-body doors): `fillet_edges` and
   # `chamfer_edges` take the scalar's finished body (`F: FinishedBody`),
   # so their `T: Decide + Bounds` is now `F::Scalar: Bounds` in a

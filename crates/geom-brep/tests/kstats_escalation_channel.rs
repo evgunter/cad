@@ -171,17 +171,12 @@ fn the_dihedral_arm_gate_records_its_escalation() {
 #[test]
 fn the_dihedral_sign_gate_records_its_escalation() {
     let band = Band::linear(Tol::witness()).unwrap();
+    let metre = fixture_lever(1.0f64);
     let s_plus = plane(Vec3::new(0.0, 0.0, 1.0), Vec3::new(1.0, 0.0, 0.0));
     let s_minus = plane(Vec3::new(0.0, 1.0, 0.0), Vec3::new(1.0, 0.0, 0.0));
     assert!(
         matches!(
-            classify_dihedral(
-                &s_plus,
-                &s_minus,
-                Point3::origin(),
-                fixture_lever(1.0f64),
-                band
-            ),
+            classify_dihedral(&s_plus, &s_minus, Point3::origin(), metre, band),
             Ok(geom_brep::Dihedral::Corner(_))
         ),
         "perpendicular planes read a corner"
@@ -195,7 +190,7 @@ fn the_dihedral_sign_gate_records_its_escalation() {
     };
     let walk = geom_brep::WedgeWalk::along_edge(side(&s_plus), side(&s_minus), &across, 0.0, 1.0);
     let bracket = Bracket::open();
-    let out = geom_brep::edge_wedge_over(&walk, fixture_lever(1.0f64), band);
+    let out = geom_brep::edge_wedge_over(&walk, metre, band);
     let recorded = bracket.finish();
     let geom_brep::WedgeVerdict::InBand(escalation) = out else {
         panic!("a zero sign escalates, got {out:?}");

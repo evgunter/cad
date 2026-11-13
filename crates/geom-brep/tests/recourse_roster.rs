@@ -301,7 +301,6 @@ const INDIRECT: &[(&str, &str)] = &[
     ("dihedral.rs: decide_nonzero_reported: name", FORWARDS),
     ("dihedral.rs: decide_positive: name", FORWARDS),
     ("dihedral.rs: decide_reported: name", FORWARDS),
-    ("dihedral.rs: gate: name", FORWARDS),
     ("dihedral_side.rs: chart_point_normal: name", FORWARDS),
     ("dihedral_side.rs: near_as: name", FORWARDS),
     (
