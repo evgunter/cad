@@ -558,6 +558,42 @@ fn a_revolved_cone_holds() {
     holds_at_both("the cone", cone::<f64>(), cone::<Interval>());
 }
 
+/// **The box `2 × 1` at depth `h = 1 ± 1e-2` holds at `Sym<Interval>`**:
+/// a family, each plane the engine builds through a shared edge built
+/// from that edge's own stored direction at the lane scalar.
+#[test]
+fn a_box_family_holds_at_sym_interval() {
+    use geom_core::sym::with_session_rules;
+    use geom_core::{ParamSymbol, Sym, SymBudget, SymRules};
+    use sweep::ExtrudeSide;
+    type S = Sym<Interval>;
+    let budget = SymBudget {
+        max_terms: 4096,
+        max_degree: 128,
+    };
+    let ((), _) = with_session_rules(budget, SymRules::shipped(), || {
+        let h: S = Sym::param(
+            ParamSymbol::new(test_utils::symbol_id("h")),
+            Interval::from_bounds(1.0 - 1e-2, 1.0 + 1e-2),
+        );
+        let profile = validated::<S>(&quad([(0.0, 0.0), (2.0, 0.0), (2.0, 1.0), (0.0, 1.0)]));
+        let body = Body::clone(
+            &extrude(
+                &profile,
+                Extrusion::Distance {
+                    depth: h,
+                    side: ExtrudeSide::Along,
+                },
+                tol(),
+            )
+            .expect("the family extrudes")
+            .body,
+        );
+        let report = injective(&body, None, BUDGET);
+        assert_holds("the box at h = 1 ± 1e-2", &report, &body);
+    });
+}
+
 /// **A pyramid holds**: a square base and an apex — four planar faces
 /// meeting at the apex, two of each pair of opposite ones sharing only
 /// that vertex.

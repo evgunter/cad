@@ -4839,7 +4839,7 @@ fn sign_on(
         }
         Zero::Point(s, t, v) => {
             let zero = match on {
-                Some(on) => on.vertices.contains(v),
+                Some(on) => on.holds(&Along::at(*v), false),
                 None => psi
                     .value(p.corner(*s, *t))
                     .is_some_and(|x| is_zero(x, band)),
@@ -7874,6 +7874,184 @@ mod presentation_rows {
             sign_on(&plane, Some(&on), &free, Some(&exact), band()),
             None,
             "a free-form carrier"
+        );
+    }
+
+    /// The plane `z = 0` and the wall `z ≥ 0` meeting it along the line
+    /// from the origin in direction `(1, s, 0)`, `s = ±w`, a family whose
+    /// shared edge turns with `s`: the floor's half `y ≥ 0` and the wall's
+    /// upper half, each presented in a cell about the edge's middle.
+    fn turning(w: f64) -> (Surface<Interval>, Surface<Interval>, Boundary, Boundary) {
+        let s = Interval::from_bounds(-w, w);
+        let d = Vec3::new(iv0(1.0), s, iv0(0.0));
+        let line = Curve3::line(origin(), d);
+        let face = |sense: bool| Boundary {
+            sense,
+            edges: vec![Rim {
+                key: edge(1),
+                arc: Some((line.clone(), (iv0(0.0), iv0(4.0)))),
+                ends: [vertex(1), vertex(2)],
+                uses: vec![Use {
+                    plus: true,
+                    image: None,
+                    iso: None,
+                    wall: None,
+                    harmonic: None,
+                }],
+            }],
+            vertices: BTreeMap::from([
+                (vertex(1), origin()),
+                (vertex(2), line.eval(iv0(4.0))),
+                (vertex(9), Point3::new(iv0(2.0), iv0(1.0), iv0(0.0))),
+            ]),
+            extent: None,
+        };
+        let floor = Surface::Plane {
+            origin: origin(),
+            normal: Vec3::new(iv0(0.0), iv0(0.0), iv0(1.0)),
+            u_ref: Vec3::new(iv0(1.0), iv0(0.0), iv0(0.0)),
+        };
+        let wall = Surface::Plane {
+            origin: origin(),
+            normal: Vec3::new(Interval::from_f64(0.0) - s, iv0(1.0), iv0(0.0)),
+            u_ref: d,
+        };
+        (floor, wall, face(true), face(false))
+    }
+
+    /// **A plane through a line edge that turns with the parameter holds
+    /// the edge for every member** ([`planes_through`]): its `n` and `q`
+    /// are computed from the edge's stored direction and a point of it,
+    /// so for each member direction `d` and point `p` of that member's
+    /// line, `n·d` and `n·(p − q)` enclose 0. It lists the edge and its
+    /// ends, and certifies the floor against the wall. Red if `n` is
+    /// rounded to one direction: it is then normal to the middle member's
+    /// edge alone.
+    #[test]
+    fn a_plane_through_a_turning_line_edge_holds_it_for_every_member() {
+        let w = 1e-2;
+        let (floor, wall, below, above) = turning(w);
+        let local = Local {
+            edges: vec![0],
+            vertices: Vec::new(),
+        };
+        let piece = |surface, boundary| Piece {
+            face: FaceKey::default(),
+            surface,
+            whole: false,
+            boundary,
+            u: (1.9, 2.1),
+            v: (-0.1, 0.1),
+            local: &local,
+            ball: Ball::holding(origin(), origin()),
+        };
+        let (x, y) = (piece(&floor, &below), piece(&wall, &above));
+        let (Ok(Presentation::Of(px)), Ok(Presentation::Of(py))) = (
+            present_plane(&x, &[0], &[], band()),
+            present_plane(&y, &[0], &[], band()),
+        ) else {
+            panic!("both faces are presented on the edge");
+        };
+        let near = Near {
+            edges: vec![(0, 0)],
+            vertices: Vec::new(),
+        };
+        let planes = planes_through(&x, &near, &px, &py);
+        let [(psi @ Psi::Linear { n, q }, on)] = planes.as_slice() else {
+            panic!("one plane through the line: {planes:?}");
+        };
+        assert_eq!(on.edges, [edge(1)], "it lists the edge");
+        assert!(
+            on.vertices.contains(&vertex(1)) && on.vertices.contains(&vertex(2)),
+            "and its ends: {on:?}"
+        );
+        for k in [-1.0, -0.5, 0.0, 0.5, 1.0] {
+            let d = Vec3::new(iv0(1.0), iv0(k * w), iv0(0.0));
+            let p = Point3::new(iv0(3.0), iv0(3.0 * k * w), iv0(0.0));
+            for (what, v) in [("n·d", n.dot(d)), ("n·(p − q)", n.dot(p - *q))] {
+                assert!(
+                    v.lo() <= 0.0 && 0.0 <= v.hi(),
+                    "the member at s = {}: {what} = {v:?}",
+                    k * w
+                );
+            }
+        }
+        let (a, b) = (
+            sign_on(psi, Some(on), &px, Some(&py), band()),
+            sign_on(psi, Some(on), &py, Some(&px), band()),
+        );
+        assert!(
+            matches!((a, b), (Some(a), Some(b)) if a == flip(b)),
+            "the plane separates the floor from the wall: {a:?} {b:?}"
+        );
+    }
+
+    /// **A plane through a line edge answers nothing at a shared vertex
+    /// off the line** ([`planes_through`], [`sign_on`]): the pair shares
+    /// the edge and the vertex `(2, 1, 0)` apart from it, and the plane,
+    /// built through the edge, lists the edge's ends and not that vertex.
+    /// A corner point at an end reads the plane's sign; the same corner
+    /// at the other vertex answers nothing. Red if the plane is read as
+    /// vanishing on every cell.
+    #[test]
+    fn a_plane_through_a_line_edge_answers_nothing_at_a_vertex_off_it() {
+        let (floor, wall, below, above) = turning(0.0);
+        let local = Local {
+            edges: vec![0],
+            vertices: Vec::new(),
+        };
+        let piece = |surface, boundary| Piece {
+            face: FaceKey::default(),
+            surface,
+            whole: false,
+            boundary,
+            u: (1.9, 2.1),
+            v: (-0.1, 0.1),
+            local: &local,
+            ball: Ball::holding(origin(), origin()),
+        };
+        let (x, y) = (piece(&floor, &below), piece(&wall, &above));
+        let (Ok(Presentation::Of(px)), Ok(Presentation::Of(py))) = (
+            present_plane(&x, &[0], &[], band()),
+            present_plane(&y, &[0], &[], band()),
+        ) else {
+            panic!("both faces are presented on the edge");
+        };
+        let near = Near {
+            edges: vec![(0, 0)],
+            vertices: vec![vertex(9)],
+        };
+        let planes = planes_through(&x, &near, &px, &py);
+        let [(psi, on)] = planes.as_slice() else {
+            panic!("one plane through the line: {planes:?}");
+        };
+        assert!(
+            !on.vertices.contains(&vertex(9)),
+            "the vertex off the line is not listed: {on:?}"
+        );
+        // A rectangle of the floor leaving the point along `-y`, both its
+        // axes climbing the plane.
+        let at = |v| Presented {
+            surface: &floor,
+            map: Map::Affine {
+                o: [iv0(2.0), iv0(0.0)],
+                a: [iv0(0.0), iv0(-1.0)],
+                b: [iv0(0.5), iv0(-1.0)],
+            },
+            x: (0.0, 0.1),
+            y: (0.0, 0.1),
+            zero: Zero::Point(Side::XLo, Side::YLo, v),
+            corner: false,
+            cache: Cache::default(),
+        };
+        assert!(
+            sign_on(psi, Some(on), &at(vertex(1)), None, band()).is_some(),
+            "at the edge's end, the plane's sign"
+        );
+        assert_eq!(
+            sign_on(psi, Some(on), &at(vertex(9)), None, band()),
+            None,
+            "at the vertex off the line, nothing"
         );
     }
 
