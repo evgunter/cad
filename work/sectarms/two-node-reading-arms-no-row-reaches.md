@@ -39,3 +39,23 @@ Each arm is reached by a row, at a node pose that gets past the earlier
 doors or at a pair with a shallow node crossing (a spline node, spline
 3b). Otherwise each is shown unreachable and folded into the reading
 that precedes it.
+
+## A spline node (2026-11-13)
+
+With spline × implicit arcs carried to their nodes
+(`sectarms/spline-node-carry`), the second arm is still not reached by a
+row. A site within the node's box and off the node reads on every arc
+whose box holds it, and escalates, but the escalation that a site in a
+node's box owes on its own (`CarriedSection::site`'s box arm, row
+`pair_section::wiring::a_site_in_a_nodes_box_on_one_arc_escalates`)
+answers the same refusal, so m9 still survives there. Outside the box
+each arc's pad near the node is an eighth of its distance from it
+(`ssi::certify::NODE_PAD_SHARE_NEAR`), so two arcs' boxes meet only
+where the node's lines are within some 20° of each other (an estimate
+from the pad share, not measured), and those nodes refuse at the
+listing (no sector holds the
+chain's last box, `spline_node_ray`). The first arm waits on a node
+boolean that reaches the germ: the saddle row now stops at the at-rest
+certificate of its first chord to the node
+(`a-node-arcs-chord-misses-its-at-rest-chart-image`).
+

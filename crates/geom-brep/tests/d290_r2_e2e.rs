@@ -127,7 +127,10 @@ fn plane_nurbs_limbs_image_lands_on_the_carriers_own_domain() {
         band(),
     )
     .expect("the door answers on a carrier whose domain is not [0, 1]");
-    let geom_brep::SsiTube::Chart { rung, pad_u, pad_v } = limbs.tube else {
+    let geom_brep::SsiTube::Chart {
+        rung, pad_u, pad_v, ..
+    } = limbs.tube
+    else {
         panic!(
             "the plane × NURBS lane proves a chart tube: {:?}",
             limbs.tube

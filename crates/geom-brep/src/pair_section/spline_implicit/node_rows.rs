@@ -1,8 +1,8 @@
 //! **The node and touch rows** (C5, NURBS × implicit stage 3b): a node
 //! decided on the classification's sweep is listed with its point, the
 //! wall's normal, its two lines and its sector side, read off the
-//! Hessian that decided it; its arcs are read whole, each ending on
-//! entering the node's box and naming the ray it leaves along; a touch
+//! Hessian that decided it; its arcs are read whole, each carried on to
+//! the node and naming the ray it leaves along (C2's node end); a touch
 //! beside arcs is listed with them. Each row names the mutant that turns
 //! it red, and runs at the run's ε (the suite runs 1e-9, 1e-6 and 1e-12).
 
@@ -165,6 +165,14 @@ fn ends_at(s: &PairSection<f64>, n: usize) -> Vec<(usize, NodeLine, RaySense)> {
     out
 }
 
+/// Whether component `k`'s start, rather than its end, is at a node.
+fn ends_at_start(c: &[crate::pair_section::SectionComponent<f64>], k: usize) -> bool {
+    match c[k].shape {
+        ComponentShape::Open { ends } => ends.nodes.start.is_some(),
+        _ => panic!("an open arc"),
+    }
+}
+
 /// The wall's height over the chart's `(x, y)` along the zero set, read
 /// at the point `p` of the plane `z = 0`: a separable graph's `z` there.
 fn on_cross(p: Point3<f64>) -> f64 {
@@ -179,7 +187,8 @@ fn on_cross(p: Point3<f64>) -> f64 {
 /// `(x − ½)(y − ½) > 0`). Its four arcs each run from a side's middle to
 /// the node and name the ray from the node toward that side, the four
 /// rays each claimed once, one node-joined set of the four, a tangency
-/// decided Zero, every carrier unminted. With the plane asked second the
+/// decided Zero, every arc carried to the node: its span ends at the
+/// node's point leaving along its ray, its last box the node's. With the plane asked second the
 /// wall is the first surface and the side is read so; over a chart run
 /// the other way the normal is `−z` and the side is read along it. Red against the
 /// lines read in the wrong turn, the side bit read without `∇f·n`, a
@@ -253,10 +262,40 @@ fn a_node_lists_its_lines_side_and_four_arcs() {
                 toward.dot(node.ray(l, sense)) > 0.0,
                 "arc {k} names the ray toward its side: {toward:?}"
             );
-            assert!(matches!(
-                c[k].carrier,
-                crate::pair_section::ClassCarrier::Unminted(_)
-            ));
+            // Carried to the node: its span ends at the node's point,
+            // leaving along the ray it names, its pad read box by box
+            // with the node's own box last.
+            let crate::pair_section::ClassCarrier::Fitted(arc) = &c[k].carrier else {
+                panic!("arc {k} is carried: {:?}", c[k].carrier);
+            };
+            let arc = arc.as_ref().as_ref().expect("arc carried to its node");
+            let starts = ends_at_start(c, k);
+            let t = if starts { arc.span.0 } else { arc.span.1 };
+            assert!(
+                arc.carrier.eval(t).distance(node.point) <= 1e-9,
+                "arc {k} ends at the node: {:?}",
+                arc.carrier.eval(t)
+            );
+            let leaving = arc.carrier.ders1(t).1 * if starts { 1.0 } else { -1.0 };
+            assert!(
+                leaving.normalize().dot(node.ray(l, sense)) > 0.99,
+                "arc {k} leaves along its ray: {leaving:?}"
+            );
+            let held = if starts {
+                arc.boxes.first()
+            } else {
+                arc.boxes.last()
+            };
+            assert_eq!(
+                held.and_then(|b| b.node),
+                Some(0),
+                "arc {k}'s last box is the node's: {:?}",
+                arc.boxes
+            );
+            assert!(
+                arc.boxes.iter().filter(|b| b.node.is_some()).count() == 1,
+                "one node box"
+            );
         }
         assert_eq!(s.node_sets().len(), 1, "{:?}", s.node_sets());
         assert_eq!(s.node_sets()[0].arcs, [0, 1, 2, 3]);
@@ -533,39 +572,6 @@ fn a_node_whose_rays_are_not_each_claimed_once_refuses() {
     }
 }
 
-/// **An end between two rays names neither.** An end leaving at 45° off
-/// both of two neighbouring rays leads neither by a decided gap and is
-/// refused or escalated, never named; one along a ray names it; one 50°
-/// off every ray is past the floor and refused. Red against the runner-up
-/// read as the ray, and against the 45° floor skipped.
-#[test]
-fn an_end_between_two_rays_names_neither() {
-    let rays = [
-        Vec3::unit_x(),
-        Vec3::unit_y(),
-        Vec3::new(-1.0, 0.0, 0.0),
-        Vec3::new(0.0, -1.0, 0.0),
-    ];
-    let extent = geom_core::test_support::fixture_lever(geom_core::Interval::from_certified(1.0));
-    let between = Vec3::new(1.0, 1.0, 0.0) * core::f64::consts::FRAC_1_SQRT_2;
-    assert!(super::ray_of(between, rays, extent, band()).is_err());
-    assert_eq!(super::ray_of(Vec3::unit_y(), rays, extent, band()), Ok(1));
-    let near = Vec3::new(0.9, 0.1, 0.0);
-    let near = near.normalize();
-    assert_eq!(super::ray_of(near, rays, extent, band()), Ok(0));
-    // 50° off the x axis, out of the plane of the rays: past the floor.
-    let (c, s) = (50f64.to_radians().cos(), 50f64.to_radians().sin());
-    assert!(super::ray_of(Vec3::new(c, 0.0, s), rays, extent, band()).is_err());
-    // Lines 30° apart: an end at 15°, between the two rays, is within 45°
-    // of both, so the floor passes it and the lead alone refuses it; one
-    // at 5° leads at 0, one at 25° at 1.
-    let at = |deg: f64| Vec3::new(deg.to_radians().cos(), deg.to_radians().sin(), 0.0);
-    let narrow = [at(0.0), at(30.0), -at(0.0), -at(30.0)];
-    assert!(super::ray_of(at(15.0), narrow, extent, band()).is_err());
-    assert_eq!(super::ray_of(at(5.0), narrow, extent, band()), Ok(0));
-    assert_eq!(super::ray_of(at(25.0), narrow, extent, band()), Ok(1));
-}
-
 /// **A touch beside components that reach a side crosses them.** The
 /// bowl `z = −2(x − ½)² − 2(y − ½)²` against `z = 0` is swept loop-free
 /// with its top a touch decided Zero. Alone it is listed beside nothing
@@ -770,24 +776,104 @@ fn two_decided_boxes_that_meet_decline() {
     assert_eq!(sweep::overlapping(&[*top, moved(2.0 * width)]), None);
 }
 
-/// **An arc to a node carries none, by name**: the node is listed with
-/// its four arcs, and no arc is carried to its node yet, so the carry
-/// refuses the section as [`crate::pair_section::NoCarrier::NodeArc`]
-/// rather than hand the join an arc whose end it has not certified.
+/// **An arc carried to its node reads its sites box by box** (C2's node
+/// end). The cross saddle against `z = 0` carries its four arcs to the
+/// node, each one's pad read box by box. A site at the node reads the
+/// node; a site on the `+x` arc three node boxes out reads that arc
+/// alone, though the arc's widest pad reaches the `+y` arc beside it; a
+/// site in the node's box and off the node reads on the arcs whose boxes
+/// there hold it, which share the node, and escalates on its distance
+/// from it.
 ///
-/// Red against: an arc to a node carried as a rim arc is.
+/// Red against: the pad read whole (the site three boxes out reads on
+/// two arcs and escalates); and a site on two arcs that share a node,
+/// off it, read on the last of them (`two-node-reading-arms-no-row-reaches`'s
+/// m9: the box's site reads on an arc).
 #[test]
-fn an_arc_to_a_node_carries_none_by_name() {
-    use crate::pair_section::{CarryError, CarryRefusal, NoCarrier};
+fn an_arc_carried_to_its_node_reads_its_sites_box_by_box() {
+    use crate::pair_section::{SiteReading, SiteRefusal};
     let s = built(&level(0.0), &cross()).expect("the cross reads");
-    let refused = s.carry(Some(SsiLane::marched()), band());
+    let carried = s
+        .carry(Some(SsiLane::marched()), band())
+        .expect("its four arcs carry to the node");
+    let node = pt(0.5, 0.5, 0.0);
+    let toward_x = carried
+        .components()
+        .iter()
+        .position(|c| c.witness.x > 0.6)
+        .expect("an arc toward +x");
+    let arc = &carried.components()[toward_x];
+    let node_box = arc
+        .boxes
+        .iter()
+        .find(|b| b.node.is_some())
+        .expect("the arc's node box");
+    let h = 0.5 * (node_box.hi[0] - node_box.lo[0]);
+    let out = node + Vec3::unit_x() * (3.0 * h);
     assert!(
-        matches!(
-            refused,
-            Err(CarryError::Refused(CarryRefusal::Unminted(
-                NoCarrier::NodeArc
-            )))
-        ),
-        "{refused:?}"
+        arc.pad > 2.0 * 3.0 * h,
+        "the widest pad {} reaches the +y arc from {out:?}",
+        arc.pad
     );
+    match carried.site(out, band()) {
+        Ok(SiteReading::OnArc(foot)) => assert_eq!(foot.component, toward_x),
+        other => panic!("{out:?} reads on the +x arc alone: {other:?}"),
+    }
+    let inside = node + Vec3::unit_x() * (0.5 * h);
+    assert!(
+        matches!(carried.site(inside, band()), Err(SiteRefusal::Escalated(_))),
+        "{inside:?} in the node's box escalates: {:?}",
+        carried.site(inside, band())
+    );
+    assert!(matches!(
+        carried.site(node, band()),
+        Ok(SiteReading::AtNode(0))
+    ));
+}
+
+// SNCPROBE (throwaway)
+mod snc_probe {
+    use super::*;
+    pub(super) fn lemni(s: f64) -> Surface<f64> {
+        separable(&[0.0, 0.0, -1.0 / s, 0.0, 1.0 / (s * s * s)], (-1.2 * s, 2.4 * s), &[0.0, 0.0, 1.0 / s], (-1.0 * s, 2.0 * s))
+    }
+    fn go(s: f64, which: &str) {
+        let mut fx = vec![];
+        if which == "lem" {
+            fx.push((format!("lemniscate s={s}"), lemni(s)));
+        }
+        if which == "cross" {
+            fx.push((format!("cross s={s}"), biquad(two_lines(4.0 * s, [(1.0, 0.0), (0.0, 1.0)], 0.0), |u, v| (s * u, s * v))));
+        }
+        if which == "gen" {
+            fx.push((format!("generic78 s={s}"), biquad(two_lines(2.0 * s, [(-1.5, 1.0), (0.4, 1.0)], 0.0), |u, v| (s * u, s * v))));
+        }
+        for (name, wall) in fx {
+            let t = std::time::Instant::now();
+            match built(&level(0.0), &wall) {
+                Ok(b) => {
+                    let n = match b.components() { Components::Counted(c) => c.len(), _ => 999 };
+                    eprintln!("SNCP [{name}] BUILT nodes {} comps {n} carry {:?} ({:?})", b.nodes().len(), b.carry(Some(SsiLane::marched()), band()).map(|c| c.components().len()), t.elapsed());
+                }
+                Err(e) => eprintln!("SNCP [{name}] build refused {e:?} ({:?})", t.elapsed()),
+            }
+        }
+    }
+    #[test] fn snc_cross() { let s: f64 = std::env::var("SNC_S").map_or(1.0, |v| v.parse().unwrap()); go(s, "cross") }
+    #[test] fn snc_gen() { let s: f64 = std::env::var("SNC_S").map_or(1.0, |v| v.parse().unwrap()); go(s, "gen") }
+    #[test] fn snc_lem() { let s: f64 = std::env::var("SNC_S").map_or(1.0, |v| v.parse().unwrap()); go(s, "lem") }
+}
+#[test]
+fn snc_decide_probe() {
+    let s = 0.01;
+    let wall = biquad(two_lines(4.0 * s, [(1.0, 0.0), (0.0, 1.0)], 0.0), |u, v| (s * u, s * v));
+    let Surface::Nurbs(net) = &wall else { panic!() };
+    let jets = crate::ssi::node::Jets::of(net).unwrap();
+    let form = crate::ssi::residual::ImplicitForm::of(&level(0.0)).unwrap();
+    for h in [1e-3, 1e-2, 3e-2, 5e-2, 1e-1] {
+        let x = crate::ssi::exhaust::UvRect { u: (0.5 - h, 0.5 + h), v: (0.5 - h, 0.5 + h) };
+        let r = crate::ssi::node::read(&jets, &form, geom_core::Interval::from_bounds(x.u.0, x.u.1), geom_core::Interval::from_bounds(x.v.0, x.v.1));
+        let k = crate::ssi::node::krawczyk(&jets, &form, [geom_core::Interval::from_bounds(x.u.0, x.u.1), geom_core::Interval::from_bounds(x.v.0, x.v.1)]);
+        eprintln!("SNCP h {h}: hess {:?} k {:?} decide {:?}", r.hessian, k.map(|k| k.1), crate::ssi::node::decide(&jets, &form, x, band()).map(|d| d.kind));
+    }
 }

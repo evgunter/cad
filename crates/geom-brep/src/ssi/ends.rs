@@ -57,6 +57,26 @@ use super::{
 /// The most knots [`Ends::graded`] inserts toward one node end (D9).
 pub(crate) const NODE_GRADES: usize = 512;
 
+/// The most samples [`Ends::enter`] settles inside a node's box, each
+/// half the last one's distance from the node (D9): from a box a
+/// sixteenth of a unit chart wide, past `√(εR)` at ε = 1e-12.
+pub(crate) const NODE_SETTLES: usize = 48;
+
+/// How many times the march's tolerance the section's reach across a
+/// sample, `|∇φ|` times its distance from the node, stays above for
+/// [`Ends::enter`] to settle the next one nearer (D9): about `√(εR)`
+/// from the node, where the node's arcs stand apart by some multiple of
+/// the band, so the windows of limb 3's chain there still read them
+/// apart.
+pub(crate) const NODE_SETTLE_FLOOR: f64 = 64.0;
+
+/// The grade [`Ends::finish`] first reads a node end at (D9): a span
+/// about a tenth of its distance from the node, so the window before the
+/// node's box, its hull reaching a span or two past its own toward the
+/// node, sees the node across an angle well inside a sector between the
+/// node's rays, which is the ray the arc's end names (C5).
+pub(crate) const NODE_GRADE_FIRST: u32 = 2;
+
 /// The grades [`Ends::finish`] climbs at a node end while limb 3's tube
 /// straddles (D9): at the last, a span is about a fiftieth of its
 /// distance from the node.
@@ -81,6 +101,9 @@ pub(crate) struct Ends<'a, S, const M: usize, const N: usize> {
     /// The rectangles the march is bounded by, and the node boxes it
     /// ends on entering.
     pub exit: RectExit<'a>,
+    /// Each node's chart point, by the index of its box among the
+    /// exit's: where an arc entering its box is carried on to.
+    pub node_at: &'a [(f64, f64)],
     /// The operands the certificate reads.
     pub operands: Operands<'a>,
     /// The run band.
@@ -317,6 +340,7 @@ impl<'a> Ends<'a, ParametricPairR4<'a>, 3, 4> {
             sys,
             ctx,
             exit: RectExit::PAIR,
+            node_at: &[],
             operands: Operands::Pair { a, b },
             band,
         }
@@ -326,18 +350,20 @@ impl<'a> Ends<'a, ParametricPairR4<'a>, 3, 4> {
 impl<'a> Ends<'a, ImplicitChartR2<'a>, 1, 2> {
     /// The ends' reader for one residual × NURBS call: the march bounded
     /// by the wall's rectangle, the state's only coordinates, and ended
-    /// on entering any of the node boxes `nodes`.
+    /// on entering any of the node boxes `nodes`, each arc then carried
+    /// on to its node's chart point in `node_at`.
     pub(crate) fn implicit(
         sys: &'a ImplicitChartR2<'a>,
         ctx: MarchContext<2>,
         wall: &'a SsiOperand<'a, f64>,
         band: Band,
-        nodes: &'a [UvRect],
+        (nodes, node_at): (&'a [UvRect], &'a [(f64, f64)]),
     ) -> Self {
         Self {
             sys,
             ctx,
             exit: RectExit::chart_with(nodes),
+            node_at,
             operands: Operands::Implicit {
                 partner: sys.partner,
                 wall,
@@ -469,7 +495,7 @@ impl<const M: usize, const N: usize, S: SectionSystem<M, N>> Ends<'_, S, M, N> {
                 outside,
             } => {
                 let mut states = trace.states;
-                self.enter(&mut states, inside, outside)?;
+                self.enter(&mut states, node, (inside, outside))?;
                 return Ok((Far::Node(node), states));
             }
             // A march from the wall's boundary that comes back to its
@@ -537,10 +563,18 @@ impl<const M: usize, const N: usize, S: SectionSystem<M, N>> Ends<'_, S, M, N> {
         }
     }
 
-    /// A branch's last state where its step from `inside` toward
-    /// `outside` enters a node's box: the chord's entry point, settled
-    /// onto the section, so the branch reaches the box and no gap lies
-    /// between its tube and the box.
+    /// **A branch carried into node `node`'s box and on to the node**
+    /// (C5's node end): its state where its step from `inside` toward
+    /// `outside` enters the box, the chord's entry point settled onto
+    /// the section, so no gap lies between its tube and the box; then
+    /// samples toward the node's chart point, each half the last one's
+    /// distance from it, settled onto the section; then the node's point
+    /// itself. The samples stop where the section's reach across the
+    /// sample, `|∇φ|` times its distance from the node, is no more than
+    /// [`NODE_SETTLE_FLOOR`] times the march's tolerance (about `√(εR)`
+    /// from the node, `R` the surfaces' relative curvature radius: inside
+    /// it no reading at the band tells the node's arcs apart), where one
+    /// does not settle nearer the node, or after [`NODE_SETTLES`].
     ///
     /// # Errors
     ///
@@ -551,8 +585,8 @@ impl<const M: usize, const N: usize, S: SectionSystem<M, N>> Ends<'_, S, M, N> {
     fn enter(
         &self,
         states: &mut Vec<[f64; N]>,
-        inside: [f64; N],
-        outside: [f64; N],
+        node: usize,
+        (inside, outside): ([f64; N], [f64; N]),
     ) -> Result<(), SsiError> {
         let lost = |to: &[f64; N]| SsiError::StepRefinementFailed {
             mode: StepperMode::Realized.name(),
@@ -565,6 +599,45 @@ impl<const M: usize, const N: usize, S: SectionSystem<M, N>> Ends<'_, S, M, N> {
             .ok_or_else(|| lost(&outside))?;
         let x = super::march::newton_refine(self.sys, at, self.ctx.tol).ok_or_else(|| lost(&at))?;
         close_at(self.sys, states, x);
+        // The node's chart point, over the bounded coordinates; every
+        // other coordinate rides with the last state (the 1×2 lane has
+        // none).
+        let (Some(&(nu, nv)), Some(&last)) = (self.node_at.get(node), states.last()) else {
+            return Ok(());
+        };
+        let (i, j) = (self.exit.first, self.exit.first + 1);
+        let mut centre = last;
+        centre[i] = nu;
+        centre[j] = nv;
+        let chart = |x: &[f64; N]| (x[i] - nu).hypot(x[j] - nv);
+        let mut prev = last;
+        for _ in 0..NODE_SETTLES {
+            let d = chart(&prev);
+            let sq: f64 = self
+                .sys
+                .jacobian(&prev)
+                .iter()
+                .map(|row| row[i] * row[i] + row[j] * row[j])
+                .sum();
+            let reach = sq.sqrt() * d;
+            if reach.partial_cmp(&(NODE_SETTLE_FLOOR * self.ctx.tol.meters()))
+                != Some(core::cmp::Ordering::Greater)
+            {
+                break;
+            }
+            let aim =
+                core::array::from_fn::<f64, N, _>(|k| geom_core::bracket_mid((centre[k], prev[k])));
+            let Some(y) = super::march::newton_refine(self.sys, aim, self.ctx.tol) else {
+                break;
+            };
+            let dy = chart(&y);
+            if !(dy > 0.25 * d && dy < 0.75 * d) {
+                break;
+            }
+            states.push(y);
+            prev = y;
+        }
+        states.push(centre);
         Ok(())
     }
 
@@ -612,7 +685,7 @@ impl<const M: usize, const N: usize, S: SectionSystem<M, N>> Ends<'_, S, M, N> {
                         inside,
                         outside,
                     } => {
-                        self.enter(states, inside, outside)?;
+                        self.enter(states, node, (inside, outside))?;
                         Ok(BranchTip::Node(node))
                     }
                     RectEnd::Closed => Err(SsiError::CrossingUnmatched { from: None }),
@@ -649,7 +722,7 @@ impl<const M: usize, const N: usize, S: SectionSystem<M, N>> Ends<'_, S, M, N> {
                 let fitted = fit_states(self.sys, states)?;
                 // A node end's grading climbs while the tube straddles
                 // (Self::graded); every other refusal stands at once.
-                let mut level = 0;
+                let mut level = NODE_GRADE_FIRST;
                 loop {
                     let (carrier, pa, pb) = self.graded((end, level), states, fitted.clone())?;
                     let lane = self.operands.lane(pa.as_ref(), pb.as_ref())?;
@@ -682,8 +755,8 @@ impl<const M: usize, const N: usize, S: SectionSystem<M, N>> Ends<'_, S, M, N> {
     /// (evaluation-invariant in ℝ, so the spans stay one list), at
     /// `t_n ± L·rᵏ` from each node end `t_n`, `L` the domain's length and
     /// `r = 1 − 1/(3·2^level)`, until the span at the end is no longer
-    /// against the domain than the node box's half-width is against the
-    /// arc's chart length.
+    /// against the domain than the states' last chord to the node is
+    /// against the arc's chart length.
     ///
     /// Limb 3 encloses the transverse gradient over each span's window.
     /// Near a node that is about the Hessian times the window's distance
@@ -709,28 +782,26 @@ impl<const M: usize, const N: usize, S: SectionSystem<M, N>> Ends<'_, S, M, N> {
         let BranchEnd::Node { from, to } = end else {
             return Ok(triple);
         };
-        let (Some(first), Some(last)) = (states.first(), states.last()) else {
+        let (Some(&[a0, a1]), Some(&[b0, b1])) = (states.first_chunk(), states.last_chunk()) else {
             return Ok(triple);
         };
         let (carrier, pa, pb) = triple;
         let (t0, t1) = carrier.domain();
-        let length = (last[0] - first[0]).hypot(last[1] - first[1]);
+        let chord = |a: &[f64; N], b: &[f64; N]| (b[0] - a[0]).hypot(b[1] - a[1]);
+        let length: f64 = states.windows(2).map(|w| chord(&w[0], &w[1])).sum();
         let ratio = 1.0 - 1.0 / (3.0 * f64::from(1_u32 << level.min(16)));
         let mut add: Vec<f64> = Vec::new();
-        for (tip, t_end, sense) in [(from, t0, 1.0), (to, t1, -1.0)] {
-            let BranchTip::Node(k) = tip else {
-                continue;
-            };
-            let Some(r) = self.exit.nodes.get(k) else {
-                continue;
-            };
-            let half = 0.5 * (r.u.1 - r.u.0).min(r.v.1 - r.v.0);
-            if !(half > 0.0 && length > half) {
+        for (tip, t_end, sense, last) in [
+            (from, t0, 1.0, chord(&a0, &a1)),
+            (to, t1, -1.0, chord(&b0, &b1)),
+        ] {
+            if !matches!(tip, BranchTip::Node(_)) || !(last > 0.0 && length > last) {
                 continue;
             }
             // Spans shrink by `ratio` toward the end until their share of
-            // the domain is the box's of the arc.
-            let floor = half / length;
+            // the domain is the last chord's, from the sample nearest the
+            // node to the node, of the arc's.
+            let floor = last / length;
             let mut share = ratio;
             for _ in 0..NODE_GRADES {
                 if share <= floor {

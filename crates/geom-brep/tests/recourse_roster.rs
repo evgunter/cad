@@ -89,6 +89,7 @@ const CARRIERS: &[NameCarrier] = &[
     NameCarrier::Const("FORWARD_ROW"),
     NameCarrier::Const("GAP"),
     NameCarrier::Const("HULL"),
+    NameCarrier::Const("NODE_RAY"),
     NameCarrier::Const("OFFSET"),
     NameCarrier::Const("ONE_CURVE"),
     NameCarrier::Const("PARALLEL"),
@@ -396,10 +397,6 @@ const INDIRECT: &[(&str, &str)] = &[
         NOT_A_NAME,
     ),
     ("pair_section/ruling.rs: ruled: a", NOT_A_NAME),
-    (
-        "pair_section/spline_implicit.rs: ray_of: name",
-        CLOSURE_FORWARDS,
-    ),
     (
         "pair_section/spline_implicit/sweep.rs: sweep: jets",
         NOT_A_NAME,

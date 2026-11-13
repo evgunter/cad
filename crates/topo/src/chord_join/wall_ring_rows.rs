@@ -711,6 +711,7 @@ fn closed_form(
 ) -> geom_brep::CarriedComponent<f64> {
     geom_brep::CarriedComponent {
         witness: carrier.mid_point(span.0, span.1),
+        boxes: Vec::new(),
         carrier,
         span,
         shape,
@@ -977,6 +978,7 @@ fn a_carried_chord_on_an_unwalkable_spline_refuses_unwalked() {
     .unwrap();
     let component = geom_brep::CarriedComponent {
         witness: still,
+        boxes: Vec::new(),
         carrier: geom::Curve3::Nurbs(std::sync::Arc::new(net)),
         span: (0.0, 1.0),
         shape: geom_brep::ComponentShape::Loop,

@@ -214,6 +214,11 @@ pub enum SsiTube<T> {
         pad_u: T,
         /// The pad along `v`, in chart units.
         pad_v: T,
+        /// At each end of the pcurve, start first, that is a node (C2's
+        /// node end): the half-widths along `u` and `v` of the box about
+        /// the end that the node's own reading holds, the chain's last
+        /// box ([`chart_tube`]); `None` at any other end.
+        nodes: [Option<(f64, f64)>; 2],
     },
     /// The two-chart arm (NURBS × NURBS): a per-span chain of ℝ⁴ boxes,
     /// each the product of the two pcurves' span windows, padded per
@@ -234,10 +239,16 @@ impl<T> SsiTube<T> {
     pub(crate) fn map<U>(self, f: impl Fn(T) -> U) -> SsiTube<U> {
         match self {
             Self::Spatial { radius } => SsiTube::Spatial { radius: f(radius) },
-            Self::Chart { rung, pad_u, pad_v } => SsiTube::Chart {
+            Self::Chart {
+                rung,
+                pad_u,
+                pad_v,
+                nodes,
+            } => SsiTube::Chart {
                 rung: f(rung),
                 pad_u: f(pad_u),
                 pad_v: f(pad_v),
+                nodes,
             },
             Self::TwoChart { rung, pad_a, pad_b } => SsiTube::TwoChart {
                 rung: f(rung),
@@ -1491,7 +1502,8 @@ fn probe_tube_analytic<T: Decide + Bounds + CertifiedEnclosure>(
 
 /// One span of a pcurve's chart tube: the span's hull padded per axis,
 /// and the span's parameter midpoint, where the probe reads the
-/// pcurve's tangent.
+/// pcurve's tangent; or, at an end that is a node, the box about the
+/// node its own reading holds.
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct ChartWindow {
     /// The padded window, in chart units.
@@ -1500,6 +1512,9 @@ pub(crate) struct ChartWindow {
     pub(crate) mid: f64,
     /// The span's parameter ends.
     pub(crate) ends: (f64, f64),
+    /// Whether it is a node's box (C2's node end): limb 3's claim over
+    /// it is the node's own reading, not the transverse enclosure.
+    pub(crate) node: bool,
 }
 
 /// The chart tube's windows: **one padded rectangle per nonempty span**
@@ -1524,6 +1539,144 @@ pub(crate) fn chart_tube_windows<T: geom_core::CertifiedBounds>(
     pcurve: &NurbsCurve2<T>,
     pad: (f64, f64),
 ) -> Option<Vec<ChartWindow>> {
+    chart_tube(pcurve, pad, [None, None])
+}
+
+/// The share of its distance from a node a window's pad is, at most
+/// (D9, a fixed rule): limb 3's transverse enclosure near a node is
+/// about the Hessian times the window's distance from it, and its
+/// spread about the Hessian times the window's width with its pads, so
+/// a pad that narrows in proportion to the distance keeps the spread a
+/// share of the value at every scale (C2's node end).
+pub(crate) const NODE_PAD_SHARE: f64 = 1.0 / 4.0;
+
+/// The share of its distance from a node a window's pad is, at most,
+/// within [`NODE_PAD_REACH`] of the node box's half-widths (D9): there
+/// the window before the node's box must see the node across an angle
+/// inside one sector between its rays (C5), which half the share past
+/// it does not leave room for.
+pub(crate) const NODE_PAD_SHARE_NEAR: f64 = 1.0 / 8.0;
+
+/// How many of its box's half-widths from a node the pad narrows at
+/// [`NODE_PAD_SHARE_NEAR`] (D9); past it, at [`NODE_PAD_SHARE`], so the
+/// tube the accounting banks outside the node's own region stays as
+/// wide as the transverse enclosure allows.
+pub(crate) const NODE_PAD_REACH: f64 = 16.0;
+
+/// How many times the settled samples' reach from a node its box is,
+/// half-width (D9; [`super::node::node_box`]): a march's last settled
+/// sample stands within that reach, so the arc's last span, and the
+/// hull of its control points, lie in the box with room, and the window
+/// before it overlaps the box about their shared knot.
+pub(crate) const NODE_BOX_REACH: f64 = 2.0;
+
+/// **The chart tube's windows, graded toward its node ends** (C2): one
+/// window per nonempty span of the pcurve, as [`chart_tube_windows`]
+/// pads them, except that
+///
+/// - at an end that is a node, with the half-widths `nodes` records
+///   ([`SsiTube::Chart`]), the end span's window is the box of those
+///   half-widths about the pcurve's end, the node's ([`ChartWindow::node`]);
+/// - every other window's pad along each axis is at most
+///   [`NODE_PAD_SHARE`] of its span hull's distance from the nearest
+///   node ([`NODE_PAD_SHARE_NEAR`] within [`NODE_PAD_REACH`] of the
+///   node box's half-widths), read in metres through the pads' own
+///   ratio (each pad is the rung over that axis's chart speed), so the
+///   tube's radius narrows box by box toward the node.
+///
+/// `None` where [`chart_tube_windows`] refuses, where the pcurve's end at
+/// a node does not read, or where a node end leaves no window beside its
+/// box: a chain of one window ending at a node holds no arc the tube
+/// reads.
+pub(crate) fn chart_tube<T: geom_core::CertifiedBounds>(
+    pcurve: &NurbsCurve2<T>,
+    pad: (f64, f64),
+    nodes: NodeHalves,
+) -> Option<Vec<ChartWindow>> {
+    let hulls = span_hulls(pcurve)?;
+    let at = |end: usize| pcurve_end(pcurve, &hulls, end);
+    let mut centres = [None, None];
+    for (e, slot) in centres.iter_mut().enumerate() {
+        if nodes[e].is_some() {
+            *slot = Some(at(e)?);
+        }
+    }
+    let graded = centres.iter().any(Option::is_some);
+    if graded && hulls.len() < 2 {
+        return None;
+    }
+    let n = hulls.len();
+    let mut out = Vec::with_capacity(n);
+    for (k, SpanHull { hull, mid, ends }) in hulls.into_iter().enumerate() {
+        let end = match k {
+            0 => Some(0),
+            _ if k == n - 1 => Some(1),
+            _ => None,
+        };
+        if let Some(e) = end
+            && let (Some(c), Some(h)) = (centres[e], nodes[e])
+        {
+            out.push(ChartWindow {
+                rect: UvRect {
+                    u: (c.0 - h.0, c.0 + h.0),
+                    v: (c.1 - h.1, c.1 + h.1),
+                },
+                mid,
+                ends,
+                node: true,
+            });
+            continue;
+        }
+        // The hull's distance from the nearest node, in rungs (each
+        // axis's gap over that axis's pad), times the share of it the pad
+        // may be there: [`NODE_PAD_SHARE_NEAR`] within [`NODE_PAD_REACH`]
+        // of the node box's half-widths, [`NODE_PAD_SHARE`] past it.
+        let gap = |(lo, hi): (f64, f64), c: f64| (lo - c).max(c - hi).max(0.0);
+        let share = centres
+            .iter()
+            .zip(nodes)
+            .filter_map(|(c, h)| c.zip(h))
+            .map(|((cu, cv), (hu, hv))| {
+                let (gu, gv) = (gap(hull.u, cu), gap(hull.v, cv));
+                let near = (gu / hu).hypot(gv / hv) < NODE_PAD_REACH;
+                let k = if near {
+                    NODE_PAD_SHARE_NEAR
+                } else {
+                    NODE_PAD_SHARE
+                };
+                k * (gu / pad.0).hypot(gv / pad.1)
+            })
+            .fold(1.0_f64, f64::min);
+        let (pu, pv) = (pad.0 * share, pad.1 * share);
+        out.push(ChartWindow {
+            rect: UvRect {
+                u: (hull.u.0 - pu, hull.u.1 + pu),
+                v: (hull.v.0 - pv, hull.v.1 + pv),
+            },
+            mid,
+            ends,
+            node: false,
+        });
+    }
+    Some(out)
+}
+
+/// One nonempty span of a pcurve: its hull, its parameter midpoint and
+/// its parameter ends ([`span_hulls`]).
+#[derive(Clone, Copy, Debug)]
+struct SpanHull {
+    hull: UvRect,
+    mid: f64,
+    ends: (f64, f64),
+}
+
+/// The half-widths of the node box at each end of a chart chain, start
+/// first, `None` at an end that is not a node ([`SsiTube::Chart`]).
+pub(crate) type NodeHalves = [Option<(f64, f64)>; 2];
+
+/// Each nonempty span of the pcurve ([`SpanHull`]). `None` when any
+/// span's hull is refused ([`chart_tube_windows`]).
+fn span_hulls<T: geom_core::CertifiedBounds>(pcurve: &NurbsCurve2<T>) -> Option<Vec<SpanHull>> {
     let kv = pcurve.knots_f64_interim();
     let coords = pcurve.certified_coords();
     // One pair per chart channel, minted once: the coordinates and the
@@ -1542,16 +1695,37 @@ pub(crate) fn chart_tube_windows<T: geom_core::CertifiedBounds>(
             return None;
         }
         let (a, b) = (kv.knots()[index], kv.knots()[index + 1]);
-        out.push(ChartWindow {
-            rect: UvRect {
-                u: (hu.lo() - pad.0, hu.hi() + pad.0),
-                v: (hv.lo() - pad.1, hv.hi() + pad.1),
+        out.push(SpanHull {
+            hull: UvRect {
+                u: (hu.lo(), hu.hi()),
+                v: (hv.lo(), hv.hi()),
             },
             mid: geom::mid_param(a, b),
             ends: (a, b),
         });
     }
     Some(out)
+}
+
+/// The pcurve's chart point at its start (`end` 0) or its end (`end`
+/// 1), its enclosure's middle, its spans read once ([`span_hulls`]);
+/// `None` where it does not read.
+fn pcurve_end<T: geom_core::CertifiedBounds>(
+    pcurve: &NurbsCurve2<T>,
+    spans: &[SpanHull],
+    end: usize,
+) -> Option<(f64, f64)> {
+    let t = if end == 0 {
+        spans.first()?.ends.0
+    } else {
+        spans.last()?.ends.1
+    };
+    let p = pcurve.span_at(t)?.eval_in_span(T::from_computed(t));
+    let (u, v): (f64, f64) = (
+        geom::mid_param(Bounds::lo(p.x), Bounds::hi(p.x)),
+        geom::mid_param(Bounds::lo(p.y), Bounds::hi(p.y)),
+    );
+    (u.is_finite() && v.is_finite()).then_some((u, v))
 }
 
 /// Limb 3's enclosure probe for the **plane × NURBS** arm: the same
@@ -1578,15 +1752,20 @@ fn probe_tube_chart<'p, T: Decide + Bounds + CertifiedEnclosure>(
     pcurve: &NurbsCurve2<T>,
     boxes: &NurbsBoxes<'_, T>,
     phi: impl Into<ChartPhi<'p>>,
-    (rung, pad): (f64, (f64, f64)),
+    (rung, pad, nodes): (f64, (f64, f64), NodeHalves),
     (ends, band): ([Box3; 2], Band),
 ) -> Result<Option<Rung>, SsiError> {
     #[cfg(test)]
     tests::CHART_PROBES.with(|n| n.set(n.get() + 1));
     let phi = phi.into();
-    let surface = boxes.surface();
-    let Some(windows) = chart_tube_windows(pcurve, pad) else {
+    let Some(windows) = chart_tube(pcurve, pad, nodes) else {
         return Ok(None);
+    };
+    let tube = SsiTube::Chart {
+        rung,
+        pad_u: pad.0,
+        pad_v: pad.1,
+        nodes,
     };
     let mut worst = f64::INFINITY;
     let mut probed = Vec::with_capacity(windows.len());
@@ -1613,15 +1792,20 @@ fn probe_tube_chart<'p, T: Decide + Bounds + CertifiedEnclosure>(
         let Some(rect) = UvWindow::new(u0, u1, v0, v1) else {
             return Ok(None);
         };
+        // A node's box: its claim is the node's own reading, read once
+        // for the carrier ([`node_ends`]), and `∇φ` vanishes in it.
+        if w.node {
+            probed.push((w, (-ty / tn, tx / tn)));
+            continue;
+        }
         let Some(margin) = chart_transverse_margin(boxes, phi, rect, (tx, ty, tn))? else {
             return Ok(None);
         };
         if margin.is_nan() {
-            return Ok(Some(Rung::unmeasured(SsiTube::Chart {
-                rung,
-                pad_u: pad.0,
-                pad_v: pad.1,
-            })));
+            return Ok(Some(Rung::unmeasured(tube)));
+        }
+        if std::env::var("SNC_DBG").is_ok() && !(margin > 0.0) {
+            eprintln!("SNCDBG straddle rung {rung:e} nodes {nodes:?} window {:?} k {} of {}", w.rect, probed.len(), 0);
         }
         if margin < worst {
             worst = margin;
@@ -1632,21 +1816,14 @@ fn probe_tube_chart<'p, T: Decide + Bounds + CertifiedEnclosure>(
         return Ok(None);
     }
     let one = (worst > 0.0).then(|| {
-        let domain = UvRect {
-            u: surface.knots_u_f64_interim().domain(),
-            v: surface.knots_v_f64_interim().domain(),
-        };
+        let domain = boxes.domain();
         // An `Undecided` here stays unnamed: past the side arm it may come
         // from that arm's own in-band readings, which are indeterminate.
         one_arc(boxes, phi, (domain, band), pcurve, &probed, ends)
     });
     #[allow(clippy::cast_possible_truncation)]
     Ok(Some(Rung {
-        tube: SsiTube::Chart {
-            rung,
-            pad_u: pad.0,
-            pad_v: pad.1,
-        },
+        tube,
         margin: worst,
         boxes: probed.len() as u32,
         one_arc: one,
@@ -2469,6 +2646,7 @@ pub(crate) fn certify_branch<T: Decide + Bounds + CertifiedEnclosure>(
             };
             let form = chart_partner_form(partner, exact_certified)?;
             let phi = ChartPhi(&form);
+            let nodes = node_ends(p, n, &form, band);
             limb_three((widest, extent), band, |radius| {
                 // The pad per axis: the rung ÷ the operand's minted chart
                 // speed along that axis. The padded windows are the
@@ -2477,7 +2655,7 @@ pub(crate) fn certify_branch<T: Decide + Bounds + CertifiedEnclosure>(
                 // region (a window's corner can sit farther than the rung
                 // from the carrier).
                 let pad = n.speeds().pad(radius);
-                probe_tube_chart(p, n.boxes(), phi, (radius, pad), (ends, band))
+                probe_tube_chart(p, n.boxes(), phi, (radius, pad, nodes), (ends, band))
             })?
         }
         (SsiOperand::Nurbs(na), SsiOperand::Nurbs(nb)) => {
@@ -2497,6 +2675,59 @@ pub(crate) fn certify_branch<T: Decide + Bounds + CertifiedEnclosure>(
         }
     };
     Ok(certificate((on_locus, hull_sup), three))
+}
+
+/// **Which ends of a chart chain are nodes** (C2's node end), with
+/// each one's box ([`SsiTube::Chart`]'s `nodes`): an end is a node where
+/// the node's own reading places the node within the band of it and
+/// gives the node's box ([`super::node::node_box`], in the chart
+/// speeds' units), and that box holds the end span's hull strictly, so
+/// the chain's last window, the box, covers the carrier's last span. A
+/// trace reads it so, and the edge certificate at rest reads it again
+/// about the edge's end vertex: nothing of it is stored but the
+/// half-widths. Every other end is read as an arc's, which a node near
+/// it refuses: limb 3's transverse enclosure straddles there.
+fn node_ends<T: CertifiedBounds>(
+    pcurve: &NurbsCurve2<T>,
+    wall: &super::ChartedNurbs<'_, T>,
+    form: &super::residual::ImplicitForm,
+    band: Band,
+) -> NodeHalves {
+    let Some(spans) = span_hulls(pcurve) else {
+        return [None, None];
+    };
+    let domain = wall.boxes().domain();
+    let unit = wall.speeds().pad(1.0);
+    let mut jets: Option<Option<super::node::Jets>> = None;
+    core::array::from_fn(|end| {
+        let at = pcurve_end(pcurve, &spans, end)?;
+        let jets = jets
+            .get_or_insert_with(|| {
+                let inexact = core::cell::Cell::new(false);
+                let at_f64 = wall.surface().map_scalar(|x| {
+                    exact_certified(x).unwrap_or_else(|| {
+                        inexact.set(true);
+                        f64::NAN
+                    })
+                });
+                (!inexact.get())
+                    .then(|| super::node::Jets::of(&at_f64))
+                    .flatten()
+            })
+            .as_ref()?;
+        let SpanHull { hull, .. } = if end == 0 {
+            *spans.first()?
+        } else {
+            *spans.last()?
+        };
+        // The end span's reach from the end, in metres through each
+        // axis's chart units per metre.
+        let far = |(lo, hi): (f64, f64), c: f64| (c - lo).abs().max((hi - c).abs());
+        let reach = (far(hull.u, at.0) / unit.0).max(far(hull.v, at.1) / unit.1);
+        let half = super::node::node_box(jets, form, (at, unit, domain, reach), band)?;
+        let holds = |(lo, hi): (f64, f64), c: f64, h: f64| c - h < lo && hi < c + h;
+        (holds(hull.u, at.0, half.0) && holds(hull.v, at.1, half.1)).then_some(half)
+    })
 }
 
 /// Limb 3's verdict on the chosen rung. `clearance` is interval
@@ -2886,7 +3117,7 @@ mod tests {
                 &u_line(),
                 &NurbsBoxes::new(&unit_patch()),
                 &plane_at(on_line(), normal),
-                (0.0, (0.01, 0.01)),
+                (0.0, (0.01, 0.01), [None, None]),
                 at_ends(),
             )
             .expect("the unit patch's chart is not degenerate")
@@ -3039,7 +3270,7 @@ mod tests {
                 &pcurve,
                 &NurbsBoxes::new(&unit_patch()),
                 &plane_at(on_line(), normal),
-                (0.0, (0.01, 0.01)),
+                (0.0, (0.01, 0.01), [None, None]),
                 at_ends(),
             );
             assert!(
@@ -3071,7 +3302,7 @@ mod tests {
                 &u_line(),
                 &NurbsBoxes::new(&point_patch),
                 &plane_at(on_line(), normal),
-                (0.0, (0.01, 0.01)),
+                (0.0, (0.01, 0.01), [None, None]),
                 at_ends(),
             );
             assert!(
@@ -3110,7 +3341,7 @@ mod tests {
                 &u_line(),
                 &NurbsBoxes::new(&ridge),
                 &plane_at(on_line(), normal),
-                (0.0, (0.01, 0.01)),
+                (0.0, (0.01, 0.01), [None, None]),
                 at_ends(),
             );
             assert!(
@@ -3141,7 +3372,7 @@ mod tests {
                 &still,
                 &NurbsBoxes::new(&unit_patch()),
                 &plane_at(on_line(), normal),
-                (0.0, (0.01, 0.01)),
+                (0.0, (0.01, 0.01), [None, None]),
                 at_ends(),
             );
             assert!(
@@ -3600,7 +3831,13 @@ mod tests {
         let out = plane_nurbs_ssi(&plane, &wall, domain, band).expect("the wall certifies");
         assert!(!out.branches.is_empty(), "FIXTURE: the plane cuts the wall");
         for (i, b) in out.branches.iter().enumerate() {
-            let SsiTube::Chart { rung, pad_u, pad_v } = b.certificate.tube else {
+            let SsiTube::Chart {
+                rung,
+                pad_u,
+                pad_v,
+                nodes,
+            } = b.certificate.tube
+            else {
                 panic!(
                     "branch {i}: the plane × NURBS arm proved {:?}",
                     b.certificate.tube
@@ -3640,7 +3877,7 @@ mod tests {
                 pc,
                 &NurbsBoxes::new(&wall),
                 &crate::ssi::residual::ImplicitForm::of(&plane).unwrap(),
-                (rung, (pad_u, pad_v)),
+                (rung, (pad_u, pad_v), nodes),
                 ends,
             )
             .unwrap()
@@ -3667,7 +3904,7 @@ mod tests {
                 pc,
                 &NurbsBoxes::new(&wall),
                 &crate::ssi::residual::ImplicitForm::of(&plane).unwrap(),
-                (rung, (folded, folded)),
+                (rung, (folded, folded), nodes),
                 ends,
             )
             .unwrap();

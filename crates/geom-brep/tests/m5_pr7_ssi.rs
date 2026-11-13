@@ -1102,7 +1102,7 @@ fn shape_iii_the_wall_cut_certifies_all_three_limbs_and_refuses_a_corrupted_pcur
     assert!(
         matches!(
             cert.tube,
-            SsiTube::Chart { rung, pad_u, pad_v } if rung > 0.0 && pad_u > 0.0 && pad_v > 0.0
+            SsiTube::Chart { rung, pad_u, pad_v, .. } if rung > 0.0 && pad_u > 0.0 && pad_v > 0.0
         ) && cert.tube_boxes > 0,
         "SUBSTRATE: limb 3 has a real chart tube: {:?}",
         cert.tube
