@@ -35,19 +35,28 @@
 //!
 //! A joint whose vertex is on the chart's singular set — a sphere's
 //! pole, a cone's apex, a spindle sheet's apex — is a side of the
-//! face's region in the chart: every azimuth names the point, and the
-//! boundary runs along the singular latitude from the arriving edge's
-//! azimuth to the leaving edge's. Its element is the **turn on the
-//! face's side** (`crate::pcurves`' `decide_joint`, `singular_turn`):
-//! the angle about the chart's axis from the arriving edge's tangent at
-//! the point to the leaving edge's, swept through the face. It lies in
+//! face's region in the chart: the whole singular latitude is the one
+//! point, and the boundary runs along it from the arriving image's
+//! exit to the leaving image's entry. Its element is an integer deck
+//! element like every other, the one that puts the leaving image's
+//! entry **the face's turn** past the arriving image's exit
+//! (`crate::pcurves`' `decide_joint`, `singular_turn`). The turn is the
+//! angle about the chart's axis from the arriving edge's tangent at
+//! the point to the leaving edge's, swept through the face: in
 //! `(0, τ)` or `(−τ, 0)` by the face's sense and the side of the
-//! singular latitude the face is on, and is a whole turn where the loop
-//! leaves along the edge it arrived on. So a loop's lift runs on
-//! through the point as the face's boundary, and the element there is
-//! a function of the two edges, the chart and the face's sense: a door
-//! that moves a loop to a face of the opposite sense on one chart
-//! decides it again, and a loop reversal inverts it.
+//! singular latitude the face is on, and a whole turn where the loop
+//! leaves along the edge it arrived on. The tangents are read off the
+//! edges' carriers; an image's azimuth at the point is its edge's
+//! tangent azimuth, or half a turn off it on the chart's twin sheet,
+//! which the element's twin bit takes up.
+//!
+//! So a loop's lift runs on through the point as the face's boundary,
+//! and the element there is a function of the two edges, the chart and
+//! the face's sense: a door that moves a loop to a face of the opposite
+//! sense on one chart decides it again, and a loop reversal inverts it.
+//! One case reads more: two distinct edges that leave the point along
+//! one direction (a slit's tip) turn by nothing or by a whole turn, and
+//! which is read off the winding of the rest of their loop.
 //!
 //! Every stored element records a decision. A joint whose element is
 //! not decided past the band stores none: its door refuses

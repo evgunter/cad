@@ -351,14 +351,24 @@ fn a_move_to_the_opposite_side_decides_the_turns_again() {
         "moved back to a face of the first sense, the pole joint holds its first turn"
     );
 
-    // With no band the door decides nothing: it refuses, or carries no
-    // row of the old side across.
+    // With no band the door decides nothing. The destination's rows are
+    // complete and the moved loop's do not stand on its side, so it
+    // refuses before mutating.
     let mut keyed = body.clone();
-    if keyed.kfmrh(other, narrow).is_ok() {
-        assert_ne!(
-            keyed.joint(from_north),
-            Some(flipped),
-            "the keys-only door carries no turn of the old side onto the new face"
-        );
-    }
+    let refused = keyed.kfmrh(other, narrow);
+    assert!(
+        matches!(
+            refused,
+            Err(topo::EulerOpError::PcurveMint {
+                refusal: topo::pcurves::SiteRowRefusal::KeysOnly,
+                ..
+            })
+        ),
+        "the keys-only door refuses a loop whose turns it would have to decide: {refused:?}"
+    );
+    assert_eq!(
+        keyed.joint(from_north),
+        Some(flipped),
+        "a refused door leaves the body as found"
+    );
 }

@@ -147,6 +147,68 @@ fn the_decided_lift_is_the_read_lift_through_a_twin_and_a_pole() {
     assert_eq!(turns, 2, "each face's loop turns once at the pole vertex");
 }
 
+/// **A split at a pole decides its children's turn.** The half great
+/// circle over the pole is one edge whose image ends on the chart's
+/// twin sheet. Split at the pole, each child is placed again over its
+/// own span, on its own principal sheet, so the twin leaves the loop
+/// and the children's joint is a turn at the pole: the face's, read
+/// off the two carriers' tangents there. The split decides it, and the
+/// body it leaves stores the lift the walk decides, with nothing for
+/// tier 3 to find. (A child that stays on the twin sheet is the general
+/// lane's: `sweep`'s `tilted_sphere_pair` rows.)
+#[test]
+fn a_split_at_the_pole_decides_its_childrens_turn() {
+    let tol = Tol::witness();
+    let band = Band::linear(tol).unwrap();
+    let mut body = quarter(false);
+    mint_pcurves(&mut body, tol).unwrap();
+    let over_pole = body
+        .edges()
+        .map(|(key, _)| key)
+        .find(|&key| {
+            let (carrier, ..) =
+                crate::pcurves::half_edge_carrier(&body, body.get_edge(key).unwrap().he_plus)
+                    .unwrap();
+            (carrier.eval(FRAC_PI_2).z - 1.0).abs() < 1e-12
+        })
+        .expect("the half great circle over the pole");
+    body.split_edge(over_pole, FRAC_PI_2, tol)
+        .unwrap_or_else(|e| panic!("the split at the pole: {e:?}"));
+    assert_eq!(crate::pcurves::validate_pcurves(&body, band), vec![]);
+    let mut turns = 0;
+    for face in body.face_views() {
+        let outer = face.record().outer;
+        let cycle = loop_rows(&body, outer);
+        assert_eq!(cycle.len(), 3, "two children and the equator's half");
+        let decided = Lift::decided(&body, face.key(), face.surface(), &cycle, true, band)
+            .unwrap_or_else(|refusal| panic!("the decided lift: {refusal:?}"));
+        let read = Lift::read(&body, outer).unwrap();
+        let chain = |lift: &Lift<f64>| -> Vec<_> {
+            lift.rows()
+                .iter()
+                .map(|row| (row.half_edge, row.lift))
+                .collect()
+        };
+        assert_eq!(chain(&decided), chain(&read));
+        assert_eq!(decided.winding(), read.winding());
+        assert!(
+            cycle
+                .iter()
+                .all(|&he| body.joint(he).is_some_and(|e| !e.deck().twin)),
+            "each child is on its own principal sheet"
+        );
+        turns += cycle
+            .iter()
+            .filter(|&&he| {
+                let start = body.get_half_edge(he).unwrap().start;
+                body.vertex_points()
+                    .any(|(v, p)| v == start && (p.z - 1.0).abs() < 1e-12)
+            })
+            .count();
+    }
+    assert_eq!(turns, 2, "each face's loop turns once at the split vertex");
+}
+
 /// **No file outside the mint pins a chart branch.** A loop's position
 /// in its face's chart is its lift, and the one decision of a joint's
 /// branch is `decide_joint` (DESIGN `[one-way.places]`). A second pin is
@@ -159,12 +221,23 @@ fn the_decided_lift_is_the_read_lift_through_a_twin_and_a_pole() {
 /// lane's own placement of a pole junction
 /// (`work/tesswalk/mesh-pole-junction-unwrap-picks-a-whole-turn-off-numbers.md`).
 ///
-/// **What these spellings cannot see**: a walk that places a loop's
-/// edges on a branch with arithmetic of its own. Two are known, both
-/// below `topo` and reading no body:
+/// **No function but the decision makes an element.** A `JointElement`
+/// is constructed from a deck in one place in `pcurves.rs`'s shipped
+/// code, `decide_joint`; every other element there is one a decision
+/// returned, the identity, or a sum of stored ones (`joint.rs`'s own
+/// algebra). Outside it the constructions are listed as the movers are.
+///
+/// **What this guard cannot see**: a walk that places a loop's edges on
+/// a branch with arithmetic of its own, spelling none of the movers and
+/// making no element. It would NOT have caught the walk this unit
+/// retired, `mesh::trimmed`'s `choose_pole_azimuths`, which added and
+/// subtracted `TAU` on chart coordinates. Two such walks are known to
+/// remain, both below `topo` and reading no body:
 /// `geom_brep::props::quad::rotational`'s `loop_lifts`, and
 /// `geom_brep::chart_singularity::walk_loop`
 /// (`work/quad/props-and-tier-3-each-derive-a-loops-chart-position-again.md`).
+/// What stops the next one is review against DESIGN `[one-way.places]`,
+/// which names `Lift` as a loop's one chart position.
 #[test]
 fn no_file_outside_the_mint_pins_a_chart_branch() {
     const SPELLINGS: [&str; 6] = [
@@ -203,6 +276,21 @@ fn no_file_outside_the_mint_pins_a_chart_branch() {
             "Deck::apply, the lift's own mover of an image by a decided element",
         ),
     ];
+    // (file, constructions of an element from a deck, what they are).
+    const MAKERS: [(&str, usize, &str); 3] = [
+        (
+            "topo/src/joint.rs",
+            5,
+            "the type, and its own algebra's rows",
+        ),
+        ("topo/src/pcurves.rs", 1, "decide_joint, the one decision"),
+        (
+            "topo/src/test_support_fixtures.rs",
+            1,
+            "a fixture that states a wrong element for tier 3 to refuse",
+        ),
+    ];
+    const MAKER: &str = "JointElement(";
     fn walk(dir: &std::path::Path, out: &mut Vec<std::path::PathBuf>) {
         for entry in std::fs::read_dir(dir).unwrap() {
             let path = entry.unwrap().path();
@@ -218,6 +306,7 @@ fn no_file_outside_the_mint_pins_a_chart_branch() {
         .unwrap()
         .to_path_buf();
     let mut found: Vec<(String, usize)> = Vec::new();
+    let mut makers: Vec<(String, usize)> = Vec::new();
     for member in std::fs::read_dir(&crates).unwrap() {
         let src = member.unwrap().path().join("src");
         if !src.is_dir() {
@@ -231,13 +320,48 @@ fn no_file_outside_the_mint_pins_a_chart_branch() {
                 .unwrap()
                 .to_string_lossy()
                 .replace('\\', "/");
-            if name == "topo/src/pcurves.rs" || name == "topo/src/pcurves_lift_rows.rs" {
+            if name == "topo/src/pcurves_lift_rows.rs" {
                 continue;
             }
-            let uses: usize = std::fs::read_to_string(&file)
-                .unwrap()
-                .lines()
-                .filter(|line| !line.trim_start().starts_with("//"))
+            let text = std::fs::read_to_string(&file).unwrap();
+            let code = || {
+                text.lines()
+                    .filter(|line| !line.trim_start().starts_with("//"))
+            };
+            if name == "topo/src/pcurves.rs" {
+                // The shipped code: what precedes the first test module.
+                let shipped: Vec<&str> = code()
+                    .take_while(|line| !line.starts_with("pub(crate) mod staleness_posture"))
+                    .collect();
+                assert!(shipped.len() < code().count(), "the test modules' marker");
+                let made: Vec<usize> = shipped
+                    .iter()
+                    .enumerate()
+                    .filter(|(_, line)| line.contains(MAKER))
+                    .map(|(at, _)| at)
+                    .collect();
+                makers.push((name, made.len()));
+                for at in made {
+                    let within = shipped[..at]
+                        .iter()
+                        .rev()
+                        .find(|line| line.starts_with("fn ") || line.starts_with("pub"))
+                        .copied()
+                        .unwrap_or_default();
+                    assert!(
+                        within.starts_with("fn decide_joint<"),
+                        "an element is made from a deck in `{within}`, not in `decide_joint`"
+                    );
+                }
+                continue;
+            }
+            let made = code()
+                .map(|line| line.matches(MAKER).count())
+                .sum::<usize>();
+            if made > 0 {
+                makers.push((name.clone(), made));
+            }
+            let uses: usize = code()
                 .map(|line| {
                     SPELLINGS
                         .iter()
@@ -260,5 +384,16 @@ fn no_file_outside_the_mint_pins_a_chart_branch() {
         "the uses of a chart-branch mover or reader outside `pcurves.rs` are not the listed \
          ones. A new one is a second pin of a joint's branch: read the loop's `Lift` instead, \
          or list the use with what it is. A listed one gone: strike its row."
+    );
+    makers.sort();
+    let listed: Vec<(String, usize)> = MAKERS
+        .iter()
+        .map(|&(file, made, _)| (file.to_owned(), made))
+        .collect();
+    assert_eq!(
+        makers, listed,
+        "the constructions of a `JointElement` from a deck are not the listed ones. An \
+         element is what `decide_joint` returns, the identity, or a sum of stored elements: \
+         a new construction is a second decision of a joint's branch."
     );
 }

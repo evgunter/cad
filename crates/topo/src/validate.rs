@@ -1829,7 +1829,7 @@ pub enum ValidationError {
     /// chart singularity** — a meridian walked out and back that stops
     /// short of the pole. Read
     /// at the joint between the edge's two halves by the incidence the
-    /// loop walk resets that joint by (`crate::pcurves::pcurve_pass`,
+    /// loop walk decides that joint's turn by (`crate::pcurves::pcurve_pass`,
     /// `geom_brep::chart_singularity::vertex_at_singular_point`), never by
     /// a distance of its own.
     WrapTipOffChartSingularity {
@@ -6151,7 +6151,7 @@ pub(crate) fn closed_by_tier<T: Real>(
 ///    with no singular point refuses as such
 ///    ([`ValidationError::WrapTipWithoutChartSingularity`]), and one in
 ///    band refuses as undecided ([`ValidationError::WrapTipUndecided`]). The
-///    incidence is the one the joint resets by
+///    incidence is the one the joint's turn is decided by
 ///    (`geom_brep::chart_singularity::vertex_at_singular_point`, which
 ///    check 6's at-vertex placement reads too), and a joint check 8
 ///    itself refuses or leaves unread reports nothing more.
@@ -8656,8 +8656,8 @@ pub(crate) fn tier3_local_checks_marked<
     //
     // The same joints read tier 3's wrap-tip rule (`[topology.tiers]`,
     // chart singularities as vertices): every wrap edge's tip lies on its
-    // face's chart singularity, read by the incidence the joint resets
-    // its first channel by (`crate::pcurves::pcurve_pass`).
+    // face's chart singularity, read by the incidence the joint's turn
+    // is decided by (`crate::pcurves::pcurve_pass`).
     let pass = crate::pcurves::pcurve_pass(body, band);
     for finding in pass.findings {
         errors.push(ValidationError::Pcurve { finding });

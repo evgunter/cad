@@ -3485,14 +3485,14 @@ fn window_of<'b, T: Decide + CertifiedBounds>(
 }
 
 /// **Whether a face's boundary winds nowhere**: the elements of all its
-/// joints, over every loop together, compose to the identity with no
-/// reset. A missing joint, or an outer loop with no edges, reads as
+/// joints, over every loop together, compose to the identity. A
+/// missing joint, or an outer loop with no edges, reads as
 /// winding; every hop of the walk is a link
 /// ([`crate::live::FaceView::boundary_by_loop`]).
 ///
-/// On a cone a reset is written at a joint on the apex
-/// ([`crate::joint`]); absent one, the composed `u` of the whole
-/// boundary is its winding about the axis. What a total of zero tells
+/// On a cone a joint on the apex stores the face's turn there
+/// ([`crate::joint`]), so the composed `u` of the whole boundary is its
+/// winding about the axis, a loop through the apex included. What a total of zero tells
 /// [`window_of`] is argued there.
 fn winds_nowhere<T: Decide>(body: &Body<T>, f: FaceView<'_, T>) -> bool {
     let mut elements = Vec::new();

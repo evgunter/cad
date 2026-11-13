@@ -82,10 +82,15 @@
 //! joint's 3-D coincidence is not decided again in the chart: it
 //! follows from the two rows' envelopes and the edge certificate's
 //! endpoint pinning. At a joint whose vertex is on the chart's singular
-//! set — a pole, an apex, decided as 3-D incidence — every azimuth
-//! names the point, and the element is the turn there on the face's
-//! side ([`singular_turn`]), so the chain runs on through the point as
-//! the face's boundary. Every stored element records a decision: a
+//! set — a pole, an apex, decided as 3-D incidence — the whole
+//! latitude is the one point, and the element puts the image's entry
+//! the face's turn past its predecessor's exit ([`singular_turn`]), so
+//! the chain runs on through the point as the face's boundary. That
+//! element is a function of the two edges, the chart and the face's
+//! sense, with one exception stated where it is decided: two distinct
+//! edges leaving the point along one direction (a slit's tip) turn by
+//! nothing or by a whole turn, and which is read off the winding of the
+//! rest of their loop. Every stored element records a decision: a
 //! joint that decides none refuses. A spline chart's joint also states
 //! its chart-space gap.
 //!
@@ -247,8 +252,9 @@
 //! [`crate::Body::mfkrh`](crate::construction::Construct::mfkrh) and [`crate::Body::ring_move`](crate::construction::Construct::ring_move) move a whole
 //! LOOP between faces, which changes the CHART every row on that loop
 //! is stated in while changing no key. Each carries the moved loop's
-//! rows where the two faces are on one CHART
-//! ([`crate::Body::same_chart`]) and drops them where they are not
+//! rows where the two faces are on one CHART and one SIDE of it
+//! ([`crate::Body::sides_agree`]: a turn on the chart's singular set is
+//! the face's side's) and drops them where they are not
 //! ([`crate::Body::drop_rows`]). Where the moved rows do not stand on
 //! the destination — dropped, or missing — and the destination was
 //! complete, a re-mint is owed, and each door answers it at one of two
@@ -5173,8 +5179,8 @@ enum AzimuthRule {
     Marks,
     /// The same read as [`AzimuthRule::Marks`], with one difference: a
     /// miss is the incidence's escalation, never the marks' own. The
-    /// vertex may be ON the set, where every azimuth names the point, so
-    /// no miss there is a decided discontinuity or a decided reach. The
+    /// vertex may be ON the set, where the whole latitude is one point,
+    /// so no miss there is a decided discontinuity or a decided reach. The
     /// two differ in that error alone, and its readers read it: a
     /// discontinuity refuses as decided ([`turn_element`]'s `Err(None)`,
     /// [`PcurveMintError::LoopDiscontinuity`]), an escalation as
@@ -5199,8 +5205,9 @@ impl AzimuthRule {
 /// the leaving image's entry the face's turn past the arriving image's
 /// exit.
 ///
-/// At a singular point every azimuth names the point, so the two images
-/// meet at no azimuth, and the element is read off the two EDGES: the
+/// At a singular point the whole latitude is the one point, so the two
+/// images' ends there are apart in the chart by the angle between the
+/// edges, and the element is read off the two EDGES: the
 /// angle about the chart's axis from the arriving edge's tangent at the
 /// point to the leaving edge's, swept on the face's side.
 ///
@@ -5447,11 +5454,14 @@ fn apex_nappe<T: Decide>(
 /// not a decision.
 ///
 /// **The first channel's rule** is [`AzimuthRule`]'s. On the singular
-/// set every azimuth names the point, so the two images meet at no
-/// azimuth: the element is the turn on the face's side
-/// ([`singular_turn`]), read off `sides`, with no twin (either sheet
-/// names the point, and the face's region is drawn on the principal
-/// one). Where the incidence is UNDECIDED on an analytic chart the
+/// set the whole latitude is one point, so the two images' ends are
+/// apart in the chart by the angle between their edges: the element is
+/// the turn on the face's side ([`singular_turn`]), read off `sides`,
+/// its twin bit set where the two images run on different sheets of a
+/// sphere's chart. Two distinct edges leaving the point along one
+/// direction are the one case that reads past the joint: their element
+/// depends on the winding of the rest of their loop
+/// ([`JointSides::rest`]). Where the incidence is UNDECIDED on an analytic chart the
 /// integer is decided as at any other joint, which is sound either way
 /// (a deck transformation moves no point), with the same near-pole read
 /// where its marks miss ([`lever_periods`]), and any miss left
@@ -6068,8 +6078,9 @@ pub struct LoopWinding {
     pub r#loop: LoopKey,
     /// Some joint of the loop lies on the chart's singular set (a
     /// sphere pole, a cone apex), decided as 3-D incidence
-    /// ([`singular_at`]). Such a loop has no first-channel winding to
-    /// read, and its `zero` is `false`.
+    /// ([`singular_at`]). This reading stops at such a joint and
+    /// reports it, with `zero` `false`: the loop's winding through the
+    /// point is its lift's ([`Lift::winding`]).
     pub singular: bool,
     /// The loop's joints compose to the identity deck element, in both
     /// channels ([`Winding::is_zero`]): its lift closes on its start.
@@ -6962,7 +6973,8 @@ pub(crate) mod staleness_posture {
                 "kfmrh",
                 Transfers,
                 "Euler operator, and a loop re-parenting: `f2`'s demoted outer loop keeps its \
-             rows where `f1` is on the same chart (`Body::same_chart`) and loses them where \
+             rows where `f1` is on the same chart \
+             (`Body::same_chart`) and the same side of it (`Body::sides_agree`) and loses them where \
              it is not (`Body::drop_rows_on_chart_change`); where they do not stand and \
              `f1`'s rows were complete on an analytic chart it refuses `KeysOnly` before \
              mutating, and a spline chart keeps the drop",
@@ -6983,7 +6995,8 @@ pub(crate) mod staleness_posture {
                 "mfkrh",
                 Transfers,
                 "Euler operator, and a loop re-parenting: the promoted ring keeps its rows \
-             where the spec lands on the demoting face's chart (`Body::same_chart`) and \
+             where the spec lands on the demoting face's chart \
+             (`Body::same_chart`) and the same side of it (`Body::sides_agree`) and \
              loses them where it does not; where they do not stand and the demoting face's \
              rows were complete on an analytic chart it refuses `KeysOnly` before mutating, \
              and a spline chart keeps the drop",
@@ -7023,7 +7036,8 @@ pub(crate) mod staleness_posture {
                 Transfers,
                 "Euler operator, and a run re-parenting: the run `[he1 .. he2)` it moves onto \
              the new face keeps its rows where that face is on the old face's chart \
-             (`Body::same_chart`) and loses them where it is not (`Body::drop_rows`). The \
+ \
+             (`Body::same_chart`) and the same side of it (`Body::sides_agree`) and loses them where it is not (`Body::drop_rows`). The \
              two halves it mints get their rows at the site, as `mev`'s do: the old face \
              is re-minted when the site mint selects it, and so is the new face, its run \
              walked in the new face's chart; a spline chart other than the old face's \
@@ -7034,7 +7048,8 @@ pub(crate) mod staleness_posture {
                 "kef",
                 Transfers,
                 "kill op, and a run re-parenting: the dying loop's remnant keeps its rows \
-             where the surviving face is on the dying face's chart (`Body::same_chart`) and \
+             where the surviving face is on the dying face's chart \
+             (`Body::same_chart`) and the same side of it (`Body::sides_agree`) and \
              loses them where it is not (`Body::drop_rows`); where they do not stand and the \
              surviving face's rows were complete on an analytic chart it refuses `KeysOnly` \
              before mutating, and a spline chart keeps the drop; where they stand, each \
@@ -7153,7 +7168,14 @@ pub(crate) mod staleness_posture {
                 "`describe_at_rest`'s write: `set_edge_curve` with the edge's own carrier and \
                  interval put back verbatim",
             ),
-            ("set_face_sense", Neither, "writes one `bool`"),
+            (
+                "set_face_sense",
+                Transfers,
+                "writes the sense bit; where the flip changes the side of a chart with a \
+                 singular set (`Body::sides_agree`) the face's rows state its turns on the \
+                 other side, and are dropped for a band door to mint again; on any other \
+                 chart they stand",
+            ),
             (
                 "begin_surgery",
                 Neither,
@@ -7257,6 +7279,64 @@ pub(crate) mod staleness_posture {
     /// this and the rest of the blind spot: delegation, and everything
     /// outside `topo/src`'s `&mut Body` surface. The full inherited
     /// list is on [`crate::source_walk::mutation_doors`].
+    /// **The crate's own ring-promotion doors**, which the public walk
+    /// does not reach ([`crate::source_walk::mutation_doors`] reads the
+    /// `Construct` surface): `(door, posture, note)` for every function
+    /// of `euler_kill.rs` that enters `mfkrh_with` beside the public
+    /// `mfkrh`, `mfkrh_minting` and `mfkrh_plug`.
+    const PIECE_DOORS: [(&str, Posture, &str); 2] = [
+        (
+            "mfkrh_piece",
+            Posture::Transfers,
+            "a ring promoted as its face's own region, keys only: same chart and same \
+             side (`Body::sides_agree`), so the ring's rows stand and nothing is decided",
+        ),
+        (
+            "mfkrh_piece_minting",
+            Posture::Transfers,
+            "`mfkrh_piece` with a band: a ring that stores no rows yet is minted in its \
+             chart (`Body::plan_moved_rows`)",
+        ),
+    ];
+
+    /// Every function that enters the ring promotion is the public
+    /// `mfkrh` pair or a declared piece door: a new entry declares its
+    /// posture here.
+    #[test]
+    fn every_ring_promotion_door_declares_its_posture() {
+        let source = include_str!("euler_kill.rs");
+        let mut current = "";
+        let mut entering: Vec<&str> = Vec::new();
+        for line in source.lines() {
+            let code = line.trim_start();
+            if code.starts_with("//") {
+                continue;
+            }
+            if let Some(rest) = code
+                .strip_prefix("pub(crate) fn ")
+                .or_else(|| code.strip_prefix("fn "))
+            {
+                current = rest.split(['(', '<']).next().unwrap_or(rest);
+            }
+            if (code.contains(".mfkrh_with(") || code.contains(".mfkrh_piece_with("))
+                && !entering.contains(&current)
+            {
+                entering.push(current);
+            }
+        }
+        let mut declared: Vec<&str> = vec!["mfkrh", "mfkrh_minting", "mfkrh_plug"];
+        declared.extend(PIECE_DOORS.iter().map(|(name, ..)| *name));
+        declared.push("mfkrh_piece_with");
+        entering.sort_unstable();
+        declared.sort_unstable();
+        assert_eq!(
+            entering, declared,
+            "the functions of `euler_kill.rs` that enter the ring promotion are not the \
+             public pair and the declared piece doors: declare the new door's posture in \
+             `PIECE_DOORS`, or strike the one that went"
+        );
+    }
+
     #[test]
     fn every_mutation_door_declares_its_pcurve_posture() {
         use Posture::Maintains;
@@ -8412,6 +8492,17 @@ pub(crate) mod pole_slit_tests {
     pub(crate) fn slit_cap_below(
         periods: f64,
     ) -> Result<(Body<f64>, FaceKey, Vec<crate::HalfEdgeKey>), super::PcurveMintError> {
+        slit_cap_with(periods, false)
+    }
+
+    /// [`slit_cap_below`], and with `doubled` the slit as TWO edges: a
+    /// second edge down the same meridian from the pole to the rim, so
+    /// the cap's loop runs up one and down the other, and the sliver
+    /// between them is a face of no width, left unminted.
+    fn slit_cap_with(
+        periods: f64,
+        doubled: bool,
+    ) -> Result<(Body<f64>, FaceKey, Vec<crate::HalfEdgeKey>), super::PcurveMintError> {
         let tol = Tol::witness();
         let v0 = 0.5;
         let mut body = Body::<f64>::new();
@@ -8490,36 +8581,195 @@ pub(crate) mod pole_slit_tests {
             normal: Vec3::unit_y(),
             u_ref: Vec3::new(-1.0, 0.0, 0.0),
         });
-        body.mev(
-            MevSite::Fan {
-                he1: second_arc.he_plus,
-                he2: second_arc.he_plus,
-            },
-            at(0.0, FRAC_PI_2),
-            EdgeCurveSpec {
-                description: EdgeDescriptionSpec::Intersection {
-                    pair: SurfacePair::new(sphere, meridian_plane),
-                    selector: geom_brep::CurveSelector::Witness(at(PI, 0.5 * (v0 + FRAC_PI_2))),
+        let strut = body
+            .mev(
+                MevSite::Fan {
+                    he1: second_arc.he_plus,
+                    he2: second_arc.he_plus,
                 },
-                carrier: Curve3::circle(
-                    Point3::new(0.0, 0.0, 0.0),
-                    Vec3::unit_y(),
-                    1.0,
-                    Vec3::new(-1.0, 0.0, 0.0),
-                ),
-                param_start: v0,
-                param_end: FRAC_PI_2,
-            },
-            tol,
-        )
-        .unwrap();
-        crate::mint_pcurves(&mut body, tol)?;
+                at(0.0, FRAC_PI_2),
+                EdgeCurveSpec {
+                    description: EdgeDescriptionSpec::Intersection {
+                        pair: SurfacePair::new(sphere, meridian_plane),
+                        selector: geom_brep::CurveSelector::Witness(at(PI, 0.5 * (v0 + FRAC_PI_2))),
+                    },
+                    carrier: Curve3::circle(
+                        Point3::new(0.0, 0.0, 0.0),
+                        Vec3::unit_y(),
+                        1.0,
+                        Vec3::new(-1.0, 0.0, 0.0),
+                    ),
+                    param_start: v0,
+                    param_end: FRAC_PI_2,
+                },
+                tol,
+            )
+            .unwrap();
+        if doubled {
+            // Down the same meridian, from the pole: the great circle
+            // in the plane `y = 0` again, run the other way.
+            body.mef(
+                MefSite::Chords {
+                    he1: strut.he_minus,
+                    he2: strut.he_plus,
+                },
+                EdgeCurveSpec {
+                    description: EdgeDescriptionSpec::Intersection {
+                        pair: SurfacePair::new(sphere, meridian_plane),
+                        selector: geom_brep::CurveSelector::Witness(at(PI, 0.5 * (v0 + FRAC_PI_2))),
+                    },
+                    carrier: Curve3::circle(
+                        Point3::new(0.0, 0.0, 0.0),
+                        Vec3::new(0.0, -1.0, 0.0),
+                        1.0,
+                        Vec3::unit_z(),
+                    ),
+                    param_start: 0.0,
+                    param_end: FRAC_PI_2 - v0,
+                },
+                FaceSurface::Shared {
+                    key: sphere,
+                    sense: true,
+                },
+                tol,
+            )
+            .unwrap();
+        }
+        let cap_loop = body.get_half_edge(first_arc.he_plus).unwrap().parent_loop;
+        let cap = body.get_loop(cap_loop).unwrap().face;
+        if doubled {
+            crate::mint_pcurves_of(&mut body, &[cap], tol)?;
+        } else {
+            crate::mint_pcurves(&mut body, tol)?;
+        }
         let LoopBoundary::Cycle { first } = body.get_loop(cap_loop).unwrap().boundary else {
             panic!("the cap's loop is a cycle")
         };
         let members = body.loop_cycle(first).unwrap();
         assert_eq!(members.len(), 4, "rim arc, slit up, slit down, rim arc");
         Ok((body, cap, members))
+    }
+
+    /// The member of a doubled slit's loop that leaves the pole, and the
+    /// cap's tier-3 findings: those naming the cap or a member of its
+    /// loop (the sliver beside it stores no row, and says so).
+    fn doubled_pole(body: &Body<f64>, members: &[crate::HalfEdgeKey]) -> crate::HalfEdgeKey {
+        let edge = |he: crate::HalfEdgeKey| body.get_half_edge(he).unwrap().edge;
+        let pole = members
+            .iter()
+            .copied()
+            .find(|&he| (super::entry_vertex(body, he).z - 1.0).abs() < 1e-12)
+            .expect("a member leaves the pole");
+        assert_ne!(
+            edge(body.get_half_edge(pole).unwrap().prev),
+            edge(pole),
+            "the slit is two edges"
+        );
+        pole
+    }
+
+    fn cap_findings(body: &Body<f64>, cap: FaceKey, members: &[crate::HalfEdgeKey]) -> Vec<String> {
+        let band = Band::linear(Tol::witness()).unwrap();
+        let named: Vec<String> = members
+            .iter()
+            .map(|he| format!("{he:?}"))
+            .chain([format!("{cap:?}")])
+            .collect();
+        super::validate_pcurves(body, band)
+            .iter()
+            .map(|finding| format!("{finding:?}"))
+            .filter(|finding| named.iter().any(|name| finding.contains(name)))
+            .collect()
+    }
+
+    /// **A slit of two edges turns by its loop's winding, on the face's
+    /// side.** The two edges leave the pole along one direction, so no
+    /// value at the joint tells no turn from a whole one. The rim winds
+    /// the chart once with the pole on the cap's side, so the cap wraps
+    /// the pole and the turn is the whole one against the rim's: the
+    /// chain closes on its start, and tier 3 decides the same element.
+    /// Flipped, the face is the loop's other side, the rim winds with
+    /// the pole behind it, and the sector has no decided width: the
+    /// production flip drops the rows, and the mint after it refuses by
+    /// name where it once wrote the cap's own turn.
+    #[test]
+    fn a_two_edge_slit_turns_by_its_loops_winding_on_the_faces_side() {
+        let tol = Tol::witness();
+        let (body, cap, members) = slit_cap_with(1.0, true).expect("the doubled slit cap mints");
+        let pole = doubled_pole(&body, &members);
+        let turn = body.joint(pole).unwrap().deck();
+        assert!(
+            turn.u.abs() == 1 && turn.v == 0 && !turn.twin,
+            "the doubled slit's turn at the pole is one whole turn: {turn:?}"
+        );
+        let rest = crate::joint::Winding::of(
+            members
+                .iter()
+                .filter(|&&he| he != pole)
+                .map(|&he| body.joint(he).unwrap()),
+        );
+        assert_eq!(
+            rest.deck,
+            crate::Deck {
+                u: -turn.u,
+                v: 0,
+                twin: false
+            },
+            "the turn is against the rest of the loop's winding"
+        );
+        assert!(
+            crate::joint::Winding::of(members.iter().map(|&he| body.joint(he).unwrap())).is_zero(),
+            "the cap's chain closes on its start"
+        );
+        assert_eq!(cap_findings(&body, cap, &members), Vec::<String>::new());
+
+        let mut flipped = body.flipped_face_sense_for_tests(cap, tol).unwrap();
+        assert!(
+            members
+                .iter()
+                .all(|&he| flipped.pcurve(he).is_none() && flipped.joint(he).is_none()),
+            "the flipped cap keeps no row of its old side, and mints none"
+        );
+        let refused = crate::mint_pcurves_of(&mut flipped, &[cap], tol);
+        assert!(
+            matches!(
+                refused,
+                Err(super::PcurveMintError::SingularTurn {
+                    miss: super::SingularMiss::EdgesCoincide,
+                    ..
+                })
+            ),
+            "the flipped slit's turn is decided by nothing: {refused:?}"
+        );
+    }
+
+    /// **A split beside a two-edge slit leaves its turn standing.** A
+    /// meridian's image is a coordinate line, so its children restrict
+    /// it and the split decides only their own joint: the pole joint
+    /// keeps the whole turn, and tier 3, which decides it again with
+    /// the rest of the loop the split lengthened, reads the cap clean.
+    #[test]
+    fn a_split_beside_a_two_edge_slit_keeps_its_turn() {
+        let tol = Tol::witness();
+        let (mut body, cap, members) =
+            slit_cap_with(1.0, true).expect("the doubled slit cap mints");
+        let pole = doubled_pole(&body, &members);
+        let turn = body.joint(pole).unwrap();
+        for half in [pole, body.get_half_edge(pole).unwrap().prev] {
+            let (_, t0, t1) = super::half_edge_carrier(&body, half).unwrap();
+            let edge = body.get_half_edge(half).unwrap().edge;
+            body.split_edge(edge, 0.5 * (t0 + t1), tol)
+                .unwrap_or_else(|e| panic!("the slit's edge of {half:?} splits: {e:?}"));
+        }
+        let cap_loop = body.get_face(cap).unwrap().outer;
+        let LoopBoundary::Cycle { first } = body.get_loop(cap_loop).unwrap().boundary else {
+            panic!("the cap's loop is a cycle")
+        };
+        let members = body.loop_cycle(first).unwrap();
+        assert_eq!(members.len(), 6, "each slit edge is two");
+        let pole = doubled_pole(&body, &members);
+        assert_eq!(body.joint(pole), Some(turn), "the pole joint's turn stands");
+        assert_eq!(cap_findings(&body, cap, &members), Vec::<String>::new());
     }
 
     /// **A half-turn patch of the unit cylinder** (axis `+z`, seam `+x`)
@@ -10281,7 +10531,7 @@ mod lift_rows {
                 v: 0,
                 twin: false
             }),
-            "{lane}: one period over, not a reset"
+            "{lane}: one period over, the marks' own decision"
         );
     }
 
