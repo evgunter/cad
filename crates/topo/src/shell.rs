@@ -3466,7 +3466,7 @@ fn band_between_boundaries<T: Decide + crate::props::AtRestPolicy>(
     // The parted side is wound as the host's own region was, so it is
     // promoted as the host's piece and takes the host's bit (check 6
     // reads it against the winding).
-    let made = body.mfkrh_piece(parted.ring, None).map_err(rim_error)?;
+    let made = body.mfkrh_piece(parted.ring).map_err(rim_error)?;
     // Each strut's `he_minus` runs from its ring corner to its cut point,
     // which the collapse merges away.
     let moved = re_anchored(body, seam, m_a, p_start, designated, band)?;

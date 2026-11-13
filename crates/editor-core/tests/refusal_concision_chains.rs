@@ -961,7 +961,7 @@ mod kernel {
             SectionLoopMixed, SectionLoopUndecided, CutInvariant, Corrupt, LineageRow,
             Band, Euler, SectionEndEscalated, SectionUnresolved, Section, OpenConicChord,
             SectionInvariant, SectionUnwalked, SectionUnarmed, RunImageNotYet,
-            RunImageIncidence, RingIslandUnread,
+            SingularTurn, RunImageIncidence, RingIslandUnread,
             RunEdgeCarrierUnsupported,
             TangentChordEscalated, TangentChordBendEscalated, TangentChordRefuted,
             SectionCrossings, SectionDepartureGrazes,
@@ -2646,6 +2646,13 @@ fn split() -> Vec<(String, NodeErrorKind)> {
                 J::RunImageNotYet {
                     face,
                     kind: geom::SurfaceKind::Sphere,
+                },
+            ),
+            (
+                "SingularTurn",
+                J::SingularTurn {
+                    face,
+                    miss: topo::pcurves::SingularMiss::EdgesCoincide,
                 },
             ),
             (

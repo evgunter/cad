@@ -16,7 +16,7 @@ use geom_core::{Band, Decide, Indeterminate};
 
 use crate::body::Body;
 use crate::entity::FaceKey;
-use crate::pcurves::{Lift, LiftRefusal, PinMiss};
+use crate::pcurves::{Lift, LiftRefusal, PinMiss, SingularMiss};
 
 /// Why [`face_azimuth_window`] read no window.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -29,6 +29,14 @@ pub enum ChartWindowError {
     /// no closed-form image on the chart, or a joint that names no
     /// branch.
     Unread,
+    /// The outer loop turns on its chart's singular set, and the turn
+    /// there is decided by nothing: a limit of the face, with the
+    /// miss's own recourse.
+    Singular(SingularMiss),
+    /// The outer loop's joints compose to a winding no loop has: the
+    /// face's boundary does not close in its chart. A defect of the
+    /// body, never a statement about the face's class.
+    NotClosed(FaceKey),
 }
 
 impl core::fmt::Display for ChartWindowError {
@@ -42,14 +50,25 @@ impl core::fmt::Display for ChartWindowError {
                 "the face's outer loop has no lift on its chart: an edge of it has no \
                  closed-form image there, or a joint of it names no branch",
             ),
+            Self::Singular(miss) => write!(
+                f,
+                "the face's outer loop turns on a singular point of its chart, and {miss}. {}",
+                miss.recourse()
+            ),
+            Self::NotClosed(face) => write!(
+                f,
+                "the outer loop of face {face:?} does not close in its chart: its joints \
+                 compose to a winding no loop has"
+            ),
         }
     }
 }
 
 impl std::error::Error for ChartWindowError {}
 
-impl From<LiftRefusal> for ChartWindowError {
-    fn from(refusal: LiftRefusal) -> Self {
+impl ChartWindowError {
+    /// The refusal of `face`'s outer loop's lift, as the window's.
+    fn of(face: FaceKey, refusal: LiftRefusal) -> Self {
         use geom_brep::{PcurveCertifyError, PcurveCheck};
         match refusal {
             LiftRefusal::Joint(PinMiss::Escalated(cause) | PinMiss::NetStretchUndecided(cause)) => {
@@ -68,10 +87,11 @@ impl From<LiftRefusal> for ChartWindowError {
             LiftRefusal::Image(PcurveCertifyError::Escalated { cause, .. }) => {
                 Self::Escalated(cause)
             }
+            LiftRefusal::Joint(PinMiss::Singular(miss)) => Self::Singular(miss),
+            LiftRefusal::NotClosed => Self::NotClosed(face),
             LiftRefusal::Image(_)
-            | LiftRefusal::Joint(PinMiss::Discontinuity | PinMiss::Singular(_))
-            | LiftRefusal::Placeholder
-            | LiftRefusal::NotClosed => Self::Unread,
+            | LiftRefusal::Joint(PinMiss::Discontinuity)
+            | LiftRefusal::Placeholder => Self::Unread,
         }
     }
 }
@@ -98,7 +118,8 @@ pub(crate) fn face_azimuth_window<T: Decide>(
     let Some(halves) = view.outer_cycle() else {
         return Ok(None);
     };
-    let lift = Lift::decided(body, face, view.surface(), &halves, true, band)?;
+    let lift = Lift::decided(body, face, view.surface(), &halves, true, band)
+        .map_err(|refusal| ChartWindowError::of(face, refusal))?;
     Ok(lift.azimuth_window())
 }
 

@@ -1861,21 +1861,42 @@ impl<T: Decide> Body<T> {
         Ok(created)
     }
 
-    /// **A ring promoted as its face's own region**: [`Body::mfkrh`](crate::construction::Construct::mfkrh)'s
-    /// surgery on the ring's own chart, the new face keeping the old
-    /// face's sense. A ring whose left is a piece of its face (a region
-    /// a cut parted from it, not a hole of it) bounds that piece as it
-    /// stands, so its rows stand too, joints on the chart's singular set
-    /// included ([`Body::sides_agree`]): nothing is decided, at either
-    /// door. `tol` is the band door's, as [`Body::mfkrh_minting`](crate::construction::Construct::mfkrh_minting)'s.
+    /// **A ring promoted as its face's own region**, keys only:
+    /// [`Body::mfkrh`](crate::construction::Construct::mfkrh)'s surgery on the ring's own chart, the new
+    /// face keeping the old face's sense. A ring whose left is a piece
+    /// of its face (a region a cut parted from it, not a hole of it)
+    /// bounds that piece as it stands, so its rows stand too, joints on
+    /// the chart's singular set included ([`Body::sides_agree`]):
+    /// nothing is decided.
     ///
     /// # Errors
     ///
     /// [`Body::mfkrh`](crate::construction::Construct::mfkrh)'s.
-    pub(crate) fn mfkrh_piece(
+    pub(crate) fn mfkrh_piece(&mut self, ring: LoopKey) -> Result<MfkrhCreated, EulerOpError> {
+        self.mfkrh_piece_with(ring, None, "mfkrh_piece")
+    }
+
+    /// [`Body::mfkrh_piece`] at the band door: the same surgery, and
+    /// the site mint [`Body::mfkrh_minting`](crate::construction::Construct::mfkrh_minting) runs, at `tol`'s
+    /// band, for a ring that stores no rows yet.
+    ///
+    /// # Errors
+    ///
+    /// [`Body::mfkrh_minting`](crate::construction::Construct::mfkrh_minting)'s.
+    pub(crate) fn mfkrh_piece_minting(
+        &mut self,
+        ring: LoopKey,
+        tol: Tol,
+    ) -> Result<MfkrhCreated, EulerOpError> {
+        self.mfkrh_piece_with(ring, Some(tol), "mfkrh_piece_minting")
+    }
+
+    /// The two piece doors' one body, declaring `door`'s postcondition.
+    fn mfkrh_piece_with(
         &mut self,
         ring: LoopKey,
         tol: Option<Tol>,
+        door: &'static str,
     ) -> Result<MfkrhCreated, EulerOpError> {
         #[cfg(debug_assertions)]
         let before = self.arena_counts();
@@ -1887,7 +1908,9 @@ impl<T: Decide> Body<T> {
             RechartDoor::Mfkrh,
         )?;
         #[cfg(debug_assertions)]
-        self.assert_euler_postcondition(before, MFKRH_DELTA, "mfkrh_piece");
+        self.assert_euler_postcondition(before, MFKRH_DELTA, door);
+        #[cfg(not(debug_assertions))]
+        let _ = door;
         Ok(created)
     }
 

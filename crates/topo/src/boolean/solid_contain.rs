@@ -1499,18 +1499,23 @@ pub(crate) fn sphere_chart_trim<T: Decide>(
     // The window is the lift's: the face's boundary in the chart,
     // decided here at the band, since containment reads bodies
     // mid-operation too. A face whose outer loop has an image with no
-    // closed-form box, or a joint that names no branch, is out of the
-    // class, NOT a broken body: only the in-band arm is an escalation,
-    // and a key that does not resolve is not a class statement, and
-    // keeps the arena claim's own door.
-    let raw = match crate::chart_window::face_azimuth_window(body, face, band) {
-        Ok(Some(w)) => w,
-        Ok(None) | Err(crate::chart_window::ChartWindowError::Unread) => return Ok(None),
-        Err(crate::chart_window::ChartWindowError::Escalated(diag)) => {
-            return Err(escalate(diag));
-        }
-        Err(crate::chart_window::ChartWindowError::Stale(_)) => {
-            return Err(PointInSolidError::CorruptFace { face });
+    // closed-form box, a joint that names no branch, or a turn on the
+    // chart's singular set that nothing decides, is out of the class,
+    // NOT a broken body: only the in-band arm is an escalation. A key
+    // that does not resolve, or a boundary that does not close in its
+    // chart, is not a class statement, and keeps the arena claim's own
+    // door.
+    let raw = {
+        use crate::chart_window::ChartWindowError;
+        match crate::chart_window::face_azimuth_window(body, face, band) {
+            Ok(Some(w)) => w,
+            Ok(None) | Err(ChartWindowError::Unread | ChartWindowError::Singular(_)) => {
+                return Ok(None);
+            }
+            Err(ChartWindowError::Escalated(diag)) => return Err(escalate(diag)),
+            Err(ChartWindowError::Stale(_) | ChartWindowError::NotClosed(_)) => {
+                return Err(PointInSolidError::CorruptFace { face });
+            }
         }
     };
     // A face that ALONE wraps the azimuth ([`wrap_rims`], asked first)

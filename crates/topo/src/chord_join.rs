@@ -489,6 +489,16 @@ pub enum JoinError {
         /// Its surface kind.
         kind: geom::SurfaceKind,
     },
+    /// A run of a divided face turns on a singular point of its chart
+    /// (a sphere's pole, a cone's apex), and nothing decides the turn
+    /// there ([`crate::pcurves::SingularMiss`]): a limit of the face as
+    /// it stands, with the miss's own recourse.
+    SingularTurn {
+        /// The face being divided.
+        face: FaceKey,
+        /// Why the turn is not decided.
+        miss: crate::pcurves::SingularMiss,
+    },
     /// A run edge's image refused on its incidence on the divided face's
     /// chart (`geom_brep::IncidenceRead::of`): decided off it, read at a
     /// pose, or undecided. It ends by the one map
@@ -642,6 +652,7 @@ impl JoinError {
             Self::SectionUnarmed { .. }
             | Self::RingIslandUnread { .. }
             | Self::RunImageNotYet { .. }
+            | Self::SingularTurn { .. }
             | Self::SectionUnresolved { .. }
             | Self::OpenConicChord { .. }
             | Self::RunEdgeCarrierUnsupported { .. }
@@ -969,6 +980,11 @@ impl JoinError {
                     None => Ok(()),
                 }
             }
+            Self::SingularTurn { miss, .. } => write!(
+                f,
+                "a face's boundary turns on a singular point of its chart, and {miss}. {}",
+                miss.recourse()
+            ),
             Self::RunImageNotYet { kind, .. } => write!(
                 f,
                 "an edge of a {} face sits on the face as none of its own curves, and the \
@@ -3908,8 +3924,10 @@ impl<'a, T: Decide> RunImage<'a, T> {
 /// **How a refusal of the run's lift ends the island's winding**
 /// ([`crate::pcurves::Lift::decided`]): an image's by
 /// [`run_image_refusal`]; a joint's escalation as the join's own; and a
-/// joint that names no branch, or a run that turns on its chart's
-/// singular set, as an invariant the ring lane's cylinder runs keep.
+/// joint that names no branch as an invariant the ring lane's cylinder
+/// runs keep; a run that turns on its chart's singular set where
+/// nothing decides the turn as that limit, with its recourse
+/// ([`JoinError::SingularTurn`]).
 fn run_lift_refusal<T: Decide>(
     face: FaceKey,
     surface: &geom::Surface<T>,
@@ -3926,10 +3944,7 @@ fn run_lift_refusal<T: Decide>(
             what: "a run edge's chart entry sits half a period from the previous edge's exit — \
                    the two images name no common branch",
         },
-        LiftRefusal::Joint(PinMiss::Singular(_)) => JoinError::SectionInvariant {
-            face,
-            what: "a ring-lane island's run turns on its chart's singular set",
-        },
+        LiftRefusal::Joint(PinMiss::Singular(miss)) => JoinError::SingularTurn { face, miss },
         LiftRefusal::Placeholder => JoinError::SectionInvariant {
             face,
             what: "a divided face's chart is the placeholder — it has no lever to decide a \
@@ -5442,7 +5457,7 @@ impl ChordJoiner {
         ring: LoopKey,
     ) -> Result<FaceKey, JoinError> {
         body.get_face(oldf).ok_or_else(|| corrupt_face(oldf))?;
-        let promoted = body.mfkrh_piece(ring, None)?.face;
+        let promoted = body.mfkrh_piece(ring)?.face;
         self.slivers.insert(promoted, ());
         self.fragments
             .push((promoted, oldf))

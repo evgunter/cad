@@ -2318,7 +2318,7 @@ fn part<T: Decide + crate::props::AtRestPolicy>(
                         .ring;
                     // The piece is the face's own region on its own chart,
                     // not a hole of it promoted: it keeps the face's side.
-                    let piece = body.mfkrh_piece(ring, Some(tol))?.face;
+                    let piece = body.mfkrh_piece_minting(ring, tol)?.face;
                     divided = Some(piece);
                 } else {
                     let (ring, he) = if lp == outer {
