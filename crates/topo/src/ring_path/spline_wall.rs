@@ -1,6 +1,6 @@
 //! **A ring lane's paths on a spline wall**: the cylinder's ruled paths
-//! ([`Quadric::paths`]) on the wall's own chart, where a ruling and a
-//! parallel are the chart's two iso curves.
+//! ([`super::Quadric::paths`]) on the wall's own chart, where a ruling
+//! and a parallel are the chart's two iso curves.
 //!
 //! A path runs from one point's foot on the chart to the other's along
 //! the iso curve through the first to the corner the two feet share,
@@ -8,8 +8,8 @@
 //! wall's two paths. An iso curve is the de Boor collapse of the wall's
 //! net ([`geom_brep::interior_iso_u`]), exact in ℝ, so a piece lies on
 //! the wall and its meeting with a loop arc that lies on the wall within
-//! the band ([`SplineArc`]) is a meeting in space, which the curve-pair
-//! table reads ([`super::spline_crossings`]).
+//! the band ([`super::SplineArc`]) is a meeting in space, which the
+//! curve-pair table reads ([`super::spline_crossings`]).
 //!
 //! The parity is the path's own to say where the curve bounds a disc of
 //! the wall, the premise a torus's paths rest on (the module docs): the
