@@ -179,4 +179,62 @@ mod rows {
             "the arc tilted within the band over its own reach"
         );
     }
+
+    /// **The arc is levered from its vertex, not about its own ball's
+    /// centre.** A half-turn arc of the unit circle leaves `(1, 0, 0)`
+    /// along `+y` and reaches `2` from it, the far end of a diameter;
+    /// its cover's ball has a radius `r` below that. A tilt `t` with
+    /// `t·r` in the zero band but `t·2` past it moves the arc's far end
+    /// out of the band, so the arc is not found along it; levered at the
+    /// ball's radius, with no pivot, the same tilt reads Zero and finds
+    /// it.
+    #[test]
+    fn a_half_turn_arc_is_levered_at_its_far_end_from_the_vertex() {
+        let tol = Tol::witness();
+        let band = Band::linear(tol).expect("the witness band");
+        let mut y = Body::<f64>::new();
+        cyl_wall_sheet(
+            &mut y,
+            CylFrame::canonical(1.0),
+            (0.0, core::f64::consts::PI),
+            (0.0, 1.0),
+            tol,
+        );
+        let start = Point3::new(1.0, 0.0, 0.0);
+        let p = y
+            .vertex_points()
+            .find(|(_, q)| (*q - start).norm() < 1e-12)
+            .map(|(k, _)| k)
+            .expect("the sheet's corner");
+        let arc = y
+            .edges
+            .iter()
+            .map(|(k, _)| k)
+            .find(|&k| {
+                let e = &y.edges[k];
+                y.edge_curve_linked(k, e)
+                    .certified()
+                    .is_some_and(|c| matches!(c.carrier(), geom::Curve3::Circle(_)))
+                    && crate::cover::edge_cover(&y, k)
+                        .is_ok_and(|c| c.distance_range(&geom::cover::Site::Point(start)).0 < 1e-9)
+            })
+            .expect("the bottom arc");
+        let cover = crate::cover::edge_cover(&y, arc).expect("its cover");
+        let ball = geom_brep::ExtentBall::of_covered(Some(&cover))
+            .lever()
+            .length();
+        let far = geom_brep::ExtentBall::of_cover_from(Some(&cover), start)
+            .lever()
+            .length();
+        let tilt = band.zero() * (1.0 / ball + 1.0 / far) / 2.0;
+        assert!(
+            tilt * ball < band.zero() && tilt * far > band.zero(),
+            "the tilt sits between the two arms: ball {ball}, far {far}"
+        );
+        assert_ne!(
+            arcs_along(&y, p, Vec3::new(0.0, 1.0, tilt), band).map(|a| a.len()),
+            Ok(1),
+            "the arc's far end leaves the band"
+        );
+    }
 }
