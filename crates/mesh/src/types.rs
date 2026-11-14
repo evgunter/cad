@@ -563,11 +563,13 @@ pub enum TessellateError {
         /// The face whose patch folds.
         face: FaceKey,
     },
-    /// A trimmed face on an analytic chart keeps an ear of its boundary
-    /// polygon (a triangle on three consecutive chord points) after the
-    /// retry budget: the neighbour across that chain may cut the same
-    /// ear, which would make one triangle twice and their diagonal an
-    /// edge of four triangles, so it refuses.
+    /// A trimmed face on an analytic chart keeps, after the retry budget,
+    /// a triangle a neighbouring face may make a side of too: an ear of
+    /// its boundary polygon (a triangle on three consecutive chord
+    /// points), or on a cone a side joining two boundary points that are
+    /// not neighbours and that one neighbour holds both of. The neighbour
+    /// may join the same two points, which would make that side an edge
+    /// of four triangles, so it refuses.
     BoundaryEar {
         /// The face whose patch keeps the ear.
         face: FaceKey,
