@@ -153,9 +153,9 @@ pub enum TessellateError {
     /// triangulate: the outer loop or a ring does not close in the chart
     /// (a seamless band, a loop about a pole or apex inside the face), a
     /// ring has no one decided place against the outer loop, a loop
-    /// stores no lift, or the face is a spline face with a ring, whose
-    /// rings the door does not place yet. This is the lane's one refusal
-    /// of a loop that does not close: the door's cause, carried whole.
+    /// stores no lift, or a ringed spline face's trim is not read in its
+    /// chart. This is the lane's one refusal of a loop that does not
+    /// close: the door's cause, carried whole.
     DomainUnread {
         /// The offending face.
         face: FaceKey,
@@ -631,6 +631,16 @@ pub enum SphereTrimCause {
     /// chart: a cone face on both nappes, through its apex. The lane
     /// triangulates a cone face in its development, which is one nappe's.
     BothNappes,
+    /// Two vertices of a cone face's loop at two chart locations develop
+    /// to one point: a vertex so near the apex, or two so near each other,
+    /// that the development the lane triangulates the face in (`trimmed`,
+    /// "The development") rounds them together, and the lane does not hold
+    /// two mesh vertices as one CDT vertex.
+    DevelopedMerge,
+    /// A vertex of the loop lies within the run's band of a singular
+    /// point, undecided: the lane cannot say whether the loop turns the
+    /// face there, which the polygon's sides at that point follow.
+    SingularUndecided,
 }
 
 impl SphereTrimCause {
@@ -642,6 +652,8 @@ impl SphereTrimCause {
             Self::ThroughPole => "through_pole",
             Self::ChordBudget => "chord_budget",
             Self::BothNappes => "both_nappes",
+            Self::DevelopedMerge => "developed_merge",
+            Self::SingularUndecided => "singular_undecided",
         }
     }
 }
@@ -712,9 +724,9 @@ impl TessellateError {
                          along the chart, or past what the placement reads, so its \
                          side is undecided"
                     }
-                    R::SplineChart => {
-                        "it is a spline face with a ring, and the rings of a spline \
-                         face are not read in its chart outside the boolean engine yet"
+                    R::SplineTrimUnread { .. } => {
+                        "it is a spline face with a ring, and its trim is not read in \
+                         its chart"
                     }
                 };
                 write!(
@@ -914,6 +926,16 @@ impl TessellateError {
                     SphereTrimCause::BothNappes => {
                         "its loop runs onto both nappes of a cone, through the apex, and \
                          the trimmed lane meshes a cone face on one nappe"
+                    }
+                    SphereTrimCause::DevelopedMerge => {
+                        "two vertices of its loop lie so near each other, or one so near \
+                         the cone's apex, that the cone's development rounds them to one \
+                         point, and the trimmed lane does not merge two vertices"
+                    }
+                    SphereTrimCause::SingularUndecided => {
+                        "a vertex of its loop lies so near a chart pole or apex that this \
+                         run's tolerance band cannot say whether it is one; mesh at the \
+                         band the body was built at, or move the vertex off the point"
                     }
                 };
                 write!(

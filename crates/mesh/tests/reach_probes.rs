@@ -179,13 +179,17 @@ fn got(body: &Body<f64>, delta: f64) -> Got {
 ///     misses the volume by a face's worth; a triangle folded over a
 ///     chord beside it points into the surface;
 ///   - **lies within δ of the surface**: its true distance, sampled on a
-///     barycentric grid ([`distance`]), is at most `δ`, so a certificate
-///     that under-reports a triangle's deviation reds here whichever arm
-///     issued it;
-///   - **has area**: `2·area/L²`, `L` its longest side, is at least
-///     [`MIN_SHAPE`], so a triangle along one straight line of the
-///     surface (a cone's ruling) reds here. One that has none is read
-///     after every other check holds, as [`Miss::NoArea`].
+///     barycentric grid ([`distance`]), is at most `δ`. That reds a mesh
+///     that is truly past δ, not a certificate that under-reports: a
+///     lattice sized at its own steps stays within δ whatever the
+///     certificate says, so a certificate is held to the truth in its own
+///     row (`mesh`'s `chart_table` tests,
+///     `the_cone_and_torus_certificates_hold_the_true_deviation`);
+///   - **is not on one line**: `2·area/L²`, `L` its longest side, is at
+///     least [`MIN_SHAPE`], so a triangle along one straight line of the
+///     surface (a cone's ruling) reds here; a thin triangle does not. One
+///     that is on one line is read after every other check holds, as
+///     [`Miss::NoArea`].
 fn geometry(body: &Body<f64>, mesh: &mesh::Mesh, delta: f64) -> Result<(), Miss> {
     if !body
         .faces()
@@ -260,11 +264,19 @@ enum Miss {
     Other(String),
 }
 
-/// The least `2·area/L²` [`geometry`] admits on an analytic curved face:
-/// far above a triangle on one line, whose rounding leaves it about
-/// `1e-16`, and below the thinnest triangle any row's lattice lays (a
-/// needle cone's, a few `1e-5`).
-const MIN_SHAPE: f64 = 1e-6;
+/// **The least `2·area/L²` [`geometry`] admits on an analytic curved
+/// face: a triangle that is not on one line.** Three points of one cone
+/// ruling are exactly collinear in the cone's development
+/// (`mesh::trimmed`, "The development"), so the lane cannot build that
+/// triangle, and one built in the chart reads about `1e-17` (rounding).
+/// It is not a bound on thin triangles: nothing bounds those. Beside a
+/// ruling a triangle's ratio goes as `(h/L)²`, and valid accepted meshes
+/// read `8·10⁻⁷` (a funnel cut `10⁻⁶` above its apex), `3·10⁻⁸` to
+/// `8·10⁻⁷` (a frustum whose small rim has radius `2·10⁻⁷`…`5·10⁻⁷`,
+/// whole or split, δ `5·10⁻³`) and `1.6·10⁻⁸` (a needle funnel of radius
+/// `0.002` at δ `10⁻⁶`)
+/// (`work/tesslane/a-needle-cone-face-meshes-thin-triangles-beside-its-rulings.md`).
+const MIN_SHAPE: f64 = 1e-12;
 
 /// **The outward normal of an analytic curved surface at the foot of
 /// `p`**, from the surface's closed form (`geom::Surface`'s variant
@@ -862,6 +874,97 @@ fn a_cone_face_through_its_apex_meshes_at_every_scale_and_pose() {
         &[2e-2, 5e-3, 1e-3],
         &Got::Meshed,
     );
+}
+
+/// **A cone face ending near its apex refuses at fine δ: this row pins
+/// a gap** (`work/tesslane/a-cone-face-ending-near-its-apex-refuses-at-fine-delta.md`).
+/// The funnel of [`a_cone_face_through_its_apex_meshes_on_the_cone_row`]
+/// cut by the same tilted plane through `(0, h, 0)`: the half above the
+/// cut has a section ellipse within `h` of the apex. Measured: for
+/// `h ≤ 10⁻²` that half refuses `CertificateExceeded` at δ `10⁻³` and
+/// finer, and for `h ≤ 10⁻³` at `5·10⁻³` too (bound `1.03δ` to `8δ`);
+/// it meshes coarser, the half below the cut meshes at every δ, and a
+/// cut at `h = 0.02` meshes both halves at every δ. The lane triangulates
+/// the face in its development and certifies each triangle in the chart
+/// (`cert::cert_cone`), whose `Δu` reads the angle between points near
+/// the apex at its full width. With that certificate zeroed, all but two
+/// refusals measure within δ in truth, and those two are over: the
+/// certificate is conservative for most, and the face needs more points
+/// for some. The unit that cures it turns this row's refusals into
+/// meshes. On main the face refuses at every δ, `UnsupportedCurve`: no
+/// trimmed cone arm. A cut within a thousand ε of the apex is within the
+/// band's reach of it: it may refuse at the split (at ε `10⁻⁶`,
+/// `h = 10⁻⁴` refuses `KeptBoundaryUndecided`) or leave no body below
+/// (at ε `10⁻⁶`, `h = 10⁻⁶`), each printed and skipped, and a cell this
+/// table refuses may mesh instead (at ε `10⁻⁶`, `h = 10⁻⁶` above, at δ
+/// `5·10⁻³`), held to the geometry check.
+#[test]
+fn a_cone_face_ending_near_its_apex_refuses_at_fine_delta() {
+    let n = Vec3::new(0.3f64.sin(), 0.3f64.cos(), 0.0);
+    let deltas = [2e-2, 5e-3, 1e-3, 2e-4, 5e-5];
+    let refuses = |h: f64, above: bool, delta: f64| {
+        above && h <= 1e-2 && (delta <= 1e-3 || (delta <= 5e-3 && h <= 1e-3))
+    };
+    for h in [0.02, 1e-2, 3e-3, 1e-3, 1e-4, 1e-6] {
+        let body = finished(
+            "the funnel",
+            revolved(&[(0.0, 0.0), (1.0, 1.0), (0.0, 1.0)]),
+            tol(),
+        );
+        let plane = topo::test_support::split_plane(Point3::new(0.0, h, 0.0), n, tol());
+        // Within a thousand ε of the apex the band reaches the cut: the
+        // split may refuse, a half may be empty, and a cell the table
+        // refuses may mesh instead, held to the geometry check.
+        let near = h <= 1000.0 * tol().eps();
+        let split = match topo::splitting::split(&body, &plane, tol()) {
+            Ok(split) => split,
+            Err(e) => {
+                assert!(
+                    near,
+                    "the funnel cut at {h:e} splits at ε {:e}, got {e:?}",
+                    tol().eps()
+                );
+                eprintln!(
+                    "the funnel cut at {h:e}: the split refuses at ε {:e}: {e:?}",
+                    tol().eps()
+                );
+                continue;
+            }
+        };
+        for (side, part) in [("above", &split.above), ("below", &split.below)] {
+            let what = format!("the funnel cut at h = {h:e}, {side}");
+            let Some(half) = part.body() else {
+                assert!(near, "{what}: a body");
+                eprintln!(
+                    "{what}: no body at ε {:e}, the cut read through the apex",
+                    tol().eps()
+                );
+                continue;
+            };
+            for delta in deltas {
+                if near && refuses(h, side == "above", delta) {
+                    match mesh::tessellate(half, delta, tol()) {
+                        Err(mesh::TessellateError::CertificateExceeded { .. }) => {}
+                        _ => assert_eq!(got(half, delta), Got::Meshed, "{what}, δ = {delta:e}"),
+                    }
+                } else if refuses(h, side == "above", delta) {
+                    match mesh::tessellate(half, delta, tol()) {
+                        Err(mesh::TessellateError::CertificateExceeded {
+                            bound,
+                            requested,
+                            ..
+                        }) if bound > requested => {}
+                        other => panic!(
+                            "{what}, δ = {delta:e}: refuses CertificateExceeded today, got {:?}",
+                            other.map(|m| m.patches.len())
+                        ),
+                    }
+                } else {
+                    assert_eq!(got(half, delta), Got::Meshed, "{what}, δ = {delta:e}");
+                }
+            }
+        }
+    }
 }
 
 /// **A ball across a cylinder's wall refuses in the chord pass.** The

@@ -22,7 +22,7 @@ So a point inside such a box is never cleared. The reading spends `PIECE_VISITS`
 ## What a tightening box takes
 
 A per-span box for each of those forms: a sub-span's box that shrinks with the sub-span.
-- `Fitted` and `General`: the Bézier pieces of the net over the span, as `boolean::spline_region`'s `bezier_pieces` cuts them (its control boxes tighten under subdivision).
+- `Fitted` and `General`: the Bézier pieces of the net over the span, as `spline_trim`'s `bezier_pieces` cuts them (its control boxes tighten under subdivision).
 - `IsoArc`: the segment between its two ends over the sub-span, since `g` is monotone in `t`.
 - `Spiric`: `f`'s range over the sub-span of `cos t`, in place of its whole-period range.
 

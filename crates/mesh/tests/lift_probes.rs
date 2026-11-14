@@ -559,7 +559,10 @@ enum Joint {
     Open(f64, f64),
 }
 
-/// Whether `v` is on a singular row of a `chart` chart.
+/// Whether `v` is on a singular row of a `chart` chart, within [`MEET`]
+/// in chart `v`: this probe's reading of its own fixtures' chains, not
+/// the lane's rule, which decides a vertex on a singular point in 3-D at
+/// the run's band (`mesh::chart_table`'s `AnalyticRow::is_singular`).
 fn on_singular_row(chart: SurfaceKind, v: f64) -> bool {
     match chart {
         SurfaceKind::Sphere => v.cos().abs() < MEET,
@@ -1755,8 +1758,16 @@ fn the_spiric_bounded_torus_walls_outer_loop_is_a_simple_polygon() {
 /// with the face.
 ///
 /// The sphere's rows beside it: a ball's half band and a wedge of one
-/// have two such joints each, at `v = ±π/2` to within the `64ε` that
-/// `chart_table::SingularRow::holds` admits.
+/// have two such joints each, at `v = ±π/2` to within `64ε`.
+///
+/// **These are the unposed fixtures' own readings, in the chart**: each
+/// apex here is at `v = 0.0` exactly and each pole within `64ε` of `π/2`
+/// because these bodies sit at the origin on the axes. They are not the
+/// lane's rule: the trimmed lane decides whether a vertex is a singular
+/// point from the body's 3-D incidence at the run's band
+/// (`mesh::chart_table`'s `AnalyticRow::is_singular`), which a posed or
+/// scaled body reads the same way (`trimmed`'s
+/// `a_singular_point_is_decided_at_the_band_at_every_scale_and_pose`).
 #[test]
 fn a_lift_runs_along_the_apex_row_through_the_faces_turn() {
     let funnel = revolved(&[(0.0, 0.0), (1.0, 1.0), (0.0, 1.0)]);

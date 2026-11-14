@@ -133,14 +133,22 @@
 //! exact predicates read any three points of one ruling as collinear,
 //! and no triangle lies along one. Three points of a cone on one line
 //! lie on a ruling (a line meets the quadric in two points or lies in
-//! it), so no other triangle of zero area exists to make.
+//! it), so no other triangle of zero area exists to make. A THIN triangle
+//! is another matter, and nothing bounds it: beside a ruling a triangle's
+//! `2·area/L²` goes as `(h/L)²`, and a needle cone or a face ending near
+//! its apex meshes certified triangles near `1e-8`
+//! (`work/tesslane/a-needle-cone-face-meshes-thin-triangles-beside-its-rulings.md`).
+//! A face ending close to its apex can also refuse at fine δ, because
+//! the chart's certificate reads the span the development makes short
+//! (`work/tesslane/a-cone-face-ending-near-its-apex-refuses-at-fine-delta.md`).
 //!
 //! - **Which points are one CDT vertex.** Every copy of the apex is the
-//!   origin. The development rounds, so it is not injective: a polygon
-//!   point that would share a CDT vertex with one at another UV location
-//!   refuses typed rather than merge two mesh vertices, and a grid
-//!   candidate that would is dropped, as a candidate on a polygon point
-//!   is in the chart ([`TrimmedFace::insert_points`]).
+//!   origin. The development rounds, so it is not injective: a face
+//!   whose polygon point would share a CDT vertex with one at another UV
+//!   location refuses `SphereTrimShape { DevelopedMerge }` before its
+//!   first attempt ([`developed_merge`]) rather than merge two mesh
+//!   vertices, and a grid candidate that would is dropped, as a candidate
+//!   on a polygon point is in the chart ([`TrimmedFace::insert_points`]).
 //!   [`crate::cdt::ids_at_two_uvs`] still reads UV locations, so it names
 //!   the apex's id; the census of identified-vertex fan edges then counts
 //!   the apex's one fan, whose edges a single vertex's fan uses twice at
@@ -434,7 +442,7 @@ pub(crate) fn tessellate_trimmed(
     // module docs). Each vertex's mesh id is its edges' end chord id.
     let singular = match row {
         ChartRow::Analytic(ref a) if !a.singular_points().is_empty() => {
-            singular_vertices(body, &loops, chords, shared, a, tol.band)?
+            singular_vertices(body, fk, &loops, chords, shared, a, tol.band)?
         }
         ChartRow::Analytic(_) | ChartRow::Spline { .. } => HashSet::new(),
     };
@@ -509,7 +517,7 @@ pub(crate) fn tessellate_trimmed(
             // adding a fixture in a way that *nothing in tree does
             // this* does not.
             debug_assert!(
-                !matches!(a.kind, Analytic::Cylinder { .. })
+                !matches!(a.kind(), Analytic::Cylinder { .. })
                     || nu != 2
                     || !id_repeats_apart(&polygon.points),
                 "face {fk:?}: a trim polygon repeats a mesh id at two UV locations \
@@ -586,6 +594,13 @@ pub(crate) fn tessellate_trimmed(
         shared,
         tol,
     };
+    if let Some(i) = developed_merge(trimmed.plane(), &polygon.points, &singular) {
+        return Err(TessellateError::SphereTrimShape {
+            face: fk,
+            edge: polygon.edges[i],
+            cause: SphereTrimCause::DevelopedMerge,
+        });
+    }
     for attempt in 0..=last_attempt() {
         // THIS ATTEMPT's columns, cleared at its FIRST line: a
         // discarded attempt's triangles must not contribute to numbers
@@ -844,6 +859,10 @@ impl TrimmedFace<'_> {
                 );
                 let k = apex.iter().position(|&a| !a).unwrap_or(0);
                 let turn = nappe * sin_alpha;
+                // `Azimuth::of` takes `(y, x)`, atan2's order, and the
+                // development puts a point at `r·(sin θ, cos θ)`: its first
+                // coordinate is the angle's sine, so it goes first, and the
+                // angle read is `θ` itself.
                 let direction = geom::Azimuth::of(g.x, g.y);
                 let theta = direction.near(turn * uv[k][0]);
                 (theta / turn, nappe * direction.length())
@@ -1032,12 +1051,11 @@ impl TrimmedFace<'_> {
         // a pinch's vertices, or a vertex the walk meets again. The
         // development rounds, and puts every copy of the apex at one
         // point on purpose: there the copies of the singular vertex share
-        // one, and a polygon point that would share one with a polygon
-        // point at another UV location refuses typed, so no two mesh
-        // vertices merge that the chart keeps apart. A grid candidate
-        // landing on an earlier point is dropped, as in the chart: it is
-        // no mesh vertex yet.
-        let n_poly = self.polygon.len();
+        // one, and a face whose polygon points would share one apart from
+        // those has refused before its first attempt ([`developed_merge`]),
+        // so no two mesh vertices merge that the chart keeps apart. A grid
+        // candidate landing on an earlier point is dropped, as in the
+        // chart: it is no mesh vertex yet.
         let plane = self.plane();
         let inputs: Vec<(f64, f64, bool)> = self
             .polygon
@@ -1055,21 +1073,12 @@ impl TrimmedFace<'_> {
         let mut unique: Vec<SpadePoint<f64>> = Vec::with_capacity(inputs.len());
         let mut index_of: HashMap<(u64, u64), usize> = HashMap::with_capacity(inputs.len());
         let mut handle_of: Vec<FixedVertexHandle> = Vec::with_capacity(inputs.len());
-        let mut first: Vec<(SpadePoint<f64>, bool)> = Vec::with_capacity(n_poly);
-        for (k, &(u, v, singular)) in inputs.iter().enumerate() {
+        for &(u, v, singular) in &inputs {
             let p = cdt_point(plane, u, v, singular);
             let next = unique.len();
             let i = *index_of.entry((key(p.x), key(p.y))).or_insert(next);
             if i == next {
                 unique.push(p);
-                if k < n_poly {
-                    first.push((crate::cdt::spade_point(u, v), singular));
-                }
-            } else if k < n_poly {
-                let (at, was_singular) = first[i];
-                if !(at == crate::cdt::spade_point(u, v) || singular && was_singular) {
-                    return Err(TessellateError::Triangulation { face: fk });
-                }
             }
             handle_of.push(FixedVertexHandle::from_index(i));
         }
@@ -1574,6 +1583,34 @@ fn nappe(polygon: &[(f64, f64, u32)], singular: &HashSet<u32>) -> f64 {
     if below { -1.0 } else { 1.0 }
 }
 
+/// **The first polygon point the development would merge with one at
+/// another UV location** (module docs, "The development", which points are
+/// one CDT vertex), as its index; `None` in the chart, whose map is
+/// injective on floored points. The copies of the singular vertex share
+/// the origin, and points at one UV location (a pinch's vertices, or a
+/// vertex the walk meets again) share a point as in the chart; any other
+/// two polygon points that the development's rounding or spade's floor
+/// put at one point are two mesh vertices the CDT would hold as one, and
+/// the face refuses `SphereTrimShape { DevelopedMerge }` at the second.
+fn developed_merge(
+    plane: CdtPlane,
+    polygon: &[(f64, f64, u32)],
+    singular: &HashSet<u32>,
+) -> Option<usize> {
+    if let CdtPlane::Lattice { .. } = plane {
+        return None;
+    }
+    let key = |x: f64| if x == 0.0 { 0u64 } else { x.to_bits() };
+    let mut first: HashMap<(u64, u64), (SpadePoint<f64>, bool)> = HashMap::new();
+    polygon.iter().position(|&(u, v, id)| {
+        let apex = singular.contains(&id);
+        let p = cdt_point(plane, u, v, apex);
+        let at = crate::cdt::spade_point(u, v);
+        let (was, was_apex) = *first.entry((key(p.x), key(p.y))).or_insert((at, apex));
+        !(was == at || apex && was_apex)
+    })
+}
+
 /// **The developed point of chart point `(u, v)` on the cone of
 /// half-angle `α` (`sin_alpha`), on nappe `σ`**: radius `r = σ·v` (the
 /// slant length, `geom::Surface::Cone`), angle `θ = σ·sin α·u`, at
@@ -1635,8 +1672,14 @@ fn id_repeats_apart(polygon: &[(f64, f64, u32)]) -> bool {
 /// is the decision the loop's lift takes to turn the face there
 /// (`chart_table`'s module docs), read on the same points, so the
 /// polygon's sides at a singular point are the lift's.
+///
+/// # Errors
+///
+/// `SphereTrimShape { SingularUndecided }` at a vertex the band cannot
+/// place on or off a singular point, read before the polygon is walked.
 fn singular_vertices(
     body: &Body<f64>,
+    fk: FaceKey,
     loops: &[&Lift<f64>],
     chords: &ChordPass,
     shared: &[Point3<f64>],
@@ -1658,8 +1701,18 @@ fn singular_vertices(
                 .ok_or(TessellateError::MissingEntity {
                     what: "vertex position",
                 })?;
-            if row.is_singular(p, band) {
-                out.insert(id);
+            match row.is_singular(p, band) {
+                Ok(true) => {
+                    out.insert(id);
+                }
+                Ok(false) => {}
+                Err(_) => {
+                    return Err(TessellateError::SphereTrimShape {
+                        face: fk,
+                        edge: ek,
+                        cause: SphereTrimCause::SingularUndecided,
+                    });
+                }
             }
         }
     }
@@ -3460,21 +3513,33 @@ pub(super) mod tests {
                 ),
             ];
             for (surface, kind) in &surfaces {
-                let row = crate::chart_table::tests::row(*kind, surface);
+                let row = crate::chart_table::AnalyticRow::new(surface, 1.0).unwrap();
                 assert!(
                     !row.singular_points().is_empty(),
                     "{kind:?}: a chart with a singular point"
                 );
                 for s in row.singular_points() {
                     let p = s.point;
-                    assert!(row.is_singular(p, band), "{kind:?}: the point itself");
-                    assert!(
+                    assert_eq!(
+                        row.is_singular(p, band),
+                        Ok(true),
+                        "{kind:?}: the point itself"
+                    );
+                    assert_eq!(
                         row.is_singular(p + off * (0.5 * band.zero()), band),
+                        Ok(true),
                         "{kind:?}: half the band's zero off it"
                     );
-                    assert!(
-                        !row.is_singular(p + off * (2.0 * band.escalate()), band),
+                    assert_eq!(
+                        row.is_singular(p + off * (2.0 * band.escalate()), band),
+                        Ok(false),
                         "{kind:?}: twice the band's escalation off it"
+                    );
+                    assert!(
+                        row.is_singular(p + off * (0.5 * (band.zero() + band.escalate())), band)
+                            .is_err(),
+                        "{kind:?}: between the band's zero and its escalation, undecided, which \
+                         `singular_vertices` refuses typed"
                     );
                     seen += 1;
                 }
@@ -3504,7 +3569,8 @@ pub(super) mod tests {
                 ),
             ] {
                 assert!(
-                    crate::chart_table::tests::row(kind, &surface)
+                    crate::chart_table::AnalyticRow::new(&surface, 1.0)
+                        .unwrap()
                         .singular_points()
                         .is_empty(),
                     "{kind:?}: no singular point"
@@ -3595,7 +3661,8 @@ pub(super) mod tests {
             let lift = body.face_lift(fk, band()).unwrap();
             let loops = super::domain_loops(&lift);
             let singular =
-                super::singular_vertices(&body, &loops, &chords, &positions, &row, band()).unwrap();
+                super::singular_vertices(&body, fk, &loops, &chords, &positions, &row, band())
+                    .unwrap();
             let polygon = super::trim_polygon(&body, fk, &loops, &chords, false, None, &singular)
                 .unwrap()
                 .points;
@@ -3891,13 +3958,9 @@ pub(super) mod tests {
             axis: Vec3::new(0.0, 0.0, 1.0),
             u_ref: Vec3::new(1.0, 0.0, 0.0),
         };
-        let row = crate::chart_table::ChartRow::Analytic(crate::chart_table::tests::row(
-            crate::chart_table::Analytic::Sphere {
-                radius: 1.0,
-                widest: 1.0,
-            },
-            &sphere,
-        ));
+        let row = crate::chart_table::ChartRow::Analytic(
+            crate::chart_table::AnalyticRow::new(&sphere, 1.0).unwrap(),
+        );
         let tol = crate::sizing::SizingTols {
             delta: 1e-2,
             eps: crate::sizing::Eps::at(Tol::witness()),
@@ -3977,7 +4040,7 @@ pub(super) mod tests {
         use topo::FaceKey;
 
         use super::super::{CdtPlane, TrimmedFace, cdt_point, developed, significant};
-        use crate::chart_table::{Analytic, ChartRow, RowEnd, SingularPoint};
+        use crate::chart_table::{ChartRow, RowEnd, SingularPoint};
         use crate::types::{SphereTrimCause, TessellateError};
 
         fn cone(half_angle: f64) -> Surface<f64> {
@@ -4000,19 +4063,22 @@ pub(super) mod tests {
         ///   any two of them and the apex are collinear to spade's exact
         ///   predicate, and no triangle lies along a ruling;
         /// - a polygon point off the apex that would land on the apex's CDT
-        ///   point (its development under spade's floor) refuses typed rather
-        ///   than merge two mesh vertices the chart keeps apart;
+        ///   point (its development under spade's floor) is found before the
+        ///   first attempt (`developed_merge`), where the face refuses typed
+        ///   rather than merge two mesh vertices the chart keeps apart;
         /// - a grid candidate landing there is dropped: it is no mesh vertex.
+        ///
+        /// **The exactness cut is pinned here alone.** `developed` returning
+        /// the plain `r·sin θ, r·cos θ` reds this row and no mesh row: the
+        /// rounding it would leave makes three points of a ruling a sliver
+        /// of about `1e-16` only where the triangulation is forced to join
+        /// them (a ruling side chorded into several chords, a grid point on
+        /// a ruling side), and no fixture here makes one.
         #[test]
         fn the_development_keeps_apex_copies_one_and_mesh_vertices_apart() {
             let surface = cone(0.3);
-            let row = ChartRow::Analytic(crate::chart_table::tests::row(
-                Analytic::Cone {
-                    half_angle: 0.3,
-                    rho_max: 1.0,
-                },
-                &surface,
-            ));
+            let row =
+                ChartRow::Analytic(crate::chart_table::AnalyticRow::new(&surface, 1.0).unwrap());
             let tol = crate::sizing::SizingTols {
                 delta: 1e-2,
                 eps: crate::sizing::Eps::at(Tol::witness()),
@@ -4073,12 +4139,16 @@ pub(super) mod tests {
                 (0.9, 1.0, 3),
                 (0.2, 1.0, 2),
             ]);
-            assert!(
-                matches!(
-                    crushed.insert_points(&[], &HashSet::new()),
-                    Err(TessellateError::Triangulation { .. })
-                ),
-                "a polygon point off the apex landing on the apex's CDT point refuses typed"
+            assert_eq!(
+                super::super::developed_merge(crushed.plane(), crushed.polygon, &singular),
+                Some(1),
+                "a polygon point off the apex whose development lands on the apex's CDT point \
+                 merges two mesh vertices; the face refuses there"
+            );
+            assert_eq!(
+                super::super::developed_merge(wedge.plane(), wedge.polygon, &singular),
+                None,
+                "the apex copies alone share a point"
             );
         }
 

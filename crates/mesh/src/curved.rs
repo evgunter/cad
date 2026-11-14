@@ -1049,7 +1049,7 @@ fn grid_counts(
     // The lattice the row lays: rows every `lever·hu` on a ruled chart,
     // the periodic steps capped on a torus and a spindle sheet.
     let (lu, lv) = row.lattice_steps(steps);
-    match row.kind {
+    match row.kind() {
         Analytic::Cylinder { .. } => {
             debug_assert!(!has_pole, "a cylinder's row lists no singular point");
             // `(nu, 1)`: ruled in v at constant radius, so no rows in
@@ -2343,13 +2343,7 @@ mod tests {
             half_angle: core::f64::consts::FRAC_PI_4,
             u_ref: Vec3::new(1.0, 0.0, 0.0),
         };
-        let row = crate::chart_table::tests::row(
-            Analytic::Cone {
-                half_angle: core::f64::consts::FRAC_PI_4,
-                rho_max: 1.0,
-            },
-            &surface,
-        );
+        let row = crate::chart_table::AnalyticRow::new(&surface, 1.0).unwrap();
         let (uspan, vspan) = (core::f64::consts::FRAC_PI_6, 2.0_f64.sqrt());
         for (delta, nu) in [(0.1, 1), (0.0125, 2), (0.001, 5)] {
             for has_pole in [true, false] {

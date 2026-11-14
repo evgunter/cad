@@ -179,7 +179,7 @@ fn tessellate_err(py: Python<'_>, err: &mesh::TessellateError) -> PyErr {
                 R::Shifts { .. } => "shifts",
                 R::Copies { .. } => "copies",
                 R::Undecided { .. } => "undecided",
-                R::SplineChart => "spline_chart",
+                R::SplineTrimUnread { .. } => "spline_trim_unread",
             };
             fields[4] = ("note", PyString::new(py, word).unbind().into_any());
             Ok(())
