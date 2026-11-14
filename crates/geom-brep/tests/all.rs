@@ -224,6 +224,8 @@ mod cert5_r2_probes;
 mod chart_incidence;
 #[path = "cone_incidence_fuzz.rs"]
 mod cone_incidence_fuzz;
+#[path = "far_walls_of_many_arcs.rs"]
+mod far_walls_of_many_arcs;
 #[path = "iso_parse_incidence.rs"]
 mod iso_parse_incidence;
 #[path = "offset_mint.rs"]
