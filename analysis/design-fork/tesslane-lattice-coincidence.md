@@ -22,3 +22,23 @@ Each is beside this file as delivered (`-report-A.md`, `-report-B.md`, `-report-
 **Isolation.** The three ran as subagents of the orchestrator's session and shared its scratch and build directories, which the brief did not separate. B reports that a probe file of its own was overwritten by another designer's and that it saw that file's probe code, no findings. C reports that it once ran another designer's probe binary by accident and saw the first lines of its output (a pose and δ with the same kind of triangle), deleted the log and used nothing from it. A reports nothing of the kind.
 
 Harness figures, first reports: A 200,501 tokens, 1236 s; B 220,956 tokens, 1424 s; C: see below.
+C's first report: 318,459 tokens, 1687 s.
+
+## Round 1, 2026-11-14
+
+Dispatched: all three, resumed. Shown: each the other two first reports, whole. Asked: what moved it, whether its own first argument is answered, its recommendation now as a final state, and any remaining disagreement as one question. Replies are beside this file (`-round1-A.md`, `-round1-B.md`, `-round1-C.md`).
+
+What moved:
+
+- **A** withdrew deciding flatness at ε. B's citation moved it: commit `1240686` (2026-08-21, Ev's own) rules the mesh a function of (body, δ) and that a classification reading ε owes a guard; A had taken the sentence for an agent's (`99cc678` only condensed it). A now recommends the lattice clearance as the part that does the work. It also moved the other way on scope: after measuring that the issue-111 bodies emit no flat triangle today, it now sides with refusing a flat triangle of three boundary points.
+- **B** withdrew half a cell. C's table moved it, and its own re-measurement on cone and cylinder faces (7 of 50 meshes refuse at 1/2, none at 1/16 or 1/4; its first "no new refusals" was the sphere arm only). It now recommends a small clearance as its own named constant.
+- **C** withdrew "every triangle has area", the refusal of a boundary-only flat triangle and its rounding-resolved census, for A's first scope (the promise is about triangles with a lattice corner) and A's check beside `check_volume`. It also withdrew its own argument that the oblique-boundary lemma needs the clearance as hypothesis.
+
+After round 1, all three recommend: the lattice lays no node within `c` steps of the boundary, `c` small (each names 1/16), nothing in the mesher reads ε, and the mesh's design page gains a promise about flat triangles. Positions moved and did not all meet. Still apart:
+
+1. A flat triangle on three boundary points: kept (B, C) or refused typed (A).
+2. The scale of the check outside the mesher: ε, read by the validator only (C), or rounding (A, B).
+3. Whether the emission winding check's bare zero is named at rounding as a guard (A; B as optional insurance) or left with its own row (C).
+4. Whether the clearance is its own named constant (B) or reads the aspect cap (A leans; C's first report).
+
+Harness figures for the round: A 224,287 tokens (as reported for the resumed run), 181 s; B 242,565 tokens, 488 s; C: see below.
