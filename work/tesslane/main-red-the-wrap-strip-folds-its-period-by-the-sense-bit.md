@@ -2,10 +2,13 @@
 id: main-red-the-wrap-strip-folds-its-period-by-the-sense-bit
 kind: issue
 title: Main red: topo's face_normal guard reads mesh/walk.rs's wrap strip folding TAU by the sense bit by hand
-status: open
+status: closed
 opened: 2026-11-11
 priority: P1
 cost: E
+closed: 2026-11-14
+pr: 6930
+parent: main-red-trimmed-rs-folds-the-face-sense-by-hand
 ---
 
 
@@ -37,8 +40,16 @@ Reproduce with:
 
     cargo test -p topo --lib face_normal::tests::no_source_file_folds_the_bit_by_hand
 
-## Pinned meanwhile (GREEN, 2026-11-14)
+## 2026-11-14 — sanctioned on `tesslane/sense-door`
 
-Still red on main `b363f5fa13`, from nightly 43371638371. Bisected on main's first parent: the `-TAU } else { TAU }` line is absent at `eb319b9df5` and present at PR 6823's merge `38d647a540` (`tesswalk/one-face-ball`), confirming the row. GREEN (`green/censuses`) put `("crates/mesh/src/walk.rs", "TAU")` on the guard's `pinned` list, beside `trimmed.rs`'s, citing this row, so the suite is green and the repair reds the guard until the entry is struck. The choice between the sense door and `sanctioned` stays this row's; taking either strikes the pin.
+TESSLANE's sense-door unit, which edits the guard, met this hit still red
+at main `d6e1eb1f07` and takes the second repair: `("crates/mesh/src/walk.rs",
+"TAU")` joins `sanctioned` as the strip's far-side `u` displacement, a chart
+length that no door yields (`wrap_strip`'s doc: the period's sign winds the
+polygon counter-clockwise in the chart exactly when `sense` is set). Folding
+the period through a door instead is
+`a-faces-chart-winding-rule-has-no-home-in-mesh`'s question, which lists this site.
 
-TESSLANE's PR 6930 (`tesslane/sense-door`), open at this writing, takes the second repair: it sanctions the period as a chart displacement and removes `pinned`. If it lands after PR 6921, it strikes this pin as part of that. If it lands first, PR 6921 drops the pin when it merges main.
+## Closed (2026-11-14, PR 6930)
+
+Claimed by TESSLANE from TESSWALK by `git mv` (`work/README.md`, Claiming moves the file): the sense-door unit edits the census and took this row's second repair. The reviewer held the sanction: the period is a chart `u` displacement, no normal.

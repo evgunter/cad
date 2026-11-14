@@ -352,6 +352,9 @@ pub use sweep::blend::{BlendKind, BlendRefusal};
 //   named — the struct-payload sweep found it — and leaving it out
 //   would ship a `BlendError` matchable in three arms and not the
 //   fourth.
+// - `UnsettledWedge` is `WedgeUnsettled`'s: whether the edge's wedge,
+//   read whole, escalated at a station, disagreed between stations, or
+//   is the lamina — each its own recourse.
 //
 // The Python half of the CUR3 treatment does NOT apply to these, and
 // that is measured rather than skipped: `BlendError` projects no arms
@@ -360,7 +363,9 @@ pub use sweep::blend::{BlendKind, BlendRefusal};
 // here to split and none to pin. That the blend door is unprojected
 // is #1479's census row, not this list's business.
 pub use sweep::blend::battery::Convexity;
-pub use sweep::blend::{BlendDecision, BlendSite, Breach, CornerConfig, RunOutPolicy};
+pub use sweep::blend::{
+    BlendDecision, BlendSite, Breach, CornerConfig, RunOutPolicy, UnsettledWedge,
+};
 // **`RevolvedKind` is `Revolved::kind`**, and it is the same claim one
 // value over: the payloads above are what a carried REFUSAL says, this
 // is what a carried RESULT says, and a curated list owes matchability

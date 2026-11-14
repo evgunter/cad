@@ -136,8 +136,8 @@ fn hollow(major: f64, outer: f64, wall: f64, window: Option<(f64, f64)>) -> Opti
     // The full-period 1.3 km ring at ε = 1e-12, pinned to refuse: the
     // door finishes its result, and check 7's quadrature escalates there
     // on the rim span's winding (`props_rim_span_winding`, in band),
-    // `VolumeUncomputable` alone. The P0 row
-    // `work/boxfinish/f64-tier-3-reads-volume-uncomputable-in-band-on-hairline-revolves.md`
+    // `VolumeUncomputable` alone. The row
+    // `work/spiricarm/a-whole-turn-rims-headroom-is-read-through-a-one-ulp-tau.md`
     // is the reader that lifts it; this pin turns red when it lands.
     if major > 1e3 && window_arg.is_none() && Tol::witness().eps() <= 1e-12 {
         match &got {
