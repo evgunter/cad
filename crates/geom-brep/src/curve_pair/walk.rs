@@ -32,9 +32,7 @@
 //! an enclosure reaching zero, and a piece stops only once its reach is
 //! within the band. A pair that
 //! stops is polished toward the meeting by Gauss–Newton, each carrier's
-//! foot of the other's point is polished, held to that carrier's piece
-//! widened to the polished parameter ([`Curve3::foot_within`]), and the
-//! point is read on both
+//! foot of the other's point is polished, and the point is read on both
 //! spans ([`Span::contact`]) with the window the pieces make: the pair's
 //! gap bound and reach (`pose`'s module docs, "The gap's lower bound"),
 //! every pair of the pieces within the pieces' reach and the polish's
@@ -43,24 +41,10 @@
 //! no meeting of the spans; where its premise is not proved
 //! (`curve_pair_walk_basin`) the window is undecided and the Off
 //! escalates. Every piece the walk does not clear ends at such a pair,
-//! so no meeting is left unread; an escalated clearing keeps its piece.
-//!
-//! **Why a stop's foot is held to its piece.** No foot certifies
-//! anything ([`geom::Foot::seed`]): what certifies a stop is its window,
-//! which covers every pair of the two pieces from wherever the polished
-//! parameters stand (its span is their run to each piece's middle plus
-//! the piece's reach), and the point's reading on both spans. A foot
-//! outside the piece only widens that span, so a whole-carrier foot on
-//! another branch is never what certifies a stop; the held foot costs
-//! the piece's knot spans, not the carrier's. The interval is the piece
-//! widened to the pair's polished parameter, so a polish that left the
-//! piece toward the meeting (past a crease, where the pieces stop only
-//! at the band) keeps its point; a held search that stops at an end of
-//! the interval ([`geom::HeldFoot::AtEnd`]), where the nearest point may
-//! lie outside it, is read again on the whole carrier. The ends' and the
-//! witnesses' feet stay
-//! the whole carrier's: a seed piece that does not hold the joint the
-//! point stands on would stop at its own end, a few nanometres short.
+//! so no meeting is left unread; an escalated clearing keeps its piece. Every point read is read under the reader's stretch rule
+//! (the parent module's docs). A walk past
+//! [`geom_core::bisect::PIECE_BUDGET`] refuses typed
+//! ([`Unsettled::Exhausted`]).
 
 use geom::{Curve3, PieceStep};
 use geom_core::bisect::{Step, bisect};
@@ -276,20 +260,6 @@ fn polished_feet<T: Decide>(
     Ok(out)
 }
 
-/// **`q`'s foot on `curve` for a stop of the walk**: held to the piece
-/// `p` widened to `near`, the polished parameter
-/// ([`Curve3::foot_within`]), and the whole carrier's
-/// ([`Curve3::foot`]) where the held search stopped at an end of that
-/// interval, where the carrier's nearest point may lie outside it (module
-/// docs, "Why a stop's foot is held to its piece").
-#[allow(dead_code)]
-fn held_foot<T: Decide>(curve: &Curve3<T>, q: Point3<T>, near: T, p: Piece<T>) -> T {
-    match curve.foot_within(q, near, (p.a.min(near), p.b.max(near))) {
-        geom::HeldFoot::Inside(foot) => foot.seed(),
-        geom::HeldFoot::AtEnd(_) => curve.foot(q, near).seed(),
-    }
-}
-
 /// Whether two parameters are one, read exactly.
 fn same<T: Decide>(s: T, t: T) -> bool {
     super::compare("curve_pair_walk_same_foot", s, t) == Some(Sign::Zero)
@@ -446,9 +416,6 @@ pub(super) fn meet<T: Decide>(
                     (ma, mb),
                     |m| step_taken(m, slack),
                 );
-                // Each foot held to its own piece, widened to the polished
-                // parameter where the polish left it: the window below
-                // certifies the candidate against the two pieces.
                 let t = rb.curve().foot(ra.curve().eval(s), t).seed();
                 let s = ra.curve().foot(rb.curve().eval(t), s).seed();
                 let candidate = super::Candidate {
