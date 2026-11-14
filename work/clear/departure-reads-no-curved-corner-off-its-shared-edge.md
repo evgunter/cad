@@ -1,7 +1,7 @@
 ---
 id: departure-reads-no-curved-corner-off-its-shared-edge
 kind: issue
-title: The injectivity check reads no curved corner at a vertex the pair shares alone, nor a corner of two curved edges, so such pairs refuse; the tee and five shell rows refuse so
+title: The injectivity check reads no corner of two arcs of one conic, nor a cylinder's curved corner at a vertex the pair shares alone, so such pairs refuse; the tee, the two drums, the two-arc lune and a torus belly refuse so
 status: open
 opened: 2026-10-29
 priority: P0
@@ -221,5 +221,159 @@ about 29,000 refused before. The vertex those pairs share was the
 sphere patch's pole, which the presentation read as a loose vertex.
 So this row's first bullet no longer has tour evidence; `chute` and
 the lily's three buds (the third bullet) still refuse.
+
+## Trace: the drums, the lunes, the tee and a torus belly (CLEAR, lane clear-corner2, 2026-11-13)
+
+Main at `2b68e8551c`, f64. The shell rows are asked through the verdict
+door with a local, uncommitted `CavityGate` switch, and `departure` is
+instrumented to print both faces' presentations. The f64 cavity row has
+the measurement.
+
+**The drums** (`shell9_r1_probes::r1_drum_reverted_cavity_alone`;
+`shell7_seam_corner::a_collinear_cap_vertex_drum_shells_to_its_closed_form`
+refuses the same way). The cavity's cap is one plane in three faces:
+two half-annuli, `2v1` and `6v3`, and the inner disc `1v3`. The disc is
+bounded by the ring's two half-circles, `6v3` and `8v3`, which meet at
+`4v3` and `1v3`. The wall is two half-cylinders, `3v1` and `5v1`. Two
+shapes refuse:
+- **At a vertex alone.** Half-annulus `2v1` meets wall half `3v1` at
+  the rim vertices `2v1` and `5v1` alone, and `6v3` meets `5v1` the same
+  way.
+  - The wall is presented as a corner of two coordinate lines
+    (`Zero::Point`).
+  - The half-annulus's corner there is its radial line `3v3` and its
+    rim arc `9v1`, at 90°, neither shared. That is `beside_curve`'s
+    `Structural` at every depth, so the pair split to depth 40.
+  - The arm that decides it is `plane_through` at a vertex alone. A
+    plane through the vertex, tilted off the cap, has the half-annulus's
+    wedge on one side and the wall's on the other.
+  - **The reading it lacked** is the plane's line–arc corner as a
+    quadrant about the vertex (the first bullet).
+- **Two arcs of one circle.** The disc `1v3` meets the half-annulus
+  `2v1` across `6v3`, and `6v3` across `8v3`, near `4v3` and `1v3`.
+  - The half-annulus is presented through its line–arc corner.
+  - The disc's corner is the ring's two half-circles, `Structural` at
+    every depth, so these pairs split to depth 40 and refuse there. This
+    is the refusal the row reports:
+    `Uncertified { 1v3, 2v1, Edge(6v3), Departure }`.
+  - All three faces lie in one plane, so no carrier separates them, and
+    the conic's own plane is that plane. The graph separator is built
+    on the shared edge's piece, so it does not vanish on the disc's
+    other half-circle.
+
+**The lunes** (`torax_axial`'s three sphere-lune rows).
+- **The one-arc lune's cavity** is three faces: two caps and the
+  sphere.
+  - Each cap is a lens of the axis line `1v1` and one arc (`2v1`,
+    `3v1`). The sphere is a lens of the two arcs.
+  - The arcs are circles off the sphere's axis. The sphere's chart
+    images of them are neither coordinate lines nor harmonic, so the
+    sphere is never presented beside them.
+  - At the root all three pairs read both faces `Structural`, because
+    `corner_of` refused a lens (two edges meeting at both ends), so each
+    pair refused at once.
+  - The arm that decides cap against sphere is the carrier arm, with the
+    sphere's carrier and the cap presented. Cap against cap is the
+    carrier arm across the line.
+  - **The reading the caps lacked** is a lens read at the one end the
+    cell holds. The corner there is already read: `Reading::Curve`
+    across the arc, `Reading::PlaneLine` across the line.
+- **The two-arc lune** re-authors the equator.
+  - Each cap's arc is two arcs of one circle meeting at the equator
+    vertex: on cap `1v1`, `3v1` and `5v1` at `4v1`. The sphere is two
+    faces.
+  - Cap `1v1` against sphere `3v1` across `3v1` has, near `4v1`, the
+    cap's corner of two arcs of one circle.
+  - Only the carrier arm can decide it, since the sphere is not
+    presented. Read through `4v1` by the continued circle, the cap's
+    zero runs on along `5v1`, which `3v1` does not bound. The carrier
+    arm's separating face lies wholly on its zero set, so nothing rules
+    out a point of `3v1` on `5v1`.
+
+**The tee** (`crossing_equal_rods`). Its eight root refusals, traced to
+the vertex:
+- The junction's ellipse and the mitre's are one ellipse in the mitre
+  plane. Its arcs (`13v3` and `9v3` on `B`'s wall, `3v5` and `14v1` on
+  the mitre) run on through `1v3` and `9v1` at `(0.2, ±0.98, 0.2)`,
+  from one face to the face across the vertex.
+- So at `1v3`, `B`'s wall `2v3` has the ellipse's tangent `T` on its
+  wedge and the mitre `5v9` has `−T`. A plane through the vertex
+  separating them contains `T`, and then no quadrant reads it strictly,
+  since `Zero::Point` needs both derivatives strict.
+- `A`'s wall `4v1` against `B`'s cap `6v5` at `1v3` is the same. `A`'s
+  wall's corner there is the ellipse's two arcs, a straight angle, which
+  no quadrant holds.
+- The walls against each other at `2v3`, `(1, 0, 1)`, are the junction
+  meeting `A`'s seam.
+- These vertex-alone pairs are second order at the vertex. No
+  first-order arm decides them, whatever corner is read.
+- The two pairs across the mitre's ellipse (`4v1` and `7v1` against
+  `5v9`) are two arcs of one ellipse: at `7v1`, `(−1, 0, −1)`, on the
+  mitre, and at `1v3` and `9v1` on `A`'s wall.
+
+**A torus belly re-posed**
+(`torax_axial::torax_the_torus_corners_survive_a_rigid_re_pose`). The
+f64 row counted it out of pairs; it now refuses on the departure arm.
+- The cylinder `4v1` meets the torus `6v1` at `7v1` and `3v1` alone.
+- The torus is presented as a corner of two coordinate lines.
+- The cylinder's corner is the coordinate line `3v1` and the harmonic
+  circle `6v1`, `Structural`.
+- This is the first bullet on a cylinder's chart, which is periodic.
+  The reading below is built on a plane's.
+
+## Read: a lens, and a plane's corner at a vertex alone (CLEAR, lane clear-corner2, 2026-11-13)
+
+- **A lens is a corner at the one end the cell holds** (`corner_of`).
+  Its other end lies outside `R`:
+  - the curve reading's run passes both of `R`'s column ends;
+  - the line readings admit no vertex but the corner's into `R`'s
+    reach.
+
+  A cell holding both ends is `Local`, not `Structural`, since a smaller
+  one holds one end.
+- **A plane's corner of a line and a conic at a vertex the pair shares
+  alone is a quadrant** (`vertex_corner`, `present_plane_vertex`). It is
+  presented with the corner as its zero, `Zero::Point`, as
+  `present_plane` reads a corner of two lines.
+  - The affine chart's first axis is the line's direction away from the
+    vertex. The second leans back off the conic's tangent by a quarter
+    of the first, so the tangent is strictly inside the quadrant.
+  - The second axis must be decided on the line's face side
+    (`self_intersection_corner`).
+  - `only` admits nothing in `R`'s reach but the two edges and the
+    vertex.
+  - `leaves_line` decides the conic's chart curve rising from the
+    vertex on both axes while it is in `R`.
+  - `R` off the quadrant is then connected, holds no boundary, and meets
+    the outside of the face at the vertex, so it lies outside the face.
+  - A reflex corner is `Structural`.
+  - The reading adopts no sliver and has no vacuous path.
+
+**Measured.**
+- Both one-arc lune rows shell at f64 with the gate asking.
+- The drums' vertex-alone pairs certify at cells 0.24 wide, where they
+  ran to the floor before. The drums still refuse, on the disc.
+- The tee's four plane–wall vertex-alone pairs now present the plane
+  and not the wall, so they split to the floor. The tee refuses 12: four
+  pairs at the root and eight cells at the floor.
+
+**What remains:**
+- **Two arcs of one conic at a corner**: the drums' disc, the two-arc
+  lune's caps, and the tee's ellipse pairs. Read by the continued
+  conic, the face's zero runs on past the shared cell along the next
+  arc. That needs two things this row does not settle:
+  - a rule for when a zero side past the shared cell is read. `sign_on`
+    reads `Zero::Past` only against a presentation whose zero is on the
+    shared cell, and never in the carrier arm. A `Zero::Curve` past the
+    shared cell needs the same rule, in `sign_on`, which lane B owns.
+  - a separator for the drum's three coplanar faces that vanishes on the
+    whole circle: the graph separator over the conic continued, or the
+    circle's cylinder.
+
+  The two-arc lune has only the carrier arm, where that rule does not
+  hold.
+- **A cylinder's corner at a vertex alone**: the torus belly re-posed.
+- **The tee's vertex-alone pairs**, which are second order at the
+  vertex.
 
 - 2026-11-02 — moved from CLEARTAIL to CLEAR when CLEARTAIL merged back into CLEAR (the budget rule now counts P0/P1 only); id and body unchanged.
