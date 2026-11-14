@@ -87,3 +87,17 @@ Run at `d6e1eb1f` (probes `reach_probes::a_notched_or_holed_pipe_wall_refuses_at
 - ∩ and bar ∖ pipe mesh and pass `check_mesh`; with the turned brick they mesh through the trimmed cylinder arm.
 
 **P0**: a pipe with a boss or a slot through its wall is as ordinary as a body gets, and it cannot be drawn. With designers alongside `trimmed-tessellation-lacks-torus-and-plane-arms` (`design: true`).
+
+## The ring half is closed (2026-11-14, TESSLANE unit 3)
+
+A cylinder or cone wall with a hole meshes: a curved face holding a
+ring goes to the trimmed lane, which reads every loop of its domain
+from `topo::Body::face_lift` (`a-curved-faces-domain-is-read-from-every-loop`,
+branch `tesslane/domain-loops`). Bar 3, the brick turned 0.3 and cone
+T1 mesh in every op at every δ the probes use
+(`reach_probes::a_notched_pipe_wall_refuses_at_the_shape_door_and_a_holed_one_meshes`,
+`a_cone_wall_holding_a_ring_meshes_on_the_cone_row`), and so do the
+D-section's window (`sweep`'s `shell_curved_mouth`) and `cone_join_lane`'s
+T1 ops. The notch is what is left, and it is unit 4's
+(`a-curved-face-is-routed-by-its-domain-not-its-carriers`): bars 1 and 2
+still refuse `NotIsoRectangle` at the curved lane's shape door.

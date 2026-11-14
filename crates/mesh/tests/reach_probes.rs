@@ -56,17 +56,30 @@ enum Got {
     /// face's edge of this carrier stores a projected image, which the
     /// chord pass bounds for a conic's image only.
     ConicImageOnly(CurveKind),
-    /// `RingOnCurvedFace` on a face of this chart; `true` where the
-    /// face's outer loop holds lines and circles only and no projected
-    /// image, so `tessellate::lane_of` sent it to the curved lane and
-    /// `curved::tessellate_curved`'s ring guard is what refused.
-    Ring(SurfaceKind, bool),
+    /// `DomainUnread` on a face of this chart, from
+    /// `trimmed::tessellate_trimmed`'s read of `topo::Body::face_lift`,
+    /// with the door's cause by its name (`RingPlacementError::name`).
+    Unread(SurfaceKind, &'static str),
     /// `UnsupportedCurvedShape { NotIsoRectangle { "props_rim_level" } }`
     /// from `curved::require_iso_rectangle_face`, its source raised by
     /// `geom_brep::props`' `require_rims_at_extremes`.
     NotIsoRectangle(SurfaceKind),
     /// `Triangulation` on a face of this chart.
     Triangulation(SurfaceKind),
+    /// `Ok`, `check_mesh` passes and [`geometry`] holds but for this many
+    /// triangles of no area, the first on a face of this chart: a lattice
+    /// point the trimmed lane lays within rounding of a boundary chord
+    /// point
+    /// (`work/tesslane/a-lattice-point-within-rounding-of-a-trim-chord-point-cuts-a-triangle-of-no-area.md`).
+    NoArea(SurfaceKind, usize),
+    /// `Ok`, and `check_mesh` refuses `NonManifoldEdge` with this count.
+    NonManifold(u32),
+    /// `CertificateExceeded` on a face of this chart, from the trimmed
+    /// lane's verdict (`trimmed::TrimmedFace::attempt`).
+    CertificateExceeded(SurfaceKind),
+    /// `FoldedTriangle` on a face of this chart, from the trimmed lane's
+    /// winding census.
+    Folded(SurfaceKind),
     /// Anything else, spelled out.
     Other(String),
 }
@@ -124,8 +137,12 @@ fn got(body: &Body<f64>, delta: f64) -> Got {
         Ok(m) => match mesh::validate::check_mesh(&m) {
             Ok(()) => match geometry(body, &m, delta) {
                 Ok(()) => Got::Meshed,
-                Err(e) => Got::Other(format!("meshed, and {e}")),
+                Err(Miss::NoArea(kind, n)) => Got::NoArea(kind, n),
+                Err(Miss::Other(e)) => Got::Other(format!("meshed, and {e}")),
             },
+            Err(mesh::validate::MeshError::NonManifoldEdge { count, .. }) => {
+                Got::NonManifold(count)
+            }
             Err(e) => Got::Other(format!("meshed, and check_mesh refuses: {e:?}")),
         },
         Err(E::UnsupportedCurve { edge, note }) if note.contains("C⁰ kink") => {
@@ -141,14 +158,7 @@ fn got(body: &Body<f64>, delta: f64) -> Got {
         {
             Got::ConicImageOnly(carrier_of(body, edge))
         }
-        Err(E::RingOnCurvedFace { face }) => {
-            let outer = body.get_face(face).expect("the refused face").outer;
-            let iso = loop_forms(body, outer).iter().all(|(carrier, image)| {
-                matches!(carrier, CurveKind::Line | CurveKind::Circle)
-                    && *image != Some("Projected")
-            });
-            Got::Ring(kind_of(body, face), iso)
-        }
+        Err(E::DomainUnread { face, cause }) => Got::Unread(kind_of(body, face), cause.name()),
         Err(E::UnsupportedCurvedShape {
             face,
             source:
@@ -157,6 +167,8 @@ fn got(body: &Body<f64>, delta: f64) -> Got {
                 },
         }) => Got::NotIsoRectangle(kind_of(body, face)),
         Err(E::Triangulation { face }) => Got::Triangulation(kind_of(body, face)),
+        Err(E::CertificateExceeded { face, .. }) => Got::CertificateExceeded(kind_of(body, face)),
+        Err(E::FoldedTriangle { face }) => Got::Folded(kind_of(body, face)),
         Err(e) => Got::Other(format!("{e:?}")),
     }
 }
@@ -185,8 +197,10 @@ fn got(body: &Body<f64>, delta: f64) -> Got {
 ///     `the_cone_and_torus_certificates_hold_the_true_deviation`);
 ///   - **is not on one line**: `2·area/L²`, `L` its longest side, is at
 ///     least [`MIN_SHAPE`], so a triangle along one straight line of the
-///     surface (a cone's ruling) reds here; a thin triangle does not.
-fn geometry(body: &Body<f64>, mesh: &mesh::Mesh, delta: f64) -> Result<(), String> {
+///     surface (a cone's ruling) reds here; a thin triangle does not. One
+///     that is on one line is read after every other check holds, as
+///     [`Miss::NoArea`].
+fn geometry(body: &Body<f64>, mesh: &mesh::Mesh, delta: f64) -> Result<(), Miss> {
     if !body
         .faces()
         .any(|(fk, _)| matches!(kind_of(body, fk), SurfaceKind::Nurbs | SurfaceKind::Approx))
@@ -194,8 +208,9 @@ fn geometry(body: &Body<f64>, mesh: &mesh::Mesh, delta: f64) -> Result<(), Strin
         let at_rest = sweep::test_support::at_rest(body, tol());
         let props = topo::test_support::pinned_volume("the meshed body", &at_rest, tol());
         mesh::validate::check_volume(mesh, props.volume, props.surface_area, delta)
-            .map_err(|e| format!("its volume misses the body's: {e:?}"))?;
+            .map_err(|e| Miss::Other(format!("its volume misses the body's: {e:?}")))?;
     }
+    let mut no_area = None;
     for patch in &mesh.patches {
         let surface = body.face_surface(patch.face).expect("a live face");
         let sense = body.get_face(patch.face).expect("a live face").sense;
@@ -219,9 +234,9 @@ fn geometry(body: &Body<f64>, mesh: &mesh::Mesh, delta: f64) -> Result<(), Strin
             // A zero dot, or NaN where the foot is not one point, is not
             // outward.
             if normal.dot(outward).partial_cmp(&0.0) != Some(core::cmp::Ordering::Greater) {
-                return Err(format!(
+                return Err(Miss::Other(format!(
                     "a {kind:?} face's triangle {t:?} winds against the face"
-                ));
+                )));
             }
             let longest = (b - a).norm().max((c - b).norm()).max((a - c).norm());
             let shape = normal.norm() / (longest * longest);
@@ -229,9 +244,7 @@ fn geometry(body: &Body<f64>, mesh: &mesh::Mesh, delta: f64) -> Result<(), Strin
                 .partial_cmp(&MIN_SHAPE)
                 .is_none_or(core::cmp::Ordering::is_lt)
             {
-                return Err(format!(
-                    "a {kind:?} face's triangle {t:?} has 2·area/L² {shape:e}, under {MIN_SHAPE:e}"
-                ));
+                no_area = Some(no_area.map_or((kind, 1), |(k, n)| (k, n + 1)));
             }
             const N: usize = 6;
             #[allow(clippy::cast_precision_loss)]
@@ -243,13 +256,22 @@ fn geometry(body: &Body<f64>, mesh: &mesh::Mesh, delta: f64) -> Result<(), Strin
                 .partial_cmp(&(delta * (1.0 + 1e-9)))
                 .is_none_or(core::cmp::Ordering::is_gt)
             {
-                return Err(format!(
+                return Err(Miss::Other(format!(
                     "a {kind:?} face's triangle {t:?} lies {worst:e} off its surface, past δ {delta:e}"
-                ));
+                )));
             }
         }
     }
-    Ok(())
+    no_area.map_or(Ok(()), |(kind, n)| Err(Miss::NoArea(kind, n)))
+}
+
+/// What [`geometry`] finds wrong with a mesh.
+enum Miss {
+    /// Every other check holds, and this many triangles have no area, the
+    /// first on a face of this chart.
+    NoArea(SurfaceKind, usize),
+    /// Anything else, spelled out: the first miss found.
+    Other(String),
 }
 
 /// **The least `2·area/L²` [`geometry`] admits on an analytic curved
@@ -1016,30 +1038,35 @@ fn a_sphere_face_bounded_by_a_spline_section_refuses_in_the_chord_pass() {
 
 // ---------------------------------------------------------------- rings
 
-/// **A torus wall holding a spiric ring refuses at the curved lane's
-/// ring guard.** The donut `(2, 0.5)` about `y` and the bar through its
-/// tube (`sweep`'s `germ_plane_torus_spiric`, pose B2): the unions and
-/// the donut less the bar keep the ovals as rings of torus faces whose
-/// outer loops are iso circles, so `lane_of` sends them to the curved
-/// lane, whose ring guard refuses. The other three ops put the spirics
-/// on an outer loop, and the trimmed lane meshes them on the torus row.
+/// **A torus wall holding a spiric ring meshes on the torus row.** The
+/// donut `(2, 0.5)` about `y` and the bar through its tube (`sweep`'s
+/// `germ_plane_torus_spiric`, pose B2): the unions and the donut less the
+/// bar keep the ovals as rings of torus faces, which `lane_of` sends to
+/// the trimmed lane, and the lane triangulates each face's outer loop
+/// less its ring. The other three ops put the spirics on an outer loop.
+/// The bar's face `y = 0.25` is the tube's latitude `π/6`, so at
+/// `δ = 10⁻³` the extreme chord point of the ring's spiric falls within
+/// rounding of a lattice point, and the face keeps two triangles of no
+/// area beside it, as the tilted sphere pair's faces do on an outer loop
+/// at `δ = 0.04` (`Got::NoArea`).
 #[test]
-fn a_torus_wall_holding_a_spiric_ring_refuses_at_the_curved_lanes_ring_guard() {
-    let torus = bulge_loop(vec![
-        (Point2::new(2.0, -0.5), 1.0),
-        (Point2::new(2.0, 0.5), 1.0),
-    ]);
-    let donut = revolve(&validated(vec![torus]), axis_y(), Revolution::Full, tol())
-        .unwrap()
-        .body
-        .into_body();
+fn a_torus_wall_holding_a_spiric_ring_meshes_on_the_torus_row() {
     let bar = brick::<f64>((-0.05, 0.05), (0.25, 0.35), (1.0, 3.0), tol());
-    let ring = Got::Ring(SurfaceKind::Torus, true);
+    let (donut, bar) = (donut(), finished("B2", bar, tol()));
+    let what = "the donut and B2 (A the donut)";
     assert_six(
-        "the donut and B2 (A the donut)",
-        &finished("the torus", donut, tol()),
-        &finished("B2", bar, tol()),
-        &[2e-2, 5e-3, 1e-3],
+        what,
+        &donut,
+        &bar,
+        &[2e-2, 5e-3],
+        &core::array::from_fn(|_| Got::Meshed),
+    );
+    let ring = Got::NoArea(SurfaceKind::Torus, 2);
+    assert_six(
+        what,
+        &donut,
+        &bar,
+        &[1e-3],
         &[
             ring.clone(),
             ring.clone(),
@@ -1051,34 +1078,27 @@ fn a_torus_wall_holding_a_spiric_ring_refuses_at_the_curved_lanes_ring_guard() {
     );
 }
 
-/// **A ball face holed by a tilted tube's rim.** `sweep`'s
-/// `a_tube_ending_on_a_ball` pose "tilted 1.2": the rim crosses neither
-/// seam meridian and stays a ring of one half-band. Both unions and
-/// ball ∖ tube refuse at the curved lane's ring guard (the ring's
-/// projected circles are not on the outer loop, which is what
-/// `trimmed::has_tilted_circle` reads).
+/// **A ball face holed by a tilted tube's rim meshes on the sphere
+/// row.** `sweep`'s `a_tube_ending_on_a_ball` pose "tilted 1.2": the rim
+/// crosses neither seam meridian and stays a ring of one half-band. Both
+/// unions and ball ∖ tube mesh it as a ring. On ball ∖ tube the ring is
+/// one whole projected circle stored a `u` period below its outer loop
+/// (`lift_probes`), and the lane meshes it where `Body::face_lift` moves
+/// it.
 #[test]
-fn a_ball_face_holding_a_tilted_ring_refuses_at_the_curved_lanes_ring_guard() {
+fn a_ball_face_holding_a_tilted_ring_meshes_on_the_sphere_row() {
     let tube = posed(
         "the tube",
         rod(1.0, 1.0, 2.0),
         Affine3::rotation_about_axis(Point3::origin(), Vec3::unit_x(), 1.2),
     );
     let ball = finished("the ball", ball_poled_z(SQRT_2, Vec3::zero(), tol()), tol());
-    let ring = Got::Ring(SurfaceKind::Sphere, true);
     assert_six(
         "the tilted tube on the ball (A the tube)",
         &tube,
         &ball,
         &[2e-2, 5e-3, 1e-3],
-        &[
-            ring.clone(),
-            ring.clone(),
-            Got::Meshed,
-            Got::Meshed,
-            Got::Meshed,
-            ring,
-        ],
+        &core::array::from_fn(|_| Got::Meshed),
     );
 }
 
@@ -1213,16 +1233,15 @@ fn a_slab_cut_by_an_ulp_tilted_ball_meshes_its_volume() {
 /// and the brick turned 0.3 rad about `x` (`sweep`'s `verbs_germarms`).
 /// The notched walls refuse at the curved lane's shape door
 /// (`require_iso_rectangle_face`, on `props_rim_level`); the holed
-/// walls, rings of rulings and arcs or of ellipse arcs alike, refuse at
-/// the curved lane's ring guard, their outer loops being iso. ∩ and
-/// bar ∖ pipe mesh; the turned bar's do so through the trimmed lane's
-/// cylinder arm.
+/// walls, rings of rulings and arcs or of ellipse arcs alike, mesh on
+/// the trimmed lane's cylinder arm. ∩ and bar ∖ pipe mesh, the turned
+/// bar's through the trimmed lane's cylinder arm.
 #[test]
-fn a_notched_or_holed_pipe_wall_refuses_at_the_curved_lanes_doors() {
+fn a_notched_pipe_wall_refuses_at_the_shape_door_and_a_holed_one_meshes() {
     let pipe = finished("the pipe", rod(1.0, -2.0, 4.0), tol());
     let deltas = [5e-3, 1e-3, 2e-4];
     let notch = Got::NotIsoRectangle(SurfaceKind::Cylinder);
-    let ring = Got::Ring(SurfaceKind::Cylinder, true);
+    let ring = Got::Meshed;
     let by = |wall: &Got| {
         [
             wall.clone(),
@@ -1279,13 +1298,13 @@ fn a_notched_or_holed_pipe_wall_refuses_at_the_curved_lanes_doors() {
     );
 }
 
-/// **A cone wall holding a ring of ellipse arcs** (`sweep`'s
-/// `cone_join_lane`, pose T1): the unions and cone ∖ box refuse at the
-/// curved lane's ring guard; the other three ops trim the cone face's
-/// outer loop by an ellipse, and the trimmed lane meshes them on the cone
-/// row.
+/// **A cone wall holding a ring of ellipse arcs meshes on the cone row**
+/// (`sweep`'s `cone_join_lane`, pose T1): the unions and cone ∖ box keep
+/// the ring, and the trimmed lane meshes the face in the cone's
+/// development, the ring with the outer loop; the other three ops trim
+/// the cone face's outer loop by an ellipse.
 #[test]
-fn a_cone_wall_holding_a_ring_refuses_at_the_curved_lanes_ring_guard() {
+fn a_cone_wall_holding_a_ring_meshes_on_the_cone_row() {
     let height = 1.2 / FRAC_PI_6.tan();
     let cone = posed(
         "the cone",
@@ -1303,20 +1322,12 @@ fn a_cone_wall_holding_a_ring_refuses_at_the_curved_lanes_ring_guard() {
         brick((0.0, 6.0), (0.0, 6.0), (-3.0, 3.0), tol()),
         Affine3::translation(edge - Point3::origin()) * turn,
     );
-    let ring = Got::Ring(SurfaceKind::Cone, true);
     assert_six(
         "T1 (A the cone)",
         &cone,
         &wedge,
         &[2e-2, 5e-3, 1e-3],
-        &[
-            ring.clone(),
-            ring.clone(),
-            Got::Meshed,
-            Got::Meshed,
-            ring,
-            Got::Meshed,
-        ],
+        &core::array::from_fn(|_| Got::Meshed),
     );
 }
 
@@ -1517,4 +1528,327 @@ fn a_one_column_band_with_raised_rows_adds_no_lattice_point() {
             );
         }
     }
+}
+
+/// The donut `(2, 0.5)` about `y` of the torus ring rows.
+fn donut() -> AtRestBody<f64> {
+    let torus = bulge_loop(vec![
+        (Point2::new(2.0, -0.5), 1.0),
+        (Point2::new(2.0, 0.5), 1.0),
+    ]);
+    let donut = revolve(&validated(vec![torus]), axis_y(), Revolution::Full, tol())
+        .unwrap()
+        .body
+        .into_body();
+    finished("the torus", donut, tol())
+}
+
+/// T1's cone, apex and all, turned a quarter about `y`, and its box,
+/// whose edge sits at `(0.5·s, h − 1.5·s, 0)`: at `s = 0.6` the
+/// `cone_join_lane` pose, smaller `s` moving the box's cut toward the
+/// apex.
+fn t1_toward_the_apex(s: f64) -> (AtRestBody<f64>, AtRestBody<f64>) {
+    let height = 1.2 / FRAC_PI_6.tan();
+    let cone = posed(
+        "the cone",
+        revolved(&[(0.0, 0.0), (1.2, 0.0), (0.0, height)]),
+        Affine3::rotation_about_axis(Point3::origin(), Vec3::new(0.0, 1.0, 0.0), FRAC_PI_2),
+    );
+    let edge = Point3::new(0.5 * s, height - 1.5 * s, 0.0);
+    let turn = Affine3::rotation_about_axis(
+        Point3::origin(),
+        Vec3::new(0.0, 0.0, 1.0),
+        -50f64.to_radians(),
+    );
+    let wedge = posed(
+        "the box",
+        brick((0.0, 6.0), (0.0, 6.0), (-3.0, 3.0), tol()),
+        Affine3::translation(edge - Point3::origin()) * turn,
+    );
+    (cone, wedge)
+}
+
+/// The op `op` of `six(a, b)`'s, built.
+fn op_of(a: &AtRestBody<f64>, b: &AtRestBody<f64>, op: &str) -> Body<f64> {
+    let (_, run) = six(a, b)
+        .into_iter()
+        .find(|(name, _)| *name == op)
+        .expect("one of the six ops");
+    let built = run.unwrap_or_else(|e| panic!("{op}: the op builds, got {e:?}"));
+    Body::clone(&built.body().unwrap_or_else(|| panic!("{op}: a body")).body)
+}
+
+/// Each `(op, δ, want)`: op `op` of `a` and `b` answers `want` at `δ`;
+/// or, where `refuses` names the boolean's refusal of the pose at this
+/// run's ε, every op refuses to build with that variant.
+fn assert_ops(
+    what: &str,
+    a: &AtRestBody<f64>,
+    b: &AtRestBody<f64>,
+    refuses: Option<&str>,
+    want: &[(&str, f64, Got)],
+) {
+    let runs = six(a, b);
+    for (op, delta, want) in want {
+        let (_, run) = runs
+            .iter()
+            .find(|(name, _)| name == op)
+            .expect("one of the six ops");
+        match (run, refuses) {
+            (Ok(built), None) => {
+                let body = &built
+                    .body()
+                    .unwrap_or_else(|| panic!("{what}, {op}: a body"))
+                    .body;
+                assert_eq!(&got(body, *delta), want, "{what}, {op}, δ = {delta:e}");
+            }
+            (Err(e), Some(variant)) => {
+                let text = format!("{e:?}");
+                assert!(
+                    text.starts_with(variant),
+                    "{what}, {op}: the boolean refuses {variant} at ε {:e}, got {text}",
+                    tol().eps()
+                );
+            }
+            (Ok(_), Some(variant)) => panic!(
+                "{what}, {op}: builds at ε {:e}, where it refused {variant}",
+                tol().eps()
+            ),
+            (Err(e), None) => panic!("{what}, {op}: the op builds, got {e:?}"),
+        }
+    }
+}
+
+/// The boolean's refusal of a pose at this run's ε, by variant name,
+/// from `by_eps`'s `(ε, variant)` rows; `None` where it builds.
+fn refused_at(by_eps: &[(f64, &'static str)]) -> Option<&'static str> {
+    let eps = tol().eps();
+    by_eps.iter().find(|(e, _)| *e == eps).map(|&(_, v)| v)
+}
+
+/// The deck translation the door moves each ring of each curved face of
+/// `body` by.
+fn ring_moves(body: &Body<f64>) -> Vec<(SurfaceKind, (i32, i32))> {
+    let band = geom_core::Band::linear(tol()).expect("the probes' band");
+    body.faces()
+        .filter(|(fk, f)| !f.rings.is_empty() && kind_of(body, *fk) != SurfaceKind::Plane)
+        .flat_map(|(fk, _)| {
+            let lift = body
+                .face_lift(fk, band)
+                .unwrap_or_else(|e| panic!("the door places the rings, got {e:?}"));
+            lift.rings()
+                .iter()
+                .map(|r| (kind_of(body, fk), (r.by().u, r.by().v)))
+                .collect::<Vec<_>>()
+        })
+        .collect()
+}
+
+/// **A ring stored a period away meshes where the door moves it**, on
+/// the torus and the cylinder as on ball ∖ tube. B2 turned 0.7 about `y`
+/// leaves both ringed torus faces' rings a `u` period from their outer
+/// loops; the bar `(0.5, 1.1) × (0.15, 0.7) × (−0.4, 0.1)` turned 5.0
+/// about `z` leaves the pipe wall's. The door moves each `(1, 0)`, and
+/// every op meshes at every δ. Meshed where it is stored, the ring is a
+/// period outside its face.
+#[test]
+fn a_ring_stored_a_period_away_meshes_where_the_door_moves_it() {
+    let turned = |what, raw, axis: Vec3<f64>, angle: f64| {
+        posed(
+            what,
+            raw,
+            Affine3::rotation_about_axis(Point3::origin(), axis, angle),
+        )
+    };
+    let pipe = finished("the pipe", rod(1.0, -2.0, 4.0), tol());
+    let cases = [
+        (
+            "the donut and B2 turned 0.7",
+            donut(),
+            turned(
+                "B2",
+                brick((-0.05, 0.05), (0.25, 0.35), (1.0, 3.0), tol()),
+                Vec3::new(0.0, 1.0, 0.0),
+                0.7,
+            ),
+            SurfaceKind::Torus,
+        ),
+        (
+            "the pipe and the bar turned 5.0",
+            pipe,
+            turned(
+                "the bar",
+                brick((0.5, 1.1), (0.15, 0.7), (-0.4, 0.1), tol()),
+                Vec3::new(0.0, 0.0, 1.0),
+                5.0,
+            ),
+            SurfaceKind::Cylinder,
+        ),
+    ];
+    for (what, a, b, kind) in &cases {
+        let moved: Vec<_> = ["A ∪ B", "B ∪ A", "A ∖ B"]
+            .into_iter()
+            .flat_map(|op| ring_moves(&op_of(a, b, op)))
+            .collect();
+        assert!(
+            !moved.is_empty() && moved.iter().all(|m| *m == (*kind, (1, 0))),
+            "{what}: every ring a period off, moved (1, 0): {moved:?}"
+        );
+        assert_six(
+            what,
+            a,
+            b,
+            &[2e-2, 5e-3, 1e-3],
+            &core::array::from_fn(|_| Got::Meshed),
+        );
+    }
+}
+
+/// **Ringed curved faces that still refuse, by cause.** Each pose is a
+/// ring the lane reads and a face it cannot yet mesh; the ringed ops
+/// (both unions and the difference that keeps the ring) answer by the
+/// variant the cause raises.
+///
+/// - **A cone face ending near its apex**
+///   (`work/tesslane/a-cone-face-ending-near-its-apex-refuses-at-fine-delta.md`):
+///   T1's box moved toward the apex ([`t1_toward_the_apex`]) keeps the
+///   cone face's ring; its outer rim's chart certificate reads the
+///   development's triangles near the apex at full width, as on that
+///   row's funnel, and refuses `CertificateExceeded` at the finer δ, at
+///   every δ by `s = 0.01`; at `s = 10⁻³` the ring is within the band of
+///   the outer loop and the door answers `undecided`.
+/// - **A torus outer loop the ring reader cannot read**
+///   (`work/tesslane/an-analytic-outer-loops-whole-span-boxes-never-tighten-under-the-ring-reader.md`):
+///   the donut less a slab has spirics on its torus faces' outer loops,
+///   and a stub turned 0.33 about `y` rings one of them; the spiric
+///   image's box never tightens, so the door answers `undecided`.
+/// - **A sphere ring passing near a pole**
+///   (`work/tesslane/a-tilted-circle-near-a-sphere-pole-refuses-at-the-sphere-arm.md`):
+///   a tube of radius 0.3 tilted 0.22 about `x` and turned 3 about `z`
+///   rings the ball's face about 0.006 rad from its pole, and at
+///   `δ = 2·10⁻²` a triangle folds over the ring's chord there; finer δ
+///   mesh.
+///
+/// **At each ε.** Where the boolean builds, every answer is the same at
+/// ε `10⁻⁶` and `10⁻¹²` as at the default. Some poses are past what the
+/// boolean builds there, and refuse to: at `10⁻⁶`, the cone at
+/// `s = 0.01` (`Escalated`, on `PierceCurvature`) and `10⁻³`
+/// (`CurvedPierceUnsupported`) and the torus pose (`Escalated`); at
+/// `10⁻¹²`, the cone at `s ≤ 0.03` (`CurvedPierceUnsupported`).
+#[test]
+fn ringed_curved_faces_that_still_refuse_answer_by_cause() {
+    let ringed = |want: [Got; 3]| -> Vec<(&'static str, f64, Got)> {
+        ["A ∪ B", "B ∪ A", "A ∖ B"]
+            .into_iter()
+            .flat_map(|op| {
+                [2e-2, 5e-3, 1e-3]
+                    .into_iter()
+                    .zip(want.clone())
+                    .map(move |(d, w)| (op, d, w))
+            })
+            .collect()
+    };
+    let cone = || Got::CertificateExceeded(SurfaceKind::Cone);
+    let unsupported = "CurvedPierceUnsupported";
+    for (s, refuses, want) in [
+        (0.1, refused_at(&[]), [Got::Meshed, cone(), cone()]),
+        (
+            0.03,
+            refused_at(&[(1e-12, unsupported)]),
+            [Got::Meshed, cone(), cone()],
+        ),
+        (
+            0.01,
+            refused_at(&[(1e-6, "Escalated"), (1e-12, unsupported)]),
+            [cone(), cone(), cone()],
+        ),
+        (
+            1e-3,
+            refused_at(&[(1e-6, unsupported), (1e-12, unsupported)]),
+            core::array::from_fn(|_| Got::Unread(SurfaceKind::Cone, "undecided")),
+        ),
+    ] {
+        let (a, b) = t1_toward_the_apex(s);
+        assert_ops(
+            &format!("T1's box at s = {s}"),
+            &a,
+            &b,
+            refuses,
+            &ringed(want),
+        );
+    }
+    let slab = finished(
+        "the slab",
+        brick::<f64>((-0.6, 0.6), (-1.0, 1.0), (1.2, 2.8), tol()),
+        tol(),
+    );
+    let holed = finished(
+        "the donut less the slab",
+        op_of(&donut(), &slab, "A ∖ B"),
+        tol(),
+    );
+    let stub = posed(
+        "the stub",
+        brick((-0.02, 0.02), (-0.1, 0.1), (2.3, 3.0), tol()),
+        Affine3::rotation_about_axis(Point3::origin(), Vec3::new(0.0, 1.0, 0.0), 0.33),
+    );
+    assert_ops(
+        "the holed donut and the stub turned 0.33",
+        &holed,
+        &stub,
+        refused_at(&[(1e-6, "Escalated")]),
+        &ringed(core::array::from_fn(|_| {
+            Got::Unread(SurfaceKind::Torus, "undecided")
+        })),
+    );
+    let tube = posed(
+        "the tube",
+        rod(0.3, 1.0, 2.0),
+        Affine3::rotation_about_axis(Point3::origin(), Vec3::new(0.0, 0.0, 1.0), 3.0)
+            * Affine3::rotation_about_axis(Point3::origin(), Vec3::unit_x(), 0.22),
+    );
+    let ball = finished("the ball", ball_poled_z(SQRT_2, Vec3::zero(), tol()), tol());
+    let sphere = [Got::Folded(SurfaceKind::Sphere), Got::Meshed, Got::Meshed];
+    let want: Vec<_> = ["A ∪ B", "B ∪ A", "B ∖ A"]
+        .into_iter()
+        .flat_map(|op| {
+            [2e-2, 5e-3, 1e-3]
+                .into_iter()
+                .zip(sphere.clone())
+                .map(move |(d, w)| (op, d, w))
+        })
+        .collect();
+    assert_ops(
+        "the near-pole tube on the ball (A the tube)",
+        &tube,
+        &ball,
+        None,
+        &want,
+    );
+}
+
+/// **A ringless cone face near its apex meshes into a non-manifold
+/// edge: this row pins a wrong mesh**
+/// (`work/tesslie/a-cone-face-near-its-apex-meshes-an-edge-of-four-triangles.md`,
+/// one step up from `work/tesslie/two-faces-cutting-one-ear-of-a-shared-chord-chain-leave-a-four-use-edge.md`).
+/// T1's cone and its box at `s = 0.03` ([`t1_toward_the_apex`]): A ∩ B
+/// and B ∩ A keep no ring, `tessellate` returns `Ok` at `δ = 5·10⁻³`,
+/// and `check_mesh` refuses an edge four triangles use. The same on
+/// main, and at ε `10⁻⁶`; at `10⁻¹²` the boolean refuses the pose
+/// (`CurvedPierceUnsupported`). The answer pinned is what `check_mesh`
+/// says of the mesh on this base; a cure of the shared chord's diagonal
+/// turns it into a sound mesh, and the row is re-pinned then.
+#[test]
+fn a_ringless_cone_face_near_its_apex_meshes_an_edge_of_four() {
+    let (a, b) = t1_toward_the_apex(0.03);
+    assert_ops(
+        "T1's box at s = 0.03",
+        &a,
+        &b,
+        refused_at(&[(1e-12, "CurvedPierceUnsupported")]),
+        &[
+            ("A ∩ B", 5e-3, Got::NonManifold(4)),
+            ("B ∩ A", 5e-3, Got::NonManifold(4)),
+        ],
+    );
 }

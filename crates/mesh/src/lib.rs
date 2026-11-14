@@ -8,10 +8,11 @@
 //! (rings included) go through constrained Delaunay triangulation (CDT,
 //! the `spade` crate) in the face plane; iso-rectangle curved analytic
 //! faces through UV-grid sampling plus CDT in parameter space; curved
-//! faces with conic TRIM boundaries (M5 PR 11) through the
-//! pcurve-driven trimmed lane (`trimmed` module: stored PR 6 caches
-//! provide the UV trim polyline, the planar lane's even-odd flood fill
-//! classifies the interior).
+//! faces with conic TRIM boundaries (M5 PR 11) or with rings through the
+//! pcurve-driven trimmed lane (`trimmed` module: the face's domain,
+//! every loop's lift placed in one sheet by `topo::Body::face_lift`,
+//! provides the UV trim polygon, and the planar lane's even-odd flood
+//! fill classifies the interior).
 //!
 //! # Chordal tolerance δ is NOT the kernel tolerance ε
 //!

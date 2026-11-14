@@ -1754,8 +1754,8 @@ impl<T: Real> Body<T> {
     /// # Errors
     ///
     /// [`crate::pcurves::RingPlacementError`]: a loop has no lift, the
-    /// outer loop or a ring does not close in the chart, or a ring has
-    /// no one decided place.
+    /// outer loop or a ring does not close in the chart, a ring is one
+    /// vertex, or a ring has no one decided place.
     ///
     /// # Panics
     ///

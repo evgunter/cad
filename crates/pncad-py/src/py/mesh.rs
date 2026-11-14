@@ -167,6 +167,13 @@ fn tessellate_err(py: Python<'_>, err: &mesh::TessellateError) -> PyErr {
             );
             Ok(())
         }
+        // The door's cause, as a sortable word; the face and the ring
+        // it may name are keys.
+        T::DomainUnread { cause, .. } => {
+            let word = cause.name();
+            fields[4] = ("note", PyString::new(py, word).unbind().into_any());
+            Ok(())
+        }
         // The cause is the sortable word; face and edge are keys.
         T::SphereTrimShape { cause, .. } => {
             fields[4] = ("note", PyString::new(py, cause.name()).unbind().into_any());
@@ -176,7 +183,6 @@ fn tessellate_err(py: Python<'_>, err: &mesh::TessellateError) -> PyErr {
         // there is nothing to project that a caller may hold.
         T::UnsupportedSurface { .. }
         | T::NullScaffoldEdge { .. }
-        | T::RingOnCurvedFace { .. }
         | T::EmptyLoop { .. }
         | T::Triangulation { .. }
         | T::SelfTouchingTrimLoop { .. }

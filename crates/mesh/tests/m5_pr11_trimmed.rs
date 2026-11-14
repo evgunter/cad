@@ -207,10 +207,11 @@ fn trimmed_lane_is_bit_deterministic() {
 /// The honest door: a trimmed face whose stored pcurve caches are
 /// missing refuses TYPED — never a silently re-derived branch guess.
 /// With every cache detached the face's loop has no lift in its chart
-/// (`topo::Body::loop_lift` answers a `LiftGap`), and that is the cause
-/// the lane refuses on: `UnsupportedCurve` at an edge whose half-edge is
-/// a gap the body's own lift names, read here from the body rather than
-/// from the refusal's sentence.
+/// (`topo::Body::loop_lift` answers a `LiftGap`), so the door that reads
+/// the face's domain (`topo::Body::face_lift`) answers that gap, and the
+/// lane carries it: `DomainUnread` at a half-edge whose edge is a gap the
+/// body's own lift names, read here from the body rather than from the
+/// refusal's sentence.
 #[test]
 fn missing_pcurve_caches_refuse_typed() {
     let (above, _) = halves();
@@ -231,7 +232,14 @@ fn missing_pcurve_caches_refuse_typed() {
         .collect();
     assert!(!gaps.is_empty(), "a stripped face's loop has no lift");
     match mesh::tessellate(&stripped, 0.01, Tol::witness()) {
-        Err(mesh::TessellateError::UnsupportedCurve { edge, .. }) => {
+        Err(mesh::TessellateError::DomainUnread { cause, .. }) => {
+            let topo::pcurves::RingPlacementError::Gap(gap) = *cause else {
+                panic!("expected the door's lift gap, got {cause:?}")
+            };
+            let edge = stripped
+                .get_half_edge(gap.half_edge)
+                .expect("a half-edge")
+                .edge;
             assert!(
                 gaps.contains(&edge),
                 "the refusal is at a gap of a loop's lift: {edge:?} not in {gaps:?}"

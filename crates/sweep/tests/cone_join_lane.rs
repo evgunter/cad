@@ -753,8 +753,6 @@ fn each_poses_body_is_its_closed_form_in_every_op() {
                 BooleanOp::Subtract => (va - vab, |x, y| x && !y),
             };
             let got = front_door(op, a, b, tol);
-            let ring_kept = pose.name == "T1"
-                && (op == BooleanOp::Union || (op == BooleanOp::Subtract && cone_first));
             let body = match &got {
                 Ok(r) => r.body().map(|bb| bb.body.clone()),
                 Err(e) => panic!("{label}: the op refused {e:?}"),
@@ -764,10 +762,8 @@ fn each_poses_body_is_its_closed_form_in_every_op() {
                 Ok(m) => mesh::validate::check_mesh(&m)
                     .unwrap_or_else(|e| panic!("{label}: the mesh: {e:?}")),
                 Err(e) => assert!(
-                    matches!(e, mesh::TessellateError::UnsupportedCurve { .. })
-                        || ring_kept && matches!(e, mesh::TessellateError::RingOnCurvedFace { .. }),
-                    "{label}: the mesh refuses only the conic trim, or the ring on the cone face \
-                     where the result keeps it, got {e:?}"
+                    matches!(e, mesh::TessellateError::UnsupportedCurve { .. }),
+                    "{label}: the mesh refuses only the conic trim, got {e:?}"
                 ),
             }
             for (what, p, (in_cone, in_other)) in &pose.points {

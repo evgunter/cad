@@ -3964,7 +3964,7 @@ MEMBERS_BOUND_AS = {
     "TessellateError::UnsupportedNurbsFace": "TessellateError.variant",
     "TessellateError::UnsupportedCurve": "TessellateError.variant",
     "TessellateError::NullScaffoldEdge": "TessellateError.variant",
-    "TessellateError::RingOnCurvedFace": "TessellateError.variant",
+    "TessellateError::DomainUnread": "TessellateError.variant",
     "TessellateError::EmptyLoop": "TessellateError.variant",
     "TessellateError::MissingEntity": "TessellateError.variant",
     "TessellateError::ResolutionOverflow": "TessellateError.variant",

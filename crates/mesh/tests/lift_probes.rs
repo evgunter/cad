@@ -1461,8 +1461,12 @@ fn verdict(body: &Body<f64>) -> (Vec<String>, [bool; 3], Vec<String>) {
         .into_iter()
         .map(|delta| match mesh::tessellate(body, delta, tol()) {
             Ok(_) => "meshed".to_owned(),
-            Err(mesh::TessellateError::RingOnCurvedFace { face }) => {
-                format!("RingOnCurvedFace on a {:?}", kind_of(body, face))
+            Err(mesh::TessellateError::DomainUnread { face, cause }) => {
+                format!(
+                    "DomainUnread {} on a {:?}",
+                    cause.name(),
+                    kind_of(body, face)
+                )
             }
             Err(e) => format!("{e:?}"),
         })
@@ -1486,9 +1490,13 @@ fn verdict(body: &Body<f64>) -> (Vec<String>, [bool; 3], Vec<String>) {
 /// and the face has no seam. The pipe and the frustum finish
 /// (`topo::finish`); the torus band mints, and `validate_geometric`
 /// refuses its volume. `mesh::tessellate` refuses all three
-/// `RingOnCurvedFace`: the outer loop is a circle, so
-/// `tessellate::lane_of` sends the face to the curved lane, whose ring
-/// guard is ahead of the walk.
+/// `DomainUnread` with the door's `OuterOpen`: the face holds a ring, so
+/// `tessellate::lane_of` sends it to the trimmed lane, which reads the
+/// face's domain through `Body::face_lift`, and the outer loop does not
+/// close. The frustum's ring holds the cone's apex in its hole, and its
+/// loops wind about the apex, so the door refuses before any polygon is
+/// drawn; a face whose region held a singular point would have a loop
+/// winding about it too, and refuse the same way.
 #[test]
 fn a_loop_of_whole_turn_rims_ends_a_period_from_its_start() {
     let cut = one_circle_cuts();
@@ -1573,7 +1581,7 @@ fn a_loop_of_whole_turn_rims_ends_a_period_from_its_start() {
         .iter()
         .map(|(name, body)| (name.as_str(), verdict(body)))
         .collect();
-    let ring = |chart: &str| vec![format!("RingOnCurvedFace on a {chart}"); 2];
+    let ring = |chart: &str| vec![format!("DomainUnread outer_open on a {chart}"); 2];
     let want = vec![
         (
             "the seamless pipe",
@@ -1831,4 +1839,65 @@ fn a_lift_runs_along_the_apex_row_through_the_faces_turn() {
         "(loop, the row's v, the step in u): {read:?}\n{}",
         turn_table(&turns)
     );
+}
+
+/// **A ring that is one vertex answers typed.** The pipe's wall, a lone
+/// vertex struck into it off its outer loop (`mev_line` from the loop's
+/// first half-edge to a point of the wall, then `kemr` of the strut),
+/// and its rows minted: the wall holds one ring, `LoopBoundary::Empty`,
+/// and `topo::validate` passes it. `Body::face_lift` answers
+/// `RingEmpty` naming that ring, and the mesh refuses the face
+/// `DomainUnread` with that cause: a vertex bounds no region and has no
+/// place in the chart.
+#[test]
+fn a_ring_that_is_one_vertex_answers_typed() {
+    let mut body = rod(1.0, -2.0, 4.0);
+    let (fk, _) = body
+        .faces()
+        .find(|(fk, _)| kind_of(&body, *fk) == SurfaceKind::Cylinder)
+        .expect("the pipe's wall");
+    let outer = body.get_face(fk).expect("the wall").outer;
+    let topo::LoopBoundary::Cycle { first } = body.get_loop(outer).expect("its loop").boundary
+    else {
+        panic!("the wall's outer loop has half-edges");
+    };
+    let at = Point3::new(0.6f64.cos(), 0.6f64.sin(), 0.3);
+    let strut = body
+        .mev_line(
+            MevSite::Fan {
+                he1: first,
+                he2: first,
+            },
+            at,
+            tol(),
+        )
+        .expect("the strut");
+    body.kemr(strut.he_plus, strut.he_minus).expect("the ring");
+    topo::mint_pcurves(&mut body, tol()).expect("the rows mint");
+    let rings = body.get_face(fk).expect("the wall").rings.clone();
+    assert!(
+        rings.len() == 1
+            && matches!(
+                body.get_loop(rings[0]).expect("the ring").boundary,
+                topo::LoopBoundary::Empty { .. }
+            )
+            && topo::validate(&body).is_ok(),
+        "the wall holds one ring, a lone vertex, and the body validates"
+    );
+    let band = geom_core::Band::linear(tol()).expect("the probes' band");
+    assert_eq!(
+        body.face_lift(fk, band).err(),
+        Some(topo::pcurves::RingPlacementError::RingEmpty { ring: rings[0] }),
+        "the door names the empty ring"
+    );
+    match mesh::tessellate(&body, 1e-2, tol()) {
+        Err(mesh::TessellateError::DomainUnread { face, cause }) => assert!(
+            face == fk && *cause == topo::pcurves::RingPlacementError::RingEmpty { ring: rings[0] },
+            "the mesh refuses the wall with the door's cause, got {face:?} {cause:?}"
+        ),
+        other => panic!(
+            "expected DomainUnread, got {:?}",
+            other.map(|m| m.patches.len())
+        ),
+    }
 }
