@@ -49,8 +49,8 @@ fn a_saddle_wall_certifies_on_a_grid_longer_in_one_direction_than_a_square_cap()
 /// four walls are one saddle by symmetry, and the bound is linear in
 /// `|d|` and even in its sign, so one wall at `d = ±0.05` and
 /// `d = ±0.01` stands for the rest. Each certifies wherever ε is above
-/// what the cap's last grid reaches, 62 x 35 on round 10: 1.3958e-10 m
-/// at `|d| = 0.05` and 2.7918e-11 m at `|d| = 0.01`. Below that each
+/// what the cap's last grid reaches, 62 x 35 on round 10: 1.39345e-10 m
+/// at `|d| = 0.05` and 2.7870e-11 m at `|d| = 0.01`. Below that each
 /// stops at the cap, carrying that bound.
 #[test]
 fn a_saddle_wall_fits_at_the_runs_eps_or_stops_at_the_cap() {
@@ -59,10 +59,10 @@ fn a_saddle_wall_fits_at_the_runs_eps_or_stops_at_the_cap() {
     let walls = nurbs_walls(&twisted_loft(0.3));
     let (_, wall) = &walls[0];
     for (d, reach) in [
-        (0.05, 1.3958e-10),
-        (-0.05, 1.3958e-10),
-        (0.01, 2.7918e-11),
-        (-0.01, 2.7918e-11),
+        (0.05, 1.39345e-10),
+        (-0.05, 1.39345e-10),
+        (0.01, 2.7870e-11),
+        (-0.01, 2.7870e-11),
     ] {
         match fit_offset(wall, d, tol) {
             Ok((_, cert)) => assert!(

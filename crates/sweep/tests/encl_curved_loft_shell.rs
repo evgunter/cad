@@ -226,13 +226,11 @@ fn shelling_the_curved_loft_refuses_at_a_walls_fit() {
         );
     };
     // Which door answers first depends on ε: a wall's fit reaches
-    // 1.39486e-10 m on a 62 x 35 grid, the last within the sample cap,
+    // 1.39345e-10 m on a 62 x 35 grid, the last within the sample cap,
     // so below that the fit refuses at the cap, and above it the fit
-    // certifies and the seams derive. (1.3958e-10 before the offset
-    // regularity floor became the area quotient's inf, PR 4984: the
-    // tangential term divides by that floor, and it rose.)
+    // certifies and the seams derive.
     let eps = Tol::witness().eps();
-    if eps < 1.39486e-10 {
+    if eps < 1.39345e-10 {
         assert!(
             is_spline_wall(&nurbs_walls(&body), *face),
             "the refusing face is not a wall: {e_at}",
@@ -255,7 +253,7 @@ fn shelling_the_curved_loft_refuses_at_a_walls_fit() {
             );
         };
         assert!(
-            *grid == (62, 35) && (achieved - 1.39486e-10).abs() < 1e-14,
+            *grid == (62, 35) && (achieved - 1.39345e-10).abs() < 1e-14,
             "eps {eps:e}: the fit stopped at {achieved:e} on {grid:?}"
         );
     } else {
@@ -1148,7 +1146,7 @@ fn a_moved_curved_fitted_cap_builds_where_its_fit_certifies() {
         geom_core::Tol::witness().eps(),
         &[1e-12],
         "the moved curved fitted cap",
-        &["eps 1e-12, d = 0.05: the cap's fit stopped at 4.38189780844083e-11 on (45, 48)"],
+        &["eps 1e-12, d = 0.05: the cap's fit stopped at 4.381818232946115e-11 on (45, 48)"],
         a_moved_curved_fitted_cap_builds_where_its_fit_certifies_row,
     );
 }

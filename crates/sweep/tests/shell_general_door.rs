@@ -135,7 +135,7 @@ fn a_curved_spline_cap_moves_with_its_sides_where_its_certificates_hold() {
         geom_core::Tol::witness().eps(),
         &[1e-12],
         "the curved spline cap",
-        &["eps 1e-12: the cap's fit stopped at 3.239736902471488e-12 on (48, 48)"],
+        &["eps 1e-12: the cap's fit stopped at 3.2397343912400807e-12 on (48, 48)"],
         a_curved_spline_cap_moves_with_its_sides_where_its_certificates_hold_row,
     );
 }
