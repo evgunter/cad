@@ -2,11 +2,13 @@
 id: main-red-trimmed-rs-folds-the-face-sense-by-hand
 kind: issue
 title: main red: crates/mesh/src/trimmed.rs negates three values by hand under a face's sense bit (topo face_normal fold census, slow set)
-status: dispatched
+status: closed
 opened: 2026-10-29
 priority: P1
 cost: E
 branch: tesslane/sense-door
+closed: 2026-11-14
+pr: 6930
 ---
 
 **What fails.** topo's slow-set row `face_normal::tests::no_source_file_folds_the_bit_by_hand` (`crates/topo/src/face_normal.rs:916`) walks every `crates/*/src` file for a value negated by hand under a face's `sense` bit. Run on origin/main (2026-10-29, `cargo nextest run -p topo --lib -E 'test(=face_normal::tests::no_source_file_folds_the_bit_by_hand)' --run-ignored all`), it fails with six hits beyond its `sanctioned` list, from two sources: this row covers `crates/mesh/src/trimmed.rs`; the other, `crates/topo/src/injective.rs` (`clear/main-red-injective-rs-folds-the-face-sense-by-hand`), is filed beside it. Found by SPLICE's structural-rim lane while validating PR 5959, and reproduced by the SPLICE orchestrator.
@@ -39,3 +41,7 @@ On main today the census is green on a `pinned` list of two hits, `radial` (`Tri
 - Both entries leave `pinned`.
 
 Branch `tesslane/sense-door`.
+
+## Closed (2026-11-14, PR 6930)
+
+`TrimmedFace::outward` reads `geom_brep::implicit_outward_normal`; the test's `area` is sanctioned as a chart-frame area; the census's `pinned` list is gone. The census was also red on main on three hits beyond this row (`walk.rs` `TAU`, two more `injective.rs` `1.0`), which the unit sanctioned; the `TAU` one was TESSWALK's row, claimed here and closed with this one. What the review found beyond the unit is filed: `a-faces-chart-winding-rule-has-no-home-in-mesh` (here, P1), `onedoor/the-fold-census-keys-on-file-and-text-not-on-a-site`, `clear/injective-folds-a-faces-in-chart-normal-through-a-sign-four-ways`, `onecopy/the-tour-folds-face-normals-and-flux-signs-by-hand`.

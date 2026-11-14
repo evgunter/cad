@@ -2,10 +2,13 @@
 id: main-red-the-wrap-strip-folds-its-period-by-the-sense-bit
 kind: issue
 title: Main red: topo's face_normal guard reads mesh/walk.rs's wrap strip folding TAU by the sense bit by hand
-status: open
+status: closed
 opened: 2026-11-11
 priority: P1
 cost: E
+closed: 2026-11-14
+pr: 6930
+parent: main-red-trimmed-rs-folds-the-face-sense-by-hand
 ---
 
 
@@ -43,6 +46,10 @@ TESSLANE's sense-door unit, which edits the guard, met this hit still red
 at main `d6e1eb1f07` and takes the second repair: `("crates/mesh/src/walk.rs",
 "TAU")` joins `sanctioned` as the strip's far-side `u` displacement, a chart
 length that no door yields (`wrap_strip`'s doc: the period's sign winds the
-polygon counter-clockwise in the chart exactly when `sense` is set). The row
-closes when that branch merges; folding the period through a door instead
-remains open to this program if it judges the sanction wrong.
+polygon counter-clockwise in the chart exactly when `sense` is set). Folding
+the period through a door instead is
+`a-faces-chart-winding-rule-has-no-home-in-mesh`'s question, which lists this site.
+
+## Closed (2026-11-14, PR 6930)
+
+Claimed by TESSLANE from TESSWALK by `git mv` (`work/README.md`, Claiming moves the file): the sense-door unit edits the census and took this row's second repair. The reviewer held the sanction: the period is a chart `u` displacement, no normal.
