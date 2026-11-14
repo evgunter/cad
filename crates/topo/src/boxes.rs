@@ -41,7 +41,7 @@
 //!   `face_reach` and its instance extents — read the same direction
 //!   through the same door (`census::Candidates::class`); they are
 //!   built from `face_reach`, not from these constructors, so the
-//!   inventory below does not count them. Pass 2′'s curved-edge class
+//!   gate's `reader` pins do not count them. Pass 2′'s curved-edge class
 //!   (`census::Trees::curved`: [`edge_box`] of each curved edge, a
 //!   spline's control hull) reads the same direction: a loose box
 //!   admits a vertex to `census::curved::may_rest_on`, whose walk passes
@@ -212,12 +212,12 @@
 //!
 //! So nothing here may say "loose is free" about a BOX. It is a claim
 //! about a door, and the door has to be named. The doors are not
-//! recited: `every_door_that_reads_a_box_is_inventoried` below walks
-//! `topo/src` and pins them per file — both rules, face and edge — so
-//! a new door cannot land unargued. **It pins WHERE the doors are
-//! and not which way each reads**, which is the column that carries
-//! the argument above; that gap is `S234` and has an owner rather
-//! than a disclosure.
+//! recited: `scripts/gates/cover-kind-match.sh` pins every reference
+//! to a cover door (its `reader` kind) per file in every crate, a
+//! point-free one included, so a new door cannot land unargued. **It
+//! pins WHERE the doors are and not which way each reads**, which is
+//! the column that carries the argument above; that gap is `S234` and
+//! has an owner rather than a disclosure.
 //!
 //! [`sweep_pad`] is the band's own tolerance, sized so the padding can
 //! never lose an accepted pair at the sweep's door (its derivation
@@ -387,10 +387,6 @@ pub(crate) mod tests {
     //! Neither family subsumes the other: the locus rows check the
     //! rule against the geometry, the ceiling rows check the code
     //! against the rule.
-    //!
-    //! `every_door_that_reads_a_box_is_inventoried` is neither — it
-    //! reads source, not geometry, and guards the module docs' door
-    //! list rather than any box.
 
     use super::*;
     use crate::cover::*;
@@ -1408,282 +1404,6 @@ pub(crate) mod tests {
             },
             1.0,
             "the NURBS arm",
-        );
-    }
-
-    /// **The door inventory** — the module docs' door list, computed
-    /// rather than recited.
-    ///
-    /// The header states which direction each consumer reads a loose
-    /// box in. That is a roster, and a roster is right only until the
-    /// next door lands. This row walks `topo/src` and counts every
-    /// CALL of [`face_box`], [`edge_box`], the face's cover
-    /// ([`face_cover`], [`face_cover_toward`], [`boundary_cover`]) and
-    /// the edge's ([`edge_cover`], [`edge_cover_linked`],
-    /// [`edge_cover_of`]) in code — comments and
-    /// literals blanked by
-    /// [`crate::source_walk::CodeOnly`], the more competent of this
-    /// crate's two readers — pinned per file.
-    ///
-    /// **Faces and edges, not just faces.** The header's claim is
-    /// about *a box*, and every face box that hulls a boundary is the
-    /// edges' covers' answer one dimension down. A walk that
-    /// matched only `face_box` would attribute that arm's cost to a
-    /// door list computed for a different function, and an
-    /// edge-box-only door would land green.
-    ///
-    /// - `boolean/reduce.rs` — the C10 candidate tree, face and edge.
-    ///   **Prunes**: loose is slower work, never a different answer.
-    ///   And the maximal-faces gate's lever, an edge's cover's farthest
-    ///   distance from its start. **Refuses**: a longer lever reads a
-    ///   near-coplanar pair as undecided, never as one plane.
-    /// - `boolean/glue.rs` — the glue door's box sweep
-    ///   (`overlapping_pairs`), face boxes of both operands, which its
-    ///   pair scan and its coaxial scan both read. **Prunes**: a loose box
-    ///   only adds pairs the carrier ladder reads and leaves apart,
-    ///   which is slower work and the same answer. A box TIGHTER than
-    ///   its face would miss a pair, which then reaches its site
-    ///   unglued and refuses there — loud, never a different body.
-    /// - `boolean/ops.rs` — the curved-extent fallback, face and
-    ///   edge: the cylinder-face arm clears a [`face_box`] against
-    ///   the ball's extent, the scan's near-boundary test walks the
-    ///   face's [`edge_box`]es against the germ circle's box, the
-    ///   cone/torus arm consults a [`face_box`] before refusing by
-    ///   kind — reach first, kind second, as at the operand gate —
-    ///   and the section certificate's pair scan (`section_pairs`,
-    ///   both paths) reads one [`face_box`] per face of each operand:
-    ///   two that overlap put the pair through the certificate, whose
-    ///   reach — the ball about the overlap — pivots and levers its
-    ///   angular margins. **Refuses** at the extent scan: a box that
-    ///   fails to clear turns the pair into `FallbackExtentUnsupported`.
-    ///   **Examines, and can refuse,** at the pair scan: a loose box
-    ///   sends a separated pair through the classification, which
-    ///   certifies it apart, and lengthens the lever, so a near-parallel
-    ///   tilt stops deciding `Zero` and the pair takes the tilted arm or
-    ///   refuses on reach. A box TIGHTER than its face would be the
-    ///   unsound direction: its reach could miss the section.
-    /// - `separation.rs` — the two separation certificates, the
-    ///   placement one and the solid-pair one, on one rule.
-    ///   **Refuses**, both of them and for the same reason:
-    ///   non-overlap IS the grant, so a loose box withholds a
-    ///   certificate it should have given and can never manufacture
-    ///   one. The second door added no direction to weigh — it is the
-    ///   first read in the body's own frame instead of through a
-    ///   placement's affine image, which drops the image step and
-    ///   changes nothing about what looseness costs.
-    /// - `face_boxes.rs` — [`crate::FaceBoxes`], every face's box and
-    ///   a C10 tree over them, which the blend's reach meter
-    ///   (`sweep::blend::reach`) reads twice: to prune the faces a band
-    ///   can reach, and to bound the cells it meters a survivor on.
-    ///   **Prunes, then can refuse**: a loose box only adds candidates
-    ///   and cells, which is slower work until the meter's per-face
-    ///   cell budget runs out, and then a refusal as uncertified. A
-    ///   box TIGHTER than its face would be the unsound direction: a
-    ///   pruned face is never metered.
-    /// - `census.rs` — `face_reach_in`, the face's cover's box at the
-    ///   census's own scalar, and the backstop's aimed covers
-    ///   ([`face_cover_toward`]). **Refuses**:
-    ///   arm 2 clears for free only on a definitely negative margin
-    ///   against a CONTAINING box, so over-width would send a separated
-    ///   pair to the material test instead of clearing it — a case the
-    ///   planar-only corpus does not reach (the hull is the box) and a
-    ///   curved reach box reaches once arm 1 has proved its face's
-    ///   pairs apart, where it costs probes, never a wrong clear.
-    ///   And `flush_at_rest`'s `face_box` read, a tree over the planar,
-    ///   cylinder and sphere faces whose overlapping boxes are the flush
-    ///   candidates.
-    ///   **Prunes**: a loose box only adds candidates, each read
-    ///   exactly; a box tighter than its face would drop a flush pair.
-    ///   And the aligned pairs' axial spans, each cylinder face's cover's
-    ///   support along the first's axis. **Refuses**: a looser span
-    ///   overlaps where the faces are apart and sends the pair to Door
-    ///   1.
-    /// - `census/depth_gap.rs` — arm 1's depth-gap clear: a face's cover
-    ///   and, on a plane, its boundary's. **Refuses**: it grants on a
-    ///   gap, and a cover only holds MORE than its face when loose,
-    ///   which narrows the gap. A cover holding less would be the
-    ///   unsound direction. A looser proposal (an axis not offered) only
-    ///   withholds a depth.
-    /// - `census/in_plane.rs` — arm 1's clear in a plane: a curved
-    ///   edge's cover's support off the plane. **Refuses**, as the
-    ///   module docs say.
-    /// - `separating.rs` — the narrow phase: each item's cover's
-    ///   support along a direction that turns with the pair. **Refuses**
-    ///   where it grants (the operand gate, the census, the fallback):
-    ///   a looser cover closes a gap that parts the pair.
-    /// - `splitting/classify.rs` — the split gate's edge read: an
-    ///   unarmed edge's cover in the plane's frame. **Refuses**: a
-    ///   looser box reaches the plane and refuses the cut by kind.
-    /// - `boolean/glue.rs` and `boolean/ops.rs` — the operation's region
-    ///   and a face pair's section reach, each where two covers meet
-    ///   within the band (`cover::meet_within`), a lever. **Refuses**: a
-    ///   wider ball lengthens the lever, which decides a tilt less
-    ///   readily; a ball narrower than the meet could miss the section.
-    /// - `shell.rs`, `boolean/ruled_region.rs`,
-    ///   `splitting/containment.rs` — an edge's cover read in a frame,
-    ///   as a ruled region's or a containment walk's bound.
-    ///   **Refuses**: a looser cover reads a nearer edge, which only
-    ///   withholds a clear.
-    ///
-    /// `boxes.rs` and `cover.rs` are excluded by path: they are
-    /// the definition sites, every call in them is this suite's own or
-    /// one arm calling another, and their counts would churn on each row
-    /// added here while pinning nothing.
-    ///
-    /// **This row is a member of S117's population** — a
-    /// source-text guard over `.rs` in this workspace. It reuses the
-    /// shared reader rather than minting a sixth, which answers the
-    /// half of S117 about how they lex; it does not answer the half
-    /// about how many there are, and it makes that number larger.
-    ///
-    /// **What this cannot match**, stated rather than implied:
-    ///
-    /// 1. A door in another CRATE. The walk is `topo/src` because
-    ///    that is the tree this crate can see. `face_cover` and
-    ///    `edge_cover` are public now (`topo::face_cover`,
-    ///    `topo::edge_cover`), so a door outside the crate is not
-    ///    counted here; their readers outside are `cover-app-readers`'
-    ///    to inventory.
-    /// 2. A door reading a box through a helper defined here: a
-    ///    wrapper's own callers are invisible to a textual walk.
-    /// 3. A door under another name: a `use … as` rename, or the
-    ///    function used as a value (`.map(edge_box)`, a fn pointer).
-    ///    A module alias or a re-export still spells the name and its
-    ///    `(` or `::<`, so it is counted; a call a macro assembles is
-    ///    not.
-    ///
-    /// **What it cannot match that is a FINDING rather than a
-    /// disclosure: the direction itself.** This pins where the doors
-    /// are, not what each does with looseness — and the direction
-    /// column is the whole content of the header's argument, so a
-    /// roster without it is a grep result. A door that changes its
-    /// reading without moving leaves the dispositions above stale and
-    /// this row green. That is this module's own defect one level up,
-    /// recorded as **S232**'s sibling `S234` rather than left in the
-    /// list above, because a disclosure with no owner is how the
-    /// fifth instance gets found by accident.
-    #[test]
-    fn every_door_that_reads_a_box_is_inventoried() {
-        // `census.rs` counts TWELVE: the pre-filter's `face_box` read (one
-        // box per face, read by the planar and every-face classes) and
-        // its `edge_box` read, the flush door's `face_box` read (the
-        // pruning door over its candidates), pass 2′'s curved-edge `edge_box` read
-        // (`census::Candidates::build`, the pruning door) and
-        // `collinear_overlaps`' `edge_box` read (the same pruning door),
-        // three face-cover reads of its own (`face_reach_in`, the aligned
-        // pairs' axial spans and the backstop's aimed covers), and four
-        // that are not doors — two rows in its test module call
-        // `face_box` to pin what a described net carrying poison answers
-        // there, and two torn-body rows call `edge_cover`. The
-        // number is stated with that content rather than filtered,
-        // because this pin's protection is that an
-        // occurrence cannot arrive, leave or move unnoticed — which it
-        // still gives — while the module docs' DOOR list above stays a
-        // list of doors and gains nothing from the two.
-        //
-        // `boolean/glue.rs`'s five are two doors: the sweep its pair scan
-        // and its coaxial scan share, boxing both operands' faces, and the
-        // section door's region, which reads every face's cover once, boxes
-        // it, and meets the two operands' hulls (`cover::meet_within`).
-        // `boolean/ops.rs`'s face rows read each face's cover and box it,
-        // and the pair reach meets two of them. One of
-        // `boolean/ops.rs`'s six and `pieces.rs`'s one are one door:
-        // the boolean's exit builds the face-box closure the piece
-        // sort's screen calls. Another of `ops.rs`'s six is not a door:
-        // `the_approx_arm_asks_whether_the_ball_reaches_the_face` boxes
-        // its bricks' faces to hand the arm's question what the scan
-        // hands it. `separating.rs`'s four are two doors and their
-        // two default covers: the narrow phase's face and edge reads.
-        // `boolean/torn_hop_rows.rs`' four are not
-        // doors either: its torn-body witnesses call `face_box` and
-        // `edge_box` to show a torn link panics. Nor is
-        // `boolean/carrier_touch_rows.rs`' one: a spiric-edge witness
-        // calls `edge_box` to show its ball lies inside the edge's box,
-        // so that only the edge's own floor can clear it.
-        const PINNED: [(&str, usize); 28] = [
-            ("boolean/carrier_pair.rs", 1),
-            ("boolean/carrier_touch.rs", 1),
-            ("boolean/carrier_touch_rows.rs", 1),
-            ("boolean/glue.rs", 5),
-            ("boolean/join.rs", 5),
-            ("boolean/mod.rs", 2),
-            ("boolean/ops.rs", 6),
-            ("boolean/reduce.rs", 6),
-            ("boolean/ruled_region.rs", 1),
-            ("boolean/solid_contain.rs", 2),
-            ("boolean/torn_hop_rows.rs", 4),
-            ("census.rs", 13),
-            ("census/depth_gap.rs", 3),
-            ("census/in_plane.rs", 1),
-            ("chart_region.rs", 1),
-            ("chord_join.rs", 6),
-            ("cover_reach_rows.rs", 6),
-            ("face_boxes.rs", 1),
-            ("face_reach.rs", 2),
-            ("link.rs", 1),
-            ("pieces.rs", 1),
-            ("separating.rs", 4),
-            ("separation.rs", 2),
-            ("session_box.rs", 1),
-            ("shell.rs", 2),
-            ("splitting/classify.rs", 1),
-            ("splitting/containment.rs", 1),
-            ("validate.rs", 1),
-        ];
-        const HOMES: [&str; 2] = ["boxes.rs", "cover.rs"];
-        const DOORS: [&str; 16] = [
-            "face_box",
-            "cover_box",
-            "face_cover",
-            "face_reach_from",
-            "face_range_along",
-            "face_axial_range",
-            "cone_face_reach",
-            "face_cover_toward",
-            "face_nearest",
-            "meet_within",
-            "hull_of_covers",
-            "boundary_cover",
-            "edge_box",
-            "edge_cover",
-            "edge_cover_linked",
-            "edge_cover_of",
-        ];
-        let root = crate::source_walk::src_root();
-        let mut found: Vec<(String, usize)> = Vec::new();
-        for path in crate::source_walk::crate_sources() {
-            let rel = path
-                .strip_prefix(&root)
-                .expect("a walked file lies under topo/src")
-                .to_string_lossy()
-                .replace('\\', "/");
-            if HOMES.contains(&rel.as_str()) {
-                continue;
-            }
-            let text = std::fs::read_to_string(&path).expect("a readable source file");
-            let code = crate::source_walk::CodeOnly::of(&text);
-            // A call is the name then its argument list, or then a
-            // turbofish (`edge_cover::<f64>(`).
-            let calls: usize = DOORS
-                .iter()
-                .flat_map(|d| [format!("{d}("), format!("{d}::<")])
-                .map(|call| code.as_str().matches(call.as_str()).count())
-                .sum();
-            if calls > 0 || PINNED.iter().any(|(pinned, _)| *pinned == rel) {
-                found.push((rel, calls));
-            }
-        }
-        found.sort();
-        let pinned: Vec<(String, usize)> = PINNED
-            .iter()
-            .map(|(path, calls)| ((*path).to_string(), *calls))
-            .collect();
-        assert_eq!(
-            found, pinned,
-            "a door that reads a box from this module arrived, left or moved. What the \
-             module docs owe is not this count but the DIRECTION the new door reads \
-             looseness in — pruning, or refusing — and nothing computes that (S234). \
-             Update both, and read S234 before trusting the list you are updating."
         );
     }
 
