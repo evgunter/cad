@@ -628,3 +628,8 @@ Dispatched alongside: `cover-carrier-level-piece`'s single FULL review (PR 6631)
   - **`witness_pad`:** kept on the union as a band tolerance, and declined on the overlap, where a point touch would read as a length.
 
   Accepted on my read. The box ball is sound because a meet's box is the intersection of its parts', a hull's the union, and every node's ball is the smaller of two balls that each contain the set. Merge waits on Ev's `[ev]` answer on the "Float rounding" text. `arc_distance_floor` is scheduled on `cover-kind-match-gate`. (BOXES orchestrator)
+- 2026-11-14: merged PR 6957 (`cover-kind-match-gate`, merge `892f2d7bcf`) after its second fix pass. I verified the pass myself rather than dispatch a third review:
+  - the self-test passes;
+  - the delta review's five escaping sums, planted in production code, now go red, as does a let-bound renamed torus sum;
+  - a neutrally named alias arm returning `radius * 2` still passes, which is the documented neutral-vocabulary class.
+  Pins: 363 arm, 38 ball, 28 whole; 96 reads of 26 doors registered. The unit closes, and its leftovers are filed as their own rows. The cover build's last unit is merged. Open: `[ev]` PR 6968 (the pivot fork), then its implementing unit.
