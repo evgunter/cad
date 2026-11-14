@@ -529,7 +529,7 @@ fn a_tilted_split_of_a_sphere_body_refuses_at_the_reduce() {
 /// projected lane's own gap where the lane choice sent the circle,
 /// `NoGeneralLane { gap: LaneGap::Pose }`); splitting
 /// such an arc at the pole is the join's
-/// (`work/reach/tilted-section-through-a-chart-pole-is-not-split-at-the-pole.md`).
+/// (`work/germ/tilted-section-through-a-chart-pole-is-not-split-at-the-pole.md`).
 ///
 /// **What the mesher answers** (measured in release, PR 5920's second
 /// fix pass; `work/tesslane/a-tilted-circle-near-a-sphere-pole-refuses-at-the-sphere-arm.md`):
