@@ -160,7 +160,7 @@ use super::{
 };
 use crate::body::Body;
 use crate::entity::{EdgeKey, EntityId, HalfEdgeKey, VertexKey};
-use crate::face_reach::{UnboundedFace, face_extent};
+use crate::face_reach::{UncoveredFace, face_extent};
 use crate::live::{Proven, proven};
 use crate::sector_face::{ConeApex, SectorCarrier};
 use crate::star::{Bound, Star, StarFace};
@@ -180,10 +180,8 @@ use crate::validate::decide;
 /// tangency again. A wall that bends away from its material is a knife
 /// edge, refused here ([`SplitReduceError::KnifeEdge`]).
 ///
-/// A wall's rows read its face extent over its edges' spans alone,
-/// while the split's chords through the same wall read the agreed
-/// section (`chord_join::agreed_section`), so a sector read grazed here
-/// can still escalate at its chord.
+/// A wall's rows read its face extent off its cover, as the split's
+/// chords through the same wall do (`chord_join::wall_face_section`).
 pub(super) fn apply_rule_a<T: Decide>(
     body: &Body<T>,
     plane: &SplitPlane<T>,
@@ -210,7 +208,7 @@ pub(super) fn apply_rule_a<T: Decide>(
             reading,
         };
         let sliver = |diag| refuse(SectorReading::Escalated(diag));
-        let extent = face_extent(body, vertex, face)?;
+        let extent = face_extent(body, vertex, face, band)?;
         // Distinct K name from the shared sector rungs' `sector_arm`
         // (the shorter-chord arm): this margin is the FACE extent.
         // Still lane-prefixed, and correctly so — the boolean lane has
@@ -658,9 +656,9 @@ fn tangency_readings<T: Decide>(a: WallReading<T>, b: WallReading<T>) -> Tangenc
     }
 }
 
-impl From<UnboundedFace> for SplitReduceError {
-    fn from(UnboundedFace { face, vertex }: UnboundedFace) -> Self {
-        Self::UnboundedFace { face, vertex }
+impl From<UncoveredFace> for SplitReduceError {
+    fn from(UncoveredFace { face, why }: UncoveredFace) -> Self {
+        Self::UncoveredFace { face, why }
     }
 }
 

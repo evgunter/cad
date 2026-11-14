@@ -50,7 +50,7 @@ const KERNEL_KEYED: &[&str] = &[
     "Split/Reduce/LoneVertex",
     "Split/Reduce/NullEdgeAtVertex",
     "Split/Reduce/UnrecordedSide",
-    "Split/Reduce/UnboundedFace",
+    "Split/Reduce/UncoveredFace",
     "Split/Reduce/CrossingInsertion",
     "Split/Reduce/LineageRow",
     "Split/Join/LineageRow",
@@ -306,7 +306,7 @@ pub(crate) const FILED_NO_RECOURSE: &[&str] = &[
     "Split/Reduce/LoneVertex",
     "Split/Reduce/NullEdgeAtVertex",
     "Split/Reduce/UnrecordedSide",
-    "Split/Reduce/UnboundedFace",
+    "Split/Reduce/UncoveredFace",
     // work/lathe/carve-refusals-short-of-the-shape-guard.md
     "Blend/SurgeryInvariant",
     "Extrude/CapPlane",
@@ -950,7 +950,7 @@ mod kernel {
             SectionGermsUnordered, ApexSection, VertexNearConeAxis, ApexUndecided, NonFiniteSectorChord,
             UnderflowedSectorChord,
             ConsecutiveOnSectors, StaleVertex, LoneVertex, NullEdgeAtVertex,
-            UnrecordedSide, UnboundedFace, CrossingInsertion, Euler, LineageRow,
+            UnrecordedSide, UncoveredFace, CrossingInsertion, Euler, LineageRow,
         ];
     }
 
@@ -2475,7 +2475,16 @@ fn split() -> Vec<(String, NodeErrorKind)> {
             },
         ),
         ("UnrecordedSide", R::UnrecordedSide { vertex }),
-        ("UnboundedFace", R::UnboundedFace { face, vertex }),
+        (
+            "UncoveredFace",
+            R::UncoveredFace {
+                face,
+                why: topo::FaceUncovered::of_carrier(geom::cover::Uncovered::new(
+                    geom::cover::Entity::Surface(geom::SurfaceKind::Plane),
+                    geom::cover::Unknown::Unbounded,
+                )),
+            },
+        ),
         (
             "CrossingInsertion",
             R::CrossingInsertion {
