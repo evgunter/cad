@@ -80,3 +80,7 @@ Two more slow rows show the same blind spot, from both sides.
   So neither fix ran hosted at any ε. The PR's evidence for both is a
   local run.
 
+
+## Evidence (GREEN, 2026-11-14): a PR that re-pins six slow tests got a green gate that ran none of them
+
+PR 6931 (`green/default-eps`) pins or re-blesses six slow-set tests by editing their bodies and helpers. Its first gate run (head `447474cb7`) was green with the slow-set step lasting one second: the diff's added lines spelled none of the six names. The lane made each pin's comment name its test, and the second run (43555174396) is the one that ran them. Every lane that greens a nightly red is in this position, since greening a slow test is an edit inside it. On GREEN this turns "the gate is green" into no evidence at all for a pin PR, so the lanes now read the step log for which tests ran.
