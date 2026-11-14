@@ -428,7 +428,9 @@ pub struct ScenePart<'a> {
     pub probe: Option<Frame>,
     /// **The body's frame in its space**, where it is not the identity:
     /// what [`pncad::document::in_space`] answers for the part's body,
-    /// applied to the positions at build, in `f64`, beneath the probe.
+    /// or for a copy the placement editor previews, where its draft
+    /// stands it (`crate::display::PreviewedPlacement`); applied to the
+    /// positions at build, in `f64`, beneath the probe.
     pub placed: Option<Affine3<f64>>,
     /// Whether the part is a body the product slot does not reach: its
     /// every corner carries [`SceneMesh::FLAG_OUTSIDE`].

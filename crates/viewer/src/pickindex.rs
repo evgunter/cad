@@ -1666,7 +1666,7 @@ impl PickIndex {
                 mesh: part.mesh(),
                 ids,
                 probe: display.moved_nodes.get(&part.node()).copied(),
-                placed: in_space_of(part),
+                placed: previewed(display, part),
                 outside: self.is_outside(part.node(), part.body()),
             });
         }
@@ -3000,20 +3000,33 @@ pub fn clear_of_drawn(
 
 /// **Where a drawn part's tessellation is drawn**: its body's frame
 /// composed into its space ([`pncad::document::in_space`], the picture's
-/// one composing door), then the free-move probe frame the display view
-/// puts the owning node under. `None` where it is under neither,
+/// one composing door), then the display map the display view puts the
+/// owning node under ([`DisplayView::display_map`]). `None` where it is
+/// under neither,
 /// so a part computed in its space's coordinates is drawn as tessellated.
 fn drawn(display: &DisplayView, part: &NodePick) -> Option<Affine3<f64>> {
-    let placed = in_space_of(part);
-    let probe = display
-        .moved_nodes
-        .get(&part.node())
-        .copied()
-        .map(|frame: Frame| frame.affine());
-    match (probe, placed) {
-        (None, placed) => placed,
-        (Some(probe), None) => Some(probe),
-        (Some(probe), Some(placed)) => Some(probe * placed),
+    compose(display.display_map(part.node()), in_space_of(part))
+}
+
+/// **Where a drawn part stands in its space as the picture draws it**:
+/// its body's frame in its space, carried where the placement editor's
+/// waiting draft stands it when the part is that copy
+/// ([`DisplayView::previewed_placement`]). The probe is the scene's to
+/// compose, since it marks what it moves.
+fn previewed(display: &DisplayView, part: &NodePick) -> Option<Affine3<f64>> {
+    let carry = display
+        .previewed_placement
+        .filter(|preview| preview.node == part.node())
+        .map(|preview| preview.carry());
+    compose(carry, in_space_of(part))
+}
+
+/// `outer` after `inner`, either of which may be the identity (`None`).
+fn compose(outer: Option<Affine3<f64>>, inner: Option<Affine3<f64>>) -> Option<Affine3<f64>> {
+    match (outer, inner) {
+        (None, inner) => inner,
+        (Some(outer), None) => Some(outer),
+        (Some(outer), Some(inner)) => Some(outer * inner),
     }
 }
 
@@ -3032,23 +3045,16 @@ pub(crate) fn witness_leg(
     ends.map(|(node, at)| {
         let in_space = placed.map_or(at, |placed| placed.transform_point(at));
         display
-            .moved_nodes
-            .get(&node)
-            .copied()
-            .map_or(in_space, |frame: Frame| {
-                frame.affine().transform_point(in_space)
-            })
+            .display_map(node)
+            .map_or(in_space, |map| map.transform_point(in_space))
     })
 }
 
-/// **The free-move probe frame a part's node is drawn under**, if
-/// the display view puts it under one: a display map, not the model's.
+/// **The display map a part's node is drawn under**, if the display
+/// view puts it under one ([`DisplayView::display_map`]): a display
+/// map, not the model's.
 fn probed(display: &DisplayView, part: &NodePick) -> Option<Affine3<f64>> {
-    display
-        .moved_nodes
-        .get(&part.node())
-        .copied()
-        .map(|frame: Frame| frame.affine())
+    display.display_map(part.node())
 }
 
 /// The part's frame in its space, `None` where its body is in its

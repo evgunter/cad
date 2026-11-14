@@ -2410,7 +2410,15 @@ unpinned, two spaces, a side off the copy, a pick its kind cannot read
 stays open through every change (`ToolKind::commits` closes it on
 none). A copy that would not stand (a fault, or a read that does not
 evaluate) is not written: `SessionOp::SetBundle` refuses it
-(`Refusal::PlacementFails`), and the editor holds the draft. **A placement's target is its own property, and no mate changes it**
+(`Refusal::PlacementFails`), and the editor holds the draft. A
+draft that waits for the picture (`MateTool::waits`, the predicate the
+panel's "waits for the picture" line reads) is drawn where the same
+scratch solve stands its copy (`DocSession::bundle_stands`), in place
+of where the drawn evaluation stands it
+(`display::PreviewedPlacement`), as the profile editor draws its draft
+in place of the committed loops; a draft held for an empty seat or a
+door refusal stands nowhere, and its copy is drawn where the document
+stands it. **A placement's target is its own property, and no mate changes it**
 (Ev, 2026-11-01). The editor's first row is the target ("into:
 <space>"), and re-seating it is the one edit that changes a placement's
 target: a live change like any other, judged by the same door and

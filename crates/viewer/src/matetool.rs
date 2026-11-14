@@ -2517,6 +2517,43 @@ impl MateTool {
             .map(|held| &*held.0)
     }
 
+    /// **The door's refusal the panel says over a held draft**: the
+    /// refusal of its last offer ([`Self::pending`]), except a draft
+    /// that writes no bundle yet, which is said as it is derived.
+    #[must_use]
+    pub fn door_refusal(&self) -> Option<&Refusal> {
+        self.pending()
+            .filter(|refusal| !matches!(refusal, Refusal::Draft(_)))
+    }
+
+    /// **Whether the draft waits for the picture**: it differs from its
+    /// bundle, no door refusal holds it, nothing of it is landing, and
+    /// the picture is `busy` answering an older document, so it is not
+    /// offered yet.
+    #[must_use]
+    pub fn waits(&self, busy: bool) -> bool {
+        busy && self.differs_from_base()
+            && self.door_refusal().is_none()
+            && self.landing().is_none()
+    }
+
+    /// **The `SetBundle` a waiting draft writes** ([`Self::waits`]),
+    /// derived against the landed pair `doc`, `ev` as the panel's rows
+    /// are; `None` where the draft does not wait or derives no bundle.
+    #[must_use]
+    pub fn waiting(
+        &self,
+        busy: bool,
+        doc: &Doc<ProfileProgram>,
+        ev: &Evaluation<f64>,
+        tol: Tol,
+    ) -> Option<SessionOp> {
+        self.waits(busy)
+            .then(|| self.proposal(doc, ev, tol).ok())
+            .flatten()
+            .map(|proposal| proposal.op())
+    }
+
     /// The op the draft's last change formed, while it is landing.
     #[must_use]
     pub fn landing(&self) -> Option<&SessionOp> {

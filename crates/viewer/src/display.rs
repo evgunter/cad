@@ -102,6 +102,7 @@ use pncad::document::{
     Doc, Evaluation, Frame, OperandSlot, ProfileProgram, RecipeNodeId, SpokenNode, SpokenSpace,
     VarId, VarKind,
 };
+use pncad::geom_core::Affine3;
 
 use crate::g1;
 use crate::world::{Drawn, Shown};
@@ -879,6 +880,32 @@ pub struct DisplayView {
     /// meets what is drawn. `None` from [`DisplayState::view`], which
     /// knows no editor.
     pub previewed_profile: Option<PreviewedProfile>,
+    /// **The copy the placement editor draws where its waiting draft
+    /// stands it** ([`DisplayView::placing`]). `None` from
+    /// [`DisplayState::view`], which knows no editor.
+    pub previewed_placement: Option<PreviewedPlacement>,
+}
+
+/// **A placement's copy drawn where the placement editor's waiting
+/// draft stands it**, in place of where the drawn evaluation stands it:
+/// both poses in the copy's space, so the copy's drawing is carried by
+/// the one onto the other ([`PreviewedPlacement::carry`]).
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct PreviewedPlacement {
+    /// The placement whose copy is drawn.
+    pub node: RecipeNodeId,
+    /// Where the drawn evaluation stands the copy.
+    pub drawn: Frame,
+    /// Where the draft's scratch solve stands it.
+    pub stands: Frame,
+}
+
+impl PreviewedPlacement {
+    /// The display map, in the copy's space, from where the copy is
+    /// drawn to where the draft stands it.
+    pub fn carry(&self) -> Affine3<f64> {
+        self.stands.affine() * self.drawn.affine().inverse()
+    }
 }
 
 /// **A committed profile as its edit preview draws it**: the node, and
@@ -922,6 +949,33 @@ impl DisplayView {
         Self {
             previewed_profile: profile,
             ..self
+        }
+    }
+
+    /// This view with a placement's copy drawn where the placement
+    /// editor's waiting draft stands it
+    /// ([`DisplayView::previewed_placement`]).
+    #[must_use]
+    pub fn placing(self, placement: Option<PreviewedPlacement>) -> Self {
+        Self {
+            previewed_placement: placement,
+            ..self
+        }
+    }
+
+    /// **The display map `node`'s drawing is carried by**, in its
+    /// space: the placement editor's preview of its copy, then the
+    /// free-move probe of its space. `None` where it is under neither.
+    pub fn display_map(&self, node: RecipeNodeId) -> Option<Affine3<f64>> {
+        let probe = self.moved_nodes.get(&node).map(Frame::affine);
+        let preview = self
+            .previewed_placement
+            .filter(|preview| preview.node == node)
+            .map(|preview| preview.carry());
+        match (probe, preview) {
+            (None, preview) => preview,
+            (Some(probe), None) => Some(probe),
+            (Some(probe), Some(preview)) => Some(probe * preview),
         }
     }
 
@@ -1331,6 +1385,7 @@ impl DisplayState {
             shown_drawn,
             moved_nodes,
             previewed_profile: None,
+            previewed_placement: None,
         }
     }
 

@@ -902,11 +902,11 @@ impl ViewerBehavior<'_> {
                 })
             })
         };
-        // A draft that writes no bundle is said above, as it is derived.
-        let refused = edited
-            .pending()
-            .filter(|refusal| !matches!(refusal, crate::session::Refusal::Draft(_)));
-        let waiting = formed.is_none() && busy && edited.differs_from_base();
+        // The viewport draws a waiting draft's copy where its scratch
+        // solve stands it, off the same predicate
+        // (`ViewerApp::placement_preview`).
+        let refused = edited.door_refusal();
+        let waiting = formed.is_none() && edited.waits(busy);
         if let Some(refusal) = refused {
             let sentence = format!("{} {refusal}", crate::pane::profile::PENDING);
             crate::widgets::message_toned(ui, sentence, &self.theme, Tone::Actionable);

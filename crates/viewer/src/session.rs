@@ -4898,6 +4898,17 @@ impl DocSession {
     ///
     /// The refusal `op` would land with.
     pub fn bundle_door(&self, op: &SessionOp) -> Result<(), Refusal> {
+        self.bundle_stands(op).map(drop)
+    }
+
+    /// **Where [`Self::bundle_door`]'s scratch solve stands the copy**:
+    /// its pose in its space, or `None` for an op that writes what the
+    /// placement holds, which lands as nothing and moves nothing.
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::bundle_door`].
+    pub fn bundle_stands(&self, op: &SessionOp) -> Result<Option<Frame>, Refusal> {
         match op {
             SessionOp::SetBundle {
                 placement,
@@ -4909,19 +4920,18 @@ impl DocSession {
         }
     }
 
-    /// [`Self::bundle_door`] of a `SetBundle`'s parts.
+    /// [`Self::bundle_stands`] of a `SetBundle`'s parts.
     fn bundle_judged(
         &self,
         placement: RecipeNodeId,
         base: &PlacementBase,
         target: &PlaceTarget,
         constraints: &[pncad::document::Constraint<Formula>],
-    ) -> Result<(), Refusal> {
+    ) -> Result<Option<Frame>, Refusal> {
         let doc = self.committed_doc();
         self.bundle_fresh(placement, base)?;
-        // A change that writes what the placement holds lands as nothing.
         if bundle_writes_nothing(doc, placement, base, target, constraints) {
-            return Ok(());
+            return Ok(None);
         }
         let mut run = Recording::start(doc, self.tol);
         Ok(())
@@ -4940,7 +4950,7 @@ impl DocSession {
             (Some(fault), _) => Err(Refusal::PlacementFails {
                 fault: Some(Box::new(fault.clone())),
             }),
-            (None, Some(_)) => Ok(()),
+            (None, Some(at)) => Ok(Some(at)),
             (None, None) => Err(Refusal::PlacementFails { fault: None }),
         }
     }

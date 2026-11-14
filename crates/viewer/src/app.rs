@@ -387,6 +387,17 @@ pub struct ViewerApp {
     /// between two faces of the same feature leaves the set equal and
     /// correctly rebuilds nothing.
     scene_focus: BTreeSet<u32>,
+    /// The placement preview `scene` was built under
+    /// ([`ViewerApp::placement_preview`]), derived as the focus is.
+    scene_placing: Option<crate::display::PreviewedPlacement>,
+    /// **The last placement preview taken**: the generation and the
+    /// waiting draft's op it was solved for, so a frame over the same
+    /// pair solves nothing again.
+    placement_previews: Option<(
+        crate::generation::Generation,
+        SessionOp,
+        Option<crate::display::PreviewedPlacement>,
+    )>,
     /// **What the last scene rebuild refused**, held until one
     /// succeeds — the state [`crate::frame::scene_badge`] reads.
     ///
@@ -980,6 +991,8 @@ impl ViewerApp {
             scene_key: None,
             scene_display: None,
             scene_focus: BTreeSet::new(),
+            scene_placing: None,
+            placement_previews: None,
             scene_fault: None,
             projection_fault: None,
             viewport_reads: ViewportReads::default(),
@@ -1171,14 +1184,19 @@ impl ViewerApp {
         // display or selection change over a current index still owes
         // exactly one rebuild.
         let display_revision = self.session.display().revision();
+        let placing = self.placement_preview();
         let Some(index) = self.picks.index() else {
             return;
         };
         let focus = marks::focus(index, self.session.doc(), self.session.selection());
-        if !rebuilt && self.scene_display == Some(display_revision) && self.scene_focus == focus {
+        if !rebuilt
+            && self.scene_display == Some(display_revision)
+            && self.scene_focus == focus
+            && self.scene_placing == placing
+        {
             return;
         }
-        match index.scene_focused(&self.session.display_view(), &focus) {
+        match index.scene_focused(&self.session.display_view().placing(placing), &focus) {
             Ok(mesh) => {
                 // The key is set ONLY on success: a refused build
                 // leaves the empty picture on screen with no key, so
@@ -1191,6 +1209,7 @@ impl ViewerApp {
                 self.scene_key = Some(index.key());
                 self.scene_display = Some(display_revision);
                 self.scene_focus = focus;
+                self.scene_placing = placing;
                 self.scene = Arc::new(mesh);
                 self.revision = self.revision.wrapping_add(1);
                 // The badge's read, ended by the rebuild it was
@@ -1220,9 +1239,53 @@ impl ViewerApp {
                 // focus change retries it, and an unchanged frame does not.
                 self.scene_display = Some(display_revision);
                 self.scene_focus = focus;
+                self.scene_placing = placing;
                 self.scene_fault = Some(error);
             }
         }
+    }
+
+    /// **The copy the placement editor's waiting draft draws in place
+    /// of its drawn one** (`crates/viewer/README.md`, *The placement
+    /// editor commits a placement's whole bundle*): where a draft waits
+    /// for the picture ([`crate::matetool::MateTool::waits`], the
+    /// predicate the panel's sentence reads) and its bundle solves on
+    /// the door's scratch recording ([`DocSession::bundle_stands`]), the
+    /// copy is carried from where the landed evaluation stands it to
+    /// where the solve does. `None` draws the copy where it is: no
+    /// editor, no waiting draft, a draft that derives no bundle or that
+    /// the door refuses, or a copy the landed evaluation does not stand.
+    fn placement_preview(&mut self) -> Option<crate::display::PreviewedPlacement> {
+        let (landed, ev) = self.session.landed_pair()?;
+        let op = self
+            .tools
+            .mate()?
+            .waiting(self.session.busy(), landed, ev, self.session.tol())?;
+        let generation = self.session.generation();
+        if let Some((at, solved, preview)) = &self.placement_previews
+            && *at == generation
+            && *solved == op
+        {
+            return *preview;
+        }
+        let SessionOp::SetBundle { placement, .. } = op else {
+            unreachable!("the placement editor forms a bundle: {op:?}")
+        };
+        let preview = self
+            .session
+            .bundle_stands(&op)
+            .ok()
+            .flatten()
+            .and_then(|stands| {
+                let drawn = pncad::document::SolvedPoses::of(landed, ev).relative(placement)?;
+                Some(crate::display::PreviewedPlacement {
+                    node: placement,
+                    drawn,
+                    stands,
+                })
+            });
+        self.placement_previews = Some((generation, op, preview));
+        preview
     }
 
     /// Put the empty picture on screen, once: the scene under a pick
@@ -2271,7 +2334,8 @@ impl eframe::App for ViewerApp {
             self.remember_prefs();
         }
 
-        let display = self.session.display_view();
+        let placing = self.placement_preview();
+        let display = self.session.display_view().placing(placing);
         let toggles = self.session.toggles();
         // **The preview is taken once, before the panes draw**, from
         // the drafts as they stand — so the panel's refusal line, the
@@ -2435,7 +2499,7 @@ impl eframe::App for ViewerApp {
                 (None, None) => false,
                 _ => true,
             };
-        if moved {
+        if moved || self.placement_preview() != placing {
             ui.ctx().request_repaint();
         }
         // Read AFTER the frame drew, and before anything writes a
@@ -8840,6 +8904,79 @@ mod properties_pane_tests {
                 .iter()
                 .any(|t| t.contains("mate 1's to seat is empty")),
             "the panel says what the draft lacks: {shown:?}"
+        );
+    }
+
+    /// **A held placement draft whose bundle solves is drawn where it
+    /// stands, and discarding it draws the copy where the document
+    /// does**: the picture is held behind a rename, so a slide typed now
+    /// waits for it (the panel's sentence), and the viewport draws the
+    /// copy where the door's scratch solve stands it, 5 mm along x; the
+    /// discard draws it back where the landed evaluation stands it. A
+    /// waiting draft is the one held draft that solves: one held for an
+    /// empty seat or a door refusal stands nowhere.
+    #[test]
+    fn a_waiting_placement_draft_is_drawn_where_it_stands_until_discarded() {
+        let (mut driven, open) = gated();
+        driven.settle();
+        // Positions are drawn in `f32`: a micrometre tells a 5 mm move
+        // from none.
+        let committed = driven.app.scene.bounds().expect("the copy is drawn");
+        open.store(false, std::sync::atomic::Ordering::SeqCst);
+        driven.app.perform_batch(vec![SessionOp::SetLabel {
+            node: placement(),
+            label: label("held"),
+        }]);
+        assert!(driven.app.session.busy(), "the picture is behind");
+        let mut tool =
+            crate::matetool::MateTool::edit(driven.app.session.committed_doc(), placement())
+                .expect("the startup copy is a placement");
+        tool.type_value(
+            <pncad::document::Coord<pncad::document::Operand>>::slide(
+                pncad::document::TargetAxis::X,
+            ),
+            crate::test_support::len(0.005),
+        );
+        driven.app.tools.open_mate(tool);
+        driven.click(crate::pane::create::ASSEMBLE_PARTS);
+        driven.frame(vec![egui::Event::PointerMoved(Driven::ELSEWHERE)]);
+        let painted = driven.frame(vec![egui::Event::PointerMoved(Driven::ELSEWHERE)]);
+        assert!(
+            painted
+                .iter()
+                .any(|(run, _)| run.contains("waits for the picture to answer the document")),
+            "the panel says the draft waits: {painted:?}"
+        );
+        let drawn = driven.app.scene.bounds().expect("the copy is drawn");
+        let shift = [
+            drawn.min_x - committed.min_x,
+            drawn.max_x - committed.max_x,
+            drawn.min_y - committed.min_y,
+            drawn.min_z - committed.min_z,
+        ];
+        assert!(
+            (shift[0] - 0.005).abs() < 1e-6
+                && (shift[1] - 0.005).abs() < 1e-6
+                && shift[2].abs() < 1e-6
+                && shift[3].abs() < 1e-6,
+            "the copy is drawn 5 mm along x, where the draft stands it: {shift:?}"
+        );
+        driven.click(crate::pane::profile::DISCARD);
+        driven.frame(vec![egui::Event::PointerMoved(Driven::ELSEWHERE)]);
+        assert!(
+            driven
+                .app
+                .tools
+                .mate()
+                .is_some_and(|tool| !tool.differs_from_base()),
+            "the draft went and the editor stays open"
+        );
+        assert!(driven.app.session.busy(), "the picture is still behind");
+        let back = driven.app.scene.bounds().expect("the copy is drawn");
+        assert_eq!(
+            (back.min_x, back.max_x),
+            (committed.min_x, committed.max_x),
+            "the copy is drawn where the document stands it"
         );
     }
 
