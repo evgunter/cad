@@ -37,7 +37,8 @@ fn cylinder(phi: f64, tol: Tol) -> AtRestBody<f64> {
 /// own rounding, a side whose side the reader could not read and whose
 /// volume does not sign it, the split refused before it had sides, a
 /// side refused at rest inside out, or both sides built and one's
-/// measure stopped at its floor short of the pinned resolution.
+/// measure stopped at its floor short of the pinned resolution
+/// (`the_seam_split_census_reads_no_side_inside_out` pins which).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum Read {
     Built,

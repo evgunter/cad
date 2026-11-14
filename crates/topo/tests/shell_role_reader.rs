@@ -606,7 +606,8 @@ fn assert_corners(what: &str, points: &[[f64; 3]], corners: &[[f64; 3]], w: f64)
 }
 
 /// The shell volumes four runs of the moved upright channel `10.5ε`
-/// across read at ε 1e-9, 8.0% to 8.6% short of its `w²` = 1.1025e-16,
+/// across read at ε 1e-9
+/// (`a_needle_cavity_builds_at_every_definite_width_and_holds_it_as_a_void`), 8.0% to 8.6% short of its `w²` = 1.1025e-16,
 /// its corners where they belong: a pin of what is read, held to 1%. The
 /// wanted reading is `w²` within the 5% every other row holds
 /// (`work/onedoor/the-planar-face-reading-is-two-formulas-at-two-scalars.md`).

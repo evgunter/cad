@@ -18,7 +18,8 @@
 //! the pose is a fixed multiple of ε: the refusals pinned here were
 //! measured the same at ε 1e-6, 1e-9 and 1e-12, each typed with its
 //! lever, none naming a broken invariant. At `k = 10⁵` the same planes
-//! land their closed forms.
+//! land their closed forms
+//! (`a_needle_cone_cut_off_its_apex_lands_its_closed_forms`).
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 

@@ -61,6 +61,8 @@ impl DoorService for Held {
 /// booleans decide at a point minted on an edge, each a `Meet` the door
 /// leaves unproven; both its blend joints prove
 /// (`coincidence_door::the_door_proves_half_the_composed_dies_joints`).
+/// Read by `a_landings_door_reads_pending_until_its_own_answer_settles`
+/// and `the_threaded_door_seam_answers_the_newest_landing`.
 const DIE_UNPROVEN: usize = 2;
 
 /// The `unproven-coincidence` findings of the landed report.

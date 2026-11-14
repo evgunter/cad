@@ -1866,7 +1866,8 @@ fn near(got: f64, want: f64) -> bool {
 /// magnitude: the conic root lane reads a root against an end, and two
 /// roots against each other, by the chord between their points, a
 /// length, so a root past its end and one short of it quote alike. A pin
-/// of what the lane reads. Whether these cases stand for a negative arm
+/// of what the lane reads, held by
+/// `every_offered_tolerance_passes_just_below_it`. Whether these cases stand for a negative arm
 /// at all is
 /// `work/onecopy/the-conic-root-lanes-chord-rungs-quote-a-length-where-two-offer-cases-declare-a-negative-margin.md`'s.
 const QUOTED_AS_A_LENGTH: [&str; 2] = ["arc_root_just_outside_its_span", "roots_a_hair_apart"];
