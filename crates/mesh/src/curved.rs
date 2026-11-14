@@ -156,7 +156,7 @@
 use std::collections::HashMap;
 
 use geom::Surface;
-use geom_brep::ChartWinding;
+use geom_brep::PolygonOrientation;
 use geom_core::{Band, Point3};
 use spade::{ConstrainedDelaunayTriangulation, Point2 as SpadePoint, Triangulation};
 use topo::props::LoopEdgesError;
@@ -250,10 +250,10 @@ pub(crate) fn tessellate_curved(
         .collect();
     require_swept_rectangle(fk, &polygon, &levers, (u0, u1, v0, v1), tol.eps)?;
 
-    // The polygon's winding is READ, never taken from the face's
+    // The polygon's orientation is READ, never taken from the face's
     // `sense`: the CDT's triangles are counter-clockwise in the chart
     // and the patch's are wound as the polygon is. The walk puts the
-    // sense in the polygon (`ChartWinding::of_face` is the winding it
+    // sense in the polygon (`PolygonOrientation::of_face` is the one it
     // then has): from the loop's STORED TRAVERSAL order, which
     // interior-left ties to the outward normal, and on the wrap strip,
     // whose loop walks one edge both ways and so has no order to read,
@@ -261,7 +261,7 @@ pub(crate) fn tessellate_curved(
     // loops AND flips `sense` together, so folding the bit in here as
     // well would double-count the reversal and emit inward-wound
     // triangles.
-    let flip = ChartWinding::of_signed_area(area2) == Some(ChartWinding::Clockwise);
+    let flip = PolygonOrientation::of_signed_area(area2) == Some(PolygonOrientation::Clockwise);
 
     // The walk's chart singularity, as `grid_counts` reads it: whether
     // a pole/apex entry is present, and how many INTERIOR chord points

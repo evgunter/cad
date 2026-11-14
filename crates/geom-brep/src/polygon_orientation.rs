@@ -1,4 +1,4 @@
-//! **Which way a face's boundary winds in the face's chart**: the one
+//! **The orientation of a face's boundary polygon in the face's chart**: the one
 //! statement of the rule, for a reader that holds a face's `sense` bit
 //! and a polygon in its chart's `(u, v)` plane.
 //!
@@ -6,7 +6,7 @@
 //!
 //! The polygon a face's boundary draws round the face's region in its
 //! chart winds COUNTER-CLOCKWISE exactly when `Face::sense` is set
-//! ([`ChartWinding::of_face`]). Three facts make it, and none of them
+//! ([`PolygonOrientation::of_face`]). Three facts make it, and none of them
 //! is a kind of surface:
 //!
 //! 1. A loop runs with its face's interior on its left, seen with the
@@ -28,22 +28,23 @@
 //!
 //! # What it is not
 //!
-//! The winding is a fact about a polygon in the chart. A VECTOR on the
+//! The orientation is a fact about a polygon in the chart. A VECTOR on the
 //! face's outward side — a normal, a loop's 3-D vector area — is turned
 //! by the bit through [`crate::OutwardNormal::from_chart`], not here.
 
-/// The way a closed polygon winds in a chart's `(u, v)` plane, `u` to
-/// the right and `v` up.
+/// The orientation of a closed polygon in a chart's `(u, v)` plane, `u`
+/// to the right and `v` up. Not a turning number: how often a loop's
+/// lift goes round a chart's period is `topo::pcurves::Winding`.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum ChartWinding {
+pub enum PolygonOrientation {
     /// Its region on the left of every side.
     CounterClockwise,
     /// Its region on the right of every side.
     Clockwise,
 }
 
-impl ChartWinding {
-    /// **The rule** (module docs): the winding of the polygon a face of
+impl PolygonOrientation {
+    /// **The rule** (module docs): the orientation of the polygon a face of
     /// sense `sense` draws round its region in its chart.
     ///
     /// `sense` is a `Face::sense` the caller resolved, never a decided
@@ -57,9 +58,9 @@ impl ChartWinding {
         }
     }
 
-    /// The winding a polygon HAS, read off its signed area in the chart
+    /// The orientation a polygon HAS, read off its signed area in the chart
     /// (the shoelace sum, or any positive multiple of it). `None` for a
-    /// polygon of no area, or of a poisoned one: it winds neither way.
+    /// polygon of no area, or of a poisoned one: it has neither.
     #[must_use]
     pub fn of_signed_area(area: f64) -> Option<Self> {
         if area > 0.0 {
@@ -86,7 +87,7 @@ mod tests {
     use geom_core::spline::KnotVector;
     use geom_core::{Point3, Vec3};
 
-    use super::ChartWinding;
+    use super::PolygonOrientation;
     use crate::OutwardNormal;
 
     const Z: Vec3<f64> = Vec3::new(0.0, 0.0, 1.0);
@@ -188,10 +189,10 @@ mod tests {
     }
 
     /// The rule, read off every chart kind at both senses and both
-    /// windings: a small square about a regular chart point is walked in
+    /// orientations: a small square about a regular chart point is walked in
     /// 3-D with the face's interior on its left about the face's outward
-    /// normal exactly when it winds in the chart as [`ChartWinding::of_face`]
-    /// says. A chart whose `∂u × ∂v` ran against the normal `sense` signs
+    /// normal exactly when it is oriented in the chart as
+    /// [`PolygonOrientation::of_face`] says. A chart whose `∂u × ∂v` ran against the normal `sense` signs
     /// would red its row at both senses.
     #[test]
     fn the_rule_holds_on_every_chart() {
@@ -207,11 +208,11 @@ mod tests {
             for sense in [true, false] {
                 let outward = OutwardNormal::from_chart(surface.normal(u, v), sense).vec();
                 for (polygon, drawn) in [
-                    (ccw, ChartWinding::CounterClockwise),
-                    (cw, ChartWinding::Clockwise),
+                    (ccw, PolygonOrientation::CounterClockwise),
+                    (cw, PolygonOrientation::Clockwise),
                 ] {
                     assert_eq!(
-                        ChartWinding::of_signed_area(shoelace(&polygon)),
+                        PolygonOrientation::of_signed_area(shoelace(&polygon)),
                         Some(drawn),
                         "{name}: the fixture's own polygon"
                     );
@@ -224,9 +225,9 @@ mod tests {
                     );
                     assert_eq!(
                         interior_left > 0.0,
-                        drawn == ChartWinding::of_face(sense),
+                        drawn == PolygonOrientation::of_face(sense),
                         "{name}, sense {sense}: a {drawn:?} polygon bounds the face \
-                         exactly when the rule names that winding ({interior_left:e})"
+                         exactly when the rule names that orientation ({interior_left:e})"
                     );
                 }
             }
@@ -237,7 +238,7 @@ mod tests {
     /// and the bit reads is the implicit gradient's
     /// ([`crate::implicit_outward_normal`]), not `∂u × ∂v` folded. The
     /// rule is stated against the second, so the two must name one side
-    /// wherever a reader pairs a winding with the first.
+    /// wherever a reader pairs an orientation with the first.
     #[test]
     fn the_implicit_outward_normal_is_the_chart_normals_side() {
         for (name, surface, (u, v)) in charts() {
@@ -256,12 +257,12 @@ mod tests {
         }
     }
 
-    /// A polygon of no area winds neither way, so no reader takes a
-    /// winding off one; nor off a poisoned area.
+    /// A polygon of no area has neither orientation, so no reader takes
+    /// one off it; nor off a poisoned area.
     #[test]
-    fn no_area_is_no_winding() {
+    fn no_area_is_no_orientation() {
         for area in [0.0, -0.0, f64::NAN] {
-            assert_eq!(ChartWinding::of_signed_area(area), None, "{area}");
+            assert_eq!(PolygonOrientation::of_signed_area(area), None, "{area}");
         }
     }
 }

@@ -60,7 +60,6 @@ pub mod carrier_resolution;
 pub mod certify;
 pub mod chart_image;
 pub mod chart_singularity;
-pub mod chart_winding;
 pub mod conic_bend;
 pub mod curve_face;
 pub mod curve_pair;
@@ -84,6 +83,7 @@ pub mod implicit;
 pub mod intersect;
 pub mod keys;
 mod krawczyk;
+pub mod polygon_orientation;
 /// Transitional: the ladder lives at [`geom_core::ladder`]; this path
 /// stays only until the callers move
 /// (`work/onecopy/geom-brep-ladder-re-export-awaits-its-callers.md`).
@@ -135,7 +135,6 @@ pub use certify::{
     SplineFoot, StatedImage, StatedSpan, WindingReading, folded_parallelism, sample_param,
     schedule_param, side_row_certifies,
 };
-pub use chart_winding::ChartWinding;
 pub use conic_bend::{BendBounds, ConicBend, ConicDeparture, conic_bend_side, curvature_vector};
 pub use description::{
     ChartCurve, CurveSelector, EdgeAuthority, EdgeDescription, EdgeDescriptionSpec, SharedRow,
@@ -257,6 +256,7 @@ pub use pcurve_cache::{
     read_point_incidence, ruling_miss,
 };
 pub use plane_eq::{PlaneDesc, PlaneRung, oriented_plane_eq};
+pub use polygon_orientation::PolygonOrientation;
 pub use props::{
     FaceContribution, LoopEdge, PropsError, curved_face, planar_face, require_iso_rectangle,
     require_one_chart_branch,

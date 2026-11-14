@@ -543,8 +543,8 @@ pub enum TessellateError {
         error: geom_core::BandError,
     },
     /// A trimmed face's boundary polygon on an analytic chart (cylinder
-    /// or sphere) winds against the winding its face's `sense` promises
-    /// (`geom_brep::ChartWinding::of_face`), so it bounds the face's
+    /// or sphere) is oriented against the orientation its face's `sense` promises
+    /// (`geom_brep::PolygonOrientation::of_face`), so it bounds the face's
     /// complement. Meshing it
     /// would ship the complement, or the face wound inward, as a closed
     /// manifold mesh, so it refuses. A valid body does not reach it; a

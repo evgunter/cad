@@ -124,7 +124,7 @@
 //! interior-left): the polygon a face's boundary draws in its chart is
 //! counter-clockwise exactly when the face's outward normal is the
 //! chart normal, which is when `topo::Face::sense` is set. That rule's
-//! home is `geom_brep::ChartWinding`, and a lane that pairs a chart
+//! home is `geom_brep::PolygonOrientation`, and a lane that pairs a chart
 //! polygon with the bit reads it there.
 //!
 //! **What reads the polygon, and what reads the bit.** The emit passes
@@ -136,11 +136,11 @@
 //! reversal. The bit is read where the traversal cannot answer:
 //!
 //! - `trimmed` checks an analytic arm's polygon against
-//!   `ChartWinding::of_face` and refuses one wound against its face,
+//!   `PolygonOrientation::of_face` and refuses one wound against its face,
 //!   and reads each triangle against the face's outward normal
 //!   (`geom_brep::implicit_outward_normal`);
 //! - `walk::wrap_strip` places a wrap strip's far side by
-//!   `ChartWinding::of_face`, its loop walking one edge both ways and
+//!   `PolygonOrientation::of_face`, its loop walking one edge both ways and
 //!   so having no order to read;
 //! - the pole-to-pole band's azimuth below reads the loop's area
 //!   vector, which is on the outward side, against the chart's frame
