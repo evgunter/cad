@@ -414,6 +414,15 @@ fn a_mid_surgery_body_cannot_reach_the_writer() {
 /// `scripts/check_step.sh`'s FreeCAD acceptance in lockstep with the
 /// writer. Regenerate deliberately with
 /// `cargo run -p step-export --example export_fixtures -- crates/step-export/tests/fixtures`.
+///
+/// **Two fixtures [`committed_fixtures_are_byte_golden`] reads are PINNED
+/// at the writer's bytes with a move NOT judged.** `filleted_die.step`
+/// carries PR 6533's move of the filleted die (its 24 edge lines'
+/// origins and the spelling of 12 directions; no vertex), owed a
+/// judgment on
+/// `work/onecopy/the-filleted-dies-body-moved-at-6533-and-is-pinned-unjudged.md`;
+/// `composed_die.step` carries that and PR 6482's, on
+/// `work/onecopy/the-composed-dies-step-bytes-moved-at-6482-and-are-pinned-unjudged.md`.
 #[test]
 fn committed_fixtures_are_byte_golden() {
     for (name, body) in common::fixture_corpus() {

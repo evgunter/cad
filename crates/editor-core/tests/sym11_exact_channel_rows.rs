@@ -78,7 +78,9 @@ use crate::m10_9_pins_interval::measured_studies;
 /// and the frozen of the link 2241 -> 5161, the bracket 914 -> 1313 and
 /// the pad 2476 -> 3268, the forms the read builds.
 ///
-/// **PINNED at what main reads, and NOT judged.** Every row below is
+/// **PINNED at what main reads, and NOT judged**
+/// ([`sym11_the_exact_channel_never_contradicts_past_the_ceiling`]
+/// reads it). Every row below is
 /// main's reading, identical at all three ε rows, and differs from the
 /// E1c table above (plate `[1203, 824, 229]`, annulus `[720, 555, 212]`,
 /// link `[998, 821, 5161]`, bracket `[1618, 1159, 1313]`, pad

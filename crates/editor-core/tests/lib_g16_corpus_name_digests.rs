@@ -91,6 +91,7 @@ fn digest(ev: &editor_core::Evaluation<f64>) -> u64 {
 /// `m10_p_fence::the_corpus_geometry_is_bit_identical_with_ids_masked`
 /// tells a move of names and ids alone from one of geometry. The PR
 /// that moves a row says which documents moved and why.
+/// [`every_corpus_documents_name_tables_are_golden`] reads it.
 const PINNED: &[(&str, u64)] = &[
     ("die", 0xaa906bcbb1b5ba37),
     ("corner_table", 0x735207785ea99a3c),

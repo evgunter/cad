@@ -127,6 +127,8 @@ fn sans_epsilon(t: &str) -> String {
 /// second with its persisted text, and a row is added with every
 /// document the registry gains. The PR that moves a row says which
 /// documents moved and why.
+/// [`every_corpus_documents_name_tables_and_persisted_text_are_pinned`]
+/// reads it.
 const PINNED: &[(&str, u64, u64)] = &[
     ("die", 0xecd52c78fea995a5, 0x216bc661fe8d623f),
     ("corner_table", 0x4e034da469bc27c2, 0x7e9c3a46127def29),

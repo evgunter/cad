@@ -325,8 +325,10 @@ fn both_blends_evaluate_in_one_document() {
 /// written in main's shape every row here reproduces main's value at all
 /// three ε rows, so nothing else moved.
 ///
-/// RE-BLESSED, both rows, for a placement that mints the source it reads
-/// its body through (VARIABLES VR4, PR 6856): one more variable per
+/// RE-BLESSED, both rows of
+/// [`the_blend_documents_evaluate_to_their_committed_digests`], for a
+/// placement that mints the source it reads its body through
+/// (VARIABLES VR4, PR 6856): one more variable per
 /// placement, so every id minted after it moved, and with it the names
 /// this digest feeds. With mint ids read by rank of first appearance
 /// each document's feed is the one before that merge, byte for byte.
@@ -631,8 +633,10 @@ fn a_boolean_document_round_trips_byte_identical() {
 /// nothing here guards that (filed as
 /// `work/onedoor/name-digests-cannot-tell-a-renamed-cell-from-a-renumbered-arena.md`).
 ///
-/// RE-BLESSED, every row, for a placement that mints the source it reads
-/// its body through (VARIABLES VR4, PR 6856): one more variable per
+/// RE-BLESSED, every row of
+/// [`the_boolean_documents_evaluate_to_their_committed_digests`], for a
+/// placement that mints the source it reads its body through
+/// (VARIABLES VR4, PR 6856): one more variable per
 /// placement, so every id minted after it moved, and with it the names
 /// this digest feeds. With mint ids read by rank of first appearance
 /// each document's feed is the one before that merge, byte for byte.

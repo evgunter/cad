@@ -528,8 +528,10 @@ fn both_sweeps_evaluate_in_one_document() {
 /// the value `seat8_split_lowering` took for the same document off the
 /// same feed in that PR.
 ///
-/// RE-BLESSED, every row, for a placement that mints the source it reads
-/// its body through (VARIABLES VR4, PR 6856): one more variable per
+/// RE-BLESSED, every row of
+/// [`the_sweep_documents_evaluate_to_their_committed_digests`], for a
+/// placement that mints the source it reads its body through
+/// (VARIABLES VR4, PR 6856): one more variable per
 /// placement, so every id minted after it moved, and with it the names
 /// this digest feeds. With mint ids read by rank of first appearance
 /// each document's feed is the one before that merge, byte for byte.

@@ -440,7 +440,8 @@ fn digest(f64_block: &str, receipts: &[Receipt]) -> String {
 /// plane's foot in place of its slide 398 and 1104. The cost is
 /// `work/pcert/the-incidence-read-first-freezes-more-sym-nodes-on-the-fillet-pads.md`.
 ///
-/// **Lines PINNED at what main reads, their moves unexplained**
+/// **Lines PINNED at what main reads, their moves unexplained**, which
+/// [`the_walk_matches_the_serial_golden_at_four_threads`] reads
 /// (`work/green/program.md`: a red is greened, not fixed, there):
 /// `tilted_cut_upper` at every ε row, `arc_loft_1e9eps` at 1e-12, and
 /// the two `Sym` bodies' `validate_geometric` lines at every ε row. No
