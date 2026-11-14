@@ -46,7 +46,7 @@ fn shaft_wall_records(body: &Body<f64>) -> Vec<topo::SurfaceKey> {
 }
 
 #[test]
-fn a_groove_at_a_shafts_root_leaves_the_shafts_wall_on_one_record() {
+fn a_groove_at_a_shafts_root_continues_its_wall() {
     let tol = Tol::witness();
     // A shaft of radius 1 over y ∈ [0, 1] under a flange of radius 2
     // over [1, 2].

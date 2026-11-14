@@ -148,20 +148,30 @@ use crate::live::{FaceView, OPERATORS_KEEP_LINKS, Proven, dangling_link, link};
 use crate::null::CurveGeom;
 
 /// **Which of the two exclusive encodings carries a face's reversal**
-/// (module docs), by its surface's kind.
-#[derive(Clone, Copy, PartialEq, Eq)]
-enum Reversal {
-    /// The surface carries it: its chart is reversed, the face's sense
-    /// stays.
-    Chart,
+/// (module docs), by its surface's kind: the one statement of that
+/// split, which the map and [`reverted_sense`] both read.
+enum Reversal<T: Real> {
+    /// The surface carries it and the face's sense stays: the chart is
+    /// this one, the surface's own reflected in `v` (a plane with its
+    /// normal negated), and every image and row stated in it is
+    /// mirrored in `v` with it.
+    Chart(Surface<T>),
     /// The face carries it on its `sense`: the chart stays.
     Sense,
 }
 
-impl Reversal {
-    fn of<T: Real>(surface: &Surface<T>) -> Self {
+impl<T: Real> Reversal<T> {
+    fn of(surface: &Surface<T>) -> Self {
         match surface {
-            Surface::Plane { .. } => Self::Chart,
+            Surface::Plane {
+                origin,
+                normal,
+                u_ref,
+            } => Self::Chart(Surface::Plane {
+                origin: *origin,
+                normal: -*normal,
+                u_ref: *u_ref,
+            }),
             Surface::Cylinder { .. }
             | Surface::Cone { .. }
             | Surface::Sphere { .. }
@@ -172,27 +182,19 @@ impl Reversal {
         }
     }
 
-    /// Reverses the chart of a surface that carries its own reversal:
-    /// a plane's normal negated.
-    fn reverse_chart<T: Real>(surface: &mut Surface<T>) {
-        let Surface::Plane { normal, .. } = surface else {
-            unreachable!(
-                "revert: a surface that carries its own reversal has no reversed chart \
-                 written; only a plane's is"
-            )
-        };
-        *normal = -*normal;
+    /// Whether the surface's chart is the one reversed.
+    fn turns_chart(&self) -> bool {
+        matches!(self, Self::Chart(_))
     }
 }
 
 /// **The sense a face of sense `sense` on `surface` has once its body
 /// is reverted** ([`Body::revert`]), on the record the reverted body
 /// holds for it: unchanged where the surface carries the reversal,
-/// flipped where the face does. The one statement of that split outside
-/// the map itself.
+/// flipped where the face does.
 pub(crate) fn reverted_sense<T: Real>(surface: &Surface<T>, sense: bool) -> bool {
     match Reversal::of(surface) {
-        Reversal::Chart => sense,
+        Reversal::Chart(_) => sense,
         Reversal::Sense => !sense,
     }
 }
@@ -241,10 +243,9 @@ impl<T: Real> Body<T> {
         // is on no face, so it is on no such chart and travels as found
         // — the dead-key exception `crate::pcurves`'s posture docs state
         // for this door.
-        let turns_chart = |surface: &Surface<T>| Reversal::of(surface) == Reversal::Chart;
         let turned_faces: BTreeSet<FaceKey> = self
             .face_views()
-            .filter(|face| turns_chart(face.surface()))
+            .filter(|face| Reversal::of(face.surface()).turns_chart())
             .map(FaceView::key)
             .collect();
         let turned_images: BTreeSet<CurveKey> = self
@@ -255,13 +256,14 @@ impl<T: Real> Body<T> {
                     return false;
                 };
                 curve.description().chart().is_some_and(|chart| {
-                    turns_chart(self.get_surface(chart.surface).unwrap_or_else(|| {
+                    Reversal::of(self.get_surface(chart.surface).unwrap_or_else(|| {
                         dangling_link(
                             GeomRef::Curve(key),
                             "chart image's surface",
                             GeomRef::Surface(chart.surface),
                         )
                     }))
+                    .turns_chart()
                 })
             })
             .map(|(key, _)| key)
@@ -357,28 +359,28 @@ impl<T: Real> Body<T> {
         }
         for (_, surface) in out.surfaces.iter_mut() {
             match Reversal::of(surface) {
-                Reversal::Chart => Reversal::reverse_chart(surface),
+                Reversal::Chart(reversed) => *surface = reversed,
                 Reversal::Sense => {}
             }
         }
         // The reversed charts' images and rows go with their frames
-        // (module docs): every datum stated in a plane's chart
-        // coordinates, re-stated under the reflection the negation
+        // (module docs): every datum stated in such a chart's
+        // coordinates, re-stated under the `v` reflection its reversal
         // above is. Chart images are walked by CURVE, so a carrier
         // shared by several edges is mirrored once.
         for (key, geom) in out.curves.iter_mut() {
             let CurveGeom::Certified(curve) = geom else {
                 continue;
             };
-            let on_plane = turned_images.contains(&key);
+            let on_turned_chart = turned_images.contains(&key);
             // `None` is the one image with no reflected locus — a
             // spiric WALL image, which lives on a torus chart by
-            // construction and therefore cannot be on a plane face.
+            // construction and therefore cannot be on a reversed chart.
             // Reached only by a row already on the wrong face, which
             // this door may not repair: it travels as found, the
             // dead-key exception's posture one case over, and the
             // at-rest pcurve validator is what reports it.
-            if on_plane && let Some(mirrored) = curve.with_chart_v_mirrored() {
+            if on_turned_chart && let Some(mirrored) = curve.with_chart_v_mirrored() {
                 *curve = mirrored;
             }
         }
@@ -544,6 +546,11 @@ mod tests {
             u_ref: geom_core::Vec3::unit_x(),
         };
         let cube = declined_cube::<f64>(Tol::witness()).body;
+        assert!(
+            cube.face_views()
+                .all(|face| matches!(face.surface(), geom::Surface::Nurbs(_))),
+            "the NURBS rows' fixture: every face of the cube is on a NURBS net"
+        );
         let rows = [
             ("a plane", lone_face(plane.clone(), true), false),
             ("a plane", lone_face(plane, false), false),
