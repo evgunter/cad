@@ -679,7 +679,7 @@ impl BandCounts {
 /// under it lands below δ. The share chooses between a coarser lattice
 /// and fewer raised rows; it is the lane's sizing split, typed rather
 /// than measured
-/// (`work/tess/the-nurbs-lattice-share-is-not-chosen-by-measurement.md`). The only slack is the ceil (`s_u < 1`). The
+/// (`work/tesslane/the-nurbs-lattice-share-is-not-chosen-by-measurement.md`). The only slack is the ceil (`s_u < 1`). The
 /// centroid retries of `trimmed::MAX_GRID_RETRIES` are a backstop,
 /// not part of the bound.
 ///
@@ -1034,7 +1034,7 @@ impl NurbsCellGrid {
     /// metric returned here, where each band's lattice is near square,
     /// so bands are not aligned to a shared column count. Aligning them
     /// keeps no measured face sound
-    /// (`work/tess/the-lower-malign-arm-is-unwitnessed` carries the
+    /// (`work/tesslane/the-lower-malign-arm-is-unwitnessed` carries the
     /// measurement); on uneven-station lofts it saves triangles
     /// (`work/budget/uneven-station-lofts-cost-triangles-without-the-column-snap`).
     ///

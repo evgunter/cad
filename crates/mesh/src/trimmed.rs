@@ -139,7 +139,7 @@
 //! centroid is one more off-lattice point and re-admits the empty
 //! circumcircle beside itself (measured on the #316 leaf, and on a
 //! lofted circle's wall, where the ladder walked the sliver inward a
-//! step per round: `work/tess/lofted-rational-walls-refuse-at-some-deltas`).
+//! step per round: `work/tesslane/lofted-rational-walls-refuse-at-some-deltas`).
 //! The cure is the lattice metric and the row raise (above), which
 //! make the lattice near square where the CDT runs
 //! ([`crate::nurbs_cert::NurbsCellGrid::band_schedule`]); an attempt
@@ -210,7 +210,7 @@ fn last_attempt() -> usize {
 /// trim chord can span more than one column — nothing yet bounds by
 /// how much. The certificate refuses typed where it is exceeded; this
 /// factor is what keeps that refusal rare, and it is a debt
-/// (`work/tess/the-trimmed-cylinder-lane-has-no-worst-triangle-theorem.md`):
+/// (`work/tesslane/the-trimmed-cylinder-lane-has-no-worst-triangle-theorem.md`):
 /// the fix is the theorem, not a retuned factor.
 ///
 /// The sphere arm reads it the same way and for the same reason, at its
@@ -218,7 +218,7 @@ fn last_attempt() -> usize {
 /// cells are the curved lane's sphere cells, whose theorem
 /// (`sizing::sphere_grid_steps`) does not cover a CDT triangle beside a
 /// trim chord the lattice did not place
-/// (`work/tesssize/the-trimmed-sphere-arm-has-no-worst-triangle-theorem.md`).
+/// (`work/tesslane/the-trimmed-sphere-arm-has-no-worst-triangle-theorem.md`).
 pub(crate) const UNPROVED_HEADROOM: f64 = 0.5;
 
 /// **The sphere arm's per-edge chord budget**, `2^16`. **Work**: it
@@ -1792,7 +1792,7 @@ fn trim_frontier(
                        circle-bounded faces; the remaining analytic \
                        charts have no trimmed lane (the spiric-bounded torus wall and \
                        plane cap of a hollowed partial revolve land here: \
-                       `work/tess/trimmed-tessellation-lacks-torus-and-plane-arms.md`)",
+                       `work/tesslane/trimmed-tessellation-lacks-torus-and-plane-arms.md`)",
             });
         }
     }
@@ -1884,7 +1884,7 @@ fn trim_polygon(
             // a harmonic one. Unreachable at this head for a different
             // reason: `tessellate_trimmed`'s chart roster has no torus
             // or plane arm, so a spiric-bounded face refuses before
-            // this walk (`work/tess/trimmed-tessellation-lacks-torus-and-plane-arms.md`).
+            // this walk (`work/tesslane/trimmed-tessellation-lacks-torus-and-plane-arms.md`).
             Pcurve::Spiric { .. } => {}
             // A focal section's image is likewise a closed form of the
             // carrier's own parameter, read exactly at the chord pass's
@@ -2110,7 +2110,7 @@ fn chain_creases(
 }
 
 /// **A NURBS face's C⁰ creases, as lines the triangulation is cut
-/// along** (`work/tess/lofted-circle-sections-are-unmeshable-and-say-so-three-steps-late`).
+/// along** (`work/tesslane/lofted-circle-sections-are-unmeshable-and-say-so-three-steps-late`).
 ///
 /// At an interior knot of multiplicity at least the degree the
 /// surface's first derivative jumps, and no second-derivative bound

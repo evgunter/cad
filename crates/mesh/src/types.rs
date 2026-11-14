@@ -153,7 +153,7 @@ pub enum TessellateError {
     /// trimmed lanes do not mesh; refused rather than guessed at. A
     /// boolean that pierces a torus wall with a plane leaves one, a
     /// spiric ring, on a valid body
-    /// (`work/tess/valid-ringed-torus-faces-build-but-cannot-be-meshed`).
+    /// (`work/tesslane/valid-ringed-torus-faces-build-but-cannot-be-meshed`).
     RingOnCurvedFace {
         /// The offending face.
         face: FaceKey,
