@@ -34,11 +34,26 @@ Nothing has been dispatched.
 | P4 | `split-insert-crossings-second-edge-clears-arm-is-unpinned` | E | insert_crossings re-checks edge_clears behind the gate's check, unpinned |
 | P4 | `the-sweep-preamble-and-the-cone-extreme-read-are-copied` | E | sweep_split is a third copy of the sweep preamble; conic_clearance re-spells the extreme read |
 
+## The census chain (moved in 2026-11-14)
+
+Four P0s, each waiting on the one before it. Three of them sat in
+three programs, each P0 parked on another program's row. They moved
+here by `git mv`, ids and bodies unchanged: the head from RESTREAD and
+the two tail rows from FLUSH. One sitting can now run the chain end
+to end.
+
+| order | item | cost | status |
+|---|---|---|---|
+| 1 | `census-cross-solid-curved-pairs-undecidable-on-shell-results` | X (16) | open: the touching half. Its 2026-11-03 sections say the D10 hold has lifted and what the half needs; cut it into its own row at dispatch |
+| 2 | `boolean-door-runs-the-census-over-its-result` | H | parked on 1 |
+| 3 | `a-near-tangent-vertex-lands-within-the-band-of-a-face-and-ships-unrecorded` | M | parked on 2 |
+| 4 | `a-result-that-is-only-a-sliver-shell-passes-the-door` | M | parked on 2: under pairs only (PR 4690), its residue is the door census; 11 needles at ε 1e-9 and 34 `rc_wide` lines at 1e-6 ship (PR 4783) |
+
+The chain weighs 30 points once all four are dispatchable (16 + 8 +
+3 + 3), within the default budget.
+
 Parked, each on its named trigger:
 
-- `boolean-door-runs-the-census-over-its-result` (P0 H): parked on
-  RESTREAD's `census-cross-solid-curved-pairs-undecidable-on-shell-results`.
-  FLUSH's two P0s are parked on this row.
 - `the-plate-document-never-cuts-its-holes` (P3): parked on TALLY's
   `a-hole-wholly-inside-its-target-ties-the-subtract-volume-bound`.
 
