@@ -1530,7 +1530,7 @@ mod tests {
         // Pinned red, NOT sanctioned: hand folds main carries while the
         // row that owns their repair is open, so the repair landing reds
         // here too and strikes them
-        // (`work/tess/main-red-trimmed-rs-folds-the-face-sense-by-hand.md`).
+        // (`work/tesslane/main-red-trimmed-rs-folds-the-face-sense-by-hand.md`).
         // The wrap strip's period waits on its row's choice between the
         // sense door and `sanctioned`
         // (`work/tesswalk/main-red-the-wrap-strip-folds-its-period-by-the-sense-bit.md`).

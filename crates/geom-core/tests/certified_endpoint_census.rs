@@ -715,7 +715,7 @@ const ROSTER: &[(&str, usize, usize, &str)] = &[
          `clearance`'s `window_of` admits only where every lifted value certifies; \
          `present_wall`'s wall-image reads, `speeds`' jet bound and the two corner \
          presentations' speed bounds also read an enclosure computed from them that may clamp, \
-         which is `work/clear/injective-reads-past-the-trv-census-decide-on-clamped-enclosures`",
+         which is `work/embed/injective-reads-past-the-trv-census-decide-on-clamped-enclosures`",
     ),
     (
         "crates/topo/src/props.rs",

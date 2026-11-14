@@ -12,7 +12,7 @@ cost: E
 ## What
 
 The malign-band column snap is retired
-(`work/tess/the-lower-malign-arm-is-unwitnessed`): over the lattice metric no
+(`work/tesslane/the-lower-malign-arm-is-unwitnessed`): over the lattice metric no
 corpus body needs it, and on faces built to fire it, outcomes are the same
 with and without it. Its one effect there was cost. Degree-2 round lofts
 through stations at z = 0, e, 2e, 0.5, 1 (radii 1, 0.98, 0.96, 0.8, 0.5),

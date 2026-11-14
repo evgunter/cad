@@ -66,7 +66,7 @@ Filed by RING-2 (SCALAR), which minted all three spellings.
 ## A measurement for the `nurbs_cert.rs` site (TESS orchestrator, 2026-09-21)
 
 The sampler's error at that site HAS been measured, in exact rational
-arithmetic (`work/tess/rational-cells-hull-the-f64-refined-net-so-the-
+arithmetic (`work/tesslane/rational-cells-hull-the-f64-refined-net-so-the-
 described-patch-escapes.md`): ≤ 6e-17 absolute per channel on a
 second-partial norm of 2.66 — about 0.1 ulp relative — on the sweep's
 own failing surface. The 64-ulp house figure is ~50× that, and what it
