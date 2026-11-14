@@ -47,8 +47,9 @@ use geom_core::{Band, Decide, Indeterminate, Margin, Point3, Sign};
 use super::contain::{ContainDecision, ContainError, CurvedPlacement, FaceContainment};
 use crate::body::Body;
 use crate::entity::FaceKey;
+use crate::pcurves::PIECE_VISITS;
 use crate::pcurves::Side;
-use crate::spline_trim::{Caps, Patch, Rect, Trim, bezier_cells};
+use crate::spline_trim::{Patch, Rect, Trim, bezier_cells};
 use crate::splitting::Escalation;
 use crate::validate::decide;
 // What this arm's rows read of the trim beside what the arm itself does.
@@ -62,6 +63,27 @@ pub(crate) const SPLINE_REGION_CARRIER: &str = "bool_spline_region_carrier";
 /// How many times a kept cell is quartered at most, a backstop behind
 /// the band's own floor ([`Patch::extent`]).
 const CELL_DEPTH: usize = 48;
+
+/// The kept cells one reading may visit ([`Caps`]).
+const CELL_VISITS: usize = 1 << 13;
+
+/// The work one reading may do before it stands unsettled: bounds on
+/// the work, not on the geometry.
+#[derive(Clone, Copy, Debug)]
+struct Caps {
+    /// The kept cells the carrier walk may visit.
+    cells: usize,
+    /// The pieces one query's trim reading may visit.
+    pieces: usize,
+}
+
+impl Caps {
+    /// The caps every caller reads at.
+    const READ: Self = Self {
+        cells: CELL_VISITS,
+        pieces: PIECE_VISITS,
+    };
+}
 
 /// **The spline arm of [`super::contain::curved_face_placement`]** (module
 /// docs): the point `q`, already off every boundary edge, against `face`,
@@ -135,7 +157,7 @@ pub(super) fn spline_chart_placement<T: Decide>(
     let Some(cells) = bezier_cells(chart) else {
         return Ok(None);
     };
-    let Some(trim) = Trim::of(body, face, chart, &cells, Caps::READ, band) else {
+    let Some(trim) = Trim::of(body, face, chart, &cells, PIECE_VISITS, band) else {
         return Ok(None);
     };
     match trim.place(&cells, Rect::point(u, v), band) {
@@ -184,7 +206,7 @@ fn keep(pending: &mut Option<Indeterminate>, diag: Option<Indeterminate>) {
 }
 
 /// [`read`] under `caps`.
-pub(crate) fn read_capped<T: Decide>(
+fn read_capped<T: Decide>(
     body: &Body<T>,
     face: FaceKey,
     chart: &NurbsSurface<T>,
@@ -199,7 +221,7 @@ pub(crate) fn read_capped<T: Decide>(
     let Some(cells) = bezier_cells(chart) else {
         return Reading::Unsettled(None);
     };
-    let Some(trim) = Trim::of(body, face, chart, &cells, caps, band) else {
+    let Some(trim) = Trim::of(body, face, chart, &cells, caps.pieces, band) else {
         return Reading::Unsettled(None);
     };
     carrier_walk(chart, &cells, q, band, caps, |rect| {

@@ -1,7 +1,12 @@
 //! **A face's trim in its spline chart, and a point placed against it**:
-//! the reading the boolean's spline arm
-//! (`boolean::spline_region`) places its feet and cells by, built over
-//! the chart's Bézier cells, which meter it.
+//! every loop's chain of rational Bézier pieces, each ring moved into its
+//! outer loop's cover by the ring rule, a query read against it by ray
+//! parity ([`crate::chain_parity`]), and the chart's Bézier cells that
+//! meter the reading. Two doors read it: the boolean's spline arm
+//! (`boolean::spline_region`), which places its feet and cells by
+//! [`Trim::place`] and walks the cells for the carrier, and the ring
+//! door ([`crate::Body::face_lift`]), which reads a spline face's ring
+//! decks through [`ring_decks`].
 //!
 //! # The trim, in the chart
 //!
@@ -66,14 +71,12 @@ use std::num::NonZeroUsize;
 use std::sync::Arc;
 
 use crate::body::Body;
+use crate::chain_parity::{ChainPiece, PieceBox, RayQuery, gap, ray_parity_as};
 use crate::entity::{EntityId, FaceKey, HalfEdgeKey, LoopKey};
 use crate::joint::Deck;
 use crate::joint::Winding;
 use crate::live::proven;
-use crate::pcurves::{
-    ChainPiece, Lift, PieceBox, RayQuery, RingMiss, RingPlacementError, Shift, Side, gap,
-    ray_parity_as,
-};
+use crate::pcurves::{Lift, RingMiss, RingPlacementError, Shift, Side, SplineTrimGap};
 use crate::validate::decide;
 
 /// A chart window's inf-side lever arm, gated as a length.
@@ -81,30 +84,10 @@ pub(crate) const SPLINE_TRIM_ARM: &str = "spline_trim_arm";
 /// A query's clearance from the face's trim along the chart.
 pub(crate) const SPLINE_TRIM_CLEAR: &str = "spline_trim_clear";
 
-/// The kept cells one reading may visit ([`Caps`]).
-const CELL_VISITS: usize = 1 << 13;
 // The trim's work bounds are the ring rule's, at the crate root
 // (`crate::pcurves`): one home for both readers of a point against a
 // loop, and the one count for a ring's shifts and a query's copies.
 use crate::pcurves::{HALVINGS, PIECE_VISITS, SHIFTS as COPIES, WINDOW_SHARE};
-
-/// The work one reading may do before it stands unsettled: bounds on
-/// the work, not on the geometry.
-#[derive(Clone, Copy, Debug)]
-pub(crate) struct Caps {
-    /// The kept cells the carrier walk may visit.
-    pub(crate) cells: usize,
-    /// The pieces one query's trim reading may visit.
-    pub(crate) pieces: usize,
-}
-
-impl Caps {
-    /// The caps every caller reads at.
-    pub(crate) const READ: Self = Self {
-        cells: CELL_VISITS,
-        pieces: PIECE_VISITS,
-    };
-}
 
 /// A rectangle of a chart's parameters, `u` then `v`.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -199,7 +182,7 @@ impl<T: Decide> Patch<T> {
             axis(lo.z, hi.z, moved.z),
         );
         let gap = (gx.powi(2) + gy.powi(2) + gz.powi(2)).sqrt();
-        if !tracks::<T>() || mutant("spline-region-charge-dropped") {
+        if !tracks::<T>() || mutant("spline-trim-charge-dropped") {
             return gap;
         }
         // The worst per channel, folded so a NaN bound stays NaN.
@@ -216,7 +199,7 @@ impl<T: Decide> Patch<T> {
         if !cut.is_finite() {
             return poison;
         }
-        let cut = if mutant("spline-region-cut-dropped") {
+        let cut = if mutant("spline-trim-cut-dropped") {
             0.0
         } else {
             cut
@@ -228,7 +211,7 @@ impl<T: Decide> Patch<T> {
         // coordinates the cut's charge already bounds by `u·|P_c|` at
         // least; nor the cut's alone, which this covers wherever `q`
         // meets a box face.
-        let read = if mutant("spline-region-read-dropped") {
+        let read = if mutant("spline-trim-read-dropped") {
             T::zero()
         } else {
             rounding_charge(
@@ -388,7 +371,7 @@ fn blend<T: Decide, const N: usize>(
         return (h, [0.0; N]);
     }
     let tf = middle(t);
-    let (dt, roundings) = if ratio && !mutant("spline-region-ratio-uncharged") {
+    let (dt, roundings) = if ratio && !mutant("spline-trim-ratio-uncharged") {
         (3.0 * UNIT_ROUNDOFF * tf.abs(), 2.0)
     } else {
         (0.0, 1.0)
@@ -415,7 +398,7 @@ pub(crate) fn point_rounding<T: Decide, const N: usize>((h, e): &Control<T, N>) 
     if lead.partial_cmp(&0.0) != Some(core::cmp::Ordering::Greater) {
         return [f64::INFINITY; N];
     }
-    let scale = if mutant("spline-region-bound-halved") {
+    let scale = if mutant("spline-trim-bound-halved") {
         0.5
     } else {
         1.0
@@ -579,7 +562,7 @@ pub(crate) fn bezier_cells<T: Decide>(chart: &NurbsSurface<T>) -> Option<Vec<Pat
 }
 
 /// Whether the mutant `site` is named at compile time
-/// (`SPLICE_SPLINE_REGION_MUTANT`, `option_env!` because
+/// (`SPLINE_TRIM_MUTANT`, `option_env!` because
 /// `scripts/gates/no-ambient-env.sh` forbids a runtime read): the
 /// charges read wrong one at a time, each refused by a row in
 /// `spline_region_rows`.
@@ -587,7 +570,7 @@ fn mutant(site: &str) -> bool {
     #[cfg(test)]
     {
         debug_assert!(MUTANTS.contains(&site), "an unlisted mutant site: {site}");
-        option_env!("SPLICE_SPLINE_REGION_MUTANT") == Some(site)
+        option_env!("SPLINE_TRIM_MUTANT") == Some(site)
     }
     #[cfg(not(test))]
     {
@@ -599,16 +582,16 @@ fn mutant(site: &str) -> bool {
 /// Every site [`mutant`] answers for.
 #[cfg(test)]
 const MUTANTS: [&str; 10] = [
-    "spline-region-charge-dropped",
-    "spline-region-cut-dropped",
-    "spline-region-read-dropped",
-    "spline-region-ratio-uncharged",
-    "spline-region-bound-halved",
-    "spline-region-trim-uncharged",
-    "spline-region-u-unwidened",
-    "spline-region-halfwidth-dropped",
-    "spline-region-shift-untracked",
-    "spline-region-iso-end-uncharged",
+    "spline-trim-charge-dropped",
+    "spline-trim-cut-dropped",
+    "spline-trim-read-dropped",
+    "spline-trim-ratio-uncharged",
+    "spline-trim-bound-halved",
+    "spline-trim-trim-uncharged",
+    "spline-trim-u-unwidened",
+    "spline-trim-halfwidth-dropped",
+    "spline-trim-shift-untracked",
+    "spline-trim-iso-end-uncharged",
 ];
 
 /// The interior knots of `knots` to insert so each reaches multiplicity
@@ -683,10 +666,10 @@ impl Piece {
             }
             worst = [worst[0].max(e[0]), worst[1].max(e[1])];
         }
-        if mutant("spline-region-trim-uncharged") {
+        if mutant("spline-trim-trim-uncharged") {
             return Some(r);
         }
-        if mutant("spline-region-u-unwidened") {
+        if mutant("spline-trim-u-unwidened") {
             worst[0] = 0.0;
         }
         Some(Rect {
@@ -720,7 +703,7 @@ impl Piece {
     pub(crate) fn shifted(&self, du: f64, dv: f64) -> Self {
         let step = |x: f64, ex: f64, d: f64, w: f64, ew: f64| {
             let r = x + d * w;
-            if mutant("spline-region-shift-untracked") {
+            if mutant("spline-trim-shift-untracked") {
                 return (r, ex);
             }
             (
@@ -752,7 +735,7 @@ pub(crate) struct Trim {
     domain: Rect,
     /// The chart's period in each channel it is decided closed in.
     periods: [Option<f64>; 2],
-    /// The piece visits one query's reading may make ([`Caps`]).
+    /// The piece visits one query's reading may make.
     piece_visits: usize,
 }
 
@@ -769,9 +752,14 @@ struct TrimChart {
 }
 
 impl TrimChart {
-    /// The chart of `surface`, a spline `chart`; `None` where a channel
-    /// the chart is decided closed in states no period or another one.
-    fn of<T: Decide>(surface: &Surface<T>, chart: &NurbsSurface<T>, band: Band) -> Option<Self> {
+    /// The chart of `surface`, a spline `chart`; [`SplineTrimGap::Periods`]
+    /// where a channel the chart is decided closed in states no period or
+    /// another one.
+    fn of<T: Decide>(
+        surface: &Surface<T>,
+        chart: &NurbsSurface<T>,
+        band: Band,
+    ) -> Result<Self, SplineTrimGap> {
         // The lift moves a row by the periods the chart STATES
         // ([`crate::pcurves::Lift::read`]), and a copy of a query is read a
         // period apart only on a channel the chart is DECIDED closed in.
@@ -788,11 +776,11 @@ impl TrimChart {
             .enumerate()
         {
             if let Some(o) = o {
-                let s = s?.length().value_channel();
+                let s = s.ok_or(SplineTrimGap::Periods)?.length().value_channel();
                 #[allow(clippy::float_cmp)] // one knot domain's length, read twice
                 let agree = s == o.length().value_channel();
                 if !agree {
-                    return None;
+                    return Err(SplineTrimGap::Periods);
                 }
                 periods[k] = Some(s);
             }
@@ -808,7 +796,7 @@ impl TrimChart {
             .chain(periods.iter().flatten().copied())
             .map(f64::abs)
             .fold(0.0, f64::max);
-        Some(Self {
+        Ok(Self {
             periods,
             domain,
             scale,
@@ -817,19 +805,28 @@ impl TrimChart {
 
     /// **A loop's chain in this chart**: each row of `lift` as its image's
     /// pieces over its edge's span, in its walk's direction, and the gap
-    /// at each joint closed by a segment. `None` where the lift is empty
-    /// or winds, a row is moved by a period the chart is not decided
-    /// closed in or onto the twin sheet, or an image has no piece reading.
-    fn chain<T: Decide>(&self, body: &Body<T>, lift: &Lift<T>) -> Option<Vec<Piece>> {
+    /// at each joint closed by a segment.
+    ///
+    /// # Errors
+    ///
+    /// [`SplineTrimGap`]: the lift is empty, lacks a joint element or
+    /// winds; a row is moved by a period on a channel the chart is not
+    /// decided closed in, or onto the twin sheet; or an image has no
+    /// piece reading.
+    fn chain<T: Decide>(
+        &self,
+        body: &Body<T>,
+        lift: &Lift<T>,
+    ) -> Result<Vec<Piece>, SplineTrimGap> {
         if lift.is_empty() {
-            return None;
+            return Err(SplineTrimGap::Winds);
         }
         // A skipped placeholder's joints are the identity
         // (`Lift::read_past_placeholders`), so the members' elements
         // wind as the whole loop's.
         let elements: Option<Vec<_>> = lift.iter().map(|r| body.joint(r.half_edge)).collect();
-        if !Winding::of(elements?).is_zero() {
-            return None;
+        if !Winding::of(elements.ok_or(SplineTrimGap::Winds)?).is_zero() {
+            return Err(SplineTrimGap::Winds);
         }
         let mut chain: Vec<Piece> = Vec::new();
         for row in lift {
@@ -837,19 +834,23 @@ impl TrimChart {
                 || (row.lift.v != 0 && self.periods[1].is_none())
                 || row.lift.twin
             {
-                return None;
+                return Err(SplineTrimGap::Moved);
             }
             let (t0, t1) = row.params;
-            let mut run = image_pieces(&row.pcurve, t0, t1, self.scale)?;
+            let mut run =
+                image_pieces(&row.pcurve, t0, t1, self.scale).ok_or(SplineTrimGap::NoPieces)?;
             if !walks_forward(body, row.half_edge) {
                 run = run.into_iter().rev().map(Piece::reversed).collect();
             }
-            close_gap(&mut chain, run.first()?.first());
+            close_gap(
+                &mut chain,
+                run.first().ok_or(SplineTrimGap::NoPieces)?.first(),
+            );
             chain.extend(run);
         }
-        let start = chain.first()?.first();
+        let start = chain.first().ok_or(SplineTrimGap::NoPieces)?.first();
         close_gap(&mut chain, start);
-        Some(chain)
+        Ok(chain)
     }
 }
 
@@ -859,10 +860,16 @@ impl TrimChart {
 /// the ring rule against the outer loop's trim alone
 /// ([`Trim::ring_shift`]), the one the trim places its own rings by.
 ///
+/// The door's lifts are [`Lift::read`]'s, the trim's own
+/// [`Lift::read_past_placeholders`]'s. At rest the two are one lift, so
+/// a ring's deck here is the one [`Trim::with_rings`] moves it by. A loop
+/// through a placeholder has no `Lift::read`, so on such a face the door
+/// answers [`RingPlacementError::Gap`] before this arm is reached.
+///
 /// # Errors
 ///
-/// [`RingPlacementError::SplineTrimUnread`] where the outer loop's trim
-/// or a ring's chain is not read; the rule's miss for the first ring it
+/// [`RingPlacementError::SplineTrimUnread`] where the chart, the outer
+/// loop's trim or a ring's chain is not read, with its cause; the rule's miss for the first ring it
 /// places nowhere, or more than once.
 pub(crate) fn ring_decks<T: Decide>(
     body: &Body<T>,
@@ -875,23 +882,24 @@ pub(crate) fn ring_decks<T: Decide>(
     let Some(chart) = surface.spline_chart() else {
         unreachable!("the spline arm is reached on a spline chart")
     };
-    let unread = RingPlacementError::SplineTrimUnread;
+    let unread =
+        |ring: Option<LoopKey>| move |cause| RingPlacementError::SplineTrimUnread { ring, cause };
     if surface.is_placeholder_chart() {
-        return Err(unread);
+        return Err(unread(None)(SplineTrimGap::Placeholder));
     }
-    let cells = bezier_cells(chart).ok_or(unread)?;
-    let sheet = TrimChart::of(surface, chart, band).ok_or(unread)?;
+    let cells = bezier_cells(chart).ok_or_else(|| unread(None)(SplineTrimGap::NoCells))?;
+    let sheet = TrimChart::of(surface, chart, band).map_err(unread(None))?;
     let trim = Trim::from_pieces(
-        sheet.chain(body, outer).ok_or(unread)?,
+        sheet.chain(body, outer).map_err(unread(None))?,
         sheet.domain,
         sheet.periods,
-        Caps::READ,
+        PIECE_VISITS,
     )
-    .ok_or(unread)?;
+    .ok_or_else(|| unread(None)(SplineTrimGap::NoBox))?;
     rings
         .iter()
         .map(|&(ring, lift)| {
-            let chain = sheet.chain(body, lift).ok_or(unread)?;
+            let chain = sheet.chain(body, lift).map_err(unread(Some(ring)))?;
             let Some(first) = chain.first() else {
                 unreachable!("a chain read is not empty")
             };
@@ -913,18 +921,18 @@ impl Trim {
         face: FaceKey,
         chart: &NurbsSurface<T>,
         cells: &[Patch<T>],
-        caps: Caps,
+        piece_visits: usize,
         band: Band,
     ) -> Option<Self> {
         let view = body.proven_face(face);
-        let sheet = TrimChart::of(view.surface(), chart, band)?;
+        let sheet = TrimChart::of(view.surface(), chart, band).ok()?;
         let mut chains = Vec::new();
         for (lk, _, _) in view.loops() {
             let lift = Lift::read_past_placeholders(body, lk).ok()?;
-            chains.push(sheet.chain(body, &lift)?);
+            chains.push(sheet.chain(body, &lift).ok()?);
         }
         let mut chains = chains.into_iter();
-        let outer = Self::from_pieces(chains.next()?, sheet.domain, sheet.periods, caps)?;
+        let outer = Self::from_pieces(chains.next()?, sheet.domain, sheet.periods, piece_visits)?;
         let rings: Vec<Vec<Piece>> = chains.collect();
         outer.with_rings(cells, rings, band)
     }
@@ -934,7 +942,7 @@ impl Trim {
         pieces: Vec<Piece>,
         domain: Rect,
         periods: [Option<f64>; 2],
-        caps: Caps,
+        piece_visits: usize,
     ) -> Option<Self> {
         let mut reach = pieces.first()?.bbox()?;
         for p in &pieces {
@@ -949,7 +957,7 @@ impl Trim {
             reach,
             domain,
             periods,
-            piece_visits: caps.pieces,
+            piece_visits,
         })
     }
 
@@ -969,15 +977,7 @@ impl Trim {
             let [du, dv] = shift.offset;
             pieces.extend(ring.iter().map(|p| p.shifted(du, dv)));
         }
-        Self::from_pieces(
-            pieces,
-            self.domain,
-            self.periods,
-            Caps {
-                cells: 0,
-                pieces: self.piece_visits,
-            },
-        )
+        Self::from_pieces(pieces, self.domain, self.periods, self.piece_visits)
     }
 
     /// **The ring rule over this trim** ([`crate::pcurves::place_ring`]):
@@ -1158,15 +1158,10 @@ impl Trim {
     /// along `+u` ([`ray_parity_as`]), every piece decided clear of it
     /// first.
     fn copy<T: Decide>(&self, q: Rect, arms: (InfSpeed<T>, InfSpeed<T>), band: Band) -> Side {
-        let (cu, cv) = q.centre();
         ray_parity_as(
             SPLINE_TRIM_CLEAR,
             &self.pieces,
             q,
-            RayQuery {
-                centre: [cu, cv],
-                rect: [q.u, q.v],
-            },
             arms,
             self.piece_visits,
             band,
@@ -1176,6 +1171,16 @@ impl Trim {
 
 impl<T: Decide> ChainPiece<T> for Piece {
     type Query = Rect;
+
+    /// A foot's point, or a cell's parameter box, its ray leaving from
+    /// the box's centre.
+    fn ray(q: Rect) -> RayQuery {
+        let (cu, cv) = q.centre();
+        RayQuery {
+            centre: [cu, cv],
+            rect: [q.u, q.v],
+        }
+    }
 
     fn boxed(&self, q: Rect) -> Option<PieceBox<T>> {
         let b = self.bbox()?;
@@ -1188,6 +1193,11 @@ impl<T: Decide> ChainPiece<T> for Piece {
         })
     }
 
+    /// A shared end is bit-identical: the Bézier pieces of one image
+    /// share the control point of the one refined row between them, the
+    /// halves the one de Casteljau midpoint, a joint's segment copies the
+    /// ends either side ([`close_gap`]), and a ring's shift moves each
+    /// copy by the one arithmetic.
     fn ends(&self) -> ([f64; 2], [f64; 2]) {
         Piece::ends(self)
     }
@@ -1234,7 +1244,7 @@ pub(crate) fn image_pieces<T: Decide>(
         let [(x, ex), (y, ey)] = [p.x, p.y].map(|c| {
             let m = middle(c);
             let mut e = half_width(c);
-            if tracks::<T>() && !mutant("spline-region-iso-end-uncharged") {
+            if tracks::<T>() && !mutant("spline-trim-iso-end-uncharged") {
                 e += rounding_charge(m.abs() + scale);
             }
             (m, e)
@@ -1270,7 +1280,7 @@ pub(crate) fn image_pieces<T: Decide>(
 /// Half the width of a value's bracket: how far its middle can lie from
 /// the value it stands for; NaN for the poison.
 fn half_width<T: Decide>(x: T) -> f64 {
-    if mutant("spline-region-halfwidth-dropped") {
+    if mutant("spline-trim-halfwidth-dropped") {
         return 0.0;
     }
     x.structure_bracket()

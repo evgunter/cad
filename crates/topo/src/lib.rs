@@ -136,6 +136,7 @@ pub(crate) mod boxes;
 pub(crate) mod carve;
 pub mod cell_region;
 pub(crate) mod census;
+pub(crate) mod chain_parity;
 pub mod chart;
 pub(crate) mod chart_groups;
 pub mod chart_iso;

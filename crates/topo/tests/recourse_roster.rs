@@ -183,9 +183,11 @@ const EXCEPTIONS: &[(&str, &Door)] = &[
     ("sector_apex_window", &BOOLEAN),
     ("session_box_reach", &BOOLEAN),
     ("spline_pair_shared_corner", &BOOLEAN),
-    // A point against a spline face's trim (`spline_trim`), which the
-    // boolean's spline arm and the ring door both read; the boolean's is
-    // the first door to raise them.
+    // A point against a spline face's trim (`spline_trim`). Two doors
+    // raise them: the boolean's spline arm (`BooleanError`, through
+    // `ContainError::Escalated`) and the ring door
+    // (`RingPlacementError::Undecided`). The entry holds one door, so it
+    // names the boolean's, the first to raise them.
     ("spline_trim_arm", &BOOLEAN),
     ("spline_trim_clear", &BOOLEAN),
     ("stands_across_meeting", &BOOLEAN),
@@ -792,7 +794,7 @@ const INDIRECT: &[(&str, &str)] = &[
         NOT_A_NAME,
     ),
     ("pcurves.rs: net_closes_as: name", FORWARDS),
-    ("pcurves_rings.rs: ray_parity_as: name", FORWARDS),
+    ("chain_parity.rs: ray_parity_as: name", FORWARDS),
     (
         "pcurves.rs: only_a_net_closed_in_v_decides_a_v_element: super::DescribedChart::of(s).unwrap()",
         NOT_A_NAME,
