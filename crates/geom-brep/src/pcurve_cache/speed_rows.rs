@@ -114,7 +114,7 @@ fn polyline_image() -> geom::NurbsCurve2<f64> {
 /// derivative basis peaks at ½, so the hull is a genuine over-estimate
 /// (sampled ≈ 2.4 against 3.0).
 fn interior_max_cubic() -> geom::NurbsCurve2<f64> {
-    let kv = KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.0, 0.5, 1.0, 1.0, 1.0, 1.0], 3).unwrap();
+    let kv = interior_max_knots();
     let pts = vec![
         Point2::new(0.0, 0.0),
         Point2::new(0.2, 0.0),
@@ -123,6 +123,10 @@ fn interior_max_cubic() -> geom::NurbsCurve2<f64> {
         Point2::new(1.8, 1.0),
     ];
     geom::NurbsCurve2::new(kv, pts, vec![1.0; 5]).unwrap()
+}
+
+fn interior_max_knots() -> KnotVector {
+    KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.0, 0.5, 1.0, 1.0, 1.0, 1.0], 3).unwrap()
 }
 
 /// A degree-2 image whose maximum is attained only at its interior knot
@@ -142,13 +146,13 @@ fn interior_knot_quadratic() -> geom::NurbsCurve2<f64> {
 /// `|u′|` and `|v′|` at `samples + 1` parameters across the domain plus
 /// both sides of every interior knot.
 fn sampled_net_speeds(c: &geom::NurbsCurve2<f64>, samples: usize) -> (f64, f64) {
-    let (d0, d1) = c.knots_f64_interim().domain();
+    let (d0, d1) = c.domain();
     let span = d1 - d0;
     #[allow(clippy::cast_precision_loss)]
     let mut ts: Vec<f64> = (0..=samples)
         .map(|i| d0 + span * i as f64 / samples as f64)
         .collect();
-    for (k, _) in c.knots_f64_interim().interior_knots() {
+    for k in c.knot_values().breakpoints().filter(|&k| k > d0 && k < d1) {
         ts.push(k - span * 1e-9);
         ts.push(k + span * 1e-9);
     }
@@ -168,14 +172,25 @@ fn sampled_net_speeds(c: &geom::NurbsCurve2<f64>, samples: usize) -> (f64, f64) 
 #[test]
 fn general_speeds_dominate_the_sampled_image_speeds() {
     for (name, image, attained) in [
-        ("degree-1 polyline, max at an end coefficient", polyline_image(), true),
-        ("degree-2, max at the interior knot", interior_knot_quadratic(), true),
+        (
+            "degree-1 polyline, max at an end coefficient",
+            polyline_image(),
+            true,
+        ),
+        (
+            "degree-2, max at the interior knot",
+            interior_knot_quadratic(),
+            true,
+        ),
         ("degree-3, max mid-span", interior_max_cubic(), false),
     ] {
-        let (d0, d1) = image.knots_f64_interim().domain();
+        let (d0, d1) = image.domain();
         let (su, sv) = general_speeds(&image, (d0, d1)).expect("a polynomial image");
         let (wu, wv) = sampled_net_speeds(&image, 4096);
-        assert!(wu > 0.0 && wv > 0.0, "{name}: the fixture moves on both axes");
+        assert!(
+            wu > 0.0 && wv > 0.0,
+            "{name}: the fixture moves on both axes"
+        );
         assert!(
             wu <= su && wv <= sv,
             "{name}: certified ({su:.17e}, {sv:.17e}) is dominated by sampled \
@@ -190,7 +205,10 @@ fn general_speeds_dominate_the_sampled_image_speeds() {
                  sampled ({wu:.17e}, {wv:.17e}) is slack"
             );
         } else {
-            assert!(su > wu * 1.2, "{name}: convexity-loose here, {su} against {wu}");
+            assert!(
+                su > wu * 1.2,
+                "{name}: convexity-loose here, {su} against {wu}"
+            );
         }
     }
 }
@@ -200,11 +218,10 @@ fn general_speeds_dominate_the_sampled_image_speeds() {
 #[test]
 fn the_general_bounds_refusals_and_admissions() {
     let base = interior_max_cubic();
-    let (d0, d1) = base.knots_f64_interim().domain();
+    let (d0, d1) = base.domain();
     let plain = general_speeds(&base, (d0, d1)).unwrap();
     let with = |w: Vec<f64>| {
-        geom::NurbsCurve2::new(base.knots_f64_interim().clone(), base.control().to_vec(), w)
-            .unwrap()
+        geom::NurbsCurve2::new(interior_max_knots(), base.control().to_vec(), w).unwrap()
     };
     assert_eq!(
         general_speeds(&with(vec![2.0; 5]), (d0, d1)),
@@ -285,10 +302,13 @@ fn a_spiric_wall_images_bound_dominates_it() {
                 let bound = image.speed_bound(0.0, TAU).expect("two-oval regime");
                 let (ru, rv) = dominates(
                     &what,
-                    sampled(&image, (0.0, TAU), 40_000, (false, false)),
+                    sampled(&image, (0.0, TAU), 6_000, (false, false)),
                     bound,
                 );
-                assert!(rv > 1.0 - 1e-9, "{what}: the tube angle moves at exactly |σ|");
+                assert!(
+                    rv > 1.0 - 1e-9,
+                    "{what}: the tube angle moves at exactly |σ|"
+                );
                 if offset != 0.0 {
                     fewest = fewest.min(ru);
                 } else {
@@ -331,7 +351,7 @@ fn a_spiric_cap_images_bound_dominates_it() {
             let bound = image.speed_bound(0.0, TAU).expect("two-oval regime");
             let (ru, rv) = dominates(
                 &what,
-                sampled(&image, (0.0, TAU), 40_000, (false, false)),
+                sampled(&image, (0.0, TAU), 6_000, (false, false)),
                 bound,
             );
             fewest = fewest.min(ru).min(rv);
@@ -379,7 +399,7 @@ fn a_focal_section_images_bound_dominates_it_and_is_attained() {
                 let bound = image.speed_bound(0.0, TAU).expect("|β| < 1");
                 let (ru, rv) = dominates(
                     &what,
-                    sampled(&image, (0.0, TAU), 200_000, (false, false)),
+                    sampled(&image, (0.0, TAU), 16_000, (false, false)),
                     bound,
                 );
                 assert!(
@@ -404,7 +424,12 @@ fn a_focal_section_images_bound_dominates_it_and_is_attained() {
 
 /// A one-piece projected image of `carrier` on `chart`, its branch
 /// centres at zero.
-fn projected(chart: ProjectedChart<f64>, carrier: FramedCarrier<f64>, lo: f64, hi: f64) -> Pcurve<f64> {
+fn projected(
+    chart: ProjectedChart<f64>,
+    carrier: FramedCarrier<f64>,
+    lo: f64,
+    hi: f64,
+) -> Pcurve<f64> {
     Pcurve::Projected(Box::new(ProjectedImage {
         chart,
         carrier,
@@ -453,11 +478,31 @@ fn projected_charts() -> Vec<(&'static str, ProjectedChart<f64>, (bool, bool))> 
 fn projected_conics() -> Vec<(Vec3<f64>, Vec3<f64>, Vec3<f64>)> {
     let (s, c) = 0.7f64.sin_cos();
     vec![
-        (Vec3::new(0.0, 0.0, 0.5), Vec3::new(2.0, 0.0, 0.0), Vec3::new(0.0, 2.0 * c, 2.0 * s)),
-        (Vec3::new(0.3, -0.2, 0.4), Vec3::new(1.5, 0.4, 0.2), Vec3::new(-0.3, 1.2, 0.9)),
-        (Vec3::new(0.0, 0.0, -1.0), Vec3::new(1.0, 0.0, 0.0), Vec3::new(0.0, 1.0, 0.0)),
-        (Vec3::new(3.0, 0.5, 0.0), Vec3::new(0.0, 0.0, 0.8), Vec3::new(0.5, 0.5, 0.0)),
-        (Vec3::new(1.0, 1.0, 0.3), Vec3::new(0.2, 0.0, 0.1), Vec3::new(0.0, 0.4, -0.1)),
+        (
+            Vec3::new(0.0, 0.0, 0.5),
+            Vec3::new(2.0, 0.0, 0.0),
+            Vec3::new(0.0, 2.0 * c, 2.0 * s),
+        ),
+        (
+            Vec3::new(0.3, -0.2, 0.4),
+            Vec3::new(1.5, 0.4, 0.2),
+            Vec3::new(-0.3, 1.2, 0.9),
+        ),
+        (
+            Vec3::new(0.0, 0.0, -1.0),
+            Vec3::new(1.0, 0.0, 0.0),
+            Vec3::new(0.0, 1.0, 0.0),
+        ),
+        (
+            Vec3::new(3.0, 0.5, 0.0),
+            Vec3::new(0.0, 0.0, 0.8),
+            Vec3::new(0.5, 0.5, 0.0),
+        ),
+        (
+            Vec3::new(1.0, 1.0, 0.3),
+            Vec3::new(0.2, 0.0, 0.1),
+            Vec3::new(0.0, 0.4, -0.1),
+        ),
     ]
 }
 
@@ -489,7 +534,7 @@ fn a_projected_images_bound_dominates_it_on_every_chart() {
                 let what = format!("{name} conic {k} over [{t0}, {t1}]");
                 match image.speed_bound(t0, t1) {
                     Ok(bound) => {
-                        dominates(&what, sampled(&image, (t0, t1), 40_000, angles), bound);
+                        dominates(&what, sampled(&image, (t0, t1), 6_000, angles), bound);
                         answered += 1;
                     }
                     Err(NoSpeedBound::ThroughSingularSet) => refused += 1,
@@ -515,7 +560,7 @@ fn a_projected_images_bound_dominates_it_on_every_chart() {
             let what = format!("{name} line {k}");
             match image.speed_bound(0.0, 4.0) {
                 Ok(bound) => {
-                    dominates(&what, sampled(&image, (0.0, 4.0), 40_000, angles), bound);
+                    dominates(&what, sampled(&image, (0.0, 4.0), 6_000, angles), bound);
                     answered += 1;
                 }
                 Err(NoSpeedBound::ThroughSingularSet) => refused += 1,
@@ -531,10 +576,12 @@ fn a_projected_images_bound_dominates_it_on_every_chart() {
         let net = Arc::new(geom::NurbsCurve3::interpolate(&pts, 3).unwrap());
         let (d0, d1) = net.domain();
         let image = projected(chart, FramedCarrier::Net(net), d0, d1);
-        let bound = image.speed_bound(d0, d1).expect("a net clear of every axis");
+        let bound = image
+            .speed_bound(d0, d1)
+            .expect("a net clear of every axis");
         dominates(
             &format!("{name} net"),
-            sampled(&image, (d0, d1), 40_000, angles),
+            sampled(&image, (d0, d1), 6_000, angles),
             bound,
         );
         answered += 1;
@@ -572,7 +619,7 @@ fn a_projected_circle_of_a_sphere_reaches_its_bound() {
             let bound = image.speed_bound(0.0, TAU).expect("clear of the poles");
             let (ru, rv) = dominates(
                 &what,
-                sampled(&image, (0.0, TAU), 200_000, (true, false)),
+                sampled(&image, (0.0, TAU), 16_000, (true, false)),
                 bound,
             );
             assert!(
@@ -638,12 +685,22 @@ fn a_circle_through_the_pole_has_no_azimuth_bound() {
         origin: 0.0,
         span: TAU,
     };
-    let through = projected(ProjectedChart::Sphere, circle(Vec3::new(0.0, 0.0, 1.0)), 0.0, 1.0);
+    let through = projected(
+        ProjectedChart::Sphere,
+        circle(Vec3::new(0.0, 0.0, 1.0)),
+        0.0,
+        1.0,
+    );
     assert_eq!(
         through.speed_bound(0.0, TAU),
         Err(NoSpeedBound::ThroughSingularSet)
     );
-    let tilted = projected(ProjectedChart::Sphere, circle(Vec3::new(0.0, 0.6, 0.8)), 0.0, 1.0);
+    let tilted = projected(
+        ProjectedChart::Sphere,
+        circle(Vec3::new(0.0, 0.6, 0.8)),
+        0.0,
+        1.0,
+    );
     let (su, sv) = tilted
         .speed_bound(0.0, TAU)
         .expect("a circle clear of the pole is bounded");

@@ -22,9 +22,9 @@ crates/geom 212
 # geom-brep 221 -> 220: the arc-rim certificate reads its column's held
 # weights for the pattern's constancy (PCERT, the arc rim at unequal end
 # weights).
-crates/geom-brep 220
+crates/geom-brep 221
 crates/geom-core 18
-crates/mesh 37
+crates/mesh 29
 crates/step-export 9
 crates/step-import 44
 crates/sweep 139

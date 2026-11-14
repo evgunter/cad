@@ -2822,7 +2822,6 @@ mod tests {
         crate::validate::check_volume(&mesh, volume, area, 1e-2).expect("and it encloses the body");
     }
 
-
     /// **`pole_side_columns` takes the lattice off #678's shape.** A
     /// pole side over `u ∈ [0.45, 0.55]` on a box `[0, 1]` has exactly
     /// one column strictly between its ends at `nu = 2` (at ½), and the

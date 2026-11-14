@@ -188,7 +188,7 @@ pub(super) fn spiric_speeds(
     image: &SpiricImage<f64>,
 ) -> Result<(f64, f64), NoSpeedBound> {
     let (f_min, _) = geom::spiric_f_range(major, minor, offset);
-    if !(f_min > 0.0) {
+    if f_min.is_nan() || f_min <= 0.0 {
         return Err(NoSpeedBound::OffRegime);
     }
     Ok(match *image {
@@ -246,14 +246,14 @@ fn paired_sup((major, minor, offset): (f64, f64, f64), w: impl Fn(f64, f64) -> f
 /// with `w = 1/ρ_a²`).
 fn wall_azimuth_rate(spiric: (f64, f64, f64)) -> f64 {
     let (_, minor, offset) = spiric;
-    minor * offset.abs() * paired_sup(spiric, |rho_a, _| 1.0 / (rho_a * rho_a)).sqrt()
+    minor * offset.abs() * paired_sup(spiric, |rho_a, _| 1.0 / rho_a.powi(2)).sqrt()
 }
 
 /// **`sup|f′|` over a period**: `r·√(sup sin²t·ρ²/f²)` ([`paired_sup`]
 /// with `w = ρ_b²`).
 fn radial_rate(spiric: (f64, f64, f64)) -> f64 {
     let (_, minor, _) = spiric;
-    minor * paired_sup(spiric, |_, rho_b| rho_b * rho_b).sqrt()
+    minor * paired_sup(spiric, |_, rho_b| rho_b.powi(2)).sqrt()
 }
 
 /// The per-axis bounds of a **focal section** image (variant docs on
@@ -270,7 +270,7 @@ fn radial_rate(spiric: (f64, f64, f64)) -> f64 {
 /// section has `vl = 0`, a Villarceau circle `va = vb = 0`).
 pub(super) fn focal_section_speeds(image: &FocalImage<f64>) -> Result<(f64, f64), NoSpeedBound> {
     let beta = image.beta.abs();
-    if !(beta < 1.0) {
+    if beta.is_nan() || beta >= 1.0 {
         return Err(NoSpeedBound::OffRegime);
     }
     Ok((
@@ -397,8 +397,8 @@ fn conic_levers(c: Vec3<f64>, a: Vec3<f64>, b: Vec3<f64>, params: (f64, f64)) ->
     let quadratic = |c: Vec3<f64>, a: Vec3<f64>, b: Vec3<f64>| {
         let (aa, bb, ab) = (a.dot(a), b.dot(b), a.dot(b));
         let k = 0.5f64.mul_add(aa + bb, c.dot(c));
-        let swing = 2.0 * c.dot(a).hypot(c.dot(b)) + (0.5 * (aa - bb)).hypot(ab);
-        (k - swing, k + swing)
+        let (first, second) = (c.dot(a).hypot(c.dot(b)), (0.5 * (aa - bb)).hypot(ab));
+        (k - 2.0 * first - second, k + 2.0 * first + second)
     };
     let flat = |v: Vec3<f64>| Vec3::new(v.x, v.y, 0.0);
     let (p_sq_min, p_sq_max) = quadratic(c, a, b);
@@ -430,7 +430,9 @@ fn line_levers(point: Vec3<f64>, dir: Vec3<f64>, (t0, t1): (f64, f64)) -> Levers
     let (z0, z1) = (point.z + dir.z * t0, point.z + dir.z * t1);
     Levers {
         rho: least(flat(point), flat(dir)),
-        rho_hi: flat(point + dir * t0).norm().max(flat(point + dir * t1).norm()),
+        rho_hi: flat(point + dir * t0)
+            .norm()
+            .max(flat(point + dir * t1).norm()),
         norm: least(point, dir),
         z: (z0.min(z1), z0.max(z1)),
     }

@@ -22,7 +22,7 @@ crates/geom-brep/src/props/curved.rs	triangle_solid_angle	1	turn
 crates/geom-brep/src/props/curved.rs	sphere_loop	1	turn
 crates/geom-brep/src/props/curved.rs	pole_turning	2	turn
 crates/geom-brep/src/props/curved.rs	torus_chart_loop	2	turn
-crates/mesh/src/trimmed.rs	harmonic_range	1	harmonic
+crates/geom-brep/src/pcurve_cache/speed.rs	harmonic_range	1	harmonic
 crates/profile/src/lift.rs	carrier_form	1	user
 crates/profile/src/path.rs	chord_director	1	user
 crates/profile/src/path/arc_fillet.rs	about	1	user

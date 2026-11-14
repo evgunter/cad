@@ -704,8 +704,8 @@ mod tests {
     use super::*;
     use crate::nurbs_cert::tests::Domination;
     use geom::NurbsCurve3;
-    use geom_core::spline::KnotVector;
     use geom_core::Point3;
+    use geom_core::spline::KnotVector;
     use topo::EdgeKey;
 
     /// **The count formula, from a hand-built sup.** The arm's answer
