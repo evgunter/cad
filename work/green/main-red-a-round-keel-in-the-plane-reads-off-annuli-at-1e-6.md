@@ -22,6 +22,6 @@ So it arrived between PR 6336 and PR 6383's first parent (`98aa78e74f`). The onl
 
 ## Closed (2026-11-14)
 
-Greened by a pin, not a fix: the witness is under `test_utils::pinned_red::row` at ε 1e-6 on its message (`green/eps-1e-6`). The nightly's 1e-6 row first ran the test on 11-03 (main `2d9dc809`) and it was red that night, which agrees with the window above. The merge is still not named.
+Greened by a pin, not a fix: the witness is under `test_utils::pinned_red::row` at ε 1e-6 on its message (`green/eps-1e-6`). Correction to the bisect above: the witness is absent at PR 6336, not green. It arrives in PR 6365 (`onehome/small-bundle`, `e2be742e3`) and is red at ε 1e-6 from that merge on (absent at its first parent `0ba834a0e`), as the nightly's 1e-6 row shows from the first night it ran the test, 11-03.
 
 The fix row is the witness's own, `work/onehome/a-closed-keel-in-the-section-plane-divides-the-section-into-two-regions.md`, which now carries this drift, the window and what is owed under "The witness at ε 1e-6".

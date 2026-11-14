@@ -1113,9 +1113,6 @@ fn a_curved_path_swept_body_faces_out_along_the_whole_turn() {
 
 /// The lofted concave prism's volume pad at ε 1e-6, the measure the
 /// rational-volume ceiling's comment cites, held by
-/// `loft_concave_arc_walls_face_out_and_a_flip_is_invisible_below`.
-/// Pinned at what main
-/// measures: it read `8.956_6e-4` when the ceiling was set, and whether
-/// the narrower pad is the right one is
-/// `work/quad/lofted-concave-prism-pad-pin-moved-at-1e-6.md`'s to decide.
+/// `loft_concave_arc_walls_face_out_and_a_flip_is_invisible_below`: what
+/// the per-span round-zero schedule achieves on it.
 const LOFTED_CONCAVE_PAD_AT_1E6: f64 = 8.636_7e-4;

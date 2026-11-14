@@ -33,7 +33,7 @@ The section reads one annulus. Flip the witness when it does.
 
 At `CAD_TOLERANCE_EPS=1e-6` the witness is red on main `b363f5fa1`, and has been since the first night it ran (nightly of 11-03, main `2d9dc809`): `the V's tip 0.6 ε off the plane, the plane's normal -1 y: the section's regions hold [11.780973958926847, 15.707964775914], not the annuli [11.780972450961723, 15.707963267948966]`. Both regions read 1.5e-6 over their annulus, against the row's `1e-8`. It is still two regions with one hole each, so the reading this row pins has not changed; the areas have moved by about `1.5 ε` with the tip `0.6 ε` off the plane.
 
-BOXES bisected it to between PR 6336 (`f1867c8b71`, green) and PR 6383's first parent (`98aa78e74f`, red); the merge is not named (`work/green/main-red-a-round-keel-in-the-plane-reads-off-annuli-at-1e-6.md`, closed onto this row).
+Bisected, first-parent, at ε 1e-6: the witness does not exist at `89ca86d8e`, `af17f93b9` or `0ba834a0e`; it arrives in `e2be742e3`, the merge of PR 6365 (`onehome/small-bundle`), whose first parent is `0ba834a0e`, and is red there, as at `e55b75ca3`, `0adb9f691`, `5570df506` and main. So nothing moved it: the witness has never held its `1e-8` at ε 1e-6. (`work/green/main-red-a-round-keel-in-the-plane-reads-off-annuli-at-1e-6.md`, closed onto this row, read it as green at PR 6336, where it was absent.)
 
 Owed with the flip: say whether a region's area may stand `1.5 ε` off its annulus when the keel's tip is `0.6 ε` off the plane, and state the witness's bound from that, or fix the reading.
 

@@ -36,7 +36,7 @@ This slate's rows: `main-red-a-round-keel-in-the-plane-reads-off-annuli-at-1e-6`
 
 ## 2026-11-14: greened on `green/eps-1e-6` (PR 6934)
 
-All fifteen reproduced red on main `b363f5fa1` at ε 1e-6, and the two this unit lists at 1e-12 reproduced there. One is re-blessed, fourteen are pinned; the PR body has the table. Corrections to the text above, checked against the tree:
+All fifteen reproduced red on main `b363f5fa1` at ε 1e-6, and the two this unit lists at 1e-12 reproduced there. Two are re-blessed (the lens wall's stop after PR 6891, the lofted concave pad after PR 6092), thirteen are pinned; the PR body has the table, with every merge named but the cylinder probe's 1e-12 stop. Corrections to the text above, checked against the tree:
 
 - **`OK BAD` is not always a wrong volume.** `verbs_germarms2`'s two rows and `verbs_cylcyl_r1_review_probes` at 1e-6 hold their closed form (`v` and `want` agree to nine places); the line is `BAD` because the enclosure's pad is over `differential.rs`' fixed `VOLUME_PAD_BUDGET` of 1e-7. Fix row: `work/spiricarm/main-red-three-cylinder-pair-volume-pads-pass-the-fixed-budget-at-1e-6.md` (PR 6478). `parallel_cylinder_join`'s two rows do miss their closed form, by 1.2e-7 to 2.8e-7.
 - **`parallel_cylinder_join`'s two rows, the keel's split, and the cone cap's union went red at one merge**, PR 6505 (`onedoor/one-surface-record`), with the cups fixture: `work/onedoor/main-red-four-sweep-rows-hold-volumes-the-one-surface-record-moves-at-1e-6.md` and `work/band/a-cups-fixture-boolean-is-unfinished-at-eps-1e-6.md`.
@@ -44,3 +44,6 @@ All fifteen reproduced red on main `b363f5fa1` at ε 1e-6, and the two this unit
 - **`tilted_sphere_pair`'s row is `work/gauge/the-in-arc-pairing-turns-the-pole-arcs-lane-gap-into-an-indeterminate-at-eps-1e-6.md`** (PR 6832, re-bisected), not `work/germ/tilted-section-through-a-chart-pole-is-not-split-at-the-pole.md`.
 - **`verbs_cylcyl_r1_review_probes` at 1e-12 is a different stop** from its 1e-6 one, and had no row: `work/ssiarith/main-red-a-tall-thin-cylinder-pairs-section-reads-limb-2-in-band-at-1e-12.md`. `work/spiricarm/a-carried-cylinder-pair-marches-for-minutes-before-the-volume-lane-refuses.md` and `work/quadtail/chorded-walls-reach-the-work-wall-short-of-the-pinned-resolution-at-1e-12.md` are about cost and the 1e-12 resolution, and cover neither.
 - `work/restread/main-red-near-tangent-pierce-poses-pinned-finding-moved-at-1e-6.md` is closed and is another pose; the open one is `…-w60-a4-census-undecidable-at-1e-6.md`.
+- **The round keel's witness never held at 1e-6**: it arrived red in PR 6365; the child row's "green at PR 6336" was the test absent.
+- **`revalue_boss_union`'s merge is PR 6482** (`onecopy/angle-reads`); its fix row is on onecopy and the GREEN child is closed onto it.
+- **The per-PR gate runs a slow test only at the default ε**, so this PR's gate checks the thirteen slow rows' pins only as "runs as written at 1e-9"; their 1e-6 pins were run locally and are the next nightly's to confirm.
