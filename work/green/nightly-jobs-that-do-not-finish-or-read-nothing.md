@@ -2,12 +2,13 @@
 id: nightly-jobs-that-do-not-finish-or-read-nothing
 kind: unit
 title: Nightly jobs that do not finish, stop at their first red, or read no test
-status: review
+status: closed
 opened: 2026-11-14
 priority: P1
 cost: M
 branch: green/nightly-jobs
 pr: 6932
+closed: 2026-11-14
 ---
 
 From nightly 43371638371 (main `e36675c1`, 2026-11-13) and the run before it (43161026932). These are jobs, not tests: each one hides results rather than reporting a red.
@@ -23,3 +24,7 @@ From nightly 43371638371 (main `e36675c1`, 2026-11-13) and the run before it (43
 - `viewer app feature`: fail-fast, 784 of 1565 tests not run behind the two `door_at_rest` reds (`nightly-reds-default-eps-behaviour-rows` greens those; whether the job should stop at its first red is this unit's).
 
 PR 6731 (`onecopy/slow-set-reach`, open) makes the nightly attribute each newly red slow test to its merge; read it before touching `nightly.yml`, since the two are coupled.
+
+## Closed (2026-11-14, PR 6932)
+
+Closed on the change, not yet on the evidence: nothing here has run on a hosted runner, and the PR body's checklist says what the first nightly after the merge must show and which paths a green night cannot exercise (a budget kill, a listing failure). What changed: the 1e-12 leg is three hash shards with the slowest tests first and a budget that still writes its junit; a coverage job holds every ε row to the build job's own listing; the dev-probe sweep records a red and continues; the mutant job reads junit; the viewer app job runs every test; the all-features build is separated from its listing, which is checked by nextest's own `list`. Open after it: why the all-features listing blocked on 10-28 and what the 11-13 overrun was (`the-all-features-build-overran-its-hour-on-11-13-for-an-unread-reason`, and the reopened hang row); the shared build job running within minutes of its limit (`the-full-suite-build-job-runs-within-eleven-minutes-of-its-limit`); the hand-measured priority list (`the-1e-12-priority-list-is-measured-by-hand`).
