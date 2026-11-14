@@ -78,6 +78,8 @@ mod curves_compose;
 mod curves_curvo_oracle;
 #[path = "curves/decoration_certified_coords.rs"]
 mod curves_decoration_certified_coords;
+#[path = "curves/derivative_at_is_ders1s.rs"]
+mod curves_derivative_at_is_ders1s;
 #[path = "curves/directional_extent.rs"]
 mod curves_directional_extent;
 #[path = "curves/domain_door.rs"]

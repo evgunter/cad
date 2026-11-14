@@ -17,3 +17,23 @@ PR 6007 built import's door minting the two-half form from `geom::pole_form`, it
 Signed: (FOREIGN orchestrator)
 
 - 2026-11-02 — moved from FOREIGN to IMPORTGATE by `git mv` when FOREIGN merged into IMPORTGATE, id and body unchanged (the track budget now counts only P0, P1 and unbanded rows, and FOREIGN had fallen far under it).
+
+## Evidence from CLEAR (2026-11-13, `clear/seam-meridians`)
+
+Until the wrap tip lands, the two-half form must store its two
+meridians in one plane. The at-rest gate's injectivity check lists a
+second meridian under the plane built from the first only where their
+stored centres and axes are one value (`one_plane` in
+`crates/topo/src/injective.rs`). Otherwise a pole refuses `Departure`.
+
+- `EdgeFreeSphere` mints both meridians through
+  `geom::pole_form::sphere_meridian` at `azimuths(d)`. The normal is
+  `axis × ±d`, which is exactly negated, and the centre and reference
+  are shared. That pair is one plane.
+- The strut twin that `normalize/singularity.rs` mints is
+  `geom::pole_form::half_turn_curve` of the file's seam. It turns the
+  normal by `2(n·â)â − n`. Where `n·â` rounds to a nonzero value (an
+  axis that is not a coordinate axis), the twin's axis is a rounding
+  off `−n`, so the twin is not in the seam's plane. Read, not measured.
+  For a circle whose normal is square to the axis, `azimuths`' exact
+  negation is the spelling that keeps the pair in one plane.

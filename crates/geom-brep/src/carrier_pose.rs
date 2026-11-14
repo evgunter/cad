@@ -11,7 +11,7 @@
 //! decided them parallel, never of a point of one face. Of a round pair
 //! and of a plane and a round face the facing follows from the
 //! configuration with no further decision; of two planes it is their
-//! outward normals' pairing ([`crate::normals_alignment`]).
+//! outward normals' pairing ([`crate::dihedral::normals_alignment`]).
 //!
 //! Every decision here is the pose's own, under its own K name. The
 //! parallelism of two directions ([`directions_parallel`]) is also what a
@@ -87,7 +87,7 @@ impl<T: Decide> PlanePair<T> {
     /// poisoned, or decided zero.
     pub fn facing(&self, band: Band) -> Result<MaterialPairing, Indeterminate> {
         let [a, b] = self.outward;
-        crate::normals_alignment(POSE_PLANES_FACING, a, b, self.arm, band)?.pairing()
+        crate::dihedral::normals_alignment(POSE_PLANES_FACING, a, b, self.arm, band)?.pairing()
     }
 }
 

@@ -68,7 +68,7 @@ not:
     the 10-22 reading above;
   - `twisted_duct_shadow_{y,z}` 7260 → 7660 (1.06×);
   - the `twopeg` rows, filed at
-    `work/tess/twopeg-triangles-grew-past-the-tess-gate-on-main`.
+    `work/tesslane/twopeg-triangles-grew-past-the-tess-gate-on-main`.
 - **Re-keys it read**:
   - `nonuniform_loft` face 2 nu 16 → 19;
   - `s_duct` nv 112 → 121;
