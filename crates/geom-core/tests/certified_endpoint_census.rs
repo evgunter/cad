@@ -435,6 +435,13 @@ const ROSTER: &[(&str, usize, usize, &str)] = &[
          refuses as no size (`PatchRefusal::NoWidth`)",
     ),
     ("crates/geom-brep/src/pcurve_cache/projected.rs", 2, 2, ""),
+    (
+        "crates/geom-brep/src/pcurve_cache/speed.rs",
+        38,
+        4,
+        "not yet dispositioned: the 34 that do not ask are \
+         `work/tesslane/the-chart-speed-bounds-endpoint-reads-are-undispositioned`",
+    ),
     ("crates/geom-brep/src/props/bracket.rs", 8, 8, ""),
     (
         "crates/geom-brep/src/props/quad/cells.rs",
@@ -494,7 +501,7 @@ const ROSTER: &[(&str, usize, usize, &str)] = &[
          `lo_or_refuse`/`certified_hi`/`mid` (`props/bracket.rs`), which are the guarded ones, \
          or asks `is_certified()` of the bracket it reads (`rotational.rs`)",
     ),
-    ("crates/geom-brep/src/props/spiric.rs", 13, 13, ""),
+    ("crates/geom-brep/src/props/spiric.rs", 20, 20, ""),
     (
         "crates/geom-brep/src/props/taylor.rs",
         16,
@@ -691,7 +698,7 @@ const ROSTER: &[(&str, usize, usize, &str)] = &[
     ),
     (
         "crates/topo/src/injective.rs",
-        144,
+        154,
         59,
         "the 59 that ask are `exactly` (2), `forward` (2), `along` (4), `present_chart` (26), \
          `present_plane` (8), `present_plane_corner` (7), `present_plane_vertex` (7) and \
@@ -705,7 +712,7 @@ const ROSTER: &[(&str, usize, usize, &str)] = &[
          each also reads its arc's parameter span (2), and an upper bound on the chart's speed \
          (1), neither of which the ask covers: the span is a parameter read like those below, \
          and the speed is the jet bound `speeds` reads. `Trig::psi`'s 3 are its `over` \
-         closure, read behind `is_certified()`. Of the other 85, the seeds and selections \
+         closure, read behind `is_certified()`. Of the other 95, the seeds and selections \
          (`mid`, `graph_read`'s `inside` and lever, `planes_through`'s point of a line edge, \
          any point of which is exact), `Curved::nearest`'s hull of the parameters shifted by \
          whole turns, read outward so `within`'s containment is conservative, the read behind \
@@ -715,7 +722,9 @@ const ROSTER: &[(&str, usize, usize, &str)] = &[
          `clearance`'s `window_of` admits only where every lifted value certifies; \
          `present_wall`'s wall-image reads, `speeds`' jet bound and the two corner \
          presentations' speed bounds also read an enclosure computed from them that may clamp, \
-         which is `work/embed/injective-reads-past-the-trv-census-decide-on-clamped-enclosures`",
+         which is `work/embed/injective-reads-past-the-trv-census-decide-on-clamped-enclosures`. \
+         `one_plane`'s 10 compare a stored frame's bracket ends to decide one value, never \
+         asking, which is `work/embed/one-plane-reads-a-brackets-ends-as-a-point-without-asking`",
     ),
     (
         "crates/topo/src/props.rs",
