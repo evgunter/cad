@@ -51,3 +51,8 @@ description, not a cache.
 **Waits on it:** `an-iso-arc-rims-end-reads-through-its-map-at-interval`
 (filed by PR 6959), so that `IsoArc` does not get a second copy of the
 same shape.
+
+## From PR 6959's delta review (2026-11-14)
+
+- **`StoredSpan` names some edge's span, not this image's.** It is `Copy`, so another edge's `edge_span()`, or a span copied before a split, still compiles against an image; `LiftedRow { params }` is a pub field. No caller pairs them wrongly today. Whatever the representation becomes should make that pairing unwritable.
+- **A stated end is allowed off its map by up to the band**, and the envelope now pads for it. That term is nonzero at `Interval` even for a minted image (about 1e-15 × the chart's stretch), where one description would make it zero by construction.
