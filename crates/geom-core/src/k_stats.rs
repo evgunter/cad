@@ -327,6 +327,61 @@ struct Frame {
     recorded: Recorded,
 }
 
+/// PROBE (boxfinish/probe-switch-off): a process-wide tally of every
+/// decision by (phase, predicate, kind), on only where the environment
+/// names `BOXFINISH_TRACE`. Measurement scaffolding, never merged.
+#[allow(missing_docs, clippy::unwrap_used, clippy::missing_panics_doc)]
+pub mod probe_tally {
+    use std::cell::Cell;
+    use std::collections::BTreeMap;
+    use std::sync::{Mutex, OnceLock};
+
+    /// One tally key: (phase, predicate, kind).
+    pub type Key = (&'static str, &'static str, &'static str);
+    static ON: OnceLock<bool> = OnceLock::new();
+    static TALLY: Mutex<BTreeMap<Key, u64>> = Mutex::new(BTreeMap::new());
+    thread_local! {
+        static PHASE: Cell<&'static str> = const { Cell::new("build") };
+    }
+
+    /// Whether the probe is on.
+    pub fn on() -> bool {
+        *ON.get_or_init(|| std::env::var_os("BOXFINISH_TRACE").is_some())
+    }
+
+    /// Sets this thread's phase, returning the previous one.
+    pub fn phase(name: &'static str) -> &'static str {
+        PHASE.with(|p| p.replace(name))
+    }
+
+    /// Counts one decision of `kind` under the current predicate.
+    pub fn add(kind: &'static str) {
+        if on() {
+            let name = super::CURRENT.with(Cell::get);
+            let phase = PHASE.with(Cell::get);
+            *TALLY
+                .lock()
+                .unwrap()
+                .entry((phase, name, kind))
+                .or_default() += 1;
+        }
+    }
+
+    /// The tally so far, emptied.
+    pub fn take() -> BTreeMap<Key, u64> {
+        std::mem::take(&mut *TALLY.lock().unwrap())
+    }
+
+    /// The tally so far as lines `phase predicate kind count`, emptied.
+    pub fn dump(label: &str) {
+        if on() {
+            for ((phase, name, kind), n) in take() {
+                eprintln!("[bf-tally] {label} {phase} {name} {kind} {n}");
+            }
+        }
+    }
+}
+
 /// Classifies `margin` against `band`, noting `name` for the recorder
 /// and attaching it to any indeterminate outcome — the shared body of
 /// every public door below.
@@ -354,6 +409,11 @@ fn classify<T: Decide>(
     // until this was scoped (`assert_bound` read 9 decisions for 1).
     let prev = CURRENT.with(|c| c.replace(name));
     let outcome = margin.sign_within(band).map_err(|e| e.with_predicate(name));
+    probe_tally::add(if outcome.is_ok() {
+        "definite"
+    } else {
+        "escalated"
+    });
     CURRENT.with(|c| c.set(prev));
     // THE STAGED-CEILING DIAL, and it exists only under the test-only
     // `identity-pass-testing` feature ([`IDENTITY_PASS`]): with the

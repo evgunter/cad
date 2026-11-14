@@ -7476,19 +7476,32 @@ impl AtRestPolicy for geom_core::interval::Interval {
     fn finish(body: Body<Self>, tol: Tol) -> Result<Self::Finished, crate::NotFinished> {
         crate::AtRestBody::validate(body, tol).map_err(crate::NotFinished::new)
     }
-    /// The switch's box-scalar arm ([`AtRestPolicy::leaf`]).
-    type Leaf = crate::Replay<Self>;
-    const TAKE_FINISHES: bool = true;
+    /// PROBE (boxfinish/probe-switch-off): the switch's box arm OFF. The
+    /// leaf is this scalar's finished body, finished at the door, in the
+    /// `f64` arm's shape, so the two lanes of a drive still log the
+    /// finish at the same site (the taker).
+    type Leaf = crate::AtRestBody<Self>;
+    const TAKE_FINISHES: bool = false;
 
-    fn leaf(body: Body<Self>, _tol: Tol) -> Result<Self::Leaf, crate::NotFinished> {
-        crate::Replay::of(body)
+    fn leaf(body: Body<Self>, tol: Tol) -> Result<Self::Leaf, crate::NotFinished> {
+        let scope = geom_core::k_stats::Bracket::open();
+        let finished = Self::finish(body, tol);
+        let record = scope.finish();
+        match finished {
+            Ok(body) => Ok(body.holding(record)),
+            Err(refused) => {
+                geom_core::k_stats::relog(&record);
+                Err(refused)
+            }
+        }
     }
 
     fn take(
         leaf: &std::sync::Arc<Self::Leaf>,
-        tol: Tol,
+        _tol: Tol,
     ) -> Result<std::sync::Arc<Self::Finished>, crate::NotFinished> {
-        Self::finish(Body::clone(leaf), tol).map(std::sync::Arc::new)
+        leaf.relog_held();
+        Ok(std::sync::Arc::clone(leaf))
     }
 
     fn census_at_rest(
@@ -7635,19 +7648,32 @@ where
     fn finish(body: Body<Self>, tol: Tol) -> Result<Self::Finished, crate::NotFinished> {
         crate::AtRestBody::validate(body, tol).map_err(crate::NotFinished::new)
     }
-    /// The switch's box-scalar arm ([`AtRestPolicy::leaf`]).
-    type Leaf = crate::Replay<Self>;
-    const TAKE_FINISHES: bool = true;
+    /// PROBE (boxfinish/probe-switch-off): the switch's box arm OFF. The
+    /// leaf is this scalar's finished body, finished at the door, in the
+    /// `f64` arm's shape, so the two lanes of a drive still log the
+    /// finish at the same site (the taker).
+    type Leaf = crate::AtRestBody<Self>;
+    const TAKE_FINISHES: bool = false;
 
-    fn leaf(body: Body<Self>, _tol: Tol) -> Result<Self::Leaf, crate::NotFinished> {
-        crate::Replay::of(body)
+    fn leaf(body: Body<Self>, tol: Tol) -> Result<Self::Leaf, crate::NotFinished> {
+        let scope = geom_core::k_stats::Bracket::open();
+        let finished = Self::finish(body, tol);
+        let record = scope.finish();
+        match finished {
+            Ok(body) => Ok(body.holding(record)),
+            Err(refused) => {
+                geom_core::k_stats::relog(&record);
+                Err(refused)
+            }
+        }
     }
 
     fn take(
         leaf: &std::sync::Arc<Self::Leaf>,
-        tol: Tol,
+        _tol: Tol,
     ) -> Result<std::sync::Arc<Self::Finished>, crate::NotFinished> {
-        Self::finish(Body::clone(leaf), tol).map(std::sync::Arc::new)
+        leaf.relog_held();
+        Ok(std::sync::Arc::clone(leaf))
     }
 
     fn census_at_rest(

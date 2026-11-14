@@ -3362,6 +3362,18 @@ fn edge_meets<T: Decide>(
         meets.lines.insert(pass.edge);
         meets.read.insert(pass.edge);
         meets.clear.insert(pass.edge);
+        if geom_core::k_stats::probe_tally::on() {
+            eprintln!(
+                "[bf-ray]   edge {:?} faces=({:?},{:?}) gap_lo={} gap_hi={} along=[{}, {}]",
+                pass.edge,
+                pass.faces.0,
+                pass.faces.1,
+                crate::side_reader::probe_w(&pass.gap[0]),
+                crate::side_reader::probe_w(&pass.gap[1]),
+                crate::side_reader::probe_w(&pass.along[0]),
+                crate::side_reader::probe_w(&pass.along[1]),
+            );
+        }
         let gap = match geom_core::k_stats::decide_magnitude(
             rows.edge(),
             Margin::of(pass.gap[0]),
@@ -4350,6 +4362,17 @@ pub(crate) fn ray_crossings<T: Decide>(
             });
         }
         let t = (origin - q).dot(normal) / denom;
+        if geom_core::k_stats::probe_tally::on() {
+            let p = q + d * t;
+            eprintln!(
+                "[bf-ray]   plane {face:?} outward={outward:?} denom={} t={} p=({}, {}, {})",
+                crate::side_reader::probe_w(&denom),
+                crate::side_reader::probe_w(&t),
+                crate::side_reader::probe_w(&p.x),
+                crate::side_reader::probe_w(&p.y),
+                crate::side_reader::probe_w(&p.z),
+            );
+        }
         planes.push(PlaneCross {
             face,
             normal,
@@ -4516,12 +4539,30 @@ pub(crate) fn ray_crossings<T: Decide>(
         // through `q` (a corner-aligned query) must be skipped, not
         // grazed, when the face itself is elsewhere.
         let turned = match every_bound_read(body, face, &meets.clear) {
-            true => crosses_by_turn(body, face, (c.normal, c.p), reach, turn_ray)?,
+            true => {
+                let turned = crosses_by_turn(body, face, (c.normal, c.p), reach, turn_ray);
+                if geom_core::k_stats::probe_tally::on() {
+                    eprintln!(
+                        "[bf-ray]   crosses_by_turn {face:?} -> {}",
+                        match &turned {
+                            Ok(t) => format!("{t:?}"),
+                            Err(_) => "FAULT".to_owned(),
+                        }
+                    );
+                }
+                turned?
+            }
             false => None,
         };
         let inside = match turned {
             Some(inside) => Some(inside),
-            None => point_in_face(body, face, c.normal, c.p, band).map_err(at_hit)?,
+            None => {
+                let held = point_in_face(body, face, c.normal, c.p, band);
+                if geom_core::k_stats::probe_tally::on() {
+                    eprintln!("[bf-ray]   point_in_face {face:?} -> {held:?}");
+                }
+                held.map_err(at_hit)?
+            }
         };
         let point = (c.t - c.slack, c.t + c.slack);
         match inside {

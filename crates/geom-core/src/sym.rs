@@ -4907,6 +4907,7 @@ fn note_witness(witness: crate::real::Witness) {
 /// Records how one decision was answered, for the session's receipt:
 /// proven by the tier, or handed to the numeric channel.
 fn count_decision(proven: bool) {
+    crate::k_stats::probe_tally::add(if proven { "symbolic" } else { "numeric" });
     SESSION.with(|s| {
         if let Some(sess) = s.borrow_mut().as_mut() {
             if proven {

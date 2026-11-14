@@ -10757,7 +10757,34 @@ impl<T: geom_core::Decide> AtRestBody<T> {
         T: geom_core::Decide + geom_core::CertifiedBounds + crate::props::AtRestPolicy,
     {
         crate::finish::count_finish();
-        let sign = std::sync::Arc::new(validate_geometric_certificate(&body, tol)?.into_parts());
+        // PROBE (boxfinish/probe-switch-off): one line per finish, with a
+        // fingerprint of the body's vertices so an identical body finished
+        // twice shows, the wall time, and the outcome.
+        let probe = geom_core::k_stats::probe_tally::on();
+        let started = std::time::Instant::now();
+        let prev = geom_core::k_stats::probe_tally::phase("finish");
+        let certificate = validate_geometric_certificate(&body, tol);
+        geom_core::k_stats::probe_tally::phase(prev);
+        if probe {
+            use std::hash::{Hash, Hasher};
+            let mut h = std::collections::hash_map::DefaultHasher::new();
+            for (_, p) in body.vertex_points() {
+                format!("{p:?}").hash(&mut h);
+            }
+            eprintln!(
+                "[bf-finish] scalar={} faces={} verts={} fp={:016x} dt_ms={:.2} outcome={}",
+                core::any::type_name::<T>(),
+                body.faces().count(),
+                body.vertices().count(),
+                h.finish(),
+                started.elapsed().as_secs_f64() * 1e3,
+                match &certificate {
+                    Ok(_) => "ok".to_owned(),
+                    Err(e) => format!("REFUSED {e:?}"),
+                }
+            );
+        }
+        let sign = std::sync::Arc::new(certificate?.into_parts());
         Ok(Self {
             body,
             sign,
