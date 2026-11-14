@@ -371,7 +371,7 @@ fn a_ray_beside_a_moving_silhouette_edge_reads_no_wrong_side() {
 #[test]
 fn a_boxed_brick_reads_the_side_its_members_have() {
     let top = (0.975, 1.025);
-    let own = over(top, (1.0, 1.0), |body, band| each_aim_report(body, band));
+    let own = over(top, (1.0, 1.0), each_aim_report);
     assert_eq!(own.len(), 6, "a brick offers six aims");
     for read in &own {
         assert!(
