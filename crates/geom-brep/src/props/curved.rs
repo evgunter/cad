@@ -33,7 +33,7 @@ use geom_core::{
     RigidMotion, Sign, UNIT_DIRECTION_ARM, UnitVec3, UnitVec3Error, Vec3,
 };
 
-use super::closure::{self, ChartLoop, EdgeTurn, Joint, turn_about, turn_arms};
+use super::closure::{self, ChartLoop, EdgeTurn, Joint};
 use super::{FaceContribution, LoopEdge, PropsCheck, PropsError, loop_vector_area};
 use crate::dihedral::decide;
 use crate::implicit::cone_offset;
@@ -1477,10 +1477,7 @@ fn cylinder_windings<T: Decide>(
                             let du = rim_turns.next().ok_or(mismatch.clone())?;
                             EdgeTurn::carried(axis, origin, center, du, ends, radius)
                         }
-                        _ => EdgeTurn::short(
-                            turn_arms(axis, ends.0 - origin, ends.1 - origin),
-                            radius,
-                        ),
+                        _ => EdgeTurn::short(axis, ends.0 - origin, ends.1 - origin, radius),
                     }])
                 })
                 .collect::<Result<Vec<_>, PropsError>>()?;
@@ -1506,6 +1503,36 @@ fn cylinder_windings<T: Decide>(
         })
         .collect::<Result<_, _>>()?;
     closure::closed_form_windings(&chart_loops, band)
+}
+
+/// How much farther round the unit `axis` (through `origin`) the point
+/// `p` sits than round a circle's own centre `center`: the turn from
+/// `p − center` to `p − origin`. A stored turn about the circle's centre
+/// plus its value at the end less its value at the start is the turn
+/// about the axis. It is read clear of the branch cut while the axis
+/// passes inside the circle, less than a quarter turn from any point of
+/// it: decided for the face by [`closure::require_axis_inside`].
+pub(super) fn about_axis<T: Real>(
+    axis: Vec3<T>,
+    center: Point3<T>,
+    origin: Point3<T>,
+    p: Point3<T>,
+) -> T {
+    turn_about(axis, p - center, p - origin)
+}
+
+/// The signed angle about the unit `axis` from the offset `a` to the
+/// offset `b`, both from a point of the axis, the short way round.
+pub(super) fn turn_about<T: Real>(axis: Vec3<T>, a: Vec3<T>, b: Vec3<T>) -> T {
+    let (dot, cross) = turn_arms(axis, a, b);
+    cross.atan2(dot)
+}
+
+/// [`turn_about`]'s cosine and sine arms: the dot and cross products about
+/// the unit `axis` of the offsets `a` and `b` less their parts along it.
+pub(super) fn turn_arms<T: Real>(axis: Vec3<T>, a: Vec3<T>, b: Vec3<T>) -> (T, T) {
+    let (a, b) = (a - axis * a.dot(axis), b - axis * b.dot(axis));
+    (a.dot(b), a.cross(b).dot(axis))
 }
 
 /// A cylinder face's holes: each ring that does not wind the cylinder
@@ -5551,7 +5578,7 @@ fn torus_chart_loop<T: Decide>(
                 closure::require_axis_inside(r_c, band)?;
                 [
                     EdgeTurn::carried(axis, center, centre, du, (a, b), r_c),
-                    EdgeTurn::short(tube, minor),
+                    EdgeTurn::exact(short(tube), minor),
                 ]
             }
             TorusStep::Meridian { dv } => {
@@ -5571,9 +5598,8 @@ fn torus_chart_loop<T: Decide>(
                         wb
                     },
                 );
-                let azimuth = turn_arms(axis, ua, ub);
                 [
-                    EdgeTurn::short(azimuth, near(ua).min(near(ub))),
+                    EdgeTurn::short(axis, ua, ub, near(ua).min(near(ub))),
                     EdgeTurn::new(
                         dv + about_core(centre - center, b - centre, wb)
                             - about_core(centre - center, a - centre, wa),
