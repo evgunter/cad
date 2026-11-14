@@ -1506,7 +1506,9 @@ mod tests {
             ("crates/mesh/src/walk.rs", "area"),
             ("crates/topo/src/boolean/contact_verify.rs", "r"),
             // The quarter-turn that rotates a line edge's chart direction
-            // toward its face, in the plane's chart frame.
+            // toward its face, in the plane's chart frame: the one-edge
+            // presentation's and the corner's.
+            ("crates/topo/src/injective.rs", "1.0"),
             ("crates/topo/src/injective.rs", "1.0"),
             // A face's side of an iso edge's line, as the sign of the held
             // chart coordinate.
@@ -1527,10 +1529,13 @@ mod tests {
         // Pinned red, NOT sanctioned: hand folds main carries while the
         // row that owns their repair is open, so the repair landing reds
         // here too and strikes them
-        // (`work/tess/main-red-trimmed-rs-folds-the-face-sense-by-hand.md`).
+        // (`work/tess/main-red-trimmed-rs-folds-the-face-sense-by-hand.md`;
+        // the wrap strip's period,
+        // `work/tesswalk/main-red-the-wrap-strip-folds-its-period-by-the-sense-bit.md`).
         let pinned = [
             ("crates/mesh/src/trimmed.rs", "area"),
             ("crates/mesh/src/trimmed.rs", "radial"),
+            ("crates/mesh/src/walk.rs", "TAU"),
         ];
         let mut expected = sanctioned;
         expected.extend(pinned.map(|(f, a)| (f.to_string(), a.to_string())));

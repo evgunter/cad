@@ -673,10 +673,10 @@ const ROSTER: &[(&str, usize, usize, &str)] = &[
     ("crates/mesh/src/chords.rs", 2, 2, ""),
     (
         "crates/topo/src/clearance.rs",
-        53,
+        56,
         16,
         "the 16 that ask are `poisoned` (2), `iso_bounded_domain`'s knots and joins (12) and \
-         `extent_of` (2). Of the other 37, `split_axis`'s 4 and the `coincidence` and \
+         `extent_of` (2). Of the other 40, `split_axis`'s 4 and the `coincidence` and \
          `meeting_stations` seeds (2 and 4) are selections; `min_separation`'s admission (2), \
          `pair`'s (2), `witness`'s (2) and `overflow`'s (1) read a separation `poisoned` has \
          passed; `window_of`'s windows (6), `boundary_of`'s span (2) and `row_of`'s parameters \
@@ -685,18 +685,23 @@ const ROSTER: &[(&str, usize, usize, &str)] = &[
          the line between the boxes' centres, read at their middles) and of orientation, and the \
          supports' gap it reads after `poisoned` has passed both, a lower bound along any \
          direction; and `box_dependent`'s 2 store a straddling separation's ends as the \
-         refusal's payload, which certifies nothing",
+         refusal's payload, which certifies nothing; `embedded`'s 3 choose the witness pair \
+         by its separation's upper end (2), a selection `confirms` then decides at the strict \
+         site, and report the confirmed separation's upper end (1)",
     ),
     (
         "crates/topo/src/injective.rs",
-        121,
-        40,
-        "the 40 that ask are `exactly` (2), `forward` (2), `along` (4), `present_chart` (16), \
-         `present_plane` (8) and the two `psi`s (8). `present_chart` asks each clip line where \
+        137,
+        52,
+        "the 52 that ask are `exactly` (2), `forward` (2), `along` (4), `present_chart` (26), \
+         `present_plane` (8), `present_plane_corner` (7) and the two `psi`s (3). `present_chart` asks each clip line where \
          it is placed, so its touch, reach, merge, rectangle-side and apex reads see only \
          certified lines; `present_plane` asks its one-edge `y`, and its other reads are behind \
          the SPAN and CORNER funnels; `Curved::psi`'s shift reads finite parameters. Of the \
-         other 81, the seeds and selections (`mid`, `graph_read`'s `inside` and lever), the read \
+         other 85, the seeds and selections (`mid`, `graph_read`'s `inside` and lever, \
+         `planes_through`'s point of a line edge, any point of which is exact), \
+         `Curved::nearest`'s hull of the parameters shifted by whole turns, read outward so \
+         `within`'s containment is conservative, the read \
          behind `exactly` (`Pieces::of`'s `wind`), the parameter reads (`monotone_run`, \
          `narrowed`, `leaves_graph`, `leaves_line`) and `run_on`'s, behind `along`'s and the \
          placement asks, are sound. The rest read the window's carrier and the face's boundary, \

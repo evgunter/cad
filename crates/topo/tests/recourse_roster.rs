@@ -458,6 +458,9 @@ const CARRIER_CALL: &str = "a declared carrier's call holding no literal name: t
 const NOT_A_NAME: &str = "another type's `decide*` method, whose first argument is not a name";
 const SAME_NAMED: &str = "census.rs's point filter `bounded`, which shares the declared \
                           `ConicRows::bounded` carrier's token and takes no name";
+const SAME_NAMED_TRAVEL: &str = "a spline wall piece's `travel()`, its chord and direction of \
+                                 travel, which shares the declared `travel` carrier's token and \
+                                 takes no name";
 
 const CLOSURE_FORWARDS: &str = "a closure bound in this `fn` hands on its callers' names, read where \
                                 its callers call it (a declared carrier, or a `decide*` spelling); \
@@ -844,6 +847,9 @@ const INDIRECT: &[(&str, &str)] = &[
     ("ray_walk.rs: ray_crossings: rows.advance()", ROW_FIELD),
     ("ray_walk.rs: ray_crossings: rows.side()", ROW_FIELD),
     ("ring_path.rs: path_parity: name", CLOSURE_FORWARDS),
+    ("ring_path.rs: spline_crossings: ", SAME_NAMED_TRAVEL),
+    ("ring_path/spline_wall.rs: paths: ", SAME_NAMED_TRAVEL),
+    ("ring_path/spline_wall.rs: reach: ", SAME_NAMED_TRAVEL),
     ("rows.rs: line: self.line", ROW_FIELD),
     ("rows.rs: names: ", ACCESSOR_LIKE_A_DOOR),
     ("rows.rs: segment_rows: segment: self.segment", ROW_FIELD),

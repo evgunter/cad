@@ -492,7 +492,7 @@ fn reads(code: &str) -> usize {
 /// `#[cfg(test)]` items are not counted); a hit added anywhere reds, and
 /// the answer is to read through `Evaluation::usable` or to give the
 /// file its line here.
-const READERS: [(&str, usize, &str); 16] = [
+const READERS: [(&str, usize, &str); 15] = [
     (
         "crates/editor-core/src/eval/members.rs",
         18,
@@ -505,7 +505,7 @@ const READERS: [(&str, usize, &str); 16] = [
     ),
     (
         "crates/editor-core/src/eval/mod.rs",
-        33,
+        35,
         "the home: the evaluator writes every result, and `usable_in` is the one ladder; the \
          test-support hand-built evaluation takes its result map whole; the solve reads each \
          placement's answer off the evaluation (`SolvedPoses::of`): its value's motion, or the \
@@ -513,7 +513,9 @@ const READERS: [(&str, usize, &str); 16] = [
          the recipe's, `Doc::node_space`, and no value is read for it); it hands the result \
          map to the per-member schedule (`eval/members.rs`) and writes the family's refusal it \
          returns; a profile lane hands its result map whole as the nominal document's \
-         (`ProfileLane::nominal_results`)",
+         (`ProfileLane::nominal_results`); an evaluation bound to its build of record \
+         (`RecordBinding`) reads which nodes the record FAILED, a standing and not a value, and \
+         writes the `RecordRefused` failure at each node the record built no value at",
     ),
     (
         "crates/editor-core/src/eval/wire.rs",
@@ -561,13 +563,6 @@ const READERS: [(&str, usize, &str); 16] = [
          before placement; anything else is its `Unevaluated` refusal",
     ),
     (
-        "crates/viewer/src/session.rs",
-        3,
-        "the numeric gestures' frame reads the body's own value as `corner_frame` does; \
-         anything else is its `Unevaluated` refusal \
-         (`work/intent/the-viewers-numeric-gestures-read-a-frame-back-off-geometry.md`)",
-    ),
-    (
         "crates/editor-core/src/mate/unobservable.rs",
         3,
         "the unobservable-value report reads a placement's own value, and says nothing of one \
@@ -591,9 +586,10 @@ const READERS: [(&str, usize, &str); 16] = [
     ),
     (
         "crates/editor-core/src/eval/parts.rs",
-        1,
+        2,
         "moves the failure behind a failed or poisoned piece of the part's product out of the part's \
-         evaluation, which the standing does not carry",
+         evaluation, which the standing does not carry; and records which nodes of a part's build \
+         FAILED, a standing and not a value, as the refusals its record carries",
     ),
 ];
 
