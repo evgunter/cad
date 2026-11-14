@@ -983,6 +983,8 @@ mod a_boolean_on_a_pole_touching_octant;
 mod a_ringed_wall_divided_by_a_carried_chord;
 #[path = "extent_scan_off_face_tangency.rs"]
 mod extent_scan_off_face_tangency;
+#[path = "edge_turns_review_probe.rs"]
+mod edge_turns_review_probe;
 #[path = "far_walls_read_their_whole_turns.rs"]
 mod far_walls_read_their_whole_turns;
 #[path = "full_turn_wall.rs"]
