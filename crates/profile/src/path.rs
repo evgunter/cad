@@ -3855,7 +3855,7 @@ fn center_arc<T: Real>(
 /// to `b − q` (by the inscribed angle, half the included angle). The
 /// turn reaches ±π only with `q` on the chord's line outside it, which
 /// the door's collinear gate refuses first.
-fn via_arc<T: Real>(a: Point2<T>, q: Point2<T>, b: Point2<T>) -> Option<BuiltArc<T>> {
+fn via_arc<T: Decide>(a: Point2<T>, q: Point2<T>, b: Point2<T>) -> Option<BuiltArc<T>> {
     crate::bulge_leg(a, b, crate::bulge_from_via(a, q, b)).map(|built| built.through(Some(q)))
 }
 

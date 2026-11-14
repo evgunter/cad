@@ -1874,7 +1874,8 @@ Flagged, NOT fixed here (dispositions):
   never admits a frame. One site, `LEDGER_FLAGGED_SITES` 4 → 5.
 
 - **F43** (added by BOXFINISH's profile-directions unit)
-  `profile/src/seg.rs` `axis_or`, under `segment_direction_axis`: each
+  `profile/src/seg.rs` `axis_or` and `literal_sign`, under
+  `segment_direction_axis` and `segment_direction_sign`. The first: each
   component of the vector a validated segment's direction is minted
   from (a line's chord, an arc's centre-to-vertex), read at the least
   band. An exact zero (a theorem of the parameters at `Sym`, an exact
@@ -1885,7 +1886,13 @@ Flagged, NOT fixed here (dispositions):
   never a refusal: the axis only drops the width a quotient of two
   values that share a parameter carries. Read through
   `k_stats::check_unlogged(.., "F43")`; its K samples reach the sink
-  under `segment_direction_axis`. Not a `decide_flagged` site;
+  under `segment_direction_axis`. The second: the sign that signs a
+  direction (an axis chord's other component, a bulge's for its
+  lowering's radials), read at the least band into the literal ±1;
+  anything but a definite sign leaves the direction to its other
+  spelling (the quotient, or validation's mint). Both outcomes are
+  again sound, and the literal keeps an opaque `copysign` atom out of
+  the symbolic tier. Not `decide_flagged` sites;
   `LEDGER_FLAGGED_SITES` does not move.
 
 **Every `props/curved.rs` row above is cited BY TARGET NAME, not by

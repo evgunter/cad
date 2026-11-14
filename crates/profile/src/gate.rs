@@ -231,6 +231,8 @@ gates! {
     RaySide => "ray_side", Sized(COINCIDENCE_RECOURSE), "which side of a containment ray a point lies on";
     /// One component of a chord or rim a direction is minted from, read exactly and outside the log (audit row F43): exactly zero mints the axis.
     SegmentDirectionAxis => "segment_direction_axis", Lever(COINCIDENCE_RECOURSE), "whether a direction minted from two points lies along an axis";
+    /// The sign that signs a direction minted or lowered (a bulge's, an axis chord's other component), read exactly and outside the log (audit row F43).
+    SegmentDirectionSign => "segment_direction_sign", Lever(COINCIDENCE_RECOURSE), "whether the quantity that signs a direction is positive or negative";
     /// How far a table segment's recorded direction, walked its own length from the segment's start (a line) or its centre (an arc's radial), lands from the vertex it points at.
     SegmentDirection => "segment_direction", Sized(COINCIDENCE_RECOURSE), "whether a segment's recorded direction points at its vertex";
     /// The magnitude a recorded direction's miss was read at, against the one where its f64 rounding reaches the band.

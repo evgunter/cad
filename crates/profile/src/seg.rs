@@ -772,10 +772,9 @@ fn check_direction<T: Decide>(
 
 /// **A direction minted from the vector `w`**: the axis it lies along,
 /// where one of its components is exactly zero (a theorem of the
-/// parameters at `Sym`, an exact zero at a point scalar), signed by the
-/// other ([`Real::unit_sign`], exact over an enclosure clear of zero,
-/// which a decided length is); otherwise `quotient`, `w` over its
-/// length. Both are the direction wherever the component is zero; the
+/// parameters at `Sym`, an exact zero at a point scalar) and the other's
+/// sign reads exactly ([`literal_sign`]); otherwise `quotient`, `w` over
+/// its length. Both are the direction wherever the component is zero; the
 /// axis carries no width the geometry lacks, which a quotient of two
 /// values that share a parameter does. Read at the least band and
 /// outside the log (`segment_direction_axis`, audit row F43): a choice
@@ -787,12 +786,24 @@ fn axis_or<T: Decide>(w: Vec2<T>, quotient: Vec2<T>) -> Vec2<T> {
             Ok(Sign::Zero)
         )
     };
-    if zero(w.x) {
-        Vec2::new(T::zero(), w.y.unit_sign())
-    } else if zero(w.y) {
-        Vec2::new(w.x.unit_sign(), T::zero())
-    } else {
-        quotient
+    match (zero(w.x), zero(w.y)) {
+        (true, false) => literal_sign(w.y).map_or(quotient, |s| Vec2::new(T::zero(), s)),
+        (false, true) => literal_sign(w.x).map_or(quotient, |s| Vec2::new(s, T::zero())),
+        _ => quotient,
+    }
+}
+
+/// **`x`'s sign as the literal ±1**, where it reads exactly: `x`
+/// definitely positive or definitely negative at the least band, outside
+/// the log (`segment_direction_sign`, audit row F43); `None` otherwise,
+/// for the caller's other spelling. A literal rather than a `copysign`
+/// of one, so the symbolic tier reads a constant where the sign is
+/// known, not an opaque atom.
+pub(crate) fn literal_sign<T: Decide>(x: T) -> Option<T> {
+    match check_unlogged(Gate::SegmentDirectionSign, x, Band::least(), "F43") {
+        Ok(Sign::Positive) => Some(T::one()),
+        Ok(Sign::Negative) => Some(-T::one()),
+        Ok(Sign::Zero) | Err(_) => None,
     }
 }
 

@@ -309,12 +309,23 @@ pub(crate) fn lower_to<T: Real>(start: Point2<T>, bulge: T, end: Point2<T>) -> S
 /// exactly at a zero bulge (either sign), and otherwise the arc
 /// [`lower_arc`] builds with its endpoint facts,
 /// [`BuiltArc::lowered`].
-pub(crate) fn bulge_leg<T: Real>(
+///
+/// Its radials are the lowering's ([`Arc2::from_chord_radials`], whose
+/// doc carries their proof), signed by the bulge's sign where that reads
+/// exactly ([`seg::literal_sign`]); where it does not, the arc records
+/// none and validation decides them.
+pub(crate) fn bulge_leg<T: geom_core::Decide>(
     start: Point2<T>,
     end: Point2<T>,
     bulge: T,
 ) -> Option<BuiltArc<T>> {
-    (!is_exact_zero(bulge)).then(|| BuiltArc::lowered(start, end, bulge))
+    (!is_exact_zero(bulge)).then(|| {
+        let built = BuiltArc::lowered(start, end, bulge);
+        match seg::literal_sign(bulge) {
+            Some(sign) => built.radial(Arc2::from_chord_radials(start, end, bulge, sign).1),
+            None => built,
+        }
+    })
 }
 
 /// The bulge mode's lowering over a whole chain: each (position,
@@ -424,12 +435,8 @@ impl<T: Real> BuiltArc<T> {
 
     /// The arc [`lower_arc`] lowers from the chord `start → end` and
     /// `x`, with its endpoint facts — theorems of that lowering.
-    ///
-    /// Its radials are the lowering's ([`Arc2::from_chord_radials`],
-    /// whose doc carries their proof).
     pub(crate) fn lowered(start: Point2<T>, end: Point2<T>, x: T) -> Self {
-        let (arc, radials) = Arc2::from_chord_radials(start, end, x);
-        Self::new(arc, Facts::Registered).radial(radials)
+        Self::new(lower_arc(start, end, x), Facts::Registered)
     }
 
     /// The same arc, with the unit radials at its two ends its

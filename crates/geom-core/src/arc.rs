@@ -51,12 +51,14 @@ impl<T: Real> Arc2<T> {
     /// own rule to have kept out.
     #[must_use]
     pub fn from_chord(a: Point2<T>, b: Point2<T>, x: T) -> Self {
-        Self::from_chord_radials(a, b, x).0
+        Self::from_chord_radials(a, b, x, T::one()).0
     }
 
     /// [`Arc2::from_chord`], with the unit radials at its two ends that
     /// the lowering holds: with `û` the chord's unit direction, `n̂` its
-    /// left normal and `s = sign(x)` ([`Real::unit_sign`]),
+    /// left normal and `s` the literal ±1 of `x`'s sign, which the caller
+    /// reads (the radials are those of `sign · |…|`, so a wrong `sign`
+    /// negates both),
     ///
     /// - at `a`: `s·(−2x·û − (1 − x²)·n̂)/(1 + x²)`,
     /// - at `b`: `s·( 2x·û − (1 − x²)·n̂)/(1 + x²)`.
@@ -68,7 +70,7 @@ impl<T: Real> Arc2<T> {
     /// `4x² + (1 − x²)² = (1 + x²)²`. Both are rational in `x` and the
     /// chord's own unit, so no further length is read.
     #[must_use]
-    pub fn from_chord_radials(a: Point2<T>, b: Point2<T>, x: T) -> (Self, [Vec2<T>; 2]) {
+    pub fn from_chord_radials(a: Point2<T>, b: Point2<T>, x: T, sign: T) -> (Self, [Vec2<T>; 2]) {
         let len = a.distance(b);
         let unit = (b - a) / len;
         let mid = a.mid(b);
@@ -82,7 +84,7 @@ impl<T: Real> Arc2<T> {
             radius: signed_radius.abs(),
             sweep: T::from_f64(4.0) * x.atan(),
         };
-        let scale = x.unit_sign() / (T::one() + x2);
+        let scale = sign / (T::one() + x2);
         let along = unit * (x + x);
         let across = normal * (T::one() - x2);
         let radials = [(-along - across) * scale, (along - across) * scale];
@@ -543,7 +545,7 @@ mod tests {
     fn from_chord_radials_are_the_centre_to_vertex_units() {
         let (a, b) = (Point2::new(0.3, -0.7), Point2::new(1.9, 0.4));
         for x in [1e-3, 0.2, 0.5, 1.0, 3.0, -1e-3, -0.4, -1.0, -2.5] {
-            let (arc, [ra, rb]) = Arc2::from_chord_radials(a, b, x);
+            let (arc, [ra, rb]) = Arc2::from_chord_radials(a, b, x, x.signum());
             let plain = Arc2::from_chord(a, b, x);
             assert_eq!(
                 [arc.centre.x, arc.centre.y, arc.radius, arc.sweep].map(f64::to_bits),
