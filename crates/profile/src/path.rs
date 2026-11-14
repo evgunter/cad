@@ -3131,6 +3131,10 @@ pub struct Core<T: Real> {
     /// leaving it, `None` for a line (and for the chain's last vertex
     /// until its segment is set).
     verts: Vec<(Point2<T>, Option<BuiltArc<T>>)>,
+    /// The director of the straight segment leaving vertex `k`, where
+    /// the verb that drew it held one ([`Core::direct_leaving`]);
+    /// reset whenever that segment is set again.
+    directors: Vec<Option<Vec2<T>>>,
     /// The joints the chain's constructors made tangent
     /// ([`ConstructedLoop::constructed_joints`]).
     tangent: Vec<usize>,
@@ -3211,6 +3215,7 @@ impl<T: Real> Core<T> {
     fn empty() -> Self {
         Self {
             verts: Vec::new(),
+            directors: Vec::new(),
             tangent: Vec::new(),
             cusps_on_lines: Vec::new(),
             start_pos: None,
@@ -3423,6 +3428,10 @@ impl<T: Decide> Core<T> {
         if self.verts.len() == 1 && self.first_seg == FirstSeg::NotYet {
             self.first_seg = kind;
         }
+        let segment = self.verts.len().saturating_sub(1);
+        if let Some(director) = self.directors.get_mut(segment) {
+            *director = None;
+        }
         let from = match self.verts.last_mut() {
             Some((from, leaving)) => {
                 *leaving = arc;
@@ -3501,6 +3510,15 @@ impl<T: Decide> Core<T> {
         self.set_leaving(None, FirstSeg::Line, p)?;
         self.verts.push((p, None));
         Ok(())
+    }
+
+    /// Records `dir` as the director of the straight segment leaving
+    /// vertex `segment`, just set by a verb that drew it along `dir`.
+    fn direct_leaving(&mut self, segment: usize, dir: Dir<T>) {
+        if self.directors.len() <= segment {
+            self.directors.resize(segment + 1, None);
+        }
+        self.directors[segment] = Some(dir.unit);
     }
 
     /// Appends the arc segment its construction built, ending at `p`.
@@ -3657,7 +3675,7 @@ impl<T: Real> Core<T> {
         joints.dedup();
         ClosedLoop {
             loop_: ConstructedLoop {
-                loop_: ProfileLoop::from_chain(self.stored_chain(Some(tol))),
+                loop_: ProfileLoop::from_directed_chain(self.stored_chain(Some(tol))),
                 joints,
             },
             program: self.program,
@@ -3665,27 +3683,38 @@ impl<T: Real> Core<T> {
         }
     }
 
-    /// The chain as (vertex, stored segment) pairs, each arc's proved
-    /// endpoint facts registered at `tol` when there is one.
-    fn stored_chain(&self, tol: Option<Tol>) -> Vec<(Point2<T>, Segment<T>)> {
+    /// The chain as (vertex, stored segment, recorded directions)
+    /// triples, each arc's proved endpoint facts registered at `tol`
+    /// when there is one.
+    fn stored_chain(
+        &self,
+        tol: Option<Tol>,
+    ) -> Vec<(Point2<T>, Segment<T>, Option<crate::SegmentDirections<T>>)> {
         let n = self.verts.len();
         (0..n).map(|k| self.stored_segment(k, tol)).collect()
     }
 
-    /// Vertex `k` and the segment leaving it, as stored.
-    fn stored_segment(&self, k: usize, tol: Option<Tol>) -> (Point2<T>, Segment<T>) {
+    /// Vertex `k`, the segment leaving it and the directions its verb
+    /// made, as stored.
+    fn stored_segment(
+        &self,
+        k: usize,
+        tol: Option<Tol>,
+    ) -> (Point2<T>, Segment<T>, Option<crate::SegmentDirections<T>>) {
         let n = self.verts.len();
         let (start, leaving) = self.verts[k];
-        let segment = match leaving {
-            None => Segment::Line,
+        match leaving {
+            None => {
+                let director = self.directors.get(k).copied().flatten();
+                (start, Segment::Line, director.map(crate::SegmentDirections::Line))
+            }
             Some(built) => {
                 if let Some(tol) = tol {
                     built.register(start, self.verts[(k + 1) % n].0, tol);
                 }
-                Segment::Arc(built.arc)
+                (start, Segment::Arc(built.arc), built.directions())
             }
-        };
-        (start, segment)
+        }
     }
 
     /// The piece every segment of the closed chain is, in segment
@@ -3847,7 +3876,11 @@ fn via_arc<T: Real>(a: Point2<T>, q: Point2<T>, b: Point2<T>) -> Option<BuiltArc
 /// `‖a − c‖ = |ρ|` because n̂ is a unit normal, and
 /// `‖b − c‖² = |d|² − 2ρ·across + ρ² = ρ²` by the choice of ρ; the
 /// centre lies on the chord's perpendicular bisector, so the included
-/// angle about it is 2δ, whose quarter-tangent X is.
+/// angle about it is 2δ, whose quarter-tangent X is. Its radials, which
+/// [`tangent_arc_geom`] records, are `σ·(t.y, −t.x)` for the tangent `t`
+/// at each end and σ the decided side of `b`: `c + |ρ|·σ·(u.y, −u.x) =
+/// a + n̂·(ρ − σ|ρ|) = a` wherever `ρ` has the sign σ, and the end's by
+/// the chord's reflection.
 fn tangent_arc<T: Real>(a: Point2<T>, u: Vec2<T>, b: Point2<T>) -> BuiltArc<T> {
     let d = b - a;
     // The unit read is the consistent one for this construction. With
@@ -3924,9 +3957,16 @@ fn tangent_arc_geom<T: Decide>(
             Err(source) => return Err(PathError::escalated(source)),
         }
     }
-    let arc = (!on_line).then(|| tangent_arc(at, u, p).sensed(sense));
-    let chord = d.norm_squared().sqrt();
     let end_ang = reflected_across(u, d);
+    // The radial at each end is the tangent there turned a quarter
+    // away from the centre, which lies on the side the sense decided.
+    let away = |t: Vec2<T>| Vec2::new(t.y, -t.x) * sense.sign::<T>();
+    let arc = (!on_line).then(|| {
+        tangent_arc(at, u, p)
+            .sensed(sense)
+            .radial([away(u), away(end_ang.unit)])
+    });
+    let chord = d.norm_squared().sqrt();
     Ok(TangentArcGeom {
         arc,
         end_ang,
@@ -3957,6 +3997,7 @@ fn onto_arc_geom<T: Decide>(
             ..built.arc
         },
         sense: built.sense.map(ArcSweep::reversed),
+        radials: built.radials.map(|[from, to]| [to, from]),
         ..built
     });
     let geom = TangentArcGeom {
@@ -4213,7 +4254,8 @@ fn leg_arm<T: Real>(carrier: Option<ArcData<T>>, chord: T) -> T {
 /// tip whose carrier is None (a line leg leaves no arc carrier behind)
 /// and whose lever arm is the emitted segment's own length, measured
 /// head-to-end so a side squeezed between two trims measures from the
-/// trim point rather than from an authored anchor.
+/// trim point rather than from an authored anchor. The leg is drawn
+/// along `ang`, so it records `ang` as its director.
 fn emit_straight_leg<T: Decide>(
     core: &mut Core<T>,
     at: Point2<T>,
@@ -4221,7 +4263,9 @@ fn emit_straight_leg<T: Decide>(
     len: T,
     run: Run<T>,
 ) -> Result<Tip<T>, PathError<T>> {
-    emit_straight_leg_at(core, at + ang.unit * len, ang, run)
+    let tip = emit_straight_leg_at(core, at + ang.unit * len, ang, run)?;
+    core.direct_leaving(core.verts.len() - 2, ang);
+    Ok(tip)
 }
 
 /// The same emission where the END is the datum rather than the extent
@@ -4494,7 +4538,7 @@ impl<T: Decide> Core<T> {
         let n = self.verts.len();
         for &(leaving, radius) in &self.fillet_arcs {
             let stored = |i: usize| {
-                let (start, segment) = self.stored_segment(i, None);
+                let (start, segment, _) = self.stored_segment(i, None);
                 // Every segment here is its construction's own output,
                 // verified at that construction (D1), so this re-read
                 // asks what validation asks of its shape and joints,
@@ -5254,12 +5298,16 @@ fn circle_kernel<T: Decide>(
     // is typed at `CIRCLE_PIECES`, so the two cannot disagree. Each
     // half turns through 4·atan(1).
     let half = T::from_f64(4.0) * T::one().atan();
+    let (one, zero) = (T::one(), T::zero());
+    let radials: [Vec2<T>; crate::structure::CIRCLE_PIECES as usize] =
+        [Vec2::new(one, zero), Vec2::new(-one, zero)];
     let vertices: [Point2<T>; crate::structure::CIRCLE_PIECES as usize] = [
         Point2::new(center.x + radius, center.y),
         Point2::new(center.x - radius, center.y),
     ];
     circle_loop(
         &vertices,
+        &radials,
         center,
         radius,
         half,
@@ -5290,15 +5338,20 @@ fn circle_split_kernel<T: Decide>(
     let n_t = T::from_f64(n as f64);
     let four = T::from_f64(4.0);
     let sweep = four * (T::pi() / (T::from_f64(2.0) * n_t)).tan().atan();
-    let vertices: Vec<Point2<T>> = (0..n)
+    let radials: Vec<Vec2<T>> = (0..n)
         .map(|k| {
             let theta = phase + T::from_f64(2.0) * T::pi() * T::from_f64(k as f64) / n_t;
             let (s, c) = theta.sin_cos();
-            Point2::new(center.x + radius * c, center.y + radius * s)
+            Vec2::new(c, s)
         })
+        .collect();
+    let vertices: Vec<Point2<T>> = radials
+        .iter()
+        .map(|&Vec2 { x: c, y: s }| Point2::new(center.x + radius * c, center.y + radius * s))
         .collect();
     circle_loop(
         &vertices,
+        &radials,
         center,
         radius,
         sweep,
@@ -5336,8 +5389,18 @@ fn rectangle_kernel<T: Decide>(
         Point2::new(x1, y1),
         Point2::new(x0, y1),
     ];
-    Ok(ProfileLoop::from_chain(
-        corners.into_iter().map(|p| (p, Segment::Line)),
+    let (one, zero) = (T::one(), T::zero());
+    let directors = [
+        Vec2::new(one, zero),
+        Vec2::new(zero, one),
+        Vec2::new(-one, zero),
+        Vec2::new(zero, -one),
+    ];
+    Ok(ProfileLoop::from_directed_chain(
+        corners
+            .into_iter()
+            .zip(directors)
+            .map(|(p, d)| (p, Segment::Line, Some(crate::SegmentDirections::Line(d)))),
     ))
 }
 
@@ -5354,9 +5417,13 @@ fn rectangle_kernel<T: Decide>(
 /// `circle`; 2π/n, spelled 4·atan(tan(π/2n)), for `circle_split`), over
 /// the reals at every value of the centre, radius and phase; each is
 /// read back before the loop is stored ([`arc_reads_back`]), as piece
-/// `k` of the one step the `verb` row records.
+/// `k` of the one step the `verb` row records. That unit direction is
+/// `radials[k]`, which each arc records at its two ends; the centre
+/// plus the stored radius `|r|` along it is the vertex wherever the door
+/// decided `r` positive, and that is registered with the rest.
 fn circle_loop<T: Decide>(
     vertices: &[Point2<T>],
+    radials: &[Vec2<T>],
     centre: Point2<T>,
     radius: T,
     sweep: T,
@@ -5381,14 +5448,15 @@ fn circle_loop<T: Decide>(
         };
         arc_reads_back(arc, vertices[k], vertices[(k + 1) % n], band, piece, verb)?;
     }
-    let chain: Vec<(Point2<T>, Segment<T>)> = (0..n)
+    let chain: Vec<_> = (0..n)
         .map(|k| {
             let (start, end) = (vertices[k], vertices[(k + 1) % n]);
+            let arc = arc.radial([radials[k], radials[(k + 1) % n]]);
             arc.register(start, end, tol);
-            (start, Segment::Arc(arc.arc))
+            (start, Segment::Arc(arc.arc), arc.directions())
         })
         .collect();
-    Ok(ProfileLoop::from_chain(chain))
+    Ok(ProfileLoop::from_directed_chain(chain))
 }
 
 /// The opening of [`PathError::ArcMissesAuthoredPoint`]'s and its

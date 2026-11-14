@@ -165,7 +165,7 @@ mod turn_rows;
 mod validate;
 
 use geom_core::spline::SpanLocate;
-use geom_core::{Affine3, Arc2, Point2, Point3, Real, RigidMotion, Tol, UnitVec3};
+use geom_core::{Affine3, Arc2, Point2, Point3, Real, RigidMotion, Tol, UnitVec3, Vec2};
 
 /// The fillet gates' levers, under `test-support` only: prose a caller
 /// reads, so a suite that pins what a caller reads names them rather
@@ -234,6 +234,59 @@ pub enum Segment<T: Real> {
     /// sweep Δθ from the segment's start vertex to its end vertex about
     /// the centre, positive counterclockwise.
     Arc(Arc2<T>),
+}
+
+/// **The unit directions a segment's construction made**: a line's
+/// director, from its start to its end, or an arc's radial at each end,
+/// from its centre to that vertex. A sweep that needs a segment's
+/// direction reads it here and never divides the difference of two
+/// vertices by its own length.
+///
+/// Redundant with the vertices and the carrier, and never trusted:
+/// [`Profile::validate`] checks one a table carries against its vertices,
+/// and one a construction made holds by that construction. A table that
+/// carries none has them decided once, at validate, from its vertices
+/// ([`ValidatedSegment::directions`]).
+#[derive(Clone, Copy, Debug)]
+pub enum SegmentDirections<T: Real> {
+    /// A line's unit director, start to end.
+    Line(Vec2<T>),
+    /// An arc's unit radials, centre to vertex.
+    Arc {
+        /// At the start vertex.
+        start: Vec2<T>,
+        /// At the end vertex.
+        end: Vec2<T>,
+    },
+}
+
+impl<T: Real> SegmentDirections<T> {
+    /// The same directions read at another scalar: `f` on every
+    /// component, nothing derived.
+    #[must_use]
+    pub fn map<U: Real>(self, f: impl Fn(T) -> U) -> SegmentDirections<U> {
+        match self {
+            Self::Line(d) => SegmentDirections::Line(d.map(&f)),
+            Self::Arc { start, end } => SegmentDirections::Arc {
+                start: start.map(&f),
+                end: end.map(&f),
+            },
+        }
+    }
+
+    /// The same segment traversed the other way: a director negated, an
+    /// arc's two radials swapped. Nothing turns, so reversal is an
+    /// involution bit for bit.
+    #[must_use]
+    pub fn reversed(self) -> Self {
+        match self {
+            Self::Line(d) => Self::Line(-d),
+            Self::Arc { start, end } => Self::Arc {
+                start: end,
+                end: start,
+            },
+        }
+    }
 }
 
 /// **The bulge mode's lowering rule**: the canonical segment that the
@@ -345,6 +398,10 @@ pub(crate) struct BuiltArc<T: Real> {
     /// stored arc that reads as a line is a line as authored, and the
     /// door does not read it back.
     pub(crate) bulge_authored: bool,
+    /// The unit radials at the arc's start and end its construction
+    /// holds, where it holds them; registered with the endpoint facts
+    /// ([`Arc2::register_radials`]).
+    pub(crate) radials: Option<[Vec2<T>; 2]>,
 }
 
 impl<T: Real> BuiltArc<T> {
@@ -357,13 +414,34 @@ impl<T: Real> BuiltArc<T> {
             through: None,
             sense: None,
             bulge_authored: false,
+            radials: None,
         }
     }
 
     /// The arc [`lower_arc`] lowers from the chord `start → end` and
     /// `x`, with its endpoint facts — theorems of that lowering.
+    ///
+    /// Its radials are the lowering's ([`Arc2::from_chord_radials`],
+    /// whose doc carries their proof).
     pub(crate) fn lowered(start: Point2<T>, end: Point2<T>, x: T) -> Self {
-        Self::new(lower_arc(start, end, x), Facts::Registered)
+        let (arc, radials) = Arc2::from_chord_radials(start, end, x);
+        Self::new(arc, Facts::Registered).radial(radials)
+    }
+
+    /// The same arc, with the unit radials at its two ends its
+    /// construction holds.
+    pub(crate) fn radial(self, radials: [Vec2<T>; 2]) -> Self {
+        Self {
+            radials: Some(radials),
+            ..self
+        }
+    }
+
+    /// The directions this arc records: its radials, where its
+    /// construction holds them.
+    pub(crate) fn directions(&self) -> Option<SegmentDirections<T>> {
+        self.radials
+            .map(|[start, end]| SegmentDirections::Arc { start, end })
     }
 
     /// The same arc, authored through `q`.
@@ -382,9 +460,13 @@ impl<T: Real> BuiltArc<T> {
     /// The same arc with its endpoint facts held only to a decision:
     /// for a caller that stores it between vertices other than the ones
     /// its construction proved them at.
+    ///
+    /// Its radials go with the facts: they were the construction's at
+    /// the vertices it proved them at.
     pub(crate) fn decided(self) -> Self {
         Self {
             facts: Facts::Decided,
+            radials: None,
             ..self
         }
     }
@@ -396,6 +478,11 @@ impl<T: Real> BuiltArc<T> {
         if self.facts == Facts::Registered {
             for (fact, answer) in self.arc.register_endpoints(start, end, tol) {
                 answer.handle(fact);
+            }
+            if let Some(radials) = self.radials {
+                for (fact, answer) in self.arc.register_radials(start, end, radials, tol) {
+                    answer.handle(fact);
+                }
             }
         }
     }
@@ -501,6 +588,9 @@ pub struct ProfileLoop<T: Real> {
     vertices: Vec<Point2<T>>,
     /// The canonical segments, segment `k` leaving vertex `k`.
     segments: Vec<Segment<T>>,
+    /// The directions segment `k`'s construction made, where it made
+    /// them ([`SegmentDirections`]).
+    directions: Vec<Option<SegmentDirections<T>>>,
 }
 
 /// Spells the raw door at a given VISIBILITY, so that the trait ITEM's
@@ -574,6 +664,16 @@ macro_rules! raw_door {
             /// trait has the same shape in both arms.
             fn new(chain: impl IntoIterator<Item = (Point2<T>, Segment<T>)>) -> Self;
 
+            /// [`RawLoop::new`] with each segment's recorded directions
+            /// as given, verbatim: a fixture's corrupted direction is
+            /// [`Profile::validate`]'s to refuse.
+            #[cfg(any(test, feature = "test-support"))]
+            fn new_directed(
+                chain: impl IntoIterator<
+                    Item = (Point2<T>, Segment<T>, Option<SegmentDirections<T>>),
+                >,
+            ) -> Self;
+
             /// Builds a loop of straight segments through the given
             /// points — [`RawLoop::new`] with a [`Segment::Line`] per
             /// edge — polygon sugar.
@@ -584,6 +684,15 @@ macro_rules! raw_door {
         impl<T: Real> RawLoop<T> for ProfileLoop<T> {
             fn new(chain: impl IntoIterator<Item = (Point2<T>, Segment<T>)>) -> Self {
                 Self::from_chain(chain)
+            }
+
+            #[cfg(any(test, feature = "test-support"))]
+            fn new_directed(
+                chain: impl IntoIterator<
+                    Item = (Point2<T>, Segment<T>, Option<SegmentDirections<T>>),
+                >,
+            ) -> Self {
+                Self::from_directed_chain(chain)
             }
 
             #[cfg(any(test, feature = "test-support"))]
@@ -634,16 +743,17 @@ impl<T: Real> ProfileLoop<T> {
     /// anticipated doors that do not exist.
     #[must_use]
     pub fn map_scalar<U: Real>(&self, f: impl Fn(T) -> U) -> ProfileLoop<U> {
-        ProfileLoop::from_chain(
+        ProfileLoop::from_directed_chain(
             self.vertices
                 .iter()
                 .zip(&self.segments)
-                .map(|(pos, segment)| {
+                .zip(&self.directions)
+                .map(|((pos, segment), directions)| {
                     let segment = match *segment {
                         Segment::Line => Segment::Line,
                         Segment::Arc(arc) => Segment::Arc(arc.map(&f)),
                     };
-                    (pos.map(&f), segment)
+                    (pos.map(&f), segment, directions.map(|d| d.map(&f)))
                 }),
         )
     }
@@ -655,8 +765,25 @@ impl<T: Real> ProfileLoop<T> {
     /// re-seaming all build through it; none of them derives a segment
     /// from its vertices here.
     pub(crate) fn from_chain(chain: impl IntoIterator<Item = (Point2<T>, Segment<T>)>) -> Self {
-        let (vertices, segments) = chain.into_iter().unzip();
-        Self { vertices, segments }
+        Self::from_directed_chain(chain.into_iter().map(|(p, s)| (p, s, None)))
+    }
+
+    /// [`Self::from_chain`] with the directions each segment's
+    /// construction made, where it made them.
+    pub(crate) fn from_directed_chain(
+        chain: impl IntoIterator<Item = (Point2<T>, Segment<T>, Option<SegmentDirections<T>>)>,
+    ) -> Self {
+        let (mut vertices, mut segments, mut directions) = (Vec::new(), Vec::new(), Vec::new());
+        for (p, s, d) in chain {
+            vertices.push(p);
+            segments.push(s);
+            directions.push(d);
+        }
+        Self {
+            vertices,
+            segments,
+            directions,
+        }
     }
 }
 
@@ -675,6 +802,13 @@ impl<T: Real> ProfileLoop<T> {
     /// it a line (see [`Segment`]).
     pub fn segments(&self) -> &[Segment<T>] {
         &self.segments
+    }
+
+    /// The directions each segment's construction made
+    /// ([`SegmentDirections`]), `None` where the loop holds only its
+    /// points for that segment.
+    pub fn directions(&self) -> &[Option<SegmentDirections<T>>] {
+        &self.directions
     }
 
     /// The reversed chain: the same locus traversed the other way.
@@ -697,13 +831,15 @@ impl<T: Real> ProfileLoop<T> {
             return self.clone();
         }
         let chain = (0..n).map(|k| {
-            let segment = match self.segments[(n - k - 1) % n] {
+            let retraced = (n - k - 1) % n;
+            let segment = match self.segments[retraced] {
                 Segment::Line => Segment::Line,
                 Segment::Arc(arc) => Segment::Arc(arc.reversed()),
             };
-            (self.vertices[(n - k) % n], segment)
+            let directions = self.directions[retraced].map(SegmentDirections::reversed);
+            (self.vertices[(n - k) % n], segment, directions)
         });
-        Self::from_chain(chain)
+        Self::from_directed_chain(chain)
     }
 }
 
