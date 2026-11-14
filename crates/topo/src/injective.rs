@@ -3259,9 +3259,9 @@ fn corner_of(
         .copied()
         .filter(|v| rf.ends.contains(v))
         .collect();
-    let vertex = match common.as_slice() {
-        &[v] => v,
-        &[v, w] => match (at.contains(&v), at.contains(&w)) {
+    let vertex = match *common.as_slice() {
+        [v] => v,
+        [v, w] => match (at.contains(&v), at.contains(&w)) {
             (true, false) => v,
             (false, true) => w,
             _ => return None,
