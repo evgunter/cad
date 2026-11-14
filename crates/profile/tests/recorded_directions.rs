@@ -464,3 +464,32 @@ fn the_lift_carries_a_recorded_direction_and_never_rederives_it() {
         "the value channel"
     );
 }
+
+/// **A hop between two points that share a variable mints its axis with
+/// no width**: the slab whose width `W` carries a box, drawn through its
+/// four corners. The side from (W, 0) to (W, 1) is (0, 1) at every `W`,
+/// and validation's mint reads `W − W` as the zero it is (a theorem at
+/// `Sym`), where the quotient would carry the box's width twice.
+#[test]
+fn a_hop_along_an_axis_mints_its_director_with_no_width() {
+    in_session(|| {
+        let w = param("W", 1.0, 1e-11);
+        let (z, one) = (Lane::from_f64(0.0), Lane::from_f64(1.0));
+        let lp = Open
+            .at(Point2::new(z, z))
+            .line_to(Point2::new(w, z), tol())
+            .unwrap()
+            .line_to(Point2::new(w, one), tol())
+            .unwrap()
+            .line_to(Point2::new(z, one), tol())
+            .unwrap()
+            .line_to(Start, tol())
+            .unwrap();
+        let vp = validated(vec![lp.loop_]);
+        let want = [(1.0, 0.0), (0.0, 1.0), (-1.0, 0.0), (0.0, -1.0)];
+        for (k, (x, y)) in want.into_iter().enumerate() {
+            let d = director(vp.loops()[0].segments()[k].directions);
+            assert_eq!(bounds(d), [(x, x), (y, y)], "side {k}");
+        }
+    });
+}

@@ -770,22 +770,51 @@ fn check_direction<T: Decide>(
     }
 }
 
+/// **A direction minted from the vector `w`**: the axis it lies along,
+/// where one of its components is exactly zero (a theorem of the
+/// parameters at `Sym`, an exact zero at a point scalar), signed by the
+/// other ([`Real::unit_sign`], exact over an enclosure clear of zero,
+/// which a decided length is); otherwise `quotient`, `w` over its
+/// length. Both are the direction wherever the component is zero; the
+/// axis carries no width the geometry lacks, which a quotient of two
+/// values that share a parameter does. Read at the least band and
+/// outside the log (`segment_direction_axis`, audit row F43): a choice
+/// between two sound spellings, never a refusal.
+fn axis_or<T: Decide>(w: Vec2<T>, quotient: Vec2<T>) -> Vec2<T> {
+    let zero = |c: T| {
+        matches!(
+            check_unlogged(Gate::SegmentDirectionAxis, c, Band::least(), "F43"),
+            Ok(Sign::Zero)
+        )
+    };
+    if zero(w.x) {
+        Vec2::new(T::zero(), w.y.unit_sign())
+    } else if zero(w.y) {
+        Vec2::new(w.x.unit_sign(), T::zero())
+    } else {
+        quotient
+    }
+}
+
 /// **The directions a validated segment records**: the ones its
 /// construction or its table recorded, `recorded`, where they are of the
 /// kind `s` reads as; otherwise decided here, once, from what the
 /// segment holds — a line's chord unit (`s.unit`, under the
 /// `vertex_separation` decision already taken), an arc's centre-to-vertex
 /// units over its rim at each end.
-pub(crate) fn validated_directions<T: Real>(
+pub(crate) fn validated_directions<T: Decide>(
     s: &Seg<T>,
     recorded: Option<SegmentDirections<T>>,
 ) -> SegmentDirections<T> {
     match (&s.kind, recorded) {
         (SegKind::Line, Some(d @ SegmentDirections::Line(_)))
         | (SegKind::Arc(_), Some(d @ SegmentDirections::Arc { .. })) => d,
-        (SegKind::Line, _) => SegmentDirections::Line(s.unit),
+        (SegKind::Line, _) => SegmentDirections::Line(axis_or(s.chord, s.unit)),
         (SegKind::Arc(g), _) => {
-            let radial = |p: Point2<T>| (p - g.arc.centre) / g.arc.rim(p);
+            let radial = |p: Point2<T>| {
+                let w = p - g.arc.centre;
+                axis_or(w, w / g.arc.rim(p))
+            };
             SegmentDirections::Arc {
                 start: radial(s.a),
                 end: radial(s.b),

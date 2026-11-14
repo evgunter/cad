@@ -1877,6 +1877,21 @@ Flagged, NOT fixed here (dispositions):
   an escalation re-mints it, the conservative branch, so the decision
   never admits a frame. One site, `LEDGER_FLAGGED_SITES` 4 → 5.
 
+- **F43** (added by BOXFINISH's profile-directions unit)
+  `profile/src/seg.rs` `axis_or`, under `segment_direction_axis`: each
+  component of the vector a validated segment's direction is minted
+  from (a line's chord, an arc's centre-to-vertex), read at the least
+  band. An exact zero (a theorem of the parameters at `Sym`, an exact
+  zero at `f64`) mints the axis the vector lies along, signed by its
+  other component; anything else, an escalation included, mints the
+  quotient by its length. **Both outcomes are the direction** wherever
+  the component is zero, so no reader rests on the pick and it is
+  never a refusal: the axis only drops the width a quotient of two
+  values that share a parameter carries. Read through
+  `k_stats::check_unlogged(.., "F43")`; its K samples reach the sink
+  under `segment_direction_axis`. Not a `decide_flagged` site;
+  `LEDGER_FLAGGED_SITES` does not move.
+
 **Every `props/curved.rs` row above is cited BY TARGET NAME, not by
 line** (S176(a)). The line numbers they carried were written against a
 2026-08 tree and had already rotted at #877's merge base; #877 moved
