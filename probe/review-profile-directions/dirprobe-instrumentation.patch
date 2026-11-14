@@ -1,0 +1,53 @@
+diff --git a/crates/profile/src/validate.rs b/crates/profile/src/validate.rs
+index a6f2d4f7..d324d2d4 100644
+--- a/crates/profile/src/validate.rs
++++ b/crates/profile/src/validate.rs
+@@ -2508,6 +2508,7 @@ fn canonicalize_loop<T: Decide>(
+             kind,
+             directions: seg::validated_directions(&s, made.get(k).copied().flatten()),
+         });
++        review_probe::check(segments.last().unwrap(), made.get(k).copied().flatten().is_some(), band);
+     }
+     if let Some(rec) = recorded
+         && rec.tangent_joints != tangent_joints
+@@ -2590,3 +2591,40 @@ fn loop_orientation<T: Decide>(segs: &[Seg<T>], band: Band) -> Result<Sign, Esca
+         band,
+     )
+ }
++
++#[allow(clippy::unwrap_used, clippy::panic)]
++mod review_probe {
++    use super::*;
++    use geom_core::spline::SpanLocate as SL;
++    fn pv<T: SL>(x: T) -> Option<f64> { x.point_value() }
++    fn pt<T: SL>(p: Point2<T>) -> Option<(f64, f64)> { Some((pv(p.x)?, pv(p.y)?)) }
++    fn v2<T: SL>(p: Vec2<T>) -> Option<(f64, f64)> { Some((pv(p.x)?, pv(p.y)?)) }
++    pub(super) fn check<T: SL>(seg: &ValidatedSegment<T>, recorded: bool, _band: Band) {
++        if std::env::var_os("CAD_DIR_PROBE").is_none() { return; }
++        let tolr: f64 = 1e-9;
++        let (Some(a), Some(b)) = (pt(seg.start), pt(seg.end)) else { return };
++        let fail = |what: &str, got: (f64, f64), want: (f64, f64)| {
++            let err = ((got.0 - want.0).powi(2) + (got.1 - want.1).powi(2)).sqrt();
++            let norm = (got.0 * got.0 + got.1 * got.1).sqrt();
++            if !(err < tolr) || !((norm - 1.0).abs() < 1e-12) {
++                panic!("DIRPROBE {what} recorded={recorded} got={got:?} want={want:?} err={err:e} |d|-1={:e} a={a:?} b={b:?}", norm - 1.0);
++            }
++        };
++        match (seg.directions, seg.kind) {
++            (SegmentDirections::Line(d), SegmentKind::Line) => {
++                let Some(d) = v2(d) else { return };
++                let l = ((b.0 - a.0).powi(2) + (b.1 - a.1).powi(2)).sqrt();
++                fail("director", d, ((b.0 - a.0) / l, (b.1 - a.1) / l));
++            }
++            (SegmentDirections::Arc { start, end }, SegmentKind::Arc { arc, .. }) => {
++                let Some(c) = pt(arc.centre) else { return };
++                for (r, v, w) in [(start, a, "start"), (end, b, "end")] {
++                    let Some(r) = v2(r) else { continue };
++                    let l = ((v.0 - c.0).powi(2) + (v.1 - c.1).powi(2)).sqrt();
++                    fail(w, r, ((v.0 - c.0) / l, (v.1 - c.1) / l));
++                }
++            }
++            _ => panic!("DIRPROBE kind mismatch"),
++        }
++    }
++}
