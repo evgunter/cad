@@ -1,0 +1,157 @@
+# Reviewer-only instrumentation for PR 6946's fix pass at 34c263a6 (never part of any build that ships).
+# Apply on 34c263a6 with: git apply REVIEW-edge-turns-mutants-34c263a6.patch
+# REVIEW_MUT=<kind*10+site>, site 0 cylinder / 1 torus / 2 cone, on the shared EdgeTurn::carried:
+#   1x carried->exact   2x own-frame arms reversed   3x lever zero   4x origin and centre swapped
+# 60 cylinder ruling nominal, 61 torus meridian azimuth nominal, 62 cone generator nominal, 63 torus parallel tube nominal
+# 70 the cone's sense flip dropped, 71 doubled (sweep negated again on a reversed rim)
+# 100 the merge base's reading at the cylinder and torus (EdgeTurn::new about the axis).
+# REVIEW_MUT_SCALAR=<substr> applies it only at the scalar whose type name contains it (f64 | Interval).
+# Survivors over geom-brep + sweep (ci profile, 5216 rows, eps 1e-9 and 1e-12, both scalars): 12, 32, 62.
+diff --git a/crates/geom-brep/src/props/curved.rs b/crates/geom-brep/src/props/curved.rs
+index 963eef540a..dcdb8051ad 100644
+--- a/crates/geom-brep/src/props/curved.rs
++++ b/crates/geom-brep/src/props/curved.rs
+@@ -1475,9 +1475,17 @@ fn cylinder_windings<T: Decide>(
+                             ..
+                         }) => {
+                             let du = rim_turns.next().ok_or(mismatch.clone())?;
+-                            EdgeTurn::carried(axis, origin, center, du, ends, radius)
++                            review_carried(0, axis, origin, center, du, ends, radius)
+                         }
+-                        _ => EdgeTurn::short(axis, ends.0 - origin, ends.1 - origin, radius),
++                        _ => match review_mutant_at::<T>() {
++                            60 => EdgeTurn::exact(T::zero(), radius),
++                            100 => EdgeTurn::new(
++                                turn_about(axis, ends.0 - origin, ends.1 - origin),
++                                turn_arms(axis, ends.0 - origin, ends.1 - origin),
++                                radius,
++                            ),
++                            _ => EdgeTurn::short(axis, ends.0 - origin, ends.1 - origin, radius),
++                        },
+                     }])
+                 })
+                 .collect::<Result<Vec<_>, PropsError>>()?;
+@@ -1505,6 +1513,52 @@ fn cylinder_windings<T: Decide>(
+     closure::closed_form_windings(&chart_loops, band)
+ }
+ 
++/// REVIEW-ONLY mutant switch (never committed): `REVIEW_MUT`, applied
++/// only at the scalar whose type name contains `REVIEW_MUT_SCALAR`.
++fn review_mutant_at<T>() -> u32 {
++    if let Ok(only) = std::env::var("REVIEW_MUT_SCALAR") {
++        if !core::any::type_name::<T>().contains(&only) {
++            return 0;
++        }
++    }
++    std::env::var("REVIEW_MUT")
++        .ok()
++        .and_then(|v| v.parse().ok())
++        .unwrap_or(0)
++}
++
++/// REVIEW-ONLY: a carried turn at `site` (0 cylinder, 1 torus, 2 cone)
++/// under mutant `kind·10 + site`: 1 carried→exact, 2 arms reversed,
++/// 3 lever zero, 4 origin and centre swapped, 5 the miss read back
++/// about the axis; 100 is 5 at the cylinder and torus.
++fn review_carried<T: Real>(
++    site: u32,
++    axis: Vec3<T>,
++    origin: Point3<T>,
++    centre: Point3<T>,
++    own: T,
++    (a, b): (Point3<T>, Point3<T>),
++    lever: T,
++) -> EdgeTurn<T> {
++    let good = EdgeTurn::carried(axis, origin, centre, own, (a, b), lever);
++    let m = review_mutant_at::<T>();
++    let m = if m == 100 && site < 2 { 50 + site } else { m };
++    if m % 10 != site {
++        return good;
++    }
++    match m / 10 {
++        1 => EdgeTurn::exact(good.sweep, lever),
++        2 => EdgeTurn {
++            sweep: good.sweep,
++            ..EdgeTurn::new(own, turn_arms(axis, b - centre, a - centre), lever)
++        },
++        3 => EdgeTurn { lever: T::zero(), ..good },
++        4 => EdgeTurn::carried(axis, centre, origin, own, (a, b), lever),
++        5 => EdgeTurn::new(good.sweep, turn_arms(axis, a - origin, b - origin), lever),
++        _ => good,
++    }
++}
++
+ /// How much farther round the unit `axis` (through `origin`) the point
+ /// `p` sits than round a circle's own centre `center`: the turn from
+ /// `p − center` to `p − origin`. A stored turn about the circle's centre
+@@ -3033,15 +3087,16 @@ fn cone_loop_winding<T: Decide>(
+                 ..
+             }) => {
+                 let own = sense(n, rho)? * (e.t1 - e.t0);
+-                let own = if e.forward { own } else { -own };
+-                Turn::Carried(EdgeTurn::carried(
+-                    axis,
+-                    apex,
+-                    center,
+-                    own,
+-                    e.traversal_ends(),
+-                    lever,
+-                ))
++                let own = if e.forward || review_mutant_at::<T>() == 70 {
++                    own
++                } else {
++                    -own
++                };
++                let mut turn = review_carried(2, axis, apex, center, own, e.traversal_ends(), lever);
++                if review_mutant_at::<T>() == 71 && !e.forward {
++                    turn.sweep = -turn.sweep;
++                }
++                Turn::Carried(turn)
+             }
+             Curve3::Ellipse(geom::Ellipse {
+                 frame: geom::Frame { axis: n, .. },
+@@ -3070,7 +3125,11 @@ fn cone_loop_winding<T: Decide>(
+                 }
+                 Turn::Stored(thirds)
+             }
+-            _ => Turn::Stored(turn_about(axis, a, b)),
++            _ => Turn::Stored(if review_mutant_at::<T>() == 62 {
++                T::zero()
++            } else {
++                turn_about(axis, a, b)
++            }),
+         };
+         let ends = ((a, a_apex), (b, b_apex));
+         let ends = if e.forward { ends } else { (ends.1, ends.0) };
+@@ -5577,8 +5636,12 @@ fn torus_chart_loop<T: Decide>(
+             TorusStep::Rim { du, .. } => {
+                 closure::require_axis_inside(r_c, band)?;
+                 [
+-                    EdgeTurn::carried(axis, center, centre, du, (a, b), r_c),
+-                    EdgeTurn::exact(short(tube), minor),
++                    review_carried(1, axis, center, centre, du, (a, b), r_c),
++                    match review_mutant_at::<T>() {
++                        63 => EdgeTurn::exact(T::zero(), minor),
++                        100 => EdgeTurn::new(short(tube), tube, minor),
++                        _ => EdgeTurn::exact(short(tube), minor),
++                    },
+                 ]
+             }
+             TorusStep::Meridian { dv } => {
+@@ -5599,7 +5662,15 @@ fn torus_chart_loop<T: Decide>(
+                     },
+                 );
+                 [
+-                    EdgeTurn::short(axis, ua, ub, near(ua).min(near(ub))),
++                    match review_mutant_at::<T>() {
++                        61 => EdgeTurn::exact(T::zero(), near(ua).min(near(ub))),
++                        100 => EdgeTurn::new(
++                            turn_about(axis, ua, ub),
++                            turn_arms(axis, ua, ub),
++                            near(ua).min(near(ub)),
++                        ),
++                        _ => EdgeTurn::short(axis, ua, ub, near(ua).min(near(ub))),
++                    },
+                     EdgeTurn::new(
+                         dv + about_core(centre - center, b - centre, wb)
+                             - about_core(centre - center, a - centre, wa),
