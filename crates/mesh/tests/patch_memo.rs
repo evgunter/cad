@@ -754,7 +754,7 @@ fn the_trimmed_nurbs_lane_misses_when_its_surface_changes() {
         }
     }
     // The chord pass reads a NURBS face's certified bound to size the
-    // chords of its edges (`chords::nurbs_tighten`), so the wall's
+    // chords of its edges (`chords::tighten`), so the wall's
     // reweighting moves the chord points of every edge it shares —
     // and every face across those edges reads those points. The
     // expected misses are therefore the wall AND its edge-neighbours;

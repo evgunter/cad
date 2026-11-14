@@ -14,6 +14,6 @@ keep_out: [opened 2026-10-28 by TESS's semantic-seam split when TESS measured 14
 
 Every row here is a body the mesh gets WRONG without saying so, or panics on: `tessellate` returns Ok on a mesh `check_mesh` refuses (four uses of a pseudomanifold edge's segment, a steep section of a one-face wall), meshes short (a tilted plate across a held pierce), answers an empty patch, or reaches a debug assertion its comment calls vacuous. The chart-coherence detector's Off default came with them as the body-side half of the same question: what stands between malformed input and a confident mesh.
 
-Cut out of TESS (`work/tess/`) by its 2026-10-28 semantic-seam split.
-TESS's review posture applies (`work/tess/plan.md`, Process). Slate:
+Cut out of TESS (`work/tesslane/`) by its 2026-10-28 semantic-seam split.
+TESS's review posture applies (`work/tesslane/plan.md`, Process). Slate:
 `work/tesslie/plan.md`; narrative in `work/tesslie/log.md`.

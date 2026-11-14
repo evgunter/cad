@@ -1,5 +1,6 @@
-//! A request's identity across the three seams: a monotone counter and
-//! nothing else.
+//! A request's identity across the three seams, a monotone counter, and
+//! the two memos the session keys by it: [`GenerationMemo`], one slot,
+//! and [`GenerationMap`], every key asked this generation.
 //!
 //! **This module depends on nothing** — not the kernel, not another
 //! module of this crate — and that is the whole reason it is a module
@@ -75,5 +76,41 @@ impl<K: PartialEq + Clone, V: Clone> GenerationMemo<K, V> {
         let value = derive();
         *memo = Some((generation, key.clone(), value.clone()));
         value
+    }
+}
+
+/// **Values derived once per generation and key, every key kept**: a
+/// [`GenerationMemo`] for a question several rows of one frame ask under
+/// different keys, which one slot would answer by deriving each again
+/// every frame. A new generation clears every key, so it holds one
+/// value per key asked since the document last changed: a memo whose key
+/// is a draft that moves each frame within one generation (a bundle, a
+/// proposal) keeps one slot instead.
+pub struct GenerationMap<K, V>(
+    std::sync::Mutex<Option<(Generation, std::collections::BTreeMap<K, V>)>>,
+);
+
+impl<K, V> Default for GenerationMap<K, V> {
+    fn default() -> Self {
+        Self(std::sync::Mutex::new(None))
+    }
+}
+
+impl<K: Ord + Clone, V: Clone> GenerationMap<K, V> {
+    /// The value kept for `generation` and `key`, or `derive`'s, kept.
+    pub fn get_or(&self, generation: Generation, key: &K, derive: impl FnOnce() -> V) -> V {
+        let mut memo = self
+            .0
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        let kept = match memo.as_mut() {
+            Some((at, kept)) if *at == generation => kept,
+            _ => {
+                &mut memo
+                    .insert((generation, std::collections::BTreeMap::new()))
+                    .1
+            }
+        };
+        kept.entry(key.clone()).or_insert_with(derive).clone()
     }
 }

@@ -171,28 +171,40 @@ fn the_dihedral_arm_gate_records_its_escalation() {
 #[test]
 fn the_dihedral_sign_gate_records_its_escalation() {
     let band = Band::linear(Tol::witness()).unwrap();
+    let metre = fixture_lever(1.0f64);
     let s_plus = plane(Vec3::new(0.0, 0.0, 1.0), Vec3::new(1.0, 0.0, 0.0));
     let s_minus = plane(Vec3::new(0.0, 1.0, 0.0), Vec3::new(1.0, 0.0, 0.0));
-    let geom_brep::Dihedral::Corner(corner) = classify_dihedral(
-        &s_plus,
-        &s_minus,
-        Point3::origin(),
-        fixture_lever(1.0f64),
-        band,
-    )
-    .expect("perpendicular planes decide") else {
-        panic!("perpendicular planes read a corner");
-    };
-    let across = geom::Curve3::line(Point3::origin(), Vec3::new(0.0, 1.0, 0.0));
-    let station = geom_brep::Station::on(&across, 0.0);
-    let bracket = Bracket::open();
-    let out = corner.convexity(&station, [true, true], band);
-    let recorded = bracket.finish();
-    assert_eq!(
-        out.expect_err("a zero sign escalates").diag().predicate,
-        Some("dihedral_sign")
+    assert!(
+        matches!(
+            classify_dihedral(&s_plus, &s_minus, Point3::origin(), metre, band),
+            Ok(geom_brep::Dihedral::Corner(_))
+        ),
+        "perpendicular planes read a corner"
     );
-    assert_eq!(verdicts(&recorded), [("dihedral_sign", Sign::Zero)]);
+    // The fold reads the corner's sign at a station on a walk ACROSS the
+    // planes' crossing: every station a corner, every sign zero.
+    let across = geom::Curve3::line(Point3::origin(), Vec3::new(0.0, 1.0, 0.0));
+    let side = |surface| geom_brep::SideFace {
+        surface,
+        sense: true,
+    };
+    let walk = geom_brep::WedgeWalk::along_edge(side(&s_plus), side(&s_minus), &across, 0.0, 1.0);
+    let bracket = Bracket::open();
+    let out = geom_brep::edge_wedge_over(&walk, metre, band);
+    let recorded = bracket.finish();
+    let geom_brep::WedgeVerdict::InBand(escalation) = out else {
+        panic!("a zero sign escalates, got {out:?}");
+    };
+    assert_eq!(escalation.diag().predicate, Some("dihedral_sign"));
+    let signs: Vec<_> = verdicts(&recorded)
+        .into_iter()
+        .filter(|(name, _)| *name == "dihedral_sign")
+        .collect();
+    assert_eq!(
+        signs,
+        [("dihedral_sign", Sign::Zero)],
+        "the fold stops at the first"
+    );
     assert_eq!(
         sole_escalation(&recorded),
         (

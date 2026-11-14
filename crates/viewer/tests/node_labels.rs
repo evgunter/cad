@@ -10,9 +10,7 @@ use crate::common;
 use pncad::document::{Dimension, Formula};
 use viewer::session::BooleanSpec;
 
-use pncad::document::{
-    Doc, DocEdit, Label, Maintenance, Node, ProfileProgram, RecipeNodeId, SlotId,
-};
+use pncad::document::{Doc, DocEdit, Label, Node, ProfileProgram, RecipeNodeId, SlotId};
 use pncad::geom_core::Tol;
 use test_utils::refusal::tag;
 use viewer::session::{Creation, DocSession, SessionOp};
@@ -223,19 +221,16 @@ fn a_create_form_proposes_kind_n_counted_among_that_kinds_nodes() {
 /// yardstick. Labelled, it commits through whatever door it takes and
 /// its outcome is that same action's with one more edit: the same edits
 /// in the same order and then a `SetLabel` on the node it made
-/// (`OpOutcome::made`), the same minted ids and the same netted maintenance, and
-/// ONE evaluation requested for the whole of it. The label is on that
-/// node, and ONE undo returns the document to what it was before the
-/// action. Answers that node and the maintenance the action netted.
+/// (`OpOutcome::made`), the same minted ids and the same maintenance
+/// rows as the run alone (no sampled creation reports one, so that
+/// equality is held, not witnessed), and ONE evaluation requested for the
+/// whole of it. The label is on that node, and ONE undo returns the
+/// document to what it was before the action. Answers that node.
 ///
 /// The helper behind
 /// `every_creation_labelled_is_one_undo_whatever_door_commits_it` and
-/// `a_labelled_creation_nets_the_maintenance_its_own_run_reports`.
-fn labelled_as_one_undo(
-    session: &mut DocSession,
-    op: SessionOp,
-    text: &str,
-) -> (RecipeNodeId, Vec<Maintenance>) {
+/// `a_labelled_creation_that_takes_the_product_over_is_one_undo`.
+fn labelled_as_one_undo(session: &mut DocSession, op: SessionOp, text: &str) -> RecipeNodeId {
     let before = session.committed_doc().clone();
     let what = format!("{op:?}");
     let alone = session.perform(op.clone());
@@ -291,7 +286,7 @@ fn labelled_as_one_undo(
         "{what}: redo brings both back"
     );
     session.pump();
-    (node, outcome.maintenance)
+    node
 }
 
 /// **A refused creation applies no label**, whether the door refuses
@@ -342,18 +337,16 @@ fn a_refused_creation_applies_no_label() {
     }
 }
 
-/// **A labelled creation nets the maintenance its own run reports**:
-/// a fillet picked on a block's world copy that the product reads. The
-/// label is one more edit of the same run, so the outcome carries the
-/// run's netted rows and nothing of the label's own
-/// ([`labelled_as_one_undo`] holds the two equal). No creation's run
-/// strands anything now that no gesture deletes a copy, so the rows
-/// compared are empty: the residue is filed as
-/// `work/placing/a-labelled-creation-has-no-maintenance-witness.md`.
+/// **A labelled creation whose run takes the product over is one
+/// undo**: a fillet picked on a block's world copy that the product
+/// reads re-points the product onto the fillet in the same run
+/// (`SetProduct` after its `InsertNode`), which no other sampled
+/// creation does. Labelled, that run and its label are one action, and
+/// the product is the fillet's.
 #[test]
-fn a_labelled_creation_nets_the_maintenance_its_own_run_reports() {
+fn a_labelled_creation_that_takes_the_product_over_is_one_undo() {
     let tol = Tol::witness();
-    let doc: Doc<ProfileProgram> = Doc::empty_derived("viewer-node-labels-maintenance", tol);
+    let doc: Doc<ProfileProgram> = Doc::empty_derived("viewer-node-labels-takeover", tol);
     let mut session = DocSession::inline(doc, tol);
     let made = session.perform(SessionOp::AddProfile {
         loops: vec![common::rectangle_loop([0.0, 0.0], 0.02, 0.02)],
@@ -368,8 +361,9 @@ fn a_labelled_creation_nets_the_maintenance_its_own_run_reports() {
     let block = made.made.expect("an extrude");
     let (mut session, copy) = common::world_copy_in(&session, block, tol);
     session.pump();
+    let product = session.committed_doc().product();
     let edge = pncad::select::all_edges(session.evaluation().expect("landed"), copy)[0].clone();
-    let (fillet, maintenance) = labelled_as_one_undo(
+    let fillet = labelled_as_one_undo(
         &mut session,
         SessionOp::AddFillet {
             target: copy,
@@ -378,11 +372,12 @@ fn a_labelled_creation_nets_the_maintenance_its_own_run_reports() {
         },
         "rounded",
     );
-    assert!(maintenance.is_empty(), "{maintenance:?}");
+    let doc = session.committed_doc();
+    assert_ne!(doc.product(), product, "the product moved");
     assert_eq!(
-        session.committed_doc().product(),
-        session.committed_doc().output(fillet, 0),
-        "the fillet took the product slot over"
+        doc.product(),
+        doc.output(fillet, 0),
+        "the labelled fillet took the product slot over"
     );
 }
 
@@ -402,7 +397,7 @@ fn every_creation_labelled_is_one_undo_whatever_door_commits_it() {
     let mut sampled = std::collections::BTreeSet::new();
     let mut run = |session: &mut DocSession, op: SessionOp, text: &str| {
         sampled.insert(format!("{:?}", std::mem::discriminant(&op)));
-        labelled_as_one_undo(session, op, text).0
+        labelled_as_one_undo(session, op, text)
     };
 
     let profile = run(

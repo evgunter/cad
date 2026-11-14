@@ -34,7 +34,7 @@ and they do not consult the contract. The producers are real:
 `tessellate(&Body::new(), …)` answers `Ok` with an empty mesh (the
 empty body is tier-1 and tier-2 valid), and a curved face that walks to
 a degenerate domain leaves an empty patch with debug assertions off
-(`work/tess/rim-free-loop-on-a-poleless-chart-meshes-as-a-hole.md`).
+(`work/tesslane/rim-free-loop-on-a-poleless-chart-meshes-as-a-hole.md`).
 
 The call is `stl`'s, not tess's, and both answers are defensible: the
 crate's docs are explicit that the writers refuse only per-triangle

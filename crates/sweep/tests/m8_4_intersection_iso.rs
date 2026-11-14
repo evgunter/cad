@@ -972,7 +972,7 @@ fn patch_size(body: &Body<f64>, m: &mesh::Mesh, key: topo::SurfaceKey) -> (usize
 /// The same body E1 measures. Its `Intersection` seam carries a
 /// `General` chart image, which until TRIM-2 PR-2 stopped the CHORD
 /// pass dead — `TessellateError::UnsupportedCurve` at
-/// `mesh::chords::nurbs_tighten`'s `General` arm, before any face lane
+/// `mesh::chords`' `General` arm, before any face lane
 /// ran, at all three ε. Two arms flip that: the chord pass now sizes
 /// the seam's UV steps from the image's own differenced control net,
 /// and the trim walk reads the image at the shared chord parameters.
@@ -1003,7 +1003,7 @@ fn patch_size(body: &Body<f64>, m: &mesh::Mesh, key: topo::SurfaceKey) -> (usize
 /// locus). So this is a SCHEDULE and WATERTIGHTNESS row, not a
 /// curvature one. The curvature evidence for the speed bound is the
 /// unit row
-/// `mesh::chords::tests::general_uv_speeds_dominate_the_sampled_image_speeds`,
+/// `geom_brep`'s `speed_rows::general_speeds_dominate_the_sampled_image_speeds`,
 /// which carries an interior-maximum leg.
 ///
 /// It is also not a bound on how wrong the sup may be: a sup too small
