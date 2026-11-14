@@ -484,7 +484,7 @@ pub(crate) fn tessellate_trimmed(
             // and the lattice the row lays from them.
             let (hu, hv) = a.lattice_steps(arm_steps(body, fk, a, tol.delta)?);
             let nu = pole_side_columns(&polygon, &singular, (u0, u1), ceil_count(u1 - u0, hu)?)?;
-            let rows = a.lattice_rows((v0, v1), hv)?;
+            let rows = a.lattice_rows((v0, v1), (hu, hv))?;
             let nv = rows.len() + 1;
             // The other half of #678's shape on the cylinder, checked
             // where the count is: the fan needs ONE interior column

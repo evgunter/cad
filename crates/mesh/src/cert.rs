@@ -819,6 +819,280 @@ mod tests {
         }
     }
 
+    /// A unit-frame cone, apex at the origin about `z`, in the chart the
+    /// certificate is stated in: `v·(sin α·cos u, sin α·sin u, cos α)`.
+    fn cone_point(alpha: f64, u: f64, v: f64) -> Point3<f64> {
+        let rho = v * alpha.sin();
+        Point3::new(rho * u.cos(), rho * u.sin(), v * alpha.cos())
+    }
+
+    /// Exact distance from `p` to that double cone: in `p`'s meridian
+    /// half-plane, to the nearer of the two generator rays `t·(sin α,
+    /// ±cos α)`, `t ≥ 0`. Blind to the chart.
+    fn cone_dist(alpha: f64, p: Point3<f64>) -> f64 {
+        let (rho, h) = (p.x.hypot(p.y), p.z);
+        let (s, c) = alpha.sin_cos();
+        [1.0, -1.0]
+            .map(|sign| {
+                let t = (rho * s + h * sign * c).max(0.0);
+                (rho - t * s).hypot(h - t * sign * c)
+            })
+            .into_iter()
+            .fold(f64::INFINITY, f64::min)
+    }
+
+    /// The largest [`cone_dist`] over a barycentric grid of `n` steps a
+    /// side on the flat triangle over the chart corners `uv`.
+    fn cone_sampled(alpha: f64, uv: [[f64; 2]; 3], n: u32) -> f64 {
+        let c = uv.map(|[u, v]| cone_point(alpha, u, v));
+        let mut worst: f64 = 0.0;
+        for i in 0..=n {
+            for j in 0..=(n - i) {
+                let (li, lj) = (f64::from(i) / f64::from(n), f64::from(j) / f64::from(n));
+                let lk = 1.0 - li - lj;
+                let q = Point3::new(
+                    c[0].x * li + c[1].x * lj + c[2].x * lk,
+                    c[0].y * li + c[1].y * lj + c[2].y * lk,
+                    c[0].z * li + c[1].z * lj + c[2].z * lk,
+                );
+                worst = worst.max(cone_dist(alpha, q));
+            }
+        }
+        worst
+    }
+
+    /// **[`cert_cone`] bounds the true deviation of every triangle built
+    /// to break it** (a seeded fuzz): cones from a needle (`α = 0.002`)
+    /// to nearly flat (`α = 1.55`), either nappe, and the flat triangle's
+    /// distance from the cone sampled exactly ([`cone_dist`], blind to
+    /// the chart) on a 325-point grid. The shapes, a sixth of the draws
+    /// each:
+    ///
+    /// - the filed table's: two corners on one row and one at a slant
+    ///   down to `10⁻⁶` of it, up to 1.5 rad round the axis;
+    /// - a needle: a sliver in azimuth across a long slant range;
+    /// - a corner at the apex, in any slot, at an arbitrary `u`;
+    /// - about the axis: three azimuths near thirds of a turn, so the
+    ///   axis passes through the triangle;
+    /// - a whole-turn face's: any three azimuths over a turn and a half;
+    /// - any three chart points in a box.
+    ///
+    /// Halving a chord's sag, or dropping the axis term, reds this row.
+    #[test]
+    fn cert_cone_bounds_the_true_deviation_on_triangles_built_to_break_it() {
+        let mut rng = test_utils::fuzz::start("cert_cone_break");
+        let mut measurable = 0usize;
+        let draws = test_utils::fuzz::scaled(20_000);
+        for k in 0..draws {
+            let alpha = match k % 5 {
+                0 => rng.range(0.002, 0.05),
+                1 => rng.range(1.4, 1.55),
+                _ => rng.range(0.05, 1.4),
+            };
+            let u0 = rng.range(-7.0, 7.0);
+            let big = rng.range(0.01, 30.0);
+            let mut pole = [false; 3];
+            let mut uv = match k % 6 {
+                0 => {
+                    let small = big * 10f64.powf(rng.range(-6.0, 0.0));
+                    let step = rng.range(0.0, 0.2);
+                    [
+                        [u0, big],
+                        [u0 + step, big],
+                        [u0 + rng.range(-1.5, 1.5), small],
+                    ]
+                }
+                1 => {
+                    let du = rng.range(0.0, 1e-3);
+                    [
+                        [u0, big * rng.unit()],
+                        [u0 + du * rng.unit(), big],
+                        [u0 + du, big * rng.unit()],
+                    ]
+                }
+                2 => {
+                    pole[0] = true;
+                    let du = rng.range(0.0, 3.0);
+                    [
+                        [rng.range(-7.0, 7.0), 0.0],
+                        [u0, big * rng.unit()],
+                        [u0 + du, big * rng.unit()],
+                    ]
+                }
+                3 => {
+                    let third = core::f64::consts::TAU / 3.0;
+                    [0.0, 1.0, 2.0]
+                        .map(|i| [u0 + i * third + rng.range(-0.9, 0.9), big * rng.unit()])
+                }
+                4 => [0.0; 3].map(|_| [u0 + rng.range(0.0, 9.5), big * rng.unit()]),
+                _ => {
+                    let (du, v0) = (rng.range(0.0, 2.0), big * rng.unit());
+                    [0.0; 3].map(|_| [u0 + du * rng.unit(), v0 + (big - v0) * rng.unit()])
+                }
+            };
+            #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+            let slot = ((rng.unit() * 3.0) as usize).min(2);
+            uv.swap(0, slot);
+            pole.swap(0, slot);
+            if rng.unit() < 0.5 {
+                for corner in &mut uv {
+                    corner[1] = -corner[1];
+                }
+            }
+            let cert = cert_cone(alpha, uv, pole);
+            let dev = cone_sampled(alpha, uv, 24);
+            assert!(
+                dev <= cert * (1.0 + 1e-9) + 1e-13 * big,
+                "α {alpha} uv {uv:?} apex {pole:?}: true deviation {dev:e} past its                  certificate {cert:e} ({})",
+                test_utils::fuzz::replay()
+            );
+            measurable += usize::from(dev > 1e-6 * big);
+        }
+        assert!(
+            measurable > draws / 3,
+            "the triangles deviate measurably ({measurable} of {draws}), so an              under-reporting certificate reds"
+        );
+    }
+
+    /// **[`cert_cone`] is attained, on these poses.** Each term is the
+    /// triangle's deviation where it peaks, not a bound above it:
+    ///
+    /// - a chord's sag ([`cone_chord_sag`]) is the largest distance from
+    ///   the cone along the chord, found by a ternary search of that
+    ///   concave function, to `10⁻¹²` of the chord's scale: at one radius
+    ///   and at radii `10⁻³` apart, across `0.4`, `2.5`, `π` and `4` rad
+    ///   (past half a turn, where the chart's `Δu` is not the angle
+    ///   between the corners), on `α = 0.3` and `1.2`;
+    /// - a triangle about the axis (azimuths `0, 2.2, 4.3`, slants `1,
+    ///   0.5, 2`, `α = 0.4`) certifies at its distance from the cone
+    ///   where its plane meets the axis, to `10⁻¹²`; no chord of it sags
+    ///   past nine tenths of that, and no point of a 20 301-point grid of
+    ///   it lies farther.
+    ///
+    /// A bound that only dominates (the triangle's whole azimuth span at
+    /// its widest slant) reds here.
+    #[test]
+    fn cert_cone_is_attained_on_a_chord_and_over_the_axis() {
+        for alpha in [0.3_f64, 1.2] {
+            for (va, vb) in [(1.0, 1.0), (1e-3, 1.0), (0.4, 2.5)] {
+                for du in [0.4, 2.5, PI, 4.0] {
+                    let (a, b) = (cone_point(alpha, 0.2, va), cone_point(alpha, 0.2 + du, vb));
+                    let along = |t: f64| cone_dist(alpha, a + (b - a) * t);
+                    let (mut lo, mut hi) = (0.0_f64, 1.0_f64);
+                    for _ in 0..200 {
+                        let (m1, m2) = (lo + (hi - lo) / 3.0, hi - (hi - lo) / 3.0);
+                        if along(m1) < along(m2) {
+                            lo = m1;
+                        } else {
+                            hi = m2;
+                        }
+                    }
+                    let sag = cone_chord_sag(alpha.sin() * alpha.cos(), va, vb, du);
+                    let found = along(0.5 * (lo + hi));
+                    assert!(
+                        (sag - found).abs() <= 1e-12 * vb,
+                        "α {alpha} slants {va}, {vb} across {du}: the chord's sag {sag:e} is                          not its largest distance {found:e}"
+                    );
+                    // The apex in the third slot adds two rulings.
+                    let uv = [[0.2, va], [0.2 + du, vb], [1.0, 0.0]];
+                    let fan = cert_cone(alpha, uv, [false, false, true]);
+                    assert!(
+                        (fan - sag).abs() <= 1e-12 * vb,
+                        "with the apex its third corner the triangle certifies at {fan:e}, \
+                         not its one chord's {sag:e}"
+                    );
+                }
+            }
+        }
+        let (alpha, uv) = (0.4_f64, [[0.0, 1.0], [2.2, 0.5], [4.3, 2.0]]);
+        let cert = cert_cone(alpha, uv, [false; 3]);
+        // Where the triangle's plane meets the axis, by its own linear
+        // solve: the barycentric point whose `x` and `y` vanish.
+        let c = uv.map(|[u, v]| cone_point(alpha, u, v));
+        let cross = |i: usize, j: usize| c[i].x * c[j].y - c[j].x * c[i].y;
+        let w = [cross(1, 2), cross(2, 0), cross(0, 1)];
+        let sum = w[0] + w[1] + w[2];
+        assert!(w.iter().all(|&x| x * sum > 0.0), "the axis is inside it");
+        let on_axis = Point3::new(
+            0.0,
+            0.0,
+            (w[0] * c[0].z + w[1] * c[1].z + w[2] * c[2].z) / sum,
+        );
+        let found = cone_dist(alpha, on_axis);
+        let k = alpha.sin() * alpha.cos();
+        let chords = [(0, 1), (1, 2), (2, 0)]
+            .map(|(i, j)| cone_chord_sag(k, uv[i][1], uv[j][1], uv[j][0] - uv[i][0]))
+            .into_iter()
+            .fold(0.0, f64::max);
+        assert!(
+            (found - cert).abs() <= 1e-12 && chords < 0.9 * cert,
+            "about the axis: certificate {cert:e}, on the axis {found:e}, largest chord \
+             {chords:e}"
+        );
+        let sampled = cone_sampled(alpha, uv, 200);
+        assert!(
+            sampled <= cert * (1.0 + 1e-12) && sampled >= 0.99 * cert,
+            "about the axis: certificate {cert:e}, sampled {sampled:e}"
+        );
+    }
+
+    /// **A chord's sag is at most its larger radius's sagitta across the
+    /// same `Δu`**, with equality at one radius: the statement
+    /// `sizing::cone_grid_step`'s theorem and the curved lane's
+    /// no-rows argument read ([`cone_chord_sag`]). And the certificate's
+    /// edge cases: corners on both nappes certify nothing, a poisoned
+    /// corner poisons, three corners of one ruling or at the apex deviate
+    /// by nothing.
+    #[test]
+    fn a_cone_chord_sags_within_its_larger_radius_sagitta() {
+        let k = 0.3;
+        for du in [1e-4, 0.05, 0.7, 2.0, PI] {
+            let sagitta = |v: f64| k * v * (1.0 - (0.5 * du).cos());
+            for (va, vb) in [
+                (1.0, 1.0),
+                (0.999, 1.0),
+                (0.5, 1.0),
+                (1e-6, 1.0),
+                (0.0, 1.0),
+            ] {
+                let sag = cone_chord_sag(k, va, vb, du);
+                // `1 − cos` cancels at 1: the reference is exact to an ulp
+                // of `k·v`.
+                assert!(
+                    sag <= sagitta(vb) + 2.0 * f64::EPSILON * k * vb,
+                    "slants {va}, {vb} across {du}: {sag:e} past {:e}",
+                    sagitta(vb)
+                );
+                assert_eq!(cone_chord_sag(k, vb, va, -du), sag, "symmetric");
+            }
+            let (one, same) = (cone_chord_sag(k, 2.0, 2.0, du), sagitta(2.0));
+            assert!(
+                (one - same).abs() <= 2.0 * f64::EPSILON * k * 2.0,
+                "one radius across {du}: {one:e} against its sagitta {same:e}"
+            );
+        }
+        let across = [[0.0, 1.0], [0.3, -1.0], [0.1, 0.5]];
+        assert_eq!(cert_cone(0.5, across, [false; 3]), f64::INFINITY);
+        assert!(cert_cone(0.5, across, [false, true, false]).is_finite());
+        assert!(cert_cone(0.5, [[0.0, 1.0], [f64::NAN, 1.0], [0.1, 0.5]], [false; 3]).is_nan());
+        assert!(
+            cert_cone(
+                0.5,
+                [[0.0, 1.0], [0.1, f64::NAN], [0.1, 0.5]],
+                [false, true, false]
+            )
+            .is_nan()
+        );
+        assert_eq!(
+            cert_cone(0.5, [[1.0, 0.2], [1.0, 3.0], [1.0, 1.0]], [false; 3]),
+            0.0
+        );
+        assert_eq!(
+            cert_cone(0.5, [[1.0, 0.0], [2.0, 0.0], [3.0, 0.0]], [true; 3]),
+            0.0
+        );
+    }
+
     /// **A triangle with fewer than two corners off an apex certifies
     /// nothing**: both apexes and a third corner span the sheet's whole
     /// `v` window, which no fan triangle does.
