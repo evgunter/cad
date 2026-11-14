@@ -28,3 +28,13 @@ This is a builder gap. The join's strut kill (`Sweep::strip_spurs`, through `Bod
 ## Owed
 
 The section reads one annulus. Flip the witness when it does.
+
+## The witness at ε 1e-6 (GREEN, 2026-11-14)
+
+At `CAD_TOLERANCE_EPS=1e-6` the witness is red on main `b363f5fa1`, and has been since the first night it ran (nightly of 11-03, main `2d9dc809`): `the V's tip 0.6 ε off the plane, the plane's normal -1 y: the section's regions hold [11.780973958926847, 15.707964775914], not the annuli [11.780972450961723, 15.707963267948966]`. Both regions read 1.5e-6 over their annulus, against the row's `1e-8`. It is still two regions with one hole each, so the reading this row pins has not changed; the areas have moved by about `1.5 ε` with the tip `0.6 ε` off the plane.
+
+BOXES bisected it to between PR 6336 (`f1867c8b71`, green) and PR 6383's first parent (`98aa78e74f`, red); the merge is not named (`work/green/main-red-a-round-keel-in-the-plane-reads-off-annuli-at-1e-6.md`, closed onto this row).
+
+Owed with the flip: say whether a region's area may stand `1.5 ε` off its annulus when the keel's tip is `0.6 ε` off the plane, and state the witness's bound from that, or fix the reading.
+
+The witness is under `test_utils::pinned_red::row` at ε 1e-6 on that message (`green/eps-1e-6`). Take the pin off with the fix.

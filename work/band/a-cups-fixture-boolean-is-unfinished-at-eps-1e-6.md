@@ -30,3 +30,11 @@ The "hair across the trimline" geometry leaves a face about one tolerance
 wide at eps 1e-6. The fixture either scales its hair with the eps or states
 the eps it is meant for; or, if the sliver face is the boolean's to merge
 away, the row goes to the boolean's owner.
+
+## Bisected and pinned (GREEN, 2026-11-14)
+
+In the nightly: it passed at ε 1e-6 on 11-11 (main `b2916558`) and has failed since 11-12 (main `da77d875`), with this message.
+
+Bisected, first-parent, at ε 1e-6: green at `690c83eb6` (PR 6511) and `e996c0049` (PR 6672); red at `9e1484043`, the merge of PR 6505 (`onedoor/one-surface-record`), whose first parent is `e996c0049`; red at `90998fa0b`, `ae97403b4` and main `b363f5fa1`. Four volume rows went red at the same merge (`work/onedoor/main-red-four-sweep-rows-hold-volumes-the-one-surface-record-moves-at-1e-6.md`). What PR 6505 changed for this fixture is not measured here: the merge is named, the face whose area fails is not. Whether the hair is the fixture's to scale or the boolean's to handle is still this row's question, now with ONEDOOR as the other party.
+
+The row is under `test_utils::pinned_red::row` at ε 1e-6 on the fixture's message (`green/eps-1e-6`). Take the pin off with the fix.

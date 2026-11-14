@@ -66,6 +66,45 @@ fn moved(b: &Body<f64>, d: Vec3<f64>) -> Body<f64> {
 /// pose's own `Cylinder`s carried as its bodies are.
 #[test]
 fn every_reachable_crossing_pose_refuses_typed_or_answers_correctly() {
+    // Pinned red off the witness band. At 1e-6 the perpendicular pair's
+    // union holds its closed form in an enclosure wider than the row's
+    // ceiling
+    // (`work/spiricarm/main-red-three-cylinder-pair-volume-pads-pass-the-fixed-budget-at-1e-6.md`).
+    // At 1e-12 the tall thin pair's union refuses its section, a fitted
+    // carrier's limb 2 read in band, where the row wants it built
+    // (`work/ssiarith/main-red-a-tall-thin-cylinder-pairs-section-reads-limb-2-in-band-at-1e-12.md`).
+    let eps = Tol::witness().eps();
+    let (stops_at, says): (&[f64], &[&str]) = if eps == 1e-12 {
+        (
+            &[1e-12],
+            &[
+                "tall thin through short fat/union: refused GermSectionUnbuilt, not a frontier refusal",
+                "whether the fitted carrier passes limb 2 (control-hull sup-norm bound) is undecided",
+                "lies inside the ambiguity band (1e-12, 1e-11)",
+            ],
+        )
+    } else {
+        (
+            &[1e-6],
+            &[
+                "perpendicular unequal radii/union: OK BAD t2=true t3p=true cert=true operand=true v=81.65153454",
+                " pad=",
+                "want=81.651534544",
+            ],
+        )
+    };
+    test_utils::pinned_red::row(
+        eps,
+        stops_at,
+        "the crossing poses",
+        says,
+        every_reachable_crossing_pose_refuses_typed_or_answers_correctly_row,
+    );
+}
+
+/// The row [`every_reachable_crossing_pose_refuses_typed_or_answers_correctly`]
+/// runs, under its pin.
+fn every_reachable_crossing_pose_refuses_typed_or_answers_correctly_row() {
     let tol = Tol::witness();
     let about = |axis: Vec3<f64>, angle: f64| {
         Affine3::rotation_about_axis(Point3::new(0.0, 0.0, 0.0), axis, angle)

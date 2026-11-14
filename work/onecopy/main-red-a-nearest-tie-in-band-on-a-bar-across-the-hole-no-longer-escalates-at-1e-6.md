@@ -18,3 +18,9 @@ Found by PCERT's nightly-reds lane (`pcert/nightly-slowset-reds`), in nightly 42
 - also red at `8c65db4d`, `dd2dd683`, `b9b97c8d`, `2e4c44de` and main `019bed88`.
 
 Decide whether the union's new outcome is right: a join that no longer reads the in-band tie, or a pairing that no longer reaches the ranking. If it is right, re-pin the row with the argument. If not, the first-pair change lost an escalation.
+
+## Pinned (GREEN, 2026-11-14)
+
+Still red on main `b363f5fa1` with the same message, `T ∪ P: the tie escalates the ranking: None`: the union returns `Ok`. `T ∪ P` is the first of the row's six ops, so the other five are unread. The nightly agrees with the bisect above: it passed on 11-10 (main `50cfcf49`) and failed on 11-11 (main `b2916558`).
+
+The row is under `test_utils::pinned_red::row` at ε 1e-6 on that message (`green/eps-1e-6`). Take the pin off with the fix.

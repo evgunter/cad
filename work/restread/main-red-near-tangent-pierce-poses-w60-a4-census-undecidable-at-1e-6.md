@@ -29,3 +29,9 @@ thing owed is the commit that turned it red, then which finding left
 the boundaries unchecked.
 
 Moved from `work/issues/` to `work/restread/` on 2026-11-03, when the `work/issues/` bucket was retired (Ev's direction, in chat); id and body unchanged.
+
+## Dated and pinned (GREEN, 2026-11-14)
+
+Still red on main `b363f5fa1` with the same finding. In the nightly it passed at ε 1e-6 on 11-01 (main `fbfebd92`) and has failed since 11-02 (main `8a440cfa`), so the merge lies between those two.
+
+The row is under `test_utils::pinned_red::row` at ε 1e-6 on that message (`green/eps-1e-6`): the one wrong run, `w60 nt e1 a4 d1e-7, prism ∪ cube`, `CensusUndecidable`, `MayOverlap`. Take the pin off with the fix.

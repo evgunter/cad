@@ -579,7 +579,7 @@ rows! {
 /// A pinned red at 1e-6 and 1e-12: the builds answer two
 /// `period_near_mark` decisions with different signs, each on a margin
 /// of exactly 0 against `8.9e-16`, where the row owes no flip
-/// (`work/ROWREVALUE`).
+/// (`work/green/main-red-revalue-boss-union-reads-two-period-near-mark-flips-at-1e-6.md`).
 #[test]
 fn revalue_boss_union() {
     test_utils::pinned_red::row(

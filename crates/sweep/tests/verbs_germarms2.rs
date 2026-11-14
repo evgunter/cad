@@ -268,7 +268,7 @@ fn every_pose_of_the_family_builds_at_its_closed_form() {
 fn the_fenced_poses_keep_their_own_outcomes() {
     // Pinned red at 1e-6: the unequal radii's direct union holds the
     // closed form in an enclosure wider than the row's ceiling
-    // (`work/ROWPAD`).
+    // (`work/spiricarm/main-red-three-cylinder-pair-volume-pads-pass-the-fixed-budget-at-1e-6.md`).
     test_utils::pinned_red::row(
         Tol::witness().eps(),
         &[1e-6],
@@ -430,7 +430,7 @@ fn same_door_matches_a_rejection_by_its_reading() {
 fn a_rod_through_a_drum_wall_builds_at_its_sliced_volume() {
     // Pinned red at 1e-6: the union's enclosure holds the closed form and
     // is wider than the row's ceiling
-    // (`work/ROWPAD`).
+    // (`work/spiricarm/main-red-three-cylinder-pair-volume-pads-pass-the-fixed-budget-at-1e-6.md`).
     test_utils::pinned_red::row(
         Tol::witness().eps(),
         &[1e-6],

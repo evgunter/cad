@@ -37,3 +37,9 @@ The default ε and `1e-12` rows of the same test pass.
 
 Decide whether the narrower pad is right. If it is, re-measure and
 re-pin `LOFTED_CONCAVE_PAD_AT_1E6` and the ceiling comment's 8.96e-4.
+
+## Pinned at main's measure (GREEN, 2026-11-14)
+
+Still red on main `b363f5fa1` at the same value, `8.636719159652955e-4`. In the nightly it passed at ε 1e-6 on 10-30 (main `39bbdfc7`) and has failed since 10-31 (main `6d3aa0fa`), so the merge lies between those two.
+
+`LOFTED_CONCAVE_PAD_AT_1E6` now holds `8.636_7e-4`, what main measures, and the ceiling's comment cites it (`green/eps-1e-6`). That greens the row; it does not decide it. The enclosure still contains the oracle and the pad is narrower, but which merge narrowed it, and whether by design, is what is owed here. The constant's doc names this row.

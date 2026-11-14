@@ -650,7 +650,7 @@ fn seams_lying_on_the_walls_read_the_axes_across_the_region() {
     // Pinned red at 1e-6: six of the runs tipped `1.5·zero / 3.2` build a
     // body 2.0e-7 to 2.8e-7 under the closed form, where the row wants every
     // one SOUND
-    // (`work/ROWPCJ`).
+    // (`work/onedoor/main-red-four-sweep-rows-hold-volumes-the-one-surface-record-moves-at-1e-6.md`).
     test_utils::pinned_red::row(
         Tol::witness().eps(),
         &[1e-6],
@@ -829,7 +829,7 @@ fn one_face_walls(az: f64, theta: f64) -> Pose {
 fn one_face_walls_read_their_axes_as_an_angle() {
     // Pinned red at 1e-6: four of the runs tipped `0.2·zero` build a body
     // 1.2e-7 under the closed form, where the row wants every one SOUND
-    // (`work/ROWPCJ`).
+    // (`work/onedoor/main-red-four-sweep-rows-hold-volumes-the-one-surface-record-moves-at-1e-6.md`).
     test_utils::pinned_red::row(
         Tol::witness().eps(),
         &[1e-6],

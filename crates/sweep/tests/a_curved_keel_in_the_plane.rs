@@ -55,7 +55,7 @@ fn a_curved_keel_in_the_plane_splits_sound_and_sections_with_no_spur() {
     // Pinned red at 1e-6: with the tip 0.6 ε off the plane the halves
     // hold 5.2e-7 less than the body, where the row wants them to keep
     // its volume to 1e-9 of it
-    // (`work/ROWKEEL`).
+    // (`work/onedoor/main-red-four-sweep-rows-hold-volumes-the-one-surface-record-moves-at-1e-6.md`).
     test_utils::pinned_red::row(
         tol().eps(),
         &[1e-6],
@@ -206,7 +206,7 @@ fn a_round_keel_in_the_plane_reads_two_annuli_today() {
     // Pinned red at 1e-6: with the tip 0.6 ε off the plane the section's
     // two regions each read 1.5e-6 over their annulus, where the row
     // holds them to 1e-8
-    // (`work/ROWROUND`).
+    // (`work/onehome/a-closed-keel-in-the-section-plane-divides-the-section-into-two-regions.md`).
     test_utils::pinned_red::row(
         tol().eps(),
         &[1e-6],
