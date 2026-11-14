@@ -308,15 +308,15 @@ fn a_parts_finding_crosses_a_pattern_of_its_instance_once() {
     );
 }
 
-/// **A pick of a moved copy stands where the copy stands.** `a ⊔ c`
-/// is slid 7 along y; a pick of its `a` piece, assembled beside a
-/// fresh block at the origin, is clear of it, so the at-rest check
-/// reports nothing.
+/// **A pick of a further copy stands where that copy stands.** A
+/// further copy of `a ⊔ c` is placed into its own space 7 along y; a
+/// pick of that copy's `a` piece, assembled beside a fresh block at
+/// the origin, is clear of it, so the at-rest check reports nothing.
 ///
-/// *Breaks if* a copy's pieces are carried unmoved, so the pick stands
-/// on the fresh block and overlaps it.
+/// *Breaks if* a copy's pieces are carried at their source's pose, so
+/// the pick stands on the fresh block and overlaps it.
 #[test]
-fn a_pick_of_a_moved_copy_stands_with_it() {
+fn a_pick_of_a_further_copy_stands_with_it() {
     let doc = doc("carry-moved-pick");
     let (doc, a) = block(doc, [0.0; 2], 0.5, 1.0);
     let (doc, a) = put(doc, fixture::stood(a));
