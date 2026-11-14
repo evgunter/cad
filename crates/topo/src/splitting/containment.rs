@@ -1395,93 +1395,57 @@ pub(crate) fn carrier_loop<T: Decide>(
 /// **A lower bound on the distance from `q` to the arc `span` of
 /// `carrier`**, read on the carrier with no decision, and the reading
 /// that gave it ([`ArcFloor`]): a line's own segment
-/// ([`geom::Line::distance_within`]); a circle's or an ellipse's own arc
-/// (`ring_path::ConicArc::distance_floor`, the arc of the circle over the
-/// same span, [`geom::Curve3::distance_within`], less the conic's
-/// distance from it);
-/// any other carrier's cover over the span (its nearest distance,
-/// [`geom::cover::Cover::distance_range`]), and its arc's pieces past it
-/// ([`ArcPieces`]). A conic carries its whole annulus's floor beside its
-/// arc's. `None` for a carrier with no cover over the span. The one home,
-/// over every carrier, of the question "is this edge clear of that point
-/// by more than a radius", which the clearance cell door and the
-/// boolean's touch gate both ask; its line and circle readings are
-/// geom's closed form.
+/// ([`geom::Line::distance_within`]); any other carrier's cover over the
+/// span (its nearest distance, [`geom::cover::Cover::distance_range`]:
+/// a conic's own arc and its annulus), and a spiric's or a spline's
+/// arc's pieces past it ([`ArcPieces`]). `None` for a carrier with no
+/// cover over the span. The one home, over every carrier, of the
+/// question "is this edge clear of that point by more than a radius",
+/// which the clearance cell door and the boolean's touch gate both ask.
 pub(crate) fn arc_distance_floor<T: Decide>(
     carrier: &geom::Curve3<T>,
     (t0, t1): (T, T),
     q: Point3<T>,
 ) -> Option<ArcFloor<'_, T>> {
-    Some(match *carrier {
-        geom::Curve3::Line(line) => {
-            ArcFloor::Segment(line.distance_within(q, (t0.min(t1), t0.max(t1))))
-        }
-        geom::Curve3::Circle(_) | geom::Curve3::Ellipse(_) => {
-            let Some(crate::ring_path::LoopArc::Conic(arc)) =
-                crate::ring_path::LoopArc::of(carrier, (t0, t1))
-            else {
-                unreachable!("a circle or an ellipse is a conic arc")
-            };
-            // The whole conic lies in the annulus of its plane between
-            // its semi-axes. That floor is exact where the arc's is not:
-            // near the centre, where `q`'s direction is undecided.
-            let Some(conic) = carrier.conic() else {
-                unreachable!("a circle or an ellipse")
-            };
-            let (major, minor) = (conic.speed_hi(), conic.speed_lo());
-            let geom::Frame {
-                origin: center,
-                axis,
-                ..
-            } = *conic.frame();
-            let n = axis.normalize();
-            let (height, across) = geom::Line {
-                origin: center,
-                dir: n,
-            }
-            .height_and_distance(q);
-            let off = (minor - across).max(across - major).max(T::zero());
-            ArcFloor::Conic {
-                annulus: (height.powi(2) + off.powi(2)).sqrt(),
-                arc: arc.distance_floor(q),
-            }
-        }
-        geom::Curve3::Spiric { .. } | geom::Curve3::Nurbs(_) => {
-            // The carrier's half of an edge's cover: the callers read
-            // carrier spans, some with no edge record behind them, and
-            // read their ends as vertices of their own.
-            let cover = crate::cover::arc_cover(carrier, (t0, t1)).ok()?;
-            ArcFloor::Ball {
-                ball: cover.distance_range(&Site::Point(q)).0,
-                pieces: ArcPieces {
-                    carrier,
-                    span: (t0, t1),
-                    q,
-                },
-            }
-        }
+    if let geom::Curve3::Line(line) = *carrier {
+        return Some(ArcFloor::Segment(
+            line.distance_within(q, (t0.min(t1), t0.max(t1))),
+        ));
+    }
+    // The carrier's half of an edge's cover: the callers read carrier
+    // spans, some with no edge record behind them, and read their ends
+    // as vertices of their own.
+    let near = crate::cover::arc_cover(carrier, (t0, t1))
+        .ok()?
+        .distance_range(&Site::Point(q))
+        .0;
+    Some(match carrier {
+        geom::Curve3::Circle(_) | geom::Curve3::Ellipse(_) => ArcFloor::Conic(near),
+        _ => ArcFloor::Ball {
+            ball: near,
+            pieces: ArcPieces {
+                carrier,
+                span: (t0, t1),
+                q,
+            },
+        },
     })
 }
 
 /// Which reading of a carrier [`arc_distance_floor`] took, with its
-/// bounds: each is its own question, so a caller deciding on them keeps
+/// bound: each is its own question, so a caller deciding on them keeps
 /// them apart.
 #[derive(Clone, Copy, Debug)]
 pub(crate) enum ArcFloor<'c, T: geom_core::Real> {
     /// A line's distance to its segment.
     Segment(T),
-    /// A conic's two floors: its whole annulus's, exact near its centre
-    /// and far off it, and its arc's, which reads the trim.
-    Conic {
-        /// The annulus between the semi-axes, in the conic's plane.
-        annulus: T,
-        /// The arc's own floor.
-        arc: T,
-    },
-    /// A spiric's or a spline's: the distance to a ball holding the
-    /// arc, and the arc's pieces, read when the ball is not clear.
+    /// A conic's: its cover's nearest distance, which reads its arc and
+    /// its whole annulus.
+    Conic(T),
+    /// A spiric's or a spline's: its cover's nearest distance, and the
+    /// arc's pieces, read when that is not clear.
     Ball {
-        /// The distance to the ball.
+        /// The cover's nearest distance.
         ball: T,
         /// The arc, to read piece by piece.
         pieces: ArcPieces<'c, T>,
@@ -1489,13 +1453,11 @@ pub(crate) enum ArcFloor<'c, T: geom_core::Real> {
 }
 
 impl<T: Decide> ArcFloor<'_, T> {
-    /// Whether `clear` decides any of the floors clear: either of a
-    /// conic's two, the annulus first; a ball's, or else every piece of
-    /// its arc's.
+    /// Whether `clear` decides the floor clear: a segment's or a conic's,
+    /// or a ball's, or else every piece of its arc's.
     pub(crate) fn clears(self, clear: impl Fn(T) -> bool) -> bool {
         match self {
-            Self::Segment(d) => clear(d),
-            Self::Conic { annulus, arc } => clear(annulus) || clear(arc),
+            Self::Segment(d) | Self::Conic(d) => clear(d),
             Self::Ball { ball, pieces } => clear(ball) || pieces.clear(clear),
         }
     }
