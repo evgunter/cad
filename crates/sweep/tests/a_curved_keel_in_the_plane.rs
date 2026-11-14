@@ -52,6 +52,26 @@ fn keeled(s: f64, turn: f64) -> Body<f64> {
 
 #[test]
 fn a_curved_keel_in_the_plane_splits_sound_and_sections_with_no_spur() {
+    // Pinned red at 1e-6: with the tip 0.6 ε off the plane the halves
+    // hold 5.2e-7 less than the body, where the row wants them to keep
+    // its volume to 1e-9 of it
+    // (`work/ROWKEEL`).
+    test_utils::pinned_red::row(
+        tol().eps(),
+        &[1e-6],
+        "the curved keel in the plane",
+        &[
+            "the V turned -20°, its tip 0.6 ε off the plane, the plane's normal 1 y",
+            "the halves hold 40.32583257",
+            "the body 40.32583309",
+        ],
+        a_curved_keel_in_the_plane_splits_sound_and_sections_with_no_spur_row,
+    );
+}
+
+/// The row [`a_curved_keel_in_the_plane_splits_sound_and_sections_with_no_spur`]
+/// runs, under its pin.
+fn a_curved_keel_in_the_plane_splits_sound_and_sections_with_no_spur_row() {
     let eps = tol().eps();
     // The 270° sector of the annulus between radii 0.5 and 3.
     let section = 0.75 * PI * (3.0f64.powi(2) - 0.5f64.powi(2));
@@ -183,6 +203,26 @@ fn keeled_round(s: f64) -> Body<f64> {
 /// `work/onehome/a-closed-keel-in-the-section-plane-divides-the-section-into-two-regions.md`.
 #[test]
 fn a_round_keel_in_the_plane_reads_two_annuli_today() {
+    // Pinned red at 1e-6: with the tip 0.6 ε off the plane the section's
+    // two regions each read 1.5e-6 over their annulus, where the row
+    // holds them to 1e-8
+    // (`work/ROWROUND`).
+    test_utils::pinned_red::row(
+        tol().eps(),
+        &[1e-6],
+        "the round keel in the plane",
+        &[
+            "the V's tip 0.6 ε off the plane, the plane's normal -1 y",
+            "the section's regions hold [11.78097395",
+            "15.70796477",
+        ],
+        a_round_keel_in_the_plane_reads_two_annuli_today_row,
+    );
+}
+
+/// The row [`a_round_keel_in_the_plane_reads_two_annuli_today`] runs,
+/// under its pin.
+fn a_round_keel_in_the_plane_reads_two_annuli_today_row() {
     for s in [0.0, 0.6, -0.6] {
         let body = keeled_round(s);
         let whole = topo::test_support::pinned_volume(

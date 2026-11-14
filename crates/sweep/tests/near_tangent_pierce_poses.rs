@@ -414,6 +414,25 @@ fn check_pose_refusals(
 
 #[test]
 fn near_tangent_pierce_poses_build_their_closed_form_or_refuse_typed() {
+    // Pinned red at 1e-6: one pose's union builds a body the census
+    // cannot decide, where the row wants every built body to pass tier 3′
+    // (`work/restread/main-red-near-tangent-pierce-poses-w60-a4-census-undecidable-at-1e-6.md`).
+    test_utils::pinned_red::row(
+        Tol::witness().eps(),
+        &[1e-6],
+        "the near-tangent pierce poses",
+        &[
+            "1 of the poses' runs are wrong",
+            "w60 nt e1 a4 d1e-7, prism ∪ cube: fails tier 3′ definitely",
+            "CensusUndecidable",
+            "reason: MayOverlap",
+        ],
+        near_tangent_pierce_poses_build_their_closed_form_or_refuse_typed_row,
+    );
+}
+
+/// The row [`near_tangent_pierce_poses_build_their_closed_form_or_refuse_typed`] runs, under its pin.
+fn near_tangent_pierce_poses_build_their_closed_form_or_refuse_typed_row() {
     let tol = Tol::witness();
     let mut poses = POSES.to_vec();
     for &(_, n, e, a, d, ..) in &SHIPS_A_FINDING {

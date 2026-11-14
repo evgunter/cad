@@ -527,6 +527,24 @@ fn frustum_wedge(y0: f64, t: f64) -> (AtRestBody<f64>, Solid) {
 /// the apex alone, 20 of the 24 refuse.
 #[test]
 fn a_half_space_flush_with_a_frustum_wedge_cap_builds_the_union() {
+    // Pinned red at 1e-6: the first union builds 1.0e-6 under its closed
+    // form, where the row holds it to 3.9e-8
+    // (`work/ROWAPEX`).
+    test_utils::pinned_red::row(
+        Tol::witness().eps(),
+        &[1e-6],
+        "the half-space flush with the wedge's cap",
+        &[
+            "y0 = 0.25, tan α = 0.015625, 0.5·ε over the cap, wedge ∪ half-space (start 32.004·ε)",
+            "volume 24.00006791",
+            "against 24.00006891",
+        ],
+        a_half_space_flush_with_a_frustum_wedge_cap_builds_the_union_row,
+    );
+}
+
+/// The row [`a_half_space_flush_with_a_frustum_wedge_cap_builds_the_union`] runs, under its pin.
+fn a_half_space_flush_with_a_frustum_wedge_cap_builds_the_union_row() {
     let tol = Tol::witness();
     let eps = tol.eps();
     let mut past_the_apex_reading = 0;

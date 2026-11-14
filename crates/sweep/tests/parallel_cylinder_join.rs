@@ -647,6 +647,28 @@ fn seams_on_the_walls(axis: Vec3<f64>, theta: f64) -> Pose {
 /// Boolean cannot yet read (`CurvedPierceUnsupported`).
 #[test]
 fn seams_lying_on_the_walls_read_the_axes_across_the_region() {
+    // Pinned red at 1e-6: six of the runs tipped `1.5·zero / 3.2` build a
+    // body 2.0e-7 to 2.8e-7 under the closed form, where the row wants every
+    // one SOUND
+    // (`work/ROWPCJ`).
+    test_utils::pinned_red::row(
+        Tol::witness().eps(),
+        &[1e-6],
+        "the seams on the walls tipped 1.5·zero / 3.2",
+        &[
+            "tipped 4.6875e-7 about Vec3 { x: 1.0, y: 0.0, z: 0.0 } | U ab | OK BAD t2=true t3p=true cert=true operand=true v=8.853981355 want=8.853981634",
+            "tipped 4.6875e-7 about Vec3 { x: 1.0, y: 0.0, z: 0.0 } | U ba | OK BAD t2=true t3p=true cert=true operand=true v=8.853981433 want=8.853981634",
+            "tipped 4.6875e-7 about Vec3 { x: 1.0, y: 0.0, z: 0.0 } | S ba | OK BAD t2=true t3p=true cert=true operand=true v=2.570796126 want=2.570796327",
+            "tipped 4.6875e-7 about Vec3 { x: 0.0, y: 1.0, z: 0.0 } | U ab | OK BAD t2=true t3p=true cert=true operand=true v=8.853981433 want=8.853981634",
+            "tipped 4.6875e-7 about Vec3 { x: 0.0, y: 1.0, z: 0.0 } | U ba | OK BAD t2=true t3p=true cert=true operand=true v=8.853981433 want=8.853981634",
+            "tipped 4.6875e-7 about Vec3 { x: 0.0, y: 1.0, z: 0.0 } | S ba | OK BAD t2=true t3p=true cert=true operand=true v=2.570796126 want=2.570796327",
+        ],
+        seams_lying_on_the_walls_read_the_axes_across_the_region_row,
+    );
+}
+
+/// The row [`seams_lying_on_the_walls_read_the_axes_across_the_region`] runs, under its pin.
+fn seams_lying_on_the_walls_read_the_axes_across_the_region_row() {
     let tol = Tol::witness();
     let zero = geom_core::Band::linear(tol).unwrap().zero();
     let axes = [Vec3::new(1.0, 0.0, 0.0), Vec3::new(0.0, 1.0, 0.0)];
@@ -805,6 +827,25 @@ fn one_face_walls(az: f64, theta: f64) -> Pose {
 /// own decision, its lever a turn.
 #[test]
 fn one_face_walls_read_their_axes_as_an_angle() {
+    // Pinned red at 1e-6: four of the runs tipped `0.2·zero` build a body
+    // 1.2e-7 under the closed form, where the row wants every one SOUND
+    // (`work/ROWPCJ`).
+    test_utils::pinned_red::row(
+        Tol::witness().eps(),
+        &[1e-6],
+        "the one-face walls tipped 0.2·zero",
+        &[
+            "one-face walls, seams at 0, tipped 2e-7 | S ba | OK BAD t2=true t3p=true cert=true operand=true v=1.348201211 want=1.348201331",
+            "one-face walls, seams at 3.141592653589793, tipped 2e-7 | U ab | OK BAD t2=true t3p=true cert=true operand=true v=7.631386518 want=7.631386638",
+            "one-face walls, seams at 3.141592653589793, tipped 2e-7 | U ba | OK BAD t2=true t3p=true cert=true operand=true v=7.631386518 want=7.631386638",
+            "one-face walls, seams at 3.141592653589793, tipped 2e-7 | S ba | OK BAD t2=true t3p=true cert=true operand=true v=1.348201211 want=1.348201331",
+        ],
+        one_face_walls_read_their_axes_as_an_angle_row,
+    );
+}
+
+/// The row [`one_face_walls_read_their_axes_as_an_angle`] runs, under its pin.
+fn one_face_walls_read_their_axes_as_an_angle_row() {
     let tol = Tol::witness();
     let zero = geom_core::Band::linear(tol).unwrap().zero();
     let seams = [0.0, PI];

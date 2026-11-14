@@ -561,12 +561,6 @@ rows! {
     // part after it, from decision 6036 of 15539
     // (`work/inlane/under-the-guided-lift-plate-params-apart-move-parts-at-a-point-exactly-on-its-loop.md`).
     revalue_plate_param: "plate_param", InStep, 3938, [];
-    // In step: moved apart, its `bool_pair_gap` margins are decided in
-    // another order and the builds part after decision 3996, the first
-    // difference at #3997 (then `pcurve_chart_azimuth_frame`)
-    // (`work/inlane/under-the-guided-lift-boss-unions-bool-pair-gap-decisions-swap-order-under-the-apart-move.md`,
-    // which NOTHING here pins).
-    revalue_boss_union: "boss_union", InStep, 3236, [];
     // Apart: the cutter's placement reads a variable, so both builds run
     // its map and decide its transform and unit norms alike (were `p0`
     // to snap it at rest, the builds would part at `pose_unit_norm`).
@@ -574,6 +568,31 @@ rows! {
     revalue_die_chamfer: "die_chamfer", Apart, 1690, [];
     revalue_measured_web: "measured_web", Apart, 716, [];
     revalue_declared_tangency: "declared_tangency", Apart, 1217, [];
+}
+
+/// In step: moved apart, its `bool_pair_gap` margins are decided in
+/// another order and the builds part after decision 3996, the first
+/// difference at #3997 (then `pcurve_chart_azimuth_frame`)
+/// (`work/inlane/under-the-guided-lift-boss-unions-bool-pair-gap-decisions-swap-order-under-the-apart-move.md`,
+/// which NOTHING here pins).
+///
+/// A pinned red at 1e-6 and 1e-12: the builds answer two
+/// `period_near_mark` decisions with different signs, each on a margin
+/// of exactly 0 against `8.9e-16`, where the row owes no flip
+/// (`work/ROWREVALUE`).
+#[test]
+fn revalue_boss_union() {
+    test_utils::pinned_red::row(
+        Tol::witness().eps(),
+        &[1e-6, 1e-12],
+        "boss_union in step",
+        &[
+            "boss_union: the decisions the builds answered with different signs are not the owed ones",
+            "\"period_near_mark\", 0.0, 8.881784197001252e-16)], mode: Some(InStep), seen: {",
+            "left: [\"period_near_mark\", \"period_near_mark\"]\n right: []",
+        ],
+        || holds("boss_union", Move::InStep, 3236, &[], &[], &[]),
+    );
 }
 
 /// Apart, a pinned red, and a main red before it was pinned: a census of

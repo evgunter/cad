@@ -266,6 +266,23 @@ fn every_pose_of_the_family_builds_at_its_closed_form() {
 ///   closed form, in both poses.
 #[test]
 fn the_fenced_poses_keep_their_own_outcomes() {
+    // Pinned red at 1e-6: the unequal radii's direct union holds the
+    // closed form in an enclosure wider than the row's ceiling
+    // (`work/ROWPAD`).
+    test_utils::pinned_red::row(
+        Tol::witness().eps(),
+        &[1e-6],
+        "the fenced poses",
+        &[
+            "unequal radii, direct: OK BAD t2=true t3p=true cert=true operand=true v=14.935301415 pad=",
+            "want=14.935301415",
+        ],
+        the_fenced_poses_keep_their_own_outcomes_row,
+    );
+}
+
+/// The row [`the_fenced_poses_keep_their_own_outcomes`] runs, under its pin.
+fn the_fenced_poses_keep_their_own_outcomes_row() {
     let tol = Tol::witness();
     let a = cyl(1.0, 2.0);
     let quarter = Affine3::rotation_about_axis(
@@ -411,6 +428,23 @@ fn same_door_matches_a_rejection_by_its_reading() {
 /// and never at the one-site loop's refusal.
 #[test]
 fn a_rod_through_a_drum_wall_builds_at_its_sliced_volume() {
+    // Pinned red at 1e-6: the union's enclosure holds the closed form and
+    // is wider than the row's ceiling
+    // (`work/ROWPAD`).
+    test_utils::pinned_red::row(
+        Tol::witness().eps(),
+        &[1e-6],
+        "the rod through the drum's wall",
+        &[
+            "drum ∪ rod: OK BAD t2=true t3p=true cert=true operand=true v=1.667873349 pad=",
+            "want=1.667873349",
+        ],
+        a_rod_through_a_drum_wall_builds_at_its_sliced_volume_row,
+    );
+}
+
+/// The row [`a_rod_through_a_drum_wall_builds_at_its_sliced_volume`] runs, under its pin.
+fn a_rod_through_a_drum_wall_builds_at_its_sliced_volume_row() {
     let tol = Tol::witness();
     let drum = finished("the drum", cyl(0.5, 1.0), tol);
     let rod = spin(
