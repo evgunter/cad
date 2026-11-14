@@ -737,10 +737,10 @@ impl LoopFact {
 
 /// Whether an edge of `fk` has both of its half-edges on loops of `fk`.
 fn has_seam(body: &Body<f64>, fk: FaceKey) -> bool {
-    let face = body.get_face(fk).expect("a live face");
-    core::iter::once(face.outer)
-        .chain(face.rings.iter().copied())
-        .filter_map(|lk| match body.get_loop(lk).expect("a loop").boundary {
+    body.face(fk)
+        .expect("a live face")
+        .loops()
+        .filter_map(|(_, l, _)| match l.boundary {
             topo::LoopBoundary::Cycle { first } => body.loop_cycle(first),
             topo::LoopBoundary::Empty { .. } => None,
         })
@@ -765,8 +765,14 @@ fn loops_of(name: &str, body: &Body<f64>, samples: usize) -> Vec<LoopFact> {
             continue;
         }
         let seam = has_seam(body, fk);
-        let loops = core::iter::once((None, face.outer))
-            .chain(face.rings.iter().enumerate().map(|(i, &lk)| (Some(i), lk)));
+        let loops = body
+            .face(fk)
+            .expect("a live face")
+            .loops()
+            .map(|(lk, _, role)| match role {
+                topo::LoopRole::Outer => (None, lk),
+                topo::LoopRole::Ring(i) => (Some(i), lk),
+            });
         for (ring, lk) in loops {
             out.push(LoopFact {
                 body: name.to_owned(),
