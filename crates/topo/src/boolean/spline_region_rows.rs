@@ -481,9 +481,25 @@ fn r1_a_hole_lifted_a_period_from_its_outer_loop_is_still_a_hole() {
         Caps::READ,
     )
     .unwrap();
-    let trim = outer
-        .with_rings(&cells, vec![square((0.1, 0.3), (0.4, 0.6), false)], b)
+    let (trim, decks) = outer
+        .with_rings(
+            &cells,
+            vec![(
+                crate::entity::LoopKey::default(),
+                square((0.1, 0.3), (0.4, 0.6), false),
+            )],
+            b,
+        )
         .expect("the hole's place in the outer loop's cover is decided");
+    assert_eq!(
+        decks,
+        [crate::joint::Deck {
+            u: 1,
+            v: 0,
+            twin: false
+        }],
+        "the hole is moved one period up into the outer loop's cover"
+    );
     // Sanity: in the face but not in the hole.
     let face_point = trim.place(&cells, super::Rect::point(0.9, 0.5), b);
     assert!(matches!(face_point, Place::In), "{face_point:?}");
