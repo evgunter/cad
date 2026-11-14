@@ -40,7 +40,7 @@ answer a torn record typed. Counts are `::Variant` occurrences in
 | `TouchVerdict::Corrupt`, `Undecided::CorruptInstance` | `census.rs` | 13 | no (the census runs on bodies tier 1 admits) | panic |
 | `SplitError::TornGroup` | `splitting/mod.rs` | 11 | no | panic |
 | `SplitJoinError::Corrupt` | `chord_join.rs` | 9 | no (driver) | panic |
-| `SectionError::Corrupt`, `NestFault::Torn` | `splitting/{section,section_loops}.rs` | 11 | no (scratch body) | `SectionError::Corrupt` **done** (`onedoor/section-corrupt`): `section_walk` reads its loop's members as links and panics naming the record, `plane_section`'s nesting arm panics on `NestFault::Torn` with the key, and the variant is retired. `NestFault::Torn` and `section_loops::Torn` still stand: the finish's two nestings carry them into `FinishDesync::Unresolved`, so they go with the `SplitFinishError` line. `SenseFault` is left with one variant |
+| `SectionError::Corrupt`, `NestFault::Torn` | `splitting/{section,section_loops}.rs` | 3 | no (scratch body) | `SectionError::Corrupt` **done** (`onedoor/section-corrupt`): `section_walk` reads its loop's members as links and panics naming the record, `plane_section`'s nesting arm panics on `NestFault::Torn` with the key, and the variant is retired. `NestFault::Torn` and `section_loops::Torn` still stand: the finish's two nestings carry them into `FinishDesync::Unresolved`, so they go with the `SplitFinishError` line. `SenseFault` is left with one variant |
 | `Unexaminable::Corrupt` | `coherence.rs` | 8 | check the door's loop argument | split or panic |
 | `TransformError::Corrupt` | `transform.rs` | 8 | no (whole body) | panic |
 | `BooleanError::TornComponent` | `boolean/` | 7 | no (driver invariant) | panic |

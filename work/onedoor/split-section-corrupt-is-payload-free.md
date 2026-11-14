@@ -61,7 +61,14 @@ the eight raises is a record miss on the join's scratch body, so by D2
 - `SectionError::Corrupt` and its `Display` arm are gone. The
   lone-vertex below loop stays the typed `SectionInvariant`.
 - `section::torn_walk` tears a cube loop one record at a time (the
-  loop, a claim, a curve, a point) and expects each panic by its
-  message. `review_d18`'s torn sweep does not gain the walk as a door:
-  that needs `section_walk` visible crate-wide, which `[topo.homes]`
-  (`engine-leaves.sh`) refuses.
+  loop, a `next`, a claim, a curve, a vertex, a point) on
+  `review_d18::assert_torn_op_panics`, each pinned by the holding
+  record, the key and the premise. `review_d18`'s torn sweep does not
+  gain the walk as a door: that needs `section_walk` visible
+  crate-wide, which `[topo.homes]` (`engine-leaves.sh`) refuses.
+- The walk is the claimed one (`loop_walk_of`, where it was
+  `loop_cycle`), so a `next` that resolves and names another loop as
+  its `parent_loop` is a torn walk too.
+- `live::claimed`'s panic names `OPERATORS_KEEP_LINKS` beside the
+  tier-1 premise, as the other link panics do, since the walk reads a
+  mid-operation body.
