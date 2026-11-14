@@ -2,8 +2,9 @@
 id: a-pick-opening-the-edit-door-starts-a-mate-row
 kind: issue
 title: Opening the Edit door by a pick appends a fresh mate row, so the loaded bundle alone has no Apply until it is struck
-status: open
+status: dispatched
 opened: 2026-11-02
+branch: placing/p3-editor-batch
 ---
 
 

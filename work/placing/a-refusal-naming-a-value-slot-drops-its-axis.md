@@ -2,10 +2,11 @@
 id: a-refusal-naming-a-value-slot-drops-its-axis
 kind: issue
 title: a refusal naming a placement's value slot says slide/spin value without the axis
-status: open
+status: dispatched
 opened: 2026-11-02
 priority: P3
 cost: E
+branch: placing/p3-editor-batch
 ---
 
 

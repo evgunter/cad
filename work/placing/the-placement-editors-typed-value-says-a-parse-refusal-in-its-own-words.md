@@ -2,8 +2,9 @@
 id: the-placement-editors-typed-value-says-a-parse-refusal-in-its-own-words
 kind: issue
 title: The placement editor's typed value says a parse refusal in its own words, not the slot door's
-status: open
+status: dispatched
 opened: 2026-11-02
+branch: placing/p3-editor-batch
 ---
 
 
