@@ -2,10 +2,11 @@
 id: the-ring-door-reads-a-spline-face-through-the-trims-point-reader-at-the-root
 kind: unit
 title: the root ring door reads a spline face: the spline trim's point reader moves to the crate root and the trim calls it
-status: open
+status: dispatched
 opened: 2026-11-14
 priority: P1
 cost: H
+branch: tesslane/spline-ring-door
 ---
 
 
@@ -60,3 +61,20 @@ The other ray-parity readers in `topo` are the class to sweep when the loop is m
 ## Measured since filing
 
 A door-built body does close a ring on a spline face: `crates/sweep/tests/a_partner_across_a_lofted_wall_is_joined_on_its_section_value.rs`, `a_brick_inside_a_lofted_walls_face_closes_a_ring_on_the_wall`. Every operation there refuses at the inside/outside test before finishing, so the ring exists mid-operation only. No at-rest body today holds a ring on a spline face, and so none reaches `SplineChart`.
+
+## Unit (2026-11-14, TESSLANE)
+
+**Letter H. Tier: single review, FULL.** A large move across the engine seam with predicate names renamed, then two readers made one: a placement or a point reading that changes in the move is silent, so the review carries claims to falsify. Not dual: the verdicts are pinned by rows that exist (`boolean/spline_region_rows.rs`, sweep's lofted-wall rows), and the unit sets no new contract.
+
+Branch `tesslane/spline-ring-door`, cut from main.
+
+**Owed by the unit, beyond the sections above:**
+
+- **Measure before building.** The "what moves" list above was written from reading. Compile the move and say in the PR body what the trim reaches and what in the engine reaches it; where the list is wrong, the measurement wins and the PR says so.
+- **Three commits, each readable apart.** First the move with nothing else changing: the code lives at the crate root where `[topo.homes]` puts it, the engine calls it, `spline_region_rows.rs` passes unedited, and the predicate names take their new prefix with the roster following (`recourse_roster` names only main's three `ring_path` sites). Then the door reads a spline face and `SplineChart` retires. Then the two parity loops become one over a piece reading each family supplies.
+- **No verdict moves.** If making the loop one changes what `with_rings` decides on any row, or the move changes a spline reading, stop and report it; do not re-pin.
+- **The deck pin returns.** A row pins the deck the door hands out for a ring on a spline face. No at-rest body holds such a ring today: say, measured, how the row builds one (a hand-built body, or the mid-operation body sweep's lofted-wall rows reach), and that it reds on no move and on the wrong move.
+- **The class sweep is named, not rebuilt.** Each ray-parity reader listed above gets one disposition: served by the one loop here, or not this unit and filed.
+- **The citing rows follow.** Each SPLICE, PCERT and ONEDOOR row above cites the new home, in this branch.
+- **Run what CI runs before every push:** `bash scripts/run-gates.sh`; `-p topo` whole at the default eps (its source censuses read every file, so a narrow filter misses them); the rows you add or move at `CAD_TOLERANCE_EPS` 1e-6 and 1e-12 as well; `recourse_roster` and the other slow-set censuses by name. A row that probes near a boundary states its offsets in the run's tolerance.
+
