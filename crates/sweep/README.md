@@ -282,8 +282,9 @@ and a fixed reference direction would read the world axes.
   helix of the tour coil's proportions (radius 0.14, pitch 0.08) the
   end roll after six turns is 9.2e-7 rad off the exact frame at 16
   stations a turn, 5.7e-8 at 32 and 3.5e-9 at 64.
-- **The roll is selected at `f64`, because the path is a constant of
-  the model.** The carry runs once at `f64` and selects each station's
+- **The roll is chosen at `f64`, because the path is a constant of
+  the model** (DESIGN `[scalars]`: a lane scalar takes a choice from
+  `f64`, never a claim). The carry runs once at `f64` and selects each station's
   roll as a reference vector; every scalar lane mints each station's
   frame from the path's tangent read at that scalar and that vector,
   one station at a time, and composes it onto its own start plane.
