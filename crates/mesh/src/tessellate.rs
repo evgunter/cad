@@ -460,9 +460,15 @@ fn tessellate_impl(
                                 body, fk, surface, &chords, shared, &tol, &bounds,
                             ),
                             Lane::Planar => tessellate_planar(body, fk, &chords.ids, shared),
-                            Lane::Curved => {
-                                tessellate_curved(body, fk, surface, &chords.ids, shared, &tol)
-                            }
+                            Lane::Curved => tessellate_curved(
+                                body,
+                                fk,
+                                surface,
+                                &chords.ids,
+                                shared,
+                                &tol,
+                                &bounds,
+                            ),
                         };
                         let Some(memo) = reader else {
                             return (None, run().map(Placement::Lane));

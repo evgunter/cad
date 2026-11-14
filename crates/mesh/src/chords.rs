@@ -56,11 +56,9 @@ use geom_core::interval::Interval;
 use geom_core::interval::certification::Certification;
 use topo::{Body, EdgeKey};
 
+use crate::chart_table::ChartRow;
 use crate::nurbs_cert::{FaceBounds, face_bound};
-use crate::sizing::{
-    ceil_count, cone_face_rho_max, cone_grid_step, curvature_step, ellipse_step, sagitta_step,
-    sphere_face_widest_cos, sphere_grid_steps, spiric_step, torus_grid_steps,
-};
+use crate::sizing::{ceil_count, curvature_step, ellipse_step, sagitta_step, spiric_step};
 use crate::types::TessellateError;
 
 /// The chord pass's output: every edge's chord-point ids and the
@@ -384,19 +382,17 @@ impl FaceLattice {
     /// lane lays none the rule sizes against: the planar lane, the trimmed
     /// lane's cylinder arm (its boundary is chorded at its target alone,
     /// `work/tesslane/the-trimmed-cylinder-arm-chords-its-boundary-to-no-lattice.md`),
-    /// and a face the trimmed lane's chart roster refuses.
+    /// and a face the trimmed lane's chart roster refuses. Its steps are
+    /// the face's chart row's ([`ChartRow::steps`]):
     ///
     /// - **Curved lane**, beside a circle (its rims and meridians, the iso
     ///   sides its lattice is sized against: a ruling moves along a ruled
     ///   axis only, and any other carrier is no iso side the walk reads,
-    ///   so the lane refuses that face at its own guard), at δ: the torus's and the spindle's
-    ///   [`torus_grid_steps`], the sphere's [`sphere_grid_steps`] at the
-    ///   face's widest latitude ([`sphere_face_widest_cos`]), the cone's
-    ///   [`cone_grid_step`] at its largest rim ([`cone_face_rho_max`]) and
-    ///   the cylinder's [`sagitta_step`], those two ruled in `v`.
-    ///   Uncapped; why the cap moves no count is at [`torus_grid_steps`].
-    /// - **Trimmed sphere arm**: [`crate::trimmed::sphere_lattice_steps`],
-    ///   at the face's target.
+    ///   so the lane refuses that face at its own guard), at δ. Uncapped;
+    ///   why the cap moves no count is at
+    ///   [`crate::sizing::torus_grid_steps`].
+    /// - **Trimmed sphere arm**: at the face's target
+    ///   ([`crate::trimmed::arm_steps`]).
     /// - **Spline arm** (a described NURBS face or an approximating
     ///   surface's fit): the face's whole-patch certificate steps at the
     ///   lane's lattice budget, from the shared [`FaceBounds`] memo, so the
@@ -414,54 +410,48 @@ impl FaceLattice {
             Lane::Planar => None,
             Lane::Curved if !matches!(curve.carrier(), Curve3::Circle(..)) => None,
             Lane::Curved => {
-                let steps = match *surface {
-                    geom::Surface::Torus {
-                        major_radius,
-                        minor_radius,
-                        ..
-                    }
-                    | geom::Surface::Spindle {
-                        major_radius,
-                        minor_radius,
-                        ..
-                    } => torus_grid_steps(delta, major_radius, minor_radius),
-                    geom::Surface::Sphere { radius, .. } => {
-                        sphere_grid_steps(delta, radius, sphere_face_widest_cos(body, fk, surface)?)
-                    }
-                    geom::Surface::Cone { half_angle, .. } => (
-                        cone_grid_step(delta, half_angle, cone_face_rho_max(body, fk)?),
-                        f64::INFINITY,
-                    ),
-                    geom::Surface::Cylinder { radius, .. } => {
-                        (sagitta_step(delta, radius), f64::INFINITY)
-                    }
-                    _ => return Ok(None),
-                };
                 let Some(chart) = topo::chart::Chart::of(surface) else {
                     unreachable!("Chart::of answers every curved-lane surface: {surface:?}")
                 };
                 Some(Self {
-                    steps,
+                    steps: ChartRow::of(body, fk, surface, bounds)?.steps(delta),
                     reads: Reads::Iso(chart),
                 })
             }
             Lane::Trimmed => {
+                // The spline row borrows the face's cell table, which this
+                // pass is the one to assemble (`face_bound`).
                 if let Some(payload) = surface.spline_chart() {
                     if payload.is_placeholder() {
                         return Err(TessellateError::UnsupportedSurface { face: fk });
                     }
-                    let budget = crate::nurbs_cert::lattice_budget(delta);
-                    Some(Self {
-                        steps: face_bound(bounds, payload, fk)?.grid_steps(budget),
+                    face_bound(bounds, payload, fk)?;
+                }
+                match *surface {
+                    geom::Surface::Cone { .. }
+                    | geom::Surface::Torus { .. }
+                    | geom::Surface::Spindle { .. } => return Ok(None),
+                    geom::Surface::Sphere { .. }
+                        if !crate::trimmed::takes_sphere_arm(body, fk, surface)? =>
+                    {
+                        return Ok(None);
+                    }
+                    _ => {}
+                }
+                let row = ChartRow::of(body, fk, surface, bounds)?;
+                match row {
+                    ChartRow::Spline { .. } => Some(Self {
+                        steps: row.steps(delta),
                         reads: Reads::SplineRows,
-                    })
-                } else if crate::trimmed::takes_sphere_arm(body, fk, surface)? {
-                    Some(Self {
-                        steps: crate::trimmed::sphere_lattice_steps(body, fk, surface, delta)?,
+                    }),
+                    ChartRow::Sphere { .. } => Some(Self {
+                        steps: crate::trimmed::arm_steps(body, fk, &row, delta)?,
                         reads: Reads::SphereRows,
-                    })
-                } else {
-                    None
+                    }),
+                    ChartRow::Cylinder { .. }
+                    | ChartRow::Cone { .. }
+                    | ChartRow::Torus { .. }
+                    | ChartRow::Spindle { .. } => None,
                 }
             }
         })

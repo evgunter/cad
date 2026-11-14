@@ -311,6 +311,7 @@
 // a `const fn armed()` answering `false`, and no way to arm anything.
 pub mod budget;
 pub mod cert;
+mod chart_table;
 mod chords;
 mod curved;
 // The per-face patch memo behind `tessellate_with`: its key, stated

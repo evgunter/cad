@@ -162,13 +162,12 @@ use topo::props::LoopEdgesError;
 use topo::{Body, EdgeKey, FaceKey, LoopKey};
 
 use crate::cert;
-use crate::sizing::{
-    Eps, SizingTols, cap_angular, ceil_count, cone_face_rho_max, cone_grid_step, sagitta_step,
-    sphere_face_widest_cos, sphere_grid_steps, torus_grid_steps,
-};
+use crate::chart_table::ChartRow;
+use crate::nurbs_cert::FaceBounds;
+use crate::sizing::{Eps, SizingTols, cap_angular, ceil_count};
 use crate::tessellate::{Patch, PatchVertex};
 use crate::types::TessellateError;
-use crate::walk::{Chart, ChartKind, UvPoint, gap_is_noise, loop_polygon};
+use crate::walk::{Chart, UvPoint, gap_is_noise, loop_polygon};
 
 /// Tessellates one curved face into a [`Patch`]: the interior grid
 /// points the face mints for itself, and its outward-wound triangles.
@@ -183,6 +182,7 @@ pub(crate) fn tessellate_curved(
     chords: &HashMap<EdgeKey, Vec<u32>>,
     shared: &[Point3<f64>],
     tol: &SizingTols,
+    bounds: &FaceBounds,
 ) -> Result<Patch, TessellateError> {
     let face = body
         .get_face(fk)
@@ -286,19 +286,14 @@ pub(crate) fn tessellate_curved(
         .iter()
         .any(|e| e.v > v0 && e.v < v1 && (e.u <= u0 || e.u >= u1));
 
-    // Grid counts per kind (module docs). The cone's largest radius
-    // and the sphere's widest latitude are read where the chord pass
-    // reads them, so a face's rims and its grid come from one value.
-    let face_extent = match chart.kind {
-        ChartKind::Cone { .. } => cone_face_rho_max(body, fk)?,
-        ChartKind::Sphere { .. } => sphere_face_widest_cos(body, fk, surface)?,
-        _ => f64::NAN,
-    };
+    // Grid counts per chart (module docs), from the face's chart row,
+    // which the chord pass reads too, so a face's rims and its grid come
+    // from one value.
+    let row = ChartRow::of(body, fk, surface, bounds)?;
     let (nu, nv) = grid_counts(
-        &chart,
+        &row,
         tol.delta,
         (u1 - u0, v1 - v0),
-        face_extent,
         has_pole,
         meridian_interior,
         bare_sides,
@@ -417,30 +412,8 @@ pub(crate) fn tessellate_curved(
         ];
         let uv = [[m[0].0, m[0].1], [m[1].0, m[1].1], [m[2].0, m[2].1]];
         let pole = [m[0].3, m[1].3, m[2].3];
-        let (bound, scale) = match chart.kind {
-            ChartKind::Cylinder { r } => (
-                cert::cert_cylinder(chart.frame().origin, chart.frame().axis, r, tri),
-                cert::position_scale(chart.frame().origin, tri),
-            ),
-            ChartKind::Sphere { r } => (
-                cert::cert_sphere(chart.frame().origin, r, tri),
-                cert::position_scale(chart.frame().origin, tri),
-            ),
-            ChartKind::Cone { half_angle } => (
-                cert::cert_cone(half_angle, uv, pole),
-                cert::cone_scale(half_angle, uv),
-            ),
-            ChartKind::Torus { major, minor } => {
-                let bound = cert::cert_torus(major, minor, uv);
-                (bound, cert::uv_scale(bound, uv))
-            }
-            // A spindle sheet is the torus's chart with a signed major
-            // radius, and its apexes are pole entries.
-            ChartKind::Spindle { major, minor } => {
-                let bound = cert::cert_spindle(major, minor, uv, pole);
-                (bound, cert::uv_scale(bound, uv))
-            }
-        };
+        // A pole or apex entry has no azimuth (`crate::chart_table`).
+        let (bound, scale) = row.cert(tri, uv, pole);
         match cert::verdict(bound, tol.delta, scale, tol.eps) {
             cert::Verdict::Certified => {}
             cert::Verdict::Exceeded => exceeded = true,
@@ -1045,24 +1018,18 @@ fn overused_identified_edge(
     crate::walk::overused_identified_edge_in(&identified, &triangles())
 }
 
-/// The interior grid counts `(nu, nv)` for the face's UV spans.
-///
-/// `face_extent` is the face-wide quantity a kind's step reads beyond
-/// its spans: the cone's largest rim radius
-/// ([`crate::sizing::cone_face_rho_max`]) and the sphere's widest
-/// latitude cosine ([`crate::sizing::sphere_face_widest_cos`]); the
-/// other kinds ignore it.
+/// The interior grid counts `(nu, nv)` for the face's UV spans, at the
+/// face's chart row's steps ([`ChartRow::steps`]).
 ///
 /// `has_pole` and `meridian_interior` describe the boundary walk's
 /// chart singularity: whether it carries a pole/apex entry at all, and
 /// how many interior chord points its meridian sides carry between the
 /// pole row and the opposite row ([`pole_columns`]). The cone, sphere
 /// and spindle arms read them, and the others not, which is STRUCTURAL
-/// rather than an
-/// oversight — [`Chart::poles`] returns an empty vector for a cylinder
-/// and for a torus, so `has_pole` is false on those two arms for every
-/// input there is, and the `debug_assert`s below say so in a form that
-/// fails if it ever stops being true.
+/// rather than an oversight — a cylinder's and a torus's rows list no
+/// singular row ([`ChartRow::singular_rows`]), so `has_pole` is false on
+/// those two arms for every input there is, and the `debug_assert`s
+/// below say so in a form that fails if it ever stops being true.
 ///
 /// KNOWN SIBLING CLASS, recorded and scheduled rather than decided
 /// here: a count of 1 on either axis empties the interior grid's
@@ -1074,24 +1041,22 @@ fn overused_identified_edge(
 /// certificate-backstopped (measured watertight and in-tolerance —
 /// PR 1507's class sweep) and are the follow-up issue's to decide.
 fn grid_counts(
-    chart: &Chart,
+    row: &ChartRow<'_>,
     delta: f64,
     (uspan, vspan): (f64, f64),
-    face_extent: f64,
     has_pole: bool,
     meridian_interior: usize,
     bare_sides: bool,
 ) -> Result<(usize, usize), TessellateError> {
-    match chart.kind {
-        ChartKind::Cylinder { r } => {
-            debug_assert!(!has_pole, "Chart::poles() is empty for a cylinder");
-            let hu = sagitta_step(delta, r);
+    let (hu, hv) = row.steps(delta);
+    match *row {
+        ChartRow::Cylinder { .. } => {
+            debug_assert!(!has_pole, "a cylinder's row lists no singular row");
             // `(nu, 1)`: ruled in v at constant radius, so no rows in
             // any column count; the cone arm below has the same shape.
             Ok((ceil_count(uspan, hu)?, 1))
         }
-        ChartKind::Cone { half_angle } => {
-            let hu = cone_grid_step(delta, half_angle, face_extent);
+        ChartRow::Cone { rho_max, .. } => {
             if bare_sides {
                 // `(nu, 1)`, the cylinder's shape and for its reason: no
                 // rows. `cert::cert_cone` never reads v beyond the
@@ -1109,17 +1074,17 @@ fn grid_counts(
             // argument: a triangle on two side points and a far rim
             // point spans several columns (measured: 2δ). Such a face
             // keeps the lattice — rows every `ρ_max·hu` slant metres,
-            // which put interior columns between the sides — and the
-            // certificate, not a theorem, is what holds it
+            // which put interior columns
+            // between the sides — and the certificate, not a theorem, is
+            // what holds it
             // (`work/tesslane/a-cone-face-with-a-split-side-has-no-worst-triangle-theorem.md`).
             let nu = pole_columns(ceil_count(uspan, hu)?, has_pole);
             if nu == 1 {
                 return Ok((1, 1));
             }
-            Ok((nu, ceil_count(vspan, face_extent * hu)?))
+            Ok((nu, ceil_count(vspan, rho_max * hu)?))
         }
-        ChartKind::Sphere { r } => {
-            let (hu, hv) = sphere_grid_steps(delta, r, face_extent);
+        ChartRow::Sphere { .. } => {
             let (nu, nv) = (ceil_count(uspan, hu)?, ceil_count(vspan, hv)?);
             // D2 addendum row 5 — and the whole warrant for calling
             // this arm PROPHYLACTIC rather than corrective
@@ -1140,9 +1105,8 @@ fn grid_counts(
             );
             Ok((pole_columns(nu, has_pole), nv))
         }
-        ChartKind::Torus { major, minor } => {
-            debug_assert!(!has_pole, "Chart::poles() is empty for a torus");
-            let (hu, hv) = torus_grid_steps(delta, major, minor);
+        ChartRow::Torus { .. } => {
+            debug_assert!(!has_pole, "a torus's row lists no singular row");
             Ok((
                 ceil_count(uspan, cap_angular(hu))?,
                 ceil_count(vspan, cap_angular(hv))?,
@@ -1150,13 +1114,13 @@ fn grid_counts(
         }
         // The torus's steps; an apex is a pole entry, so a face at one
         // takes the pole column rule as the sphere's does.
-        ChartKind::Spindle { major, minor } => {
-            let (hu, hv) = torus_grid_steps(delta, major, minor);
-            Ok((
-                pole_columns(ceil_count(uspan, cap_angular(hu))?, has_pole),
-                ceil_count(vspan, cap_angular(hv))?,
-            ))
-        }
+        ChartRow::Spindle { .. } => Ok((
+            pole_columns(ceil_count(uspan, cap_angular(hu))?, has_pole),
+            ceil_count(vspan, cap_angular(hv))?,
+        )),
+        ChartRow::Spline { .. } => Err(TessellateError::MissingEntity {
+            what: "curved chart",
+        }),
     }
 }
 
@@ -2368,20 +2332,6 @@ mod tests {
         );
     }
 
-    /// A cone chart with the π/6 wedge fixture's own geometry
-    /// (half-angle π/4, apex on the y axis), for driving
-    /// [`grid_counts`] directly. Only `kind` decides the counts; the
-    /// frame is the fixture's.
-    fn cone_chart() -> Chart {
-        Chart::of(&Surface::Cone {
-            apex: Point3::new(0.0, 1.0, 0.0),
-            axis: Vec3::new(0.0, 1.0, 0.0),
-            half_angle: core::f64::consts::FRAC_PI_4,
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
-        })
-        .unwrap()
-    }
-
     /// **A cone patch with bare sides takes no rows, at any column
     /// count** (the cone arm's theorem, `sizing::cone_grid_step`), and
     /// one whose side carries a point keeps them: the π/6 wedge (ρ_max = 1,
@@ -2391,12 +2341,16 @@ mod tests {
     /// column count the rims are chorded at.
     #[test]
     fn a_cone_patch_takes_no_rows_at_any_column_count() {
-        let chart = cone_chart();
+        // The π/6 wedge fixture's own chart: half-angle π/4, ρ_max = 1.
+        let row = ChartRow::Cone {
+            half_angle: core::f64::consts::FRAC_PI_4,
+            rho_max: 1.0,
+        };
         let (uspan, vspan) = (core::f64::consts::FRAC_PI_6, 2.0_f64.sqrt());
         for (delta, nu) in [(0.1, 1), (0.0125, 2), (0.001, 5)] {
             for has_pole in [true, false] {
                 assert_eq!(
-                    grid_counts(&chart, delta, (uspan, vspan), 1.0, has_pole, 0, true).unwrap(),
+                    grid_counts(&row, delta, (uspan, vspan), has_pole, 0, true).unwrap(),
                     (nu, 1),
                     "δ {delta}, has_pole {has_pole}: {nu} columns and no rows"
                 );
@@ -2407,12 +2361,12 @@ mod tests {
         // the pole floor lifting them to three with an apex, and rows
         // every `ρ_max·hu`.
         assert_eq!(
-            grid_counts(&chart, 0.0125, (uspan, vspan), 1.0, true, 0, false).unwrap(),
+            grid_counts(&row, 0.0125, (uspan, vspan), true, 0, false).unwrap(),
             (3, 4),
             "a split side keeps its rows, and the apex its pole floor"
         );
         assert_eq!(
-            grid_counts(&chart, 0.0125, (uspan, vspan), 1.0, false, 0, false).unwrap(),
+            grid_counts(&row, 0.0125, (uspan, vspan), false, 0, false).unwrap(),
             (2, 4),
             "a split side keeps its rows"
         );

@@ -48,7 +48,7 @@
 //! `(u′(t), v′(t))` (`geom_brep::Pcurve::speed_bound`), and its
 //! certificate is the ball-convexity one (`cert::cert_sphere`), in 3-D.
 //! A pole the loop passes is a side of the trim polygon
-//! ([`sphere_polygon_shape`]): the loop's lift (`topo::Body::loop_lift`)
+//! ([`singular_row_shape`]): the loop's lift (`topo::Body::loop_lift`)
 //! runs along the pole's latitude through the face's turn there, so
 //! each run of the loop between two poles already sits where the face
 //! is. A face holding a pole inside it and a tilted circle
@@ -172,10 +172,11 @@ use spade::{ConstrainedDelaunayTriangulation, Point2 as SpadePoint, Triangulatio
 use topo::{Body, EdgeKey, FaceKey};
 
 use crate::cert;
+use crate::chart_table::{ChartRow, SingularRow, on_singular_row};
 use crate::chords::ChordPass;
-use crate::nurbs_cert::{FaceBounds, NurbsCellGrid, NurbsFaceBound, face_cells, lattice_metric};
+use crate::nurbs_cert::{FaceBounds, NurbsCellGrid, lattice_metric};
 use crate::planar::{Crossings, Pinches, Walk, classify_faces, edge_key, shoelace2};
-use crate::sizing::{SizingTols, ceil_count, sagitta_step};
+use crate::sizing::{SizingTols, ceil_count};
 use crate::tessellate::{Patch, PatchVertex};
 use crate::types::{SphereTrimCause, TessellateError};
 
@@ -215,7 +216,7 @@ fn last_attempt() -> usize {
 /// the fix is the theorem, not a retuned factor.
 ///
 /// The sphere arm reads it the same way and for the same reason, at its
-/// lattice steps ([`sphere_lattice_steps`]) and its edges' chords: its
+/// lattice steps ([`arm_steps`]) and its edges' chords: its
 /// cells are the curved lane's sphere cells, whose theorem
 /// (`sizing::sphere_grid_steps`) does not cover a CDT triangle beside a
 /// trim chord the lattice did not place
@@ -293,62 +294,23 @@ pub(crate) fn has_tilted_circle(body: &Body<f64>, fk: FaceKey) -> Result<bool, T
         }))
 }
 
-/// **The trimmed sphere's lattice steps** `(h_u, h_v)`, in radians of
-/// azimuth and latitude: the curved lane's sphere steps
-/// ([`crate::sizing::sphere_grid_steps`]) at the face's target
-/// ([`face_target`]), over the face's own latitude window
-/// ([`crate::sizing::sphere_face_widest_cos`]). The
-/// chord pass reads the same steps to bound each boundary chord's UV
-/// step (`chords::tighten`), so the lattice and the trim polygon are
-/// sized from one value.
-pub(crate) fn sphere_lattice_steps(
+/// **The trimmed lane's steps on an analytic chart** `(h_u, h_v)`: the
+/// row's steps ([`ChartRow::steps`]) at the face's target
+/// ([`face_target`]). The chord pass reads the same steps to bound each
+/// boundary chord's UV step (`chords::tighten`), so the lattice and the
+/// trim polygon are sized from one value.
+pub(crate) fn arm_steps(
     body: &Body<f64>,
     fk: FaceKey,
-    surface: &Surface<f64>,
+    row: &ChartRow<'_>,
     delta: f64,
 ) -> Result<(f64, f64), TessellateError> {
-    let Surface::Sphere { radius, .. } = *surface else {
-        return Err(TessellateError::MissingEntity {
-            what: "sphere arm on a non-sphere surface",
-        });
-    };
-    let widest = crate::sizing::sphere_face_widest_cos(body, fk, surface)?;
     #[cfg(test)]
-    let scale = tests::SPHERE_STEP_SCALE.with(std::cell::Cell::get);
+    let scale = tests::STEP_SCALE.with(std::cell::Cell::get);
     #[cfg(not(test))]
     let scale = 1.0;
-    let (hu, hv) = crate::sizing::sphere_grid_steps(face_target(body, fk, delta)?, radius, widest);
+    let (hu, hv) = row.steps(face_target(body, fk, delta)?);
     Ok((hu * scale, hv * scale))
-}
-
-/// The per-chart data of the constructing arms (module docs):
-/// which certificate each emitted triangle checks, and which pcurve
-/// forms the trim walk accepts.
-enum Lane {
-    /// The M5 PR 11 cylinder lane (harmonic pcurves, radial-convexity
-    /// certificate).
-    Cylinder {
-        origin: Point3<f64>,
-        axis: geom_core::Vec3<f64>,
-        radius: f64,
-    },
-    /// The sphere arm (harmonic and projected pcurves, the ball-convexity
-    /// certificate `cert::cert_sphere`), with its lattice steps
-    /// ([`sphere_lattice_steps`]).
-    Sphere {
-        center: Point3<f64>,
-        radius: f64,
-        steps: (f64, f64),
-    },
-    /// The M7 trimmed-NURBS lane (closed-form pcurve images, Hessian
-    /// interpolation certificate — `crate::nurbs_cert`; since
-    /// TESS-SPAN certified per knot-span cell and sized per v-band,
-    /// the whole-patch bound kept beside the cell grid for the budget
-    /// meter's columns).
-    Nurbs {
-        grid: NurbsCellGrid,
-        patch: NurbsFaceBound,
-    },
 }
 
 /// Does this face's outer loop carry a non-iso trim carrier (conic or
@@ -393,69 +355,38 @@ pub(crate) fn tessellate_trimmed(
     if !face.rings.is_empty() {
         return Err(TessellateError::RingOnCurvedFace { face: fk });
     }
-    let lane = match *surface {
-        Surface::Cylinder {
-            origin,
-            axis,
-            radius,
-            ..
-        } => Lane::Cylinder {
-            origin,
-            axis,
-            radius,
-        },
-        // The mvfs "no description yet" state — the historical
-        // refusal, kept for exactly this class (types docs). An
-        // approximating surface has no such state to screen: its fit is
-        // certified by construction.
-        Surface::Nurbs(ref payload) if payload.is_placeholder() => {
-            return Err(TessellateError::UnsupportedSurface { face: fk });
+    // The arms this lane has not written yet refuse at its roster.
+    match *surface {
+        Surface::Cone { .. } | Surface::Torus { .. } | Surface::Spindle { .. } => {
+            return Err(trim_frontier(body, fk, face.outer)?);
         }
-        // ONE spline arm past that screen, for the described NURBS face
-        // and for the approximating surface meshed on its fit: the lane
-        // reads the cell table under this FACE's key, not off the
-        // surface, and `chords::tighten` assembled it from the
-        // same `Surface::spline_chart()` this dispatch is testing.
-        //
-        // Both readings off ONE assembly: the memo holds the cell table
-        // (`nurbs_cert::face_cells`), and the whole-patch bound is a
-        // reading of it. The chord pass filled the entry, so the cost
-        // here is a clone of the table, never an assembly.
-        Surface::Nurbs(_) | Surface::Approx(_) => {
-            let grid = face_cells(bounds, fk)?.clone();
-            let patch = grid.patch();
-            Lane::Nurbs { grid, patch }
+        Surface::Sphere { .. } if has_trim_carrier(body, fk)? => {
+            return Err(trim_frontier(body, fk, face.outer)?);
         }
-        Surface::Sphere { center, radius, .. } if takes_sphere_arm(body, fk, surface)? => {
-            Lane::Sphere {
-                center,
-                radius,
-                steps: sphere_lattice_steps(body, fk, surface, tol.delta)?,
-            }
-        }
-        _ => return Err(trim_frontier(body, fk, face.outer)?),
-    };
-    let creases = match (&lane, surface.spline_chart()) {
-        (Lane::Nurbs { grid, .. }, Some(chart)) => Creases::of(grid, chart, fk)?,
+        _ => {}
+    }
+    // The face's chart row (`crate::chart_table`). A spline face's is the
+    // cell table under this FACE's key, which the chord pass assembled
+    // from the same `Surface::spline_chart()` this lane reads: the memo
+    // holds it, and the row borrows it.
+    let row = ChartRow::of(body, fk, surface, bounds)?;
+    let creases = match (&row, surface.spline_chart()) {
+        (ChartRow::Spline { grid }, Some(chart)) => Creases::of(grid, chart, fk)?,
         _ => None,
     };
     // The UV polygon: per half-edge, the pcurve evaluated at the
     // shared chord parameters (each traversal contributes all but its
     // last point; ids stay the shared 3-D chord ids).
-    let nurbs_chart = matches!(lane, Lane::Nurbs { .. });
-    let poles = if matches!(lane, Lane::Sphere { .. }) {
-        ChartPoles::Kept
-    } else {
-        ChartPoles::None
-    };
+    let spline = row.is_spline();
+    let rows = row.singular_rows();
     let (polygon, polygon_edges) = trim_polygon(
         body,
         fk,
         face.outer,
         chords,
-        nurbs_chart,
+        spline,
         creases.as_ref(),
-        poles,
+        &rows,
     )?;
     if polygon.len() < 3 {
         return Err(TessellateError::MissingEntity {
@@ -472,38 +403,38 @@ pub(crate) fn tessellate_trimmed(
     // complement as a closed manifold mesh — so it refuses here. A
     // spline chart's winding is not checked: the NURBS arm keeps the
     // emit pass's reading.
-    if !nurbs_chart {
+    if !spline {
         let poly2: Vec<[f64; 2]> = polygon.iter().map(|&(u, v, _)| [u, v]).collect();
         if (shoelace2(&poly2) > 0.0) != face.sense {
             return Err(TessellateError::TrimLoopOrientation { face: fk });
         }
     }
-    // THE ONE CHART WITH POLES is the sphere's, and its polygon is the
-    // shape `sphere_polygon_shape` admits, so the duplicate-id skip in
-    // the emit pass never collapses a pole fan (#678). Every other arm's
-    // chart has none — `Chart::poles()` is empty for a cylinder and a
-    // NURBS face has no `Chart` at all — and that fact is `walk`'s, so
-    // it is asserted here rather than written down (D2 addendum row 5).
-    if matches!(lane, Lane::Sphere { .. }) {
-        sphere_polygon_shape(fk, &polygon, &polygon_edges)?;
-    } else {
+    // A CHART WITH SINGULAR ROWS keeps its polygon to the shape
+    // `singular_row_shape` admits, so the duplicate-id skip in the emit
+    // pass never collapses a fan at a row's point (#678). A chart the
+    // row lists none for has no such point, and that fact is `topo`'s
+    // chart's too (`Chart::poles()`; a NURBS face has no `Chart` at
+    // all), so the two are asserted to agree rather than written down
+    // (D2 addendum row 5).
+    if rows.is_empty() {
         debug_assert!(
             crate::walk::Chart::of(surface).is_none_or(|c| c.poles().is_empty()),
-            "face {fk:?}: the trimmed lane took a chart with a pole outside its sphere \
-             arm, so the duplicate-id skip in the emit pass may be collapsing a pole fan \
+            "face {fk:?}: the chart row lists no singular row where the chart has a \
+             pole, so the duplicate-id skip in the emit pass may be collapsing a pole fan \
              — see curved::pole_columns, issue #678"
         );
+    } else {
+        singular_row_shape(fk, &rows, &polygon, &polygon_edges)?;
     }
 
-    // Grid sizing: cylinder — sagitta-tight in u at the face's target
-    // (`face_target`), rows every r·hu metres in v, a uniform
-    // grid over the trim box; NURBS — the Hessian-budget steps
-    // (`nurbs_cert`) at the lane's lattice budget
-    // (`nurbs_cert::lattice_budget`), applied PER KNOT-SPAN CELL from
-    // each cell's own certified bound (TESS-SPAN), grid lines on the
-    // cell boundaries. The chord pass's boundary tightening keeps
-    // the whole-patch steps (the reported D-2 choice — `nurbs_cert`
-    // module docs).
+    // The lattice, over the trim box: on an analytic chart a uniform
+    // one at the row's steps at the face's target (`arm_steps`); on a
+    // spline chart the Hessian-budget steps (`nurbs_cert`) at the lane's
+    // lattice budget (`nurbs_cert::lattice_budget`), applied PER
+    // KNOT-SPAN CELL from each cell's own certified bound (TESS-SPAN),
+    // grid lines on the cell boundaries. The chord pass's boundary
+    // tightening keeps the whole-patch steps (the reported D-2 choice —
+    // `nurbs_cert` module docs).
     let (mut u0, mut u1, mut v0, mut v1) = (f64::MAX, f64::MIN, f64::MAX, f64::MIN);
     for &(u, v, _) in &polygon {
         u0 = u0.min(u);
@@ -511,16 +442,17 @@ pub(crate) fn tessellate_trimmed(
         v0 = v0.min(v);
         v1 = v1.max(v);
     }
-    let (mut candidates, nurbs_stats, metric) = match lane {
-        Lane::Cylinder { radius, .. } => {
-            let hu = sagitta_step(face_target(body, fk, tol.delta)?, radius);
+    let (mut candidates, nurbs_stats, metric) = match row {
+        ChartRow::Cylinder { radius, .. } => {
+            // Sagitta-tight in u, rows every r·hu metres in v.
+            let (hu, _) = arm_steps(body, fk, &row, tol.delta)?;
             let nu = ceil_count(u1 - u0, hu)?;
             let nv = ceil_count(v1 - v0, radius * hu)?;
             // The other half of #678's shape, checked where the count
             // is: the fan needs ONE interior column between two
             // boundary entries that share a mesh vertex, which is
             // `nu == 2`. The only repeated id at two DISTINCT UVs in
-            // this lane is the full-2π seam double-traversal, and
+            // this arm is the full-2π seam double-traversal, and
             // there `u1 - u0` is 2π against an `hu` the sagitta cap
             // holds at ≤ π/4 — so the two never meet. Arithmetic, not
             // an argument, and this is the line that says so.
@@ -554,29 +486,33 @@ pub(crate) fn tessellate_trimmed(
             )
         }
         // The sphere: the steps the chord pass bounded this face's
-        // boundary UV steps by (`sphere_lattice_steps`), over the trim
-        // box. The CDT runs in the chart's own metric at the box's mid
-        // latitude, `(u·cos v, v)` to the nearest power of two: there a
-        // small face's boundary circle is near round, so an ear on it
-        // usually has the face's interior points in its circumcircle and
-        // the CDT does not cut it. An ear on a boundary chain is the
-        // triangle of three consecutive chord points, which the
-        // neighbour across that chain may cut too. That is a steer, not
-        // a guarantee: what holds the line is the ear cure in `attempt`,
-        // which splits any ear the CDT keeps by its centroid.
-        Lane::Sphere {
-            steps: (hu, hv), ..
-        } => (
-            uniform_candidates(
-                (u0, u1),
-                (v0, v1),
-                pole_side_columns(&polygon, (u0, u1), ceil_count(u1 - u0, hu)?)?,
-                ceil_count(v1 - v0, hv)?,
-            ),
-            None,
-            lattice_metric(std::iter::once(1.0 / geom::mid_param(v0, v1).cos())),
-        ),
-        Lane::Nurbs { ref grid, .. } => {
+        // boundary UV steps by (`arm_steps`), over the trim box. The CDT
+        // runs in the chart's own metric at the box's mid latitude,
+        // `(u·cos v, v)` to the nearest power of two: there a small
+        // face's boundary circle is near round, so an ear on it usually
+        // has the face's interior points in its circumcircle and the CDT
+        // does not cut it. An ear on a boundary chain is the triangle of
+        // three consecutive chord points, which the neighbour across that
+        // chain may cut too. That is a steer, not a guarantee: what holds
+        // the line is the ear cure in `attempt`, which splits any ear the
+        // CDT keeps by its centroid.
+        ChartRow::Sphere { .. } => {
+            let (hu, hv) = arm_steps(body, fk, &row, tol.delta)?;
+            (
+                uniform_candidates(
+                    (u0, u1),
+                    (v0, v1),
+                    pole_side_columns(&polygon, &rows, (u0, u1), ceil_count(u1 - u0, hu)?)?,
+                    ceil_count(v1 - v0, hv)?,
+                ),
+                None,
+                lattice_metric(std::iter::once(1.0 / geom::mid_param(v0, v1).cos())),
+            )
+        }
+        ChartRow::Cone { .. } | ChartRow::Torus { .. } | ChartRow::Spindle { .. } => {
+            return Err(trim_frontier(body, fk, face.outer)?);
+        }
+        ChartRow::Spline { grid } => {
             let (mut cand, stats) = per_cell_candidates(
                 grid,
                 (u0, u1),
@@ -631,7 +567,8 @@ pub(crate) fn tessellate_trimmed(
         sense: face.sense,
         metric,
         surface,
-        lane: &lane,
+        row: &row,
+        rows: &rows,
         polygon: &polygon,
         creases: creases.as_ref(),
         shared,
@@ -677,8 +614,9 @@ pub(crate) fn tessellate_trimmed(
     // columns describe the attempt the face exited on — for a refusal
     // that is the attempt that lost, which is the only mesh there was.
     if crate::budget::armed()
-        && let (Some(stats), Lane::Nurbs { grid, patch }) = (nurbs_stats, &lane)
+        && let (Some(stats), ChartRow::Spline { grid }) = (nurbs_stats, &row)
     {
+        let patch = grid.patch();
         let budget = crate::nurbs_cert::lattice_budget(tol.delta);
         crate::budget::note_face(crate::budget::FaceMeasure {
             face: fk,
@@ -788,7 +726,9 @@ struct TrimmedFace<'a> {
     /// scaling the axis that shrinks ([`Self::cdt_point`]).
     metric: f64,
     surface: &'a Surface<f64>,
-    lane: &'a Lane,
+    row: &'a ChartRow<'a>,
+    /// The chart's singular rows ([`ChartRow::singular_rows`]).
+    rows: &'a [SingularRow],
     polygon: &'a [(f64, f64, u32)],
     creases: Option<&'a Creases>,
     shared: &'a [Point3<f64>],
@@ -853,12 +793,7 @@ impl TrimmedFace<'_> {
     /// sign of a triangle normal's dot with it, so neither its unit
     /// length nor the raw gradient's magnitude is read.
     fn outward(&self, p: Point3<f64>) -> Option<OutwardNormal<f64>> {
-        match *self.lane {
-            Lane::Cylinder { .. } | Lane::Sphere { .. } => Some(
-                geom_brep::implicit_outward_normal(self.surface, self.sense, p),
-            ),
-            Lane::Nurbs { .. } => None,
-        }
+        self.row.outward(self.surface, self.sense, p)
     }
 
     /// One attempt of the retry loop (module docs): the points, the
@@ -1250,7 +1185,7 @@ impl TrimmedFace<'_> {
         // Left open rather than closed here because closing it changes
         // what a `FaceMeasure` means, which reaches the consumers of
         // `budget` in `tools/`.
-        let dev_samples_per_edge = if matches!(self.lane, Lane::Nurbs { .. }) {
+        let dev_samples_per_edge = if self.row.is_spline() {
             crate::budget::deviation_samples()
         } else {
             None
@@ -1261,7 +1196,7 @@ impl TrimmedFace<'_> {
         // their UV centroid queued as a new candidate for the next
         // round.
         let mut refine: Vec<(f64, f64)> = Vec::new();
-        let refine_lane = matches!(self.lane, Lane::Nurbs { .. });
+        let refine_lane = self.row.is_spline();
         let (mut folded_grid, mut folded_boundary) = (Vec::new(), false);
         // Each boundary handle's places in the trim polygon (a pinch
         // handle holds several), for the ear test below.
@@ -1374,29 +1309,10 @@ impl TrimmedFace<'_> {
                 folded_boundary |= grid.is_empty();
                 folded_grid.extend(grid);
             }
-            let (bound, scale) = match *self.lane {
-                Lane::Cylinder {
-                    origin,
-                    axis,
-                    radius,
-                } => (
-                    cert::cert_cylinder(origin, axis, radius, tri),
-                    cert::position_scale(origin, tri),
-                ),
-                Lane::Sphere { center, radius, .. } => (
-                    cert::cert_sphere(center, radius, tri),
-                    cert::position_scale(center, tri),
-                ),
-                // TESS-SPAN: the certificate of the cell(s) covering
-                // the triangle's UV box — one band's cells in `v`, since
-                // rows land on the `v` cuts, but possibly several in `u`,
-                // whose columns do not (`NurbsCellGrid::cert` argues the
-                // straddling and half-open boundary cases).
-                Lane::Nurbs { ref grid, .. } => {
-                    let bound = grid.cert(uv);
-                    (bound, cert::uv_scale(bound, uv))
-                }
-            };
+            // A corner on a singular row has no azimuth
+            // (`crate::chart_table`, the singular-row rule).
+            let singular = uv.map(|[_, v]| on_singular_row(self.rows, v));
+            let (bound, scale) = self.row.cert(tri, uv, singular);
             let verdict = cert::verdict(bound, tol.delta, scale, tol.eps);
             match verdict {
                 cert::Verdict::Certified => {}
@@ -1519,41 +1435,41 @@ fn id_repeats_apart(polygon: &[(f64, f64, u32)]) -> bool {
     !crate::walk::ids_at_two_uvs(polygon.iter().copied()).is_empty()
 }
 
-/// **The sphere arm's poles.** A pole the loop passes through is a
-/// vertex where two meridians meet, and the polygon holds it twice, at
-/// the azimuth of each ([`trim_polygon`]'s [`ChartPoles::Kept`]): the
-/// pole is a side `v = ±π/2` of the polygon, as it is of the curved
-/// lane's walk. A CDT triangle on two of that side's points has two
-/// corners on the one pole vertex and the emit pass drops it, so the
-/// triangles left at the pole are a fan about it, each certified in 3-D
-/// by `cert::cert_sphere`. The fan is manifold unless exactly one
-/// lattice column lies between the side's ends (#678's shape), which
+/// **A polygon on a chart with singular rows**
+/// (`crate::chart_table`, the singular-row rule): a row's point the loop
+/// passes through is a vertex where two of its edges meet from different
+/// `u`, and the polygon holds it twice, once at each ([`flat_points`]),
+/// so the row is a side of the polygon, as it is of the curved lane's
+/// walk. A CDT triangle on two of that side's points has two corners on
+/// the one vertex and the emit pass drops it, so the triangles left there
+/// are a fan about it. The fan is manifold unless exactly one lattice
+/// column lies between the side's ends (#678's shape), which
 /// [`pole_side_columns`] keeps the lattice off.
 ///
-/// Refused typed, each a shape this arm does not mesh:
-/// - a point past a pole (`|v| > π/2` beyond rounding): an edge whose
-///   image runs through a pole mid-edge;
-/// - a side other than a pole side turning more than 3π/2 in azimuth:
-///   the loop winds about a pole inside the face (its image does not
-///   close in the chart);
-/// - a mesh id at two UV locations off a pole: a seam traversed twice.
+/// Refused typed, each a shape the lane does not mesh:
+/// - a point past a row that ends the chart's `v` domain
+///   ([`SingularRow::passed_by`]): an edge whose image runs through the
+///   row's point mid-edge;
+/// - a side off a row turning more than 3π/2 in `u`: the loop winds about
+///   the row's point inside the face (its image does not close in the
+///   chart);
+/// - a mesh id at two chart locations off a row: a seam traversed twice.
 ///
 /// Each refusal is [`TessellateError::SphereTrimShape`] naming its
 /// [`SphereTrimCause`] and the edge the offending point or side comes
 /// from (`edges[i]` is point `i`'s, and side `i` runs from point `i`).
 ///
-/// The constants are argued where they stand: `4ε` relative past `π/2`
-/// is the rounding of an `atan2` at a pole (a few ulps), so a meridian's
-/// endpoint does not read as past it; `3π/2` is past any side a chord
-/// pass can make between two lattice columns (`chords::tighten`
-/// holds every chord to one `h_u ≤ π/4`), and short of the `2π` a
-/// winding side spans, so it separates the two with room either way.
-fn sphere_polygon_shape(
+/// `3π/2` is past any side a chord pass can make between two lattice
+/// columns (`chords::tighten` holds every chord to one `h_u ≤ π/4`), and
+/// short of the `2π` a winding side spans, so it separates the two with
+/// room either way.
+fn singular_row_shape(
     fk: FaceKey,
+    rows: &[SingularRow],
     polygon: &[(f64, f64, u32)],
     edges: &[EdgeKey],
 ) -> Result<(), TessellateError> {
-    use core::f64::consts::{FRAC_PI_2, PI};
+    use core::f64::consts::PI;
     let refuse = |i: usize, cause| -> Result<(), TessellateError> {
         Err(TessellateError::SphereTrimShape {
             face: fk,
@@ -1563,29 +1479,30 @@ fn sphere_polygon_shape(
     };
     if let Some(i) = polygon
         .iter()
-        .position(|&(_, v, _)| v.abs() > FRAC_PI_2 * (1.0 + 4.0 * f64::EPSILON))
+        .position(|&(_, v, _)| rows.iter().any(|r| r.passed_by(v)))
     {
         return refuse(i, SphereTrimCause::PastPole);
     }
     let n = polygon.len();
     if let Some(i) = (0..n).find(|&i| {
         let (a, b) = (polygon[i], polygon[(i + 1) % n]);
-        !(a.2 == b.2 && at_pole(a.1)) && (b.0 - a.0).abs() > 1.5 * PI
+        !(a.2 == b.2 && on_singular_row(rows, a.1)) && (b.0 - a.0).abs() > 1.5 * PI
     }) {
         return refuse(i, SphereTrimCause::PoleInside);
     }
     let apart = crate::walk::ids_at_two_uvs(polygon.iter().copied());
     if let Some(i) = polygon
         .iter()
-        .position(|&(_, v, id)| apart.contains(&id) && !at_pole(v))
+        .position(|&(_, v, id)| apart.contains(&id) && !on_singular_row(rows, v))
     {
         return refuse(i, SphereTrimCause::SeamTwice);
     }
     Ok(())
 }
 
-/// The sphere arm's column count over the trim box `(u0, u1)`: `nu`,
-/// doubled until no pole side of `polygon` has exactly one lattice
+/// The lattice's column count over the trim box `(u0, u1)` on a chart
+/// with singular `rows`: `nu`, doubled until no side of `polygon` along a
+/// row (a pole side, [`singular_row_shape`]) has exactly one lattice
 /// column strictly between its ends — the shape #678's non-manifold fan
 /// needs (`curved::pole_columns` carries the argument). Doubling keeps
 /// every column it had, so a side's count never falls, but it need not
@@ -1595,13 +1512,14 @@ fn sphere_polygon_shape(
 /// every side holds at least two. [`ceil_count`] caps the doubling.
 fn pole_side_columns(
     polygon: &[(f64, f64, u32)],
+    rows: &[SingularRow],
     (u0, u1): (f64, f64),
     mut nu: usize,
 ) -> Result<usize, TessellateError> {
     let n = polygon.len();
     let sides: Vec<(f64, f64)> = (0..n)
         .map(|i| (polygon[i], polygon[(i + 1) % n]))
-        .filter(|&(a, b)| a.2 == b.2 && at_pole(a.1) && a.0 != b.0)
+        .filter(|&(a, b)| a.2 == b.2 && on_singular_row(rows, a.1) && a.0 != b.0)
         .map(|(a, b)| (a.0.min(b.0), a.0.max(b.0)))
         .collect();
     let one_between = |nu: usize| {
@@ -1805,13 +1723,13 @@ fn trim_frontier(
 /// The pcurve-driven UV polygon of the face's outer loop: per
 /// half-edge, `pcurve.eval` at the shared chord parameters (module
 /// docs; each traversal contributes all but its last point, and on a
-/// chart with poles ([`ChartPoles::Kept`]) its last point too where that
-/// is a pole the next traversal leaves from another azimuth, so the pole
-/// is a side of the polygon — [`sphere_polygon_shape`]).
+/// chart with singular `rows` its last point too where that is a row's
+/// point the next traversal leaves from another `u`, so the row is a side
+/// of the polygon — [`singular_row_shape`]).
 /// `nurbs_chart` widens the accepted image forms to `IsoLine`,
 /// `IsoArc` and `General`; `Fitted` refuses typed on every chart
 /// (module docs). It is the SPLINE-chart flag, not a `Surface::Nurbs`
-/// test: the caller sets it from `Lane::Nurbs`, which an
+/// test: the caller sets it from [`ChartRow::Spline`], which an
 /// approximating surface takes too (it meshes on its fit, and the fit
 /// is a NURBS chart), so every "NURBS chart" below means "NURBS or
 /// approximating chart".
@@ -1825,7 +1743,7 @@ fn trim_polygon(
     chords: &ChordPass,
     nurbs_chart: bool,
     creases: Option<&Creases>,
-    poles: ChartPoles,
+    rows: &[SingularRow],
 ) -> Result<(TrimPolygon, Vec<EdgeKey>), TessellateError> {
     let lp = body
         .get_loop(lk)
@@ -2006,74 +1924,52 @@ fn trim_polygon(
         );
         trav_edges.push(he.edge);
     }
-    flatten_traversals(&travs, &trav_edges, poles != ChartPoles::None)
+    flatten_traversals(&travs, &trav_edges, rows)
 }
 
 /// The traversals joined into one polygon: each contributes all but its
-/// last point, and with `keep_poles` its last point too where that is a
-/// pole the next traversal leaves from another azimuth, so the pole is a
-/// side of the polygon ([`sphere_polygon_shape`]). Beside it, the edge
-/// each point's traversal walks.
+/// last point, and its last point too where that is on a singular row
+/// (`rows`) and the next traversal leaves the row's point from another
+/// `u`, so the row is a side of the polygon ([`singular_row_shape`]).
+/// Beside it, the edge each point's traversal walks.
 fn flatten_traversals(
     travs: &[Vec<(f64, f64, u32)>],
     edges: &[EdgeKey],
-    keep_poles: bool,
+    rows: &[SingularRow],
 ) -> Result<(TrimPolygon, Vec<EdgeKey>), TessellateError> {
     if travs.iter().any(Vec::is_empty) {
         return Err(TessellateError::MissingEntity {
             what: "edge chords",
         });
     }
-    Ok(flat_points(travs, keep_poles)
-        .map(|(k, p)| (p, edges[k]))
-        .unzip())
+    Ok(flat_points(travs, rows).map(|(k, p)| (p, edges[k])).unzip())
 }
 
 /// [`flatten_traversals`]' points, each with its traversal's index.
 /// Every traversal is non-empty (the caller's check).
-fn flat_points(
-    travs: &[Vec<(f64, f64, u32)>],
-    keep_poles: bool,
-) -> impl Iterator<Item = (usize, (f64, f64, u32))> + '_ {
+fn flat_points<'t>(
+    travs: &'t [Vec<(f64, f64, u32)>],
+    rows: &'t [SingularRow],
+) -> impl Iterator<Item = (usize, (f64, f64, u32))> + 't {
     let m = travs.len();
     (0..m).flat_map(move |k| {
         let trav = &travs[k];
         let last = trav[trav.len() - 1];
         let next = travs[(k + 1) % m][0];
         #[allow(clippy::float_cmp)]
-        let pole = keep_poles
-            && last.2 == next.2
-            && at_pole(last.1)
+        let side = last.2 == next.2
+            && on_singular_row(rows, last.1)
             && (last.0, last.1) != (next.0, next.1);
         trav[..trav.len() - 1]
             .iter()
             .map(move |&p| (k, p))
-            .chain(pole.then_some((k, last)))
+            .chain(side.then_some((k, last)))
     })
 }
 
 /// A trim polygon: each point's chart `(u, v)` and mesh id, in walk
 /// order.
 type TrimPolygon = Vec<(f64, f64, u32)>;
-
-/// Whether [`trim_polygon`] keeps a pole the loop passes as a side of
-/// the polygon: the sphere arm's chart has poles, and no other arm's
-/// does.
-#[derive(Clone, Copy, PartialEq, Eq)]
-enum ChartPoles {
-    Kept,
-    None,
-}
-
-/// Whether a sphere chart latitude is a pole's, to the rounding of the
-/// chart's own evaluation: a meridian's image reaches `±π/2` at the
-/// pole vertex within a few ulps. `64ε` of latitude is a polar distance
-/// under `1.5e-14` rad, far inside the nearest a chord point off the
-/// pole can sit at any count `sizing::MAX_COUNT` admits, so no point off
-/// the pole reads as on it.
-fn at_pole(v: f64) -> bool {
-    core::f64::consts::FRAC_PI_2 - v.abs() <= 64.0 * f64::EPSILON
-}
 
 /// Chains the vertices `on` each crease into constraints, in order
 /// along it ([`Creases::note`] records them), and answers the vertices
@@ -2275,18 +2171,20 @@ impl Creases {
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
     use super::{
-        ChartPoles, ChordPass, Creases, FixedVertexHandle, SpadePoint, TessellateError,
-        chain_creases, id_repeats_apart, trim_polygon,
+        ChordPass, Creases, FixedVertexHandle, SpadePoint, TessellateError, chain_creases,
+        id_repeats_apart, trim_polygon,
     };
+    use crate::chart_table::{RowEnd, SingularRow, on_singular_row};
     use spade::{ConstrainedDelaunayTriangulation, Triangulation};
     use topo::FaceKey;
 
     thread_local! {
-        /// A factor on the sphere arm's lattice steps, 1 in every
-        /// shipped build: the end-to-end refusal row coarsens the arm
-        /// with it to reach `CertificateExceeded` through the real call
-        /// path. `cfg(test)` only.
-        pub(crate) static SPHERE_STEP_SCALE: std::cell::Cell<f64> =
+        /// A factor on the trimmed lane's analytic steps
+        /// (`super::arm_steps`), 1 in every shipped build: the end-to-end
+        /// refusal row coarsens the sphere arm with it to reach
+        /// `CertificateExceeded` through the real call path. `cfg(test)`
+        /// only.
+        pub(crate) static STEP_SCALE: std::cell::Cell<f64> =
             const { std::cell::Cell::new(1.0) };
         /// The retry loop's last attempt, when a row sets it
         /// (`super::last_attempt`). `cfg(test)` only.
@@ -2624,17 +2522,9 @@ mod tests {
             let grid = crate::nurbs_cert::face_cells(&bounds, fk).unwrap();
             assert_eq!(grid.creases(), (&[0.5][..], &[][..]), "face {fk:?}");
             let c = Creases::of(grid, chart, fk).unwrap();
-            let polygon = trim_polygon(
-                &body,
-                fk,
-                face.outer,
-                &chords,
-                true,
-                c.as_ref(),
-                ChartPoles::None,
-            )
-            .unwrap()
-            .0;
+            let polygon = trim_polygon(&body, fk, face.outer, &chords, true, c.as_ref(), &[])
+                .unwrap()
+                .0;
             let (_, v0, v1) = polygon
                 .iter()
                 .fold((0, f64::MAX, f64::MIN), |(n, lo, hi), p| {
@@ -2756,7 +2646,8 @@ mod tests {
                 continue;
             }
             faces += 1;
-            let (hu, hv) = super::sphere_lattice_steps(&body, fk, surface, delta).unwrap();
+            let row = crate::chart_table::ChartRow::of(&body, fk, surface, &bounds).unwrap();
+            let (hu, hv) = super::arm_steps(&body, fk, &row, delta).unwrap();
             for (hek, ek, _) in crate::walk::loop_half_edges(&body, face.outer, fk).unwrap() {
                 let image = body.pcurve(hek).unwrap().pcurve();
                 let uv: Vec<_> = chords.params[&ek].iter().map(|&t| image.eval(t)).collect();
@@ -2781,7 +2672,7 @@ mod tests {
 
     /// **An over-δ triangle on the sphere arm refuses typed through
     /// `crate::tessellate`.** The arm's lattice and boundary steps are
-    /// scaled four-fold (`SPHERE_STEP_SCALE`, test-only), so its cells
+    /// scaled four-fold (`STEP_SCALE`, test-only), so its cells
     /// deviate by about sixteen times the share of δ they were sized at,
     /// and the per-triangle certificate refuses the face
     /// `CertificateExceeded`; at scale one the same body meshes. The face
@@ -2796,9 +2687,9 @@ mod tests {
             .build()
             .expect("a one-thread pool");
         let (coarse, sized) = pool.install(|| {
-            SPHERE_STEP_SCALE.with(|s| s.set(4.0));
+            STEP_SCALE.with(|s| s.set(4.0));
             let coarse = crate::tessellate(&body, 1e-2, Tol::witness());
-            SPHERE_STEP_SCALE.with(|s| s.set(1.0));
+            STEP_SCALE.with(|s| s.set(1.0));
             (coarse, crate::tessellate(&body, 1e-2, Tol::witness()))
         });
         assert!(
@@ -2820,6 +2711,21 @@ mod tests {
         // `h = 1 − 0.7`.
         let area = 8.0 * pi - 2.0 * 2.0 * pi * 0.3;
         crate::validate::check_volume(&mesh, volume, area, 1e-2).expect("and it encloses the body");
+    }
+
+    /// A sphere chart's singular rows, its poles.
+    fn poles() -> [SingularRow; 2] {
+        let half_pi = core::f64::consts::FRAC_PI_2;
+        [
+            SingularRow {
+                v: half_pi,
+                end: RowEnd::Top,
+            },
+            SingularRow {
+                v: -half_pi,
+                end: RowEnd::Bottom,
+            },
+        ]
     }
 
     /// **`pole_side_columns` takes the lattice off #678's shape.** A
@@ -2848,10 +2754,10 @@ mod tests {
         };
         assert_eq!(between(2), 1);
         assert_eq!(between(4), 1, "the first doubling alone does not clear it");
-        let nu = super::pole_side_columns(&polygon, (0.0, 1.0), 2).unwrap();
+        let nu = super::pole_side_columns(&polygon, &poles(), (0.0, 1.0), 2).unwrap();
         assert!(between(nu) >= 2, "nu {nu} leaves {} between", between(nu));
         assert_eq!(
-            super::pole_side_columns(&polygon, (0.0, 1.0), 3).unwrap(),
+            super::pole_side_columns(&polygon, &poles(), (0.0, 1.0), 3).unwrap(),
             3
         );
     }
@@ -2860,7 +2766,7 @@ mod tests {
     /// the runs between the poles sit where the region is.** Each ball's
     /// half-band remnant passes both chart poles at loop vertices
     /// (`y`-poled balls, seam meridians pole to pole), so its polygon
-    /// carries two pole sides ([`super::ChartPoles::Kept`]) and the run
+    /// carries two pole sides ([`super::flat_points`]) and the run
     /// between them sits where the loop's lift puts it, through the
     /// face's turn at each pole: every such face's equal-area shoelace
     /// is positive and under `4π`. Without the kept pole the polygon
@@ -2886,21 +2792,13 @@ mod tests {
             if !super::takes_sphere_arm(&body, fk, surface).unwrap() {
                 continue;
             }
-            let (polygon, _) = super::trim_polygon(
-                &body,
-                fk,
-                face.outer,
-                &chords,
-                false,
-                None,
-                ChartPoles::Kept,
-            )
-            .unwrap();
+            let (polygon, _) =
+                super::trim_polygon(&body, fk, face.outer, &chords, false, None, &poles()).unwrap();
             let n = polygon.len();
             let pole_sides = (0..n)
                 .filter(|&i| {
                     let (a, b) = (polygon[i], polygon[(i + 1) % n]);
-                    a.2 == b.2 && super::at_pole(a.1)
+                    a.2 == b.2 && on_singular_row(&poles(), a.1)
                 })
                 .count();
             let area = 0.5
@@ -3008,7 +2906,7 @@ mod tests {
         brick.edges().map(|(k, _)| k).collect()
     }
 
-    /// **`sphere_polygon_shape` refuses each shape it names, at the edge
+    /// **`singular_row_shape` refuses each shape it names, at the edge
     /// that shows it.** Unit rows on the trim polygon: no body of the
     /// suite reaches these (the kernel's balls meet their poles at
     /// loop vertices), so the polygons are written out.
@@ -3022,7 +2920,7 @@ mod tests {
         let e = |i: u64| keys[i as usize];
         let cause = |poly: &[(f64, f64, u32)]| {
             let edges: Vec<_> = (0..poly.len() as u64).map(e).collect();
-            match super::sphere_polygon_shape(fk, poly, &edges) {
+            match super::singular_row_shape(fk, &poles(), poly, &edges) {
                 Err(TessellateError::SphereTrimShape { edge, cause, .. }) => Some((edge, cause)),
                 Ok(()) => None,
                 Err(other) => panic!("not a shape refusal: {other:?}"),
@@ -3047,91 +2945,5 @@ mod tests {
             (0.0, 1.0, 4),
         ];
         assert_eq!(cause(&seam), Some((e(0), SphereTrimCause::SeamTwice)));
-    }
-
-    /// **The fold check reads the face's side through the bit.** On a
-    /// cylinder arm and a sphere arm, at a point off the carrier on
-    /// either side of it, `outward` points away from the axis (the
-    /// centre) exactly when `sense` is set.
-    #[test]
-    fn outward_points_off_the_axis_exactly_when_sense_is_set() {
-        use geom::Surface;
-        use geom_core::{Band, Point3, Tol, Vec3};
-        let o = Point3::new(0.0, 0.0, 0.0);
-        let z = Vec3::new(0.0, 0.0, 1.0);
-        let x = Vec3::new(1.0, 0.0, 0.0);
-        let cylinder = Surface::Cylinder {
-            origin: o,
-            axis: z,
-            radius: 1.0,
-            u_ref: x,
-        };
-        let sphere = Surface::Sphere {
-            center: o,
-            radius: 1.0,
-            axis: z,
-            u_ref: x,
-        };
-        let tol = crate::sizing::SizingTols {
-            delta: 1e-2,
-            eps: crate::sizing::Eps::at(Tol::witness()),
-            band: Band::linear(Tol::witness()).unwrap(),
-        };
-        let arms = [
-            (
-                "cylinder",
-                &cylinder,
-                super::Lane::Cylinder {
-                    origin: o,
-                    axis: z,
-                    radius: 1.0,
-                },
-            ),
-            (
-                "sphere",
-                &sphere,
-                super::Lane::Sphere {
-                    center: o,
-                    radius: 1.0,
-                    steps: (0.1, 0.1),
-                },
-            ),
-        ];
-        for (arm, surface, lane) in &arms {
-            for sense in [true, false] {
-                let face = super::TrimmedFace {
-                    fk: FaceKey::default(),
-                    sense,
-                    metric: 1.0,
-                    surface,
-                    lane,
-                    polygon: &[],
-                    creases: None,
-                    shared: &[],
-                    tol: &tol,
-                };
-                for (side, p) in [
-                    ("inside", Point3::new(0.6, 0.3, 0.2)),
-                    ("outside", Point3::new(1.2, 0.6, 0.4)),
-                ] {
-                    let n = face
-                        .outward(p)
-                        .expect("an analytic arm reads outward")
-                        .vec();
-                    // The point the outward direction points away from:
-                    // the foot on the axis, the centre.
-                    let from = match lane {
-                        super::Lane::Cylinder { .. } => Point3::new(0.0, 0.0, p.z),
-                        super::Lane::Sphere { .. } | super::Lane::Nurbs { .. } => o,
-                    };
-                    assert_eq!(
-                        n.dot(p - from) > 0.0,
-                        sense,
-                        "{arm} arm, sense {sense}, {side} the carrier: outward {n:?} must \
-                         point away from the axis exactly when sense is set"
-                    );
-                }
-            }
-        }
     }
 }

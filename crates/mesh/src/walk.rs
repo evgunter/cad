@@ -150,7 +150,7 @@ use crate::types::TessellateError;
 // non-iso carrier becomes, the band the separation test is read at,
 // the walk's rotation and pole handling, and the emission itself.
 use geom_core::period::Period;
-pub(crate) use topo::chart::{Chart, ChartKind};
+pub(crate) use topo::chart::Chart;
 pub(crate) use topo::chart_iso::{TAU, TravKind};
 
 /// One directed boundary traversal: an edge's chord ids in the loop's
@@ -605,7 +605,7 @@ pub(crate) fn gap_is_noise(gap: f64, lever: f64, eps: Eps) -> bool {
 ///
 /// Every chart singularity lies ON THE AXIS — a sphere's poles, a
 /// cone's apex — so `radial(junction) > eps` covers them with one
-/// comparison rather than a match on [`ChartKind`], and in particular
+/// comparison rather than a match on [`topo::chart::ChartKind`], and in particular
 /// without consulting [`Chart::poles`].
 ///
 /// "One comparison for all of them" is a claim about the DECISION MADE
@@ -1534,6 +1534,7 @@ pub(crate) fn loop_polygon(
 mod tests {
     use super::*;
     use geom::Surface;
+    use topo::chart::ChartKind;
 
     /// A chart about +z, anchored at the origin.
     fn z_chart(kind: ChartKind) -> Chart {
