@@ -41,6 +41,34 @@ Decide between two remedies. One is to move the 24 that opt 0 put over
 0.5 s to the slow set, by the discipline's own 0.5 s rule. The other is
 to leave them and watch `check-fast-set-times` reds for them.
 
+## Two crossed the bar on an unrelated PR (PR 6931, run 43619394495, 2026-11-14)
+
+`test (kernel)` on `green/default-eps` at `c602fc639` passed all 7166
+default-ε tests and failed the time check on two existing sweep tests
+that PR's diff does not touch:
+
+    sweep::all ring_carry_through_by_piece::a_three_arc_ring_is_metered_arc_by_arc_in_every_subtraction_order took 1.042 s (existing test: 1.0 s)
+    sweep::all pis_arc_capped_poses::the_cut_cylinder_reads_its_truth took 1.015 s (existing test: 1.0 s)
+
+The run before it on the same branch (43555174396) passed the same
+check, so both were under the bar there. The lane's integration
+could not re-run the job (`rerun-failed-jobs`: 403), so the only way to
+a second reading was a new commit. This is the second remedy's cost
+("leave them and watch `check-fast-set-times` reds"): a red gate on a
+PR that changed neither test.
+
+The next run on that branch (43621683400, head `fdba8b0ec`, merged with
+main `df4aa65a8`) failed the same check on the first of the two again,
+1.037 s, with 7172 tests passing and nothing else over the bar. Twice
+at 1.04 s is the test standing at the bar, not one slow runner, so PR
+6931 moves
+`ring_carry_through_by_piece::a_three_arc_ring_is_metered_arc_by_arc_in_every_subtraction_order`
+to the slow set, the remedy the check names. Not determined: when it
+reached 1 s (it was under the bar at `6ae8d4c99`, before twelve hours
+of main were merged in) or whether main's own gate is red on it.
+`pis_arc_capped_poses::the_cut_cylinder_reads_its_truth` (1.015 s once,
+under the bar the second time) is left in the fast set.
+
 ## Seen flapping (2026-11-14, PR 6932)
 
 PR 6932 (workflow and script changes only) went red in `test (kernel)`'s
