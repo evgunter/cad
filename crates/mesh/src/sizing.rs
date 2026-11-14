@@ -78,7 +78,7 @@
 //! [`sphere_grid_steps`], [`torus_grid_steps`], and
 //! `nurbs_cert::LATTICE_SHARE` for the NURBS lane's sliver, whose share
 //! of δ is a typed choice nothing has measured as the coarsest
-//! (`work/tess/the-nurbs-lattice-share-is-not-chosen-by-measurement.md`).
+//! (`work/tesslane/the-nurbs-lattice-share-is-not-chosen-by-measurement.md`).
 //! The lanes without a theorem say so at their call sites: the trimmed
 //! cylinder and sphere size at `trimmed::UNPROVED_HEADROOM` of δ, and a cone face
 //! whose side carries a point keeps the lattice `curved::grid_counts`

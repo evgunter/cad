@@ -91,7 +91,7 @@ pinned bitwise against the unit-weight answer at c ∈ {2, 3, 0.1}.
 - **`step-export`'s writer:** unit-only, by the file format, as noted at the site.
 - **Creased nets:** a creased constant-c net now refuses as a unit one does.
   The integral arm's crease gap is recorded on
-  `work/tess/loft-of-three-or-more-sections-at-degree-one-is-unmeshable.md`.
+  `work/tesslane/loft-of-three-or-more-sections-at-degree-one-is-unmeshable.md`.
 
 The review also surfaced a NaN composite in `try_line` that read as a zero
 residual at c = 1e-300. That site now refuses. Its source is

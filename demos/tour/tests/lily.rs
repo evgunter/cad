@@ -681,7 +681,7 @@ mod review_probes {
     /// is sized per cell of the 16 × 16 refinement its certified bound
     /// is assembled on, and that per-cell grid builds more cells than
     /// the whole-patch schedule would
-    /// (`work/tess/rational-wall-cell-grid-costs-more-than-the-whole-patch-schedule.md`).
+    /// (`work/tesslane/rational-wall-cell-grid-costs-more-than-the-whole-patch-schedule.md`).
     /// A torus spends the chord budget per curvature, through
     /// `mesh::sizing::torus_grid_steps`; a rational skin, per cell.
     ///

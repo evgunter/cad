@@ -532,7 +532,7 @@ fn a_tilted_split_of_a_sphere_body_refuses_at_the_reduce() {
 /// (`work/reach/tilted-section-through-a-chart-pole-is-not-split-at-the-pole.md`).
 ///
 /// **What the mesher answers** (measured in release, PR 5920's second
-/// fix pass; `work/tess/a-tilted-circle-near-a-sphere-pole-refuses-at-the-sphere-arm.md`):
+/// fix pass; `work/tesslane/a-tilted-circle-near-a-sphere-pole-refuses-at-the-sphere-arm.md`):
 /// at 1e-4 and 1e-5 the circle's chord schedule near the pole asks
 /// more than the sphere arm's per-edge budget at δ = 1e-2, and refuses
 /// `ChordBudget` at once; at 3e-4 it is under the budget and folds a
@@ -669,7 +669,7 @@ fn a_section_near_a_pole_meshes_at_every_delta() {
 /// and wound outward; at 4e-2 a triangle beside the pole folds over the
 /// chord with no grid corner to drop (its three corners are boundary
 /// points), and it refuses `FoldedTriangle`
-/// (`work/tess/a-tilted-circle-near-a-sphere-pole-refuses-at-the-sphere-arm.md`).
+/// (`work/tesslane/a-tilted-circle-near-a-sphere-pole-refuses-at-the-sphere-arm.md`).
 #[test]
 fn a_circle_near_the_pole_folds_at_a_coarse_delta() {
     let c = Vec3::new(2.0, 2.0, 0.5);
