@@ -165,7 +165,7 @@ use std::collections::{HashMap, HashSet};
 
 use geom::Curve3;
 use geom::Surface;
-use geom_brep::Pcurve;
+use geom_brep::{OutwardNormal, Pcurve};
 use geom_core::Point3;
 use spade::handles::FixedVertexHandle;
 use spade::{
@@ -860,17 +860,20 @@ impl TrimmedFace<'_> {
         })
     }
 
-    /// The face's outward normal direction at `p`, on an analytic arm:
-    /// the surface's radial direction (off the cylinder's axis, off the
-    /// sphere's centre), reversed on a reversed face. `None` on the
-    /// NURBS arm, whose winding the census does not read.
-    fn outward(&self, p: Point3<f64>) -> Option<geom_core::Vec3<f64>> {
-        let radial = match *self.lane {
-            Lane::Cylinder { origin, axis, .. } => geom::Line { origin, dir: axis }.offset(p),
-            Lane::Sphere { center, .. } => p - center,
-            Lane::Nurbs { .. } => return None,
-        };
-        Some(if self.sense { radial } else { -radial })
+    /// The face's outward normal at the foot of `p` on its carrier, on
+    /// an analytic arm (`geom_brep::implicit_outward_normal`); poison
+    /// where the foot is not one point (the cylinder's axis, the
+    /// sphere's centre). `None` on the NURBS arm, whose winding the
+    /// census does not read. Its reader takes only the direction, the
+    /// sign of a triangle normal's dot with it, so neither its unit
+    /// length nor the raw gradient's magnitude is read.
+    fn outward(&self, p: Point3<f64>) -> Option<OutwardNormal<f64>> {
+        match *self.lane {
+            Lane::Cylinder { .. } | Lane::Sphere { .. } => Some(
+                geom_brep::implicit_outward_normal(self.surface, self.sense, p),
+            ),
+            Lane::Nurbs { .. } => None,
+        }
     }
 
     /// One attempt of the retry loop (module docs): the points, the
@@ -1370,7 +1373,12 @@ impl TrimmedFace<'_> {
                     ears.push(uv_centroid(&uv));
                 }
             }
-            if self.outward(centroid).is_some_and(|n| normal.dot(n) <= 0.0) {
+            // Folded unless wound outward: a zero dot, or NaN where
+            // `outward` is poison, is a fold.
+            if self.outward(centroid).is_some_and(|n| {
+                let wound_outward = normal.dot(n.vec()) > 0.0;
+                !wound_outward
+            }) {
                 let grid: Vec<usize> = vs
                     .iter()
                     .filter_map(|vtx| match meta[vtx.fix().index()].2 {
@@ -3120,5 +3128,91 @@ mod tests {
             crate::chords::projected_circle_speeds((o, x, tilted), (0.0, core::f64::consts::TAU))
                 .expect("a circle clear of the pole is bounded");
         assert!(su.is_finite() && sv.is_finite() && su >= 1.0 && sv > 0.0);
+    }
+
+    /// **The fold check reads the face's side through the bit.** On a
+    /// cylinder arm and a sphere arm, at a point off the carrier on
+    /// either side of it, `outward` points away from the axis (the
+    /// centre) exactly when `sense` is set.
+    #[test]
+    fn outward_points_off_the_axis_exactly_when_sense_is_set() {
+        use geom::Surface;
+        use geom_core::{Band, Point3, Tol, Vec3};
+        let o = Point3::new(0.0, 0.0, 0.0);
+        let z = Vec3::new(0.0, 0.0, 1.0);
+        let x = Vec3::new(1.0, 0.0, 0.0);
+        let cylinder = Surface::Cylinder {
+            origin: o,
+            axis: z,
+            radius: 1.0,
+            u_ref: x,
+        };
+        let sphere = Surface::Sphere {
+            center: o,
+            radius: 1.0,
+            axis: z,
+            u_ref: x,
+        };
+        let tol = crate::sizing::SizingTols {
+            delta: 1e-2,
+            eps: crate::sizing::Eps::at(Tol::witness()),
+            band: Band::linear(Tol::witness()).unwrap(),
+        };
+        let arms = [
+            (
+                "cylinder",
+                &cylinder,
+                super::Lane::Cylinder {
+                    origin: o,
+                    axis: z,
+                    radius: 1.0,
+                },
+            ),
+            (
+                "sphere",
+                &sphere,
+                super::Lane::Sphere {
+                    center: o,
+                    radius: 1.0,
+                    steps: (0.1, 0.1),
+                },
+            ),
+        ];
+        for (arm, surface, lane) in &arms {
+            for sense in [true, false] {
+                let face = super::TrimmedFace {
+                    fk: FaceKey::default(),
+                    sense,
+                    metric: 1.0,
+                    surface,
+                    lane,
+                    polygon: &[],
+                    creases: None,
+                    shared: &[],
+                    tol: &tol,
+                };
+                for (side, p) in [
+                    ("inside", Point3::new(0.6, 0.3, 0.2)),
+                    ("outside", Point3::new(1.2, 0.6, 0.4)),
+                ] {
+                    let n = face
+                        .outward(p)
+                        .expect("an analytic arm reads outward")
+                        .vec();
+                    // The point the outward direction points away from:
+                    // the foot on the axis, the centre.
+                    let from = match lane {
+                        super::Lane::Cylinder { .. } => Point3::new(0.0, 0.0, p.z),
+                        super::Lane::Sphere { .. } | super::Lane::Nurbs { .. } => o,
+                    };
+                    assert_eq!(
+                        n.dot(p - from) > 0.0,
+                        sense,
+                        "{arm} arm, sense {sense}, {side} the carrier: outward {n:?} must \
+                         point away from the axis exactly when sense is set"
+                    );
+                }
+            }
+        }
     }
 }

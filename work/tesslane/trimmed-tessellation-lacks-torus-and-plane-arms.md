@@ -2,12 +2,12 @@
 id: trimmed-tessellation-lacks-torus-and-plane-arms
 kind: issue
 title: the trimmed lane has no torus or cone arm - a torus wall bounded by a spiric and a cone face cut by an ellipse refuse at the chart roster
-status: open
+status: parked
 opened: 2026-09-13
 refs: [1858]
 priority: P0
 cost: H
-design: true
+blocked_on: [one-chart-table-and-the-lane-takes-every-analytic-chart]
 ---
 
 

@@ -2,12 +2,12 @@
 id: valid-ringed-torus-faces-build-but-cannot-be-meshed
 kind: issue
 title: A valid body whose torus wall holds a spiric ring builds and measures, but tessellation refuses it RingOnCurvedFace as a kernel bug
-status: open
+status: parked
 opened: 2026-10-21
 priority: P0
 cost: M
 refs: [5567]
-design: true
+blocked_on: [a-curved-face-is-routed-by-its-domain-not-its-carriers]
 ---
 
 
