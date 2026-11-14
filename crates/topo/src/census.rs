@@ -11437,14 +11437,14 @@ fn on_its_line<T: Real>(body: &Body<T>, edge: EdgeGeo<T>) -> Option<EdgeGeo<T>> 
         .and_then(CurveGeom::certified)?;
     let line = curve.carrier().as_line()?;
     let (t0, t1) = curve.params();
-    let speed = line.dir.norm();
+    let (dir, speed) = line.dir.direction_and_length();
     Some(EdgeGeo {
         key: edge.key,
         v0: edge.v0,
         v1: edge.v1,
         f_plus: edge.f_plus,
         f_minus: edge.f_minus,
-        ..span_along(line.at(t0), line.dir / speed, (t1 - t0) * speed)
+        ..span_along(line.at(t0), dir, (t1 - t0) * speed)
     })
 }
 
