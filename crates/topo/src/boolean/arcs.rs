@@ -145,12 +145,12 @@ mod rows {
     }
 
     /// **A short arc of a large circle is levered at its own reach from
-    /// the vertex.** The bottom arc of a sheet of radius `10³` over
-    /// `10⁻³` rad leaves `(10³, 0, 0)` along `+y` and reaches about a
-    /// metre from it. A direction tilted `ε/2` off its tangent moves the
-    /// arc by `ε/2` over that metre, in the band, so the arc is found
-    /// along it; levered at its whole circle's ball, radius `10³`, the
-    /// same tilt reads `500ε`, past `Kε`, and rules the arc out.
+    /// the vertex.** The bottom arc of a sheet of radius `100` over
+    /// `10⁻³` rad leaves `(100, 0, 0)` along `+y` and reaches `0.1` from
+    /// it. A direction tilted `ε/2` off its tangent moves the arc by
+    /// `ε/20` over that reach, in the band, so the arc is found along it;
+    /// levered at its whole circle's ball, radius `100`, the same tilt
+    /// reads `50ε`, past `Kε`, and rules the arc out.
     #[test]
     fn a_short_arc_of_a_large_circle_is_levered_at_its_own_reach() {
         let tol = Tol::witness();
@@ -158,19 +158,19 @@ mod rows {
         let mut y = Body::<f64>::new();
         cyl_wall_sheet(
             &mut y,
-            CylFrame::canonical(1e3),
+            CylFrame::canonical(100.0),
             (0.0, 1e-3),
             (0.0, 1.0),
             tol,
         );
         let p = y
             .vertex_points()
-            .find(|(_, q)| (*q - Point3::new(1e3, 0.0, 0.0)).norm() < 1e-9)
+            .find(|(_, q)| (*q - Point3::new(100.0, 0.0, 0.0)).norm() < 1e-9)
             .map(|(k, _)| k)
             .expect("the sheet's corner");
         let tilt = band.zero() / 2.0;
         assert!(
-            1e3 * tilt > band.escalate(),
+            100.0 * tilt > band.escalate(),
             "the whole circle's lever leaves the band"
         );
         assert_eq!(
