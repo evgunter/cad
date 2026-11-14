@@ -680,7 +680,7 @@ fn the_frames_cone_window_holds_its_face() {
 #[test]
 fn a_germ_on_the_apex_line_pair_rides_its_own_line() {
     use super::join::{PkSection, line_of, pk_section};
-    use geom_brep::SectionBranch;
+    use geom_brep::SectionPick;
     let cone = widening();
     let apex = Point3::new(0.0, -1.0, 0.0);
     let reach = measured(on_wall(), wall_reach());
@@ -721,7 +721,7 @@ fn a_germ_on_the_apex_line_pair_rides_its_own_line() {
         ] {
             assert_eq!(
                 read(site, dir).unwrap(),
-                SectionBranch::Line(k),
+                SectionPick::Line(k),
                 "line {k}: {what}"
             );
         }
@@ -820,7 +820,7 @@ fn germs_through_a_cone_apex_name_their_lines_by_one_reading() {
     use super::Locus;
     use super::join::PkSection;
     use crate::body::Body;
-    use geom_brep::SectionBranch;
+    use geom_brep::SectionPick;
     use geom_core::{Affine3, RigidMotion};
     let tol = Tol::witness();
     let turned = |body: &Body<f64>, m: &RigidMotion<f64>| crate::transform_rigid(body, m).unwrap();
@@ -879,7 +879,7 @@ fn germs_through_a_cone_apex_name_their_lines_by_one_reading() {
                 .unwrap()
             };
             let first = read(Point3::origin() + l0 * 0.6, -l0);
-            let SectionBranch::Line(k) = first else {
+            let SectionPick::Line(k) = first else {
                 panic!("{what}: a germ on the line pair rides a line, not {first:?}");
             };
             for (germ, site, dir, want) in [
@@ -892,7 +892,7 @@ fn germs_through_a_cone_apex_name_their_lines_by_one_reading() {
             ] {
                 assert_eq!(
                     read(Point3::origin() + site, dir),
-                    SectionBranch::Line(want),
+                    SectionPick::Line(want),
                     "{what}: {germ}"
                 );
             }
@@ -913,7 +913,7 @@ fn the_mint_takes_the_pairs_held_reading() {
     use super::Locus;
     use super::join::PkSection;
     use super::section_table::{ApexLines, SectionTable};
-    use geom_brep::SectionBranch;
+    use geom_brep::SectionPick;
     let (wall, brick) = apex_pair();
     let (cone, plane) = apex_pair_faces(&wall, &brick, Vec3::new(1.0, 0.0, 0.0));
     let (a, b) = ((&wall, cone), (&brick, plane));
@@ -938,12 +938,12 @@ fn the_mint_takes_the_pairs_held_reading() {
         let d = lines.dirs[k];
         assert_eq!(
             mint(&door, d).unwrap(),
-            SectionBranch::Line(k),
+            SectionPick::Line(k),
             "line {k}: the door's reading"
         );
         assert_eq!(
             mint(&swapped, d).unwrap(),
-            SectionBranch::Line(1 - k),
+            SectionPick::Line(1 - k),
             "line {k}: a held reading with its lines swapped"
         );
     }
@@ -964,7 +964,7 @@ fn the_mint_takes_the_pairs_held_reading() {
         band(),
     )
     .unwrap();
-    assert_eq!(at_apex, SectionBranch::Only, "a held loop mints no line");
+    assert_eq!(at_apex, SectionPick::Only, "a held loop mints no line");
     assert!(
         matches!(
             super::vtxfac::apex_germ_on_a_line(loci, at_apex),

@@ -1338,7 +1338,7 @@ pub(crate) struct SectionCtx<T: Real> {
     /// The loop of a two-loop section the chord rides, where the caller
     /// decided it: a boolean germ's branch. `None` in the split lane,
     /// whose chord reads it at its sites ([`section_loop`]).
-    pub(crate) branch: Option<geom_brep::SectionBranch>,
+    pub(crate) branch: Option<geom_brep::SectionPick>,
 }
 
 /// Which curved-section lane a [`ChordJoiner::join`] call runs
@@ -1373,7 +1373,7 @@ pub(crate) enum JoinLane<'a, T: Real> {
         partner_key: &'a mut Option<SurfaceKey>,
         /// The germ's branch: the loop of a two-loop section the chord
         /// rides.
-        branch: geom_brep::SectionBranch,
+        branch: geom_brep::SectionPick,
     },
     /// The boolean's chord on a germ pair whose section the operation's
     /// section table carries (`boolean::section_table`): an arc of the
@@ -1597,7 +1597,7 @@ pub(crate) enum SectionCase<T: Real> {
 fn section_loop<T: Decide>(
     face: FaceKey,
     [positive, negative]: [SectionCurve<T>; 2],
-    (split, branch): (LoopSplit<T>, Option<geom_brep::SectionBranch>),
+    (split, branch): (LoopSplit<T>, Option<geom_brep::SectionPick>),
     sites: [Point3<T>; 2],
     band: Band,
 ) -> Result<SectionCurve<T>, JoinError> {
@@ -1605,10 +1605,10 @@ fn section_loop<T: Decide>(
     // carries no branch of the face pair's section: its chord reads the
     // loop at its sites, as the split lane's does.
     match branch {
-        Some(geom_brep::SectionBranch::Positive) => return Ok(positive),
-        Some(geom_brep::SectionBranch::Negative) => return Ok(negative),
-        Some(geom_brep::SectionBranch::Only) | None => {}
-        Some(geom_brep::SectionBranch::Component(_) | geom_brep::SectionBranch::Line(_)) => {
+        Some(geom_brep::SectionPick::Positive) => return Ok(positive),
+        Some(geom_brep::SectionPick::Negative) => return Ok(negative),
+        Some(geom_brep::SectionPick::Only) | None => {}
+        Some(geom_brep::SectionPick::Component(_) | geom_brep::SectionPick::Line(_)) => {
             return Err(JoinError::SectionInvariant {
                 face,
                 what: "a germ riding a carried section's component or a straight section's line \
@@ -2999,7 +2999,7 @@ fn bool_planar_chord_spec<T: Decide>(
     face: FaceKey,
     plane_key: SurfaceKey,
     (wall, partner_window): (&geom::Surface<T>, Option<(T, T)>),
-    (partner_key, branch): (&mut Option<SurfaceKey>, geom_brep::SectionBranch),
+    (partner_key, branch): (&mut Option<SurfaceKey>, geom_brep::SectionPick),
     u1: VertexKey,
     u2: VertexKey,
     leave: Departure<T>,
@@ -8014,7 +8014,7 @@ mod segment_curve_tests {
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod run_edge_carrier_rows {
     use super::{JoinError, SectionCtx, between_edge_is_section};
-    use crate::test_support_fixtures::{arc_sheet, spiric_cap};
+    use crate::test_support_fixtures::{bezier_arc_sheet, spiric_cap};
     use geom_core::{Band, Point3, Tol, UnitVec3, Vec3};
 
     #[test]
@@ -8023,12 +8023,18 @@ mod run_edge_carrier_rows {
         let cuts = [
             (
                 "spline",
-                arc_sheet(1.0, 1.0, Tol::witness()),
+                bezier_arc_sheet(1.0, 1.0, Tol::witness()),
                 Vec3::new(0.0, 1.0, 0.0),
             ),
             (
                 "spiric",
-                spiric_cap(Tol::witness()),
+                spiric_cap(
+                    2.0,
+                    1.0,
+                    0.5,
+                    (-core::f64::consts::FRAC_PI_2, core::f64::consts::FRAC_PI_2),
+                    Tol::witness(),
+                ),
                 Vec3::new(0.0, 1.0, 0.0),
             ),
         ];

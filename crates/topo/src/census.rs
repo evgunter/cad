@@ -15468,70 +15468,6 @@ mod tests {
         body
     }
 
-    /// A planar cap in the plane `x = offset`, bounded by one SPIRIC arc
-    /// — the section of the torus `(R, r)` about the `z` axis, over its
-    /// minor angle `v ∈ [v0, v1]` — and the chord closing it.
-    fn spiric_cap(big_r: f64, r: f64, offset: f64, (v0, v1): (f64, f64)) -> Body<f64> {
-        use geom::Curve3;
-        use geom_brep::{EdgeCurveSpec, EdgeDescriptionSpec, SurfacePair};
-        let tol = Tol::witness();
-        let spiric = Curve3::Spiric {
-            center: Point3::origin(),
-            axis: Vec3::unit_z(),
-            u_ref: Vec3::unit_x(),
-            major_radius: big_r,
-            minor_radius: r,
-            offset,
-        };
-        let (p0, p1) = (spiric.eval(v0), spiric.eval(v1));
-        let mut body = Body::<f64>::new();
-        let seed = body.mvfs(p0, true).expect("a seed");
-        let plane = body.add_surface(Surface::Plane {
-            origin: Point3::new(offset, 0.0, 0.0),
-            normal: Vec3::unit_x(),
-            u_ref: Vec3::unit_y(),
-        });
-        let torus = body.add_surface(Surface::Torus {
-            center: Point3::origin(),
-            axis: Vec3::unit_z(),
-            major_radius: big_r,
-            minor_radius: r,
-            u_ref: Vec3::unit_x(),
-        });
-        let arc = body
-            .mev(
-                MevSite::Lone {
-                    r#loop: seed.r#loop,
-                },
-                p1,
-                EdgeCurveSpec {
-                    description: EdgeDescriptionSpec::Intersection {
-                        pair: SurfacePair::new(torus, plane),
-                        selector: geom_brep::CurveSelector::Witness(spiric.eval(0.5 * (v0 + v1))),
-                    },
-                    carrier: spiric,
-                    param_start: v0,
-                    param_end: v1,
-                },
-                tol,
-            )
-            .expect("the spiric arc");
-        body.mef(
-            MefSite::Chords {
-                he1: arc.he_minus,
-                he2: arc.he_plus,
-            },
-            EdgeCurveSpec::line_between(p1, p0),
-            FaceSurface::Shared {
-                key: plane,
-                sense: true,
-            },
-            tol,
-        )
-        .expect("the chord closes the cap");
-        body
-    }
-
     /// [`spiric_cap`] of the torus `R = 2, r = 1` in `x = 1/2`, over
     /// `[−π/2, π/2]`, with a cube grafted in beside it whose `x = 1/2`
     /// face lies in the cap's plane, outside the cap and inside the ball
@@ -15540,7 +15476,14 @@ mod tests {
     fn spiric_cap_and_near_cube() -> Body<f64> {
         use std::f64::consts::FRAC_PI_2;
         let tol = Tol::witness();
-        let mut body = spiric_cap(2.0, 1.0, 0.5, (-FRAC_PI_2, FRAC_PI_2));
+        let mut body = crate::test_support_fixtures::spiric_cap(
+            2.0,
+            1.0,
+            0.5,
+            (-FRAC_PI_2, FRAC_PI_2),
+            Tol::witness(),
+        )
+        .0;
         let cube = cube_at(Vec3::new(0.5, 3.9, -0.5), tol);
         crate::instance::graft_disjoint(&mut body, &cube).expect("a disjoint graft");
         body
@@ -16295,7 +16238,8 @@ mod tests {
     fn just_past_a_spiric_arcs_end_the_cap_answers() {
         use std::f64::consts::FRAC_PI_2;
         let (v0, v1) = (FRAC_PI_2 - 0.1, FRAC_PI_2 + 0.1);
-        let body = spiric_cap(10.0, 1.0, 5.0, (v0, v1));
+        let body =
+            crate::test_support_fixtures::spiric_cap(10.0, 1.0, 5.0, (v0, v1), Tol::witness()).0;
         let spiric = geom::Curve3::Spiric {
             center: Point3::origin(),
             axis: Vec3::unit_z(),
@@ -18590,7 +18534,14 @@ mod tests {
                 errors.is_empty() && cuts.as_ref().is_some_and(Vec::is_empty),
                 "{cuts:?} {errors:?}"
             );
-            let mut across = spiric_cap(2.0, 1.0, 0.5, (-FRAC_PI_2, FRAC_PI_2));
+            let mut across = crate::test_support_fixtures::spiric_cap(
+                2.0,
+                1.0,
+                0.5,
+                (-FRAC_PI_2, FRAC_PI_2),
+                Tol::witness(),
+            )
+            .0;
             let cube = cube_at(Vec3::new(0.5, 2.5, -0.5), tol);
             crate::instance::graft_disjoint(&mut across, &cube).unwrap();
             let (cap, edge) = in_plane(&across, -0.5);

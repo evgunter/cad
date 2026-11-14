@@ -28,7 +28,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::boolean::{BooleanError, EdgeCarrierSite};
-use crate::test_support_fixtures::{arc_sheet, brick, spiric_cap};
+use crate::test_support_fixtures::{bezier_arc_sheet, brick, spiric_cap};
 use crate::{Body, FaceKey};
 use geom_core::{Point3, Tol, Vec3};
 
@@ -165,7 +165,7 @@ fn an_arc_dipping_through_a_plane_face_is_split_at_both_crossings() {
         );
         want.push((x, y));
     }
-    let (a, _) = arc_sheet(mx, h, Tol::witness());
+    let (a, _) = bezier_arc_sheet(mx, h, Tol::witness());
     let got = on_face(sweep_a(&a, &b), face);
     assert!(lands_at(&got, &want), "on the face at {want:?}: {got:?}");
 }
@@ -195,7 +195,7 @@ fn an_arc_crossing_a_plane_face_once_is_split_where_it_crosses() {
         (x_interp - 1.5).abs() > 0.2,
         "the endpoint interpolation lands off the plane: x = {x_interp}"
     );
-    let (a, _) = arc_sheet(mx, h, Tol::witness());
+    let (a, _) = bezier_arc_sheet(mx, h, Tol::witness());
     let got = on_face(sweep_a(&a, &b), face);
     let want = [(x, y), (1.5, 0.0)];
     assert!(lands_at(&got, &want), "on the face at {want:?}: {got:?}");
@@ -220,7 +220,13 @@ fn a_spiric_dipping_through_a_plane_face_refuses() {
         "the oracle's crossings land inside the face: z = ±{z}"
     );
     let (b, _) = brick_face((0.0, 1.0), (2.5, 4.0), Vec3::new(0.0, -1.0, 0.0));
-    let (a, e) = spiric_cap(Tol::witness());
+    let (a, e) = spiric_cap(
+        2.0,
+        1.0,
+        0.5,
+        (-core::f64::consts::FRAC_PI_2, core::f64::consts::FRAC_PI_2),
+        Tol::witness(),
+    );
     assert_refused(
         sweep_a(&a, &b),
         e,
@@ -250,7 +256,13 @@ fn a_spiric_crossing_a_cylinder_wall_refuses() {
         (-2.0, 2.0),
         Tol::witness(),
     );
-    let (a, e) = spiric_cap(Tol::witness());
+    let (a, e) = spiric_cap(
+        2.0,
+        1.0,
+        0.5,
+        (-core::f64::consts::FRAC_PI_2, core::f64::consts::FRAC_PI_2),
+        Tol::witness(),
+    );
     assert_refused(
         sweep_a(&a, &b),
         e,
@@ -270,7 +282,7 @@ fn an_arc_touching_a_plane_outside_the_face_is_no_event() {
     let (mx, h) = (1.0, 1.0);
     assert_eq!(bezier(mx, h, 0.5), (1.0, 1.0), "the oracle peaks at (1, 1)");
     let (b, face) = brick_face((1.5, 3.0), (1.0, 4.0), Vec3::new(0.0, -1.0, 0.0));
-    let (a, _) = arc_sheet(mx, h, Tol::witness());
+    let (a, _) = bezier_arc_sheet(mx, h, Tol::witness());
     let got = on_face(sweep_a(&a, &b), face);
     assert!(got.is_empty(), "nothing on the face: {got:?}");
 }
@@ -281,7 +293,7 @@ fn an_arc_touching_a_plane_outside_the_face_is_no_event() {
 fn an_arc_touching_a_plane_inside_the_face_escalates() {
     let (mx, h) = (1.0, 1.0);
     let (b, _) = brick_face((0.5, 3.0), (1.0, 4.0), Vec3::new(0.0, -1.0, 0.0));
-    let (a, _) = arc_sheet(mx, h, Tol::witness());
+    let (a, _) = bezier_arc_sheet(mx, h, Tol::witness());
     match sweep_a(&a, &b) {
         Err(BooleanError::Escalated { diag, .. }) => assert_eq!(
             diag.predicate,

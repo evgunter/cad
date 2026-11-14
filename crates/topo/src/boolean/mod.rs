@@ -2273,7 +2273,7 @@ pub struct HalfGerm<T: Real> {
     /// germ takes its loop from here: the join's matching and frames,
     /// and each side's chord. Both operands' germs of one slot carry
     /// the same branch, read at the A site.
-    pub branch: geom_brep::SectionBranch,
+    pub branch: geom_brep::SectionPick,
 }
 
 /// One minted boolean null edge with its F9 side attribute (below ≙ IN

@@ -36,7 +36,7 @@ use super::{Faced, PartnerDistance, Turn, along_facing, along_sign, germ_arm, ne
 use crate::HalfEdgeKey;
 use crate::chord_join::JoinError;
 use geom::{Curve3, Surface};
-use geom_brep::SectionBranch;
+use geom_brep::SectionPick;
 use geom_core::{Band, Point3, Tol, Vec3};
 
 fn band() -> Band {
@@ -269,7 +269,7 @@ fn feet(
         a_locus: Locus::InFace(pillow.face_a),
         b_locus: Locus::InFace(pillow.face_b),
         dir,
-        branch: SectionBranch::Component(component),
+        branch: SectionPick::Component(component),
     };
     let from = germ(dir);
     partners

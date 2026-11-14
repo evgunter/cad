@@ -12,9 +12,9 @@
 use super::super::{BooleanError, EdgeCarrierSite, HalfGerm, Locus, Operand};
 use super::{IslandClosing, germ_section_loops, ring_run_ccw};
 use crate::chord_join::SegmentCurve;
-use crate::test_support_fixtures::{arc_sheet, spiric_cap};
+use crate::test_support_fixtures::{bezier_arc_sheet, spiric_cap};
 use crate::{Body, EdgeKey, FaceKey, HalfEdgeKey};
-use geom_brep::SectionBranch;
+use geom_brep::SectionPick;
 use geom_core::{Band, Point3, Tol, UnitVec3, Vec3};
 
 fn band() -> Band {
@@ -59,10 +59,19 @@ fn assert_site(
 #[test]
 fn a_germ_along_a_curved_edge_refuses_at_the_germ_frame() {
     for (name, (body, edge)) in [
-        ("spline", arc_sheet(1.0, 1.0, Tol::witness())),
-        ("spiric", spiric_cap(Tol::witness())),
+        ("spline", bezier_arc_sheet(1.0, 1.0, Tol::witness())),
+        (
+            "spiric",
+            spiric_cap(
+                2.0,
+                1.0,
+                0.5,
+                (-core::f64::consts::FRAC_PI_2, core::f64::consts::FRAC_PI_2),
+                Tol::witness(),
+            ),
+        ),
     ] {
-        let (other, _) = arc_sheet(1.0, 0.5, Tol::witness());
+        let (other, _) = bezier_arc_sheet(1.0, 0.5, Tol::witness());
         let (face, _) = plus_side(&body, edge);
         let germ = |on: Operand| HalfGerm {
             he: HalfEdgeKey::default(),
@@ -87,7 +96,7 @@ fn a_germ_along_a_curved_edge_refuses_at_the_germ_frame() {
                 Locus::InFace(FaceKey::default())
             },
             dir: Vec3::new(1.0, 0.0, 0.0),
-            branch: SectionBranch::Only,
+            branch: SectionPick::Only,
         };
         assert_site(
             germ_section_loops(
@@ -131,7 +140,7 @@ fn a_germ_along_a_curved_edge_refuses_at_the_germ_frame() {
 /// `ring_path::spline_fuzz` searches its readings.
 #[test]
 fn a_ring_run_along_a_spline_edge_refuses_at_the_ring_run() {
-    let (body, edge) = arc_sheet(1.0, 1.0, Tol::witness());
+    let (body, edge) = bezier_arc_sheet(1.0, 1.0, Tol::witness());
     let (face, he) = plus_side(&body, edge);
     let chord = SegmentCurve::of((he, he), None);
     let closings = [
