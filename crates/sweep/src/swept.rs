@@ -728,12 +728,18 @@ pub(crate) fn placed_segment_spec_about<T: Real, S: SweptChord<T>>(
             place: place.map(),
         }));
     match seg.kind().get() {
-        SegmentKind::Line => EdgeCurveSpec {
-            description,
-            carrier: Curve3::line(q_from, (q_to - q_from).normalize()),
-            param_start: T::zero(),
-            param_end: q_from.distance(q_to),
-        },
+        // A rigid placement keeps the segment's length, so the span is
+        // the segment's own, as an arc's is its own (`arc_span`): the
+        // placed vertices certify it, and their width is not its own.
+        SegmentKind::Line => {
+            let span = seg.a().distance(seg.b());
+            EdgeCurveSpec {
+                description,
+                carrier: Curve3::line(q_from, (q_to - q_from) / span),
+                param_start: T::zero(),
+                param_end: span,
+            }
+        }
         SegmentKind::Arc { arc, turn } => {
             let c_world = centre(arc.centre);
             let rim = q_from - c_world;

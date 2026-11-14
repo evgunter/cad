@@ -1936,8 +1936,18 @@ pub struct EdgeCurveSpec<T: Real> {
     pub carrier: Curve3<T>,
     /// Carrier parameter at `start(he_plus)` — the `he_plus` forward
     /// contract's t₀ (increasing parameter runs start → end).
+    ///
+    /// An edge's bounds are carrier parameters the construction states
+    /// from the quantity that defines them (a segment's own length, an
+    /// arc's span, an extrusion distance, a knot domain, a split's
+    /// certified parameter). The vertices are the authority the bounds
+    /// are certified against (check 2), not their source; where the
+    /// vertices are the only definition (a line between two computed
+    /// points), their distance is the definition (geom-core W1,
+    /// DESIGN `[intent.stored]`).
     pub param_start: T,
-    /// Carrier parameter at `end(he_plus)` — t₁.
+    /// Carrier parameter at `end(he_plus)` — t₁, stated as
+    /// [`param_start`](Self::param_start) says.
     pub param_end: T,
 }
 
