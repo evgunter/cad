@@ -5654,7 +5654,11 @@ fn azimuth_lever<T: Real>(surface: &Surface<T>, v_sup: T) -> T {
 /// window's largest `|v|` (`cos` decreases in `|v|` up to `π`, and the
 /// sheet's apexes read zero). Never negative: a window on a pole or an
 /// apex reads zero.
-fn azimuth_lever_inf<T: Real>(surface: &Surface<T>, v_lo: T, v_hi: T) -> InfSpeed<T> {
+///
+/// # Panics
+///
+/// On a chart with no azimuth: a plane or a spline chart.
+pub fn azimuth_lever_inf<T: Real>(surface: &Surface<T>, v_lo: T, v_hi: T) -> InfSpeed<T> {
     let arm = match *surface {
         Surface::Cylinder { radius, .. } => radius,
         Surface::Sphere { radius, .. } => {

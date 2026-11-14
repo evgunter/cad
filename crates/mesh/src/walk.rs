@@ -301,39 +301,6 @@ pub(crate) struct UvPoint {
     pub pole: bool,
 }
 
-/// The ids that appear at two or more DISTINCT UV locations among
-/// `entries` — the "one mesh vertex, two parameter locations" state
-/// that both tessellation lanes have to reason about, with ONE home.
-///
-/// **"Distinct" means what SPADE means by it**, which is why this
-/// compares `f64`s and not their bits. Spade's vertex lookup is
-/// `PartialEq` on `Point2<f64>` — plain `==` — so `-0.0` and `0.0` are
-/// ONE spade vertex and two bit patterns. A `to_bits` compare would
-/// report "apart" exactly where spade dedupes, which is an invariant
-/// restated in a spelling that disagrees with the module it is about.
-/// Two entries spade merges are one CDT vertex and cannot be fanned
-/// apart; two it keeps can.
-///
-/// Both callers used to carry their own copy of that rule against
-/// their own polygon type (`curved::identified_ids` over
-/// [`UvPoint`], `trimmed::id_repeats_apart` over `(u, v, id)`
-/// triples), one of them documenting itself AS a copy. The rule is
-/// spade's, not either lane's, so it lives once and both lanes hand it
-/// their entries.
-pub(crate) fn ids_at_two_uvs(
-    entries: impl IntoIterator<Item = (f64, f64, u32)>,
-) -> std::collections::HashSet<u32> {
-    let mut seen: HashMap<u32, (f64, f64)> = HashMap::new();
-    let mut repeated: std::collections::HashSet<u32> = std::collections::HashSet::new();
-    for (u, v, id) in entries {
-        #[allow(clippy::float_cmp)]
-        if seen.insert(id, (u, v)).is_some_and(|p| p != (u, v)) {
-            repeated.insert(id);
-        }
-    }
-    repeated
-}
-
 /// The undirected key of the edge `(a, b)`: endpoints ascending.
 ///
 /// One home for the spelling every edge census in this crate uses —

@@ -320,6 +320,7 @@
 // half, so a build without the feature exports the measurement types,
 // a `const fn armed()` answering `false`, and no way to arm anything.
 pub mod budget;
+mod cdt;
 pub mod cert;
 mod chords;
 mod curved;

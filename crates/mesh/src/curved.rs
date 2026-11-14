@@ -314,8 +314,10 @@ pub(crate) fn tessellate_curved(
                   id: PatchVertex,
                   pole: bool|
      -> Result<spade::handles::FixedVertexHandle, TessellateError> {
+        // `meta` keeps the chart's own `(u, v)`; only the CDT sees the
+        // floored point.
         let h = cdt
-            .insert(SpadePoint::new(u, v))
+            .insert(crate::cdt::spade_point(u, v))
             .map_err(|_| TessellateError::Triangulation { face: fk })?;
         if h.index() == meta.len() {
             meta.push((u, v, id, pole));
@@ -1004,12 +1006,12 @@ fn pole_columns(nu: usize, has_pole: bool) -> usize {
 /// superset of the pole-incident one it replaces, so no coverage
 /// moves with this definition.
 ///
-/// The repeat half is [`crate::walk::ids_at_two_uvs`], which is where
-/// the spade-equality rule lives for both lanes; this function is that
-/// set unioned with the pole flags.
+/// The repeat half is [`crate::cdt::ids_at_two_uvs`], where the
+/// spade-equality rule lives for every lane; this function is that set
+/// unioned with the pole flags.
 #[cfg(debug_assertions)]
 fn identified_ids(polygon: &[UvPoint]) -> std::collections::HashSet<u32> {
-    let mut identified = crate::walk::ids_at_two_uvs(polygon.iter().map(|e| (e.u, e.v, e.id)));
+    let mut identified = crate::cdt::ids_at_two_uvs(polygon.iter().map(|e| (e.u, e.v, e.id)));
     identified.extend(polygon.iter().filter(|e| e.pole).map(|e| e.id));
     identified
 }
