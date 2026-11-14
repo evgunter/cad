@@ -691,30 +691,39 @@ fn register_placed_carrier_end<T: Real>(
     }
 }
 
-/// **A placed line's carrier end IS its placed far vertex** — the fact
+/// **A placed line's carrier end IS its placed sketch end** — the fact
 /// of rigidity the sweep registers about a profile line
-/// ([`geom_core::Real::register_equal`]), per component.
+/// ([`geom_core::Real::register_equal`]), per component, as
+/// [`register_placed_carrier_end`] registers an arc's.
 ///
-/// **The proof.** The carrier is the line from `q_from = place(a)` along
+/// **The proof.** The carrier is the line from `q_from` along
 /// `L·(b − a)/‖b − a‖`, `L` the placement's linear part, evaluated at the
-/// span `‖b − a‖`, so its end is `place(a) + L·(b − a) = place(b)` for
-/// every linear `L`, and `q_to` is `place(b)`, the far vertex every
-/// caller hands with `q_from` (each lowers both through the one
-/// placement). A rigid `L` keeps the direction unit, so the span is the
-/// placed segment's length too. Where a caller's `q_to` is not the
-/// placed far vertex, the door's own witness refuses the registration
-/// typed (`Disputed` at an inexact witness, `Contradicted` at
-/// [`geom_core::Interval`]'s exact one), as at [`register_rigidity`].
+/// span `‖b − a‖`, so its end is `q_from + L·(b − a)`, which is
+/// `place(b)` wherever `q_from` is `place(a)`; a rigid `L` keeps the
+/// direction unit, so the span is the placed segment's length too. Its
+/// held side is `place(b)` built here, never the caller's `q_to`: a
+/// caller may hand vertices computed on another channel (the stacking
+/// door's strips are `f64` points lifted, `loft.rs`), which are the far
+/// vertex only to that channel's rounding, and the certifier's far-end
+/// check (check 3) reads the carrier against `q_to` numerically. Where
+/// `q_from` is not `place(a)` the door's own witness refuses typed, as
+/// at [`register_rigidity`].
 ///
 /// **What it touches: nothing.** [`geom::Line::at`] at the spec's own span
-/// is the node the certifier's far-end check (check 3) evaluates against
-/// `q_to`; nothing is built that the spec keeps.
-fn register_placed_line_end<T: Real>(line: &geom::Line<T>, span: T, q_to: Point3<T>, tol: Tol) {
-    let end = line.at(span);
-    for (built, held) in [(end.x, q_to.x), (end.y, q_to.y), (end.z, q_to.z)] {
+/// is the node check 3 evaluates; the placed sketch end is built here and
+/// thrown away.
+fn register_placed_line_end<T: Real>(
+    line: &geom::Line<T>,
+    span: T,
+    place: Placing<T>,
+    b: Point2<T>,
+    tol: Tol,
+) {
+    let (end, placed) = (line.at(span), place.point(b));
+    for (built, held) in [(end.x, placed.x), (end.y, placed.y), (end.z, placed.z)] {
         built
             .register_equal(held, tol)
-            .handle("a placed line's carrier end from its placed far vertex");
+            .handle("a placed line's carrier end from its placed sketch end");
     }
 }
 
@@ -753,7 +762,9 @@ pub(crate) fn placed_segment_spec_about<T: Real, S: SweptChord<T>>(
     normal: Vec3<T>,
     centre: impl FnOnce(Point2<T>) -> Point3<T>,
     q_from: Point3<T>,
-    q_to: Point3<T>,
+    // The far vertex the certifier's check 3 reads the spec against;
+    // the spec is built from the segment and its placement, not from it.
+    _q_to: Point3<T>,
     tol: Tol,
 ) -> EdgeCurveSpec<T> {
     let description =
@@ -778,7 +789,7 @@ pub(crate) fn placed_segment_spec_about<T: Real, S: SweptChord<T>>(
             // Rigidity, stated where it is guaranteed, as the arc arm
             // states its own (`register_placed_line_end` carries the
             // proof).
-            register_placed_line_end(&line, span, q_to, tol);
+            register_placed_line_end(&line, span, place, seg.b(), tol);
             let carrier = Curve3::Line(line);
             EdgeCurveSpec {
                 description,
