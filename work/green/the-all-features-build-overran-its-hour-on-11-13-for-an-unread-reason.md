@@ -26,7 +26,7 @@ closed). The step is now `cargo test --no-run` alone, and the listing is
 its own bounded step that names a binary that blocks.
 
 The other candidate is memory. Built locally on 4 cores and 15 GB with
-the nightly's env and feature list (main `f42cadd6`), `rustc` for
+the nightly's env and feature list (the tree at `f42cadd6`), `rustc` for
 `sweep`'s `tests/all.rs` peaked at 5.9 GB, with 11.9 GB in use on the
 box; one attempt that shared the box with other work was killed for
 memory on that same unit. `ubuntu-latest` has 16 GB, so a night where
