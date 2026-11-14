@@ -1703,19 +1703,37 @@ mod verbs_gate_r1_probes {
         .f();
         pncad::mesh::validate::check_volume(&draw, va - lens, carved_area, 2e-3)
             .unwrap_or_else(|e| panic!("the carve's mesh encloses the carve, got {e:?}"));
-        // All three do not: the seam a third of a turn round lies inside
-        // one half-band of the zone, a ring of that face.
+        // All three draw: the seam a third of a turn round lies inside
+        // one half-band of the zone, a ring of that face, which the
+        // trimmed lane meshes as the face's outer loop less the ring.
         let seamed = demo_tour::lily::seamed_lantern(lant.clone().into_body(), tol)
             .unwrap_or_else(|e| panic!("the three seams carve, got {e:?}"));
-        let drawn = pncad::mesh::tessellate(&seamed, 2e-3, tol);
         assert!(
-            matches!(
-                drawn,
-                Err(pncad::mesh::TessellateError::RingOnCurvedFace { .. })
-            ),
-            "the seamed lantern's ringed zone face has no tessellation lane — got {:?}",
-            drawn.map(|m| m.positions.len())
+            seamed.faces().any(|(fk, face)| !face.rings.is_empty()
+                && matches!(
+                    seamed.face_surface(fk),
+                    Some(pncad::topo::Surface::Sphere { .. })
+                )),
+            "a seam's section is a ring of a sphere face"
         );
+        let drawn = pncad::mesh::tessellate(&seamed, 2e-3, tol)
+            .unwrap_or_else(|e| panic!("the seamed lantern draws, got {e:?}"));
+        pncad::mesh::validate::check_mesh(&drawn)
+            .unwrap_or_else(|e| panic!("the seamed lantern's mesh checks, got {e:?}"));
+        let seamed_area = pncad::topo::mass_properties(
+            &demo_tour::booleans::at_rest(&seamed, tol),
+            tol,
+            demo_tour::printed(),
+        )
+        .expect("the seamed lantern's area integrates")
+        .enclosure;
+        pncad::mesh::validate::check_volume(
+            &drawn,
+            seamed_area.volume.f(),
+            seamed_area.surface_area.f(),
+            2e-3,
+        )
+        .unwrap_or_else(|e| panic!("the seamed lantern's mesh encloses it, got {e:?}"));
     }
 
     /// The plant's other two boolean walls, as a TEST — same reason

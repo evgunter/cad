@@ -66,6 +66,11 @@ enum Got {
     NotIsoRectangle(SurfaceKind),
     /// `Triangulation` on a face of this chart.
     Triangulation(SurfaceKind),
+    /// `Ok`, `check_mesh` passes and [`geometry`] holds but for
+    /// triangles of no area on a face of this chart: a lattice point the
+    /// trimmed lane lays within rounding of a boundary chord point
+    /// (`work/tesslane/a-lattice-point-within-rounding-of-a-trim-chord-point-cuts-a-triangle-of-no-area.md`).
+    NoArea(SurfaceKind),
     /// Anything else, spelled out.
     Other(String),
 }
@@ -123,7 +128,8 @@ fn got(body: &Body<f64>, delta: f64) -> Got {
         Ok(m) => match mesh::validate::check_mesh(&m) {
             Ok(()) => match geometry(body, &m, delta) {
                 Ok(()) => Got::Meshed,
-                Err(e) => Got::Other(format!("meshed, and {e}")),
+                Err(Miss::NoArea(kind)) => Got::NoArea(kind),
+                Err(Miss::Other(e)) => Got::Other(format!("meshed, and {e}")),
             },
             Err(e) => Got::Other(format!("meshed, and check_mesh refuses: {e:?}")),
         },
@@ -178,8 +184,9 @@ fn got(body: &Body<f64>, delta: f64) -> Got {
 ///     issued it;
 ///   - **has area**: `2·area/L²`, `L` its longest side, is at least
 ///     [`MIN_SHAPE`], so a triangle along one straight line of the
-///     surface (a cone's ruling) reds here.
-fn geometry(body: &Body<f64>, mesh: &mesh::Mesh, delta: f64) -> Result<(), String> {
+///     surface (a cone's ruling) reds here. One that has none is read
+///     after every other check holds, as [`Miss::NoArea`].
+fn geometry(body: &Body<f64>, mesh: &mesh::Mesh, delta: f64) -> Result<(), Miss> {
     if !body
         .faces()
         .any(|(fk, _)| matches!(kind_of(body, fk), SurfaceKind::Nurbs | SurfaceKind::Approx))
@@ -187,8 +194,9 @@ fn geometry(body: &Body<f64>, mesh: &mesh::Mesh, delta: f64) -> Result<(), Strin
         let at_rest = sweep::test_support::at_rest(body, tol());
         let props = topo::test_support::pinned_volume("the meshed body", &at_rest, tol());
         mesh::validate::check_volume(mesh, props.volume, props.surface_area, delta)
-            .map_err(|e| format!("its volume misses the body's: {e:?}"))?;
+            .map_err(|e| Miss::Other(format!("its volume misses the body's: {e:?}")))?;
     }
+    let mut no_area = None;
     for patch in &mesh.patches {
         let surface = body.face_surface(patch.face).expect("a live face");
         let sense = body.get_face(patch.face).expect("a live face").sense;
@@ -212,9 +220,9 @@ fn geometry(body: &Body<f64>, mesh: &mesh::Mesh, delta: f64) -> Result<(), Strin
             // A zero dot, or NaN where the foot is not one point, is not
             // outward.
             if normal.dot(outward).partial_cmp(&0.0) != Some(core::cmp::Ordering::Greater) {
-                return Err(format!(
+                return Err(Miss::Other(format!(
                     "a {kind:?} face's triangle {t:?} winds against the face"
-                ));
+                )));
             }
             let longest = (b - a).norm().max((c - b).norm()).max((a - c).norm());
             let shape = normal.norm() / (longest * longest);
@@ -222,9 +230,7 @@ fn geometry(body: &Body<f64>, mesh: &mesh::Mesh, delta: f64) -> Result<(), Strin
                 .partial_cmp(&MIN_SHAPE)
                 .is_none_or(core::cmp::Ordering::is_lt)
             {
-                return Err(format!(
-                    "a {kind:?} face's triangle {t:?} has 2·area/L² {shape:e}, under {MIN_SHAPE:e}"
-                ));
+                no_area = no_area.or(Some(kind));
             }
             const N: usize = 6;
             #[allow(clippy::cast_precision_loss)]
@@ -236,13 +242,22 @@ fn geometry(body: &Body<f64>, mesh: &mesh::Mesh, delta: f64) -> Result<(), Strin
                 .partial_cmp(&(delta * (1.0 + 1e-9)))
                 .is_none_or(core::cmp::Ordering::is_gt)
             {
-                return Err(format!(
+                return Err(Miss::Other(format!(
                     "a {kind:?} face's triangle {t:?} lies {worst:e} off its surface, past δ {delta:e}"
-                ));
+                )));
             }
         }
     }
-    Ok(())
+    no_area.map_or(Ok(()), |kind| Err(Miss::NoArea(kind)))
+}
+
+/// What [`geometry`] finds wrong with a mesh.
+enum Miss {
+    /// Every other check holds, and a triangle on a face of this chart
+    /// has no area.
+    NoArea(SurfaceKind),
+    /// Anything else, spelled out: the first miss found.
+    Other(String),
 }
 
 /// The least `2·area/L²` [`geometry`] admits on an analytic curved face:
@@ -917,9 +932,10 @@ fn a_sphere_face_bounded_by_a_spline_section_refuses_in_the_chord_pass() {
 /// the trimmed lane, and the lane triangulates each face's outer loop
 /// less its ring. The other three ops put the spirics on an outer loop.
 /// The bar's face `y = 0.25` is the tube's latitude `π/6`, so at
-/// `δ = 10⁻³` a spiric's extreme chord point falls within rounding of a
-/// lattice row and column, which the lane drops
-/// (`trimmed::near_boundary`).
+/// `δ = 10⁻³` the extreme chord point of the ring's spiric falls within
+/// rounding of a lattice point, and the face keeps two triangles of no
+/// area beside it, as the tilted sphere pair's faces do on an outer loop
+/// at `δ = 0.04` (`Got::NoArea`).
 #[test]
 fn a_torus_wall_holding_a_spiric_ring_meshes_on_the_torus_row() {
     let torus = bulge_loop(vec![
@@ -931,12 +947,32 @@ fn a_torus_wall_holding_a_spiric_ring_meshes_on_the_torus_row() {
         .body
         .into_body();
     let bar = brick::<f64>((-0.05, 0.05), (0.25, 0.35), (1.0, 3.0), tol());
+    let (donut, bar) = (
+        finished("the torus", donut, tol()),
+        finished("B2", bar, tol()),
+    );
+    let what = "the donut and B2 (A the donut)";
     assert_six(
-        "the donut and B2 (A the donut)",
-        &finished("the torus", donut, tol()),
-        &finished("B2", bar, tol()),
-        &[2e-2, 5e-3, 1e-3],
+        what,
+        &donut,
+        &bar,
+        &[2e-2, 5e-3],
         &core::array::from_fn(|_| Got::Meshed),
+    );
+    let ring = Got::NoArea(SurfaceKind::Torus);
+    assert_six(
+        what,
+        &donut,
+        &bar,
+        &[1e-3],
+        &[
+            ring.clone(),
+            ring.clone(),
+            Got::Meshed,
+            Got::Meshed,
+            ring,
+            Got::Meshed,
+        ],
     );
 }
 

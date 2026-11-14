@@ -175,14 +175,14 @@ fn a_bulging_cap_whose_cavity_meets_the_sphere_below_the_wall_refuses_typed() {
     }
 }
 
-/// **A window on a half-cylinder is a ring, and the mesh is what cannot
-/// read it.** The D-section's curved face does not wrap, so the cavity's
-/// counterpart is glued on as a ring, exactly as on a plane. Tier 3
-/// passes — props reads a cylinder wall bounded by rims and rulings —
-/// and the volume is the closed form; the tessellator refuses the
-/// ringed wall (TESS's `a-notched-or-ringed-cylinder-wall-does-not-tessellate`).
+/// **A window on a half-cylinder is a ring, and it meshes.** The
+/// D-section's curved face does not wrap, so the cavity's counterpart is
+/// glued on as a ring, exactly as on a plane. Tier 3 passes — props reads
+/// a cylinder wall bounded by rims and rulings — and the volume is the
+/// closed form; the trimmed lane meshes the ringed wall, and the mesh
+/// closes and holds that volume to within its chordal deficit.
 #[test]
-fn a_d_section_window_opens_to_a_ring_and_the_mesh_refuses_it() {
+fn a_d_section_window_opens_to_a_ring_and_meshes() {
     let tol = Tol::witness();
     let (r, h, t) = (0.5, 0.8, 0.05);
     let body = d_section(r, h);
@@ -205,10 +205,11 @@ fn a_d_section_window_opens_to_a_ring_and_the_mesh_refuses_it() {
         props.enclosure.volume,
         props.enclosure.volume_pad
     );
-    assert!(
-        mesh::tessellate(&cut, 1e-2, tol).is_err(),
-        "the tessellator reads no ringed cylinder wall yet"
-    );
+    let delta = 1e-2;
+    let m = mesh::tessellate(&cut, delta, tol).expect("the ringed wall meshes");
+    mesh::validate::check_mesh(&m).expect("the mesh closes");
+    mesh::validate::check_volume(&m, want, props.enclosure.surface_area, delta)
+        .expect("the mesh holds the body's volume");
 }
 
 /// **A window on a sphere opens to a ring and passes tier 3.** The

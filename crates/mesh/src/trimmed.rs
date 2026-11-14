@@ -1,11 +1,16 @@
 //! **Trimmed curved-face tessellation** (M5 PR 11, C12.6): faces whose
-//! boundary carries a conic or B-spline trim carrier are not swept UV
-//! rectangles, so the iso walk cannot traverse them — instead the
-//! face's **stored pcurves** (PR 6 caches; C4's consumers begin here)
-//! provide the trim polyline in UV, evaluated at exactly the shared
-//! per-edge chord parameters, and the CDT + even-odd machinery of the
-//! planar lane (#116: combinatorial flood fill, no geometric
-//! classification) picks the interior.
+//! boundary carries a conic or B-spline trim carrier, or that hold a
+//! ring, are not swept UV rectangles, so the iso walk cannot traverse
+//! them — instead the face's **domain** provides the trim polygon in UV:
+//! every loop's lift, the rings placed in the outer loop's sheet
+//! (`topo::Body::face_lift`), each half-edge's image evaluated at exactly
+//! the shared per-edge chord parameters; and the CDT + even-odd
+//! machinery of the planar lane (#116: combinatorial flood fill, no
+//! geometric classification) picks the interior, which is the outer
+//! loop's region less each ring's. A face whose loops have no reading in
+//! one sheet (a loop that does not close in the chart, a ring with no one
+//! place) refuses with the door's cause
+//! ([`TessellateError::DomainUnread`]).
 //!
 //! # Watertightness is inherited, not re-derived
 //!
@@ -31,7 +36,7 @@
 //! the swept-rectangle walk has no NURBS chart; RATIONAL faces since
 //! M8-5, whose Hessian bound is the second-order quotient statement over
 //! the homogeneous nets). An analytic face routes here by its outer
-//! loop's carriers (`crate::tessellate::lane_of`).
+//! loop's carriers, or by holding a ring (`crate::tessellate::lane_of`).
 //! The NURBS lane's certificate is the
 //! hull-derived Hessian interpolation bound (`crate::nurbs_cert`:
 //! derivation, covered-vs-refused inventory). Its boundary pcurves
@@ -536,7 +541,7 @@ pub(crate) fn tessellate_trimmed(
     // per-cell generation a cell-boundary line is shared by adjacent
     // cells, and dropping a location rather than one cell's copy of it
     // is what keeps the retry ladder strictly shrinking (module docs).
-    let mut dropped = near_boundary(&candidates, &polygon, (u0, u1), (v0, v1));
+    let mut dropped: HashSet<usize> = HashSet::new();
     // THE FALSIFICATION ACCUMULATOR, deliberately OUTSIDE the retry
     // loop and reset by nothing.
     //
@@ -1908,64 +1913,6 @@ struct ScheduleStats {
     /// The schedule's lattice metric
     /// ([`crate::nurbs_cert::lattice_metric`]).
     metric: f64,
-}
-
-/// Within this share of the trim box's extent on each chart axis, a
-/// lattice candidate is on the trim polygon to within rounding:
-/// `2⁻⁴⁰`, 4096 ulps of an extent, the band [`CREASE_MERGE`] reads a
-/// crease by. A chord point's chart image and a lattice line are each a
-/// few ulps from where they stand for, so a candidate this near a side
-/// or a corner of the polygon is the boundary itself, and one kept there
-/// cuts a triangle of no area beside it (a ring's extreme point on a
-/// lattice row and column is the measured case).
-const BOUNDARY_MERGE: f64 = 1.0 / 1_099_511_627_776.0;
-
-/// **The candidates within rounding of the trim polygon** (by index into
-/// `cand`, which is `(v, u)`-sorted, [`sort_candidates`]): each within
-/// [`BOUNDARY_MERGE`] of the trim box `(u0, u1) × (v0, v1)`'s extent, on
-/// each axis, of a side of some loop. They are dropped before the first
-/// attempt, as a candidate exactly on a polygon point or a side is
-/// dropped where the CDT meets it ([`TrimmedFace::insert_points`],
-/// [`TrimmedFace::constrain_boundary`]): dropping one only coarsens a
-/// triangle, and every kept triangle is still certified.
-fn near_boundary(
-    cand: &[(f64, f64)],
-    trim: &TrimPolygon,
-    (u0, u1): (f64, f64),
-    (v0, v1): (f64, f64),
-) -> HashSet<usize> {
-    let (su, sv) = ((u1 - u0) * BOUNDARY_MERGE, (v1 - v0) * BOUNDARY_MERGE);
-    let points = &trim.points;
-    let mut out = HashSet::new();
-    for (i, &a) in points.iter().enumerate() {
-        let b = points[trim.next[i]];
-        let (lo, hi) = (a.1.min(b.1) - sv, a.1.max(b.1) + sv);
-        let (left, right) = (a.0.min(b.0) - su, a.0.max(b.0) + su);
-        let start = cand.partition_point(|c| c.1 < lo);
-        for (k, &(u, v)) in cand.iter().enumerate().skip(start) {
-            if v > hi {
-                break;
-            }
-            if u < left || u > right {
-                continue;
-            }
-            // The distance from the side, in units of the band on each
-            // axis: at most one is within it.
-            let (dx, dy) = ((b.0 - a.0) / su, (b.1 - a.1) / sv);
-            let (x, y) = ((u - a.0) / su, (v - a.1) / sv);
-            let along = dx * dx + dy * dy;
-            let t = if along > 0.0 {
-                ((x * dx + y * dy) / along).clamp(0.0, 1.0)
-            } else {
-                0.0
-            };
-            let (ex, ey) = (x - t * dx, y - t * dy);
-            if ex * ex + ey * ey <= 1.0 {
-                out.insert(k);
-            }
-        }
-    }
-    out
 }
 
 /// Row-major candidate order: by `v`, then `u` (total order — the
