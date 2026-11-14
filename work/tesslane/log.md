@@ -18,3 +18,4 @@
   - **A comment-only edit to a test file runs that binary's eps rows.** PR 6926 re-pointed path citations in eleven `crates/sweep/tests/` comments, the gate ran `sweep::all` at 1e-6 and 1e-12, and three rows already red on main (BAND's, GAUGE's, LATHE's) redded the PR.
   - **PR 6926's `python suite` job took 35 minutes**, 30 of them in its `unittest discover` step, and ended green; the bar is 15. `docs/CI-MINUTES-2026-08.md` has the step at about two minutes, so either the suite has grown fifteenfold or this run was slow, and which is unmeasured. The job has no step timeout, and an agent's GitHub integration cannot cancel a run (403), so a real hang there would hold a PR for six hours.
   - **Runner queue:** PR 6930's `test (kernel)` and `demos` jobs sat queued about nine minutes.
+- 2026-11-14 — **PR 6930 merges**: the fix head `70826a56` is green but for the three inherited `sweep::all` eps rows annotated on the PR. Row `docs/model-compare-log/rows/PR-6930.md`.
