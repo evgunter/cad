@@ -92,7 +92,11 @@ fn digest(rows: &[(&'static str, editor_core::Resolution)]) -> u64 {
 /// through): the ambiguous row's piece's wall moved from the tool's bare
 /// face name to that `From`. Every row keeps its shape: a spelling
 /// change. Re-measured with both merged.
-const DIAGNOSIS_DIGEST: u64 = 0xe3b5_eba1_51c9_d9ca;
+///
+/// **Re-pinned for sources** (VARIABLES VR4): a placement mints the
+/// source it reads its body through, one more variable per placement,
+/// so every mint id after it moved: a spelling change.
+const DIAGNOSIS_DIGEST: u64 = 0x78cb_ae44_b9e1_ef78;
 
 #[test]
 fn diagnosis_corpus_is_golden() {

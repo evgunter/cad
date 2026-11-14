@@ -860,6 +860,24 @@ fn a_stepped_rings_floor_holds_against_its_end_caps() {
     holds_at_both("the stepped ring", ring(), ring());
 }
 
+/// **A quarter ball holds with its caps read at each pole**: a half
+/// disc revolved a quarter turn about its diameter. Each cap is a lens,
+/// the diameter and the semicircle meeting at both poles, so a cell
+/// holding the whole cap is not presented, and one holding a single pole
+/// is read through its corner there.
+#[test]
+fn a_quarter_balls_lens_caps_hold_read_at_each_pole() {
+    fn lune<T: Scalar>() -> Body<T> {
+        let p = |y: f64, b: f64| (Point2::new(0.0, y).map(T::from_f64), T::from_f64(b));
+        revolved_about_y_at(
+            vec![p(-0.3, 0.0), p(0.3, -1.0)],
+            Revolution::Partial(T::from_f64(core::f64::consts::FRAC_PI_2)),
+            tol(),
+        )
+    }
+    holds_at_both("the quarter ball", lune(), lune());
+}
+
 /// **A filleted cube corner's ball holds against the faces it touches
 /// at its pole**: the unit cube with the three edges at `(1, 1, 1)`
 /// filleted. The corner's sphere is charted with a pole at the vertex
@@ -1051,6 +1069,25 @@ fn an_arc_spine_short_of_a_full_turn_holds() {
 /// two caps lie on one plane at `(3, 0, 0)`.
 #[test]
 fn a_closed_spine_reads_violated_top_against_bottom() {
+    // Pinned red at ε = 1e-12: a cap rim's end parameter is an
+    // enclosure at `Interval`, so its exact boundary-row image is not
+    // picked and the rim stores a fitted pcurve, whose loop joint (half
+    // edge 18v1) escalates on an enclosure of ±4.5e-11
+    // (`work/onehome/three-path-sweeps-refuse-at-1e-12-over-station-frames-minted-at-interval`).
+    test_utils::pinned_red::row(
+        Tol::witness().eps(),
+        &[1e-12],
+        "the closed spine",
+        &[
+            "the closed spine sweeps: Pcurve(Escalated",
+            "predicate: Some(\"pcurve_loop_continuity\")",
+        ],
+        a_closed_spine_reads_violated_top_against_bottom_row,
+    );
+}
+
+/// The row [`a_closed_spine_reads_violated_top_against_bottom`] runs, under its pin.
+fn a_closed_spine_reads_violated_top_against_bottom_row() {
     fn closed<T: Scalar>() -> sweep::Lofted<T, Body<T>> {
         let pts: Vec<Point3<f64>> = (0..=32)
             .map(|k| {
@@ -1197,6 +1234,25 @@ fn arc_spine_walls_with_knots_ulps_off_their_splits_hold_against_themselves() {
 /// exact, so none sits ulps off a split point.
 #[test]
 fn the_s_duct_walls_hold_against_themselves() {
+    // Pinned red at ε = 1e-12: a cap rim's end parameter is an
+    // enclosure at `Interval`, so its exact boundary-row image is not
+    // picked and the rim stores a fitted pcurve, whose loop joint (half
+    // edge 20v1) escalates on an enclosure of ±1.9e-12
+    // (`work/onehome/three-path-sweeps-refuse-at-1e-12-over-station-frames-minted-at-interval`).
+    test_utils::pinned_red::row(
+        Tol::witness().eps(),
+        &[1e-12],
+        "the S duct",
+        &[
+            "the S path sweeps: Pcurve(Escalated",
+            "predicate: Some(\"pcurve_loop_continuity\")",
+        ],
+        the_s_duct_walls_hold_against_themselves_row,
+    );
+}
+
+/// The row [`the_s_duct_walls_hold_against_themselves`] runs, under its pin.
+fn the_s_duct_walls_hold_against_themselves_row() {
     fn duct<T: Scalar>() -> sweep::Lofted<T, Body<T>> {
         let (r, h) = (2.0, 0.25);
         let quarter = core::f64::consts::FRAC_PI_2;
@@ -1754,17 +1810,22 @@ fn shell_4s_vessel_holds() {
     }
 }
 
-/// **A cylinder–cylinder tee refuses typed where its junction meets a
-/// cap at a vertex alone.** Two radius-1 rods on crossing axes, one
-/// mitred by their bisector plane (`crossing_equal_rods`' pair at spins
-/// `(0, 0)`, `B` from `x = 0.2`), united. Rod `B` starts at `x = 0.2`,
-/// so the junction never reaches the node plane `x = 0`: it ends where
-/// `B`'s cap circle meets the mitre plane, at `(0.2, ±0.98, 0.2)`, a
-/// vertex `B`'s wall and `A`'s mitre share with no edge. Each face's
-/// corner there has a curved side and neither side on the shared
-/// cell, which no presentation reads, so the pair refuses
-/// `Uncertified { Departure }` naming the vertex — never certified,
-/// never measured by distance, and without splitting to the floor.
+/// **A cylinder–cylinder tee refuses typed at the vertices its walls
+/// share alone.** Two radius-1 rods on crossing axes, one mitred by
+/// their bisector plane (`crossing_equal_rods`' pair at spins `(0, 0)`,
+/// `B` from `x = 0.2`), united. Rod `B` starts at `x = 0.2`, so the
+/// junction never reaches the node plane `x = 0`: it ends where `B`'s
+/// cap circle meets the mitre plane, at `(0.2, ±0.98, 0.2)`, and `A`'s
+/// seam line meets it at `(1, 0, 1)`. The junction's ellipse runs on
+/// through each of those vertices as the next face's edge, so a face
+/// and the face across the vertex from it lean on one line there, which
+/// no plane through the vertex separates them across. A plane's corner
+/// of a line and an arc at such a vertex is read as its quadrant, and a
+/// wall's is not, so those four pairs split to the floor and refuse
+/// there; the walls against each other at `(1, 0, 1)`, and `A`'s wall
+/// halves against the mitre across its ellipse, refuse at the root. The
+/// verdict is `Uncertified { Departure }` naming a vertex — never
+/// certified, never measured by distance.
 #[test]
 fn a_cylinder_cylinder_tee_refuses_typed_at_a_vertex_its_junction_shares_alone() {
     fn tee_at<T: Scalar>() -> Result<topo::BooleanResult<T>, topo::BooleanError> {
@@ -1844,26 +1905,25 @@ fn a_cylinder_cylinder_tee_refuses_typed_at_a_vertex_its_junction_shares_alone()
         }) => {
             let mut kinds = [kind(tee, a), kind(tee, b)];
             kinds.sort_unstable();
-            assert_eq!(kinds, ["cylinder", "plane"], "a wall and the mitre");
+            assert_eq!(kinds, ["cylinder", "cylinder"], "the two walls");
             let p = *tee.get_point(tee.get_vertex(v).unwrap().point).unwrap();
             assert!(
-                (p.x - 0.2).abs() < 1e-9
-                    && (p.z - 0.2).abs() < 1e-9
-                    && (p.y.abs() - 0.96f64.sqrt()).abs() < 1e-9,
-                "where B's cap circle meets the mitre plane: {p:?}"
+                (p.x - 1.0).abs() < 1e-9 && p.y.abs() < 1e-9 && (p.z - 1.0).abs() < 1e-9,
+                "where A's seam line meets the junction: {p:?}"
             );
         }
         other => panic!("the tee refuses at the vertex: {other:?}"),
     }
     assert!(
         report.receipt.splits < 1024,
-        "the vertex refuses where it is met, not at the floor: {:?}",
+        "the floor refusals are the vertices' own cells, a few per level: {:?}",
         report.receipt
     );
     assert_eq!(
-        report.receipt.refused, 8,
-        "eight root pairs refuse: six at a vertex alone, two across the mitre's ellipse; the \
-         mitre's line on B's cap is read through its corners with the cap's arcs ({:?})",
+        report.receipt.refused, 12,
+        "four root pairs refuse: the walls against each other at a vertex alone, and two across \
+         the mitre's ellipse; four plane–wall pairs at a vertex alone, the plane read and the \
+         wall not, refuse eight cells at the floor ({:?})",
         report.receipt
     );
     assert!(
@@ -3002,6 +3062,16 @@ fn the_walk_reads_its_charts_and_edges_through_their_memos() {
 /// meridians' plane; read as a loose vertex, every polar strip of one
 /// half-band against every one of the other split until the walk ran
 /// out of its 65,536 pairs, at depth 32.
+///
+/// At a pole one half-band's corner is on one meridian and the other's
+/// on the other, and the corner is zero under the plane only where the
+/// plane lists both. The revolve stores the two in one plane, so at
+/// `f64` the plane built from either does. At `Interval` the small
+/// ball's centre is a bracket (its profile arc's centre rounds), and
+/// two meridians stored in one bracket need not lie in one plane for
+/// every member, so its plane lists its own meridian alone and its pole
+/// refuses `Departure` there. Red at `f64` if the meridians are stored
+/// in two planes, or if the corner is read as zero off the list.
 #[test]
 fn a_two_ball_union_holds_with_its_poles_read() {
     fn snowman<T: Scalar>() -> Body<T> {
@@ -3026,11 +3096,34 @@ fn a_two_ball_union_holds_with_its_poles_read() {
             topo::boolean::union(&ball(1.0, 0.0), &ball(0.8, 1.4), tol()).expect("the balls unite");
         Body::clone(&union.body().expect("a body").body)
     }
-    for report in holds_at_both("the snowman", snowman::<f64>(), snowman::<Interval>()) {
-        assert!(
-            report.receipt.discharged + report.receipt.refused < BUDGET / 16,
-            "the poles cost a few hundred pairs, not the budget: {:?}",
-            report.receipt
-        );
-    }
+    let float = snowman::<f64>();
+    let report = injective(&float, None, BUDGET);
+    assert_holds("the snowman", &report, &float);
+    assert!(
+        report.receipt.discharged + report.receipt.refused < BUDGET / 16,
+        "the poles cost a few hundred pairs, not the budget: {:?}",
+        report.receipt
+    );
+    let twin = snowman::<Interval>();
+    let verdict = injective(&twin, None, BUDGET).verdict;
+    let BoundVerdict::Refused(EngineRefusal::Uncertified {
+        shared: SharedCell::Edge(edge),
+        arm: CertificateArm::Departure,
+        ..
+    }) = verdict
+    else {
+        panic!("the snowman at Interval refuses Departure on a meridian: {verdict:?}");
+    };
+    let curve = twin.get_edge(edge).expect("a live edge").curve;
+    let carrier = twin
+        .get_curve_geom(curve)
+        .and_then(|g| g.certified())
+        .map(|c| c.carrier().clone());
+    let Some(geom::Curve3::Circle(geom::Circle { frame, radius })) = carrier else {
+        panic!("the refusing edge is a meridian circle: {carrier:?}");
+    };
+    assert!(
+        (mid(radius) - 0.8).abs() < 1e-9 && frame.origin.y.lo() < frame.origin.y.hi(),
+        "on the small ball, whose centre is a bracket: {radius:?} {frame:?}"
+    );
 }

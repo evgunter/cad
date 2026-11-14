@@ -357,3 +357,13 @@ Window: the 170 completed `ci.yml` PR runs from 11-01 18:33Z to 11-02
   #6324, #6361), STYLE on each pin PR (#6343, #6355), the census
   tracker-only on the orchestrator's read. Every review that ran found
   something worth a fix pass; #6324 took three.
+
+## 2026-11-14 — picked up (Ev, in chat: orchestrate GREEN)
+
+- Track set `active`. Four main-red rows arrive from tcost by `git mv`, ids unchanged, at P1: the far-off-origin union (rewritten: it now fails at 1e-12 only, with a different refusal), the round keel at 1e-6, the filleted die, `revalue_boss_union`.
+- Nightly 43371638371 (main `e36675c1`, 2026-11-13) read whole from its junit artifacts: 22 failures at the default ε, 35 at 1e-6, 38 at 1e-12; `suite under --all-features` did not finish its build in 60 minutes; `k-lint (dev-probe)`, `viewer app feature`, the first-refusal mutant job and `gate self-tests` are red. The 1e-12 leg ran 92 minutes, and 118 the night before, against a 120-minute cap.
+- No `triage/nightly-*` PR is open, so the wait-for-the-triage rule has nothing to wait on, as on 10-31; this sitting reads the nightly itself.
+- Review tier for this PR: orchestrator's read (tracker headers and moves only).
+- Slate reconciled against that nightly. Closed, every named test green at all three ε: the partners-along-the-face row (the slate's one P0), the near-node cap, m10_p_fence's digest, and the PCERT E1b list. The 53 failing tests and five failing jobs are cut into six units, `nightly-reds-*` (five, by kind and ε row) and `nightly-jobs-that-do-not-finish-or-read-nothing`; the open main-red rows are parented to the unit that greens them. Letters and tiers are in each unit's file: all M; STYLE single review on the five pin units, FULL on the jobs unit, as on the 11-02 sitting.
+- Six implementer lanes dispatched 2026-11-14 02:32Z as cloud sessions, one per unit, each on `green/<slug>`; briefs on `green/briefs-2026-11-14` (`briefs/*.txt`, one shared text for the five pin units). Draws are on `analysis/model-compare/green-2026-11-14`; this log stays arm-free until the rows land. Sessions: censuses `session_018u3gVJ9E1ukgusAjY7sDER`, goldens `session_018u3gVKd7LYdue6rCC2nj1p`, default-eps `session_018u3gVGaK5achAnJYngUfrT`, eps-1e-6 `session_018u3gVKVCb1kFJDiBuP9AEn`, eps-1e-12 `session_018u3gVFCsDPPq9zvP8AhiZk`, nightly-jobs `session_018u3gVJix3wBi11szBtVrjt`.
+- GREEN's load reads 42/30 while the old main-red rows stand beside the units that green them; they close with their units.

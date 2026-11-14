@@ -223,10 +223,11 @@ pub(crate) fn copies_of<P>(
         let Some(crate::Node::Place { source, .. }) = doc.node(p) else {
             continue;
         };
-        if source.read == body {
+        let read = doc.through_sources(source.read);
+        if read.read == body {
             out.push((
                 p,
-                if source.is_indexed() {
+                if source.is_indexed() || read.is_indexed() {
                     Copying::Member
                 } else {
                     Copying::Whole

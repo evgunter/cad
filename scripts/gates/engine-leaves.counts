@@ -40,7 +40,7 @@ boolean-names-splitting     6  boolean/join.rs
 boolean-names-splitting     1  boolean/join_walk_order_rows.rs
 boolean-names-splitting     4  boolean/mod.rs
 boolean-names-splitting     7  boolean/ops.rs
-boolean-names-splitting     3  boolean/reduce.rs
+boolean-names-splitting     2  boolean/reduce.rs
 boolean-names-splitting     9  boolean/refusal_routes.rs
 boolean-names-splitting    16  boolean/region.rs
 boolean-names-splitting     1  boolean/ruled_region.rs
@@ -76,7 +76,7 @@ crate-visible              10  boolean/sectors.rs
 crate-visible              41  boolean/solid_contain.rs
 crate-visible               4  boolean/sphere_region.rs
 crate-visible               1  boolean/spline_known.rs
-crate-visible              11  boolean/spline_region.rs
+crate-visible               4  boolean/spline_region.rs
 crate-visible               4  boolean/spline_region_rows.rs
 crate-visible               3  boolean/torus_region.rs
 crate-visible               2  boolean/voids.rs
@@ -164,10 +164,9 @@ names-splitting             2  test_support_fixtures.rs
 names-splitting            27  test_support_samples.rs
 names-splitting             4  tier3_tests.rs
 names-splitting            41  validate.rs
-names-splitting            27  vertex_section.rs
+names-splitting            19  vertex_section.rs
 
 refused-binding             2  boolean/contain.rs
-refused-binding             1  boolean/reduce.rs
 refused-binding             6  census.rs
 refused-binding             1  census/self_touch.rs
 refused-binding             1  instance.rs

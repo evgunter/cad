@@ -1980,15 +1980,13 @@ class StationMove:
 class Frame:
     """An ABSOLUTE placement: a linear part and a translation.
 
-    What a placement's pose reads back as. It is authored through
-    constructors rather
-    than field by field — a linear part is a MATRIX, and that is how a
-    mirror or a shear arrives by accident. A frame that is not a rigid
-    motion is refused at the edit door, not admitted; a mirror is a
-    construction (`Node.mirror`), never a frame.
-
-    Rigidity is not claimed here: the edit door asks the kernel's
-    rigidity predicate.
+    What a placement's pose reads back as (`SolvedPoses.pose`,
+    `SolvedPoses.placement`, `PlacedInstance.placement`). No edit door takes one: a placement is
+    written as its bundle of mates and values (`Placed`). The
+    constructors build a frame from its meaning rather than field by
+    field — a linear part is a MATRIX, and that is how a mirror or a
+    shear arrives by accident — to compare a read-back against. A
+    mirror is a construction (`Node.mirror`), never a frame.
     """
 
     @staticmethod
@@ -3320,10 +3318,18 @@ class VarDecl:
         count of another dimension or a `within` that is no index
         (`index`); a reader of two indices neither within the other
         refuses `indices_unrelated`."""
+    @staticmethod
+    def source(body: _BodyArg) -> VarDecl:
+        """A SOURCE `bracket = B` (VARIABLES VR4): a body variable defined
+        as a read of `body` (a node, a port, a member `op[i]`, a pick or
+        another source), which placements read their body through.
+        Declared under a name, several placements share it
+        (`Doc.place(bracket, …)`); redefining it re-points every placement
+        reading it."""
     @property
     def expr(self) -> Formula | None:
-        """The defining expression, or None for a free variable or an
-        index."""
+        """The defining expression, or None for a free variable, an
+        index or a source."""
     @property
     def value(self) -> FreeVar | None:
         """The free value, or None for a defined variable or an index."""

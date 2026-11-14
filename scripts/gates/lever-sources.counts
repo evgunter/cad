@@ -24,7 +24,6 @@ crates/topo/src/boolean/join.rs 2
 crates/topo/src/boolean/overlap.rs 1
 crates/topo/src/boolean/reduce.rs 1
 crates/topo/src/boolean/rim_wedge.rs 1
-crates/topo/src/boolean/sectors.rs 1
 crates/topo/src/boolean/solid_contain.rs 1
 crates/topo/src/boolean/trace.rs 2
 crates/topo/src/boolean/vtxfac.rs 1
@@ -35,4 +34,6 @@ crates/topo/src/link/chord_rows.rs 1
 crates/topo/src/offset_axial.rs 2
 crates/topo/src/pcurves.rs 1
 crates/topo/src/ring_path.rs 2
+crates/topo/src/star/cut.rs 1
+crates/topo/src/star/order.rs 2
 crates/topo/src/validate.rs 1
