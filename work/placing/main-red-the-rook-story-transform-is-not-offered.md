@@ -3,6 +3,7 @@ id: main-red-the-rook-story-transform-is-not-offered
 kind: issue
 title: Main red: the chess-rook story's Transform into the cut's space is not offered (offer answers None, no refusal)
 status: review
+pr: 6947
 branch: placing/rook-story-red
 opened: 2026-11-14
 priority: P1
