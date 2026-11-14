@@ -425,11 +425,15 @@ pub(super) fn rod(r: f64, z0: f64, depth: f64) -> Body<f64> {
 }
 
 pub(super) fn revolved(pts: &[(f64, f64)]) -> Body<f64> {
+    try_revolved(pts).unwrap()
+}
+
+/// [`revolved`], with the revolve's refusal as text.
+fn try_revolved(pts: &[(f64, f64)]) -> Result<Body<f64>, String> {
     let lp = ProfileLoop::polygon(pts.iter().map(|&(x, y)| Point2::new(x, y)));
     revolve(&validated(vec![lp]), axis_y(), Revolution::Full, tol())
-        .unwrap()
-        .body
-        .into_body()
+        .map(|r| r.body.into_body())
+        .map_err(|e| format!("{e:?}"))
 }
 
 /// The frustum of radius `0.5 → 1` over `y ∈ [0, 1]`.
@@ -740,15 +744,33 @@ fn a_cone_face_through_its_apex_meshes_at_every_scale_and_pose() {
         0.7,
     );
     let far = Affine3::translation(Vec3::new(700.3, -577.7, 123.4));
-    let unit = |k: f64| revolved(&[(0.0, 0.0), (k, k), (0.0, k)]);
+    let unit = |k: f64| vec![(0.0, 0.0), (k, k), (0.0, k)];
+    // A revolve the kernel refuses at the run's ε (at ε = 1e-12 the cone
+    // certificate of the ×300, ×10³ and shifted funnels is past its
+    // limit, `KernelLimit`, at their extent) is a
+    // typed door refusal, printed and skipped, as `issue303`'s rows do; at
+    // the default ε every body builds.
+    let build = |pts: &[(f64, f64)], pose: Option<Affine3<f64>>| {
+        let raw = try_revolved(pts)?;
+        Ok::<_, String>(match pose {
+            Some(pose) => posed("the funnel", raw, pose),
+            None => finished("the funnel", raw, tol()),
+        })
+    };
     // (name, body, a point of the cut, its normal, the δ it meshes at)
-    type Case = (String, AtRestBody<f64>, Point3<f64>, Vec3<f64>, Vec<f64>);
+    type Case = (
+        String,
+        Result<AtRestBody<f64>, String>,
+        Point3<f64>,
+        Vec3<f64>,
+        Vec<f64>,
+    );
     let cases: Vec<Case> = [1e-2, 1e2, 3e2, 1e3]
         .into_iter()
         .map(|k| {
             (
                 format!("the funnel ×{k:e}"),
-                finished("the funnel", unit(k), tol()),
+                build(&unit(k), None),
                 Point3::new(0.0, 0.5 * k, 0.0),
                 n,
                 vec![5e-3 * k, 1e-3 * k, 2e-4 * k],
@@ -758,7 +780,7 @@ fn a_cone_face_through_its_apex_meshes_at_every_scale_and_pose() {
             [("translated", far), ("turned and translated", far * turn)].map(|(name, pose)| {
                 (
                     format!("the funnel, {name}"),
-                    posed("the funnel", unit(1.0), pose),
+                    build(&unit(1.0), Some(pose)),
                     pose.transform_point(Point3::new(0.0, 0.5, 0.0)),
                     pose.transform_vec(n),
                     vec![5e-3, 1e-3, 2e-4],
@@ -768,22 +790,14 @@ fn a_cone_face_through_its_apex_meshes_at_every_scale_and_pose() {
         .chain([
             (
                 "the needle funnel".to_string(),
-                finished(
-                    "the needle",
-                    revolved(&[(0.0, 0.0), (0.02, 1.0), (0.0, 1.0)]),
-                    tol(),
-                ),
+                build(&[(0.0, 0.0), (0.02, 1.0), (0.0, 1.0)], None),
                 Point3::new(0.0, 0.5, 0.0),
                 n,
                 vec![1e-3, 2e-4],
             ),
             (
                 "the shifted funnel".to_string(),
-                finished(
-                    "the shifted funnel",
-                    revolved(&[(0.0, 133.3), (612.3, 911.1), (0.0, 911.1)]),
-                    tol(),
-                ),
+                build(&[(0.0, 133.3), (612.3, 911.1), (0.0, 911.1)], None),
                 Point3::new(0.0, 533.0, 0.0),
                 n,
                 vec![0.18],
@@ -791,6 +805,20 @@ fn a_cone_face_through_its_apex_meshes_at_every_scale_and_pose() {
         ])
         .collect();
     for (name, body, at, normal, deltas) in cases {
+        let body = match body {
+            Ok(body) => body,
+            Err(e) => {
+                assert!(
+                    tol().eps() < geom_core::tolerance::DEFAULT_EPS,
+                    "{name}: the revolve refuses at the default ε: {e}"
+                );
+                eprintln!(
+                    "{name}: the revolve refuses at ε {:e}, skipped: {e}",
+                    tol().eps()
+                );
+                continue;
+            }
+        };
         let plane = topo::test_support::split_plane(at, normal, tol());
         let split = topo::splitting::split(&body, &plane, tol())
             .unwrap_or_else(|e| panic!("{name} splits, got {e:?}"));
@@ -800,7 +828,7 @@ fn a_cone_face_through_its_apex_meshes_at_every_scale_and_pose() {
             assert_at_every(&what, half, &deltas, &Got::Meshed);
         }
     }
-    let up = finished("the upper funnel", unit(1.0), tol());
+    let up = finished("the upper funnel", revolved(&unit(1.0)), tol());
     let down = finished(
         "the lower funnel",
         revolved(&[(0.0, 0.0), (0.0, -1.0), (1.0, -1.0)]),
