@@ -4,6 +4,9 @@ kind: issue
 title: the Boolean's one-record token reconciles revert's plane convention by hand when it reads how two charts face under subtract
 status: open
 opened: 2026-11-11
+priority: P1
+cost: M
+design: true
 ---
 
 

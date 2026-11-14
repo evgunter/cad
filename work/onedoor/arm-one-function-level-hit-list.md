@@ -4,6 +4,8 @@ kind: issue
 title: "[topo.homes] arm 1: Body-free functions inside the engines, by signature, beyond the curve × face doors"
 status: open
 opened: 2026-11-03
+priority: P2
+cost: H
 ---
 
 

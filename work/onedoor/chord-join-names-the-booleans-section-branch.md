@@ -2,8 +2,10 @@
 id: chord-join-names-the-booleans-section-branch
 kind: issue
 title: "[topo.homes] chord_join, a root construction, names the boolean's Branch and borrows its test fixtures"
-status: open
+status: dispatched
 opened: 2026-11-12
+priority: P2
+cost: M
 ---
 
 
