@@ -87,7 +87,7 @@ mod tests {
 
     /// Both halves of the floor, at the values that tell an exact floor
     /// from an over- or under-reaching one: every sub-floor nonzero of
-    /// either sign (a subnormal included) enters as `0.0`, and every
+    /// either sign (the smallest normal and the smallest subnormal included) enters as `0.0`, and every
     /// value spade accepts enters bit-identical — the floor itself, the
     /// next value up, a small legal value, `-0.0`, NaN and ±∞.
     #[test]
