@@ -2,11 +2,13 @@
 id: the-ring-door-reads-a-spline-face-through-the-trims-point-reader-at-the-root
 kind: unit
 title: the root ring door reads a spline face: the spline trim's point reader moves to the crate root and the trim calls it
-status: dispatched
+status: closed
 opened: 2026-11-14
 priority: P1
 cost: H
 branch: tesslane/spline-ring-door
+closed: 2026-11-14
+pr: 6951
 ---
 
 
@@ -78,3 +80,12 @@ Branch `tesslane/spline-ring-door`, cut from main.
 - **The citing rows follow.** Each SPLICE, PCERT and ONEDOOR row above cites the new home, in this branch.
 - **Run what CI runs before every push:** `bash scripts/run-gates.sh`; `-p topo` whole at the default eps (its source censuses read every file, so a narrow filter misses them); the rows you add or move at `CAD_TOLERANCE_EPS` 1e-6 and 1e-12 as well; `recourse_roster` and the other slow-set censuses by name. A row that probes near a boundary states its offsets in the run's tolerance.
 
+## Closed (2026-11-14, PR 6951)
+
+The spline trim and the Bézier cells it meters by live at the crate root (`crates/topo/src/spline_trim.rs`); the boolean's spline arm keeps its carrier walk and two placements and calls the root. `Body::face_lift` reads a spline face through `spline_trim::ring_decks`, which places each ring by `Trim::ring_shift`, the rule the trim places its own rings by, so the door's deck and the trim's are one decision. `SplineChart` is gone; `SplineTrimUnread { ring, cause }` names the cases where the trim is not read. The two ray-parity loops are one, `chain_parity::ray_parity_as`, over a piece reading each chart family supplies.
+
+No verdict moved: the move was checked item by item against main, and the review ran main's two loops against the one over 138,000 readings in both families, twice, with every answer the same.
+
+What "the section above" got wrong, by the implementer's measurement before building: `CELL_DEPTH`, `keep`, `Caps` and `CELL_VISITS` stay in the engine with the carrier walk; `Control`, `tracks`, `bezier_insertions`, `close_gap`, `walks_forward`, `half_width` and the mutant hook move; the ONEDOOR row needed no edit.
+
+Left for others: the cells take no `Body`, so their one home is `geom-brep` (`work/splice/the-spline-chart-cell-walk-is-written-twice`, which names their address now); `chart_region`'s chart-polygon ray parity is a second reader of the class (`work/charttail/the-chart-polygons-ray-parity-and-the-chain-piece-parity-are-two-readers`); no fixture reaches `SplineTrimUnread`.
