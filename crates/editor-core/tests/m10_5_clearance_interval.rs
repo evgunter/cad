@@ -880,7 +880,9 @@ fn the_answer_is_deterministic_across_repeats() {
     // rather than its box (PR 6902), which discharges this pair in 992.
     // The wanted answer is a bound that still refines that deep, on
     // `work/clear/the-clearance-determinism-row-runs-under-a-thousand-cells-since-6902.md`;
-    // the pin reds on the next change of the count.
+    // the pin reds on the next change of the count, a kernel improvement
+    // included: that red is this pin, not a defect, and a count has no
+    // place in a determinism row beyond holding it until then.
     assert_eq!(
         cells, 992,
         "the determinism row's subdivision moved (it wants thousands of cells): {r:?}"

@@ -47,48 +47,14 @@ use crate::m10_9_pins_interval::measured_studies;
 /// move attributed by the freezes' profile (`FreezeCause`, by op) — and
 /// that no dispute fired.
 ///
-/// **Pinned at what main measures** (2026-10-28), unexplained: the
-/// table had not been re-taken since before INTENT's PR 5811 (copies
-/// that no longer run their maps) and PR 5728 (limb 2 for every
-/// carrier), and every document moved, `frozen` most of all (the plate
-/// 1557 -> 229). No dispute fired. Which change moved which column is
-/// `work/shell/main-red-three-m10-interval-pins-moved-at-5728`'s to
-/// read.
-///
-/// Then two numeric columns fell, both from the profile's simplicity
-/// pass: it no longer reads a gap on a line pair that shares a vertex
-/// (`profile::seg`'s `line_line`, PR 5952). The plate 832 -> 824 (its
-/// rectangle's four corners, on each one's axis) and the bracket's by
-/// ten.
-///
-/// A cylinder rim's axial `cos t` and `sin t` terms are decided at
-/// `pcurve_cylinder_chart_axial` (`geom_brep::pcurve_cache`'s
-/// `cylinder_rim_axial`, PR 6105), which the tier proves `Zero` on
-/// these documents' nominal rims (not on a leaf whose radius varies,
-/// `work/pcert/the-cylinder-rim-axial-decision-refuses-every-leaf-of-the-two-parameter-drive`):
-/// the annulus decides it on 12 rims and the bracket on 14; every rim of
-/// the plate, the link and the pad has exactly-zero axial terms and
-/// returns before the decision, so they do not move.
-/// So the annulus 654 -> 666 and the bracket 1542 -> 1556 symbolic, the
-/// other columns unmoved.
-///
-/// PCERT E1c (every mint reads incidence first, PR 5889), identical at all three ε rows:
-/// symbolic plate 1149 -> 1203, annulus 666 -> 720, link 962 -> 998,
-/// bracket 1556 -> 1618, pad 1616 -> 1684; the link's numeric 805 -> 821
-/// and the frozen of the link 2241 -> 5161, the bracket 914 -> 1313 and
-/// the pad 2476 -> 3268, the forms the read builds.
-///
-/// **PINNED at what main reads, and NOT judged**
-/// ([`sym11_the_exact_channel_never_contradicts_past_the_ceiling`]
-/// reads it). Every row below is
-/// main's reading, identical at all three ε rows, and differs from the
-/// E1c table above (plate `[1203, 824, 229]`, annulus `[720, 555, 212]`,
-/// link `[998, 821, 5161]`, bracket `[1618, 1159, 1313]`, pad
-/// `[1684, 1262, 3268]`) in every column. No one has said which
-/// decisions moved or that the moves are right, which is what this row
-/// asks for; the pin holds the table still so the NEXT move reds. The
-/// wanted answer is an account of each move, on
-/// `work/onehome/sym11s-symbolic-column-fell-on-four-documents-with-the-rigid-motion-move.md`.
+/// **PINNED at what main reads, and NOT judged.**
+/// [`sym11_the_exact_channel_never_contradicts_past_the_ceiling`] reads
+/// this table, and it holds main's readings so the next move reds; no
+/// one has said which decisions its latest moves changed or that they
+/// are right. Two rows owe that account:
+/// `work/onehome/sym11s-symbolic-column-fell-on-four-documents-with-the-rigid-motion-move.md`
+/// and
+/// `work/onedoor/sym11s-numeric-and-frozen-columns-rose-at-6869-the-wedge-fold-stage-2.md`.
 const PAST_THE_CEILING: [(&str, [u64; 3]); 5] = [
     ("two_hole_plate", [1015, 1050, 299]),
     ("r1_annulus", [535, 553, 278]),

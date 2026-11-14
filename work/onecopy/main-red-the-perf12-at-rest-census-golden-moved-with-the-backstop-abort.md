@@ -21,4 +21,4 @@ Read the diff (`PERF12_BLESS_CENSUS=1` writes the new golden), decide whether th
 
 ## Pinned (GREEN, `green/goldens`, 2026-11-14)
 
-Still red at line 75 at every ε row in nightly 43371638371 and on main `b363f5fa1`, and at every commit measured from `9a256348` to main. GREEN re-blessed the three goldens at what main reads (`PERF12_BLESS_CENSUS=1`), unjudged, so the row is green and reds on the next move; the test's doc names this row. The diff of the goldens is in that PR. Still owed here: whether PR 6757's verdict at line 75 is right.
+Still red at line 75 at every ε row in nightly 43371638371 and on main `b363f5fa1`, and at every commit measured from `9a256348` to main. GREEN PINNED the three goldens at what main reads (written with `PERF12_BLESS_CENSUS=1`), unjudged, so the row is green and reds on the next move; the test's doc names this row. The diff of the goldens is in that PR. Still owed here: whether PR 6757's verdict at line 75 is right.

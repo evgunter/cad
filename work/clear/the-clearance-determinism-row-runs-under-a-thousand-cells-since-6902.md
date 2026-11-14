@@ -20,3 +20,5 @@ Found by GREEN's `green/goldens` lane, from nightly 43371638371 (main `e36675c1`
 **Owed.** The row's claim is that the answer is stable on an expensive run, thousands of cell pairs. A tighter support test discharging the pair sooner is the kernel getting better, so the fixture no longer asks a hard enough question: give the row a bound that still refines to thousands of cells (the tube at a clearance nearer its 0.5, say) and restore the floor, or say why about a thousand is enough and make it one.
 
 Reproduce: `cargo nextest run -p editor-core -E 'test(the_answer_is_deterministic_across_repeats)'` (slow set; revert the pin to see the floor).
+
+**The pin reds on the next improvement too.** `assert_eq!(cells, 992)` goes red whenever clearance discharges this pair in a different number of cells, which a tighter support test will do again. That red is the pin, not a defect: re-take the count, or better, do what this row owes and take the count out of the determinism row (a floor bolted onto another row's claim is what `docs/prompts/implementer-discipline.md` §8 says not to do; the pin is there only so the row is not vacuous in the meantime).
