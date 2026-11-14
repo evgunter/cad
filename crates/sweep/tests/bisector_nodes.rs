@@ -1671,3 +1671,96 @@ fn a_seam_builds_from_twice_root_band_off_a_node() {
         }
     }
 }
+
+/// **At ε 1e-12 the 3° slanted bores refuse their volume in every cell,
+/// and the glued rod escalates its section straddle in both orders.**
+/// What stands behind the two rows' pins
+/// ([`slanted_bores_build_every_operation_one_difference_pinched_to_itself`],
+/// [`a_rod_glued_in_its_bore_answers_alike_in_either_order`]), each of
+/// which stops at its row's first cell:
+///
+/// - all six cells of the 3° pose (∩, ∪, ∖, both orders) return
+///   `ResultInvalid { NotFinished { VolumeUncomputable } }` on
+///   `props_chart_junction_closed`; none stops in the pieces probe or
+///   reaches tier 3′'s census;
+/// - the rod along `y` at `1e-8°`, ∩ and ∪, escalates
+///   `Coincidence(Section, Moot)` on `curve_carrier_straddle` in both
+///   operand orders, its margin an enclosure.
+///
+/// Red when either moves, which is the day the rows cited beside those
+/// pins owe a re-measure. Stands down off ε 1e-12.
+#[test]
+fn at_1e_12_the_slanted_bores_refuse_every_cell_and_the_glued_rod_escalates_in_both_orders() {
+    let tol = Tol::witness();
+    if tol.eps() != 1e-12 {
+        test_utils::vacuity::stood_down(
+            "ε 1e-12 only",
+            "what stands behind the two rows' 1e-12 pins; the rows hold every other ε",
+        );
+        return;
+    }
+    let a = finished(
+        "A",
+        bored(
+            [(-2.0, 2.0), (-2.0, 2.0), (-2.0, 2.0)],
+            spin(&cyl(1.0, 3.0), Vec3::new(0.0, 0.0, 1.0), PHI),
+        ),
+        tol,
+    );
+    let b = finished(
+        "B",
+        bored(
+            [(-1.5, 1.5), (-3.0, 3.0), (-1.5, 1.5)],
+            spin(
+                &rod_y(8.0),
+                Vec3::new(1.0, 0.0, 0.0),
+                PI / 2.0 - 3.0_f64.to_radians(),
+            ),
+        ),
+        tol,
+    );
+    for (order, x, y) in [("A, B", &a, &b), ("B, A", &b, &a)] {
+        for (op, r) in [
+            ("∩", topo::intersect(x, y, tol)),
+            ("∪", topo::union(x, y, tol)),
+            ("∖", topo::subtract(x, y, tol)),
+        ] {
+            let text = format!("{:?}", r.map(|_| ()));
+            assert!(
+                text.contains("ResultInvalid")
+                    && text.contains("VolumeUncomputable")
+                    && text.contains("props_chart_junction_closed"),
+                "3° ({order}), {op}: refuses its volume at the chart junction, got {text}"
+            );
+        }
+    }
+    let rod = finished(
+        "the rod",
+        spin(
+            &rod_y(4.0),
+            Vec3::new(1.0, 0.0, 0.0),
+            (90.0_f64 - 1e-8).to_radians(),
+        ),
+        tol,
+    );
+    for (op, f) in [
+        (
+            "∩",
+            topo::intersect::<topo::AtRestBody<f64>> as fn(_, _, _) -> _,
+        ),
+        ("∪", topo::union::<topo::AtRestBody<f64>>),
+    ] {
+        for (order, r) in [
+            ("rod, bore", f(&rod, &a, tol)),
+            ("bore, rod", f(&a, &rod, tol)),
+        ] {
+            let text = format!("{:?}", r.map(|_| ()));
+            assert!(
+                text.contains("Coincidence(Section, Moot)")
+                    && text.contains("curve_carrier_straddle")
+                    && text.contains("Enclosure"),
+                "along y, 1e-8°, {op} ({order}): escalates its section straddle on an enclosure, got {text}"
+            );
+        }
+    }
+}
