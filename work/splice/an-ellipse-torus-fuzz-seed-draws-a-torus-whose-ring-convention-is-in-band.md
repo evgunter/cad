@@ -57,3 +57,6 @@ A second seed, from the ONEDOOR wedge-fold lane's default-ε run
 `0x9fd7a6243bf09f33` (`CAD_FUZZ_SEED=0x9fd7a6243bf09f33`), the same
 panic at `circle_roots::door_answer` with `ring_torus_convention`'s
 margin `9.631336879257417e-6` in the band (1e-6, 1e-5).
+A third, from the same lane's re-run (2026-11-14): seed
+`0xb27e31258ec89b00` reproduces on `origin/main` at `8eb399d8`, margin
+`7.579386505001449e-6`.

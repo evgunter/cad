@@ -2424,6 +2424,7 @@ fn check_4_and_the_rim_read_the_wedge_through_the_one_fold() {
         "src/validate.rs",
         &[
             ("edge_wedge_over(", 0),
+            ("edge_wedge_over_as(", 0),
             ("WedgeWalk::along_edge(", 0),
             ("WedgeWalk::around_circle(", 0),
         ],
@@ -2432,7 +2433,8 @@ fn check_4_and_the_rim_read_the_wedge_through_the_one_fold() {
     scan(
         "src/edge_wedge.rs",
         &[
-            ("edge_wedge_over(", 1),
+            ("edge_wedge_over_as(", 1),
+            ("edge_wedge_over(", 0),
             ("WedgeWalk::along_edge(", 1),
             ("WedgeWalk::around_circle(", 0),
         ],
@@ -2442,6 +2444,7 @@ fn check_4_and_the_rim_read_the_wedge_through_the_one_fold() {
         "src/boolean/rim_wedge.rs",
         &[
             ("edge_wedge_over(", 1),
+            ("edge_wedge_over_as(", 0),
             ("WedgeWalk::around_circle(", 1),
             ("WedgeWalk::along_edge(", 0),
         ],

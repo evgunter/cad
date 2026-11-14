@@ -389,7 +389,7 @@ pub(in crate::blend) fn perp_unit<T: Real>(x: Vec3<T>, a: Vec3<T>) -> Vec3<T> {
 /// `r·tan(φ/2)` for the outward-normal angle φ) — derived here once
 /// and consumed by predicate 2.
 ///
-/// `convexity` picks the side through [`signed`](crate::blend::battery::signed): on a
+/// `convexity` picks the side through [`signed`]: on a
 /// concave chain the ball rolls on the far side of both supports, which
 /// is the same formula with `r` negated.
 #[must_use]
@@ -447,9 +447,9 @@ pub fn plane_plane_blend<T: Real>(
 /// side of both supports the chain's stored convexity verdict picks
 /// (S10/S11): the material side of each on a CONVEX chain, the void
 /// side of each on a CONCAVE one, where the ball rolls in the void.
-/// That is ONE fold, [`signed`](crate::blend::battery::signed) (`±r`), homed on the verdict
+/// That is ONE fold, [`signed`] (`±r`), homed on the verdict
 /// type and shared with [`plane_plane_blend`], `open::planar::corner_plan`
-/// and — as the side [`ball_side`](crate::blend::ball_side) — the shared sheet
+/// and — as the side [`ball_side`] — the shared sheet
 /// reduction (`battery::curved_arm`); [`corner_ball`] alone spells its
 /// NEGATIVE, the rest depth. Which side of the
 /// SPHERE its material is on is the pair's own second configuration
@@ -581,7 +581,7 @@ pub fn plane_sphere_blend<T: Real>(
 /// [`plane_sphere_room`] alike.
 struct PlaneSphereFold<T: Real> {
     /// The ball's signed depth into the plane's material
-    /// ([`signed`](crate::blend::battery::signed)).
+    /// ([`signed`]).
     signed: T,
     /// The sphere centre's height over the plane along `n`.
     depth: T,
@@ -684,7 +684,7 @@ pub fn plane_sphere_room<T: Real>(
 /// [`SurfaceSide::Inner`] when the ball's centre lies on the side the
 /// support's chart normal points AWAY from — the support's material side
 /// on a `sense: true` face — and [`SurfaceSide::Outer`] when it lies on
-/// the side the chart normal points into; [`ball_side`](crate::blend::ball_side) is
+/// the side the chart normal points into; [`ball_side`] is
 /// where it is read, from stored structure and never from a sampled
 /// normal (S10/S11). It selects the `R ∓ r` fold: every consumer spells
 /// it as [`sided`], a conditional negation of the radius or of the
@@ -1380,7 +1380,7 @@ pub fn inward_unit<T: Real>(n: Vec3<T>, tau: Vec3<T>) -> Vec3<T> {
 /// (both normals are ⊥ `τ̂`). A positive combination of two OUTWARD
 /// normals is outward, so the strip face mints with sense `true` — on
 /// a concave edge as much as on a convex one, which is why the
-/// chamfer never reads [`super::Convexity::blend_sense`]. For a
+/// chamfer never reads [`super::battery::blend_sense`]. For a
 /// symmetric setback the strip plane is the supports' bisector plane,
 /// which is the same statement.
 #[must_use]

@@ -1131,7 +1131,7 @@ fn corner_shell(
 /// support strips between the rim and the trimlines and a concave rim's
 /// identical carve ADDS them; the one sense the band carries is its
 /// face bit, folded from the chain's stored verdict at the door
-/// ([`blend_sense`](crate::blend::blend_sense)).
+/// ([`blend_sense`]).
 fn resolve_rim<'a, T: Decide + Bounds>(
     body: &Body<T>,
     chain: &'a Chain<T>,
