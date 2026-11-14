@@ -222,7 +222,7 @@
 //! recited here: `scripts/gates/cover-kind-match.sh` finds every
 //! reference to a public door of this module or of [`crate::cover`], in
 //! every crate and a point-free one included, and requires its line in
-//! `scripts/gates/cover-kind-match.readers`, per file and fn, with the
+//! `scripts/gates/cover-kind-match.readers`, per file, fn and door, with the
 //! direction it reads looseness in and the argument for it. A new reader
 //! lands by adding its line, so no door lands unargued. **The direction
 //! is recited, not computed**; that gap is `S234` and has an owner rather

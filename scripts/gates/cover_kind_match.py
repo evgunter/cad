@@ -16,25 +16,35 @@ skipped) and finds, per file, every site of these shapes:
   block until it meets the pattern's `=>`, `=` or its statement's end, so
   no nesting depth is assumed. One arm is one site, however many kinds
   its alternatives name.
-- `ball`: a literal torus or sphere ball, read over the whole file's code
-  (a sum rustfmt wraps is one sum): a sum of a major and a minor radius
-  (`major_radius + minor_radius`, `t.major_radius() + t.minor_radius`,
-  `R.abs() + r`, either order), or a distance plus a radius
-  (`(c - p).norm() + radius`, `s.radius + c.distance(q.center())`, a bare
-  `r` or `rho`, a conic's `speed_hi()` bound on its semi-axes, or a name
-  the file binds to one of them by `let`, as the radius). Each operand is a whole term: not a factor
-  of a product (`minor · cos v`, a chart metric). Not a ball, by
-  structure: a difference of squares (`(R − r)·(R + r)`), a parenthesized
-  sum added to another parenthesized group (two carriers' radii, not one
-  ball: `(R1 + r1) + (R2 + r2)`), and a sum of the radii's perturbations
-  (operands whose first word is `d` or `delta`).
+- `ball`: a literal torus or sphere ball, read off the code's SUMS
+  structurally (`balls`): the code is tokenized and its brackets nested,
+  every chain of operands joined by arithmetic is split into its signed
+  summands, and a summand that is a bare parenthesized sum is flattened
+  into its own (its sign carried), however deep and however rustfmt
+  wraps it. The flattened set is a ball if it holds, each with a `+`
+  sign, a major and a minor radius (a torus: `R + r`, `offset + R + r`,
+  `t.major_radius() + t.minor_radius`, `R.abs() + r`), or a distance and
+  a radius (a sphere: `pad + (c − q).norm() + radius`, `(q − c).norm() +
+  (R + r)`, `s.radius + c.distance(q.center())`); whatever else it
+  holds. A leaf is a whole operand, never a factor of a product (`r ·
+  cos v`, a chart metric). A radius is named one, a bare `r` or `rho`, a
+  conic's `speed_hi()`, or a name the file binds to one by `let` (read
+  uncalled). One sum is one site. Not a ball, by structure: the bound
+  `|a² − b²| ≤ |a − b|·(a + b)`, a sum multiplied by a factor that
+  subtracts and names every one of its terms (`(R − r)·(R + r)` its
+  simplest case); and a sum of the radii's perturbations (operands whose
+  first word is `d` or `delta`). Two tori's radii summed
+  (`(R1 + r1) + (R2 + r2)`) is a ball sum and counts.
 - `whole`: a whole carrier's cover read (`.cover()` with no argument):
   the region of the whole carrier, where a consumed span or face reads
   its own (`Curve3::cover_over`, `topo::edge_cover`, `topo::face_cover`).
 - `reader`: a reference to one of `topo`'s cover doors outside its homes,
   by whole token (a call, a turbofish, a path, a method call and a
   point-free use are each one; a `use` naming it is not a read), grouped
-  by its file and enclosing fn.
+  by its file, its enclosing fn and the door (a swap of one door for
+  another in one fn is a new reader and a vanished one). A fn name
+  declared more than once in a file is qualified by its `impl`'s self
+  type (`Type::name`), and one still shared by its order (`name#2`).
   The doors are DERIVED: every free `fn` declared `pub` or `pub(…)` at
   the top level of `topo`'s `cover.rs` and `boxes.rs` (production code),
   less NOT_DOORS, so a new door is a new reader's subject the day it
@@ -66,8 +76,8 @@ or lever of a region is named by (foot, floor, pivot, lever).
 
 Prints `ROSE kind file: was -> now`, `FELL kind file: was -> now`,
 `RAISED kind file: base -> pin` against `--base`, `MALFORMED …`,
-`DUPLICATE …`; for the readers `UNARGUED file fn: n`, `VANISHED file fn`,
-`MOVED file fn: was -> now`, `BADREASON …`; then `TOTAL …`. `--lines
+`DUPLICATE …`; for the readers `UNARGUED file fn door: n`, `VANISHED
+file fn door`, `MOVED file fn door: was -> now`, `BADREASON …`; then `TOTAL …`. `--lines
 FILE` also prints `LINES kind FILE:LINE FN` for each of that file's sites.
 
 A PIN FOLLOWS A MOVE. `--renames` lists `old new` path pairs (the shell
@@ -85,8 +95,9 @@ returned bare, an `arm` built from a carrier's radii, a point set a lever
 is the farthest of). A variant reached through a re-export under another
 module's name (`pub use geom::Surface::Plane` elsewhere, then `use
 that::Plane`), and an alias declared in another file. Macro bodies are
-read as written. A ball whose radius is named none of those, and a
-torus sum whose operands are not named `major`/`minor`. A
+read as written. A ball whose radius is named none of those, a torus
+sum whose operands are not named `major`/`minor`, and a sum built
+across statements (`let s = R; s + r`). A
 `whole` read of a cover whose receiver is not a carrier (a topo section
 circle's `cover()`) is counted all the same, the safe direction.
 
@@ -365,6 +376,48 @@ def fn_spans(text):
     return spans
 
 
+IMPL = re.compile(r'\bimpl\b')
+
+
+def impl_type(header):
+    """The self type an `impl` header names: `impl<T> Tr for X<T>` is `X`."""
+    header = re.split(r'\bwhere\b', header)[0]
+    while True:
+        cut = re.sub(r'<[^<>]*>', '', header)
+        if cut == header:
+            break
+        header = cut
+    header = re.split(r'\bfor\b', header)[-1]
+    names = re.findall(r'[A-Za-z_]\w*', header)
+    return names[-1] if names else '-'
+
+
+def fn_labels(text):
+    """`fn_spans` with each name made unique in its file: a fn declared
+    more than once is qualified by its `impl`'s self type (`Type::name`),
+    and one still shared by its order among them (`name#2`)."""
+    impls = []
+    for m in IMPL.finditer(text):
+        k, tok = scan_to(text, m.end(), ['{', ';'])
+        if tok == '{':
+            impls.append((k, k + len(block(text, k)), impl_type(text[m.end():k])))
+    spans = fn_spans(text)
+    names = [n for _, _, n in spans]
+    out, seen = [], {}
+    for a, b, n in spans:
+        label = n
+        if names.count(n) > 1:
+            inside = [(x, t) for x, y, t in impls if x <= a < y]
+            if inside:
+                label = f'{max(inside)[1]}::{n}'
+        seen[label] = seen.get(label, 0) + 1
+        out.append([a, b, label, seen[label]])
+    totals = {}
+    for _, _, label, k in out:
+        totals[label] = max(totals.get(label, 0), k)
+    return [(a, b, label if totals[label] == 1 else f'{label}#{k}') for a, b, label, k in out]
+
+
 def fn_at(spans, pos):
     best = None
     for a, b, name in spans:
@@ -373,62 +426,235 @@ def fn_at(spans, pos):
     return best[1] if best else '-'
 
 
-# A ball's operands: a whole term, optionally a receiver chain's field
-# or method, optionally `.abs()`.
-TERM = r'\*?(?:[A-Za-z_]\w*(?:\(\))?\.)*[A-Za-z_]\w*(?:\(\))?(?:\.abs\(\))?'
-TORUS = re.compile(r'(?<![\w.])(' + TERM + r')\s*\+\s*(' + TERM + r')')
-DIST = r'(?:\.norm\(\)|\.distance\((?:[^()]|\([^()]*\))*\))'
-RECEIVER = r'(?:\((?:[^()]|\([^()]*\))*\)|[A-Za-z_][\w.]*(?:\([^()]*\))?)'
-SPHERE = re.compile(DIST + r'\s*\+\s*(' + TERM + r')(?![\w.(])|(?<![\w.])(' + TERM
-                    + r')\s*\+\s*' + RECEIVER + DIST)
+# A ball is read off the SUMS of the code, structurally. The code is
+# tokenized and its brackets nested; every chain of operands joined by
+# arithmetic operators is split into its signed summands, and a summand
+# that is a bare parenthesized sum is flattened into its own summands
+# (its sign carried), however deep. The flattened leaves are a ball if
+# they hold, each with a `+` sign, a major and a minor radius (a torus)
+# or a distance and a radius (a sphere), whatever else the sum holds
+# (`offset + R + r`, `pad + |c − q| + r`, `|q − c| + (R + r)`).
+TOKEN = re.compile(r'\s*(?:([A-Za-z_]\w*)|(\d[\w.]*)|(::|->|=>|==|!=|<=|>=|&&|\|\||[-+*/%]=|\S))')
+OPEN, CLOSE = '([{', ')]}'
+ARITH = {'+', '-', '*', '/', '%'}
+PREFIX = {'-', '!', '*', '&'}
+WRAPPERS = {'abs', 'clone', 'to_owned', 'into'}
 
 
-def last_words(term):
-    seg = re.sub(r'\(\)|\.abs\(\)', '', term.lstrip('*')).split('.')[-1]
-    return words(seg)
+def tokens(text):
+    out, i = [], 0
+    while True:
+        m = TOKEN.match(text, i)
+        if not m:
+            return out
+        i = m.end()
+        out.append((m.group(m.lastindex), m.start(m.lastindex)))
 
 
-def radius_of(term):
-    w = last_words(term)
+def nest(toks):
+    """A bracket is one node `(opener, children, pos)`; a token `(tok, pos)`."""
+    stack, opens = [[]], []
+    for tok, pos in toks:
+        if tok in OPEN:
+            opens.append((tok, pos))
+            stack.append([])
+        elif tok in CLOSE and opens:
+            o, p = opens.pop()
+            kids = stack.pop()
+            stack[-1].append((o, kids, p))
+        else:
+            stack[-1].append((tok, pos))
+    while opens:
+        o, p = opens.pop()
+        kids = stack.pop()
+        stack[-1].append((o, kids, p))
+    return stack[0]
+
+
+def tok(seq, j):
+    return seq[j][0] if j < len(seq) and len(seq[j]) == 2 else None
+
+
+def bracket(seq, j, opener):
+    return j < len(seq) and len(seq[j]) == 3 and seq[j][0] == opener
+
+
+def operand(seq, i):
+    """`(end, op)` for the operand at `seq[i]`, or None. `op['group']` is
+    a bare parenthesized group (no postfix), `op['segs']` the path and
+    postfix chain as `(name, called)`, `op['groups']` every bracket in it."""
+    j, neg = i, False
+    while tok(seq, j) in PREFIX:
+        neg ^= tok(seq, j) == '-'
+        j += 1
+    if tok(seq, j) == 'mut':
+        j += 1
+    segs, groups, bare = [], [], None
+    if bracket(seq, j, '(') or bracket(seq, j, '['):
+        bare = seq[j] if seq[j][0] == '(' else None
+        groups.append(seq[j])
+        j += 1
+    elif tok(seq, j) and (IDENT.fullmatch(tok(seq, j)) or tok(seq, j)[0].isdigit()):
+        segs.append([tok(seq, j), False])
+        j += 1
+        while tok(seq, j) == '::' and tok(seq, j + 1) and IDENT.fullmatch(tok(seq, j + 1)):
+            segs.append([tok(seq, j + 1), False])
+            j += 2
+        if tok(seq, j) == '!' and j + 1 < len(seq) and len(seq[j + 1]) == 3:
+            groups.append(seq[j + 1])
+            segs, j = [], j + 2
+    else:
+        return None
+    start = j
+    while j < len(seq):
+        if bracket(seq, j, '(') or bracket(seq, j, '['):
+            groups.append(seq[j])
+            if seq[j][0] == '(' and segs:
+                segs[-1][1] = True
+            j += 1
+        elif tok(seq, j) == '.' and tok(seq, j + 1):
+            segs.append([tok(seq, j + 1), False])
+            j += 2
+        elif tok(seq, j) == '?':
+            j += 1
+        elif tok(seq, j) == 'as' and tok(seq, j + 1):
+            j += 2
+        else:
+            break
+    return j, {'segs': segs, 'groups': groups, 'neg': neg,
+               'group': bare if j == start else None}
+
+
+def chain(seq, i):
+    """`(end, summands)` for the arithmetic chain at `seq[i]`: each
+    summand `[sign, [factor op, …]]`."""
+    got = operand(seq, i)
+    if got is None:
+        return None
+    j, op = got
+    summands = [[-1 if op['neg'] else 1, [op]]]
+    while tok(seq, j) in ARITH:
+        o = tok(seq, j)
+        nxt = operand(seq, j + 1)
+        if nxt is None:
+            break
+        j, op = nxt
+        if o in '+-':
+            summands.append([(1 if o == '+' else -1) * (-1 if op['neg'] else 1), [op]])
+        else:
+            op['by'] = o
+            summands[-1][1].append(op)
+    return j, summands
+
+
+def whole_chain(kids):
+    got = chain(kids, 0)
+    return got[1] if got and got[0] == len(kids) else None
+
+
+def leaf_kind(op, bound):
+    segs = [s for s in op['segs']]
+    while segs and segs[-1][1] and segs[-1][0] in WRAPPERS:
+        segs.pop()
+    if not segs:
+        return None
+    name, called = segs[-1]
+    if called and name in ('norm', 'distance'):
+        return 'distance'
+    w = words(name)
     if not w or w[0] in ('d', 'delta'):
         return None
-    return 'major' if 'major' in w else 'minor' if 'minor' in w else None
+    if 'major' in w:
+        return 'major'
+    if 'minor' in w:
+        return 'minor'
+    if 'radius' in w or w in (['r'], ['rho']) or name == 'speed_hi' or (name in bound and not called):
+        return 'radius'
+    return None
 
 
-def difference_of_squares(a, b, outer_left, outer_right):
-    for x, y in ((a, b), (b, a)):
-        diff = r'\(\s*' + re.escape(x) + r'\s*-\s*' + re.escape(y) + r'\s*\)'
-        if re.match(r'\*\s*' + diff, outer_right) or re.search(diff + r'\s*\*$', outer_left):
-            return True
-    return False
+def flatten(summands, sign, leaves, ops, flat):
+    for s, factors in summands:
+        s *= sign
+        if len(factors) == 1 and factors[0]['group'] is not None:
+            inner = whole_chain(factors[0]['group'][1])
+            if inner is not None:
+                flat.add(id(factors[0]['group']))
+                flatten(inner, s, leaves, ops, flat)
+                continue
+        ops.extend(factors)
+        leaves.append((s, factors[0] if len(factors) == 1 else None))
+
+
+def flat_tokens(node):
+    if len(node) == 2:
+        yield node[0]
+    else:
+        for k in node[1]:
+            yield from flat_tokens(k)
+
+
+def op_tokens(op):
+    out = [n for n, _ in op['segs']]
+    for g in op['groups']:
+        out.extend(flat_tokens(g))
+    return out
+
+
+def difference_bound(factors):
+    """The bound `|a² − b²| ≤ |a − b|·(a + b)`, `(R − r)·(R + r)` its
+    simplest case: a product of a bare sum with a factor that subtracts
+    and names every one of the sum's terms. The sum is the bound's second
+    factor, not a ball. Returns the sums so excluded."""
+    out = []
+    if any(f.get('by', '*') != '*' for f in factors):
+        return out
+    for k, f in enumerate(factors):
+        inner = whole_chain(f['group'][1]) if f['group'] is not None else None
+        if inner is None or any(len(fs) != 1 for _, fs in inner):
+            continue
+        names = {fs[0]['segs'][-1][0] for _, fs in inner if fs[0]['segs']}
+        for m, g in enumerate(factors):
+            if m == k:
+                continue
+            toks = op_tokens(g)
+            if '-' in toks and names and names <= set(toks):
+                out.append(f['group'][1])
+                break
+    return out
+
+
+def walk(seq, bound, out, flat, skip):
+    i = 0
+    while i < len(seq):
+        got = chain(seq, i)
+        if got is None:
+            if len(seq[i]) == 3:
+                walk(seq[i][1], bound, out, flat, skip)
+            i += 1
+            continue
+        j, summands = got
+        leaves, ops = [], []
+        flatten(summands, 1, leaves, ops, flat)
+        kinds = {leaf_kind(op, bound) for s, op in leaves if s > 0 and op is not None}
+        if ({'major', 'minor'} <= kinds or {'distance', 'radius'} <= kinds) and id(seq) not in skip:
+            node = seq[i]
+            out.append(node[2] if len(node) == 3 else node[1])
+        for _, factors in summands:
+            skip.update(id(g) for g in difference_bound(factors))
+        for op in ops:
+            for g in op['groups']:
+                if id(g) not in flat:
+                    walk(g[1], bound, out, flat, skip)
+        i = max(j, i + 1)
 
 
 def balls(text):
-    out = []
-    for m in TORUS.finditer(text):
-        a, b = m.group(1), m.group(2)
-        if {radius_of(a), radius_of(b)} != {'major', 'minor'}:
-            continue
-        left, right = text[:m.start()].rstrip(), text[m.end():].lstrip()
-        if left.endswith(('*', '/')) or re.match(r'[*/.(\w]', right):
-            continue
-        if left.endswith('(') and right.startswith(')'):
-            outer_left, outer_right = left[:-1].rstrip(), right[1:].lstrip()
-            if difference_of_squares(a, b, outer_left, outer_right):
-                continue
-            if re.match(r'\+\s*\(', outer_right) or re.search(r'\)\s*\+$', outer_left):
-                continue
-        out.append(m.start())
-    # A radius: named one, or a conic's bound on its semi-axes, or a
-    # `let` binding of either in the file.
+    """Each ball's position: the start of the sum it is read in."""
     bound = set(re.findall(r'\blet\s+(?:mut\s+)?([a-z_]\w*)\s*=[^;=]*?(?:radius|speed_hi)\b[^;]*;', text))
-    for m in SPHERE.finditer(text):
-        term = m.group(1) or m.group(2)
-        w = last_words(term)
-        name = re.sub(r'\(\)|\.abs\(\)', '', term.lstrip('*')).split('.')[-1]
-        if 'radius' in w or w in (['r'], ['rho']) or name in ('speed_hi',) or name in bound:
-            out.append(m.start())
-    return out
+    out = []
+    walk(nest(tokens(text)), bound, out, set(), set())
+    return sorted(set(out))
 
 
 def door_names(files):
@@ -471,7 +697,8 @@ def sites(path, lines, variants, doors):
         out += [('ball', line(p), fn_at(spans, p)) for p in balls(text)]
         out += [('whole', line(m.start()), fn_at(spans, m.start())) for m in WHOLE.finditer(text)]
     if path not in READER_HOMES and doors:
-        ref = re.compile(r'(?<![\w])(?:' + '|'.join(doors) + r')\b')
+        labels = fn_labels(text)
+        ref = re.compile(r'(?<![\w])(' + '|'.join(doors) + r')\b')
         uses = [(u.start(), u.end()) for u in re.finditer(r'\buse\b[^;]*;', text)]
         decls = {d.start(1) for d in re.finditer(r'\bfn\s+(' + '|'.join(doors) + r')\b', text)}
         for m in ref.finditer(text):
@@ -479,7 +706,7 @@ def sites(path, lines, variants, doors):
                 continue
             if any(a <= m.start() < b for a, b in uses):
                 continue
-            out.append(('reader', line(m.start()), fn_at(spans, m.start())))
+            out.append(('reader', line(m.start()), (fn_at(labels, m.start()), m.group(1))))
     return out
 
 
@@ -512,14 +739,14 @@ def read_registry(path):
             if not raw.strip() or raw.lstrip().startswith('#'):
                 continue
             parts = raw.rstrip('\n').split('\t')
-            if (len(parts) != 5 or not parts[2].isdigit() or parts[3] not in DIRECTIONS
-                    or len(parts[4].split()) < 6):
+            if (len(parts) != 6 or not parts[3].isdigit() or parts[4] not in DIRECTIONS
+                    or len(parts[5].split()) < 6):
                 bad.append(f'{path}:{n}: {raw.rstrip()}')
                 continue
-            key = (parts[0], parts[1])
+            key = tuple(parts[:3])
             if key in reg:
-                bad.append(f'{path}:{n}: a second entry for {parts[0]} {parts[1]}')
-            reg[key] = int(parts[2])
+                bad.append(f'{path}:{n}: a second entry for {" ".join(key)}')
+            reg[key] = int(parts[3])
     return reg, bad
 
 
@@ -559,7 +786,9 @@ def main():
     for path in sorted(files):
         for kind, n, fn in sites(path, files[path], variants, doors):
             if kind == 'reader':
-                readers[(path, fn)] = readers.get((path, fn), 0) + 1
+                key = (path,) + fn
+                readers[key] = readers.get(key, 0) + 1
+                fn = ' '.join(fn)
             else:
                 counts[(kind, path)] = counts.get((kind, path), 0) + 1
             if path == lines_for:
@@ -589,12 +818,13 @@ def main():
             print(f'BADREASON {b}')
         for key in sorted(set(reg) | set(readers)):
             now, was = readers.get(key, 0), reg.get(key)
+            name = ' '.join(key)
             if was is None:
-                print(f'UNARGUED {key[0]} {key[1]}: {now}')
+                print(f'UNARGUED {name}: {now}')
             elif now == 0:
-                print(f'VANISHED {key[0]} {key[1]}')
+                print(f'VANISHED {name}')
             elif now != was:
-                print(f'MOVED {key[0]} {key[1]}: {was} -> {now}')
+                print(f'MOVED {name}: {was} -> {now}')
     print(f'TOTAL {sum(counts.values())} sites pinned; {sum(readers.values())} reads of {len(doors)} doors registered')
 
 
