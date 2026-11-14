@@ -30,8 +30,9 @@ Both cases are declared `-D` in the `cases!` table and raise at
 
 ## The merge
 
-PR 6687 (`onecopy/needle-basin`, merge `f875961fe`, 2026-11-09). Read
-from its diff of `plane_crossing.rs`, not bisected by running:
+PR 6687 (`onecopy/needle-basin`, merge `f875961fe`, 2026-11-09): the
+test is green at the merge's parent and red at the merge with the two
+lines above, and the diff of `plane_crossing.rs` says why:
 
 - `span_place` read `Margin::metered(t - t0, meter)` and
   `Margin::metered(t1 - t, meter)` under `plane_crossing_root_in_span`,

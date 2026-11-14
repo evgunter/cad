@@ -29,7 +29,8 @@ by a pin; the sign is not fixed here, so this row's "done when" passes
 to the fix row.
 
 The cause is PR 6687 (`onecopy/needle-basin`, merge `f875961fe`,
-2026-11-09), read from its diff: the conic root lane now reads a root
+2026-11-09; the test is green at its parent and red at the merge): the
+conic root lane now reads a root
 against an end, and two roots against each other, by the chord between
 their points (`curve_pair_span_end_chord`, `plane_crossing_roots_apart`,
 both `Margin::norm3`), where it read signed parameter differences. So
