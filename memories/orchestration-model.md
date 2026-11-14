@@ -39,9 +39,9 @@ Ev's standing instructions for implementation work:
   explorations, independent tool calls — is dispatched at once, not
   one after another. Serialize only on a real dependency (one piece
   needs another's output) or a measured resource limit (the cargo
-  mutex in [[agent-lane-operations]], runners per "Runners are a
-  budget" below); when this container is the limit, take the next
-  lane to its own cloud session rather than queue it. An orchestrator
+  mutex in [[agent-lane-operations]]); when this container is the
+  limit, take the next lane to its own cloud session rather than
+  queue it. An orchestrator
   waiting on one lane while a dispatchable row sits idle is paying
   latency for nothing.
   **Stack rather than wait for a merge**: work that builds on an
