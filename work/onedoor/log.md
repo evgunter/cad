@@ -515,3 +515,9 @@ Ev, in chat: "go ahead in whatever order you see fit (including parallelizing th
   Every lane stopped on the weekly usage limit at about 04:50 and resumed after the reset.
   - Filed: `subtract-complements-b-is-spelled-at-each-boolean-site` (P4), `a-branch-picks-its-loop-in-two-matches` (P2).
   - (ONEDOOR orchestrator)
+- 2026-11-14 — **PR [#6935](https://github.com/evgunter/cad/pull/6935) (revert owns how a face reverses) accepted.**
+  - R1 (Opus): MERGEABLE-AFTER-MINORS, no MAJOR, and its mutations prove the curved ∖ row.
+  - The fix pass took every item. The `worn` change was reverted toward the doc, since no row reaches that case.
+  - CI's only reds were timing rows at the 1.0 s bar, off the PR's path and filed with green.
+  - Model-compare row `docs/model-compare-log/rows/PR-6935.md`.
+  - (ONEDOOR orchestrator)
