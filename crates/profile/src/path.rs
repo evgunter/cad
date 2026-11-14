@@ -3120,6 +3120,29 @@ struct PendingMeta {
     incoming_radius: bool,
 }
 
+/// **A chain vertex and the segment leaving it**, as its construction
+/// left it: the arc it built, `None` for a line (and for the chain's
+/// last vertex until its segment is set), and a line's director where
+/// the verb that drew it held one ([`Core::direct_leaving`]). Setting
+/// the segment again clears the director with the arc it replaces.
+#[derive(Clone, Copy, Debug)]
+struct Vertex<T: Real> {
+    at: Point2<T>,
+    arc: Option<BuiltArc<T>>,
+    director: Option<Vec2<T>>,
+}
+
+impl<T: Real> Vertex<T> {
+    /// A vertex at `at` with no segment set yet.
+    fn at(at: Point2<T>) -> Self {
+        Self {
+            at,
+            arc: None,
+            director: None,
+        }
+    }
+}
+
 /// The accumulated lowering state: the vertex chain emitted so far
 /// (mirroring the raw chain builder's emission verb-for-verb), the
 /// constructed joints, the entry pose (the [`Start`] value), and the
@@ -3127,14 +3150,9 @@ struct PendingMeta {
 #[doc(hidden)]
 #[derive(Clone, Debug)]
 pub struct Core<T: Real> {
-    /// Each vertex with the arc its construction built for the segment
-    /// leaving it, `None` for a line (and for the chain's last vertex
-    /// until its segment is set).
-    verts: Vec<(Point2<T>, Option<BuiltArc<T>>)>,
-    /// The director of the straight segment leaving vertex `k`, where
-    /// the verb that drew it held one ([`Core::direct_leaving`]);
-    /// reset whenever that segment is set again.
-    directors: Vec<Option<Vec2<T>>>,
+    /// Each vertex with the segment leaving it as its construction left
+    /// it ([`Vertex`]).
+    verts: Vec<Vertex<T>>,
     /// The joints the chain's constructors made tangent
     /// ([`ConstructedLoop::constructed_joints`]).
     tangent: Vec<usize>,
@@ -3215,7 +3233,6 @@ impl<T: Real> Core<T> {
     fn empty() -> Self {
         Self {
             verts: Vec::new(),
-            directors: Vec::new(),
             tangent: Vec::new(),
             cusps_on_lines: Vec::new(),
             start_pos: None,
@@ -3352,7 +3369,7 @@ impl<T: Real> Core<T> {
     /// Seeds the entry vertex (the chain's provisional first vertex —
     /// a seam fillet may later retrim it to the seam arc's end).
     fn seed(&mut self, p: Point2<T>) {
-        self.verts.push((p, None));
+        self.verts.push(Vertex::at(p));
         self.start_pos = Some(p);
     }
 
@@ -3366,7 +3383,7 @@ impl<T: Real> Core<T> {
     fn entry(&self) -> Result<Point2<T>, PathError<T>> {
         self.verts
             .first()
-            .map(|&(pos, _)| pos)
+            .map(|v| v.at)
             .ok_or(PathError::UnderdeterminedLeg {
                 site: "entry of an empty chain",
             })
@@ -3375,9 +3392,10 @@ impl<T: Real> Core<T> {
     /// The first leg's arm: the departing leg at the seam junction.
     fn first_leg_arm(&self) -> Result<T, PathError<T>> {
         match self.verts.as_slice() {
-            [(a, arc), (b, _), ..] => {
-                Ok(leg_arm(carrier_of(*arc), (*b - *a).norm_squared().sqrt()))
-            }
+            [a, b, ..] => Ok(leg_arm(
+                carrier_of(a.arc),
+                (b.at - a.at).norm_squared().sqrt(),
+            )),
             _ => Err(PathError::UnderdeterminedLeg {
                 site: "a seam junction on a chain with no first leg",
             }),
@@ -3428,14 +3446,11 @@ impl<T: Decide> Core<T> {
         if self.verts.len() == 1 && self.first_seg == FirstSeg::NotYet {
             self.first_seg = kind;
         }
-        let segment = self.verts.len().saturating_sub(1);
-        if let Some(director) = self.directors.get_mut(segment) {
-            *director = None;
-        }
         let from = match self.verts.last_mut() {
-            Some((from, leaving)) => {
-                *leaving = arc;
-                *from
+            Some(v) => {
+                v.arc = arc;
+                v.director = None;
+                v.at
             }
             None => {
                 return Err(PathError::UnderdeterminedLeg {
@@ -3508,17 +3523,16 @@ impl<T: Decide> Core<T> {
     /// Appends a straight segment to `p` (the raw `line_to`).
     fn push_line(&mut self, p: Point2<T>) -> Result<(), PathError<T>> {
         self.set_leaving(None, FirstSeg::Line, p)?;
-        self.verts.push((p, None));
+        self.verts.push(Vertex::at(p));
         Ok(())
     }
 
     /// Records `dir` as the director of the straight segment leaving
     /// vertex `segment`, just set by a verb that drew it along `dir`.
     fn direct_leaving(&mut self, segment: usize, dir: Dir<T>) {
-        if self.directors.len() <= segment {
-            self.directors.resize(segment + 1, None);
+        if let Some(v) = self.verts.get_mut(segment) {
+            v.director = Some(dir.unit);
         }
-        self.directors[segment] = Some(dir.unit);
     }
 
     /// Appends the arc segment its construction built, ending at `p`.
@@ -3531,7 +3545,7 @@ impl<T: Decide> Core<T> {
     /// stores one. Its first-segment kind is the verb's, an arc.
     fn push_leg(&mut self, p: Point2<T>, leg: Option<BuiltArc<T>>) -> Result<(), PathError<T>> {
         self.set_leaving(leg, FirstSeg::Arc, p)?;
-        self.verts.push((p, None));
+        self.verts.push(Vertex::at(p));
         Ok(())
     }
 }
@@ -3541,7 +3555,7 @@ impl<T: Real> Core<T> {
     fn head(&self) -> Result<Point2<T>, PathError<T>> {
         self.verts
             .last()
-            .map(|&(pos, _)| pos)
+            .map(|v| v.at)
             .ok_or(PathError::UnderdeterminedLeg {
                 site: "head of an empty chain",
             })
@@ -3559,7 +3573,7 @@ impl<T: Real> Core<T> {
     fn cusp_on_a_line(&mut self) {
         if let Some(last) = self.verts.len().checked_sub(1)
             && last > 0
-            && self.verts[last - 1].1.is_none()
+            && self.verts[last - 1].arc.is_none()
         {
             self.cusps_on_lines.push(last);
         }
@@ -3569,8 +3583,10 @@ impl<T: Real> Core<T> {
     /// it would lie back over the leg ([`PathError::CuspDoublesBackOverLeg`]).
     fn cusps_leave_on_arcs(&self) -> Result<(), PathError<T>> {
         for &k in &self.cusps_on_lines {
-            if let Some(&(at, None)) = self.verts.get(k) {
-                return Err(PathError::CuspDoublesBackOverLeg { at });
+            if let Some(v) = self.verts.get(k)
+                && v.arc.is_none()
+            {
+                return Err(PathError::CuspDoublesBackOverLeg { at: v.at });
             }
         }
         Ok(())
@@ -3695,19 +3711,20 @@ impl<T: Real> Core<T> {
     /// made, as stored.
     fn stored_segment(&self, k: usize, tol: Option<Tol>) -> crate::DirectedLink<T> {
         let n = self.verts.len();
-        let (start, leaving) = self.verts[k];
-        match leaving {
-            None => {
-                let director = self.directors.get(k).copied().flatten();
-                (
-                    start,
-                    Segment::Line,
-                    director.map(crate::SegmentDirections::Line),
-                )
-            }
+        let Vertex {
+            at: start,
+            arc,
+            director,
+        } = self.verts[k];
+        match arc {
+            None => (
+                start,
+                Segment::Line,
+                director.map(crate::SegmentDirections::Line),
+            ),
             Some(built) => {
                 if let Some(tol) = tol {
-                    built.register(start, self.verts[(k + 1) % n].0, tol);
+                    built.register(start, self.verts[(k + 1) % n].at, tol);
                 }
                 (start, Segment::Arc(built.arc), built.directions())
             }
@@ -4540,7 +4557,7 @@ impl<T: Decide> Core<T> {
                 // verified at that construction (D1), so this re-read
                 // asks what validation asks of its shape and joints,
                 // not its consistency.
-                seg::build_constructed_seg(start, self.verts[(i + 1) % n].0, segment, band)
+                seg::build_constructed_seg(start, self.verts[(i + 1) % n].at, segment, band)
             };
             // A recorded index always names a vertex of the chain it was
             // recorded on: `record_fillet_arc` reads `verts.len() - 1`
@@ -4554,7 +4571,7 @@ impl<T: Decide> Core<T> {
                 .ok_or(PathError::UnderdeterminedLeg {
                     site: "a recorded fillet arc outside the chain it was recorded on",
                 })?;
-            let turn = match self.verts[leaving].1 {
+            let turn = match self.verts[leaving].arc {
                 Some(built) => built.arc.sweep,
                 None => {
                     return Err(PathError::UnderdeterminedLeg {
@@ -4649,8 +4666,9 @@ impl<T: Decide> Core<T> {
         self.fillets_carry_their_tangency(tol)?;
         let band = linear_band(tol)?;
         let n = self.verts.len();
-        for (k, &(start, leaving)) in self.verts.iter().enumerate() {
-            if let Some(built) = leaving {
+        for (k, v) in self.verts.iter().enumerate() {
+            let start = v.at;
+            if let Some(built) = v.arc {
                 let piece =
                     self.pieces
                         .get(k)
@@ -4664,7 +4682,7 @@ impl<T: Decide> Core<T> {
                         site: "an arc segment named by a step the program does not hold",
                     },
                 )?;
-                arc_reads_back(built, start, self.verts[(k + 1) % n].0, band, piece, verb)?;
+                arc_reads_back(built, start, self.verts[(k + 1) % n].at, band, piece, verb)?;
             }
         }
         Ok(self.finish(tol))
@@ -4736,7 +4754,7 @@ impl<T: Decide> Core<T> {
                 self.set_leaving(Some(trims.fillet()), FirstSeg::Arc, trims.t2)?;
                 debug_assert_eq!(leaving, self.verts.len() - 1, "{PAIRED}");
                 match self.verts.first_mut() {
-                    Some((v0, _)) => *v0 = trims.t2,
+                    Some(v0) => v0.at = trims.t2,
                     None => {
                         return Err(PathError::UnderdeterminedLeg {
                             site: "seam fillet on an empty chain",
@@ -4935,7 +4953,7 @@ impl<T: Decide> Core<T> {
         if kind == ArrivalKind::Seam {
             self.set_leaving(Some(built), FirstSeg::Arc, trims.t2)?;
             match self.verts.first_mut() {
-                Some((v0, _)) => *v0 = trims.t2,
+                Some(v0) => v0.at = trims.t2,
                 None => {
                     return Err(PathError::UnderdeterminedLeg {
                         site: "seam fillet on an empty chain",

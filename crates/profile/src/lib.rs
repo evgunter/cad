@@ -441,7 +441,19 @@ impl<T: Real> BuiltArc<T> {
 
     /// The same arc, with the unit radials at its two ends its
     /// construction holds.
+    ///
+    /// **Only an arc whose facts are registered records radials**: a
+    /// constructed loop's directions are trusted at validate, and what
+    /// makes that sound is the registration of them beside the endpoint
+    /// facts ([`Arc2::register_radials`]). A construction that holds its
+    /// endpoints only to a decision has no radials to give, so asking
+    /// for one is a kernel defect, refused here, live in release.
     pub(crate) fn radial(self, radials: [Vec2<T>; 2]) -> Self {
+        assert_eq!(
+            self.facts,
+            Facts::Registered,
+            "an arc records radials only where its construction registers its facts"
+        );
         Self {
             radials: Some(radials),
             ..self

@@ -201,6 +201,22 @@ use geom_core::{
 pub const ARC_SCENE_RESOLUTION_RECOURSE: &str = "move the profile nearer the origin, or author the \
      arc with a smaller radius (a flatter arc stores its centre farther out)";
 
+/// The recourse of [`ProfileError::DirectionBelowSceneResolution`] for a
+/// line's director: its miss is read at the magnitude of its two
+/// vertices, so moving the profile nearer the origin is what shrinks it,
+/// and a segment that records no direction has it decided from its
+/// vertices, which reads nothing at that magnitude.
+const DIRECTOR_SCENE_RESOLUTION_RECOURSE: &str = "move the profile nearer the origin, or record \
+     no direction on the segment and let validation decide it from its vertices";
+
+/// The recourse of [`ProfileError::DirectionBelowSceneResolution`] for an
+/// arc's radial: its miss is read at the magnitude of the centre and the
+/// vertex, so a far centre (a flat arc's) raises it as much as a far
+/// profile does.
+const RADIAL_SCENE_RESOLUTION_RECOURSE: &str = "move the profile nearer the origin, author the \
+     arc with a smaller radius (a flatter arc stores its centre farther out), or record no \
+     direction on it and let validation decide it from its vertices";
+
 /// The recourse of an undecided read in the path door's read-back of a
 /// constructed arc (`seg::read_back_arc`): the read sits inside the
 /// band. Moving the profile nearer the origin shrinks the scale the read
@@ -315,6 +331,27 @@ pub enum RecordedDirection {
     /// The directions are the other kind's: a director on an arc, or
     /// radials on a line.
     Kind,
+}
+
+impl RecordedDirection {
+    /// What resolves a reading of this direction the scene cannot make
+    /// ([`ProfileError::DirectionBelowSceneResolution`]).
+    fn scene_resolution_recourse(self) -> &'static str {
+        match self {
+            Self::Director | Self::Kind => DIRECTOR_SCENE_RESOLUTION_RECOURSE,
+            Self::StartRadial | Self::EndRadial => RADIAL_SCENE_RESOLUTION_RECOURSE,
+        }
+    }
+
+    /// The direction as a noun.
+    fn noun(self) -> &'static str {
+        match self {
+            Self::Director => "director",
+            Self::StartRadial => "start radial",
+            Self::EndRadial => "end radial",
+            Self::Kind => "pair of directions of the other kind",
+        }
+    }
 }
 
 impl fmt::Display for RecordedDirection {
@@ -566,6 +603,16 @@ pub enum ProfileError {
         /// Which direction.
         which: RecordedDirection,
     },
+    /// A segment's recorded direction is not a unit to rounding
+    /// (`segment_direction_length`): the format's directions are units,
+    /// and a table's is checked to be one before it is read against its
+    /// vertices.
+    DirectionNotUnit {
+        /// The offending segment.
+        at: SegmentRef,
+        /// Which direction.
+        which: RecordedDirection,
+    },
     /// `segment_direction` read a recorded direction off its vertex at a
     /// magnitude where `f64` rounding alone is past the band
     /// (`segment_direction_resolution`), so the direction is refused as
@@ -743,7 +790,15 @@ impl fmt::Display for ProfileError {
             } => write!(
                 f,
                 "{at} records a direction this scene's magnitude cannot read, as {which} by \
-                 {margin} (headroom {headroom}). Recourse: {ARC_SCENE_RESOLUTION_RECOURSE}"
+                 {margin} (headroom {headroom}). Recourse: {}",
+                which.scene_resolution_recourse()
+            ),
+            Self::DirectionNotUnit { at, which } => write!(
+                f,
+                "{at} records a {} that is not a unit. Recourse: author the segment through the \
+                 path lattice, which records the unit directions its verbs drew it along, or \
+                 record none and let validation decide them from its vertices",
+                which.noun()
             ),
             Self::InconsistentArc { at, check } => write!(
                 f,
@@ -1299,11 +1354,21 @@ impl<T: geom_core::spline::SpanLocate> ValidatedProfile<T> {
     /// turns, the joint sets — carried. The decisions were made along
     /// this channel (C6), so they hold of it as they hold of the form.
     ///
+    /// **A recorded direction is the one exception to "no single point
+    /// refuses".** Where its components are points they are read as
+    /// they are. Where they are not (validation's own mint of a quotient
+    /// over points, or a verb's direction over a box), the channel's
+    /// direction is minted again at the channel's own points by the one
+    /// mint validation uses (`seg::mint_director`, `seg::mint_radial`),
+    /// so it agrees with what the `f64` witness stores to that mint's
+    /// rounding.
+    ///
     /// # Errors
     ///
-    /// [`ValueNotAPoint`] naming the first value with no single point
-    /// (poison, or an enclosure wider than a point): a canonical form's
-    /// values are validated ones, so there is no `f64` form to mint.
+    /// [`ValueNotAPoint`] naming the first stored scalar other than a
+    /// direction with no single point (poison, or an enclosure wider
+    /// than a point): a canonical form's values are validated ones, so
+    /// there is no `f64` form to mint.
     pub fn value_channel(&self) -> Result<ValidatedProfile<f64>, ValueNotAPoint> {
         let point2 =
             |p: Point2<T>, site: ValueNotAPoint| match (p.x.point_value(), p.y.point_value()) {
@@ -1353,20 +1418,24 @@ impl<T: geom_core::spline::SpanLocate> ValidatedProfile<T> {
                         _ => mint,
                     };
                     let directions = match (s.directions, kind) {
-                        (SegmentDirections::Line(d), _) => {
-                            SegmentDirections::Line(vec2(d, (end - start) / start.distance(end)))
+                        (SegmentDirections::Line(d), SegmentKind::Line) => {
+                            let frame = seg::ChordFrame::of(start, end);
+                            SegmentDirections::Line(vec2(
+                                d,
+                                seg::mint_director(frame.chord, frame.unit),
+                            ))
                         }
                         (
                             SegmentDirections::Arc { start: rs, end: re },
                             SegmentKind::Arc { arc, .. },
-                        ) => {
-                            let radial = |p: Point2<f64>| (p - arc.centre) / arc.rim(p);
-                            SegmentDirections::Arc {
-                                start: vec2(rs, radial(start)),
-                                end: vec2(re, radial(end)),
-                            }
-                        }
-                        (SegmentDirections::Arc { .. }, SegmentKind::Line) => return Err(site),
+                        ) => SegmentDirections::Arc {
+                            start: vec2(rs, seg::mint_radial(arc, start)),
+                            end: vec2(re, seg::mint_radial(arc, end)),
+                        },
+                        (directions, kind) => unreachable!(
+                            "a validated segment records the directions of its own kind: \
+                             {directions:?} on {kind:?}"
+                        ),
                     };
                     Ok(ValidatedSegment {
                         start,
@@ -2068,6 +2137,7 @@ fn seg_refusal<T: Real>(
         SegIssue::Shape(ShapeIssue::NearFull { .. }) => ProfileError::NearFullArc(at),
         SegIssue::Shape(ShapeIssue::Escalated(source)) => escalated(source),
         SegIssue::Inconsistent { check } => ProfileError::InconsistentArc { at, check },
+        SegIssue::DirectionNotUnit { which } => ProfileError::DirectionNotUnit { at, which },
         SegIssue::DirectionInconsistent { which } => {
             ProfileError::InconsistentDirection { at, which }
         }

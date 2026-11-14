@@ -235,6 +235,8 @@ gates! {
     SegmentDirectionSign => "segment_direction_sign", Lever(COINCIDENCE_RECOURSE), "whether the quantity that signs a direction is positive or negative";
     /// How far a table segment's recorded direction, walked its own length from the segment's start (a line) or its centre (an arc's radial), lands from the vertex it points at.
     SegmentDirection => "segment_direction", Sized(COINCIDENCE_RECOURSE), "whether a segment's recorded direction points at its vertex";
+    /// A table's recorded direction's length less one, against a band of rounding: the format's directions are units.
+    SegmentDirectionLength => "segment_direction_length", Sized(COINCIDENCE_RECOURSE), "whether a segment's recorded direction is a unit";
     /// The magnitude a recorded direction's miss was read at, against the one where its f64 rounding reaches the band.
     SegmentDirectionResolution => "segment_direction_resolution", Lever(ARC_SCENE_RESOLUTION_RECOURSE), "whether the scene can read a recorded direction's miss of its vertex at its magnitude";
     /// How far apart two straight segments' projections lie along the first one's line.
