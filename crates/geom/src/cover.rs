@@ -1480,6 +1480,13 @@ impl<T: Real> Arc<T> {
     /// the site's azimuth where the window holds that azimuth,
     /// `√(h² + (ρ_at − |ρ̄|)²)`, and the nearer end where it does not;
     /// every term is a distance, so none cancels near the arc.
+    ///
+    /// The whole conic also lies within `dev` of that circle, so in the
+    /// annulus between `|ρ̄| − dev` and `|ρ̄| + dev` about its centre (its
+    /// semi-axes, in an orthonormal frame), and the site is no nearer than
+    /// `√(h² + (||ρ_at − |ρ̄|| − dev)²)`, the gap clipped at zero: exact on
+    /// an ellipse beside its centre and off its plane, where the arc's
+    /// floor less `dev` is not.
     fn near(&self, c: &Circle<T>) -> T {
         let in_azimuth = (c.h.powi(2) + (c.off_axis - c.rho.abs()).powi(2)).sqrt();
         let ends = c.end(self.window.lo).min(c.end(self.window.hi));
@@ -1487,7 +1494,8 @@ impl<T: Real> Arc<T> {
         let near = ArcWindow::new(self.window.lo, self.window.hi)
             .crest_outside(x, y)
             .select_le_zero(in_azimuth, ends);
-        (near - c.dev).max(T::zero())
+        let gap = ((c.off_axis - c.rho.abs()).abs() - c.dev).max(T::zero());
+        (near - c.dev).max((c.h.powi(2) + gap.powi(2)).sqrt())
     }
 
     /// **The farthest distance from the site, as a distance**: the lesser
