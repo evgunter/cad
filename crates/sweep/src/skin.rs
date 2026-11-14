@@ -1903,8 +1903,10 @@ impl PathCarry {
     /// second reflection's margin. A step whose two tangents are equal
     /// bit for bit is the identity with no rounding, as the exact law
     /// makes it (the second reflection is then the first). The carried
-    /// rotation `Cᵢ` takes the start reference `r₀`, a unit vector
-    /// across the start tangent, to the station's reference `rᵢ`.
+    /// rotation `Cᵢ` takes the start reference `r₀` (the world `x̂`
+    /// aimed along the start tangent, [`RigidMotion::aimed`]) to the
+    /// station's reference `rᵢ`. `r₀` cancels from every station's
+    /// rotation `Fᵢ∘F₀⁻¹` (`Self::minted`) up to rounding.
     ///
     /// Three decisions, each under the band:
     ///
@@ -1948,13 +1950,11 @@ impl PathCarry {
         let not_finite = |station| move |_| SkinError::StationNotFinite { station };
         let half = Turns::new(1, 2).unwrap_or_else(|| unreachable!("a nonzero denominator"));
         let o = Point3::origin();
-        let start = samples[0].1.orthonormal_basis().0;
-        let span = |t: f64| {
-            path.knot_values()
-                .structure_f64_interim()
-                .span_at(t)
-                .map(|s| s.first_control())
-        };
+        let start = RigidMotion::aimed(o, samples[0].1)
+            .map_err(not_finite(0))?
+            .u()
+            .get();
+        let span = |t: f64| path.span_at(t).map(|w| w.first_control());
         let mut turn: Option<RigidMotion<f64>> = None;
         let mut selected = vec![Selected {
             at: at[0],
@@ -2135,7 +2135,10 @@ fn still<T: Decide>(
     let (k, d) = (kept.get(), t.get() - kept.get());
     let encloses = [(k.x, selected.x), (k.y, selected.y), (k.z, selected.z)]
         .into_iter()
-        .all(|(x, s)| x.structure_bracket().is_some_and(|(lo, hi)| lo <= s && s <= hi));
+        .all(|(x, s)| {
+            x.structure_bracket()
+                .is_some_and(|(lo, hi)| lo <= s && s <= hi)
+        });
     if !encloses {
         return Ok(false);
     }
