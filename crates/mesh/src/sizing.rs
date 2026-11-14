@@ -566,7 +566,7 @@ pub(crate) const SPHERE_CELL_ASPECT: f64 = core::f64::consts::SQRT_2;
 /// window's end nearest it, `s` that end's height over the radius. The
 /// window is each boundary circle's own height range along the axis,
 /// `c + a·cos t + b·sin t` in its parameter, read in closed form over the
-/// edge's interval (`trimmed::harmonic_range`): a tilted circle's
+/// edge's interval (`geom_brep::harmonic_range`): a tilted circle's
 /// latitude turns inside its interval, so vertices alone do not bound
 /// it, and the curved lane's iso faces (rims constant, meridians
 /// monotone) read the same window from the same arithmetic. The chord
@@ -613,7 +613,7 @@ pub(crate) fn sphere_face_widest_cos(
         let c = height(cc);
         let a = height(curve.carrier().eval(0.0)) - c;
         let b = height(curve.carrier().eval(core::f64::consts::FRAC_PI_2)) - c;
-        let (z0, z1) = crate::trimmed::harmonic_range(c, a, b, curve.params());
+        let (z0, z1) = geom_brep::harmonic_range(c, a, b, curve.params());
         lo = lo.min(z0);
         hi = hi.max(z1);
     }
@@ -634,9 +634,8 @@ pub(crate) fn sphere_face_widest_cos(
 /// minor angle φ — for chord deviation ≤ `target` on every triangle
 /// of an `h_u × h_v` cell grid, from the doubly-curved interpolation
 /// bound below. Shared by the curved-face grid sizing and the chord
-/// pass's adjacent-torus tightening ([`grid_boundary_step`]) so a
-/// boundary polyline and the interior grid agree on the rows they
-/// share.
+/// pass's one rule (`chords::tighten`) so a boundary polyline and the
+/// interior grid agree on the rows they share.
 ///
 /// # The bound (proved; [`crate::cert::cert_torus`] is its forward form)
 ///
@@ -750,90 +749,6 @@ pub(crate) fn torus_grid_steps(target: f64, major: f64, minor: f64) -> (f64, f64
     // for the mixed one.
     let share = target / (2.0 * (1.0 + beta));
     (curvature_step(share, a), curvature_step(share, minor))
-}
-
-/// The grid step a circle edge adjacent to face `fk` must be chorded
-/// within, if that face is the curved lane's
-/// ([`crate::tessellate::lane_of`]) and its theorem is about a grid its
-/// rims have to sit on (`crates/mesh/README.md` `[mesh.sizing]`, *rim
-/// chords use the face's grid step*): the torus's
-/// [`torus_grid_steps`], the sphere's [`sphere_grid_steps`] at the
-/// face's widest latitude ([`sphere_face_widest_cos`]), each in the
-/// edge's own direction — `h_u` for a rim (its carrier parameter is
-/// the azimuth), `h_v` for a meridian (the minor angle or the
-/// latitude); and the cone's [`cone_grid_step`] at the face's largest
-/// rim ([`cone_face_rho_max`]), every circle a cone carries being a
-/// rim. Every other face answers `None`, a face another lane takes
-/// included: its theorem is not about this grid.
-///
-/// The rim/meridian rule is [`topo::chart_iso::classify_kind`]'s — the
-/// same rule the walk classifies the same edge with when it lays the
-/// boundary polygon on the face's grid, so the count sized here and
-/// the grid row it lands on agree by construction rather than by a
-/// second copy of the threshold. That rule is total on circle
-/// carriers (`|n · axis| > 0.5` splits rim from meridian, every
-/// direction falling on one side), so nothing refuses HERE: a circle
-/// on a sphere that is neither iso-curve and stores its projected image
-/// routes its face to the trimmed lane's sphere arm, which this
-/// function answers `None` for; any other non-iso circle on a torus or
-/// a sphere — a Villarceau circle, an oblique small circle with no
-/// stored image — is refused by the face door
-/// (`geom_brep::props::require_iso_rectangle`, through
-/// [`crate::curved`]) before any grid is built on the face, and a
-/// whole-body refusal is what a mis-tightened count on such an edge
-/// could never outlive. The `None` the classifier reserves for conic
-/// and spline carriers is unreachable from a circle and is surfaced
-/// typed rather than defaulted, so a widened classifier cannot make
-/// this arm silently pick a direction.
-pub(crate) fn grid_boundary_step(
-    body: &topo::Body<f64>,
-    fk: topo::FaceKey,
-    curve: &geom_brep::EdgeCurve<f64>,
-    edge: topo::EdgeKey,
-    target: f64,
-) -> Result<Option<f64>, TessellateError> {
-    let surface = crate::tessellate::face_surface(body, fk)?;
-    if crate::tessellate::lane_of(body, fk, surface)? != crate::tessellate::Lane::Curved {
-        return Ok(None);
-    }
-    let steps = match *surface {
-        geom::Surface::Torus {
-            major_radius,
-            minor_radius,
-            ..
-        }
-        | geom::Surface::Spindle {
-            major_radius,
-            minor_radius,
-            ..
-        } => torus_grid_steps(target, major_radius, minor_radius),
-        geom::Surface::Sphere { radius, .. } => {
-            sphere_grid_steps(target, radius, sphere_face_widest_cos(body, fk, surface)?)
-        }
-        geom::Surface::Cone { half_angle, .. } => {
-            return Ok(Some(cone_grid_step(
-                target,
-                half_angle,
-                cone_face_rho_max(body, fk)?,
-            )));
-        }
-        _ => return Ok(None),
-    };
-    let Some(chart) = topo::chart::Chart::of(surface) else {
-        unreachable!(
-            "Chart::of answers every torus, sheet and sphere, and this is one: {surface:?}"
-        )
-    };
-    match topo::chart_iso::classify_kind(&chart, curve) {
-        Some(topo::chart_iso::TravKind::Rim { .. }) => Ok(Some(steps.0)),
-        Some(topo::chart_iso::TravKind::Meridian { .. }) => Ok(Some(steps.1)),
-        None => Err(TessellateError::UnsupportedCurve {
-            edge,
-            note: "a circle edge on a torus or sphere that the iso-curve classifier left \
-                   unclassified — neither rim nor meridian, so no grid direction sizes its \
-                   chords",
-        }),
-    }
 }
 
 /// A cone face's largest radius: the largest radius of the circle

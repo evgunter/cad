@@ -2,11 +2,11 @@
 id: one-chart-table-and-the-lane-takes-every-analytic-chart
 kind: unit
 title: one table row per chart, and the trimmed lane meshes a cone, torus or spindle face from it
-status: parked
+status: dispatched
 opened: 2026-11-14
 priority: P0
 cost: H
-blocked_on: [one-chord-rule-over-each-boundary-images-speed-bound]
+branch: tesslane/chart-table
 ---
 
 
