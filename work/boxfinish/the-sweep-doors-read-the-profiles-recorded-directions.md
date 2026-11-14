@@ -65,6 +65,17 @@ things to this unit, because each needs a door that reads a direction.
   `Arc2::carrier_end`, which divides by the rim, and should read the
   radial too.
 
+- **A table's director is unit only at its chord's lever.** The profile
+  accepts a written direction `d` where ‖o + ℓ·d − p‖ is within the
+  band, which bounds its turn and `(|d| − 1)·ℓ`: check 1's measure for
+  a `u_ref` at radius ℓ. Check 1 length-reads no plane, so a door that
+  stores a table's director as a wall's normal stores one that may be
+  off unit by band/ℓ (measured in the review: 3% on a 30ε side).
+  Only fixtures and `into_loop` write such a table today. The door
+  either takes its normal from the frame turning the director and says
+  what reads its length, or this is RESTDATUM's
+  `unlevered-frame-conventions-are-uncertified-at-rest`; say which.
+
 **What this unit will not finish:** profiles whose directions are not
 recorded (`fillet-side-and-centre-arcs-and-off-axis-hops-record-no-direction`).
 Its closing tests say whether the tour's stop is among them.
