@@ -1524,7 +1524,7 @@ mod tests {
     }
 
     fn ruled(a: &Surface<f64>, b: &Surface<f64>) -> (RuledCylinders<f64>, f64) {
-        let region = ExtentBall::of_sphere(Point3::origin(), 3.0);
+        let region = ExtentBall::fixture(Point3::origin(), 3.0);
         let pose = CylinderCylinderPose::decide(a, b, &Reach::Ball(region), band())
             .expect("two cylinders")
             .expect("a decided pose");
@@ -1632,7 +1632,7 @@ mod tests {
                 V3::at(Point3::origin())
             }
         }
-        let got = sweep(&Flat, ExtentBall::of_sphere(Point3::origin(), 1.0), band());
+        let got = sweep(&Flat, ExtentBall::fixture(Point3::origin(), 1.0), band());
         assert!(
             matches!(got, Err(SweepRefusal::Escalated(_))),
             "a turn in the band escalates: {got:?}"
@@ -1669,7 +1669,7 @@ mod tests {
         };
         let (upper, lower) = (ring(1.0), ring(-1.0));
         let both: Vec<Box3> = upper.iter().chain(&lower).copied().collect();
-        let ball = ExtentBall::of_sphere(Point3::new(d, 0.0, 0.2), big);
+        let ball = ExtentBall::fixture(Point3::new(d, 0.0, 0.2), big);
         assert!(
             super::coverage(&c, &s, ball, &both).is_ok(),
             "both rings' boxes cover every cell"
