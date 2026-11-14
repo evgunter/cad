@@ -1578,15 +1578,52 @@ fn op_of(a: &AtRestBody<f64>, b: &AtRestBody<f64>, op: &str) -> Body<f64> {
     Body::clone(&built.body().unwrap_or_else(|| panic!("{op}: a body")).body)
 }
 
-/// Each `(op, δ, want)`: op `op` of `a` and `b` answers `want` at `δ`.
-fn assert_ops(what: &str, a: &AtRestBody<f64>, b: &AtRestBody<f64>, want: &[(&str, f64, Got)]) {
+/// Each `(op, δ, want)`: op `op` of `a` and `b` answers `want` at `δ`;
+/// or, where `refuses` names the boolean's refusal of the pose at this
+/// run's ε, every op refuses to build with that variant.
+fn assert_ops(
+    what: &str,
+    a: &AtRestBody<f64>,
+    b: &AtRestBody<f64>,
+    refuses: Option<&str>,
+    want: &[(&str, f64, Got)],
+) {
+    let runs = six(a, b);
     for (op, delta, want) in want {
-        assert_eq!(
-            &got(&op_of(a, b, op), *delta),
-            want,
-            "{what}, {op}, δ = {delta:e}"
-        );
+        let (_, run) = runs
+            .iter()
+            .find(|(name, _)| name == op)
+            .expect("one of the six ops");
+        match (run, refuses) {
+            (Ok(built), None) => {
+                let body = &built
+                    .body()
+                    .unwrap_or_else(|| panic!("{what}, {op}: a body"))
+                    .body;
+                assert_eq!(&got(body, *delta), want, "{what}, {op}, δ = {delta:e}");
+            }
+            (Err(e), Some(variant)) => {
+                let text = format!("{e:?}");
+                assert!(
+                    text.starts_with(variant),
+                    "{what}, {op}: the boolean refuses {variant} at ε {:e}, got {text}",
+                    tol().eps()
+                );
+            }
+            (Ok(_), Some(variant)) => panic!(
+                "{what}, {op}: builds at ε {:e}, where it refused {variant}",
+                tol().eps()
+            ),
+            (Err(e), None) => panic!("{what}, {op}: the op builds, got {e:?}"),
+        }
     }
+}
+
+/// The boolean's refusal of a pose at this run's ε, by variant name,
+/// from `by_eps`'s `(ε, variant)` rows; `None` where it builds.
+fn refused_at(by_eps: &[(f64, &'static str)]) -> Option<&'static str> {
+    let eps = tol().eps();
+    by_eps.iter().find(|(e, _)| *e == eps).map(|&(_, v)| v)
 }
 
 /// The deck translation the door moves each ring of each curved face of
@@ -1691,6 +1728,13 @@ fn a_ring_stored_a_period_away_meshes_where_the_door_moves_it() {
 ///   rings the ball's face about 0.006 rad from its pole, and at
 ///   `δ = 2·10⁻²` a triangle folds over the ring's chord there; finer δ
 ///   mesh.
+///
+/// **At each ε.** Where the boolean builds, every answer is the same at
+/// ε `10⁻⁶` and `10⁻¹²` as at the default. Some poses are past what the
+/// boolean builds there, and refuse to: at `10⁻⁶`, the cone at
+/// `s = 0.01` (`Escalated`, on `PierceCurvature`) and `10⁻³`
+/// (`CurvedPierceUnsupported`) and the torus pose (`Escalated`); at
+/// `10⁻¹²`, the cone at `s ≤ 0.03` (`CurvedPierceUnsupported`).
 #[test]
 fn ringed_curved_faces_that_still_refuse_answer_by_cause() {
     let ringed = |want: [Got; 3]| -> Vec<(&'static str, f64, Got)> {
@@ -1705,17 +1749,33 @@ fn ringed_curved_faces_that_still_refuse_answer_by_cause() {
             .collect()
     };
     let cone = || Got::CertificateExceeded(SurfaceKind::Cone);
-    for (s, want) in [
-        (0.1, [Got::Meshed, cone(), cone()]),
-        (0.03, [Got::Meshed, cone(), cone()]),
-        (0.01, [cone(), cone(), cone()]),
+    let unsupported = "CurvedPierceUnsupported";
+    for (s, refuses, want) in [
+        (0.1, refused_at(&[]), [Got::Meshed, cone(), cone()]),
+        (
+            0.03,
+            refused_at(&[(1e-12, unsupported)]),
+            [Got::Meshed, cone(), cone()],
+        ),
+        (
+            0.01,
+            refused_at(&[(1e-6, "Escalated"), (1e-12, unsupported)]),
+            [cone(), cone(), cone()],
+        ),
         (
             1e-3,
+            refused_at(&[(1e-6, unsupported), (1e-12, unsupported)]),
             core::array::from_fn(|_| Got::Unread(SurfaceKind::Cone, "undecided")),
         ),
     ] {
         let (a, b) = t1_toward_the_apex(s);
-        assert_ops(&format!("T1's box at s = {s}"), &a, &b, &ringed(want));
+        assert_ops(
+            &format!("T1's box at s = {s}"),
+            &a,
+            &b,
+            refuses,
+            &ringed(want),
+        );
     }
     let slab = finished(
         "the slab",
@@ -1736,6 +1796,7 @@ fn ringed_curved_faces_that_still_refuse_answer_by_cause() {
         "the holed donut and the stub turned 0.33",
         &holed,
         &stub,
+        refused_at(&[(1e-6, "Escalated")]),
         &ringed(core::array::from_fn(|_| {
             Got::Unread(SurfaceKind::Torus, "undecided")
         })),
@@ -1761,6 +1822,7 @@ fn ringed_curved_faces_that_still_refuse_answer_by_cause() {
         "the near-pole tube on the ball (A the tube)",
         &tube,
         &ball,
+        None,
         &want,
     );
 }
@@ -1771,7 +1833,8 @@ fn ringed_curved_faces_that_still_refuse_answer_by_cause() {
 /// T1's cone and its box at `s = 0.03` ([`t1_toward_the_apex`]): A ∩ B
 /// and B ∩ A keep no ring, `tessellate` returns `Ok` at `δ = 5·10⁻³`,
 /// and `check_mesh` refuses an edge four triangles use. The same on
-/// main.
+/// main, and at ε `10⁻⁶`; at `10⁻¹²` the boolean refuses the pose
+/// (`CurvedPierceUnsupported`).
 #[test]
 fn a_ringless_cone_face_near_its_apex_meshes_an_edge_of_four() {
     let (a, b) = t1_toward_the_apex(0.03);
@@ -1779,6 +1842,7 @@ fn a_ringless_cone_face_near_its_apex_meshes_an_edge_of_four() {
         "T1's box at s = 0.03",
         &a,
         &b,
+        refused_at(&[(1e-12, "CurvedPierceUnsupported")]),
         &[
             ("A ∩ B", 5e-3, Got::NonManifold(4)),
             ("B ∩ A", 5e-3, Got::NonManifold(4)),
