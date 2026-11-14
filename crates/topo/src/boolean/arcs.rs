@@ -6,7 +6,7 @@ use geom_core::{Band, Decide, Indeterminate, Margin, Sign, Vec3};
 
 use crate::body::Body;
 use crate::entity::{EdgeKey, EntityId, VertexKey};
-use crate::live::{linked, proven};
+use crate::live::{Proven, linked, proven};
 use crate::validate::decide;
 
 /// One circle arc [`arcs_along`] found: the edge, the vertex it arrives
@@ -39,6 +39,7 @@ pub(super) fn arcs_along<T: Decide>(
     band: Band,
 ) -> Result<Vec<ArcStep<T>>, Indeterminate> {
     let orbit = body.vertex_orbit_linked(u);
+    let at = body.resolve_vertex_point(u, Proven);
     let d = dir.normalize();
     let mut found: Vec<ArcStep<T>> = Vec::new();
     for he in orbit {
@@ -59,10 +60,11 @@ pub(super) fn arcs_along<T: Decide>(
         };
         let (tangent, arrival) = curve.walk_tangents(he == edge.he_plus);
         let tangent = tangent.normalize();
-        // The arc's own region: the tangent's tilt moves the arc, not its
-        // whole circle.
-        let arm = geom_brep::ExtentBall::of_covered(
+        // A tilt of the tangent about `u` moves the arc, so it is levered
+        // at the arc's farthest reach from `u`.
+        let arm = geom_brep::ExtentBall::of_cover_from(
             crate::cover::edge_cover_linked(body, e, edge).as_ref().ok(),
+            at,
         )
         .lever();
         // Off the tangent's line rules the arc out whatever its
@@ -140,5 +142,41 @@ mod rows {
         // Ahead with its offset in band: neither rules it out.
         assert!(arcs(Vec3::new(0.0, 1.0, tilt)).is_err(), "ahead, in band");
         assert_eq!(arcs(Vec3::unit_y()).map(|a| a.len()), Ok(1), "along it");
+    }
+
+    /// **A short arc of a large circle is levered at its own reach from
+    /// the vertex.** The bottom arc of a sheet of radius `10³` over
+    /// `10⁻³` rad leaves `(10³, 0, 0)` along `+y` and reaches about a
+    /// metre from it. A direction tilted `ε/2` off its tangent moves the
+    /// arc by `ε/2` over that metre, in the band, so the arc is found
+    /// along it; levered at its whole circle's ball, radius `10³`, the
+    /// same tilt reads `500ε`, past `Kε`, and rules the arc out.
+    #[test]
+    fn a_short_arc_of_a_large_circle_is_levered_at_its_own_reach() {
+        let tol = Tol::witness();
+        let band = Band::linear(tol).expect("the witness band");
+        let mut y = Body::<f64>::new();
+        cyl_wall_sheet(
+            &mut y,
+            CylFrame::canonical(1e3),
+            (0.0, 1e-3),
+            (0.0, 1.0),
+            tol,
+        );
+        let p = y
+            .vertex_points()
+            .find(|(_, q)| (*q - Point3::new(1e3, 0.0, 0.0)).norm() < 1e-9)
+            .map(|(k, _)| k)
+            .expect("the sheet's corner");
+        let tilt = band.zero() / 2.0;
+        assert!(
+            1e3 * tilt > band.escalate(),
+            "the whole circle's lever leaves the band"
+        );
+        assert_eq!(
+            arcs_along(&y, p, Vec3::new(0.0, 1.0, tilt), band).map(|a| a.len()),
+            Ok(1),
+            "the arc tilted within the band over its own reach"
+        );
     }
 }

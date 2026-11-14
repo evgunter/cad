@@ -170,9 +170,11 @@
 //!   REFUSE more, never place a crossing wrongly.
 //! - `boolean::arcs`'s arcs along a tangent (`arcs_along`, each circle
 //!   edge's [`edge_cover_linked`](crate::cover::edge_cover_linked) read
-//!   as a ball) sizes the lever its tangent's alignment is read on: a
-//!   bigger cover lengthens it, so the alignment escalates more, never
-//!   rules an arc in or out wrongly.
+//!   as its farthest distance from the vertex) sizes the lever its
+//!   tangent's tilt is read over, a two-sided row: a bigger cover reads
+//!   a tilt as more, so it **rules out** an arc the band holds along the
+//!   tangent; a cover TIGHTER than the arc is the unsound direction, which
+//!   reads a departing arc as along it.
 //! - the face reaches (`crate::cover::face_reach_from`,
 //!   `face_range_along`, `face_axial_range`, `cone_face_reach`, each a
 //!   read of [`face_cover`]) size the levers the split's sector rows,

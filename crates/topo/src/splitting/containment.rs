@@ -1393,25 +1393,19 @@ pub(crate) fn carrier_loop<T: Decide>(
 }
 
 /// **A lower bound on the distance from `q` to the arc `span` of
-/// `carrier`**, read on the carrier with no decision, and the reading
-/// that gave it ([`ArcFloor`]): a line's own segment
-/// ([`geom::Line::distance_within`]); any other carrier's cover over the
-/// span (its nearest distance, [`geom::cover::Cover::distance_range`]:
-/// a conic's own arc and its annulus), and a spiric's or a spline's
-/// arc's pieces past it ([`ArcPieces`]). `None` for a carrier with no
-/// cover over the span. The one home, over every carrier, of the
-/// question "is this edge clear of that point by more than a radius",
-/// which the clearance cell door and the boolean's touch gate both ask.
+/// `carrier`**, read on the carrier with no decision: its cover's nearest
+/// distance over the span ([`geom::cover::Cover::distance_range`]: a
+/// line's segment, a conic's own arc and its annulus), and a spiric's or
+/// a spline's arc's pieces past it ([`ArcPieces`]), each its own reading
+/// ([`ArcFloor`]). `None` for a carrier with no cover over the span. The
+/// one home, over every carrier, of the question "is this edge clear of
+/// that point by more than a radius", which the clearance cell door and
+/// the boolean's touch gate both ask.
 pub(crate) fn arc_distance_floor<T: Decide>(
     carrier: &geom::Curve3<T>,
     (t0, t1): (T, T),
     q: Point3<T>,
 ) -> Option<ArcFloor<'_, T>> {
-    if let geom::Curve3::Line(line) = *carrier {
-        return Some(ArcFloor::Segment(
-            line.distance_within(q, (t0.min(t1), t0.max(t1))),
-        ));
-    }
     // The carrier's half of an edge's cover: the callers read carrier
     // spans, some with no edge record behind them, and read their ends
     // as vertices of their own.
@@ -1420,8 +1414,9 @@ pub(crate) fn arc_distance_floor<T: Decide>(
         .distance_range(&Site::Point(q))
         .0;
     Some(match carrier {
+        geom::Curve3::Line(_) => ArcFloor::Segment(near),
         geom::Curve3::Circle(_) | geom::Curve3::Ellipse(_) => ArcFloor::Conic(near),
-        _ => ArcFloor::Ball {
+        geom::Curve3::Spiric { .. } | geom::Curve3::Nurbs(_) => ArcFloor::Ball {
             ball: near,
             pieces: ArcPieces {
                 carrier,
@@ -1437,7 +1432,7 @@ pub(crate) fn arc_distance_floor<T: Decide>(
 /// them apart.
 #[derive(Clone, Copy, Debug)]
 pub(crate) enum ArcFloor<'c, T: geom_core::Real> {
-    /// A line's distance to its segment.
+    /// A line's: its cover's nearest distance, its segment's.
     Segment(T),
     /// A conic's: its cover's nearest distance, which reads its arc and
     /// its whole annulus.
