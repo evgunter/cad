@@ -1130,13 +1130,13 @@ fn door_built() -> Vec<Named> {
 /// and the lift closes in the chart.** Over the reach probes' bodies
 /// (the spline section's two are
 /// [`the_spline_section_bodies_read_lifts_that_close`]), `common/`'s
-/// swept fixtures and the operands: `loop_lift` answers on all 213 loops
-/// of the 189 curved faces, the 24 rings among them. Each winds nothing
+/// swept fixtures and the operands: `loop_lift` answers on all 175 loops
+/// of the 151 curved faces, the 24 rings among them. Each winds nothing
 /// and returns to its start, through the face's turn along the pole or
-/// apex row where it passes one (34 loops), and its sampled polygon is
-/// simple and wound with the face ([`not_closing`]). The faces a seam
-/// closes (the washer's and the donut's walls) close the same way: the
-/// seam is walked twice, a period apart.
+/// apex row where it passes one (22 loops), and its sampled polygon is
+/// simple and wound with the face ([`not_closing`]). The 10 faces a
+/// seam closes (the washer's and the donut's walls) close the same way:
+/// the seam is walked twice, a period apart.
 #[test]
 fn every_loop_of_a_door_built_curved_face_has_a_lift_that_closes() {
     let facts = census(&door_built(), SAMPLES);
@@ -1145,11 +1145,11 @@ fn every_loop_of_a_door_built_curved_face_has_a_lift_that_closes() {
     assert_eq!(
         tally(&facts),
         rows(&[
-            ("Cone", 0, 0, 0, 0),
-            ("Cylinder", 0, 0, 0, 0),
-            ("Nurbs", 0, 0, 0, 0),
-            ("Sphere", 0, 0, 0, 0),
-            ("Torus", 0, 0, 0, 0),
+            ("Cone", 34, 0, 3, 11),
+            ("Cylinder", 68, 2, 12, 0),
+            ("Nurbs", 12, 0, 0, 0),
+            ("Sphere", 14, 0, 3, 11),
+            ("Torus", 23, 8, 6, 0),
         ]),
         "(chart, faces, seamed faces, rings, loops through a singular row)\n{}",
         table(&facts)
@@ -1168,7 +1168,7 @@ fn the_spline_section_bodies_read_lifts_that_close() {
     assert!(bad.is_empty(), "{}\n{}", bad.join("\n"), table(&facts));
     assert_eq!(
         tally(&facts),
-        rows(&[("Cylinder", 0, 0, 0, 0), ("Sphere", 0, 0, 0, 0)]),
+        rows(&[("Cylinder", 3, 0, 0, 0), ("Sphere", 3, 0, 0, 2)]),
         "(chart, faces, seamed faces, rings, loops through a singular row)\n{}",
         table(&facts)
     );
@@ -1193,21 +1193,26 @@ fn findings(body: &Body<f64>) -> Vec<String> {
     out
 }
 
-/// `(winding, closure joint)` of each loop of `facts`, in order.
-fn windings(facts: &[LoopFact]) -> Vec<(String, Joint)> {
+/// `(winding, closure joint)` of each loop of `facts`, in order; an
+/// open closure joint by its kind alone.
+fn windings(facts: &[LoopFact]) -> Vec<(String, String)> {
     facts
         .iter()
         .map(|f| {
             let c = f.chain.as_ref().expect("a lift");
-            (deck(c.winding), c.closure(f.chart))
+            let closure = match c.closure(f.chart) {
+                Joint::Open(..) => "Open".to_owned(),
+                joint => format!("{joint:?}"),
+            };
+            (deck(c.winding), closure)
         })
         .collect()
 }
 
 /// **`common/`'s Euler-door witnesses store no lift, and mint one.** As
-/// built, the first half-edge of every curved loop of the five stores no
-/// image and no joint element: `loop_lift` answers `LiftGap`, and
-/// `trim_polygon` would read every half-edge as rowless.
+/// built, the five store no image at all, and `loop_lift` answers
+/// `LiftGap` on every curved loop, naming a half-edge with no image and
+/// no joint element.
 /// `topo::mint_pcurves` accepts all five, and then:
 ///
 /// - the keyway and the slit close;
@@ -1215,21 +1220,29 @@ fn windings(facts: &[LoopFact]) -> Vec<(String, Joint)> {
 ///   inside it, ends a period from its start on both faces;
 /// - the pole-crossing half cap, whose arcs run through a pole mid-edge,
 ///   ends neither on its start nor a period from it: its winding is the
-///   involution, and the chain ends at `(u + π, π − v)` of its start,
-///   with latitudes up to `5π/6`;
+///   involution, the chain's start is its end moved by `(u ∓ π, π − v)`,
+///   and its latitudes run to `5π/6`, past the pole row;
 /// - the apex-crossing bow tie, whose generators run through the apex
 ///   mid-edge onto the mirror nappe, ends a period from its start.
 ///
 /// None of the five finishes; what `topo::finish` finds is pinned.
 #[test]
 fn the_unminted_witnesses_store_no_lift_and_mint_one() {
-    let unminted = census(&unminted_witnesses(), SAMPLES);
-    assert_eq!(unminted.len(), 10, "two curved faces a witness\n{}", table(&unminted));
+    let built = unminted_witnesses();
+    let stored: usize = built.iter().map(|(_, body)| body.pcurves().count()).sum();
+    assert_eq!(stored, 0, "the witnesses store no image as built");
+    let unminted = census(&built, SAMPLES);
+    assert_eq!(
+        unminted.len(),
+        10,
+        "two curved faces a witness\n{}",
+        table(&unminted)
+    );
     for f in &unminted {
         let gap = f.chain.as_ref().err().map(String::as_str);
         assert!(
             gap.is_some_and(|g| g.ends_with("image stored false, joint stored false")),
-            "{} is rowless at its first half-edge\n{}",
+            "{} has no lift\n{}",
             f.body,
             table(&unminted)
         );
@@ -1243,15 +1256,86 @@ fn the_unminted_witnesses_store_no_lift_and_mint_one() {
         })
         .collect();
     let facts = census(&minted, SAMPLES);
-    let read: Vec<(&str, Vec<(String, Joint)>, Vec<String>)> = minted
+    let read: Vec<(&str, Vec<(String, String)>, Vec<String>)> = minted
         .iter()
         .map(|(name, body)| {
             let own: Vec<LoopFact> = loops_of(name, body, SAMPLES);
             (name.as_str(), windings(&own), findings(body))
         })
         .collect();
-    let want: Vec<(&str, Vec<(String, Joint)>, Vec<String>)> = Vec::new();
-    assert_eq!(read, want, "\n{}", table(&facts));
+    let s = |text: &str| text.to_owned();
+    let closes = || vec![(s("(0,0)"), s("Meets")), (s("(0,0)"), s("Meets"))];
+    let a_period = || {
+        vec![
+            (s("(1,0)"), s("Periods(-1, 0)")),
+            (s("(-1,0)"), s("Periods(1, 0)")),
+        ]
+    };
+    let want = vec![
+        (
+            "keyway",
+            closes(),
+            vec![s("CurvedSenseInverted"), s("ScaffoldAtRest")],
+        ),
+        (
+            "oblique_lens",
+            a_period(),
+            vec![s("ChartSingularityNotAVertex"), s("ScaffoldAtRest")],
+        ),
+        ("slit", closes(), vec![s("ScaffoldingStrutVertex")]),
+        (
+            "pole_crossing_half_cap",
+            vec![(s("(0,0,σ)"), s("Open")), (s("(-1,0,σ)"), s("Open"))],
+            vec![
+                s("ChartSingularityNotAVertex"),
+                s("CurvedSenseInverted"),
+                s("ScaffoldAtRest"),
+            ],
+        ),
+        (
+            "apex_crossing_bowtie",
+            a_period(),
+            vec![s("ChartSingularityNotAVertex"), s("ScaffoldAtRest")],
+        ),
+    ];
+    assert_eq!(
+        read,
+        want,
+        "(witness, each loop's winding and closure joint, what finish finds)\n{}",
+        table(&facts)
+    );
+    for f in &facts {
+        let c = f.chain.as_ref().expect("a minted loop has a lift");
+        let (_, v) = c.hull();
+        match f.body.as_str() {
+            "pole_crossing_half_cap" => {
+                let Joint::Open(du, dv) = c.closure(f.chart) else {
+                    panic!("an open closure joint\n{}", table(&facts));
+                };
+                let (start, last) = (c.rows[0][0], c.rows[c.rows.len() - 1][SAMPLES]);
+                assert!(
+                    (du.abs() - PI).abs() < MEET
+                        && (start.1 - (PI - last.1)).abs() < MEET
+                        && (dv.abs() - 2.0 * PI / 3.0).abs() < MEET
+                        && (v.1 - 5.0 * PI / 6.0).abs() < MEET
+                        && !c.closes,
+                    "the half cap's start is the involution of its end\n{}",
+                    table(&facts)
+                );
+            }
+            "apex_crossing_bowtie" => assert!(
+                v.0 < -0.9 && v.1 > 0.9 && !c.closes,
+                "the bow tie's lift runs on both nappes\n{}",
+                table(&facts)
+            ),
+            "oblique_lens" => assert!(
+                c.forms == ["Projected", "Projected"] && v.0 > 0.0 && !c.closes,
+                "the lens's loop is two projected arcs about the north pole\n{}",
+                table(&facts)
+            ),
+            _ => assert!(c.closes, "{} closes\n{}", f.body, table(&facts)),
+        }
+    }
 }
 
 /// What the validators and `mesh::tessellate` answer on `body`: the
@@ -1342,7 +1426,25 @@ fn a_loop_of_whole_turn_rims_ends_a_period_from_its_start() {
         .iter()
         .map(|(name, body)| (name.as_str(), verdict(body)))
         .collect();
-    let want: Vec<(&str, (Vec<String>, [bool; 3], Vec<String>))> = Vec::new();
+    let ring = |chart: &str| vec![format!("RingOnCurvedFace on a {chart}"); 2];
+    let want = vec![
+        (
+            "the seamless pipe",
+            (Vec::new(), [true, true, true], ring("Cylinder")),
+        ),
+        (
+            "the seamless frustum",
+            (Vec::new(), [true, true, true], ring("Cone")),
+        ),
+        (
+            "the seamless torus band",
+            (
+                vec!["VolumeUncomputable".to_owned()],
+                [true, false, true],
+                ring("Torus"),
+            ),
+        ),
+    ];
     assert_eq!(
         read, want,
         "(findings of finish, [closed, geometric, pcurves] clean, the mesh at two δ)"
@@ -1533,11 +1635,27 @@ fn a_lift_runs_along_the_apex_row_through_the_faces_turn() {
             turn_table(&turns)
         );
     }
-    let want: Vec<(&str, f64, f64)> = Vec::new();
-    assert_eq!(
-        read,
-        want,
-        "(loop, the row's v, the step in u)\n{}",
+    let want = [
+        ("common::cone (outer)", 0.0, -PI),
+        ("common::cone (outer)", 0.0, -PI),
+        ("the T1 cone (outer)", 0.0, -PI),
+        ("the T1 cone (outer)", 0.0, -PI),
+        ("the funnel (outer)", 0.0, PI),
+        ("the funnel (outer)", 0.0, PI),
+        ("common::cone_wedge(1, 1) (outer)", 0.0, -1.0),
+        ("common::ball (outer)", -FRAC_PI_2, PI),
+        ("common::ball (outer)", FRAC_PI_2, -PI),
+        ("common::ball (outer)", FRAC_PI_2, -PI),
+        ("common::ball (outer)", -FRAC_PI_2, PI),
+        ("common::sphere_wedge(1) (outer)", FRAC_PI_2, -1.0),
+        ("common::sphere_wedge(1) (outer)", -FRAC_PI_2, 1.0),
+    ];
+    assert!(
+        read.len() == want.len()
+            && read.iter().zip(&want).all(|(r, w)| {
+                r.0 == w.0 && (r.1 - w.1).abs() < 1e-12 && (r.2 - w.2).abs() < 1e-12
+            }),
+        "(loop, the row's v, the step in u): {read:?}\n{}",
         turn_table(&turns)
     );
 }
