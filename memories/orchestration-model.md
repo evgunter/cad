@@ -44,6 +44,13 @@ Ev's standing instructions for implementation work:
   lane to its own cloud session rather than queue it. An orchestrator
   waiting on one lane while a dispatchable row sits idle is paying
   latency for nothing.
+  **Stack rather than wait for a merge**: work that builds on an
+  unmerged PR branches off that PR's branch and goes on, unless
+  something important is likely to change before it merges (a review
+  still able to reshape it, an open question to Ev). Bring the base
+  in by merging when it moves, and retarget to main once it lands —
+  never delete a base branch another PR stacks on
+  ([[git-workflow]]).
 - **Review tiers — the orchestrator's call per unit, at spec time**
   (Ev, 2026-09-19, dual tier 2026-09-23). The program's `log.md` or
   the unit's item file names the tier and its one-line reason at
