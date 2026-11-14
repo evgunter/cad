@@ -13,8 +13,9 @@ use super::join::{
     FrameError, FrameExtent, SectionLoop, SectionLoops, frame_refusal, germs_face_each_other,
     pair_section_frame_at,
 };
-use super::{BooleanError, Branch, HalfGerm, Locus, SpiricLoops};
+use super::{BooleanError, HalfGerm, Locus, SpiricLoops};
 use crate::entity::{FaceKey, HalfEdgeKey};
+use geom_brep::SectionPick;
 use geom_core::{Band, Point3, Tol, Vec3};
 
 fn band() -> Band {
@@ -101,7 +102,7 @@ fn served(got: Loops, what: &str) -> SectionLoops<f64> {
 }
 
 /// The branch the site `p` lies on.
-fn branch(loops: &SectionLoops<f64>, p: Point3<f64>) -> Branch {
+fn branch(loops: &SectionLoops<f64>, p: Point3<f64>) -> SectionPick {
     match loops.branch_at(p, band()) {
         Ok(branch) => branch,
         other => panic!("{p:?} lies on a loop: {other:?}"),
@@ -111,7 +112,7 @@ fn branch(loops: &SectionLoops<f64>, p: Point3<f64>) -> Branch {
 /// The loop the site `p` picks, and its index.
 fn pick(loops: &SectionLoops<f64>, p: Point3<f64>) -> (usize, SectionLoop<f64>) {
     let b = branch(loops, p);
-    let index = usize::from(b == Branch::Negative);
+    let index = usize::from(b == SectionPick::Negative);
     let lp = loops
         .pick(b)
         .unwrap_or_else(|e| panic!("{p:?} picks a loop: {e:?}"));
@@ -166,7 +167,7 @@ fn a_germ_on_a_meridian_circle_takes_that_circles_frame() {
     );
 }
 
-fn germ(dir: Vec3<f64>, branch: Branch) -> HalfGerm<f64> {
+fn germ(dir: Vec3<f64>, branch: SectionPick) -> HalfGerm<f64> {
     HalfGerm {
         he: HalfEdgeKey::default(),
         a_face: FaceKey::default(),
