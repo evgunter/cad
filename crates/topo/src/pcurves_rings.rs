@@ -131,10 +131,11 @@ pub enum RingPlacementError {
         /// The in-band decision.
         cause: Option<Indeterminate>,
     },
-    /// The face's chart is a spline chart, whose reading of a point
-    /// against the outer loop is its trim's, in the boolean engine,
-    /// which this door at the crate root does not reach
-    /// (`crates/topo/README.md` `[topo.homes]`).
+    /// This door does not read a spline chart yet: it says nothing about
+    /// the face's rings, which the spline trim places itself, by the same
+    /// rule, inside the boolean engine, which a door at the crate root
+    /// does not reach (`crates/topo/README.md` `[topo.homes]`;
+    /// `work/tesslane/the-ring-door-reads-a-spline-face-through-the-trims-point-reader-at-the-root`).
     SplineChart,
 }
 
