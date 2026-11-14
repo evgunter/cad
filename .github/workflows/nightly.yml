@@ -754,17 +754,29 @@ jobs:
           ')
           echo "features: $features"
           echo "list=$features" >> "$GITHUB_OUTPUT"
+      # `cargo test --no-run` is the build nextest itself asks cargo for, so
+      # the suite step rebuilds nothing; `nextest run --no-run` would also
+      # list every binary, and a listing that blocks would read as the build.
       - name: build
         timeout-minutes: 60
-        run: cargo nextest run --workspace --exclude viewer --features "${{ steps.features.outputs.list }}" --no-run
+        run: |
+          cargo test --workspace --exclude viewer --features "${{ steps.features.outputs.list }}" \
+            --no-run --message-format json-render-diagnostics > "$RUNNER_TEMP/build.json"
+      - name: list every test binary (a listing that blocks is named here)
+        timeout-minutes: 15
+        run: scripts/list-test-binaries.py "$RUNNER_TEMP/build.json"
+      # The budget sits below the step's limit so that a long run is
+      # interrupted by nextest and still writes the report read below.
       - name: the suite, every feature on
         timeout-minutes: 30
         run: |
           r=0
-          cargo nextest run --profile ci --workspace --exclude viewer \
+          timeout --signal=INT 25m \
+            cargo nextest run --profile ci --workspace --exclude viewer \
             --features "${{ steps.features.outputs.list }}" \
             --no-fail-fast || r=$?
           scripts/nextest-failures.py "all-features" "$r"
+          [ "$r" -ne 124 ] || echo "::error title=all-features ran out of time::the suite stopped at its 25-minute budget; the tests it was running are reported failed, and those it had not started ran nowhere"
           exit "$r"
       - name: failing tests (name, panic, seed)
         if: failure()

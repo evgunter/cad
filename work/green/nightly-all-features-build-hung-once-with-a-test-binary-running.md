@@ -2,11 +2,12 @@
 id: nightly-all-features-build-hung-once-with-a-test-binary-running
 kind: issue
 title: The nightly all-features row's build step hung once for two hours with an all-* test binary running under nextest --no-run
-status: open
+status: closed
 opened: 2026-10-28
 priority: P3
 cost: E
 parent: nightly-jobs-that-do-not-finish-or-read-nothing
+closed: 2026-11-14
 ---
 
 
@@ -48,3 +49,22 @@ list --message-format json` maps binary ids to hashes. Then check whether
 nextest 0.9.140 executes a test binary under `--no-run`; listing it for
 `--list` is the only reason it would. A `--list` that blocks would point
 at a static initialiser in that binary.
+
+## Closed
+
+2026-11-14, GREEN's `green/nightly-jobs` lane. The question this row
+asked, whether nextest 0.9.140 runs a test binary under `--no-run`, has
+an answer: it does. `strace -f -e execve` over `cargo nextest run
+--no-run` shows every test binary executed twice, `--list --format
+terse` and then with `--ignored`. So the hung process was a binary
+being listed, inside the step named `build`.
+
+On today's tree no listing blocks: all 34 test binaries of the
+all-features build (the tree at `f42cadd6`, built locally with the nightly's
+env and feature list) list in 0.2 s together. The step that hung is
+now `cargo test --no-run` alone, and `scripts/list-test-binaries.py`
+lists each binary in its own step under a two-minute bound, naming the
+package and target of one that blocks. A repeat is read there.
+
+The 11-13 overrun of the same step (no log) is
+`the-all-features-build-overran-its-hour-on-11-13-for-an-unread-reason`.
