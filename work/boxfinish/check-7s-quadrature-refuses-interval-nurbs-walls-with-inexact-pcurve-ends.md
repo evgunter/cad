@@ -2,12 +2,13 @@
 id: check-7s-quadrature-refuses-interval-nurbs-walls-with-inexact-pcurve-ends
 kind: issue
 title: Check 7's quadrature refuses an Interval NURBS wall whose pcurve ends are not exact 0/1, so a boxed loft cannot finish
-status: dispatched
+status: closed
 opened: 2026-11-02
 priority: P1
 cost: M
 refs: [6371]
 branch: boxfinish/chart-ends
+closed: 2026-11-14
 ---
 
 Split from `the-sweep-doors-finish-refuses-what-the-box-studies-read`
@@ -66,3 +67,23 @@ stored so that it reads as one. Branch `boxfinish/chart-ends`.
 **Letter M; review tier: single, FULL.** What reads as exact feeds the
 rectangle-trim certificate, so an end wrongly read as exact certifies a
 volume over the wrong region.
+
+## Closed (2026-11-14, PR 6959)
+
+A line rim's chart image stores the chart ends its mint placed it by
+(`Pcurve::IsoLine { ends }`, read through `Pcurve::span_ends`), so an
+end that is the chart's 0 or 1 reads as exact at every scalar and the
+rectangle certificate is offered. An `Interval` loft finishes at its
+taker and, with the switch off, at its door. A stated end's distance
+from its map is a term of the envelope the certificate pads by, and the
+domain gate reads the stated ends.
+
+What it did not cure has its own files:
+- `an-iso-line-states-its-ends-twice-as-its-map-and-as-stored-ends`
+  (the representation: the ends are stated twice), and parked on it
+  `an-iso-arc-rims-end-reads-through-its-map-at-interval`;
+- `a-re-minted-split-rims-row-reads-its-kept-corner-through-its-map`
+  (a split `Interval` loft still refuses check 7);
+- `no-interval-fixture-exercises-a-leaf-that-does-not-finish-at-its-take`
+  (`NotAtRest` coverage at a box scalar);
+- `work/onehome/an-unfinished-leaf-names-the-copy-that-was-not-turned.md`.

@@ -224,6 +224,7 @@ fn spec_of<T: Real>(
         Stated::Iso => Pcurve::IsoLine {
             p0: Point2::new(c(p0[0]), c(p0[1])),
             pl: Vec2::new(c(p1[0] - p0[0]), c(p1[1] - p0[1])),
+            ends: None,
         },
         Stated::General => {
             let line = NurbsCurve2::new(
