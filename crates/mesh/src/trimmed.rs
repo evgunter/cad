@@ -537,12 +537,6 @@ pub(crate) fn tessellate_trimmed(
     // cells, and dropping a location rather than one cell's copy of it
     // is what keeps the retry ladder strictly shrinking (module docs).
     let mut dropped = near_boundary(&candidates, &polygon, (u0, u1), (v0, v1));
-    if !dropped.is_empty() && face.rings.is_empty() {
-        panic!(
-            "PROBE-NEAR {fk:?}: {} candidates within rounding of a ringless face's boundary",
-            dropped.len()
-        );
-    }
     // THE FALSIFICATION ACCUMULATOR, deliberately OUTSIDE the retry
     // loop and reset by nothing.
     //
