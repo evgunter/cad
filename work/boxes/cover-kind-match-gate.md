@@ -2,11 +2,10 @@
 id: cover-kind-match-gate
 kind: unit
 title: A tree gate: no per-kind Surface or Curve3 match that builds a box, support, reach or ball outside the cover modules
-status: parked
+status: open
 opened: 2026-11-02
 priority: P1
 cost: M
-blocked_on: [cover-levers]
 ---
 
 
