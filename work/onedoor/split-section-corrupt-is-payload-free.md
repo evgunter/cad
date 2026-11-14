@@ -60,6 +60,8 @@ the eight raises is a record miss on the join's scratch body, so by D2
   the `Unresolved` it used to drop.
 - `SectionError::Corrupt` and its `Display` arm are gone. The
   lone-vertex below loop stays the typed `SectionInvariant`.
-- `review_d18::torn_bodies_fail_reads_only_on_a_row_four_premise`
-  walks every loop of its torn bodies through `section_walk`, floored
-  on a premise panic.
+- `section::torn_walk` tears a cube loop one record at a time (the
+  loop, a claim, a curve, a point) and expects each panic by its
+  message. `review_d18`'s torn sweep does not gain the walk as a door:
+  that needs `section_walk` visible crate-wide, which `[topo.homes]`
+  (`engine-leaves.sh`) refuses.
