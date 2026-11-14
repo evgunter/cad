@@ -1,6 +1,5 @@
 //! **A far, generic-pose cylinder or torus wall reads its loops' whole
-//! turns at every ε.** Tier 3's certificate walk re-derives its round at
-//! the interval scalar, where each edge's whole-turn miss
+//! turns at the interval scalar** where each edge's miss
 //! (`props_chart_loop_whole`) is stated where it is exact: a ruling's
 //! short turn misses its ends by nothing, and a rim's or a parallel's
 //! carried turn is read about its own centre. Read back about the axis,
@@ -9,19 +8,20 @@
 //!
 //! - **An arc-topped block on a tilted sketch**: a `1 × 1` loop whose top
 //!   side is an arc of radius [`R`], extruded `0.7`, measures
-//!   `0.7·(1 + segment)`.
+//!   `0.7·(1 + segment)` at every ε.
 //! - **A tilted hollow tube** (axis `(1, 1, 1)/√3`, outer radius `2.5`,
-//!   wall `1 mm`, a full period) measures its shell at majors 300 and
-//!   600. At majors 990 and 1100 and ε = 1e-12 it still escalates
-//!   `props_chart_loop_whole`, on the two whole-turn parallels' carried
-//!   misses: the width of each parallel's two ends, evaluated apart, at a
-//!   lever of about 1 km
-//!   (`work/spiricarm/a-whole-turn-parallels-ends-are-read-apart-at-the-interval-scalar.md`).
-//!   That arm is pinned, and turns red when that row lands.
+//!   wall `1 mm`, a full period) measures its shell at majors 300 and 600
+//!   at every ε, and at majors 990 and 1100 above ε = 1e-12. There it
+//!   still escalates `props_chart_loop_whole`: a carried arc is charged
+//!   its ends' enclosure width, which grows with their distance from the
+//!   origin
+//!   (`work/nearpoint/a-carried-arcs-miss-is-charged-its-ends-enclosure-width-at-the-interval-scalar.md`).
+//!   That arm is pinned, typed, and turns red when that row lands.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use core::f64::consts::PI;
 
+use geom_brep::props::PropsError;
 use geom_core::{Point2, Point3, Tol, Vec3};
 use profile::{Profile, test_support::bulge_loop};
 use sweep::test_support::{sketch_from_axes, tube_frame};
@@ -93,18 +93,27 @@ fn a_tilted_hollow_tube_measures() {
         );
         let got = tube_along_arc_hollow::<f64>(frame, major, TubeWindow::Full, outer, wall, tol);
         if major > 900.0 && tol.eps() <= 1e-12 {
-            let pinned = matches!(
-                &got,
-                Err(TubeError::Revolve(RevolveError::NotFinished { findings }))
-                    if findings.iter().all(|f| matches!(
-                        f,
-                        topo::ValidationError::VolumeUncomputable { .. }
-                    )) && format!("{findings:?}").contains("props_chart_loop_whole")
-            );
+            let pinned = match &got {
+                Err(TubeError::Revolve(RevolveError::NotFinished { findings })) => {
+                    findings.as_slice().iter().all(|f| {
+                        matches!(
+                            f,
+                            topo::ValidationError::VolumeUncomputable {
+                                source: topo::MassPropsError::Face {
+                                    source: PropsError::Escalated { cause, .. },
+                                    ..
+                                },
+                                ..
+                            } if cause.predicate == Some("props_chart_loop_whole")
+                        )
+                    })
+                }
+                _ => false,
+            };
             assert!(
                 pinned,
                 "major {major}: pinned to escalate props_chart_loop_whole at ε 1e-12; \
-                 if it built, the whole-turn parallel row landed and this arm lifts: {got:?}"
+                 if it built, the carried-arc row landed and this arm lifts: {got:?}"
             );
             continue;
         }

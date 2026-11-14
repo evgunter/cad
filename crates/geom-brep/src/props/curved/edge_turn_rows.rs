@@ -144,3 +144,107 @@ fn a_rims_carried_turn_off_its_ends_refuses() {
     rows::<f64>("f64");
     rows::<geom_core::Interval>("the interval scalar");
 }
+
+/// The frame of a far generic pose: origin `(30, −110, 200)`, axis
+/// `(1, 1, 1)/√3`, and two axes across it.
+fn far_frame<T: Decide>() -> (Point3<T>, Vec3<T>, Vec3<T>, Vec3<T>) {
+    let (s3, s2, s6) = (
+        3.0_f64.sqrt().recip(),
+        2.0_f64.sqrt().recip(),
+        6.0_f64.sqrt().recip(),
+    );
+    (
+        p(30.0, -110.0, 200.0),
+        v(s3, s3, s3),
+        v(s2, -s2, 0.0),
+        v(s6, s6, -2.0 * s6),
+    )
+}
+
+/// The patch `u ∈ [0, span]`, `z ∈ [0, 1]` of the far cylinder of radius
+/// `radius`, walked with the material on its left or (`reversed`) the
+/// other way round; its lower rim's parsed turn is `span + off/radius`.
+fn far_patch<T: Decide>(
+    radius: f64,
+    span: f64,
+    off: f64,
+    reversed: bool,
+    band: Band,
+) -> Result<Vec<[i64; 1]>, PropsError> {
+    let (o, n, x, y) = far_frame::<T>();
+    let r = T::from_f64(radius);
+    let rim = |z: f64, forward: bool| {
+        LoopEdge::hand_built(
+            Curve3::circle(o + n * T::from_f64(z), n, r, x),
+            T::zero(),
+            T::from_f64(span),
+            forward,
+            0,
+            0,
+        )
+    };
+    let ruling = |u: f64, forward: bool| {
+        let (s, c) = u.sin_cos();
+        LoopEdge::hand_built(
+            Curve3::line(o + (x * T::from_f64(c) + y * T::from_f64(s)) * r, n),
+            T::zero(),
+            T::one(),
+            forward,
+            0,
+            0,
+        )
+    };
+    let d = T::from_f64(span + off / radius);
+    let (edges, rims) = if reversed {
+        (
+            [
+                ruling(0.0, true),
+                rim(1.0, true),
+                ruling(span, false),
+                rim(0.0, false),
+            ],
+            [(T::one(), T::from_f64(span)), (T::zero(), -d)],
+        )
+    } else {
+        (
+            [
+                rim(0.0, true),
+                ruling(span, true),
+                rim(1.0, false),
+                ruling(0.0, false),
+            ],
+            [(T::zero(), d), (T::one(), -T::from_f64(span))],
+        )
+    };
+    cylinder_windings(o, n, r, &[&edges], &rims, &[(0, T::from_f64(2.0))], band)
+}
+
+/// **A far partial rim's carried turn off its ends refuses**, walked
+/// either way round, at `f64` and at the interval scalar: an arc's own
+/// arms are not `(r², 0)`, so a carried miss read off the arms reversed,
+/// or off a turn other than the one swept, measures one of these.
+#[test]
+fn a_far_partial_rims_carried_turn_off_its_ends_refuses() {
+    fn rows<T: Decide>(scalar: &str) {
+        let band = band();
+        for reversed in [false, true] {
+            for (radius, span) in [(213.0, 1.0), (213.0, 4.0), (50.0, 0.3)] {
+                let what = format!("r {radius} span {span} reversed {reversed} at {scalar}");
+                assert_eq!(
+                    far_patch::<T>(radius, span, 0.0, reversed, band),
+                    Ok(vec![[0]]),
+                    "the patch, {what}"
+                );
+                for sign in [1.0, -1.0] {
+                    assert_eq!(
+                        far_patch::<T>(radius, span, sign * past(band), reversed, band),
+                        Err(PropsError::LoopsWindChart),
+                        "a rim's turn off its ends ({sign}), {what}"
+                    );
+                }
+            }
+        }
+    }
+    rows::<f64>("f64");
+    rows::<geom_core::Interval>("the interval scalar");
+}

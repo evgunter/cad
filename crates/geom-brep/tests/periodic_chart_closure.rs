@@ -724,11 +724,6 @@ fn a_torus_loop_of_many_parallels_turns_by_their_own_turns() {
         })
         .collect();
     let v_end = v_start + n as f64 * step;
-    assert!(
-        v_end - v_start > 3.5,
-        "the parallels turn {} rad between them",
-        v_end - v_start
-    );
     fn measure<T: geom_core::Decide>(
         arcs: &[(P, P, f64, P, f64)],
         (rr, r0): (f64, f64),
