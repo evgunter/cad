@@ -2,9 +2,10 @@
 id: the-editor-verdict-re-evaluates-on-every-drag-frame
 kind: issue
 title: The placement editor derives its draft's bundle every frame and solves each change twice
-status: dispatched
+status: review
 opened: 2026-11-02
 branch: placing/p3-editor-batch
+pr: 6919
 ---
 
 

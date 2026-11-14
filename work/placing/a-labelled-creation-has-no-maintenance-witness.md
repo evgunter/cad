@@ -2,11 +2,12 @@
 id: a-labelled-creation-has-no-maintenance-witness
 kind: issue
 title: No creation's run reports maintenance any more, so the labelled-creation netting row compares empty rows
-status: dispatched
+status: review
 opened: 2026-11-08
 priority: P3
 cost: E
 branch: placing/p3-editor-batch
+pr: 6919
 ---
 
 
