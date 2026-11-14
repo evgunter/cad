@@ -116,6 +116,8 @@
 //! | `arc_sweep_length` | the arc length r·Δθ, definitely nonzero (its sign the turn sense) | radius |
 //! | `arc_sweep_range` | the gap r·(2π − \|Δθ\|) to a full turn (the turn rule): definitely positive for a chord arc, zero for a full turn | radius |
 //! | `arc_diameter_clearance` | 2r − half-span chord | ≈ L²/16r near full arcs |
+//! | `segment_direction` | a table's recorded direction walked its length: ‖o + ℓ·d − p‖ (o the start or centre, p the vertex) | direct |
+//! | `segment_direction_resolution` | K·ε/(8·2⁻⁵²) less the reading's magnitude | direct |
 //! | `chord_side` | ⟂ distance to chord line | direct |
 //! | `circle_side` | ‖q − c‖ − r | direct |
 //! | `line_span` | min(t, L−t) along carrier | direct |
