@@ -940,24 +940,6 @@ fn a_filleted_corners_ball_holds_against_a_face_at_its_pole() {
 /// half of an axis, so it is admitted by the other half narrowing.
 #[test]
 fn a_long_helical_sweep_certifies_within_the_default_budget() {
-    // Pinned red at ε = 1e-12: each station's frame is minted at
-    // `Interval`, about 1.4e-13 wide, and the wall fitted through the
-    // stations reads against the 1e-12 band, where `pcurve_loop_continuity` escalates on an enclosure of ±2.1e-12
-    // (`work/onehome/three-path-sweeps-refuse-at-1e-12-over-station-frames-minted-at-interval`).
-    test_utils::pinned_red::row(
-        Tol::witness().eps(),
-        &[1e-12],
-        "the long helical sweep",
-        &[
-            "the helix sweeps: Pcurve(Escalated",
-            "predicate: Some(\"pcurve_loop_continuity\")",
-        ],
-        a_long_helical_sweep_certifies_within_the_default_budget_row,
-    );
-}
-
-/// The row [`a_long_helical_sweep_certifies_within_the_default_budget`] runs, under its pin.
-fn a_long_helical_sweep_certifies_within_the_default_budget_row() {
     fn helical<T: Scalar>() -> Body<T> {
         let path = helix(2.0, 0.4);
         let place = plane_at(&normal_start_place(&path));
@@ -1087,9 +1069,10 @@ fn an_arc_spine_short_of_a_full_turn_holds() {
 /// two caps lie on one plane at `(3, 0, 0)`.
 #[test]
 fn a_closed_spine_reads_violated_top_against_bottom() {
-    // Pinned red at ε = 1e-12: each station's frame is minted at
-    // `Interval`, about 1.4e-13 wide, and the wall fitted through the
-    // stations reads against the 1e-12 band, where `pcurve_loop_continuity` escalates on an enclosure of ±4.7e-11
+    // Pinned red at ε = 1e-12: a cap rim's end parameter is an
+    // enclosure at `Interval`, so its exact boundary-row image is not
+    // picked and the rim stores a fitted pcurve, whose loop joint (half
+    // edge 18v1) escalates on an enclosure of ±4.5e-11
     // (`work/onehome/three-path-sweeps-refuse-at-1e-12-over-station-frames-minted-at-interval`).
     test_utils::pinned_red::row(
         Tol::witness().eps(),
@@ -1251,17 +1234,18 @@ fn arc_spine_walls_with_knots_ulps_off_their_splits_hold_against_themselves() {
 /// exact, so none sits ulps off a split point.
 #[test]
 fn the_s_duct_walls_hold_against_themselves() {
-    // Pinned red at ε = 1e-12: each station's frame is minted at
-    // `Interval`, about 1.4e-13 wide, and the wall fitted through the
-    // stations reads against the 1e-12 band, where `pcurve_map_residual` escalates on an enclosure reaching 1.0e-12
+    // Pinned red at ε = 1e-12: a cap rim's end parameter is an
+    // enclosure at `Interval`, so its exact boundary-row image is not
+    // picked and the rim stores a fitted pcurve, whose loop joint (half
+    // edge 20v1) escalates on an enclosure of ±1.9e-12
     // (`work/onehome/three-path-sweeps-refuse-at-1e-12-over-station-frames-minted-at-interval`).
     test_utils::pinned_red::row(
         Tol::witness().eps(),
         &[1e-12],
         "the S duct",
         &[
-            "the S path sweeps: Euler(Certification",
-            "predicate: Some(\"pcurve_map_residual\")",
+            "the S path sweeps: Pcurve(Escalated",
+            "predicate: Some(\"pcurve_loop_continuity\")",
         ],
         the_s_duct_walls_hold_against_themselves_row,
     );

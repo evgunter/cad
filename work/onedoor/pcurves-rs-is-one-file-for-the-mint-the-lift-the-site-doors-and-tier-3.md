@@ -2,8 +2,10 @@
 id: pcurves-rs-is-one-file-for-the-mint-the-lift-the-site-doors-and-tier-3
 kind: issue
 title: pcurves.rs is one eleven-thousand-line file for the mint, the lift, the site doors and tier 3
-status: open
+status: dispatched
 opened: 2026-11-13
+priority: P4
+cost: M
 ---
 
 Found by `onedoor/three-walks` (2026-11-13), in the fix pass for PR 6900.

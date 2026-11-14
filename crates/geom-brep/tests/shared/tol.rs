@@ -10,8 +10,6 @@
 //! (a fixed 1e-9 .. 1e-8), `pcurve_p1a_meter.rs` (twice — `ROW_EPS`
 //! and a fixed 1e-9 .. 1e-8), `r2_probes.rs` (`4·DRIFT .. 40·DRIFT`),
 //! `pcurve_p1b_r2_probes.rs` (a fixed 1e-6 zero carrying the run's K),
-//! `span_reach_differential.rs` (twice — 1e-12 with the run's K, the ε
-//! its pinned counterexamples were drawn at) and
 //! `coplanar_ellipses_one_locus.rs` (three named ε with the run's K,
 //! through `Band::linear_at`) and `section_bounds.rs` (a fixed 1e-6 ..
 //! 1e-5, so a cone section beside its apex is still minted). Each says at its own site why

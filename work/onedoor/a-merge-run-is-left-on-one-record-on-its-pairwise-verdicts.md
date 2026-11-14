@@ -4,6 +4,9 @@ kind: issue
 title: A merge run is left on one record on its pairwise margins, not on one verdict read over every face the act moves
 status: open
 opened: 2026-11-11
+priority: P2
+cost: H
+design: true
 ---
 
 

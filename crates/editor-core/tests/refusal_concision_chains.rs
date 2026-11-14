@@ -50,7 +50,7 @@ const KERNEL_KEYED: &[&str] = &[
     "Split/Reduce/LoneVertex",
     "Split/Reduce/NullEdgeAtVertex",
     "Split/Reduce/UnrecordedSide",
-    "Split/Reduce/UnboundedFace",
+    "Split/Reduce/UncoveredFace",
     "Split/Reduce/CrossingInsertion",
     "Split/Reduce/LineageRow",
     "Split/Join/LineageRow",
@@ -306,7 +306,7 @@ pub(crate) const FILED_NO_RECOURSE: &[&str] = &[
     "Split/Reduce/LoneVertex",
     "Split/Reduce/NullEdgeAtVertex",
     "Split/Reduce/UnrecordedSide",
-    "Split/Reduce/UnboundedFace",
+    "Split/Reduce/UncoveredFace",
     // work/lathe/carve-refusals-short-of-the-shape-guard.md
     "Blend/SurgeryInvariant",
     "Extrude/CapPlane",
@@ -870,7 +870,7 @@ mod kernel {
             Band, ChainNotConnected, RadiusHeadroom, FaceClearanceUncertified,
             FaceClearance, KnifeEdge, BallDoesNotFit, SpineIrregular, ChainNotG1,
             ConvexitySignFlip, UnsupportedCorner, SpineUnsupported,
-            ChamferArmUnsupported, Escalated, RepeatedEdge, NonpositiveSize,
+            ChamferArmUnsupported, WedgeUnsettled, Escalated, RepeatedEdge, NonpositiveSize,
             UnsupportedChain, UnsupportedRunOut, UnsupportedGeometry, BodyNotIntact,
             NotFinished, SurgeryInvariant,
             RingClearance, WhollyInside, Certify, Op, Join,
@@ -949,7 +949,7 @@ mod kernel {
             SectionGermsUnordered, ApexSection, VertexNearConeAxis, ApexUndecided, NonFiniteSectorChord,
             UnderflowedSectorChord,
             ConsecutiveOnSectors, StaleVertex, LoneVertex, NullEdgeAtVertex,
-            UnrecordedSide, UnboundedFace, CrossingInsertion, Euler, LineageRow,
+            UnrecordedSide, UncoveredFace, CrossingInsertion, Euler, LineageRow,
         ];
     }
 
@@ -2474,7 +2474,16 @@ fn split() -> Vec<(String, NodeErrorKind)> {
             },
         ),
         ("UnrecordedSide", R::UnrecordedSide { vertex }),
-        ("UnboundedFace", R::UnboundedFace { face, vertex }),
+        (
+            "UncoveredFace",
+            R::UncoveredFace {
+                face,
+                why: topo::FaceUncovered::of_carrier(geom::cover::Uncovered::new(
+                    geom::cover::Entity::Surface(geom::SurfaceKind::Plane),
+                    geom::cover::Unknown::Unbounded,
+                )),
+            },
+        ),
         (
             "CrossingInsertion",
             R::CrossingInsertion {
@@ -3789,11 +3798,10 @@ fn blend() -> Vec<(String, NodeErrorKind)> {
             },
         ),
         (
-            "KnifeEdge(never opens)",
-            E::KnifeEdge {
+            "WedgeUnsettled(lamina)",
+            E::WedgeUnsettled {
                 edge,
-                margin: decided("fillet3_knife_end", 0.0, Sign::Zero),
-                refusal: KnifeRefusal::NeverOpens,
+                wedge: sweep::blend::UnsettledWedge::Lamina,
             },
         ),
         (

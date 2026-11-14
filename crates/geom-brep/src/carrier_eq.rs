@@ -353,7 +353,7 @@ impl<T: geom_core::Real> ConsumedExtent<T> {
     #[cfg(any(test, feature = "test-support"))]
     #[doc(hidden)]
     pub fn arm(arm: T) -> Self {
-        Self::new(crate::ExtentBall::of_sphere(Point3::origin(), arm))
+        Self::new(crate::ExtentBall::fixture(Point3::origin(), arm))
     }
 }
 
@@ -1553,10 +1553,7 @@ mod tests {
             1.0,
             true,
         );
-        let ext = ConsumedExtent::new(crate::ExtentBall::of_sphere(
-            Point3::new(1.0, 0.0, 0.0),
-            1e-3,
-        ));
+        let ext = ConsumedExtent::new(crate::ExtentBall::fixture(Point3::new(1.0, 0.0, 0.0), 1e-3));
         assert!(matches!(
             carrier_eq(&ring, &other, &ext, b),
             Err(CarrierEqError::Undecided { .. })
