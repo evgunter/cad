@@ -157,7 +157,9 @@ use std::collections::HashMap;
 
 use geom::Surface;
 use geom_core::{Band, Point3};
-use spade::{ConstrainedDelaunayTriangulation, Point2 as SpadePoint, Triangulation};
+use spade::{
+    ConstrainedDelaunayTriangulation, Point2 as SpadePoint, Triangulation, mitigate_underflow,
+};
 use topo::props::LoopEdgesError;
 use topo::{Body, EdgeKey, FaceKey, LoopKey};
 
@@ -316,8 +318,16 @@ pub(crate) fn tessellate_curved(
                   id: PatchVertex,
                   pole: bool|
      -> Result<spade::handles::FixedVertexHandle, TessellateError> {
+        // Spade's coordinate floor, as `planar`'s insert feed meets it
+        // (its module docs, "The floor under it"): a coordinate in
+        // `(0, MIN_ALLOWED_VALUE)` is one `insert` refuses outright, and
+        // in a chart it is the float residue of an exact zero — a
+        // column whose dot with `v_ref` cancels, as on a turned ball's
+        // seam meridian. It enters as `0.0`; every other value, NaN and
+        // infinity included, passes bit-identical. `meta` keeps the
+        // chart's own `(u, v)`, which is all the emit pass reads.
         let h = cdt
-            .insert(SpadePoint::new(u, v))
+            .insert(mitigate_underflow(SpadePoint::new(u, v)))
             .map_err(|_| TessellateError::Triangulation { face: fk })?;
         if h.index() == meta.len() {
             meta.push((u, v, id, pole));

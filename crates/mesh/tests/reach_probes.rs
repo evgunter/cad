@@ -513,12 +513,10 @@ fn a_torus_wall_holding_a_spiric_ring_refuses_at_the_curved_lanes_ring_guard() {
 
 /// **A ball face holed by a tilted tube's rim.** `sweep`'s
 /// `a_tube_ending_on_a_ball` pose "tilted 1.2": the rim crosses neither
-/// seam meridian and stays a ring of one half-band. Ball ∪ tube and
+/// seam meridian and stays a ring of one half-band. Both unions and
 /// ball ∖ tube refuse at the curved lane's ring guard (the ring's
 /// projected circles are not on the outer loop, which is what
-/// `trimmed::has_tilted_circle` reads). Tube ∪ ball refuses
-/// `Triangulation` first, on the OTHER half-band, which has no ring:
-/// the ball's own faces refuse it ([`a_z_poled_ball_of_radius_root_two`]).
+/// `trimmed::has_tilted_circle` reads).
 #[test]
 fn a_ball_face_holding_a_tilted_ring_refuses_at_the_curved_lanes_ring_guard() {
     let tube = posed(
@@ -534,7 +532,7 @@ fn a_ball_face_holding_a_tilted_ring_refuses_at_the_curved_lanes_ring_guard() {
         &ball,
         &[2e-2, 5e-3, 1e-3],
         &[
-            Got::Triangulation(SurfaceKind::Sphere),
+            ring.clone(),
             ring.clone(),
             Got::Meshed,
             Got::Meshed,
@@ -544,22 +542,21 @@ fn a_ball_face_holding_a_tilted_ring_refuses_at_the_curved_lanes_ring_guard() {
     );
 }
 
-/// **The `z`-poled ball of radius `√2` does not mesh; radius 1 does.**
+/// **The `z`-poled ball meshes at every radius.**
 /// `sweep::test_support::ball_poled_z` turns a revolved ball a quarter
-/// turn about `x`. At radius `√2` both of its faces refuse
-/// `Triangulation`: `curved::tessellate_curved`'s `insert` closure hands
-/// the CDT a pole entry whose azimuth is `−4.8e−49`, which `spade`
-/// refuses as a coordinate. No ring and no trim is involved.
+/// turn about `x`, which leaves its chart axis at `(0, cos(π/2), 1)`
+/// with `cos(π/2) = 6.1e−17` in floats. The seam meridian's column is
+/// `atan2(p · v_ref, p · u_ref)` at the meridian's mid point, and
+/// `p · v_ref` is the residue of an exact zero. At `r = 1` and `0.3`
+/// it rounds to `0.0`; at `r = √2` it is `−6.8e−49`, a nonzero below
+/// spade's coordinate floor, so the column `u = −4.8e−49` reached
+/// `insert` and the face refused, as at `r = 0.1` and at roughly a
+/// third of the radii in `[0.1, 10]`. The curved lane's CDT feed meets
+/// that floor as `planar`'s does.
 #[test]
 fn a_z_poled_ball_of_radius_root_two() {
     let deltas = [2e-2, 5e-3];
-    assert_at_every(
-        "the z-poled ball, r = √2",
-        &ball_poled_z(SQRT_2, Vec3::zero(), tol()),
-        &deltas,
-        &Got::Triangulation(SurfaceKind::Sphere),
-    );
-    for r in [1.0, 0.3] {
+    for r in [SQRT_2, 0.1, 1.0, 0.3] {
         assert_at_every(
             &format!("the z-poled ball, r = {r}"),
             &ball_poled_z(r, Vec3::zero(), tol()),

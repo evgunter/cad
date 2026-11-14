@@ -168,7 +168,9 @@ use geom::Surface;
 use geom_brep::Pcurve;
 use geom_core::Point3;
 use spade::handles::FixedVertexHandle;
-use spade::{ConstrainedDelaunayTriangulation, Point2 as SpadePoint, Triangulation};
+use spade::{
+    ConstrainedDelaunayTriangulation, Point2 as SpadePoint, Triangulation, mitigate_underflow,
+};
 use topo::{Body, EdgeKey, FaceKey};
 
 use crate::cert;
@@ -844,12 +846,18 @@ impl TrimmedFace<'_> {
     /// of two, so the product is exact and every coincidence in UV is
     /// one in the CDT. Only the CDT sees these: `meta`, the creases,
     /// the polygon's orientation and every certificate read UV.
+    ///
+    /// The point then meets spade's coordinate floor as `planar`'s
+    /// insert feed does (its module docs, "The floor under it"): a
+    /// coordinate in `(0, MIN_ALLOWED_VALUE)`, which the bulk loader
+    /// refuses outright, is the residue of an exact zero and enters as
+    /// `0.0`; every other value passes bit-identical.
     fn cdt_point(&self, u: f64, v: f64) -> SpadePoint<f64> {
-        if self.metric > 1.0 {
+        mitigate_underflow(if self.metric > 1.0 {
             SpadePoint::new(u / self.metric, v)
         } else {
             SpadePoint::new(u, v * self.metric)
-        }
+        })
     }
 
     /// The face's outward normal direction at `p`, on an analytic arm:
